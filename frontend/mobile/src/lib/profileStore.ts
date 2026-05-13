@@ -63,6 +63,7 @@ export const RISK_CONFIG: Record<RiskTolerance, { label: string; icon: string; p
 interface AppStore {
   profile: UserProfile | null;
   setProfile: (p: UserProfile) => void;
+  logout: () => void;
   sidebarOpen: boolean;
   openSidebar: () => void;
   closeSidebar: () => void;
@@ -71,6 +72,7 @@ interface AppStore {
 export const useAppStore = create<AppStore>((set) => ({
   profile: null,
   setProfile: (p) => set({ profile: p }),
+  logout: () => set({ profile: null, sidebarOpen: false }),
   sidebarOpen: false,
   openSidebar: () => set({ sidebarOpen: true }),
   closeSidebar: () => set({ sidebarOpen: false }),

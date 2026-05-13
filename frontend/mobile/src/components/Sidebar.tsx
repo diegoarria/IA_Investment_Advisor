@@ -6,6 +6,7 @@ import {
 import { router, usePathname } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAppStore, RISK_CONFIG, getAge } from "../lib/profileStore";
+import { usePortfolioStore } from "../lib/portfolioStore";
 import { useTheme } from "../lib/ThemeContext";
 
 const SIDEBAR_WIDTH = Math.min(Dimensions.get("window").width * 0.78, 300);
@@ -113,9 +114,20 @@ function NavItems({
 
 // ─── Web: permanent sidebar ───────────────────────────────────────────────────
 
+function useLogout() {
+  const logout = useAppStore((s) => s.logout);
+  const clearPortfolio = usePortfolioStore((s) => s.clearPortfolio);
+  return () => {
+    clearPortfolio();
+    logout();
+    router.replace("/");
+  };
+}
+
 function WebSidebar() {
   const { colors, isDark, toggle } = useTheme();
   const pathname = usePathname();
+  const handleLogout = useLogout();
 
   return (
     <View style={[styles.webPanel, { backgroundColor: colors.card, borderRightColor: colors.border }]}>
@@ -154,6 +166,10 @@ function WebSidebar() {
             {isDark ? "Modo claro" : "Modo oscuro"}
           </Text>
         </TouchableOpacity>
+        <TouchableOpacity style={styles.navItem} onPress={handleLogout}>
+          <Text style={styles.navIcon}>🚪</Text>
+          <Text style={[styles.navLabel, { color: "#ef4444" }]}>Cerrar sesión</Text>
+        </TouchableOpacity>
       </View>
     </View>
   );
@@ -166,6 +182,7 @@ function MobileSidebar() {
   const { sidebarOpen, closeSidebar } = useAppStore();
   const insets = useSafeAreaInsets();
   const pathname = usePathname();
+  const handleLogout = useLogout();
 
   const translateX = useRef(new Animated.Value(-SIDEBAR_WIDTH)).current;
   const overlayOpacity = useRef(new Animated.Value(0)).current;
@@ -240,6 +257,10 @@ function MobileSidebar() {
             <Text style={[styles.navLabel, { color: colors.textSub }]}>
               {isDark ? "Modo claro" : "Modo oscuro"}
             </Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.navItem} onPress={() => { closeSidebar(); handleLogout(); }}>
+            <Text style={styles.navIcon}>🚪</Text>
+            <Text style={[styles.navLabel, { color: "#ef4444" }]}>Cerrar sesión</Text>
           </TouchableOpacity>
         </View>
       </Animated.View>
