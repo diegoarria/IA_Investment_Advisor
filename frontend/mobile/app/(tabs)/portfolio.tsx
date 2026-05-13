@@ -2,8 +2,9 @@ import React, { useState, useMemo, useEffect, useCallback } from "react";
 import {
   View, Text, TouchableOpacity, TextInput, ScrollView,
   StyleSheet, ActivityIndicator, SafeAreaView, Alert,
-  RefreshControl,
+  RefreshControl, Image,
 } from "react-native";
+import * as ImagePicker from "expo-image-picker";
 import * as DocumentPicker from "expo-document-picker";
 import * as XLSX from "xlsx";
 import { marketApi } from "../../src/lib/api";
@@ -19,6 +20,7 @@ const SCENARIOS: { value: Scenario; emoji: string; label: string }[] = [
 ];
 
 interface PriceData { price: number | null; currency: string; name: string }
+interface ExtractedPosition { id: string; ticker: string; name: string; shares: number; avg_price: number }
 
 // ─── Excel helpers ─────────────────────────────────────────────────────────
 
@@ -57,6 +59,11 @@ export default function PortfolioScreen() {
   const [loadingPrices, setLoadingPrices] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
+  // Screenshot import
+  const [screenshotAnalyzing, setScreenshotAnalyzing] = useState(false);
+  const [screenshotPreview, setScreenshotPreview] = useState<ExtractedPosition[] | null>(null);
+  const [screenshotUri, setScreenshotUri] = useState<string | null>(null);
+
   // Manual add form
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ ticker: "", shares: "", avgPrice: "" });
@@ -86,80 +93,128 @@ export default function PortfolioScreen() {
     setRefreshing(false);
   };
 
+  // ── Screenshot import ──────────────────────────────────────────────────
+  const handleScreenshotImport = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== "granted") {
+      Alert.alert("Permiso requerido", "Necesitamos acceso a tu galería para leer la captura de pantalla.");
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ["images"],
+      base64: true,
+      quality: 0.6,
+      allowsMultipleSelection: false,
+    });
+
+    if (result.canceled || !result.assets?.[0]?.base64) return;
+
+    const asset = result.assets[0];
+    setScreenshotUri(asset.uri);
+    setScreenshotAnalyzing(true);
+    setScreenshotPreview(null);
+
+    try {
+      const mimeType = asset.mimeType || "image/jpeg";
+      const res = await marketApi.analyzeScreenshot(asset.base64!, mimeType);
+      const extracted: ExtractedPosition[] = (res.data.positions || []).map(
+        (p: Omit<ExtractedPosition, "id">, i: number) => ({
+          ...p,
+          id: `${p.ticker}-${i}-${Date.now()}`,
+        })
+      );
+
+      if (!extracted.length) {
+        Alert.alert(
+          "Sin posiciones detectadas",
+          res.data.error || "No se encontraron posiciones en la imagen. Intenta con una captura más clara."
+        );
+        setScreenshotUri(null);
+      } else {
+        setScreenshotPreview(extracted);
+      }
+    } catch {
+      Alert.alert("Error", "No se pudo analizar la imagen. Verifica que el backend esté corriendo.");
+      setScreenshotUri(null);
+    } finally {
+      setScreenshotAnalyzing(false);
+    }
+  };
+
+  const removeExtracted = (id: string) => {
+    setScreenshotPreview((prev) => {
+      const next = (prev ?? []).filter((p) => p.id !== id);
+      if (!next.length) {
+        setScreenshotUri(null);
+        return null;
+      }
+      return next;
+    });
+  };
+
+  const confirmScreenshotImport = () => {
+    if (!screenshotPreview?.length) return;
+    setPositions(screenshotPreview.map((p) => ({
+      ticker: p.ticker,
+      name: p.name,
+      shares: p.shares,
+      avgPrice: p.avg_price,
+    })));
+    setScreenshotPreview(null);
+    setScreenshotUri(null);
+  };
+
   // ── Manual add ─────────────────────────────────────────────────────────
   const handleAdd = async () => {
     const ticker = form.ticker.trim().toUpperCase();
     const shares = parseFloat(form.shares);
     const avgPrice = parseFloat(form.avgPrice);
-    if (!ticker || !shares || !avgPrice) {
-      Alert.alert("Completa todos los campos");
-      return;
-    }
+    if (!ticker || !shares || !avgPrice) { Alert.alert("Completa todos los campos"); return; }
     setAddingLoading(true);
     try {
       const res = await marketApi.getPrices([ticker]);
-      const info = res.data[ticker];
-      addPosition({ ticker, shares, avgPrice, name: info?.name });
-      setForm({ ticker: "", shares: "", avgPrice: "" });
-      setShowForm(false);
+      addPosition({ ticker, shares, avgPrice, name: res.data[ticker]?.name });
     } catch {
       addPosition({ ticker, shares, avgPrice });
-      setForm({ ticker: "", shares: "", avgPrice: "" });
-      setShowForm(false);
     }
+    setForm({ ticker: "", shares: "", avgPrice: "" });
+    setShowForm(false);
     setAddingLoading(false);
   };
 
   // ── Excel import ────────────────────────────────────────────────────────
   const handleExcelImport = async () => {
     try {
-      const result = await DocumentPicker.getDocumentAsync({
-        type: ["*/*"],
-        copyToCacheDirectory: true,
-      });
+      const result = await DocumentPicker.getDocumentAsync({ type: ["*/*"], copyToCacheDirectory: true });
       if (result.canceled || !result.assets?.length) return;
-
       const file = result.assets[0];
-      const response = await fetch(file.uri);
-      const buffer = await response.arrayBuffer();
-      const data = new Uint8Array(buffer);
-      const wb = XLSX.read(data, { type: "array" });
-      const sheet = wb.Sheets[wb.SheetNames[0]];
-      const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet);
+      const buffer = await (await fetch(file.uri)).arrayBuffer();
+      const wb = XLSX.read(new Uint8Array(buffer), { type: "array" });
+      const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(wb.Sheets[wb.SheetNames[0]]);
       const parsed = parseExcelRows(rows);
-
       if (!parsed.length) {
-        Alert.alert(
-          "No se encontraron posiciones",
-          "El Excel debe tener columnas con nombres como:\nTicker / Acciones / Precio\n\nRevisa el formato e intenta de nuevo."
-        );
+        Alert.alert("No se encontraron posiciones", "El Excel debe tener columnas: Ticker / Acciones / Precio");
         return;
       }
-
       Alert.alert(
         `${parsed.length} posiciones detectadas`,
         parsed.slice(0, 5).map((p) => `• ${p.ticker}: ${p.shares} acc @ $${p.avgPrice}`).join("\n") +
           (parsed.length > 5 ? `\n... y ${parsed.length - 5} más` : ""),
-        [
-          { text: "Cancelar", style: "cancel" },
-          { text: "Importar", onPress: () => setPositions(parsed) },
-        ]
+        [{ text: "Cancelar", style: "cancel" }, { text: "Importar", onPress: () => setPositions(parsed) }]
       );
     } catch {
-      Alert.alert("Error", "No se pudo leer el archivo. Asegúrate de que sea .xlsx o .csv");
+      Alert.alert("Error", "No se pudo leer el archivo.");
     }
   };
 
   // ── Simulator ──────────────────────────────────────────────────────────
   const simulate = async () => {
-    setSimLoading(true);
-    setAnalysis("");
+    setSimLoading(true); setAnalysis("");
     try {
       const res = await marketApi.getPortfolio(scenario, capital ? parseFloat(capital) : undefined);
       setAnalysis(res.data.analysis);
-    } catch {
-      setAnalysis("Error al generar el análisis. Intenta de nuevo.");
-    }
+    } catch { setAnalysis("Error al generar el análisis. Intenta de nuevo."); }
     setSimLoading(false);
   };
 
@@ -187,8 +242,8 @@ export default function PortfolioScreen() {
         <View style={s.sectionHeader}>
           <Text style={s.sectionTitle}>Mi Portafolio</Text>
           <View style={s.headerButtons}>
-            <TouchableOpacity style={s.btnSmall} onPress={() => setShowForm(!showForm)}>
-              <Text style={s.btnSmallText}>+ Agregar</Text>
+            <TouchableOpacity style={[s.btnSmall, { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border }]} onPress={() => { setShowForm(!showForm); setScreenshotPreview(null); }}>
+              <Text style={[s.btnSmallText, { color: colors.textSub }]}>+ Manual</Text>
             </TouchableOpacity>
             <TouchableOpacity style={[s.btnSmall, s.btnExcel]} onPress={handleExcelImport}>
               <Text style={s.btnSmallText}>📁 Excel</Text>
@@ -196,40 +251,111 @@ export default function PortfolioScreen() {
           </View>
         </View>
 
-        {/* Formulario de agregar manual */}
+        {/* ── BOTÓN PRINCIPAL: CAPTURA ── */}
+        <TouchableOpacity
+          style={[s.screenshotBtn, screenshotAnalyzing && s.btnDisabled]}
+          onPress={handleScreenshotImport}
+          disabled={screenshotAnalyzing}
+          activeOpacity={0.8}
+        >
+          {screenshotAnalyzing ? (
+            <View style={s.screenshotBtnInner}>
+              <ActivityIndicator color="white" size="small" />
+              <Text style={s.screenshotBtnText}>Analizando con IA...</Text>
+            </View>
+          ) : (
+            <View style={s.screenshotBtnInner}>
+              <Text style={s.screenshotBtnIcon}>📸</Text>
+              <View>
+                <Text style={s.screenshotBtnText}>Importar desde captura</Text>
+                <Text style={s.screenshotBtnSub}>La IA detecta tus posiciones automáticamente</Text>
+              </View>
+            </View>
+          )}
+        </TouchableOpacity>
+
+        {/* ── PREVIEW DE CAPTURA ── */}
+        {screenshotPreview && (
+          <View style={[s.previewCard, { backgroundColor: colors.card, borderColor: "#22c55e" }]}>
+            <View style={s.previewHeader}>
+              <View>
+                <Text style={[s.previewTitle, { color: colors.text }]}>
+                  {screenshotPreview.length} posiciones detectadas
+                </Text>
+                <Text style={[s.previewSub, { color: colors.textMuted }]}>
+                  Revisa y elimina las incorrectas antes de confirmar
+                </Text>
+              </View>
+              {screenshotUri && (
+                <Image source={{ uri: screenshotUri }} style={s.previewThumb} />
+              )}
+            </View>
+
+            {screenshotPreview.map((p) => (
+              <View key={p.id} style={[s.previewRow, { borderColor: colors.border }]}>
+                <View style={s.previewRowLeft}>
+                  <Text style={[s.previewTicker, { color: colors.text }]}>{p.ticker}</Text>
+                  {p.name !== p.ticker && (
+                    <Text style={[s.previewName, { color: colors.textMuted }]}>{p.name}</Text>
+                  )}
+                </View>
+                <View style={s.previewRowMid}>
+                  <Text style={[s.previewDetail, { color: colors.textSub }]}>
+                    {p.shares} acc
+                  </Text>
+                  <Text style={[s.previewDetail, { color: colors.textSub }]}>
+                    @ ${p.avg_price > 0 ? p.avg_price.toLocaleString() : "—"}
+                  </Text>
+                </View>
+                <TouchableOpacity onPress={() => removeExtracted(p.id)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                  <Text style={{ color: "#ef4444", fontSize: 18, fontWeight: "600" }}>×</Text>
+                </TouchableOpacity>
+              </View>
+            ))}
+
+            <View style={s.previewActions}>
+              <TouchableOpacity
+                style={[s.previewCancel, { borderColor: colors.border }]}
+                onPress={() => { setScreenshotPreview(null); setScreenshotUri(null); }}
+              >
+                <Text style={[s.previewCancelText, { color: colors.textMuted }]}>Cancelar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={s.previewConfirm} onPress={confirmScreenshotImport}>
+                <Text style={s.previewConfirmText}>✓ Agregar {screenshotPreview.length} posiciones</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
+        {/* ── FORMULARIO MANUAL ── */}
         {showForm && (
           <View style={[s.formCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <Text style={[s.formTitle, { color: colors.text }]}>Nueva posición</Text>
-            <View style={s.formRow}>
-              <TextInput
-                style={[s.formInput, { color: colors.text, backgroundColor: colors.bg, borderColor: colors.border, flex: 1 }]}
-                value={form.ticker}
-                onChangeText={(v) => setForm({ ...form, ticker: v.toUpperCase() })}
-                placeholder="Ticker (ej. AAPL)"
-                placeholderTextColor={colors.placeholder}
-                autoCapitalize="characters"
-              />
-            </View>
+            <Text style={[s.formTitle, { color: colors.text }]}>Nueva posición manual</Text>
+            <TextInput
+              style={[s.formInput, { color: colors.text, backgroundColor: colors.bg, borderColor: colors.border }]}
+              value={form.ticker}
+              onChangeText={(v) => setForm({ ...form, ticker: v.toUpperCase() })}
+              placeholder="Ticker (ej. AAPL)" placeholderTextColor={colors.placeholder}
+              autoCapitalize="characters"
+            />
             <View style={s.formRow}>
               <TextInput
                 style={[s.formInput, { color: colors.text, backgroundColor: colors.bg, borderColor: colors.border, flex: 1 }]}
                 value={form.shares}
                 onChangeText={(v) => setForm({ ...form, shares: v })}
-                placeholder="Cantidad de acciones"
-                placeholderTextColor={colors.placeholder}
+                placeholder="Acciones" placeholderTextColor={colors.placeholder}
                 keyboardType="decimal-pad"
               />
               <TextInput
                 style={[s.formInput, { color: colors.text, backgroundColor: colors.bg, borderColor: colors.border, flex: 1, marginLeft: 8 }]}
                 value={form.avgPrice}
                 onChangeText={(v) => setForm({ ...form, avgPrice: v })}
-                placeholder="Precio promedio"
-                placeholderTextColor={colors.placeholder}
+                placeholder="Precio promedio" placeholderTextColor={colors.placeholder}
                 keyboardType="decimal-pad"
               />
             </View>
             <View style={s.formRow}>
-              <TouchableOpacity style={s.cancelBtn} onPress={() => setShowForm(false)}>
+              <TouchableOpacity style={[s.cancelBtn, { borderColor: colors.border }]} onPress={() => setShowForm(false)}>
                 <Text style={[s.cancelBtnText, { color: colors.textMuted }]}>Cancelar</Text>
               </TouchableOpacity>
               <TouchableOpacity style={s.addBtn} onPress={handleAdd} disabled={addingLoading}>
@@ -239,18 +365,17 @@ export default function PortfolioScreen() {
           </View>
         )}
 
-        {/* Lista de posiciones */}
-        {positions.length === 0 ? (
+        {/* ── LISTA DE POSICIONES ── */}
+        {positions.length === 0 && !screenshotPreview ? (
           <View style={[s.emptyCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <Text style={s.emptyIcon}>📂</Text>
             <Text style={[s.emptyTitle, { color: colors.text }]}>Sin posiciones todavía</Text>
             <Text style={[s.emptyDesc, { color: colors.textMuted }]}>
-              Agrega tus inversiones manualmente o importa desde un archivo Excel con columnas: Ticker, Acciones, Precio
+              Toma una captura de tu portafolio y la IA lo importa automáticamente
             </Text>
           </View>
-        ) : (
+        ) : positions.length > 0 ? (
           <>
-            {/* Tarjeta de totales */}
             <View style={[s.totalsCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
               {loadingPrices ? (
                 <ActivityIndicator color="#22c55e" />
@@ -265,24 +390,21 @@ export default function PortfolioScreen() {
                       Invertido: ${totals.invested.toLocaleString("es-MX", { minimumFractionDigits: 2 })}
                     </Text>
                     <Text style={[s.totalsDiff, { color: totals.diff >= 0 ? "#22c55e" : "#ef4444" }]}>
-                      {totals.diff >= 0 ? "+" : ""}
-                      ${totals.diff.toLocaleString("es-MX", { minimumFractionDigits: 2 })} ({totals.pct >= 0 ? "+" : ""}{totals.pct.toFixed(2)}%)
+                      {totals.diff >= 0 ? "+" : ""}${totals.diff.toLocaleString("es-MX", { minimumFractionDigits: 2 })} ({totals.pct >= 0 ? "+" : ""}{totals.pct.toFixed(2)}%)
                     </Text>
                   </View>
                 </>
               )}
             </View>
 
-            {/* Posiciones */}
             {positions.map((pos) => {
               const pd = prices[pos.ticker];
               const cp = pd?.price;
               const currentVal = cp ? pos.shares * cp : null;
               const investedVal = pos.shares * pos.avgPrice;
               const diff = currentVal !== null ? currentVal - investedVal : null;
-              const pct = diff !== null ? (diff / investedVal) * 100 : null;
+              const pct = diff !== null && investedVal > 0 ? (diff / investedVal) * 100 : null;
               const isUp = diff !== null && diff >= 0;
-
               return (
                 <View key={pos.id} style={[s.posCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
                   <View style={s.posHeader}>
@@ -290,55 +412,41 @@ export default function PortfolioScreen() {
                       <Text style={[s.posTicker, { color: colors.text }]}>{pos.ticker}</Text>
                       {pd?.name && <Text style={[s.posName, { color: colors.textMuted }]}>{pd.name}</Text>}
                     </View>
-                    <TouchableOpacity onPress={() => removePosition(pos.id)}>
-                      <Text style={{ color: colors.textDim, fontSize: 18 }}>×</Text>
+                    <TouchableOpacity onPress={() => removePosition(pos.id)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                      <Text style={{ color: colors.textDim, fontSize: 20 }}>×</Text>
                     </TouchableOpacity>
                   </View>
                   <View style={s.posBody}>
                     <View>
-                      <Text style={[s.posDetail, { color: colors.textMuted }]}>
-                        {pos.shares} acc × ${pos.avgPrice.toLocaleString()}
-                      </Text>
-                      <Text style={[s.posDetail, { color: colors.textMuted }]}>
-                        Invertido: ${investedVal.toLocaleString("es-MX", { minimumFractionDigits: 2 })}
-                      </Text>
+                      <Text style={[s.posDetail, { color: colors.textMuted }]}>{pos.shares} acc × ${pos.avgPrice.toLocaleString()}</Text>
+                      <Text style={[s.posDetail, { color: colors.textMuted }]}>Invertido: ${investedVal.toLocaleString("es-MX", { minimumFractionDigits: 2 })}</Text>
                     </View>
                     <View style={{ alignItems: "flex-end" }}>
                       {cp ? (
                         <>
-                          <Text style={[s.posCurrentVal, { color: colors.text }]}>
-                            ${(currentVal!).toLocaleString("es-MX", { minimumFractionDigits: 2 })}
-                          </Text>
-                          <Text style={[s.posPct, { color: isUp ? "#22c55e" : "#ef4444" }]}>
-                            {isUp ? "+" : ""}{pct!.toFixed(2)}%
-                          </Text>
+                          <Text style={[s.posCurrentVal, { color: colors.text }]}>${(currentVal!).toLocaleString("es-MX", { minimumFractionDigits: 2 })}</Text>
+                          <Text style={[s.posPct, { color: isUp ? "#22c55e" : "#ef4444" }]}>{isUp ? "+" : ""}{pct!.toFixed(2)}%</Text>
                         </>
                       ) : (
                         <Text style={[s.posDetail, { color: colors.textDim }]}>Sin precio</Text>
                       )}
                     </View>
                   </View>
-                  {cp && (
-                    <Text style={[s.posPrice, { color: colors.textDim }]}>
-                      Precio actual: ${cp.toLocaleString()} {pd?.currency}
-                    </Text>
-                  )}
+                  {cp && <Text style={[s.posPrice, { color: colors.textDim }]}>Precio actual: ${cp.toLocaleString()} {pd?.currency}</Text>}
                 </View>
               );
             })}
           </>
-        )}
+        ) : null}
 
         {/* ── SIMULADOR ── */}
         <View style={[s.divider, { borderTopColor: colors.border }]} />
         <Text style={s.sectionTitle}>Simulador de Escenarios</Text>
-
         <View style={s.scenarioRow}>
           {SCENARIOS.map((sc) => (
             <TouchableOpacity
               key={sc.value}
-              style={[s.scenarioCard, { backgroundColor: colors.card, borderColor: colors.border },
-                scenario === sc.value && s.scenarioActive]}
+              style={[s.scenarioCard, { backgroundColor: colors.card, borderColor: colors.border }, scenario === sc.value && s.scenarioActive]}
               onPress={() => setScenario(sc.value)}
             >
               <Text style={s.scenarioEmoji}>{sc.emoji}</Text>
@@ -346,20 +454,15 @@ export default function PortfolioScreen() {
             </TouchableOpacity>
           ))}
         </View>
-
         <TextInput
           style={[s.simInput, { color: colors.text, backgroundColor: colors.card, borderColor: colors.border }]}
-          value={capital}
-          onChangeText={setCapital}
-          placeholder="Capital de referencia (USD, opcional)"
-          placeholderTextColor={colors.placeholder}
+          value={capital} onChangeText={setCapital}
+          placeholder="Capital de referencia (USD, opcional)" placeholderTextColor={colors.placeholder}
           keyboardType="numeric"
         />
-
         <TouchableOpacity style={[s.simBtn, simLoading && s.btnDisabled]} onPress={simulate} disabled={simLoading}>
           {simLoading ? <ActivityIndicator color="white" /> : <Text style={s.simBtnText}>Simular portafolio</Text>}
         </TouchableOpacity>
-
         {analysis !== "" && (
           <View style={[s.resultCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <Text style={[s.resultText, { color: colors.textSub }]}>{analysis}</Text>
@@ -380,15 +483,50 @@ function makeStyles(c: Colors) {
     sectionHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 },
     sectionTitle: { fontSize: 17, fontWeight: "700", color: c.text, marginBottom: 12 },
     headerButtons: { flexDirection: "row", gap: 8 },
-    btnSmall: { backgroundColor: "#16a34a", borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6 },
+    btnSmall: { borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6 },
     btnExcel: { backgroundColor: "#1d4ed8" },
     btnSmallText: { color: "white", fontSize: 12, fontWeight: "600" },
-    // Form
+    // Screenshot primary button
+    screenshotBtn: {
+      backgroundColor: "#16a34a", borderRadius: 14, padding: 16,
+      marginBottom: 12, shadowColor: "#16a34a", shadowOpacity: 0.3, shadowRadius: 8, shadowOffset: { width: 0, height: 4 },
+    },
+    screenshotBtnInner: { flexDirection: "row", alignItems: "center", gap: 14 },
+    screenshotBtnIcon: { fontSize: 28 },
+    screenshotBtnText: { color: "white", fontSize: 15, fontWeight: "700" },
+    screenshotBtnSub: { color: "rgba(255,255,255,0.75)", fontSize: 12, marginTop: 2 },
+    // Screenshot preview card
+    previewCard: { borderRadius: 14, borderWidth: 1.5, padding: 14, marginBottom: 12 },
+    previewHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 },
+    previewTitle: { fontSize: 15, fontWeight: "700" },
+    previewSub: { fontSize: 12, marginTop: 2 },
+    previewThumb: { width: 50, height: 90, borderRadius: 6, resizeMode: "cover" },
+    previewRow: {
+      flexDirection: "row", alignItems: "center", paddingVertical: 10,
+      borderBottomWidth: 1, gap: 10,
+    },
+    previewRowLeft: { flex: 1 },
+    previewTicker: { fontSize: 14, fontWeight: "700" },
+    previewName: { fontSize: 11, marginTop: 1 },
+    previewRowMid: { alignItems: "flex-end", marginRight: 4 },
+    previewDetail: { fontSize: 12 },
+    previewActions: { flexDirection: "row", gap: 10, marginTop: 14 },
+    previewCancel: {
+      flex: 1, borderWidth: 1, borderRadius: 10,
+      paddingVertical: 12, alignItems: "center",
+    },
+    previewCancelText: { fontWeight: "500", fontSize: 14 },
+    previewConfirm: {
+      flex: 2, backgroundColor: "#16a34a", borderRadius: 10,
+      paddingVertical: 12, alignItems: "center",
+    },
+    previewConfirmText: { color: "white", fontWeight: "700", fontSize: 14 },
+    // Manual form
     formCard: { borderRadius: 12, borderWidth: 1, padding: 14, marginBottom: 12 },
     formTitle: { fontSize: 14, fontWeight: "600", marginBottom: 10 },
     formRow: { flexDirection: "row", marginBottom: 8 },
-    formInput: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14 },
-    cancelBtn: { flex: 1, borderRadius: 10, paddingVertical: 12, alignItems: "center", borderWidth: 1, borderColor: c.border },
+    formInput: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, marginBottom: 8, width: "100%" },
+    cancelBtn: { flex: 1, borderRadius: 10, paddingVertical: 12, alignItems: "center", borderWidth: 1 },
     cancelBtnText: { fontWeight: "500", fontSize: 14 },
     addBtn: { flex: 1, backgroundColor: "#16a34a", borderRadius: 10, paddingVertical: 12, alignItems: "center", marginLeft: 8 },
     addBtnText: { color: "white", fontWeight: "600", fontSize: 14 },

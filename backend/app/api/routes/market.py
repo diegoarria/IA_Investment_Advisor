@@ -1,6 +1,9 @@
 from fastapi import APIRouter, Depends, Query
 import yfinance as yf
+import anthropic
+import json
 from app.api.deps import get_current_user_id
+from app.core.config import settings
 from app.core.database import get_supabase
 from app.models.user import UserProfile
 from app.models.market import AssetAnalysisRequest, PortfolioScenarioRequest
@@ -81,6 +84,91 @@ async def simulate_portfolio(
         "scenario": request.scenario,
         "analysis": scenario_analysis
     }
+
+
+@router.post("/portfolio/from-screenshot")
+async def portfolio_from_screenshot(
+    request: dict,
+    user_id: str = Depends(get_current_user_id)
+):
+    image_data = request.get("image", "")
+    image_type = request.get("type", "image/jpeg")
+
+    if not image_data:
+        return {"positions": [], "error": "No image provided"}
+
+    client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
+
+    try:
+        message = client.messages.create(
+            model="claude-sonnet-4-6",
+            max_tokens=2048,
+            messages=[{
+                "role": "user",
+                "content": [
+                    {
+                        "type": "image",
+                        "source": {
+                            "type": "base64",
+                            "media_type": image_type,
+                            "data": image_data,
+                        },
+                    },
+                    {
+                        "type": "text",
+                        "text": (
+                            "Analiza esta captura de pantalla de un portafolio de inversión y extrae todas las posiciones.\n\n"
+                            "Devuelve ÚNICAMENTE un JSON array con este formato exacto (sin texto adicional, sin markdown, sin bloques de código):\n"
+                            '[{"ticker":"AAPL","name":"Apple Inc.","shares":10.5,"avg_price":150.00}]\n\n'
+                            "Reglas:\n"
+                            "- ticker: símbolo bursátil en MAYÚSCULAS\n"
+                            "- name: nombre completo de la empresa si es visible, si no usa el ticker\n"
+                            "- shares: número de acciones o unidades (decimal permitido)\n"
+                            "- avg_price: precio promedio de compra por acción si es visible, null si no aparece\n"
+                            "- Incluye TODAS las posiciones visibles en la imagen\n"
+                            "- Si un campo no es legible, usa null\n"
+                            "- Devuelve SOLO el JSON array, sin ningún otro texto"
+                        ),
+                    },
+                ],
+            }],
+        )
+
+        raw = message.content[0].text.strip()
+        # Strip markdown code fences if present
+        if "```" in raw:
+            raw = raw.split("```")[1]
+            if raw.startswith("json"):
+                raw = raw[4:]
+        raw = raw.strip()
+
+        positions = json.loads(raw)
+        result = []
+        for p in positions:
+            ticker = str(p.get("ticker") or "").strip().upper()
+            if not ticker:
+                continue
+            avg_price = p.get("avg_price")
+            # If avg_price missing, try fetching current price from yfinance
+            if avg_price is None or avg_price == 0:
+                try:
+                    fi = yf.Ticker(ticker).fast_info
+                    avg_price = round(float(fi.last_price), 4) if fi.last_price else 0
+                except Exception:
+                    avg_price = 0
+            result.append({
+                "ticker": ticker,
+                "name": p.get("name") or ticker,
+                "shares": float(p.get("shares") or 0),
+                "avg_price": float(avg_price or 0),
+            })
+
+        return {"positions": result}
+
+    except json.JSONDecodeError:
+        return {"positions": [], "error": "No se pudo parsear la respuesta del modelo"}
+    except Exception as e:
+        return {"positions": [], "error": str(e)}
 
 
 @router.get("/earnings")

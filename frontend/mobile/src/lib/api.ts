@@ -61,6 +61,8 @@ export const marketApi = {
   getPortfolio: (scenario: string, capital?: number) =>
     api.post("/api/market/portfolio", { scenario, capital }),
   getPrices: (symbols: string[]) => api.post("/api/market/prices", { symbols }),
+  analyzeScreenshot: (base64: string, mimeType: string) =>
+    api.post("/api/market/portfolio/from-screenshot", { image: base64, type: mimeType }),
 };
 
 export const notificationsApi = {
