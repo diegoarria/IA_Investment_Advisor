@@ -1,7 +1,9 @@
 import { Tabs } from "expo-router";
-import { Text, TouchableOpacity } from "react-native";
+import { Text, TouchableOpacity, Platform } from "react-native";
 import { useTheme } from "../../src/lib/ThemeContext";
 import { useAppStore } from "../../src/lib/profileStore";
+
+const isWeb = Platform.OS === "web";
 
 export default function TabsLayout() {
   const { colors } = useTheme();
@@ -16,9 +18,14 @@ export default function TabsLayout() {
   return (
     <Tabs
       screenOptions={{
-        tabBarStyle: { backgroundColor: colors.card, borderTopColor: colors.border },
+        // Web: no tab bar — sidebar handles navigation
+        tabBarStyle: isWeb
+          ? { display: "none" }
+          : { backgroundColor: colors.card, borderTopColor: colors.border },
         tabBarActiveTintColor: colors.accentLight,
         tabBarInactiveTintColor: colors.textDim,
+        // Web: no header — sidebar provides context; Mobile: show header with hamburger
+        headerShown: !isWeb,
         headerStyle: { backgroundColor: colors.card },
         headerTintColor: colors.text,
         headerLeft: hamburger,
@@ -37,7 +44,7 @@ export default function TabsLayout() {
         options={{
           title: "Portafolios",
           tabBarIcon: ({ color }) => <Text style={{ color, fontSize: 18 }}>📊</Text>,
-          headerTitle: "Simulador de Portafolios",
+          headerTitle: "Mi Portafolio",
         }}
       />
       <Tabs.Screen

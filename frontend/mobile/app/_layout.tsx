@@ -6,44 +6,50 @@ import Sidebar from "../src/components/Sidebar";
 
 function AppStack() {
   const { colors, isDark } = useTheme();
-  return (
-    <View style={{ flex: 1, backgroundColor: Platform.OS === "web" ? "#0a0a0a" : colors.bg }}>
-      <StatusBar style={isDark ? "light" : "dark"} backgroundColor={colors.bg} />
-      {/* On web: center a phone-width column */}
-      <View
-        style={
-          Platform.OS === "web"
-            ? {
-                flex: 1,
-                maxWidth: 430,
-                width: "100%",
-                alignSelf: "center",
-                overflow: "hidden",
-                shadowColor: "#000",
-                shadowOpacity: 0.4,
-                shadowRadius: 32,
-                shadowOffset: { width: 0, height: 0 },
-              }
-            : { flex: 1 }
-        }
-      >
-        <Stack
-          screenOptions={{
-            headerStyle: { backgroundColor: colors.card },
-            headerTintColor: colors.text,
-            contentStyle: { backgroundColor: colors.bg },
-          }}
-        >
-          <Stack.Screen name="index" options={{ headerShown: false }} />
-          <Stack.Screen name="onboarding" options={{ headerShown: false }} />
-          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-          <Stack.Screen
-            name="profile/edit"
-            options={{ headerTitle: "Editar perfil", presentation: "modal" }}
-          />
-        </Stack>
+
+  const stackScreens = (
+    <Stack
+      screenOptions={{
+        headerStyle: { backgroundColor: colors.card },
+        headerTintColor: colors.text,
+        contentStyle: { backgroundColor: colors.bg },
+        // Hide header on web — sidebar provides navigation context
+        headerShown: Platform.OS !== "web",
+      }}
+    >
+      <Stack.Screen name="index" options={{ headerShown: false }} />
+      <Stack.Screen name="onboarding" options={{ headerShown: false }} />
+      <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+      <Stack.Screen
+        name="profile/edit"
+        options={{
+          headerTitle: "Editar perfil",
+          headerShown: true,
+          presentation: "modal",
+        }}
+      />
+    </Stack>
+  );
+
+  if (Platform.OS === "web") {
+    // Desktop: full-width row — sidebar on left, content on right
+    return (
+      <View style={{ flex: 1, flexDirection: "row", backgroundColor: colors.bg }}>
+        <StatusBar style={isDark ? "light" : "dark"} backgroundColor={colors.bg} />
         <Sidebar />
+        <View style={{ flex: 1, overflow: "hidden" }}>
+          {stackScreens}
+        </View>
       </View>
+    );
+  }
+
+  // Mobile: stack with absolute sliding sidebar on top
+  return (
+    <View style={{ flex: 1, backgroundColor: colors.bg }}>
+      <StatusBar style={isDark ? "light" : "dark"} backgroundColor={colors.bg} />
+      {stackScreens}
+      <Sidebar />
     </View>
   );
 }

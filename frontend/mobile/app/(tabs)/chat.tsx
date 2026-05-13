@@ -129,9 +129,15 @@ Instrucción: Llama siempre a este usuario por su nombre (${profile.name.split("
     </View>
   );
 
+  // On web, constrain content to a readable max-width centered in the content area
+  const webContentStyle = Platform.OS === "web"
+    ? { maxWidth: 860, width: "100%" as const, alignSelf: "center" as const, flex: 1 }
+    : { flex: 1 };
+
   return (
     <SafeAreaView style={styles.container}>
-      {riskCfg && (
+      {/* Profile banner — hidden on web (sidebar shows it) */}
+      {riskCfg && Platform.OS !== "web" && (
         <View style={[styles.profileBanner, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
           <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
             <Text style={[styles.profileType, { color: colors.text, marginBottom: 0 }]}>
@@ -151,67 +157,79 @@ Instrucción: Llama siempre a este usuario por su nombre (${profile.name.split("
           </View>
         </View>
       )}
+
+      {/* Web: optional slim top bar with model name */}
+      {Platform.OS === "web" && (
+        <View style={{ paddingHorizontal: 24, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: colors.border, alignItems: "center" }}>
+          <Text style={{ color: colors.text, fontWeight: "600", fontSize: 15 }}>
+            {profile?.name ? `Hola, ${profile.name.split(" ")[0]} 👋` : "IA Investment Advisor"}
+          </Text>
+        </View>
+      )}
+
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={styles.flex}
         keyboardVerticalOffset={88}
       >
-        {!loaded ? (
-          <View style={styles.loading}>
-            <ActivityIndicator color={colors.accentLight} />
-          </View>
-        ) : messages.length === 0 ? (
-          <View style={styles.empty}>
-            <Text style={styles.emptyIcon}>⚡</Text>
-            <Text style={styles.emptyTitle}>
-              {profile?.name ? `Hola, ${profile.name.split(" ")[0]}!` : "Tu mentor está listo"}
-            </Text>
-            <Text style={styles.emptySubtitle}>
-              {profile?.name
-                ? "Pregunta lo que quieras sobre inversiones — conozco tu perfil y te daré consejos personalizados"
-                : "Pregunta sobre cualquier empresa, concepto o estrategia"}
-            </Text>
-            <View style={styles.suggestions}>
-              {SUGGESTIONS.map((s) => (
-                <TouchableOpacity key={s} style={styles.suggestion} onPress={() => sendMessage(s)}>
-                  <Text style={styles.suggestionText}>{s}</Text>
-                </TouchableOpacity>
-              ))}
+        <View style={webContentStyle}>
+          {!loaded ? (
+            <View style={styles.loading}>
+              <ActivityIndicator color={colors.accentLight} />
             </View>
-          </View>
-        ) : (
-          <FlatList
-            ref={listRef}
-            data={messages}
-            keyExtractor={(_, i) => i.toString()}
-            renderItem={renderMessage}
-            contentContainerStyle={styles.list}
-            onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: true })}
-          />
-        )}
+          ) : messages.length === 0 ? (
+            <View style={styles.empty}>
+              <Text style={styles.emptyIcon}>⚡</Text>
+              <Text style={styles.emptyTitle}>
+                {profile?.name ? `Hola, ${profile.name.split(" ")[0]}!` : "Tu mentor está listo"}
+              </Text>
+              <Text style={styles.emptySubtitle}>
+                {profile?.name
+                  ? "Pregunta lo que quieras sobre inversiones — conozco tu perfil y te daré consejos personalizados"
+                  : "Pregunta sobre cualquier empresa, concepto o estrategia"}
+              </Text>
+              <View style={styles.suggestions}>
+                {SUGGESTIONS.map((s) => (
+                  <TouchableOpacity key={s} style={styles.suggestion} onPress={() => sendMessage(s)}>
+                    <Text style={styles.suggestionText}>{s}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+          ) : (
+            <FlatList
+              ref={listRef}
+              data={messages}
+              keyExtractor={(_, i) => i.toString()}
+              renderItem={renderMessage}
+              contentContainerStyle={styles.list}
+              onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: true })}
+            />
+          )}
 
-        <View style={styles.inputContainer}>
-          <TextInput
-            style={styles.input}
-            value={input}
-            onChangeText={setInput}
-            placeholder="Pregunta sobre inversiones..."
-            placeholderTextColor={colors.placeholder}
-            multiline
-            maxLength={2000}
-            editable={!streaming}
-          />
-          <TouchableOpacity
-            style={[styles.sendButton, (!input.trim() || streaming) && styles.sendDisabled]}
-            onPress={() => sendMessage()}
-            disabled={!input.trim() || streaming}
-          >
-            {streaming ? (
-              <ActivityIndicator color="white" size="small" />
-            ) : (
-              <Text style={{ color: "white", fontSize: 18 }}>➤</Text>
-            )}
-          </TouchableOpacity>
+          <View style={styles.inputContainer}>
+            <TextInput
+              style={styles.input}
+              value={input}
+              onChangeText={setInput}
+              placeholder="Pregunta sobre inversiones..."
+              placeholderTextColor={colors.placeholder}
+              multiline
+              maxLength={2000}
+              editable={!streaming}
+            />
+            <TouchableOpacity
+              style={[styles.sendButton, (!input.trim() || streaming) && styles.sendDisabled]}
+              onPress={() => sendMessage()}
+              disabled={!input.trim() || streaming}
+            >
+              {streaming ? (
+                <ActivityIndicator color="white" size="small" />
+              ) : (
+                <Text style={{ color: "white", fontSize: 18 }}>➤</Text>
+              )}
+            </TouchableOpacity>
+          </View>
         </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
