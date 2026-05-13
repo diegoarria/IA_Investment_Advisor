@@ -1,0 +1,16 @@
+fastapi==0.115.5
+uvicorn[standard]==0.32.1
+anthropic==0.40.0
+yfinance==0.2.50
+supabase==2.10.0
+python-dotenv==1.0.1
+pydantic==2.10.3
+pydantic-settings==2.6.1
+httpx==0.28.1
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+python-multipart==0.0.20
+apscheduler==3.10.4
+websockets==14.1
+pandas==2.2.3
+numpy==2.2.1

@@ -1,0 +1,135 @@
+import React, { useState } from "react";
+import {
+  View, Text, TextInput, TouchableOpacity, StyleSheet,
+  SafeAreaView, KeyboardAvoidingView, Platform, Alert, ActivityIndicator
+} from "react-native";
+import { router } from "expo-router";
+import * as SecureStore from "expo-secure-store";
+import { authApi, profileApi } from "../src/lib/api";
+
+export default function AuthScreen() {
+  const [mode, setMode] = useState<"login" | "register">("login");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async () => {
+    if (!email || !password) return;
+    setLoading(true);
+    try {
+      const fn = mode === "login" ? authApi.login : authApi.register;
+      const res = await fn(email, password);
+      await SecureStore.setItemAsync("access_token", res.data.access_token);
+      await SecureStore.setItemAsync("user_id", res.data.user_id);
+
+      try {
+        await profileApi.get();
+        router.replace("/(tabs)/chat");
+      } catch {
+        router.replace("/onboarding");
+      }
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+      Alert.alert("Error", msg || "Credenciales inválidas");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <SafeAreaView style={styles.container}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        style={styles.content}
+      >
+        <View style={styles.header}>
+          <View style={styles.logo}>
+            <Text style={styles.logoIcon}>📈</Text>
+          </View>
+          <Text style={styles.title}>IA Investment Advisor</Text>
+          <Text style={styles.subtitle}>Tu mentor de inversiones inteligente</Text>
+        </View>
+
+        <View style={styles.form}>
+          <Text style={styles.label}>Email</Text>
+          <TextInput
+            style={styles.input}
+            value={email}
+            onChangeText={setEmail}
+            placeholder="tu@email.com"
+            placeholderTextColor="#4b5563"
+            keyboardType="email-address"
+            autoCapitalize="none"
+          />
+
+          <Text style={[styles.label, { marginTop: 16 }]}>Contraseña</Text>
+          <TextInput
+            style={styles.input}
+            value={password}
+            onChangeText={setPassword}
+            placeholder="••••••••"
+            placeholderTextColor="#4b5563"
+            secureTextEntry
+          />
+
+          <TouchableOpacity
+            style={[styles.button, loading && styles.buttonDisabled]}
+            onPress={handleSubmit}
+            disabled={loading}
+          >
+            {loading ? (
+              <ActivityIndicator color="white" />
+            ) : (
+              <Text style={styles.buttonText}>
+                {mode === "login" ? "Iniciar sesión" : "Crear cuenta"}
+              </Text>
+            )}
+          </TouchableOpacity>
+
+          <TouchableOpacity onPress={() => setMode(mode === "login" ? "register" : "login")}>
+            <Text style={styles.switchText}>
+              {mode === "login" ? "¿No tienes cuenta? " : "¿Ya tienes cuenta? "}
+              <Text style={styles.switchLink}>
+                {mode === "login" ? "Crear una" : "Inicia sesión"}
+              </Text>
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.devSkip} onPress={() => router.replace("/onboarding")}>
+            <Text style={styles.devSkipText}>⚙️ Saltar al onboarding (dev)</Text>
+          </TouchableOpacity>
+        </View>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: "#0f1117" },
+  content: { flex: 1, justifyContent: "center", padding: 24 },
+  header: { alignItems: "center", marginBottom: 48 },
+  logo: {
+    width: 64, height: 64, backgroundColor: "#16a34a",
+    borderRadius: 16, alignItems: "center", justifyContent: "center", marginBottom: 16
+  },
+  logoIcon: { fontSize: 28 },
+  title: { fontSize: 24, fontWeight: "700", color: "white", marginBottom: 8 },
+  subtitle: { fontSize: 14, color: "#9ca3af", textAlign: "center" },
+  form: {},
+  label: { color: "#d1d5db", fontSize: 14, fontWeight: "500", marginBottom: 6 },
+  input: {
+    backgroundColor: "#1a1d27", borderWidth: 1, borderColor: "#2a2d3a",
+    borderRadius: 12, paddingHorizontal: 16, paddingVertical: 14,
+    color: "white", fontSize: 16
+  },
+  button: {
+    backgroundColor: "#16a34a", borderRadius: 12, paddingVertical: 16,
+    alignItems: "center", marginTop: 24, marginBottom: 16
+  },
+  buttonDisabled: { opacity: 0.5 },
+  buttonText: { color: "white", fontWeight: "600", fontSize: 16 },
+  switchText: { color: "#9ca3af", textAlign: "center", fontSize: 14 },
+  switchLink: { color: "#22c55e", fontWeight: "500" },
+  devSkip: { marginTop: 20, alignItems: "center" },
+  devSkipText: { color: "#4b5563", fontSize: 12 },
+});

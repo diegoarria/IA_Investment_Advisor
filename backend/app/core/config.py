@@ -1,0 +1,17 @@
+from pydantic_settings import BaseSettings
+
+
+class Settings(BaseSettings):
+    anthropic_api_key: str
+    supabase_url: str = "http://localhost"
+    supabase_anon_key: str = "dummy"
+    supabase_service_key: str = "dummy"
+    secret_key: str = "dev-secret-key-32chars-for-local-only"
+    frontend_url: str = "http://localhost:3000"
+    claude_model: str = "claude-sonnet-4-6"
+
+    class Config:
+        env_file = ".env"
+
+
+settings = Settings()
