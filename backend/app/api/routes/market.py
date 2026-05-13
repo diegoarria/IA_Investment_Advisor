@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, Query
+import yfinance as yf
 from app.api.deps import get_current_user_id
 from app.core.database import get_supabase
 from app.models.user import UserProfile
@@ -17,6 +18,25 @@ def _get_user_profile(user_id: str) -> UserProfile | None:
         except Exception:
             return None
     return None
+
+
+@router.post("/prices")
+async def get_prices(request: dict, user_id: str = Depends(get_current_user_id)):
+    symbols = [s.upper() for s in request.get("symbols", [])]
+    result = {}
+    for symbol in symbols:
+        try:
+            t = yf.Ticker(symbol)
+            fi = t.fast_info
+            price = fi.last_price
+            result[symbol] = {
+                "price": round(float(price), 4) if price else None,
+                "currency": fi.currency or "USD",
+                "name": t.info.get("shortName", symbol),
+            }
+        except Exception:
+            result[symbol] = {"price": None, "currency": "USD", "name": symbol}
+    return result
 
 
 @router.get("/summary")

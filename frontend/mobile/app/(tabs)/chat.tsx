@@ -1,10 +1,12 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useMemo } from "react";
 import {
   View, Text, TextInput, TouchableOpacity, FlatList,
   StyleSheet, KeyboardAvoidingView, Platform, ActivityIndicator, SafeAreaView
 } from "react-native";
 import Markdown from "react-native-markdown-display";
 import { chatApi } from "../../src/lib/api";
+import { useTheme, Colors } from "../../src/lib/ThemeContext";
+import { useAppStore, RISK_CONFIG, getAge } from "../../src/lib/profileStore";
 
 interface Message {
   role: "user" | "assistant";
@@ -19,6 +21,13 @@ const SUGGESTIONS = [
 ];
 
 export default function ChatScreen() {
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
+  const markdownStyles = useMemo(() => makeMarkdownStyles(colors), [colors]);
+  const profile = useAppStore((s) => s.profile);
+  const riskCfg = profile?.risk_tolerance ? RISK_CONFIG[profile.risk_tolerance] : null;
+  const pct = riskCfg ? Math.round(riskCfg.pct * 100) : 0;
+
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
@@ -32,6 +41,24 @@ export default function ChatScreen() {
     }).catch(() => setLoaded(true));
   }, []);
 
+  const buildProfileContext = () => {
+    if (!profile) return null;
+    const expLabels: Record<string, string> = { beginner: "Principiante", intermediate: "Intermedio", advanced: "Avanzado" };
+    const horizLabels: Record<string, string> = { "3": "menos de 3 años", "5": "3–5 años", "10": "5–10 años", "20": "más de 10 años" };
+    const goalLabels: Record<string, string> = { capital_preservation: "preservar capital", income: "generar ingresos", growth: "crecimiento", aggressive_growth: "crecimiento agresivo", retirement: "retiro/jubilación" };
+    const riskLabel = riskCfg ? riskCfg.label : "";
+    return `[CONTEXTO DEL USUARIO — usa esta información para personalizar TODAS tus respuestas]
+Nombre: ${profile.name}
+Edad: ${getAge(profile.birth_date)} años (nacido el ${profile.birth_date})
+Ingresos mensuales: $${Number(profile.monthly_income).toLocaleString()} USD
+Aportación mensual planificada: $${Number(profile.monthly_contribution).toLocaleString()} USD
+Perfil de inversionista: ${riskLabel}
+Experiencia: ${expLabels[profile.investment_experience] || profile.investment_experience}
+Horizonte de inversión: ${horizLabels[profile.time_horizon_years] || profile.time_horizon_years} años
+Objetivos: ${profile.investment_goals.map((g) => goalLabels[g] || g).join(", ")}
+Instrucción: Diríjete siempre a este usuario por su nombre (${profile.name.split(" ")[0]}), adapta tus recomendaciones a su perfil ${riskLabel} y a su capacidad de aportación mensual de $${Number(profile.monthly_contribution).toLocaleString()} USD. Responde en español.`;
+  };
+
   const sendMessage = async (text?: string) => {
     const msg = text || input.trim();
     if (!msg || streaming) return;
@@ -41,14 +68,22 @@ export default function ChatScreen() {
     setMessages((prev) => [...prev, userMsg]);
     chatApi.saveMessage("user", msg).catch(() => {});
 
-    const historyForApi = messages.slice(-20);
+    const profileCtx = buildProfileContext();
+    const recentHistory = messages.slice(-18);
+    const historyForApi: Message[] = profileCtx
+      ? [
+          { role: "user", content: profileCtx },
+          { role: "assistant", content: `Entendido. Tengo en cuenta el perfil de ${profile?.name?.split(" ")[0] || "usuario"} para personalizar mis respuestas.` },
+          ...recentHistory,
+        ]
+      : messages.slice(-20);
     const assistantMsg: Message = { role: "assistant", content: "" };
     setMessages((prev) => [...prev, assistantMsg]);
     setStreaming(true);
 
     let full = "";
     await chatApi.stream(
-      msg, historyForApi,
+      msg, historyForApi as Array<{ role: string; content: string }>,
       (chunk) => {
         full += chunk;
         setMessages((prev) => {
@@ -76,11 +111,9 @@ export default function ChatScreen() {
           <Text style={styles.userText}>{item.content}</Text>
         ) : (
           <>
-            <Markdown style={markdownStyles}>
-              {item.content || ""}
-            </Markdown>
+            <Markdown style={markdownStyles}>{item.content || ""}</Markdown>
             {streaming && index === messages.length - 1 && item.content === "" && (
-              <Text style={{ color: "#22c55e" }}>▋</Text>
+              <Text style={{ color: colors.accentLight }}>▋</Text>
             )}
           </>
         )}
@@ -90,6 +123,26 @@ export default function ChatScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
+      {riskCfg && (
+        <View style={[styles.profileBanner, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
+          <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+            <Text style={[styles.profileType, { color: colors.text, marginBottom: 0 }]}>
+              {riskCfg.icon}  {riskCfg.label}
+            </Text>
+            {profile?.name && (
+              <Text style={{ color: colors.textMuted, fontSize: 12 }}>👤 {profile.name.split(" ")[0]}</Text>
+            )}
+          </View>
+          <View style={[styles.barTrack, { backgroundColor: colors.border }]}>
+            <View style={[styles.barFill, { flex: pct, backgroundColor: riskCfg.color }]} />
+            {pct < 100 && <View style={{ flex: 100 - pct }} />}
+          </View>
+          <View style={styles.barLabels}>
+            <Text style={[styles.barLabelText, { color: colors.textDim }]}>Bajo riesgo</Text>
+            <Text style={[styles.barLabelText, { color: colors.textDim }]}>Alto riesgo</Text>
+          </View>
+        </View>
+      )}
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={styles.flex}
@@ -97,13 +150,19 @@ export default function ChatScreen() {
       >
         {!loaded ? (
           <View style={styles.loading}>
-            <ActivityIndicator color="#22c55e" />
+            <ActivityIndicator color={colors.accentLight} />
           </View>
         ) : messages.length === 0 ? (
           <View style={styles.empty}>
             <Text style={styles.emptyIcon}>⚡</Text>
-            <Text style={styles.emptyTitle}>Tu mentor está listo</Text>
-            <Text style={styles.emptySubtitle}>Pregunta sobre cualquier empresa, concepto o estrategia</Text>
+            <Text style={styles.emptyTitle}>
+              {profile?.name ? `Hola, ${profile.name.split(" ")[0]}!` : "Tu mentor está listo"}
+            </Text>
+            <Text style={styles.emptySubtitle}>
+              {profile?.name
+                ? "Pregunta lo que quieras sobre inversiones — conozco tu perfil y te daré consejos personalizados"
+                : "Pregunta sobre cualquier empresa, concepto o estrategia"}
+            </Text>
             <View style={styles.suggestions}>
               {SUGGESTIONS.map((s) => (
                 <TouchableOpacity key={s} style={styles.suggestion} onPress={() => sendMessage(s)}>
@@ -129,7 +188,7 @@ export default function ChatScreen() {
             value={input}
             onChangeText={setInput}
             placeholder="Pregunta sobre inversiones..."
-            placeholderTextColor="#4b5563"
+            placeholderTextColor={colors.placeholder}
             multiline
             maxLength={2000}
             editable={!streaming}
@@ -151,70 +210,79 @@ export default function ChatScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#0f1117" },
-  flex: { flex: 1 },
-  loading: { flex: 1, alignItems: "center", justifyContent: "center" },
-  empty: { flex: 1, alignItems: "center", justifyContent: "center", padding: 24 },
-  emptyIcon: { fontSize: 48, marginBottom: 16 },
-  emptyTitle: { fontSize: 20, fontWeight: "700", color: "white", marginBottom: 8 },
-  emptySubtitle: { fontSize: 14, color: "#9ca3af", textAlign: "center", marginBottom: 24 },
-  suggestions: { width: "100%", gap: 8 },
-  suggestion: {
-    backgroundColor: "#1a1d27", borderWidth: 1, borderColor: "#2a2d3a",
-    borderRadius: 12, padding: 14
-  },
-  suggestionText: { color: "#d1d5db", fontSize: 13 },
-  list: { padding: 16, paddingBottom: 8 },
-  messageContainer: { flexDirection: "row", marginBottom: 12, alignItems: "flex-end" },
-  userContainer: { justifyContent: "flex-end" },
-  assistantContainer: { justifyContent: "flex-start" },
-  avatar: {
-    width: 28, height: 28, backgroundColor: "#16a34a", borderRadius: 14,
-    alignItems: "center", justifyContent: "center", marginRight: 8
-  },
-  bubble: { maxWidth: "80%", borderRadius: 16, padding: 12 },
-  userBubble: { backgroundColor: "#16a34a", borderBottomRightRadius: 4 },
-  assistantBubble: {
-    backgroundColor: "#1a1d27", borderWidth: 1, borderColor: "#2a2d3a",
-    borderBottomLeftRadius: 4
-  },
-  messageText: { color: "#e8eaed", fontSize: 14, lineHeight: 20 },
-  userText: { color: "white" },
-  inputContainer: {
-    flexDirection: "row", alignItems: "flex-end", padding: 12,
-    borderTopWidth: 1, borderTopColor: "#2a2d3a", backgroundColor: "#1a1d27", gap: 8
-  },
-  input: {
-    flex: 1, backgroundColor: "#0f1117", borderWidth: 1, borderColor: "#2a2d3a",
-    borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10,
-    color: "white", fontSize: 15, maxHeight: 100
-  },
-  sendButton: {
-    width: 42, height: 42, backgroundColor: "#16a34a",
-    borderRadius: 12, alignItems: "center", justifyContent: "center"
-  },
-  sendDisabled: { opacity: 0.4 },
-});
+function makeStyles(c: Colors) {
+  return StyleSheet.create({
+    container: { flex: 1, backgroundColor: c.bg },
+    flex: { flex: 1 },
+    profileBanner: { paddingHorizontal: 16, paddingVertical: 10, borderBottomWidth: 1 },
+    profileType: { fontSize: 13, fontWeight: "600", marginBottom: 8 },
+    barTrack: { height: 7, borderRadius: 4, overflow: "hidden", flexDirection: "row", marginBottom: 4 },
+    barFill: { height: "100%", borderRadius: 4 },
+    barLabels: { flexDirection: "row", justifyContent: "space-between" },
+    barLabelText: { fontSize: 10 },
+    loading: { flex: 1, alignItems: "center", justifyContent: "center" },
+    empty: { flex: 1, alignItems: "center", justifyContent: "center", padding: 24 },
+    emptyIcon: { fontSize: 48, marginBottom: 16 },
+    emptyTitle: { fontSize: 20, fontWeight: "700", color: c.text, marginBottom: 8 },
+    emptySubtitle: { fontSize: 14, color: c.textMuted, textAlign: "center", marginBottom: 24 },
+    suggestions: { width: "100%", gap: 8 },
+    suggestion: {
+      backgroundColor: c.card, borderWidth: 1, borderColor: c.border,
+      borderRadius: 12, padding: 14,
+    },
+    suggestionText: { color: c.textSub, fontSize: 13 },
+    list: { padding: 16, paddingBottom: 8 },
+    messageContainer: { flexDirection: "row", marginBottom: 12, alignItems: "flex-end" },
+    userContainer: { justifyContent: "flex-end" },
+    assistantContainer: { justifyContent: "flex-start" },
+    avatar: {
+      width: 28, height: 28, backgroundColor: "#16a34a", borderRadius: 14,
+      alignItems: "center", justifyContent: "center", marginRight: 8,
+    },
+    bubble: { maxWidth: "80%", borderRadius: 16, padding: 12 },
+    userBubble: { backgroundColor: "#16a34a", borderBottomRightRadius: 4 },
+    assistantBubble: {
+      backgroundColor: c.card, borderWidth: 1, borderColor: c.border,
+      borderBottomLeftRadius: 4,
+    },
+    userText: { color: "white", fontSize: 14, lineHeight: 20 },
+    inputContainer: {
+      flexDirection: "row", alignItems: "flex-end", padding: 12,
+      borderTopWidth: 1, borderTopColor: c.border, backgroundColor: c.card, gap: 8,
+    },
+    input: {
+      flex: 1, backgroundColor: c.bg, borderWidth: 1, borderColor: c.border,
+      borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10,
+      color: c.text, fontSize: 15, maxHeight: 100,
+    },
+    sendButton: {
+      width: 42, height: 42, backgroundColor: "#16a34a",
+      borderRadius: 12, alignItems: "center", justifyContent: "center",
+    },
+    sendDisabled: { opacity: 0.4 },
+  });
+}
 
-const markdownStyles = {
-  body: { color: "#e8eaed", fontSize: 14, lineHeight: 20 },
-  heading1: { color: "white", fontSize: 17, fontWeight: "700" as const, marginBottom: 6, marginTop: 8 },
-  heading2: { color: "white", fontSize: 15, fontWeight: "700" as const, marginBottom: 4, marginTop: 6 },
-  heading3: { color: "#d1d5db", fontSize: 14, fontWeight: "600" as const, marginBottom: 4, marginTop: 4 },
-  strong: { color: "white", fontWeight: "700" as const },
-  em: { color: "#d1d5db", fontStyle: "italic" as const },
-  bullet_list: { marginVertical: 4 },
-  ordered_list: { marginVertical: 4 },
-  list_item: { color: "#e8eaed", fontSize: 14, lineHeight: 20 },
-  code_inline: { backgroundColor: "#0f1117", color: "#22c55e", borderRadius: 4, paddingHorizontal: 4, fontSize: 13 },
-  fence: { backgroundColor: "#0f1117", borderRadius: 8, padding: 12, marginVertical: 6 },
-  code_block: { color: "#22c55e", fontSize: 13 },
-  table: { borderWidth: 1, borderColor: "#2a2d3a", borderRadius: 6, marginVertical: 6 },
-  thead: { backgroundColor: "#16a34a" },
-  th: { color: "white", fontWeight: "700" as const, padding: 8, fontSize: 13 },
-  td: { color: "#e8eaed", padding: 8, fontSize: 13, borderTopWidth: 1, borderTopColor: "#2a2d3a" },
-  blockquote: { borderLeftWidth: 3, borderLeftColor: "#22c55e", paddingLeft: 10, marginVertical: 4 },
-  hr: { borderColor: "#2a2d3a", marginVertical: 8 },
-  link: { color: "#22c55e" },
-};
+function makeMarkdownStyles(c: Colors) {
+  return {
+    body: { color: c.textSub, fontSize: 14, lineHeight: 20 },
+    heading1: { color: c.text, fontSize: 17, fontWeight: "700" as const, marginBottom: 6, marginTop: 8 },
+    heading2: { color: c.text, fontSize: 15, fontWeight: "700" as const, marginBottom: 4, marginTop: 6 },
+    heading3: { color: c.textSub, fontSize: 14, fontWeight: "600" as const, marginBottom: 4, marginTop: 4 },
+    strong: { color: c.text, fontWeight: "700" as const },
+    em: { color: c.textSub, fontStyle: "italic" as const },
+    bullet_list: { marginVertical: 4 },
+    ordered_list: { marginVertical: 4 },
+    list_item: { color: c.textSub, fontSize: 14, lineHeight: 20 },
+    code_inline: { backgroundColor: c.bg, color: c.accentLight, borderRadius: 4, paddingHorizontal: 4, fontSize: 13 },
+    fence: { backgroundColor: c.bg, borderRadius: 8, padding: 12, marginVertical: 6 },
+    code_block: { color: c.accentLight, fontSize: 13 },
+    table: { borderWidth: 1, borderColor: c.border, borderRadius: 6, marginVertical: 6 },
+    thead: { backgroundColor: c.accent },
+    th: { color: "white", fontWeight: "700" as const, padding: 8, fontSize: 13 },
+    td: { color: c.textSub, padding: 8, fontSize: 13, borderTopWidth: 1, borderTopColor: c.border },
+    blockquote: { borderLeftWidth: 3, borderLeftColor: c.accentLight, paddingLeft: 10, marginVertical: 4 },
+    hr: { borderColor: c.border, marginVertical: 8 },
+    link: { color: c.accentLight },
+  };
+}

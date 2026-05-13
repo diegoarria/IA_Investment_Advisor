@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
   SafeAreaView, KeyboardAvoidingView, Platform, Alert, ActivityIndicator
@@ -6,8 +6,12 @@ import {
 import { router } from "expo-router";
 import * as SecureStore from "expo-secure-store";
 import { authApi, profileApi } from "../src/lib/api";
+import { useTheme, Colors } from "../src/lib/ThemeContext";
 
 export default function AuthScreen() {
+  const { colors, isDark, toggle } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
+
   const [mode, setMode] = useState<"login" | "register">("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -21,7 +25,6 @@ export default function AuthScreen() {
       const res = await fn(email, password);
       await SecureStore.setItemAsync("access_token", res.data.access_token);
       await SecureStore.setItemAsync("user_id", res.data.user_id);
-
       try {
         await profileApi.get();
         router.replace("/(tabs)/chat");
@@ -38,6 +41,10 @@ export default function AuthScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
+      <TouchableOpacity style={styles.themeToggle} onPress={toggle}>
+        <Text style={{ fontSize: 20 }}>{isDark ? "☀️" : "🌙"}</Text>
+      </TouchableOpacity>
+
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={styles.content}
@@ -57,7 +64,7 @@ export default function AuthScreen() {
             value={email}
             onChangeText={setEmail}
             placeholder="tu@email.com"
-            placeholderTextColor="#4b5563"
+            placeholderTextColor={colors.placeholder}
             keyboardType="email-address"
             autoCapitalize="none"
           />
@@ -68,7 +75,7 @@ export default function AuthScreen() {
             value={password}
             onChangeText={setPassword}
             placeholder="••••••••"
-            placeholderTextColor="#4b5563"
+            placeholderTextColor={colors.placeholder}
             secureTextEntry
           />
 
@@ -104,32 +111,35 @@ export default function AuthScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#0f1117" },
-  content: { flex: 1, justifyContent: "center", padding: 24 },
-  header: { alignItems: "center", marginBottom: 48 },
-  logo: {
-    width: 64, height: 64, backgroundColor: "#16a34a",
-    borderRadius: 16, alignItems: "center", justifyContent: "center", marginBottom: 16
-  },
-  logoIcon: { fontSize: 28 },
-  title: { fontSize: 24, fontWeight: "700", color: "white", marginBottom: 8 },
-  subtitle: { fontSize: 14, color: "#9ca3af", textAlign: "center" },
-  form: {},
-  label: { color: "#d1d5db", fontSize: 14, fontWeight: "500", marginBottom: 6 },
-  input: {
-    backgroundColor: "#1a1d27", borderWidth: 1, borderColor: "#2a2d3a",
-    borderRadius: 12, paddingHorizontal: 16, paddingVertical: 14,
-    color: "white", fontSize: 16
-  },
-  button: {
-    backgroundColor: "#16a34a", borderRadius: 12, paddingVertical: 16,
-    alignItems: "center", marginTop: 24, marginBottom: 16
-  },
-  buttonDisabled: { opacity: 0.5 },
-  buttonText: { color: "white", fontWeight: "600", fontSize: 16 },
-  switchText: { color: "#9ca3af", textAlign: "center", fontSize: 14 },
-  switchLink: { color: "#22c55e", fontWeight: "500" },
-  devSkip: { marginTop: 20, alignItems: "center" },
-  devSkipText: { color: "#4b5563", fontSize: 12 },
-});
+function makeStyles(c: Colors) {
+  return StyleSheet.create({
+    container: { flex: 1, backgroundColor: c.bg },
+    themeToggle: { position: "absolute", top: 56, right: 24, zIndex: 10 },
+    content: { flex: 1, justifyContent: "center", padding: 24 },
+    header: { alignItems: "center", marginBottom: 48 },
+    logo: {
+      width: 64, height: 64, backgroundColor: "#16a34a",
+      borderRadius: 16, alignItems: "center", justifyContent: "center", marginBottom: 16,
+    },
+    logoIcon: { fontSize: 28 },
+    title: { fontSize: 24, fontWeight: "700", color: c.text, marginBottom: 8 },
+    subtitle: { fontSize: 14, color: c.textMuted, textAlign: "center" },
+    form: {},
+    label: { color: c.textSub, fontSize: 14, fontWeight: "500", marginBottom: 6 },
+    input: {
+      backgroundColor: c.card, borderWidth: 1, borderColor: c.border,
+      borderRadius: 12, paddingHorizontal: 16, paddingVertical: 14,
+      color: c.text, fontSize: 16,
+    },
+    button: {
+      backgroundColor: "#16a34a", borderRadius: 12, paddingVertical: 16,
+      alignItems: "center", marginTop: 24, marginBottom: 16,
+    },
+    buttonDisabled: { opacity: 0.5 },
+    buttonText: { color: "white", fontWeight: "600", fontSize: 16 },
+    switchText: { color: c.textMuted, textAlign: "center", fontSize: 14 },
+    switchLink: { color: "#22c55e", fontWeight: "500" },
+    devSkip: { marginTop: 20, alignItems: "center" },
+    devSkipText: { color: c.textDim, fontSize: 12 },
+  });
+}

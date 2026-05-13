@@ -60,6 +60,7 @@ export const marketApi = {
   analyze: (symbols: string[]) => api.post("/api/market/analyze", { symbols }),
   getPortfolio: (scenario: string, capital?: number) =>
     api.post("/api/market/portfolio", { scenario, capital }),
+  getPrices: (symbols: string[]) => api.post("/api/market/prices", { symbols }),
 };
 
 export const notificationsApi = {

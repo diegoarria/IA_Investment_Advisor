@@ -1,15 +1,27 @@
 import { Tabs } from "expo-router";
-import { Text } from "react-native";
+import { Text, TouchableOpacity } from "react-native";
+import { useTheme } from "../../src/lib/ThemeContext";
+import { useAppStore } from "../../src/lib/profileStore";
 
 export default function TabsLayout() {
+  const { colors } = useTheme();
+  const openSidebar = useAppStore((s) => s.openSidebar);
+
+  const hamburger = () => (
+    <TouchableOpacity onPress={openSidebar} style={{ marginLeft: 16 }}>
+      <Text style={{ fontSize: 22, color: colors.text }}>☰</Text>
+    </TouchableOpacity>
+  );
+
   return (
     <Tabs
       screenOptions={{
-        tabBarStyle: { backgroundColor: "#1a1d27", borderTopColor: "#2a2d3a" },
-        tabBarActiveTintColor: "#22c55e",
-        tabBarInactiveTintColor: "#6b7280",
-        headerStyle: { backgroundColor: "#1a1d27" },
-        headerTintColor: "white",
+        tabBarStyle: { backgroundColor: colors.card, borderTopColor: colors.border },
+        tabBarActiveTintColor: colors.accentLight,
+        tabBarInactiveTintColor: colors.textDim,
+        headerStyle: { backgroundColor: colors.card },
+        headerTintColor: colors.text,
+        headerLeft: hamburger,
       }}
     >
       <Tabs.Screen
@@ -34,6 +46,14 @@ export default function TabsLayout() {
           title: "Alertas",
           tabBarIcon: ({ color }) => <Text style={{ color, fontSize: 18 }}>🔔</Text>,
           headerTitle: "Notificaciones",
+        }}
+      />
+      <Tabs.Screen
+        name="learn"
+        options={{
+          title: "Aprender",
+          tabBarIcon: ({ color }) => <Text style={{ color, fontSize: 18 }}>🎓</Text>,
+          headerTitle: "Aprendizaje",
         }}
       />
     </Tabs>
