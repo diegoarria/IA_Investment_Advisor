@@ -43,20 +43,28 @@ export default function ChatScreen() {
 
   const buildProfileContext = () => {
     if (!profile) return null;
-    const expLabels: Record<string, string> = { beginner: "Principiante", intermediate: "Intermedio", advanced: "Avanzado" };
-    const horizLabels: Record<string, string> = { "3": "menos de 3 años", "5": "3–5 años", "10": "5–10 años", "20": "más de 10 años" };
-    const goalLabels: Record<string, string> = { capital_preservation: "preservar capital", income: "generar ingresos", growth: "crecimiento", aggressive_growth: "crecimiento agresivo", retirement: "retiro/jubilación" };
     const riskLabel = riskCfg ? riskCfg.label : "";
-    return `[CONTEXTO DEL USUARIO — usa esta información para personalizar TODAS tus respuestas]
+    const qa = profile.quiz_answers;
+    const q1Labels = { A: "vende ante caídas (reactivo conservador)", B: "espera sin actuar (pasivo)", C: "analiza fundamentos y mantiene (racional)", D: "compra más en caídas (inversor de valor)" };
+    const q2Labels = { A: "necesita el dinero en menos de 2 años", B: "horizonte de 3–5 años para algo específico", C: "10+ años, busca independencia financiera o retiro", D: "largo plazo sin prisa, construir patrimonio" };
+    const q3Labels = { A: "principiante — apenas empieza", B: "básico — conoce CETES, interés compuesto, fondos indexados", C: "intermedio — entiende P/E, diversificación, riesgo ajustado", D: "avanzado — maneja análisis fundamental, derivados, ciclos" };
+    const q4Labels = { A: "conservador — prefiere $5K garantizado sin riesgo", B: "moderado-bajo — acepta riesgo de $5K por posible $15K", C: "moderado-alto — acepta riesgo de $20K por posible $40K", D: "especulador — arriesga todo por posible $120K" };
+    const q5Labels = { A: "pasivo — prefiere inversión automática sin monitoreo", B: "semipasivo — revisión mensual o trimestral", C: "activo — revisiones semanales con ajustes", D: "muy activo — gestión diaria dedicada" };
+    return `[PERFIL DEL USUARIO — personaliza TODAS tus respuestas con esta información]
 Nombre: ${profile.name}
-Edad: ${getAge(profile.birth_date)} años (nacido el ${profile.birth_date})
+Edad: ${getAge(profile.birth_date)} años
 Ingresos mensuales: $${Number(profile.monthly_income).toLocaleString()} USD
-Aportación mensual planificada: $${Number(profile.monthly_contribution).toLocaleString()} USD
-Perfil de inversionista: ${riskLabel}
-Experiencia: ${expLabels[profile.investment_experience] || profile.investment_experience}
-Horizonte de inversión: ${horizLabels[profile.time_horizon_years] || profile.time_horizon_years} años
-Objetivos: ${profile.investment_goals.map((g) => goalLabels[g] || g).join(", ")}
-Instrucción: Diríjete siempre a este usuario por su nombre (${profile.name.split(" ")[0]}), adapta tus recomendaciones a su perfil ${riskLabel} y a su capacidad de aportación mensual de $${Number(profile.monthly_contribution).toLocaleString()} USD. Responde en español.`;
+Aportación mensual disponible para invertir: $${Number(profile.monthly_contribution).toLocaleString()} USD
+Perfil calculado: ${riskLabel}
+
+Diagnóstico de inversor (5 preguntas clave):
+- Mentalidad ante caídas: ${qa ? q1Labels[qa.q1] : "no disponible"}
+- Horizonte / objetivo: ${qa ? q2Labels[qa.q2] : "no disponible"}
+- Nivel de conocimiento: ${qa ? q3Labels[qa.q3] : "no disponible"}
+- Tolerancia al riesgo (con dinero real): ${qa ? q4Labels[qa.q4] : "no disponible"}
+- Estilo de gestión: ${qa ? q5Labels[qa.q5] : "no disponible"}
+
+Instrucción: Llama siempre a este usuario por su nombre (${profile.name.split(" ")[0]}). Adapta el nivel de explicación a su conocimiento. Basa tus recomendaciones en su perfil ${riskLabel}, su capacidad de aportación de $${Number(profile.monthly_contribution).toLocaleString()} USD/mes y su horizonte real. Responde siempre en español.`;
   };
 
   const sendMessage = async (text?: string) => {

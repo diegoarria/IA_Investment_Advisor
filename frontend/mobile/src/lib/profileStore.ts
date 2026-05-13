@@ -1,8 +1,15 @@
 import { create } from "zustand";
 
 export type RiskTolerance = "conservative" | "moderate" | "aggressive";
-export type Experience = "beginner" | "intermediate" | "advanced";
-export type Goal = "capital_preservation" | "income" | "growth" | "aggressive_growth" | "retirement";
+export type QuizAnswer = "A" | "B" | "C" | "D";
+
+export interface QuizAnswers {
+  q1: QuizAnswer; // mentalidad
+  q2: QuizAnswer; // horizonte
+  q3: QuizAnswer; // conocimiento
+  q4: QuizAnswer; // riesgo
+  q5: QuizAnswer; // comportamiento
+}
 
 export interface UserProfile {
   name: string;
@@ -10,9 +17,20 @@ export interface UserProfile {
   monthly_income: string;
   monthly_contribution: string;
   risk_tolerance: RiskTolerance;
-  investment_experience: Experience;
-  time_horizon_years: string;
-  investment_goals: Goal[];
+  quiz_answers: QuizAnswers;
+}
+
+/** Scores: A=1, B=2, C=3, D=4. avg<=2→conservative, <=3→moderate, >3→aggressive */
+export function calculateRisk(answers: Partial<Record<keyof QuizAnswers, QuizAnswer | "">>): RiskTolerance {
+  const scoreMap: Record<QuizAnswer, number> = { A: 1, B: 2, C: 3, D: 4 };
+  const scores = (Object.values(answers) as string[])
+    .filter((v): v is QuizAnswer => ["A", "B", "C", "D"].includes(v))
+    .map((a) => scoreMap[a]);
+  if (scores.length === 0) return "moderate";
+  const avg = scores.reduce((a, b) => a + b, 0) / scores.length;
+  if (avg <= 2.0) return "conservative";
+  if (avg <= 3.0) return "moderate";
+  return "aggressive";
 }
 
 /** Calculates current age from "DD/MM/YYYY" — auto-updates every birthday */
@@ -28,7 +46,7 @@ export function getAge(birthDate: string): number {
   return Math.max(0, age);
 }
 
-/** Auto-inserts "/" as user types a date — call on every TextInput change */
+/** Auto-inserts "/" as user types — call on every TextInput change */
 export function formatBirthDate(text: string): string {
   const digits = text.replace(/\D/g, "").slice(0, 8);
   if (digits.length <= 2) return digits;

@@ -5,71 +5,114 @@ import {
 } from "react-native";
 import { router } from "expo-router";
 import { useTheme, Colors } from "../../src/lib/ThemeContext";
-import { useAppStore, RISK_CONFIG, getAge, formatBirthDate } from "../../src/lib/profileStore";
-import type { RiskTolerance, Experience, Goal } from "../../src/lib/profileStore";
+import {
+  useAppStore, RISK_CONFIG, calculateRisk, getAge, formatBirthDate,
+} from "../../src/lib/profileStore";
+import type { QuizAnswer, QuizAnswers } from "../../src/lib/profileStore";
 
-const GOALS: { value: Goal; label: string }[] = [
-  { value: "capital_preservation", label: "Preservar capital" },
-  { value: "income", label: "Generar ingresos" },
-  { value: "growth", label: "Crecimiento" },
-  { value: "aggressive_growth", label: "Crecimiento agresivo" },
-  { value: "retirement", label: "Retiro / Jubilación" },
+// ─── Quiz data ────────────────────────────────────────────────────────────────
+
+const QUIZ: {
+  key: keyof QuizAnswers;
+  num: string;
+  category: string;
+  question: string;
+  options: Record<QuizAnswer, string>;
+}[] = [
+  {
+    key: "q1",
+    num: "01",
+    category: "MENTALIDAD",
+    question: "Tu portafolio cae 35% en 3 meses por una crisis del mercado. ¿Qué haces?",
+    options: {
+      A: "Vendo todo antes de perder más",
+      B: "Espero a que se recupere, pero no compro más",
+      C: "Reviso si los fundamentos siguen sólidos y mantengo",
+      D: "Aprovecho para comprar más a precios bajos",
+    },
+  },
+  {
+    key: "q2",
+    num: "02",
+    category: "HORIZONTE",
+    question: "¿Para qué necesitas este dinero invertido y en cuánto tiempo?",
+    options: {
+      A: "Podría necesitarlo en menos de 2 años",
+      B: "En 3–5 años, para algo específico",
+      C: "En 10+ años, para independencia financiera o retiro",
+      D: "No tengo prisa — es para construir patrimonio a largo plazo",
+    },
+  },
+  {
+    key: "q3",
+    num: "03",
+    category: "CONOCIMIENTO",
+    question: "¿Cuál de estos conceptos entiendes y podrías explicar a alguien más?",
+    options: {
+      A: "Ninguno con confianza — apenas empiezo",
+      B: "Interés compuesto, CETES, fondos indexados",
+      C: "P/E ratio, diversificación, rendimiento ajustado al riesgo",
+      D: "Análisis fundamental, cobertura con derivados, ciclos de mercado",
+    },
+  },
+  {
+    key: "q4",
+    num: "04",
+    category: "RIESGO",
+    question: "Tienes $100,000 para invertir. ¿Qué escenario prefieres?",
+    options: {
+      A: "Ganar $5K seguro, sin posibilidad de perder nada",
+      B: "Ganar $15K probable, con riesgo de perder $5K",
+      C: "Ganar $40K posible, con riesgo de perder $20K",
+      D: "Ganar $120K posible, con riesgo de perder todo",
+    },
+  },
+  {
+    key: "q5",
+    num: "05",
+    category: "COMPORTAMIENTO",
+    question: "¿Cuánto tiempo dedicarías a monitorear y gestionar tus inversiones?",
+    options: {
+      A: "Prefiero algo automático que no requiera atención",
+      B: "Una revisión mensual o trimestral me parece suficiente",
+      C: "Me gusta revisar semanalmente y hacer ajustes cuando vale",
+      D: "Estoy dispuesto a dedicarle tiempo diario — es una actividad activa",
+    },
+  },
 ];
 
-const RISK_DESC: Record<RiskTolerance, string> = {
+const RISK_DESC: Record<string, string> = {
   conservative: "Priorizas la seguridad y la preservación de tu capital. Prefieres rendimientos estables aunque menores.",
   moderate:     "Buscas equilibrio entre crecimiento y protección. Aceptas cierta volatilidad por mejores retornos.",
   aggressive:   "Tu objetivo es el máximo crecimiento. Tienes tolerancia a la alta volatilidad en el largo plazo.",
 };
 
-function calculateRisk(form: {
+// Descriptions for the profile reveal summary
+const QUIZ_LABELS: Record<keyof QuizAnswers, Record<QuizAnswer, string>> = {
+  q1: { A: "Vende ante caídas", B: "Espera pasivamente", C: "Analiza y mantiene", D: "Compra las caídas" },
+  q2: { A: "< 2 años", B: "3–5 años", C: "10+ años", D: "Largo plazo, sin prisa" },
+  q3: { A: "Principiante", B: "Básico", C: "Intermedio", D: "Avanzado" },
+  q4: { A: "$5K seguro", B: "$15K probable / riesgo $5K", C: "$40K posible / riesgo $20K", D: "$120K posible / riesgo total" },
+  q5: { A: "Automático / pasivo", B: "Revisión mensual", C: "Revisión semanal", D: "Gestión diaria activa" },
+};
+
+// ─── Component ────────────────────────────────────────────────────────────────
+
+type FormState = {
+  name: string;
   birth_date: string;
-  investment_experience: Experience | "";
-  time_horizon_years: string;
-  investment_goals: Goal[];
-}): RiskTolerance {
-  let score = 0;
-  let count = 0;
+  monthly_income: string;
+  monthly_contribution: string;
+  q1: QuizAnswer | "";
+  q2: QuizAnswer | "";
+  q3: QuizAnswer | "";
+  q4: QuizAnswer | "";
+  q5: QuizAnswer | "";
+};
 
-  const age = getAge(form.birth_date) || 30;
-  if (age <= 28)      score += 3;
-  else if (age <= 38) score += 2.5;
-  else if (age <= 48) score += 2;
-  else if (age <= 58) score += 1.5;
-  else                score += 1;
-  count++;
-
-  if (form.investment_experience === "advanced")           score += 3;
-  else if (form.investment_experience === "intermediate")  score += 2;
-  else                                                     score += 1;
-  count++;
-
-  const horizon = parseInt(form.time_horizon_years) || 5;
-  if (horizon >= 15)     score += 3;
-  else if (horizon >= 8) score += 2.5;
-  else if (horizon >= 4) score += 2;
-  else                   score += 1;
-  count++;
-
-  if (form.investment_goals.length > 0) {
-    const goalScores: Record<Goal, number> = {
-      capital_preservation: 1, income: 1.5, retirement: 1.5, growth: 2.5, aggressive_growth: 3,
-    };
-    const avg = form.investment_goals.reduce((s, g) => s + goalScores[g], 0) / form.investment_goals.length;
-    score += avg;
-    count++;
-  }
-
-  const avg = score / count;
-  if (avg <= 1.75) return "conservative";
-  if (avg <= 2.35) return "moderate";
-  return "aggressive";
-}
-
-function isValidDate(d: string): boolean {
-  if (d.length !== 10) return false;
+function isValidDate(d: string) {
   const age = getAge(d);
-  return age >= 10 && age <= 100;
+  return d.length === 10 && age >= 10 && age <= 100;
 }
 
 export default function OnboardingScreen() {
@@ -78,38 +121,50 @@ export default function OnboardingScreen() {
   const setProfile = useAppStore((state) => state.setProfile);
 
   const [step, setStep] = useState(0);
-  const [form, setForm] = useState({
-    name: "",
-    birth_date: "",
-    monthly_income: "",
-    monthly_contribution: "",
-    investment_experience: "" as Experience | "",
-    time_horizon_years: "",
-    investment_goals: [] as Goal[],
+  const [form, setForm] = useState<FormState>({
+    name: "", birth_date: "", monthly_income: "", monthly_contribution: "",
+    q1: "", q2: "", q3: "", q4: "", q5: "",
   });
 
-  const toggleGoal = (g: Goal) =>
-    setForm((f) => ({
-      ...f,
-      investment_goals: f.investment_goals.includes(g)
-        ? f.investment_goals.filter((x) => x !== g)
-        : [...f.investment_goals, g],
-    }));
-
-  const calculated = calculateRisk(form);
+  const quizAnswers = { q1: form.q1, q2: form.q2, q3: form.q3, q4: form.q4, q5: form.q5 };
+  const calculated = calculateRisk(quizAnswers);
   const riskCfg = RISK_CONFIG[calculated];
   const pct = Math.round(riskCfg.pct * 100);
   const firstName = form.name.trim().split(" ")[0];
   const currentAge = getAge(form.birth_date);
 
-  const EXPERIENCE_LABELS: Record<string, string> = {
-    beginner: "Principiante", intermediate: "Intermedio", advanced: "Avanzado",
-  };
-  const HORIZON_LABELS: Record<string, string> = {
-    "3": "Menos de 3 años", "5": "3–5 años", "10": "5–10 años", "20": "Más de 10 años",
-  };
+  // ── Steps ──────────────────────────────────────────────────────────────────
+
+  const quizSteps = QUIZ.map((q) => ({
+    title: `${q.num} · ${q.category}`,
+    isValid: () => !!form[q.key],
+    content: (
+      <View style={s.fields}>
+        <Text style={[s.questionText, { color: colors.text }]}>{q.question}</Text>
+        {(["A", "B", "C", "D"] as QuizAnswer[]).map((letter) => {
+          const selected = form[q.key] === letter;
+          return (
+            <TouchableOpacity
+              key={letter}
+              style={[s.option, selected && s.optionActive]}
+              onPress={() => setForm((f) => ({ ...f, [q.key]: letter }))}
+              activeOpacity={0.75}
+            >
+              <View style={[s.letterBadge, selected && { backgroundColor: "#22c55e" }]}>
+                <Text style={[s.letterText, selected && { color: "white" }]}>{letter}</Text>
+              </View>
+              <Text style={[s.optionLabel, { color: selected ? colors.text : colors.textSub }]}>
+                {q.options[letter]}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+    ),
+  }));
 
   const steps = [
+    // 0 — Nombre
     {
       title: "¡Bienvenido! ¿Cómo te llamas?",
       isValid: () => form.name.trim().length >= 2,
@@ -118,17 +173,17 @@ export default function OnboardingScreen() {
           <Text style={s.label}>Tu nombre completo</Text>
           <TextInput
             style={s.input} value={form.name}
-            onChangeText={(v) => setForm({ ...form, name: v })}
-            placeholder="Ej. Diego Arria"
-            placeholderTextColor={colors.placeholder}
+            onChangeText={(v) => setForm((f) => ({ ...f, name: v }))}
+            placeholder="Ej. Diego Arria" placeholderTextColor={colors.placeholder}
             autoCapitalize="words" autoFocus
           />
           <Text style={[s.hint, { color: colors.textMuted }]}>
-            Así te llamaremos dentro de la app y la IA sabrá cómo dirigirse a ti.
+            Así te llamaremos en la app y la IA sabrá cómo dirigirse a ti.
           </Text>
         </View>
       ),
     },
+    // 1 — Situación financiera
     {
       title: `Hola, ${firstName || "!"}  Tu situación financiera`,
       isValid: () => isValidDate(form.birth_date) && !!form.monthly_income && !!form.monthly_contribution,
@@ -137,9 +192,8 @@ export default function OnboardingScreen() {
           <Text style={s.label}>Fecha de nacimiento</Text>
           <TextInput
             style={s.input} value={form.birth_date}
-            onChangeText={(v) => setForm({ ...form, birth_date: formatBirthDate(v) })}
-            placeholder="DD/MM/AAAA"
-            placeholderTextColor={colors.placeholder}
+            onChangeText={(v) => setForm((f) => ({ ...f, birth_date: formatBirthDate(v) }))}
+            placeholder="DD/MM/AAAA" placeholderTextColor={colors.placeholder}
             keyboardType="numeric" maxLength={10}
           />
           {form.birth_date.length === 10 && (
@@ -147,89 +201,37 @@ export default function OnboardingScreen() {
               {isValidDate(form.birth_date) ? `Tienes ${currentAge} años` : "Fecha inválida"}
             </Text>
           )}
-
           <Text style={[s.label, { marginTop: 16 }]}>Ingresos mensuales (USD)</Text>
           <TextInput
             style={s.input} value={form.monthly_income}
-            onChangeText={(v) => setForm({ ...form, monthly_income: v })}
+            onChangeText={(v) => setForm((f) => ({ ...f, monthly_income: v }))}
             placeholder="3000" placeholderTextColor={colors.placeholder} keyboardType="numeric"
           />
-
           <Text style={[s.label, { marginTop: 16 }]}>Aportación mensual planificada (USD)</Text>
           <TextInput
             style={s.input} value={form.monthly_contribution}
-            onChangeText={(v) => setForm({ ...form, monthly_contribution: v })}
+            onChangeText={(v) => setForm((f) => ({ ...f, monthly_contribution: v }))}
             placeholder="300" placeholderTextColor={colors.placeholder} keyboardType="numeric"
           />
           <Text style={[s.hint, { color: colors.textMuted }]}>
-            Esta info ayuda a la IA a darte recomendaciones precisas y personalizadas.
+            Esta info ayuda a la IA a darte recomendaciones precisas.
           </Text>
         </View>
       ),
     },
-    {
-      title: "Tu experiencia invirtiendo",
-      isValid: () => !!form.investment_experience,
-      content: (
-        <View style={s.fields}>
-          {([
-            { v: "beginner",     l: "Principiante", d: "Nunca he invertido o menos de 1 año" },
-            { v: "intermediate", l: "Intermedio",   d: "Conozco acciones y ETFs básicos" },
-            { v: "advanced",     l: "Avanzado",     d: "Manejo ratios financieros y análisis" },
-          ] as const).map(({ v, l, d }) => (
-            <TouchableOpacity
-              key={v}
-              style={[s.option, form.investment_experience === v && s.optionActive]}
-              onPress={() => setForm({ ...form, investment_experience: v })}
-            >
-              <Text style={[s.optionTitle, form.investment_experience === v && { color: colors.text }]}>{l}</Text>
-              <Text style={s.optionDesc}>{d}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-      ),
-    },
-    {
-      title: "Tus objetivos de inversión",
-      isValid: () => !!form.time_horizon_years && form.investment_goals.length > 0,
-      content: (
-        <View style={s.fields}>
-          <Text style={s.label}>Horizonte de inversión</Text>
-          {([
-            { v: "3",  l: "Menos de 3 años" },
-            { v: "5",  l: "3–5 años" },
-            { v: "10", l: "5–10 años" },
-            { v: "20", l: "Más de 10 años" },
-          ] as const).map(({ v, l }) => (
-            <TouchableOpacity
-              key={v}
-              style={[s.option, s.optionSmall, form.time_horizon_years === v && s.optionActive]}
-              onPress={() => setForm({ ...form, time_horizon_years: v })}
-            >
-              <Text style={[s.optionTitle, form.time_horizon_years === v && { color: colors.text }]}>{l}</Text>
-            </TouchableOpacity>
-          ))}
-          <Text style={[s.label, { marginTop: 16 }]}>¿Qué quieres lograr? (elige varios)</Text>
-          {GOALS.map(({ value, label }) => (
-            <TouchableOpacity
-              key={value}
-              style={[s.option, s.optionSmall, form.investment_goals.includes(value) && s.optionActive]}
-              onPress={() => toggleGoal(value)}
-            >
-              <Text style={[s.optionTitle, form.investment_goals.includes(value) && { color: colors.text }]}>{label}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-      ),
-    },
+    // 2-6 — Quiz (5 preguntas)
+    ...quizSteps,
+    // 7 — Reveal
     {
       title: `Tu perfil, ${firstName || "!"}`,
       isValid: () => true,
       content: (
         <View style={s.fields}>
-          <Text style={[s.revealSub, { color: colors.textMuted }]}>
-            Analizamos tu edad, experiencia, horizonte y objetivos para determinar tu perfil.
+          <Text style={[s.hint, { color: colors.textMuted, marginBottom: 16 }]}>
+            Analizamos tus respuestas para determinar tu perfil de inversionista real.
           </Text>
+
+          {/* Risk card */}
           <View style={[s.revealCard, { backgroundColor: colors.card, borderColor: riskCfg.color + "55" }]}>
             <Text style={s.revealIcon}>{riskCfg.icon}</Text>
             <Text style={[s.revealType, { color: colors.text }]}>{riskCfg.label}</Text>
@@ -244,14 +246,32 @@ export default function OnboardingScreen() {
             </View>
           </View>
 
-          <Text style={[s.factorsTitle, { color: colors.textSub }]}>Resumen de tu perfil</Text>
+          {/* Quiz answers summary */}
+          <Text style={[s.factorsTitle, { color: colors.textSub }]}>Resumen de tus respuestas</Text>
+          {QUIZ.map((q) => {
+            const answer = form[q.key] as QuizAnswer;
+            return (
+              <View key={q.key} style={[s.factorRow, { borderColor: colors.border }]}>
+                <Text style={[s.factorLabel, { color: colors.textMuted }]}>{q.category}</Text>
+                <View style={s.factorRight}>
+                  <View style={s.factorBadge}>
+                    <Text style={s.factorBadgeText}>{answer}</Text>
+                  </View>
+                  <Text style={[s.factorValue, { color: colors.text }]}>
+                    {answer ? QUIZ_LABELS[q.key][answer] : "—"}
+                  </Text>
+                </View>
+              </View>
+            );
+          })}
+
+          {/* Financial summary */}
+          <Text style={[s.factorsTitle, { color: colors.textSub, marginTop: 16 }]}>Datos financieros</Text>
           {[
-            { label: "Nombre",      value: form.name },
-            { label: "Edad",        value: `${currentAge} años (${form.birth_date})` },
-            { label: "Ingresos",    value: `$${Number(form.monthly_income).toLocaleString()} / mes` },
-            { label: "Aportación",  value: `$${Number(form.monthly_contribution).toLocaleString()} / mes` },
-            { label: "Experiencia", value: EXPERIENCE_LABELS[form.investment_experience] || "" },
-            { label: "Horizonte",   value: HORIZON_LABELS[form.time_horizon_years] || "" },
+            { label: "Nombre",     value: form.name },
+            { label: "Edad",       value: `${currentAge} años` },
+            { label: "Ingresos",   value: `$${Number(form.monthly_income).toLocaleString()} / mes` },
+            { label: "Aportación", value: `$${Number(form.monthly_contribution).toLocaleString()} / mes` },
           ].map((f) => (
             <View key={f.label} style={[s.factorRow, { borderColor: colors.border }]}>
               <Text style={[s.factorLabel, { color: colors.textMuted }]}>{f.label}</Text>
@@ -268,15 +288,14 @@ export default function OnboardingScreen() {
 
   const handleNext = () => {
     if (!isLastStep) { setStep(step + 1); return; }
+    const qa = quizAnswers as QuizAnswers;
     setProfile({
       name: form.name.trim(),
       birth_date: form.birth_date,
       monthly_income: form.monthly_income,
       monthly_contribution: form.monthly_contribution,
       risk_tolerance: calculated,
-      investment_experience: form.investment_experience as Experience,
-      time_horizon_years: form.time_horizon_years,
-      investment_goals: form.investment_goals,
+      quiz_answers: qa,
     });
     router.replace("/(tabs)/chat");
   };
@@ -316,6 +335,8 @@ export default function OnboardingScreen() {
   );
 }
 
+// ─── Styles ───────────────────────────────────────────────────────────────────
+
 function makeStyles(c: Colors) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: c.bg },
@@ -324,35 +345,51 @@ function makeStyles(c: Colors) {
     progressBar: { flex: 1, height: 3, borderRadius: 2, backgroundColor: c.border },
     progressActive: { backgroundColor: "#22c55e" },
     content: { padding: 20, paddingBottom: 40 },
-    stepTitle: { fontSize: 22, fontWeight: "700", color: c.text, marginBottom: 16 },
-    fields: { gap: 8 },
+    stepTitle: { fontSize: 20, fontWeight: "700", color: c.text, marginBottom: 20 },
+    fields: { gap: 10 },
     label: { color: c.textSub, fontSize: 14, fontWeight: "500", marginBottom: 6 },
-    hint: { fontSize: 12, lineHeight: 17, marginTop: 4 },
+    hint: { fontSize: 12, lineHeight: 17, marginTop: 2 },
     input: {
       backgroundColor: c.card, borderWidth: 1, borderColor: c.border,
       borderRadius: 12, paddingHorizontal: 16, paddingVertical: 14, color: c.text, fontSize: 16,
     },
+    // Quiz option cards
+    questionText: { fontSize: 16, fontWeight: "600", lineHeight: 24, marginBottom: 8 },
     option: {
-      backgroundColor: c.card, borderWidth: 1, borderColor: c.border,
-      borderRadius: 12, padding: 14, marginBottom: 4,
+      flexDirection: "row", alignItems: "center", gap: 14,
+      backgroundColor: c.card, borderWidth: 1.5, borderColor: c.border,
+      borderRadius: 14, padding: 14,
     },
-    optionSmall: { paddingVertical: 12 },
-    optionActive: { borderColor: "#22c55e", backgroundColor: "rgba(34,197,94,0.1)" },
-    optionTitle: { color: c.textSub, fontWeight: "600", fontSize: 15 },
-    optionDesc: { color: c.textDim, fontSize: 13, marginTop: 2 },
-    revealSub: { fontSize: 14, lineHeight: 20, marginBottom: 16 },
-    revealCard: { borderRadius: 16, borderWidth: 1.5, padding: 20, alignItems: "center", marginBottom: 20 },
-    revealIcon: { fontSize: 48, marginBottom: 8 },
-    revealType: { fontSize: 20, fontWeight: "700", marginBottom: 8 },
-    revealDesc: { fontSize: 13, textAlign: "center", lineHeight: 18, marginBottom: 16 },
+    optionActive: { borderColor: "#22c55e", backgroundColor: "rgba(34,197,94,0.08)" },
+    letterBadge: {
+      width: 34, height: 34, borderRadius: 17,
+      backgroundColor: c.border, alignItems: "center", justifyContent: "center",
+    },
+    letterText: { fontSize: 14, fontWeight: "700", color: c.textMuted },
+    optionLabel: { flex: 1, fontSize: 14, lineHeight: 20 },
+    // Reveal
+    revealCard: { borderRadius: 16, borderWidth: 1.5, padding: 20, alignItems: "center", marginBottom: 12 },
+    revealIcon: { fontSize: 44, marginBottom: 8 },
+    revealType: { fontSize: 19, fontWeight: "700", marginBottom: 6 },
+    revealDesc: { fontSize: 13, textAlign: "center", lineHeight: 18, marginBottom: 14 },
     barTrack: { height: 8, borderRadius: 4, overflow: "hidden", flexDirection: "row", width: "100%", marginBottom: 6 },
     barFill: { height: "100%", borderRadius: 4 },
     barLabels: { flexDirection: "row", justifyContent: "space-between", width: "100%" },
     barLabel: { fontSize: 10 },
-    factorsTitle: { fontSize: 13, fontWeight: "600", marginBottom: 8, marginTop: 4 },
-    factorRow: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 10, borderBottomWidth: 1 },
-    factorLabel: { fontSize: 13 },
-    factorValue: { fontSize: 13, fontWeight: "600" },
+    factorsTitle: { fontSize: 12, fontWeight: "700", letterSpacing: 0.8, textTransform: "uppercase", marginBottom: 6, color: c.accentLight },
+    factorRow: {
+      flexDirection: "row", justifyContent: "space-between", alignItems: "center",
+      paddingVertical: 10, borderBottomWidth: 1,
+    },
+    factorLabel: { fontSize: 12, fontWeight: "500" },
+    factorRight: { flexDirection: "row", alignItems: "center", gap: 8, flex: 1, justifyContent: "flex-end" },
+    factorBadge: {
+      width: 22, height: 22, borderRadius: 11,
+      backgroundColor: "#22c55e", alignItems: "center", justifyContent: "center",
+    },
+    factorBadgeText: { color: "white", fontSize: 11, fontWeight: "700" },
+    factorValue: { fontSize: 12, fontWeight: "600", textAlign: "right", flexShrink: 1 },
+    // Footer
     footer: { flexDirection: "row", gap: 10, padding: 20, borderTopWidth: 1, borderTopColor: c.border },
     backBtn: {
       borderWidth: 1, borderColor: c.border, borderRadius: 12,
