@@ -4,6 +4,7 @@ import {
   Modal, StyleSheet, SafeAreaView, ActivityIndicator,
   KeyboardAvoidingView, Platform,
 } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import Markdown from "react-native-markdown-display";
 import { useTheme, Colors } from "../../src/lib/ThemeContext";
 import { chatApi } from "../../src/lib/api";
@@ -18,16 +19,18 @@ interface Topic {
   prompt: string;
 }
 
-const CATEGORIES = [
-  { id: "all",        emoji: "✨", title: "Todo" },
-  { id: "basics",     emoji: "📚", title: "Básicos" },
-  { id: "instruments",emoji: "🏦", title: "Instrumentos" },
-  { id: "analysis",   emoji: "📊", title: "Análisis" },
-  { id: "strategies", emoji: "🎯", title: "Estrategias" },
-  { id: "psychology", emoji: "🧠", title: "Psicología" },
-  { id: "markets",    emoji: "🌎", title: "Mercados" },
-  { id: "mexico",     emoji: "🇲🇽", title: "México" },
-  { id: "companies",  emoji: "🏢", title: "Empresas" },
+type IoniconName = React.ComponentProps<typeof Ionicons>["name"];
+
+const CATEGORIES: { id: string; icon: IoniconName; title: string }[] = [
+  { id: "all",         icon: "grid-outline",      title: "Todo" },
+  { id: "basics",      icon: "library-outline",   title: "Básicos" },
+  { id: "instruments", icon: "business-outline",  title: "Instrumentos" },
+  { id: "analysis",    icon: "analytics-outline", title: "Análisis" },
+  { id: "strategies",  icon: "flag-outline",      title: "Estrategias" },
+  { id: "psychology",  icon: "bulb-outline",      title: "Psicología" },
+  { id: "markets",     icon: "globe-outline",     title: "Mercados" },
+  { id: "mexico",      icon: "location-outline",  title: "México" },
+  { id: "companies",   icon: "briefcase-outline", title: "Empresas" },
 ];
 
 const TOPICS: Topic[] = [
@@ -141,7 +144,7 @@ export default function LearnScreen() {
     <SafeAreaView style={s.container}>
       {/* Barra de búsqueda */}
       <View style={[s.searchBar, { backgroundColor: colors.card, borderColor: colors.border }]}>
-        <Text style={s.searchIcon}>🔍</Text>
+        <Ionicons name="search-outline" size={16} color={colors.textMuted} style={{ marginRight: 8 }} />
         <TextInput
           style={[s.searchInput, { color: colors.text }]}
           value={search}
@@ -160,19 +163,25 @@ export default function LearnScreen() {
 
       {/* Categorías */}
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.catsScroll} contentContainerStyle={s.catsContent}>
-        {CATEGORIES.map((cat) => (
-          <TouchableOpacity
-            key={cat.id}
-            style={[s.catChip, { backgroundColor: colors.card, borderColor: colors.border },
-              selectedCat === cat.id && s.catChipActive]}
-            onPress={() => setSelectedCat(cat.id)}
-          >
-            <Text style={s.catEmoji}>{cat.emoji}</Text>
-            <Text style={[s.catText, { color: selectedCat === cat.id ? "#22c55e" : colors.textSub }]}>
-              {cat.title}
-            </Text>
-          </TouchableOpacity>
-        ))}
+        {CATEGORIES.map((cat) => {
+          const active = selectedCat === cat.id;
+          return (
+            <TouchableOpacity
+              key={cat.id}
+              style={[
+                s.catChip,
+                { backgroundColor: colors.card, borderColor: colors.border },
+                active && s.catChipActive,
+              ]}
+              onPress={() => setSelectedCat(cat.id)}
+            >
+              <Ionicons name={cat.icon} size={15} color={active ? "white" : colors.textSub} />
+              <Text style={[s.catText, { color: active ? "white" : colors.textSub }]}>
+                {cat.title}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
       </ScrollView>
 
       {/* Grid de temas */}
@@ -184,7 +193,7 @@ export default function LearnScreen() {
         columnWrapperStyle={s.gridRow}
         ListEmptyComponent={
           <View style={s.emptyState}>
-            <Text style={{ fontSize: 40, marginBottom: 12 }}>🤔</Text>
+            <Ionicons name="help-circle-outline" size={40} color={colors.textMuted} style={{ marginBottom: 12 }} />
             <Text style={[s.emptyTitle, { color: colors.text }]}>No encontré ese tema</Text>
             <Text style={[s.emptyDesc, { color: colors.textMuted }]}>
               Toca "Preguntar" para que la IA te explique cualquier concepto
@@ -210,7 +219,7 @@ export default function LearnScreen() {
         <SafeAreaView style={[s.modalContainer, { backgroundColor: colors.bg }]}>
           <View style={[s.modalHeader, { borderBottomColor: colors.border }]}>
             <TouchableOpacity onPress={() => setModal(null)} style={s.closeBtn}>
-              <Text style={[s.closeText, { color: colors.textMuted }]}>✕</Text>
+              <Ionicons name="close" size={22} color={colors.textMuted} />
             </TouchableOpacity>
             <Text style={[s.modalTitle, { color: colors.text }]}>{modal?.title}</Text>
             <View style={{ width: 32 }} />
@@ -251,20 +260,19 @@ function makeStyles(c: Colors) {
       marginHorizontal: 16, marginTop: 12, marginBottom: 8,
       borderRadius: 12, borderWidth: 1, paddingHorizontal: 12, paddingVertical: 8,
     },
-    searchIcon: { fontSize: 16, marginRight: 8 },
     searchInput: { flex: 1, fontSize: 14, paddingVertical: 2 },
     searchBtn: { backgroundColor: "#16a34a", borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5 },
     searchBtnText: { color: "white", fontSize: 12, fontWeight: "600" },
-    catsScroll: { flexGrow: 0, marginBottom: 8 },
-    catsContent: { paddingHorizontal: 12, gap: 8, flexDirection: "row" },
+    catsScroll: { flexShrink: 0, marginBottom: 2 },
+    catsContent: { paddingHorizontal: 12, gap: 8, flexDirection: "row", paddingVertical: 2 },
     catChip: {
-      flexDirection: "row", alignItems: "center", gap: 4,
-      borderRadius: 20, borderWidth: 1, paddingHorizontal: 12, paddingVertical: 6,
+      flexDirection: "row", alignItems: "center", gap: 6,
+      borderRadius: 20, borderWidth: 1, paddingHorizontal: 14,
+      height: 38, flexShrink: 0,
     },
-    catChipActive: { borderColor: "#22c55e", backgroundColor: "rgba(34,197,94,0.1)" },
-    catEmoji: { fontSize: 14 },
-    catText: { fontSize: 12, fontWeight: "500" },
-    grid: { padding: 12, paddingBottom: 32 },
+    catChipActive: { borderColor: "#16a34a", backgroundColor: "#16a34a" },
+    catText: { fontSize: 13, fontWeight: "600" },
+    grid: { padding: 12, paddingTop: 6, paddingBottom: 32 },
     gridRow: { gap: 10 },
     topicCard: {
       flex: 1, borderRadius: 14, borderWidth: 1,
@@ -283,7 +291,6 @@ function makeStyles(c: Colors) {
       paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1,
     },
     closeBtn: { width: 32, height: 32, alignItems: "center", justifyContent: "center" },
-    closeText: { fontSize: 18 },
     modalTitle: { fontSize: 16, fontWeight: "700", flex: 1, textAlign: "center" },
     modalContent: { padding: 20, paddingBottom: 40 },
     loadingState: { alignItems: "center", paddingTop: 60, gap: 16 },

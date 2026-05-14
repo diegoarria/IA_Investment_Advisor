@@ -1,22 +1,26 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   View, Text, TouchableOpacity, Animated, Dimensions,
   StyleSheet, Pressable, Platform, ScrollView,
 } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { router, usePathname } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAppStore, RISK_CONFIG, getAge } from "../lib/profileStore";
 import { usePortfolioStore } from "../lib/portfolioStore";
+import { useChatStore } from "../lib/chatStore";
 import { useTheme } from "../lib/ThemeContext";
 
 const SIDEBAR_WIDTH = Math.min(Dimensions.get("window").width * 0.78, 300);
 const WEB_SIDEBAR_WIDTH = 260;
 
-const NAV_ITEMS = [
-  { icon: "💬", label: "Chat IA",      path: "/chat" },
-  { icon: "📊", label: "Portafolios",  path: "/portfolio" },
-  { icon: "🎓", label: "Aprendizaje",  path: "/learn" },
-  { icon: "🔔", label: "Alertas",      path: "/notifications" },
+type IoniconName = React.ComponentProps<typeof Ionicons>["name"];
+
+const NAV_ITEMS: { icon: IoniconName; label: string; path: string }[] = [
+  { icon: "chatbubble-ellipses-outline", label: "Chat IA",     path: "/chat" },
+  { icon: "bar-chart-outline",           label: "Portafolios", path: "/portfolio" },
+  { icon: "school-outline",              label: "Aprendizaje", path: "/learn" },
+  { icon: "notifications-outline",       label: "Alertas",     path: "/notifications" },
 ];
 
 // ─── Shared content blocks ────────────────────────────────────────────────────
@@ -100,7 +104,7 @@ function NavItems({
             ]}
             onPress={() => onPress(item.path)}
           >
-            <Text style={styles.navIcon}>{item.icon}</Text>
+            <Ionicons name={item.icon} size={20} color={isActive ? "#22c55e" : colors.textSub} />
             <Text style={[styles.navLabel, { color: isActive ? "#22c55e" : colors.textSub }]}>
               {item.label}
             </Text>
@@ -109,6 +113,84 @@ function NavItems({
         );
       })}
     </>
+  );
+}
+
+// ─── Recent chats ─────────────────────────────────────────────────────────────
+
+function RecentChats({
+  colors, onNavigate,
+}: {
+  colors: ReturnType<typeof useTheme>["colors"];
+  onNavigate: () => void;
+}) {
+  const { sessions, currentId, loadSession, deleteSession, createSession } = useChatStore();
+  const [expanded, setExpanded] = useState(true);
+  const recent = sessions.slice(0, 12);
+
+  const handleNew = () => {
+    createSession();
+    router.push("/chat" as any);
+    onNavigate();
+  };
+
+  const handleLoad = (id: string) => {
+    loadSession(id);
+    router.push("/chat" as any);
+    onNavigate();
+  };
+
+  return (
+    <View style={styles.recentSection}>
+      {/* Section header */}
+      <View style={styles.recentHeader}>
+        <TouchableOpacity style={styles.recentHeaderLeft} onPress={() => setExpanded((v) => !v)}>
+          <Ionicons name="time-outline" size={14} color={colors.textMuted} />
+          <Text style={[styles.recentTitle, { color: colors.textMuted }]}>Chats recientes</Text>
+          <Ionicons
+            name={expanded ? "chevron-down" : "chevron-forward"}
+            size={12}
+            color={colors.textMuted}
+          />
+        </TouchableOpacity>
+        <TouchableOpacity style={[styles.newChatBadge, { borderColor: colors.border }]} onPress={handleNew}>
+          <Ionicons name="add" size={14} color={colors.textSub} />
+        </TouchableOpacity>
+      </View>
+
+      {expanded && (
+        <>
+          {recent.length === 0 ? (
+            <Text style={[styles.recentEmpty, { color: colors.textDim }]}>Sin chats guardados</Text>
+          ) : (
+            recent.map((s) => (
+              <TouchableOpacity
+                key={s.id}
+                style={[
+                  styles.recentItem,
+                  s.id === currentId && { backgroundColor: "rgba(34,197,94,0.08)", borderRadius: 8 },
+                ]}
+                onPress={() => handleLoad(s.id)}
+              >
+                <Ionicons name="chatbubble-outline" size={13} color={colors.textDim} style={{ marginTop: 1 }} />
+                <Text
+                  style={[styles.recentItemText, { color: s.id === currentId ? "#22c55e" : colors.textSub }]}
+                  numberOfLines={1}
+                >
+                  {s.title}
+                </Text>
+                <TouchableOpacity
+                  onPress={(e) => { e.stopPropagation(); deleteSession(s.id); }}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
+                  <Ionicons name="close" size={13} color={colors.textDim} />
+                </TouchableOpacity>
+              </TouchableOpacity>
+            ))
+          )}
+        </>
+      )}
+    </View>
   );
 }
 
@@ -134,7 +216,7 @@ function WebSidebar() {
       {/* Logo */}
       <View style={[styles.logoRow, { borderBottomColor: colors.border }]}>
         <View style={styles.logoBox}>
-          <Text style={{ fontSize: 18 }}>📈</Text>
+          <Ionicons name="trending-up" size={20} color="white" />
         </View>
         <View>
           <Text style={[styles.appName, { color: colors.text }]}>IA Investment</Text>
@@ -142,7 +224,7 @@ function WebSidebar() {
         </View>
       </View>
 
-      {/* Scrollable: profile + nav */}
+      {/* Scrollable: profile + nav + recent chats */}
       <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
         <ProfileCard colors={colors} />
         <View style={styles.navSection}>
@@ -152,22 +234,23 @@ function WebSidebar() {
             onPress={(path) => router.push(path as any)}
           />
         </View>
+        <RecentChats colors={colors} onNavigate={() => {}} />
       </ScrollView>
 
       {/* Footer */}
       <View style={[styles.footer, { borderTopColor: colors.border, paddingBottom: 16 }]}>
         <TouchableOpacity style={styles.navItem} onPress={() => router.push("/profile/edit" as any)}>
-          <Text style={styles.navIcon}>✏️</Text>
+          <Ionicons name="create-outline" size={20} color={colors.textSub} />
           <Text style={[styles.navLabel, { color: colors.textSub }]}>Editar perfil</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.navItem} onPress={toggle}>
-          <Text style={styles.navIcon}>{isDark ? "☀️" : "🌙"}</Text>
+          <Ionicons name={isDark ? "sunny-outline" : "moon-outline"} size={20} color={colors.textSub} />
           <Text style={[styles.navLabel, { color: colors.textSub }]}>
             {isDark ? "Modo claro" : "Modo oscuro"}
           </Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.navItem} onPress={handleLogout}>
-          <Text style={styles.navIcon}>🚪</Text>
+          <Ionicons name="log-out-outline" size={20} color="#ef4444" />
           <Text style={[styles.navLabel, { color: "#ef4444" }]}>Cerrar sesión</Text>
         </TouchableOpacity>
       </View>
@@ -226,7 +309,7 @@ function MobileSidebar() {
         {/* Logo */}
         <View style={[styles.logoRow, { borderBottomColor: colors.border }]}>
           <View style={styles.logoBox}>
-            <Text style={{ fontSize: 18 }}>📈</Text>
+            <Ionicons name="trending-up" size={20} color="white" />
           </View>
           <View>
             <Text style={[styles.appName, { color: colors.text }]}>IA Investment</Text>
@@ -243,23 +326,24 @@ function MobileSidebar() {
             onPress={(path) => { closeSidebar(); router.push(path as any); }}
           />
         </View>
+        <RecentChats colors={colors} onNavigate={closeSidebar} />
 
         <View style={[styles.footer, { borderTopColor: colors.border, paddingBottom: insets.bottom + 12 }]}>
           <TouchableOpacity
             style={styles.navItem}
             onPress={() => { closeSidebar(); router.push("/profile/edit" as any); }}
           >
-            <Text style={styles.navIcon}>✏️</Text>
+            <Ionicons name="create-outline" size={20} color={colors.textSub} />
             <Text style={[styles.navLabel, { color: colors.textSub }]}>Editar perfil</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.navItem} onPress={toggle}>
-            <Text style={styles.navIcon}>{isDark ? "☀️" : "🌙"}</Text>
+            <Ionicons name={isDark ? "sunny-outline" : "moon-outline"} size={20} color={colors.textSub} />
             <Text style={[styles.navLabel, { color: colors.textSub }]}>
               {isDark ? "Modo claro" : "Modo oscuro"}
             </Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.navItem} onPress={() => { closeSidebar(); handleLogout(); }}>
-            <Text style={styles.navIcon}>🚪</Text>
+            <Ionicons name="log-out-outline" size={20} color="#ef4444" />
             <Text style={[styles.navLabel, { color: "#ef4444" }]}>Cerrar sesión</Text>
           </TouchableOpacity>
         </View>
@@ -325,10 +409,18 @@ const styles = StyleSheet.create({
   statLabel: { fontSize: 10, marginBottom: 2 },
   statValue: { fontSize: 11, fontWeight: "600", textAlign: "center" },
   statDivider: { width: 1, marginVertical: 2 },
-  navSection: { flex: 1, paddingHorizontal: 12, paddingTop: 4, gap: 2 },
+  navSection: { paddingHorizontal: 12, paddingTop: 4, gap: 2 },
   navItem: { flexDirection: "row", alignItems: "center", padding: 14, gap: 12 },
-  navIcon: { fontSize: 18 },
   navLabel: { fontSize: 15, fontWeight: "500", flex: 1 },
   activeDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: "#22c55e" },
   footer: { paddingHorizontal: 12, borderTopWidth: 1 },
+  // Recent chats
+  recentSection: { paddingHorizontal: 12, paddingTop: 8, paddingBottom: 4 },
+  recentHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 4 },
+  recentHeaderLeft: { flexDirection: "row", alignItems: "center", gap: 5, flex: 1 },
+  recentTitle: { fontSize: 11, fontWeight: "600", textTransform: "uppercase", letterSpacing: 0.5, flex: 1 },
+  newChatBadge: { width: 22, height: 22, borderRadius: 6, borderWidth: 1, alignItems: "center", justifyContent: "center" },
+  recentEmpty: { fontSize: 12, paddingVertical: 8, paddingLeft: 4 },
+  recentItem: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 8, paddingVertical: 9 },
+  recentItemText: { fontSize: 13, flex: 1 },
 });

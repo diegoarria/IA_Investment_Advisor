@@ -2,7 +2,7 @@ import anthropic
 from app.core.config import settings
 from app.models.user import UserProfile, ChatMessage
 
-client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
+client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
 
 SYSTEM_PROMPT_BASE = """Eres un asesor de inversiones educativo de élite. Tu misión es enseñar a pensar como inversionista profesional, NO decir qué comprar.
 
@@ -135,7 +135,7 @@ async def chat_stream(
     messages = [{"role": m.role, "content": m.content} for m in conversation_history]
     messages.append({"role": "user", "content": message})
 
-    with client.messages.stream(
+    async with client.messages.stream(
         model=settings.claude_model,
         max_tokens=2048,
         system=[
@@ -147,7 +147,7 @@ async def chat_stream(
         ],
         messages=messages,
     ) as stream:
-        for text in stream.text_stream:
+        async for text in stream.text_stream:
             yield text
 
 
@@ -177,7 +177,7 @@ Luego, si el perfil del usuario está disponible, presenta escenarios:
 
 Recuerda: analiza el negocio, no el precio de la acción."""
 
-    response = client.messages.create(
+    response = await client.messages.create(
         model=settings.claude_model,
         max_tokens=3000,
         system=[{"type": "text", "text": system_prompt, "cache_control": {"type": "ephemeral"}}],
@@ -212,7 +212,7 @@ Para este portafolio de ejemplo:
 IMPORTANTE: Esto es completamente educativo/hipotético. No es una recomendación de inversión.
 Explica los conceptos de diversificación, correlación de activos y horizonte temporal."""
 
-    response = client.messages.create(
+    response = await client.messages.create(
         model=settings.claude_model,
         max_tokens=2500,
         system=[{"type": "text", "text": system_prompt, "cache_control": {"type": "ephemeral"}}],
@@ -242,7 +242,7 @@ El mensaje debe:
 
 NO alarmes innecesariamente. Contextualiza con perspectiva histórica."""
 
-    response = client.messages.create(
+    response = await client.messages.create(
         model=settings.claude_model,
         max_tokens=600,
         system=[{"type": "text", "text": system_prompt, "cache_control": {"type": "ephemeral"}}],

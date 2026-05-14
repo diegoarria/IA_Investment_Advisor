@@ -1,5 +1,6 @@
 import { Tabs } from "expo-router";
-import { Text, TouchableOpacity, Platform } from "react-native";
+import { TouchableOpacity, Platform } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "../../src/lib/ThemeContext";
 import { useAppStore } from "../../src/lib/profileStore";
 
@@ -11,20 +12,18 @@ export default function TabsLayout() {
 
   const hamburger = () => (
     <TouchableOpacity onPress={openSidebar} style={{ marginLeft: 16 }}>
-      <Text style={{ fontSize: 22, color: colors.text }}>☰</Text>
+      <Ionicons name="menu-outline" size={26} color={colors.text} />
     </TouchableOpacity>
   );
 
   return (
     <Tabs
       screenOptions={{
-        // Web: no tab bar — sidebar handles navigation
         tabBarStyle: isWeb
           ? { display: "none" }
           : { backgroundColor: colors.card, borderTopColor: colors.border },
         tabBarActiveTintColor: colors.accentLight,
         tabBarInactiveTintColor: colors.textDim,
-        // Web: no header — sidebar provides context; Mobile: show header with hamburger
         headerShown: !isWeb,
         headerStyle: { backgroundColor: colors.card },
         headerTintColor: colors.text,
@@ -35,7 +34,7 @@ export default function TabsLayout() {
         name="chat"
         options={{
           title: "Chat",
-          tabBarIcon: ({ color }) => <Text style={{ color, fontSize: 18 }}>💬</Text>,
+          tabBarIcon: ({ color }) => <Ionicons name="chatbubble-ellipses-outline" size={22} color={color} />,
           headerTitle: "IA Investment Advisor",
         }}
       />
@@ -43,7 +42,7 @@ export default function TabsLayout() {
         name="portfolio"
         options={{
           title: "Portafolios",
-          tabBarIcon: ({ color }) => <Text style={{ color, fontSize: 18 }}>📊</Text>,
+          tabBarIcon: ({ color }) => <Ionicons name="bar-chart-outline" size={22} color={color} />,
           headerTitle: "Mi Portafolio",
         }}
       />
@@ -51,7 +50,7 @@ export default function TabsLayout() {
         name="notifications"
         options={{
           title: "Alertas",
-          tabBarIcon: ({ color }) => <Text style={{ color, fontSize: 18 }}>🔔</Text>,
+          tabBarIcon: ({ color }) => <Ionicons name="notifications-outline" size={22} color={color} />,
           headerTitle: "Notificaciones",
         }}
       />
@@ -59,7 +58,7 @@ export default function TabsLayout() {
         name="learn"
         options={{
           title: "Aprender",
-          tabBarIcon: ({ color }) => <Text style={{ color, fontSize: 18 }}>🎓</Text>,
+          tabBarIcon: ({ color }) => <Ionicons name="school-outline" size={22} color={color} />,
           headerTitle: "Aprendizaje",
         }}
       />

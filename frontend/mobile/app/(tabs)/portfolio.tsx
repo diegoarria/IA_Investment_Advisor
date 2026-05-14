@@ -4,6 +4,7 @@ import {
   StyleSheet, ActivityIndicator, SafeAreaView, Alert,
   RefreshControl, Image,
 } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import * as DocumentPicker from "expo-document-picker";
 import * as XLSX from "xlsx";
@@ -11,12 +12,13 @@ import { marketApi } from "../../src/lib/api";
 import { useTheme, Colors } from "../../src/lib/ThemeContext";
 import { usePortfolioStore, Position } from "../../src/lib/portfolioStore";
 
+type IoniconName = React.ComponentProps<typeof Ionicons>["name"];
 type Scenario = "conservative" | "moderate" | "aggressive";
 
-const SCENARIOS: { value: Scenario; emoji: string; label: string }[] = [
-  { value: "conservative", emoji: "🛡️", label: "Conservador" },
-  { value: "moderate",     emoji: "⚖️", label: "Moderado" },
-  { value: "aggressive",   emoji: "🚀", label: "Agresivo" },
+const SCENARIOS: { value: Scenario; icon: IoniconName; label: string }[] = [
+  { value: "conservative", icon: "shield-outline", label: "Conservador" },
+  { value: "moderate",     icon: "scale-outline",  label: "Moderado" },
+  { value: "aggressive",   icon: "rocket-outline", label: "Agresivo" },
 ];
 
 interface PriceData { price: number | null; currency: string; name: string }
@@ -245,8 +247,9 @@ export default function PortfolioScreen() {
             <TouchableOpacity style={[s.btnSmall, { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border }]} onPress={() => { setShowForm(!showForm); setScreenshotPreview(null); }}>
               <Text style={[s.btnSmallText, { color: colors.textSub }]}>+ Manual</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={[s.btnSmall, s.btnExcel]} onPress={handleExcelImport}>
-              <Text style={s.btnSmallText}>📁 Excel</Text>
+            <TouchableOpacity style={[s.btnSmall, s.btnExcel, { flexDirection: "row", alignItems: "center", gap: 4 }]} onPress={handleExcelImport}>
+              <Ionicons name="document-outline" size={13} color="white" />
+              <Text style={s.btnSmallText}>Excel</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -265,7 +268,7 @@ export default function PortfolioScreen() {
             </View>
           ) : (
             <View style={s.screenshotBtnInner}>
-              <Text style={s.screenshotBtnIcon}>📸</Text>
+              <Ionicons name="camera-outline" size={28} color="white" />
               <View>
                 <Text style={s.screenshotBtnText}>Importar desde captura</Text>
                 <Text style={s.screenshotBtnSub}>La IA detecta tus posiciones automáticamente</Text>
@@ -368,7 +371,7 @@ export default function PortfolioScreen() {
         {/* ── LISTA DE POSICIONES ── */}
         {positions.length === 0 && !screenshotPreview ? (
           <View style={[s.emptyCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <Text style={s.emptyIcon}>📂</Text>
+            <Ionicons name="folder-open-outline" size={40} color={colors.textMuted} style={{ marginBottom: 10 }} />
             <Text style={[s.emptyTitle, { color: colors.text }]}>Sin posiciones todavía</Text>
             <Text style={[s.emptyDesc, { color: colors.textMuted }]}>
               Toma una captura de tu portafolio y la IA lo importa automáticamente
@@ -449,7 +452,7 @@ export default function PortfolioScreen() {
               style={[s.scenarioCard, { backgroundColor: colors.card, borderColor: colors.border }, scenario === sc.value && s.scenarioActive]}
               onPress={() => setScenario(sc.value)}
             >
-              <Text style={s.scenarioEmoji}>{sc.emoji}</Text>
+              <Ionicons name={sc.icon} size={20} color={scenario === sc.value ? "#22c55e" : colors.textSub} style={{ marginBottom: 2 }} />
               <Text style={[s.scenarioLabel, { color: scenario === sc.value ? colors.text : colors.textSub }]}>{sc.label}</Text>
             </TouchableOpacity>
           ))}
@@ -467,7 +470,10 @@ export default function PortfolioScreen() {
           <View style={[s.resultCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <Text style={[s.resultText, { color: colors.textSub }]}>{analysis}</Text>
             <View style={s.disclaimer}>
-              <Text style={s.disclaimerText}>⚠️ Análisis educativo hipotético. No es asesoramiento financiero.</Text>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+            <Ionicons name="warning-outline" size={13} color="#ca8a04" />
+            <Text style={s.disclaimerText}>Análisis educativo hipotético. No es asesoramiento financiero.</Text>
+          </View>
             </View>
           </View>
         )}
@@ -492,7 +498,6 @@ function makeStyles(c: Colors) {
       marginBottom: 12, shadowColor: "#16a34a", shadowOpacity: 0.3, shadowRadius: 8, shadowOffset: { width: 0, height: 4 },
     },
     screenshotBtnInner: { flexDirection: "row", alignItems: "center", gap: 14 },
-    screenshotBtnIcon: { fontSize: 28 },
     screenshotBtnText: { color: "white", fontSize: 15, fontWeight: "700" },
     screenshotBtnSub: { color: "rgba(255,255,255,0.75)", fontSize: 12, marginTop: 2 },
     // Screenshot preview card
@@ -532,7 +537,6 @@ function makeStyles(c: Colors) {
     addBtnText: { color: "white", fontWeight: "600", fontSize: 14 },
     // Empty
     emptyCard: { borderRadius: 14, borderWidth: 1, padding: 24, alignItems: "center", marginBottom: 16 },
-    emptyIcon: { fontSize: 40, marginBottom: 10 },
     emptyTitle: { fontSize: 15, fontWeight: "600", marginBottom: 6 },
     emptyDesc: { fontSize: 13, textAlign: "center", lineHeight: 18 },
     // Totals
@@ -558,7 +562,6 @@ function makeStyles(c: Colors) {
     scenarioRow: { flexDirection: "row", gap: 8, marginBottom: 14 },
     scenarioCard: { flex: 1, borderWidth: 1, borderRadius: 10, padding: 10, alignItems: "center" },
     scenarioActive: { borderColor: "#22c55e", backgroundColor: "rgba(34,197,94,0.1)" },
-    scenarioEmoji: { fontSize: 20, marginBottom: 2 },
     scenarioLabel: { fontSize: 12, fontWeight: "600" },
     simInput: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 14, marginBottom: 12 },
     simBtn: { backgroundColor: "#16a34a", borderRadius: 12, paddingVertical: 14, alignItems: "center", marginBottom: 16 },

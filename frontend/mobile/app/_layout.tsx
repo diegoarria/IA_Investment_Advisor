@@ -1,11 +1,17 @@
-import { Stack } from "expo-router";
+import { Stack, usePathname } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { View, Platform } from "react-native";
 import { ThemeProvider, useTheme } from "../src/lib/ThemeContext";
 import Sidebar from "../src/components/Sidebar";
 
+const HIDE_SIDEBAR_ROUTES = ["/", "/onboarding"];
+
 function AppStack() {
   const { colors, isDark } = useTheme();
+  const pathname = usePathname();
+  const showSidebar = !HIDE_SIDEBAR_ROUTES.some(
+    (r) => pathname === r || pathname.startsWith(r + "/")
+  );
 
   const stackScreens = (
     <Stack
@@ -34,9 +40,9 @@ function AppStack() {
   if (Platform.OS === "web") {
     // Desktop: full-width row — sidebar on left, content on right
     return (
-      <View style={{ flex: 1, flexDirection: "row", backgroundColor: colors.bg }}>
+      <View style={{ flex: 1, flexDirection: showSidebar ? "row" : "column", backgroundColor: colors.bg }}>
         <StatusBar style={isDark ? "light" : "dark"} backgroundColor={colors.bg} />
-        <Sidebar />
+        {showSidebar && <Sidebar />}
         <View style={{ flex: 1, overflow: "hidden" }}>
           {stackScreens}
         </View>
@@ -49,7 +55,7 @@ function AppStack() {
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
       <StatusBar style={isDark ? "light" : "dark"} backgroundColor={colors.bg} />
       {stackScreens}
-      <Sidebar />
+      {showSidebar && <Sidebar />}
     </View>
   );
 }

@@ -3,8 +3,11 @@ import {
   View, Text, FlatList, TouchableOpacity,
   StyleSheet, RefreshControl, SafeAreaView
 } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { notificationsApi } from "../../src/lib/api";
 import { useTheme, Colors } from "../../src/lib/ThemeContext";
+
+type IoniconName = React.ComponentProps<typeof Ionicons>["name"];
 
 interface Notification {
   id: string;
@@ -15,12 +18,12 @@ interface Notification {
   created_at: string;
 }
 
-const TYPE_ICONS: Record<string, string> = {
-  market_move: "📉",
-  earnings_event: "📊",
-  learning_progress: "🚀",
-  personalized_insight: "🧠",
-  market_summary: "📈",
+const TYPE_ICONS: Record<string, IoniconName> = {
+  market_move: "trending-down-outline",
+  earnings_event: "bar-chart-outline",
+  learning_progress: "rocket-outline",
+  personalized_insight: "bulb-outline",
+  market_summary: "trending-up-outline",
 };
 
 export default function NotificationsScreen() {
@@ -59,7 +62,7 @@ export default function NotificationsScreen() {
       onPress={() => !item.read && handleMarkRead(item.id)}
     >
       <View style={styles.cardRow}>
-        <Text style={styles.cardIcon}>{TYPE_ICONS[item.type] || "🔔"}</Text>
+        <Ionicons name={TYPE_ICONS[item.type] ?? "notifications-outline"} size={22} color={colors.textSub} style={{ marginRight: 12 }} />
         <View style={styles.cardBody}>
           <Text style={[styles.cardTitle, !item.read && { color: colors.text }]}>{item.title}</Text>
           <Text style={styles.cardMessage} numberOfLines={3}>{item.message}</Text>
@@ -93,7 +96,7 @@ export default function NotificationsScreen() {
         }
         ListEmptyComponent={
           <View style={styles.empty}>
-            <Text style={styles.emptyIcon}>🔔</Text>
+            <Ionicons name="notifications-outline" size={48} color={colors.textMuted} style={{ marginBottom: 16 }} />
             <Text style={styles.emptyText}>Sin notificaciones todavía</Text>
             <Text style={styles.emptySubtext}>
               Las alertas aparecen cuando hay eventos relevantes del mercado para tu perfil
@@ -122,14 +125,12 @@ function makeStyles(c: Colors) {
     },
     cardUnread: { borderColor: "rgba(34,197,94,0.4)", backgroundColor: "rgba(34,197,94,0.04)" },
     cardRow: { flexDirection: "row", alignItems: "flex-start" },
-    cardIcon: { fontSize: 22, marginRight: 12 },
     cardBody: { flex: 1 },
     cardTitle: { color: c.textSub, fontWeight: "600", fontSize: 14, marginBottom: 4 },
     cardMessage: { color: c.textMuted, fontSize: 13, lineHeight: 18 },
     cardDate: { color: c.textDim, fontSize: 11, marginTop: 6 },
     unreadDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: "#22c55e", marginTop: 4 },
     empty: { alignItems: "center", paddingTop: 80 },
-    emptyIcon: { fontSize: 48, marginBottom: 16 },
     emptyText: { color: c.textMuted, fontSize: 16, fontWeight: "500" },
     emptySubtext: { color: c.textDim, fontSize: 13, textAlign: "center", marginTop: 8, paddingHorizontal: 24 },
   });

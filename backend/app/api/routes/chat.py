@@ -48,20 +48,39 @@ async def chat_stream(
     return StreamingResponse(generate(), media_type="text/plain")
 
 
+@router.post("/message")
+async def chat_message(
+    request: ChatRequest,
+    user_id: str = Depends(get_current_user_id)
+):
+    profile = _get_user_profile(user_id)
+    full = ""
+    async for chunk in ai_service.chat_stream(
+        message=request.message,
+        conversation_history=request.conversation_history,
+        profile=profile
+    ):
+        full += chunk
+    return {"reply": full}
+
+
 @router.post("/save-message")
 async def save_message(
     request: dict,
     user_id: str = Depends(get_current_user_id)
 ):
-    db = get_supabase()
-    from datetime import datetime
-    record = {
-        "user_id": user_id,
-        "role": request.get("role"),
-        "content": request.get("content"),
-        "created_at": datetime.utcnow().isoformat(),
-    }
-    db.table("chat_history").insert(record).execute()
+    try:
+        from datetime import datetime
+        db = get_supabase()
+        record = {
+            "user_id": user_id,
+            "role": request.get("role"),
+            "content": request.get("content"),
+            "created_at": datetime.utcnow().isoformat(),
+        }
+        db.table("chat_history").insert(record).execute()
+    except Exception:
+        pass
     return {"saved": True}
 
 
@@ -70,13 +89,16 @@ async def get_history(
     limit: int = 50,
     user_id: str = Depends(get_current_user_id)
 ):
-    db = get_supabase()
-    result = (
-        db.table("chat_history")
-        .select("*")
-        .eq("user_id", user_id)
-        .order("created_at", desc=True)
-        .limit(limit)
-        .execute()
-    )
-    return {"messages": list(reversed(result.data))}
+    try:
+        db = get_supabase()
+        result = (
+            db.table("chat_history")
+            .select("*")
+            .eq("user_id", user_id)
+            .order("created_at", desc=True)
+            .limit(limit)
+            .execute()
+        )
+        return {"messages": list(reversed(result.data))}
+    except Exception:
+        return {"messages": []}

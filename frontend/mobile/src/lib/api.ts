@@ -34,22 +34,16 @@ export const chatApi = {
     onChunk: (chunk: string) => void,
     onDone: () => void
   ) => {
-    const token = await SecureStore.getItemAsync("access_token");
-    const response = await fetch(`${BASE_URL}/api/chat/stream`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({ message, conversation_history: history }),
+    const res = await api.post("/api/chat/message", {
+      message,
+      conversation_history: history,
     });
-    const reader = response.body?.getReader();
-    const decoder = new TextDecoder();
-    if (!reader) return;
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      onChunk(decoder.decode(value, { stream: true }));
+    const reply: string = res.data.reply ?? "";
+    // Simulate word-by-word reveal so the UI feels alive
+    const words = reply.split(" ");
+    for (let i = 0; i < words.length; i++) {
+      onChunk((i === 0 ? "" : " ") + words[i]);
+      await new Promise((r) => setTimeout(r, 18));
     }
     onDone();
   },
