@@ -1,4 +1,6 @@
 import { create } from "zustand";
+import { persist, createJSONStorage } from "zustand/middleware";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 export type RiskTolerance = "conservative" | "moderate" | "aggressive";
 export type QuizAnswer = "A" | "B" | "C" | "D";
@@ -69,11 +71,20 @@ interface AppStore {
   closeSidebar: () => void;
 }
 
-export const useAppStore = create<AppStore>((set) => ({
-  profile: null,
-  setProfile: (p) => set({ profile: p }),
-  logout: () => set({ profile: null, sidebarOpen: false }),
-  sidebarOpen: false,
-  openSidebar: () => set({ sidebarOpen: true }),
-  closeSidebar: () => set({ sidebarOpen: false }),
-}));
+export const useAppStore = create<AppStore>()(
+  persist(
+    (set) => ({
+      profile: null,
+      setProfile: (p) => set({ profile: p }),
+      logout: () => set({ profile: null, sidebarOpen: false }),
+      sidebarOpen: false,
+      openSidebar: () => set({ sidebarOpen: true }),
+      closeSidebar: () => set({ sidebarOpen: false }),
+    }),
+    {
+      name: "user-profile",
+      storage: createJSONStorage(() => AsyncStorage),
+      partialize: (s) => ({ profile: s.profile }),
+    }
+  )
+);

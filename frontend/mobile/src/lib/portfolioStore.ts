@@ -1,4 +1,6 @@
 import { create } from "zustand";
+import { persist, createJSONStorage } from "zustand/middleware";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 export interface Position {
   id: string;
@@ -16,17 +18,25 @@ interface PortfolioStore {
   clearPortfolio: () => void;
 }
 
-export const usePortfolioStore = create<PortfolioStore>((set) => ({
-  positions: [],
-  addPosition: (p) =>
-    set((s) => ({
-      positions: [...s.positions, { ...p, id: `${p.ticker}-${Date.now()}` }],
-    })),
-  removePosition: (id) =>
-    set((s) => ({ positions: s.positions.filter((p) => p.id !== id) })),
-  setPositions: (list) =>
-    set({
-      positions: list.map((p, i) => ({ ...p, id: `${p.ticker}-${i}-${Date.now()}` })),
+export const usePortfolioStore = create<PortfolioStore>()(
+  persist(
+    (set) => ({
+      positions: [],
+      addPosition: (p) =>
+        set((s) => ({
+          positions: [...s.positions, { ...p, id: `${p.ticker}-${Date.now()}` }],
+        })),
+      removePosition: (id) =>
+        set((s) => ({ positions: s.positions.filter((p) => p.id !== id) })),
+      setPositions: (list) =>
+        set({
+          positions: list.map((p, i) => ({ ...p, id: `${p.ticker}-${i}-${Date.now()}` })),
+        }),
+      clearPortfolio: () => set({ positions: [] }),
     }),
-  clearPortfolio: () => set({ positions: [] }),
-}));
+    {
+      name: "portfolio-positions",
+      storage: createJSONStorage(() => AsyncStorage),
+    }
+  )
+);
