@@ -3,6 +3,7 @@ import {
   View, Text, TextInput, TouchableOpacity, ScrollView,
   StyleSheet, SafeAreaView, Alert
 } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { useTheme, Colors } from "../../src/lib/ThemeContext";
 import {
@@ -201,7 +202,7 @@ export default function EditProfileScreen() {
         <Text style={[s.section, { marginTop: 24 }]}>Tu perfil resultante</Text>
         <View style={[s.profileCard, { backgroundColor: colors.card, borderColor: riskCfg.color + "55" }]}>
           <View style={s.profileRow}>
-            <Text style={{ fontSize: 32 }}>{riskCfg.icon}</Text>
+            <Ionicons name={riskCfg.icon} size={32} color={riskCfg.color} />
             <View style={{ flex: 1, marginLeft: 12 }}>
               <Text style={[s.profileType, { color: colors.text }]}>{riskCfg.label}</Text>
               <Text style={[s.profileDesc, { color: colors.textMuted }]}>{RISK_DESC[calculated]}</Text>

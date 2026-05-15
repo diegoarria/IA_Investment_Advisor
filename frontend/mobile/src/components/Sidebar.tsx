@@ -42,9 +42,10 @@ function ProfileCard({ colors }: { colors: ReturnType<typeof useTheme>["colors"]
             {profile.name}
           </Text>
           {riskCfg && (
-            <Text style={[styles.profileTypeBadge, { color: riskCfg.color }]}>
-              {riskCfg.icon} {riskCfg.label}
-            </Text>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+              <Ionicons name={riskCfg.icon} size={12} color={riskCfg.color} />
+              <Text style={[styles.profileTypeBadge, { color: riskCfg.color }]}>{riskCfg.label}</Text>
+            </View>
           )}
         </View>
       </View>

@@ -3,6 +3,7 @@ import {
   View, Text, TextInput, TouchableOpacity, ScrollView,
   StyleSheet, SafeAreaView
 } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { useTheme, Colors } from "../../src/lib/ThemeContext";
 import {
@@ -233,7 +234,7 @@ export default function OnboardingScreen() {
 
           {/* Risk card */}
           <View style={[s.revealCard, { backgroundColor: colors.card, borderColor: riskCfg.color + "55" }]}>
-            <Text style={s.revealIcon}>{riskCfg.icon}</Text>
+            <Ionicons name={riskCfg.icon} size={44} color={riskCfg.color} style={{ marginBottom: 8 }} />
             <Text style={[s.revealType, { color: colors.text }]}>{riskCfg.label}</Text>
             <Text style={[s.revealDesc, { color: colors.textMuted }]}>{RISK_DESC[calculated]}</Text>
             <View style={[s.barTrack, { backgroundColor: colors.border }]}>

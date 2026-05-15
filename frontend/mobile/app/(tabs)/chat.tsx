@@ -143,9 +143,10 @@ Instrucción: Llama siempre a este usuario por su nombre (${profile.name.split("
       {riskCfg && Platform.OS !== "web" && (
         <View style={[styles.profileBanner, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
           <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-            <Text style={[styles.profileType, { color: colors.text, marginBottom: 0 }]}>
-              {riskCfg.icon}  {riskCfg.label}
-            </Text>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+              <Ionicons name={riskCfg.icon} size={15} color={riskCfg.color} />
+              <Text style={[styles.profileType, { color: colors.text, marginBottom: 0 }]}>{riskCfg.label}</Text>
+            </View>
             {profile?.name && (
               <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
                 <Ionicons name="person-outline" size={12} color={colors.textMuted} />

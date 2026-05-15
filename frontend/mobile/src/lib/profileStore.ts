@@ -56,10 +56,10 @@ export function formatBirthDate(text: string): string {
   return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`;
 }
 
-export const RISK_CONFIG: Record<RiskTolerance, { label: string; icon: string; pct: number; color: string }> = {
-  conservative: { label: "Inversionista Conservador", icon: "🛡️", pct: 0.33, color: "#3b82f6" },
-  moderate:     { label: "Inversionista Moderado",    icon: "⚖️", pct: 0.66, color: "#f59e0b" },
-  aggressive:   { label: "Inversionista Agresivo",    icon: "🚀", pct: 1.0,  color: "#ef4444" },
+export const RISK_CONFIG: Record<RiskTolerance, { label: string; icon: "shield-checkmark-outline" | "scale-outline" | "rocket-outline"; pct: number; color: string }> = {
+  conservative: { label: "Inversionista Conservador", icon: "shield-checkmark-outline", pct: 0.33, color: "#3b82f6" },
+  moderate:     { label: "Inversionista Moderado",    icon: "scale-outline",             pct: 0.66, color: "#f59e0b" },
+  aggressive:   { label: "Inversionista Agresivo",    icon: "rocket-outline",            pct: 1.0,  color: "#ef4444" },
 };
 
 interface AppStore {
