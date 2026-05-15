@@ -2,7 +2,7 @@ import React, { useState, useMemo, useRef } from "react";
 import {
   View, Text, TextInput, TouchableOpacity, ScrollView, FlatList,
   Modal, StyleSheet, SafeAreaView, ActivityIndicator,
-  KeyboardAvoidingView, Platform,
+  KeyboardAvoidingView, Platform, Image,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import Markdown from "react-native-markdown-display";
@@ -95,6 +95,15 @@ const TOPICS: Topic[] = [
   { id: "microsoft", category: "companies",   emoji: "🪟", title: "Microsoft",             prompt: "Explícame el modelo de negocio de Microsoft. Incluye: sus segmentos (Azure, Office, gaming), su transformación cloud, moat competitivo, métricas financieras y perspectivas de IA." },
   { id: "tesla",     category: "companies",   emoji: "🚗", title: "Tesla",                 prompt: "Explícame el modelo de negocio de Tesla. Incluye: más allá del carro eléctrico (energía, software, robo-taxi), su posición competitiva, los riesgos principales y por qué es tan debatida su valuación." },
 ];
+
+// ─── Company logos (Clearbit free logo API) ───────────────────────────────
+const COMPANY_LOGOS: Record<string, string> = {
+  nvidia:    "https://logo.clearbit.com/nvidia.com",
+  apple:     "https://logo.clearbit.com/apple.com",
+  amazon:    "https://logo.clearbit.com/amazon.com",
+  microsoft: "https://logo.clearbit.com/microsoft.com",
+  tesla:     "https://logo.clearbit.com/tesla.com",
+};
 
 // ─── Component ─────────────────────────────────────────────────────────────
 
@@ -205,7 +214,11 @@ export default function LearnScreen() {
             style={[s.topicCard, { backgroundColor: colors.card, borderColor: colors.border }]}
             onPress={() => openTopic(item.title, item.prompt)}
           >
-            <Text style={s.topicEmoji}>{item.emoji}</Text>
+            {COMPANY_LOGOS[item.id] ? (
+              <Image source={{ uri: COMPANY_LOGOS[item.id] }} style={s.companyLogo} resizeMode="contain" />
+            ) : (
+              <Text style={s.topicEmoji}>{item.emoji}</Text>
+            )}
             <Text style={[s.topicTitle, { color: colors.text }]}>{item.title}</Text>
             <Text style={[s.topicCat, { color: colors.textDim }]}>
               {CATEGORIES.find((c) => c.id === item.category)?.title}
@@ -279,6 +292,7 @@ function makeStyles(c: Colors) {
       padding: 14, marginBottom: 10, minHeight: 100,
     },
     topicEmoji: { fontSize: 28, marginBottom: 6 },
+    companyLogo: { width: 36, height: 36, marginBottom: 6, borderRadius: 8 },
     topicTitle: { fontSize: 13, fontWeight: "700", marginBottom: 3 },
     topicCat: { fontSize: 10 },
     emptyState: { alignItems: "center", paddingTop: 60 },
