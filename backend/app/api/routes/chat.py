@@ -1,9 +1,11 @@
+import asyncio
 from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
 from app.api.deps import get_current_user_id
 from app.core.database import get_supabase
 from app.models.user import ChatRequest, UserProfile
 from app.services import ai_service
+from app.services.market_data_service import get_market_context_for_message
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 
@@ -19,16 +21,28 @@ def _get_user_profile(user_id: str) -> UserProfile | None:
     return None
 
 
+def _enrich_message(message: str) -> str:
+    """Append real-time market data for any companies mentioned in the message."""
+    try:
+        market_ctx = get_market_context_for_message(message)
+        if market_ctx:
+            return message + "\n\n" + market_ctx
+    except Exception:
+        pass
+    return message
+
+
 @router.post("/stream")
 async def chat_stream(
     request: ChatRequest,
     user_id: str = Depends(get_current_user_id)
 ):
     profile = _get_user_profile(user_id)
+    enriched = await asyncio.to_thread(_enrich_message, request.message)
 
     async def generate():
         async for chunk in ai_service.chat_stream(
-            message=request.message,
+            message=enriched,
             conversation_history=request.conversation_history,
             profile=profile
         ):
@@ -54,9 +68,10 @@ async def chat_message(
     user_id: str = Depends(get_current_user_id)
 ):
     profile = _get_user_profile(user_id)
+    enriched = await asyncio.to_thread(_enrich_message, request.message)
     full = ""
     async for chunk in ai_service.chat_stream(
-        message=request.message,
+        message=enriched,
         conversation_history=request.conversation_history,
         profile=profile
     ):
