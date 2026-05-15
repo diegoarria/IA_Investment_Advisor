@@ -347,13 +347,13 @@ function makeStyles(c: Colors) {
       width: 28, height: 28, backgroundColor: "#16a34a", borderRadius: 14,
       alignItems: "center", justifyContent: "center", marginRight: 8,
     },
-    bubble: { maxWidth: "80%", borderRadius: 16, padding: 12 },
+    bubble: { maxWidth: "80%", minWidth: 0, flexShrink: 1, borderRadius: 16, padding: 12 },
     userBubble: { backgroundColor: "#16a34a", borderBottomRightRadius: 4 },
     assistantBubble: {
       backgroundColor: c.card, borderWidth: 1, borderColor: c.border,
       borderBottomLeftRadius: 4,
     },
-    userText: { color: "white", fontSize: 14, lineHeight: 20 },
+    userText: { color: "white", fontSize: 14, lineHeight: 20, flexWrap: "wrap" },
     inputContainer: {
       flexDirection: "row", alignItems: "flex-end", padding: 12,
       borderTopWidth: 1, borderTopColor: c.border, backgroundColor: c.card, gap: 8,
@@ -377,15 +377,24 @@ function makeStyles(c: Colors) {
 
 function makeMarkdownStyles(c: Colors) {
   return {
-    body: { color: c.textSub, fontSize: 14, lineHeight: 20 },
+    body: {
+      color: c.textSub, fontSize: 14, lineHeight: 20,
+      flexShrink: 1,
+      ...(Platform.OS === "web" ? { wordBreak: "break-word", overflowWrap: "break-word" } : {}),
+    },
+    paragraph: {
+      flexShrink: 1, flexWrap: "wrap" as const, marginVertical: 2,
+      ...(Platform.OS === "web" ? { wordBreak: "break-word", overflowWrap: "break-word" } : {}),
+    },
+    text: { flexShrink: 1, flexWrap: "wrap" as const },
     heading1: { color: c.text, fontSize: 17, fontWeight: "700" as const, marginBottom: 6, marginTop: 8 },
     heading2: { color: c.text, fontSize: 15, fontWeight: "700" as const, marginBottom: 4, marginTop: 6 },
     heading3: { color: c.textSub, fontSize: 14, fontWeight: "600" as const, marginBottom: 4, marginTop: 4 },
     strong: { color: c.text, fontWeight: "700" as const },
     em: { color: c.textSub, fontStyle: "italic" as const },
-    bullet_list: { marginVertical: 4 },
-    ordered_list: { marginVertical: 4 },
-    list_item: { color: c.textSub, fontSize: 14, lineHeight: 20 },
+    bullet_list: { marginVertical: 4, flexShrink: 1 },
+    ordered_list: { marginVertical: 4, flexShrink: 1 },
+    list_item: { color: c.textSub, fontSize: 14, lineHeight: 20, flexShrink: 1 },
     code_inline: { backgroundColor: c.bg, color: c.accentLight, borderRadius: 4, paddingHorizontal: 4, fontSize: 13 },
     fence: { backgroundColor: c.bg, borderRadius: 8, padding: 12, marginVertical: 6 },
     code_block: { color: c.accentLight, fontSize: 13 },
