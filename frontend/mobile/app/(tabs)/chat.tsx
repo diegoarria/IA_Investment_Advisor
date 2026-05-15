@@ -52,21 +52,38 @@ export default function ChatScreen() {
     const q3Labels = { A: "principiante — apenas empieza", B: "básico — conoce CETES, interés compuesto, fondos indexados", C: "intermedio — entiende P/E, diversificación, riesgo ajustado", D: "avanzado — maneja análisis fundamental, derivados, ciclos" };
     const q4Labels = { A: "conservador — prefiere $5K garantizado sin riesgo", B: "moderado-bajo — acepta riesgo de $5K por posible $15K", C: "moderado-alto — acepta riesgo de $20K por posible $40K", D: "especulador — arriesga todo por posible $120K" };
     const q5Labels = { A: "pasivo — prefiere inversión automática sin monitoreo", B: "semipasivo — revisión mensual o trimestral", C: "activo — revisiones semanales con ajustes", D: "muy activo — gestión diaria dedicada" };
-    return `[PERFIL DEL USUARIO — personaliza TODAS tus respuestas con esta información]
+    // Derive behavioral flags from quiz answers for contradiction detection
+    const panicFlag = qa?.q1 === "A"
+      ? "ALERTA: declaró que vende ante caídas — muy probable que entre en pánico con pérdidas reales"
+      : qa?.q1 === "D"
+      ? "Declaró que compra más en caídas — si muestra pánico en conversación, es una contradicción fuerte"
+      : "";
+    const speculationFlag = qa?.q4 === "A"
+      ? "ALERTA: eligió el escenario más conservador con dinero real — si pide activos especulativos, nómbralo"
+      : qa?.q4 === "D"
+      ? "Declaró apetito especulativo máximo — si entra en pánico con volatilidad normal, es contradicción"
+      : "";
+
+    return `[PERFIL DEL USUARIO — usa esta información para PERSONALIZAR y DETECTAR CONTRADICCIONES]
 Nombre: ${profile.name}
 Edad: ${getAge(profile.birth_date)} años
 Ingresos mensuales: $${Number(profile.monthly_income).toLocaleString()} USD
-Aportación mensual disponible para invertir: $${Number(profile.monthly_contribution).toLocaleString()} USD
+Aportación mensual: $${Number(profile.monthly_contribution).toLocaleString()} USD
 Perfil calculado: ${riskLabel}
 
-Diagnóstico de inversor (5 preguntas clave):
-- Mentalidad ante caídas: ${qa ? q1Labels[qa.q1] : "no disponible"}
+Diagnóstico de inversor (respuestas del cuestionario inicial):
+- Comportamiento declarado ante caídas: ${qa ? q1Labels[qa.q1] : "no disponible"}
 - Horizonte / objetivo: ${qa ? q2Labels[qa.q2] : "no disponible"}
 - Nivel de conocimiento: ${qa ? q3Labels[qa.q3] : "no disponible"}
-- Tolerancia al riesgo (con dinero real): ${qa ? q4Labels[qa.q4] : "no disponible"}
+- Tolerancia al riesgo con dinero real: ${qa ? q4Labels[qa.q4] : "no disponible"}
 - Estilo de gestión: ${qa ? q5Labels[qa.q5] : "no disponible"}
+${panicFlag ? `\n⚠️ ${panicFlag}` : ""}${speculationFlag ? `\n⚠️ ${speculationFlag}` : ""}
 
-Instrucción: Llama siempre a este usuario por su nombre (${profile.name.split(" ")[0]}). Adapta el nivel de explicación a su conocimiento. Basa tus recomendaciones en su perfil ${riskLabel}, su capacidad de aportación de $${Number(profile.monthly_contribution).toLocaleString()} USD/mes y su horizonte real. Responde siempre en español.`;
+Instrucciones críticas:
+1. Llama siempre a este usuario por su nombre (${profile.name.split(" ")[0]}).
+2. Adapta el nivel de explicación a su conocimiento.
+3. Si el usuario pregunta o actúa de forma que contradice su perfil declarado (ej: perfil agresivo entra en pánico, perfil conservador pide especular), DEBES nombrarlo directamente con empatía y recalibrar tu asesoría al perfil revelado por su comportamiento real.
+4. Responde siempre en español.`;
   };
 
   const sendMessage = async (text?: string) => {
