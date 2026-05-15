@@ -304,7 +304,7 @@ export default function OnboardingScreen() {
   return (
     <SafeAreaView style={s.container}>
       <TouchableOpacity style={s.themeToggle} onPress={toggle}>
-        <Text style={{ fontSize: 20 }}>{isDark ? "☀️" : "🌙"}</Text>
+        <Ionicons name={isDark ? "sunny-outline" : "moon-outline"} size={22} color={colors.textMuted} />
       </TouchableOpacity>
 
       <View style={s.progressRow}>
@@ -370,7 +370,6 @@ function makeStyles(c: Colors) {
     optionLabel: { flex: 1, fontSize: 14, lineHeight: 20 },
     // Reveal
     revealCard: { borderRadius: 16, borderWidth: 1.5, padding: 20, alignItems: "center", marginBottom: 12 },
-    revealIcon: { fontSize: 44, marginBottom: 8 },
     revealType: { fontSize: 19, fontWeight: "700", marginBottom: 6 },
     revealDesc: { fontSize: 13, textAlign: "center", lineHeight: 18, marginBottom: 14 },
     barTrack: { height: 8, borderRadius: 4, overflow: "hidden", flexDirection: "row", width: "100%", marginBottom: 6 },

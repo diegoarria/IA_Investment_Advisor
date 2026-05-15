@@ -3,6 +3,7 @@ import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
   SafeAreaView, KeyboardAvoidingView, Platform, Alert, ActivityIndicator
 } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import * as SecureStore from "expo-secure-store";
 import { authApi, profileApi } from "../src/lib/api";
@@ -42,7 +43,7 @@ export default function AuthScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <TouchableOpacity style={styles.themeToggle} onPress={toggle}>
-        <Text style={{ fontSize: 20 }}>{isDark ? "☀️" : "🌙"}</Text>
+        <Ionicons name={isDark ? "sunny-outline" : "moon-outline"} size={22} color={colors.textMuted} />
       </TouchableOpacity>
 
       <KeyboardAvoidingView
@@ -51,7 +52,7 @@ export default function AuthScreen() {
       >
         <View style={styles.header}>
           <View style={styles.logo}>
-            <Text style={styles.logoIcon}>📈</Text>
+            <Ionicons name="trending-up" size={28} color="white" />
           </View>
           <Text style={styles.title}>IA Investment Advisor</Text>
           <Text style={styles.subtitle}>Tu mentor de inversiones inteligente</Text>
@@ -103,7 +104,8 @@ export default function AuthScreen() {
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.devSkip} onPress={() => router.replace("/onboarding")}>
-            <Text style={styles.devSkipText}>⚙️ Saltar al onboarding (dev)</Text>
+            <Ionicons name="settings-outline" size={12} color={colors.textDim} />
+            <Text style={styles.devSkipText}> Saltar al onboarding (dev)</Text>
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
@@ -121,7 +123,6 @@ function makeStyles(c: Colors) {
       width: 64, height: 64, backgroundColor: "#16a34a",
       borderRadius: 16, alignItems: "center", justifyContent: "center", marginBottom: 16,
     },
-    logoIcon: { fontSize: 28 },
     title: { fontSize: 24, fontWeight: "700", color: c.text, marginBottom: 8 },
     subtitle: { fontSize: 14, color: c.textMuted, textAlign: "center" },
     form: {},
@@ -139,7 +140,7 @@ function makeStyles(c: Colors) {
     buttonText: { color: "white", fontWeight: "600", fontSize: 16 },
     switchText: { color: c.textMuted, textAlign: "center", fontSize: 14 },
     switchLink: { color: "#22c55e", fontWeight: "500" },
-    devSkip: { marginTop: 20, alignItems: "center" },
+    devSkip: { marginTop: 20, alignItems: "center", flexDirection: "row" },
     devSkipText: { color: c.textDim, fontSize: 12 },
   });
 }
