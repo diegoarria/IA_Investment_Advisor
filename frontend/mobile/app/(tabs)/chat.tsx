@@ -8,7 +8,7 @@ import Markdown from "react-native-markdown-display";
 import { chatApi } from "../../src/lib/api";
 import { useTheme, Colors } from "../../src/lib/ThemeContext";
 import { useAppStore, RISK_CONFIG, getAge } from "../../src/lib/profileStore";
-import { useChatStore, Message } from "../../src/lib/chatStore";
+import { useChatStore, Message, BehavioralDiagnosis } from "../../src/lib/chatStore";
 
 const SUGGESTIONS = [
   "¿Cómo analizo si una empresa es buena inversión?",
@@ -25,8 +25,18 @@ export default function ChatScreen() {
   const riskCfg = profile?.risk_tolerance ? RISK_CONFIG[profile.risk_tolerance] : null;
   const pct = riskCfg ? Math.round(riskCfg.pct * 100) : 0;
 
-  const { currentId, currentMessages, setMessages, createSession } = useChatStore();
+  const { currentId, currentMessages, setMessages, createSession, currentDiagnosis, setDiagnosis } = useChatStore();
   const messages = currentMessages();
+  const diagnosis = currentDiagnosis();
+
+  const BPROFILE_CONFIG: Record<string, { label: string; pct: number; color: string }> = {
+    conservative: { label: "Conservador Real", pct: 0.25, color: "#3b82f6" },
+    moderate:     { label: "Moderado Real",    pct: 0.60, color: "#f59e0b" },
+    aggressive:   { label: "Agresivo Real",    pct: 1.00, color: "#ef4444" },
+  };
+  const CONF_LABEL: Record<string, string> = { low: "poca data", medium: "diagnóstico parcial", high: "diagnóstico sólido" };
+  const bCfg = diagnosis ? BPROFILE_CONFIG[diagnosis.profile] ?? null : null;
+  const bPct = bCfg ? Math.round(bCfg.pct * 100) : 0;
 
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
@@ -118,8 +128,9 @@ Instrucciones críticas:
           full += chunk;
           setMessages([...withAssistant.slice(0, -1), { role: "assistant", content: full }]);
         },
-        () => {
-          setStreaming(false);
+        () => { setStreaming(false); },
+        (a) => {
+          setDiagnosis({ score: a.s, profile: a.p, signals: a.sig, confidence: a.conf } as BehavioralDiagnosis);
         }
       );
     } catch {
@@ -179,6 +190,41 @@ Instrucciones críticas:
             <Text style={[styles.barLabelText, { color: colors.textDim }]}>Bajo riesgo</Text>
             <Text style={[styles.barLabelText, { color: colors.textDim }]}>Alto riesgo</Text>
           </View>
+
+          {/* Behavioral diagnosis — updates with each message */}
+          <View style={[styles.diagSeparator, { borderTopColor: colors.border }]} />
+          <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 5 }}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
+              <Ionicons name="pulse-outline" size={12} color={bCfg ? bCfg.color : colors.textDim} />
+              <Text style={[styles.barLabelText, { color: bCfg ? bCfg.color : colors.textDim, fontWeight: "600" }]}>
+                {bCfg ? bCfg.label : "Diagnóstico en curso…"}
+              </Text>
+            </View>
+            {diagnosis && (
+              <Text style={[styles.barLabelText, { color: colors.textDim }]}>
+                {CONF_LABEL[diagnosis.confidence] ?? ""}
+              </Text>
+            )}
+          </View>
+          <View style={[styles.barTrack, { backgroundColor: colors.border }]}>
+            {bCfg ? (
+              <>
+                <View style={[styles.barFill, { flex: bPct, backgroundColor: bCfg.color }]} />
+                {bPct < 100 && <View style={{ flex: 100 - bPct }} />}
+              </>
+            ) : (
+              <View style={{ flex: 1, backgroundColor: colors.border, opacity: 0.4 }} />
+            )}
+          </View>
+          {diagnosis?.signals && diagnosis.signals.length > 0 && (
+            <View style={styles.signalsRow}>
+              {diagnosis.signals.map((s) => (
+                <View key={s} style={[styles.signalChip, { backgroundColor: colors.bg, borderColor: colors.border }]}>
+                  <Text style={[styles.signalText, { color: colors.textDim }]}>{s.replace(/_/g, " ")}</Text>
+                </View>
+              ))}
+            </View>
+          )}
         </View>
       )}
 
@@ -322,6 +368,10 @@ function makeStyles(c: Colors) {
       borderRadius: 12, alignItems: "center", justifyContent: "center",
     },
     sendDisabled: { opacity: 0.4 },
+    diagSeparator: { borderTopWidth: 1, marginTop: 8, marginBottom: 8 },
+    signalsRow: { flexDirection: "row", flexWrap: "wrap", gap: 4, marginTop: 5 },
+    signalChip: { borderWidth: 1, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 },
+    signalText: { fontSize: 9 },
   });
 }
 

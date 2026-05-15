@@ -1,4 +1,6 @@
 import asyncio
+import re
+import json
 from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
 from app.api.deps import get_current_user_id
@@ -19,6 +21,19 @@ def _get_user_profile(user_id: str) -> UserProfile | None:
     except Exception:
         pass
     return None
+
+
+def _extract_bscore(reply: str) -> tuple[str, dict | None]:
+    """Strip the hidden BSCORE tag from Claude's reply and parse it."""
+    match = re.search(r'<!--\s*BSCORE:\s*(\{.*?\})\s*-->', reply, re.DOTALL)
+    if match:
+        try:
+            data = json.loads(match.group(1))
+            clean = reply[:match.start()].rstrip()
+            return clean, data
+        except Exception:
+            pass
+    return reply, None
 
 
 def _enrich_message(message: str) -> str:
@@ -76,7 +91,8 @@ async def chat_message(
         profile=profile
     ):
         full += chunk
-    return {"reply": full}
+    clean_reply, bscore = _extract_bscore(full)
+    return {"reply": clean_reply, "risk_assessment": bscore}
 
 
 @router.post("/save-message")

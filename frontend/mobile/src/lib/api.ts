@@ -32,19 +32,22 @@ export const chatApi = {
     message: string,
     history: Array<{ role: string; content: string }>,
     onChunk: (chunk: string) => void,
-    onDone: () => void
+    onDone: () => void,
+    onAssessment?: (a: { s: number; p: string; sig: string[]; conf: string }) => void
   ) => {
     const res = await api.post("/api/chat/message", {
       message,
       conversation_history: history,
     });
     const reply: string = res.data.reply ?? "";
+    const assessment = res.data.risk_assessment ?? null;
     // Simulate word-by-word reveal so the UI feels alive
     const words = reply.split(" ");
     for (let i = 0; i < words.length; i++) {
       onChunk((i === 0 ? "" : " ") + words[i]);
       await new Promise((r) => setTimeout(r, 18));
     }
+    if (assessment && onAssessment) onAssessment(assessment);
     onDone();
   },
 };

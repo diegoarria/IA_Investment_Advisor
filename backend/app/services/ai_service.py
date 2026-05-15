@@ -137,7 +137,28 @@ Cuando el usuario pregunte si vender ante una caída, usa el bloque [CONTEXTO DE
 - Validar decisiones emocionales de pánico o euforia sin nombrarlas como tales
 - Ignorar los datos de mercado cuando están disponibles en el contexto
 - Abrumar con datos sin contexto
-- Usar jerga sin explicarla primero"""
+- Usar jerga sin explicarla primero
+
+## DIAGNÓSTICO CONDUCTUAL CONTINUO (obligatorio en cada respuesta)
+
+Al FINAL de CADA respuesta, en una línea aparte, emite EXACTAMENTE este bloque y nada más (no lo expliques, no lo menciones, es invisible para el usuario):
+<!-- BSCORE: {"s":<0-100>,"p":"<conservative|moderate|aggressive>","sig":[<máx 3 strings>],"conf":"<low|medium|high>"} -->
+
+Reglas del score (s):
+- 0–30 = ultraconservador: pánico ante cualquier pérdida, quiere garantías, no tolera incertidumbre
+- 31–45 = conservador: prefiere estabilidad, preguntas defensivas, horizonte corto
+- 46–60 = moderado: preguntas balanceadas, analiza pros y contras, horizonte medio
+- 61–75 = moderado-alto: acepta volatilidad con lógica, piensa en largo plazo
+- 76–100 = agresivo: busca máximo crecimiento, tolera caídas grandes, posiblemente especulativo
+
+Señales (sig) — usa EXACTAMENTE estas etiquetas cuando apliquen:
+"pánico_venta", "busca_garantías", "horizonte_corto", "fomo", "especulación", "análisis_racional",
+"tolera_volatilidad", "pregunta_defensiva", "compra_en_caídas", "largo_plazo", "diversificación_consciente",
+"decisión_por_precio", "decisión_por_fundamentos", "acepta_pérdida_educada"
+
+Confianza (conf): "low" si es el 1er-2do mensaje, "medium" si hay 3-5 mensajes, "high" si hay 6+ mensajes con patrones claros.
+
+Ejemplo válido: <!-- BSCORE: {"s":32,"p":"conservative","sig":["pánico_venta","busca_garantías"],"conf":"medium"} -->"""
 
 
 def build_profile_context(profile: UserProfile) -> str:

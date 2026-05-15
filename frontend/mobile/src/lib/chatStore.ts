@@ -7,24 +7,33 @@ export interface Message {
   content: string;
 }
 
+export interface BehavioralDiagnosis {
+  score: number;          // 0–100
+  profile: string;        // conservative | moderate | aggressive
+  signals: string[];      // detected behavioral tags
+  confidence: string;     // low | medium | high
+}
+
 export interface ChatSession {
   id: string;
   title: string;
   messages: Message[];
   createdAt: number;
   updatedAt: number;
+  diagnosis: BehavioralDiagnosis | null;
 }
 
 interface ChatStore {
   sessions: ChatSession[];
   currentId: string | null;
 
-  // Derived: messages of the current session
   currentMessages: () => Message[];
+  currentDiagnosis: () => BehavioralDiagnosis | null;
 
   createSession: () => string;
   loadSession: (id: string) => void;
   setMessages: (msgs: Message[]) => void;
+  setDiagnosis: (d: BehavioralDiagnosis) => void;
   deleteSession: (id: string) => void;
   clearAll: () => void;
 }
@@ -52,11 +61,16 @@ export const useChatStore = create<ChatStore>()(
         return sessions.find((s) => s.id === currentId)?.messages ?? [];
       },
 
+      currentDiagnosis: () => {
+        const { sessions, currentId } = get();
+        return sessions.find((s) => s.id === currentId)?.diagnosis ?? null;
+      },
+
       createSession: () => {
         const id = makeId();
         set((s) => ({
           sessions: [
-            { id, title: "Nuevo chat", messages: [], createdAt: Date.now(), updatedAt: Date.now() },
+            { id, title: "Nuevo chat", messages: [], createdAt: Date.now(), updatedAt: Date.now(), diagnosis: null },
             ...s.sessions,
           ],
           currentId: id,
@@ -71,6 +85,16 @@ export const useChatStore = create<ChatStore>()(
           sessions: s.sessions.map((session) =>
             session.id === s.currentId
               ? { ...session, messages: msgs, title: makeTitle(msgs), updatedAt: Date.now() }
+              : session
+          ),
+        }));
+      },
+
+      setDiagnosis: (d) => {
+        set((s) => ({
+          sessions: s.sessions.map((session) =>
+            session.id === s.currentId
+              ? { ...session, diagnosis: d }
               : session
           ),
         }));
