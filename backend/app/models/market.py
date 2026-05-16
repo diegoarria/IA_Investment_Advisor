@@ -7,10 +7,18 @@ class AssetAnalysisRequest(BaseModel):
     analysis_depth: str = "standard"  # standard | deep
 
 
+class PortfolioPosition(BaseModel):
+    ticker: str
+    shares: float
+    avg_price: float
+    name: Optional[str] = None
+
+
 class PortfolioScenarioRequest(BaseModel):
     scenario: str  # aggressive | moderate | conservative
     capital: Optional[float] = None
     focus_sectors: Optional[list[str]] = None
+    positions: Optional[list[PortfolioPosition]] = None
 
 
 class NotificationPreferences(BaseModel):

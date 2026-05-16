@@ -314,14 +314,62 @@ async def generate_portfolio_scenario(
     scenario: str,
     capital: float | None,
     profile: UserProfile | None,
-    focus_sectors: list[str] | None = None
+    focus_sectors: list[str] | None = None,
+    positions: list[dict] | None = None,
 ) -> str:
     system_prompt = build_system_prompt(profile)
-
     capital_str = f"${capital:,.0f}" if capital else "capital no especificado"
     sectors_str = f"con enfoque en: {', '.join(focus_sectors)}" if focus_sectors else ""
 
-    prompt = f"""Construye un portafolio educativo hipotético de ejemplo para un perfil {scenario}.
+    if positions:
+        pos_lines = []
+        total_invested = 0.0
+        total_current = 0.0
+        for p in positions:
+            cp = p.get("current_price") or p["avg_price"]
+            invested = p["shares"] * p["avg_price"]
+            current  = p["shares"] * cp
+            total_invested += invested
+            total_current  += current
+            pct_chg = ((cp - p["avg_price"]) / p["avg_price"] * 100) if p["avg_price"] else 0
+            target_str = ""
+            if p.get("analyst_target"):
+                upside = ((p["analyst_target"] - cp) / cp * 100) if cp else 0
+                target_str = (
+                    f" | Consenso analistas: ${p['analyst_target']:.2f} "
+                    f"({'↑' if upside >= 0 else '↓'}{abs(upside):.1f}% desde precio actual)"
+                )
+                if p.get("recommendation"):
+                    target_str += f" [{p['recommendation']}]"
+            pos_lines.append(
+                f"- {p['ticker']} ({p.get('name', p['ticker'])}): "
+                f"{p['shares']} acc × ${p['avg_price']:.2f} compra | "
+                f"Precio actual: ${cp:.2f} ({'+' if pct_chg >= 0 else ''}{pct_chg:.1f}%)"
+                f"{target_str}"
+            )
+        total_pct = ((total_current - total_invested) / total_invested * 100) if total_invested else 0
+        portfolio_block = f"""## PORTAFOLIO REAL DEL USUARIO
+Capital invertido: ${total_invested:,.2f}
+Valor actual: ${total_current:,.2f} ({'+' if total_pct >= 0 else ''}{total_pct:.1f}% total)
+
+Posiciones:
+{chr(10).join(pos_lines)}
+
+Escenario de análisis solicitado: {scenario}"""
+
+        prompt = f"""{portfolio_block}
+
+Con base en las posiciones REALES del usuario arriba, genera un análisis de su portafolio actual y forecast para el escenario {scenario}:
+
+1. **Estado actual del portafolio**: Posiciones ganadoras y perdedoras, concentración de riesgo, diversificación real vs ideal para el perfil {scenario}
+2. **Forecast basado en consenso de analistas**: Para cada posición con target disponible, evalúa si el precio actual justifica mantener, reducir o considerar alternativas. Usa los targets de analistas como referencia, no como verdad absoluta.
+3. **Simulación de escenario {scenario}**: Si el mercado va al alza (bull), lateral, o baja (bear), ¿cómo reaccionaría este portafolio específico?
+4. **Ajustes sugeridos para el escenario {scenario}**: ¿Qué falta, qué sobra, qué está bien para este perfil?
+5. **Riesgos de concentración detectados**: ¿Hay demasiada exposición a un sector, empresa o factor?
+
+IMPORTANTE: Esto es análisis educativo, no recomendación de inversión. Basa el forecast en los datos de analistas disponibles, no en predicciones propias."""
+    else:
+        prompt = f"""Construye un portafolio educativo hipotético de ejemplo para un perfil {scenario}.
 
 Capital de referencia: {capital_str} {sectors_str}
 
@@ -338,7 +386,7 @@ Explica los conceptos de diversificación, correlación de activos y horizonte t
 
     response = await client.messages.create(
         model=settings.claude_model,
-        max_tokens=2500,
+        max_tokens=3000,
         system=[{"type": "text", "text": system_prompt, "cache_control": {"type": "ephemeral"}}],
         messages=[{"role": "user", "content": prompt}]
     )

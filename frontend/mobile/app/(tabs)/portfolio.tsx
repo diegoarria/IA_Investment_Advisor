@@ -210,14 +210,56 @@ export default function PortfolioScreen() {
     }
   };
 
-  // ── Simulator ──────────────────────────────────────────────────────────
+  // ── Simulator 1: portfolio AI analysis ────────────────────────────────
   const simulate = async () => {
     setSimLoading(true); setAnalysis("");
     try {
-      const res = await marketApi.getPortfolio(scenario, capital ? parseFloat(capital) : undefined);
+      const positionsPayload = positions.length > 0
+        ? positions.map((p) => ({ ticker: p.ticker, shares: p.shares, avg_price: p.avgPrice, name: p.name }))
+        : undefined;
+      const res = await marketApi.getPortfolio(
+        scenario,
+        capital ? parseFloat(capital) : undefined,
+        positionsPayload,
+      );
       setAnalysis(res.data.analysis);
     } catch { setAnalysis("Error al generar el análisis. Intenta de nuevo."); }
     setSimLoading(false);
+  };
+
+  // ── Simulator 2: compound interest calculator ──────────────────────────
+  const [calcCapital, setCalcCapital] = useState("");
+  const [calcMonthly, setCalcMonthly] = useState("");
+  const [calcReturn, setCalcReturn]   = useState("");
+  const [calcYears, setCalcYears]     = useState("");
+  const [calcResult, setCalcResult]   = useState<{
+    final: number; invested: number; gain: number; pct: number;
+    milestones: { year: number; value: number }[];
+  } | null>(null);
+
+  const calculateCompound = () => {
+    const pv  = parseFloat(calcCapital)  || 0;
+    const pmt = parseFloat(calcMonthly)  || 0;
+    const ann = parseFloat(calcReturn)   || 0;
+    const yrs = parseFloat(calcYears)    || 0;
+    if (!pv || !ann || !yrs) return;
+
+    const r = ann / 100 / 12;
+    const n = Math.round(yrs * 12);
+
+    const fvPV  = pv * Math.pow(1 + r, n);
+    const fvPMT = pmt > 0 ? pmt * (Math.pow(1 + r, n) - 1) / r : 0;
+    const final = fvPV + fvPMT;
+    const invested = pv + pmt * n;
+
+    const milestoneYears = Array.from(new Set([1, 2, 3, 5, 10, Math.round(yrs)].filter((y) => y > 0 && y <= yrs))).sort((a, b) => a - b);
+    const milestones = milestoneYears.map((y) => {
+      const mn = y * 12;
+      const val = pv * Math.pow(1 + r, mn) + (pmt > 0 ? pmt * (Math.pow(1 + r, mn) - 1) / r : 0);
+      return { year: y, value: val };
+    });
+
+    setCalcResult({ final, invested, gain: final - invested, pct: invested > 0 ? ((final - invested) / invested) * 100 : 0, milestones });
   };
 
   // ── Totals ─────────────────────────────────────────────────────────────
@@ -442,9 +484,19 @@ export default function PortfolioScreen() {
           </>
         ) : null}
 
-        {/* ── SIMULADOR ── */}
+        {/* ── SIMULADOR 1: PORTAFOLIO CON IA ── */}
         <View style={[s.divider, { borderTopColor: colors.border }]} />
-        <Text style={s.sectionTitle}>Simulador de Escenarios</Text>
+        <View style={s.simHeader}>
+          <Ionicons name="analytics-outline" size={20} color="#22c55e" />
+          <View style={{ flex: 1 }}>
+            <Text style={[s.sectionTitle, { marginBottom: 2 }]}>Simulador de Portafolio</Text>
+            <Text style={[s.simSubtitle, { color: colors.textMuted }]}>
+              {positions.length > 0
+                ? `Analiza tus ${positions.length} posiciones con forecast de analistas`
+                : "Simula un portafolio hipotético según tu perfil"}
+            </Text>
+          </View>
+        </View>
         <View style={s.scenarioRow}>
           {SCENARIOS.map((sc) => (
             <TouchableOpacity
@@ -457,23 +509,143 @@ export default function PortfolioScreen() {
             </TouchableOpacity>
           ))}
         </View>
-        <TextInput
-          style={[s.simInput, { color: colors.text, backgroundColor: colors.card, borderColor: colors.border }]}
-          value={capital} onChangeText={setCapital}
-          placeholder="Capital de referencia (USD, opcional)" placeholderTextColor={colors.placeholder}
-          keyboardType="numeric"
-        />
+        {positions.length === 0 && (
+          <TextInput
+            style={[s.simInput, { color: colors.text, backgroundColor: colors.card, borderColor: colors.border }]}
+            value={capital} onChangeText={setCapital}
+            placeholder="Capital de referencia (USD, opcional)" placeholderTextColor={colors.placeholder}
+            keyboardType="numeric"
+          />
+        )}
         <TouchableOpacity style={[s.simBtn, simLoading && s.btnDisabled]} onPress={simulate} disabled={simLoading}>
-          {simLoading ? <ActivityIndicator color="white" /> : <Text style={s.simBtnText}>Simular portafolio</Text>}
+          {simLoading
+            ? <ActivityIndicator color="white" />
+            : (
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                <Ionicons name="sparkles-outline" size={16} color="white" />
+                <Text style={s.simBtnText}>
+                  {positions.length > 0 ? "Analizar mi portafolio con IA" : "Simular portafolio"}
+                </Text>
+              </View>
+            )}
         </TouchableOpacity>
         {analysis !== "" && (
           <View style={[s.resultCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <Text style={[s.resultText, { color: colors.textSub }]}>{analysis}</Text>
             <View style={s.disclaimer}>
               <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-            <Ionicons name="warning-outline" size={13} color="#ca8a04" />
-            <Text style={s.disclaimerText}>Análisis educativo hipotético. No es asesoramiento financiero.</Text>
+                <Ionicons name="warning-outline" size={13} color="#ca8a04" />
+                <Text style={s.disclaimerText}>Análisis educativo. No es asesoramiento financiero.</Text>
+              </View>
+            </View>
           </View>
+        )}
+
+        {/* ── SIMULADOR 2: CALCULADORA DE INTERÉS COMPUESTO ── */}
+        <View style={[s.divider, { borderTopColor: colors.border }]} />
+        <View style={s.simHeader}>
+          <Ionicons name="calculator-outline" size={20} color="#6366f1" />
+          <View style={{ flex: 1 }}>
+            <Text style={[s.sectionTitle, { marginBottom: 2 }]}>Calculadora de Inversión</Text>
+            <Text style={[s.simSubtitle, { color: colors.textMuted }]}>
+              ¿Cuánto tendrás si inviertes X a Y% por Z años?
+            </Text>
+          </View>
+        </View>
+
+        <View style={[s.calcCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <View style={s.calcRow}>
+            <View style={s.calcField}>
+              <Text style={[s.calcLabel, { color: colors.textMuted }]}>Capital inicial (USD)</Text>
+              <TextInput
+                style={[s.calcInput, { color: colors.text, backgroundColor: colors.bg, borderColor: colors.border }]}
+                value={calcCapital} onChangeText={setCalcCapital}
+                placeholder="10,000" placeholderTextColor={colors.placeholder}
+                keyboardType="numeric"
+              />
+            </View>
+            <View style={s.calcField}>
+              <Text style={[s.calcLabel, { color: colors.textMuted }]}>Aportación mensual (USD)</Text>
+              <TextInput
+                style={[s.calcInput, { color: colors.text, backgroundColor: colors.bg, borderColor: colors.border }]}
+                value={calcMonthly} onChangeText={setCalcMonthly}
+                placeholder="500 (opcional)" placeholderTextColor={colors.placeholder}
+                keyboardType="numeric"
+              />
+            </View>
+          </View>
+          <View style={s.calcRow}>
+            <View style={s.calcField}>
+              <Text style={[s.calcLabel, { color: colors.textMuted }]}>Rendimiento anual (%)</Text>
+              <TextInput
+                style={[s.calcInput, { color: colors.text, backgroundColor: colors.bg, borderColor: colors.border }]}
+                value={calcReturn} onChangeText={setCalcReturn}
+                placeholder="10" placeholderTextColor={colors.placeholder}
+                keyboardType="numeric"
+              />
+            </View>
+            <View style={s.calcField}>
+              <Text style={[s.calcLabel, { color: colors.textMuted }]}>Plazo (años)</Text>
+              <TextInput
+                style={[s.calcInput, { color: colors.text, backgroundColor: colors.bg, borderColor: colors.border }]}
+                value={calcYears} onChangeText={setCalcYears}
+                placeholder="20" placeholderTextColor={colors.placeholder}
+                keyboardType="numeric"
+              />
+            </View>
+          </View>
+          <TouchableOpacity
+            style={[s.calcBtn, (!calcCapital || !calcReturn || !calcYears) && s.btnDisabled]}
+            onPress={calculateCompound}
+            disabled={!calcCapital || !calcReturn || !calcYears}
+          >
+            <Text style={s.calcBtnText}>Calcular</Text>
+          </TouchableOpacity>
+        </View>
+
+        {calcResult && (
+          <View style={[s.calcResultCard, { backgroundColor: colors.card, borderColor: "#6366f1" }]}>
+            <View style={s.calcResultTop}>
+              <Text style={[s.calcResultLabel, { color: colors.textMuted }]}>Valor final</Text>
+              <Text style={[s.calcResultFinal, { color: "#6366f1" }]}>
+                ${calcResult.final.toLocaleString("es-MX", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+              </Text>
+            </View>
+            <View style={[s.calcResultRow, { borderTopColor: colors.border }]}>
+              <View style={s.calcResultItem}>
+                <Text style={[s.calcResultItemLabel, { color: colors.textMuted }]}>Total invertido</Text>
+                <Text style={[s.calcResultItemVal, { color: colors.text }]}>
+                  ${calcResult.invested.toLocaleString("es-MX", { maximumFractionDigits: 0 })}
+                </Text>
+              </View>
+              <View style={[s.calcResultDivider, { backgroundColor: colors.border }]} />
+              <View style={s.calcResultItem}>
+                <Text style={[s.calcResultItemLabel, { color: colors.textMuted }]}>Ganancia neta</Text>
+                <Text style={[s.calcResultItemVal, { color: "#22c55e" }]}>
+                  +${calcResult.gain.toLocaleString("es-MX", { maximumFractionDigits: 0 })} (+{calcResult.pct.toFixed(0)}%)
+                </Text>
+              </View>
+            </View>
+            <View style={[s.milestoneSection, { borderTopColor: colors.border }]}>
+              <Text style={[s.milestoneTitle, { color: colors.textMuted }]}>Evolución año a año</Text>
+              {calcResult.milestones.map((m) => (
+                <View key={m.year} style={s.milestoneRow}>
+                  <Text style={[s.milestoneYear, { color: colors.textSub }]}>Año {m.year}</Text>
+                  <View style={[s.milestoneBar, { backgroundColor: colors.border }]}>
+                    <View style={[s.milestoneBarFill, { flex: m.value / calcResult.final, backgroundColor: "#6366f1" }]} />
+                    <View style={{ flex: 1 - m.value / calcResult.final }} />
+                  </View>
+                  <Text style={[s.milestoneVal, { color: colors.text }]}>
+                    ${m.value.toLocaleString("es-MX", { maximumFractionDigits: 0 })}
+                  </Text>
+                </View>
+              ))}
+            </View>
+            <View style={s.disclaimer}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                <Ionicons name="information-circle-outline" size={13} color="#6366f1" />
+                <Text style={[s.disclaimerText, { color: "#6366f1" }]}>Cálculo con interés compuesto mensual. Los rendimientos reales varían.</Text>
+              </View>
             </View>
           </View>
         )}
@@ -564,12 +736,38 @@ function makeStyles(c: Colors) {
     scenarioActive: { borderColor: "#22c55e", backgroundColor: "rgba(34,197,94,0.1)" },
     scenarioLabel: { fontSize: 12, fontWeight: "600" },
     simInput: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 14, marginBottom: 12 },
-    simBtn: { backgroundColor: "#16a34a", borderRadius: 12, paddingVertical: 14, alignItems: "center", marginBottom: 16 },
+    simBtn: { backgroundColor: "#16a34a", borderRadius: 12, paddingVertical: 14, alignItems: "center", justifyContent: "center", marginBottom: 16 },
     btnDisabled: { opacity: 0.5 },
     simBtnText: { color: "white", fontWeight: "600", fontSize: 15 },
-    resultCard: { borderRadius: 14, borderWidth: 1, padding: 16 },
+    simHeader: { flexDirection: "row", alignItems: "flex-start", gap: 10, marginBottom: 12 },
+    simSubtitle: { fontSize: 12, lineHeight: 17 },
+    resultCard: { borderRadius: 14, borderWidth: 1, padding: 16, marginBottom: 4 },
     resultText: { fontSize: 13, lineHeight: 20 },
     disclaimer: { marginTop: 10, backgroundColor: "rgba(234,179,8,0.1)", borderWidth: 1, borderColor: "rgba(234,179,8,0.3)", borderRadius: 8, padding: 8 },
     disclaimerText: { color: "#ca8a04", fontSize: 11 },
+    // Compound interest calculator
+    calcCard: { borderRadius: 14, borderWidth: 1, padding: 14, marginBottom: 12 },
+    calcRow: { flexDirection: "row", gap: 10, marginBottom: 10 },
+    calcField: { flex: 1 },
+    calcLabel: { fontSize: 11, fontWeight: "600", marginBottom: 5, textTransform: "uppercase", letterSpacing: 0.3 },
+    calcInput: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14 },
+    calcBtn: { backgroundColor: "#6366f1", borderRadius: 12, paddingVertical: 14, alignItems: "center", marginTop: 4 },
+    calcBtnText: { color: "white", fontWeight: "700", fontSize: 15 },
+    calcResultCard: { borderRadius: 14, borderWidth: 1.5, padding: 16, marginBottom: 4 },
+    calcResultTop: { alignItems: "center", marginBottom: 14 },
+    calcResultLabel: { fontSize: 12, fontWeight: "600", textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 4 },
+    calcResultFinal: { fontSize: 32, fontWeight: "800" },
+    calcResultRow: { flexDirection: "row", borderTopWidth: 1, paddingTop: 12, marginBottom: 14 },
+    calcResultItem: { flex: 1, alignItems: "center" },
+    calcResultItemLabel: { fontSize: 11, marginBottom: 3 },
+    calcResultItemVal: { fontSize: 14, fontWeight: "700" },
+    calcResultDivider: { width: 1, marginVertical: 4 },
+    milestoneSection: { borderTopWidth: 1, paddingTop: 12 },
+    milestoneTitle: { fontSize: 11, fontWeight: "600", textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 10 },
+    milestoneRow: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 8 },
+    milestoneYear: { fontSize: 12, fontWeight: "600", width: 44 },
+    milestoneBar: { flex: 1, height: 8, borderRadius: 4, overflow: "hidden", flexDirection: "row" },
+    milestoneBarFill: { height: "100%", borderRadius: 4 },
+    milestoneVal: { fontSize: 12, fontWeight: "600", width: 80, textAlign: "right" },
   });
 }

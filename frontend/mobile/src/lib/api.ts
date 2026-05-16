@@ -55,8 +55,11 @@ export const chatApi = {
 export const marketApi = {
   getSummary: () => api.get("/api/market/summary"),
   analyze: (symbols: string[]) => api.post("/api/market/analyze", { symbols }),
-  getPortfolio: (scenario: string, capital?: number) =>
-    api.post("/api/market/portfolio", { scenario, capital }),
+  getPortfolio: (
+    scenario: string,
+    capital?: number,
+    positions?: Array<{ ticker: string; shares: number; avg_price: number; name?: string }>
+  ) => api.post("/api/market/portfolio", { scenario, capital, positions }),
   getPrices: (symbols: string[]) => api.post("/api/market/prices", { symbols }),
   analyzeScreenshot: (base64: string, mimeType: string) =>
     api.post("/api/market/portfolio/from-screenshot", { image: base64, type: mimeType }),

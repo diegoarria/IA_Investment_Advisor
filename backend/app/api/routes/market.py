@@ -68,17 +68,67 @@ async def analyze_assets(
     }
 
 
+def _fetch_position_data(positions: list) -> list[dict]:
+    """Fetch current price and analyst targets for each position."""
+    enriched = []
+    for pos in positions:
+        ticker = pos.ticker.upper()
+        entry = {
+            "ticker": ticker,
+            "name": pos.name or ticker,
+            "shares": pos.shares,
+            "avg_price": pos.avg_price,
+            "current_price": None,
+            "analyst_target": None,
+            "analyst_low": None,
+            "analyst_high": None,
+            "recommendation": None,
+        }
+        try:
+            t = yf.Ticker(ticker)
+            fi = t.fast_info
+            entry["current_price"] = round(float(fi.last_price), 2) if fi.last_price else None
+            targets = t.analyst_price_targets
+            if targets is not None and not targets.empty:
+                entry["analyst_target"] = round(float(targets.get("mean", 0) or 0), 2) or None
+                entry["analyst_low"]    = round(float(targets.get("low",  0) or 0), 2) or None
+                entry["analyst_high"]   = round(float(targets.get("high", 0) or 0), 2) or None
+            rec = t.recommendations_summary
+            if rec is not None and not rec.empty:
+                cols = rec.columns.tolist()
+                row = rec.iloc[0]
+                buy_cols  = [c for c in cols if "buy"  in c.lower() and "strong" not in c.lower()]
+                sbuy_cols = [c for c in cols if "strongbuy"   in c.lower() or "strong buy" in c.lower()]
+                hold_cols = [c for c in cols if "hold" in c.lower()]
+                sell_cols = [c for c in cols if "sell" in c.lower() and "strong" not in c.lower()]
+                buys  = int(sum(row[c] for c in sbuy_cols + buy_cols  if c in row.index) or 0)
+                holds = int(sum(row[c] for c in hold_cols if c in row.index) or 0)
+                sells = int(sum(row[c] for c in sell_cols if c in row.index) or 0)
+                entry["recommendation"] = f"{buys} buy / {holds} hold / {sells} sell"
+        except Exception:
+            pass
+        enriched.append(entry)
+    return enriched
+
+
 @router.post("/portfolio")
 async def simulate_portfolio(
     request: PortfolioScenarioRequest,
     user_id: str = Depends(get_current_user_id)
 ):
+    import asyncio
     profile = _get_user_profile(user_id)
+
+    enriched_positions = None
+    if request.positions:
+        enriched_positions = await asyncio.to_thread(_fetch_position_data, request.positions)
+
     scenario_analysis = await ai_service.generate_portfolio_scenario(
         scenario=request.scenario,
         capital=request.capital,
         profile=profile,
-        focus_sectors=request.focus_sectors
+        focus_sectors=request.focus_sectors,
+        positions=enriched_positions,
     )
     return {
         "scenario": request.scenario,
