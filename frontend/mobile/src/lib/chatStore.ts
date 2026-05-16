@@ -23,9 +23,18 @@ export interface ChatSession {
   diagnosis: BehavioralDiagnosis | null;
 }
 
+export interface BehavioralSnapshot {
+  timestamp: number;
+  score: number;       // BSCORE 0-100
+  profile: string;     // conservative|moderate|aggressive
+  signals: string[];
+  maturity: number;    // maturityScore at that moment
+}
+
 interface ChatStore {
   sessions: ChatSession[];
   currentId: string | null;
+  behavioralTimeline: BehavioralSnapshot[];
 
   currentMessages: () => Message[];
   currentDiagnosis: () => BehavioralDiagnosis | null;
@@ -33,7 +42,7 @@ interface ChatStore {
   createSession: () => string;
   loadSession: (id: string) => void;
   setMessages: (msgs: Message[]) => void;
-  setDiagnosis: (d: BehavioralDiagnosis) => void;
+  setDiagnosis: (d: BehavioralDiagnosis, currentMaturity: number) => void;
   deleteSession: (id: string) => void;
   clearAll: () => void;
 }
@@ -55,6 +64,7 @@ export const useChatStore = create<ChatStore>()(
     (set, get) => ({
       sessions: [],
       currentId: null,
+      behavioralTimeline: [],
 
       currentMessages: () => {
         const { sessions, currentId } = get();
@@ -90,13 +100,21 @@ export const useChatStore = create<ChatStore>()(
         }));
       },
 
-      setDiagnosis: (d) => {
+      setDiagnosis: (d, currentMaturity) => {
+        const snapshot: BehavioralSnapshot = {
+          timestamp: Date.now(),
+          score: d.score,
+          profile: d.profile,
+          signals: d.signals,
+          maturity: currentMaturity,
+        };
         set((s) => ({
           sessions: s.sessions.map((session) =>
             session.id === s.currentId
               ? { ...session, diagnosis: d }
               : session
           ),
+          behavioralTimeline: [...s.behavioralTimeline.slice(-199), snapshot],
         }));
       },
 
@@ -109,7 +127,7 @@ export const useChatStore = create<ChatStore>()(
           };
         }),
 
-      clearAll: () => set({ sessions: [], currentId: null }),
+      clearAll: () => set({ sessions: [], currentId: null, behavioralTimeline: [] }),
     }),
     {
       name: "chat-sessions",

@@ -22,6 +22,8 @@ export default function ChatScreen() {
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const markdownStyles = useMemo(() => makeMarkdownStyles(colors), [colors]);
   const profile = useAppStore((s) => s.profile);
+  const maturityScore = useAppStore((s) => s.maturityScore);
+  const updateMaturity = useAppStore((s) => s.updateMaturity);
   const riskCfg = profile?.risk_tolerance ? RISK_CONFIG[profile.risk_tolerance] : null;
   const pct = riskCfg ? Math.round(riskCfg.pct * 100) : 0;
 
@@ -130,7 +132,9 @@ Instrucciones críticas:
         },
         () => { setStreaming(false); },
         (a) => {
-          setDiagnosis({ score: a.s, profile: a.p, signals: a.sig, confidence: a.conf } as BehavioralDiagnosis);
+          const d: BehavioralDiagnosis = { score: a.s, profile: a.p, signals: a.sig, confidence: a.conf };
+          updateMaturity(a.sig);
+          setDiagnosis(d, maturityScore);
         }
       );
     } catch {

@@ -62,6 +62,41 @@ export const RISK_CONFIG: Record<RiskTolerance, { label: string; icon: "shield-c
   aggressive:   { label: "Inversionista Agresivo",    icon: "rocket-outline",            pct: 1.0,  color: "#ef4444" },
 };
 
+export interface MaturityEvent {
+  timestamp: number;
+  delta: number;
+  signals: string[];
+  newScore: number;
+}
+
+const MATURITY_DELTAS: Record<string, number> = {
+  "análisis_racional": 4,
+  "tolera_volatilidad": 4,
+  "largo_plazo": 3,
+  "diversificación_consciente": 3,
+  "compra_en_caídas": 5,
+  "decisión_por_fundamentos": 4,
+  "acepta_pérdida_educada": 3,
+  "pánico_venta": -5,
+  "busca_garantías": -3,
+  "fomo": -4,
+  "especulación": -3,
+  "decisión_por_precio": -3,
+  "horizonte_corto": -2,
+};
+
+export function computeMaturityDelta(signals: string[]): number {
+  return signals.reduce((acc, sig) => acc + (MATURITY_DELTAS[sig] ?? 0), 0);
+}
+
+export function maturityLabel(score: number): { label: string; color: string } {
+  if (score < 30) return { label: "Aprendiz", color: "#ef4444" };
+  if (score < 50) return { label: "Principiante", color: "#f97316" };
+  if (score < 65) return { label: "En Desarrollo", color: "#f59e0b" };
+  if (score < 80) return { label: "Maduro", color: "#22c55e" };
+  return { label: "Experto", color: "#16a34a" };
+}
+
 interface AppStore {
   profile: UserProfile | null;
   setProfile: (p: UserProfile) => void;
@@ -69,22 +104,38 @@ interface AppStore {
   sidebarOpen: boolean;
   openSidebar: () => void;
   closeSidebar: () => void;
+  maturityScore: number;
+  maturityHistory: MaturityEvent[];
+  updateMaturity: (signals: string[]) => void;
 }
 
 export const useAppStore = create<AppStore>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       profile: null,
       setProfile: (p) => set({ profile: p }),
-      logout: () => set({ profile: null, sidebarOpen: false }),
+      logout: () => set({ profile: null, sidebarOpen: false, maturityScore: 50, maturityHistory: [] }),
       sidebarOpen: false,
       openSidebar: () => set({ sidebarOpen: true }),
       closeSidebar: () => set({ sidebarOpen: false }),
+      maturityScore: 50,
+      maturityHistory: [],
+      updateMaturity: (signals) => {
+        const delta = computeMaturityDelta(signals);
+        if (delta === 0) return;
+        const current = get().maturityScore;
+        const newScore = Math.min(100, Math.max(0, current + delta));
+        const event: MaturityEvent = { timestamp: Date.now(), delta, signals, newScore };
+        set((s) => ({
+          maturityScore: newScore,
+          maturityHistory: [...s.maturityHistory.slice(-99), event],
+        }));
+      },
     }),
     {
       name: "user-profile",
       storage: createJSONStorage(() => AsyncStorage),
-      partialize: (s) => ({ profile: s.profile }),
+      partialize: (s) => ({ profile: s.profile, maturityScore: s.maturityScore, maturityHistory: s.maturityHistory }),
     }
   )
 );

@@ -6,7 +6,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { router, usePathname } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useAppStore, RISK_CONFIG, getAge } from "../lib/profileStore";
+import { useAppStore, RISK_CONFIG, getAge, maturityLabel } from "../lib/profileStore";
 import { usePortfolioStore } from "../lib/portfolioStore";
 import { useChatStore } from "../lib/chatStore";
 import { useTheme } from "../lib/ThemeContext";
@@ -26,10 +26,17 @@ const NAV_ITEMS: { icon: IoniconName; label: string; path: string }[] = [
 // ─── Shared content blocks ────────────────────────────────────────────────────
 
 function ProfileCard({ colors }: { colors: ReturnType<typeof useTheme>["colors"] }) {
-  const { profile } = useAppStore();
+  const { profile, maturityScore, maturityHistory } = useAppStore();
   const riskCfg = profile?.risk_tolerance ? RISK_CONFIG[profile.risk_tolerance] : null;
   const pct = riskCfg ? Math.round(riskCfg.pct * 100) : 0;
+  const ml = maturityLabel(maturityScore);
   if (!profile) return null;
+
+  // Compute trend from last 10 maturity events
+  const recentEvents = maturityHistory.slice(-10);
+  const trend = recentEvents.reduce((acc, e) => acc + e.delta, 0);
+  const trendText = trend > 0 ? `+${trend} pts` : trend < 0 ? `${trend} pts` : "estable";
+  const trendColor = trend > 0 ? "#22c55e" : trend < 0 ? "#ef4444" : colors.textDim;
 
   return (
     <View style={[styles.profileCard, { backgroundColor: colors.bg, borderColor: colors.border }]}>
@@ -79,6 +86,30 @@ function ProfileCard({ colors }: { colors: ReturnType<typeof useTheme>["colors"]
           <Text style={[styles.statValue, { color: colors.accentLight }]}>
             ${Number(profile.monthly_contribution).toLocaleString()}/mes
           </Text>
+        </View>
+      </View>
+
+      {/* Maturity score */}
+      <View style={[styles.maturitySection, { borderTopColor: colors.border }]}>
+        <View style={styles.maturityRow}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
+            <Ionicons name="trophy-outline" size={12} color={ml.color} />
+            <Text style={[styles.maturityLabel, { color: colors.textMuted }]}>Madurez Inversora</Text>
+          </View>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+            <Text style={[styles.maturityTrend, { color: trendColor }]}>{trendText}</Text>
+            <View style={[styles.maturityBadge, { backgroundColor: ml.color + "22", borderColor: ml.color + "55" }]}>
+              <Text style={[styles.maturityBadgeText, { color: ml.color }]}>{ml.label}</Text>
+            </View>
+          </View>
+        </View>
+        <View style={[styles.barTrack, { backgroundColor: colors.border, marginBottom: 0 }]}>
+          <View style={[styles.barFill, { flex: maturityScore, backgroundColor: ml.color }]} />
+          {maturityScore < 100 && <View style={{ flex: 100 - maturityScore }} />}
+        </View>
+        <View style={styles.maturityScoreRow}>
+          <Text style={[styles.maturityScore, { color: ml.color }]}>{maturityScore}</Text>
+          <Text style={[styles.maturityScoreMax, { color: colors.textDim }]}>/100</Text>
         </View>
       </View>
     </View>
@@ -424,4 +455,14 @@ const styles = StyleSheet.create({
   recentEmpty: { fontSize: 12, paddingVertical: 8, paddingLeft: 4 },
   recentItem: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 8, paddingVertical: 9 },
   recentItemText: { fontSize: 13, flex: 1 },
+  // Maturity score
+  maturitySection: { borderTopWidth: 1, paddingTop: 10, marginTop: 2 },
+  maturityRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 6 },
+  maturityLabel: { fontSize: 10, fontWeight: "600", textTransform: "uppercase", letterSpacing: 0.4 },
+  maturityTrend: { fontSize: 10, fontWeight: "600" },
+  maturityBadge: { borderWidth: 1, borderRadius: 5, paddingHorizontal: 5, paddingVertical: 1 },
+  maturityBadgeText: { fontSize: 9, fontWeight: "700" },
+  maturityScoreRow: { flexDirection: "row", alignItems: "baseline", marginTop: 4 },
+  maturityScore: { fontSize: 20, fontWeight: "800" },
+  maturityScoreMax: { fontSize: 11, marginLeft: 2 },
 });
