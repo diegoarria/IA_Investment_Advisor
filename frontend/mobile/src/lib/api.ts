@@ -63,6 +63,7 @@ export const marketApi = {
   getPrices: (symbols: string[]) => api.post("/api/market/prices", { symbols }),
   analyzeScreenshot: (base64: string, mimeType: string) =>
     api.post("/api/market/portfolio/from-screenshot", { image: base64, type: mimeType }),
+  getIndices: () => api.get("/api/market/indices"),
 };
 
 export const notificationsApi = {

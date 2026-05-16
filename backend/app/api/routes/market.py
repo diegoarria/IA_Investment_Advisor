@@ -11,6 +11,17 @@ from app.services import market_service, ai_service
 
 router = APIRouter(prefix="/market", tags=["market"])
 
+_INDEX_CACHE: dict = {}
+_INDEX_CACHE_TTL = 60  # seconds
+
+INDICES = {
+    "S&P 500":   "^GSPC",
+    "Nasdaq":    "^IXIC",
+    "Dow Jones": "^DJI",
+    "Russell":   "^RUT",
+    "VIX":       "^VIX",
+}
+
 
 def _get_user_profile(user_id: str) -> UserProfile | None:
     db = get_supabase()
@@ -21,6 +32,38 @@ def _get_user_profile(user_id: str) -> UserProfile | None:
         except Exception:
             return None
     return None
+
+
+def _fetch_indices() -> list[dict]:
+    import time
+    now = time.time()
+    if _INDEX_CACHE.get("ts") and now - _INDEX_CACHE["ts"] < _INDEX_CACHE_TTL:
+        return _INDEX_CACHE["data"]
+    result = []
+    for name, symbol in INDICES.items():
+        entry = {"name": name, "symbol": symbol, "price": None, "change": 0.0, "change_pct": 0.0}
+        try:
+            t = yf.Ticker(symbol)
+            fi = t.fast_info
+            price = float(fi.last_price) if fi.last_price else None
+            prev  = float(fi.previous_close) if fi.previous_close else None
+            if price and prev:
+                entry["price"]      = round(price, 2)
+                entry["change"]     = round(price - prev, 2)
+                entry["change_pct"] = round((price - prev) / prev * 100, 2)
+        except Exception:
+            pass
+        result.append(entry)
+    _INDEX_CACHE["data"] = result
+    _INDEX_CACHE["ts"]   = now
+    return result
+
+
+@router.get("/indices")
+async def get_indices(user_id: str = Depends(get_current_user_id)):
+    import asyncio
+    data = await asyncio.to_thread(_fetch_indices)
+    return data
 
 
 @router.post("/prices")

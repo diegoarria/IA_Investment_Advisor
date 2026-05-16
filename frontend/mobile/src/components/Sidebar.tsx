@@ -10,6 +10,7 @@ import { useAppStore, RISK_CONFIG, getAge, maturityLabel } from "../lib/profileS
 import { usePortfolioStore } from "../lib/portfolioStore";
 import { useChatStore } from "../lib/chatStore";
 import { useTheme } from "../lib/ThemeContext";
+import MarketTicker from "./MarketTicker";
 
 const SIDEBAR_WIDTH = Math.min(Dimensions.get("window").width * 0.78, 300);
 const WEB_SIDEBAR_WIDTH = 260;
@@ -255,6 +256,9 @@ function WebSidebar() {
           <Text style={[styles.appSub, { color: colors.textMuted }]}>Advisor</Text>
         </View>
       </View>
+
+      {/* Market ticker — web only */}
+      <MarketTicker />
 
       {/* Scrollable: profile + nav + recent chats */}
       <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
