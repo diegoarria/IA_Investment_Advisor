@@ -114,11 +114,11 @@ export const useAppStore = create<AppStore>()(
     (set, get) => ({
       profile: null,
       setProfile: (p) => set({ profile: p }),
-      logout: () => set({ profile: null, sidebarOpen: false, maturityScore: 50, maturityHistory: [] }),
+      logout: () => set({ profile: null, sidebarOpen: false, maturityScore: 0, maturityHistory: [] }),
       sidebarOpen: false,
       openSidebar: () => set({ sidebarOpen: true }),
       closeSidebar: () => set({ sidebarOpen: false }),
-      maturityScore: 50,
+      maturityScore: 0,
       maturityHistory: [],
       updateMaturity: (signals) => {
         const delta = computeMaturityDelta(signals);

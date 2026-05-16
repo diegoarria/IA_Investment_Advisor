@@ -15,6 +15,17 @@ import { usePortfolioStore, Position } from "../../src/lib/portfolioStore";
 type IoniconName = React.ComponentProps<typeof Ionicons>["name"];
 type Scenario = "conservative" | "moderate" | "aggressive";
 
+function fmtMoney(n: number, showSign = false): string {
+  const sign = showSign && n >= 0 ? "+" : "";
+  const abs = Math.abs(n);
+  const neg = n < 0 ? "-" : "";
+  if (abs >= 1e12) return `${neg}${sign}$${(abs / 1e12).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}T`;
+  if (abs >= 1e9)  return `${neg}${sign}$${(abs / 1e9).toLocaleString("en-US",  { minimumFractionDigits: 2, maximumFractionDigits: 2 })}B`;
+  if (abs >= 1e6)  return `${neg}${sign}$${(abs / 1e6).toLocaleString("en-US",  { minimumFractionDigits: 2, maximumFractionDigits: 2 })}M`;
+  if (abs >= 1e3)  return `${neg}${sign}$${(abs / 1e3).toLocaleString("en-US",  { minimumFractionDigits: 2, maximumFractionDigits: 2 })}K`;
+  return `${neg}${sign}$${abs.toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
+}
+
 const SCENARIOS: { value: Scenario; icon: IoniconName; label: string }[] = [
   { value: "conservative", icon: "shield-outline", label: "Conservador" },
   { value: "moderate",     icon: "scale-outline",  label: "Moderado" },
@@ -557,21 +568,27 @@ export default function PortfolioScreen() {
           <View style={s.calcRow}>
             <View style={s.calcField}>
               <Text style={[s.calcLabel, { color: colors.textMuted }]}>Capital inicial (USD)</Text>
-              <TextInput
-                style={[s.calcInput, { color: colors.text, backgroundColor: colors.bg, borderColor: colors.border }]}
-                value={calcCapital} onChangeText={setCalcCapital}
-                placeholder="10,000" placeholderTextColor={colors.placeholder}
-                keyboardType="numeric"
-              />
+              <View style={[s.calcInputWrap, { backgroundColor: colors.bg, borderColor: colors.border }]}>
+                <Text style={[s.calcInputPrefix, { color: colors.textMuted }]}>$</Text>
+                <TextInput
+                  style={[s.calcInputInner, { color: colors.text }]}
+                  value={calcCapital} onChangeText={setCalcCapital}
+                  placeholder="10,000" placeholderTextColor={colors.placeholder}
+                  keyboardType="numeric"
+                />
+              </View>
             </View>
             <View style={s.calcField}>
               <Text style={[s.calcLabel, { color: colors.textMuted }]}>Aportación mensual (USD)</Text>
-              <TextInput
-                style={[s.calcInput, { color: colors.text, backgroundColor: colors.bg, borderColor: colors.border }]}
-                value={calcMonthly} onChangeText={setCalcMonthly}
-                placeholder="500 (opcional)" placeholderTextColor={colors.placeholder}
-                keyboardType="numeric"
-              />
+              <View style={[s.calcInputWrap, { backgroundColor: colors.bg, borderColor: colors.border }]}>
+                <Text style={[s.calcInputPrefix, { color: colors.textMuted }]}>$</Text>
+                <TextInput
+                  style={[s.calcInputInner, { color: colors.text }]}
+                  value={calcMonthly} onChangeText={setCalcMonthly}
+                  placeholder="500 (opcional)" placeholderTextColor={colors.placeholder}
+                  keyboardType="numeric"
+                />
+              </View>
             </View>
           </View>
           <View style={s.calcRow}>
@@ -608,21 +625,21 @@ export default function PortfolioScreen() {
             <View style={s.calcResultTop}>
               <Text style={[s.calcResultLabel, { color: colors.textMuted }]}>Valor final</Text>
               <Text style={[s.calcResultFinal, { color: "#6366f1" }]}>
-                ${calcResult.final.toLocaleString("es-MX", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                ${fmtMoney(calcResult.final)}
               </Text>
             </View>
             <View style={[s.calcResultRow, { borderTopColor: colors.border }]}>
               <View style={s.calcResultItem}>
                 <Text style={[s.calcResultItemLabel, { color: colors.textMuted }]}>Total invertido</Text>
                 <Text style={[s.calcResultItemVal, { color: colors.text }]}>
-                  ${calcResult.invested.toLocaleString("es-MX", { maximumFractionDigits: 0 })}
+                  ${fmtMoney(calcResult.invested)}
                 </Text>
               </View>
               <View style={[s.calcResultDivider, { backgroundColor: colors.border }]} />
               <View style={s.calcResultItem}>
                 <Text style={[s.calcResultItemLabel, { color: colors.textMuted }]}>Ganancia neta</Text>
                 <Text style={[s.calcResultItemVal, { color: "#22c55e" }]}>
-                  +${calcResult.gain.toLocaleString("es-MX", { maximumFractionDigits: 0 })} (+{calcResult.pct.toFixed(0)}%)
+                  +${fmtMoney(calcResult.gain)} (+{calcResult.pct.toFixed(0)}%)
                 </Text>
               </View>
             </View>
@@ -636,7 +653,7 @@ export default function PortfolioScreen() {
                     <View style={{ flex: 1 - m.value / calcResult.final }} />
                   </View>
                   <Text style={[s.milestoneVal, { color: colors.text }]}>
-                    ${m.value.toLocaleString("es-MX", { maximumFractionDigits: 0 })}
+                    ${fmtMoney(m.value)}
                   </Text>
                 </View>
               ))}
@@ -751,6 +768,9 @@ function makeStyles(c: Colors) {
     calcField: { flex: 1 },
     calcLabel: { fontSize: 11, fontWeight: "600", marginBottom: 5, textTransform: "uppercase", letterSpacing: 0.3 },
     calcInput: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14 },
+    calcInputWrap: { flexDirection: "row", alignItems: "center", borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10 },
+    calcInputPrefix: { fontSize: 14, fontWeight: "600", marginRight: 4 },
+    calcInputInner: { flex: 1, fontSize: 14, padding: 0 },
     calcBtn: { backgroundColor: "#6366f1", borderRadius: 12, paddingVertical: 14, alignItems: "center", marginTop: 4 },
     calcBtnText: { color: "white", fontWeight: "700", fontSize: 15 },
     calcResultCard: { borderRadius: 14, borderWidth: 1.5, padding: 16, marginBottom: 4 },

@@ -137,8 +137,10 @@ Instrucciones críticas:
           setDiagnosis(d, maturityScore);
         }
       );
-    } catch {
-      setMessages([...withAssistant.slice(0, -1), { role: "assistant", content: "Error al conectar con el servidor. Verifica que el backend esté corriendo." }]);
+    } catch (err: unknown) {
+      const msg = (err as { message?: string })?.message ?? String(err);
+      console.error("[chat] sendMessage error:", msg, err);
+      setMessages([...withAssistant.slice(0, -1), { role: "assistant", content: `Error: ${msg}` }]);
       setStreaming(false);
     }
   };
