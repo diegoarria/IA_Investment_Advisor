@@ -201,7 +201,7 @@ export default function PortfolioScreen() {
       }
       Alert.alert(
         `${parsed.length} posiciones detectadas`,
-        parsed.slice(0, 5).map((p) => `• ${p.ticker}: ${p.shares} acc @ $${p.avgPrice}`).join("\n") +
+        parsed.slice(0, 5).map((p) => `• ${p.ticker}: ${p.shares.toLocaleString("en-US")} acc @ $${p.avgPrice.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`).join("\n") +
           (parsed.length > 5 ? `\n... y ${parsed.length - 5} más` : ""),
         [{ text: "Cancelar", style: "cancel" }, { text: "Importar", onPress: () => setPositions(parsed) }]
       );
@@ -346,10 +346,10 @@ export default function PortfolioScreen() {
                 </View>
                 <View style={s.previewRowMid}>
                   <Text style={[s.previewDetail, { color: colors.textSub }]}>
-                    {p.shares} acc
+                    {p.shares.toLocaleString("en-US")} acc
                   </Text>
                   <Text style={[s.previewDetail, { color: colors.textSub }]}>
-                    @ ${p.avg_price > 0 ? p.avg_price.toLocaleString() : "—"}
+                    @ ${p.avg_price > 0 ? p.avg_price.toLocaleString("en-US", { minimumFractionDigits: 2 }) : "—"}
                   </Text>
                 </View>
                 <TouchableOpacity onPress={() => removeExtracted(p.id)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
@@ -477,7 +477,7 @@ export default function PortfolioScreen() {
                       )}
                     </View>
                   </View>
-                  {cp && <Text style={[s.posPrice, { color: colors.textDim }]}>Precio actual: ${cp.toLocaleString()} {pd?.currency}</Text>}
+                  {cp && <Text style={[s.posPrice, { color: colors.textDim }]}>Precio actual: ${cp.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {pd?.currency}</Text>}
                 </View>
               );
             })}
