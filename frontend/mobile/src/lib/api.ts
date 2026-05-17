@@ -35,7 +35,8 @@ export const chatApi = {
     history: Array<{ role: string; content: string }>,
     onChunk: (chunk: string) => void,
     onDone: () => void,
-    onAssessment?: (a: { s: number; p: string; sig: string[]; conf: string }) => void
+    onAssessment?: (a: { s: number; p: string; sig: string[]; conf: string }) => void,
+    onTickers?: (tickers: string[]) => void
   ) => {
     const res = await api.post("/api/chat/message", {
       message,
@@ -43,13 +44,14 @@ export const chatApi = {
     });
     const reply: string = res.data.reply ?? "";
     const assessment = res.data.risk_assessment ?? null;
-    // Simulate word-by-word reveal so the UI feels alive
+    const tickers: string[] = res.data.tickers ?? [];
     const words = reply.split(" ");
     for (let i = 0; i < words.length; i++) {
       onChunk((i === 0 ? "" : " ") + words[i]);
       await new Promise((r) => setTimeout(r, 18));
     }
     if (assessment && onAssessment) onAssessment(assessment);
+    if (tickers.length > 0 && onTickers) onTickers(tickers);
     onDone();
   },
 };
@@ -66,6 +68,8 @@ export const marketApi = {
   analyzeScreenshot: (base64: string, mimeType: string) =>
     api.post("/api/market/portfolio/from-screenshot", { image: base64, type: mimeType }),
   getIndices: () => api.get("/api/market/indices"),
+  getChart: (ticker: string, period = "1y") =>
+    api.get(`/api/market/chart/${encodeURIComponent(ticker)}`, { params: { period } }),
 };
 
 export const notificationsApi = {

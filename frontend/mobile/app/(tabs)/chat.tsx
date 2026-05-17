@@ -9,6 +9,7 @@ import { chatApi } from "../../src/lib/api";
 import { useTheme, Colors } from "../../src/lib/ThemeContext";
 import { useAppStore, RISK_CONFIG, getAge } from "../../src/lib/profileStore";
 import { useChatStore, Message, BehavioralDiagnosis } from "../../src/lib/chatStore";
+import StockChart from "../../src/components/StockChart";
 
 const SUGGESTIONS = [
   "¿Cómo analizo si una empresa es buena inversión?",
@@ -31,17 +32,10 @@ export default function ChatScreen() {
   const messages = currentMessages();
   const diagnosis = currentDiagnosis();
 
-  const BPROFILE_CONFIG: Record<string, { label: string; pct: number; color: string }> = {
-    conservative: { label: "Conservador Real", pct: 0.25, color: "#3b82f6" },
-    moderate:     { label: "Moderado Real",    pct: 0.60, color: "#f59e0b" },
-    aggressive:   { label: "Agresivo Real",    pct: 1.00, color: "#ef4444" },
-  };
-  const CONF_LABEL: Record<string, string> = { low: "poca data", medium: "diagnóstico parcial", high: "diagnóstico sólido" };
-  const bCfg = diagnosis ? BPROFILE_CONFIG[diagnosis.profile] ?? null : null;
-  const bPct = bCfg ? Math.round(bCfg.pct * 100) : 0;
 
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
+  const [lastTicker, setLastTicker] = useState<string | null>(null);
   const listRef = useRef<FlatList>(null);
 
   // Ensure there's always an active session
@@ -120,6 +114,7 @@ Instrucciones críticas:
     const withAssistant = [...newMessages, { role: "assistant" as const, content: "" }];
     setMessages(withAssistant);
     setStreaming(true);
+    setLastTicker(null);
 
     let full = "";
     try {
@@ -135,7 +130,8 @@ Instrucciones críticas:
           const d: BehavioralDiagnosis = { score: a.s, profile: a.p, signals: a.sig, confidence: a.conf };
           updateMaturity(a.sig);
           setDiagnosis(d, maturityScore);
-        }
+        },
+        (tickers) => { if (tickers.length > 0) setLastTicker(tickers[0]); }
       );
     } catch (err: unknown) {
       const msg = (err as { message?: string })?.message ?? String(err);
@@ -145,27 +141,34 @@ Instrucciones críticas:
     }
   };
 
-  const renderMessage = ({ item, index }: { item: Message; index: number }) => (
-    <View style={[styles.messageContainer, item.role === "user" ? styles.userContainer : styles.assistantContainer]}>
-      {item.role === "assistant" && (
-        <View style={styles.avatar}>
-          <Ionicons name="trending-up" size={14} color="white" />
-        </View>
-      )}
-      <View style={[styles.bubble, item.role === "user" ? styles.userBubble : styles.assistantBubble]}>
-        {item.role === "user" ? (
-          <Text style={styles.userText}>{item.content}</Text>
-        ) : (
-          <>
-            <Markdown style={markdownStyles}>{item.content || ""}</Markdown>
-            {streaming && index === messages.length - 1 && item.content === "" && (
-              <Text style={{ color: colors.accentLight }}>▋</Text>
-            )}
-          </>
+  const renderMessage = ({ item, index }: { item: Message; index: number }) => {
+    const isLastAssistant = item.role === "assistant" && index === messages.length - 1;
+    const showChart = isLastAssistant && !streaming && !!lastTicker;
+    return (
+      <View style={[styles.messageContainer, item.role === "user" ? styles.userContainer : styles.assistantContainer]}>
+        {item.role === "assistant" && (
+          <View style={styles.avatar}>
+            <Ionicons name="trending-up" size={14} color="white" />
+          </View>
         )}
+        <View style={item.role === "user" ? { maxWidth: "80%" } : { flex: 1 }}>
+          <View style={[styles.bubble, item.role === "user" ? styles.userBubble : styles.assistantBubble]}>
+            {item.role === "user" ? (
+              <Text style={styles.userText}>{item.content}</Text>
+            ) : (
+              <>
+                <Markdown style={markdownStyles}>{item.content || ""}</Markdown>
+                {streaming && isLastAssistant && item.content === "" && (
+                  <Text style={{ color: colors.accentLight }}>▋</Text>
+                )}
+              </>
+            )}
+          </View>
+          {showChart && <StockChart ticker={lastTicker!} />}
+        </View>
       </View>
-    </View>
-  );
+    );
+  };
 
   const webContentStyle = Platform.OS === "web"
     ? { maxWidth: 860, width: "100%" as const, alignSelf: "center" as const, flex: 1 }
@@ -173,66 +176,55 @@ Instrucciones críticas:
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Profile banner — mobile only */}
-      {riskCfg && Platform.OS !== "web" && (
-        <View style={[styles.profileBanner, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
-          <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-              <Ionicons name={riskCfg.icon} size={15} color={riskCfg.color} />
-              <Text style={[styles.profileType, { color: colors.text, marginBottom: 0 }]}>{riskCfg.label}</Text>
+      {/* Behavioral investor bar — mobile only */}
+      {riskCfg && Platform.OS !== "web" && (() => {
+        const score    = diagnosis?.score ?? pct;
+        const barColor = score < 36 ? "#3b82f6" : score < 56 ? "#f59e0b" : score < 76 ? "#f97316" : "#ef4444";
+        const barLabel = score < 36 ? "Conservador" : score < 56 ? "Moderado" : score < 76 ? "Moderado-Alto" : "Agresivo";
+        const confLabel: Record<string, string> = { low: "aprendiendo…", medium: "diagnóstico parcial", high: "diagnóstico sólido" };
+        return (
+          <View style={[styles.profileBanner, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
+            {/* Header row */}
+            <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
+                <Ionicons name="pulse-outline" size={13} color={barColor} />
+                <Text style={[styles.profileType, { color: barColor, marginBottom: 0, fontSize: 13 }]}>
+                  {barLabel}
+                </Text>
+                {diagnosis && (
+                  <View style={[styles.signalChip, { backgroundColor: barColor + "18", borderColor: barColor + "40" }]}>
+                    <Text style={[styles.signalText, { color: barColor }]}>{confLabel[diagnosis.confidence]}</Text>
+                  </View>
+                )}
+              </View>
+              {profile?.name && (
+                <Text style={{ color: colors.textMuted, fontSize: 11 }}>{profile.name.split(" ")[0]}</Text>
+              )}
             </View>
-            {profile?.name && (
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
-                <Ionicons name="person-outline" size={12} color={colors.textMuted} />
-                <Text style={{ color: colors.textMuted, fontSize: 12 }}>{profile.name.split(" ")[0]}</Text>
+
+            {/* Dynamic bar — fills from 0 to 100 based on behavioral score */}
+            <View style={[styles.barTrack, { backgroundColor: colors.border }]}>
+              <View style={[styles.barFill, { flex: score, backgroundColor: barColor }]} />
+              {score < 100 && <View style={{ flex: 100 - score }} />}
+            </View>
+            <View style={styles.barLabels}>
+              <Text style={[styles.barLabelText, { color: colors.textDim }]}>Pasivo</Text>
+              <Text style={[styles.barLabelText, { color: colors.textDim }]}>Especulativo</Text>
+            </View>
+
+            {/* Live signal chips */}
+            {diagnosis?.signals && diagnosis.signals.length > 0 && (
+              <View style={[styles.signalsRow, { marginTop: 6 }]}>
+                {diagnosis.signals.map((sig) => (
+                  <View key={sig} style={[styles.signalChip, { backgroundColor: colors.bg, borderColor: colors.border }]}>
+                    <Text style={[styles.signalText, { color: colors.textDim }]}>{sig.replace(/_/g, " ")}</Text>
+                  </View>
+                ))}
               </View>
             )}
           </View>
-          <View style={[styles.barTrack, { backgroundColor: colors.border }]}>
-            <View style={[styles.barFill, { flex: pct, backgroundColor: riskCfg.color }]} />
-            {pct < 100 && <View style={{ flex: 100 - pct }} />}
-          </View>
-          <View style={styles.barLabels}>
-            <Text style={[styles.barLabelText, { color: colors.textDim }]}>Bajo riesgo</Text>
-            <Text style={[styles.barLabelText, { color: colors.textDim }]}>Alto riesgo</Text>
-          </View>
-
-          {/* Behavioral diagnosis — updates with each message */}
-          <View style={[styles.diagSeparator, { borderTopColor: colors.border }]} />
-          <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 5 }}>
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
-              <Ionicons name="pulse-outline" size={12} color={bCfg ? bCfg.color : colors.textDim} />
-              <Text style={[styles.barLabelText, { color: bCfg ? bCfg.color : colors.textDim, fontWeight: "600" }]}>
-                {bCfg ? bCfg.label : "Diagnóstico en curso…"}
-              </Text>
-            </View>
-            {diagnosis && (
-              <Text style={[styles.barLabelText, { color: colors.textDim }]}>
-                {CONF_LABEL[diagnosis.confidence] ?? ""}
-              </Text>
-            )}
-          </View>
-          <View style={[styles.barTrack, { backgroundColor: colors.border }]}>
-            {bCfg ? (
-              <>
-                <View style={[styles.barFill, { flex: bPct, backgroundColor: bCfg.color }]} />
-                {bPct < 100 && <View style={{ flex: 100 - bPct }} />}
-              </>
-            ) : (
-              <View style={{ flex: 1, backgroundColor: colors.border, opacity: 0.4 }} />
-            )}
-          </View>
-          {diagnosis?.signals && diagnosis.signals.length > 0 && (
-            <View style={styles.signalsRow}>
-              {diagnosis.signals.map((s) => (
-                <View key={s} style={[styles.signalChip, { backgroundColor: colors.bg, borderColor: colors.border }]}>
-                  <Text style={[styles.signalText, { color: colors.textDim }]}>{s.replace(/_/g, " ")}</Text>
-                </View>
-              ))}
-            </View>
-          )}
-        </View>
-      )}
+        );
+      })()}
 
       {/* Top bar */}
       <View style={[styles.topBar, { borderBottomColor: colors.border }]}>
@@ -384,32 +376,58 @@ function makeStyles(c: Colors) {
 function makeMarkdownStyles(c: Colors) {
   return {
     body: {
-      color: c.textSub, fontSize: 14, lineHeight: 20,
+      color: c.textSub, fontSize: 14, lineHeight: 21,
       flexShrink: 1,
       ...(Platform.OS === "web" ? { wordBreak: "break-word", overflowWrap: "break-word" } : {}),
     },
     paragraph: {
-      flexShrink: 1, flexWrap: "wrap" as const, marginVertical: 2,
+      flexShrink: 1, flexWrap: "wrap" as const, marginVertical: 3,
       ...(Platform.OS === "web" ? { wordBreak: "break-word", overflowWrap: "break-word" } : {}),
     },
     text: { flexShrink: 1, flexWrap: "wrap" as const },
-    heading1: { color: c.text, fontSize: 17, fontWeight: "700" as const, marginBottom: 6, marginTop: 8 },
-    heading2: { color: c.text, fontSize: 15, fontWeight: "700" as const, marginBottom: 4, marginTop: 6 },
-    heading3: { color: c.textSub, fontSize: 14, fontWeight: "600" as const, marginBottom: 4, marginTop: 4 },
+    heading1: {
+      color: c.text, fontSize: 16, fontWeight: "800" as const,
+      marginBottom: 6, marginTop: 12,
+      borderBottomWidth: 1.5, borderBottomColor: c.accent,
+      paddingBottom: 4,
+    },
+    heading2: {
+      color: c.text, fontSize: 14, fontWeight: "700" as const,
+      marginBottom: 5, marginTop: 10,
+    },
+    heading3: {
+      color: c.accentLight, fontSize: 13, fontWeight: "700" as const,
+      marginBottom: 3, marginTop: 8, letterSpacing: 0.3,
+    },
     strong: { color: c.text, fontWeight: "700" as const },
-    em: { color: c.textSub, fontStyle: "italic" as const },
-    bullet_list: { marginVertical: 4, flexShrink: 1 },
-    ordered_list: { marginVertical: 4, flexShrink: 1 },
-    list_item: { color: c.textSub, fontSize: 14, lineHeight: 20, flexShrink: 1 },
-    code_inline: { backgroundColor: c.bg, color: c.accentLight, borderRadius: 4, paddingHorizontal: 4, fontSize: 13 },
-    fence: { backgroundColor: c.bg, borderRadius: 8, padding: 12, marginVertical: 6 },
-    code_block: { color: c.accentLight, fontSize: 13 },
-    table: { borderWidth: 1, borderColor: c.border, borderRadius: 6, marginVertical: 6 },
+    em: { color: c.accentLight, fontStyle: "italic" as const },
+    bullet_list: { marginVertical: 5, flexShrink: 1, paddingLeft: 2 },
+    ordered_list: { marginVertical: 5, flexShrink: 1, paddingLeft: 2 },
+    list_item: { color: c.textSub, fontSize: 14, lineHeight: 22, flexShrink: 1, marginVertical: 1 },
+    code_inline: {
+      backgroundColor: c.accent + "22", color: c.accentLight,
+      borderRadius: 5, paddingHorizontal: 5, fontSize: 13, fontWeight: "600" as const,
+    },
+    fence: {
+      backgroundColor: c.bg, borderRadius: 10, padding: 14,
+      marginVertical: 8, borderWidth: 1, borderColor: c.border,
+    },
+    code_block: { color: c.accentLight, fontSize: 12, lineHeight: 18 },
+    table: {
+      borderWidth: 1, borderColor: c.border, borderRadius: 8,
+      marginVertical: 8, overflow: "hidden" as const,
+    },
     thead: { backgroundColor: c.accent },
-    th: { color: "white", fontWeight: "700" as const, padding: 8, fontSize: 13 },
-    td: { color: c.textSub, padding: 8, fontSize: 13, borderTopWidth: 1, borderTopColor: c.border },
-    blockquote: { borderLeftWidth: 3, borderLeftColor: c.accentLight, paddingLeft: 10, marginVertical: 4 },
-    hr: { borderColor: c.border, marginVertical: 8 },
-    link: { color: c.accentLight },
+    th: { color: "white", fontWeight: "700" as const, padding: 10, fontSize: 12, letterSpacing: 0.3 },
+    td: { color: c.textSub, padding: 9, fontSize: 13, borderTopWidth: 1, borderTopColor: c.border },
+    tr: {},
+    blockquote: {
+      borderLeftWidth: 3, borderLeftColor: c.accentLight,
+      backgroundColor: c.accent + "15",
+      paddingLeft: 12, paddingVertical: 6,
+      marginVertical: 6, borderRadius: 4,
+    },
+    hr: { borderColor: c.border, marginVertical: 10, height: 1 },
+    link: { color: c.accentLight, textDecorationLine: "underline" as const },
   };
 }

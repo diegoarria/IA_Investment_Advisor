@@ -154,6 +154,47 @@ def _fetch_position_data(positions: list) -> list[dict]:
     return enriched
 
 
+@router.get("/chart/{ticker}")
+async def get_chart(
+    ticker: str,
+    period: str = "1y",
+    user_id: str = Depends(get_current_user_id)
+):
+    import asyncio
+
+    def _fetch():
+        period_map = {
+            "1d":  ("1d",  "5m"),
+            "5d":  ("5d",  "30m"),
+            "1m":  ("1mo", "1d"),
+            "6m":  ("6mo", "1wk"),
+            "ytd": ("ytd", "1wk"),
+            "1y":  ("1y",  "1wk"),
+            "5y":  ("5y",  "1mo"),
+            "max": ("max", "3mo"),
+        }
+        yf_period, interval = period_map.get(period, ("1y", "1wk"))
+        t = yf.Ticker(ticker.upper())
+        hist = t.history(period=yf_period, interval=interval)
+        if hist is None or hist.empty:
+            return None
+        prices     = [round(float(p), 2) for p in hist["Close"].tolist()]
+        timestamps = [str(idx.date()) if hasattr(idx, "date") else str(idx)[:10] for idx in hist.index]
+        fi         = t.fast_info
+        current    = round(float(fi.last_price), 2) if fi.last_price else prices[-1]
+        info       = t.info or {}
+        name       = info.get("shortName") or ticker.upper()
+        change_pct = round((prices[-1] - prices[0]) / prices[0] * 100, 2) if prices[0] else 0
+        return {"ticker": ticker.upper(), "name": name, "prices": prices,
+                "timestamps": timestamps, "current_price": current,
+                "change_pct": change_pct, "period": period}
+
+    result = await asyncio.to_thread(_fetch)
+    if result is None:
+        return {"error": "No data", "ticker": ticker.upper()}
+    return result
+
+
 @router.post("/portfolio")
 async def simulate_portfolio(
     request: PortfolioScenarioRequest,

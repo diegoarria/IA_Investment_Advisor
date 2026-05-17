@@ -7,7 +7,7 @@ from app.api.deps import get_current_user_id
 from app.core.database import get_supabase
 from app.models.user import ChatRequest, UserProfile
 from app.services import ai_service
-from app.services.market_data_service import get_market_context_for_message
+from app.services.market_data_service import get_market_context_for_message, detect_tickers
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 
@@ -83,6 +83,7 @@ async def chat_message(
     user_id: str = Depends(get_current_user_id)
 ):
     profile = _get_user_profile(user_id)
+    tickers  = await asyncio.to_thread(detect_tickers, request.message)
     enriched = await asyncio.to_thread(_enrich_message, request.message)
     full = ""
     async for chunk in ai_service.chat_stream(
@@ -92,7 +93,7 @@ async def chat_message(
     ):
         full += chunk
     clean_reply, bscore = _extract_bscore(full)
-    return {"reply": clean_reply, "risk_assessment": bscore}
+    return {"reply": clean_reply, "risk_assessment": bscore, "tickers": tickers}
 
 
 @router.post("/save-message")

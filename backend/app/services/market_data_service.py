@@ -119,6 +119,33 @@ def _fmt_num(v, prefix="$", suffix="") -> str:
     return f"{prefix}{v:.2f}{suffix}"
 
 
+def _fetch_historical_returns(stock: yf.Ticker) -> dict[str, float | None]:
+    """Return % gain for each standard period."""
+    periods = [
+        ("1d",  "1d",  "5m"),
+        ("5d",  "5d",  "1h"),
+        ("1m",  "1mo", "1d"),
+        ("6m",  "6mo", "1wk"),
+        ("ytd", "ytd", "1wk"),
+        ("1y",  "1y",  "1wk"),
+        ("5y",  "5y",  "1mo"),
+        ("max", "max", "3mo"),
+    ]
+    results: dict[str, float | None] = {}
+    for label, period, interval in periods:
+        try:
+            hist = stock.history(period=period, interval=interval)
+            if hist is not None and len(hist) >= 2:
+                start = float(hist["Close"].iloc[0])
+                end   = float(hist["Close"].iloc[-1])
+                results[label] = round((end - start) / start * 100, 2) if start else None
+            else:
+                results[label] = None
+        except Exception:
+            results[label] = None
+    return results
+
+
 def _build_company_context(ticker: str) -> str:
     try:
         stock = yf.Ticker(ticker)
@@ -134,15 +161,34 @@ def _build_company_context(ticker: str) -> str:
         week52_low = info.get("fiftyTwoWeekLow")
 
         if price:
-            lines.append(f"**Precio:** ${price:.2f}")
+            lines.append(f"**Precio actual:** ${price:.2f}")
         if price and prev_close:
             day_chg = (price - prev_close) / prev_close * 100
-            lines.append(f"**Cambio hoy:** {day_chg:+.2f}%")
+            arrow = "⬆" if day_chg >= 0 else "⬇"
+            lines.append(f"**Cambio hoy:** {arrow} {day_chg:+.2f}%")
         if price and week52_high:
             from_high = (price - week52_high) / week52_high * 100
-            from_low = (price - week52_low) / week52_low * 100 if week52_low else None
-            lines.append(f"**Rango 52 semanas:** ${week52_low:.2f} – ${week52_high:.2f}")
-            lines.append(f"**Vs máximo 52 sem:** {from_high:+.1f}% | **Vs mínimo:** {from_low:+.1f}%")
+            lines.append(f"**Rango 52 semanas:** ${week52_low:.2f} – ${week52_high:.2f}" if week52_low else f"**Máximo 52 sem:** ${week52_high:.2f}")
+            lines.append(f"**Vs máximo 52 sem:** {from_high:+.1f}%")
+            if week52_low:
+                from_low = (price - week52_low) / week52_low * 100
+                lines.append(f"**Vs mínimo 52 sem:** {from_low:+.1f}%")
+
+        # ── Historical returns (compact, for AI context only — chart widget displays these visually) ──
+        hist_returns = _fetch_historical_returns(stock)
+
+        def _fmt_ret(v: float | None) -> str:
+            return f"{v:+.2f}%" if v is not None else "N/D"
+
+        lines.append(
+            f"**Rendimientos:** 1d={_fmt_ret(hist_returns.get('1d'))} "
+            f"5d={_fmt_ret(hist_returns.get('5d'))} "
+            f"1m={_fmt_ret(hist_returns.get('1m'))} "
+            f"6m={_fmt_ret(hist_returns.get('6m'))} "
+            f"YTD={_fmt_ret(hist_returns.get('ytd'))} "
+            f"1y={_fmt_ret(hist_returns.get('1y'))} "
+            f"5y={_fmt_ret(hist_returns.get('5y'))}"
+        )
 
         # ── Business health ──
         lines.append("\n**Salud del negocio:**")
