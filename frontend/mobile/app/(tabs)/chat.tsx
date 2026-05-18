@@ -409,10 +409,10 @@ function makeMarkdownStyles(c: Colors) {
       borderRadius: 5, paddingHorizontal: 5, fontSize: 13, fontWeight: "600" as const,
     },
     fence: {
-      backgroundColor: c.bg, borderRadius: 10, padding: 14,
+      backgroundColor: c.card, borderRadius: 10, padding: 14,
       marginVertical: 8, borderWidth: 1, borderColor: c.border,
     },
-    code_block: { color: c.accentLight, fontSize: 12, lineHeight: 18 },
+    code_block: { color: c.text, fontSize: 13, lineHeight: 22, fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace" },
     table: {
       borderWidth: 1, borderColor: c.border, borderRadius: 8,
       marginVertical: 8, overflow: "hidden" as const,
