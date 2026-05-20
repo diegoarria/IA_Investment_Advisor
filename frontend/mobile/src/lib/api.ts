@@ -70,6 +70,10 @@ export const marketApi = {
   getIndices: () => api.get("/api/market/indices"),
   getChart: (ticker: string, period = "1y") =>
     api.get(`/api/market/chart/${encodeURIComponent(ticker)}`, { params: { period } }),
+  screener: (sector: string | null, query: string) =>
+    api.post("/api/market/screener", { sector, query }),
+  alertContext: (ticker: string, change_pct: number) =>
+    api.post("/api/market/screener/alert-context", { ticker, change_pct }),
 };
 
 export const notificationsApi = {

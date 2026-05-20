@@ -60,6 +60,14 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
+        name="explore"
+        options={{
+          tabBarIcon: ({ color }) => <Ionicons name="telescope-outline" size={22} color={color} />,
+          title: "Explorar",
+          header: () => <MobileHeader title="Explorar Mercado" />,
+        }}
+      />
+      <Tabs.Screen
         name="notifications"
         options={{
           tabBarIcon: ({ color }) => <Ionicons name="notifications-outline" size={22} color={color} />,

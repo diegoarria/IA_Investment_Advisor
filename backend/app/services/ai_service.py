@@ -1,4 +1,5 @@
 import anthropic
+import json
 from app.core.config import settings
 from app.models.user import UserProfile, ChatMessage
 
@@ -504,6 +505,48 @@ Explica los conceptos de diversificación, correlación de activos y horizonte t
         max_tokens=2048,
         system=[{"type": "text", "text": system_prompt, "cache_control": {"type": "ephemeral"}}],
         messages=[{"role": "user", "content": prompt}]
+    )
+    return response.content[0].text
+
+
+async def screen_stocks(stocks: list[dict], query: str, profile: UserProfile | None = None) -> str:
+    system_prompt = build_system_prompt(profile)
+    data_str = json.dumps(stocks[:20], ensure_ascii=False)
+    prompt = f"""El usuario busca: "{query}"
+
+Datos de acciones disponibles (JSON):
+{data_str}
+
+Selecciona las 5 que mejor coincidan. Para cada una, una línea con: emoji + ticker + nombre + por qué coincide + score /10.
+Formato visual y compacto. Termina con una línea de insight general."""
+
+    response = await client.messages.create(
+        model=settings.claude_model,
+        max_tokens=500,
+        system=[{"type": "text", "text": system_prompt, "cache_control": {"type": "ephemeral"}}],
+        messages=[{"role": "user", "content": prompt}],
+    )
+    return response.content[0].text
+
+
+async def generate_alert_context(ticker: str, change_pct: float, profile: UserProfile | None = None) -> str:
+    system_prompt = build_system_prompt(profile)
+    direction = "subió" if change_pct >= 0 else "cayó"
+    prompt = f"""{ticker} {direction} {abs(change_pct):.1f}% hoy.
+
+En máximo 4 bullets visuales:
+1. Qué pudo causar este movimiento
+2. Si es ruido de mercado o fundamento real
+3. Qué debería considerar el inversor antes de actuar
+4. Nota conductual si aplica (¿es momento de pánico o de análisis?)
+
+Formato con emojis. Sin introducciones."""
+
+    response = await client.messages.create(
+        model=settings.claude_model,
+        max_tokens=400,
+        system=[{"type": "text", "text": system_prompt, "cache_control": {"type": "ephemeral"}}],
+        messages=[{"role": "user", "content": prompt}],
     )
     return response.content[0].text
 

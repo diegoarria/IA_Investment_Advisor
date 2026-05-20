@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from app.core.config import settings
-from app.api.routes import auth, profile, chat, market, notifications
+from app.api.routes import auth, profile, chat, market, notifications, screener
 from app.services.notification_service import scan_and_notify_all_users
 
 app = FastAPI(
@@ -36,6 +36,7 @@ app.include_router(profile.router, prefix="/api")
 app.include_router(chat.router, prefix="/api")
 app.include_router(market.router, prefix="/api")
 app.include_router(notifications.router, prefix="/api")
+app.include_router(screener.router,     prefix="/api")
 
 scheduler = AsyncIOScheduler()
 
