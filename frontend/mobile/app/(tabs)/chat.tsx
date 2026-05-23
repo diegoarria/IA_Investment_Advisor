@@ -304,8 +304,10 @@ Instrucciones críticas:
               )}
               <View style={styles.suggestions}>
                 {SUGGESTIONS.map((s) => (
-                  <TouchableOpacity key={s} style={styles.suggestion} onPress={() => sendMessage(s)}>
-                    <Text style={styles.suggestionText}>{s}</Text>
+                  <TouchableOpacity key={s} style={[styles.suggestion, { borderColor: colors.border }]} onPress={() => sendMessage(s)}>
+                    <Ionicons name="sparkles-outline" size={14} color={colors.accentLight} style={{ flexShrink: 0 }} />
+                    <Text style={[styles.suggestionText, { color: colors.textSub }]}>{s}</Text>
+                    <Ionicons name="chevron-forward" size={13} color={colors.textDim} style={{ flexShrink: 0 }} />
                   </TouchableOpacity>
                 ))}
               </View>
@@ -354,71 +356,111 @@ function makeStyles(c: Colors) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: c.bg },
     flex: { flex: 1 },
-    profileBanner: { paddingHorizontal: 16, paddingVertical: 10, borderBottomWidth: 1 },
-    profileType: { fontSize: 13, fontWeight: "600", marginBottom: 8 },
-    barTrack: { height: 7, borderRadius: 4, overflow: "hidden", flexDirection: "row", marginBottom: 4 },
-    barFill: { height: "100%", borderRadius: 4 },
+
+    // Profile banner (risk bar at top)
+    profileBanner: { paddingHorizontal: 16, paddingVertical: 10, borderBottomWidth: StyleSheet.hairlineWidth },
+    profileType: { fontSize: 12, fontWeight: "700", letterSpacing: 0.6, textTransform: "uppercase", marginBottom: 8 },
+    barTrack: { height: 5, borderRadius: 3, overflow: "hidden", flexDirection: "row", marginBottom: 4 },
+    barFill: { height: "100%", borderRadius: 3 },
     barLabels: { flexDirection: "row", justifyContent: "space-between" },
-    barLabelText: { fontSize: 10 },
+    barLabelText: { fontSize: 10, letterSpacing: 0.2 },
+
+    // Top bar
     topBar: {
       flexDirection: "row", alignItems: "center", justifyContent: "space-between",
-      paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1,
+      paddingHorizontal: 16, paddingVertical: 11,
+      borderBottomWidth: StyleSheet.hairlineWidth,
     },
-    topBarTitle: { fontWeight: "600", fontSize: 15 },
+    topBarTitle: { fontWeight: "700", fontSize: 15, letterSpacing: -0.2 },
     newChatBtn: {
-      flexDirection: "row", alignItems: "center", gap: 4,
-      borderWidth: 1, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6,
+      flexDirection: "row", alignItems: "center", gap: 5,
+      borderWidth: 1, borderRadius: 20, paddingHorizontal: 12, paddingVertical: 7,
     },
-    newChatBtnText: { fontSize: 13, fontWeight: "500" },
-    empty: { flex: 1, alignItems: "center", justifyContent: "center", padding: 24 },
-    emptyTitle: { fontSize: 20, fontWeight: "700", color: c.text, marginBottom: 8 },
-    emptySubtitle: { fontSize: 14, color: c.textMuted, textAlign: "center", marginBottom: 24 },
-    suggestions: { width: "100%", gap: 8 },
+    newChatBtnText: { fontSize: 12, fontWeight: "600", letterSpacing: 0.1 },
+
+    // Empty / welcome state
+    empty: { flex: 1, alignItems: "center", justifyContent: "center", padding: 28 },
+    emptyTitle: { fontSize: 22, fontWeight: "800", color: c.text, marginBottom: 6, letterSpacing: -0.5 },
+    emptySubtitle: { fontSize: 14, color: c.textMuted, textAlign: "center", marginBottom: 32, lineHeight: 21 },
+    suggestions: { width: "100%", gap: 9 },
     suggestion: {
-      backgroundColor: c.card, borderWidth: 1, borderColor: c.border,
-      borderRadius: 12, padding: 14,
+      backgroundColor: c.card,
+      borderWidth: 1, borderColor: c.border,
+      borderRadius: 14, paddingHorizontal: 16, paddingVertical: 14,
+      flexDirection: "row", alignItems: "center", gap: 10,
     },
-    suggestionText: { color: c.textSub, fontSize: 13 },
-    list: { padding: 16, paddingBottom: 8 },
-    messageContainer: { flexDirection: "row", marginBottom: 12, alignItems: "flex-end" },
+    suggestionText: { color: c.textSub, fontSize: 13, flex: 1, lineHeight: 19 },
+
+    // Message list
+    list: { paddingHorizontal: 14, paddingVertical: 16, paddingBottom: 8 },
+    messageContainer: { flexDirection: "row", marginBottom: 10, alignItems: "flex-end" },
     userContainer: { justifyContent: "flex-end" },
     assistantContainer: { justifyContent: "flex-start" },
+
+    // Avatars
     avatar: {
-      width: 28, height: 28, borderRadius: 14,
+      width: 30, height: 30, borderRadius: 15,
       alignItems: "center", justifyContent: "center", marginRight: 8,
       overflow: "hidden",
     },
-    avatarPhoto: { width: 28, height: 28, borderRadius: 14 },
-    mentorAvatar: { width: 88, height: 88, borderRadius: 44, marginBottom: 12 },
+    avatarPhoto: { width: 30, height: 30, borderRadius: 15 },
+    mentorAvatar: { width: 88, height: 88, borderRadius: 44, marginBottom: 14 },
     mentorAvatarEmoji: {
       width: 88, height: 88, borderRadius: 44,
-      alignItems: "center", justifyContent: "center", marginBottom: 12,
+      alignItems: "center", justifyContent: "center", marginBottom: 14,
     },
-    mentorPrinciples: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 8, justifyContent: "center" },
-    principlePill: { borderWidth: 1, borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4 },
-    principlePillText: { fontSize: 11, fontWeight: "600" },
-    bubble: { maxWidth: "80%", minWidth: 0, flexShrink: 1, borderRadius: 16, padding: 12 },
-    userBubble: { backgroundColor: "#16a34a", borderBottomRightRadius: 4 },
+    mentorPrinciples: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 10, justifyContent: "center" },
+    principlePill: {
+      borderWidth: 1, borderRadius: 20, paddingHorizontal: 11, paddingVertical: 5,
+    },
+    principlePillText: { fontSize: 11, fontWeight: "600", letterSpacing: 0.2 },
+
+    // Bubbles
+    bubble: { maxWidth: "80%", minWidth: 0, flexShrink: 1, borderRadius: 18, paddingHorizontal: 14, paddingVertical: 10 },
+    userBubble: {
+      backgroundColor: c.accent,
+      borderBottomRightRadius: 5,
+      shadowColor: c.accentLight,
+      shadowOpacity: 0.3,
+      shadowRadius: 8,
+      shadowOffset: { width: 0, height: 2 },
+    },
     assistantBubble: {
-      backgroundColor: c.card, borderWidth: 1, borderColor: c.border,
-      borderBottomLeftRadius: 4,
+      backgroundColor: c.card,
+      borderWidth: 1, borderColor: c.border,
+      borderBottomLeftRadius: 5,
     },
-    userText: { color: "white", fontSize: 14, lineHeight: 20, flexWrap: "wrap" },
+    userText: { color: "white", fontSize: 14, lineHeight: 21, flexWrap: "wrap", fontWeight: "500" },
+
+    // Input area
     inputContainer: {
-      flexDirection: "row", alignItems: "flex-end", padding: 12,
-      borderTopWidth: 1, borderTopColor: c.border, backgroundColor: c.card, gap: 8,
+      flexDirection: "row", alignItems: "flex-end",
+      paddingHorizontal: 12, paddingVertical: 10,
+      borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.border,
+      backgroundColor: c.card, gap: 8,
     },
     input: {
-      flex: 1, backgroundColor: c.bg, borderWidth: 1, borderColor: c.border,
-      borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10,
-      color: c.text, fontSize: 15, maxHeight: 100,
+      flex: 1,
+      backgroundColor: c.bgRaised ?? c.bg,
+      borderWidth: 1, borderColor: c.border,
+      borderRadius: 20,
+      paddingHorizontal: 16, paddingVertical: 10,
+      color: c.text, fontSize: 15, maxHeight: 110, lineHeight: 20,
     },
     sendButton: {
-      width: 42, height: 42, backgroundColor: "#16a34a",
-      borderRadius: 12, alignItems: "center", justifyContent: "center",
+      width: 44, height: 44,
+      backgroundColor: c.accent,
+      borderRadius: 22,
+      alignItems: "center", justifyContent: "center",
+      shadowColor: c.accentLight,
+      shadowOpacity: 0.4,
+      shadowRadius: 8,
+      shadowOffset: { width: 0, height: 2 },
     },
-    sendDisabled: { opacity: 0.4 },
-    diagSeparator: { borderTopWidth: 1, marginTop: 8, marginBottom: 8 },
+    sendDisabled: { opacity: 0.35 },
+
+    // Diagnostic
+    diagSeparator: { borderTopWidth: StyleSheet.hairlineWidth, marginTop: 8, marginBottom: 8 },
     signalsRow: { flexDirection: "row", flexWrap: "wrap", gap: 4, marginTop: 5 },
     signalChip: { borderWidth: 1, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 },
     signalText: { fontSize: 9 },
@@ -428,58 +470,60 @@ function makeStyles(c: Colors) {
 function makeMarkdownStyles(c: Colors) {
   return {
     body: {
-      color: c.textSub, fontSize: 14, lineHeight: 21,
-      flexShrink: 1,
+      color: c.textSub, fontSize: 14, lineHeight: 22, flexShrink: 1,
       ...(Platform.OS === "web" ? { wordBreak: "break-word", overflowWrap: "break-word" } : {}),
     },
     paragraph: {
-      flexShrink: 1, flexWrap: "wrap" as const, marginVertical: 3,
+      flexShrink: 1, flexWrap: "wrap" as const, marginVertical: 4,
       ...(Platform.OS === "web" ? { wordBreak: "break-word", overflowWrap: "break-word" } : {}),
     },
     text: { flexShrink: 1, flexWrap: "wrap" as const },
     heading1: {
-      color: c.text, fontSize: 16, fontWeight: "800" as const,
-      marginBottom: 6, marginTop: 12,
-      borderBottomWidth: 1.5, borderBottomColor: c.accent,
-      paddingBottom: 4,
+      color: c.text, fontSize: 17, fontWeight: "800" as const, letterSpacing: -0.4,
+      marginBottom: 8, marginTop: 14, paddingBottom: 6,
+      borderBottomWidth: 1.5, borderBottomColor: c.accentLight,
     },
     heading2: {
-      color: c.text, fontSize: 14, fontWeight: "700" as const,
-      marginBottom: 5, marginTop: 10,
+      color: c.text, fontSize: 15, fontWeight: "700" as const, letterSpacing: -0.2,
+      marginBottom: 6, marginTop: 12,
     },
     heading3: {
       color: c.accentLight, fontSize: 13, fontWeight: "700" as const,
-      marginBottom: 3, marginTop: 8, letterSpacing: 0.3,
+      marginBottom: 4, marginTop: 8, letterSpacing: 0.4, textTransform: "uppercase" as const,
     },
     strong: { color: c.text, fontWeight: "700" as const },
     em: { color: c.accentLight, fontStyle: "italic" as const },
-    bullet_list: { marginVertical: 5, flexShrink: 1, paddingLeft: 2 },
-    ordered_list: { marginVertical: 5, flexShrink: 1, paddingLeft: 2 },
-    list_item: { color: c.textSub, fontSize: 14, lineHeight: 22, flexShrink: 1, marginVertical: 1 },
+    bullet_list: { marginVertical: 6, flexShrink: 1 },
+    ordered_list: { marginVertical: 6, flexShrink: 1 },
+    list_item: { color: c.textSub, fontSize: 14, lineHeight: 22, flexShrink: 1, marginVertical: 2 },
     code_inline: {
-      backgroundColor: c.accent + "22", color: c.accentLight,
-      borderRadius: 5, paddingHorizontal: 5, fontSize: 13, fontWeight: "600" as const,
+      backgroundColor: c.accentLight + "1a", color: c.accentLight,
+      borderRadius: 5, paddingHorizontal: 6, fontSize: 13, fontWeight: "600" as const,
     },
     fence: {
-      backgroundColor: c.card, borderRadius: 10, padding: 14,
+      backgroundColor: c.bgRaised ?? c.card,
+      borderRadius: 12, padding: 14,
       marginVertical: 8, borderWidth: 1, borderColor: c.border,
     },
-    code_block: { color: c.text, fontSize: 13, lineHeight: 22, fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace" },
+    code_block: {
+      color: c.text, fontSize: 13, lineHeight: 22,
+      fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
+    },
     table: {
-      borderWidth: 1, borderColor: c.border, borderRadius: 8,
+      borderWidth: 1, borderColor: c.border, borderRadius: 10,
       marginVertical: 8, overflow: "hidden" as const,
     },
-    thead: { backgroundColor: c.accent },
-    th: { color: "white", fontWeight: "700" as const, padding: 10, fontSize: 12, letterSpacing: 0.3 },
-    td: { color: c.textSub, padding: 9, fontSize: 13, borderTopWidth: 1, borderTopColor: c.border },
+    thead: { backgroundColor: c.accent + "33" },
+    th: { color: c.accentLight, fontWeight: "700" as const, padding: 10, fontSize: 12, letterSpacing: 0.5 },
+    td: { color: c.textSub, padding: 9, fontSize: 13, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.border },
     tr: {},
     blockquote: {
       borderLeftWidth: 3, borderLeftColor: c.accentLight,
-      backgroundColor: c.accent + "15",
-      paddingLeft: 12, paddingVertical: 6,
+      backgroundColor: c.accentLight + "0d",
+      paddingLeft: 12, paddingVertical: 8,
       marginVertical: 6, borderRadius: 4,
     },
-    hr: { borderColor: c.border, marginVertical: 10, height: 1 },
+    hr: { borderColor: c.border, marginVertical: 12, height: StyleSheet.hairlineWidth },
     link: { color: c.accentLight, textDecorationLine: "underline" as const },
   };
 }
