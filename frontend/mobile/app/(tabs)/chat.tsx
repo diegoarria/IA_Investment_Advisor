@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useMemo } from "react";
 import {
   View, Text, TextInput, TouchableOpacity, FlatList,
-  StyleSheet, KeyboardAvoidingView, Platform, ActivityIndicator, SafeAreaView
+  StyleSheet, KeyboardAvoidingView, Platform, ActivityIndicator, SafeAreaView, Image,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import Markdown from "react-native-markdown-display";
@@ -10,6 +10,13 @@ import { useTheme, Colors } from "../../src/lib/ThemeContext";
 import { useAppStore, RISK_CONFIG, getAge } from "../../src/lib/profileStore";
 import { useChatStore, Message, BehavioralDiagnosis } from "../../src/lib/chatStore";
 import StockChart from "../../src/components/StockChart";
+import { getMentorInfo } from "../../src/lib/mentorData";
+
+const MENTOR_PHOTOS: Record<string, number> = {
+  "Warren Buffett": require("../../assets/images/mentors/warren_buffett.jpg"),
+  "Ray Dalio":      require("../../assets/images/mentors/ray_dalio.jpg"),
+  "Bill Ackman":    require("../../assets/images/mentors/bill_ackman.jpg"),
+};
 
 const SUGGESTIONS = [
   "¿Cómo analizo si una empresa es buena inversión?",
@@ -27,6 +34,8 @@ export default function ChatScreen() {
   const updateMaturity = useAppStore((s) => s.updateMaturity);
   const riskCfg = profile?.risk_tolerance ? RISK_CONFIG[profile.risk_tolerance] : null;
   const pct = riskCfg ? Math.round(riskCfg.pct * 100) : 0;
+  const mentor = getMentorInfo(profile?.mentor);
+  const mentorPhoto = mentor ? MENTOR_PHOTOS[mentor.id] : null;
 
   const { currentId, currentMessages, setMessages, createSession, currentDiagnosis, setDiagnosis } = useChatStore();
   const messages = currentMessages();
@@ -131,7 +140,8 @@ Instrucciones críticas:
           updateMaturity(a.sig);
           setDiagnosis(d, maturityScore);
         },
-        (tickers) => { if (tickers.length > 0) setLastTicker(tickers[0]); }
+        (tickers) => { if (tickers.length > 0) setLastTicker(tickers[0]); },
+        profile?.mentor
       );
     } catch (err: unknown) {
       const msg = (err as { message?: string })?.message ?? String(err);
@@ -147,8 +157,14 @@ Instrucciones críticas:
     return (
       <View style={[styles.messageContainer, item.role === "user" ? styles.userContainer : styles.assistantContainer]}>
         {item.role === "assistant" && (
-          <View style={styles.avatar}>
-            <Ionicons name="trending-up" size={14} color="white" />
+          <View style={[styles.avatar, { backgroundColor: mentor?.color ?? "#16a34a" }]}>
+            {mentorPhoto ? (
+              <Image source={mentorPhoto} style={styles.avatarPhoto} />
+            ) : mentor ? (
+              <Text style={{ fontSize: 12 }}>{mentor.emoji}</Text>
+            ) : (
+              <Ionicons name="trending-up" size={14} color="white" />
+            )}
           </View>
         )}
         <View style={item.role === "user" ? { maxWidth: "80%" } : { flex: 1 }}>
@@ -156,6 +172,7 @@ Instrucciones críticas:
             {item.role === "user" ? (
               <Text style={styles.userText}>{item.content}</Text>
             ) : (
+
               <>
                 <Markdown style={markdownStyles}>{item.content || ""}</Markdown>
                 {streaming && isLastAssistant && item.content === "" && (
@@ -229,8 +246,10 @@ Instrucciones críticas:
       {/* Top bar */}
       <View style={[styles.topBar, { borderBottomColor: colors.border }]}>
         <Text style={[styles.topBarTitle, { color: colors.text }]}>
-          {Platform.OS === "web" && profile?.name
-            ? `Hola, ${profile.name.split(" ")[0]} 👋`
+          {mentor
+            ? `Con ${mentor.name}`
+            : Platform.OS === "web" && profile?.name
+            ? `Hola, ${profile.name.split(" ")[0]}`
             : "Chat IA"}
         </Text>
         <TouchableOpacity
@@ -251,15 +270,38 @@ Instrucciones críticas:
         <View style={webContentStyle}>
           {messages.length === 0 ? (
             <View style={styles.empty}>
-              <Ionicons name="flash-outline" size={48} color={colors.accentLight} style={{ marginBottom: 16 }} />
+              {mentor ? (
+                mentorPhoto ? (
+                  <Image source={mentorPhoto} style={styles.mentorAvatar} />
+                ) : (
+                  <View style={[styles.mentorAvatarEmoji, { backgroundColor: mentor.color + "22" }]}>
+                    <Text style={{ fontSize: 40 }}>{mentor.emoji}</Text>
+                  </View>
+                )
+              ) : (
+                <Ionicons name="flash-outline" size={48} color={colors.accentLight} style={{ marginBottom: 16 }} />
+              )}
               <Text style={styles.emptyTitle}>
-                {profile?.name ? `Hola, ${profile.name.split(" ")[0]}!` : "Tu mentor está listo"}
+                {mentor
+                  ? mentor.name
+                  : profile?.name
+                  ? `Hola, ${profile.name.split(" ")[0]}!`
+                  : "Tu asesor está listo"}
               </Text>
               <Text style={styles.emptySubtitle}>
-                {profile?.name
-                  ? "Pregunta lo que quieras sobre inversiones — conozco tu perfil y te daré consejos personalizados"
+                {mentor
+                  ? `${mentor.title} · ${mentor.badge}`
                   : "Pregunta sobre cualquier empresa, concepto o estrategia"}
               </Text>
+              {mentor && (
+                <View style={styles.mentorPrinciples}>
+                  {mentor.principles.map((p, i) => (
+                    <View key={i} style={[styles.principlePill, { borderColor: mentor.color + "50", backgroundColor: mentor.color + "12" }]}>
+                      <Text style={[styles.principlePillText, { color: mentor.color }]}>{p}</Text>
+                    </View>
+                  ))}
+                </View>
+              )}
               <View style={styles.suggestions}>
                 {SUGGESTIONS.map((s) => (
                   <TouchableOpacity key={s} style={styles.suggestion} onPress={() => sendMessage(s)}>
@@ -342,9 +384,19 @@ function makeStyles(c: Colors) {
     userContainer: { justifyContent: "flex-end" },
     assistantContainer: { justifyContent: "flex-start" },
     avatar: {
-      width: 28, height: 28, backgroundColor: "#16a34a", borderRadius: 14,
+      width: 28, height: 28, borderRadius: 14,
       alignItems: "center", justifyContent: "center", marginRight: 8,
+      overflow: "hidden",
     },
+    avatarPhoto: { width: 28, height: 28, borderRadius: 14 },
+    mentorAvatar: { width: 88, height: 88, borderRadius: 44, marginBottom: 12 },
+    mentorAvatarEmoji: {
+      width: 88, height: 88, borderRadius: 44,
+      alignItems: "center", justifyContent: "center", marginBottom: 12,
+    },
+    mentorPrinciples: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 8, justifyContent: "center" },
+    principlePill: { borderWidth: 1, borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4 },
+    principlePillText: { fontSize: 11, fontWeight: "600" },
     bubble: { maxWidth: "80%", minWidth: 0, flexShrink: 1, borderRadius: 16, padding: 12 },
     userBubble: { backgroundColor: "#16a34a", borderBottomRightRadius: 4 },
     assistantBubble: {

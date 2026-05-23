@@ -4,6 +4,7 @@ import {
   StyleSheet, ActivityIndicator, SafeAreaView, Alert,
   RefreshControl, Image,
 } from "react-native";
+import ExploreScreen from "./explore";
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import * as DocumentPicker from "expo-document-picker";
@@ -14,6 +15,63 @@ import { usePortfolioStore, Position } from "../../src/lib/portfolioStore";
 
 type IoniconName = React.ComponentProps<typeof Ionicons>["name"];
 type Scenario = "conservative" | "moderate" | "aggressive";
+
+// ─── Stress test data ──────────────────────────────────────────────────────
+
+const TICKER_SECTOR: Record<string, string> = {
+  AAPL: "Tech", MSFT: "Tech", GOOGL: "Tech", GOOG: "Tech", AMZN: "Tech", META: "Tech",
+  NVDA: "Tech", TSLA: "Tech", AMD: "Tech", INTC: "Tech", CRM: "Tech", ADBE: "Tech",
+  PYPL: "Tech", NFLX: "Tech", UBER: "Tech", SNAP: "Tech", SPOT: "Tech", ORCL: "Tech",
+  JPM: "Finance", BAC: "Finance", GS: "Finance", MS: "Finance", WFC: "Finance",
+  C: "Finance", V: "Finance", MA: "Finance", AXP: "Finance",
+  JNJ: "Salud", PFE: "Salud", UNH: "Salud", ABBV: "Salud", MRK: "Salud", LLY: "Salud", AMGN: "Salud",
+  WMT: "Consumo", KO: "Consumo", PG: "Consumo", MCD: "Consumo", NKE: "Consumo",
+  SBUX: "Consumo", COST: "Consumo", TGT: "Consumo", HD: "Consumo",
+  XOM: "Energía", CVX: "Energía", COP: "Energía", OXY: "Energía", SLB: "Energía",
+  SPY: "ETF", QQQ: "ETF", VTI: "ETF", IVV: "ETF", VOO: "ETF", IWM: "ETF", GLD: "ETF",
+};
+
+interface StressScenario {
+  id: string; name: string; icon: string; color: string;
+  year: string; desc: string;
+  drawdowns: Record<string, number>;
+  default: number;
+}
+
+const STRESS_SCENARIOS: StressScenario[] = [
+  {
+    id: "2008", name: "Crisis 2008", icon: "🏦", color: "#ef4444", year: "2008-09",
+    desc: "Colapso del sistema financiero global",
+    drawdowns: { Tech: -52, Finance: -78, Salud: -18, Consumo: -28, Energía: -55, ETF: -38 },
+    default: -42,
+  },
+  {
+    id: "covid", name: "COVID-19", icon: "🦠", color: "#f97316", year: "Feb-Mar 2020",
+    desc: "Crash de 33 días, caída brusca y rápida",
+    drawdowns: { Tech: -34, Finance: -45, Salud: -15, Consumo: -42, Energía: -60, ETF: -34 },
+    default: -34,
+  },
+  {
+    id: "tech2022", name: "Tech Crash '22", icon: "📉", color: "#f59e0b", year: "2022",
+    desc: "Alza de tasas aplasta valuaciones tech",
+    drawdowns: { Tech: -55, Finance: -22, Salud: -10, Consumo: -15, Energía: 40, ETF: -18 },
+    default: -20,
+  },
+  {
+    id: "fed", name: "Fed +1%", icon: "🏛️", color: "#6366f1", year: "Escenario",
+    desc: "Subida sorpresiva de 100pb en tasas",
+    drawdowns: { Tech: -20, Finance: 5, Salud: -8, Consumo: -10, Energía: -5, ETF: -12 },
+    default: -12,
+  },
+  {
+    id: "bull", name: "Bull Market", icon: "🚀", color: "#22c55e", year: "Escenario",
+    desc: "Año de recuperación y euforia inversora",
+    drawdowns: { Tech: 35, Finance: 25, Salud: 20, Consumo: 18, Energía: 22, ETF: 24 },
+    default: 22,
+  },
+];
+
+// ─── Helpers ───────────────────────────────────────────────────────────────
 
 function fmtMoney(n: number, showSign = false): string {
   const sign = showSign && n >= 0 ? "+" : "";
@@ -66,6 +124,8 @@ function parseExcelRows(rows: Record<string, unknown>[]): Omit<Position, "id">[]
 export default function PortfolioScreen() {
   const { colors } = useTheme();
   const s = useMemo(() => makeStyles(colors), [colors]);
+
+  const [subTab, setSubTab] = useState<"portfolio" | "explore">("portfolio");
 
   const { positions, addPosition, removePosition, setPositions } = usePortfolioStore();
   const [prices, setPrices] = useState<Record<string, PriceData>>({});
@@ -238,6 +298,13 @@ export default function PortfolioScreen() {
     setSimLoading(false);
   };
 
+  // Stress Test state
+  const [stressScenario, setStressScenario] = useState<string | null>(null);
+  const [stressResult, setStressResult] = useState<null | {
+    total: number; stressed: number; diff: number; pct: number;
+    rows: { ticker: string; invested: number; stressed: number; diff: number; pct: number; sector: string }[];
+  }>(null);
+
   // ── Simulator 2: compound interest calculator ──────────────────────────
   const [calcCapital, setCalcCapital] = useState("");
   const [calcMonthly, setCalcMonthly] = useState("");
@@ -273,6 +340,36 @@ export default function PortfolioScreen() {
     setCalcResult({ final, invested, gain: final - invested, pct: invested > 0 ? ((final - invested) / invested) * 100 : 0, milestones });
   };
 
+  // ── Stress Test ─────────────────────────────────────────────────────────
+  const runStressTest = (scenarioId: string) => {
+    const sc = STRESS_SCENARIOS.find((s) => s.id === scenarioId);
+    if (!sc) return;
+    setStressScenario(scenarioId);
+    const rows = positions.map((pos) => {
+      const currentPrice = prices[pos.ticker]?.price ?? pos.avgPrice;
+      const invested = pos.shares * currentPrice;
+      const sector = TICKER_SECTOR[pos.ticker] ?? "";
+      const drawdown = sector ? (sc.drawdowns[sector] ?? sc.default) : sc.default;
+      const stressed = invested * (1 + drawdown / 100);
+      return {
+        ticker: pos.ticker,
+        invested,
+        stressed,
+        diff: stressed - invested,
+        pct: drawdown,
+        sector: sector || "Otro",
+      };
+    });
+    const total = rows.reduce((acc, r) => acc + r.invested, 0);
+    const stressedTotal = rows.reduce((acc, r) => acc + r.stressed, 0);
+    setStressResult({
+      total, stressed: stressedTotal,
+      diff: stressedTotal - total,
+      pct: total > 0 ? ((stressedTotal - total) / total) * 100 : 0,
+      rows,
+    });
+  };
+
   // ── Totals ─────────────────────────────────────────────────────────────
   const totals = useMemo(() => {
     let invested = 0, current = 0;
@@ -288,6 +385,28 @@ export default function PortfolioScreen() {
 
   return (
     <SafeAreaView style={s.container}>
+      {/* ── Sub-tab bar ── */}
+      <View style={[s.subTabBar, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
+        {(["portfolio", "explore"] as const).map((tab) => {
+          const active = subTab === tab;
+          const label = tab === "portfolio" ? "Portafolio" : "Explorar";
+          const icon  = tab === "portfolio" ? "bar-chart-outline" : "telescope-outline";
+          return (
+            <TouchableOpacity
+              key={tab}
+              style={[s.subTab, active && { borderBottomColor: colors.accentLight }]}
+              onPress={() => setSubTab(tab)}
+            >
+              <Ionicons name={icon} size={15} color={active ? colors.accentLight : colors.textMuted} />
+              <Text style={[s.subTabText, { color: active ? colors.accentLight : colors.textMuted }]}>{label}</Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+
+      {subTab === "explore" ? (
+        <ExploreScreen />
+      ) : (
       <ScrollView
         contentContainerStyle={s.content}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#22c55e" />}
@@ -495,6 +614,79 @@ export default function PortfolioScreen() {
           </>
         ) : null}
 
+        {/* ── STRESS TEST ── */}
+        {positions.length > 0 && (
+          <>
+            <View style={[s.divider, { borderTopColor: colors.border }]} />
+            <View style={s.simHeader}>
+              <Ionicons name="shield-half-outline" size={20} color="#ef4444" />
+              <View style={{ flex: 1 }}>
+                <Text style={[s.sectionTitle, { marginBottom: 2 }]}>Stress Test de Portafolio</Text>
+                <Text style={[s.simSubtitle, { color: colors.textMuted }]}>
+                  ¿Cuánto aguantaría tu portafolio en una crisis histórica?
+                </Text>
+              </View>
+            </View>
+
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }} contentContainerStyle={{ gap: 8 }}>
+              {STRESS_SCENARIOS.map((sc) => (
+                <TouchableOpacity
+                  key={sc.id}
+                  style={[s.stressChip, { borderColor: stressScenario === sc.id ? sc.color : colors.border, backgroundColor: stressScenario === sc.id ? sc.color + "18" : "transparent" }]}
+                  onPress={() => runStressTest(sc.id)}
+                >
+                  <Text style={s.stressChipIcon}>{sc.icon}</Text>
+                  <View>
+                    <Text style={[s.stressChipName, { color: stressScenario === sc.id ? sc.color : colors.textSub }]}>{sc.name}</Text>
+                    <Text style={[s.stressChipYear, { color: colors.textDim }]}>{sc.year}</Text>
+                  </View>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+
+            {stressResult && stressScenario && (() => {
+              const sc = STRESS_SCENARIOS.find((x) => x.id === stressScenario)!;
+              return (
+                <View style={[s.stressResultCard, { backgroundColor: colors.card, borderColor: sc.color + "50" }]}>
+                  <Text style={[s.stressResultTitle, { color: colors.text }]}>{sc.icon} {sc.name} — {sc.desc}</Text>
+
+                  <View style={[s.stressSummary, { backgroundColor: stressResult.diff >= 0 ? "#22c55e14" : "#ef444414" }]}>
+                    <Text style={[s.stressSummaryLabel, { color: colors.textMuted }]}>Impacto total estimado</Text>
+                    <Text style={[s.stressSummaryVal, { color: stressResult.diff >= 0 ? "#22c55e" : "#ef4444" }]}>
+                      {stressResult.diff >= 0 ? "+" : ""}{fmtMoney(Math.abs(stressResult.diff))} ({stressResult.pct >= 0 ? "+" : ""}{stressResult.pct.toFixed(1)}%)
+                    </Text>
+                    <Text style={{ color: colors.textDim, fontSize: 11, marginTop: 2 }}>
+                      {fmtMoney(stressResult.total)} → {fmtMoney(stressResult.stressed)}
+                    </Text>
+                  </View>
+
+                  {stressResult.rows.map((row) => (
+                    <View key={row.ticker} style={[s.stressRow, { borderTopColor: colors.border }]}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={[s.stressRowTicker, { color: colors.text }]}>{row.ticker}</Text>
+                        <Text style={[s.stressRowSector, { color: colors.textDim }]}>{row.sector}</Text>
+                      </View>
+                      <View style={{ alignItems: "flex-end" }}>
+                        <Text style={[s.stressRowPct, { color: row.pct >= 0 ? "#22c55e" : "#ef4444" }]}>
+                          {row.pct >= 0 ? "+" : ""}{row.pct.toFixed(0)}%
+                        </Text>
+                        <Text style={[s.stressRowDiff, { color: row.diff >= 0 ? "#22c55e" : "#ef4444" }]}>
+                          {row.diff >= 0 ? "+" : ""}{fmtMoney(Math.abs(row.diff))}
+                        </Text>
+                      </View>
+                    </View>
+                  ))}
+
+                  <View style={s.disclaimer}>
+                    <Ionicons name="warning-outline" size={12} color="#ca8a04" />
+                    <Text style={s.disclaimerText}>Estimación basada en datos históricos. No garantiza resultados futuros.</Text>
+                  </View>
+                </View>
+              );
+            })()}
+          </>
+        )}
+
         {/* ── SIMULADOR 1: PORTAFOLIO CON IA ── */}
         <View style={[s.divider, { borderTopColor: colors.border }]} />
         <View style={s.simHeader}>
@@ -667,6 +859,7 @@ export default function PortfolioScreen() {
           </View>
         )}
       </ScrollView>
+      )}
     </SafeAreaView>
   );
 }
@@ -674,6 +867,14 @@ export default function PortfolioScreen() {
 function makeStyles(c: Colors) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: c.bg },
+    subTabBar: {
+      flexDirection: "row", borderBottomWidth: 1,
+    },
+    subTab: {
+      flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center",
+      gap: 6, paddingVertical: 11, borderBottomWidth: 2, borderBottomColor: "transparent",
+    },
+    subTabText: { fontSize: 13, fontWeight: "600" },
     content: { padding: 16, paddingBottom: 40 },
     sectionHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 },
     sectionTitle: { fontSize: 17, fontWeight: "700", color: c.text, marginBottom: 12 },
@@ -789,5 +990,77 @@ function makeStyles(c: Colors) {
     milestoneBar: { flex: 1, height: 8, borderRadius: 4, overflow: "hidden", flexDirection: "row" },
     milestoneBarFill: { height: "100%", borderRadius: 4 },
     milestoneVal: { fontSize: 12, fontWeight: "600", width: 80, textAlign: "right" },
+    // Stress Test
+    stressChip: {
+      flexDirection: "row", alignItems: "center", gap: 7,
+      borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8,
+    },
+    stressChipIcon: { fontSize: 16 },
+    stressChipName: { fontSize: 12, fontWeight: "700" },
+    stressChipYear: { fontSize: 10, marginTop: 1 },
+    stressResultCard: {
+      borderRadius: 14, borderWidth: 1, padding: 14, marginBottom: 4,
+    },
+    stressResultTitle: { fontSize: 13, fontWeight: "700", marginBottom: 10 },
+    stressSummary: { borderRadius: 10, padding: 12, marginBottom: 10 },
+    stressSummaryLabel: { fontSize: 11, marginBottom: 3 },
+    stressSummaryVal: { fontSize: 18, fontWeight: "800" },
+    stressRow: {
+      flexDirection: "row", alignItems: "center",
+      paddingVertical: 10, borderTopWidth: StyleSheet.hairlineWidth,
+    },
+    stressRowTicker: { fontSize: 14, fontWeight: "700" },
+    stressRowSector: { fontSize: 11, marginTop: 1 },
+    stressRowPct: { fontSize: 14, fontWeight: "700" },
+    stressRowDiff: { fontSize: 11, fontWeight: "600" },
+    // Paper Trading
+    paperBalance: {
+      flexDirection: "row", alignItems: "center",
+      borderRadius: 14, borderWidth: 1, padding: 14, marginBottom: 10,
+    },
+    paperBalanceLabel: { fontSize: 11, fontWeight: "600", textTransform: "uppercase", letterSpacing: 0.3, marginBottom: 2 },
+    paperBalanceVal: { fontSize: 22, fontWeight: "800" },
+    paperBalanceReturn: { fontSize: 12, fontWeight: "600", marginTop: 2 },
+    paperCash: { fontSize: 18, fontWeight: "700" },
+    paperForm: { borderRadius: 12, borderWidth: 1, padding: 14, marginBottom: 10 },
+    paperFormTitle: { fontSize: 13, fontWeight: "700", marginBottom: 10 },
+    paperInput: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 9, fontSize: 14 },
+    paperBuyBtn: { backgroundColor: "#8b5cf6", borderRadius: 10, paddingHorizontal: 16, paddingVertical: 9 },
+    paperBuyBtnText: { color: "white", fontWeight: "700", fontSize: 13 },
+    paperPositionsList: { borderRadius: 12, borderWidth: 1, padding: 12, marginBottom: 4 },
+    paperPosRow: {
+      flexDirection: "row", alignItems: "center",
+      paddingVertical: 10, borderBottomWidth: StyleSheet.hairlineWidth,
+    },
+    paperPosTicker: { fontSize: 14, fontWeight: "700" },
+    paperPosDetail: { fontSize: 11, marginTop: 1 },
+    paperPosVal: { fontSize: 14, fontWeight: "700" },
+    paperPosPct: { fontSize: 11, fontWeight: "600" },
+    paperSellBtn: {
+      borderWidth: 1, borderColor: "#ef4444", borderRadius: 8,
+      paddingHorizontal: 10, paddingVertical: 5,
+    },
+    paperSellBtnText: { color: "#ef4444", fontSize: 11, fontWeight: "700" },
+    paperHistoryBtn: {
+      flexDirection: "row", alignItems: "center", gap: 5,
+      borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 9,
+    },
+    paperHistoryBtnText: { fontSize: 12, fontWeight: "500" },
+    paperResetBtn: {
+      flexDirection: "row", alignItems: "center", gap: 5,
+      borderWidth: 1, borderColor: "rgba(239,68,68,0.4)", borderRadius: 10,
+      paddingHorizontal: 14, paddingVertical: 9,
+    },
+    paperResetBtnText: { color: "#ef4444", fontSize: 12, fontWeight: "600" },
+    paperHistoryCard: { borderRadius: 12, borderWidth: 1, padding: 10, marginTop: 8 },
+    paperTradeRow: {
+      flexDirection: "row", alignItems: "center", gap: 8,
+      paddingVertical: 8, borderBottomWidth: StyleSheet.hairlineWidth,
+    },
+    paperTradeBadge: { width: 20, height: 20, borderRadius: 5, alignItems: "center", justifyContent: "center" },
+    paperTradeBadgeText: { fontSize: 10, fontWeight: "800" },
+    paperTradeTicker: { fontSize: 13, fontWeight: "700", width: 46 },
+    paperTradeDetail: { fontSize: 12 },
+    paperTradeTotal: { fontSize: 12, fontWeight: "700" },
   });
 }

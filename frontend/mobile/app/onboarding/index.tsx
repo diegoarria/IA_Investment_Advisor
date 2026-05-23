@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from "react";
 import {
   View, Text, TextInput, TouchableOpacity, ScrollView,
-  StyleSheet, SafeAreaView
+  StyleSheet, SafeAreaView, Image
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
@@ -10,6 +10,7 @@ import {
   useAppStore, RISK_CONFIG, calculateRisk, getAge, formatBirthDate,
 } from "../../src/lib/profileStore";
 import type { QuizAnswer, QuizAnswers } from "../../src/lib/profileStore";
+import { MENTORS, RECOMMENDED_MENTOR } from "../../src/lib/mentorData";
 
 // ─── Quiz data ────────────────────────────────────────────────────────────────
 
@@ -97,6 +98,14 @@ const QUIZ_LABELS: Record<keyof QuizAnswers, Record<QuizAnswer, string>> = {
   q5: { A: "Automático / pasivo", B: "Revisión mensual", C: "Revisión semanal", D: "Gestión diaria activa" },
 };
 
+// ─── Mentor photos (local require — static only) ──────────────────────────────
+
+const MENTOR_PHOTOS: Record<string, number> = {
+  "Warren Buffett": require("../../assets/images/mentors/warren_buffett.jpg"),
+  "Ray Dalio":      require("../../assets/images/mentors/ray_dalio.jpg"),
+  "Bill Ackman":    require("../../assets/images/mentors/bill_ackman.jpg"),
+};
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
 type FormState = {
@@ -109,6 +118,7 @@ type FormState = {
   q3: QuizAnswer | "";
   q4: QuizAnswer | "";
   q5: QuizAnswer | "";
+  mentor: string;
 };
 
 function isValidDate(d: string) {
@@ -124,7 +134,7 @@ export default function OnboardingScreen() {
   const [step, setStep] = useState(0);
   const [form, setForm] = useState<FormState>({
     name: "", birth_date: "", monthly_income: "", monthly_contribution: "",
-    q1: "", q2: "", q3: "", q4: "", q5: "",
+    q1: "", q2: "", q3: "", q4: "", q5: "", mentor: "",
   });
 
   const quizAnswers = { q1: form.q1, q2: form.q2, q3: form.q3, q4: form.q4, q5: form.q5 };
@@ -282,6 +292,98 @@ export default function OnboardingScreen() {
         </View>
       ),
     },
+    // 8 — Mentor selection
+    {
+      title: "¿Con qué estilo quieres que te asesore?",
+      isValid: () => true,
+      content: (
+        <View style={s.fields}>
+          <Text style={[s.hint, { color: colors.textMuted, marginBottom: 4 }]}>
+            La IA adoptará el marco de pensamiento de tu mentor. Puedes cambiarlo después desde tu perfil.
+          </Text>
+          <View style={s.mentorGrid}>
+            {MENTORS.map((m) => {
+              const isSelected = form.mentor === m.id;
+              const isRec = RECOMMENDED_MENTOR[calculated] === m.id;
+              return (
+                <TouchableOpacity
+                  key={m.id}
+                  style={[
+                    s.mentorCard,
+                    { borderColor: isSelected ? m.color : colors.border },
+                    isSelected && { backgroundColor: m.color + "18" },
+                  ]}
+                  onPress={() => setForm((f) => ({ ...f, mentor: m.id }))}
+                  activeOpacity={0.75}
+                >
+                  {isRec && (
+                    <View style={[s.recBadge, { backgroundColor: m.color }]}>
+                      <Text style={s.recBadgeText}>⭐ RECOMENDADO</Text>
+                    </View>
+                  )}
+                  {MENTOR_PHOTOS[m.id] ? (
+                    <Image
+                      source={MENTOR_PHOTOS[m.id]}
+                      style={s.mentorPhoto}
+                    />
+                  ) : (
+                    <View style={[s.mentorAvatarBox, { backgroundColor: m.color + "22" }]}>
+                      <Text style={s.mentorEmoji}>{m.emoji}</Text>
+                    </View>
+                  )}
+                  <Text style={[s.mentorName, { color: colors.text }]}>{m.name}</Text>
+                  <Text style={[s.mentorTitle, { color: colors.textMuted }]}>{m.title}</Text>
+                  <View style={[s.mentorBadgePill, { backgroundColor: m.color + "22" }]}>
+                    <Text style={[s.mentorBadgeLabel, { color: m.color }]}>{m.badge}</Text>
+                  </View>
+                  {m.principles.map((p, i) => (
+                    <Text key={i} style={[s.mentorPrinciple, { color: colors.textSub }]}>• {p}</Text>
+                  ))}
+                  {isSelected && (
+                    <View style={[s.selectedCheck, { backgroundColor: m.color }]}>
+                      <Ionicons name="checkmark" size={12} color="white" />
+                    </View>
+                  )}
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+
+          {/* Sin mentor option */}
+          <TouchableOpacity
+            style={[
+              s.noMentorCard,
+              { borderColor: form.mentor === "none" ? "#6b7280" : colors.border },
+              form.mentor === "none" && { backgroundColor: "rgba(107,114,128,0.1)" },
+            ]}
+            onPress={() => setForm((f) => ({ ...f, mentor: "none" }))}
+            activeOpacity={0.75}
+          >
+            <View style={s.noMentorLeft}>
+              <Text style={{ fontSize: 22 }}>🤖</Text>
+              <View>
+                <Text style={[s.noMentorTitle, { color: colors.text }]}>Sin mentor</Text>
+                <Text style={[s.noMentorSub, { color: colors.textMuted }]}>IA neutral — análisis imparcial sin estilo fijo</Text>
+              </View>
+            </View>
+            {form.mentor === "none" && (
+              <View style={{ width: 20, height: 20, borderRadius: 10, backgroundColor: "#6b7280", alignItems: "center", justifyContent: "center" }}>
+                <Ionicons name="checkmark" size={12} color="white" />
+              </View>
+            )}
+          </TouchableOpacity>
+
+          <Text style={[s.label, { marginTop: 12 }]}>¿Prefieres otro inversor?</Text>
+          <TextInput
+            style={s.input}
+            value={MENTORS.some((m) => m.id === form.mentor) || form.mentor === "none" ? "" : form.mentor}
+            onChangeText={(v) => setForm((f) => ({ ...f, mentor: v }))}
+            placeholder="Ej. Charlie Munger, Benjamin Graham…"
+            placeholderTextColor={colors.placeholder}
+          />
+        </View>
+      ),
+    },
   ];
 
   const current = steps[step];
@@ -297,6 +399,7 @@ export default function OnboardingScreen() {
       monthly_contribution: form.monthly_contribution,
       risk_tolerance: calculated,
       quiz_answers: qa,
+      mentor: form.mentor === "none" || !form.mentor.trim() ? null : form.mentor.trim(),
     });
     router.replace("/(tabs)/chat");
   };
@@ -389,6 +492,51 @@ function makeStyles(c: Colors) {
     },
     factorBadgeText: { color: "white", fontSize: 11, fontWeight: "700" },
     factorValue: { fontSize: 12, fontWeight: "600", textAlign: "right", flexShrink: 1 },
+    // Mentor selection
+    mentorGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10, marginTop: 4 },
+    mentorCard: {
+      width: "47%", borderWidth: 2, borderRadius: 16,
+      backgroundColor: c.card, padding: 12, gap: 4,
+      position: "relative" as const, overflow: "hidden" as const,
+    },
+    recBadge: {
+      position: "absolute" as const, top: 0, right: 0,
+      paddingHorizontal: 8, paddingVertical: 3,
+      borderBottomLeftRadius: 10,
+    },
+    recBadgeText: { color: "white", fontSize: 9, fontWeight: "700" as const },
+    mentorPhoto: {
+      width: 52, height: 52, borderRadius: 26, marginBottom: 4,
+      backgroundColor: c.border,
+    },
+    mentorAvatarBox: {
+      width: 52, height: 52, borderRadius: 26,
+      alignItems: "center" as const, justifyContent: "center" as const,
+      marginBottom: 4,
+    },
+    mentorEmoji: { fontSize: 24 },
+    mentorName: { fontSize: 13, fontWeight: "700" as const, lineHeight: 17 },
+    mentorTitle: { fontSize: 10, lineHeight: 14, marginBottom: 2 },
+    mentorBadgePill: {
+      alignSelf: "flex-start" as const,
+      borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2, marginBottom: 4,
+    },
+    mentorBadgeLabel: { fontSize: 9, fontWeight: "700" as const },
+    mentorPrinciple: { fontSize: 10, lineHeight: 15 },
+    selectedCheck: {
+      position: "absolute" as const, bottom: 8, right: 8,
+      width: 20, height: 20, borderRadius: 10, backgroundColor: "#6b7280",
+      alignItems: "center" as const, justifyContent: "center" as const,
+    },
+    noMentorCard: {
+      flexDirection: "row" as const, alignItems: "center" as const,
+      justifyContent: "space-between" as const,
+      borderWidth: 2, borderRadius: 16, padding: 14,
+      position: "relative" as const,
+    },
+    noMentorLeft: { flexDirection: "row" as const, alignItems: "center" as const, gap: 12, flex: 1 },
+    noMentorTitle: { fontSize: 14, fontWeight: "700" as const },
+    noMentorSub: { fontSize: 11, marginTop: 2 },
     // Footer
     footer: { flexDirection: "row", gap: 10, padding: 20, borderTopWidth: 1, borderTopColor: c.border },
     backBtn: {

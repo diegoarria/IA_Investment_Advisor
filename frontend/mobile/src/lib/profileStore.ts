@@ -20,6 +20,7 @@ export interface UserProfile {
   monthly_contribution: string;
   risk_tolerance: RiskTolerance;
   quiz_answers: QuizAnswers;
+  mentor?: string | null;
 }
 
 /** Scores: A=1, B=2, C=3, D=4. avg<=2→conservative, <=3→moderate, >3→aggressive */

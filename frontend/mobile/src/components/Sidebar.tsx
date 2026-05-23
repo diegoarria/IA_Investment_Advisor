@@ -13,18 +13,21 @@ import { useTheme } from "../lib/ThemeContext";
 import MarketTicker from "./MarketTicker";
 
 const SIDEBAR_WIDTH = Math.min(Dimensions.get("window").width * 0.78, 300);
-const WEB_SIDEBAR_WIDTH = 260;
+const WEB_EXPANDED = 260;
+const WEB_COLLAPSED = 62;
 
 type IoniconName = React.ComponentProps<typeof Ionicons>["name"];
 
 const NAV_ITEMS: { icon: IoniconName; label: string; path: string }[] = [
-  { icon: "chatbubble-ellipses-outline", label: "Chat IA",     path: "/chat" },
-  { icon: "bar-chart-outline",           label: "Portafolios", path: "/portfolio" },
-  { icon: "school-outline",              label: "Aprendizaje", path: "/learn" },
-  { icon: "notifications-outline",       label: "Alertas",     path: "/notifications" },
+  { icon: "chatbubble-ellipses-outline", label: "Chat IA",       path: "/chat" },
+  { icon: "bar-chart-outline",           label: "Portafolios",   path: "/portfolio" },
+  { icon: "person-circle-outline",       label: "Mi Perfil",     path: "/profile" },
+  { icon: "game-controller-outline",     label: "Paper Trading", path: "/paper" },
+  { icon: "notifications-outline",       label: "Alertas",       path: "/notifications" },
+  { icon: "school-outline",              label: "Aprendizaje",   path: "/learn" },
 ];
 
-// ─── Shared content blocks ────────────────────────────────────────────────────
+// ─── Profile card ─────────────────────────────────────────────────────────────
 
 function ProfileCard({ colors }: { colors: ReturnType<typeof useTheme>["colors"] }) {
   const { profile, maturityScore, maturityHistory } = useAppStore();
@@ -33,7 +36,6 @@ function ProfileCard({ colors }: { colors: ReturnType<typeof useTheme>["colors"]
   const ml = maturityLabel(maturityScore);
   if (!profile) return null;
 
-  // Compute trend from last 10 maturity events
   const recentEvents = maturityHistory.slice(-10);
   const trend = recentEvents.reduce((acc, e) => acc + e.delta, 0);
   const trendText = trend > 0 ? `+${trend} pts` : trend < 0 ? `${trend} pts` : "estable";
@@ -90,7 +92,6 @@ function ProfileCard({ colors }: { colors: ReturnType<typeof useTheme>["colors"]
         </View>
       </View>
 
-      {/* Maturity score */}
       <View style={[styles.maturitySection, { borderTopColor: colors.border }]}>
         <View style={styles.maturityRow}>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
@@ -117,12 +118,15 @@ function ProfileCard({ colors }: { colors: ReturnType<typeof useTheme>["colors"]
   );
 }
 
+// ─── Nav items ────────────────────────────────────────────────────────────────
+
 function NavItems({
-  colors, pathname, onPress,
+  colors, pathname, onPress, collapsed = false,
 }: {
   colors: ReturnType<typeof useTheme>["colors"];
   pathname: string;
   onPress: (path: string) => void;
+  collapsed?: boolean;
 }) {
   return (
     <>
@@ -132,16 +136,20 @@ function NavItems({
           <TouchableOpacity
             key={item.path}
             style={[
-              styles.navItem,
+              collapsed ? styles.navItemCollapsed : styles.navItem,
               isActive && { backgroundColor: "rgba(34,197,94,0.1)", borderRadius: 12 },
             ]}
             onPress={() => onPress(item.path)}
           >
             <Ionicons name={item.icon} size={20} color={isActive ? "#22c55e" : colors.textSub} />
-            <Text style={[styles.navLabel, { color: isActive ? "#22c55e" : colors.textSub }]}>
-              {item.label}
-            </Text>
-            {isActive && <View style={styles.activeDot} />}
+            {!collapsed && (
+              <>
+                <Text style={[styles.navLabel, { color: isActive ? "#22c55e" : colors.textSub }]}>
+                  {item.label}
+                </Text>
+                {isActive && <View style={styles.activeDot} />}
+              </>
+            )}
           </TouchableOpacity>
         );
       })}
@@ -175,7 +183,6 @@ function RecentChats({
 
   return (
     <View style={styles.recentSection}>
-      {/* Section header */}
       <View style={styles.recentHeader}>
         <TouchableOpacity style={styles.recentHeaderLeft} onPress={() => setExpanded((v) => !v)}>
           <Ionicons name="time-outline" size={14} color={colors.textMuted} />
@@ -227,7 +234,7 @@ function RecentChats({
   );
 }
 
-// ─── Web: permanent sidebar ───────────────────────────────────────────────────
+// ─── Logout hook ──────────────────────────────────────────────────────────────
 
 function useLogout() {
   const logout = useAppStore((s) => s.logout);
@@ -239,58 +246,103 @@ function useLogout() {
   };
 }
 
+// ─── Web: collapsible sidebar ─────────────────────────────────────────────────
+
 function WebSidebar() {
   const { colors, isDark, toggle } = useTheme();
   const pathname = usePathname();
   const handleLogout = useLogout();
+  const [collapsed, setCollapsed] = useState(false);
+  const widthAnim = useRef(new Animated.Value(WEB_EXPANDED)).current;
+
+  const toggleCollapse = () => {
+    Animated.timing(widthAnim, {
+      toValue: collapsed ? WEB_EXPANDED : WEB_COLLAPSED,
+      duration: 220,
+      useNativeDriver: false,
+    }).start();
+    setCollapsed((v) => !v);
+  };
 
   return (
-    <View style={[styles.webPanel, { backgroundColor: colors.card, borderRightColor: colors.border }]}>
-      {/* Logo */}
-      <View style={[styles.logoRow, { borderBottomColor: colors.border }]}>
-        <View style={styles.logoBox}>
-          <Ionicons name="trending-up" size={20} color="white" />
-        </View>
-        <View>
-          <Text style={[styles.appName, { color: colors.text }]}>IA Investment</Text>
-          <Text style={[styles.appSub, { color: colors.textMuted }]}>Advisor</Text>
-        </View>
+    <Animated.View style={[styles.webPanel, { width: widthAnim, backgroundColor: colors.card, borderRightColor: colors.border }]}>
+      {/* Logo row */}
+      <View style={[styles.logoRow, { borderBottomColor: colors.border, justifyContent: collapsed ? "center" : "flex-start" }]}>
+        {!collapsed && (
+          <>
+            <View style={styles.logoBox}>
+              <Ionicons name="trending-up" size={20} color="white" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.appName, { color: colors.text }]}>IA Investment</Text>
+              <Text style={[styles.appSub, { color: colors.textMuted }]}>Advisor</Text>
+            </View>
+          </>
+        )}
+        <TouchableOpacity
+          onPress={toggleCollapse}
+          style={[styles.collapseBtn, { backgroundColor: colors.bg, borderColor: colors.border }]}
+        >
+          <Ionicons
+            name={collapsed ? "chevron-forward" : "chevron-back"}
+            size={16}
+            color={colors.textSub}
+          />
+        </TouchableOpacity>
       </View>
 
-      {/* Market ticker — web only */}
-      <MarketTicker />
+      {!collapsed && <MarketTicker />}
 
-      {/* Scrollable: profile + nav + recent chats */}
       <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
-        <ProfileCard colors={colors} />
-        <View style={styles.navSection}>
+        {!collapsed && <ProfileCard colors={colors} />}
+        <View style={[styles.navSection, collapsed && styles.navSectionCollapsed]}>
           <NavItems
             colors={colors}
             pathname={pathname}
             onPress={(path) => router.push(path as any)}
+            collapsed={collapsed}
           />
         </View>
-        <RecentChats colors={colors} onNavigate={() => {}} />
+        {!collapsed && <RecentChats colors={colors} onNavigate={() => {}} />}
       </ScrollView>
 
       {/* Footer */}
       <View style={[styles.footer, { borderTopColor: colors.border, paddingBottom: 16 }]}>
-        <TouchableOpacity style={styles.navItem} onPress={() => router.push("/profile/edit" as any)}>
-          <Ionicons name="create-outline" size={20} color={colors.textSub} />
-          <Text style={[styles.navLabel, { color: colors.textSub }]}>Editar perfil</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem} onPress={toggle}>
-          <Ionicons name={isDark ? "sunny-outline" : "moon-outline"} size={20} color={colors.textSub} />
-          <Text style={[styles.navLabel, { color: colors.textSub }]}>
-            {isDark ? "Modo claro" : "Modo oscuro"}
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem} onPress={handleLogout}>
-          <Ionicons name="log-out-outline" size={20} color="#ef4444" />
-          <Text style={[styles.navLabel, { color: "#ef4444" }]}>Cerrar sesión</Text>
-        </TouchableOpacity>
+        {collapsed ? (
+          <>
+            <TouchableOpacity
+              style={styles.navItemCollapsed}
+              onPress={() => router.push("/profile/edit" as any)}
+            >
+              <Ionicons name="create-outline" size={20} color={colors.textSub} />
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.navItemCollapsed} onPress={toggle}>
+              <Ionicons name={isDark ? "sunny-outline" : "moon-outline"} size={20} color={colors.textSub} />
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.navItemCollapsed} onPress={handleLogout}>
+              <Ionicons name="log-out-outline" size={20} color="#ef4444" />
+            </TouchableOpacity>
+          </>
+        ) : (
+          <>
+            <TouchableOpacity style={styles.navItem} onPress={() => router.push("/profile/edit" as any)}>
+              <Ionicons name="create-outline" size={20} color={colors.textSub} />
+              <Text style={[styles.navLabel, { color: colors.textSub }]}>Editar perfil</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.navItem} onPress={toggle}>
+              <Ionicons name={isDark ? "sunny-outline" : "moon-outline"} size={20} color={colors.textSub} />
+              <Text style={[styles.navLabel, { color: colors.textSub }]}>
+                {isDark ? "Modo claro" : "Modo oscuro"}
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.navItem} onPress={handleLogout}>
+              <Ionicons name="log-out-outline" size={20} color="#ef4444" />
+              <Text style={[styles.navLabel, { color: "#ef4444" }]}>Cerrar sesión</Text>
+            </TouchableOpacity>
+          </>
+        )}
       </View>
-    </View>
+    </Animated.View>
   );
 }
 
@@ -342,27 +394,35 @@ function MobileSidebar() {
           },
         ]}
       >
-        {/* Logo */}
+        {/* Logo row with close button */}
         <View style={[styles.logoRow, { borderBottomColor: colors.border }]}>
           <View style={styles.logoBox}>
             <Ionicons name="trending-up" size={20} color="white" />
           </View>
-          <View>
+          <View style={{ flex: 1 }}>
             <Text style={[styles.appName, { color: colors.text }]}>IA Investment</Text>
             <Text style={[styles.appSub, { color: colors.textMuted }]}>Advisor</Text>
           </View>
+          <TouchableOpacity
+            onPress={closeSidebar}
+            style={[styles.closeBtn, { backgroundColor: colors.bg, borderColor: colors.border }]}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Ionicons name="close" size={18} color={colors.textSub} />
+          </TouchableOpacity>
         </View>
 
-        <ProfileCard colors={colors} />
-
-        <View style={styles.navSection}>
-          <NavItems
-            colors={colors}
-            pathname={pathname}
-            onPress={(path) => { closeSidebar(); router.push(path as any); }}
-          />
-        </View>
-        <RecentChats colors={colors} onNavigate={closeSidebar} />
+        <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
+          <ProfileCard colors={colors} />
+          <View style={styles.navSection}>
+            <NavItems
+              colors={colors}
+              pathname={pathname}
+              onPress={(path) => { closeSidebar(); router.push(path as any); }}
+            />
+          </View>
+          <RecentChats colors={colors} onNavigate={closeSidebar} />
+        </ScrollView>
 
         <View style={[styles.footer, { borderTopColor: colors.border, paddingBottom: insets.bottom + 12 }]}>
           <TouchableOpacity
@@ -388,7 +448,7 @@ function MobileSidebar() {
   );
 }
 
-// ─── Export: auto-selects by platform ─────────────────────────────────────────
+// ─── Export ───────────────────────────────────────────────────────────────────
 
 export default function Sidebar() {
   return Platform.OS === "web" ? <WebSidebar /> : <MobileSidebar />;
@@ -399,9 +459,9 @@ export default function Sidebar() {
 const styles = StyleSheet.create({
   // Web permanent panel
   webPanel: {
-    width: WEB_SIDEBAR_WIDTH,
     borderRightWidth: 1,
     paddingTop: 20,
+    overflow: "hidden",
   },
   // Mobile overlay
   overlay: {
@@ -418,15 +478,26 @@ const styles = StyleSheet.create({
   // Shared
   logoRow: {
     flexDirection: "row", alignItems: "center", gap: 12,
-    paddingHorizontal: 20, paddingBottom: 16,
+    paddingHorizontal: 14, paddingBottom: 16,
     borderBottomWidth: 1, marginBottom: 8,
   },
   logoBox: {
     width: 40, height: 40, backgroundColor: "#16a34a",
     borderRadius: 10, alignItems: "center", justifyContent: "center",
+    flexShrink: 0,
   },
   appName: { fontSize: 15, fontWeight: "700" },
   appSub: { fontSize: 12 },
+  // Collapse / close buttons
+  collapseBtn: {
+    width: 28, height: 28, borderRadius: 8, borderWidth: 1,
+    alignItems: "center", justifyContent: "center", flexShrink: 0,
+  },
+  closeBtn: {
+    width: 30, height: 30, borderRadius: 8, borderWidth: 1,
+    alignItems: "center", justifyContent: "center", flexShrink: 0,
+  },
+  // Profile card
   profileCard: {
     marginHorizontal: 12, marginBottom: 8,
     borderRadius: 12, borderWidth: 1, padding: 12,
@@ -445,8 +516,15 @@ const styles = StyleSheet.create({
   statLabel: { fontSize: 10, marginBottom: 2 },
   statValue: { fontSize: 11, fontWeight: "600", textAlign: "center" },
   statDivider: { width: 1, marginVertical: 2 },
+  // Nav
   navSection: { paddingHorizontal: 12, paddingTop: 4, gap: 2 },
+  navSectionCollapsed: { paddingHorizontal: 6, alignItems: "center" },
   navItem: { flexDirection: "row", alignItems: "center", padding: 14, gap: 12 },
+  navItemCollapsed: {
+    width: 44, height: 44, borderRadius: 12,
+    alignItems: "center", justifyContent: "center",
+    marginVertical: 2, alignSelf: "center",
+  },
   navLabel: { fontSize: 15, fontWeight: "500", flex: 1 },
   activeDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: "#22c55e" },
   footer: { paddingHorizontal: 12, borderTopWidth: 1 },
@@ -459,7 +537,7 @@ const styles = StyleSheet.create({
   recentEmpty: { fontSize: 12, paddingVertical: 8, paddingLeft: 4 },
   recentItem: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 8, paddingVertical: 9 },
   recentItemText: { fontSize: 13, flex: 1 },
-  // Maturity score
+  // Maturity
   maturitySection: { borderTopWidth: 1, paddingTop: 10, marginTop: 2 },
   maturityRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 6 },
   maturityLabel: { fontSize: 10, fontWeight: "600", textTransform: "uppercase", letterSpacing: 0.4 },

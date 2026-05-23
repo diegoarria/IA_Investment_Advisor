@@ -80,6 +80,7 @@ class ChatMessage(BaseModel):
 class ChatRequest(BaseModel):
     message: str
     conversation_history: list[ChatMessage] = []
+    mentor: Optional[str] = None
 
 
 class AuthRequest(BaseModel):

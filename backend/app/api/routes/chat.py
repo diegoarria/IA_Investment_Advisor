@@ -59,7 +59,8 @@ async def chat_stream(
         async for chunk in ai_service.chat_stream(
             message=enriched,
             conversation_history=request.conversation_history,
-            profile=profile
+            profile=profile,
+            mentor=request.mentor,
         ):
             yield chunk
 
@@ -89,7 +90,8 @@ async def chat_message(
     async for chunk in ai_service.chat_stream(
         message=enriched,
         conversation_history=request.conversation_history,
-        profile=profile
+        profile=profile,
+        mentor=request.mentor,
     ):
         full += chunk
     clean_reply, bscore = _extract_bscore(full)

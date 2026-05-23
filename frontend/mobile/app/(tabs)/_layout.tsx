@@ -61,10 +61,22 @@ export default function TabsLayout() {
       />
       <Tabs.Screen
         name="explore"
+        options={{ href: null }}
+      />
+      <Tabs.Screen
+        name="profile"
         options={{
-          tabBarIcon: ({ color }) => <Ionicons name="telescope-outline" size={22} color={color} />,
-          title: "Explorar",
-          header: () => <MobileHeader title="Explorar Mercado" />,
+          tabBarIcon: ({ color }) => <Ionicons name="person-circle-outline" size={22} color={color} />,
+          title: "Perfil",
+          header: () => <MobileHeader title="Mi Perfil" />,
+        }}
+      />
+      <Tabs.Screen
+        name="paper"
+        options={{
+          tabBarIcon: ({ color }) => <Ionicons name="game-controller-outline" size={22} color={color} />,
+          title: "Virtual",
+          header: () => <MobileHeader title="Paper Trading" />,
         }}
       />
       <Tabs.Screen

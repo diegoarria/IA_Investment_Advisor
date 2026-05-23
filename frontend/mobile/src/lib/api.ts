@@ -36,11 +36,13 @@ export const chatApi = {
     onChunk: (chunk: string) => void,
     onDone: () => void,
     onAssessment?: (a: { s: number; p: string; sig: string[]; conf: string }) => void,
-    onTickers?: (tickers: string[]) => void
+    onTickers?: (tickers: string[]) => void,
+    mentor?: string | null
   ) => {
     const res = await api.post("/api/chat/message", {
       message,
       conversation_history: history,
+      mentor: mentor ?? null,
     });
     const reply: string = res.data.reply ?? "";
     const assessment = res.data.risk_assessment ?? null;
