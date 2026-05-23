@@ -35,25 +35,43 @@ def _get_user_profile(user_id: str) -> UserProfile | None:
     return None
 
 
+def _fetch_one_index(symbol: str) -> tuple[float | None, float | None]:
+    """Returns (price, prev_close). Tries fast_info first, falls back to history."""
+    t = yf.Ticker(symbol)
+    # Try fast_info first (faster)
+    try:
+        fi = t.fast_info
+        price = float(fi.last_price) if fi.last_price else None
+        prev  = float(fi.previous_close) if fi.previous_close else None
+        if price and prev:
+            return price, prev
+    except Exception:
+        pass
+    # Fallback to history (more reliable on restricted servers)
+    try:
+        hist = t.history(period="5d")
+        if not hist.empty and len(hist) >= 2:
+            return float(hist["Close"].iloc[-1]), float(hist["Close"].iloc[-2])
+    except Exception:
+        pass
+    return None, None
+
+
 def _fetch_indices() -> list[dict]:
     import time
     now = time.time()
     if _INDEX_CACHE.get("ts") and now - _INDEX_CACHE["ts"] < _INDEX_CACHE_TTL:
         return _INDEX_CACHE["data"]
     result = []
+    with ThreadPoolExecutor(max_workers=5) as pool:
+        prices = dict(zip(INDICES.values(), pool.map(_fetch_one_index, INDICES.values())))
     for name, symbol in INDICES.items():
         entry = {"name": name, "symbol": symbol, "price": None, "change": 0.0, "change_pct": 0.0}
-        try:
-            t = yf.Ticker(symbol)
-            fi = t.fast_info
-            price = float(fi.last_price) if fi.last_price else None
-            prev  = float(fi.previous_close) if fi.previous_close else None
-            if price and prev:
-                entry["price"]      = round(price, 2)
-                entry["change"]     = round(price - prev, 2)
-                entry["change_pct"] = round((price - prev) / prev * 100, 2)
-        except Exception:
-            pass
+        price, prev = prices.get(symbol, (None, None))
+        if price and prev:
+            entry["price"]      = round(price, 2)
+            entry["change"]     = round(price - prev, 2)
+            entry["change_pct"] = round((price - prev) / prev * 100, 2)
         result.append(entry)
     _INDEX_CACHE["data"] = result
     _INDEX_CACHE["ts"]   = now
@@ -72,21 +90,34 @@ async def get_prices(request: dict, user_id: str = Depends(get_current_user_id))
     symbols = [s.upper() for s in request.get("symbols", [])]
 
     def _fetch(symbol: str) -> tuple[str, dict]:
+        t = yf.Ticker(symbol)
+        price, prev, currency = None, None, "USD"
+        # Try fast_info
         try:
-            fi = yf.Ticker(symbol).fast_info
-            price = fi.last_price
-            prev  = fi.previous_close
-            change_pct = 0.0
-            if price and prev and prev != 0:
-                change_pct = round((float(price) - float(prev)) / float(prev) * 100, 2)
-            return symbol, {
-                "price":      round(float(price), 4) if price else None,
-                "change_pct": change_pct,
-                "currency":   fi.currency or "USD",
-                "name":       symbol,
-            }
+            fi = t.fast_info
+            price    = float(fi.last_price) if fi.last_price else None
+            prev     = float(fi.previous_close) if fi.previous_close else None
+            currency = fi.currency or "USD"
         except Exception:
-            return symbol, {"price": None, "change_pct": 0.0, "currency": "USD", "name": symbol}
+            pass
+        # Fallback to history if fast_info gave nothing
+        if not price:
+            try:
+                hist = t.history(period="5d")
+                if not hist.empty and len(hist) >= 2:
+                    price = float(hist["Close"].iloc[-1])
+                    prev  = float(hist["Close"].iloc[-2])
+            except Exception:
+                pass
+        change_pct = 0.0
+        if price and prev and prev != 0:
+            change_pct = round((price - prev) / prev * 100, 2)
+        return symbol, {
+            "price":      round(price, 4) if price else None,
+            "change_pct": change_pct,
+            "currency":   currency,
+            "name":       symbol,
+        }
 
     with ThreadPoolExecutor(max_workers=min(len(symbols), 10)) as pool:
         pairs = list(pool.map(_fetch, symbols))
