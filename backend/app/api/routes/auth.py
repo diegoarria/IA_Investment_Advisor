@@ -7,9 +7,8 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 @router.post("/register", response_model=TokenResponse)
 async def register(request: AuthRequest):
-    db = get_supabase()
     try:
-        # Use admin API to create user with email auto-confirmed (no verification email)
+        db = get_supabase()
         admin_result = db.auth.admin.create_user({
             "email": request.email,
             "password": request.password,
@@ -18,7 +17,6 @@ async def register(request: AuthRequest):
         if admin_result.user is None:
             raise HTTPException(status_code=400, detail="No se pudo crear la cuenta")
 
-        # Sign in immediately to get session token
         sign_in = db.auth.sign_in_with_password({
             "email": request.email,
             "password": request.password,
@@ -36,13 +34,13 @@ async def register(request: AuthRequest):
         msg = str(e)
         if "already registered" in msg or "already been registered" in msg or "User already registered" in msg:
             raise HTTPException(status_code=400, detail="Este email ya tiene una cuenta. Inicia sesión.")
-        raise HTTPException(status_code=400, detail=msg)
+        raise HTTPException(status_code=400, detail=f"Register error: {msg}")
 
 
 @router.post("/login", response_model=TokenResponse)
 async def login(request: AuthRequest):
-    db = get_supabase()
     try:
+        db = get_supabase()
         result = db.auth.sign_in_with_password({
             "email": request.email,
             "password": request.password,
@@ -55,12 +53,15 @@ async def login(request: AuthRequest):
         )
     except HTTPException:
         raise
-    except Exception:
-        raise HTTPException(status_code=401, detail="Credenciales inválidas")
+    except Exception as e:
+        raise HTTPException(status_code=401, detail=f"Login error: {str(e)}")
 
 
 @router.post("/logout")
 async def logout():
-    db = get_supabase()
-    db.auth.sign_out()
+    try:
+        db = get_supabase()
+        db.auth.sign_out()
+    except Exception:
+        pass
     return {"message": "Logged out"}
