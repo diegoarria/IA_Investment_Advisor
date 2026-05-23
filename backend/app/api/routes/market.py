@@ -112,26 +112,6 @@ def _fetch_indices() -> list[dict]:
     return result
 
 
-@router.get("/indices/debug")
-async def debug_indices():
-    """Temp debug endpoint — shows raw yfinance errors."""
-    results = {}
-    for name, symbol in list(INDICES.items())[:2]:
-        entry = {"fast_info": None, "history": None, "fi_error": None, "hist_error": None}
-        t = yf.Ticker(symbol)
-        try:
-            fi = t.fast_info
-            entry["fast_info"] = {"last_price": fi.last_price, "prev_close": fi.previous_close}
-        except Exception as e:
-            entry["fi_error"] = str(e)
-        try:
-            hist = t.history(period="5d")
-            entry["history"] = {"rows": len(hist), "last": float(hist["Close"].iloc[-1]) if not hist.empty else None}
-        except Exception as e:
-            entry["hist_error"] = str(e)
-        results[name] = entry
-    return results
-
 
 @router.get("/indices")
 async def get_indices(user_id: str = Depends(get_current_user_id)):
