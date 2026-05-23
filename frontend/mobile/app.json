@@ -1,12 +1,12 @@
 {
   "expo": {
-    "name": "Finzo",
-    "slug": "finzo",
+    "name": "Nuvo",
+    "slug": "nuvo",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
-    "scheme": "finzo",
+    "scheme": "nuvo",
     "splash": {
       "image": "./assets/splash.png",
       "resizeMode": "contain",
@@ -14,14 +14,14 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.finzo.app"
+      "bundleIdentifier": "com.nuvo.app"
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#0f1117"
       },
-      "package": "com.finzo.app"
+      "package": "com.nuvo.app"
     },
     "plugins": [
       "expo-router",

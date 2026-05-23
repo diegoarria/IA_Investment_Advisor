@@ -288,7 +288,7 @@ Instrucciones críticas:
             ? `Con ${mentor.name}`
             : Platform.OS === "web" && profile?.name
             ? `Hola, ${profile.name.split(" ")[0]}`
-            : "Finzo"}
+            : "Nuvo"}
         </Text>
         <TouchableOpacity
           style={[styles.newChatBtn, { borderColor: colors.border }]}
@@ -324,7 +324,7 @@ Instrucciones críticas:
                   ? mentor.name
                   : profile?.name
                   ? `Hola, ${profile.name.split(" ")[0]}!`
-                  : "Finzo"}
+                  : "Nuvo"}
               </Text>
               <Text style={styles.emptySubtitle}>
                 {mentor

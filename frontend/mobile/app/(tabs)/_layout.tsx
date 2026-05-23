@@ -218,7 +218,7 @@ export default function TabsLayout() {
         options={{
           tabBarIcon: ({ color }) => <Ionicons name="chatbubble-ellipses-outline" size={22} color={color} />,
           title: "Chat",
-          header: () => <MobileHeader title="Finzo" />,
+          header: () => <MobileHeader title="Nuvo" />,
         }}
       />
       <Tabs.Screen
