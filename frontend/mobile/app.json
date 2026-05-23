@@ -14,7 +14,10 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.nuvo.app"
+      "bundleIdentifier": "com.nuvo.app",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -33,9 +36,17 @@
         }
       ]
     ],
-    "newArchEnabled": true,
+    "newArchEnabled": false,
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "router": {
+        "origin": false
+      },
+      "eas": {
+        "projectId": "11c4956f-5fff-4fb2-9128-210b504a43b5"
+      }
     }
   }
 }
