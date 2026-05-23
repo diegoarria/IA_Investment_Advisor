@@ -6,7 +6,7 @@ from app.api.routes import auth, profile, chat, market, notifications, screener
 from app.services.notification_service import scan_and_notify_all_users
 
 app = FastAPI(
-    title="IA Investment Advisor API",
+    title="Finzo API",
     description="Educational AI investment advisor — teaches you to think like a professional investor",
     version="1.0.0"
 )
@@ -55,7 +55,7 @@ async def shutdown():
 @app.get("/")
 async def root():
     return {
-        "name": "IA Investment Advisor",
+        "name": "Finzo",
         "version": "1.0.0",
         "status": "running",
         "docs": "/docs"

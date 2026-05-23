@@ -288,7 +288,7 @@ Instrucciones críticas:
             ? `Con ${mentor.name}`
             : Platform.OS === "web" && profile?.name
             ? `Hola, ${profile.name.split(" ")[0]}`
-            : "Chat IA"}
+            : "Finzo"}
         </Text>
         <TouchableOpacity
           style={[styles.newChatBtn, { borderColor: colors.border }]}
@@ -324,7 +324,7 @@ Instrucciones críticas:
                   ? mentor.name
                   : profile?.name
                   ? `Hola, ${profile.name.split(" ")[0]}!`
-                  : "Tu asesor está listo"}
+                  : "Finzo"}
               </Text>
               <Text style={styles.emptySubtitle}>
                 {mentor
