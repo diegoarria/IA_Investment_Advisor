@@ -17,6 +17,9 @@ _all_origins = settings.frontend_url in ("*", "")
 _origins = ["*"] if _all_origins else [
     settings.frontend_url,
     "http://localhost:3000",
+    "http://localhost:3001",
+    "http://localhost:3002",
+    "http://localhost:3003",
     "http://localhost:8081",
     "http://localhost:8082",
     "http://localhost:8083",
