@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useMemo } from "react";
 import {
   View, Text, TextInput, TouchableOpacity, FlatList,
-  StyleSheet, KeyboardAvoidingView, Platform, ActivityIndicator, SafeAreaView, Image,
+  StyleSheet, KeyboardAvoidingView, Platform, ActivityIndicator, SafeAreaView, Image, Animated,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import Markdown from "react-native-markdown-display";
@@ -11,6 +11,44 @@ import { useAppStore, RISK_CONFIG, getAge } from "../../src/lib/profileStore";
 import { useChatStore, Message, BehavioralDiagnosis } from "../../src/lib/chatStore";
 import StockChart from "../../src/components/StockChart";
 import { getMentorInfo } from "../../src/lib/mentorData";
+
+function TypingIndicator({ color }: { color: string }) {
+  const d1 = useRef(new Animated.Value(0)).current;
+  const d2 = useRef(new Animated.Value(0)).current;
+  const d3 = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    const anim = (dot: Animated.Value, delay: number) =>
+      Animated.loop(
+        Animated.sequence([
+          Animated.delay(delay),
+          Animated.timing(dot, { toValue: -6, duration: 290, useNativeDriver: true }),
+          Animated.timing(dot, { toValue: 0,  duration: 290, useNativeDriver: true }),
+          Animated.delay(400 - delay),
+        ])
+      );
+    const a1 = anim(d1, 0);
+    const a2 = anim(d2, 180);
+    const a3 = anim(d3, 360);
+    a1.start(); a2.start(); a3.start();
+    return () => { a1.stop(); a2.stop(); a3.stop(); };
+  }, []);
+
+  return (
+    <View style={{ flexDirection: "row", alignItems: "center", gap: 6, paddingVertical: 6, paddingHorizontal: 2 }}>
+      {([d1, d2, d3] as Animated.Value[]).map((dot, i) => (
+        <Animated.View
+          key={i}
+          style={{
+            width: 9, height: 9, borderRadius: 5,
+            backgroundColor: color,
+            transform: [{ translateY: dot }],
+          }}
+        />
+      ))}
+    </View>
+  );
+}
 
 const MENTOR_PHOTOS: Record<string, number> = {
   "Warren Buffett": require("../../assets/images/mentors/warren_buffett.jpg"),
@@ -176,7 +214,7 @@ Instrucciones críticas:
               <>
                 <Markdown style={markdownStyles}>{item.content || ""}</Markdown>
                 {streaming && isLastAssistant && item.content === "" && (
-                  <Text style={{ color: colors.accentLight }}>▋</Text>
+                  <TypingIndicator color={colors.accentLight} />
                 )}
               </>
             )}
