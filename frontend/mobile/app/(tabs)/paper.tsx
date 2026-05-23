@@ -151,23 +151,20 @@ export default function PaperScreen() {
   // History expand
   const [historyOpen, setHistoryOpen] = useState(false);
 
-  // Load position prices
+  // Load position prices — single batch call instead of N chart requests
   const loadPosPrices = useCallback(async () => {
     if (positions.length === 0) return;
     setPricesLoading(true);
     try {
+      const res = await marketApi.getPrices(positions.map((p) => p.ticker));
       const results: Record<string, { price: number; change_pct: number }> = {};
-      await Promise.all(positions.map(async (p) => {
-        try {
-          const res = await marketApi.getChart(p.ticker, "1d");
-          results[p.ticker] = {
-            price: res.data.current_price ?? p.avgPrice,
-            change_pct: res.data.change_pct ?? 0,
-          };
-        } catch {
-          results[p.ticker] = { price: p.avgPrice, change_pct: 0 };
-        }
-      }));
+      for (const pos of positions) {
+        const d = res.data[pos.ticker];
+        results[pos.ticker] = {
+          price: d?.price ?? pos.avgPrice,
+          change_pct: d?.change_pct ?? 0,
+        };
+      }
       setPosPrices(results);
     } catch {}
     setPricesLoading(false);
@@ -185,10 +182,10 @@ export default function PaperScreen() {
       setSearchError(null);
       setTickerInfo(null);
       try {
-        const res = await marketApi.getChart(t, "1d");
-        const d = res.data;
-        if (d.current_price) {
-          setTickerInfo({ ticker: t, name: d.name ?? t, price: d.current_price, change_pct: d.change_pct ?? 0 });
+        const res = await marketApi.getPrices([t]);
+        const d = res.data[t];
+        if (d?.price) {
+          setTickerInfo({ ticker: t, name: d.name ?? t, price: d.price, change_pct: d.change_pct ?? 0 });
         } else {
           setSearchError("Ticker no encontrado");
         }
@@ -196,7 +193,7 @@ export default function PaperScreen() {
         setSearchError("No se pudo obtener precio");
       }
       setSearching(false);
-    }, 600);
+    }, 500);
   }, []);
 
   const handleQueryChange = (v: string) => {

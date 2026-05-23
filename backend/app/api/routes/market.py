@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, Query
+from concurrent.futures import ThreadPoolExecutor
 import yfinance as yf
 import anthropic
 import json
@@ -69,20 +70,27 @@ async def get_indices(user_id: str = Depends(get_current_user_id)):
 @router.post("/prices")
 async def get_prices(request: dict, user_id: str = Depends(get_current_user_id)):
     symbols = [s.upper() for s in request.get("symbols", [])]
-    result = {}
-    for symbol in symbols:
+
+    def _fetch(symbol: str) -> tuple[str, dict]:
         try:
-            t = yf.Ticker(symbol)
-            fi = t.fast_info
+            fi = yf.Ticker(symbol).fast_info
             price = fi.last_price
-            result[symbol] = {
-                "price": round(float(price), 4) if price else None,
-                "currency": fi.currency or "USD",
-                "name": t.info.get("shortName", symbol),
+            prev  = fi.previous_close
+            change_pct = 0.0
+            if price and prev and prev != 0:
+                change_pct = round((float(price) - float(prev)) / float(prev) * 100, 2)
+            return symbol, {
+                "price":      round(float(price), 4) if price else None,
+                "change_pct": change_pct,
+                "currency":   fi.currency or "USD",
+                "name":       symbol,
             }
         except Exception:
-            result[symbol] = {"price": None, "currency": "USD", "name": symbol}
-    return result
+            return symbol, {"price": None, "change_pct": 0.0, "currency": "USD", "name": symbol}
+
+    with ThreadPoolExecutor(max_workers=min(len(symbols), 10)) as pool:
+        pairs = list(pool.map(_fetch, symbols))
+    return dict(pairs)
 
 
 @router.get("/summary")
