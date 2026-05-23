@@ -3,6 +3,8 @@
 
 -- ─── Drop old tables (safe if no real user data yet) ──────────────────────────
 DROP TABLE IF EXISTS user_profiles CASCADE;
+DROP TABLE IF EXISTS chat_history CASCADE;
+DROP TABLE IF EXISTS notifications CASCADE;
 
 -- ─── User profiles ────────────────────────────────────────────────────────────
 CREATE TABLE user_profiles (
