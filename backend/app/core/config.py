@@ -7,7 +7,7 @@ class Settings(BaseSettings):
     supabase_anon_key: str = "dummy"
     supabase_service_key: str = "dummy"
     secret_key: str = "dev-secret-key-32chars-for-local-only"
-    frontend_url: str = "http://localhost:3000"
+    frontend_url: str = "*"
     claude_model: str = "claude-sonnet-4-6"
 
     class Config:

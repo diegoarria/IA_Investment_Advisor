@@ -11,22 +11,22 @@ app = FastAPI(
     version="1.0.0"
 )
 
+_all_origins = settings.frontend_url in ("*", "")
+_origins = ["*"] if _all_origins else [
+    settings.frontend_url,
+    "http://localhost:3000",
+    "http://localhost:8081",
+    "http://localhost:8082",
+    "http://localhost:8083",
+    "http://localhost:19006",
+    "http://127.0.0.1:8081",
+    "http://127.0.0.1:19006",
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        settings.frontend_url,
-        "http://localhost:3000",
-        "http://localhost:8081",
-        "http://localhost:8082",
-        "http://localhost:8083",
-        "http://localhost:8084",
-        "http://localhost:8085",
-        "http://localhost:19006",
-        "http://127.0.0.1:8081",
-        "http://127.0.0.1:8084",
-        "http://127.0.0.1:19006",
-    ],
-    allow_credentials=True,
+    allow_origins=_origins,
+    allow_credentials=not _all_origins,
     allow_methods=["*"],
     allow_headers=["*"],
 )
