@@ -4,15 +4,82 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { profile as profileApi } from "@/lib/api";
 import { useProfileStore, useAuthStore } from "@/lib/store";
-import type { RiskTolerance, InvestmentExperience, InvestmentGoal } from "@/lib/types";
 import { TrendingUp, ChevronRight, ChevronLeft } from "lucide-react";
 
-const GOALS: { value: InvestmentGoal; label: string; desc: string }[] = [
-  { value: "capital_preservation", label: "Preservar capital", desc: "Proteger lo que tengo" },
-  { value: "income", label: "Generar ingresos", desc: "Dividendos y flujo de caja" },
-  { value: "growth", label: "Crecimiento", desc: "Aumentar mi patrimonio" },
-  { value: "aggressive_growth", label: "Crecimiento agresivo", desc: "Máximo retorno, acepto riesgo" },
-  { value: "retirement", label: "Retiro / Jubilación", desc: "Largo plazo, seguridad futura" },
+const QUIZ = [
+  {
+    key: "q1", label: "Si el mercado cae 20%, ¿qué harías?",
+    options: [
+      { value: "A", label: "Vender para evitar más pérdidas" },
+      { value: "B", label: "Esperar sin hacer nada" },
+      { value: "C", label: "Analizar y mantener" },
+      { value: "D", label: "Comprar más aprovechando la caída" },
+    ],
+  },
+  {
+    key: "q2", label: "¿Cuál es tu horizonte de inversión?",
+    options: [
+      { value: "A", label: "Menos de 2 años" },
+      { value: "B", label: "3–5 años" },
+      { value: "C", label: "10+ años" },
+      { value: "D", label: "Largo plazo indefinido" },
+    ],
+  },
+  {
+    key: "q3", label: "¿Cómo describes tu conocimiento de inversiones?",
+    options: [
+      { value: "A", label: "Principiante total" },
+      { value: "B", label: "Conozco lo básico" },
+      { value: "C", label: "Nivel intermedio" },
+      { value: "D", label: "Avanzado" },
+    ],
+  },
+  {
+    key: "q4", label: "¿Qué perfil de riesgo/retorno prefieres?",
+    options: [
+      { value: "A", label: "$5K con certeza" },
+      { value: "B", label: "$15K con posibilidad de perder $5K" },
+      { value: "C", label: "$40K con posibilidad de perder $20K" },
+      { value: "D", label: "$120K con posibilidad de perder todo" },
+    ],
+  },
+  {
+    key: "q5", label: "¿Con qué frecuencia gestionas tus inversiones?",
+    options: [
+      { value: "A", label: "Automático / pasivo" },
+      { value: "B", label: "Revisión mensual" },
+      { value: "C", label: "Revisión semanal" },
+      { value: "D", label: "Gestión diaria activa" },
+    ],
+  },
+];
+
+const RISK_MAP: Record<string, string> = {
+  AAAAA: "conservative", AAAAB: "conservative", AAABA: "conservative",
+  AAABB: "conservative_moderate", AABAA: "conservative_moderate",
+  AABBA: "moderate", AABBB: "moderate", ABAAA: "moderate",
+  ABABA: "moderate_growth", ABBAA: "moderate_growth", ABBBA: "growth",
+  BAAAA: "moderate", BABAA: "moderate_growth", BABBA: "growth",
+  BBAAA: "growth", BBABA: "aggressive", BBBAA: "aggressive",
+  BBBBA: "aggressive_speculative", BBBBB: "speculative",
+  CAAAA: "moderate_growth", CABAA: "growth", CBABA: "aggressive",
+  DAAAA: "aggressive", DABBA: "aggressive_speculative", DBBBB: "speculative",
+};
+
+function calcRisk(q: Record<string, string>): string {
+  const key = ["q1","q2","q3","q4","q5"].map((k) => q[k] || "A").join("");
+  return RISK_MAP[key] ?? (
+    key.split("").filter((c) => c === "D").length >= 3 ? "speculative" :
+    key.split("").filter((c) => c >= "C").length >= 3 ? "aggressive" :
+    key.split("").filter((c) => c >= "B").length >= 3 ? "moderate" : "conservative"
+  );
+}
+
+const MENTORS = [
+  { id: "Warren Buffett", emoji: "🏦", desc: "Value investing, largo plazo" },
+  { id: "Ray Dalio",      emoji: "⚖️", desc: "Macro, diversificación" },
+  { id: "Bill Ackman",    emoji: "🎯", desc: "Activismo, concentrado" },
+  { id: "none",           emoji: "🤖", desc: "Sin mentor específico" },
 ];
 
 export default function OnboardingPage() {
@@ -24,305 +91,184 @@ export default function OnboardingPage() {
   const [error, setError] = useState("");
 
   const [form, setForm] = useState({
-    age: "",
-    monthly_income: "",
-    risk_tolerance: "" as RiskTolerance | "",
-    investment_experience: "" as InvestmentExperience | "",
-    time_horizon_years: "",
-    investment_goals: [] as InvestmentGoal[],
-    initial_capital: "",
-    monthly_savings: "",
-    financial_concerns: "",
+    name: "", birth_date: "", monthly_income: "", monthly_contribution: "",
+    quiz: {} as Record<string, string>,
+    mentor: "none",
   });
 
-  if (!isAuthenticated) {
-    router.push("/");
-    return null;
-  }
+  if (!isAuthenticated) { router.push("/"); return null; }
 
-  const toggleGoal = (goal: InvestmentGoal) => {
-    setForm((f) => ({
-      ...f,
-      investment_goals: f.investment_goals.includes(goal)
-        ? f.investment_goals.filter((g) => g !== goal)
-        : [...f.investment_goals, goal],
-    }));
-  };
-
-  const steps = [
+  const STEPS = [
     {
-      title: "Sobre ti",
-      subtitle: "Cuéntanos un poco sobre tu situación",
+      title: "¿Cómo te llamas?",
+      subtitle: "Tu nombre y fecha de nacimiento",
+      valid: () => !!form.name.trim() && !!form.birth_date,
       content: (
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-1">Tu edad</label>
-            <input
-              type="number"
-              value={form.age}
-              onChange={(e) => setForm({ ...form, age: e.target.value })}
-              className="input-field"
-              placeholder="35"
-              min={18}
-              max={100}
-            />
+            <label className="block text-sm font-medium mb-1" style={{ color: "var(--sub)" }}>Nombre</label>
+            <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })}
+                   className="w-full rounded-xl border px-4 py-3 text-sm outline-none"
+                   placeholder="Tu nombre" style={{ background: "var(--raised)", borderColor: "var(--border)", color: "var(--text)" }} />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-1">Ingresos mensuales (USD)</label>
-            <input
-              type="number"
-              value={form.monthly_income}
-              onChange={(e) => setForm({ ...form, monthly_income: e.target.value })}
-              className="input-field"
-              placeholder="3000"
-              min={0}
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-1">Capital inicial disponible (opcional)</label>
-            <input
-              type="number"
-              value={form.initial_capital}
-              onChange={(e) => setForm({ ...form, initial_capital: e.target.value })}
-              className="input-field"
-              placeholder="10000"
-              min={0}
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-1">Ahorro mensual disponible (opcional)</label>
-            <input
-              type="number"
-              value={form.monthly_savings}
-              onChange={(e) => setForm({ ...form, monthly_savings: e.target.value })}
-              className="input-field"
-              placeholder="500"
-              min={0}
-            />
+            <label className="block text-sm font-medium mb-1" style={{ color: "var(--sub)" }}>Fecha de nacimiento</label>
+            <input type="date" value={form.birth_date} onChange={(e) => setForm({ ...form, birth_date: e.target.value })}
+                   className="w-full rounded-xl border px-4 py-3 text-sm outline-none"
+                   style={{ background: "var(--raised)", borderColor: "var(--border)", color: "var(--text)" }} />
           </div>
         </div>
       ),
-      isValid: () => !!form.age && !!form.monthly_income,
     },
     {
-      title: "Tu experiencia",
-      subtitle: "¿Cuánto sabes de inversiones?",
+      title: "Situación financiera",
+      subtitle: "¿Cuánto ganas y cuánto puedes invertir al mes?",
+      valid: () => !!form.monthly_income && !!form.monthly_contribution,
       content: (
-        <div className="space-y-3">
-          {([
-            { value: "beginner", label: "Principiante", desc: "Nunca he invertido o llevo menos de 1 año" },
-            { value: "intermediate", label: "Intermedio", desc: "Tengo experiencia básica, conozco acciones y ETFs" },
-            { value: "advanced", label: "Avanzado", desc: "Manejo conceptos como ratios financieros, análisis técnico" },
-          ] as const).map(({ value, label, desc }) => (
-            <button
-              key={value}
-              onClick={() => setForm({ ...form, investment_experience: value })}
-              className={`w-full text-left p-4 rounded-xl border transition-all ${
-                form.investment_experience === value
-                  ? "border-brand-500 bg-brand-500/10 text-white"
-                  : "border-[#2a2d3a] bg-[#1a1d27] text-gray-300 hover:border-gray-500"
-              }`}
-            >
-              <div className="font-semibold">{label}</div>
-              <div className="text-sm text-gray-400 mt-0.5">{desc}</div>
-            </button>
-          ))}
-        </div>
-      ),
-      isValid: () => !!form.investment_experience,
-    },
-    {
-      title: "Tolerancia al riesgo",
-      subtitle: "¿Cómo te sentirías si tu inversión cae 30%?",
-      content: (
-        <div className="space-y-3">
-          {([
-            { value: "conservative", label: "Conservador", desc: "Me preocuparía mucho. Prefiero menor retorno con más seguridad.", emoji: "🛡️" },
-            { value: "moderate", label: "Moderado", desc: "Me incomodaría, pero entendería que es parte del proceso.", emoji: "⚖️" },
-            { value: "aggressive", label: "Agresivo", desc: "Lo vería como oportunidad. Acepto alta volatilidad por mayor retorno.", emoji: "🚀" },
-          ] as const).map(({ value, label, desc, emoji }) => (
-            <button
-              key={value}
-              onClick={() => setForm({ ...form, risk_tolerance: value })}
-              className={`w-full text-left p-4 rounded-xl border transition-all ${
-                form.risk_tolerance === value
-                  ? "border-brand-500 bg-brand-500/10 text-white"
-                  : "border-[#2a2d3a] bg-[#1a1d27] text-gray-300 hover:border-gray-500"
-              }`}
-            >
-              <div className="font-semibold">{emoji} {label}</div>
-              <div className="text-sm text-gray-400 mt-0.5">{desc}</div>
-            </button>
-          ))}
-        </div>
-      ),
-      isValid: () => !!form.risk_tolerance,
-    },
-    {
-      title: "Objetivos y horizonte",
-      subtitle: "¿Qué buscas y a cuánto plazo?",
-      content: (
-        <div className="space-y-5">
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">Horizonte de inversión</label>
-            <select
-              value={form.time_horizon_years}
-              onChange={(e) => setForm({ ...form, time_horizon_years: e.target.value })}
-              className="input-field"
-            >
-              <option value="">Selecciona...</option>
-              <option value="1">Menos de 1 año</option>
-              <option value="3">1–3 años</option>
-              <option value="5">3–5 años</option>
-              <option value="10">5–10 años</option>
-              <option value="20">Más de 10 años</option>
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">Tus objetivos (selecciona todos los que aplican)</label>
-            <div className="space-y-2">
-              {GOALS.map(({ value, label, desc }) => (
-                <button
-                  key={value}
-                  onClick={() => toggleGoal(value)}
-                  className={`w-full text-left p-3 rounded-xl border transition-all ${
-                    form.investment_goals.includes(value)
-                      ? "border-brand-500 bg-brand-500/10 text-white"
-                      : "border-[#2a2d3a] bg-[#1a1d27] text-gray-300 hover:border-gray-500"
-                  }`}
-                >
-                  <span className="font-medium">{label}</span>
-                  <span className="text-gray-400 text-sm ml-2">— {desc}</span>
-                </button>
-              ))}
+        <div className="space-y-4">
+          {[
+            { key: "monthly_income", label: "Ingresos mensuales (USD)", placeholder: "3000" },
+            { key: "monthly_contribution", label: "Aportación mensual (USD)", placeholder: "300" },
+          ].map(({ key, label, placeholder }) => (
+            <div key={key}>
+              <label className="block text-sm font-medium mb-1" style={{ color: "var(--sub)" }}>{label}</label>
+              <input type="number" min="0"
+                     value={form[key as "monthly_income" | "monthly_contribution"]}
+                     onChange={(e) => setForm({ ...form, [key]: e.target.value })}
+                     className="w-full rounded-xl border px-4 py-3 text-sm outline-none"
+                     placeholder={placeholder}
+                     style={{ background: "var(--raised)", borderColor: "var(--border)", color: "var(--text)" }} />
             </div>
-          </div>
+          ))}
         </div>
       ),
-      isValid: () => !!form.time_horizon_years && form.investment_goals.length > 0,
     },
-    {
-      title: "Último paso",
-      subtitle: "¿Hay algo más que debamos saber?",
+    ...QUIZ.map((q, qi) => ({
+      title: `Pregunta ${qi + 1} de ${QUIZ.length}`,
+      subtitle: q.label,
+      valid: () => !!form.quiz[q.key],
       content: (
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-1">
-              ¿Qué te preocupa más de invertir? (opcional)
-            </label>
-            <textarea
-              value={form.financial_concerns}
-              onChange={(e) => setForm({ ...form, financial_concerns: e.target.value })}
-              className="input-field resize-none h-28"
-              placeholder="Ej: Tengo miedo de perder dinero, no sé por dónde empezar, me confunden los términos técnicos..."
-            />
-          </div>
-          <div className="bg-brand-500/10 border border-brand-500/30 rounded-xl p-4">
-            <p className="text-brand-400 text-sm font-medium mb-1">¿Qué pasa ahora?</p>
-            <p className="text-gray-300 text-sm">
-              Con tu perfil, nuestro asesor IA personaliza cada análisis, explicación y escenario específicamente para ti.
-              Cuanto más interactúas, más evoluciona tu mentor.
-            </p>
-          </div>
+        <div className="space-y-2">
+          {q.options.map(({ value, label }) => {
+            const active = form.quiz[q.key] === value;
+            return (
+              <button key={value} onClick={() => setForm({ ...form, quiz: { ...form.quiz, [q.key]: value } })}
+                      className="w-full text-left p-4 rounded-xl border transition-all text-sm"
+                      style={{
+                        borderColor: active ? "var(--accent)" : "var(--border)",
+                        background: active ? "rgba(0,168,94,0.1)" : "var(--raised)",
+                        color: active ? "var(--text)" : "var(--sub)",
+                      }}>
+                <span className="font-bold mr-2" style={{ color: "var(--accent)" }}>{value}</span>
+                {label}
+              </button>
+            );
+          })}
         </div>
       ),
-      isValid: () => true,
+    })),
+    {
+      title: "Elige tu mentor",
+      subtitle: "Cada mentor tiene su propia filosofía de inversión",
+      valid: () => true,
+      content: (
+        <div className="space-y-2">
+          {MENTORS.map(({ id, emoji, desc }) => {
+            const active = form.mentor === id;
+            return (
+              <button key={id} onClick={() => setForm({ ...form, mentor: id })}
+                      className="w-full text-left p-4 rounded-xl border transition-all"
+                      style={{ borderColor: active ? "var(--accent)" : "var(--border)", background: active ? "rgba(0,168,94,0.1)" : "var(--raised)" }}>
+                <div className="flex items-center gap-3">
+                  <span className="text-2xl">{emoji}</span>
+                  <div>
+                    <div className="text-sm font-semibold" style={{ color: active ? "var(--text)" : "var(--sub)" }}>
+                      {id === "none" ? "Sin mentor" : id}
+                    </div>
+                    <div className="text-xs" style={{ color: "var(--muted)" }}>{desc}</div>
+                  </div>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      ),
     },
   ];
 
-  const current = steps[step];
+  const current = STEPS[step];
 
   const handleNext = async () => {
-    if (step < steps.length - 1) {
-      setStep(step + 1);
-    } else {
-      await handleSubmit();
-    }
-  };
-
-  const handleSubmit = async () => {
-    setLoading(true);
-    setError("");
+    if (step < STEPS.length - 1) { setStep(step + 1); return; }
+    setLoading(true); setError("");
     try {
+      const risk = calcRisk(form.quiz);
       const payload = {
-        age: parseInt(form.age),
-        monthly_income: parseFloat(form.monthly_income),
-        risk_tolerance: form.risk_tolerance,
-        investment_experience: form.investment_experience,
-        time_horizon_years: parseInt(form.time_horizon_years),
-        investment_goals: form.investment_goals,
-        ...(form.initial_capital && { initial_capital: parseFloat(form.initial_capital) }),
-        ...(form.monthly_savings && { monthly_savings: parseFloat(form.monthly_savings) }),
-        ...(form.financial_concerns && { financial_concerns: form.financial_concerns }),
+        name: form.name.trim(),
+        birth_date: form.birth_date,
+        monthly_income: form.monthly_income,
+        monthly_contribution: form.monthly_contribution,
+        risk_tolerance: risk,
+        quiz_answers: form.quiz,
+        mentor: form.mentor === "none" ? null : form.mentor,
       };
       const res = await profileApi.create(payload);
       setProfile(res.data);
       router.push("/chat");
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
-      setError(msg || "Error al guardar tu perfil. Intenta de nuevo.");
+      setError(msg || "Error al guardar el perfil.");
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-[#0f1117] flex items-center justify-center p-4">
-      <style>{`.input-field { width: 100%; background: #1a1d27; border: 1px solid #2a2d3a; border-radius: 12px; padding: 12px 16px; color: white; outline: none; transition: border-color 0.2s; } .input-field:focus { border-color: #22c55e; } .input-field option { background: #1a1d27; }`}</style>
-
+    <div className="min-h-screen flex items-center justify-center p-4" style={{ background: "var(--bg)" }}>
       <div className="w-full max-w-lg">
         <div className="flex items-center gap-2 mb-8">
-          <div className="w-8 h-8 bg-brand-600 rounded-lg flex items-center justify-center">
+          <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: "var(--accent)" }}>
             <TrendingUp className="w-4 h-4 text-white" />
           </div>
-          <span className="font-bold text-white">Configurando tu perfil</span>
+          <span className="font-bold" style={{ color: "var(--text)" }}>Nuvo — Configurando tu perfil</span>
         </div>
 
-        <div className="flex gap-1 mb-8">
-          {steps.map((_, i) => (
-            <div
-              key={i}
-              className={`h-1 flex-1 rounded-full transition-all ${i <= step ? "bg-brand-500" : "bg-[#2a2d3a]"}`}
-            />
+        <div className="flex gap-1 mb-6">
+          {STEPS.map((_, i) => (
+            <div key={i} className="h-1 flex-1 rounded-full transition-all"
+                 style={{ background: i <= step ? "var(--accent)" : "var(--border)" }} />
           ))}
         </div>
 
-        <div className="bg-[#1a1d27] border border-[#2a2d3a] rounded-2xl p-6">
-          <h2 className="text-xl font-bold text-white mb-1">{current.title}</h2>
-          <p className="text-gray-400 text-sm mb-6">{current.subtitle}</p>
+        <div className="rounded-2xl border p-6" style={{ background: "var(--card)", borderColor: "var(--border)" }}>
+          <h2 className="text-xl font-bold mb-1" style={{ color: "var(--text)" }}>{current.title}</h2>
+          <p className="text-sm mb-6" style={{ color: "var(--muted)" }}>{current.subtitle}</p>
 
           {current.content}
 
           {error && (
-            <div className="mt-4 bg-red-500/10 border border-red-500/30 rounded-xl px-4 py-3 text-red-400 text-sm">
+            <div className="mt-4 rounded-xl px-4 py-3 text-sm" style={{ background: "rgba(255,71,87,0.1)", border: "1px solid rgba(255,71,87,0.3)", color: "var(--down)" }}>
               {error}
             </div>
           )}
 
           <div className="flex gap-3 mt-6">
             {step > 0 && (
-              <button
-                onClick={() => setStep(step - 1)}
-                className="flex items-center gap-2 px-4 py-3 border border-[#2a2d3a] rounded-xl text-gray-300 hover:border-gray-500 transition-colors"
-              >
-                <ChevronLeft className="w-4 h-4" />
-                Atrás
+              <button onClick={() => setStep(step - 1)}
+                      className="flex items-center gap-2 px-4 py-3 border rounded-xl text-sm font-medium transition-colors"
+                      style={{ borderColor: "var(--border)", color: "var(--sub)" }}>
+                <ChevronLeft className="w-4 h-4" /> Atrás
               </button>
             )}
-            <button
-              onClick={handleNext}
-              disabled={!current.isValid() || loading}
-              className="flex-1 flex items-center justify-center gap-2 bg-brand-600 hover:bg-brand-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold py-3 rounded-xl transition-colors"
-            >
-              {loading ? "Guardando..." : step === steps.length - 1 ? "Comenzar" : "Siguiente"}
+            <button onClick={handleNext} disabled={!current.valid() || loading}
+                    className="flex-1 flex items-center justify-center gap-2 text-white font-semibold py-3 rounded-xl transition-colors disabled:opacity-40"
+                    style={{ background: "var(--accent)" }}>
+              {loading ? "Guardando..." : step === STEPS.length - 1 ? "Comenzar" : "Siguiente"}
               {!loading && <ChevronRight className="w-4 h-4" />}
             </button>
           </div>
         </div>
-
-        <p className="text-center text-gray-500 text-xs mt-4">
-          Paso {step + 1} de {steps.length}
-        </p>
+        <p className="text-center text-xs mt-3" style={{ color: "var(--dim)" }}>Paso {step + 1} de {STEPS.length}</p>
       </div>
     </div>
   );

@@ -12,6 +12,7 @@ import * as XLSX from "xlsx";
 import { marketApi } from "../../src/lib/api";
 import { useTheme, Colors } from "../../src/lib/ThemeContext";
 import { usePortfolioStore, Position } from "../../src/lib/portfolioStore";
+import { useAppStore, getAge, UserProfile } from "../../src/lib/profileStore";
 
 type IoniconName = React.ComponentProps<typeof Ionicons>["name"];
 type Scenario = "conservative" | "moderate" | "aggressive";
@@ -30,6 +31,106 @@ const TICKER_SECTOR: Record<string, string> = {
   XOM: "Energía", CVX: "Energía", COP: "Energía", OXY: "Energía", SLB: "Energía",
   SPY: "ETF", QQQ: "ETF", VTI: "ETF", IVV: "ETF", VOO: "ETF", IWM: "ETF", GLD: "ETF",
 };
+
+// ─── Portfolio risk classification ────────────────────────────────────────
+
+const TICKER_RISK_OVERRIDE: Record<string, number> = {
+  GME: 96, AMC: 96, MSTR: 92, COIN: 91, RIVN: 88, LCID: 88,
+  TSLA: 84, PLTR: 82, SNAP: 82, SPOT: 80, RBLX: 80, HOOD: 82, SOFI: 78,
+  NVDA: 77, AMD: 76, SHOP: 74, SQ: 75, META: 70, NFLX: 70, UBER: 72,
+  AAPL: 60, MSFT: 58, GOOGL: 60, AMZN: 63, ORCL: 55,
+  JPM: 48, BAC: 50, GS: 55, V: 45, MA: 45, AXP: 50,
+  JNJ: 28, PFE: 35, UNH: 32, ABBV: 38, LLY: 42, AMGN: 36,
+  WMT: 22, KO: 18, PG: 18, MCD: 25, COST: 30, SBUX: 35,
+  XOM: 48, CVX: 48, COP: 55, OXY: 58,
+  SPY: 20, VOO: 20, VTI: 20, IVV: 20, QQQ: 38, IWM: 45, GLD: 30,
+};
+
+const SECTOR_RISK_BASE: Record<string, number> = {
+  ETF: 22, Salud: 35, Consumo: 38, Finance: 52, Energía: 58, Tech: 72,
+};
+
+const PORTFOLIO_LEVELS = [
+  { label: "Conservador",           min: 0,   max: 13,  color: "#3b82f6" },
+  { label: "Conservador-Moderado",  min: 13,  max: 25,  color: "#60a5fa" },
+  { label: "Moderado",              min: 25,  max: 38,  color: "#f59e0b" },
+  { label: "Moderado-Growth",       min: 38,  max: 51,  color: "#f97316" },
+  { label: "Growth",                min: 51,  max: 63,  color: "#fb923c" },
+  { label: "Agresivo",              min: 63,  max: 75,  color: "#ef4444" },
+  { label: "Agresivo-Especulativo", min: 75,  max: 88,  color: "#dc2626" },
+  { label: "Especulativo",          min: 88,  max: 101, color: "#7f1d1d" },
+] as const;
+
+function getPositionRisk(ticker: string): number {
+  if (TICKER_RISK_OVERRIDE[ticker] !== undefined) return TICKER_RISK_OVERRIDE[ticker];
+  const sector = TICKER_SECTOR[ticker];
+  return sector ? (SECTOR_RISK_BASE[sector] ?? 62) : 62;
+}
+
+function scorePortfolio(
+  positions: Position[],
+  pricesData: Record<string, PriceData>
+): { score: number; levelIdx: number; sectorPcts: Record<string, number> } {
+  if (!positions.length) return { score: 0, levelIdx: 0, sectorPcts: {} };
+  let totalVal = 0, weightedRisk = 0;
+  const sectorVals: Record<string, number> = {};
+  for (const pos of positions) {
+    const price = pricesData[pos.ticker]?.price ?? pos.avgPrice;
+    const val = pos.shares * price;
+    totalVal += val;
+    weightedRisk += getPositionRisk(pos.ticker) * val;
+    const sector = TICKER_SECTOR[pos.ticker] ?? "Otro";
+    sectorVals[sector] = (sectorVals[sector] ?? 0) + val;
+  }
+  if (totalVal === 0) return { score: 0, levelIdx: 0, sectorPcts: {} };
+  let score = weightedRisk / totalVal;
+  const topVal = Math.max(...positions.map((p) => p.shares * (pricesData[p.ticker]?.price ?? p.avgPrice)));
+  const topPct = topVal / totalVal;
+  if (topPct > 0.4) score = Math.min(100, score + (topPct - 0.4) * 20);
+  if (positions.length >= 10) score = Math.max(0, score - 4);
+  score = Math.round(Math.min(100, Math.max(0, score)));
+  const idx = PORTFOLIO_LEVELS.findIndex((l) => score >= l.min && score < l.max);
+  const sectorPcts: Record<string, number> = {};
+  for (const [s, v] of Object.entries(sectorVals)) sectorPcts[s] = Math.round((v / totalVal) * 100);
+  return { score, levelIdx: idx === -1 ? 7 : idx, sectorPcts };
+}
+
+function buildFeedback(
+  levelIdx: number,
+  profile: UserProfile | null,
+  age: number,
+  sectorPcts: Record<string, number>
+): string[] {
+  if (!profile || age === 0) return [];
+  const firstName = profile.name.split(" ")[0];
+  const levelLabel = PORTFOLIO_LEVELS[levelIdx].label.toLowerCase();
+  const profileRange: Record<string, [number, number]> = {
+    conservative: [0, 2], moderate: [1, 4], aggressive: [3, 7],
+  };
+  const [pMin, pMax] = profileRange[profile.risk_tolerance] ?? [1, 4];
+  const ageTargetIdx = age < 30 ? 4 : age < 40 ? 3 : age < 50 ? 2 : age < 60 ? 1 : 0;
+  const topSector = Object.entries(sectorPcts).sort((a, b) => b[1] - a[1])[0];
+  const topSectorStr = topSector ? ` con ${topSector[1]}% en ${topSector[0]}` : "";
+  const profileLabel = profile.risk_tolerance === "conservative" ? "conservador" : profile.risk_tolerance === "moderate" ? "moderado" : "agresivo";
+  const lines: string[] = [];
+  lines.push(`Tu portafolio tiene un perfil ${levelLabel}${topSectorStr}, ${firstName}.`);
+  if (levelIdx < pMin) {
+    lines.push(`Es más conservador que tu perfil ${profileLabel} — puede que estés dejando rendimiento potencial en la mesa.`);
+  } else if (levelIdx > pMax) {
+    lines.push(`Estás tomando más riesgo del que tu perfil ${profileLabel} indica. Si hay una corrección, el impacto puede superarte emocionalmente.`);
+  } else {
+    lines.push(`Está bien alineado con tu perfil de inversionista ${profileLabel}.`);
+  }
+  const ageTargetLabel = PORTFOLIO_LEVELS[ageTargetIdx].label;
+  if (levelIdx > ageTargetIdx + 1) {
+    lines.push(`Con ${age} años y este nivel de riesgo, asegúrate de tener un fondo de emergencia sólido antes de mantener esta exposición.`);
+  } else if (levelIdx < ageTargetIdx - 1 && age < 45) {
+    lines.push(`Con ${age} años tienes un horizonte largo — podrías crecer gradualmente hacia un perfil ${ageTargetLabel.toLowerCase()} para maximizar tu acumulación.`);
+  } else {
+    lines.push(`Con ${age} años, este nivel de riesgo es adecuado para tu horizonte de inversión.`);
+  }
+  return lines;
+}
 
 interface StressScenario {
   id: string; name: string; icon: string; color: string;
@@ -128,14 +229,17 @@ export default function PortfolioScreen() {
   const [subTab, setSubTab] = useState<"portfolio" | "explore">("portfolio");
 
   const { positions, addPosition, removePosition, setPositions } = usePortfolioStore();
+  const profile = useAppStore((s) => s.profile);
+  const age = profile?.birth_date ? getAge(profile.birth_date) : 0;
   const [prices, setPrices] = useState<Record<string, PriceData>>({});
   const [loadingPrices, setLoadingPrices] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
   // Screenshot import
   const [screenshotAnalyzing, setScreenshotAnalyzing] = useState(false);
+  const [screenshotProgress, setScreenshotProgress] = useState("");
   const [screenshotPreview, setScreenshotPreview] = useState<ExtractedPosition[] | null>(null);
-  const [screenshotUri, setScreenshotUri] = useState<string | null>(null);
+  const [screenshotUris, setScreenshotUris] = useState<string[]>([]);
 
   // Manual add form
   const [showForm, setShowForm] = useState(false);
@@ -178,50 +282,65 @@ export default function PortfolioScreen() {
       mediaTypes: ["images"],
       base64: true,
       quality: 0.6,
-      allowsMultipleSelection: false,
+      allowsMultipleSelection: true,
     });
 
-    if (result.canceled || !result.assets?.[0]?.base64) return;
+    if (result.canceled || !result.assets?.length) return;
 
-    const asset = result.assets[0];
-    setScreenshotUri(asset.uri);
+    const assets = result.assets.filter((a) => a.base64);
+    if (!assets.length) return;
+
+    setScreenshotUris(assets.map((a) => a.uri));
     setScreenshotAnalyzing(true);
     setScreenshotPreview(null);
+    setScreenshotProgress(assets.length > 1 ? `Analizando 1 de ${assets.length}...` : "Analizando con IA...");
 
     try {
-      const mimeType = asset.mimeType || "image/jpeg";
-      const res = await marketApi.analyzeScreenshot(asset.base64!, mimeType);
-      const extracted: ExtractedPosition[] = (res.data.positions || []).map(
-        (p: Omit<ExtractedPosition, "id">, i: number) => ({
-          ...p,
-          id: `${p.ticker}-${i}-${Date.now()}`,
-        })
-      );
+      const allExtracted: ExtractedPosition[] = [];
 
-      if (!extracted.length) {
-        Alert.alert(
-          "Sin posiciones detectadas",
-          res.data.error || "No se encontraron posiciones en la imagen. Intenta con una captura más clara."
+      for (let i = 0; i < assets.length; i++) {
+        const asset = assets[i];
+        if (assets.length > 1) setScreenshotProgress(`Analizando ${i + 1} de ${assets.length}...`);
+        const mimeType = asset.mimeType || "image/jpeg";
+        const res = await marketApi.analyzeScreenshot(asset.base64!, mimeType);
+        const fromImage: ExtractedPosition[] = (res.data.positions || []).map(
+          (p: Omit<ExtractedPosition, "id">, j: number) => ({
+            ...p,
+            id: `${p.ticker}-${i}-${j}-${Date.now()}`,
+          })
         );
-        setScreenshotUri(null);
+        allExtracted.push(...fromImage);
+      }
+
+      // Merge: deduplicate by ticker, prefer entry with avg_price > 0
+      const merged = new Map<string, ExtractedPosition>();
+      for (const pos of allExtracted) {
+        const existing = merged.get(pos.ticker);
+        if (!existing || (pos.avg_price > 0 && existing.avg_price === 0)) {
+          merged.set(pos.ticker, pos);
+        }
+      }
+      const final = Array.from(merged.values());
+
+      if (!final.length) {
+        Alert.alert("Sin posiciones detectadas", "No se encontraron posiciones en las imágenes. Intenta con capturas más claras.");
+        setScreenshotUris([]);
       } else {
-        setScreenshotPreview(extracted);
+        setScreenshotPreview(final);
       }
     } catch {
-      Alert.alert("Error", "No se pudo analizar la imagen. Verifica que el backend esté corriendo.");
-      setScreenshotUri(null);
+      Alert.alert("Error", "No se pudieron analizar las imágenes. Verifica que el backend esté corriendo.");
+      setScreenshotUris([]);
     } finally {
       setScreenshotAnalyzing(false);
+      setScreenshotProgress("");
     }
   };
 
   const removeExtracted = (id: string) => {
     setScreenshotPreview((prev) => {
       const next = (prev ?? []).filter((p) => p.id !== id);
-      if (!next.length) {
-        setScreenshotUri(null);
-        return null;
-      }
+      if (!next.length) { setScreenshotUris([]); return null; }
       return next;
     });
   };
@@ -235,7 +354,7 @@ export default function PortfolioScreen() {
       avgPrice: p.avg_price,
     })));
     setScreenshotPreview(null);
-    setScreenshotUri(null);
+    setScreenshotUris([]);
   };
 
   // ── Manual add ─────────────────────────────────────────────────────────
@@ -383,6 +502,13 @@ export default function PortfolioScreen() {
     return { invested, current, diff, pct };
   }, [positions, prices]);
 
+  const diagnosis = useMemo(() => {
+    if (!positions.length) return null;
+    const { score, levelIdx, sectorPcts } = scorePortfolio(positions, prices);
+    const feedback = buildFeedback(levelIdx, profile, age, sectorPcts);
+    return { score, levelIdx, sectorPcts, feedback };
+  }, [positions, prices, profile, age]);
+
   return (
     <SafeAreaView style={s.container}>
       {/* ── Sub-tab bar ── */}
@@ -436,14 +562,14 @@ export default function PortfolioScreen() {
           {screenshotAnalyzing ? (
             <View style={s.screenshotBtnInner}>
               <ActivityIndicator color="white" size="small" />
-              <Text style={s.screenshotBtnText}>Analizando con IA...</Text>
+              <Text style={s.screenshotBtnText}>{screenshotProgress || "Analizando con IA..."}</Text>
             </View>
           ) : (
             <View style={s.screenshotBtnInner}>
-              <Ionicons name="camera-outline" size={28} color="white" />
+              <Ionicons name="images-outline" size={28} color="white" />
               <View>
-                <Text style={s.screenshotBtnText}>Importar desde captura</Text>
-                <Text style={s.screenshotBtnSub}>La IA detecta tus posiciones automáticamente</Text>
+                <Text style={s.screenshotBtnText}>Importar capturas de pantalla</Text>
+                <Text style={s.screenshotBtnSub}>Selecciona 1 o más fotos — la IA detecta todo</Text>
               </View>
             </View>
           )}
@@ -453,16 +579,25 @@ export default function PortfolioScreen() {
         {screenshotPreview && (
           <View style={[s.previewCard, { backgroundColor: colors.card, borderColor: "#22c55e" }]}>
             <View style={s.previewHeader}>
-              <View>
+              <View style={{ flex: 1 }}>
                 <Text style={[s.previewTitle, { color: colors.text }]}>
                   {screenshotPreview.length} posiciones detectadas
                 </Text>
                 <Text style={[s.previewSub, { color: colors.textMuted }]}>
-                  Revisa y elimina las incorrectas antes de confirmar
+                  {screenshotUris.length > 1 ? `De ${screenshotUris.length} capturas · ` : ""}Revisa y elimina las incorrectas antes de confirmar
                 </Text>
               </View>
-              {screenshotUri && (
-                <Image source={{ uri: screenshotUri }} style={s.previewThumb} />
+              {screenshotUris.length > 0 && (
+                <View style={s.previewThumbs}>
+                  {screenshotUris.slice(0, 3).map((uri, i) => (
+                    <Image key={i} source={{ uri }} style={[s.previewThumb, i > 0 && { marginLeft: -12 }]} />
+                  ))}
+                  {screenshotUris.length > 3 && (
+                    <View style={[s.previewThumbMore, { backgroundColor: colors.bg, borderColor: colors.border }]}>
+                      <Text style={[s.previewThumbMoreText, { color: colors.textSub }]}>+{screenshotUris.length - 3}</Text>
+                    </View>
+                  )}
+                </View>
               )}
             </View>
 
@@ -491,7 +626,7 @@ export default function PortfolioScreen() {
             <View style={s.previewActions}>
               <TouchableOpacity
                 style={[s.previewCancel, { borderColor: colors.border }]}
-                onPress={() => { setScreenshotPreview(null); setScreenshotUri(null); }}
+                onPress={() => { setScreenshotPreview(null); setScreenshotUris([]); }}
               >
                 <Text style={[s.previewCancelText, { color: colors.textMuted }]}>Cancelar</Text>
               </TouchableOpacity>
@@ -700,6 +835,74 @@ export default function PortfolioScreen() {
             </Text>
           </View>
         </View>
+        {/* ── DIAGNÓSTICO DE RIESGO ── */}
+        {diagnosis && (() => {
+          const level = PORTFOLIO_LEVELS[diagnosis.levelIdx];
+          return (
+            <View style={[s.diagCard, { backgroundColor: s.diagCard.backgroundColor, borderColor: level.color + "60" }]}>
+              {/* Header */}
+              <View style={s.diagHeader}>
+                <View style={[s.diagBadge, { backgroundColor: level.color + "18", borderColor: level.color + "50" }]}>
+                  <View style={[s.diagBadgeDot, { backgroundColor: level.color }]} />
+                  <Text style={[s.diagBadgeText, { color: level.color }]}>{level.label}</Text>
+                </View>
+                <Text style={[s.diagScore, { color: colors.textMuted }]}>{diagnosis.score}/100</Text>
+              </View>
+
+              {/* 8-segment risk bar */}
+              <View style={s.diagBarRow}>
+                {PORTFOLIO_LEVELS.map((l, i) => (
+                  <View
+                    key={l.label}
+                    style={[
+                      s.diagBarSeg,
+                      {
+                        backgroundColor: i === diagnosis.levelIdx ? l.color : l.color + "35",
+                        height: i === diagnosis.levelIdx ? 14 : 8,
+                        borderRadius: i === 0 ? 4 : i === PORTFOLIO_LEVELS.length - 1 ? 4 : 2,
+                      },
+                    ]}
+                  />
+                ))}
+              </View>
+              <View style={s.diagBarLabels}>
+                <Text style={[s.diagBarLabel, { color: colors.textDim }]}>Conservador</Text>
+                <Text style={[s.diagBarLabel, { color: colors.textDim }]}>Especulativo</Text>
+              </View>
+
+              {/* Sector breakdown chips */}
+              {Object.keys(diagnosis.sectorPcts).length > 0 && (
+                <View style={s.diagSectors}>
+                  {Object.entries(diagnosis.sectorPcts)
+                    .sort((a, b) => b[1] - a[1])
+                    .map(([sector, pct]) => (
+                      <View key={sector} style={[s.diagSectorChip, { backgroundColor: colors.bg, borderColor: colors.border }]}>
+                        <Text style={[s.diagSectorText, { color: colors.textSub }]}>{sector} {pct}%</Text>
+                      </View>
+                    ))}
+                </View>
+              )}
+
+              {/* Feedback lines */}
+              {diagnosis.feedback.length > 0 && (
+                <View style={[s.diagFeedback, { borderTopColor: colors.border }]}>
+                  {diagnosis.feedback.map((line, i) => (
+                    <View key={i} style={s.diagFeedbackRow}>
+                      <Ionicons
+                        name={i === 0 ? "stats-chart-outline" : i === 1 ? "person-outline" : "time-outline"}
+                        size={13}
+                        color={level.color}
+                        style={{ marginTop: 2, flexShrink: 0 }}
+                      />
+                      <Text style={[s.diagFeedbackText, { color: colors.textSub }]}>{line}</Text>
+                    </View>
+                  ))}
+                </View>
+              )}
+            </View>
+          );
+        })()}
+
         <View style={s.scenarioRow}>
           {SCENARIOS.map((sc) => (
             <TouchableOpacity
@@ -896,7 +1099,10 @@ function makeStyles(c: Colors) {
     previewHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 14 },
     previewTitle: { fontSize: 15, fontWeight: "800", letterSpacing: -0.2 },
     previewSub: { fontSize: 12, marginTop: 3, lineHeight: 17 },
-    previewThumb: { width: 52, height: 92, borderRadius: 8, resizeMode: "cover" },
+    previewThumbs: { flexDirection: "row", alignItems: "center", marginLeft: 8 },
+    previewThumb: { width: 44, height: 78, borderRadius: 8, resizeMode: "cover", borderWidth: 2, borderColor: "transparent" },
+    previewThumbMore: { width: 44, height: 78, borderRadius: 8, borderWidth: 1, alignItems: "center", justifyContent: "center", marginLeft: -12 },
+    previewThumbMoreText: { fontSize: 12, fontWeight: "700" },
     previewRow: {
       flexDirection: "row", alignItems: "center", paddingVertical: 11,
       borderBottomWidth: StyleSheet.hairlineWidth, gap: 10,
@@ -998,6 +1204,26 @@ function makeStyles(c: Colors) {
     milestoneBar: { flex: 1, height: 6, borderRadius: 3, overflow: "hidden", flexDirection: "row" },
     milestoneBarFill: { height: "100%", borderRadius: 3 },
     milestoneVal: { fontSize: 12, fontWeight: "700", width: 80, textAlign: "right" },
+    // Risk Diagnosis card
+    diagCard: {
+      borderRadius: 18, borderWidth: 1.5, padding: 16, marginBottom: 16,
+      backgroundColor: c.card,
+    },
+    diagHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 14 },
+    diagBadge: { flexDirection: "row", alignItems: "center", gap: 7, borderWidth: 1, borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6 },
+    diagBadgeDot: { width: 8, height: 8, borderRadius: 4 },
+    diagBadgeText: { fontSize: 13, fontWeight: "800", letterSpacing: -0.2 },
+    diagScore: { fontSize: 12, fontWeight: "700" },
+    diagBarRow: { flexDirection: "row", gap: 3, alignItems: "center", marginBottom: 7 },
+    diagBarSeg: { flex: 1, alignSelf: "center" },
+    diagBarLabels: { flexDirection: "row", justifyContent: "space-between", marginBottom: 12 },
+    diagBarLabel: { fontSize: 10, letterSpacing: 0.1 },
+    diagSectors: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: 12 },
+    diagSectorChip: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4 },
+    diagSectorText: { fontSize: 11, fontWeight: "600" },
+    diagFeedback: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 12, gap: 8 },
+    diagFeedbackRow: { flexDirection: "row", gap: 8, alignItems: "flex-start" },
+    diagFeedbackText: { flex: 1, fontSize: 13, lineHeight: 19 },
     // Stress Test
     stressChip: {
       flexDirection: "row", alignItems: "center", gap: 8,

@@ -34,7 +34,10 @@
           "icon": "./assets/notification-icon.png",
           "color": "#22c55e"
         }
-      ]
+      ],
+      "expo-asset",
+      "expo-font",
+      "expo-secure-store"
     ],
     "newArchEnabled": false,
     "experiments": {

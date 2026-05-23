@@ -60,10 +60,17 @@ export const chat = {
 
 export const market = {
   getSummary: () => api.get("/api/market/summary"),
+  getIndices: () => api.get("/api/market/indices"),
   getAsset: (symbol: string) => api.get(`/api/market/asset/${symbol}`),
+  getPrices: (symbols: string[]) => api.post("/api/market/prices", { symbols }),
   analyze: (symbols: string[]) => api.post("/api/market/analyze", { symbols }),
-  getPortfolio: (scenario: string, capital?: number) =>
-    api.post("/api/market/portfolio", { scenario, capital }),
+  getPortfolio: (
+    scenario: string,
+    capital?: number,
+    positions?: { ticker: string; shares: number; avg_price: number; name?: string }[]
+  ) => api.post("/api/market/portfolio", { scenario, capital, positions }),
+  analyzeScreenshot: (imageData: string, imageType: string) =>
+    api.post("/api/market/portfolio/from-screenshot", { image: imageData, type: imageType }),
   getMovers: (threshold?: number) =>
     api.get("/api/market/movers", { params: { threshold } }),
   getEarnings: () => api.get("/api/market/earnings"),

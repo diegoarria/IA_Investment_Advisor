@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "IA Investment Advisor",
-  description: "Tu mentor de inversiones inteligente — aprende a pensar como un inversionista profesional",
+  title: "Nuvo — Tu mentor de inversiones",
+  description: "Aprende a pensar como un inversor profesional",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

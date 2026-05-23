@@ -10,18 +10,21 @@ const config: Config = {
     extend: {
       colors: {
         brand: {
-          50: "#f0fdf4",
+          50:  "#f0fdf4",
           100: "#dcfce7",
-          500: "#22c55e",
-          600: "#16a34a",
-          700: "#15803d",
-          900: "#14532d",
+          400: "#00d47e",
+          500: "#00a85e",
+          600: "#007a44",
+          700: "#005c33",
         },
         surface: {
-          DEFAULT: "#0f1117",
-          card: "#1a1d27",
-          border: "#2a2d3a",
-        }
+          DEFAULT: "#06090f",
+          raised:  "#080d17",
+          card:    "#0b1120",
+          el:      "#0e1628",
+          border:  "#152034",
+          strong:  "#1e3148",
+        },
       },
       fontFamily: {
         sans: ["Inter", "system-ui", "sans-serif"],

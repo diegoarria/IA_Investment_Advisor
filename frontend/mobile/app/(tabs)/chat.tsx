@@ -1,8 +1,9 @@
 import React, { useState, useRef, useEffect, useMemo } from "react";
 import {
   View, Text, TextInput, TouchableOpacity, FlatList,
-  StyleSheet, KeyboardAvoidingView, Platform, ActivityIndicator, SafeAreaView, Image, Animated,
+  StyleSheet, KeyboardAvoidingView, Platform, ActivityIndicator, Image, Animated,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import Markdown from "react-native-markdown-display";
 import { chatApi } from "../../src/lib/api";
@@ -230,7 +231,12 @@ Instrucciones críticas:
     : { flex: 1 };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <KeyboardAvoidingView
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      style={styles.container}
+      keyboardVerticalOffset={0}
+    >
+    <SafeAreaView style={styles.flex} edges={["top", "left", "right"]}>
       {/* Behavioral investor bar — mobile only */}
       {riskCfg && Platform.OS !== "web" && (() => {
         const score    = diagnosis?.score ?? pct;
@@ -300,11 +306,6 @@ Instrucciones críticas:
         </TouchableOpacity>
       </View>
 
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        style={styles.flex}
-        keyboardVerticalOffset={88}
-      >
         <View style={webContentStyle}>
           {messages.length === 0 ? (
             <View style={styles.empty}>
@@ -386,8 +387,8 @@ Instrucciones críticas:
             </TouchableOpacity>
           </View>
         </View>
-      </KeyboardAvoidingView>
     </SafeAreaView>
+    </KeyboardAvoidingView>
   );
 }
 

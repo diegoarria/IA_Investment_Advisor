@@ -1,28 +1,23 @@
-export type RiskTolerance = "conservative" | "moderate" | "aggressive";
-export type InvestmentExperience = "beginner" | "intermediate" | "advanced";
-export type InvestmentGoal =
-  | "capital_preservation"
-  | "income"
+export type RiskTolerance =
+  | "conservative"
+  | "conservative_moderate"
+  | "moderate"
+  | "moderate_growth"
   | "growth"
-  | "aggressive_growth"
-  | "retirement";
+  | "aggressive"
+  | "aggressive_speculative"
+  | "speculative";
 
 export interface UserProfile {
   id: string;
   user_id: string;
-  age: number;
-  monthly_income: number;
-  risk_tolerance: RiskTolerance;
-  investment_experience: InvestmentExperience;
-  time_horizon_years: number;
-  investment_goals: InvestmentGoal[];
-  initial_capital?: number;
-  monthly_savings?: number;
-  current_investments?: string;
-  financial_concerns?: string;
-  interaction_count: number;
-  learned_concepts: string[];
-  weak_areas: string[];
+  name: string;
+  birth_date: string;
+  monthly_income: string;
+  monthly_contribution: string;
+  risk_tolerance: string;
+  quiz_answers: Record<string, unknown>;
+  mentor?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -45,24 +40,10 @@ export interface Notification {
   created_at: string;
 }
 
-export interface MarketSummary {
-  [index: string]: {
-    value: number;
-    change_pct: number;
-    direction: "up" | "down";
-  };
-}
-
-export interface AssetData {
-  symbol: string;
+export interface IndexData {
   name: string;
-  sector?: string;
-  current_price?: number;
-  market_cap?: number;
-  pe_ratio?: number;
-  ytd_return_pct?: number;
-  annual_volatility_pct?: number;
-  beta?: number;
-  description?: string;
-  error?: string;
+  symbol: string;
+  price: number | null;
+  change: number;
+  change_pct: number;
 }
