@@ -35,25 +35,59 @@ def _get_user_profile(user_id: str) -> UserProfile | None:
     return None
 
 
+_YF_HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+    "Accept": "application/json,text/plain,*/*",
+    "Accept-Language": "en-US,en;q=0.9",
+    "Referer": "https://finance.yahoo.com/",
+    "Origin": "https://finance.yahoo.com",
+}
+
+
 def _fetch_one_index(symbol: str) -> tuple[float | None, float | None]:
-    """Returns (price, prev_close). Tries fast_info first, falls back to history."""
-    t = yf.Ticker(symbol)
-    # Try fast_info first (faster)
+    """Returns (price, prev_close). Direct httpx call → yfinance fallback."""
+    import httpx
+    encoded = symbol.replace("^", "%5E")
+
+    # Primary: direct Yahoo Finance chart API with browser headers
     try:
+        url = f"https://query1.finance.yahoo.com/v8/finance/chart/{encoded}?interval=1d&range=5d"
+        r = httpx.get(url, headers=_YF_HEADERS, timeout=10, follow_redirects=True)
+        if r.status_code == 200:
+            result = r.json()["chart"]["result"][0]
+            closes = [c for c in result["indicators"]["quote"][0]["close"] if c is not None]
+            if len(closes) >= 2:
+                return closes[-1], closes[-2]
+            if len(closes) == 1:
+                return closes[0], None
+    except Exception:
+        pass
+
+    # Fallback: try query2 domain
+    try:
+        url2 = f"https://query2.finance.yahoo.com/v8/finance/chart/{encoded}?interval=1d&range=5d"
+        r2 = httpx.get(url2, headers=_YF_HEADERS, timeout=10, follow_redirects=True)
+        if r2.status_code == 200:
+            result = r2.json()["chart"]["result"][0]
+            closes = [c for c in result["indicators"]["quote"][0]["close"] if c is not None]
+            if len(closes) >= 2:
+                return closes[-1], closes[-2]
+            if len(closes) == 1:
+                return closes[0], None
+    except Exception:
+        pass
+
+    # Last resort: yfinance
+    try:
+        t = yf.Ticker(symbol)
         fi = t.fast_info
         price = float(fi.last_price) if fi.last_price else None
         prev  = float(fi.previous_close) if fi.previous_close else None
-        if price and prev:
+        if price:
             return price, prev
     except Exception:
         pass
-    # Fallback to history (more reliable on restricted servers)
-    try:
-        hist = t.history(period="5d")
-        if not hist.empty and len(hist) >= 2:
-            return float(hist["Close"].iloc[-1]), float(hist["Close"].iloc[-2])
-    except Exception:
-        pass
+
     return None, None
 
 
@@ -111,25 +145,37 @@ async def get_prices(request: dict, user_id: str = Depends(get_current_user_id))
     symbols = [s.upper() for s in request.get("symbols", [])]
 
     def _fetch(symbol: str) -> tuple[str, dict]:
-        t = yf.Ticker(symbol)
+        import httpx
+        encoded = symbol.replace("^", "%5E")
         price, prev, currency = None, None, "USD"
-        # Try fast_info
-        try:
-            fi = t.fast_info
-            price    = float(fi.last_price) if fi.last_price else None
-            prev     = float(fi.previous_close) if fi.previous_close else None
-            currency = fi.currency or "USD"
-        except Exception:
-            pass
-        # Fallback to history if fast_info gave nothing
-        if not price:
+
+        # Primary: direct Yahoo Finance API
+        for domain in ("query1", "query2"):
+            if price:
+                break
             try:
-                hist = t.history(period="5d")
-                if not hist.empty and len(hist) >= 2:
-                    price = float(hist["Close"].iloc[-1])
-                    prev  = float(hist["Close"].iloc[-2])
+                url = f"https://{domain}.finance.yahoo.com/v8/finance/chart/{encoded}?interval=1d&range=5d"
+                r = httpx.get(url, headers=_YF_HEADERS, timeout=8, follow_redirects=True)
+                if r.status_code == 200:
+                    res = r.json()["chart"]["result"][0]
+                    closes = [c for c in res["indicators"]["quote"][0]["close"] if c is not None]
+                    if closes:
+                        price = closes[-1]
+                        prev  = closes[-2] if len(closes) >= 2 else None
+                        currency = res.get("meta", {}).get("currency", "USD")
             except Exception:
                 pass
+
+        # Fallback: yfinance fast_info
+        if not price:
+            try:
+                fi = yf.Ticker(symbol).fast_info
+                price    = float(fi.last_price) if fi.last_price else None
+                prev     = float(fi.previous_close) if fi.previous_close else None
+                currency = fi.currency or "USD"
+            except Exception:
+                pass
+
         change_pct = 0.0
         if price and prev and prev != 0:
             change_pct = round((price - prev) / prev * 100, 2)
