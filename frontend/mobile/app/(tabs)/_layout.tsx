@@ -6,6 +6,7 @@ import {
 import type { BottomTabBarProps } from "@react-navigation/bottom-tabs";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { router } from "expo-router";
 import { useTheme } from "../../src/lib/ThemeContext";
 import { useAppStore } from "../../src/lib/profileStore";
 import MarketTicker from "../../src/components/MarketTicker";
@@ -21,7 +22,7 @@ const TAB_CONFIG: Record<string, { icon: IoniconName; iconFilled: IoniconName; l
   learn:         { icon: "school-outline",              iconFilled: "school",               label: "Aprender" },
 };
 
-const HIDDEN_TABS = ["explore"];
+const HIDDEN_TABS = ["explore", "profile"];
 
 // ─── Custom Tab Bar ───────────────────────────────────────────────────────────
 
@@ -156,6 +157,7 @@ function MobileHeader({ title }: { title: string }) {
           <TouchableOpacity
             style={[headerStyles.avatar, { backgroundColor: riskColor + "22", borderColor: riskColor + "66" }]}
             activeOpacity={0.8}
+            onPress={() => router.navigate("/(tabs)/profile")}
           >
             <Text style={[headerStyles.avatarText, { color: riskColor }]}>
               {profile.name.charAt(0).toUpperCase()}
