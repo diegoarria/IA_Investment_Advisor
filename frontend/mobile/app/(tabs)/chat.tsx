@@ -358,6 +358,7 @@ Instrucciones críticas:
               renderItem={renderMessage}
               contentContainerStyle={styles.list}
               onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: true })}
+              style={styles.flex}
             />
           )}
 
