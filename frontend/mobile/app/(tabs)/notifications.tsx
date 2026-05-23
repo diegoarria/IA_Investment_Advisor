@@ -119,11 +119,18 @@ export default function NotificationsScreen() {
 
   const renderNotification = ({ item }: { item: Notification }) => (
     <TouchableOpacity
-      style={[styles.card, !item.read && styles.cardUnread]}
+      style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }, !item.read && styles.cardUnread]}
       onPress={() => !item.read && handleMarkRead(item.id)}
+      activeOpacity={0.75}
     >
       <View style={styles.cardRow}>
-        <Ionicons name={TYPE_ICONS[item.type] ?? "notifications-outline"} size={22} color={colors.textSub} style={{ marginRight: 12 }} />
+        <View style={[styles.cardIconBox, { backgroundColor: item.read ? colors.border + "60" : colors.accentLight + "18" }]}>
+          <Ionicons
+            name={TYPE_ICONS[item.type] ?? "notifications-outline"}
+            size={19}
+            color={item.read ? colors.textDim : colors.accentLight}
+          />
+        </View>
         <View style={styles.cardBody}>
           <Text style={[styles.cardTitle, !item.read && { color: colors.text }]}>{item.title}</Text>
           <Text style={styles.cardMessage} numberOfLines={3}>{item.message}</Text>
@@ -224,9 +231,10 @@ export default function NotificationsScreen() {
       <Modal visible={!!alertModal} transparent animationType="slide" onRequestClose={() => setAlertModal(null)}>
         <View style={styles.modalOverlay}>
           <View style={[styles.modalCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <View style={styles.modalHandle} />
             <View style={styles.modalHeader}>
               <Text style={[styles.modalTitle, { color: colors.text }]}>
-                ⚠️ {alertModal?.ticker} {(alertModal?.change_pct ?? 0) >= 0 ? "subió" : "cayó"} {Math.abs(alertModal?.change_pct ?? 0).toFixed(1)}%
+                {(alertModal?.change_pct ?? 0) >= 0 ? "📈" : "📉"} {alertModal?.ticker} {(alertModal?.change_pct ?? 0) >= 0 ? "subió" : "cayó"} {Math.abs(alertModal?.change_pct ?? 0).toFixed(1)}%
               </Text>
               <TouchableOpacity onPress={() => setAlertModal(null)}>
                 <Ionicons name="close" size={22} color={colors.textMuted} />
@@ -252,42 +260,78 @@ export default function NotificationsScreen() {
 function makeStyles(c: Colors) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: c.bg },
-    list: { padding: 16, paddingBottom: 32 },
+    list: { paddingHorizontal: 14, paddingTop: 12, paddingBottom: 40 },
+
+    // Mark all button
     markAllBtn: {
-      marginHorizontal: 16, marginTop: 12,
-      backgroundColor: "rgba(34,197,94,0.1)",
-      borderWidth: 1, borderColor: "rgba(34,197,94,0.3)",
-      borderRadius: 10, paddingVertical: 10, alignItems: "center",
+      flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6,
+      marginHorizontal: 14, marginTop: 12,
+      backgroundColor: c.accentLight + "12",
+      borderWidth: 1, borderColor: c.accentLight + "40",
+      borderRadius: 12, paddingVertical: 11,
     },
-    markAllText: { color: "#22c55e", fontSize: 13, fontWeight: "500" },
+    markAllText: { color: c.accentLight, fontSize: 13, fontWeight: "600", letterSpacing: 0.1 },
+
     // Watchlist section
-    section: { borderRadius: 14, borderWidth: 1, padding: 14, marginBottom: 16 },
-    sectionHeader: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 10 },
-    sectionTitle: { fontSize: 14, fontWeight: "700" },
-    watchRow: { flexDirection: "row", alignItems: "center", paddingVertical: 10, borderTopWidth: StyleSheet.hairlineWidth },
-    watchTicker: { fontSize: 14, fontWeight: "700" },
-    watchName:   { fontSize: 11, marginTop: 1 },
-    watchPrice:  { fontSize: 15, fontWeight: "700" },
-    watchChange: { fontSize: 12, fontWeight: "600" },
-    // Notifications
-    card: {
-      backgroundColor: c.card, borderWidth: 1, borderColor: c.border,
-      borderRadius: 14, padding: 14, marginBottom: 10,
+    section: {
+      borderRadius: 16, borderWidth: 1, overflow: "hidden", marginBottom: 16,
     },
-    cardUnread: { borderColor: "rgba(34,197,94,0.4)", backgroundColor: "rgba(34,197,94,0.04)" },
-    cardRow: { flexDirection: "row", alignItems: "flex-start" },
+    sectionHeader: {
+      flexDirection: "row", alignItems: "center", gap: 7,
+      paddingHorizontal: 14, paddingVertical: 12,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+    },
+    sectionTitle: { fontSize: 13, fontWeight: "700", letterSpacing: 0.2 },
+    watchRow: {
+      flexDirection: "row", alignItems: "center",
+      paddingHorizontal: 14, paddingVertical: 12,
+      borderTopWidth: StyleSheet.hairlineWidth,
+    },
+    watchTicker: { fontSize: 14, fontWeight: "800", letterSpacing: -0.2 },
+    watchName:   { fontSize: 11, marginTop: 2, letterSpacing: 0.1 },
+    watchPrice:  { fontSize: 15, fontWeight: "700" },
+    watchChange: { fontSize: 12, fontWeight: "700" },
+
+    // Notification cards
+    card: {
+      backgroundColor: c.card,
+      borderWidth: 1, borderColor: c.border,
+      borderRadius: 16, padding: 14, marginBottom: 8,
+    },
+    cardUnread: {
+      borderColor: c.accentLight + "50",
+      backgroundColor: c.accentLight + "06",
+    },
+    cardRow: { flexDirection: "row", alignItems: "flex-start", gap: 12 },
+    cardIconBox: {
+      width: 38, height: 38, borderRadius: 11,
+      alignItems: "center", justifyContent: "center",
+      flexShrink: 0, marginTop: 1,
+    },
     cardBody: { flex: 1 },
-    cardTitle: { color: c.textSub, fontWeight: "600", fontSize: 14, marginBottom: 4 },
-    cardMessage: { color: c.textMuted, fontSize: 13, lineHeight: 18 },
-    cardDate: { color: c.textDim, fontSize: 11, marginTop: 6 },
-    unreadDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: "#22c55e", marginTop: 4 },
-    empty: { alignItems: "center", paddingTop: 40 },
-    emptyText: { color: c.textMuted, fontSize: 16, fontWeight: "500" },
-    emptySubtext: { color: c.textDim, fontSize: 13, textAlign: "center", marginTop: 8, paddingHorizontal: 24 },
-    // Modal
-    modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "flex-end" },
-    modalCard: { borderTopLeftRadius: 20, borderTopRightRadius: 20, borderWidth: 1, padding: 20 },
+    cardTitle: { color: c.textSub, fontWeight: "600", fontSize: 14, marginBottom: 4, lineHeight: 20 },
+    cardMessage: { color: c.textMuted, fontSize: 13, lineHeight: 19 },
+    cardDate: { color: c.textDim, fontSize: 10, marginTop: 7, letterSpacing: 0.2 },
+    unreadDot: {
+      width: 9, height: 9, borderRadius: 5,
+      backgroundColor: c.accentLight, marginTop: 5, flexShrink: 0,
+      shadowColor: c.accentLight, shadowOpacity: 0.8, shadowRadius: 4, shadowOffset: { width: 0, height: 0 },
+    },
+
+    // Empty state
+    empty: { alignItems: "center", paddingTop: 56, paddingHorizontal: 32 },
+    emptyText: { color: c.textMuted, fontSize: 17, fontWeight: "700", letterSpacing: -0.3, marginTop: 16 },
+    emptySubtext: { color: c.textDim, fontSize: 13, textAlign: "center", marginTop: 8, lineHeight: 20 },
+
+    // Alert modal
+    modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.65)", justifyContent: "flex-end" },
+    modalCard: {
+      borderTopLeftRadius: 24, borderTopRightRadius: 24,
+      borderWidth: 1, borderBottomWidth: 0,
+      padding: 22, paddingTop: 14,
+    },
+    modalHandle: { width: 36, height: 4, borderRadius: 2, backgroundColor: c.borderStrong, alignSelf: "center", marginBottom: 18 },
     modalHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 16 },
-    modalTitle: { fontSize: 15, fontWeight: "700", flex: 1 },
+    modalTitle: { fontSize: 15, fontWeight: "700", flex: 1, letterSpacing: -0.2 },
   });
 }

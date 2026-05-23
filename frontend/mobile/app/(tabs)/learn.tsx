@@ -184,8 +184,8 @@ export default function LearnScreen() {
               ]}
               onPress={() => setSelectedCat(cat.id)}
             >
-              <Ionicons name={cat.icon} size={15} color={active ? "white" : colors.textSub} />
-              <Text style={[s.catText, { color: active ? "white" : colors.textSub }]}>
+              <Ionicons name={cat.icon} size={14} color={active ? colors.accentLight : colors.textSub} />
+              <Text style={[s.catText, { color: active ? colors.accentLight : colors.textSub }]}>
                 {cat.title}
               </Text>
             </TouchableOpacity>
@@ -213,16 +213,21 @@ export default function LearnScreen() {
           <TouchableOpacity
             style={[s.topicCard, { backgroundColor: colors.card, borderColor: colors.border }]}
             onPress={() => openTopic(item.title, item.prompt)}
+            activeOpacity={0.75}
           >
             {COMPANY_LOGOS[item.id] ? (
               <Image source={{ uri: COMPANY_LOGOS[item.id] }} style={s.companyLogo} resizeMode="contain" />
             ) : (
-              <Ionicons name={item.icon} size={26} color={colors.accentLight} style={{ marginBottom: 6 }} />
+              <View style={[s.topicIconBox, { backgroundColor: colors.accentLight + "15" }]}>
+                <Ionicons name={item.icon} size={20} color={colors.accentLight} />
+              </View>
             )}
             <Text style={[s.topicTitle, { color: colors.text }]}>{item.title}</Text>
-            <Text style={[s.topicCat, { color: colors.textDim }]}>
-              {CATEGORIES.find((c) => c.id === item.category)?.title}
-            </Text>
+            <View style={[s.topicCatPill, { backgroundColor: colors.border }]}>
+              <Text style={[s.topicCat, { color: colors.textMuted }]}>
+                {CATEGORIES.find((c) => c.id === item.category)?.title}
+              </Text>
+            </View>
           </TouchableOpacity>
         )}
       />
@@ -248,7 +253,7 @@ export default function LearnScreen() {
                 <Markdown style={markdownStyles}>{content}</Markdown>
               ) : (
                 <View style={s.loadingState}>
-                  <ActivityIndicator color="#22c55e" size="large" />
+                  <ActivityIndicator color={colors.accentLight} size="large" />
                   <Text style={[s.loadingText, { color: colors.textMuted }]}>La IA está preparando la explicación...</Text>
                 </View>
               )}
@@ -268,69 +273,95 @@ export default function LearnScreen() {
 function makeStyles(c: Colors) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: c.bg },
+
+    // Search
     searchBar: {
-      flexDirection: "row", alignItems: "center",
-      marginHorizontal: 16, marginTop: 12, marginBottom: 8,
-      borderRadius: 12, borderWidth: 1, paddingHorizontal: 12, paddingVertical: 8,
+      flexDirection: "row", alignItems: "center", gap: 10,
+      marginHorizontal: 14, marginTop: 14, marginBottom: 10,
+      borderRadius: 16, borderWidth: 1,
+      paddingHorizontal: 14, paddingVertical: 11,
     },
-    searchInput: { flex: 1, fontSize: 14, paddingVertical: 2 },
-    searchBtn: { backgroundColor: "#16a34a", borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5 },
-    searchBtnText: { color: "white", fontSize: 12, fontWeight: "600" },
-    catsScroll: { flexShrink: 0, marginBottom: 2 },
-    catsContent: { paddingHorizontal: 12, gap: 8, flexDirection: "row", paddingVertical: 2 },
+    searchInput: { flex: 1, fontSize: 14, paddingVertical: 0 },
+    searchBtn: {
+      backgroundColor: c.accent, borderRadius: 10,
+      paddingHorizontal: 12, paddingVertical: 7,
+    },
+    searchBtnText: { color: "white", fontSize: 12, fontWeight: "700", letterSpacing: 0.2 },
+
+    // Categories
+    catsScroll: { flexShrink: 0 },
+    catsContent: { paddingHorizontal: 12, gap: 7, flexDirection: "row", paddingVertical: 6 },
     catChip: {
       flexDirection: "row", alignItems: "center", gap: 6,
-      borderRadius: 20, borderWidth: 1, paddingHorizontal: 14,
-      height: 38, flexShrink: 0,
+      borderRadius: 20, borderWidth: 1,
+      paddingHorizontal: 13, height: 36, flexShrink: 0,
     },
-    catChipActive: { borderColor: "#16a34a", backgroundColor: "#16a34a" },
+    catChipActive: { borderColor: c.accentLight, backgroundColor: c.accentLight + "18" },
     catText: { fontSize: 13, fontWeight: "600" },
-    grid: { padding: 12, paddingTop: 6, paddingBottom: 32 },
+
+    // Topic grid
+    grid: { padding: 12, paddingTop: 6, paddingBottom: 40 },
     gridRow: { gap: 10 },
     topicCard: {
-      flex: 1, borderRadius: 14, borderWidth: 1,
-      padding: 14, marginBottom: 10, minHeight: 100,
+      flex: 1, borderRadius: 16, borderWidth: 1,
+      padding: 14, marginBottom: 10, minHeight: 105,
     },
-    topicEmoji: { fontSize: 28, marginBottom: 6 },
-    companyLogo: { width: 36, height: 36, marginBottom: 6, borderRadius: 8 },
-    topicTitle: { fontSize: 13, fontWeight: "700", marginBottom: 3 },
-    topicCat: { fontSize: 10 },
-    emptyState: { alignItems: "center", paddingTop: 60 },
-    emptyTitle: { fontSize: 16, fontWeight: "600", marginBottom: 6 },
-    emptyDesc: { fontSize: 13, textAlign: "center", paddingHorizontal: 32 },
-    // Modal
+    topicIconBox: {
+      width: 40, height: 40, borderRadius: 12,
+      alignItems: "center", justifyContent: "center", marginBottom: 10,
+    },
+    topicEmoji: { fontSize: 26, marginBottom: 8 },
+    companyLogo: { width: 38, height: 38, marginBottom: 8, borderRadius: 9 },
+    topicTitle: { fontSize: 13, fontWeight: "700", marginBottom: 4, letterSpacing: -0.1 },
+    topicCatPill: {
+      alignSelf: "flex-start",
+      borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2,
+    },
+    topicCat: { fontSize: 9, fontWeight: "600", letterSpacing: 0.3 },
+
+    // Empty
+    emptyState: { alignItems: "center", paddingTop: 60, paddingHorizontal: 32 },
+    emptyTitle: { fontSize: 16, fontWeight: "700", marginBottom: 8, letterSpacing: -0.2 },
+    emptyDesc: { fontSize: 13, textAlign: "center", lineHeight: 20 },
+
+    // Learn modal
     modalContainer: { flex: 1 },
     modalHeader: {
       flexDirection: "row", alignItems: "center", justifyContent: "space-between",
-      paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1,
+      paddingHorizontal: 16, paddingVertical: 13,
+      borderBottomWidth: StyleSheet.hairlineWidth,
     },
-    closeBtn: { width: 32, height: 32, alignItems: "center", justifyContent: "center" },
-    modalTitle: { fontSize: 16, fontWeight: "700", flex: 1, textAlign: "center" },
-    modalContent: { padding: 20, paddingBottom: 40 },
-    loadingState: { alignItems: "center", paddingTop: 60, gap: 16 },
+    closeBtn: {
+      width: 32, height: 32, borderRadius: 16,
+      alignItems: "center", justifyContent: "center",
+    },
+    modalTitle: { fontSize: 16, fontWeight: "700", flex: 1, textAlign: "center", letterSpacing: -0.2 },
+    modalContent: { padding: 20, paddingBottom: 48 },
+    loadingState: { alignItems: "center", paddingTop: 72, gap: 16 },
     loadingText: { fontSize: 14 },
   });
 }
 
 function makeMarkdownStyles(c: Colors) {
   return {
-    body: { color: c.textSub, fontSize: 15, lineHeight: 24 },
-    heading1: { color: c.text, fontSize: 20, fontWeight: "700" as const, marginTop: 16, marginBottom: 8 },
-    heading2: { color: c.text, fontSize: 17, fontWeight: "700" as const, marginTop: 14, marginBottom: 6 },
-    heading3: { color: c.textSub, fontSize: 15, fontWeight: "600" as const, marginTop: 10, marginBottom: 4 },
+    body: { color: c.textSub, fontSize: 15, lineHeight: 25 },
+    heading1: { color: c.text, fontSize: 21, fontWeight: "800" as const, letterSpacing: -0.4, marginTop: 18, marginBottom: 8, paddingBottom: 6, borderBottomWidth: 1.5, borderBottomColor: c.accentLight },
+    heading2: { color: c.text, fontSize: 17, fontWeight: "700" as const, letterSpacing: -0.2, marginTop: 16, marginBottom: 6 },
+    heading3: { color: c.accentLight, fontSize: 13, fontWeight: "700" as const, letterSpacing: 0.5, textTransform: "uppercase" as const, marginTop: 12, marginBottom: 5 },
     strong: { color: c.text, fontWeight: "700" as const },
+    em: { color: c.accentLight, fontStyle: "italic" as const },
     bullet_list: { marginVertical: 6 },
     ordered_list: { marginVertical: 6 },
-    list_item: { color: c.textSub, fontSize: 15, lineHeight: 24 },
-    code_inline: { backgroundColor: c.card, color: "#22c55e", borderRadius: 4, fontSize: 13 },
-    fence: { backgroundColor: c.card, borderRadius: 8, padding: 12, marginVertical: 8 },
-    code_block: { color: "#22c55e", fontSize: 13 },
-    blockquote: { borderLeftWidth: 3, borderLeftColor: "#22c55e", paddingLeft: 12, marginVertical: 6 },
-    table: { borderWidth: 1, borderColor: c.border, borderRadius: 6, marginVertical: 8 },
-    thead: { backgroundColor: "#16a34a" },
-    th: { color: "white", fontWeight: "700" as const, padding: 8, fontSize: 13 },
-    td: { color: c.textSub, padding: 8, fontSize: 13, borderTopWidth: 1, borderTopColor: c.border },
-    hr: { borderColor: c.border, marginVertical: 12 },
-    link: { color: "#22c55e" },
+    list_item: { color: c.textSub, fontSize: 15, lineHeight: 24, marginVertical: 2 },
+    code_inline: { backgroundColor: c.accentLight + "1a", color: c.accentLight, borderRadius: 5, paddingHorizontal: 5, fontSize: 13, fontWeight: "600" as const },
+    fence: { backgroundColor: c.bgRaised ?? c.card, borderRadius: 12, padding: 14, marginVertical: 8, borderWidth: 1, borderColor: c.border },
+    code_block: { color: c.accentLight, fontSize: 13, fontFamily: "monospace" as const },
+    blockquote: { borderLeftWidth: 3, borderLeftColor: c.accentLight, backgroundColor: c.accentLight + "0d", paddingLeft: 12, paddingVertical: 8, marginVertical: 8, borderRadius: 4 },
+    table: { borderWidth: 1, borderColor: c.border, borderRadius: 10, marginVertical: 8, overflow: "hidden" as const },
+    thead: { backgroundColor: c.accent + "33" },
+    th: { color: c.accentLight, fontWeight: "700" as const, padding: 9, fontSize: 12, letterSpacing: 0.4 },
+    td: { color: c.textSub, padding: 9, fontSize: 13, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.border },
+    hr: { borderColor: c.border, marginVertical: 14 },
+    link: { color: c.accentLight, textDecorationLine: "underline" as const },
   };
 }

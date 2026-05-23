@@ -348,13 +348,13 @@ function makeStyles(c: Colors) {
     riskLabel: { fontSize: 15, fontWeight: "700", marginBottom: 4 },
     riskDesc: { fontSize: 12, lineHeight: 17 },
     // Data rows
-    dataCard: { borderRadius: 14, borderWidth: 1, overflow: "hidden" },
-    dataRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: 11, paddingHorizontal: 14, borderTopWidth: 1 },
-    dataLabel: { fontSize: 12, fontWeight: "500" },
-    dataValue: { fontSize: 13, fontWeight: "600" },
+    dataCard: { borderRadius: 16, borderWidth: 1, overflow: "hidden" },
+    dataRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: 13, paddingHorizontal: 16, borderTopWidth: StyleSheet.hairlineWidth },
+    dataLabel: { fontSize: 12, fontWeight: "500", letterSpacing: 0.1 },
+    dataValue: { fontSize: 13, fontWeight: "700" },
     quizRight: { flexDirection: "row", alignItems: "center", gap: 8, flex: 1, justifyContent: "flex-end" },
-    answerBadge: { width: 22, height: 22, borderRadius: 11, backgroundColor: "#22c55e", alignItems: "center", justifyContent: "center" },
-    answerBadgeText: { color: "white", fontSize: 11, fontWeight: "700" },
+    answerBadge: { width: 24, height: 24, borderRadius: 12, alignItems: "center", justifyContent: "center" },
+    answerBadgeText: { color: "white", fontSize: 11, fontWeight: "800" },
     // Share button (inside header card, flush footer)
     shareBtn: {
       flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7,
