@@ -5,6 +5,7 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
+import { profileApi } from "../../src/lib/api";
 import { useTheme, Colors } from "../../src/lib/ThemeContext";
 import {
   useAppStore, RISK_CONFIG, calculateRisk, getAge, formatBirthDate,
@@ -389,10 +390,10 @@ export default function OnboardingScreen() {
   const current = steps[step];
   const isLastStep = step === steps.length - 1;
 
-  const handleNext = () => {
+  const handleNext = async () => {
     if (!isLastStep) { setStep(step + 1); return; }
     const qa = quizAnswers as QuizAnswers;
-    setProfile({
+    const profileData = {
       name: form.name.trim(),
       birth_date: form.birth_date,
       monthly_income: form.monthly_income,
@@ -400,7 +401,10 @@ export default function OnboardingScreen() {
       risk_tolerance: calculated,
       quiz_answers: qa,
       mentor: form.mentor === "none" || !form.mentor.trim() ? null : form.mentor.trim(),
-    });
+    };
+    setProfile(profileData);
+    // Persist to backend (best-effort — don't block navigation if it fails)
+    profileApi.create(profileData as Record<string, unknown>).catch(() => {});
     router.replace("/(tabs)/chat");
   };
 

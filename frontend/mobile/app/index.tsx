@@ -8,10 +8,13 @@ import { router } from "expo-router";
 import * as SecureStore from "expo-secure-store";
 import { authApi, profileApi } from "../src/lib/api";
 import { useTheme, Colors } from "../src/lib/ThemeContext";
+import { useAppStore } from "../src/lib/profileStore";
+import type { UserProfile } from "../src/lib/profileStore";
 
 export default function AuthScreen() {
   const { colors, isDark, toggle } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
+  const setProfile = useAppStore((s) => s.setProfile);
 
   const [mode, setMode] = useState<"login" | "register">("login");
   const [email, setEmail] = useState("");
@@ -19,22 +22,32 @@ export default function AuthScreen() {
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async () => {
-    if (!email || !password) return;
+    if (!email.trim() || !password) return;
     setLoading(true);
     try {
       const fn = mode === "login" ? authApi.login : authApi.register;
-      const res = await fn(email, password);
+      const res = await fn(email.trim().toLowerCase(), password);
       await SecureStore.setItemAsync("access_token", res.data.access_token);
       await SecureStore.setItemAsync("user_id", res.data.user_id);
       try {
-        await profileApi.get();
+        const profileRes = await profileApi.get();
+        const p = profileRes.data as UserProfile;
+        setProfile({
+          name: p.name,
+          birth_date: p.birth_date,
+          monthly_income: p.monthly_income,
+          monthly_contribution: p.monthly_contribution,
+          risk_tolerance: p.risk_tolerance as UserProfile["risk_tolerance"],
+          quiz_answers: p.quiz_answers as UserProfile["quiz_answers"],
+          mentor: p.mentor ?? null,
+        });
         router.replace("/(tabs)/chat");
       } catch {
         router.replace("/onboarding");
       }
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
-      Alert.alert("Error", msg || "Credenciales inválidas");
+      Alert.alert("Error", msg || (mode === "login" ? "Credenciales inválidas" : "No se pudo crear la cuenta"));
     } finally {
       setLoading(false);
     }
