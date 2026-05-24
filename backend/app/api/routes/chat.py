@@ -64,17 +64,6 @@ async def chat_stream(
         ):
             yield chunk
 
-    try:
-        db = get_supabase()
-        if profile:
-            from datetime import datetime
-            db.table("user_profiles").update({
-                "interaction_count": profile.interaction_count + 1,
-                "updated_at": datetime.utcnow().isoformat()
-            }).eq("user_id", user_id).execute()
-    except Exception:
-        pass
-
     return StreamingResponse(generate(), media_type="text/plain")
 
 
