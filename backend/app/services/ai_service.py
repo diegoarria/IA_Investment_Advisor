@@ -314,47 +314,51 @@ Ejemplo válido: <!-- BSCORE: {"s":32,"p":"conservative","sig":["pánico_venta",
 
 
 def build_profile_context(profile: UserProfile) -> str:
-    goals_map = {
-        "capital_preservation": "preservación de capital",
-        "income": "generación de ingresos",
-        "growth": "crecimiento",
-        "aggressive_growth": "crecimiento agresivo",
-        "retirement": "retiro/jubilación"
-    }
-    goals_str = ", ".join([goals_map.get(g, g) for g in profile.investment_goals])
+    from datetime import datetime as _dt
 
-    experience_map = {
-        "beginner": "principiante (conceptos básicos, usa analogías simples)",
-        "intermediate": "intermedio (entiende métricas básicas, puede manejar comparaciones sectoriales)",
-        "advanced": "avanzado (familiarizado con ratios financieros y análisis técnico)"
-    }
+    age_str = "No especificada"
+    try:
+        if profile.birth_date:
+            birth = _dt.strptime(profile.birth_date[:10], "%Y-%m-%d")
+            age_str = f"{(_dt.now() - birth).days // 365} años"
+    except Exception:
+        age_str = profile.birth_date or "No especificada"
 
     risk_map = {
-        "conservative": "conservador (prioriza estabilidad sobre crecimiento)",
-        "moderate": "moderado (balance entre crecimiento y estabilidad)",
-        "aggressive": "agresivo (acepta alta volatilidad por mayor potencial de retorno)"
+        "conservative":           "conservador (prioriza estabilidad, evita volatilidad)",
+        "conservative_moderate":  "conservador-moderado",
+        "moderate":               "moderado (balance crecimiento/estabilidad)",
+        "moderate_growth":        "moderado-growth",
+        "growth":                 "growth",
+        "aggressive":             "agresivo (acepta alta volatilidad)",
+        "aggressive_speculative": "agresivo-especulativo",
+        "speculative":            "especulativo (máxima tolerancia al riesgo)",
     }
 
-    weak_areas = ""
-    if profile.weak_areas:
-        weak_areas = f"\n- Áreas a reforzar: {', '.join(profile.weak_areas)}"
+    try:
+        income = f"${float(profile.monthly_income):,.0f}/mes"
+    except Exception:
+        income = profile.monthly_income or "No especificado"
 
-    learned = ""
-    if profile.learned_concepts:
-        learned = f"\n- Ya entiende: {', '.join(profile.learned_concepts[-5:])}"
+    try:
+        contrib = f"${float(profile.monthly_contribution):,.0f}/mes"
+    except Exception:
+        contrib = profile.monthly_contribution or "No especificado"
+
+    quiz_extra = ""
+    if profile.quiz_answers:
+        try:
+            quiz_extra = f"\n- Datos del cuestionario: {json.dumps(profile.quiz_answers, ensure_ascii=False)}"
+        except Exception:
+            pass
 
     return f"""
 ## PERFIL DEL USUARIO ACTUAL:
-- Edad: {profile.age} años
-- Ingresos mensuales: ${profile.monthly_income:,.0f}
-- Tolerancia al riesgo: {risk_map.get(profile.risk_tolerance, profile.risk_tolerance)}
-- Experiencia: {experience_map.get(profile.investment_experience, profile.investment_experience)}
-- Horizonte de inversión: {profile.time_horizon_years} años
-- Objetivos: {goals_str}
-- Capital inicial disponible: {f'${profile.initial_capital:,.0f}' if profile.initial_capital else 'No especificado'}
-- Ahorro mensual: {f'${profile.monthly_savings:,.0f}' if profile.monthly_savings else 'No especificado'}
-- Preocupaciones financieras: {profile.financial_concerns or 'No especificadas'}
-- Interacciones previas: {profile.interaction_count}{weak_areas}{learned}
+- Nombre: {profile.name or 'No especificado'}
+- Edad: {age_str}
+- Ingresos mensuales: {income}
+- Contribución mensual: {contrib}
+- Tolerancia al riesgo: {risk_map.get(profile.risk_tolerance, profile.risk_tolerance)}{quiz_extra}
 
 ADAPTA TODO tu análisis a este perfil específico."""
 
