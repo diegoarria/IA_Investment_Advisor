@@ -7,10 +7,11 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useHeaderHeight } from "@react-navigation/elements";
 import { Ionicons } from "@expo/vector-icons";
 import Markdown from "react-native-markdown-display";
-import { chatApi } from "../../src/lib/api";
+import { chatApi, marketApi } from "../../src/lib/api";
 import { useTheme, Colors } from "../../src/lib/ThemeContext";
 import { useAppStore, RISK_CONFIG, getAge } from "../../src/lib/profileStore";
 import { useChatStore, Message, BehavioralDiagnosis } from "../../src/lib/chatStore";
+import { usePortfolioStore } from "../../src/lib/portfolioStore";
 import StockChart from "../../src/components/StockChart";
 import { getMentorInfo } from "../../src/lib/mentorData";
 
@@ -81,17 +82,33 @@ export default function ChatScreen() {
   const { currentId, currentMessages, setMessages, createSession, currentDiagnosis, setDiagnosis } = useChatStore();
   const messages = currentMessages();
   const diagnosis = currentDiagnosis();
-
+  const positions = usePortfolioStore((s) => s.positions);
 
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
   const [lastTicker, setLastTicker] = useState<string | null>(null);
+  const [livePrices, setLivePrices] = useState<Record<string, number>>({});
   const listRef = useRef<FlatList>(null);
 
   // Ensure there's always an active session
   useEffect(() => {
     if (!currentId) createSession();
   }, []);
+
+  // Fetch live prices for portfolio positions
+  useEffect(() => {
+    if (positions.length === 0) return;
+    const tickers = positions.map((p) => p.ticker);
+    marketApi.getPrices(tickers)
+      .then((res) => {
+        const prices: Record<string, number> = {};
+        for (const item of res.data?.prices ?? []) {
+          if (item.ticker && item.price) prices[item.ticker] = item.price;
+        }
+        setLivePrices(prices);
+      })
+      .catch(() => {});
+  }, [positions.length]);
 
   const handleNewChat = () => {
     if (streaming) return;
@@ -120,6 +137,36 @@ export default function ChatScreen() {
       ? "Declaró apetito especulativo máximo — si entra en pánico con volatilidad normal, es contradicción"
       : "";
 
+    // Portfolio block
+    let portfolioBlock = "\n\n[PORTAFOLIO REAL DEL USUARIO]";
+    if (positions.length === 0) {
+      portfolioBlock += "\nEl usuario aún no tiene posiciones registradas en su portafolio.";
+    } else {
+      let totalInvested = 0;
+      let totalCurrent = 0;
+      const posLines: { p: typeof positions[0]; invested: number; current: number; currentPrice: number }[] = [];
+      for (const p of positions) {
+        const invested = p.shares * p.avgPrice;
+        const currentPrice = livePrices[p.ticker] ?? p.avgPrice;
+        const current = p.shares * currentPrice;
+        totalInvested += invested;
+        totalCurrent += current;
+        posLines.push({ p, invested, current, currentPrice });
+      }
+      portfolioBlock += `\nCapital invertido: $${totalInvested.toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
+      portfolioBlock += `\nValor actual: $${totalCurrent.toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
+      const totalPnl = totalInvested > 0 ? ((totalCurrent - totalInvested) / totalInvested * 100) : 0;
+      portfolioBlock += ` (${totalPnl >= 0 ? "+" : ""}${totalPnl.toFixed(1)}% total)`;
+      portfolioBlock += `\n\nPosiciones (${positions.length}):`;
+      for (const { p, invested, current, currentPrice } of posLines as any[]) {
+        const weight = totalCurrent > 0 ? (current / totalCurrent * 100) : 0;
+        const pnl = invested > 0 ? ((current - invested) / invested * 100) : 0;
+        const hasLive = !!livePrices[p.ticker];
+        portfolioBlock += `\n- ${p.ticker}${p.name ? ` (${p.name})` : ""}: ${p.shares} acc × $${p.avgPrice.toFixed(2)} compra${hasLive ? ` | Precio actual: $${currentPrice.toFixed(2)} | P&L: ${pnl >= 0 ? "+" : ""}${pnl.toFixed(1)}%` : ""} | Peso: ${weight.toFixed(1)}%`;
+      }
+      portfolioBlock += `\n\nUsa este portafolio para contextualizar cualquier pregunta del usuario. Analiza concentración, diversificación, correlaciones entre posiciones y cómo cada posición encaja con su perfil de riesgo. NO recomiendes comprar ni vender activos específicos — guía con análisis educativo y preguntas que ayuden al usuario a pensar por sí mismo.`;
+    }
+
     return `[PERFIL DEL USUARIO — usa esta información para PERSONALIZAR y DETECTAR CONTRADICCIONES]
 Nombre: ${profile.name}
 Edad: ${getAge(profile.birth_date)} años
@@ -133,7 +180,7 @@ Diagnóstico de inversor (respuestas del cuestionario inicial):
 - Nivel de conocimiento: ${qa ? q3Labels[qa.q3] : "no disponible"}
 - Tolerancia al riesgo con dinero real: ${qa ? q4Labels[qa.q4] : "no disponible"}
 - Estilo de gestión: ${qa ? q5Labels[qa.q5] : "no disponible"}
-${panicFlag ? `\n⚠️ ${panicFlag}` : ""}${speculationFlag ? `\n⚠️ ${speculationFlag}` : ""}
+${panicFlag ? `\n⚠️ ${panicFlag}` : ""}${speculationFlag ? `\n⚠️ ${speculationFlag}` : ""}${portfolioBlock}
 
 Instrucciones críticas:
 1. Llama siempre a este usuario por su nombre (${profile.name.split(" ")[0]}).

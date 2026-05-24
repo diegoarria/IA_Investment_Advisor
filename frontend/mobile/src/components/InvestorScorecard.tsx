@@ -20,6 +20,24 @@ const Q5_LABELS: Record<string, string> = {
   A: "Pasivo / automático", B: "Revisión mensual", C: "Revisión semanal", D: "Gestión diaria activa",
 };
 
+function SegmentBar({ pct, color }: { pct: number; color: string }) {
+  const filled = Math.round(pct / 10);
+  return (
+    <View style={{ flexDirection: "row", gap: 3, marginTop: 8 }}>
+      {Array.from({ length: 10 }).map((_, i) => (
+        <View
+          key={i}
+          style={{
+            flex: 1, height: 4, borderRadius: 2,
+            backgroundColor: i < filled ? color : "#162032",
+            opacity: i < filled ? 1 : 1,
+          }}
+        />
+      ))}
+    </View>
+  );
+}
+
 export default function InvestorScorecard() {
   const { profile, maturityScore, maturityHistory } = useAppStore();
   if (!profile) return null;
@@ -27,127 +45,134 @@ export default function InvestorScorecard() {
   const riskCfg = RISK_CONFIG[profile.risk_tolerance];
   const riskPct = Math.round(riskCfg.pct * 100);
   const ml = maturityLabel(maturityScore);
-  const recent = maturityHistory.slice(-10);
-  const trend = recent.reduce((acc, e) => acc + e.delta, 0);
+  const trend = maturityHistory.slice(-10).reduce((acc, e) => acc + e.delta, 0);
   const mentor = getMentorInfo(profile.mentor);
   const mentorPhoto = mentor ? MENTOR_PHOTOS[mentor.id] : null;
   const qa = profile.quiz_answers;
 
+  const riskCaption =
+    riskPct < 40 ? "Preserva capital" :
+    riskPct < 65 ? "Crecimiento balanceado" :
+    "Máximo crecimiento";
+
   return (
     <View style={styles.card}>
-      {/* Top accent stripe */}
+      {/* Colored top stripe */}
       <View style={[styles.topStripe, { backgroundColor: riskCfg.color }]} />
+      {/* Soft glow behind hero area */}
+      <View style={[styles.topGlow, { backgroundColor: riskCfg.color + "14" }]} />
 
-      {/* Branding */}
+      {/* ── Brand row ── */}
       <View style={styles.brandRow}>
-        <View style={styles.brandIcon}>
-          <Ionicons name="trending-up" size={10} color="white" />
+        <View style={[styles.logoBox, { borderColor: riskCfg.color + "55", backgroundColor: riskCfg.color + "14" }]}>
+          <Ionicons name="trending-up" size={11} color={riskCfg.color} />
         </View>
-        <Text style={styles.brandText}>IA INVESTMENT ADVISOR</Text>
+        <Text style={styles.brandName}>Nuvo</Text>
+        <View style={[styles.profileTag, { borderColor: riskCfg.color + "50", backgroundColor: riskCfg.color + "14" }]}>
+          <Text style={[styles.profileTagText, { color: riskCfg.color }]}>INVESTOR PROFILE</Text>
+        </View>
       </View>
 
-      {/* Hero: avatar + name + risk badge */}
-      <View style={styles.heroRow}>
-        <View style={[styles.avatarRing, { borderColor: riskCfg.color + "55" }]}>
+      {/* ── Hero ── */}
+      <View style={styles.hero}>
+        <View style={[styles.avatarRing, { borderColor: riskCfg.color + "70" }]}>
           <View style={[styles.avatarInner, { backgroundColor: riskCfg.color }]}>
             <Text style={styles.avatarLetter}>{profile.name.charAt(0).toUpperCase()}</Text>
           </View>
         </View>
-        <View style={styles.heroInfo}>
-          <Text style={styles.heroName}>{profile.name}</Text>
-          <View style={[styles.riskPill, { backgroundColor: riskCfg.color + "1A", borderColor: riskCfg.color + "55" }]}>
+        <View style={styles.heroText}>
+          <Text style={styles.heroName} numberOfLines={1}>{profile.name}</Text>
+          <View style={[styles.riskPill, { backgroundColor: riskCfg.color + "1E", borderColor: riskCfg.color + "55" }]}>
             <Ionicons name={riskCfg.icon} size={10} color={riskCfg.color} />
             <Text style={[styles.riskPillText, { color: riskCfg.color }]}>{riskCfg.label}</Text>
           </View>
         </View>
       </View>
 
-      {/* ── Risk bar ── */}
-      <View style={styles.block}>
-        <View style={styles.blockHeader}>
-          <Text style={styles.blockLabel}>PERFIL DE RIESGO</Text>
-          <Text style={[styles.blockValue, { color: riskCfg.color }]}>{riskPct}%</Text>
-        </View>
-        <View style={styles.track}>
-          <View style={[styles.trackFill, { width: `${riskPct}%` as any, backgroundColor: riskCfg.color }]} />
-        </View>
-        <View style={styles.trackEndLabels}>
-          <Text style={styles.trackEndText}>Conservador</Text>
-          <Text style={styles.trackEndText}>Agresivo</Text>
-        </View>
-      </View>
-
-      {/* ── Maturity ── */}
-      <View style={[styles.block, styles.divider]}>
-        <View style={styles.blockHeader}>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
-            <Ionicons name="trophy-outline" size={10} color={ml.color} />
-            <Text style={styles.blockLabel}>MADUREZ INVERSORA</Text>
+      {/* ── Stats 2-column grid ── */}
+      <View style={[styles.row, styles.divider]}>
+        {/* Maturity */}
+        <View style={[styles.statCard, { borderColor: ml.color + "35", backgroundColor: ml.color + "0A" }]}>
+          <Text style={styles.statLabel}>MADUREZ</Text>
+          <View style={styles.statNumRow}>
+            <Text style={[styles.statBig, { color: ml.color }]}>{maturityScore}</Text>
+            <Text style={[styles.statSuffix, { color: ml.color + "80" }]}>/100</Text>
           </View>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+          <SegmentBar pct={maturityScore} color={ml.color} />
+          <View style={styles.statFootRow}>
+            <Text style={[styles.statCaption, { color: ml.color + "CC" }]}>{ml.label}</Text>
             {trend !== 0 && (
-              <Text style={[styles.trendLabel, { color: trend > 0 ? "#22c55e" : "#ef4444" }]}>
-                {trend > 0 ? `+${trend}` : trend} pts
+              <Text style={[styles.trendText, { color: trend > 0 ? "#22c55e" : "#ef4444" }]}>
+                {trend > 0 ? `↑+${trend}` : `↓${trend}`}
               </Text>
             )}
-            <View style={[styles.levelPill, { backgroundColor: ml.color + "1A", borderColor: ml.color + "55" }]}>
-              <Text style={[styles.levelPillText, { color: ml.color }]}>{ml.label}</Text>
-            </View>
           </View>
         </View>
-        <View style={styles.maturityScoreRow}>
-          <Text style={[styles.maturityNum, { color: ml.color }]}>{maturityScore}</Text>
-          <Text style={styles.maturityDen}>/100</Text>
-        </View>
-        <View style={styles.track}>
-          <View style={[styles.trackFill, { width: `${maturityScore}%` as any, backgroundColor: ml.color }]} />
+
+        {/* Risk */}
+        <View style={[styles.statCard, { borderColor: riskCfg.color + "35", backgroundColor: riskCfg.color + "0A" }]}>
+          <Text style={styles.statLabel}>RIESGO</Text>
+          <View style={styles.statNumRow}>
+            <Text style={[styles.statBig, { color: riskCfg.color }]}>{riskPct}</Text>
+            <Text style={[styles.statSuffix, { color: riskCfg.color + "80" }]}>%</Text>
+          </View>
+          <SegmentBar pct={riskPct} color={riskCfg.color} />
+          <View style={styles.statFootRow}>
+            <Text style={[styles.statCaption, { color: riskCfg.color + "CC" }]}>{riskCaption}</Text>
+          </View>
         </View>
       </View>
 
-      {/* ── Mentor ── */}
-      {mentor && (
-        <View style={[styles.block, styles.divider]}>
-          <View style={[styles.mentorRow, { borderLeftColor: mentor.color, backgroundColor: mentor.color + "0D" }]}>
-            {mentorPhoto ? (
-              <Image source={mentorPhoto} style={styles.mentorPhoto} />
-            ) : (
-              <View style={[styles.mentorEmojiBox, { backgroundColor: mentor.color + "22" }]}>
-                <Text style={{ fontSize: 18 }}>{mentor.emoji}</Text>
-              </View>
-            )}
-            <View style={{ flex: 1 }}>
-              <Text style={[styles.mentorName, { color: mentor.color }]}>{mentor.name}</Text>
-              <Text style={styles.mentorSub}>{mentor.badge}</Text>
-            </View>
-          </View>
-        </View>
-      )}
-
-      {/* ── Psychology ── */}
+      {/* ── Psicología inversora ── */}
       {qa && (
-        <View style={[styles.block, styles.divider]}>
-          <Text style={[styles.blockLabel, { marginBottom: 9 }]}>PERFIL PSICOLÓGICO</Text>
+        <View style={[styles.section, styles.divider]}>
+          <Text style={styles.sectionTitle}>PSICOLOGÍA INVERSORA</Text>
           {[
-            { key: "MENTALIDAD",     val: Q1_LABELS[qa.q1], answer: qa.q1 },
-            { key: "CONOCIMIENTO",   val: Q3_LABELS[qa.q3], answer: qa.q3 },
-            { key: "COMPORTAMIENTO", val: Q5_LABELS[qa.q5], answer: qa.q5 },
+            { key: "MENTALIDAD",      val: Q1_LABELS[qa.q1], ans: qa.q1 },
+            { key: "CONOCIMIENTO",    val: Q3_LABELS[qa.q3], ans: qa.q3 },
+            { key: "COMPORTAMIENTO",  val: Q5_LABELS[qa.q5], ans: qa.q5 },
           ].map((row) => (
-            <View key={row.key} style={styles.insightRow}>
-              <Text style={styles.insightKey}>{row.key}</Text>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                <View style={[styles.answerDot, { backgroundColor: riskCfg.color }]}>
-                  <Text style={styles.answerDotText}>{row.answer}</Text>
+            <View key={row.key} style={styles.psychRow}>
+              <Text style={styles.psychKey}>{row.key}</Text>
+              <View style={styles.psychRight}>
+                <View style={[styles.ansBadge, { backgroundColor: riskCfg.color + "22", borderColor: riskCfg.color + "55" }]}>
+                  <Text style={[styles.ansBadgeText, { color: riskCfg.color }]}>{row.ans}</Text>
                 </View>
-                <Text style={styles.insightVal}>{row.val}</Text>
+                <Text style={styles.psychVal} numberOfLines={1}>{row.val}</Text>
               </View>
             </View>
           ))}
         </View>
       )}
 
-      {/* Footer */}
+      {/* ── Mentor ── */}
+      {mentor && (
+        <View style={[styles.section, styles.divider]}>
+          <Text style={styles.sectionTitle}>MENTOR</Text>
+          <View style={[styles.mentorBox, { borderColor: mentor.color + "45", backgroundColor: mentor.color + "0D" }]}>
+            {mentorPhoto ? (
+              <Image source={mentorPhoto} style={[styles.mentorPhoto, { borderColor: mentor.color + "66" }]} />
+            ) : (
+              <View style={[styles.mentorEmoji, { backgroundColor: mentor.color + "22" }]}>
+                <Text style={{ fontSize: 22 }}>{mentor.emoji}</Text>
+              </View>
+            )}
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.mentorName, { color: mentor.color }]}>{mentor.name}</Text>
+              <Text style={styles.mentorBadge}>{mentor.badge}</Text>
+            </View>
+            <View style={[styles.mentorIconBox, { backgroundColor: mentor.color + "18" }]}>
+              <Ionicons name="school-outline" size={13} color={mentor.color} />
+            </View>
+          </View>
+        </View>
+      )}
+
+      {/* ── Footer ── */}
       <View style={styles.footer}>
-        <Text style={styles.footerText}>🤖 IA Investment Advisor · {new Date().getFullYear()}</Text>
+        <View style={[styles.footerDot, { backgroundColor: riskCfg.color }]} />
+        <Text style={styles.footerText}>nuvo.app · {new Date().getFullYear()}</Text>
+        <View style={[styles.footerDot, { backgroundColor: riskCfg.color }]} />
       </View>
     </View>
   );
@@ -155,41 +180,55 @@ export default function InvestorScorecard() {
 
 const styles = StyleSheet.create({
   card: {
-    width: 300,
-    backgroundColor: "#07090f",
-    borderRadius: 20,
+    width: 320,
+    backgroundColor: "#05080f",
+    borderRadius: 24,
     borderWidth: 1,
-    borderColor: "#131929",
+    borderColor: "#0e1825",
     overflow: "hidden",
-    padding: 20,
-  },
-  topStripe: {
-    position: "absolute",
-    top: 0, left: 0, right: 0,
-    height: 3,
+    paddingHorizontal: 20,
+    paddingBottom: 18,
   },
 
-  // Branding
-  brandRow: { flexDirection: "row", alignItems: "center", gap: 7, marginBottom: 18, marginTop: 6 },
-  brandIcon: {
-    width: 20, height: 20, borderRadius: 5, backgroundColor: "#16a34a",
+  topStripe: {
+    position: "absolute", top: 0, left: 0, right: 0, height: 2,
+  },
+  topGlow: {
+    position: "absolute", top: 0, left: 0, right: 0, height: 100,
+  },
+
+  // Brand
+  brandRow: {
+    flexDirection: "row", alignItems: "center", gap: 8,
+    paddingTop: 20, marginBottom: 18,
+  },
+  logoBox: {
+    width: 26, height: 26, borderRadius: 8, borderWidth: 1,
     alignItems: "center", justifyContent: "center",
   },
-  brandText: { color: "#2d3a4a", fontSize: 9, fontWeight: "800", letterSpacing: 1.2 },
+  brandName: {
+    color: "#e2e8f0", fontSize: 14, fontWeight: "800", letterSpacing: -0.3, flex: 1,
+  },
+  profileTag: {
+    borderWidth: 1, borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3,
+  },
+  profileTagText: {
+    fontSize: 8, fontWeight: "800", letterSpacing: 0.9,
+  },
 
   // Hero
-  heroRow: { flexDirection: "row", alignItems: "center", gap: 13, marginBottom: 18 },
+  hero: { flexDirection: "row", alignItems: "center", gap: 14, marginBottom: 2 },
   avatarRing: {
-    width: 58, height: 58, borderRadius: 29, borderWidth: 2,
+    width: 62, height: 62, borderRadius: 31, borderWidth: 2,
     alignItems: "center", justifyContent: "center",
   },
   avatarInner: {
-    width: 48, height: 48, borderRadius: 24,
+    width: 52, height: 52, borderRadius: 26,
     alignItems: "center", justifyContent: "center",
   },
-  avatarLetter: { color: "white", fontSize: 22, fontWeight: "900" },
-  heroInfo: { flex: 1, gap: 7 },
-  heroName: { color: "#f0f4f8", fontSize: 19, fontWeight: "800", letterSpacing: -0.4 },
+  avatarLetter: { color: "white", fontSize: 23, fontWeight: "900" },
+  heroText: { flex: 1, gap: 8 },
+  heroName: { color: "#f1f5f9", fontSize: 20, fontWeight: "800", letterSpacing: -0.5 },
   riskPill: {
     flexDirection: "row", alignItems: "center", gap: 5,
     alignSelf: "flex-start", borderWidth: 1, borderRadius: 20,
@@ -197,55 +236,66 @@ const styles = StyleSheet.create({
   },
   riskPillText: { fontSize: 11, fontWeight: "700" },
 
-  // Blocks
-  block: { marginBottom: 12, paddingBottom: 12 },
-  divider: { borderTopWidth: 1, borderTopColor: "#0e1520", paddingTop: 12, marginTop: 0 },
-  blockHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 9 },
-  blockLabel: { color: "#2d3d52", fontSize: 9, fontWeight: "700", textTransform: "uppercase", letterSpacing: 1 },
-  blockValue: { fontSize: 13, fontWeight: "800" },
-
-  // Track
-  track: {
-    height: 6, backgroundColor: "#111827", borderRadius: 3, overflow: "hidden",
+  // Layout helpers
+  row: { flexDirection: "row", gap: 10, paddingVertical: 16 },
+  divider: { borderTopWidth: 1, borderTopColor: "#0d1b2a" },
+  section: { paddingVertical: 14 },
+  sectionTitle: {
+    color: "#4a6070", fontSize: 9, fontWeight: "800",
+    textTransform: "uppercase", letterSpacing: 1.1, marginBottom: 10,
   },
-  trackFill: { height: "100%", borderRadius: 3 },
-  trackEndLabels: { flexDirection: "row", justifyContent: "space-between", marginTop: 5 },
-  trackEndText: { color: "#1e2d3d", fontSize: 9 },
 
-  // Maturity
-  maturityScoreRow: { flexDirection: "row", alignItems: "baseline", marginBottom: 8 },
-  maturityNum: { fontSize: 30, fontWeight: "900", lineHeight: 34 },
-  maturityDen: { color: "#1e2d3d", fontSize: 13, marginLeft: 3 },
-  trendLabel: { fontSize: 10, fontWeight: "700" },
-  levelPill: {
-    borderWidth: 1, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2,
+  // Stat cards
+  statCard: {
+    flex: 1, borderWidth: 1, borderRadius: 14, padding: 12,
   },
-  levelPillText: { fontSize: 9, fontWeight: "800" },
-
-  // Mentor
-  mentorRow: {
-    flexDirection: "row", alignItems: "center", gap: 10,
-    borderLeftWidth: 3, borderRadius: 8, padding: 9,
+  statLabel: {
+    color: "#3a5168", fontSize: 8, fontWeight: "700",
+    textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 4,
   },
-  mentorPhoto: { width: 34, height: 34, borderRadius: 17 },
-  mentorEmojiBox: { width: 34, height: 34, borderRadius: 17, alignItems: "center", justifyContent: "center" },
-  mentorName: { fontSize: 12, fontWeight: "700" },
-  mentorSub: { color: "#2d3d52", fontSize: 9, marginTop: 2 },
+  statNumRow: { flexDirection: "row", alignItems: "baseline", gap: 2 },
+  statBig: { fontSize: 30, fontWeight: "900", lineHeight: 32 },
+  statSuffix: { fontSize: 12, fontWeight: "600" },
+  statFootRow: {
+    flexDirection: "row", justifyContent: "space-between",
+    alignItems: "center", marginTop: 6,
+  },
+  statCaption: { fontSize: 9, fontWeight: "600" },
+  trendText: { fontSize: 9, fontWeight: "800" },
 
-  // Psychology
-  insightRow: {
+  // Psychology rows
+  psychRow: {
     flexDirection: "row", justifyContent: "space-between", alignItems: "center",
-    paddingVertical: 4,
+    paddingVertical: 5,
   },
-  insightKey: { color: "#1e2d3d", fontSize: 9, fontWeight: "700", letterSpacing: 0.4, width: 92 },
-  insightVal: { color: "#6b7280", fontSize: 10, fontWeight: "600" },
-  answerDot: {
-    width: 17, height: 17, borderRadius: 9,
+  psychKey: {
+    color: "#4a6070", fontSize: 8, fontWeight: "800",
+    letterSpacing: 0.4, width: 90, textTransform: "uppercase",
+  },
+  psychRight: { flexDirection: "row", alignItems: "center", gap: 7, flex: 1, justifyContent: "flex-end" },
+  ansBadge: {
+    width: 20, height: 20, borderRadius: 6, borderWidth: 1,
     alignItems: "center", justifyContent: "center",
   },
-  answerDotText: { color: "white", fontSize: 8, fontWeight: "800" },
+  ansBadgeText: { fontSize: 9, fontWeight: "900" },
+  psychVal: { color: "#6b7a90", fontSize: 10, fontWeight: "600", textAlign: "right", flex: 1 },
+
+  // Mentor
+  mentorBox: {
+    flexDirection: "row", alignItems: "center", gap: 12,
+    borderWidth: 1, borderRadius: 14, padding: 12,
+  },
+  mentorPhoto: { width: 42, height: 42, borderRadius: 21, borderWidth: 1.5 },
+  mentorEmoji: { width: 42, height: 42, borderRadius: 21, alignItems: "center", justifyContent: "center" },
+  mentorName: { fontSize: 13, fontWeight: "800" },
+  mentorBadge: { color: "#3a5168", fontSize: 9, fontWeight: "600", marginTop: 2 },
+  mentorIconBox: { width: 28, height: 28, borderRadius: 8, alignItems: "center", justifyContent: "center" },
 
   // Footer
-  footer: { alignItems: "center", paddingTop: 4 },
-  footerText: { color: "#111827", fontSize: 8 },
+  footer: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center",
+    gap: 8, paddingTop: 4,
+  },
+  footerDot: { width: 4, height: 4, borderRadius: 2 },
+  footerText: { color: "#2e4558", fontSize: 9, fontWeight: "600", letterSpacing: 0.4 },
 });

@@ -118,35 +118,33 @@ export default function ProfileScreen() {
         {/* ── Scorecard modal ── */}
         <Modal visible={scorecardOpen} transparent animationType="fade" onRequestClose={() => setScorecardOpen(false)}>
           <View style={s.modalOverlay}>
-            <View style={[s.modalSheet, { backgroundColor: colors.card, borderColor: colors.border }]}>
-              <View style={s.modalHeader}>
-                <Text style={[s.modalTitle, { color: colors.text }]}>Mi Perfil Inversor</Text>
-                <TouchableOpacity onPress={() => setScorecardOpen(false)}>
-                  <Ionicons name="close" size={22} color={colors.textMuted} />
-                </TouchableOpacity>
-              </View>
+            {/* Close button floating */}
+            <TouchableOpacity style={s.modalCloseBtn} onPress={() => setScorecardOpen(false)}>
+              <Ionicons name="close" size={18} color="white" />
+            </TouchableOpacity>
 
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingVertical: 8 }}>
-                <View ref={cardRef} collapsable={false}>
-                  <InvestorScorecard />
-                </View>
-              </ScrollView>
-
-              {Platform.OS !== "web" && (
-                <TouchableOpacity
-                  style={[s.modalShareBtn, sharing && { opacity: 0.6 }]}
-                  onPress={handleShare}
-                  disabled={sharing}
-                >
-                  {sharing ? (
-                    <ActivityIndicator color="white" size="small" />
-                  ) : (
-                    <Ionicons name="share-social-outline" size={18} color="white" />
-                  )}
-                  <Text style={s.modalShareText}>{sharing ? "Generando imagen…" : "Compartir imagen"}</Text>
-                </TouchableOpacity>
-              )}
+            {/* Card preview */}
+            <View ref={cardRef} collapsable={false}>
+              <InvestorScorecard />
             </View>
+
+            {/* Share hint */}
+            <Text style={s.modalHint}>Esta es la imagen que se compartirá</Text>
+
+            {Platform.OS !== "web" && (
+              <TouchableOpacity
+                style={[s.modalShareBtn, sharing && { opacity: 0.6 }]}
+                onPress={handleShare}
+                disabled={sharing}
+              >
+                {sharing ? (
+                  <ActivityIndicator color="white" size="small" />
+                ) : (
+                  <Ionicons name="share-social-outline" size={18} color="white" />
+                )}
+                <Text style={s.modalShareText}>{sharing ? "Generando imagen…" : "Compartir mi perfil"}</Text>
+              </TouchableOpacity>
+            )}
           </View>
         </Modal>
 
@@ -363,19 +361,25 @@ function makeStyles(c: Colors) {
     shareBtnText: { fontSize: 13, fontWeight: "600" },
     // Scorecard modal
     modalOverlay: {
-      flex: 1, backgroundColor: "rgba(0,0,0,0.6)",
-      alignItems: "center", justifyContent: "center", padding: 20,
+      flex: 1, backgroundColor: "rgba(0,0,0,0.82)",
+      alignItems: "center", justifyContent: "center",
+      gap: 16, paddingHorizontal: 20, paddingVertical: 40,
     },
-    modalSheet: {
-      width: "100%", maxWidth: 360, borderRadius: 20, borderWidth: 1, padding: 20, gap: 14,
+    modalCloseBtn: {
+      position: "absolute", top: 52, right: 20,
+      width: 34, height: 34, borderRadius: 17,
+      backgroundColor: "rgba(255,255,255,0.12)",
+      alignItems: "center", justifyContent: "center",
     },
-    modalHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-    modalTitle: { fontSize: 16, fontWeight: "700" },
+    modalHint: {
+      color: "rgba(255,255,255,0.35)", fontSize: 11, fontWeight: "500",
+    },
     modalShareBtn: {
       flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
-      backgroundColor: "#16a34a", borderRadius: 12, paddingVertical: 14,
+      backgroundColor: "#16a34a", borderRadius: 14, paddingVertical: 15,
+      width: 320,
     },
-    modalShareText: { color: "white", fontWeight: "600", fontSize: 15 },
+    modalShareText: { color: "white", fontWeight: "700", fontSize: 15 },
     // Logout
     logoutBtn: {
       flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
