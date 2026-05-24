@@ -137,4 +137,9 @@ export const notificationsApi = {
   markAllRead: () => api.post("/api/notifications/mark-all-read"),
 };
 
+export const billingApi = {
+  createCheckout: () => api.post("/api/billing/create-checkout"),
+  getStatus: () => api.get("/api/billing/status"),
+};
+
 export default api;

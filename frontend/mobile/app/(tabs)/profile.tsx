@@ -12,6 +12,8 @@ import {
 } from "../../src/lib/profileStore";
 import { getMentorInfo } from "../../src/lib/mentorData";
 import InvestorScorecard from "../../src/components/InvestorScorecard";
+import { useSubscriptionStore, msgsRemaining, FREE_MSG_LIMIT } from "../../src/lib/subscriptionStore";
+import PaywallModal from "../../src/components/PaywallModal";
 
 const MENTOR_PHOTOS: Record<string, number> = {
   "Warren Buffett": require("../../assets/images/mentors/warren_buffett.jpg"),
@@ -39,6 +41,11 @@ export default function ProfileScreen() {
   const [scorecardOpen, setScorecardOpen] = useState(false);
   const [sharing, setSharing] = useState(false);
   const cardRef = useRef<View>(null);
+
+  const subStore = useSubscriptionStore();
+  const isPremium = subStore.tier === "premium";
+  const remaining = msgsRemaining(subStore);
+  const [paywallOpen, setPaywallOpen] = useState(false);
 
   const handleShare = async () => {
     if (Platform.OS === "web") return;
@@ -264,6 +271,47 @@ export default function ProfileScreen() {
           })}
         </View>
 
+        {/* ── Subscription ── */}
+        <Text style={[s.sectionLabel, { color: colors.textSub }]}>Suscripción</Text>
+        {isPremium ? (
+          <View style={[s.subCard, { backgroundColor: colors.card, borderColor: "#f59e0b55" }]}>
+            <View style={[s.subTopAccent, { backgroundColor: "#f59e0b" }]} />
+            <View style={s.subRow}>
+              <View style={s.subIconBox}>
+                <Ionicons name="star" size={20} color="#f59e0b" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={[s.subTitle, { color: colors.text }]}>Nuvo Premium</Text>
+                <Text style={[s.subDesc, { color: colors.textMuted }]}>Acceso completo · Mensajes ilimitados</Text>
+              </View>
+              <View style={[s.subBadge, { backgroundColor: "#f59e0b18", borderColor: "#f59e0b44" }]}>
+                <Text style={[s.subBadgeText, { color: "#f59e0b" }]}>Activo</Text>
+              </View>
+            </View>
+          </View>
+        ) : (
+          <View style={[s.subCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <View style={s.subRow}>
+              <View style={[s.subIconBox, { backgroundColor: colors.accentGlow }]}>
+                <Ionicons name="person-outline" size={20} color={colors.accentLight} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={[s.subTitle, { color: colors.text }]}>Plan Gratis</Text>
+                <Text style={[s.subDesc, { color: colors.textMuted }]}>
+                  {remaining === Infinity ? FREE_MSG_LIMIT : remaining}/{FREE_MSG_LIMIT} mensajes restantes
+                </Text>
+              </View>
+            </View>
+            <TouchableOpacity
+              style={s.subUpgradeBtn}
+              onPress={() => setPaywallOpen(true)}
+            >
+              <Ionicons name="star" size={14} color="white" />
+              <Text style={s.subUpgradeText}>Activar Premium — $11.99/mes</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
         {/* ── Logout ── */}
         <TouchableOpacity style={[s.logoutBtn, { borderColor: "#ef4444" }]} onPress={handleLogout}>
           <Ionicons name="log-out-outline" size={18} color="#ef4444" />
@@ -271,6 +319,11 @@ export default function ProfileScreen() {
         </TouchableOpacity>
 
       </ScrollView>
+
+      <PaywallModal
+        visible={paywallOpen}
+        onClose={() => setPaywallOpen(false)}
+      />
     </SafeAreaView>
   );
 }
@@ -386,5 +439,24 @@ function makeStyles(c: Colors) {
       borderWidth: 1, borderRadius: 12, paddingVertical: 14, marginTop: 20,
     },
     logoutText: { color: "#ef4444", fontWeight: "600", fontSize: 15 },
+
+    // Subscription card
+    subCard: { borderRadius: 14, borderWidth: 1, overflow: "hidden" },
+    subTopAccent: { height: 3 },
+    subRow: { flexDirection: "row", alignItems: "center", gap: 12, padding: 14 },
+    subIconBox: {
+      width: 40, height: 40, borderRadius: 10,
+      backgroundColor: "#f59e0b18", alignItems: "center", justifyContent: "center",
+    },
+    subTitle: { fontSize: 15, fontWeight: "700" as const, letterSpacing: -0.2 },
+    subDesc: { fontSize: 12, marginTop: 2 },
+    subBadge: { borderWidth: 1, borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4 },
+    subBadgeText: { fontSize: 11, fontWeight: "700" as const },
+    subUpgradeBtn: {
+      flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7,
+      backgroundColor: "#f59e0b", marginHorizontal: 14, marginBottom: 14,
+      borderRadius: 12, paddingVertical: 13,
+    },
+    subUpgradeText: { color: "white", fontWeight: "800" as const, fontSize: 14 },
   });
 }

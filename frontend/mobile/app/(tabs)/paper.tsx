@@ -8,6 +8,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { marketApi } from "../../src/lib/api";
 import { useTheme, Colors } from "../../src/lib/ThemeContext";
 import { usePaperStore, PAPER_INITIAL_CASH, TOP_UP_PLANS } from "../../src/lib/paperStore";
+import { useSubscriptionStore } from "../../src/lib/subscriptionStore";
+import PaywallModal from "../../src/components/PaywallModal";
 
 interface TickerInfo {
   ticker: string;
@@ -126,6 +128,32 @@ const sellStyles = StyleSheet.create({
 export default function PaperScreen() {
   const { colors } = useTheme();
   const s = useMemo(() => makeStyles(colors), [colors]);
+  const isPremium = useSubscriptionStore((s) => s.tier === "premium");
+  const [paywallOpen, setPaywallOpen] = useState(false);
+
+  if (!isPremium) {
+    return (
+      <SafeAreaView style={[s.container, { alignItems: "center", justifyContent: "center", padding: 32 }]}>
+        <View style={{ alignItems: "center", gap: 16 }}>
+          <View style={{ width: 72, height: 72, borderRadius: 20, backgroundColor: "#f59e0b18", borderWidth: 1, borderColor: "#f59e0b33", alignItems: "center", justifyContent: "center" }}>
+            <Ionicons name="lock-closed" size={32} color="#f59e0b" />
+          </View>
+          <Text style={{ color: colors.text, fontSize: 20, fontWeight: "800", textAlign: "center" }}>Paper Trading</Text>
+          <Text style={{ color: colors.textMuted, fontSize: 14, textAlign: "center", lineHeight: 21 }}>
+            Practica con $100,000 virtuales sin arriesgar dinero real. Disponible en Premium.
+          </Text>
+          <TouchableOpacity
+            style={{ flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#f59e0b", borderRadius: 14, paddingHorizontal: 24, paddingVertical: 14, marginTop: 8 }}
+            onPress={() => setPaywallOpen(true)}
+          >
+            <Ionicons name="star" size={16} color="white" />
+            <Text style={{ color: "white", fontWeight: "800", fontSize: 15 }}>Activar Premium</Text>
+          </TouchableOpacity>
+        </View>
+        <PaywallModal visible={paywallOpen} onClose={() => setPaywallOpen(false)} reason="Paper Trading es exclusivo de Premium" />
+      </SafeAreaView>
+    );
+  }
 
   const { cash, positions, trades, buy, sell, topUp, reset } = usePaperStore();
   const [topUpOpen, setTopUpOpen] = useState(false);

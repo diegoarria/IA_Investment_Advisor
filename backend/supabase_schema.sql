@@ -17,6 +17,12 @@ CREATE TABLE user_profiles (
     risk_tolerance       TEXT    NOT NULL DEFAULT 'moderate',
     quiz_answers         JSONB   NOT NULL DEFAULT '{}',
     mentor               TEXT,
+    -- Subscription
+    subscription_tier    TEXT    NOT NULL DEFAULT 'free',
+    stripe_customer_id   TEXT,
+    -- Message rate-limiting (free tier: 20 msgs / 5 h)
+    msg_count            INT     NOT NULL DEFAULT 0,
+    msg_window_start     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     created_at           TIMESTAMPTZ DEFAULT NOW(),
     updated_at           TIMESTAMPTZ DEFAULT NOW()
 );

@@ -9,6 +9,10 @@ class Settings(BaseSettings):
     secret_key: str = "dev-secret-key-32chars-for-local-only"
     frontend_url: str = "*"
     claude_model: str = "claude-sonnet-4-6"
+    # Stripe
+    stripe_secret_key: str = ""
+    stripe_webhook_secret: str = ""
+    stripe_price_id: str = ""
 
     class Config:
         env_file = ".env"

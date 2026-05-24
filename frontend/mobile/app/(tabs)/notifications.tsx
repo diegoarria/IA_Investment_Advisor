@@ -10,6 +10,8 @@ import { notificationsApi, marketApi } from "../../src/lib/api";
 import { useTheme, Colors } from "../../src/lib/ThemeContext";
 import { useWatchlistStore } from "../../src/lib/watchlistStore";
 import { usePortfolioStore } from "../../src/lib/portfolioStore";
+import { useSubscriptionStore } from "../../src/lib/subscriptionStore";
+import PaywallModal from "../../src/components/PaywallModal";
 
 type IoniconName = React.ComponentProps<typeof Ionicons>["name"];
 
@@ -63,6 +65,9 @@ export default function NotificationsScreen() {
   const { items: watchlist } = useWatchlistStore();
   const [prices, setPrices]  = useState<Record<string, PriceData>>({});
   const [pricesLoading, setPricesLoading] = useState(false);
+
+  const isPremium = useSubscriptionStore((s) => s.tier === "premium");
+  const [paywallOpen, setPaywallOpen] = useState(false);
 
   // Alert context modal
   const [alertModal, setAlertModal]     = useState<{ ticker: string; change_pct: number } | null>(null);
@@ -223,34 +228,51 @@ export default function NotificationsScreen() {
           </View>
         );
       }
-      return news.map((item) => (
-        <TouchableOpacity
-          key={item.uuid}
-          style={[styles.newsRow, { borderTopColor: colors.border }]}
-          onPress={() => Linking.openURL(item.url).catch(() => {})}
-          activeOpacity={0.75}
-        >
-          {item.thumbnail ? (
-            <Image source={{ uri: item.thumbnail }} style={styles.newsThumbnail} />
-          ) : (
-            <View style={[styles.newsThumbnail, { backgroundColor: colors.border, alignItems: "center", justifyContent: "center" }]}>
-              <Ionicons name="newspaper-outline" size={18} color={colors.textDim} />
-            </View>
-          )}
-          <View style={{ flex: 1 }}>
-            <View style={styles.newsTickerRow}>
-              <View style={[styles.newsTickerBadge, { backgroundColor: colors.accentGlow }]}>
-                <Text style={[styles.newsTickerText, { color: colors.accentLight }]}>{item.symbol}</Text>
+      const visibleNews = isPremium ? news : news.slice(0, 3);
+      const hasMore = !isPremium && news.length > 3;
+      return (
+        <>
+          {visibleNews.map((item) => (
+            <TouchableOpacity
+              key={item.uuid}
+              style={[styles.newsRow, { borderTopColor: colors.border }]}
+              onPress={() => Linking.openURL(item.url).catch(() => {})}
+              activeOpacity={0.75}
+            >
+              {item.thumbnail ? (
+                <Image source={{ uri: item.thumbnail }} style={styles.newsThumbnail} />
+              ) : (
+                <View style={[styles.newsThumbnail, { backgroundColor: colors.border, alignItems: "center", justifyContent: "center" }]}>
+                  <Ionicons name="newspaper-outline" size={18} color={colors.textDim} />
+                </View>
+              )}
+              <View style={{ flex: 1 }}>
+                <View style={styles.newsTickerRow}>
+                  <View style={[styles.newsTickerBadge, { backgroundColor: colors.accentGlow }]}>
+                    <Text style={[styles.newsTickerText, { color: colors.accentLight }]}>{item.symbol}</Text>
+                  </View>
+                  <Text style={[styles.newsDate, { color: colors.textDim }]}>
+                    {new Date(item.timestamp * 1000).toLocaleDateString("es", { day: "numeric", month: "short" })}
+                  </Text>
+                </View>
+                <Text style={[styles.newsTitle, { color: colors.text }]} numberOfLines={2}>{item.title}</Text>
+                <Text style={[styles.newsPublisher, { color: colors.textMuted }]}>{item.publisher}</Text>
               </View>
-              <Text style={[styles.newsDate, { color: colors.textDim }]}>
-                {new Date(item.timestamp * 1000).toLocaleDateString("es", { day: "numeric", month: "short" })}
+            </TouchableOpacity>
+          ))}
+          {hasMore && (
+            <TouchableOpacity
+              style={[styles.newsUpgradeBanner, { borderColor: "#f59e0b40", backgroundColor: "#f59e0b0e" }]}
+              onPress={() => setPaywallOpen(true)}
+            >
+              <Ionicons name="star" size={13} color="#f59e0b" />
+              <Text style={{ color: "#f59e0b", fontSize: 12, fontWeight: "600" }}>
+                {news.length - 3} noticias más con Premium
               </Text>
-            </View>
-            <Text style={[styles.newsTitle, { color: colors.text }]} numberOfLines={2}>{item.title}</Text>
-            <Text style={[styles.newsPublisher, { color: colors.textMuted }]}>{item.publisher}</Text>
-          </View>
-        </TouchableOpacity>
-      ));
+            </TouchableOpacity>
+          )}
+        </>
+      );
     };
 
     return (
@@ -347,6 +369,12 @@ export default function NotificationsScreen() {
             </Text>
           </View>
         }
+      />
+
+      <PaywallModal
+        visible={paywallOpen}
+        onClose={() => setPaywallOpen(false)}
+        reason="Las noticias ilimitadas son exclusivas de Premium"
       />
 
       {/* Alert context modal */}
@@ -465,6 +493,12 @@ function makeStyles(c: Colors) {
     empty: { alignItems: "center", paddingTop: 56, paddingHorizontal: 32 },
     emptyText: { color: c.textMuted, fontSize: 17, fontWeight: "700", letterSpacing: -0.3, marginTop: 16 },
     emptySubtext: { color: c.textDim, fontSize: 13, textAlign: "center", marginTop: 8, lineHeight: 20 },
+
+    // News upgrade banner
+    newsUpgradeBanner: {
+      flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6,
+      borderWidth: 1, borderRadius: 10, paddingVertical: 12, marginHorizontal: 12, marginBottom: 10,
+    },
 
     // Alert modal
     modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.65)", justifyContent: "flex-end" },

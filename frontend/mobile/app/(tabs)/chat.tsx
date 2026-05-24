@@ -12,6 +12,8 @@ import { useTheme, Colors } from "../../src/lib/ThemeContext";
 import { useAppStore, RISK_CONFIG, getAge } from "../../src/lib/profileStore";
 import { useChatStore, Message, BehavioralDiagnosis } from "../../src/lib/chatStore";
 import { usePortfolioStore } from "../../src/lib/portfolioStore";
+import { useSubscriptionStore, msgsRemaining, resetMinutes, FREE_MSG_LIMIT } from "../../src/lib/subscriptionStore";
+import PaywallModal from "../../src/components/PaywallModal";
 import StockChart from "../../src/components/StockChart";
 import { getMentorInfo } from "../../src/lib/mentorData";
 
@@ -84,16 +86,29 @@ export default function ChatScreen() {
   const diagnosis = currentDiagnosis();
   const positions = usePortfolioStore((s) => s.positions);
 
+  const subTier = useSubscriptionStore((s) => s.tier);
+  const subMsgCount = useSubscriptionStore((s) => s.msgCount);
+  const subWindowStart = useSubscriptionStore((s) => s.msgWindowStart);
+  const fetchSubStatus = useSubscriptionStore((s) => s.fetchStatus);
+  const incrementMsgCount = useSubscriptionStore((s) => s.incrementMsgCount);
+  const remaining = msgsRemaining({ tier: subTier, msgCount: subMsgCount, msgWindowStart: subWindowStart });
+  const isPremium = subTier === "premium";
+
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
   const [lastTicker, setLastTicker] = useState<string | null>(null);
   const [livePrices, setLivePrices] = useState<Record<string, number>>({});
+  const [paywallVisible, setPaywallVisible] = useState(false);
+  const [paywallReason, setPaywallReason] = useState("");
   const listRef = useRef<FlatList>(null);
 
   // Ensure there's always an active session
   useEffect(() => {
     if (!currentId) createSession();
   }, []);
+
+  // Refresh subscription status on mount
+  useEffect(() => { fetchSubStatus(); }, []);
 
   // Fetch live prices for portfolio positions
   useEffect(() => {
@@ -189,9 +204,22 @@ Instrucciones críticas:
 4. Responde siempre en español.`;
   };
 
+  const openPaywall = (reason: string) => {
+    setPaywallReason(reason);
+    setPaywallVisible(true);
+  };
+
   const sendMessage = async (text?: string) => {
     const msg = text || input.trim();
     if (!msg || streaming) return;
+
+    // Client-side free limit check
+    if (!isPremium && remaining <= 0) {
+      const mins = resetMinutes(subWindowStart);
+      openPaywall(`Alcanzaste el límite de ${FREE_MSG_LIMIT} mensajes. Vuelve en ${mins} min o activa Premium.`);
+      return;
+    }
+
     setInput("");
 
     const userMsg: Message = { role: "user", content: msg };
@@ -213,6 +241,8 @@ Instrucciones críticas:
     setStreaming(true);
     setLastTicker(null);
 
+    incrementMsgCount();
+
     let full = "";
     try {
       await chatApi.stream(
@@ -232,9 +262,18 @@ Instrucciones críticas:
         profile?.mentor
       );
     } catch (err: unknown) {
-      const msg = (err as { message?: string })?.message ?? String(err);
-      console.error("[chat] sendMessage error:", msg, err);
-      setMessages([...withAssistant.slice(0, -1), { role: "assistant", content: `Error: ${msg}` }]);
+      const errObj = err as { response?: { status?: number; data?: { detail?: { message?: string } } }; message?: string };
+      // 429 = message limit hit server-side
+      if (errObj?.response?.status === 429) {
+        const detail = errObj.response.data?.detail;
+        const serverMsg = (typeof detail === "object" ? detail?.message : String(detail)) ?? "Límite alcanzado";
+        setMessages([...withAssistant.slice(0, -1)]);
+        openPaywall(serverMsg);
+      } else {
+        const errMsg = errObj?.message ?? String(err);
+        console.error("[chat] sendMessage error:", errMsg, err);
+        setMessages([...withAssistant.slice(0, -1), { role: "assistant", content: `Error: ${errMsg}` }]);
+      }
       setStreaming(false);
     }
   };
@@ -412,12 +451,34 @@ Instrucciones críticas:
             />
           )}
 
+          {/* Free tier message counter */}
+          {!isPremium && (
+            <TouchableOpacity
+              style={[
+                styles.msgCounter,
+                { backgroundColor: remaining <= 5 ? "#ef444418" : colors.card, borderColor: remaining <= 5 ? "#ef444440" : colors.border },
+              ]}
+              onPress={() => openPaywall("Activa Premium para mensajes ilimitados")}
+            >
+              <Ionicons
+                name={remaining <= 5 ? "warning-outline" : "chatbubble-outline"}
+                size={12}
+                color={remaining <= 5 ? "#ef4444" : colors.textDim}
+              />
+              <Text style={[styles.msgCounterText, { color: remaining <= 5 ? "#ef4444" : colors.textDim }]}>
+                {remaining > 0
+                  ? `${remaining} mensajes restantes · Toca para ir a Premium`
+                  : `Sin mensajes · Activa Premium`}
+              </Text>
+            </TouchableOpacity>
+          )}
+
           <View style={styles.inputContainer}>
             <TextInput
               style={styles.input}
               value={input}
               onChangeText={setInput}
-              placeholder="Pregunta sobre inversiones..."
+              placeholder={isPremium ? "Pregunta sobre inversiones..." : `${remaining} msgs restantes...`}
               placeholderTextColor={colors.placeholder}
               multiline
               maxLength={2000}
@@ -437,6 +498,12 @@ Instrucciones críticas:
           </View>
         </View>
     </SafeAreaView>
+
+    <PaywallModal
+      visible={paywallVisible}
+      onClose={() => setPaywallVisible(false)}
+      reason={paywallReason}
+    />
     </KeyboardAvoidingView>
   );
 }
@@ -547,6 +614,12 @@ function makeStyles(c: Colors) {
       shadowOffset: { width: 0, height: 2 },
     },
     sendDisabled: { opacity: 0.35 },
+    msgCounter: {
+      flexDirection: "row" as const, alignItems: "center" as const, gap: 6,
+      marginHorizontal: 12, marginBottom: 4,
+      borderWidth: 1, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6,
+    },
+    msgCounterText: { fontSize: 11, fontWeight: "500" as const, flex: 1 },
 
     // Diagnostic
     diagSeparator: { borderTopWidth: StyleSheet.hairlineWidth, marginTop: 8, marginBottom: 8 },

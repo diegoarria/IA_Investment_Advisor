@@ -1,13 +1,51 @@
 import asyncio
 import re
 import json
-from fastapi import APIRouter, Depends
+from datetime import datetime, timedelta, timezone
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from app.api.deps import get_current_user_id
 from app.core.database import get_supabase
 from app.models.user import ChatRequest, UserProfile
 from app.services import ai_service
 from app.services.market_data_service import get_market_context_for_message, detect_tickers
+
+FREE_MSG_LIMIT = 20
+FREE_MSG_WINDOW_HOURS = 5
+
+
+def _check_and_increment_msg_limit(user_id: str, profile: UserProfile) -> None:
+    if profile.subscription_tier == "premium":
+        return
+    db = get_supabase()
+    now = datetime.now(timezone.utc)
+    window_start = None
+    if profile.msg_window_start:
+        try:
+            window_start = datetime.fromisoformat(profile.msg_window_start.replace("Z", "+00:00"))
+        except Exception:
+            pass
+
+    if window_start is None or (now - window_start) >= timedelta(hours=FREE_MSG_WINDOW_HOURS):
+        db.table("user_profiles").update({
+            "msg_count": 1,
+            "msg_window_start": now.isoformat(),
+        }).eq("user_id", user_id).execute()
+        return
+
+    if profile.msg_count >= FREE_MSG_LIMIT:
+        reset_at = window_start + timedelta(hours=FREE_MSG_WINDOW_HOURS)
+        mins = max(1, int((reset_at - now).total_seconds() / 60))
+        raise HTTPException(
+            status_code=429,
+            detail={
+                "code": "msg_limit",
+                "message": f"Alcanzaste el límite de {FREE_MSG_LIMIT} mensajes. Vuelve en {mins} min o activa Premium.",
+                "reset_in_minutes": mins,
+            },
+        )
+
+    db.table("user_profiles").update({"msg_count": profile.msg_count + 1}).eq("user_id", user_id).execute()
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 
@@ -73,6 +111,8 @@ async def chat_message(
     user_id: str = Depends(get_current_user_id)
 ):
     profile = _get_user_profile(user_id)
+    if profile:
+        _check_and_increment_msg_limit(user_id, profile)
     tickers  = await asyncio.to_thread(detect_tickers, request.message)
     enriched = await asyncio.to_thread(_enrich_message, request.message)
     full = ""
