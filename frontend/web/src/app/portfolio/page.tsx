@@ -212,7 +212,12 @@ export default function PortfolioPage() {
     setLoadingPrices(false);
   }, [positions]);
 
-  useEffect(() => { fetchPrices(); }, [positions.length]);
+  // Fetch on mount and whenever positions change; auto-refresh every 30s
+  useEffect(() => {
+    fetchPrices();
+    const interval = setInterval(() => fetchPrices(), 30_000);
+    return () => clearInterval(interval);
+  }, [fetchPrices]);
 
   const totals = useMemo(() => {
     let invested=0, current=0;
@@ -584,48 +589,69 @@ export default function PortfolioPage() {
               {positions.map((pos) => {
                 const pd = prices[pos.ticker];
                 const cp = pd?.price;
-                const currentVal = cp ? pos.shares*cp : null;
-                const investedVal = pos.shares*pos.avgPrice;
-                const diff = currentVal!==null ? currentVal-investedVal : null;
-                const pct = diff!==null&&investedVal>0 ? (diff/investedVal)*100 : null;
-                const isUp = diff!==null && diff>=0;
+                const hasCost = pos.avgPrice > 0;
+                const currentVal = cp ? pos.shares * cp : null;
+                const investedVal = hasCost ? pos.shares * pos.avgPrice : null;
+                const diff = currentVal !== null && investedVal !== null ? currentVal - investedVal : null;
+                const pct = diff !== null && investedVal! > 0 ? (diff / investedVal!) * 100 : null;
+                const isUp = diff !== null && diff >= 0;
                 return (
                   <div key={pos.id} className="rounded-2xl border p-4 mb-2"
                        style={{ borderColor:"var(--border)", background:"var(--card)" }}>
-                    <div className="flex items-start justify-between mb-2">
+                    {/* Header */}
+                    <div className="flex items-start justify-between mb-3">
                       <div>
                         <p className="font-extrabold text-base" style={{ color:"var(--text)" }}>{pos.ticker}</p>
-                        {pd?.name && <p className="text-xs mt-0.5" style={{ color:"var(--muted)" }}>{pd.name}</p>}
+                        {(pd?.name || pos.name) && (
+                          <p className="text-xs mt-0.5" style={{ color:"var(--muted)" }}>{pd?.name || pos.name}</p>
+                        )}
                       </div>
                       <button onClick={() => removePosition(pos.id)} style={{ color:"var(--dim)" }}>
                         <Trash2 className="w-4 h-4" />
                       </button>
                     </div>
-                    <div className="flex justify-between items-end">
+                    {/* Prices row */}
+                    <div className="grid grid-cols-3 gap-2 mb-3">
                       <div>
-                        <p className="text-xs" style={{ color:"var(--muted)" }}>{pos.shares} acc × ${pos.avgPrice.toLocaleString()}</p>
-                        <p className="text-xs" style={{ color:"var(--muted)" }}>
-                          Invertido: ${investedVal.toLocaleString("en-US",{minimumFractionDigits:2})}
+                        <p className="text-[9px] font-bold uppercase tracking-wider mb-1" style={{ color:"var(--dim)" }}>Precio compra</p>
+                        <p className="text-sm font-bold" style={{ color: hasCost ? "var(--sub)" : "var(--dim)" }}>
+                          {hasCost ? `$${pos.avgPrice.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})}` : "—"}
                         </p>
                       </div>
+                      <div className="text-center">
+                        <p className="text-[9px] font-bold uppercase tracking-wider mb-1" style={{ color:"var(--dim)" }}>Acciones</p>
+                        <p className="text-sm font-bold" style={{ color:"var(--sub)" }}>{pos.shares.toLocaleString("en-US")}</p>
+                      </div>
                       <div className="text-right">
+                        <p className="text-[9px] font-bold uppercase tracking-wider mb-1" style={{ color:"var(--dim)" }}>Precio actual</p>
                         {cp ? (
-                          <>
-                            <p className="font-bold text-sm" style={{ color:"var(--text)" }}>
-                              ${currentVal!.toLocaleString("en-US",{minimumFractionDigits:2})}
-                            </p>
-                            <p className="text-xs font-bold" style={{ color:isUp?"#22c55e":"#ef4444" }}>
-                              {isUp?"+":""}{pct!.toFixed(2)}%
-                            </p>
-                          </>
+                          <p className="text-sm font-extrabold" style={{ color:"var(--text)" }}>
+                            ${cp.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})}
+                          </p>
                         ) : (
-                          <p className="text-xs" style={{ color:"var(--dim)" }}>Sin precio</p>
+                          <p className="text-sm" style={{ color:"var(--dim)" }}>...</p>
                         )}
                       </div>
                     </div>
-                    {cp && <p className="text-xs mt-2" style={{ color:"var(--dim)" }}>
-                      Precio actual: ${cp.toLocaleString("en-US",{minimumFractionDigits:2})} {pd?.currency}
-                    </p>}
+                    {/* Performance bar */}
+                    {cp && hasCost && (
+                      <div className="flex items-center justify-between px-3 py-2 rounded-xl"
+                           style={{ background: isUp ? "rgba(34,197,94,0.08)" : "rgba(239,68,68,0.08)" }}>
+                        <p className="text-xs" style={{ color:"var(--muted)" }}>
+                          ${investedVal!.toLocaleString("en-US",{minimumFractionDigits:2})}
+                          {" → "}
+                          ${currentVal!.toLocaleString("en-US",{minimumFractionDigits:2})}
+                        </p>
+                        <p className="text-sm font-black" style={{ color: isUp ? "#22c55e" : "#ef4444" }}>
+                          {isUp ? "+" : ""}{pct!.toFixed(2)}%
+                        </p>
+                      </div>
+                    )}
+                    {cp && !hasCost && (
+                      <p className="text-xs mt-1" style={{ color:"var(--dim)" }}>
+                        Sin precio de compra — edita la posición para ver rendimiento
+                      </p>
+                    )}
                   </div>
                 );
               })}

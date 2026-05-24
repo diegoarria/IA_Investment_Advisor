@@ -1,4 +1,5 @@
-import React, { useState, useMemo, useEffect, useCallback } from "react";
+import React, { useState, useMemo, useCallback } from "react";
+import { useFocusEffect } from "expo-router";
 import {
   View, Text, TouchableOpacity, TextInput, ScrollView,
   StyleSheet, ActivityIndicator, SafeAreaView, Alert,
@@ -262,7 +263,12 @@ export default function PortfolioScreen() {
     setLoadingPrices(false);
   }, [positions]);
 
-  useEffect(() => { fetchPrices(); }, [positions.length]);
+  // Refresh on tab focus
+  useFocusEffect(useCallback(() => {
+    fetchPrices(true);
+    const interval = setInterval(() => fetchPrices(true), 30_000);
+    return () => clearInterval(interval);
+  }, [fetchPrices]));
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -710,39 +716,71 @@ export default function PortfolioScreen() {
             {positions.map((pos) => {
               const pd = prices[pos.ticker];
               const cp = pd?.price;
+              const hasCost = pos.avgPrice > 0;
               const currentVal = cp ? pos.shares * cp : null;
-              const investedVal = pos.shares * pos.avgPrice;
-              const diff = currentVal !== null ? currentVal - investedVal : null;
-              const pct = diff !== null && investedVal > 0 ? (diff / investedVal) * 100 : 0;
+              const investedVal = hasCost ? pos.shares * pos.avgPrice : null;
+              const diff = currentVal !== null && investedVal !== null ? currentVal - investedVal : null;
+              const pct = diff !== null && investedVal! > 0 ? (diff / investedVal!) * 100 : null;
               const isUp = diff !== null && diff >= 0;
               return (
                 <View key={pos.id} style={[s.posCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                  {/* Header: ticker + remove */}
                   <View style={s.posHeader}>
                     <View>
                       <Text style={[s.posTicker, { color: colors.text }]}>{pos.ticker}</Text>
-                      {pd?.name && <Text style={[s.posName, { color: colors.textMuted }]}>{pd.name}</Text>}
+                      {(pd?.name || pos.name) && (
+                        <Text style={[s.posName, { color: colors.textMuted }]}>{pd?.name || pos.name}</Text>
+                      )}
                     </View>
                     <TouchableOpacity onPress={() => removePosition(pos.id)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
                       <Text style={{ color: colors.textDim, fontSize: 20 }}>×</Text>
                     </TouchableOpacity>
                   </View>
-                  <View style={s.posBody}>
+
+                  {/* Prices row */}
+                  <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 8 }}>
                     <View>
-                      <Text style={[s.posDetail, { color: colors.textMuted }]}>{pos.shares} acc × ${pos.avgPrice.toLocaleString()}</Text>
-                      <Text style={[s.posDetail, { color: colors.textMuted }]}>Invertido: ${investedVal.toLocaleString("es-MX", { minimumFractionDigits: 2 })}</Text>
+                      <Text style={{ fontSize: 10, color: colors.textDim, fontWeight: "600", letterSpacing: 0.4, textTransform: "uppercase", marginBottom: 2 }}>Precio compra</Text>
+                      <Text style={{ fontSize: 15, fontWeight: "700", color: hasCost ? colors.textSub : colors.textDim }}>
+                        {hasCost ? `$${pos.avgPrice.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "—"}
+                      </Text>
+                    </View>
+                    <View style={{ alignItems: "center" }}>
+                      <Text style={{ fontSize: 10, color: colors.textDim, fontWeight: "600", letterSpacing: 0.4, textTransform: "uppercase", marginBottom: 2 }}>Acciones</Text>
+                      <Text style={{ fontSize: 15, fontWeight: "700", color: colors.textSub }}>{pos.shares.toLocaleString("en-US")}</Text>
                     </View>
                     <View style={{ alignItems: "flex-end" }}>
+                      <Text style={{ fontSize: 10, color: colors.textDim, fontWeight: "600", letterSpacing: 0.4, textTransform: "uppercase", marginBottom: 2 }}>Precio actual</Text>
                       {cp ? (
-                        <>
-                          <Text style={[s.posCurrentVal, { color: colors.text }]}>${(currentVal!).toLocaleString("es-MX", { minimumFractionDigits: 2 })}</Text>
-                          <Text style={[s.posPct, { color: isUp ? "#22c55e" : "#ef4444" }]}>{isUp ? "+" : ""}{pct!.toFixed(2)}%</Text>
-                        </>
+                        <Text style={{ fontSize: 15, fontWeight: "800", color: colors.text }}>
+                          ${cp.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </Text>
                       ) : (
-                        <Text style={[s.posDetail, { color: colors.textDim }]}>Sin precio</Text>
+                        <ActivityIndicator size="small" color={colors.textDim} />
                       )}
                     </View>
                   </View>
-                  {cp && <Text style={[s.posPrice, { color: colors.textDim }]}>Precio actual: ${cp.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {pd?.currency}</Text>}
+
+                  {/* Performance row — only shown if we have both prices */}
+                  {cp && hasCost && (
+                    <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center",
+                      backgroundColor: isUp ? "#22c55e14" : "#ef444414",
+                      borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8 }}>
+                      <Text style={{ fontSize: 11, color: colors.textMuted }}>
+                        Invertido: ${investedVal!.toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                        {"  →  "}
+                        ${currentVal!.toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                      </Text>
+                      <Text style={{ fontSize: 14, fontWeight: "900", color: isUp ? "#22c55e" : "#ef4444" }}>
+                        {isUp ? "+" : ""}{pct!.toFixed(2)}%
+                      </Text>
+                    </View>
+                  )}
+                  {cp && !hasCost && (
+                    <Text style={{ fontSize: 11, color: colors.textDim, marginTop: 4 }}>
+                      Sin precio de compra — agrega manualmente para ver rendimiento
+                    </Text>
+                  )}
                 </View>
               );
             })}
