@@ -713,7 +713,7 @@ export default function PortfolioScreen() {
               const currentVal = cp ? pos.shares * cp : null;
               const investedVal = pos.shares * pos.avgPrice;
               const diff = currentVal !== null ? currentVal - investedVal : null;
-              const pct = diff !== null && investedVal > 0 ? (diff / investedVal) * 100 : null;
+              const pct = diff !== null && investedVal > 0 ? (diff / investedVal) * 100 : 0;
               const isUp = diff !== null && diff >= 0;
               return (
                 <View key={pos.id} style={[s.posCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
