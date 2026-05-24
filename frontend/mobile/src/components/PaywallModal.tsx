@@ -9,16 +9,36 @@ import { useSubscriptionStore } from "../lib/subscriptionStore";
 import { useTheme } from "../lib/ThemeContext";
 
 const PREMIUM_FEATURES = [
-  { icon: "chatbubbles-outline",  text: "Mensajes ilimitados" },
-  { icon: "people-outline",       text: "5 mentores: Buffett, Dalio, Burry, Ackman, Lynch" },
-  { icon: "flash-outline",        text: "Stress Test de portafolio" },
-  { icon: "trending-up-outline",  text: "Paper Trading completo" },
-  { icon: "newspaper-outline",    text: "Noticias ilimitadas en tiempo real" },
+  {
+    icon: "chatbubbles-outline",
+    text: "Mensajes ilimitados",
+    detail: "En el plan gratis tienes 20 mensajes cada 5 horas. Con Premium puedes chatear sin límite con la IA en cualquier momento.",
+  },
+  {
+    icon: "people-outline",
+    text: "5 mentores de inversión",
+    detail: "Accede a Warren Buffett, Ray Dalio, Michael Burry, Bill Ackman y Peter Lynch. Cada mentor tiene su filosofía única y te responde desde su perspectiva real.",
+  },
+  {
+    icon: "flash-outline",
+    text: "Stress Test de portafolio",
+    detail: "Simula cómo reaccionaría tu portafolio ante crisis históricas como el crash del 2008, la pandemia del 2020 o una subida agresiva de tasas.",
+  },
+  {
+    icon: "trending-up-outline",
+    text: "Paper Trading completo",
+    detail: "Opera con dinero virtual en tiempo real. Practica estrategias, prueba ideas y aprende sin arriesgar tu capital.",
+  },
+  {
+    icon: "newspaper-outline",
+    text: "Noticias ilimitadas en tiempo real",
+    detail: "Los usuarios gratis ven solo 3 noticias. Con Premium ves todas las noticias de tus posiciones y watchlist actualizadas al momento.",
+  },
 ];
 
 const PLANS = [
   { key: "monthly", label: "Mensual", price: "$11.99", period: "/mes", badge: null },
-  { key: "yearly",  label: "Anual",   price: "$99.99", period: "/año", badge: "2 meses gratis" },
+  { key: "yearly",  label: "Anual",   price: "$117.99", period: "/año", badge: "Ahorra 20%" },
 ] as const;
 
 type Plan = "monthly" | "yearly";
@@ -33,6 +53,7 @@ export default function PaywallModal({ visible, onClose, reason }: Props) {
   const { colors } = useTheme();
   const fetchStatus = useSubscriptionStore((s) => s.fetchStatus);
   const [selectedPlan, setSelectedPlan] = useState<Plan>("monthly");
+  const [expandedFeature, setExpandedFeature] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -110,14 +131,37 @@ export default function PaywallModal({ visible, onClose, reason }: Props) {
 
           {/* Features list */}
           <View style={styles.features}>
-            {PREMIUM_FEATURES.map((f) => (
-              <View key={f.text} style={styles.featureRow}>
-                <View style={styles.featureIcon}>
-                  <Ionicons name={f.icon as any} size={15} color="#22c55e" />
-                </View>
-                <Text style={[styles.featureText, { color: colors.textSub }]}>{f.text}</Text>
-              </View>
-            ))}
+            {PREMIUM_FEATURES.map((f) => {
+              const isOpen = expandedFeature === f.text;
+              return (
+                <TouchableOpacity
+                  key={f.text}
+                  style={[
+                    styles.featureRow,
+                    isOpen && { backgroundColor: colors.bg + "cc", borderRadius: 10, padding: 8 },
+                  ]}
+                  onPress={() => setExpandedFeature(isOpen ? null : f.text)}
+                  activeOpacity={0.75}
+                >
+                  <View style={styles.featureTop}>
+                    <View style={styles.featureIcon}>
+                      <Ionicons name={f.icon as any} size={15} color="#22c55e" />
+                    </View>
+                    <Text style={[styles.featureText, { color: colors.textSub }]}>{f.text}</Text>
+                    <Ionicons
+                      name={isOpen ? "chevron-up" : "chevron-down"}
+                      size={13}
+                      color={colors.textDim}
+                    />
+                  </View>
+                  {isOpen && (
+                    <Text style={[styles.featureDetail, { color: colors.textMuted }]}>
+                      {f.detail}
+                    </Text>
+                  )}
+                </TouchableOpacity>
+              );
+            })}
           </View>
 
           {error ? <Text style={styles.errorText}>{error}</Text> : null}
@@ -191,13 +235,17 @@ const styles = StyleSheet.create({
   planPrice: { fontSize: 20, fontWeight: "900", letterSpacing: -0.5 },
   planPeriod: { fontSize: 11 },
 
-  features: { gap: 10, marginVertical: 8 },
-  featureRow: { flexDirection: "row", alignItems: "center", gap: 10 },
+  // Features
+  features: { gap: 6, marginVertical: 8 },
+  featureRow: { gap: 6 },
+  featureTop: { flexDirection: "row", alignItems: "center", gap: 10 },
   featureIcon: {
     width: 28, height: 28, borderRadius: 8,
     backgroundColor: "#22c55e14", alignItems: "center", justifyContent: "center",
   },
   featureText: { fontSize: 13, fontWeight: "500", flex: 1 },
+  featureDetail: { fontSize: 12, lineHeight: 18, marginTop: 2, paddingLeft: 38 },
+
   errorText: { color: "#ef4444", fontSize: 12, textAlign: "center", marginTop: 4 },
   cta: {
     flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
