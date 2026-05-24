@@ -12,6 +12,8 @@ import {
 } from "../../src/lib/profileStore";
 import type { QuizAnswer, QuizAnswers } from "../../src/lib/profileStore";
 import { MENTORS, RECOMMENDED_MENTOR } from "../../src/lib/mentorData";
+import { useSubscriptionStore } from "../../src/lib/subscriptionStore";
+import PaywallModal from "../../src/components/PaywallModal";
 
 // ─── Quiz data ────────────────────────────────────────────────────────────────
 
@@ -137,6 +139,8 @@ export default function OnboardingScreen() {
     name: "", birth_date: "", monthly_income: "", monthly_contribution: "",
     q1: "", q2: "", q3: "", q4: "", q5: "", mentor: "",
   });
+  const isPremium = useSubscriptionStore((s) => s.tier === "premium");
+  const [paywallOpen, setPaywallOpen] = useState(false);
 
   const quizAnswers = { q1: form.q1, q2: form.q2, q3: form.q3, q4: form.q4, q5: form.q5 };
   const calculated = calculateRisk(quizAnswers);
@@ -313,13 +317,23 @@ export default function OnboardingScreen() {
                     s.mentorCard,
                     { borderColor: isSelected ? m.color : colors.border },
                     isSelected && { backgroundColor: m.color + "18" },
+                    !isPremium && { opacity: 0.6 },
                   ]}
-                  onPress={() => setForm((f) => ({ ...f, mentor: m.id }))}
+                  onPress={() => {
+                    if (!isPremium) { setPaywallOpen(true); return; }
+                    setForm((f) => ({ ...f, mentor: m.id }));
+                  }}
                   activeOpacity={0.75}
                 >
                   {isRec && (
                     <View style={[s.recBadge, { backgroundColor: m.color }]}>
                       <Text style={s.recBadgeText}>⭐ RECOMENDADO</Text>
+                    </View>
+                  )}
+                  {!isPremium && (
+                    <View style={s.mentorLockBadge}>
+                      <Ionicons name="star" size={9} color="#f59e0b" />
+                      <Text style={s.mentorLockText}>Premium</Text>
                     </View>
                   )}
                   {MENTOR_PHOTOS[m.id] ? (
@@ -439,6 +453,12 @@ export default function OnboardingScreen() {
           <Text style={s.nextText}>{isLastStep ? "¡Comenzar!" : "Siguiente"}</Text>
         </TouchableOpacity>
       </View>
+
+      <PaywallModal
+        visible={paywallOpen}
+        onClose={() => setPaywallOpen(false)}
+        reason="Los mentores de inversión son exclusivos de Premium"
+      />
     </SafeAreaView>
   );
 }
@@ -536,6 +556,13 @@ function makeStyles(c: Colors) {
       width: 22, height: 22, borderRadius: 11,
       alignItems: "center" as const, justifyContent: "center" as const,
     },
+    mentorLockBadge: {
+      position: "absolute" as const, top: 9, right: 9,
+      flexDirection: "row" as const, alignItems: "center" as const, gap: 3,
+      backgroundColor: "#f59e0b18", borderWidth: 1, borderColor: "#f59e0b44",
+      borderRadius: 20, paddingHorizontal: 7, paddingVertical: 3,
+    },
+    mentorLockText: { color: "#f59e0b", fontSize: 9, fontWeight: "700" as const },
     noMentorCard: {
       flexDirection: "row" as const, alignItems: "center" as const,
       justifyContent: "space-between" as const,
