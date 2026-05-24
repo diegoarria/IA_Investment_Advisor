@@ -128,25 +128,35 @@ export default function LearnScreen() {
     });
   }, [search, selectedCat]);
 
-  const openTopic = async (title: string, prompt: string) => {
-    setModal({ title, prompt });
+  const openTopic = async (title: string, topicContext: string) => {
+    setModal({ title, prompt: topicContext });
     setContent("");
     setStreaming(true);
+    const prompt =
+      `Explícame "${title}" de forma breve y fácil de entender, como si le explicaras a alguien que nunca ha invertido.\n\n` +
+      `Usa exactamente este formato:\n\n` +
+      `## ¿Qué es?\n` +
+      `(1-2 oraciones simples, sin jerga)\n\n` +
+      `## Ejemplo real\n` +
+      `(un caso concreto y cotidiano que cualquiera pueda visualizar)\n\n` +
+      `## ¿Por qué importa?\n` +
+      `(1-2 oraciones sobre qué decisión de inversión mejora saber esto)\n\n` +
+      `Contexto del tema para tu referencia: ${topicContext}`;
     let full = "";
     await chatApi.stream(
       prompt,
       [],
-      (chunk) => {
-        full += chunk;
-        setContent(full);
-      },
+      (chunk) => { full += chunk; setContent(full); },
       () => setStreaming(false)
     );
   };
 
   const handleCustomSearch = () => {
     if (!search.trim()) return;
-    openTopic(search.trim(), `Explícame de forma educativa y detallada sobre: "${search.trim()}". Estructura la respuesta con secciones claras, ejemplos concretos y analogías cuando sea útil.`);
+    openTopic(
+      search.trim(),
+      `Concepto financiero: "${search.trim()}". Explícalo brevemente con un ejemplo real.`
+    );
   };
 
   return (
