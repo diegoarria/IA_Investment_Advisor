@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useMemo, useCallback } from "react";
+import { useFocusEffect } from "expo-router";
 import {
   View, Text, FlatList, TouchableOpacity, Modal,
   StyleSheet, RefreshControl, SafeAreaView, ActivityIndicator, ScrollView, Image, Linking,
@@ -54,8 +55,9 @@ export default function NotificationsScreen() {
 
   // Portfolio news
   const { positions } = usePortfolioStore();
-  const [news, setNews]           = useState<NewsItem[]>([]);
+  const [news, setNews]             = useState<NewsItem[]>([]);
   const [newsLoading, setNewsLoading] = useState(false);
+  const [newsError, setNewsError]   = useState(false);
 
   // Watchlist prices
   const { items: watchlist } = useWatchlistStore();
@@ -86,11 +88,14 @@ export default function NotificationsScreen() {
   const loadPortfolioNews = useCallback(async () => {
     if (positions.length === 0) return;
     setNewsLoading(true);
+    setNewsError(false);
     try {
       const tickers = [...new Set(positions.map((p) => p.ticker))];
       const res = await marketApi.getNews(tickers);
       setNews(res.data ?? []);
-    } catch {}
+    } catch {
+      setNewsError(true);
+    }
     setNewsLoading(false);
   }, [positions.length]);
 
@@ -120,7 +125,10 @@ export default function NotificationsScreen() {
 
   useEffect(() => { loadNotifications(); }, []);
   useEffect(() => { loadWatchlistWithChange(); }, [watchlist.length]);
-  useEffect(() => { loadPortfolioNews(); }, [positions.length]);
+
+  useFocusEffect(useCallback(() => {
+    loadPortfolioNews();
+  }, [loadPortfolioNews]));
 
   const handleMarkRead = async (id: string) => {
     await notificationsApi.markRead(id);
@@ -172,49 +180,87 @@ export default function NotificationsScreen() {
   );
 
   const PortfolioNewsSection = () => {
-    if (positions.length === 0) return null;
+    const tickers = [...new Set(positions.map((p) => p.ticker))];
+
+    const body = () => {
+      if (positions.length === 0) {
+        return (
+          <View style={styles.newsEmptyState}>
+            <Ionicons name="briefcase-outline" size={28} color={colors.textDim} />
+            <Text style={[styles.newsEmptyText, { color: colors.textMuted }]}>
+              Importa acciones en Portafolio para ver sus noticias aquí
+            </Text>
+          </View>
+        );
+      }
+      if (newsLoading) {
+        return (
+          <View style={styles.newsEmptyState}>
+            <ActivityIndicator color={colors.accentLight} />
+            <Text style={[styles.newsEmptyText, { color: colors.textDim }]}>
+              Buscando noticias de {tickers.join(", ")}…
+            </Text>
+          </View>
+        );
+      }
+      if (newsError) {
+        return (
+          <TouchableOpacity style={styles.newsEmptyState} onPress={loadPortfolioNews} activeOpacity={0.7}>
+            <Ionicons name="refresh-outline" size={24} color={colors.textDim} />
+            <Text style={[styles.newsEmptyText, { color: colors.textMuted }]}>
+              Error al cargar noticias. Toca para reintentar.
+            </Text>
+          </TouchableOpacity>
+        );
+      }
+      if (news.length === 0) {
+        return (
+          <View style={styles.newsEmptyState}>
+            <Ionicons name="newspaper-outline" size={28} color={colors.textDim} />
+            <Text style={[styles.newsEmptyText, { color: colors.textMuted }]}>
+              Sin noticias en los últimos 7 días para {tickers.join(", ")}
+            </Text>
+          </View>
+        );
+      }
+      return news.map((item) => (
+        <TouchableOpacity
+          key={item.uuid}
+          style={[styles.newsRow, { borderTopColor: colors.border }]}
+          onPress={() => Linking.openURL(item.url).catch(() => {})}
+          activeOpacity={0.75}
+        >
+          {item.thumbnail ? (
+            <Image source={{ uri: item.thumbnail }} style={styles.newsThumbnail} />
+          ) : (
+            <View style={[styles.newsThumbnail, { backgroundColor: colors.border, alignItems: "center", justifyContent: "center" }]}>
+              <Ionicons name="newspaper-outline" size={18} color={colors.textDim} />
+            </View>
+          )}
+          <View style={{ flex: 1 }}>
+            <View style={styles.newsTickerRow}>
+              <View style={[styles.newsTickerBadge, { backgroundColor: colors.accentGlow }]}>
+                <Text style={[styles.newsTickerText, { color: colors.accentLight }]}>{item.symbol}</Text>
+              </View>
+              <Text style={[styles.newsDate, { color: colors.textDim }]}>
+                {new Date(item.timestamp * 1000).toLocaleDateString("es", { day: "numeric", month: "short" })}
+              </Text>
+            </View>
+            <Text style={[styles.newsTitle, { color: colors.text }]} numberOfLines={2}>{item.title}</Text>
+            <Text style={[styles.newsPublisher, { color: colors.textMuted }]}>{item.publisher}</Text>
+          </View>
+        </TouchableOpacity>
+      ));
+    };
+
     return (
       <View style={[styles.section, { backgroundColor: colors.card, borderColor: colors.border }]}>
         <View style={styles.sectionHeader}>
           <Ionicons name="newspaper-outline" size={14} color={colors.accentLight} />
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>Noticias de tu portafolio</Text>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>Noticias del portafolio</Text>
           <Text style={[styles.sectionSubtitle, { color: colors.textDim }]}>últimos 7 días</Text>
-          {newsLoading && <ActivityIndicator size="small" color={colors.accentLight} style={{ marginLeft: 6 }} />}
         </View>
-        {!newsLoading && news.length === 0 ? (
-          <Text style={[styles.emptySubtext, { paddingHorizontal: 4, paddingBottom: 8 }]}>
-            Sin noticias recientes para tus acciones
-          </Text>
-        ) : (
-          news.map((item) => (
-            <TouchableOpacity
-              key={item.uuid}
-              style={[styles.newsRow, { borderTopColor: colors.border }]}
-              onPress={() => Linking.openURL(item.url).catch(() => {})}
-              activeOpacity={0.75}
-            >
-              {item.thumbnail ? (
-                <Image source={{ uri: item.thumbnail }} style={styles.newsThumbnail} />
-              ) : (
-                <View style={[styles.newsThumbnail, { backgroundColor: colors.border, alignItems: "center", justifyContent: "center" }]}>
-                  <Ionicons name="newspaper-outline" size={18} color={colors.textDim} />
-                </View>
-              )}
-              <View style={{ flex: 1 }}>
-                <View style={styles.newsTickerRow}>
-                  <View style={[styles.newsTickerBadge, { backgroundColor: colors.accentGlow }]}>
-                    <Text style={[styles.newsTickerText, { color: colors.accentLight }]}>{item.symbol}</Text>
-                  </View>
-                  <Text style={[styles.newsDate, { color: colors.textDim }]}>
-                    {new Date(item.timestamp * 1000).toLocaleDateString("es", { day: "numeric", month: "short" })}
-                  </Text>
-                </View>
-                <Text style={[styles.newsTitle, { color: colors.text }]} numberOfLines={2}>{item.title}</Text>
-                <Text style={[styles.newsPublisher, { color: colors.textMuted }]}>{item.publisher}</Text>
-              </View>
-            </TouchableOpacity>
-          ))
-        )}
+        {body()}
       </View>
     );
   };
@@ -373,6 +419,11 @@ function makeStyles(c: Colors) {
     newsDate:      { fontSize: 10 },
     newsTitle:     { fontSize: 13, fontWeight: "600", lineHeight: 18, marginBottom: 4 },
     newsPublisher: { fontSize: 11 },
+    newsEmptyState: {
+      alignItems: "center" as const, gap: 10,
+      paddingHorizontal: 16, paddingVertical: 20,
+    },
+    newsEmptyText: { fontSize: 13, textAlign: "center" as const, lineHeight: 19 },
 
     watchRow: {
       flexDirection: "row", alignItems: "center",
