@@ -1,5 +1,6 @@
 import axios from "axios";
 import * as SecureStore from "expo-secure-store";
+import { router } from "expo-router";
 
 const BASE_URL = process.env.EXPO_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -12,6 +13,56 @@ api.interceptors.request.use(async (config) => {
   } catch {}
   return config;
 });
+
+// Auto-refresh on 401
+let isRefreshing = false;
+let failedQueue: Array<{ resolve: (t: string) => void; reject: (e: unknown) => void }> = [];
+
+const flushQueue = (error: unknown, token: string | null = null) => {
+  failedQueue.forEach((p) => (error ? p.reject(error) : p.resolve(token!)));
+  failedQueue = [];
+};
+
+api.interceptors.response.use(
+  (res) => res,
+  async (error) => {
+    const original = error.config;
+    if (error.response?.status !== 401 || original._retry) return Promise.reject(error);
+
+    if (isRefreshing) {
+      return new Promise((resolve, reject) => {
+        failedQueue.push({ resolve, reject });
+      }).then((token) => {
+        original.headers.Authorization = `Bearer ${token}`;
+        return api(original);
+      });
+    }
+
+    original._retry = true;
+    isRefreshing = true;
+
+    try {
+      const refreshToken = await SecureStore.getItemAsync("refresh_token");
+      if (!refreshToken) throw new Error("no refresh token");
+      const res = await axios.post(`${BASE_URL}/api/auth/refresh`, { refresh_token: refreshToken });
+      const { access_token, refresh_token: newRefresh } = res.data;
+      await SecureStore.setItemAsync("access_token", access_token);
+      await SecureStore.setItemAsync("refresh_token", newRefresh);
+      api.defaults.headers.common["Authorization"] = `Bearer ${access_token}`;
+      original.headers.Authorization = `Bearer ${access_token}`;
+      flushQueue(null, access_token);
+      return api(original);
+    } catch (refreshErr) {
+      flushQueue(refreshErr);
+      await SecureStore.deleteItemAsync("access_token");
+      await SecureStore.deleteItemAsync("refresh_token");
+      router.replace("/");
+      return Promise.reject(refreshErr);
+    } finally {
+      isRefreshing = false;
+    }
+  }
+);
 
 export const authApi = {
   login: (email: string, password: string) =>

@@ -26,6 +26,7 @@ async def register(request: AuthRequest):
 
         return TokenResponse(
             access_token=sign_in.session.access_token,
+            refresh_token=sign_in.session.refresh_token,
             user_id=sign_in.user.id,
         )
     except HTTPException:
@@ -49,12 +50,33 @@ async def login(request: AuthRequest):
             raise HTTPException(status_code=401, detail="Credenciales inválidas")
         return TokenResponse(
             access_token=result.session.access_token,
+            refresh_token=result.session.refresh_token,
             user_id=result.user.id,
         )
     except HTTPException:
         raise
     except Exception as e:
         raise HTTPException(status_code=401, detail=f"Login error: {str(e)}")
+
+
+@router.post("/refresh")
+async def refresh_token(request: dict):
+    try:
+        token = request.get("refresh_token", "")
+        if not token:
+            raise HTTPException(status_code=401, detail="refresh_token requerido")
+        db = get_supabase()
+        result = db.auth.refresh_session(token)
+        if result.session is None:
+            raise HTTPException(status_code=401, detail="Sesión inválida o expirada")
+        return {
+            "access_token": result.session.access_token,
+            "refresh_token": result.session.refresh_token,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=401, detail=f"Refresh error: {str(e)}")
 
 
 @router.post("/logout")

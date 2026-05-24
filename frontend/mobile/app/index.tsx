@@ -29,6 +29,9 @@ export default function AuthScreen() {
       const res = await fn(email.trim().toLowerCase(), password);
       await SecureStore.setItemAsync("access_token", res.data.access_token);
       await SecureStore.setItemAsync("user_id", res.data.user_id);
+      if (res.data.refresh_token) {
+        await SecureStore.setItemAsync("refresh_token", res.data.refresh_token);
+      }
       try {
         const profileRes = await profileApi.get();
         const p = profileRes.data as UserProfile;
