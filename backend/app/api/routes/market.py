@@ -340,13 +340,22 @@ async def portfolio_from_screenshot(
                             "Analiza esta captura de pantalla de un portafolio de inversión y extrae todas las posiciones.\n\n"
                             "Devuelve ÚNICAMENTE un JSON array con este formato exacto (sin texto adicional, sin markdown, sin bloques de código):\n"
                             '[{"ticker":"AAPL","name":"Apple Inc.","shares":10.5,"avg_price":150.00}]\n\n'
-                            "Reglas:\n"
-                            "- ticker: símbolo bursátil en MAYÚSCULAS\n"
-                            "- name: nombre completo de la empresa si es visible, si no usa el ticker\n"
-                            "- shares: número de acciones o unidades (decimal permitido)\n"
-                            "- avg_price: precio promedio de compra por acción si es visible, null si no aparece\n"
-                            "- Incluye TODAS las posiciones visibles en la imagen\n"
-                            "- Si un campo no es legible, usa null\n"
+                            "CAMPOS:\n"
+                            "- ticker: símbolo bursátil en MAYÚSCULAS (ej. AAPL, NVDA, MSFT)\n"
+                            "- name: nombre completo de la empresa. Si no aparece, usa el ticker\n"
+                            "- shares: número de acciones/unidades. Busca: 'Acciones', 'Títulos', 'Units', 'Qty', 'Cantidad', 'Shares'\n"
+                            "- avg_price: precio promedio de COMPRA por acción. Busca estos campos según el broker:\n"
+                            "    GBM/BIVA: 'P. Prom', 'Precio Prom', 'Precio Promedio', 'Costo Promedio', 'Precio Prom. Compra'\n"
+                            "    Robinhood: 'Average Cost', 'Avg Cost', 'Cost Basis per Share'\n"
+                            "    IBKR: 'Avg Cost', 'Average Cost', 'Cost Basis'\n"
+                            "    Fidelity/Schwab: 'Avg Price', 'Average Price', 'Cost Per Share'\n"
+                            "    Si ves 'Monto Invertido' o 'Cost Basis' (total), divídelo entre el número de acciones\n"
+                            "    Si ves 'Rendimiento $' y 'Valor Actual', calcula: avg = (valor_actual - rendimiento) / shares\n"
+                            "    Si no encuentras ningún precio de compra, pon null\n\n"
+                            "IMPORTANTE:\n"
+                            "- NO confundas el precio actual de mercado con el precio de compra\n"
+                            "- El precio de compra es el que pagaste, NO el precio actual\n"
+                            "- Incluye TODAS las posiciones visibles aunque falten datos\n"
                             "- Devuelve SOLO el JSON array, sin ningún otro texto"
                         ),
                     },
@@ -369,13 +378,10 @@ async def portfolio_from_screenshot(
             if not ticker:
                 continue
             avg_price = p.get("avg_price")
-            # If avg_price missing, try fetching current price from yfinance
+            # If avg_price missing, fetch current price via httpx
             if avg_price is None or avg_price == 0:
-                try:
-                    fi = yf.Ticker(ticker).fast_info
-                    avg_price = round(float(fi.last_price), 4) if fi.last_price else 0
-                except Exception:
-                    avg_price = 0
+                price, _ = _fetch_one_index(ticker)
+                avg_price = round(price, 4) if price else 0
             result.append({
                 "ticker": ticker,
                 "name": p.get("name") or ticker,
