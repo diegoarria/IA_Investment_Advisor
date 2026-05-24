@@ -13,6 +13,8 @@ from app.services import market_service, ai_service
 router = APIRouter(prefix="/market", tags=["market"])
 
 _INDEX_CACHE: dict = {}
+_NEWS_CACHE: dict = {}
+_NEWS_CACHE_TTL = 900  # 15 minutes
 _INDEX_CACHE_TTL = 60  # seconds
 
 INDICES = {
@@ -411,3 +413,80 @@ async def get_significant_movers(
     user_id: str = Depends(get_current_user_id)
 ):
     return market_service.detect_significant_moves(threshold_pct=threshold)
+
+
+def _fetch_symbol_news(symbol: str) -> list[dict]:
+    """Fetch recent news for a symbol via Yahoo Finance search API."""
+    import httpx, time
+
+    encoded = symbol.replace("^", "%5E")
+    cutoff  = time.time() - 7 * 86400  # 7 days ago
+    results = []
+
+    for domain in ("query1", "query2"):
+        try:
+            url = (
+                f"https://{domain}.finance.yahoo.com/v1/finance/search"
+                f"?q={encoded}&newsCount=20&enableFuzzyQuery=false&enableCb=false"
+            )
+            r = httpx.get(url, headers=_YF_HEADERS, timeout=8, follow_redirects=True)
+            if r.status_code != 200:
+                continue
+            articles = r.json().get("news", [])
+            for a in articles:
+                ts = a.get("providerPublishTime", 0)
+                if ts < cutoff:
+                    continue
+                thumbnail = None
+                resolutions = a.get("thumbnail", {}).get("resolutions", [])
+                if resolutions:
+                    thumbnail = resolutions[0].get("url")
+                results.append({
+                    "uuid":      a.get("uuid", ""),
+                    "title":     a.get("title", ""),
+                    "publisher": a.get("publisher", ""),
+                    "url":       a.get("link", ""),
+                    "timestamp": ts,
+                    "symbol":    symbol,
+                    "thumbnail": thumbnail,
+                })
+            if results:
+                break
+        except Exception:
+            continue
+
+    return results
+
+
+@router.get("/news")
+async def get_portfolio_news(
+    symbols: str = Query(..., description="Comma-separated tickers, e.g. AAPL,NVDA"),
+    user_id: str = Depends(get_current_user_id)
+):
+    import asyncio, time
+
+    tickers = [s.strip().upper() for s in symbols.split(",") if s.strip()][:20]
+    if not tickers:
+        return []
+
+    cache_key = ",".join(sorted(tickers))
+    now = time.time()
+    if _NEWS_CACHE.get(cache_key) and now - _NEWS_CACHE[cache_key]["ts"] < _NEWS_CACHE_TTL:
+        return _NEWS_CACHE[cache_key]["data"]
+
+    all_articles: list[dict] = []
+    seen_uuids: set = set()
+
+    with ThreadPoolExecutor(max_workers=min(len(tickers), 8)) as pool:
+        results = list(pool.map(_fetch_symbol_news, tickers))
+
+    for articles in results:
+        for a in articles:
+            if a["uuid"] and a["uuid"] not in seen_uuids:
+                seen_uuids.add(a["uuid"])
+                all_articles.append(a)
+
+    all_articles.sort(key=lambda x: x["timestamp"], reverse=True)
+
+    _NEWS_CACHE[cache_key] = {"data": all_articles, "ts": now}
+    return all_articles

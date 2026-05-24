@@ -1,13 +1,14 @@
 import React, { useEffect, useState, useMemo, useCallback } from "react";
 import {
   View, Text, FlatList, TouchableOpacity, Modal,
-  StyleSheet, RefreshControl, SafeAreaView, ActivityIndicator, ScrollView,
+  StyleSheet, RefreshControl, SafeAreaView, ActivityIndicator, ScrollView, Image, Linking,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import Markdown from "react-native-markdown-display";
 import { notificationsApi, marketApi } from "../../src/lib/api";
 import { useTheme, Colors } from "../../src/lib/ThemeContext";
 import { useWatchlistStore } from "../../src/lib/watchlistStore";
+import { usePortfolioStore } from "../../src/lib/portfolioStore";
 
 type IoniconName = React.ComponentProps<typeof Ionicons>["name"];
 
@@ -33,6 +34,16 @@ const TYPE_ICONS: Record<string, IoniconName> = {
   market_summary:     "trending-up-outline",
 };
 
+interface NewsItem {
+  uuid: string;
+  title: string;
+  publisher: string;
+  url: string;
+  timestamp: number;
+  symbol: string;
+  thumbnail: string | null;
+}
+
 export default function NotificationsScreen() {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
@@ -40,6 +51,11 @@ export default function NotificationsScreen() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unread, setUnread]         = useState(0);
   const [refreshing, setRefreshing] = useState(false);
+
+  // Portfolio news
+  const { positions } = usePortfolioStore();
+  const [news, setNews]           = useState<NewsItem[]>([]);
+  const [newsLoading, setNewsLoading] = useState(false);
 
   // Watchlist prices
   const { items: watchlist } = useWatchlistStore();
@@ -67,6 +83,17 @@ export default function NotificationsScreen() {
     } catch {}
   };
 
+  const loadPortfolioNews = useCallback(async () => {
+    if (positions.length === 0) return;
+    setNewsLoading(true);
+    try {
+      const tickers = [...new Set(positions.map((p) => p.ticker))];
+      const res = await marketApi.getNews(tickers);
+      setNews(res.data ?? []);
+    } catch {}
+    setNewsLoading(false);
+  }, [positions.length]);
+
   const loadWatchlistWithChange = useCallback(async () => {
     if (watchlist.length === 0) return;
     setPricesLoading(true);
@@ -93,6 +120,7 @@ export default function NotificationsScreen() {
 
   useEffect(() => { loadNotifications(); }, []);
   useEffect(() => { loadWatchlistWithChange(); }, [watchlist.length]);
+  useEffect(() => { loadPortfolioNews(); }, [positions.length]);
 
   const handleMarkRead = async (id: string) => {
     await notificationsApi.markRead(id);
@@ -142,6 +170,54 @@ export default function NotificationsScreen() {
       </View>
     </TouchableOpacity>
   );
+
+  const PortfolioNewsSection = () => {
+    if (positions.length === 0) return null;
+    return (
+      <View style={[styles.section, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        <View style={styles.sectionHeader}>
+          <Ionicons name="newspaper-outline" size={14} color={colors.accentLight} />
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>Noticias de tu portafolio</Text>
+          <Text style={[styles.sectionSubtitle, { color: colors.textDim }]}>últimos 7 días</Text>
+          {newsLoading && <ActivityIndicator size="small" color={colors.accentLight} style={{ marginLeft: 6 }} />}
+        </View>
+        {!newsLoading && news.length === 0 ? (
+          <Text style={[styles.emptySubtext, { paddingHorizontal: 4, paddingBottom: 8 }]}>
+            Sin noticias recientes para tus acciones
+          </Text>
+        ) : (
+          news.map((item) => (
+            <TouchableOpacity
+              key={item.uuid}
+              style={[styles.newsRow, { borderTopColor: colors.border }]}
+              onPress={() => Linking.openURL(item.url).catch(() => {})}
+              activeOpacity={0.75}
+            >
+              {item.thumbnail ? (
+                <Image source={{ uri: item.thumbnail }} style={styles.newsThumbnail} />
+              ) : (
+                <View style={[styles.newsThumbnail, { backgroundColor: colors.border, alignItems: "center", justifyContent: "center" }]}>
+                  <Ionicons name="newspaper-outline" size={18} color={colors.textDim} />
+                </View>
+              )}
+              <View style={{ flex: 1 }}>
+                <View style={styles.newsTickerRow}>
+                  <View style={[styles.newsTickerBadge, { backgroundColor: colors.accentGlow }]}>
+                    <Text style={[styles.newsTickerText, { color: colors.accentLight }]}>{item.symbol}</Text>
+                  </View>
+                  <Text style={[styles.newsDate, { color: colors.textDim }]}>
+                    {new Date(item.timestamp * 1000).toLocaleDateString("es", { day: "numeric", month: "short" })}
+                  </Text>
+                </View>
+                <Text style={[styles.newsTitle, { color: colors.text }]} numberOfLines={2}>{item.title}</Text>
+                <Text style={[styles.newsPublisher, { color: colors.textMuted }]}>{item.publisher}</Text>
+              </View>
+            </TouchableOpacity>
+          ))
+        )}
+      </View>
+    );
+  };
 
   const WatchlistSection = () => {
     const { remove } = useWatchlistStore();
@@ -209,13 +285,13 @@ export default function NotificationsScreen() {
             refreshing={refreshing}
             onRefresh={async () => {
               setRefreshing(true);
-              await Promise.all([loadNotifications(), loadWatchlistWithChange()]);
+              await Promise.all([loadNotifications(), loadWatchlistWithChange(), loadPortfolioNews()]);
               setRefreshing(false);
             }}
             tintColor="#22c55e"
           />
         }
-        ListHeaderComponent={<WatchlistSection />}
+        ListHeaderComponent={<><PortfolioNewsSection /><WatchlistSection /></>}
         ListEmptyComponent={
           <View style={styles.empty}>
             <Ionicons name="notifications-outline" size={48} color={colors.textMuted} style={{ marginBottom: 16 }} />
@@ -282,6 +358,22 @@ function makeStyles(c: Colors) {
       borderBottomWidth: StyleSheet.hairlineWidth,
     },
     sectionTitle: { fontSize: 13, fontWeight: "700", letterSpacing: 0.2 },
+    sectionSubtitle: { fontSize: 11, letterSpacing: 0.2 },
+
+    // Portfolio news
+    newsRow: {
+      flexDirection: "row", alignItems: "flex-start", gap: 12,
+      paddingHorizontal: 14, paddingVertical: 12,
+      borderTopWidth: StyleSheet.hairlineWidth,
+    },
+    newsThumbnail: { width: 60, height: 60, borderRadius: 10, flexShrink: 0 },
+    newsTickerRow: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 4 },
+    newsTickerBadge: { borderRadius: 5, paddingHorizontal: 6, paddingVertical: 2 },
+    newsTickerText: { fontSize: 10, fontWeight: "800", letterSpacing: 0.4 },
+    newsDate:      { fontSize: 10 },
+    newsTitle:     { fontSize: 13, fontWeight: "600", lineHeight: 18, marginBottom: 4 },
+    newsPublisher: { fontSize: 11 },
+
     watchRow: {
       flexDirection: "row", alignItems: "center",
       paddingHorizontal: 14, paddingVertical: 12,

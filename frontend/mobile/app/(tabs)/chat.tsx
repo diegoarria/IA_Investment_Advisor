@@ -4,6 +4,7 @@ import {
   StyleSheet, KeyboardAvoidingView, Platform, ActivityIndicator, Image, Animated,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useHeaderHeight } from "@react-navigation/elements";
 import { Ionicons } from "@expo/vector-icons";
 import Markdown from "react-native-markdown-display";
 import { chatApi } from "../../src/lib/api";
@@ -65,6 +66,7 @@ const SUGGESTIONS = [
 ];
 
 export default function ChatScreen() {
+  const headerHeight = useHeaderHeight();
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const markdownStyles = useMemo(() => makeMarkdownStyles(colors), [colors]);
@@ -234,9 +236,9 @@ Instrucciones críticas:
     <KeyboardAvoidingView
       behavior={Platform.OS === "ios" ? "padding" : "height"}
       style={styles.container}
-      keyboardVerticalOffset={0}
+      keyboardVerticalOffset={headerHeight}
     >
-    <SafeAreaView style={styles.flex} edges={["top", "left", "right"]}>
+    <SafeAreaView style={styles.flex} edges={["left", "right"]}>
       {/* Behavioral investor bar — mobile only */}
       {riskCfg && Platform.OS !== "web" && (() => {
         const score    = diagnosis?.score ?? pct;

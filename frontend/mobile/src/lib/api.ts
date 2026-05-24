@@ -76,6 +76,8 @@ export const marketApi = {
     api.post("/api/market/screener", { sector, query }),
   alertContext: (ticker: string, change_pct: number) =>
     api.post("/api/market/screener/alert-context", { ticker, change_pct }),
+  getNews: (symbols: string[]) =>
+    api.get("/api/market/news", { params: { symbols: symbols.join(",") } }),
 };
 
 export const notificationsApi = {
