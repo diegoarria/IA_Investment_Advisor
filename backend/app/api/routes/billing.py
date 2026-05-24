@@ -1,10 +1,16 @@
 import stripe
 from fastapi import APIRouter, Depends, Request, HTTPException
+from pydantic import BaseModel
+from typing import Literal
 from app.api.deps import get_current_user_id
 from app.core.config import settings
 from app.core.database import get_supabase
 
 router = APIRouter(prefix="/billing", tags=["billing"])
+
+
+class CheckoutRequest(BaseModel):
+    plan: Literal["monthly", "yearly"] = "monthly"
 
 
 def _stripe():
@@ -14,13 +20,22 @@ def _stripe():
     return stripe
 
 
+def _price_id(plan: str) -> str:
+    if plan == "yearly":
+        price_id = settings.stripe_price_id_yearly
+    else:
+        price_id = settings.stripe_price_id_monthly
+    if not price_id:
+        raise HTTPException(status_code=503, detail="Precio no configurado")
+    return price_id
+
+
 @router.post("/create-checkout")
-async def create_checkout(user_id: str = Depends(get_current_user_id)):
+async def create_checkout(body: CheckoutRequest, user_id: str = Depends(get_current_user_id)):
     s = _stripe()
     db = get_supabase()
 
-    # Reuse existing customer if available
-    result = db.table("user_profiles").select("stripe_customer_id, name").eq("user_id", user_id).single().execute()
+    result = db.table("user_profiles").select("stripe_customer_id").eq("user_id", user_id).single().execute()
     customer_id = result.data.get("stripe_customer_id") if result.data else None
 
     success_url = "https://nuvo.app/premium-success"
@@ -32,7 +47,7 @@ async def create_checkout(user_id: str = Depends(get_current_user_id)):
     params: dict = {
         "mode": "subscription",
         "payment_method_types": ["card"],
-        "line_items": [{"price": settings.stripe_price_id, "quantity": 1}],
+        "line_items": [{"price": _price_id(body.plan), "quantity": 1}],
         "client_reference_id": user_id,
         "success_url": success_url + "?session_id={CHECKOUT_SESSION_ID}",
         "cancel_url": cancel_url,

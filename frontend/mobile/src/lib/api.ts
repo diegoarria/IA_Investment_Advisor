@@ -138,7 +138,7 @@ export const notificationsApi = {
 };
 
 export const billingApi = {
-  createCheckout: () => api.post("/api/billing/create-checkout"),
+  createCheckout: (plan: "monthly" | "yearly" = "monthly") => api.post("/api/billing/create-checkout", { plan }),
   getStatus: () => api.get("/api/billing/status"),
 };
 

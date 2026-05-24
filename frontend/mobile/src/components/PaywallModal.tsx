@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import {
   View, Text, TouchableOpacity, Modal, StyleSheet,
-  ActivityIndicator, Linking, Platform,
+  ActivityIndicator, Linking,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { billingApi } from "../lib/api";
@@ -16,16 +16,23 @@ const PREMIUM_FEATURES = [
   { icon: "newspaper-outline",    text: "Noticias ilimitadas en tiempo real" },
 ];
 
+const PLANS = [
+  { key: "monthly", label: "Mensual", price: "$11.99", period: "/mes", badge: null },
+  { key: "yearly",  label: "Anual",   price: "$99.99", period: "/año", badge: "2 meses gratis" },
+] as const;
+
+type Plan = "monthly" | "yearly";
+
 interface Props {
   visible: boolean;
   onClose: () => void;
-  /** Short description of what triggered the paywall, e.g. "Los mentores son exclusivos de Premium" */
   reason?: string;
 }
 
 export default function PaywallModal({ visible, onClose, reason }: Props) {
   const { colors } = useTheme();
   const fetchStatus = useSubscriptionStore((s) => s.fetchStatus);
+  const [selectedPlan, setSelectedPlan] = useState<Plan>("monthly");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -33,10 +40,9 @@ export default function PaywallModal({ visible, onClose, reason }: Props) {
     setLoading(true);
     setError("");
     try {
-      const res = await billingApi.createCheckout();
+      const res = await billingApi.createCheckout(selectedPlan);
       const url: string = res.data.url;
       await Linking.openURL(url);
-      // After returning from browser, refresh subscription status
       setTimeout(() => fetchStatus(), 3000);
     } catch {
       setError("No se pudo abrir el pago. Intenta de nuevo.");
@@ -44,6 +50,8 @@ export default function PaywallModal({ visible, onClose, reason }: Props) {
       setLoading(false);
     }
   };
+
+  const active = PLANS.find((p) => p.key === selectedPlan)!;
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
@@ -60,9 +68,6 @@ export default function PaywallModal({ visible, onClose, reason }: Props) {
           </View>
 
           <Text style={[styles.title, { color: colors.text }]}>Nuvo Premium</Text>
-          <Text style={[styles.price, { color: "#f59e0b" }]}>
-            $11.99<Text style={[styles.pricePeriod, { color: colors.textMuted }]}>/mes</Text>
-          </Text>
 
           {reason && (
             <View style={[styles.reasonBox, { backgroundColor: "#f59e0b12", borderColor: "#f59e0b30" }]}>
@@ -70,6 +75,38 @@ export default function PaywallModal({ visible, onClose, reason }: Props) {
               <Text style={styles.reasonText}>{reason}</Text>
             </View>
           )}
+
+          {/* Plan selector */}
+          <View style={styles.planRow}>
+            {PLANS.map((plan) => {
+              const isSelected = selectedPlan === plan.key;
+              return (
+                <TouchableOpacity
+                  key={plan.key}
+                  style={[
+                    styles.planOption,
+                    isSelected
+                      ? { borderColor: "#f59e0b", backgroundColor: "#f59e0b12" }
+                      : { borderColor: "#1a2d42", backgroundColor: "transparent" },
+                  ]}
+                  onPress={() => setSelectedPlan(plan.key)}
+                >
+                  {plan.badge && (
+                    <View style={styles.planBadge}>
+                      <Text style={styles.planBadgeText}>{plan.badge}</Text>
+                    </View>
+                  )}
+                  <Text style={[styles.planLabel, { color: isSelected ? "#f59e0b" : colors.textMuted }]}>
+                    {plan.label}
+                  </Text>
+                  <Text style={[styles.planPrice, { color: isSelected ? colors.text : colors.textSub }]}>
+                    {plan.price}
+                  </Text>
+                  <Text style={[styles.planPeriod, { color: colors.textDim }]}>{plan.period}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
 
           {/* Features list */}
           <View style={styles.features}>
@@ -83,9 +120,7 @@ export default function PaywallModal({ visible, onClose, reason }: Props) {
             ))}
           </View>
 
-          {error ? (
-            <Text style={styles.errorText}>{error}</Text>
-          ) : null}
+          {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
           {/* CTA */}
           <TouchableOpacity
@@ -98,7 +133,9 @@ export default function PaywallModal({ visible, onClose, reason }: Props) {
             ) : (
               <>
                 <Ionicons name="star" size={16} color="white" />
-                <Text style={styles.ctaText}>Activar Premium</Text>
+                <Text style={styles.ctaText}>
+                  Activar Premium · {active.price}{active.period}
+                </Text>
               </>
             )}
           </TouchableOpacity>
@@ -130,15 +167,30 @@ const styles = StyleSheet.create({
     alignItems: "center", justifyContent: "center",
   },
   closeBtn: { padding: 4 },
-  title: { fontSize: 22, fontWeight: "800", letterSpacing: -0.5, marginBottom: 4 },
-  price: { fontSize: 28, fontWeight: "900", letterSpacing: -1, marginBottom: 12 },
-  pricePeriod: { fontSize: 15, fontWeight: "500" },
+  title: { fontSize: 22, fontWeight: "800", letterSpacing: -0.5, marginBottom: 12 },
   reasonBox: {
     flexDirection: "row", alignItems: "center", gap: 7,
     borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8,
     marginBottom: 12,
   },
   reasonText: { color: "#f59e0b", fontSize: 12, fontWeight: "600", flex: 1 },
+
+  // Plan selector
+  planRow: { flexDirection: "row", gap: 10, marginBottom: 12 },
+  planOption: {
+    flex: 1, borderWidth: 1.5, borderRadius: 14,
+    paddingVertical: 12, paddingHorizontal: 10,
+    alignItems: "center", gap: 2,
+  },
+  planBadge: {
+    backgroundColor: "#22c55e", borderRadius: 20,
+    paddingHorizontal: 8, paddingVertical: 2, marginBottom: 4,
+  },
+  planBadgeText: { color: "white", fontSize: 9, fontWeight: "800" },
+  planLabel: { fontSize: 11, fontWeight: "700", letterSpacing: 0.5 },
+  planPrice: { fontSize: 20, fontWeight: "900", letterSpacing: -0.5 },
+  planPeriod: { fontSize: 11 },
+
   features: { gap: 10, marginVertical: 8 },
   featureRow: { flexDirection: "row", alignItems: "center", gap: 10 },
   featureIcon: {
@@ -151,6 +203,6 @@ const styles = StyleSheet.create({
     flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
     backgroundColor: "#f59e0b", borderRadius: 14, paddingVertical: 16, marginTop: 12,
   },
-  ctaText: { color: "white", fontWeight: "800", fontSize: 16 },
+  ctaText: { color: "white", fontWeight: "800", fontSize: 15 },
   disclaimer: { fontSize: 10, textAlign: "center", marginTop: 8 },
 });
