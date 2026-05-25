@@ -14,6 +14,10 @@ import { marketApi } from "../../src/lib/api";
 import { useTheme, Colors } from "../../src/lib/ThemeContext";
 import { usePortfolioStore, Position } from "../../src/lib/portfolioStore";
 import { useAppStore, getAge, UserProfile } from "../../src/lib/profileStore";
+import { useSubscriptionStore } from "../../src/lib/subscriptionStore";
+import PaywallModal from "../../src/components/PaywallModal";
+
+const FREE_POSITION_LIMIT = 10;
 
 type IoniconName = React.ComponentProps<typeof Ionicons>["name"];
 type Scenario = "conservative" | "moderate" | "aggressive";
@@ -231,6 +235,8 @@ export default function PortfolioScreen() {
 
   const { positions, addPosition, removePosition, setPositions } = usePortfolioStore();
   const profile = useAppStore((s) => s.profile);
+  const isPremium = useSubscriptionStore((s) => s.tier === "premium");
+  const [paywallOpen, setPaywallOpen] = useState(false);
   const age = profile?.birth_date ? getAge(profile.birth_date) : 0;
   const [prices, setPrices] = useState<Record<string, PriceData>>({});
   const [loadingPrices, setLoadingPrices] = useState(false);
@@ -353,6 +359,10 @@ export default function PortfolioScreen() {
 
   const confirmScreenshotImport = () => {
     if (!screenshotPreview?.length) return;
+    if (!isPremium && screenshotPreview.length > FREE_POSITION_LIMIT) {
+      setPaywallOpen(true);
+      return;
+    }
     setPositions(screenshotPreview.map((p) => ({
       ticker: p.ticker,
       name: p.name,
@@ -369,6 +379,7 @@ export default function PortfolioScreen() {
     const shares = parseFloat(form.shares);
     const avgPrice = parseFloat(form.avgPrice);
     if (!ticker || !shares || !avgPrice) { Alert.alert("Completa todos los campos"); return; }
+    if (!isPremium && positions.length >= FREE_POSITION_LIMIT) { setPaywallOpen(true); return; }
     setAddingLoading(true);
     try {
       const res = await marketApi.getPrices([ticker]);
@@ -393,6 +404,10 @@ export default function PortfolioScreen() {
       const parsed = parseExcelRows(rows);
       if (!parsed.length) {
         Alert.alert("No se encontraron posiciones", "El Excel debe tener columnas: Ticker / Acciones / Precio");
+        return;
+      }
+      if (!isPremium && parsed.length > FREE_POSITION_LIMIT) {
+        setPaywallOpen(true);
         return;
       }
       Alert.alert(
@@ -546,7 +561,14 @@ export default function PortfolioScreen() {
 
         {/* ── MI PORTAFOLIO ── */}
         <View style={s.sectionHeader}>
-          <Text style={s.sectionTitle}>Mi Portafolio</Text>
+          <View>
+            <Text style={s.sectionTitle}>Mi Portafolio</Text>
+            {!isPremium && (
+              <Text style={{ fontSize: 11, color: positions.length >= FREE_POSITION_LIMIT ? "#ef4444" : colors.textDim, marginTop: -8, marginBottom: 4 }}>
+                {positions.length}/{FREE_POSITION_LIMIT} posiciones · <Text style={{ color: "#f59e0b" }} onPress={() => setPaywallOpen(true)}>Premium = ilimitadas</Text>
+              </Text>
+            )}
+          </View>
           <View style={s.headerButtons}>
             <TouchableOpacity style={[s.btnSmall, { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border }]} onPress={() => { setShowForm(!showForm); setScreenshotPreview(null); }}>
               <Text style={[s.btnSmallText, { color: colors.textSub }]}>+ Manual</Text>
@@ -1101,6 +1123,12 @@ export default function PortfolioScreen() {
         )}
       </ScrollView>
       )}
+
+      <PaywallModal
+        visible={paywallOpen}
+        onClose={() => setPaywallOpen(false)}
+        reason="Más de 10 posiciones requiere Premium"
+      />
     </SafeAreaView>
   );
 }
