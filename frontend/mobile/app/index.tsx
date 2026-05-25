@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from "react";
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
-  SafeAreaView, KeyboardAvoidingView, Platform, Alert, ActivityIndicator
+  SafeAreaView, KeyboardAvoidingView, Platform, Alert, ActivityIndicator, Image
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
@@ -67,9 +67,10 @@ export default function AuthScreen() {
         style={styles.content}
       >
         <View style={styles.header}>
-          <View style={styles.logo}>
-            <Ionicons name="trending-up" size={28} color="white" />
-          </View>
+          <Image
+            source={require("../assets/images/logo.jpg")}
+            style={styles.logo}
+          />
           <Text style={styles.title}>Nuvos AI</Text>
           <Text style={styles.subtitle}>Tu mentor de inversiones inteligente</Text>
         </View>
@@ -136,8 +137,7 @@ function makeStyles(c: Colors) {
     content: { flex: 1, justifyContent: "center", padding: 24 },
     header: { alignItems: "center", marginBottom: 48 },
     logo: {
-      width: 64, height: 64, backgroundColor: "#16a34a",
-      borderRadius: 16, alignItems: "center", justifyContent: "center", marginBottom: 16,
+      width: 90, height: 90, borderRadius: 22, marginBottom: 16,
     },
     title: { fontSize: 24, fontWeight: "700", color: c.text, marginBottom: 8 },
     subtitle: { fontSize: 14, color: c.textMuted, textAlign: "center" },
