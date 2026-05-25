@@ -274,7 +274,7 @@ function WebSidebar() {
               <Ionicons name="trending-up" size={20} color="white" />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={[styles.appName, { color: colors.text }]}>Nuvo</Text>
+              <Text style={[styles.appName, { color: colors.text }]}>Nuvos AI</Text>
               <Text style={[styles.appSub, { color: colors.textMuted }]}>Tu asesor IA</Text>
             </View>
           </>
@@ -400,7 +400,7 @@ function MobileSidebar() {
             <Ionicons name="trending-up" size={20} color="white" />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={[styles.appName, { color: colors.text }]}>Nuvo</Text>
+            <Text style={[styles.appName, { color: colors.text }]}>Nuvos AI</Text>
             <Text style={[styles.appSub, { color: colors.textMuted }]}>Tu asesor IA</Text>
           </View>
           <TouchableOpacity

@@ -67,7 +67,7 @@ export default function InvestorScorecard() {
         <View style={[styles.logoBox, { borderColor: riskCfg.color + "55", backgroundColor: riskCfg.color + "14" }]}>
           <Ionicons name="trending-up" size={11} color={riskCfg.color} />
         </View>
-        <Text style={styles.brandName}>Nuvo</Text>
+        <Text style={styles.brandName}>Nuvos AI</Text>
         <View style={[styles.profileTag, { borderColor: riskCfg.color + "50", backgroundColor: riskCfg.color + "14" }]}>
           <Text style={[styles.profileTagText, { color: riskCfg.color }]}>INVESTOR PROFILE</Text>
         </View>

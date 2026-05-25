@@ -88,7 +88,7 @@ export default function PaywallModal({ visible, onClose, reason }: Props) {
             </TouchableOpacity>
           </View>
 
-          <Text style={[styles.title, { color: colors.text }]}>Nuvo Premium</Text>
+          <Text style={[styles.title, { color: colors.text }]}>Nuvos AI Premium</Text>
 
           {reason && (
             <View style={[styles.reasonBox, { backgroundColor: "#f59e0b12", borderColor: "#f59e0b30" }]}>

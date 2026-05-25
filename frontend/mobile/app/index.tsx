@@ -70,7 +70,7 @@ export default function AuthScreen() {
           <View style={styles.logo}>
             <Ionicons name="trending-up" size={28} color="white" />
           </View>
-          <Text style={styles.title}>Nuvo</Text>
+          <Text style={styles.title}>Nuvos AI</Text>
           <Text style={styles.subtitle}>Tu mentor de inversiones inteligente</Text>
         </View>
 

@@ -281,7 +281,7 @@ export default function ProfileScreen() {
                 <Ionicons name="star" size={20} color="#f59e0b" />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={[s.subTitle, { color: colors.text }]}>Nuvo Premium</Text>
+                <Text style={[s.subTitle, { color: colors.text }]}>Nuvos AI Premium</Text>
                 <Text style={[s.subDesc, { color: colors.textMuted }]}>Acceso completo · Mensajes ilimitados</Text>
               </View>
               <View style={[s.subBadge, { backgroundColor: "#f59e0b18", borderColor: "#f59e0b44" }]}>
