@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import {
   View, Text, TouchableOpacity, Animated, Dimensions,
-  StyleSheet, Pressable, Platform, ScrollView,
+  StyleSheet, Pressable, Platform, ScrollView, Image,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { router, usePathname } from "expo-router";
@@ -270,9 +270,7 @@ function WebSidebar() {
       <View style={[styles.logoRow, { borderBottomColor: colors.border, justifyContent: collapsed ? "center" : "flex-start" }]}>
         {!collapsed && (
           <>
-            <View style={styles.logoBox}>
-              <Ionicons name="trending-up" size={20} color="white" />
-            </View>
+            <Image source={require("../../assets/images/logo.jpg")} style={styles.logoBox} />
             <View style={{ flex: 1 }}>
               <Text style={[styles.appName, { color: colors.text }]}>Nuvos AI</Text>
               <Text style={[styles.appSub, { color: colors.textMuted }]}>Tu asesor IA</Text>
@@ -396,9 +394,7 @@ function MobileSidebar() {
       >
         {/* Logo row with close button */}
         <View style={[styles.logoRow, { borderBottomColor: colors.border }]}>
-          <View style={styles.logoBox}>
-            <Ionicons name="trending-up" size={20} color="white" />
-          </View>
+          <Image source={require("../../assets/images/logo.jpg")} style={styles.logoBox} />
           <View style={{ flex: 1 }}>
             <Text style={[styles.appName, { color: colors.text }]}>Nuvos AI</Text>
             <Text style={[styles.appSub, { color: colors.textMuted }]}>Tu asesor IA</Text>
@@ -482,9 +478,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1, marginBottom: 8,
   },
   logoBox: {
-    width: 40, height: 40, backgroundColor: "#16a34a",
-    borderRadius: 10, alignItems: "center", justifyContent: "center",
-    flexShrink: 0,
+    width: 40, height: 40, borderRadius: 10, flexShrink: 0,
   },
   appName: { fontSize: 15, fontWeight: "700" },
   appSub: { fontSize: 12 },
