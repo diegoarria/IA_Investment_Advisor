@@ -2,14 +2,20 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useRouter, usePathname } from "next/navigation";
+import Image from "next/image";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { chat as chatApi, notifications as notifApi, market as marketApi } from "@/lib/api";
-import { useAuthStore, useProfileStore, useChatStore, useNotificationStore } from "@/lib/store";
+import {
+  useAuthStore, useProfileStore, useChatStore, useNotificationStore,
+  useThemeStore, useSubscriptionStore, msgsRemaining, FREE_MSG_LIMIT,
+} from "@/lib/store";
+import PaywallModal from "@/components/PaywallModal";
 import type { IndexData } from "@/lib/types";
 import {
   Send, TrendingUp, Bell, LogOut, Menu, X,
   ChevronRight, BookOpen, PieChart, BarChart2, User, GraduationCap,
+  Sun, Moon,
 } from "lucide-react";
 
 const SUGGESTIONS = [
@@ -30,6 +36,40 @@ const RISK_LABEL: Record<string, string> = {
   speculative:             "Especulativo",
 };
 
+const RISK_SEGMENTS = [
+  { key: "conservative",           color: "#00d47e" },
+  { key: "conservative_moderate",  color: "#3ecf8e" },
+  { key: "moderate",               color: "#8bd44e" },
+  { key: "moderate_growth",        color: "#c5d43c" },
+  { key: "growth",                 color: "#f5c842" },
+  { key: "aggressive",             color: "#f5973a" },
+  { key: "aggressive_speculative", color: "#f5613a" },
+  { key: "speculative",            color: "#ff2d3b" },
+];
+
+function RiskBar({ level }: { level: string }) {
+  const idx = RISK_SEGMENTS.findIndex((s) => s.key === level);
+  if (idx < 0) return null;
+  return (
+    <div>
+      <div className="flex gap-0.5 mb-1">
+        {RISK_SEGMENTS.map((seg, i) => (
+          <div key={seg.key}
+               className="h-1.5 flex-1 rounded-full transition-all"
+               style={{
+                 background: i <= idx ? seg.color : "var(--border)",
+                 opacity: i === idx ? 1 : i < idx ? 0.65 : 0.25,
+               }} />
+        ))}
+      </div>
+      <div className="text-[10px] font-semibold"
+           style={{ color: RISK_SEGMENTS[idx]?.color ?? "var(--accent-l)" }}>
+        {RISK_LABEL[level] ?? level}
+      </div>
+    </div>
+  );
+}
+
 function TypingDots() {
   return (
     <div className="flex items-center gap-1.5 py-1 px-1">
@@ -44,19 +84,21 @@ function IndexChip({ d }: { d: IndexData }) {
   const isVix = d.symbol === "^VIX";
   const up = d.change_pct >= 0;
   return (
-    <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-[#152034] bg-[#0b1120] shrink-0">
-      <span className="text-[11px] font-bold text-[#5b7a96]">{d.name}</span>
+    <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg border shrink-0"
+         style={{ borderColor: "var(--border)", background: "var(--card)" }}>
+      <span className="text-[11px] font-bold" style={{ color: "var(--muted)" }}>{d.name}</span>
       {d.price !== null ? (
         <>
-          <span className="text-[12px] font-bold text-[#e4eeff]">
+          <span className="text-[12px] font-bold" style={{ color: "var(--text)" }}>
             {d.price.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </span>
-          <span className={`text-[10px] font-semibold ${isVix ? "text-[#9ab4cc]" : up ? "text-[#00d47e]" : "text-[#ff4757]"}`}>
+          <span className="text-[10px] font-semibold"
+                style={{ color: isVix ? "var(--sub)" : up ? "var(--up)" : "var(--down)" }}>
             {!isVix && (up ? "▲" : "▼")}{Math.abs(d.change_pct).toFixed(2)}%
           </span>
         </>
       ) : (
-        <span className="text-[12px] text-[#2e4a62]">—</span>
+        <span className="text-[12px]" style={{ color: "var(--dim)" }}>—</span>
       )}
     </div>
   );
@@ -78,13 +120,19 @@ export default function ChatPage() {
   const { profile } = useProfileStore();
   const { messages, isStreaming, addMessage, appendToLastAssistant, setStreaming, startAssistantMessage, setMessages } = useChatStore();
   const { notifications, setNotifications, markRead } = useNotificationStore();
+  const { theme, toggleTheme } = useThemeStore();
+  const subStore = useSubscriptionStore();
 
   const [input, setInput] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
+  const [paywallOpen, setPaywallOpen] = useState(false);
   const [indices, setIndices] = useState<IndexData[]>([]);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  const isPremium = subStore.tier === "premium";
+  const remaining = msgsRemaining(subStore);
 
   useEffect(() => {
     if (!isAuthenticated) { router.push("/"); return; }
@@ -100,6 +148,8 @@ export default function ChatPage() {
     marketApi.getIndices()
       .then((res) => setIndices(res.data))
       .catch(() => {});
+
+    subStore.fetchStatus().catch(() => {});
   }, [isAuthenticated]);
 
   useEffect(() => {
@@ -109,8 +159,14 @@ export default function ChatPage() {
   const sendMessage = async (text?: string) => {
     const msg = text || input.trim();
     if (!msg || isStreaming) return;
-    setInput("");
 
+    if (remaining === 0) {
+      setPaywallOpen(true);
+      return;
+    }
+
+    setInput("");
+    subStore.incrementMsgCount();
     addMessage({ role: "user", content: msg });
     chatApi.saveMessage("user", msg).catch(() => {});
 
@@ -148,10 +204,9 @@ export default function ChatPage() {
             {sidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
           </button>
           <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: "var(--accent)" }}>
-              <TrendingUp className="w-3.5 h-3.5 text-white" />
-            </div>
-            <span className="font-bold text-sm" style={{ color: "var(--text)" }}>Nuvo</span>
+            <Image src="/logo.jpg" alt="Nuvos AI" width={28} height={28}
+                   className="rounded-lg object-cover" />
+            <span className="font-bold text-sm" style={{ color: "var(--text)" }}>Nuvos AI</span>
           </div>
         </div>
 
@@ -161,8 +216,16 @@ export default function ChatPage() {
         </div>
 
         <div className="flex items-center gap-1">
+          {/* Theme toggle */}
+          <button onClick={toggleTheme}
+                  className="p-2 rounded-lg hover:bg-white/5 transition-colors"
+                  style={{ color: "var(--muted)" }}
+                  title={theme === "dark" ? "Modo claro" : "Modo oscuro"}>
+            {theme === "dark" ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+          </button>
+
           <button onClick={() => setNotifOpen(!notifOpen)}
-                  className="relative p-2 rounded-lg hover:bg-[#0e1628] transition-colors"
+                  className="relative p-2 rounded-lg hover:bg-white/5 transition-colors"
                   style={{ color: "var(--muted)" }}>
             <Bell className="w-5 h-5" />
             {unreadNotifCount > 0 && (
@@ -173,7 +236,7 @@ export default function ChatPage() {
             )}
           </button>
           <button onClick={() => { clearAuth(); router.push("/"); }}
-                  className="p-2 rounded-lg hover:bg-[#1a0a0a] transition-colors"
+                  className="p-2 rounded-lg hover:bg-white/5 transition-colors"
                   style={{ color: "var(--muted)" }}>
             <LogOut className="w-5 h-5" />
           </button>
@@ -187,14 +250,48 @@ export default function ChatPage() {
           {profile && (
             <div className="px-3 mb-4">
               <div className="rounded-xl p-3 border" style={{ background: "var(--raised)", borderColor: "var(--border)" }}>
-                <div className="text-xs mb-1" style={{ color: "var(--muted)" }}>Perfil de riesgo</div>
-                <div className="font-semibold text-sm" style={{ color: "var(--accent-l)" }}>
-                  {RISK_LABEL[profile.risk_tolerance] ?? profile.risk_tolerance}
-                </div>
+                <div className="text-xs mb-2" style={{ color: "var(--muted)" }}>Perfil de riesgo</div>
+                <RiskBar level={profile.risk_tolerance} />
                 {profile.name && (
-                  <div className="text-xs mt-1" style={{ color: "var(--sub)" }}>{profile.name}</div>
+                  <div className="text-xs mt-2" style={{ color: "var(--sub)" }}>{profile.name}</div>
                 )}
               </div>
+            </div>
+          )}
+
+          {/* Msg counter for free users */}
+          {!isPremium && (
+            <div className="px-3 mb-3">
+              <button onClick={() => setPaywallOpen(true)}
+                      className="w-full rounded-xl p-2.5 border text-left transition-colors hover:border-[var(--accent)]"
+                      style={{ background: "var(--raised)", borderColor: "var(--border)" }}>
+                <div className="text-[10px] mb-1" style={{ color: "var(--muted)" }}>
+                  Mensajes hoy
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="flex-1 h-1 rounded-full" style={{ background: "var(--border)" }}>
+                    <div className="h-1 rounded-full transition-all"
+                         style={{
+                           width: `${Math.round(((FREE_MSG_LIMIT - remaining) / FREE_MSG_LIMIT) * 100)}%`,
+                           background: remaining < 5 ? "var(--down)" : "var(--accent)",
+                         }} />
+                  </div>
+                  <span className="text-[10px] font-bold shrink-0"
+                        style={{ color: remaining < 5 ? "var(--down)" : "var(--accent-l)" }}>
+                    {remaining}/{FREE_MSG_LIMIT}
+                  </span>
+                </div>
+              </button>
+            </div>
+          )}
+
+          {!isPremium && (
+            <div className="px-3 mb-2">
+              <button onClick={() => setPaywallOpen(true)}
+                      className="w-full py-2 rounded-xl text-xs font-semibold text-white transition-opacity hover:opacity-90"
+                      style={{ background: "linear-gradient(90deg, #00a85e, #00d47e)" }}>
+                ⭐ Activar Premium
+              </button>
             </div>
           )}
 
@@ -225,7 +322,7 @@ export default function ChatPage() {
 
           <div className="px-3 mt-2">
             <button onClick={() => router.push("/onboarding")}
-                    className="w-full text-xs text-center py-2 rounded-lg transition-colors hover:bg-[#0e1628]"
+                    className="w-full text-xs text-center py-2 rounded-lg transition-colors hover:bg-white/5"
                     style={{ color: "var(--dim)" }}>
               Actualizar perfil
             </button>
@@ -323,15 +420,28 @@ export default function ChatPage() {
 
           {/* Input */}
           <div className="border-t p-4 shrink-0" style={{ borderColor: "var(--border)", background: "var(--card)" }}>
+            {remaining === 0 && !isPremium && (
+              <div className="max-w-4xl mx-auto mb-3 px-4 py-2.5 rounded-xl border flex items-center justify-between"
+                   style={{ background: "rgba(255,71,87,0.06)", borderColor: "rgba(255,71,87,0.25)" }}>
+                <span className="text-xs" style={{ color: "var(--down)" }}>
+                  Alcanzaste el límite de {FREE_MSG_LIMIT} mensajes diarios.
+                </span>
+                <button onClick={() => setPaywallOpen(true)}
+                        className="text-xs font-bold ml-3 shrink-0"
+                        style={{ color: "var(--accent-l)" }}>
+                  Activar Premium →
+                </button>
+              </div>
+            )}
             <div className="flex gap-3 items-end max-w-4xl mx-auto">
               <textarea
                 ref={inputRef}
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder="Pregunta sobre cualquier empresa, concepto o estrategia..."
+                placeholder={remaining === 0 && !isPremium ? "Límite diario alcanzado — activa Premium para continuar" : "Pregunta sobre cualquier empresa, concepto o estrategia..."}
                 rows={1}
-                disabled={isStreaming}
+                disabled={isStreaming || (remaining === 0 && !isPremium)}
                 className="flex-1 rounded-xl px-4 py-3 text-sm outline-none resize-none transition-colors border"
                 style={{
                   background: "var(--raised)",
@@ -343,7 +453,7 @@ export default function ChatPage() {
               />
               <button
                 onClick={() => sendMessage()}
-                disabled={!input.trim() || isStreaming}
+                disabled={!input.trim() || isStreaming || (remaining === 0 && !isPremium)}
                 className="w-10 h-10 rounded-xl flex items-center justify-center transition-colors shrink-0 disabled:opacity-40"
                 style={{ background: "var(--accent)" }}>
                 <Send className="w-4 h-4 text-white" />
@@ -355,6 +465,8 @@ export default function ChatPage() {
           </div>
         </main>
       </div>
+
+      <PaywallModal visible={paywallOpen} onClose={() => setPaywallOpen(false)} />
     </div>
   );
 }

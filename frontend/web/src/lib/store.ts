@@ -2,6 +2,10 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import type { UserProfile, ChatMessage, Notification } from "./types";
 
+export type SubscriptionTier = "free" | "premium";
+export const FREE_MSG_LIMIT = 20;
+export const FREE_MSG_WINDOW_HOURS = 24;
+
 interface AuthState {
   token: string | null;
   userId: string | null;
@@ -92,3 +96,81 @@ export const useNotificationStore = create<NotificationState>((set) => ({
       unreadCount: Math.max(0, s.unreadCount - 1),
     })),
 }));
+
+interface SubscriptionState {
+  tier: SubscriptionTier;
+  msgCount: number;
+  msgWindowStart: string | null;
+  fetchStatus: () => Promise<void>;
+  setTier: (tier: SubscriptionTier) => void;
+  incrementMsgCount: () => void;
+}
+
+export const useSubscriptionStore = create<SubscriptionState>()(
+  persist(
+    (set, get) => ({
+      tier: "free",
+      msgCount: 0,
+      msgWindowStart: null,
+      fetchStatus: async () => {
+        try {
+          const { billing } = await import("./api");
+          const res = await billing.getStatus();
+          set({
+            tier: res.data.tier ?? "free",
+            msgCount: res.data.msg_count ?? 0,
+            msgWindowStart: res.data.msg_window_start ?? null,
+          });
+        } catch {}
+      },
+      setTier: (tier) => set({ tier }),
+      incrementMsgCount: () => {
+        const { msgCount, msgWindowStart } = get();
+        const now = new Date();
+        const windowStart = msgWindowStart ? new Date(msgWindowStart) : null;
+        const windowExpired =
+          !windowStart ||
+          now.getTime() - windowStart.getTime() >= FREE_MSG_WINDOW_HOURS * 3600 * 1000;
+        if (windowExpired) {
+          set({ msgCount: 1, msgWindowStart: now.toISOString() });
+        } else {
+          set({ msgCount: msgCount + 1 });
+        }
+      },
+    }),
+    { name: "subscription-status" }
+  )
+);
+
+export function msgsRemaining(store: { tier: SubscriptionTier; msgCount: number; msgWindowStart: string | null }): number {
+  if (store.tier === "premium") return Infinity;
+  const { msgCount, msgWindowStart } = store;
+  const now = new Date();
+  const windowStart = msgWindowStart ? new Date(msgWindowStart) : null;
+  const windowExpired =
+    !windowStart ||
+    now.getTime() - windowStart.getTime() >= FREE_MSG_WINDOW_HOURS * 3600 * 1000;
+  if (windowExpired) return FREE_MSG_LIMIT;
+  return Math.max(0, FREE_MSG_LIMIT - msgCount);
+}
+
+interface ThemeState {
+  theme: "dark" | "light";
+  toggleTheme: () => void;
+}
+
+export const useThemeStore = create<ThemeState>()(
+  persist(
+    (set, get) => ({
+      theme: "dark",
+      toggleTheme: () => {
+        const next = get().theme === "dark" ? "light" : "dark";
+        if (typeof document !== "undefined") {
+          document.documentElement.setAttribute("data-theme", next);
+        }
+        set({ theme: next });
+      },
+    }),
+    { name: "theme-store" }
+  )
+);

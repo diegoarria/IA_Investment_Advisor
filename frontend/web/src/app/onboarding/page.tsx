@@ -2,9 +2,11 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 import { profile as profileApi } from "@/lib/api";
-import { useProfileStore, useAuthStore } from "@/lib/store";
-import { TrendingUp, ChevronRight, ChevronLeft } from "lucide-react";
+import { useProfileStore, useAuthStore, useSubscriptionStore } from "@/lib/store";
+import PaywallModal from "@/components/PaywallModal";
+import { TrendingUp, ChevronRight, ChevronLeft, Lock } from "lucide-react";
 
 const QUIZ = [
   {
@@ -76,19 +78,43 @@ function calcRisk(q: Record<string, string>): string {
 }
 
 const MENTORS = [
-  { id: "Warren Buffett", emoji: "🏦", desc: "Value investing, largo plazo" },
-  { id: "Ray Dalio",      emoji: "⚖️", desc: "Macro, diversificación" },
-  { id: "Bill Ackman",    emoji: "🎯", desc: "Activismo, concentrado" },
-  { id: "none",           emoji: "🤖", desc: "Sin mentor específico" },
+  {
+    id: "Warren Buffett",
+    photo: "/mentors/warren_buffett.jpg",
+    desc: "Value investing, largo plazo",
+    premium: true,
+  },
+  {
+    id: "Ray Dalio",
+    photo: "/mentors/ray_dalio.jpg",
+    desc: "Macro, diversificación",
+    premium: true,
+  },
+  {
+    id: "Bill Ackman",
+    photo: "/mentors/bill_ackman.jpg",
+    desc: "Activismo, concentrado",
+    premium: true,
+  },
+  {
+    id: "none",
+    photo: null,
+    desc: "Sin mentor específico",
+    premium: false,
+  },
 ];
 
 export default function OnboardingPage() {
   const router = useRouter();
   const { setProfile } = useProfileStore();
   const { isAuthenticated } = useAuthStore();
+  const { tier } = useSubscriptionStore();
+  const isPremium = tier === "premium";
+
   const [step, setStep] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [paywallOpen, setPaywallOpen] = useState(false);
 
   const [form, setForm] = useState({
     name: "", birth_date: "", monthly_income: "", monthly_contribution: "",
@@ -173,20 +199,47 @@ export default function OnboardingPage() {
       valid: () => true,
       content: (
         <div className="space-y-2">
-          {MENTORS.map(({ id, emoji, desc }) => {
+          {MENTORS.map(({ id, photo, desc, premium: needsPremium }) => {
             const active = form.mentor === id;
+            const locked = needsPremium && !isPremium;
             return (
-              <button key={id} onClick={() => setForm({ ...form, mentor: id })}
-                      className="w-full text-left p-4 rounded-xl border transition-all"
-                      style={{ borderColor: active ? "var(--accent)" : "var(--border)", background: active ? "rgba(0,168,94,0.1)" : "var(--raised)" }}>
+              <button
+                key={id}
+                onClick={() => {
+                  if (locked) { setPaywallOpen(true); return; }
+                  setForm({ ...form, mentor: id });
+                }}
+                className="w-full text-left p-4 rounded-xl border transition-all"
+                style={{
+                  borderColor: active ? "var(--accent)" : "var(--border)",
+                  background: active ? "rgba(0,168,94,0.1)" : "var(--raised)",
+                  opacity: locked ? 0.65 : 1,
+                }}>
                 <div className="flex items-center gap-3">
-                  <span className="text-2xl">{emoji}</span>
-                  <div>
+                  {photo ? (
+                    <div className="relative w-10 h-10 rounded-full overflow-hidden shrink-0 border"
+                         style={{ borderColor: active ? "var(--accent)" : "var(--border)" }}>
+                      <Image src={photo} alt={id} fill className="object-cover" />
+                    </div>
+                  ) : (
+                    <div className="w-10 h-10 rounded-full flex items-center justify-center shrink-0"
+                         style={{ background: "var(--border)" }}>
+                      <TrendingUp className="w-5 h-5" style={{ color: "var(--muted)" }} />
+                    </div>
+                  )}
+                  <div className="flex-1">
                     <div className="text-sm font-semibold" style={{ color: active ? "var(--text)" : "var(--sub)" }}>
                       {id === "none" ? "Sin mentor" : id}
                     </div>
                     <div className="text-xs" style={{ color: "var(--muted)" }}>{desc}</div>
                   </div>
+                  {locked && (
+                    <div className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold shrink-0"
+                         style={{ background: "rgba(245,183,58,0.15)", color: "#f5b73a" }}>
+                      <Lock className="w-2.5 h-2.5" />
+                      Premium
+                    </div>
+                  )}
                 </div>
               </button>
             );
@@ -227,10 +280,8 @@ export default function OnboardingPage() {
     <div className="min-h-screen flex items-center justify-center p-4" style={{ background: "var(--bg)" }}>
       <div className="w-full max-w-lg">
         <div className="flex items-center gap-2 mb-8">
-          <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: "var(--accent)" }}>
-            <TrendingUp className="w-4 h-4 text-white" />
-          </div>
-          <span className="font-bold" style={{ color: "var(--text)" }}>Nuvo — Configurando tu perfil</span>
+          <Image src="/logo.jpg" alt="Nuvos AI" width={32} height={32} className="rounded-lg object-cover" />
+          <span className="font-bold" style={{ color: "var(--text)" }}>Nuvos AI — Configurando tu perfil</span>
         </div>
 
         <div className="flex gap-1 mb-6">
@@ -247,7 +298,8 @@ export default function OnboardingPage() {
           {current.content}
 
           {error && (
-            <div className="mt-4 rounded-xl px-4 py-3 text-sm" style={{ background: "rgba(255,71,87,0.1)", border: "1px solid rgba(255,71,87,0.3)", color: "var(--down)" }}>
+            <div className="mt-4 rounded-xl px-4 py-3 text-sm"
+                 style={{ background: "rgba(255,71,87,0.1)", border: "1px solid rgba(255,71,87,0.3)", color: "var(--down)" }}>
               {error}
             </div>
           )}
@@ -270,6 +322,12 @@ export default function OnboardingPage() {
         </div>
         <p className="text-center text-xs mt-3" style={{ color: "var(--dim)" }}>Paso {step + 1} de {STEPS.length}</p>
       </div>
+
+      <PaywallModal
+        visible={paywallOpen}
+        onClose={() => setPaywallOpen(false)}
+        reason="Los mentores de inversión son exclusivos de Premium"
+      />
     </div>
   );
 }

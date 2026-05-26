@@ -19,6 +19,21 @@
   --down:    #ff4757;
 }
 
+[data-theme="light"] {
+  --bg:      #f0f4f8;
+  --raised:  #e4ecf4;
+  --card:    #ffffff;
+  --border:  #ccdaeb;
+  --text:    #0d1b2a;
+  --sub:     #2e4a62;
+  --muted:   #5b7a96;
+  --dim:     #9ab4cc;
+  --accent:  #00a85e;
+  --accent-l:#008c4e;
+  --up:      #008c4e;
+  --down:    #d93025;
+}
+
 body {
   background-color: var(--bg);
   color: var(--text);

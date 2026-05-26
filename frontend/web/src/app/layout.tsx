@@ -1,15 +1,18 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import ThemeProvider from "@/components/ThemeProvider";
 
 export const metadata: Metadata = {
-  title: "Nuvo — Tu mentor de inversiones",
+  title: "Nuvos AI — Tu mentor de inversiones",
   description: "Aprende a pensar como un inversor profesional",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="es">
-      <body className="antialiased">{children}</body>
+    <html lang="es" suppressHydrationWarning>
+      <body className="antialiased">
+        <ThemeProvider>{children}</ThemeProvider>
+      </body>
     </html>
   );
 }

@@ -82,4 +82,10 @@ export const notifications = {
   markAllRead: () => api.post("/api/notifications/mark-all-read"),
 };
 
+export const billing = {
+  getStatus: () => api.get("/api/billing/status"),
+  createCheckout: (plan: "monthly" | "yearly" = "monthly") =>
+    api.post("/api/billing/create-checkout", { plan }),
+};
+
 export default api;
