@@ -11,7 +11,7 @@ from app.services import ai_service
 from app.services.market_data_service import get_market_context_for_message, detect_tickers
 
 FREE_MSG_LIMIT = 20
-FREE_MSG_WINDOW_HOURS = 5
+FREE_MSG_WINDOW_HOURS = 24
 
 
 def _check_and_increment_msg_limit(user_id: str, profile: UserProfile) -> None:

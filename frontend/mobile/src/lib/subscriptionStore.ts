@@ -16,7 +16,7 @@ interface SubscriptionStore {
 }
 
 export const FREE_MSG_LIMIT = 20;
-export const FREE_MSG_WINDOW_HOURS = 5;
+export const FREE_MSG_WINDOW_HOURS = 24;
 
 export const useSubscriptionStore = create<SubscriptionStore>()(
   persist(
