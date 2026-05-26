@@ -14,7 +14,7 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.nuvo.app",
+      "bundleIdentifier": "com.nuvosai.app",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
       }
@@ -24,7 +24,7 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#0f1117"
       },
-      "package": "com.nuvo.app"
+      "package": "com.nuvosai.app"
     },
     "plugins": [
       "expo-router",
