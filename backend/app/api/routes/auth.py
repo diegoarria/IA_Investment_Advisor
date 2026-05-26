@@ -9,25 +9,19 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 async def register(request: AuthRequest):
     try:
         db = get_supabase()
-        admin_result = db.auth.admin.create_user({
+        result = db.auth.sign_up({
             "email": request.email,
             "password": request.password,
-            "email_confirm": True,
         })
-        if admin_result.user is None:
+        if result.user is None:
             raise HTTPException(status_code=400, detail="No se pudo crear la cuenta")
-
-        sign_in = db.auth.sign_in_with_password({
-            "email": request.email,
-            "password": request.password,
-        })
-        if sign_in.session is None:
-            raise HTTPException(status_code=400, detail="Cuenta creada pero no se pudo iniciar sesión")
+        if result.session is None:
+            raise HTTPException(status_code=400, detail="Cuenta creada. Revisa tu correo para confirmar.")
 
         return TokenResponse(
-            access_token=sign_in.session.access_token,
-            refresh_token=sign_in.session.refresh_token,
-            user_id=sign_in.user.id,
+            access_token=result.session.access_token,
+            refresh_token=result.session.refresh_token,
+            user_id=result.user.id,
         )
     except HTTPException:
         raise
@@ -35,7 +29,7 @@ async def register(request: AuthRequest):
         msg = str(e)
         if "already registered" in msg or "already been registered" in msg or "User already registered" in msg:
             raise HTTPException(status_code=400, detail="Este email ya tiene una cuenta. Inicia sesión.")
-        raise HTTPException(status_code=400, detail=f"Register error: {msg}")
+        raise HTTPException(status_code=400, detail=f"Error al crear cuenta: {msg}")
 
 
 @router.post("/login", response_model=TokenResponse)
