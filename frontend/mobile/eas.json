@@ -16,6 +16,9 @@
     "production": {
       "ios": {
         "buildConfiguration": "Release"
+      },
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://iainvestmentadvisor-production.up.railway.app"
       }
     }
   },
