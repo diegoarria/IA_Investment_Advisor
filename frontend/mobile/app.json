@@ -8,7 +8,7 @@
     "userInterfaceStyle": "dark",
     "scheme": "nuvo",
     "splash": {
-      "image": "./assets/images/logo.jpg",
+      "image": "./assets/images/logo_splash.png",
       "resizeMode": "contain",
       "backgroundColor": "#0f1117"
     },
