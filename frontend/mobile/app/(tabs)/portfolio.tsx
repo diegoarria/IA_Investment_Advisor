@@ -816,7 +816,15 @@ export default function PortfolioScreen() {
             <View style={s.simHeader}>
               <Ionicons name="shield-half-outline" size={20} color="#ef4444" />
               <View style={{ flex: 1 }}>
-                <Text style={[s.sectionTitle, { marginBottom: 2 }]}>Stress Test de Portafolio</Text>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 2 }}>
+                  <Text style={s.sectionTitle}>Stress Test de Portafolio</Text>
+                  {!isPremium && (
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 3, backgroundColor: "#f59e0b18", borderWidth: 1, borderColor: "#f59e0b40", borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 }}>
+                      <Ionicons name="star" size={9} color="#f59e0b" />
+                      <Text style={{ fontSize: 9, fontWeight: "700", color: "#f59e0b", letterSpacing: 0.3 }}>PREMIUM</Text>
+                    </View>
+                  )}
+                </View>
                 <Text style={[s.simSubtitle, { color: colors.textMuted }]}>
                   ¿Cuánto aguantaría tu portafolio en una crisis histórica?
                 </Text>
@@ -827,8 +835,8 @@ export default function PortfolioScreen() {
               {STRESS_SCENARIOS.map((sc) => (
                 <TouchableOpacity
                   key={sc.id}
-                  style={[s.stressChip, { borderColor: stressScenario === sc.id ? sc.color : colors.border, backgroundColor: stressScenario === sc.id ? sc.color + "18" : "transparent" }]}
-                  onPress={() => runStressTest(sc.id)}
+                  style={[s.stressChip, { borderColor: stressScenario === sc.id ? sc.color : colors.border, backgroundColor: stressScenario === sc.id ? sc.color + "18" : "transparent", opacity: isPremium ? 1 : 0.5 }]}
+                  onPress={() => isPremium ? runStressTest(sc.id) : setPaywallOpen(true)}
                 >
                   <Text style={s.stressChipIcon}>{sc.icon}</Text>
                   <View>

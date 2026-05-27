@@ -1,15 +1,14 @@
 import React, { useMemo, useRef, useState } from "react";
 import {
   View, Text, ScrollView, TouchableOpacity, Image,
-  StyleSheet, SafeAreaView, Alert, Modal, ActivityIndicator, Platform,
+  StyleSheet, Alert, Modal, ActivityIndicator, Platform,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { captureRef } from "react-native-view-shot";
 import * as Sharing from "expo-sharing";
 import { useTheme, Colors } from "../../src/lib/ThemeContext";
-import {
-  useAppStore, RISK_CONFIG, getAge, maturityLabel,
-} from "../../src/lib/profileStore";
+import { useAppStore, RISK_CONFIG, getAge, maturityLabel } from "../../src/lib/profileStore";
 import { getMentorInfo } from "../../src/lib/mentorData";
 import InvestorScorecard from "../../src/components/InvestorScorecard";
 import { useSubscriptionStore, msgsRemaining, FREE_MSG_LIMIT } from "../../src/lib/subscriptionStore";
@@ -21,14 +20,30 @@ const MENTOR_PHOTOS: Record<string, number> = {
   "Bill Ackman":    require("../../assets/images/mentors/bill_ackman.jpg"),
 };
 
-const QUIZ_CATEGORIES = ["MENTALIDAD", "HORIZONTE", "CONOCIMIENTO", "RIESGO", "COMPORTAMIENTO"];
+const QUIZ_CATEGORIES = ["Mentalidad", "Horizonte", "Conocimiento", "Riesgo", "Estilo"];
 const QUIZ_LABELS: Record<string, Record<string, string>> = {
   q1: { A: "Vende ante caídas", B: "Espera sin actuar", C: "Analiza y mantiene", D: "Compra las caídas" },
-  q2: { A: "< 2 años", B: "3–5 años", C: "10+ años", D: "Largo plazo, sin prisa" },
+  q2: { A: "Menos de 2 años", B: "3–5 años", C: "10+ años", D: "Largo plazo, sin prisa" },
   q3: { A: "Principiante", B: "Básico", C: "Intermedio", D: "Avanzado" },
   q4: { A: "$5K seguro", B: "$15K / riesgo $5K", C: "$40K / riesgo $20K", D: "$120K / riesgo total" },
   q5: { A: "Automático / pasivo", B: "Revisión mensual", C: "Revisión semanal", D: "Gestión diaria" },
 };
+const QUIZ_ICONS: Record<string, string> = {
+  q1: "trending-down-outline",
+  q2: "time-outline",
+  q3: "school-outline",
+  q4: "dice-outline",
+  q5: "settings-outline",
+};
+const ANSWER_COLORS: Record<string, string> = {
+  A: "#3b82f6", B: "#22c55e", C: "#f59e0b", D: "#ef4444",
+};
+
+const RISK_LEVELS = [
+  { key: "conservative", label: "Conservador", color: "#3b82f6" },
+  { key: "moderate",     label: "Moderado",    color: "#f59e0b" },
+  { key: "aggressive",   label: "Agresivo",    color: "#ef4444" },
+];
 
 export default function ProfileScreen() {
   const { colors } = useTheme();
@@ -77,6 +92,9 @@ export default function ProfileScreen() {
   const maturity = maturityLabel(maturityScore);
   const quizKeys = ["q1", "q2", "q3", "q4", "q5"] as const;
 
+  const msgUsed = isPremium ? 0 : FREE_MSG_LIMIT - (remaining === Infinity ? FREE_MSG_LIMIT : remaining);
+  const msgPct = Math.min(msgUsed / FREE_MSG_LIMIT, 1);
+
   const handleLogout = () => {
     Alert.alert("Cerrar sesión", "¿Salir de tu perfil y volver al onboarding?", [
       { text: "Cancelar", style: "cancel" },
@@ -86,143 +104,98 @@ export default function ProfileScreen() {
 
   return (
     <SafeAreaView style={s.container}>
-      <ScrollView contentContainerStyle={s.content}>
+      <ScrollView contentContainerStyle={s.content} showsVerticalScrollIndicator={false}>
 
-        {/* ── Header ── */}
-        <View style={[s.headerCard, { backgroundColor: colors.card, borderColor: riskCfg.color + "33" }]}>
-          <View style={[s.headerTopAccent, { backgroundColor: riskCfg.color }]} />
-          <View style={s.headerMain}>
-            <View style={[s.avatarRing, { borderColor: riskCfg.color + "55" }]}>
-              <View style={[s.avatarInner, { backgroundColor: riskCfg.color }]}>
-                <Text style={s.avatarLetter}>{profile.name.charAt(0).toUpperCase()}</Text>
+        {/* ── HERO CARD ── */}
+        <View style={[s.heroCard, { borderColor: riskCfg.color + "30" }]}>
+          <View style={[s.heroBand, { backgroundColor: riskCfg.color }]} />
+          <View style={s.heroAvatarWrap}>
+            <View style={[s.heroAvatarRing, { borderColor: colors.bg, backgroundColor: colors.bg }]}>
+              <View style={[s.heroAvatar, { backgroundColor: riskCfg.color }]}>
+                <Text style={s.heroAvatarLetter}>{profile.name.charAt(0).toUpperCase()}</Text>
               </View>
             </View>
-            <View style={{ flex: 1, gap: 6 }}>
-              <Text style={[s.userName, { color: colors.text }]}>{profile.name}</Text>
-              <View style={[s.riskPill, { backgroundColor: riskCfg.color + "1A", borderColor: riskCfg.color + "55" }]}>
+          </View>
+          <View style={s.heroBody}>
+            <Text style={[s.heroName, { color: colors.text }]}>{profile.name}</Text>
+            <View style={s.heroTags}>
+              <View style={[s.heroTag, { backgroundColor: riskCfg.color + "18", borderColor: riskCfg.color + "50" }]}>
                 <Ionicons name={riskCfg.icon} size={11} color={riskCfg.color} />
-                <Text style={[s.riskPillText, { color: riskCfg.color }]}>{riskCfg.label}</Text>
+                <Text style={[s.heroTagText, { color: riskCfg.color }]}>{riskCfg.label}</Text>
               </View>
               {mentor && (
-                <View style={[s.mentorChip, { backgroundColor: mentor.color + "18", borderColor: mentor.color + "44" }]}>
-                  <Text style={[s.mentorChipText, { color: mentor.color }]}>
-                    Mentor: {mentor.name}
-                  </Text>
+                <View style={[s.heroTag, { backgroundColor: mentor.color + "18", borderColor: mentor.color + "50" }]}>
+                  <Text style={[s.heroTagText, { color: mentor.color }]}>{mentor.name}</Text>
                 </View>
               )}
             </View>
           </View>
-          <View style={[s.headerDivider, { borderTopColor: colors.border }]} />
-          <TouchableOpacity
-            style={[s.shareBtn, { backgroundColor: colors.accentLight + "12" }]}
-            onPress={() => setScorecardOpen(true)}
-          >
+          <TouchableOpacity style={[s.heroShare, { borderTopColor: colors.border }]} onPress={() => setScorecardOpen(true)}>
             <Ionicons name="share-social-outline" size={15} color={colors.accentLight} />
-            <Text style={[s.shareBtnText, { color: colors.accentLight }]}>Compartir mi perfil</Text>
+            <Text style={[s.heroShareText, { color: colors.accentLight }]}>Compartir mi perfil de inversión</Text>
           </TouchableOpacity>
         </View>
 
-        {/* ── Scorecard modal ── */}
+        {/* ── SCORECARD MODAL ── */}
         <Modal visible={scorecardOpen} transparent animationType="fade" onRequestClose={() => setScorecardOpen(false)}>
           <View style={s.modalOverlay}>
-            {/* Close button floating */}
             <TouchableOpacity style={s.modalCloseBtn} onPress={() => setScorecardOpen(false)}>
               <Ionicons name="close" size={18} color="white" />
             </TouchableOpacity>
-
-            {/* Card preview */}
             <View ref={cardRef} collapsable={false}>
               <InvestorScorecard />
             </View>
-
-            {/* Share hint */}
             <Text style={s.modalHint}>Esta es la imagen que se compartirá</Text>
-
             {Platform.OS !== "web" && (
-              <TouchableOpacity
-                style={[s.modalShareBtn, sharing && { opacity: 0.6 }]}
-                onPress={handleShare}
-                disabled={sharing}
-              >
-                {sharing ? (
-                  <ActivityIndicator color="white" size="small" />
-                ) : (
-                  <Ionicons name="share-social-outline" size={18} color="white" />
-                )}
+              <TouchableOpacity style={[s.modalShareBtn, sharing && { opacity: 0.6 }]} onPress={handleShare} disabled={sharing}>
+                {sharing ? <ActivityIndicator color="white" size="small" /> : <Ionicons name="share-social-outline" size={18} color="white" />}
                 <Text style={s.modalShareText}>{sharing ? "Generando imagen…" : "Compartir mi perfil"}</Text>
               </TouchableOpacity>
             )}
           </View>
         </Modal>
 
-        {/* ── Mentor card ── */}
-        {mentor && (
-          <>
-            <Text style={[s.sectionLabel, { color: colors.textSub }]}>Tu Mentor</Text>
-            <View style={[s.mentorCard, { backgroundColor: colors.card, borderColor: mentor.color + "55" }]}>
-              <View style={s.mentorCardTop}>
-                {MENTOR_PHOTOS[mentor.id] ? (
-                  <Image source={MENTOR_PHOTOS[mentor.id]} style={s.mentorPhoto} />
-                ) : (
-                  <View style={[s.mentorEmojiBox, { backgroundColor: mentor.color + "22" }]}>
-                    <Text style={s.mentorEmoji}>{mentor.emoji}</Text>
-                  </View>
-                )}
-                <View style={s.mentorCardInfo}>
-                  <Text style={[s.mentorName, { color: colors.text }]}>{mentor.name}</Text>
-                  <Text style={[s.mentorTitle, { color: colors.textMuted }]}>{mentor.title}</Text>
-                  <View style={[s.mentorBadge, { backgroundColor: mentor.color + "22" }]}>
-                    <Text style={[s.mentorBadgeText, { color: mentor.color }]}>{mentor.badge}</Text>
-                  </View>
-                </View>
-              </View>
-              <View style={[s.mentorDivider, { borderTopColor: colors.border }]} />
-              {mentor.principles.map((p, i) => (
-                <View key={i} style={s.principleRow}>
-                  <View style={[s.principleDot, { backgroundColor: mentor.color }]} />
-                  <Text style={[s.principleText, { color: colors.textSub }]}>{p}</Text>
-                </View>
-              ))}
+        {/* ── STATS GRID ── */}
+        <Text style={[s.sectionLabel, { color: colors.textDim }]}>Datos personales</Text>
+        <View style={s.statsGrid}>
+          <View style={[s.statTile, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <View style={[s.statIconBox, { backgroundColor: "#3b82f618" }]}>
+              <Ionicons name="person-outline" size={17} color="#3b82f6" />
             </View>
-          </>
-        )}
-
-        {/* ── Maturity score ── */}
-        <Text style={[s.sectionLabel, { color: colors.textSub }]}>Madurez Inversora</Text>
-        <View style={[s.maturityCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <View style={s.maturityTop}>
-            <View>
-              <Text style={[s.maturityScore, { color: maturity.color }]}>{maturityScore}<Text style={s.maturityMax}>/100</Text></Text>
-              <Text style={[s.maturityLevel, { color: maturity.color }]}>{maturity.label}</Text>
-            </View>
-            <Ionicons name="analytics-outline" size={32} color={maturity.color} />
+            <Text style={[s.statNum, { color: colors.text }]}>{age}</Text>
+            <Text style={[s.statSub, { color: colors.textMuted }]}>años</Text>
           </View>
-          {maturityHistory.length > 0 && (
-            <>
-              <Text style={[s.maturityHistLabel, { color: colors.textMuted }]}>
-                Últimas {Math.min(maturityHistory.length, 5)} señales detectadas
+          <View style={[s.statTile, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <View style={[s.statIconBox, { backgroundColor: "#22c55e18" }]}>
+              <Ionicons name="cash-outline" size={17} color="#22c55e" />
+            </View>
+            <Text style={[s.statNum, { color: colors.text }]} numberOfLines={1} adjustsFontSizeToFit>
+              ${Number(profile.monthly_income).toLocaleString()}
+            </Text>
+            <Text style={[s.statSub, { color: colors.textMuted }]}>ingresos/mes</Text>
+          </View>
+          <View style={[s.statTileFull, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <View style={[s.statIconBox, { backgroundColor: riskCfg.color + "18" }]}>
+              <Ionicons name="trending-up-outline" size={17} color={riskCfg.color} />
+            </View>
+            <View>
+              <Text style={[s.statNum, { color: colors.text }]}>
+                ${Number(profile.monthly_contribution).toLocaleString()}
+                <Text style={[s.statSub, { color: colors.textMuted }]}> USD</Text>
               </Text>
-              {maturityHistory.slice(-5).reverse().map((ev, i) => (
-                <View key={i} style={[s.maturityRow, { borderTopColor: colors.border }]}>
-                  <Text style={[s.maturityRowDelta, { color: ev.delta >= 0 ? "#22c55e" : "#ef4444" }]}>
-                    {ev.delta >= 0 ? "+" : ""}{ev.delta}
-                  </Text>
-                  <Text style={[s.maturityRowSig, { color: colors.textDim }]} numberOfLines={1}>
-                    {ev.signals.map((s) => s.replace(/_/g, " ")).join(", ")}
-                  </Text>
-                  <Text style={[s.maturityRowScore, { color: colors.textMuted }]}>{ev.newScore}</Text>
-                </View>
-              ))}
-            </>
-          )}
+              <Text style={[s.statSub, { color: colors.textMuted }]}>Aportación mensual</Text>
+            </View>
+          </View>
         </View>
 
-        {/* ── Risk profile ── */}
-        <Text style={[s.sectionLabel, { color: colors.textSub }]}>Perfil de Riesgo</Text>
-        <View style={[s.riskCard, { backgroundColor: colors.card, borderColor: riskCfg.color + "55" }]}>
-          <View style={s.riskTop}>
-            <Ionicons name={riskCfg.icon} size={28} color={riskCfg.color} />
-            <View style={{ flex: 1, marginLeft: 12 }}>
+        {/* ── PERFIL DE RIESGO ── */}
+        <Text style={[s.sectionLabel, { color: colors.textDim }]}>Perfil de riesgo</Text>
+        <View style={[s.riskCard, { backgroundColor: colors.card, borderColor: riskCfg.color + "40" }]}>
+          <View style={s.riskTopRow}>
+            <View style={[s.riskIconBox, { backgroundColor: riskCfg.color + "18" }]}>
+              <Ionicons name={riskCfg.icon} size={24} color={riskCfg.color} />
+            </View>
+            <View style={{ flex: 1 }}>
               <Text style={[s.riskLabel, { color: colors.text }]}>{riskCfg.label}</Text>
               <Text style={[s.riskDesc, { color: colors.textMuted }]}>
                 {profile.risk_tolerance === "conservative"
@@ -233,97 +206,203 @@ export default function ProfileScreen() {
               </Text>
             </View>
           </View>
+          {/* Segment bar */}
+          <View style={s.riskSegments}>
+            {RISK_LEVELS.map((level) => {
+              const isActive = level.key === profile.risk_tolerance;
+              return (
+                <View
+                  key={level.key}
+                  style={[s.riskSegment, {
+                    backgroundColor: isActive ? level.color : colors.border,
+                    height: isActive ? 8 : 5,
+                    shadowColor: isActive ? level.color : "transparent",
+                    shadowOpacity: 0.5, shadowRadius: 6,
+                  }]}
+                />
+              );
+            })}
+          </View>
+          <View style={s.riskSegmentLabels}>
+            {RISK_LEVELS.map((level) => {
+              const isActive = level.key === profile.risk_tolerance;
+              return (
+                <Text key={level.key} style={[s.riskSegmentLabel, {
+                  color: isActive ? level.color : colors.textDim,
+                  fontWeight: isActive ? "700" : "400",
+                }]}>
+                  {level.label}
+                </Text>
+              );
+            })}
+          </View>
         </View>
 
-        {/* ── Financial data ── */}
-        <Text style={[s.sectionLabel, { color: colors.textSub }]}>Datos Financieros</Text>
-        <View style={[s.dataCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          {[
-            { label: "Edad", value: `${age} años` },
-            { label: "Ingresos mensuales", value: `$${Number(profile.monthly_income).toLocaleString()} USD` },
-            { label: "Aportación mensual", value: `$${Number(profile.monthly_contribution).toLocaleString()} USD` },
-          ].map((row) => (
-            <View key={row.label} style={[s.dataRow, { borderTopColor: colors.border }]}>
-              <Text style={[s.dataLabel, { color: colors.textMuted }]}>{row.label}</Text>
-              <Text style={[s.dataValue, { color: colors.text }]}>{row.value}</Text>
+        {/* ── MADUREZ INVERSORA ── */}
+        <Text style={[s.sectionLabel, { color: colors.textDim }]}>Madurez inversora</Text>
+        <View style={[s.maturityCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <View style={s.maturityTop}>
+            <View>
+              <Text style={[s.maturityNum, { color: maturity.color }]}>
+                {maturityScore}
+                <Text style={[s.maturitySlash, { color: colors.textMuted }]}>/100</Text>
+              </Text>
+              <View style={[s.maturityBadge, { backgroundColor: maturity.color + "18", borderColor: maturity.color + "40" }]}>
+                <Text style={[s.maturityBadgeText, { color: maturity.color }]}>{maturity.label}</Text>
+              </View>
             </View>
-          ))}
+            <View style={[s.maturityCircle, { borderColor: maturity.color + "40", backgroundColor: maturity.color + "0e" }]}>
+              <Ionicons name="analytics-outline" size={28} color={maturity.color} />
+            </View>
+          </View>
+          <View style={[s.progressTrack, { backgroundColor: colors.border }]}>
+            <View style={[s.progressFill, { width: `${maturityScore}%` as any, backgroundColor: maturity.color }]} />
+          </View>
+          <View style={s.progressLabels}>
+            <Text style={[s.progressLabel, { color: colors.textDim }]}>Pasivo</Text>
+            <Text style={[s.progressLabel, { color: colors.textDim }]}>Racional</Text>
+            <Text style={[s.progressLabel, { color: colors.textDim }]}>Especulativo</Text>
+          </View>
+
+          {maturityHistory.length > 0 && (
+            <>
+              <View style={[s.divider, { borderTopColor: colors.border }]} />
+              <Text style={[s.histTitle, { color: colors.textMuted }]}>Últimas señales detectadas</Text>
+              {maturityHistory.slice(-5).reverse().map((ev, i) => (
+                <View key={i} style={[s.histRow, i > 0 && { borderTopColor: colors.border, borderTopWidth: StyleSheet.hairlineWidth }]}>
+                  <View style={[s.histDelta, { backgroundColor: ev.delta >= 0 ? "#22c55e18" : "#ef444418" }]}>
+                    <Text style={[s.histDeltaText, { color: ev.delta >= 0 ? "#22c55e" : "#ef4444" }]}>
+                      {ev.delta >= 0 ? "+" : ""}{ev.delta}
+                    </Text>
+                  </View>
+                  <Text style={[s.histSig, { color: colors.textSub }]} numberOfLines={1}>
+                    {ev.signals.map((sig) => sig.replace(/_/g, " ")).join(", ")}
+                  </Text>
+                  <Text style={[s.histScore, { color: colors.textMuted }]}>{ev.newScore}</Text>
+                </View>
+              ))}
+            </>
+          )}
         </View>
 
-        {/* ── Quiz answers ── */}
-        <Text style={[s.sectionLabel, { color: colors.textSub }]}>Respuestas del Cuestionario</Text>
-        <View style={[s.dataCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        {/* ── MENTOR ── */}
+        {mentor && (
+          <>
+            <Text style={[s.sectionLabel, { color: colors.textDim }]}>Tu mentor</Text>
+            <View style={[s.mentorCard, { borderColor: mentor.color + "40" }]}>
+              <View style={[s.mentorBand, { backgroundColor: mentor.color + "12" }]}>
+                {MENTOR_PHOTOS[mentor.id] ? (
+                  <Image source={MENTOR_PHOTOS[mentor.id]} style={s.mentorPhoto} />
+                ) : (
+                  <View style={[s.mentorEmojiBox, { backgroundColor: mentor.color + "22" }]}>
+                    <Text style={s.mentorEmoji}>{mentor.emoji}</Text>
+                  </View>
+                )}
+                <View style={s.mentorInfo}>
+                  <Text style={[s.mentorName, { color: colors.text }]}>{mentor.name}</Text>
+                  <Text style={[s.mentorTitle, { color: colors.textMuted }]}>{mentor.title}</Text>
+                  <View style={[s.mentorBadgeWrap, { backgroundColor: mentor.color + "22", borderColor: mentor.color + "40" }]}>
+                    <Text style={[s.mentorBadgeText, { color: mentor.color }]}>{mentor.badge}</Text>
+                  </View>
+                </View>
+              </View>
+              <View style={[s.mentorPrinciples, { backgroundColor: colors.card }]}>
+                {mentor.principles.map((p, i) => (
+                  <View key={i} style={[s.principlePill, { borderColor: mentor.color + "30", backgroundColor: mentor.color + "0a" }]}>
+                    <View style={[s.principleDot, { backgroundColor: mentor.color }]} />
+                    <Text style={[s.principleText, { color: colors.textSub }]}>{p}</Text>
+                  </View>
+                ))}
+              </View>
+            </View>
+          </>
+        )}
+
+        {/* ── PERFIL PSICOLÓGICO ── */}
+        <Text style={[s.sectionLabel, { color: colors.textDim }]}>Perfil psicológico</Text>
+        <View style={[s.quizCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
           {quizKeys.map((key, i) => {
             const answer = profile.quiz_answers?.[key];
+            const aColor = answer ? (ANSWER_COLORS[answer] ?? colors.accentLight) : colors.textDim;
             return (
-              <View key={key} style={[s.dataRow, { borderTopColor: colors.border }]}>
-                <Text style={[s.dataLabel, { color: colors.textMuted }]}>{QUIZ_CATEGORIES[i]}</Text>
-                <View style={s.quizRight}>
-                  <View style={s.answerBadge}>
-                    <Text style={s.answerBadgeText}>{answer}</Text>
-                  </View>
-                  <Text style={[s.dataValue, { color: colors.text, textAlign: "right", flexShrink: 1 }]}>
-                    {answer ? QUIZ_LABELS[key][answer] : "—"}
-                  </Text>
+              <View
+                key={key}
+                style={[s.quizRow, i > 0 && { borderTopColor: colors.border, borderTopWidth: StyleSheet.hairlineWidth }]}
+              >
+                <View style={[s.quizIconBox, { backgroundColor: aColor + "15" }]}>
+                  <Ionicons name={QUIZ_ICONS[key] as any} size={14} color={aColor} />
                 </View>
+                <View style={s.quizMid}>
+                  <Text style={[s.quizCat, { color: colors.textDim }]}>{QUIZ_CATEGORIES[i]}</Text>
+                  <Text style={[s.quizAnswer, { color: colors.text }]}>{answer ? QUIZ_LABELS[key][answer] : "—"}</Text>
+                </View>
+                {answer && (
+                  <View style={[s.quizBadge, { backgroundColor: aColor }]}>
+                    <Text style={s.quizBadgeText}>{answer}</Text>
+                  </View>
+                )}
               </View>
             );
           })}
         </View>
 
-        {/* ── Subscription ── */}
-        <Text style={[s.sectionLabel, { color: colors.textSub }]}>Suscripción</Text>
+        {/* ── SUSCRIPCIÓN ── */}
+        <Text style={[s.sectionLabel, { color: colors.textDim }]}>Suscripción</Text>
         {isPremium ? (
-          <View style={[s.subCard, { backgroundColor: colors.card, borderColor: "#f59e0b55" }]}>
-            <View style={[s.subTopAccent, { backgroundColor: "#f59e0b" }]} />
+          <View style={[s.subCard, { backgroundColor: colors.card, borderColor: "#f59e0b50" }]}>
+            <View style={[s.subAccent, { backgroundColor: "#f59e0b" }]} />
             <View style={s.subRow}>
-              <View style={s.subIconBox}>
-                <Ionicons name="star" size={20} color="#f59e0b" />
+              <View style={[s.subIconBox, { backgroundColor: "#f59e0b18" }]}>
+                <Ionicons name="star" size={22} color="#f59e0b" />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={[s.subTitle, { color: colors.text }]}>Nuvos AI Premium</Text>
                 <Text style={[s.subDesc, { color: colors.textMuted }]}>Acceso completo · Mensajes ilimitados</Text>
               </View>
-              <View style={[s.subBadge, { backgroundColor: "#f59e0b18", borderColor: "#f59e0b44" }]}>
-                <Text style={[s.subBadgeText, { color: "#f59e0b" }]}>Activo</Text>
+              <View style={[s.subActivePill, { backgroundColor: "#22c55e18", borderColor: "#22c55e40" }]}>
+                <View style={[s.subActiveDot, { backgroundColor: "#22c55e" }]} />
+                <Text style={[s.subActiveTxt, { color: "#22c55e" }]}>Activo</Text>
               </View>
             </View>
           </View>
         ) : (
           <View style={[s.subCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <View style={s.subRow}>
-              <View style={[s.subIconBox, { backgroundColor: colors.accentGlow }]}>
+              <View style={[s.subIconBox, { backgroundColor: colors.accentGlow ?? colors.border }]}>
                 <Ionicons name="person-outline" size={20} color={colors.accentLight} />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={[s.subTitle, { color: colors.text }]}>Plan Gratis</Text>
                 <Text style={[s.subDesc, { color: colors.textMuted }]}>
-                  {remaining === Infinity ? FREE_MSG_LIMIT : remaining}/{FREE_MSG_LIMIT} mensajes restantes
+                  {remaining === Infinity ? FREE_MSG_LIMIT : remaining}/{FREE_MSG_LIMIT} mensajes hoy
                 </Text>
               </View>
             </View>
-            <TouchableOpacity
-              style={s.subUpgradeBtn}
-              onPress={() => setPaywallOpen(true)}
-            >
-              <Ionicons name="star" size={14} color="white" />
-              <Text style={s.subUpgradeText}>Activar Premium — $11.99/mes</Text>
+            <View style={[s.msgTrack, { backgroundColor: colors.border }]}>
+              <View style={[s.msgFill, {
+                width: `${Math.round(msgPct * 100)}%` as any,
+                backgroundColor: msgPct > 0.8 ? "#ef4444" : "#22c55e",
+              }]} />
+            </View>
+            <TouchableOpacity style={s.upgradeBtn} onPress={() => setPaywallOpen(true)}>
+              <Ionicons name="star" size={15} color="white" />
+              <Text style={s.upgradeBtnText}>Activar Premium — $11.99/mes</Text>
             </TouchableOpacity>
           </View>
         )}
 
-        {/* ── Logout ── */}
-        <TouchableOpacity style={[s.logoutBtn, { borderColor: "#ef4444" }]} onPress={handleLogout}>
-          <Ionicons name="log-out-outline" size={18} color="#ef4444" />
+        {/* ── LOGOUT ── */}
+        <TouchableOpacity
+          style={[s.logoutBtn, { borderColor: "#ef444435", backgroundColor: "#ef44440a" }]}
+          onPress={handleLogout}
+        >
+          <Ionicons name="log-out-outline" size={17} color="#ef4444" />
           <Text style={s.logoutText}>Cerrar sesión</Text>
         </TouchableOpacity>
 
       </ScrollView>
 
-      <PaywallModal
-        visible={paywallOpen}
-        onClose={() => setPaywallOpen(false)}
-      />
+      <PaywallModal visible={paywallOpen} onClose={() => setPaywallOpen(false)} />
     </SafeAreaView>
   );
 }
@@ -331,88 +410,161 @@ export default function ProfileScreen() {
 function makeStyles(c: Colors) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: c.bg },
-    content: { padding: 16, paddingBottom: 48, gap: 4 },
+    content: { padding: 16, paddingBottom: 52, gap: 4 },
     empty: { flex: 1, alignItems: "center", justifyContent: "center", gap: 12 },
     emptyText: { fontSize: 15 },
+
     sectionLabel: {
-      fontSize: 11, fontWeight: "700", letterSpacing: 0.8,
-      textTransform: "uppercase", marginTop: 16, marginBottom: 6, marginLeft: 2,
+      fontSize: 10, fontWeight: "700", letterSpacing: 1.2,
+      textTransform: "uppercase", marginTop: 20, marginBottom: 8, marginLeft: 2,
     },
-    // Header card
-    headerCard: {
-      borderRadius: 16, borderWidth: 1, overflow: "hidden",
+
+    // ── Hero card ──
+    heroCard: {
+      borderRadius: 22, borderWidth: 1, overflow: "hidden",
+      backgroundColor: c.card,
+      shadowColor: "#000", shadowOpacity: 0.1, shadowRadius: 14, shadowOffset: { width: 0, height: 4 },
     },
-    headerTopAccent: { height: 3 },
-    headerMain: { flexDirection: "row", alignItems: "center", gap: 14, padding: 18, paddingBottom: 14 },
-    avatarRing: {
-      width: 58, height: 58, borderRadius: 29, borderWidth: 2,
-      alignItems: "center", justifyContent: "center",
-    },
-    avatarInner: {
-      width: 48, height: 48, borderRadius: 24,
-      alignItems: "center", justifyContent: "center",
-    },
-    avatarLetter: { color: "white", fontSize: 22, fontWeight: "900" },
-    userName: { fontSize: 19, fontWeight: "800", letterSpacing: -0.3 },
-    userSub: { fontSize: 13 },
-    riskPill: {
-      flexDirection: "row", alignItems: "center", gap: 5,
-      alignSelf: "flex-start", borderWidth: 1, borderRadius: 20,
-      paddingHorizontal: 9, paddingVertical: 4,
-    },
-    riskPillText: { fontSize: 11, fontWeight: "700" },
-    mentorChip: {
-      borderRadius: 20, borderWidth: 1, paddingHorizontal: 10, paddingVertical: 3,
-      alignSelf: "flex-start",
-    },
-    mentorChipText: { fontSize: 11, fontWeight: "600" },
-    headerDivider: { borderTopWidth: 1, marginHorizontal: 18 },
-    // Mentor card
-    mentorCard: { borderRadius: 14, borderWidth: 1.5, padding: 14 },
-    mentorCardTop: { flexDirection: "row", gap: 12, alignItems: "center", marginBottom: 12 },
-    mentorPhoto: { width: 64, height: 64, borderRadius: 32 },
-    mentorEmojiBox: { width: 64, height: 64, borderRadius: 32, alignItems: "center", justifyContent: "center" },
-    mentorEmoji: { fontSize: 30 },
-    mentorCardInfo: { flex: 1, gap: 4 },
-    mentorName: { fontSize: 16, fontWeight: "700" },
-    mentorTitle: { fontSize: 12 },
-    mentorBadge: { alignSelf: "flex-start", borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 },
-    mentorBadgeText: { fontSize: 10, fontWeight: "700" },
-    mentorDivider: { borderTopWidth: 1, marginBottom: 10 },
-    principleRow: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 6 },
-    principleDot: { width: 6, height: 6, borderRadius: 3 },
-    principleText: { fontSize: 13, flex: 1 },
-    // Maturity
-    maturityCard: { borderRadius: 14, borderWidth: 1, padding: 14 },
-    maturityTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 10 },
-    maturityScore: { fontSize: 36, fontWeight: "800" },
-    maturityMax: { fontSize: 16, fontWeight: "400" },
-    maturityLevel: { fontSize: 13, fontWeight: "700", marginTop: 2 },
-    maturityHistLabel: { fontSize: 11, marginBottom: 6 },
-    maturityRow: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 5, borderTopWidth: 1 },
-    maturityRowDelta: { fontSize: 13, fontWeight: "700", width: 36 },
-    maturityRowSig: { flex: 1, fontSize: 11 },
-    maturityRowScore: { fontSize: 12, fontWeight: "600" },
-    // Risk card
-    riskCard: { borderRadius: 14, borderWidth: 1.5, padding: 14 },
-    riskTop: { flexDirection: "row", alignItems: "center" },
-    riskLabel: { fontSize: 15, fontWeight: "700", marginBottom: 4 },
-    riskDesc: { fontSize: 12, lineHeight: 17 },
-    // Data rows
-    dataCard: { borderRadius: 16, borderWidth: 1, overflow: "hidden" },
-    dataRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: 13, paddingHorizontal: 16, borderTopWidth: StyleSheet.hairlineWidth },
-    dataLabel: { fontSize: 12, fontWeight: "500", letterSpacing: 0.1 },
-    dataValue: { fontSize: 13, fontWeight: "700" },
-    quizRight: { flexDirection: "row", alignItems: "center", gap: 8, flex: 1, justifyContent: "flex-end" },
-    answerBadge: { width: 24, height: 24, borderRadius: 12, alignItems: "center", justifyContent: "center" },
-    answerBadgeText: { color: "white", fontSize: 11, fontWeight: "800" },
-    // Share button (inside header card, flush footer)
-    shareBtn: {
+    heroBand: { height: 80 },
+    heroAvatarWrap: { alignItems: "center", marginTop: -42 },
+    heroAvatarRing: { width: 88, height: 88, borderRadius: 44, borderWidth: 4, alignItems: "center", justifyContent: "center" },
+    heroAvatar: { width: 76, height: 76, borderRadius: 38, alignItems: "center", justifyContent: "center" },
+    heroAvatarLetter: { color: "white", fontSize: 32, fontWeight: "900", letterSpacing: -1 },
+    heroBody: { alignItems: "center", paddingHorizontal: 20, paddingTop: 10, paddingBottom: 16, gap: 10 },
+    heroName: { fontSize: 22, fontWeight: "800", letterSpacing: -0.5 },
+    heroTags: { flexDirection: "row", gap: 8, flexWrap: "wrap", justifyContent: "center" },
+    heroTag: { flexDirection: "row", alignItems: "center", gap: 5, borderWidth: 1, borderRadius: 20, paddingHorizontal: 11, paddingVertical: 5 },
+    heroTagText: { fontSize: 11, fontWeight: "700" },
+    heroShare: {
       flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7,
-      paddingVertical: 13,
+      paddingVertical: 13, borderTopWidth: StyleSheet.hairlineWidth,
     },
-    shareBtnText: { fontSize: 13, fontWeight: "600" },
-    // Scorecard modal
+    heroShareText: { fontSize: 13, fontWeight: "600" },
+
+    // ── Stats grid ──
+    statsGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
+    statTile: {
+      flex: 1, minWidth: 130,
+      borderRadius: 18, borderWidth: 1, padding: 14, gap: 4,
+      shadowColor: "#000", shadowOpacity: 0.05, shadowRadius: 8, shadowOffset: { width: 0, height: 2 },
+    },
+    statTileFull: {
+      flexBasis: "100%",
+      borderRadius: 18, borderWidth: 1, padding: 14,
+      flexDirection: "row", alignItems: "center", gap: 14,
+      shadowColor: "#000", shadowOpacity: 0.05, shadowRadius: 8, shadowOffset: { width: 0, height: 2 },
+    },
+    statIconBox: { width: 38, height: 38, borderRadius: 11, alignItems: "center", justifyContent: "center", marginBottom: 4 },
+    statNum: { fontSize: 24, fontWeight: "800", letterSpacing: -0.5, lineHeight: 28 },
+    statSub: { fontSize: 11, fontWeight: "500" },
+
+    // ── Risk card ──
+    riskCard: {
+      borderRadius: 20, borderWidth: 1.5, padding: 16, gap: 0,
+      shadowColor: "#000", shadowOpacity: 0.05, shadowRadius: 10, shadowOffset: { width: 0, height: 2 },
+    },
+    riskTopRow: { flexDirection: "row", alignItems: "flex-start", gap: 14, marginBottom: 18 },
+    riskIconBox: { width: 50, height: 50, borderRadius: 15, alignItems: "center", justifyContent: "center" },
+    riskLabel: { fontSize: 17, fontWeight: "800", letterSpacing: -0.3, marginBottom: 5 },
+    riskDesc: { fontSize: 12, lineHeight: 17 },
+    riskSegments: { flexDirection: "row", gap: 5, marginBottom: 7, alignItems: "center" },
+    riskSegment: { flex: 1, borderRadius: 4 },
+    riskSegmentLabels: { flexDirection: "row" },
+    riskSegmentLabel: { flex: 1, fontSize: 9, letterSpacing: 0.3, textAlign: "center" },
+
+    // ── Maturity card ──
+    maturityCard: {
+      borderRadius: 20, borderWidth: 1, padding: 16,
+      shadowColor: "#000", shadowOpacity: 0.05, shadowRadius: 8, shadowOffset: { width: 0, height: 2 },
+    },
+    maturityTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 16 },
+    maturityNum: { fontSize: 48, fontWeight: "900", letterSpacing: -2, lineHeight: 52 },
+    maturitySlash: { fontSize: 20, fontWeight: "400", letterSpacing: 0 },
+    maturityBadge: { alignSelf: "flex-start", borderWidth: 1, borderRadius: 20, paddingHorizontal: 11, paddingVertical: 5, marginTop: 8 },
+    maturityBadgeText: { fontSize: 11, fontWeight: "700" },
+    maturityCircle: {
+      width: 62, height: 62, borderRadius: 31, borderWidth: 1.5,
+      alignItems: "center", justifyContent: "center",
+    },
+    progressTrack: { height: 7, borderRadius: 4, overflow: "hidden", marginBottom: 6 },
+    progressFill: { height: "100%", borderRadius: 4 },
+    progressLabels: { flexDirection: "row", justifyContent: "space-between" },
+    progressLabel: { fontSize: 9, letterSpacing: 0.3 },
+
+    divider: { borderTopWidth: StyleSheet.hairlineWidth, marginTop: 14, marginBottom: 10 },
+    histTitle: { fontSize: 10, fontWeight: "700", letterSpacing: 0.8, textTransform: "uppercase", marginBottom: 6 },
+    histRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 7 },
+    histDelta: { borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3, minWidth: 42, alignItems: "center" },
+    histDeltaText: { fontSize: 12, fontWeight: "800" },
+    histSig: { flex: 1, fontSize: 11 },
+    histScore: { fontSize: 12, fontWeight: "600" },
+
+    // ── Mentor card ──
+    mentorCard: { borderRadius: 20, borderWidth: 1.5, overflow: "hidden" },
+    mentorBand: { flexDirection: "row", gap: 14, alignItems: "center", padding: 16 },
+    mentorPhoto: { width: 70, height: 70, borderRadius: 35 },
+    mentorEmojiBox: { width: 70, height: 70, borderRadius: 35, alignItems: "center", justifyContent: "center" },
+    mentorEmoji: { fontSize: 34 },
+    mentorInfo: { flex: 1, gap: 5 },
+    mentorName: { fontSize: 17, fontWeight: "800", letterSpacing: -0.3 },
+    mentorTitle: { fontSize: 12 },
+    mentorBadgeWrap: { alignSelf: "flex-start", borderWidth: 1, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 },
+    mentorBadgeText: { fontSize: 10, fontWeight: "700" },
+    mentorPrinciples: { padding: 14, gap: 8 },
+    principlePill: {
+      flexDirection: "row", alignItems: "center", gap: 10,
+      borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 9,
+    },
+    principleDot: { width: 6, height: 6, borderRadius: 3, flexShrink: 0 },
+    principleText: { fontSize: 13, flex: 1, lineHeight: 18 },
+
+    // ── Quiz card ──
+    quizCard: {
+      borderRadius: 20, borderWidth: 1, overflow: "hidden",
+      shadowColor: "#000", shadowOpacity: 0.05, shadowRadius: 8, shadowOffset: { width: 0, height: 2 },
+    },
+    quizRow: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 14, paddingHorizontal: 14 },
+    quizIconBox: { width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center", flexShrink: 0 },
+    quizMid: { flex: 1, gap: 2 },
+    quizCat: { fontSize: 9, fontWeight: "700", letterSpacing: 0.8, textTransform: "uppercase" },
+    quizAnswer: { fontSize: 13, fontWeight: "600" },
+    quizBadge: {
+      width: 30, height: 30, borderRadius: 15,
+      alignItems: "center", justifyContent: "center", flexShrink: 0,
+    },
+    quizBadgeText: { color: "white", fontSize: 13, fontWeight: "900" },
+
+    // ── Subscription ──
+    subCard: {
+      borderRadius: 20, borderWidth: 1, overflow: "hidden",
+      shadowColor: "#000", shadowOpacity: 0.05, shadowRadius: 8, shadowOffset: { width: 0, height: 2 },
+    },
+    subAccent: { height: 3 },
+    subRow: { flexDirection: "row", alignItems: "center", gap: 12, padding: 16 },
+    subIconBox: { width: 48, height: 48, borderRadius: 14, alignItems: "center", justifyContent: "center" },
+    subTitle: { fontSize: 16, fontWeight: "800", letterSpacing: -0.3 },
+    subDesc: { fontSize: 12, marginTop: 2 },
+    subActivePill: { flexDirection: "row", alignItems: "center", gap: 5, borderWidth: 1, borderRadius: 20, paddingHorizontal: 10, paddingVertical: 5 },
+    subActiveDot: { width: 6, height: 6, borderRadius: 3 },
+    subActiveTxt: { fontSize: 11, fontWeight: "700" },
+    msgTrack: { height: 5, borderRadius: 3, overflow: "hidden", marginHorizontal: 16, marginBottom: 12 },
+    msgFill: { height: "100%", borderRadius: 3 },
+    upgradeBtn: {
+      flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
+      backgroundColor: "#f59e0b", marginHorizontal: 14, marginBottom: 14,
+      borderRadius: 14, paddingVertical: 14,
+      shadowColor: "#f59e0b", shadowOpacity: 0.4, shadowRadius: 10, shadowOffset: { width: 0, height: 4 },
+    },
+    upgradeBtnText: { color: "white", fontWeight: "800", fontSize: 14 },
+
+    // ── Logout ──
+    logoutBtn: {
+      flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
+      borderWidth: 1, borderRadius: 14, paddingVertical: 14, marginTop: 20,
+    },
+    logoutText: { color: "#ef4444", fontWeight: "600", fontSize: 14 },
+
+    // ── Modal ──
     modalOverlay: {
       flex: 1, backgroundColor: "rgba(0,0,0,0.82)",
       alignItems: "center", justifyContent: "center",
@@ -424,39 +576,11 @@ function makeStyles(c: Colors) {
       backgroundColor: "rgba(255,255,255,0.12)",
       alignItems: "center", justifyContent: "center",
     },
-    modalHint: {
-      color: "rgba(255,255,255,0.35)", fontSize: 11, fontWeight: "500",
-    },
+    modalHint: { color: "rgba(255,255,255,0.35)", fontSize: 11, fontWeight: "500" },
     modalShareBtn: {
       flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
-      backgroundColor: "#16a34a", borderRadius: 14, paddingVertical: 15,
-      width: 320,
+      backgroundColor: "#16a34a", borderRadius: 14, paddingVertical: 15, width: 320,
     },
     modalShareText: { color: "white", fontWeight: "700", fontSize: 15 },
-    // Logout
-    logoutBtn: {
-      flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
-      borderWidth: 1, borderRadius: 12, paddingVertical: 14, marginTop: 20,
-    },
-    logoutText: { color: "#ef4444", fontWeight: "600", fontSize: 15 },
-
-    // Subscription card
-    subCard: { borderRadius: 14, borderWidth: 1, overflow: "hidden" },
-    subTopAccent: { height: 3 },
-    subRow: { flexDirection: "row", alignItems: "center", gap: 12, padding: 14 },
-    subIconBox: {
-      width: 40, height: 40, borderRadius: 10,
-      backgroundColor: "#f59e0b18", alignItems: "center", justifyContent: "center",
-    },
-    subTitle: { fontSize: 15, fontWeight: "700" as const, letterSpacing: -0.2 },
-    subDesc: { fontSize: 12, marginTop: 2 },
-    subBadge: { borderWidth: 1, borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4 },
-    subBadgeText: { fontSize: 11, fontWeight: "700" as const },
-    subUpgradeBtn: {
-      flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7,
-      backgroundColor: "#f59e0b", marginHorizontal: 14, marginBottom: 14,
-      borderRadius: 12, paddingVertical: 13,
-    },
-    subUpgradeText: { color: "white", fontWeight: "800" as const, fontSize: 14 },
   });
 }

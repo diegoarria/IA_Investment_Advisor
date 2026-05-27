@@ -228,8 +228,8 @@ export default function NotificationsScreen() {
           </View>
         );
       }
-      const visibleNews = isPremium ? news : news.slice(0, 3);
-      const hasMore = !isPremium && news.length > 3;
+      const visibleNews = isPremium ? news : news.slice(0, 15);
+      const hasMore = !isPremium && news.length > 15;
       return (
         <>
           {visibleNews.map((item) => (
@@ -267,7 +267,7 @@ export default function NotificationsScreen() {
             >
               <Ionicons name="star" size={13} color="#f59e0b" />
               <Text style={{ color: "#f59e0b", fontSize: 12, fontWeight: "600" }}>
-                {news.length - 3} noticias más con Premium
+                {news.length - 15} noticias más con Premium
               </Text>
             </TouchableOpacity>
           )}
