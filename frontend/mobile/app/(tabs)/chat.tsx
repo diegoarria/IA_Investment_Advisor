@@ -1,10 +1,10 @@
 import React, { useState, useRef, useEffect, useMemo } from "react";
 import {
-  View, Text, TextInput, TouchableOpacity, FlatList,
-  StyleSheet, KeyboardAvoidingView, Platform, ActivityIndicator, Image, Animated,
+  View, Text, TextInput, TouchableOpacity, FlatList, ScrollView,
+  StyleSheet, KeyboardAvoidingView, Platform, Image, Animated,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useHeaderHeight } from "@react-navigation/elements";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import Markdown from "react-native-markdown-display";
 import { chatApi, marketApi } from "../../src/lib/api";
@@ -69,10 +69,29 @@ const SUGGESTIONS = [
 ];
 
 export default function ChatScreen() {
-  const headerHeight = useHeaderHeight();
+  const insets = useSafeAreaInsets();
+  const headerHeight = insets.top + 104; // MobileHeader row (52) + MarketTicker (52)
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const markdownStyles = useMemo(() => makeMarkdownStyles(colors), [colors]);
+  const markdownRules = useMemo(() => ({
+    table: (node: any, children: React.ReactNode[]) => (
+      <ScrollView
+        key={node.key}
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        bounces={false}
+        style={{ marginVertical: 8 }}
+      >
+        <View style={{
+          borderWidth: 1, borderColor: colors.border,
+          borderRadius: 10, overflow: "hidden" as const,
+        }}>
+          {children}
+        </View>
+      </ScrollView>
+    ),
+  }), [colors]);
   const profile = useAppStore((s) => s.profile);
   const maturityScore = useAppStore((s) => s.maturityScore);
   const updateMaturity = useAppStore((s) => s.updateMaturity);
@@ -101,6 +120,8 @@ export default function ChatScreen() {
   const [paywallVisible, setPaywallVisible] = useState(false);
   const [paywallReason, setPaywallReason] = useState("");
   const listRef = useRef<FlatList>(null);
+  const cancelRef = useRef({ cancelled: false });
+  const inputRef = useRef<TextInput>(null);
 
   // Ensure there's always an active session
   useEffect(() => {
@@ -209,6 +230,21 @@ Instrucciones críticas:
     setPaywallVisible(true);
   };
 
+  const handleStop = () => {
+    cancelRef.current.cancelled = true;
+    setStreaming(false);
+  };
+
+  const handleEditMessage = (index: number, content: string) => {
+    if (streaming) {
+      cancelRef.current.cancelled = true;
+      setStreaming(false);
+    }
+    setMessages(messages.slice(0, index));
+    setInput(content);
+    inputRef.current?.focus();
+  };
+
   const sendMessage = async (text?: string) => {
     const msg = text || input.trim();
     if (!msg || streaming) return;
@@ -221,6 +257,7 @@ Instrucciones críticas:
     }
 
     setInput("");
+    cancelRef.current.cancelled = false;
 
     const userMsg: Message = { role: "user", content: msg };
     const newMessages = [...messages, userMsg];
@@ -259,7 +296,8 @@ Instrucciones críticas:
           setDiagnosis(d, maturityScore);
         },
         (tickers) => { if (tickers.length > 0) setLastTicker(tickers[0]); },
-        profile?.mentor
+        profile?.mentor,
+        cancelRef.current
       );
     } catch (err: unknown) {
       const errObj = err as { response?: { status?: number; data?: { detail?: { message?: string } } }; message?: string };
@@ -299,15 +337,22 @@ Instrucciones críticas:
             {item.role === "user" ? (
               <Text style={styles.userText}>{item.content}</Text>
             ) : (
-
               <>
-                <Markdown style={markdownStyles}>{item.content || ""}</Markdown>
+                <Markdown style={markdownStyles} rules={markdownRules}>{item.content || ""}</Markdown>
                 {streaming && isLastAssistant && item.content === "" && (
                   <TypingIndicator color={colors.accentLight} />
                 )}
               </>
             )}
           </View>
+          {item.role === "user" && (
+            <TouchableOpacity
+              style={styles.editBtn}
+              onPress={() => handleEditMessage(index, item.content)}
+            >
+              <Ionicons name="pencil" size={15} color={colors.textSub} />
+            </TouchableOpacity>
+          )}
           {showChart && <StockChart ticker={lastTicker!} />}
         </View>
       </View>
@@ -399,7 +444,12 @@ Instrucciones críticas:
 
         <View style={webContentStyle}>
           {messages.length === 0 ? (
-            <View style={styles.empty}>
+            <ScrollView
+              style={styles.flex}
+              contentContainerStyle={styles.empty}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+            >
               {mentor ? (
                 mentorPhoto ? (
                   <Image source={mentorPhoto} style={styles.mentorAvatar} />
@@ -441,7 +491,7 @@ Instrucciones críticas:
                   </TouchableOpacity>
                 ))}
               </View>
-            </View>
+            </ScrollView>
           ) : (
             <FlatList
               ref={listRef}
@@ -450,50 +500,40 @@ Instrucciones críticas:
               renderItem={renderMessage}
               contentContainerStyle={styles.list}
               onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: true })}
+              keyboardShouldPersistTaps="handled"
               style={styles.flex}
             />
           )}
 
-          {/* Free tier message counter */}
           {!isPremium && (
             <TouchableOpacity
-              style={[
-                styles.msgCounter,
-                { backgroundColor: remaining <= 5 ? "#ef444418" : colors.card, borderColor: remaining <= 5 ? "#ef444440" : colors.border },
-              ]}
+              style={styles.premiumBadge}
               onPress={() => openPaywall("Activa Premium para mensajes ilimitados")}
             >
-              <Ionicons
-                name={remaining <= 5 ? "warning-outline" : "chatbubble-outline"}
-                size={12}
-                color={remaining <= 5 ? "#ef4444" : colors.textDim}
-              />
-              <Text style={[styles.msgCounterText, { color: remaining <= 5 ? "#ef4444" : colors.textDim }]}>
-                {remaining > 0
-                  ? `${remaining} mensajes restantes · Toca para ir a Premium`
-                  : `Sin mensajes · Activa Premium`}
-              </Text>
+              <Ionicons name="star" size={11} color="#f59e0b" />
+              <Text style={styles.premiumBadgeText}>Toca para adquirir premium</Text>
             </TouchableOpacity>
           )}
 
           <View style={styles.inputContainer}>
             <TextInput
+              ref={inputRef}
               style={styles.input}
               value={input}
               onChangeText={setInput}
-              placeholder={isPremium ? "Pregunta sobre inversiones..." : `${remaining} msgs restantes...`}
+              placeholder="¿Cómo puedo ayudarte hoy?"
               placeholderTextColor={colors.placeholder}
               multiline
               maxLength={2000}
               editable={!streaming}
             />
             <TouchableOpacity
-              style={[styles.sendButton, (!input.trim() || streaming) && styles.sendDisabled]}
-              onPress={() => sendMessage()}
-              disabled={!input.trim() || streaming}
+              style={[styles.sendButton, !streaming && !input.trim() && styles.sendDisabled]}
+              onPress={streaming ? handleStop : () => sendMessage()}
+              disabled={!streaming && !input.trim()}
             >
               {streaming ? (
-                <ActivityIndicator color="white" size="small" />
+                <Ionicons name="stop" size={18} color="white" />
               ) : (
                 <Ionicons name="send" size={18} color="white" />
               )}
@@ -540,7 +580,7 @@ function makeStyles(c: Colors) {
     newChatBtnText: { fontSize: 12, fontWeight: "600", letterSpacing: 0.1 },
 
     // Empty / welcome state
-    empty: { flex: 1, alignItems: "center", justifyContent: "center", padding: 28 },
+    empty: { flexGrow: 1, alignItems: "center", justifyContent: "center", padding: 28 },
     emptyTitle: { fontSize: 22, fontWeight: "800", color: c.text, marginBottom: 6, letterSpacing: -0.5 },
     emptySubtitle: { fontSize: 14, color: c.textMuted, textAlign: "center", marginBottom: 32, lineHeight: 21 },
     suggestions: { width: "100%", gap: 9 },
@@ -619,12 +659,19 @@ function makeStyles(c: Colors) {
       shadowOffset: { width: 0, height: 2 },
     },
     sendDisabled: { opacity: 0.35 },
+    premiumBadge: {
+      flexDirection: "row" as const, alignItems: "center" as const, justifyContent: "center" as const,
+      gap: 5, marginHorizontal: 12, marginBottom: 4,
+      paddingVertical: 6,
+    },
+    premiumBadgeText: { fontSize: 11, fontWeight: "500" as const, color: "#f59e0b" },
     msgCounter: {
       flexDirection: "row" as const, alignItems: "center" as const, gap: 6,
       marginHorizontal: 12, marginBottom: 4,
       borderWidth: 1, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6,
     },
     msgCounterText: { fontSize: 11, fontWeight: "500" as const, flex: 1 },
+    editBtn: { alignSelf: "flex-end", marginTop: 3, padding: 4 },
 
     // Diagnostic
     diagSeparator: { borderTopWidth: StyleSheet.hairlineWidth, marginTop: 8, marginBottom: 8 },
@@ -676,13 +723,23 @@ function makeMarkdownStyles(c: Colors) {
       color: c.text, fontSize: 13, lineHeight: 22,
       fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
     },
-    table: {
-      borderWidth: 1, borderColor: c.border, borderRadius: 10,
-      marginVertical: 8, overflow: "hidden" as const,
+    table: { marginVertical: 0 },
+    thead: { backgroundColor: c.accent + "28" },
+    th: {
+      color: c.accentLight, fontWeight: "700" as const,
+      paddingHorizontal: 14, paddingVertical: 11,
+      fontSize: 12, letterSpacing: 0.4,
+      minWidth: 120,
+      borderRightWidth: StyleSheet.hairlineWidth, borderRightColor: c.border,
     },
-    thead: { backgroundColor: c.accent + "33" },
-    th: { color: c.accentLight, fontWeight: "700" as const, padding: 10, fontSize: 12, letterSpacing: 0.5 },
-    td: { color: c.textSub, padding: 9, fontSize: 13, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.border },
+    td: {
+      color: c.textSub,
+      paddingHorizontal: 14, paddingVertical: 10,
+      fontSize: 13, lineHeight: 20,
+      borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.border,
+      minWidth: 120,
+      borderRightWidth: StyleSheet.hairlineWidth, borderRightColor: c.border,
+    },
     tr: {},
     blockquote: {
       borderLeftWidth: 3, borderLeftColor: c.accentLight,

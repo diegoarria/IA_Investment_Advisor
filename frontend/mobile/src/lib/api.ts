@@ -88,7 +88,8 @@ export const chatApi = {
     onDone: () => void,
     onAssessment?: (a: { s: number; p: string; sig: string[]; conf: string }) => void,
     onTickers?: (tickers: string[]) => void,
-    mentor?: string | null
+    mentor?: string | null,
+    cancelSignal?: { cancelled: boolean }
   ) => {
     const res = await api.post("/api/chat/message", {
       message,
@@ -100,11 +101,14 @@ export const chatApi = {
     const tickers: string[] = res.data.tickers ?? [];
     const words = reply.split(" ");
     for (let i = 0; i < words.length; i++) {
+      if (cancelSignal?.cancelled) break;
       onChunk((i === 0 ? "" : " ") + words[i]);
       await new Promise((r) => setTimeout(r, 18));
     }
-    if (assessment && onAssessment) onAssessment(assessment);
-    if (tickers.length > 0 && onTickers) onTickers(tickers);
+    if (!cancelSignal?.cancelled) {
+      if (assessment && onAssessment) onAssessment(assessment);
+      if (tickers.length > 0 && onTickers) onTickers(tickers);
+    }
     onDone();
   },
 };

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
   KeyboardAvoidingView, Platform, Alert,
@@ -29,6 +29,31 @@ export default function AuthScreen() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [socialLoading, setSocialLoading] = useState<"google" | null>(null);
+  const [checking, setChecking] = useState(true);
+
+  useEffect(() => {
+    const restoreSession = async () => {
+      try {
+        const token = await SecureStore.getItemAsync("access_token");
+        if (!token) return;
+        const profileRes = await profileApi.get();
+        const p = profileRes.data as UserProfile;
+        setProfile({
+          name: p.name, birth_date: p.birth_date,
+          monthly_income: p.monthly_income, monthly_contribution: p.monthly_contribution,
+          risk_tolerance: p.risk_tolerance as UserProfile["risk_tolerance"],
+          quiz_answers: p.quiz_answers as UserProfile["quiz_answers"],
+          mentor: p.mentor ?? null,
+        });
+        router.replace("/(tabs)/chat");
+      } catch {
+        // Token inválido o expirado — muestra login normalmente
+      } finally {
+        setChecking(false);
+      }
+    };
+    restoreSession();
+  }, []);
 
   const afterAuth = async (accessToken: string, refreshToken: string, userId: string) => {
     await SecureStore.setItemAsync("access_token", accessToken);
@@ -98,6 +123,14 @@ export default function AuthScreen() {
   };
 
   const anyLoading = loading || socialLoading !== null;
+
+  if (checking) {
+    return (
+      <SafeAreaView style={[styles.container, { justifyContent: "center", alignItems: "center" }]}>
+        <ActivityIndicator size="large" color="#16a34a" />
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container}>
