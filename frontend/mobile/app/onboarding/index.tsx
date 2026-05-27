@@ -1,8 +1,9 @@
 import React, { useState, useMemo } from "react";
 import {
   View, Text, TextInput, TouchableOpacity, ScrollView,
-  StyleSheet, SafeAreaView, Image
+  StyleSheet, Image
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { profileApi } from "../../src/lib/api";
@@ -424,9 +425,18 @@ export default function OnboardingScreen() {
 
   return (
     <SafeAreaView style={s.container}>
-      <TouchableOpacity style={s.themeToggle} onPress={toggle}>
-        <Ionicons name={isDark ? "sunny-outline" : "moon-outline"} size={22} color={colors.textMuted} />
-      </TouchableOpacity>
+      {/* Top row: back arrow + theme toggle */}
+      <View style={s.topRow}>
+        <TouchableOpacity
+          style={s.backArrow}
+          onPress={() => step === 0 ? router.replace("/") : setStep(step - 1)}
+        >
+          <Ionicons name="chevron-back" size={24} color={colors.text} />
+        </TouchableOpacity>
+        <TouchableOpacity onPress={toggle}>
+          <Ionicons name={isDark ? "sunny-outline" : "moon-outline"} size={22} color={colors.textMuted} />
+        </TouchableOpacity>
+      </View>
 
       <View style={s.progressRow}>
         {steps.map((_, i) => (
@@ -469,6 +479,11 @@ function makeStyles(c: Colors) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: c.bg },
     themeToggle: { position: "absolute", top: 56, right: 24, zIndex: 10 },
+    topRow: {
+      flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+      paddingHorizontal: 16, paddingTop: 8, paddingBottom: 4,
+    },
+    backArrow: { padding: 6 },
     progressRow: { flexDirection: "row", gap: 5, paddingHorizontal: 20, paddingTop: 18, marginBottom: 4 },
     progressBar: { flex: 1, height: 4, borderRadius: 2, backgroundColor: c.border },
     progressActive: { backgroundColor: c.accentLight },

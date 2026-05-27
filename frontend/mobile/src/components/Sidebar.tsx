@@ -270,7 +270,7 @@ function WebSidebar() {
       <View style={[styles.logoRow, { borderBottomColor: colors.border, justifyContent: collapsed ? "center" : "flex-start" }]}>
         {!collapsed && (
           <>
-            <Image source={require("../../assets/images/logo.jpg")} style={styles.logoBox} />
+            <Image source={require("../../assets/images/logo_new.png")} style={styles.logoBox} />
             <View style={{ flex: 1 }}>
               <Text style={[styles.appName, { color: colors.text }]}>Nuvos AI</Text>
               <Text style={[styles.appSub, { color: colors.textMuted }]}>Tu asesor IA</Text>
@@ -394,7 +394,7 @@ function MobileSidebar() {
       >
         {/* Logo row with close button */}
         <View style={[styles.logoRow, { borderBottomColor: colors.border }]}>
-          <Image source={require("../../assets/images/logo.jpg")} style={styles.logoBox} />
+          <Image source={require("../../assets/images/logo_new.png")} style={styles.logoBox} />
           <View style={{ flex: 1 }}>
             <Text style={[styles.appName, { color: colors.text }]}>Nuvos AI</Text>
             <Text style={[styles.appSub, { color: colors.textMuted }]}>Tu asesor IA</Text>
