@@ -38,7 +38,9 @@
       ],
       "expo-asset",
       "expo-font",
-      "expo-secure-store"
+      "expo-secure-store",
+      "expo-web-browser",
+      "expo-apple-authentication"
     ],
     "newArchEnabled": false,
     "experiments": {

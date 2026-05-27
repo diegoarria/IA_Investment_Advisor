@@ -18,7 +18,9 @@
         "buildConfiguration": "Release"
       },
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://iainvestmentadvisor-production.up.railway.app"
+        "EXPO_PUBLIC_API_URL": "https://iainvestmentadvisor-production.up.railway.app",
+        "EXPO_PUBLIC_SUPABASE_URL": "https://nyxcqjzeiyptyipigsaz.supabase.co",
+        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im55eGNxanplaXlwdHlpcGlnc2F6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk1NDYwOTIsImV4cCI6MjA5NTEyMjA5Mn0.zrOA6106uiBblb95PHc-jEvtBkFfB8jIHjxC_qZrlwg"
       }
     }
   },

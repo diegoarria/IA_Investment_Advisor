@@ -377,13 +377,16 @@ Instrucciones críticas:
 
       {/* Top bar */}
       <View style={[styles.topBar, { borderBottomColor: colors.border }]}>
-        <Text style={[styles.topBarTitle, { color: colors.text }]}>
-          {mentor
-            ? `Con ${mentor.name}`
-            : Platform.OS === "web" && profile?.name
-            ? `Hola, ${profile.name.split(" ")[0]}`
-            : "Nuvos AI"}
-        </Text>
+        {mentor ? (
+          <Text style={[styles.topBarTitle, { color: colors.text }]}>{`Con ${mentor.name}`}</Text>
+        ) : Platform.OS === "web" && profile?.name ? (
+          <Text style={[styles.topBarTitle, { color: colors.text }]}>{`Hola, ${profile.name.split(" ")[0]}`}</Text>
+        ) : (
+          <View style={styles.topBarLogo}>
+            <Image source={require("../../assets/images/logo_new.png")} style={styles.topBarLogoImg} />
+            <Text style={[styles.topBarTitle, { color: colors.text }]}>Nuvos AI</Text>
+          </View>
+        )}
         <TouchableOpacity
           style={[styles.newChatBtn, { borderColor: colors.border }]}
           onPress={handleNewChat}
@@ -528,6 +531,8 @@ function makeStyles(c: Colors) {
       borderBottomWidth: StyleSheet.hairlineWidth,
     },
     topBarTitle: { fontWeight: "700", fontSize: 15, letterSpacing: -0.2 },
+    topBarLogo: { flexDirection: "row", alignItems: "center", gap: 8 },
+    topBarLogoImg: { width: 28, height: 28, borderRadius: 7 },
     newChatBtn: {
       flexDirection: "row", alignItems: "center", gap: 5,
       borderWidth: 1, borderRadius: 20, paddingHorizontal: 12, paddingVertical: 7,
