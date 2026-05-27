@@ -118,6 +118,7 @@ export const marketApi = {
     positions?: Array<{ ticker: string; shares: number; avg_price: number; name?: string }>
   ) => api.post("/api/market/portfolio", { scenario, capital, positions }),
   getPrices: (symbols: string[]) => api.post("/api/market/prices", { symbols }),
+  searchTickers: (q: string) => api.get("/api/market/search", { params: { q } }),
   analyzeScreenshot: (base64: string, mimeType: string) =>
     api.post("/api/market/portfolio/from-screenshot", { image: base64, type: mimeType }),
   getIndices: () => api.get("/api/market/indices"),

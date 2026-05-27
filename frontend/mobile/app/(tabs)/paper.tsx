@@ -163,7 +163,9 @@ export default function PaperScreen() {
   const [tickerInfo, setTickerInfo] = useState<TickerInfo | null>(null);
   const [searching, setSearching] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
+  const [suggestions, setSuggestions] = useState<{ ticker: string; name: string }[]>([]);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const suggestDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Buy form
   const [buyQty, setBuyQty] = useState("");
@@ -225,9 +227,26 @@ export default function PaperScreen() {
   }, []);
 
   const handleQueryChange = (v: string) => {
-    setQuery(v.toUpperCase());
+    const upper = v.toUpperCase();
+    setQuery(upper);
     setBuyQty("");
-    searchTicker(v);
+    setTickerInfo(null);
+    setSearchError(null);
+    if (!upper.trim()) { setSuggestions([]); return; }
+    if (suggestDebounceRef.current) clearTimeout(suggestDebounceRef.current);
+    suggestDebounceRef.current = setTimeout(async () => {
+      try {
+        const res = await marketApi.searchTickers(upper);
+        setSuggestions(res.data.results || []);
+      } catch { setSuggestions([]); }
+    }, 250);
+  };
+
+  const selectSuggestion = (ticker: string) => {
+    setQuery(ticker);
+    setSuggestions([]);
+    setBuyQty("");
+    searchTicker(ticker);
   };
 
   const handleBuy = async () => {
@@ -345,11 +364,27 @@ export default function PaperScreen() {
                 autoCorrect={false}
               />
               {query.length > 0 && (
-                <TouchableOpacity onPress={() => { setQuery(""); setTickerInfo(null); setSearchError(null); setBuyQty(""); }}>
+                <TouchableOpacity onPress={() => { setQuery(""); setTickerInfo(null); setSearchError(null); setBuyQty(""); setSuggestions([]); }}>
                   <Ionicons name="close-circle" size={18} color={colors.textDim} />
                 </TouchableOpacity>
               )}
             </View>
+
+            {/* Suggestions dropdown */}
+            {suggestions.length > 0 && !tickerInfo && !searching && (
+              <View style={[s.suggestionsBox, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                {suggestions.map((s2, i) => (
+                  <TouchableOpacity
+                    key={s2.ticker}
+                    style={[s.suggestionRow, i < suggestions.length - 1 && { borderBottomWidth: 1, borderBottomColor: colors.border }]}
+                    onPress={() => selectSuggestion(s2.ticker)}
+                  >
+                    <Text style={[s.suggestionTicker, { color: colors.text }]}>{s2.ticker}</Text>
+                    <Text style={[s.suggestionName, { color: colors.textMuted }]} numberOfLines={1}>{s2.name}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
 
             {/* Searching indicator */}
             {searching && (
@@ -707,5 +742,9 @@ function makeStyles(c: Colors) {
     planPrice: { fontSize: 14, fontWeight: "600" },
     topUpCloseBtn: { borderWidth: 1, borderRadius: 14, paddingVertical: 14, alignItems: "center" },
     topUpCloseBtnText: { fontWeight: "600", fontSize: 14 },
+    suggestionsBox: { borderRadius: 12, borderWidth: 1, marginBottom: 8, overflow: "hidden" },
+    suggestionRow: { paddingHorizontal: 14, paddingVertical: 10 },
+    suggestionTicker: { fontSize: 13, fontWeight: "700" },
+    suggestionName: { fontSize: 11, marginTop: 1 },
   });
 }

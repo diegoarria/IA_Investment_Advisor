@@ -3,6 +3,8 @@ from concurrent.futures import ThreadPoolExecutor
 import yfinance as yf
 import anthropic
 import json
+import requests as _requests
+import time as time
 from app.api.deps import get_current_user_id
 from app.core.config import settings
 from app.core.database import get_supabase
@@ -14,8 +16,10 @@ router = APIRouter(prefix="/market", tags=["market"])
 
 _INDEX_CACHE: dict = {}
 _NEWS_CACHE: dict = {}
+_SEARCH_CACHE: dict = {}
 _NEWS_CACHE_TTL = 900  # 15 minutes
 _INDEX_CACHE_TTL = 60  # seconds
+_SEARCH_CACHE_TTL = 300  # 5 minutes
 
 INDICES = {
     "S&P 500":   "^GSPC",
@@ -120,6 +124,35 @@ async def get_indices(user_id: str = Depends(get_current_user_id)):
     import asyncio
     data = await asyncio.to_thread(_fetch_indices)
     return data
+
+
+@router.get("/search")
+async def search_tickers(q: str = Query(""), user_id: str = Depends(get_current_user_id)):
+    q = q.strip().upper()
+    if len(q) < 1:
+        return {"results": []}
+
+    cache_key = q
+    now = time.time()
+    if _SEARCH_CACHE.get(cache_key) and now - _SEARCH_CACHE[cache_key]["ts"] < _SEARCH_CACHE_TTL:
+        return {"results": _SEARCH_CACHE[cache_key]["data"]}
+
+    try:
+        url = "https://query2.finance.yahoo.com/v1/finance/search"
+        params = {"q": q, "lang": "en-US", "region": "US", "quotesCount": 8, "newsCount": 0, "listsCount": 0}
+        headers = {"User-Agent": "Mozilla/5.0"}
+        resp = _requests.get(url, params=params, headers=headers, timeout=5)
+        data = resp.json()
+        quotes = data.get("quotes", [])
+        results = [
+            {"ticker": item["symbol"], "name": item.get("longname") or item.get("shortname") or item["symbol"]}
+            for item in quotes
+            if item.get("symbol") and item.get("quoteType") in ("EQUITY", "ETF", "MUTUALFUND")
+        ][:6]
+        _SEARCH_CACHE[cache_key] = {"data": results, "ts": now}
+        return {"results": results}
+    except Exception:
+        return {"results": []}
 
 
 @router.post("/prices")
