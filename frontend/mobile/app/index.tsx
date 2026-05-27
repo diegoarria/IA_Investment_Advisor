@@ -8,7 +8,6 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import * as SecureStore from "expo-secure-store";
-import * as AppleAuthentication from "expo-apple-authentication";
 import * as WebBrowser from "expo-web-browser";
 import { authApi, profileApi } from "../src/lib/api";
 import { supabase } from "../src/lib/supabase";
@@ -29,7 +28,7 @@ export default function AuthScreen() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
-  const [socialLoading, setSocialLoading] = useState<"google" | "apple" | null>(null);
+  const [socialLoading, setSocialLoading] = useState<"google" | null>(null);
 
   const afterAuth = async (accessToken: string, refreshToken: string, userId: string) => {
     await SecureStore.setItemAsync("access_token", accessToken);
@@ -65,34 +64,6 @@ export default function AuthScreen() {
       Alert.alert("Error", msg || (mode === "login" ? "Credenciales inválidas" : "No se pudo crear la cuenta"));
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleAppleLogin = async () => {
-    setSocialLoading("apple");
-    try {
-      const credential = await AppleAuthentication.signInAsync({
-        requestedScopes: [
-          AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
-          AppleAuthentication.AppleAuthenticationScope.EMAIL,
-        ],
-      });
-      if (!credential.identityToken) throw new Error("No identity token");
-      const { data, error } = await supabase.auth.signInWithIdToken({
-        provider: "apple",
-        token: credential.identityToken,
-      });
-      if (error) throw error;
-      if (data.session) {
-        await afterAuth(data.session.access_token, data.session.refresh_token, data.user!.id);
-      }
-    } catch (err: unknown) {
-      const code = (err as { code?: string })?.code;
-      if (code !== "ERR_REQUEST_CANCELED") {
-        Alert.alert("Error", "No se pudo iniciar sesión con Apple");
-      }
-    } finally {
-      setSocialLoading(null);
     }
   };
 
@@ -147,16 +118,6 @@ export default function AuthScreen() {
 
           {/* Social buttons */}
           <View style={styles.socialGroup}>
-            <AppleAuthentication.AppleAuthenticationButton
-              buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN}
-              buttonStyle={isDark
-                ? AppleAuthentication.AppleAuthenticationButtonStyle.WHITE
-                : AppleAuthentication.AppleAuthenticationButtonStyle.BLACK}
-              cornerRadius={12}
-              style={styles.appleBtn}
-              onPress={handleAppleLogin}
-            />
-
             <TouchableOpacity
               style={styles.socialBtn}
               onPress={() => handleOAuthLogin("google")}

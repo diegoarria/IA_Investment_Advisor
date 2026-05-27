@@ -19,9 +19,6 @@
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
       },
-      "entitlements": {
-        "com.apple.developer.applesignin": ["Default"]
-      }
     },
     "android": {
       "adaptiveIcon": {
@@ -42,8 +39,7 @@
       "expo-asset",
       "expo-font",
       "expo-secure-store",
-      "expo-web-browser",
-      "expo-apple-authentication"
+      "expo-web-browser"
     ],
     "newArchEnabled": false,
     "experiments": {
