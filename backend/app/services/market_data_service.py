@@ -304,9 +304,10 @@ def _col_year(df, col: int) -> str:
 def _build_company_context(ticker: str) -> str:
     try:
         # Fetch all 5 data sources in parallel — each uses its own Ticker instance
+        # NOTE: never use `or None` on a DataFrame — bool(df) raises ValueError
         def _fetch(attr: str):
             try:
-                return getattr(yf.Ticker(ticker), attr) or None
+                return getattr(yf.Ticker(ticker), attr)
             except Exception:
                 return None
 
@@ -318,7 +319,9 @@ def _build_company_context(ticker: str) -> str:
             f_news = ex.submit(_fetch, "news")
 
             info     = {}; fin = None; bs = None; cf = None; raw_news = []
-            try: info     = f_info.result(timeout=15) or {}
+            try:
+                result = f_info.result(timeout=15)
+                info = result if isinstance(result, dict) else {}
             except Exception: pass
             try: fin      = f_fin.result(timeout=15)
             except Exception: pass
@@ -326,7 +329,9 @@ def _build_company_context(ticker: str) -> str:
             except Exception: pass
             try: cf       = f_cf.result(timeout=15)
             except Exception: pass
-            try: raw_news = f_news.result(timeout=15) or []
+            try:
+                result = f_news.result(timeout=15)
+                raw_news = result if isinstance(result, list) else []
             except Exception: pass
 
         name = info.get("longName") or info.get("shortName") or ticker
