@@ -305,13 +305,11 @@ export default function OnboardingPage() {
           )}
 
           <div className="flex gap-3 mt-6">
-            {step > 0 && (
-              <button onClick={() => setStep(step - 1)}
-                      className="flex items-center gap-2 px-4 py-3 border rounded-xl text-sm font-medium transition-colors"
-                      style={{ borderColor: "var(--border)", color: "var(--sub)" }}>
-                <ChevronLeft className="w-4 h-4" /> Atrás
-              </button>
-            )}
+            <button onClick={() => step === 0 ? router.push("/") : setStep(step - 1)}
+                    className="flex items-center gap-2 px-4 py-3 border rounded-xl text-sm font-medium transition-colors"
+                    style={{ borderColor: "var(--border)", color: "var(--sub)" }}>
+              <ChevronLeft className="w-4 h-4" /> Atrás
+            </button>
             <button onClick={handleNext} disabled={!current.valid() || loading}
                     className="flex-1 flex items-center justify-center gap-2 text-white font-semibold py-3 rounded-xl transition-colors disabled:opacity-40"
                     style={{ background: "var(--accent)" }}>
