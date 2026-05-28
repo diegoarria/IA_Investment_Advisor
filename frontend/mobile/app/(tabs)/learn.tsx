@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef } from "react";
+import React, { useState, useMemo, useRef, useEffect } from "react";
 import {
   View, Text, TextInput, TouchableOpacity, ScrollView, FlatList,
   Modal, StyleSheet, SafeAreaView, ActivityIndicator,
@@ -7,7 +7,8 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import Markdown from "react-native-markdown-display";
 import { useTheme, Colors } from "../../src/lib/ThemeContext";
-import { chatApi } from "../../src/lib/api";
+import { chatApi, learnApi } from "../../src/lib/api";
+import { useLearnStore } from "../../src/lib/learnStore";
 
 // ─── Data ──────────────────────────────────────────────────────────────────
 
@@ -107,10 +108,28 @@ const COMPANY_LOGOS: Record<string, string> = {
 
 // ─── Component ─────────────────────────────────────────────────────────────
 
+// ─── Simulator types ───────────────────────────────────────────────────────
+
+interface Scenario {
+  id: string; title: string; date: string;
+  context: string; question: string;
+  options: Record<string, string>;
+}
+
+interface ScenarioResult {
+  outcome: string; user_choice: string; optimal: string;
+  lesson: string; return_pct: number; optimal_return_pct: number;
+  is_optimal: boolean; all_returns: Record<string, number>;
+}
+
 export default function LearnScreen() {
   const { colors } = useTheme();
   const s = useMemo(() => makeStyles(colors), [colors]);
   const markdownStyles = useMemo(() => makeMarkdownStyles(colors), [colors]);
+
+  // Streak
+  const { streak, completedToday, markTopicCompleted, initStreak } = useLearnStore();
+  useEffect(() => { initStreak(); }, []);
 
   const [search, setSearch] = useState("");
   const [selectedCat, setSelectedCat] = useState("all");
@@ -118,6 +137,22 @@ export default function LearnScreen() {
   const [content, setContent] = useState("");
   const [streaming, setStreaming] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
+
+  // Simulator state
+  const [simOpen, setSimOpen] = useState(false);
+  const [scenario, setScenario] = useState<Scenario | null>(null);
+  const [simLoading, setSimLoading] = useState(false);
+  const [simChoice, setSimChoice] = useState<string | null>(null);
+  const [simResult, setSimResult] = useState<ScenarioResult | null>(null);
+
+  // Debate state
+  const [debateOpen, setDebateOpen] = useState(false);
+  const [debateThesis, setDebateThesis] = useState("");
+  const [debateMessages, setDebateMessages] = useState<{ role: "user" | "ai"; text: string }[]>([]);
+  const [debateLoading, setDebateLoading] = useState(false);
+  const [debateRound, setDebateRound] = useState(1);
+  const debateScrollRef = useRef<ScrollView>(null);
+  const [debateInput, setDebateInput] = useState("");
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
@@ -128,10 +163,82 @@ export default function LearnScreen() {
     });
   }, [search, selectedCat]);
 
+  // ── Simulator handlers ───────────────────────────────────────────────────
+
+  const openSimulator = async () => {
+    setSimOpen(true);
+    setSimLoading(true);
+    setScenario(null);
+    setSimChoice(null);
+    setSimResult(null);
+    try {
+      const res = await learnApi.getScenario();
+      setScenario(res.data);
+    } catch {}
+    setSimLoading(false);
+  };
+
+  const submitSimChoice = async (choice: string) => {
+    if (!scenario || simResult) return;
+    setSimChoice(choice);
+    setSimLoading(true);
+    try {
+      const res = await learnApi.submitScenarioResult(scenario.id, choice);
+      setSimResult(res.data);
+      markTopicCompleted();
+    } catch {}
+    setSimLoading(false);
+  };
+
+  // ── Debate handlers ──────────────────────────────────────────────────────
+
+  const openDebate = () => {
+    setDebateOpen(true);
+    setDebateThesis("");
+    setDebateMessages([]);
+    setDebateRound(1);
+    setDebateInput("");
+  };
+
+  const submitDebateThesis = async () => {
+    if (!debateThesis.trim()) return;
+    setDebateLoading(true);
+    setDebateMessages([{ role: "user", text: debateThesis }]);
+    try {
+      const res = await learnApi.startDebate(debateThesis);
+      setDebateMessages([
+        { role: "user", text: debateThesis },
+        { role: "ai", text: res.data.response },
+      ]);
+      setDebateRound(2);
+      markTopicCompleted();
+    } catch {}
+    setDebateLoading(false);
+    setTimeout(() => debateScrollRef.current?.scrollToEnd({ animated: true }), 300);
+  };
+
+  const sendDebateReply = async () => {
+    if (!debateInput.trim() || debateLoading) return;
+    const reply = debateInput.trim();
+    setDebateInput("");
+    const lastAI = [...debateMessages].reverse().find((m) => m.role === "ai")?.text ?? "";
+    const newMsgs = [...debateMessages, { role: "user" as const, text: reply }];
+    setDebateMessages(newMsgs);
+    setDebateLoading(true);
+    try {
+      const res = await learnApi.replyDebate(debateThesis, lastAI, reply, debateRound);
+      setDebateMessages([...newMsgs, { role: "ai", text: res.data.response }]);
+      setDebateRound(debateRound + 1);
+    } catch {}
+    setDebateLoading(false);
+    setTimeout(() => debateScrollRef.current?.scrollToEnd({ animated: true }), 300);
+  };
+
   const openTopic = async (title: string, topicContext: string) => {
     setModal({ title, prompt: topicContext });
     setContent("");
     setStreaming(true);
+    markTopicCompleted();
     const prompt =
       `Explícame "${title}" de forma breve y fácil de entender, como si le explicaras a alguien que nunca ha invertido.\n\n` +
       `Usa exactamente este formato:\n\n` +
@@ -159,8 +266,36 @@ export default function LearnScreen() {
     );
   };
 
+  const returnColor = (pct: number) => pct > 0 ? "#22c55e" : pct < 0 ? "#ef4444" : "#9ca3af";
+
   return (
     <SafeAreaView style={s.container}>
+
+      {/* Streak banner */}
+      <View style={[s.streakBanner, { backgroundColor: colors.card, borderColor: completedToday ? "#22c55e44" : colors.border }]}>
+        <View style={s.streakLeft}>
+          <Text style={s.streakFire}>{completedToday ? "🔥" : "🌑"}</Text>
+          <View>
+            <Text style={[s.streakNum, { color: completedToday ? "#f59e0b" : colors.textMuted }]}>
+              {streak} {streak === 1 ? "día" : "días"}
+            </Text>
+            <Text style={[s.streakSub, { color: colors.textDim }]}>
+              {completedToday ? "¡Racha activa hoy!" : "Aprende algo hoy"}
+            </Text>
+          </View>
+        </View>
+        <View style={s.streakGames}>
+          <TouchableOpacity style={[s.gameBtn, { borderColor: "#8b5cf6" }]} onPress={openSimulator}>
+            <Ionicons name="time-outline" size={14} color="#8b5cf6" />
+            <Text style={[s.gameBtnText, { color: "#8b5cf6" }]}>Simulador</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[s.gameBtn, { borderColor: "#0ea5e9" }]} onPress={openDebate}>
+            <Ionicons name="chatbubbles-outline" size={14} color="#0ea5e9" />
+            <Text style={[s.gameBtnText, { color: "#0ea5e9" }]}>Debate</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+
       {/* Barra de búsqueda */}
       <View style={[s.searchBar, { backgroundColor: colors.card, borderColor: colors.border }]}>
         <Ionicons name="search-outline" size={16} color={colors.textMuted} style={{ marginRight: 8 }} />
@@ -252,25 +387,182 @@ export default function LearnScreen() {
             <Text style={[s.modalTitle, { color: colors.text }]}>{modal?.title}</Text>
             <View style={{ width: 32 }} />
           </View>
-
           <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }}>
-            <ScrollView
-              ref={scrollRef}
-              contentContainerStyle={s.modalContent}
-              onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: true })}
-            >
-              {content ? (
-                <Markdown style={markdownStyles}>{content}</Markdown>
-              ) : (
+            <ScrollView ref={scrollRef} contentContainerStyle={s.modalContent}
+              onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: true })}>
+              {content ? <Markdown style={markdownStyles}>{content}</Markdown> : (
                 <View style={s.loadingState}>
                   <ActivityIndicator color={colors.accentLight} size="large" />
                   <Text style={[s.loadingText, { color: colors.textMuted }]}>La IA está preparando la explicación...</Text>
                 </View>
               )}
-              {streaming && content && (
-                <Text style={{ color: "#22c55e", fontSize: 16 }}>▋</Text>
-              )}
+              {streaming && content && <Text style={{ color: "#22c55e", fontSize: 16 }}>▋</Text>}
             </ScrollView>
+          </KeyboardAvoidingView>
+        </SafeAreaView>
+      </Modal>
+
+      {/* ── Simulator Modal ───────────────────────────────────────────── */}
+      <Modal visible={simOpen} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setSimOpen(false)}>
+        <SafeAreaView style={[s.modalContainer, { backgroundColor: colors.bg }]}>
+          <View style={[s.modalHeader, { borderBottomColor: colors.border }]}>
+            <TouchableOpacity onPress={() => setSimOpen(false)} style={s.closeBtn}>
+              <Ionicons name="close" size={22} color={colors.textMuted} />
+            </TouchableOpacity>
+            <Text style={[s.modalTitle, { color: colors.text }]}>⏳ Simulador de Decisiones</Text>
+            <View style={{ width: 32 }} />
+          </View>
+          <ScrollView contentContainerStyle={s.modalContent}>
+            {simLoading && !scenario ? (
+              <View style={s.loadingState}>
+                <ActivityIndicator color="#8b5cf6" size="large" />
+                <Text style={[s.loadingText, { color: colors.textMuted }]}>Cargando escenario histórico...</Text>
+              </View>
+            ) : scenario ? (
+              <View>
+                <View style={{ backgroundColor: "#8b5cf610", borderRadius: 14, padding: 16, marginBottom: 20, borderWidth: 1, borderColor: "#8b5cf630" }}>
+                  <Text style={{ color: "#8b5cf6", fontSize: 11, fontWeight: "700", letterSpacing: 1, marginBottom: 6 }}>{scenario.date.toUpperCase()}</Text>
+                  <Text style={{ color: colors.text, fontSize: 17, fontWeight: "800", marginBottom: 10 }}>{scenario.title}</Text>
+                  <Text style={{ color: colors.textSub, fontSize: 14, lineHeight: 22 }}>{scenario.context}</Text>
+                </View>
+                <Text style={{ color: colors.text, fontSize: 16, fontWeight: "700", marginBottom: 14 }}>{scenario.question}</Text>
+                {!simResult ? (
+                  Object.entries(scenario.options).map(([key, label]) => (
+                    <TouchableOpacity key={key}
+                      style={{ flexDirection: "row", alignItems: "center", gap: 12, borderWidth: 1.5, borderRadius: 14, padding: 14, marginBottom: 10,
+                        borderColor: simChoice === key ? "#8b5cf6" : colors.border,
+                        backgroundColor: simChoice === key ? "#8b5cf610" : colors.card,
+                        opacity: simChoice && simChoice !== key ? 0.5 : 1 }}
+                      onPress={() => submitSimChoice(key)} disabled={!!simChoice}>
+                      <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: simChoice === key ? "#8b5cf6" : colors.border, alignItems: "center", justifyContent: "center" }}>
+                        <Text style={{ color: simChoice === key ? "white" : colors.textSub, fontWeight: "800" }}>{key}</Text>
+                      </View>
+                      <Text style={{ flex: 1, color: colors.text, fontSize: 14, lineHeight: 20 }}>{label}</Text>
+                    </TouchableOpacity>
+                  ))
+                ) : (
+                  <View>
+                    <View style={{ borderRadius: 14, padding: 16, marginBottom: 14, borderWidth: 1,
+                      borderColor: simResult.is_optimal ? "#22c55e44" : "#f59e0b44",
+                      backgroundColor: simResult.is_optimal ? "#22c55e10" : "#f59e0b10" }}>
+                      <Text style={{ color: simResult.is_optimal ? "#22c55e" : "#f59e0b", fontSize: 15, fontWeight: "800", marginBottom: 8 }}>
+                        {simResult.is_optimal ? "✅ ¡Decisión óptima!" : "📊 Lo que pasó realmente"}
+                      </Text>
+                      <Text style={{ color: colors.textSub, fontSize: 13, lineHeight: 20 }}>{simResult.outcome}</Text>
+                    </View>
+                    <View style={{ backgroundColor: colors.card, borderRadius: 14, padding: 14, borderWidth: 1, borderColor: colors.border, marginBottom: 14 }}>
+                      <Text style={{ color: colors.textMuted, fontSize: 11, fontWeight: "700", marginBottom: 6 }}>TU ELECCIÓN ({simResult.user_choice})</Text>
+                      <Text style={{ color: returnColor(simResult.return_pct), fontSize: 22, fontWeight: "800" }}>
+                        {simResult.return_pct > 0 ? "+" : ""}{simResult.return_pct}%
+                      </Text>
+                      <Text style={{ color: colors.textSub, fontSize: 13, marginTop: 6, lineHeight: 19 }}>{simResult.lesson}</Text>
+                    </View>
+                    <View style={{ flexDirection: "row", gap: 8, marginBottom: 20 }}>
+                      {Object.entries(simResult.all_returns).map(([k, v]) => (
+                        <View key={k} style={{ flex: 1, backgroundColor: colors.card, borderRadius: 10, padding: 10, alignItems: "center", borderWidth: 1,
+                          borderColor: k === simResult.optimal ? "#22c55e44" : colors.border }}>
+                          <Text style={{ color: k === simResult.optimal ? "#22c55e" : colors.textMuted, fontSize: 11, fontWeight: "700" }}>{k}</Text>
+                          <Text style={{ color: returnColor(v as number), fontSize: 14, fontWeight: "800", marginTop: 2 }}>
+                            {(v as number) > 0 ? "+" : ""}{v}%
+                          </Text>
+                        </View>
+                      ))}
+                    </View>
+                    <TouchableOpacity onPress={openSimulator}
+                      style={{ backgroundColor: "#8b5cf6", borderRadius: 14, padding: 16, alignItems: "center" }}>
+                      <Text style={{ color: "white", fontWeight: "700", fontSize: 15 }}>Otro escenario</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+              </View>
+            ) : null}
+          </ScrollView>
+        </SafeAreaView>
+      </Modal>
+
+      {/* ── Debate Modal ──────────────────────────────────────────────── */}
+      <Modal visible={debateOpen} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setDebateOpen(false)}>
+        <SafeAreaView style={[s.modalContainer, { backgroundColor: colors.bg }]}>
+          <View style={[s.modalHeader, { borderBottomColor: colors.border }]}>
+            <TouchableOpacity onPress={() => setDebateOpen(false)} style={s.closeBtn}>
+              <Ionicons name="close" size={22} color={colors.textMuted} />
+            </TouchableOpacity>
+            <Text style={[s.modalTitle, { color: colors.text }]}>💬 Modo Debate</Text>
+            <View style={{ width: 32 }} />
+          </View>
+          <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }}>
+            {debateMessages.length === 0 ? (
+              <View style={{ flex: 1, padding: 20 }}>
+                <View style={{ backgroundColor: "#0ea5e910", borderRadius: 14, padding: 16, marginBottom: 24, borderWidth: 1, borderColor: "#0ea5e930" }}>
+                  <Text style={{ color: "#0ea5e9", fontWeight: "700", fontSize: 13, marginBottom: 6 }}>¿Cómo funciona?</Text>
+                  <Text style={{ color: colors.textSub, fontSize: 13, lineHeight: 20 }}>
+                    Presenta una tesis de inversión y la IA debatirá en tu contra con datos reales. Defiende tu postura y fortalece tu pensamiento crítico.
+                  </Text>
+                </View>
+                <Text style={{ color: colors.text, fontSize: 15, fontWeight: "600", marginBottom: 10 }}>Tu tesis de inversión:</Text>
+                <TextInput
+                  style={{ backgroundColor: colors.card, borderRadius: 14, borderWidth: 1, borderColor: colors.border,
+                    padding: 14, color: colors.text, fontSize: 14, minHeight: 80, textAlignVertical: "top" }}
+                  placeholder={"Ej: 'NVIDIA seguirá subiendo por la demanda de IA'\n'Los bonos son mejor opción que acciones ahora'\n'Bitcoin llegará a $200,000 en 2025'"}
+                  placeholderTextColor={colors.placeholder}
+                  value={debateThesis}
+                  onChangeText={setDebateThesis}
+                  multiline
+                />
+                <TouchableOpacity
+                  style={{ backgroundColor: "#0ea5e9", borderRadius: 14, padding: 16, alignItems: "center", marginTop: 16,
+                    opacity: debateThesis.trim().length < 10 ? 0.4 : 1 }}
+                  onPress={submitDebateThesis}
+                  disabled={debateThesis.trim().length < 10 || debateLoading}>
+                  {debateLoading ? <ActivityIndicator color="white" /> :
+                    <Text style={{ color: "white", fontWeight: "700", fontSize: 15 }}>Iniciar debate</Text>}
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <>
+                <ScrollView ref={debateScrollRef} contentContainerStyle={{ padding: 16, gap: 12 }}>
+                  {debateMessages.map((msg, i) => (
+                    <View key={i} style={{
+                      alignSelf: msg.role === "user" ? "flex-end" : "flex-start",
+                      maxWidth: "88%",
+                      backgroundColor: msg.role === "user" ? "#0ea5e9" : colors.card,
+                      borderRadius: 16, padding: 14, borderWidth: msg.role === "ai" ? 1 : 0,
+                      borderColor: colors.border,
+                    }}>
+                      {msg.role === "ai" && (
+                        <Text style={{ color: "#0ea5e9", fontSize: 10, fontWeight: "700", marginBottom: 5, letterSpacing: 0.5 }}>IA DEBATIENDO EN TU CONTRA</Text>
+                      )}
+                      <Text style={{ color: msg.role === "user" ? "white" : colors.text, fontSize: 14, lineHeight: 21 }}>
+                        {msg.text}
+                      </Text>
+                    </View>
+                  ))}
+                  {debateLoading && (
+                    <View style={{ backgroundColor: colors.card, borderRadius: 16, padding: 14, borderWidth: 1, borderColor: colors.border, alignSelf: "flex-start" }}>
+                      <ActivityIndicator color="#0ea5e9" size="small" />
+                    </View>
+                  )}
+                </ScrollView>
+                <View style={{ flexDirection: "row", gap: 10, padding: 14, borderTopWidth: 1, borderTopColor: colors.border }}>
+                  <TextInput
+                    style={{ flex: 1, backgroundColor: colors.card, borderRadius: 14, borderWidth: 1, borderColor: colors.border,
+                      paddingHorizontal: 14, paddingVertical: 12, color: colors.text, fontSize: 14 }}
+                    placeholder="Defiende tu tesis..."
+                    placeholderTextColor={colors.placeholder}
+                    value={debateInput}
+                    onChangeText={setDebateInput}
+                    multiline
+                  />
+                  <TouchableOpacity
+                    style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: "#0ea5e9", alignItems: "center", justifyContent: "center", alignSelf: "flex-end",
+                      opacity: !debateInput.trim() || debateLoading ? 0.4 : 1 }}
+                    onPress={sendDebateReply}
+                    disabled={!debateInput.trim() || debateLoading}>
+                    <Ionicons name="send" size={18} color="white" />
+                  </TouchableOpacity>
+                </View>
+              </>
+            )}
           </KeyboardAvoidingView>
         </SafeAreaView>
       </Modal>
@@ -283,6 +575,23 @@ export default function LearnScreen() {
 function makeStyles(c: Colors) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: c.bg },
+
+    // Streak banner
+    streakBanner: {
+      flexDirection: "row" as const, alignItems: "center" as const, justifyContent: "space-between" as const,
+      marginHorizontal: 14, marginTop: 10, marginBottom: 6,
+      borderRadius: 14, borderWidth: 1, paddingHorizontal: 14, paddingVertical: 10,
+    },
+    streakLeft: { flexDirection: "row" as const, alignItems: "center" as const, gap: 10 },
+    streakFire: { fontSize: 24 },
+    streakNum: { fontSize: 15, fontWeight: "800" as const },
+    streakSub: { fontSize: 11, marginTop: 1 },
+    streakGames: { flexDirection: "row" as const, gap: 8 },
+    gameBtn: {
+      flexDirection: "row" as const, alignItems: "center" as const, gap: 4,
+      borderWidth: 1, borderRadius: 20, paddingHorizontal: 10, paddingVertical: 5,
+    },
+    gameBtnText: { fontSize: 11, fontWeight: "700" as const },
 
     // Search
     searchBar: {

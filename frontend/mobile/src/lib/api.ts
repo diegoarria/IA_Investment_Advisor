@@ -147,4 +147,17 @@ export const billingApi = {
   getStatus: () => api.get("/api/billing/status"),
 };
 
+export const learnApi = {
+  getScenario: () => api.post("/api/learn/scenario"),
+  submitScenarioResult: (scenarioId: string, choice: string) =>
+    api.post("/api/learn/scenario/result", { scenario_id: scenarioId, choice }),
+  startDebate: (thesis: string) => api.post("/api/learn/debate", { thesis }),
+  replyDebate: (thesis: string, previousDebate: string, userResponse: string, round: number) =>
+    api.post("/api/learn/debate/reply", { thesis, previous_debate: previousDebate, user_response: userResponse, round }),
+};
+
+export const insightsApi = {
+  get: () => api.get("/api/profile/insights"),
+};
+
 export default api;

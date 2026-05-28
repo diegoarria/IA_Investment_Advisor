@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     stripe_webhook_secret: str = ""
     stripe_price_id_monthly: str = ""
     stripe_price_id_yearly: str = ""
+    resend_api_key: str = ""
 
     class Config:
         env_file = ".env"

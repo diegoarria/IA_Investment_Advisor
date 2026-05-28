@@ -109,6 +109,50 @@ async def scan_and_notify_all_users():
                 )
 
 
+async def check_portfolio_alerts(user_id: str, tickers: list[str], profile: UserProfile | None = None):
+    """Send alerts when user's holdings have significant moves (>4%)."""
+    if not tickers:
+        return
+    try:
+        import yfinance as yf
+        import concurrent.futures
+
+        def fetch_move(ticker: str):
+            try:
+                t = yf.Ticker(ticker)
+                hist = t.history(period="2d")
+                if len(hist) < 2:
+                    return None
+                prev, curr = float(hist["Close"].iloc[-2]), float(hist["Close"].iloc[-1])
+                pct = round((curr - prev) / prev * 100, 2)
+                if abs(pct) >= 4.0:
+                    return {"symbol": ticker, "change_pct": pct, "price": curr}
+            except Exception:
+                pass
+            return None
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=6) as ex:
+            results = list(ex.map(fetch_move, tickers[:8]))
+
+        for move in [r for r in results if r]:
+            direction = "subió" if move["change_pct"] > 0 else "cayó"
+            emoji = "🚀" if move["change_pct"] > 0 else "📉"
+            msg = await ai_service.generate_notification_insight(
+                "market_move",
+                f"{move['symbol']} {direction} {abs(move['change_pct'])}% hoy — acción en tu portafolio",
+                profile,
+            )
+            await create_notification(
+                user_id=user_id,
+                notification_type="market_move",
+                title=f"{emoji} {move['symbol']} {direction} {abs(move['change_pct'])}%",
+                message=msg,
+                data=move,
+            )
+    except Exception:
+        pass
+
+
 async def generate_weekly_market_insight(user_id: str, profile: UserProfile | None = None):
     market = get_market_summary()
     sp500 = market.get("S&P 500", {})

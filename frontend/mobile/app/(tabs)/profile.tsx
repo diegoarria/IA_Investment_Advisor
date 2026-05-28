@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from "react";
+import React, { useMemo, useRef, useState, useEffect } from "react";
 import {
   View, Text, ScrollView, TouchableOpacity, Image,
   StyleSheet, Alert, Modal, ActivityIndicator, Platform,
@@ -16,6 +16,7 @@ import { getMentorInfo } from "../../src/lib/mentorData";
 import InvestorScorecard from "../../src/components/InvestorScorecard";
 import { useSubscriptionStore, msgsRemaining, FREE_MSG_LIMIT } from "../../src/lib/subscriptionStore";
 import PaywallModal from "../../src/components/PaywallModal";
+import { insightsApi } from "../../src/lib/api";
 
 const MENTOR_PHOTOS: Record<string, number> = {
   "Warren Buffett": require("../../assets/images/mentors/warren_buffett.jpg"),
@@ -61,6 +62,11 @@ export default function ProfileScreen() {
   const [scorecardOpen, setScorecardOpen] = useState(false);
   const [sharing, setSharing] = useState(false);
   const cardRef = useRef<View>(null);
+
+  const [insights, setInsights] = useState<{ ready: boolean; topics?: string[]; risk_behavior?: string; risk_match?: boolean; risk_note?: string; suggestion?: string; interests?: string[] } | null>(null);
+  useEffect(() => {
+    insightsApi.get().then((r) => setInsights(r.data)).catch(() => {});
+  }, []);
 
   const pickPhoto = async () => {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -202,6 +208,34 @@ export default function ProfileScreen() {
             )}
           </View>
         </Modal>
+
+        {/* ── AI INSIGHTS ── */}
+        {insights?.ready && (
+          <View style={[s.insightCard, { backgroundColor: insights.risk_match === false ? "#f59e0b0a" : colors.card, borderColor: insights.risk_match === false ? "#f59e0b40" : "#22c55e40" }]}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 10 }}>
+              <Text style={{ fontSize: 18 }}>🧠</Text>
+              <Text style={[s.sectionLabel, { color: colors.text, marginBottom: 0 }]}>La IA te ha analizado</Text>
+            </View>
+            {insights.risk_match === false && insights.risk_note && (
+              <View style={{ backgroundColor: "#f59e0b15", borderRadius: 10, padding: 10, marginBottom: 10, borderWidth: 1, borderColor: "#f59e0b30" }}>
+                <Text style={{ color: "#f59e0b", fontSize: 12, fontWeight: "700", marginBottom: 3 }}>⚠️ Tu comportamiento real difiere de tu perfil</Text>
+                <Text style={{ color: colors.textSub, fontSize: 12, lineHeight: 18 }}>{insights.risk_note}</Text>
+              </View>
+            )}
+            {insights.suggestion && (
+              <Text style={{ color: colors.textSub, fontSize: 13, lineHeight: 20, marginBottom: 10 }}>{insights.suggestion}</Text>
+            )}
+            {insights.topics && insights.topics.length > 0 && (
+              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
+                {insights.topics.map((t) => (
+                  <View key={t} style={{ backgroundColor: "#22c55e15", borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4, borderWidth: 1, borderColor: "#22c55e30" }}>
+                    <Text style={{ color: "#22c55e", fontSize: 11, fontWeight: "600" }}>{t}</Text>
+                  </View>
+                ))}
+              </View>
+            )}
+          </View>
+        )}
 
         {/* ── STATS GRID ── */}
         <Text style={[s.sectionLabel, { color: colors.textDim }]}>Datos personales</Text>
@@ -465,6 +499,9 @@ function makeStyles(c: Colors) {
     sectionLabel: {
       fontSize: 10, fontWeight: "700", letterSpacing: 1.2,
       textTransform: "uppercase", marginTop: 20, marginBottom: 8, marginLeft: 2,
+    },
+    insightCard: {
+      borderRadius: 16, borderWidth: 1, padding: 14, marginTop: 16,
     },
 
     // ── Hero card ──
