@@ -508,11 +508,35 @@ Instrucciones críticas:
 
           {!isPremium && (
             <TouchableOpacity
-              style={styles.premiumBadge}
+              style={[
+                styles.premiumBadge,
+                remaining <= 0 && { backgroundColor: "rgba(239,68,68,0.10)", borderColor: "rgba(239,68,68,0.30)" },
+              ]}
               onPress={() => openPaywall("Activa Premium para mensajes ilimitados")}
             >
-              <Ionicons name="star" size={11} color="#f59e0b" />
-              <Text style={styles.premiumBadgeText}>Toca para adquirir premium</Text>
+              {remaining <= 0 ? (
+                <>
+                  <Ionicons name="time-outline" size={13} color="#ef4444" />
+                  <Text style={[styles.premiumBadgeText, { color: "#ef4444" }]}>
+                    {(() => {
+                      const mins = resetMinutes(subWindowStart);
+                      const hrs = Math.floor(mins / 60);
+                      const min = mins % 60;
+                      const timeStr = hrs > 0 ? `${hrs}h ${min > 0 ? `${min}min` : ""}`.trim() : `${mins}min`;
+                      return `Activa Premium para chats ilimitados o espera ${timeStr}`;
+                    })()}
+                  </Text>
+                </>
+              ) : (
+                <>
+                  <Ionicons name="star" size={11} color="#f59e0b" />
+                  <Text style={styles.premiumBadgeText}>
+                    {remaining <= 5
+                      ? `Te quedan ${remaining} mensaje${remaining === 1 ? "" : "s"} hoy · Activa Premium`
+                      : "Activa Premium para mensajes ilimitados"}
+                  </Text>
+                </>
+              )}
             </TouchableOpacity>
           )}
 
@@ -662,8 +686,10 @@ function makeStyles(c: Colors) {
     sendDisabled: { opacity: 0.35 },
     premiumBadge: {
       flexDirection: "row" as const, alignItems: "center" as const, justifyContent: "center" as const,
-      gap: 5, marginHorizontal: 12, marginBottom: 4,
-      paddingVertical: 6,
+      gap: 5, marginHorizontal: 12, marginBottom: 6,
+      paddingVertical: 8, paddingHorizontal: 12,
+      borderRadius: 10, borderWidth: 1,
+      backgroundColor: "rgba(245,158,11,0.08)", borderColor: "rgba(245,158,11,0.25)",
     },
     premiumBadgeText: { fontSize: 11, fontWeight: "500" as const, color: "#f59e0b" },
     msgCounter: {
