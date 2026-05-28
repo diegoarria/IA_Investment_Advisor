@@ -262,6 +262,7 @@ Instrucciones críticas:
     const userMsg: Message = { role: "user", content: msg };
     const newMessages = [...messages, userMsg];
     setMessages(newMessages);
+    chatApi.saveMessage("user", msg).catch(() => {});
 
     const profileCtx = buildProfileContext();
     const recentHistory = newMessages.slice(-18);
@@ -289,7 +290,7 @@ Instrucciones críticas:
           full += chunk;
           setMessages([...withAssistant.slice(0, -1), { role: "assistant", content: full }]);
         },
-        () => { setStreaming(false); },
+        () => { setStreaming(false); chatApi.saveMessage("assistant", full).catch(() => {}); },
         (a) => {
           const d: BehavioralDiagnosis = { score: a.s, profile: a.p, signals: a.sig, confidence: a.conf };
           updateMaturity(a.sig);

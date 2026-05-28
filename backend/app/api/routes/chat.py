@@ -166,7 +166,7 @@ async def save_message(
 
 @router.get("/history")
 async def get_history(
-    limit: int = 50,
+    limit: int = 100,
     user_id: str = Depends(get_current_user_id)
 ):
     try:
