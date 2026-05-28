@@ -8,16 +8,10 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import * as SecureStore from "expo-secure-store";
-import * as WebBrowser from "expo-web-browser";
 import { authApi, profileApi } from "../src/lib/api";
-import { supabase } from "../src/lib/supabase";
 import { useTheme, Colors } from "../src/lib/ThemeContext";
 import { useAppStore } from "../src/lib/profileStore";
 import type { UserProfile } from "../src/lib/profileStore";
-
-WebBrowser.maybeCompleteAuthSession();
-
-const REDIRECT_URL = "nuvo://";
 
 export default function AuthScreen() {
   const { colors, isDark, toggle } = useTheme();
@@ -28,7 +22,6 @@ export default function AuthScreen() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
-  const [socialLoading, setSocialLoading] = useState<"google" | null>(null);
   const [checking, setChecking] = useState(true);
 
   useEffect(() => {
@@ -72,41 +65,7 @@ export default function AuthScreen() {
     }
   };
 
-  const handleOAuthLogin = async (provider: "google") => {
-    setSocialLoading(provider);
-    try {
-      const { data, error } = await supabase.auth.signInWithOAuth({
-        provider,
-        options: {
-          redirectTo: REDIRECT_URL,
-          skipBrowserRedirect: true,
-          queryParams: { prompt: "select_account" },
-        },
-      });
-      if (error || !data.url) throw error ?? new Error("No OAuth URL");
-
-      const result = await WebBrowser.openAuthSessionAsync(data.url, REDIRECT_URL);
-      if (result.type !== "success") return;
-
-      const hash = result.url.split("#")[1] ?? result.url.split("?")[1] ?? "";
-      const params = new URLSearchParams(hash);
-      const access_token = params.get("access_token");
-      const refresh_token = params.get("refresh_token");
-
-      if (access_token && refresh_token) {
-        const { data: sessionData } = await supabase.auth.setSession({ access_token, refresh_token });
-        if (sessionData.session && sessionData.user) {
-          await afterAuth(access_token, refresh_token, sessionData.user.id);
-        }
-      }
-    } catch {
-      Alert.alert("Error", `No se pudo iniciar sesión con ${provider === "google" ? "Google" : "Facebook"}`);
-    } finally {
-      setSocialLoading(null);
-    }
-  };
-
-  const anyLoading = loading || socialLoading !== null;
+  const anyLoading = loading;
 
   if (checking) {
     return (
@@ -131,32 +90,6 @@ export default function AuthScreen() {
             <Image source={require("../assets/images/logo_new.png")} style={styles.logo} />
             <Text style={styles.title}>Nuvos AI</Text>
             <Text style={styles.subtitle}>Tu mentor de inversiones inteligente</Text>
-          </View>
-
-          {/* Social buttons */}
-          <View style={styles.socialGroup}>
-            <TouchableOpacity
-              style={styles.socialBtn}
-              onPress={() => handleOAuthLogin("google")}
-              disabled={anyLoading}
-            >
-              {socialLoading === "google" ? (
-                <ActivityIndicator size="small" color={colors.text} />
-              ) : (
-                <>
-                  <Text style={styles.googleG}>G</Text>
-                  <Text style={styles.socialBtnText}>Continuar con Google</Text>
-                </>
-              )}
-            </TouchableOpacity>
-
-          </View>
-
-          {/* Divider */}
-          <View style={styles.divider}>
-            <View style={styles.dividerLine} />
-            <Text style={styles.dividerText}>o con email</Text>
-            <View style={styles.dividerLine} />
           </View>
 
           {/* Email/password form */}
