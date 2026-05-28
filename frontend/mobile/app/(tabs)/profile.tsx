@@ -121,12 +121,13 @@ export default function ProfileScreen() {
     Alert.alert("Cerrar sesión", "¿Seguro que quieres cerrar sesión?", [
       { text: "Cancelar", style: "cancel" },
       {
-        text: "Cerrar sesión", style: "destructive", onPress: async () => {
+        text: "Cerrar sesión", style: "destructive", onPress: () => {
           logout();
-          await SecureStore.deleteItemAsync("access_token").catch(() => {});
-          await SecureStore.deleteItemAsync("refresh_token").catch(() => {});
-          await SecureStore.deleteItemAsync("user_id").catch(() => {});
           router.replace("/");
+          // Limpia tokens en background después de navegar
+          SecureStore.deleteItemAsync("access_token").catch(() => {});
+          SecureStore.deleteItemAsync("refresh_token").catch(() => {});
+          SecureStore.deleteItemAsync("user_id").catch(() => {});
         },
       },
     ]);
