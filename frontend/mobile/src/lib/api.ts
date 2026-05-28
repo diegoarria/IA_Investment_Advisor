@@ -103,7 +103,7 @@ export const chatApi = {
     for (let i = 0; i < words.length; i++) {
       if (cancelSignal?.cancelled) break;
       onChunk((i === 0 ? "" : " ") + words[i]);
-      await new Promise((r) => setTimeout(r, 18));
+      await new Promise((r) => setTimeout(r, 8));
     }
     if (!cancelSignal?.cancelled) {
       if (assessment && onAssessment) onAssessment(assessment);

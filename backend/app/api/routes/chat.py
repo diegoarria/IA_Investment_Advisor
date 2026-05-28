@@ -1,4 +1,5 @@
 import asyncio
+import concurrent.futures
 import re
 import json
 from datetime import datetime, timedelta, timezone
@@ -79,20 +80,25 @@ def _extract_bscore(reply: str) -> tuple[str, dict | None]:
 
 
 def _enrich_message(message: str) -> str:
-    """Prepend global market context + append per-company context to every message."""
+    """Prepend global market context + append per-company context. Both fetched in parallel."""
+    with concurrent.futures.ThreadPoolExecutor(max_workers=2) as ex:
+        f_global  = ex.submit(get_global_market_context)
+        f_company = ex.submit(get_market_context_for_message, message)
+        global_ctx  = ""
+        company_ctx = ""
+        try:
+            global_ctx = f_global.result(timeout=12)
+        except Exception:
+            pass
+        try:
+            company_ctx = f_company.result(timeout=12)
+        except Exception:
+            pass
     parts = [message]
-    try:
-        global_ctx = get_global_market_context()
-        if global_ctx:
-            parts = [message, "\n\n" + global_ctx]
-    except Exception:
-        pass
-    try:
-        company_ctx = get_market_context_for_message(message)
-        if company_ctx:
-            parts.append(company_ctx)
-    except Exception:
-        pass
+    if global_ctx:
+        parts.append("\n\n" + global_ctx)
+    if company_ctx:
+        parts.append(company_ctx)
     return "\n".join(parts) if len(parts) > 1 else message
 
 

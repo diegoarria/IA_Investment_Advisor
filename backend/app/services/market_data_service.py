@@ -1,5 +1,6 @@
 import re
 import time
+import concurrent.futures
 import requests
 import yfinance as yf
 from datetime import datetime, timedelta
@@ -119,7 +120,7 @@ def _fetch_recent_ipos() -> str:
 
         for month in months:
             url = f"https://api.nasdaq.com/api/ipo/calendar?date={month}"
-            r = requests.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=6)
+            r = requests.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=3)
             if r.status_code != 200:
                 continue
             data = r.json().get("data", {})
@@ -156,11 +157,23 @@ def _fetch_recent_ipos() -> str:
         return ""
 
 
+_INDICES = [
+    ("^GSPC",   "S&P 500"),
+    ("^IXIC",   "NASDAQ Composite"),
+    ("^DJI",    "Dow Jones"),
+    ("^RUT",    "Russell 2000"),
+    ("^VIX",    "VIX (volatilidad / miedo)"),
+    ("BTC-USD", "Bitcoin"),
+    ("GC=F",    "Oro"),
+    ("CL=F",    "Petróleo WTI"),
+]
+
+
 def get_global_market_context() -> str:
     """
     Returns a global market context block injected into every AI chat request.
     Includes current date/time, major indices, and recent IPOs.
-    Cached 15 minutes.
+    Cached 15 minutes. All network calls run in parallel.
     """
     cache_key = "__global__"
     entry = _global_cache.get(cache_key)
@@ -168,6 +181,23 @@ def get_global_market_context() -> str:
         return entry[0]
 
     now = datetime.now()
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=len(_INDICES) + 1) as ex:
+        index_futs = {ex.submit(_get_index_summary, t, l): (t, l) for t, l in _INDICES}
+        ipo_fut = ex.submit(_fetch_recent_ipos)
+
+        ordered_results: dict[tuple, str] = {}
+        for fut, key in index_futs.items():
+            try:
+                ordered_results[key] = fut.result(timeout=10)
+            except Exception:
+                ordered_results[key] = f"  {key[1]}: N/D"
+
+        try:
+            ipo_section = ipo_fut.result(timeout=8)
+        except Exception:
+            ipo_section = ""
+
     lines = [
         "---",
         f"[CONTEXTO GLOBAL DE MERCADO — actualizado {now.strftime('%d/%m/%Y %H:%M')}]",
@@ -176,20 +206,9 @@ def get_global_market_context() -> str:
         "",
         "**Mercados principales (tiempo real):**",
     ]
+    for key in _INDICES:
+        lines.append(ordered_results[key])
 
-    for ticker, label in [
-        ("^GSPC",   "S&P 500"),
-        ("^IXIC",   "NASDAQ Composite"),
-        ("^DJI",    "Dow Jones"),
-        ("^RUT",    "Russell 2000"),
-        ("^VIX",    "VIX (volatilidad / miedo)"),
-        ("BTC-USD", "Bitcoin"),
-        ("GC=F",    "Oro"),
-        ("CL=F",    "Petróleo WTI"),
-    ]:
-        lines.append(_get_index_summary(ticker, label))
-
-    ipo_section = _fetch_recent_ipos()
     if ipo_section:
         lines.append("")
         lines.append(ipo_section)
@@ -242,33 +261,6 @@ def _fmt_num(v, prefix="$", suffix="") -> str:
     return f"{prefix}{v:.2f}{suffix}"
 
 
-def _fetch_historical_returns(stock: yf.Ticker) -> dict[str, float | None]:
-    """Return % gain for each standard period."""
-    periods = [
-        ("1d",  "1d",  "5m"),
-        ("5d",  "5d",  "1h"),
-        ("1m",  "1mo", "1d"),
-        ("6m",  "6mo", "1wk"),
-        ("ytd", "ytd", "1wk"),
-        ("1y",  "1y",  "1wk"),
-        ("5y",  "5y",  "1mo"),
-        ("max", "max", "3mo"),
-    ]
-    results: dict[str, float | None] = {}
-    for label, period, interval in periods:
-        try:
-            hist = stock.history(period=period, interval=interval)
-            if hist is not None and len(hist) >= 2:
-                start = float(hist["Close"].iloc[0])
-                end   = float(hist["Close"].iloc[-1])
-                results[label] = round((end - start) / start * 100, 2) if start else None
-            else:
-                results[label] = None
-        except Exception:
-            results[label] = None
-    return results
-
-
 def _build_company_context(ticker: str) -> str:
     try:
         stock = yf.Ticker(ticker)
@@ -296,22 +288,6 @@ def _build_company_context(ticker: str) -> str:
             if week52_low:
                 from_low = (price - week52_low) / week52_low * 100
                 lines.append(f"**Vs mínimo 52 sem:** {from_low:+.1f}%")
-
-        # ── Historical returns (compact, for AI context only — chart widget displays these visually) ──
-        hist_returns = _fetch_historical_returns(stock)
-
-        def _fmt_ret(v: float | None) -> str:
-            return f"{v:+.2f}%" if v is not None else "N/D"
-
-        lines.append(
-            f"**Rendimientos:** 1d={_fmt_ret(hist_returns.get('1d'))} "
-            f"5d={_fmt_ret(hist_returns.get('5d'))} "
-            f"1m={_fmt_ret(hist_returns.get('1m'))} "
-            f"6m={_fmt_ret(hist_returns.get('6m'))} "
-            f"YTD={_fmt_ret(hist_returns.get('ytd'))} "
-            f"1y={_fmt_ret(hist_returns.get('1y'))} "
-            f"5y={_fmt_ret(hist_returns.get('5y'))}"
-        )
 
         # ── Business health ──
         lines.append("\n**Salud del negocio:**")
@@ -391,10 +367,19 @@ def get_company_context(ticker: str) -> str:
 
 
 def get_market_context_for_message(message: str) -> str:
-    """Detect companies in a message and return their real-time context block."""
+    """Detect companies in a message and return their real-time context block. Fetches in parallel."""
     tickers = detect_tickers(message)
     if not tickers:
         return ""
-    blocks = [get_company_context(t) for t in tickers]
+    with concurrent.futures.ThreadPoolExecutor(max_workers=len(tickers)) as ex:
+        futs = {ex.submit(get_company_context, t): t for t in tickers}
+        blocks = []
+        for fut in concurrent.futures.as_completed(futs, timeout=15):
+            try:
+                blocks.append(fut.result())
+            except Exception:
+                pass
+    if not blocks:
+        return ""
     header = "\n---\n[CONTEXTO DE MERCADO ACTUALIZADO — extraído de Yahoo Finance ahora mismo]\n"
     return header + "\n".join(blocks) + "\n---"
