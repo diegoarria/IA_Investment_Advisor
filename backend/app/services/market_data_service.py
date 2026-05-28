@@ -1,5 +1,6 @@
 import re
 import time
+import math
 import concurrent.futures
 import requests
 import yfinance as yf
@@ -261,100 +262,213 @@ def _fmt_num(v, prefix="$", suffix="") -> str:
     return f"{prefix}{v:.2f}{suffix}"
 
 
+# ── Financial statement helpers ───────────────────────────────────────────
+
+def _safe_val(df, keys: list[str], col: int = 0):
+    """Extract a float from a yfinance DataFrame, trying multiple key names."""
+    if df is None or df.empty or df.shape[1] <= col:
+        return None
+    for key in keys:
+        if key in df.index:
+            try:
+                v = float(df.iloc[:, col].loc[key])
+                return None if math.isnan(v) or math.isinf(v) else v
+            except Exception:
+                pass
+    return None
+
+
+def _yoy(curr, prev) -> str:
+    if curr is not None and prev:
+        return f"{(curr - prev) / abs(prev) * 100:+.1f}%"
+    return "—"
+
+
+def _margin(num, denom) -> str:
+    if num is not None and denom:
+        return f"{num / denom * 100:.1f}%"
+    return "—"
+
+
+def _eps_fmt(v) -> str:
+    return f"${v:.2f}" if v is not None else "N/D"
+
+
+def _col_year(df, col: int) -> str:
+    try:
+        return str(df.columns[col])[:4]
+    except Exception:
+        return "—"
+
+
 def _build_company_context(ticker: str) -> str:
     try:
-        stock = yf.Ticker(ticker)
-        info = stock.info or {}
-        name = info.get("longName") or info.get("shortName") or ticker
+        # Fetch all 5 data sources in parallel — each uses its own Ticker instance
+        def _fetch(attr: str):
+            try:
+                return getattr(yf.Ticker(ticker), attr) or None
+            except Exception:
+                return None
 
+        with concurrent.futures.ThreadPoolExecutor(max_workers=5) as ex:
+            f_info = ex.submit(_fetch, "info")
+            f_fin  = ex.submit(_fetch, "financials")
+            f_bs   = ex.submit(_fetch, "balance_sheet")
+            f_cf   = ex.submit(_fetch, "cashflow")
+            f_news = ex.submit(_fetch, "news")
+
+            info     = {}; fin = None; bs = None; cf = None; raw_news = []
+            try: info     = f_info.result(timeout=15) or {}
+            except Exception: pass
+            try: fin      = f_fin.result(timeout=15)
+            except Exception: pass
+            try: bs       = f_bs.result(timeout=15)
+            except Exception: pass
+            try: cf       = f_cf.result(timeout=15)
+            except Exception: pass
+            try: raw_news = f_news.result(timeout=15) or []
+            except Exception: pass
+
+        name = info.get("longName") or info.get("shortName") or ticker
         lines: list[str] = [f"\n### 📊 DATOS EN TIEMPO REAL — {name} ({ticker})"]
 
-        # ── Price & performance ──
-        price = info.get("currentPrice") or info.get("regularMarketPrice")
+        # ── Price ──
+        price      = info.get("currentPrice") or info.get("regularMarketPrice")
         prev_close = info.get("previousClose")
-        week52_high = info.get("fiftyTwoWeekHigh")
-        week52_low = info.get("fiftyTwoWeekLow")
+        wk52_hi    = info.get("fiftyTwoWeekHigh")
+        wk52_lo    = info.get("fiftyTwoWeekLow")
 
         if price:
             lines.append(f"**Precio actual:** ${price:.2f}")
         if price and prev_close:
-            day_chg = (price - prev_close) / prev_close * 100
-            arrow = "⬆" if day_chg >= 0 else "⬇"
-            lines.append(f"**Cambio hoy:** {arrow} {day_chg:+.2f}%")
-        if price and week52_high:
-            from_high = (price - week52_high) / week52_high * 100
-            lines.append(f"**Rango 52 semanas:** ${week52_low:.2f} – ${week52_high:.2f}" if week52_low else f"**Máximo 52 sem:** ${week52_high:.2f}")
-            lines.append(f"**Vs máximo 52 sem:** {from_high:+.1f}%")
-            if week52_low:
-                from_low = (price - week52_low) / week52_low * 100
-                lines.append(f"**Vs mínimo 52 sem:** {from_low:+.1f}%")
+            chg = (price - prev_close) / prev_close * 100
+            lines.append(f"**Cambio hoy:** {'⬆' if chg >= 0 else '⬇'} {chg:+.2f}%")
+        if price and wk52_hi:
+            from_hi = (price - wk52_hi) / wk52_hi * 100
+            rng = f"${wk52_lo:.2f} – ${wk52_hi:.2f}" if wk52_lo else f"máx ${wk52_hi:.2f}"
+            lines.append(f"**Rango 52 sem:** {rng} | vs máximo: {from_hi:+.1f}%")
 
-        # ── Business health ──
-        lines.append("\n**Salud del negocio:**")
-        rev_growth = info.get("revenueGrowth")
-        earnings_growth = info.get("earningsGrowth")
-        gross_margin = info.get("grossMargins")
-        op_margin = info.get("operatingMargins")
-        profit_margin = info.get("profitMargins")
-        total_revenue = info.get("totalRevenue")
-        free_cashflow = info.get("freeCashflow")
-        debt_equity = info.get("debtToEquity")
-        cash = info.get("totalCash")
-
-        lines.append(f"- Ingresos totales: {_fmt_num(total_revenue)}")
-        lines.append(f"- Crecimiento ingresos (YoY): {_fmt_pct(rev_growth)}")
-        lines.append(f"- Crecimiento ganancias (YoY): {_fmt_pct(earnings_growth)}")
-        lines.append(f"- Margen bruto: {_fmt_pct(gross_margin)}")
-        lines.append(f"- Margen operativo: {_fmt_pct(op_margin)}")
-        lines.append(f"- Margen neto: {_fmt_pct(profit_margin)}")
-        lines.append(f"- Flujo de caja libre: {_fmt_num(free_cashflow)}")
-        lines.append(f"- Deuda/Equity: {f'{debt_equity:.1f}' if debt_equity else 'N/D'}")
-        lines.append(f"- Efectivo en caja: {_fmt_num(cash)}")
-
-        # ── Valuation ──
-        pe = info.get("trailingPE")
-        fwd_pe = info.get("forwardPE")
-        ps = info.get("priceToSalesTrailing12Months")
-        peg = info.get("pegRatio")
+        # ── Valuación rápida (from info) ──
         mkt_cap = info.get("marketCap")
+        pe      = info.get("trailingPE")
+        fwd_pe  = info.get("forwardPE")
+        ps      = info.get("priceToSalesTrailing12Months")
+        peg     = info.get("pegRatio")
+        roe     = info.get("returnOnEquity")
+        roa     = info.get("returnOnAssets")
+        de      = info.get("debtToEquity")
+        rev_g   = info.get("revenueGrowth")
+        earn_g  = info.get("earningsGrowth")
+        gm      = info.get("grossMargins")
+        om      = info.get("operatingMargins")
+        pm      = info.get("profitMargins")
+        fcf_inf = info.get("freeCashflow")
+        cash_inf= info.get("totalCash")
 
-        lines.append("\n**Valuación:**")
+        lines.append("\n**Valuación y métricas clave:**")
         lines.append(f"- Market cap: {_fmt_num(mkt_cap)}")
-        lines.append(f"- P/E trailing: {f'{pe:.1f}' if pe else 'N/D'}")
-        lines.append(f"- P/E forward: {f'{fwd_pe:.1f}' if fwd_pe else 'N/D'}")
-        lines.append(f"- P/S: {f'{ps:.1f}' if ps else 'N/D'}")
-        lines.append(f"- PEG: {f'{peg:.1f}' if peg else 'N/D'}")
+        lines.append(f"- P/E: {f'{pe:.1f}' if pe else 'N/D'} | P/E fwd: {f'{fwd_pe:.1f}' if fwd_pe else 'N/D'} | P/S: {f'{ps:.1f}' if ps else 'N/D'} | PEG: {f'{peg:.1f}' if peg else 'N/D'}")
+        lines.append(f"- ROE: {_fmt_pct(roe)} | ROA: {_fmt_pct(roa)} | D/E: {f'{de:.1f}' if de else 'N/D'}")
+        lines.append(f"- Crecimiento ingresos YoY: {_fmt_pct(rev_g)} | Ganancias YoY: {_fmt_pct(earn_g)}")
+        lines.append(f"- Márgenes: Bruto {_fmt_pct(gm)} | Operativo {_fmt_pct(om)} | Neto {_fmt_pct(pm)}")
+        lines.append(f"- FCF: {_fmt_num(fcf_inf)} | Efectivo en caja: {_fmt_num(cash_inf)}")
+
+        # ── Income Statement (from financials DataFrame) ──
+        if fin is not None and not fin.empty and fin.shape[1] >= 1:
+            y0 = _col_year(fin, 0)
+            y1 = _col_year(fin, 1) if fin.shape[1] > 1 else "Anterior"
+
+            rev_c  = _safe_val(fin, ["Total Revenue", "TotalRevenue"])
+            rev_p  = _safe_val(fin, ["Total Revenue", "TotalRevenue"], 1)
+            gp_c   = _safe_val(fin, ["Gross Profit", "GrossProfit"])
+            gp_p   = _safe_val(fin, ["Gross Profit", "GrossProfit"], 1)
+            ebitda_c = _safe_val(fin, ["EBITDA", "Ebitda"])
+            ebitda_p = _safe_val(fin, ["EBITDA", "Ebitda"], 1)
+            ebit_c = _safe_val(fin, ["EBIT", "Operating Income", "OperatingIncome", "Ebit"])
+            ebit_p = _safe_val(fin, ["EBIT", "Operating Income", "OperatingIncome", "Ebit"], 1)
+            ni_c   = _safe_val(fin, ["Net Income", "NetIncome", "Net Income Common Stockholders"])
+            ni_p   = _safe_val(fin, ["Net Income", "NetIncome", "Net Income Common Stockholders"], 1)
+            eps_c  = _safe_val(fin, ["Diluted EPS", "DilutedEPS", "Basic EPS", "BasicEPS"])
+            eps_p  = _safe_val(fin, ["Diluted EPS", "DilutedEPS", "Basic EPS", "BasicEPS"], 1)
+
+            lines.append(f"\n**📊 Estado de Resultados — {y0} vs {y1}:**")
+            lines.append(f"| Métrica | {y0} | {y1} | Var. YoY |")
+            lines.append("|---|---|---|---|")
+            lines.append(f"| Ingresos | {_fmt_num(rev_c)} | {_fmt_num(rev_p)} | {_yoy(rev_c, rev_p)} |")
+            lines.append(f"| Utilidad bruta | {_fmt_num(gp_c)} | {_fmt_num(gp_p)} | {_yoy(gp_c, gp_p)} |")
+            lines.append(f"| Margen bruto | {_margin(gp_c, rev_c)} | {_margin(gp_p, rev_p)} | — |")
+            lines.append(f"| EBITDA | {_fmt_num(ebitda_c)} | {_fmt_num(ebitda_p)} | {_yoy(ebitda_c, ebitda_p)} |")
+            lines.append(f"| EBIT | {_fmt_num(ebit_c)} | {_fmt_num(ebit_p)} | {_yoy(ebit_c, ebit_p)} |")
+            lines.append(f"| Utilidad neta | {_fmt_num(ni_c)} | {_fmt_num(ni_p)} | {_yoy(ni_c, ni_p)} |")
+            lines.append(f"| Margen neto | {_margin(ni_c, rev_c)} | {_margin(ni_p, rev_p)} | — |")
+            if eps_c is not None or eps_p is not None:
+                lines.append(f"| EPS (diluido) | {_eps_fmt(eps_c)} | {_eps_fmt(eps_p)} | {_yoy(eps_c, eps_p)} |")
+
+        # ── Balance Sheet ──
+        if bs is not None and not bs.empty:
+            cash_bs = _safe_val(bs, ["Cash And Cash Equivalents", "CashAndCashEquivalents",
+                                     "Cash Cash Equivalents And Short Term Investments", "Cash"])
+            assets  = _safe_val(bs, ["Total Assets", "TotalAssets"])
+            debt    = _safe_val(bs, ["Total Debt", "TotalDebt", "Long Term Debt", "LongTermDebt"])
+            net_dbt = _safe_val(bs, ["Net Debt", "NetDebt"])
+            equity  = _safe_val(bs, ["Stockholders Equity", "StockholdersEquity",
+                                     "Common Stock Equity", "CommonStockEquity"])
+
+            lines.append("\n**🏦 Balance General (último período):**")
+            lines.append(f"- Efectivo y equiv.: {_fmt_num(cash_bs)}")
+            lines.append(f"- Activos totales: {_fmt_num(assets)}")
+            lines.append(f"- Deuda total: {_fmt_num(debt)}")
+            lines.append(f"- Deuda neta: {_fmt_num(net_dbt)}")
+            lines.append(f"- Patrimonio neto: {_fmt_num(equity)}")
+
+        # ── Cash Flow ──
+        if cf is not None and not cf.empty:
+            fco   = _safe_val(cf, ["Operating Cash Flow", "OperatingCashFlow",
+                                   "Total Cash From Operating Activities"])
+            capex = _safe_val(cf, ["Capital Expenditure", "CapitalExpenditure",
+                                   "Purchase Of PPE", "Capital Expenditures"])
+            fcf_cf = _safe_val(cf, ["Free Cash Flow", "FreeCashFlow"])
+            if fcf_cf is None and fco is not None and capex is not None:
+                fcf_cf = fco + capex  # capex is typically negative
+            buyback = _safe_val(cf, ["Repurchase Of Capital Stock", "RepurchaseOfCapitalStock",
+                                     "Common Stock Repurchased"])
+            divs    = _safe_val(cf, ["Cash Dividends Paid", "CashDividendsPaid",
+                                     "Payment Of Dividends", "Dividends Paid"])
+
+            lines.append("\n**💵 Flujo de Caja (TTM/Anual):**")
+            lines.append(f"- FCO (Operaciones): {_fmt_num(fco)}")
+            lines.append(f"- Capex: {_fmt_num(capex)}")
+            lines.append(f"- Free Cash Flow: {_fmt_num(fcf_cf)}")
+            if buyback is not None:
+                lines.append(f"- Recompra de acciones: {_fmt_num(buyback)}")
+            if divs is not None:
+                lines.append(f"- Dividendos pagados: {_fmt_num(divs)}")
 
         # ── Analyst consensus ──
-        target = info.get("targetMeanPrice")
-        recom = info.get("recommendationKey", "").replace("_", " ").upper()
-        num_analysts = info.get("numberOfAnalystOpinions")
+        target     = info.get("targetMeanPrice")
+        recom      = info.get("recommendationKey", "").replace("_", " ").upper()
+        n_analysts = info.get("numberOfAnalystOpinions")
         if target or recom:
             lines.append("\n**Consenso analistas:**")
             if recom:
-                lines.append(f"- Recomendación: {recom} ({num_analysts or '?'} analistas)")
+                lines.append(f"- Recomendación: {recom} ({n_analysts or '?'} analistas)")
             if target and price:
                 upside = (target - price) / price * 100
                 lines.append(f"- Precio objetivo promedio: ${target:.2f} ({upside:+.1f}% vs precio actual)")
 
         # ── Recent news ──
-        try:
-            raw_news = stock.news or []
-            news_items = raw_news[:6]
-            if news_items:
-                lines.append("\n**Noticias recientes:**")
-                for article in news_items:
-                    title = article.get("title", "")
-                    publisher = article.get("publisher", "")
-                    ts = article.get("providerPublishTime", 0)
-                    date_str = datetime.fromtimestamp(ts).strftime("%d/%m/%Y") if ts else "?"
-                    lines.append(f"- [{date_str}] {title} — *{publisher}*")
-        except Exception:
-            pass
+        news_items = (raw_news or [])[:6]
+        if news_items:
+            lines.append("\n**Noticias recientes:**")
+            for art in news_items:
+                title = art.get("title", "")
+                pub   = art.get("publisher", "")
+                ts    = art.get("providerPublishTime", 0)
+                dt    = datetime.fromtimestamp(ts).strftime("%d/%m/%Y") if ts else "?"
+                lines.append(f"- [{dt}] {title} — *{pub}*")
 
         lines.append(
-            "\n*Fuente: Yahoo Finance (tiempo real). Úsala para contextualizar "
-            "si la caída responde a fundamentos o es ruido de mercado.*"
+            "\n*Fuente: Yahoo Finance (tiempo real). Estados financieros extraídos directamente.*"
         )
         return "\n".join(lines)
 
