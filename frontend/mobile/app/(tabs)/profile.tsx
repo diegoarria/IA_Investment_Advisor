@@ -6,6 +6,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
+import * as SecureStore from "expo-secure-store";
 import { captureRef } from "react-native-view-shot";
 import * as Sharing from "expo-sharing";
 import * as ImagePicker from "expo-image-picker";
@@ -117,9 +118,17 @@ export default function ProfileScreen() {
   const msgPct = Math.min(msgUsed / FREE_MSG_LIMIT, 1);
 
   const handleLogout = () => {
-    Alert.alert("Cerrar sesión", "¿Salir de tu perfil y volver al onboarding?", [
+    Alert.alert("Cerrar sesión", "¿Seguro que quieres cerrar sesión?", [
       { text: "Cancelar", style: "cancel" },
-      { text: "Salir", style: "destructive", onPress: logout },
+      {
+        text: "Cerrar sesión", style: "destructive", onPress: async () => {
+          logout();
+          await SecureStore.deleteItemAsync("access_token").catch(() => {});
+          await SecureStore.deleteItemAsync("refresh_token").catch(() => {});
+          await SecureStore.deleteItemAsync("user_id").catch(() => {});
+          router.replace("/");
+        },
+      },
     ]);
   };
 
