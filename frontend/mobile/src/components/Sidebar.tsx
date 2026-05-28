@@ -4,6 +4,7 @@ import {
   StyleSheet, Pressable, Platform, ScrollView, Image,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import * as SecureStore from "expo-secure-store";
 import { router, usePathname } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAppStore, RISK_CONFIG, getAge, maturityLabel } from "../lib/profileStore";
@@ -243,6 +244,9 @@ function useLogout() {
     clearPortfolio();
     logout();
     router.replace("/");
+    SecureStore.deleteItemAsync("access_token").catch(() => {});
+    SecureStore.deleteItemAsync("refresh_token").catch(() => {});
+    SecureStore.deleteItemAsync("user_id").catch(() => {});
   };
 }
 
