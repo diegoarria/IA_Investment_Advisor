@@ -77,7 +77,11 @@ export default function AuthScreen() {
     try {
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider,
-        options: { redirectTo: REDIRECT_URL, skipBrowserRedirect: true },
+        options: {
+          redirectTo: REDIRECT_URL,
+          skipBrowserRedirect: true,
+          queryParams: { prompt: "select_account" },
+        },
       });
       if (error || !data.url) throw error ?? new Error("No OAuth URL");
 
