@@ -35,6 +35,7 @@ export default function Home() {
       const fn = mode === "login" ? auth.login : auth.register;
       const res = await fn(email, password);
       setAuth(res.data.access_token, res.data.user_id);
+      if (res.data.refresh_token) localStorage.setItem("refresh_token", res.data.refresh_token);
 
       try {
         const p = await profileApi.get();
