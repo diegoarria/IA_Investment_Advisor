@@ -221,10 +221,6 @@ export default function AuthScreen() {
               </Text>
             </TouchableOpacity>
 
-            <TouchableOpacity style={styles.devSkip} onPress={() => router.replace("/onboarding")}>
-              <Ionicons name="settings-outline" size={12} color={colors.textDim} />
-              <Text style={styles.devSkipText}> Saltar al onboarding (dev)</Text>
-            </TouchableOpacity>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
