@@ -1,6 +1,5 @@
-import { Stack, usePathname, router } from "expo-router";
+import { Stack, usePathname } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { useEffect } from "react";
 import { View, Platform } from "react-native";
 import { ThemeProvider, useTheme } from "../src/lib/ThemeContext";
 import Sidebar from "../src/components/Sidebar";
@@ -10,17 +9,13 @@ const HIDE_SIDEBAR_ROUTES = ["/", "/onboarding"];
 function AppStack() {
   const { colors, isDark } = useTheme();
   const pathname = usePathname();
-
-  // Always force login on app start — no auto-session restore
-  useEffect(() => {
-    router.replace("/");
-  }, []);
   const showSidebar = !HIDE_SIDEBAR_ROUTES.some(
     (r) => pathname === r || pathname.startsWith(r + "/")
   );
 
   const stackScreens = (
     <Stack
+      initialRouteName="index"
       screenOptions={{
         headerStyle: { backgroundColor: colors.card },
         headerTintColor: colors.text,
