@@ -32,28 +32,7 @@ export default function AuthScreen() {
   const [checking, setChecking] = useState(true);
 
   useEffect(() => {
-    const restoreSession = async () => {
-      try {
-        if (useAppStore.getState().explicitLogout) return;
-        const token = await SecureStore.getItemAsync("access_token");
-        if (!token) return;
-        const profileRes = await profileApi.get();
-        const p = profileRes.data as UserProfile;
-        setProfile({
-          name: p.name, birth_date: p.birth_date,
-          monthly_income: p.monthly_income, monthly_contribution: p.monthly_contribution,
-          risk_tolerance: p.risk_tolerance as UserProfile["risk_tolerance"],
-          quiz_answers: p.quiz_answers as UserProfile["quiz_answers"],
-          mentor: p.mentor ?? null,
-        });
-        router.replace("/(tabs)/chat");
-      } catch {
-        // Token inválido o expirado — muestra login normalmente
-      } finally {
-        setChecking(false);
-      }
-    };
-    restoreSession();
+    setChecking(false);
   }, []);
 
   const afterAuth = async (accessToken: string, refreshToken: string, userId: string) => {
