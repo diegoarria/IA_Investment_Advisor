@@ -33,26 +33,29 @@ export const chat = {
     message: string,
     history: Array<{ role: string; content: string }>,
     onChunk: (chunk: string) => void,
-    onDone: () => void
+    onDone: () => void,
+    onAssessment?: (a: { s: number; p: string; sig: string[]; conf: string }) => void,
+    onTickers?: (tickers: string[]) => void,
+    mentor?: string | null,
+    cancelSignal?: { cancelled: boolean }
   ) => {
-    const token = localStorage.getItem("access_token");
-    const response = await fetch(`${BASE_URL}/api/chat/stream`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({ message, conversation_history: history }),
+    const res = await api.post("/api/chat/message", {
+      message,
+      conversation_history: history,
+      mentor: mentor ?? null,
     });
-
-    const reader = response.body?.getReader();
-    const decoder = new TextDecoder();
-    if (!reader) return;
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      onChunk(decoder.decode(value, { stream: true }));
+    const reply: string = res.data.reply ?? "";
+    const assessment = res.data.risk_assessment ?? null;
+    const tickers: string[] = res.data.tickers ?? [];
+    const words = reply.split(" ");
+    for (let i = 0; i < words.length; i++) {
+      if (cancelSignal?.cancelled) break;
+      onChunk((i === 0 ? "" : " ") + words[i]);
+      await new Promise((r) => setTimeout(r, 8));
+    }
+    if (!cancelSignal?.cancelled) {
+      if (assessment && onAssessment) onAssessment(assessment);
+      if (tickers.length > 0 && onTickers) onTickers(tickers);
     }
     onDone();
   },

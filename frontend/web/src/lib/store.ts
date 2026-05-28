@@ -26,6 +26,7 @@ interface ChatState {
   appendToLastAssistant: (chunk: string) => void;
   setStreaming: (v: boolean) => void;
   startAssistantMessage: () => void;
+  removeLastMessage: () => void;
   clearMessages: () => void;
   setMessages: (msgs: ChatMessage[]) => void;
 }
@@ -79,6 +80,7 @@ export const useChatStore = create<ChatState>((set) => ({
     set((s) => ({
       messages: [...s.messages, { role: "assistant", content: "" }],
     })),
+  removeLastMessage: () => set((s) => ({ messages: s.messages.slice(0, -1) })),
   clearMessages: () => set({ messages: [] }),
   setMessages: (msgs) => set({ messages: msgs }),
 }));

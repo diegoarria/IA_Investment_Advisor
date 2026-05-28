@@ -47,6 +47,33 @@ const RISK_SEGMENTS = [
   { key: "speculative",            color: "#ff2d3b" },
 ];
 
+type BScoreData = { s: number; p: string; sig: string[]; conf: string };
+
+function BScoreCard({ data }: { data: BScoreData }) {
+  return (
+    <div className="flex justify-start mt-1 ml-9">
+      <div className="px-3 py-2 rounded-xl border max-w-xs"
+           style={{ background: "var(--raised)", borderColor: "var(--border)" }}>
+        <div className="text-[10px] mb-1.5 font-semibold uppercase tracking-wide"
+             style={{ color: "var(--muted)" }}>
+          Evaluación de riesgo
+        </div>
+        <RiskBar level={data.p} />
+        {data.sig.length > 0 && (
+          <div className="flex flex-wrap gap-1 mt-1.5">
+            {data.sig.map((s) => (
+              <span key={s} className="text-[10px] px-1.5 py-0.5 rounded-full border"
+                    style={{ borderColor: "var(--border)", color: "var(--dim)" }}>
+                {s}
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function RiskBar({ level }: { level: string }) {
   const idx = RISK_SEGMENTS.findIndex((s) => s.key === level);
   if (idx < 0) return null;
@@ -118,7 +145,7 @@ export default function ChatPage() {
   const pathname = usePathname();
   const { isAuthenticated, clearAuth } = useAuthStore();
   const { profile } = useProfileStore();
-  const { messages, isStreaming, addMessage, appendToLastAssistant, setStreaming, startAssistantMessage, setMessages } = useChatStore();
+  const { messages, isStreaming, addMessage, appendToLastAssistant, setStreaming, startAssistantMessage, removeLastMessage, setMessages } = useChatStore();
   const { notifications, setNotifications, markRead } = useNotificationStore();
   const { theme, toggleTheme } = useThemeStore();
   const subStore = useSubscriptionStore();
@@ -128,6 +155,7 @@ export default function ChatPage() {
   const [notifOpen, setNotifOpen] = useState(false);
   const [paywallOpen, setPaywallOpen] = useState(false);
   const [indices, setIndices] = useState<IndexData[]>([]);
+  const [lastAssessment, setLastAssessment] = useState<BScoreData | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -166,6 +194,7 @@ export default function ChatPage() {
     }
 
     setInput("");
+    setLastAssessment(null);
     subStore.incrementMsgCount();
     addMessage({ role: "user", content: msg });
     chatApi.saveMessage("user", msg).catch(() => {});
@@ -175,15 +204,28 @@ export default function ChatPage() {
     setStreaming(true);
 
     let fullResponse = "";
-    await chatApi.stream(
-      msg,
-      historyForApi,
-      (chunk) => { appendToLastAssistant(chunk); fullResponse += chunk; },
-      () => {
-        setStreaming(false);
-        chatApi.saveMessage("assistant", fullResponse).catch(() => {});
+    try {
+      await chatApi.stream(
+        msg,
+        historyForApi,
+        (chunk) => { appendToLastAssistant(chunk); fullResponse += chunk; },
+        () => {
+          setStreaming(false);
+          chatApi.saveMessage("assistant", fullResponse).catch(() => {});
+        },
+        (a) => setLastAssessment(a),
+        undefined,
+        null,
+      );
+    } catch (err: unknown) {
+      setStreaming(false);
+      removeLastMessage();
+      const status = (err as { response?: { status?: number } })?.response?.status;
+      if (status === 429) {
+        await subStore.fetchStatus();
+        setPaywallOpen(true);
       }
-    );
+    }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -388,31 +430,36 @@ export default function ChatPage() {
             )}
 
             {messages.map((msg, i) => (
-              <div key={i} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
-                {msg.role === "assistant" && (
-                  <div className="w-7 h-7 rounded-full flex items-center justify-center mr-2 mt-0.5 shrink-0"
-                       style={{ background: "var(--accent)" }}>
-                    <TrendingUp className="w-3.5 h-3.5 text-white" />
-                  </div>
-                )}
-                <div className="max-w-[85%] px-4 py-3 rounded-2xl"
-                     style={{
-                       background: msg.role === "user" ? "var(--accent)" : "var(--card)",
-                       borderRadius: msg.role === "user" ? "18px 18px 4px 18px" : "18px 18px 18px 4px",
-                       border: msg.role === "user" ? "none" : "1px solid var(--border)",
-                       color: msg.role === "user" ? "white" : "var(--sub)",
-                     }}>
-                  {msg.role === "assistant" ? (
-                    <div className="prose-dark">
-                      {msg.content === "" && isStreaming && i === messages.length - 1
-                        ? <TypingDots />
-                        : <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
-                      }
+              <div key={i}>
+                <div className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
+                  {msg.role === "assistant" && (
+                    <div className="w-7 h-7 rounded-full flex items-center justify-center mr-2 mt-0.5 shrink-0"
+                         style={{ background: "var(--accent)" }}>
+                      <TrendingUp className="w-3.5 h-3.5 text-white" />
                     </div>
-                  ) : (
-                    <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
                   )}
+                  <div className="max-w-[85%] px-4 py-3 rounded-2xl"
+                       style={{
+                         background: msg.role === "user" ? "var(--accent)" : "var(--card)",
+                         borderRadius: msg.role === "user" ? "18px 18px 4px 18px" : "18px 18px 18px 4px",
+                         border: msg.role === "user" ? "none" : "1px solid var(--border)",
+                         color: msg.role === "user" ? "white" : "var(--sub)",
+                       }}>
+                    {msg.role === "assistant" ? (
+                      <div className="prose-dark">
+                        {msg.content === "" && isStreaming && i === messages.length - 1
+                          ? <TypingDots />
+                          : <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
+                        }
+                      </div>
+                    ) : (
+                      <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
+                    )}
+                  </div>
                 </div>
+                {msg.role === "assistant" && i === messages.length - 1 && lastAssessment && !isStreaming && (
+                  <BScoreCard data={lastAssessment} />
+                )}
               </div>
             ))}
             <div ref={bottomRef} />
