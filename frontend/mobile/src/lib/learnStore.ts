@@ -6,10 +6,10 @@ function todayStr() { return new Date().toISOString().split("T")[0]; }
 function yesterdayStr() { return new Date(Date.now() - 86400000).toISOString().split("T")[0]; }
 
 export const STREAK_MILESTONES = [
-  { days: 10, reward: "Modo Experto desbloqueado 🧠", bonus: "+5 mensajes/día" },
-  { days: 20, reward: "+5 mensajes diarios activados 🎁", bonus: "Acceso a escenarios imposibles" },
-  { days: 30, reward: "Insignia Inversor Consistente 🏅", bonus: "1 semana Premium gratis" },
-  { days: 50, reward: "Hall of Fame — Top Inversor 🏆", bonus: "Mención especial" },
+  { days: 15, reward: "Modo Experto desbloqueado 🧠", bonus: "+5 mensajes/día" },
+  { days: 30, reward: "+5 mensajes diarios activados 🎁", bonus: "Acceso a escenarios imposibles" },
+  { days: 60, reward: "Insignia Inversor Consistente 🏅", bonus: "1 semana Premium gratis" },
+  { days: 90, reward: "Hall of Fame — Top Inversor 🏆", bonus: "Mención especial" },
 ];
 
 export function getMilestoneForStreak(streak: number) {
