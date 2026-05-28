@@ -24,5 +24,11 @@
       }
     }
   },
-  "submit": {}
+  "submit": {
+    "production": {
+      "ios": {
+        "appleId": "diego.arria19@gmail.com"
+      }
+    }
+  }
 }
