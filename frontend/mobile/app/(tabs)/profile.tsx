@@ -5,8 +5,10 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import { router } from "expo-router";
 import { captureRef } from "react-native-view-shot";
 import * as Sharing from "expo-sharing";
+import * as ImagePicker from "expo-image-picker";
 import { useTheme, Colors } from "../../src/lib/ThemeContext";
 import { useAppStore, RISK_CONFIG, getAge, maturityLabel } from "../../src/lib/profileStore";
 import { getMentorInfo } from "../../src/lib/mentorData";
@@ -53,9 +55,28 @@ export default function ProfileScreen() {
   const maturityHistory = useAppStore((state) => state.maturityHistory);
   const logout = useAppStore((state) => state.logout);
 
+  const setAvatarUri = useAppStore((s) => s.setAvatarUri);
+
   const [scorecardOpen, setScorecardOpen] = useState(false);
   const [sharing, setSharing] = useState(false);
   const cardRef = useRef<View>(null);
+
+  const pickPhoto = async () => {
+    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!perm.granted) {
+      Alert.alert("Permiso requerido", "Necesitamos acceso a tu galería para cambiar tu foto.");
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.4,
+      base64: true,
+    });
+    if (!result.canceled && result.assets[0].base64) {
+      setAvatarUri(`data:image/jpeg;base64,${result.assets[0].base64}`);
+    }
+  };
 
   const subStore = useSubscriptionStore();
   const isPremium = subStore.tier === "premium";
@@ -111,10 +132,20 @@ export default function ProfileScreen() {
           <View style={[s.heroBand, { backgroundColor: riskCfg.color }]} />
           <View style={s.heroAvatarWrap}>
             <View style={[s.heroAvatarRing, { borderColor: colors.bg, backgroundColor: colors.bg }]}>
-              <View style={[s.heroAvatar, { backgroundColor: riskCfg.color }]}>
-                <Text style={s.heroAvatarLetter}>{profile.name.charAt(0).toUpperCase()}</Text>
-              </View>
+              {profile.avatarUri ? (
+                <Image source={{ uri: profile.avatarUri }} style={s.heroAvatar} />
+              ) : (
+                <View style={[s.heroAvatar, { backgroundColor: riskCfg.color }]}>
+                  <Text style={s.heroAvatarLetter}>{profile.name.charAt(0).toUpperCase()}</Text>
+                </View>
+              )}
             </View>
+            <TouchableOpacity
+              style={[s.cameraBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
+              onPress={pickPhoto}
+            >
+              <Ionicons name="camera" size={13} color={colors.accentLight} />
+            </TouchableOpacity>
           </View>
           <View style={s.heroBody}>
             <Text style={[s.heroName, { color: colors.text }]}>{profile.name}</Text>
@@ -130,10 +161,17 @@ export default function ProfileScreen() {
               )}
             </View>
           </View>
-          <TouchableOpacity style={[s.heroShare, { borderTopColor: colors.border }]} onPress={() => setScorecardOpen(true)}>
-            <Ionicons name="share-social-outline" size={15} color={colors.accentLight} />
-            <Text style={[s.heroShareText, { color: colors.accentLight }]}>Compartir mi perfil de inversión</Text>
-          </TouchableOpacity>
+          <View style={[s.heroActions, { borderTopColor: colors.border }]}>
+            <TouchableOpacity style={s.heroActionBtn} onPress={() => router.push("/profile/edit")}>
+              <Ionicons name="pencil-outline" size={14} color={colors.textSub} />
+              <Text style={[s.heroActionText, { color: colors.textSub }]}>Editar perfil</Text>
+            </TouchableOpacity>
+            <View style={[s.heroActionSep, { backgroundColor: colors.border }]} />
+            <TouchableOpacity style={s.heroActionBtn} onPress={() => setScorecardOpen(true)}>
+              <Ionicons name="share-social-outline" size={14} color={colors.accentLight} />
+              <Text style={[s.heroActionText, { color: colors.accentLight }]}>Compartir</Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* ── SCORECARD MODAL ── */}
@@ -435,6 +473,21 @@ function makeStyles(c: Colors) {
     heroTags: { flexDirection: "row", gap: 8, flexWrap: "wrap", justifyContent: "center" },
     heroTag: { flexDirection: "row", alignItems: "center", gap: 5, borderWidth: 1, borderRadius: 20, paddingHorizontal: 11, paddingVertical: 5 },
     heroTagText: { fontSize: 11, fontWeight: "700" },
+    cameraBtn: {
+      position: "absolute", bottom: 0, right: 0,
+      width: 28, height: 28, borderRadius: 14, borderWidth: 1.5,
+      alignItems: "center", justifyContent: "center",
+    },
+    heroActions: {
+      flexDirection: "row", borderTopWidth: StyleSheet.hairlineWidth,
+    },
+    heroActionBtn: {
+      flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center",
+      gap: 6, paddingVertical: 13,
+    },
+    heroActionSep: { width: StyleSheet.hairlineWidth, marginVertical: 10 },
+    heroActionText: { fontSize: 13, fontWeight: "600" },
+    // keep old share styles in case they're referenced elsewhere
     heroShare: {
       flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7,
       paddingVertical: 13, borderTopWidth: StyleSheet.hairlineWidth,

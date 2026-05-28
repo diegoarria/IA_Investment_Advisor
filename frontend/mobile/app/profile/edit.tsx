@@ -120,6 +120,8 @@ export default function EditProfileScreen() {
       monthly_contribution: form.monthly_contribution,
       risk_tolerance:       calculated,
       quiz_answers:         quizAnswers as QuizAnswers,
+      mentor:               profile?.mentor ?? null,
+      avatarUri:            profile?.avatarUri ?? null,
     });
     Alert.alert("✅ Perfil actualizado", "Tus cambios se guardaron correctamente.", [
       { text: "OK", onPress: () => router.back() },

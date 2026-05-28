@@ -21,6 +21,7 @@ export interface UserProfile {
   risk_tolerance: RiskTolerance;
   quiz_answers: QuizAnswers;
   mentor?: string | null;
+  avatarUri?: string | null;
 }
 
 /** Scores: A=1, B=2, C=3, D=4. avg<=2→conservative, <=3→moderate, >3→aggressive */
@@ -101,6 +102,7 @@ export function maturityLabel(score: number): { label: string; color: string } {
 interface AppStore {
   profile: UserProfile | null;
   setProfile: (p: UserProfile) => void;
+  setAvatarUri: (uri: string | null) => void;
   logout: () => void;
   sidebarOpen: boolean;
   openSidebar: () => void;
@@ -115,6 +117,7 @@ export const useAppStore = create<AppStore>()(
     (set, get) => ({
       profile: null,
       setProfile: (p) => set({ profile: p }),
+      setAvatarUri: (uri) => set((s) => ({ profile: s.profile ? { ...s.profile, avatarUri: uri } : null })),
       logout: () => set({ profile: null, sidebarOpen: false, maturityScore: 0, maturityHistory: [] }),
       sidebarOpen: false,
       openSidebar: () => set({ sidebarOpen: true }),
