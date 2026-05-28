@@ -328,7 +328,11 @@ def _col_label(df, col: int) -> str:
 
 def _build_company_context(ticker: str) -> str:
     try:
-        # Fetch 8 sources in parallel — quarterly (primary) + annual (fallback) + news
+        from app.services.sec_edgar_service import get_sec_financials
+
+        # Fetch 9 sources in parallel:
+        # yfinance: info, quarterly & annual financials/bs/cf, news
+        # SEC EDGAR: authoritative 10-Q/10-K financial statements
         # NOTE: never use `or None` on a DataFrame — bool(df) raises ValueError
         def _fetch(attr: str):
             try:
@@ -336,7 +340,7 @@ def _build_company_context(ticker: str) -> str:
             except Exception:
                 return None
 
-        with concurrent.futures.ThreadPoolExecutor(max_workers=8) as ex:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=9) as ex:
             f_info  = ex.submit(_fetch, "info")
             f_qfin  = ex.submit(_fetch, "quarterly_financials")
             f_qbs   = ex.submit(_fetch, "quarterly_balance_sheet")
@@ -345,8 +349,10 @@ def _build_company_context(ticker: str) -> str:
             f_bs    = ex.submit(_fetch, "balance_sheet")    # annual fallback
             f_cf    = ex.submit(_fetch, "cashflow")         # annual fallback
             f_news  = ex.submit(_fetch, "news")
+            f_sec   = ex.submit(get_sec_financials, ticker)  # SEC EDGAR XBRL
 
-            info = {}; qfin = qbs = qcf = fin = bs = cf = None; raw_news = []
+            info = {}; qfin = qbs = qcf = fin = bs = cf = None
+            raw_news = []; sec_block = ""
             try:
                 r = f_info.result(timeout=15)
                 info = r if isinstance(r, dict) else {}
@@ -366,6 +372,10 @@ def _build_company_context(ticker: str) -> str:
             try:
                 r = f_news.result(timeout=15)
                 raw_news = r if isinstance(r, list) else []
+            except Exception: pass
+            try:
+                r = f_sec.result(timeout=20)
+                sec_block = r if isinstance(r, str) else ""
             except Exception: pass
 
         name = info.get("longName") or info.get("shortName") or ticker
@@ -540,10 +550,14 @@ def _build_company_context(ticker: str) -> str:
                 dt    = datetime.fromtimestamp(ts).strftime("%d/%m/%Y") if ts else "?"
                 lines.append(f"- [{dt}] {title} — *{pub}*")
 
-        lines.append(
-            "\n*Fuente: Yahoo Finance. Datos trimestrales del último reporte disponible. "
-            "Se actualiza automáticamente cuando la empresa publica nuevos resultados.*"
-        )
+        # ── SEC EDGAR block (authoritative 10-Q/10-K financial statements) ──
+        if sec_block:
+            lines.append(sec_block)
+        else:
+            lines.append(
+                "\n*Fuente: Yahoo Finance. Datos trimestrales del último reporte disponible. "
+                "Se actualiza automáticamente cuando la empresa publica nuevos resultados.*"
+            )
         return "\n".join(lines)
 
     except Exception as e:
