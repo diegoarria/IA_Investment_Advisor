@@ -72,8 +72,13 @@ async def send_weekly_emails():
             email = auth_users.get(u["user_id"])
             if not email:
                 continue
-            chats = db.table("chat_history").select("content").eq("user_id", u["user_id"]).eq("role","user").order("created_at", desc=True).limit(10).execute().data
-            snippets = [c["content"][:150] for c in chats]
+            is_premium = u.get("subscription_tier") == "premium"
+            # Free users get a short general summary; premium get personalized with chat history
+            if is_premium:
+                chats = db.table("chat_history").select("content").eq("user_id", u["user_id"]).eq("role","user").order("created_at", desc=True).limit(10).execute().data
+                snippets = [c["content"][:150] for c in chats]
+            else:
+                snippets = []  # general summary, no personalization
             await generate_and_send_weekly_summary(
                 user_id=u["user_id"],
                 email=email,

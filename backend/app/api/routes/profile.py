@@ -63,20 +63,47 @@ async def get_ai_insights(user_id: str = Depends(get_current_user_id)):
             .execute()
         )
         msgs = result.data
-        if len(msgs) < 8:
+        profile_row = db.table("user_profiles").select("risk_tolerance,mentor,subscription_tier").eq("user_id", user_id).execute()
+        profile_data = profile_row.data[0] if profile_row.data else {}
+        declared_risk = profile_data.get("risk_tolerance", "moderate")
+        is_premium = profile_data.get("subscription_tier") == "premium"
+
+        # Premium: 50 msgs, deeper analysis; Free: 20 msgs, basic analysis
+        min_msgs = 5 if is_premium else 8
+        msgs = msgs[:50] if is_premium else msgs[:20]
+        if len(msgs) < min_msgs:
             return {"ready": False, "reason": "few_messages"}
 
         combined = "\n".join(f"- {m['content'][:200]}" for m in msgs)
-        profile_row = db.table("user_profiles").select("risk_tolerance,mentor").eq("user_id", user_id).execute()
-        declared_risk = profile_row.data[0].get("risk_tolerance", "moderate") if profile_row.data else "moderate"
 
-        prompt = f"""Analiza los mensajes de un usuario de una app de inversión y detecta patrones.
+        if is_premium:
+            prompt = f"""Analiza en profundidad los mensajes de un inversor y genera un perfil psicológico-financiero completo.
 Perfil declarado: {declared_risk}
 
 MENSAJES:
 {combined}
 
-Responde SOLO con este JSON (sin texto adicional):
+Responde SOLO con este JSON:
+{{
+  "topics": ["max 6 temas más frecuentes"],
+  "risk_behavior": "conservative|moderate|aggressive",
+  "risk_match": true/false,
+  "risk_note": "si no coincide con {declared_risk}, explica qué comportamiento revela",
+  "interests": ["max 5 sectores o activos que más menciona"],
+  "suggestion": "recomendación personalizada y específica de qué debería estudiar o hacer",
+  "maturity_signal": "beginner|intermediate|advanced",
+  "behavioral_biases": ["max 3 sesgos detectados (ej: FOMO, aversión pérdida, sobreconfianza)"],
+  "evolution_note": "1 oración sobre cómo ha evolucionado su pensamiento inversor",
+  "next_level_tip": "consejo concreto para llevar su pensamiento al siguiente nivel"
+}}"""
+        else:
+            prompt = f"""Analiza los mensajes de un usuario de una app de inversión y detecta patrones básicos.
+Perfil declarado: {declared_risk}
+
+MENSAJES:
+{combined}
+
+Responde SOLO con este JSON:
 {{
   "topics": ["max 4 temas más frecuentes que pregunta"],
   "risk_behavior": "conservative|moderate|aggressive",

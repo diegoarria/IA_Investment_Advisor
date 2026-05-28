@@ -74,12 +74,21 @@ def build_weekly_summary_html(name: str, summary: str, risk: str) -> str:
 async def generate_and_send_weekly_summary(user_id: str, email: str, name: str, risk: str, chat_snippets: list[str]):
     from app.services import ai_service
 
-    context = "\n".join(f"- {s}" for s in chat_snippets[:10]) if chat_snippets else "Sin conversaciones recientes."
-    prompt = f"""Eres el asesor financiero personal de {name}, con perfil {risk}.
+    is_premium = bool(chat_snippets)
+    context = "\n".join(f"- {s}" for s in chat_snippets[:10]) if chat_snippets else ""
+
+    if is_premium:
+        intro = f"""Eres el asesor financiero personal de {name}, con perfil {risk}.
 Esta semana tuvieron las siguientes conversaciones de inversión:
 {context}
 
-Escribe un resumen semanal personalizado de máximo 200 palabras que incluya:
+Escribe un resumen semanal PERSONALIZADO de máximo 220 palabras que incluya:"""
+    else:
+        intro = f"""Eres un asesor financiero para {name}, inversor con perfil {risk}.
+
+Escribe un resumen semanal GENERAL de los mercados de máximo 150 palabras que incluya:"""
+
+    prompt = f"""{intro}
 1. Qué pasó en los mercados esta semana (menciona S&P 500, tasas o eventos relevantes de la semana actual)
 2. Cómo aplica eso al perfil {risk} de {name}
 3. Una reflexión o acción concreta para la próxima semana

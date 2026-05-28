@@ -60,13 +60,20 @@ async def scan_and_notify_all_users():
 
         profile_result = db.table("user_profiles").select("*").eq("user_id", user_id).single().execute()
         profile = None
+        is_premium = False
         if profile_result.data:
             try:
                 profile = UserProfile(**profile_result.data)
+                is_premium = profile.subscription_tier == "premium"
             except Exception:
                 pass
 
-        for move in moves[:2]:
+        # Premium: specific holdings alerts via check_portfolio_alerts (called separately)
+        # Free: general market moves only, threshold higher (5% vs 3%)
+        alert_threshold = 3 if is_premium else 5
+        moves_filtered = [m for m in moves if abs(m.get("change_pct", 0)) >= alert_threshold]
+
+        for move in moves_filtered[:2]:
             direction = "subió" if move["direction"] == "up" else "cayó"
             event_desc = f"{move['symbol']} {direction} {abs(move['change_pct'])}% hoy"
             message = await ai_service.generate_notification_insight(

@@ -1,13 +1,48 @@
 import random
 import re
 import json
-from fastapi import APIRouter, Depends
+from datetime import date
+from fastapi import APIRouter, Depends, HTTPException
 from app.api.deps import get_current_user_id
 from app.core.database import get_supabase
 from app.models.user import UserProfile
 from app.services import ai_service
 
 router = APIRouter(prefix="/learn", tags=["learn"])
+
+# ─── Free-tier limits ─────────────────────────────────────────────────────
+
+FREE_SIM_DAILY   = 5
+FREE_DEBATE_DAILY = 2
+FREE_DEBATE_MAX_ROUNDS = 5
+FREE_DIFFICULTIES = {"principiante", "intermedio"}
+
+_sim_counters: dict[str, int] = {}    # "user_id:YYYY-MM-DD" → count
+_debate_counters: dict[str, int] = {}
+
+def _today_key(user_id: str) -> str:
+    return f"{user_id}:{date.today().isoformat()}"
+
+def _is_premium(user_id: str) -> bool:
+    p = _get_profile_raw(user_id)
+    return bool(p and p.get("subscription_tier") == "premium")
+
+def _check_daily(counter: dict, key: str, limit: int, noun: str):
+    if (counter.get(key, 0)) >= limit:
+        raise HTTPException(status_code=429, detail={
+            "code": "daily_limit",
+            "message": f"Alcanzaste el límite de {limit} {noun} diarios. Activa Premium para acceso ilimitado.",
+            "limit": limit,
+        })
+    counter[key] = counter.get(key, 0) + 1
+
+def _get_profile_raw(user_id: str) -> dict | None:
+    try:
+        db = get_supabase()
+        result = db.table("user_profiles").select("subscription_tier").eq("user_id", user_id).execute()
+        return result.data[0] if result.data else None
+    except Exception:
+        return None
 
 # ─── Scenarios by difficulty ───────────────────────────────────────────────
 
@@ -143,6 +178,16 @@ def _get_profile(user_id: str) -> UserProfile | None:
 @router.post("/scenario")
 async def get_scenario(request: dict = None, user_id: str = Depends(get_current_user_id)):
     difficulty = (request or {}).get("difficulty", "intermedio").lower()
+    premium = _is_premium(user_id)
+
+    if not premium and difficulty not in FREE_DIFFICULTIES:
+        raise HTTPException(status_code=403, detail={
+            "code": "premium_required",
+            "message": "Los niveles Difícil e Imposible son exclusivos de Premium.",
+        })
+    if not premium:
+        _check_daily(_sim_counters, _today_key(user_id), FREE_SIM_DAILY, "simulaciones")
+
     pool = SCENARIOS.get(difficulty, SCENARIOS["intermedio"])
     s = random.choice(pool)
     return {
@@ -188,6 +233,15 @@ async def start_debate(request: dict, user_id: str = Depends(get_current_user_id
     difficulty = request.get("difficulty", "intermedio").lower()
     if not thesis:
         return {"error": "Thesis required"}
+    premium = _is_premium(user_id)
+
+    if not premium and difficulty not in FREE_DIFFICULTIES:
+        raise HTTPException(status_code=403, detail={
+            "code": "premium_required",
+            "message": "Los niveles Difícil e Imposible son exclusivos de Premium.",
+        })
+    if not premium:
+        _check_daily(_debate_counters, _today_key(user_id), FREE_DEBATE_DAILY, "debates")
 
     profile = _get_profile(user_id)
     system = DIFFICULTY_DEBATE_PROMPTS.get(difficulty, DIFFICULTY_DEBATE_PROMPTS["intermedio"])
@@ -216,6 +270,13 @@ async def debate_reply(request: dict, user_id: str = Depends(get_current_user_id
     user_response = request.get("user_response", "")
     round_num = request.get("round", 1)
     difficulty = request.get("difficulty", "intermedio").lower()
+    premium = _is_premium(user_id)
+
+    if not premium and round_num > FREE_DEBATE_MAX_ROUNDS:
+        raise HTTPException(status_code=403, detail={
+            "code": "premium_required",
+            "message": f"Los usuarios free tienen hasta {FREE_DEBATE_MAX_ROUNDS} rondas por debate. Activa Premium para debates ilimitados.",
+        })
 
     profile = _get_profile(user_id)
     reply_instruction = DIFFICULTY_DEBATE_REPLY.get(difficulty, DIFFICULTY_DEBATE_REPLY["intermedio"])
