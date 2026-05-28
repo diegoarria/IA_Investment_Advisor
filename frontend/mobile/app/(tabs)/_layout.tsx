@@ -14,15 +14,14 @@ import MarketTicker from "../../src/components/MarketTicker";
 type IoniconName = React.ComponentProps<typeof Ionicons>["name"];
 
 const TAB_CONFIG: Record<string, { icon: IoniconName; iconFilled: IoniconName; label: string }> = {
-  chat:          { icon: "chatbubble-ellipses-outline", iconFilled: "chatbubble-ellipses", label: "Chat" },
-  portfolio:     { icon: "bar-chart-outline",           iconFilled: "bar-chart",            label: "Portafolio" },
-  profile:       { icon: "person-circle-outline",       iconFilled: "person-circle",        label: "Perfil" },
-  paper:         { icon: "game-controller-outline",     iconFilled: "game-controller",      label: "Virtual" },
-  notifications: { icon: "notifications-outline",       iconFilled: "notifications",        label: "Alertas" },
-  learn:         { icon: "school-outline",              iconFilled: "school",               label: "Aprender" },
+  chat:      { icon: "chatbubble-ellipses-outline", iconFilled: "chatbubble-ellipses", label: "Chat" },
+  portfolio: { icon: "bar-chart-outline",           iconFilled: "bar-chart",           label: "Portafolio" },
+  arena:     { icon: "trophy-outline",              iconFilled: "trophy",              label: "Arena" },
+  learn:     { icon: "school-outline",              iconFilled: "school",              label: "Aprender" },
+  paper:     { icon: "game-controller-outline",     iconFilled: "game-controller",     label: "Virtual" },
 };
 
-const HIDDEN_TABS = ["explore", "profile"];
+const HIDDEN_TABS = ["explore", "profile", "notifications"];
 
 // ─── Custom Tab Bar ───────────────────────────────────────────────────────────
 
@@ -152,7 +151,16 @@ function MobileHeader({ title }: { title: string }) {
           {title}
         </Text>
 
-        {/* Avatar */}
+        {/* Notification bell */}
+        <TouchableOpacity
+          style={headerStyles.bellBtn}
+          onPress={() => router.navigate("/(tabs)/notifications")}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="notifications-outline" size={22} color={colors.textSub} />
+        </TouchableOpacity>
+
+        {/* Avatar / Profile */}
         {profile ? (
           <TouchableOpacity
             style={[headerStyles.avatar, { backgroundColor: riskColor + "22", borderColor: riskColor + "66" }]}
@@ -193,6 +201,7 @@ const headerStyles = StyleSheet.create({
     flex: 1, textAlign: "center",
     fontSize: 16, fontWeight: "700", letterSpacing: -0.3,
   },
+  bellBtn: { padding: 6 },
   avatar: {
     width: 34, height: 34, borderRadius: 17, borderWidth: 1.5,
     alignItems: "center", justifyContent: "center",
@@ -229,22 +238,25 @@ export default function TabsLayout() {
           header: () => <MobileHeader title="Mi Portafolio" />,
         }}
       />
+      <Tabs.Screen name="explore" options={{ href: null }} />
+      <Tabs.Screen name="profile" options={{ href: null }} />
       <Tabs.Screen
-        name="explore"
-        options={{ href: null }}
+        name="arena"
+        options={{
+          title: "Arena",
+          header: () => <MobileHeader title="🏆 Arena" />,
+        }}
       />
       <Tabs.Screen
-        name="profile"
+        name="learn"
         options={{
-          tabBarIcon: ({ color }) => <Ionicons name="person-circle-outline" size={22} color={color} />,
-          title: "Perfil",
-          header: () => <MobileHeader title="Mi Perfil" />,
+          title: "Aprender",
+          header: () => <MobileHeader title="Aprendizaje" />,
         }}
       />
       <Tabs.Screen
         name="paper"
         options={{
-          tabBarIcon: ({ color }) => <Ionicons name="game-controller-outline" size={22} color={color} />,
           title: "Virtual",
           header: () => <MobileHeader title="Paper Trading" />,
         }}
@@ -252,17 +264,9 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="notifications"
         options={{
-          tabBarIcon: ({ color }) => <Ionicons name="notifications-outline" size={22} color={color} />,
-          title: "Alertas",
+          href: null,
+          title: "Notificaciones",
           header: () => <MobileHeader title="Notificaciones" />,
-        }}
-      />
-      <Tabs.Screen
-        name="learn"
-        options={{
-          tabBarIcon: ({ color }) => <Ionicons name="school-outline" size={22} color={color} />,
-          title: "Aprender",
-          header: () => <MobileHeader title="Aprendizaje" />,
         }}
       />
     </Tabs>

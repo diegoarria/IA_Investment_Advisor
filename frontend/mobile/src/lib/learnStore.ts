@@ -2,12 +2,22 @@ import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
-function todayStr() {
-  return new Date().toISOString().split("T")[0];
+function todayStr() { return new Date().toISOString().split("T")[0]; }
+function yesterdayStr() { return new Date(Date.now() - 86400000).toISOString().split("T")[0]; }
+
+export const STREAK_MILESTONES = [
+  { days: 10, reward: "Modo Experto desbloqueado 🧠", bonus: "+5 mensajes/día" },
+  { days: 20, reward: "+5 mensajes diarios activados 🎁", bonus: "Acceso a escenarios imposibles" },
+  { days: 30, reward: "Insignia Inversor Consistente 🏅", bonus: "1 semana Premium gratis" },
+  { days: 50, reward: "Hall of Fame — Top Inversor 🏆", bonus: "Mención especial" },
+];
+
+export function getMilestoneForStreak(streak: number) {
+  return [...STREAK_MILESTONES].reverse().find((m) => streak >= m.days) ?? null;
 }
 
-function yesterdayStr() {
-  return new Date(Date.now() - 86400000).toISOString().split("T")[0];
+export function getNextMilestone(streak: number) {
+  return STREAK_MILESTONES.find((m) => streak < m.days) ?? null;
 }
 
 interface LearnStore {
@@ -35,6 +45,7 @@ export const useLearnStore = create<LearnStore>()(
           set({ completedToday: true });
         } else if (lastLearnDate && lastLearnDate < yesterday) {
           set({ streak: 0, completedToday: false });
+          _syncStreak(0, "");
         } else {
           set({ completedToday: false });
         }
@@ -57,8 +68,15 @@ export const useLearnStore = create<LearnStore>()(
           totalCompleted: totalCompleted + 1,
           completedToday: true,
         });
+        _syncStreak(newStreak, today);
       },
     }),
     { name: "learn-store", storage: createJSONStorage(() => AsyncStorage) }
   )
 );
+
+function _syncStreak(streak: number, lastLearnDate: string) {
+  import("../lib/api").then(({ learnApi }) => {
+    learnApi.syncStreak(streak, lastLearnDate).catch(() => {});
+  });
+}
