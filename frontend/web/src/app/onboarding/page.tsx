@@ -107,7 +107,7 @@ const MENTORS = [
 export default function OnboardingPage() {
   const router = useRouter();
   const { setProfile } = useProfileStore();
-  const { isAuthenticated } = useAuthStore();
+  const { isAuthenticated, clearAuth } = useAuthStore();
   const { tier } = useSubscriptionStore();
   const isPremium = tier === "premium";
 
@@ -305,7 +305,7 @@ export default function OnboardingPage() {
           )}
 
           <div className="flex gap-3 mt-6">
-            <button onClick={() => step === 0 ? router.push("/") : setStep(step - 1)}
+            <button onClick={() => { if (step === 0) { clearAuth(); router.push("/"); } else setStep(step - 1); }}
                     className="flex items-center gap-2 px-4 py-3 border rounded-xl text-sm font-medium transition-colors"
                     style={{ borderColor: "var(--border)", color: "var(--sub)" }}>
               <ChevronLeft className="w-4 h-4" /> Atrás
