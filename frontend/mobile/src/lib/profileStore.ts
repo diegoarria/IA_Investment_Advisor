@@ -101,6 +101,7 @@ export function maturityLabel(score: number): { label: string; color: string } {
 
 interface AppStore {
   profile: UserProfile | null;
+  explicitLogout: boolean;
   setProfile: (p: UserProfile) => void;
   setAvatarUri: (uri: string | null) => void;
   logout: () => void;
@@ -116,9 +117,10 @@ export const useAppStore = create<AppStore>()(
   persist(
     (set, get) => ({
       profile: null,
-      setProfile: (p) => set({ profile: p }),
+      explicitLogout: false,
+      setProfile: (p) => set({ profile: p, explicitLogout: false }),
       setAvatarUri: (uri) => set((s) => ({ profile: s.profile ? { ...s.profile, avatarUri: uri } : null })),
-      logout: () => set({ profile: null, sidebarOpen: false, maturityScore: 0, maturityHistory: [] }),
+      logout: () => set({ profile: null, explicitLogout: true, sidebarOpen: false, maturityScore: 0, maturityHistory: [] }),
       sidebarOpen: false,
       openSidebar: () => set({ sidebarOpen: true }),
       closeSidebar: () => set({ sidebarOpen: false }),

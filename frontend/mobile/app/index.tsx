@@ -34,6 +34,7 @@ export default function AuthScreen() {
   useEffect(() => {
     const restoreSession = async () => {
       try {
+        if (useAppStore.getState().explicitLogout) return;
         const token = await SecureStore.getItemAsync("access_token");
         if (!token) return;
         const profileRes = await profileApi.get();
