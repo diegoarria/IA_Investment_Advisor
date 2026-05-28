@@ -74,7 +74,7 @@ COMPANY_TICKERS: dict[str, str] = {
 
 # ── Simple TTL cache (30 min for company data, 15 min for global) ─────────
 _cache: dict[str, tuple[str, float]] = {}
-CACHE_TTL = 1800  # 30 minutes
+CACHE_TTL = 1200  # 20 minutes — shorter so new earnings reports appear quickly
 _global_cache: dict[str, tuple[str, float]] = {}
 GLOBAL_CACHE_TTL = 900  # 15 minutes
 
@@ -278,6 +278,22 @@ def _safe_val(df, keys: list[str], col: int = 0):
     return None
 
 
+def _ttm_val(df, keys: list[str]) -> float | None:
+    """Sum of the 4 most recent quarterly periods (Trailing Twelve Months)."""
+    if df is None or df.empty:
+        return None
+    for key in keys:
+        if key in df.index:
+            try:
+                n = min(4, df.shape[1])
+                vals = [float(df.iloc[:, i].loc[key]) for i in range(n)]
+                valid = [v for v in vals if not (math.isnan(v) or math.isinf(v))]
+                return sum(valid) if valid else None
+            except Exception:
+                pass
+    return None
+
+
 def _yoy(curr, prev) -> str:
     if curr is not None and prev:
         return f"{(curr - prev) / abs(prev) * 100:+.1f}%"
@@ -294,16 +310,25 @@ def _eps_fmt(v) -> str:
     return f"${v:.2f}" if v is not None else "N/D"
 
 
-def _col_year(df, col: int) -> str:
+def _col_label(df, col: int) -> str:
+    """Format column as 'Mar 2026' for quarterly or '2025' for annual."""
     try:
-        return str(df.columns[col])[:4]
+        ts = df.columns[col]
+        if hasattr(ts, 'strftime'):
+            return ts.strftime("%b %Y")
+        s = str(ts)[:10]
+        from datetime import datetime as _dt
+        return _dt.fromisoformat(s).strftime("%b %Y")
     except Exception:
-        return "—"
+        try:
+            return str(df.columns[col])[:7]
+        except Exception:
+            return "—"
 
 
 def _build_company_context(ticker: str) -> str:
     try:
-        # Fetch all 5 data sources in parallel — each uses its own Ticker instance
+        # Fetch 8 sources in parallel — quarterly (primary) + annual (fallback) + news
         # NOTE: never use `or None` on a DataFrame — bool(df) raises ValueError
         def _fetch(attr: str):
             try:
@@ -311,27 +336,36 @@ def _build_company_context(ticker: str) -> str:
             except Exception:
                 return None
 
-        with concurrent.futures.ThreadPoolExecutor(max_workers=5) as ex:
-            f_info = ex.submit(_fetch, "info")
-            f_fin  = ex.submit(_fetch, "financials")
-            f_bs   = ex.submit(_fetch, "balance_sheet")
-            f_cf   = ex.submit(_fetch, "cashflow")
-            f_news = ex.submit(_fetch, "news")
+        with concurrent.futures.ThreadPoolExecutor(max_workers=8) as ex:
+            f_info  = ex.submit(_fetch, "info")
+            f_qfin  = ex.submit(_fetch, "quarterly_financials")
+            f_qbs   = ex.submit(_fetch, "quarterly_balance_sheet")
+            f_qcf   = ex.submit(_fetch, "quarterly_cashflow")
+            f_fin   = ex.submit(_fetch, "financials")       # annual fallback
+            f_bs    = ex.submit(_fetch, "balance_sheet")    # annual fallback
+            f_cf    = ex.submit(_fetch, "cashflow")         # annual fallback
+            f_news  = ex.submit(_fetch, "news")
 
-            info     = {}; fin = None; bs = None; cf = None; raw_news = []
+            info = {}; qfin = qbs = qcf = fin = bs = cf = None; raw_news = []
             try:
-                result = f_info.result(timeout=15)
-                info = result if isinstance(result, dict) else {}
+                r = f_info.result(timeout=15)
+                info = r if isinstance(r, dict) else {}
             except Exception: pass
-            try: fin      = f_fin.result(timeout=15)
+            try: qfin = f_qfin.result(timeout=15)
             except Exception: pass
-            try: bs       = f_bs.result(timeout=15)
+            try: qbs  = f_qbs.result(timeout=15)
             except Exception: pass
-            try: cf       = f_cf.result(timeout=15)
+            try: qcf  = f_qcf.result(timeout=15)
+            except Exception: pass
+            try: fin  = f_fin.result(timeout=15)
+            except Exception: pass
+            try: bs   = f_bs.result(timeout=15)
+            except Exception: pass
+            try: cf   = f_cf.result(timeout=15)
             except Exception: pass
             try:
-                result = f_news.result(timeout=15)
-                raw_news = result if isinstance(result, list) else []
+                r = f_news.result(timeout=15)
+                raw_news = r if isinstance(r, list) else []
             except Exception: pass
 
         name = info.get("longName") or info.get("shortName") or ticker
@@ -354,21 +388,21 @@ def _build_company_context(ticker: str) -> str:
             lines.append(f"**Rango 52 sem:** {rng} | vs máximo: {from_hi:+.1f}%")
 
         # ── Valuación rápida (from info) ──
-        mkt_cap = info.get("marketCap")
-        pe      = info.get("trailingPE")
-        fwd_pe  = info.get("forwardPE")
-        ps      = info.get("priceToSalesTrailing12Months")
-        peg     = info.get("pegRatio")
-        roe     = info.get("returnOnEquity")
-        roa     = info.get("returnOnAssets")
-        de      = info.get("debtToEquity")
-        rev_g   = info.get("revenueGrowth")
-        earn_g  = info.get("earningsGrowth")
-        gm      = info.get("grossMargins")
-        om      = info.get("operatingMargins")
-        pm      = info.get("profitMargins")
-        fcf_inf = info.get("freeCashflow")
-        cash_inf= info.get("totalCash")
+        mkt_cap  = info.get("marketCap")
+        pe       = info.get("trailingPE")
+        fwd_pe   = info.get("forwardPE")
+        ps       = info.get("priceToSalesTrailing12Months")
+        peg      = info.get("pegRatio")
+        roe      = info.get("returnOnEquity")
+        roa      = info.get("returnOnAssets")
+        de       = info.get("debtToEquity")
+        rev_g    = info.get("revenueGrowth")
+        earn_g   = info.get("earningsGrowth")
+        gm       = info.get("grossMargins")
+        om       = info.get("operatingMargins")
+        pm       = info.get("profitMargins")
+        fcf_inf  = info.get("freeCashflow")
+        cash_inf = info.get("totalCash")
 
         lines.append("\n**Valuación y métricas clave:**")
         lines.append(f"- Market cap: {_fmt_num(mkt_cap)}")
@@ -376,78 +410,112 @@ def _build_company_context(ticker: str) -> str:
         lines.append(f"- ROE: {_fmt_pct(roe)} | ROA: {_fmt_pct(roa)} | D/E: {f'{de:.1f}' if de else 'N/D'}")
         lines.append(f"- Crecimiento ingresos YoY: {_fmt_pct(rev_g)} | Ganancias YoY: {_fmt_pct(earn_g)}")
         lines.append(f"- Márgenes: Bruto {_fmt_pct(gm)} | Operativo {_fmt_pct(om)} | Neto {_fmt_pct(pm)}")
-        lines.append(f"- FCF: {_fmt_num(fcf_inf)} | Efectivo en caja: {_fmt_num(cash_inf)}")
+        lines.append(f"- FCF (TTM, info): {_fmt_num(fcf_inf)} | Efectivo: {_fmt_num(cash_inf)}")
 
-        # ── Income Statement (from financials DataFrame) ──
-        if fin is not None and not fin.empty and fin.shape[1] >= 1:
-            y0 = _col_year(fin, 0)
-            y1 = _col_year(fin, 1) if fin.shape[1] > 1 else "Anterior"
+        # ── Income Statement — quarterly (most recent Q vs same Q last year) ──
+        fin_src = qfin if (qfin is not None and not qfin.empty) else fin
+        is_quarterly = fin_src is qfin and fin_src is not None
+        if fin_src is not None and not fin_src.empty and fin_src.shape[1] >= 1:
+            # For YoY: col 0 = most recent, col 4 = same quarter last year (if quarterly)
+            #          or col 1 = previous year (if annual)
+            yoy_col = 4 if (is_quarterly and fin_src.shape[1] >= 5) else 1
+            has_prev = fin_src.shape[1] > yoy_col
 
-            rev_c  = _safe_val(fin, ["Total Revenue", "TotalRevenue"])
-            rev_p  = _safe_val(fin, ["Total Revenue", "TotalRevenue"], 1)
-            gp_c   = _safe_val(fin, ["Gross Profit", "GrossProfit"])
-            gp_p   = _safe_val(fin, ["Gross Profit", "GrossProfit"], 1)
-            ebitda_c = _safe_val(fin, ["EBITDA", "Ebitda"])
-            ebitda_p = _safe_val(fin, ["EBITDA", "Ebitda"], 1)
-            ebit_c = _safe_val(fin, ["EBIT", "Operating Income", "OperatingIncome", "Ebit"])
-            ebit_p = _safe_val(fin, ["EBIT", "Operating Income", "OperatingIncome", "Ebit"], 1)
-            ni_c   = _safe_val(fin, ["Net Income", "NetIncome", "Net Income Common Stockholders"])
-            ni_p   = _safe_val(fin, ["Net Income", "NetIncome", "Net Income Common Stockholders"], 1)
-            eps_c  = _safe_val(fin, ["Diluted EPS", "DilutedEPS", "Basic EPS", "BasicEPS"])
-            eps_p  = _safe_val(fin, ["Diluted EPS", "DilutedEPS", "Basic EPS", "BasicEPS"], 1)
+            lbl0 = _col_label(fin_src, 0)
+            lbl1 = _col_label(fin_src, yoy_col) if has_prev else "Anterior"
+            period_note = "(trimestral, YoY)" if is_quarterly else "(anual)"
 
-            lines.append(f"\n**📊 Estado de Resultados — {y0} vs {y1}:**")
-            lines.append(f"| Métrica | {y0} | {y1} | Var. YoY |")
+            REV  = ["Total Revenue", "TotalRevenue"]
+            GP   = ["Gross Profit", "GrossProfit"]
+            EBD  = ["EBITDA", "Ebitda"]
+            EBT  = ["EBIT", "Operating Income", "OperatingIncome", "Ebit"]
+            NI   = ["Net Income", "NetIncome", "Net Income Common Stockholders"]
+            EPS  = ["Diluted EPS", "DilutedEPS", "Basic EPS", "BasicEPS"]
+
+            rev_c = _safe_val(fin_src, REV, 0);   rev_p = _safe_val(fin_src, REV, yoy_col) if has_prev else None
+            gp_c  = _safe_val(fin_src, GP, 0);    gp_p  = _safe_val(fin_src, GP, yoy_col)  if has_prev else None
+            eb_c  = _safe_val(fin_src, EBD, 0);   eb_p  = _safe_val(fin_src, EBD, yoy_col) if has_prev else None
+            et_c  = _safe_val(fin_src, EBT, 0);   et_p  = _safe_val(fin_src, EBT, yoy_col) if has_prev else None
+            ni_c  = _safe_val(fin_src, NI, 0);    ni_p  = _safe_val(fin_src, NI, yoy_col)  if has_prev else None
+            eps_c = _safe_val(fin_src, EPS, 0);   eps_p = _safe_val(fin_src, EPS, yoy_col) if has_prev else None
+
+            # TTM from quarterly data
+            rev_ttm = _ttm_val(qfin, REV) if qfin is not None and not qfin.empty else None
+            ni_ttm  = _ttm_val(qfin, NI)  if qfin is not None and not qfin.empty else None
+
+            lines.append(f"\n**📊 Estado de Resultados {period_note} — {lbl0} vs {lbl1}:**")
+            if rev_ttm is not None:
+                lines.append(f"*(TTM = {_fmt_num(rev_ttm)} ingresos | {_fmt_num(ni_ttm)} utilidad neta)*")
+            lines.append(f"| Métrica | {lbl0} | {lbl1} | Var. YoY |")
             lines.append("|---|---|---|---|")
             lines.append(f"| Ingresos | {_fmt_num(rev_c)} | {_fmt_num(rev_p)} | {_yoy(rev_c, rev_p)} |")
             lines.append(f"| Utilidad bruta | {_fmt_num(gp_c)} | {_fmt_num(gp_p)} | {_yoy(gp_c, gp_p)} |")
             lines.append(f"| Margen bruto | {_margin(gp_c, rev_c)} | {_margin(gp_p, rev_p)} | — |")
-            lines.append(f"| EBITDA | {_fmt_num(ebitda_c)} | {_fmt_num(ebitda_p)} | {_yoy(ebitda_c, ebitda_p)} |")
-            lines.append(f"| EBIT | {_fmt_num(ebit_c)} | {_fmt_num(ebit_p)} | {_yoy(ebit_c, ebit_p)} |")
+            lines.append(f"| EBITDA | {_fmt_num(eb_c)} | {_fmt_num(eb_p)} | {_yoy(eb_c, eb_p)} |")
+            lines.append(f"| EBIT | {_fmt_num(et_c)} | {_fmt_num(et_p)} | {_yoy(et_c, et_p)} |")
             lines.append(f"| Utilidad neta | {_fmt_num(ni_c)} | {_fmt_num(ni_p)} | {_yoy(ni_c, ni_p)} |")
             lines.append(f"| Margen neto | {_margin(ni_c, rev_c)} | {_margin(ni_p, rev_p)} | — |")
             if eps_c is not None or eps_p is not None:
                 lines.append(f"| EPS (diluido) | {_eps_fmt(eps_c)} | {_eps_fmt(eps_p)} | {_yoy(eps_c, eps_p)} |")
 
-        # ── Balance Sheet ──
-        if bs is not None and not bs.empty:
-            cash_bs = _safe_val(bs, ["Cash And Cash Equivalents", "CashAndCashEquivalents",
-                                     "Cash Cash Equivalents And Short Term Investments", "Cash"])
-            assets  = _safe_val(bs, ["Total Assets", "TotalAssets"])
-            debt    = _safe_val(bs, ["Total Debt", "TotalDebt", "Long Term Debt", "LongTermDebt"])
-            net_dbt = _safe_val(bs, ["Net Debt", "NetDebt"])
-            equity  = _safe_val(bs, ["Stockholders Equity", "StockholdersEquity",
-                                     "Common Stock Equity", "CommonStockEquity"])
+        # ── Balance Sheet — most recent quarter ──
+        bs_src = qbs if (qbs is not None and not qbs.empty) else bs
+        if bs_src is not None and not bs_src.empty:
+            bs_lbl = _col_label(bs_src, 0)
+            CASH = ["Cash And Cash Equivalents", "CashAndCashEquivalents",
+                    "Cash Cash Equivalents And Short Term Investments", "Cash"]
+            cash_v  = _safe_val(bs_src, CASH)
+            assets  = _safe_val(bs_src, ["Total Assets", "TotalAssets"])
+            debt    = _safe_val(bs_src, ["Total Debt", "TotalDebt", "Long Term Debt", "LongTermDebt"])
+            net_dbt = _safe_val(bs_src, ["Net Debt", "NetDebt"])
+            equity  = _safe_val(bs_src, ["Stockholders Equity", "StockholdersEquity",
+                                         "Common Stock Equity", "CommonStockEquity"])
 
-            lines.append("\n**🏦 Balance General (último período):**")
-            lines.append(f"- Efectivo y equiv.: {_fmt_num(cash_bs)}")
+            lines.append(f"\n**🏦 Balance General ({bs_lbl}):**")
+            lines.append(f"- Efectivo y equiv.: {_fmt_num(cash_v)}")
             lines.append(f"- Activos totales: {_fmt_num(assets)}")
             lines.append(f"- Deuda total: {_fmt_num(debt)}")
             lines.append(f"- Deuda neta: {_fmt_num(net_dbt)}")
             lines.append(f"- Patrimonio neto: {_fmt_num(equity)}")
 
-        # ── Cash Flow ──
-        if cf is not None and not cf.empty:
-            fco   = _safe_val(cf, ["Operating Cash Flow", "OperatingCashFlow",
-                                   "Total Cash From Operating Activities"])
-            capex = _safe_val(cf, ["Capital Expenditure", "CapitalExpenditure",
-                                   "Purchase Of PPE", "Capital Expenditures"])
-            fcf_cf = _safe_val(cf, ["Free Cash Flow", "FreeCashFlow"])
-            if fcf_cf is None and fco is not None and capex is not None:
-                fcf_cf = fco + capex  # capex is typically negative
-            buyback = _safe_val(cf, ["Repurchase Of Capital Stock", "RepurchaseOfCapitalStock",
-                                     "Common Stock Repurchased"])
-            divs    = _safe_val(cf, ["Cash Dividends Paid", "CashDividendsPaid",
-                                     "Payment Of Dividends", "Dividends Paid"])
+        # ── Cash Flow — TTM from quarterly ──
+        cf_src = qcf if (qcf is not None and not qcf.empty) else cf
+        if cf_src is not None and not cf_src.empty:
+            FCO  = ["Operating Cash Flow", "OperatingCashFlow",
+                    "Total Cash From Operating Activities"]
+            CAPX = ["Capital Expenditure", "CapitalExpenditure",
+                    "Purchase Of PPE", "Capital Expenditures"]
+            FCF  = ["Free Cash Flow", "FreeCashFlow"]
+            BUY  = ["Repurchase Of Capital Stock", "RepurchaseOfCapitalStock",
+                    "Common Stock Repurchased"]
+            DIV  = ["Cash Dividends Paid", "CashDividendsPaid",
+                    "Payment Of Dividends", "Dividends Paid"]
 
-            lines.append("\n**💵 Flujo de Caja (TTM/Anual):**")
-            lines.append(f"- FCO (Operaciones): {_fmt_num(fco)}")
-            lines.append(f"- Capex: {_fmt_num(capex)}")
-            lines.append(f"- Free Cash Flow: {_fmt_num(fcf_cf)}")
-            if buyback is not None:
-                lines.append(f"- Recompra de acciones: {_fmt_num(buyback)}")
-            if divs is not None:
-                lines.append(f"- Dividendos pagados: {_fmt_num(divs)}")
+            # TTM if quarterly, else most recent annual
+            if cf_src is qcf:
+                fco_v   = _ttm_val(cf_src, FCO)
+                capex_v = _ttm_val(cf_src, CAPX)
+                fcf_v   = _ttm_val(cf_src, FCF)
+                buy_v   = _ttm_val(cf_src, BUY)
+                div_v   = _ttm_val(cf_src, DIV)
+                cf_note = "TTM"
+            else:
+                fco_v   = _safe_val(cf_src, FCO)
+                capex_v = _safe_val(cf_src, CAPX)
+                fcf_v   = _safe_val(cf_src, FCF)
+                buy_v   = _safe_val(cf_src, BUY)
+                div_v   = _safe_val(cf_src, DIV)
+                cf_note = _col_label(cf_src, 0)
+
+            if fcf_v is None and fco_v is not None and capex_v is not None:
+                fcf_v = fco_v + capex_v
+
+            lines.append(f"\n**💵 Flujo de Caja ({cf_note}):**")
+            lines.append(f"- FCO (Operaciones): {_fmt_num(fco_v)}")
+            lines.append(f"- Capex: {_fmt_num(capex_v)}")
+            lines.append(f"- Free Cash Flow: {_fmt_num(fcf_v)}")
+            if buy_v is not None: lines.append(f"- Recompra de acciones: {_fmt_num(buy_v)}")
+            if div_v is not None: lines.append(f"- Dividendos pagados: {_fmt_num(div_v)}")
 
         # ── Analyst consensus ──
         target     = info.get("targetMeanPrice")
@@ -473,7 +541,8 @@ def _build_company_context(ticker: str) -> str:
                 lines.append(f"- [{dt}] {title} — *{pub}*")
 
         lines.append(
-            "\n*Fuente: Yahoo Finance (tiempo real). Estados financieros extraídos directamente.*"
+            "\n*Fuente: Yahoo Finance. Datos trimestrales del último reporte disponible. "
+            "Se actualiza automáticamente cuando la empresa publica nuevos resultados.*"
         )
         return "\n".join(lines)
 
