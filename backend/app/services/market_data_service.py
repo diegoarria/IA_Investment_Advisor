@@ -1,7 +1,8 @@
 import re
 import time
+import requests
 import yfinance as yf
-from datetime import datetime
+from datetime import datetime, timedelta
 
 # ── Company name → ticker map ─────────────────────────────────────────────
 COMPANY_TICKERS: dict[str, str] = {
@@ -69,9 +70,11 @@ COMPANY_TICKERS: dict[str, str] = {
     "eth": "ETH-USD", "ethereum": "ETH-USD",
 }
 
-# ── Simple TTL cache (30 min) ─────────────────────────────────────────────
+# ── Simple TTL cache (30 min for company data, 15 min for global) ─────────
 _cache: dict[str, tuple[str, float]] = {}
 CACHE_TTL = 1800  # 30 minutes
+_global_cache: dict[str, tuple[str, float]] = {}
+GLOBAL_CACHE_TTL = 900  # 15 minutes
 
 
 def _cached(ticker: str, builder) -> str:
@@ -80,6 +83,126 @@ def _cached(ticker: str, builder) -> str:
         return entry[0]
     result = builder(ticker)
     _cache[ticker] = (result, time.time())
+    return result
+
+
+# ── Global market context (indices + IPOs, injected on every message) ──────
+
+def _get_index_summary(ticker: str, label: str) -> str:
+    try:
+        t = yf.Ticker(ticker)
+        info = t.info or {}
+        price = info.get("regularMarketPrice") or info.get("currentPrice")
+        prev = info.get("previousClose")
+        if price and prev:
+            chg = (price - prev) / prev * 100
+            arrow = "⬆" if chg >= 0 else "⬇"
+            return f"  {label}: {price:,.2f} {arrow} {chg:+.2f}%"
+        elif price:
+            return f"  {label}: {price:,.2f}"
+        return f"  {label}: N/D"
+    except Exception:
+        return f"  {label}: N/D"
+
+
+def _fetch_recent_ipos() -> str:
+    """Fetch recent and upcoming IPOs from Nasdaq public API (no key required)."""
+    try:
+        today = datetime.today()
+        months = [today.strftime("%Y-%m")]
+        if today.day <= 10:
+            prev = (today.replace(day=1) - timedelta(days=1))
+            months.append(prev.strftime("%Y-%m"))
+
+        seen: set[str] = set()
+        ipo_lines: list[str] = []
+
+        for month in months:
+            url = f"https://api.nasdaq.com/api/ipo/calendar?date={month}"
+            r = requests.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=6)
+            if r.status_code != 200:
+                continue
+            data = r.json().get("data", {})
+
+            for section_key in ("priced", "upcoming", "filed"):
+                section = data.get(section_key, {})
+                table_key = next(iter(section), None)
+                rows = section.get(table_key, {}).get("rows") or [] if table_key else []
+                for row in rows:
+                    symbol = row.get("proposedTickerSymbol", "").strip()
+                    name   = row.get("companyName", "").strip()
+                    date   = (row.get("pricedDate") or row.get("expectedPriceDate") or "").strip()
+                    price_range = row.get("proposedSharePrice", "").strip()
+                    if not symbol or symbol in seen:
+                        continue
+                    seen.add(symbol)
+                    status = {"priced": "COTIZA YA", "upcoming": "PRÓXIMA", "filed": "REGISTRADA"}.get(section_key, "")
+                    ipo_lines.append(
+                        f"  [{status}] {symbol} — {name}"
+                        + (f" | Precio: {price_range}" if price_range else "")
+                        + (f" | Fecha: {date}" if date else "")
+                    )
+                    if len(ipo_lines) >= 10:
+                        break
+                if len(ipo_lines) >= 10:
+                    break
+            if len(ipo_lines) >= 10:
+                break
+
+        if ipo_lines:
+            return "**IPOs recientes / próximas (Nasdaq):**\n" + "\n".join(ipo_lines)
+        return ""
+    except Exception:
+        return ""
+
+
+def get_global_market_context() -> str:
+    """
+    Returns a global market context block injected into every AI chat request.
+    Includes current date/time, major indices, and recent IPOs.
+    Cached 15 minutes.
+    """
+    cache_key = "__global__"
+    entry = _global_cache.get(cache_key)
+    if entry and time.time() - entry[1] < GLOBAL_CACHE_TTL:
+        return entry[0]
+
+    now = datetime.now()
+    lines = [
+        "---",
+        f"[CONTEXTO GLOBAL DE MERCADO — actualizado {now.strftime('%d/%m/%Y %H:%M')}]",
+        "",
+        "**Fecha y hora actual del servidor:** " + now.strftime("%A %d de %B de %Y, %H:%M"),
+        "",
+        "**Mercados principales (tiempo real):**",
+    ]
+
+    for ticker, label in [
+        ("^GSPC",   "S&P 500"),
+        ("^IXIC",   "NASDAQ Composite"),
+        ("^DJI",    "Dow Jones"),
+        ("^RUT",    "Russell 2000"),
+        ("^VIX",    "VIX (volatilidad / miedo)"),
+        ("BTC-USD", "Bitcoin"),
+        ("GC=F",    "Oro"),
+        ("CL=F",    "Petróleo WTI"),
+    ]:
+        lines.append(_get_index_summary(ticker, label))
+
+    ipo_section = _fetch_recent_ipos()
+    if ipo_section:
+        lines.append("")
+        lines.append(ipo_section)
+
+    lines.append("")
+    lines.append(
+        "*Usa estos datos como contexto actualizado. Para empresas específicas mencionadas en "
+        "la conversación, se inyecta su contexto detallado de forma separada.*"
+    )
+    lines.append("---")
+
+    result = "\n".join(lines)
+    _global_cache[cache_key] = (result, time.time())
     return result
 
 

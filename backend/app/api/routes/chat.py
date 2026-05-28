@@ -8,7 +8,11 @@ from app.api.deps import get_current_user_id
 from app.core.database import get_supabase
 from app.models.user import ChatRequest, UserProfile
 from app.services import ai_service
-from app.services.market_data_service import get_market_context_for_message, detect_tickers
+from app.services.market_data_service import (
+    get_market_context_for_message,
+    get_global_market_context,
+    detect_tickers,
+)
 
 FREE_MSG_LIMIT = 20
 FREE_MSG_WINDOW_HOURS = 24
@@ -75,14 +79,21 @@ def _extract_bscore(reply: str) -> tuple[str, dict | None]:
 
 
 def _enrich_message(message: str) -> str:
-    """Append real-time market data for any companies mentioned in the message."""
+    """Prepend global market context + append per-company context to every message."""
+    parts = [message]
     try:
-        market_ctx = get_market_context_for_message(message)
-        if market_ctx:
-            return message + "\n\n" + market_ctx
+        global_ctx = get_global_market_context()
+        if global_ctx:
+            parts = [message, "\n\n" + global_ctx]
     except Exception:
         pass
-    return message
+    try:
+        company_ctx = get_market_context_for_message(message)
+        if company_ctx:
+            parts.append(company_ctx)
+    except Exception:
+        pass
+    return "\n".join(parts) if len(parts) > 1 else message
 
 
 @router.post("/stream")
