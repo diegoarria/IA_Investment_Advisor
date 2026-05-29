@@ -204,9 +204,6 @@ export default function InvestorScorecard() {
             <View style={s.mentorText}>
               <Text style={[s.mentorName, { color: "#fff" }]}>{mentor.name}</Text>
               <Text style={s.mentorTitle}>{mentor.title}</Text>
-              {mentor.principles[0] && (
-                <Text style={[s.mentorQuote, { color: mentor.color }]}>"{mentor.principles[0]}"</Text>
-              )}
             </View>
           </View>
         </View>
@@ -246,52 +243,52 @@ const s = StyleSheet.create({
   hero: {
     paddingBottom: 0,
     overflow: "hidden",
-    minHeight: 220,
+    minHeight: 188,
     alignItems: "center",
     justifyContent: "flex-end",
   },
   blob1: {
     position: "absolute", top: -60, right: -60,
-    width: 220, height: 220, borderRadius: 110,
+    width: 200, height: 200, borderRadius: 100,
   },
   blob2: {
-    position: "absolute", top: 20, left: -80,
-    width: 200, height: 200, borderRadius: 100,
+    position: "absolute", top: 10, left: -70,
+    width: 180, height: 180, borderRadius: 90,
   },
   brandStrip: {
     position: "absolute", top: 0, left: 0, right: 0,
     flexDirection: "row", alignItems: "center",
-    paddingHorizontal: 20, paddingTop: 18, gap: 8,
+    paddingHorizontal: 20, paddingTop: 14, gap: 8,
   },
-  brandLogo:  { width: 18, height: 18, borderRadius: 5 },
+  brandLogo:  { width: 16, height: 16, borderRadius: 4 },
   brandText:  { color: "rgba(255,255,255,0.5)", fontSize: 10, fontWeight: "900", letterSpacing: 2, flex: 1 },
-  yearPill:   { borderWidth: 1, borderRadius: 20, paddingHorizontal: 8, paddingVertical: 3 },
+  yearPill:   { borderWidth: 1, borderRadius: 20, paddingHorizontal: 8, paddingVertical: 2 },
   yearText:   { fontSize: 9, fontWeight: "800", letterSpacing: 1 },
 
-  avatarWrap:   { marginTop: 52, alignItems: "center", justifyContent: "center" },
+  avatarWrap:   { marginTop: 42, alignItems: "center", justifyContent: "center" },
   avatarRing: {
     position: "absolute",
-    width: 92, height: 92, borderRadius: 46,
+    width: 80, height: 80, borderRadius: 40,
     borderWidth: 1.5,
   },
-  avatar: { width: 76, height: 76, borderRadius: 38, borderWidth: 2 },
+  avatar: { width: 66, height: 66, borderRadius: 33, borderWidth: 2 },
   avatarFallback: { alignItems: "center", justifyContent: "center" },
-  avatarLetter: { fontSize: 32, fontWeight: "900" },
+  avatarLetter: { fontSize: 28, fontWeight: "900" },
 
   heroName: {
     color: "#fff",
-    fontSize: 34, fontWeight: "900",
-    letterSpacing: -1, textAlign: "center",
-    marginTop: 14, paddingHorizontal: 20,
+    fontSize: 30, fontWeight: "900",
+    letterSpacing: -0.8, textAlign: "center",
+    marginTop: 10, paddingHorizontal: 20,
   },
   heroSub: {
     color: TEXT_DIM,
-    fontSize: 11, fontWeight: "600",
-    letterSpacing: 0.5, marginTop: 3,
+    fontSize: 10, fontWeight: "600",
+    letterSpacing: 0.5, marginTop: 2,
   },
   tagsRow: {
     flexDirection: "row", gap: 8,
-    marginTop: 12, marginBottom: 20, flexWrap: "wrap", justifyContent: "center",
+    marginTop: 8, marginBottom: 14, flexWrap: "wrap", justifyContent: "center",
   },
   tag: {
     flexDirection: "row", alignItems: "center", gap: 5,
@@ -304,29 +301,29 @@ const s = StyleSheet.create({
 
   // ── Score section ──────────────────────────────────────────────────
   scoreSection: {
-    paddingHorizontal: 24, paddingTop: 24, paddingBottom: 20,
+    paddingHorizontal: 24, paddingTop: 16, paddingBottom: 14,
     overflow: "hidden",
   },
   scoreSectionLabel: {
     color: TEXT_DIM,
     fontSize: 8, fontWeight: "900", letterSpacing: 2,
-    textTransform: "uppercase", marginBottom: 4,
+    textTransform: "uppercase", marginBottom: 2,
   },
   ghostWrap: {
     position: "absolute", top: 0, right: -10,
     overflow: "hidden",
   },
   ghostNum: {
-    fontSize: 160, fontWeight: "900",
-    opacity: 0.04, letterSpacing: -8, lineHeight: 160,
+    fontSize: 130, fontWeight: "900",
+    opacity: 0.04, letterSpacing: -8, lineHeight: 130,
   },
   scoreMain: {
     flexDirection: "row", alignItems: "flex-end",
-    gap: 12, marginTop: 4,
+    gap: 10, marginTop: 2,
   },
   scoreNumWrap: { flexDirection: "row", alignItems: "baseline", gap: 3 },
-  scoreNum: { fontSize: 80, fontWeight: "900", letterSpacing: -4, lineHeight: 82 },
-  scoreDenom: { fontSize: 20, fontWeight: "700", marginBottom: 6 },
+  scoreNum: { fontSize: 68, fontWeight: "900", letterSpacing: -3, lineHeight: 70 },
+  scoreDenom: { fontSize: 17, fontWeight: "700", marginBottom: 5 },
   scoreLabelPill: {
     borderWidth: 1, borderRadius: 8,
     paddingHorizontal: 10, paddingVertical: 5,
@@ -335,90 +332,90 @@ const s = StyleSheet.create({
   scoreLabelText: { fontSize: 9, fontWeight: "900", letterSpacing: 1.2 },
 
   bigBarTrack: {
-    height: 8, backgroundColor: "rgba(255,255,255,0.07)",
-    borderRadius: 4, overflow: "hidden", marginTop: 14,
+    height: 7, backgroundColor: "rgba(255,255,255,0.07)",
+    borderRadius: 4, overflow: "hidden", marginTop: 10,
   },
   bigBarFill:  { height: "100%", borderRadius: 4 },
-  barEndLabels: { flexDirection: "row", justifyContent: "space-between", marginTop: 5 },
+  barEndLabels: { flexDirection: "row", justifyContent: "space-between", marginTop: 4 },
   barEndLabel:  { color: TEXT_MUTED, fontSize: 7, fontWeight: "700", letterSpacing: 0.8 },
 
   // ── Risk section ───────────────────────────────────────────────────
   riskSection: {
     flexDirection: "row",
-    borderTopWidth: 1, paddingVertical: 18, paddingHorizontal: 24,
+    borderTopWidth: 1, paddingVertical: 12, paddingHorizontal: 24,
   },
   riskLeft:  { flex: 1, gap: 2 },
   riskRight: {
     flex: 1, borderLeftWidth: 1,
-    paddingLeft: 20, gap: 8, alignItems: "flex-start",
+    paddingLeft: 20, gap: 6, alignItems: "flex-start",
   },
   riskLabel:   { color: TEXT_DIM, fontSize: 8, fontWeight: "900", letterSpacing: 1.5, textTransform: "uppercase" },
   riskNumRow:  { flexDirection: "row", alignItems: "baseline", gap: 2 },
-  riskNum:     { fontSize: 44, fontWeight: "900", letterSpacing: -2, lineHeight: 48 },
-  riskPct:     { fontSize: 16, fontWeight: "700" },
-  riskCaption: { fontSize: 9, fontWeight: "600", marginTop: 2 },
-  segBarWrap:  { flexDirection: "row", gap: 3, marginTop: 4 },
-  segBar:      { width: 14, height: 8, borderRadius: 2 },
-  riskTier:    { fontSize: 10, fontWeight: "800", letterSpacing: 0.5, marginTop: 2 },
+  riskNum:     { fontSize: 38, fontWeight: "900", letterSpacing: -2, lineHeight: 42 },
+  riskPct:     { fontSize: 14, fontWeight: "700" },
+  riskCaption: { fontSize: 9, fontWeight: "600", marginTop: 1 },
+  segBarWrap:  { flexDirection: "row", gap: 3, marginTop: 2 },
+  segBar:      { width: 12, height: 6, borderRadius: 2 },
+  riskTier:    { fontSize: 10, fontWeight: "800", letterSpacing: 0.5, marginTop: 1 },
 
   // ── DNA section ────────────────────────────────────────────────────
   dnaSection: {
     borderTopWidth: 1, paddingHorizontal: 20,
-    paddingTop: 16, paddingBottom: 16,
+    paddingTop: 12, paddingBottom: 12,
   },
   dnaSectionLabel: {
     color: TEXT_DIM, fontSize: 8, fontWeight: "900",
-    letterSpacing: 2, textTransform: "uppercase", marginBottom: 10,
+    letterSpacing: 2, textTransform: "uppercase", marginBottom: 8,
   },
-  dnaGrid: { gap: 7 },
+  dnaGrid: { gap: 5 },
   dnaRow: {
     flexDirection: "row", alignItems: "center", gap: 10,
     backgroundColor: "rgba(255,255,255,0.03)",
-    borderRadius: 12, overflow: "hidden",
-    paddingVertical: 10, paddingRight: 12,
+    borderRadius: 10, overflow: "hidden",
+    paddingVertical: 8, paddingRight: 10,
   },
   dnaLeftBar:   { width: 3, alignSelf: "stretch", borderRadius: 2 },
   dnaIconBox: {
-    width: 30, height: 30, borderRadius: 8,
+    width: 26, height: 26, borderRadius: 7,
     alignItems: "center", justifyContent: "center", marginLeft: 8,
   },
-  dnaContent:   { flex: 1, gap: 2 },
+  dnaContent:   { flex: 1, gap: 1 },
   dnaTraitLabel: { fontSize: 7, fontWeight: "900", letterSpacing: 0.8, textTransform: "uppercase" },
   dnaTraitVal:   { color: "rgba(255,255,255,0.85)", fontSize: 11, fontWeight: "700" },
   dnaAnswerBadge: {
-    width: 24, height: 24, borderRadius: 12,
+    width: 22, height: 22, borderRadius: 11,
     alignItems: "center", justifyContent: "center",
   },
-  dnaAnswerText: { color: "#fff", fontSize: 11, fontWeight: "900" },
+  dnaAnswerText: { color: "#fff", fontSize: 10, fontWeight: "900" },
 
   // ── Mentor section ─────────────────────────────────────────────────
   mentorSection: {
     borderTopWidth: 1, paddingHorizontal: 20,
-    paddingTop: 16, paddingBottom: 16,
+    paddingTop: 12, paddingBottom: 12,
   },
   mentorSectionLabel: {
     color: TEXT_DIM, fontSize: 8, fontWeight: "900",
-    letterSpacing: 2, textTransform: "uppercase", marginBottom: 10,
+    letterSpacing: 2, textTransform: "uppercase", marginBottom: 8,
   },
   mentorCard: {
     flexDirection: "row", alignItems: "center",
-    gap: 12, borderWidth: 1, borderRadius: 16, padding: 12,
+    gap: 10, borderWidth: 1, borderRadius: 14, padding: 10,
   },
-  mentorPhoto: { width: 50, height: 50, borderRadius: 25, borderWidth: 2 },
+  mentorPhoto: { width: 42, height: 42, borderRadius: 21, borderWidth: 2 },
   mentorEmoji: {
-    width: 50, height: 50, borderRadius: 25,
+    width: 42, height: 42, borderRadius: 21,
     alignItems: "center", justifyContent: "center",
   },
   mentorText:  { flex: 1, gap: 2 },
-  mentorName:  { fontSize: 14, fontWeight: "800", letterSpacing: -0.3 },
+  mentorName:  { fontSize: 13, fontWeight: "800", letterSpacing: -0.3 },
   mentorTitle: { color: TEXT_DIM, fontSize: 9, fontWeight: "500" },
-  mentorQuote: { fontSize: 9, fontWeight: "600", fontStyle: "italic", marginTop: 4, lineHeight: 13 },
+  mentorQuote: { fontSize: 9, fontWeight: "600", fontStyle: "italic", marginTop: 3, lineHeight: 13 },
 
   // ── Footer ─────────────────────────────────────────────────────────
   footer: {
     flexDirection: "row", alignItems: "center",
     justifyContent: "space-between",
-    borderTopWidth: 1, paddingHorizontal: 20, paddingVertical: 12,
+    borderTopWidth: 1, paddingHorizontal: 20, paddingVertical: 9,
   },
   footerLeft:  { flexDirection: "row", alignItems: "center", gap: 6 },
   footerLogo:  { width: 14, height: 14, borderRadius: 3 },
