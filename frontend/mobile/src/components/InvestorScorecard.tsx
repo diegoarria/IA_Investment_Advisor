@@ -1,7 +1,7 @@
 import React from "react";
 import { View, Text, Image, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { useAppStore, RISK_CONFIG, maturityLabel } from "../lib/profileStore";
+import { useAppStore, RISK_CONFIG, maturityLabel, getAge } from "../lib/profileStore";
 import { getMentorInfo } from "../lib/mentorData";
 
 const MENTOR_PHOTOS: Record<string, number> = {
@@ -11,147 +11,176 @@ const MENTOR_PHOTOS: Record<string, number> = {
 };
 
 const Q1_LABELS: Record<string, string> = {
-  A: "Vende ante caídas", B: "Espera pasivamente", C: "Analiza fundamentos", D: "Compra las caídas",
+  A: "Vende ante caídas", B: "Espera y observa", C: "Analiza fundamentos", D: "Compra las caídas",
 };
 const Q3_LABELS: Record<string, string> = {
   A: "Principiante", B: "Básico", C: "Intermedio", D: "Avanzado",
 };
 const Q5_LABELS: Record<string, string> = {
-  A: "Pasivo / automático", B: "Revisión mensual", C: "Revisión semanal", D: "Gestión diaria activa",
-};
-const ANSWER_COLORS: Record<string, string> = {
-  A: "#3b82f6", B: "#22c55e", C: "#f59e0b", D: "#ef4444",
+  A: "Pasivo / automático", B: "Revisión mensual", C: "Revisión semanal", D: "Gestión diaria",
 };
 
-function ScoreBar({ pct, color }: { pct: number; color: string }) {
-  return (
-    <View style={{ height: 4, borderRadius: 2, backgroundColor: color + "22", marginTop: 10, overflow: "hidden" }}>
-      <View style={{ width: `${Math.min(pct, 100)}%` as any, height: "100%", backgroundColor: color, borderRadius: 2 }} />
-    </View>
-  );
-}
+// Trait color per answer
+const TRAIT_COLORS: Record<string, string> = {
+  A: "#60a5fa", B: "#34d399", C: "#fbbf24", D: "#f87171",
+};
 
 export default function InvestorScorecard() {
   const { profile, maturityScore, maturityHistory } = useAppStore();
   if (!profile) return null;
 
-  const riskCfg = RISK_CONFIG[profile.risk_tolerance];
-  const riskPct = Math.round(riskCfg.pct * 100);
-  const ml = maturityLabel(maturityScore);
-  const trend = maturityHistory.slice(-10).reduce((acc, e) => acc + e.delta, 0);
-  const mentor = getMentorInfo(profile.mentor);
+  const riskCfg   = RISK_CONFIG[profile.risk_tolerance];
+  const riskPct   = Math.round(riskCfg.pct * 100);
+  const ml        = maturityLabel(maturityScore);
+  const trend     = maturityHistory.slice(-10).reduce((acc, e) => acc + e.delta, 0);
+  const mentor    = getMentorInfo(profile.mentor);
   const mentorPhoto = mentor ? MENTOR_PHOTOS[mentor.id] : null;
-  const qa = profile.quiz_answers;
+  const qa        = profile.quiz_answers;
+  const age       = profile.birth_date ? getAge(profile.birth_date) : null;
 
-  const riskCaption =
-    riskPct < 40 ? "Preserva capital" :
-    riskPct < 70 ? "Crecimiento balanceado" :
-    "Máximo crecimiento";
+  const firstName = profile.name.split(" ")[0].toUpperCase();
+
+  // Accent color: derive a slightly brighter variant for text
+  const ac = riskCfg.color;
 
   return (
     <View style={s.card}>
 
-      {/* ── HEADER ── */}
-      <View style={s.header}>
-        {/* Color wash behind header */}
-        <View style={[s.headerWash, { backgroundColor: riskCfg.color + "16" }]} />
-        {/* Top accent bar */}
-        <View style={[s.accentBar, { backgroundColor: riskCfg.color }]} />
+      {/* ─────────────────────────── HERO ─────────────────────────── */}
+      <View style={s.hero}>
+        {/* Decorative blobs */}
+        <View style={[s.blob1, { backgroundColor: ac + "30" }]} />
+        <View style={[s.blob2, { backgroundColor: ac + "18" }]} />
 
-        {/* Brand row */}
-        <View style={s.brandRow}>
+        {/* Brand strip */}
+        <View style={s.brandStrip}>
           <Image source={require("../../assets/images/logo_new.png")} style={s.brandLogo} />
-          <Text style={s.brandName}>NUVOS AI</Text>
-          <View style={[s.investorBadge, { borderColor: riskCfg.color + "55", backgroundColor: riskCfg.color + "14" }]}>
-            <Text style={[s.investorBadgeText, { color: riskCfg.color }]}>INVESTOR CARD</Text>
+          <Text style={s.brandText}>NUVOS AI</Text>
+          <View style={[s.yearPill, { borderColor: ac + "55" }]}>
+            <Text style={[s.yearText, { color: ac }]}>2025</Text>
           </View>
         </View>
 
-        {/* Avatar with glow rings */}
+        {/* Avatar */}
         <View style={s.avatarWrap}>
-          <View style={{ width: 116, height: 116, alignItems: "center", justifyContent: "center" }}>
-            <View style={{ position: "absolute", width: 116, height: 116, borderRadius: 58, borderWidth: 1, borderColor: riskCfg.color + "14" }} />
-            <View style={{ position: "absolute", width: 98, height: 98, borderRadius: 49, borderWidth: 1, borderColor: riskCfg.color + "28" }} />
-            <View style={{ position: "absolute", width: 82, height: 82, borderRadius: 41, borderWidth: 1.5, borderColor: riskCfg.color + "55" }} />
-            {profile.avatarUri ? (
-              <Image source={{ uri: profile.avatarUri }} style={[s.avatar, { backgroundColor: "transparent" }]} />
-            ) : (
-              <View style={[s.avatar, { backgroundColor: riskCfg.color }]}>
-                <Text style={s.avatarLetter}>{profile.name.charAt(0).toUpperCase()}</Text>
-              </View>
-            )}
-          </View>
+          {/* Outer glow ring */}
+          <View style={[s.avatarRing, { borderColor: ac + "40" }]} />
+          {profile.avatarUri ? (
+            <Image source={{ uri: profile.avatarUri }} style={[s.avatar, { borderColor: ac }]} />
+          ) : (
+            <View style={[s.avatar, s.avatarFallback, { backgroundColor: ac + "25", borderColor: ac }]}>
+              <Text style={[s.avatarLetter, { color: ac }]}>{profile.name.charAt(0).toUpperCase()}</Text>
+            </View>
+          )}
         </View>
-      </View>
 
-      {/* ── IDENTITY ── */}
-      <View style={s.identity}>
-        <Text style={s.name} numberOfLines={1}>{profile.name}</Text>
+        {/* Name */}
+        <Text style={s.heroName} numberOfLines={1}>{firstName}</Text>
+        {age && <Text style={s.heroSub}>Inversor · {age} años</Text>}
+
+        {/* Tags row */}
         <View style={s.tagsRow}>
-          <View style={[s.tag, { backgroundColor: riskCfg.color + "1A", borderColor: riskCfg.color + "50" }]}>
-            <Ionicons name={riskCfg.icon} size={11} color={riskCfg.color} />
-            <Text style={[s.tagText, { color: riskCfg.color }]}>{riskCfg.label}</Text>
+          <View style={[s.tag, { backgroundColor: ac + "22", borderColor: ac + "55" }]}>
+            <Ionicons name={riskCfg.icon as any} size={10} color={ac} />
+            <Text style={[s.tagText, { color: ac }]}>{riskCfg.label.toUpperCase()}</Text>
           </View>
           {trend !== 0 && (
-            <View style={[s.tag, {
-              backgroundColor: trend > 0 ? "#22c55e15" : "#ef444415",
-              borderColor: trend > 0 ? "#22c55e45" : "#ef444445",
-            }]}>
-              <Text style={[s.tagText, { color: trend > 0 ? "#22c55e" : "#ef4444" }]}>
-                {trend > 0 ? `↑ +${trend}` : `↓ ${trend}`} pts
+            <View style={[s.tag, { backgroundColor: trend > 0 ? "#22c55e20" : "#ef444420", borderColor: trend > 0 ? "#22c55e50" : "#ef444450" }]}>
+              <Text style={[s.tagText, { color: trend > 0 ? "#4ade80" : "#f87171" }]}>
+                {trend > 0 ? `▲ +${trend}` : `▼ ${trend}`} pts
               </Text>
             </View>
           )}
         </View>
+
+        {/* Bottom accent line */}
+        <View style={[s.heroAccentLine, { backgroundColor: ac }]} />
       </View>
 
-      {/* ── MAIN STATS ── */}
-      <View style={[s.statsBlock, { borderTopColor: riskCfg.color + "1A" }]}>
-        <View style={s.statCol}>
-          <Text style={s.statLabel}>MADUREZ INVERSORA</Text>
-          <View style={s.statNumRow}>
-            <Text style={[s.statNum, { color: ml.color }]}>{maturityScore}</Text>
-            <Text style={[s.statDenom, { color: ml.color + "60" }]}>/100</Text>
-          </View>
-          <Text style={[s.statCaption, { color: ml.color + "CC" }]}>{ml.label}</Text>
-          <ScoreBar pct={maturityScore} color={ml.color} />
+      {/* ─────────────────────── MADUREZ INVERSORA ────────────────── */}
+      <View style={s.scoreSection}>
+        <Text style={s.scoreSectionLabel}>MADUREZ INVERSORA</Text>
+
+        {/* Ghost number behind */}
+        <View style={s.ghostWrap} pointerEvents="none">
+          <Text style={[s.ghostNum, { color: ml.color }]}>{maturityScore}</Text>
         </View>
 
-        <View style={[s.statSep, { backgroundColor: riskCfg.color + "22" }]} />
-
-        <View style={s.statCol}>
-          <Text style={s.statLabel}>PERFIL DE RIESGO</Text>
-          <View style={s.statNumRow}>
-            <Text style={[s.statNum, { color: riskCfg.color }]}>{riskPct}</Text>
-            <Text style={[s.statDenom, { color: riskCfg.color + "60" }]}>%</Text>
+        <View style={s.scoreMain}>
+          <View style={s.scoreNumWrap}>
+            <Text style={[s.scoreNum, { color: ml.color }]}>{maturityScore}</Text>
+            <Text style={[s.scoreDenom, { color: ml.color + "70" }]}>/100</Text>
           </View>
-          <Text style={[s.statCaption, { color: riskCfg.color + "CC" }]}>{riskCaption}</Text>
-          <ScoreBar pct={riskPct} color={riskCfg.color} />
+          <View style={[s.scoreLabelPill, { backgroundColor: ml.color + "20", borderColor: ml.color + "50" }]}>
+            <Text style={[s.scoreLabelText, { color: ml.color }]}>{ml.label.toUpperCase()}</Text>
+          </View>
+        </View>
+
+        {/* Thick progress bar */}
+        <View style={s.bigBarTrack}>
+          <View style={[s.bigBarFill, { width: `${Math.min(maturityScore, 100)}%` as any, backgroundColor: ml.color }]} />
+        </View>
+        <View style={s.barEndLabels}>
+          <Text style={s.barEndLabel}>NOVATO</Text>
+          <Text style={s.barEndLabel}>EXPERTO</Text>
         </View>
       </View>
 
-      {/* ── PERFIL PSICOLÓGICO ── */}
+      {/* ─────────────────────── RISK PROFILE ─────────────────────── */}
+      <View style={[s.riskSection, { borderTopColor: ac + "20" }]}>
+        <View style={s.riskLeft}>
+          <Text style={s.riskLabel}>PERFIL DE RIESGO</Text>
+          <View style={s.riskNumRow}>
+            <Text style={[s.riskNum, { color: ac }]}>{riskPct}</Text>
+            <Text style={[s.riskPct, { color: ac + "80" }]}>%</Text>
+          </View>
+          <Text style={[s.riskCaption, { color: ac + "99" }]}>
+            {riskPct < 40 ? "Preserva capital" : riskPct < 70 ? "Crecimiento balanceado" : "Máximo crecimiento"}
+          </Text>
+        </View>
+        <View style={[s.riskRight, { borderLeftColor: ac + "25" }]}>
+          {/* Segmented bar */}
+          <View style={s.segBarWrap}>
+            {[...Array(10)].map((_, i) => (
+              <View
+                key={i}
+                style={[
+                  s.segBar,
+                  {
+                    backgroundColor: i < Math.round(riskPct / 10) ? ac : ac + "18",
+                    opacity: i < Math.round(riskPct / 10) ? 1 : 0.4,
+                  },
+                ]}
+              />
+            ))}
+          </View>
+          <Text style={[s.riskTier, { color: ac }]}>{riskCfg.label}</Text>
+        </View>
+      </View>
+
+      {/* ─────────────────────── ADN INVERSOR ─────────────────────── */}
       {qa && (
-        <View style={[s.section, { borderTopColor: riskCfg.color + "1A" }]}>
-          <Text style={[s.sectionTitle, { color: riskCfg.color + "88" }]}>PERFIL PSICOLÓGICO</Text>
-          <View style={s.dnaList}>
+        <View style={[s.dnaSection, { borderTopColor: ac + "20" }]}>
+          <Text style={s.dnaSectionLabel}>ADN INVERSOR</Text>
+          <View style={s.dnaGrid}>
             {([
-              { icon: "trending-down-outline" as const, label: "MENTALIDAD",   val: Q1_LABELS[qa.q1], ans: qa.q1 },
-              { icon: "school-outline" as const,        label: "CONOCIMIENTO", val: Q3_LABELS[qa.q3], ans: qa.q3 },
-              { icon: "settings-outline" as const,      label: "GESTIÓN",      val: Q5_LABELS[qa.q5], ans: qa.q5 },
-            ]).map((row) => {
-              const ac = ANSWER_COLORS[row.ans] ?? riskCfg.color;
+              { icon: "pulse-outline", label: "MENTALIDAD",   val: Q1_LABELS[qa.q1], ans: qa.q1 },
+              { icon: "school-outline", label: "CONOCIMIENTO", val: Q3_LABELS[qa.q3], ans: qa.q3 },
+              { icon: "settings-outline", label: "GESTIÓN",     val: Q5_LABELS[qa.q5], ans: qa.q5 },
+            ] as const).map((row) => {
+              const tc = TRAIT_COLORS[row.ans] ?? ac;
               return (
-                <View key={row.label} style={[s.dnaRow, { backgroundColor: ac + "08", borderColor: ac + "22" }]}>
-                  <View style={[s.dnaIcon, { backgroundColor: ac + "18" }]}>
-                    <Ionicons name={row.icon} size={12} color={ac} />
+                <View key={row.label} style={s.dnaRow}>
+                  <View style={[s.dnaLeftBar, { backgroundColor: tc }]} />
+                  <View style={[s.dnaIconBox, { backgroundColor: tc + "15" }]}>
+                    <Ionicons name={row.icon as any} size={13} color={tc} />
                   </View>
-                  <View style={s.dnaMid}>
-                    <Text style={[s.dnaLabel, { color: ac + "88" }]}>{row.label}</Text>
-                    <Text style={s.dnaVal} numberOfLines={1}>{row.val}</Text>
+                  <View style={s.dnaContent}>
+                    <Text style={[s.dnaTraitLabel, { color: tc + "aa" }]}>{row.label}</Text>
+                    <Text style={s.dnaTraitVal} numberOfLines={1}>{row.val}</Text>
                   </View>
-                  <View style={[s.dnaBadge, { backgroundColor: ac }]}>
-                    <Text style={s.dnaBadgeText}>{row.ans}</Text>
+                  <View style={[s.dnaAnswerBadge, { backgroundColor: tc }]}>
+                    <Text style={s.dnaAnswerText}>{row.ans}</Text>
                   </View>
                 </View>
               );
@@ -160,38 +189,38 @@ export default function InvestorScorecard() {
         </View>
       )}
 
-      {/* ── MENTOR ── */}
+      {/* ─────────────────────── MENTOR ───────────────────────────── */}
       {mentor && (
-        <View style={[s.section, { borderTopColor: riskCfg.color + "1A" }]}>
-          <Text style={[s.sectionTitle, { color: riskCfg.color + "88" }]}>APRENDE CON</Text>
-          <View style={[s.mentorCard, { backgroundColor: mentor.color + "0D", borderColor: mentor.color + "35" }]}>
+        <View style={[s.mentorSection, { borderTopColor: ac + "20" }]}>
+          <Text style={s.mentorSectionLabel}>REFERENTE</Text>
+          <View style={[s.mentorCard, { backgroundColor: mentor.color + "10", borderColor: mentor.color + "35" }]}>
             {mentorPhoto ? (
-              <Image source={mentorPhoto} style={[s.mentorPhoto, { borderColor: mentor.color + "60" }]} />
+              <Image source={mentorPhoto} style={[s.mentorPhoto, { borderColor: mentor.color + "80" }]} />
             ) : (
-              <View style={[s.mentorEmojiBox, { backgroundColor: mentor.color + "22" }]}>
-                <Text style={{ fontSize: 26 }}>{mentor.emoji}</Text>
+              <View style={[s.mentorEmoji, { backgroundColor: mentor.color + "20" }]}>
+                <Text style={{ fontSize: 24 }}>{mentor.emoji}</Text>
               </View>
             )}
-            <View style={s.mentorInfo}>
-              <Text style={[s.mentorName, { color: mentor.color }]}>{mentor.name}</Text>
+            <View style={s.mentorText}>
+              <Text style={[s.mentorName, { color: "#fff" }]}>{mentor.name}</Text>
               <Text style={s.mentorTitle}>{mentor.title}</Text>
-            </View>
-            <View style={[s.mentorBadge, { backgroundColor: mentor.color + "18", borderColor: mentor.color + "40" }]}>
-              <Text style={[s.mentorBadgeText, { color: mentor.color }]}>{mentor.badge}</Text>
+              {mentor.principles[0] && (
+                <Text style={[s.mentorQuote, { color: mentor.color }]}>"{mentor.principles[0]}"</Text>
+              )}
             </View>
           </View>
         </View>
       )}
 
-      {/* ── FOOTER ── */}
-      <View style={[s.footer, { borderTopColor: riskCfg.color + "1A" }]}>
+      {/* ─────────────────────── FOOTER ───────────────────────────── */}
+      <View style={[s.footer, { borderTopColor: ac + "15" }]}>
         <View style={s.footerLeft}>
           <Image source={require("../../assets/images/logo_new.png")} style={s.footerLogo} />
           <Text style={s.footerBrand}>nuvosai.app</Text>
         </View>
-        <View style={[s.footerVerify, { backgroundColor: riskCfg.color + "12", borderColor: riskCfg.color + "30" }]}>
-          <Ionicons name="checkmark-circle" size={10} color={riskCfg.color} />
-          <Text style={[s.footerVerifyText, { color: riskCfg.color }]}>Perfil verificado</Text>
+        <View style={[s.footerBadge, { backgroundColor: ac + "15", borderColor: ac + "35" }]}>
+          <Ionicons name="checkmark-circle" size={10} color={ac} />
+          <Text style={[s.footerBadgeText, { color: ac }]}>PERFIL VERIFICADO</Text>
         </View>
       </View>
 
@@ -199,84 +228,204 @@ export default function InvestorScorecard() {
   );
 }
 
+// ─── Styles ──────────────────────────────────────────────────────────────────
+
+const CARD_BG   = "#060810";
+const TEXT_DIM  = "rgba(255,255,255,0.35)";
+const TEXT_MUTED = "rgba(255,255,255,0.18)";
+
 const s = StyleSheet.create({
   card: {
     width: 340,
-    backgroundColor: "#04080f",
+    backgroundColor: CARD_BG,
     borderRadius: 28,
-    borderWidth: 1,
-    borderColor: "#0c1828",
     overflow: "hidden",
   },
 
-  // ── Header ──
-  header: { paddingBottom: 10 },
-  headerWash: { position: "absolute", top: 0, left: 0, right: 0, height: 150 },
-  accentBar: { height: 3 },
-  brandRow: {
-    flexDirection: "row", alignItems: "center", gap: 8,
-    paddingHorizontal: 20, paddingTop: 16, paddingBottom: 20,
+  // ── Hero ──────────────────────────────────────────────────────────
+  hero: {
+    paddingBottom: 0,
+    overflow: "hidden",
+    minHeight: 220,
+    alignItems: "center",
+    justifyContent: "flex-end",
   },
-  brandLogo: { width: 20, height: 20, borderRadius: 5 },
-  brandName: { color: "#d0dce8", fontSize: 11, fontWeight: "900", letterSpacing: 1.8, flex: 1 },
-  investorBadge: { borderWidth: 1, borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3 },
-  investorBadgeText: { fontSize: 7, fontWeight: "900", letterSpacing: 1 },
-  avatarWrap: { alignItems: "center", paddingBottom: 8 },
-  avatar: { width: 68, height: 68, borderRadius: 34, alignItems: "center", justifyContent: "center" },
-  avatarLetter: { color: "white", fontSize: 28, fontWeight: "900", letterSpacing: -1 },
-
-  // ── Identity ──
-  identity: {
-    alignItems: "center", paddingHorizontal: 24,
-    paddingTop: 14, paddingBottom: 20, gap: 10,
+  blob1: {
+    position: "absolute", top: -60, right: -60,
+    width: 220, height: 220, borderRadius: 110,
   },
-  name: { color: "#eef2f7", fontSize: 26, fontWeight: "900", letterSpacing: -0.8, textAlign: "center" },
-  tagsRow: { flexDirection: "row", gap: 8, flexWrap: "wrap", justifyContent: "center" },
-  tag: { flexDirection: "row", alignItems: "center", gap: 5, borderWidth: 1, borderRadius: 20, paddingHorizontal: 11, paddingVertical: 5 },
-  tagText: { fontSize: 10, fontWeight: "700" },
-
-  // ── Stats ──
-  statsBlock: {
-    flexDirection: "row", borderTopWidth: 1,
-    paddingVertical: 20, paddingHorizontal: 20,
+  blob2: {
+    position: "absolute", top: 20, left: -80,
+    width: 200, height: 200, borderRadius: 100,
   },
-  statCol: { flex: 1 },
-  statSep: { width: 1, marginHorizontal: 16, borderRadius: 1 },
-  statLabel: { color: "#2a4258", fontSize: 7, fontWeight: "800", letterSpacing: 0.8, textTransform: "uppercase", marginBottom: 6 },
-  statNumRow: { flexDirection: "row", alignItems: "baseline", gap: 2 },
-  statNum: { fontSize: 50, fontWeight: "900", letterSpacing: -2, lineHeight: 54 },
-  statDenom: { fontSize: 16, fontWeight: "600" },
-  statCaption: { fontSize: 9, fontWeight: "700", marginTop: 4 },
+  brandStrip: {
+    position: "absolute", top: 0, left: 0, right: 0,
+    flexDirection: "row", alignItems: "center",
+    paddingHorizontal: 20, paddingTop: 18, gap: 8,
+  },
+  brandLogo:  { width: 18, height: 18, borderRadius: 5 },
+  brandText:  { color: "rgba(255,255,255,0.5)", fontSize: 10, fontWeight: "900", letterSpacing: 2, flex: 1 },
+  yearPill:   { borderWidth: 1, borderRadius: 20, paddingHorizontal: 8, paddingVertical: 3 },
+  yearText:   { fontSize: 9, fontWeight: "800", letterSpacing: 1 },
 
-  // ── Section ──
-  section: { borderTopWidth: 1, paddingHorizontal: 20, paddingTop: 14, paddingBottom: 14 },
-  sectionTitle: { fontSize: 7, fontWeight: "900", letterSpacing: 1.4, textTransform: "uppercase", marginBottom: 10 },
+  avatarWrap:   { marginTop: 52, alignItems: "center", justifyContent: "center" },
+  avatarRing: {
+    position: "absolute",
+    width: 92, height: 92, borderRadius: 46,
+    borderWidth: 1.5,
+  },
+  avatar: { width: 76, height: 76, borderRadius: 38, borderWidth: 2 },
+  avatarFallback: { alignItems: "center", justifyContent: "center" },
+  avatarLetter: { fontSize: 32, fontWeight: "900" },
 
-  // ── DNA rows ──
-  dnaList: { gap: 6 },
-  dnaRow: { flexDirection: "row", alignItems: "center", gap: 10, borderWidth: 1, borderRadius: 11, paddingHorizontal: 10, paddingVertical: 9 },
-  dnaIcon: { width: 28, height: 28, borderRadius: 8, alignItems: "center", justifyContent: "center", flexShrink: 0 },
-  dnaMid: { flex: 1, gap: 2 },
-  dnaLabel: { fontSize: 7, fontWeight: "800", letterSpacing: 0.6, textTransform: "uppercase" },
-  dnaVal: { color: "#b8c8d8", fontSize: 11, fontWeight: "600" },
-  dnaBadge: { width: 24, height: 24, borderRadius: 12, alignItems: "center", justifyContent: "center", flexShrink: 0 },
-  dnaBadgeText: { color: "white", fontSize: 11, fontWeight: "900" },
+  heroName: {
+    color: "#fff",
+    fontSize: 34, fontWeight: "900",
+    letterSpacing: -1, textAlign: "center",
+    marginTop: 14, paddingHorizontal: 20,
+  },
+  heroSub: {
+    color: TEXT_DIM,
+    fontSize: 11, fontWeight: "600",
+    letterSpacing: 0.5, marginTop: 3,
+  },
+  tagsRow: {
+    flexDirection: "row", gap: 8,
+    marginTop: 12, marginBottom: 20, flexWrap: "wrap", justifyContent: "center",
+  },
+  tag: {
+    flexDirection: "row", alignItems: "center", gap: 5,
+    borderWidth: 1, borderRadius: 20,
+    paddingHorizontal: 11, paddingVertical: 5,
+  },
+  tagText: { fontSize: 9, fontWeight: "800", letterSpacing: 0.8 },
 
-  // ── Mentor ──
-  mentorCard: { flexDirection: "row", alignItems: "center", gap: 12, borderWidth: 1, borderRadius: 14, padding: 12 },
-  mentorPhoto: { width: 46, height: 46, borderRadius: 23, borderWidth: 2 },
-  mentorEmojiBox: { width: 46, height: 46, borderRadius: 23, alignItems: "center", justifyContent: "center" },
-  mentorInfo: { flex: 1, gap: 3 },
-  mentorName: { fontSize: 13, fontWeight: "800", letterSpacing: -0.2 },
-  mentorTitle: { color: "#2e4558", fontSize: 9, fontWeight: "500" },
-  mentorBadge: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 7, paddingVertical: 4 },
-  mentorBadgeText: { fontSize: 8, fontWeight: "800" },
+  heroAccentLine: { height: 2, width: "100%" },
 
-  // ── Footer ──
-  footer: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", borderTopWidth: 1, paddingHorizontal: 20, paddingVertical: 14 },
-  footerLeft: { flexDirection: "row", alignItems: "center", gap: 7 },
-  footerLogo: { width: 14, height: 14, borderRadius: 3 },
-  footerBrand: { color: "#243546", fontSize: 9, fontWeight: "700", letterSpacing: 0.6 },
-  footerVerify: { flexDirection: "row", alignItems: "center", gap: 4, borderWidth: 1, borderRadius: 8, paddingHorizontal: 7, paddingVertical: 4 },
-  footerVerifyText: { fontSize: 8, fontWeight: "700", letterSpacing: 0.3 },
+  // ── Score section ──────────────────────────────────────────────────
+  scoreSection: {
+    paddingHorizontal: 24, paddingTop: 24, paddingBottom: 20,
+    overflow: "hidden",
+  },
+  scoreSectionLabel: {
+    color: TEXT_DIM,
+    fontSize: 8, fontWeight: "900", letterSpacing: 2,
+    textTransform: "uppercase", marginBottom: 4,
+  },
+  ghostWrap: {
+    position: "absolute", top: 0, right: -10,
+    overflow: "hidden",
+  },
+  ghostNum: {
+    fontSize: 160, fontWeight: "900",
+    opacity: 0.04, letterSpacing: -8, lineHeight: 160,
+  },
+  scoreMain: {
+    flexDirection: "row", alignItems: "flex-end",
+    gap: 12, marginTop: 4,
+  },
+  scoreNumWrap: { flexDirection: "row", alignItems: "baseline", gap: 3 },
+  scoreNum: { fontSize: 80, fontWeight: "900", letterSpacing: -4, lineHeight: 82 },
+  scoreDenom: { fontSize: 20, fontWeight: "700", marginBottom: 6 },
+  scoreLabelPill: {
+    borderWidth: 1, borderRadius: 8,
+    paddingHorizontal: 10, paddingVertical: 5,
+    marginBottom: 8, alignSelf: "flex-end",
+  },
+  scoreLabelText: { fontSize: 9, fontWeight: "900", letterSpacing: 1.2 },
+
+  bigBarTrack: {
+    height: 8, backgroundColor: "rgba(255,255,255,0.07)",
+    borderRadius: 4, overflow: "hidden", marginTop: 14,
+  },
+  bigBarFill:  { height: "100%", borderRadius: 4 },
+  barEndLabels: { flexDirection: "row", justifyContent: "space-between", marginTop: 5 },
+  barEndLabel:  { color: TEXT_MUTED, fontSize: 7, fontWeight: "700", letterSpacing: 0.8 },
+
+  // ── Risk section ───────────────────────────────────────────────────
+  riskSection: {
+    flexDirection: "row",
+    borderTopWidth: 1, paddingVertical: 18, paddingHorizontal: 24,
+  },
+  riskLeft:  { flex: 1, gap: 2 },
+  riskRight: {
+    flex: 1, borderLeftWidth: 1,
+    paddingLeft: 20, gap: 8, alignItems: "flex-start",
+  },
+  riskLabel:   { color: TEXT_DIM, fontSize: 8, fontWeight: "900", letterSpacing: 1.5, textTransform: "uppercase" },
+  riskNumRow:  { flexDirection: "row", alignItems: "baseline", gap: 2 },
+  riskNum:     { fontSize: 44, fontWeight: "900", letterSpacing: -2, lineHeight: 48 },
+  riskPct:     { fontSize: 16, fontWeight: "700" },
+  riskCaption: { fontSize: 9, fontWeight: "600", marginTop: 2 },
+  segBarWrap:  { flexDirection: "row", gap: 3, marginTop: 4 },
+  segBar:      { width: 14, height: 8, borderRadius: 2 },
+  riskTier:    { fontSize: 10, fontWeight: "800", letterSpacing: 0.5, marginTop: 2 },
+
+  // ── DNA section ────────────────────────────────────────────────────
+  dnaSection: {
+    borderTopWidth: 1, paddingHorizontal: 20,
+    paddingTop: 16, paddingBottom: 16,
+  },
+  dnaSectionLabel: {
+    color: TEXT_DIM, fontSize: 8, fontWeight: "900",
+    letterSpacing: 2, textTransform: "uppercase", marginBottom: 10,
+  },
+  dnaGrid: { gap: 7 },
+  dnaRow: {
+    flexDirection: "row", alignItems: "center", gap: 10,
+    backgroundColor: "rgba(255,255,255,0.03)",
+    borderRadius: 12, overflow: "hidden",
+    paddingVertical: 10, paddingRight: 12,
+  },
+  dnaLeftBar:   { width: 3, alignSelf: "stretch", borderRadius: 2 },
+  dnaIconBox: {
+    width: 30, height: 30, borderRadius: 8,
+    alignItems: "center", justifyContent: "center", marginLeft: 8,
+  },
+  dnaContent:   { flex: 1, gap: 2 },
+  dnaTraitLabel: { fontSize: 7, fontWeight: "900", letterSpacing: 0.8, textTransform: "uppercase" },
+  dnaTraitVal:   { color: "rgba(255,255,255,0.85)", fontSize: 11, fontWeight: "700" },
+  dnaAnswerBadge: {
+    width: 24, height: 24, borderRadius: 12,
+    alignItems: "center", justifyContent: "center",
+  },
+  dnaAnswerText: { color: "#fff", fontSize: 11, fontWeight: "900" },
+
+  // ── Mentor section ─────────────────────────────────────────────────
+  mentorSection: {
+    borderTopWidth: 1, paddingHorizontal: 20,
+    paddingTop: 16, paddingBottom: 16,
+  },
+  mentorSectionLabel: {
+    color: TEXT_DIM, fontSize: 8, fontWeight: "900",
+    letterSpacing: 2, textTransform: "uppercase", marginBottom: 10,
+  },
+  mentorCard: {
+    flexDirection: "row", alignItems: "center",
+    gap: 12, borderWidth: 1, borderRadius: 16, padding: 12,
+  },
+  mentorPhoto: { width: 50, height: 50, borderRadius: 25, borderWidth: 2 },
+  mentorEmoji: {
+    width: 50, height: 50, borderRadius: 25,
+    alignItems: "center", justifyContent: "center",
+  },
+  mentorText:  { flex: 1, gap: 2 },
+  mentorName:  { fontSize: 14, fontWeight: "800", letterSpacing: -0.3 },
+  mentorTitle: { color: TEXT_DIM, fontSize: 9, fontWeight: "500" },
+  mentorQuote: { fontSize: 9, fontWeight: "600", fontStyle: "italic", marginTop: 4, lineHeight: 13 },
+
+  // ── Footer ─────────────────────────────────────────────────────────
+  footer: {
+    flexDirection: "row", alignItems: "center",
+    justifyContent: "space-between",
+    borderTopWidth: 1, paddingHorizontal: 20, paddingVertical: 12,
+  },
+  footerLeft:  { flexDirection: "row", alignItems: "center", gap: 6 },
+  footerLogo:  { width: 14, height: 14, borderRadius: 3 },
+  footerBrand: { color: TEXT_MUTED, fontSize: 9, fontWeight: "700", letterSpacing: 0.8 },
+  footerBadge: {
+    flexDirection: "row", alignItems: "center", gap: 4,
+    borderWidth: 1, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4,
+  },
+  footerBadgeText: { fontSize: 7, fontWeight: "800", letterSpacing: 0.5 },
 });
