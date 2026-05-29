@@ -12,12 +12,21 @@ export const STREAK_MILESTONES = [
   { days: 90, reward: "Hall of Fame — Top Inversor 🏆", bonus: "Mención especial" },
 ];
 
-export function getMilestoneForStreak(streak: number) {
-  return [...STREAK_MILESTONES].reverse().find((m) => streak >= m.days) ?? null;
+export const STREAK_MILESTONES_PREMIUM = [
+  { days: 15, reward: "Insignia Estratega 🎖️", bonus: "Análisis macro semanal exclusivo" },
+  { days: 30, reward: "Badge Inversor Élite ⭐", bonus: "Debates sin límite de rondas" },
+  { days: 60, reward: "Avatar Halcón de Mercado 🦅", bonus: "Escenarios históricos secretos desbloqueados" },
+  { days: 90, reward: "Leyenda del Hall of Fame 👑", bonus: "Top 1% — mención permanente en el perfil" },
+];
+
+export function getMilestoneForStreak(streak: number, premium = false) {
+  const milestones = premium ? STREAK_MILESTONES_PREMIUM : STREAK_MILESTONES;
+  return [...milestones].reverse().find((m) => streak >= m.days) ?? null;
 }
 
-export function getNextMilestone(streak: number) {
-  return STREAK_MILESTONES.find((m) => streak < m.days) ?? null;
+export function getNextMilestone(streak: number, premium = false) {
+  const milestones = premium ? STREAK_MILESTONES_PREMIUM : STREAK_MILESTONES;
+  return milestones.find((m) => streak < m.days) ?? null;
 }
 
 interface LearnStore {

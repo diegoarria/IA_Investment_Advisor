@@ -8,7 +8,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "../../src/lib/ThemeContext";
 import { learnApi } from "../../src/lib/api";
-import { useLearnStore, getMilestoneForStreak, getNextMilestone, STREAK_MILESTONES } from "../../src/lib/learnStore";
+import { useLearnStore, getMilestoneForStreak, getNextMilestone, STREAK_MILESTONES, STREAK_MILESTONES_PREMIUM } from "../../src/lib/learnStore";
 import { useSubscriptionStore } from "../../src/lib/subscriptionStore";
 import PaywallModal from "../../src/components/PaywallModal";
 
@@ -79,8 +79,9 @@ export default function ArenaScreen() {
   const [debateInput, setDebateInput] = useState("");
   const debateScrollRef = useRef<ScrollView>(null);
 
-  const currentMilestone = getMilestoneForStreak(streak);
-  const nextMilestone = getNextMilestone(streak);
+  const activeMilestones = isPremium ? STREAK_MILESTONES_PREMIUM : STREAK_MILESTONES;
+  const currentMilestone = getMilestoneForStreak(streak, isPremium);
+  const nextMilestone = getNextMilestone(streak, isPremium);
   const diffCfg = DIFF_CONFIG[difficulty];
   const returnColor = (pct: number) => pct > 0 ? "#22c55e" : pct < 0 ? "#ef4444" : "#9ca3af";
 
@@ -202,7 +203,7 @@ export default function ArenaScreen() {
 
           {/* Milestones list */}
           <View style={{ flexDirection: "row", gap: 8, marginTop: 14, flexWrap: "wrap" }}>
-            {STREAK_MILESTONES.map((m) => (
+            {activeMilestones.map((m) => (
               <View key={m.days} style={[styles.milestonePill,
                 { backgroundColor: streak >= m.days ? "#f59e0b18" : colors.border + "50",
                   borderColor: streak >= m.days ? "#f59e0b44" : "transparent" }]}>
@@ -430,9 +431,9 @@ export default function ArenaScreen() {
 
             {/* Milestones list */}
             <Text style={[styles.sectionTitle, { color: colors.textDim, marginTop: 0 }]}>OBJETIVOS</Text>
-            {STREAK_MILESTONES.map((m, i) => {
+            {activeMilestones.map((m, i) => {
               const achieved = streak >= m.days;
-              const isNext = !achieved && (i === 0 || streak >= STREAK_MILESTONES[i - 1].days);
+              const isNext = !achieved && (i === 0 || streak >= activeMilestones[i - 1].days);
               const progress = Math.min(streak / m.days, 1);
               return (
                 <View key={m.days} style={[styles.resultBox, {
