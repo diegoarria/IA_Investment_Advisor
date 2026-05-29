@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from app.core.config import settings
-from app.api.routes import auth, profile, chat, market, notifications, screener, billing, learn
+from app.api.routes import auth, profile, chat, market, notifications, screener, billing, learn, sync
 from app.services.notification_service import scan_and_notify_all_users
 from app.services.email_service import generate_and_send_weekly_summary
 
@@ -54,6 +54,7 @@ app.include_router(notifications.router, prefix="/api")
 app.include_router(screener.router,     prefix="/api")
 app.include_router(billing.router,      prefix="/api")
 app.include_router(learn.router,        prefix="/api")
+app.include_router(sync.router,         prefix="/api")
 
 scheduler = AsyncIOScheduler()
 

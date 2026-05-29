@@ -12,37 +12,79 @@ router = APIRouter(prefix="/learn", tags=["learn"])
 
 # ─── Free-tier limits ─────────────────────────────────────────────────────
 
-FREE_SIM_DAILY   = 5
-FREE_DEBATE_DAILY = 2
+FREE_SIM_DAILY        = 5
+FREE_DEBATE_DAILY     = 2
 FREE_DEBATE_MAX_ROUNDS = 5
-FREE_DIFFICULTIES = {"principiante", "intermedio"}
-
-_sim_counters: dict[str, int] = {}    # "user_id:YYYY-MM-DD" → count
-_debate_counters: dict[str, int] = {}
-
-def _today_key(user_id: str) -> str:
-    return f"{user_id}:{date.today().isoformat()}"
+FREE_DIFFICULTIES     = {"principiante", "intermedio"}
 
 def _is_premium(user_id: str) -> bool:
     p = _get_profile_raw(user_id)
     return bool(p and p.get("subscription_tier") == "premium")
 
-def _check_daily(counter: dict, key: str, limit: int, noun: str):
-    if (counter.get(key, 0)) >= limit:
+def _get_profile_raw(user_id: str) -> dict | None:
+    try:
+        db = get_supabase()
+        result = db.table("user_profiles").select("subscription_tier, trial_started_at").eq("user_id", user_id).execute()
+        return result.data[0] if result.data else None
+    except Exception:
+        return None
+
+def _is_trial_active(profile: dict | None) -> bool:
+    """Returns True if user is within their 7-day free trial."""
+    if not profile:
+        return False
+    ts = profile.get("trial_started_at")
+    if not ts:
+        return False
+    from datetime import datetime, timezone, timedelta
+    try:
+        started = datetime.fromisoformat(ts.replace("Z", "+00:00"))
+        return datetime.now(timezone.utc) < started + timedelta(days=7)
+    except Exception:
+        return False
+
+def _get_daily_usage(user_id: str) -> dict:
+    """Fetch or create today's usage row from Supabase."""
+    today = date.today().isoformat()
+    db = get_supabase()
+    try:
+        result = db.table("user_daily_usage") \
+            .select("sim_count, debate_count") \
+            .eq("user_id", user_id).eq("date", today).execute()
+        if result.data:
+            return result.data[0]
+    except Exception:
+        pass
+    return {"sim_count": 0, "debate_count": 0}
+
+def _increment_daily(user_id: str, field: str):
+    """Atomically increment a daily counter in Supabase."""
+    today = date.today().isoformat()
+    db = get_supabase()
+    try:
+        existing = db.table("user_daily_usage") \
+            .select("sim_count, debate_count") \
+            .eq("user_id", user_id).eq("date", today).execute()
+        if existing.data:
+            current = existing.data[0].get(field, 0)
+            db.table("user_daily_usage") \
+                .update({field: current + 1}) \
+                .eq("user_id", user_id).eq("date", today).execute()
+        else:
+            db.table("user_daily_usage") \
+                .insert({"user_id": user_id, "date": today, field: 1}).execute()
+    except Exception:
+        pass  # never block the user on a counter failure
+
+def _check_daily(user_id: str, field: str, limit: int, noun: str):
+    usage = _get_daily_usage(user_id)
+    if usage.get(field, 0) >= limit:
         raise HTTPException(status_code=429, detail={
             "code": "daily_limit",
             "message": f"Alcanzaste el límite de {limit} {noun} diarios. Activa Premium para acceso ilimitado.",
             "limit": limit,
         })
-    counter[key] = counter.get(key, 0) + 1
-
-def _get_profile_raw(user_id: str) -> dict | None:
-    try:
-        db = get_supabase()
-        result = db.table("user_profiles").select("subscription_tier").eq("user_id", user_id).execute()
-        return result.data[0] if result.data else None
-    except Exception:
-        return None
+    _increment_daily(user_id, field)
 
 # ─── Scenarios by difficulty ───────────────────────────────────────────────
 
@@ -186,7 +228,7 @@ async def get_scenario(request: dict = None, user_id: str = Depends(get_current_
             "message": "Los niveles Difícil e Imposible son exclusivos de Premium.",
         })
     if not premium:
-        _check_daily(_sim_counters, _today_key(user_id), FREE_SIM_DAILY, "simulaciones")
+        _check_daily(user_id, "sim_count", FREE_SIM_DAILY, "simulaciones")
 
     pool = SCENARIOS.get(difficulty, SCENARIOS["intermedio"])
     s = random.choice(pool)
@@ -241,7 +283,7 @@ async def start_debate(request: dict, user_id: str = Depends(get_current_user_id
             "message": "Los niveles Difícil e Imposible son exclusivos de Premium.",
         })
     if not premium:
-        _check_daily(_debate_counters, _today_key(user_id), FREE_DEBATE_DAILY, "debates")
+        _check_daily(user_id, "debate_count", FREE_DEBATE_DAILY, "debates")
 
     profile = _get_profile(user_id)
     system = DIFFICULTY_DEBATE_PROMPTS.get(difficulty, DIFFICULTY_DEBATE_PROMPTS["intermedio"])

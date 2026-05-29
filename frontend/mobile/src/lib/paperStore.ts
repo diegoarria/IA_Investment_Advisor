@@ -56,6 +56,19 @@ interface PaperStore {
   reset: () => void;
   incrementFreeTrade: () => void;
   freeTradesThisMonth: () => number;
+  restoreFromServer: (state: { cash: number; positions: PaperPosition[]; trades: PaperTrade[]; freeTradeMonth: string | null; freeTradeCount: number }) => void;
+}
+
+function _push(s: { cash: number; positions: PaperPosition[]; trades: PaperTrade[]; freeTradeMonth: string | null; freeTradeCount: number }) {
+  import("./api").then(({ syncApi }) => {
+    syncApi.pushPaper({
+      cash: s.cash,
+      positions: s.positions,
+      trades: s.trades.slice(0, 50),
+      freeTradeMonth: s.freeTradeMonth,
+      freeTradeCount: s.freeTradeCount,
+    }).catch(() => {});
+  });
 }
 
 export const usePaperStore = create<PaperStore>()(
@@ -79,6 +92,7 @@ export const usePaperStore = create<PaperStore>()(
           freeTradeMonth: month,
           freeTradeCount: freeTradeMonth === month ? freeTradeCount + 1 : 1,
         });
+        _push(get());
       },
 
       buy: (ticker, name, shares, price) => {
@@ -114,6 +128,7 @@ export const usePaperStore = create<PaperStore>()(
             trades: [trade, ...s.trades.slice(0, 49)],
           }));
         }
+        _push(get());
         return null;
       },
 
@@ -138,6 +153,7 @@ export const usePaperStore = create<PaperStore>()(
             : s.positions.map((p) => p.ticker === t ? { ...p, shares: remaining } : p),
           trades: [trade, ...s.trades.slice(0, 49)],
         }));
+        _push(get());
         return null;
       },
 
@@ -147,9 +163,16 @@ export const usePaperStore = create<PaperStore>()(
           type: "topup", ticker: "CASH", shares: 0, price: 0, total: amount, timestamp: Date.now(),
         };
         set((s) => ({ cash: s.cash + amount, trades: [trade, ...s.trades.slice(0, 49)] }));
+        _push(get());
       },
 
-      reset: () => set({ cash: PAPER_INITIAL_CASH, positions: [], trades: [], freeTradeMonth: null, freeTradeCount: 0 }),
+      reset: () => {
+        const next = { cash: PAPER_INITIAL_CASH, positions: [] as PaperPosition[], trades: [] as PaperTrade[], freeTradeMonth: null as string | null, freeTradeCount: 0 };
+        set(next);
+        _push(next);
+      },
+
+      restoreFromServer: (state) => set(state),
     }),
     {
       name: "paper-trading",

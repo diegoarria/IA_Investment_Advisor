@@ -15,6 +15,7 @@ import { usePortfolioStore } from "../../src/lib/portfolioStore";
 import { useSubscriptionStore, msgsRemaining, resetMinutes, FREE_MSG_LIMIT, hasPremiumAccess } from "../../src/lib/subscriptionStore";
 import PaywallModal from "../../src/components/PaywallModal";
 import StockChart from "../../src/components/StockChart";
+import FirstActionModal from "../../src/components/FirstActionModal";
 import { getMentorInfo } from "../../src/lib/mentorData";
 
 function TypingIndicator({ color }: { color: string }) {
@@ -571,6 +572,7 @@ Instrucciones críticas:
       onClose={() => setPaywallVisible(false)}
       reason={paywallReason}
     />
+    <FirstActionModal />
     </KeyboardAvoidingView>
   );
 }

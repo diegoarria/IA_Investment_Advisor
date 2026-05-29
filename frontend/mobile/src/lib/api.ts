@@ -164,4 +164,20 @@ export const insightsApi = {
   get: () => api.get("/api/profile/insights"),
 };
 
+export const syncApi = {
+  // Single call to restore everything after login
+  getAll: () => api.get("/api/sync/all"),
+  // Individual push endpoints (fire-and-forget)
+  pushPortfolio: (positions: unknown[]) =>
+    api.post("/api/sync/portfolio", { positions }),
+  pushPaper: (state: { cash: number; positions: unknown[]; trades: unknown[]; freeTradeMonth: string | null; freeTradeCount: number }) =>
+    api.post("/api/sync/paper", state),
+  pushMaturity: (score: number, history: unknown[]) =>
+    api.post("/api/sync/maturity", { score, history }),
+  startTrial: () =>
+    api.post("/api/sync/trial/start"),
+  getTrialStatus: () =>
+    api.get("/api/sync/trial/status"),
+};
+
 export default api;

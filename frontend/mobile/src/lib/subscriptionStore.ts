@@ -61,7 +61,18 @@ export const useSubscriptionStore = create<SubscriptionStore>()(
       startTrialIfNeeded: () => {
         const { tier, trialStartDate } = get();
         if (tier === "premium" || trialStartDate !== null) return;
+        // Set locally immediately so UI reacts without waiting for the network
         set({ trialStartDate: new Date().toISOString() });
+        // Persist to backend (idempotent — server won't overwrite an existing date)
+        import("./api").then(({ syncApi }) => {
+          syncApi.startTrial()
+            .then((res) => {
+              // If server already had a date, adopt it (authoritative source)
+              const serverDate = res.data?.trial_started_at;
+              if (serverDate) set({ trialStartDate: serverDate });
+            })
+            .catch(() => {});
+        });
       },
     }),
     {

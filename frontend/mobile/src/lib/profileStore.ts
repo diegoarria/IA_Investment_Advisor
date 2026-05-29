@@ -119,6 +119,8 @@ interface AppStore {
   maturityScore: number;
   maturityHistory: MaturityEvent[];
   updateMaturity: (signals: string[]) => void;
+  hasSeenFirstAction: boolean;
+  markFirstActionSeen: () => void;
 }
 
 export const useAppStore = create<AppStore>()(
@@ -134,6 +136,8 @@ export const useAppStore = create<AppStore>()(
       closeSidebar: () => set({ sidebarOpen: false }),
       maturityScore: 0,
       maturityHistory: [],
+      hasSeenFirstAction: false,
+      markFirstActionSeen: () => set({ hasSeenFirstAction: true }),
       updateMaturity: (signals) => {
         const delta = computeMaturityDelta(signals);
         if (delta === 0) return;
@@ -144,12 +148,16 @@ export const useAppStore = create<AppStore>()(
           maturityScore: newScore,
           maturityHistory: [...s.maturityHistory.slice(-99), event],
         }));
+        const history = get().maturityHistory;
+        import("./api").then(({ syncApi }) => {
+          syncApi.pushMaturity(newScore, history).catch(() => {});
+        });
       },
     }),
     {
       name: "user-profile",
       storage: createJSONStorage(() => AsyncStorage),
-      partialize: (s) => ({ profile: s.profile, maturityScore: s.maturityScore, maturityHistory: s.maturityHistory }),
+      partialize: (s) => ({ profile: s.profile, maturityScore: s.maturityScore, maturityHistory: s.maturityHistory, hasSeenFirstAction: s.hasSeenFirstAction }),
     }
   )
 );

@@ -8,10 +8,13 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import * as SecureStore from "expo-secure-store";
-import { authApi, profileApi } from "../src/lib/api";
+import { authApi, profileApi, syncApi } from "../src/lib/api";
 import { useTheme, Colors } from "../src/lib/ThemeContext";
 import { useAppStore } from "../src/lib/profileStore";
 import type { UserProfile } from "../src/lib/profileStore";
+import { usePortfolioStore } from "../src/lib/portfolioStore";
+import { usePaperStore } from "../src/lib/paperStore";
+import { useSubscriptionStore } from "../src/lib/subscriptionStore";
 
 export default function AuthScreen() {
   const { colors, isDark, toggle } = useTheme();
@@ -29,20 +32,50 @@ export default function AuthScreen() {
       try {
         const token = await SecureStore.getItemAsync("access_token");
         if (!token) { setChecking(false); return; }
-        const profileRes = await profileApi.get();
-        const p = profileRes.data as UserProfile;
-        setProfile({
-          name: p.name,
-          birth_date: p.birth_date,
-          monthly_income: p.monthly_income,
-          monthly_contribution: p.monthly_contribution,
-          risk_tolerance: p.risk_tolerance as UserProfile["risk_tolerance"],
-          quiz_answers: p.quiz_answers as UserProfile["quiz_answers"],
-          mentor: p.mentor ?? null,
-        });
+
+        const [profileRes, syncRes] = await Promise.allSettled([
+          profileApi.get(),
+          syncApi.getAll(),
+        ]);
+
+        if (profileRes.status === "fulfilled") {
+          const p = profileRes.value.data as UserProfile;
+          setProfile({
+            name: p.name,
+            birth_date: p.birth_date,
+            monthly_income: p.monthly_income,
+            monthly_contribution: p.monthly_contribution,
+            risk_tolerance: p.risk_tolerance as UserProfile["risk_tolerance"],
+            quiz_answers: p.quiz_answers as UserProfile["quiz_answers"],
+            mentor: p.mentor ?? null,
+          });
+        } else {
+          throw new Error("profile fetch failed");
+        }
+
+        if (syncRes.status === "fulfilled") {
+          const d = syncRes.value.data;
+          if (d.portfolio?.positions?.length)
+            usePortfolioStore.getState().restoreFromServer(d.portfolio.positions);
+          if (d.paper)
+            usePaperStore.getState().restoreFromServer({
+              cash:           d.paper.cash,
+              positions:      d.paper.positions,
+              trades:         d.paper.trades,
+              freeTradeMonth: d.paper.freeTradeMonth,
+              freeTradeCount: d.paper.freeTradeCount,
+            });
+          if (d.maturity) {
+            const local = useAppStore.getState().maturityScore;
+            if (d.maturity.score > local)
+              useAppStore.setState({ maturityScore: d.maturity.score, maturityHistory: d.maturity.history });
+          }
+          if (d.trial?.trial_started_at)
+            useSubscriptionStore.setState({ trialStartDate: d.trial.trial_started_at });
+        }
+
         router.replace("/(tabs)/chat");
       } catch {
-        // Token inválido o expirado — mostrar pantalla de login
         await SecureStore.deleteItemAsync("access_token").catch(() => {});
         await SecureStore.deleteItemAsync("refresh_token").catch(() => {});
         setChecking(false);
@@ -55,18 +88,49 @@ export default function AuthScreen() {
     await SecureStore.setItemAsync("user_id", userId);
     if (refreshToken) await SecureStore.setItemAsync("refresh_token", refreshToken);
     try {
-      const profileRes = await profileApi.get();
-      const p = profileRes.data as UserProfile;
-      setProfile({
-        name: p.name,
-        birth_date: p.birth_date,
-        monthly_income: p.monthly_income,
-        monthly_contribution: p.monthly_contribution,
-        risk_tolerance: p.risk_tolerance as UserProfile["risk_tolerance"],
-        quiz_answers: p.quiz_answers as UserProfile["quiz_answers"],
-        mentor: p.mentor ?? null,
-      });
-      router.replace("/(tabs)/chat");
+      // Fetch profile + all synced data in parallel
+      const [profileRes, syncRes] = await Promise.allSettled([
+        profileApi.get(),
+        syncApi.getAll(),
+      ]);
+
+      if (profileRes.status === "fulfilled") {
+        const p = profileRes.value.data as UserProfile;
+        setProfile({
+          name: p.name,
+          birth_date: p.birth_date,
+          monthly_income: p.monthly_income,
+          monthly_contribution: p.monthly_contribution,
+          risk_tolerance: p.risk_tolerance as UserProfile["risk_tolerance"],
+          quiz_answers: p.quiz_answers as UserProfile["quiz_answers"],
+          mentor: p.mentor ?? null,
+        });
+      }
+
+      // Restore backend data into stores (only if server has something)
+      if (syncRes.status === "fulfilled") {
+        const d = syncRes.value.data;
+        if (d.portfolio?.positions?.length)
+          usePortfolioStore.getState().restoreFromServer(d.portfolio.positions);
+        if (d.paper)
+          usePaperStore.getState().restoreFromServer({
+            cash:           d.paper.cash,
+            positions:      d.paper.positions,
+            trades:         d.paper.trades,
+            freeTradeMonth: d.paper.freeTradeMonth,
+            freeTradeCount: d.paper.freeTradeCount,
+          });
+        if (d.maturity) {
+          // Only update if server score is higher (protect against stale server data)
+          const local = useAppStore.getState().maturityScore;
+          if (d.maturity.score > local)
+            useAppStore.setState({ maturityScore: d.maturity.score, maturityHistory: d.maturity.history });
+        }
+        if (d.trial?.trial_started_at)
+          useSubscriptionStore.setState({ trialStartDate: d.trial.trial_started_at });
+      }
+
+      router.replace(profileRes.status === "fulfilled" ? "/(tabs)/chat" : "/onboarding");
     } catch {
       router.replace("/onboarding");
     }
