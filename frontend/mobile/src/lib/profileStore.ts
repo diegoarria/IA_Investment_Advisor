@@ -128,7 +128,7 @@ export const useAppStore = create<AppStore>()(
       explicitLogout: false,
       setProfile: (p) => set({ profile: p, explicitLogout: false }),
       setAvatarUri: (uri) => set((s) => ({ profile: s.profile ? { ...s.profile, avatarUri: uri } : null })),
-      logout: () => set({ profile: null, explicitLogout: true, sidebarOpen: false, maturityScore: 0, maturityHistory: [] }),
+      logout: () => set({ profile: null, explicitLogout: true, sidebarOpen: false }),
       sidebarOpen: false,
       openSidebar: () => set({ sidebarOpen: true }),
       closeSidebar: () => set({ sidebarOpen: false }),
