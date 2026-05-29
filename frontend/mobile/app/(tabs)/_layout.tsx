@@ -239,7 +239,7 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen name="explore" options={{ href: null }} />
-      <Tabs.Screen name="profile" options={{ href: null }} />
+      <Tabs.Screen name="profile" options={{ href: null, header: () => <MobileHeader title="Mi Perfil" /> }} />
       <Tabs.Screen
         name="arena"
         options={{
