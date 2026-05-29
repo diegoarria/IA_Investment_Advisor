@@ -1,7 +1,7 @@
 import React from "react";
 import { View, Text, Image, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { useAppStore, RISK_CONFIG, maturityLabel, getAge } from "../lib/profileStore";
+import { useAppStore, RISK_CONFIG, maturityLabel, knowledgeFromMaturity, getAge } from "../lib/profileStore";
 import { getMentorInfo } from "../lib/mentorData";
 
 const MENTOR_PHOTOS: Record<string, number> = {
@@ -13,9 +13,7 @@ const MENTOR_PHOTOS: Record<string, number> = {
 const Q1_LABELS: Record<string, string> = {
   A: "Vende ante caídas", B: "Espera y observa", C: "Analiza fundamentos", D: "Compra las caídas",
 };
-const Q3_LABELS: Record<string, string> = {
-  A: "Principiante", B: "Básico", C: "Intermedio", D: "Avanzado",
-};
+
 const Q5_LABELS: Record<string, string> = {
   A: "Pasivo / automático", B: "Revisión mensual", C: "Revisión semanal", D: "Gestión diaria",
 };
@@ -32,6 +30,7 @@ export default function InvestorScorecard() {
   const riskCfg   = RISK_CONFIG[profile.risk_tolerance];
   const riskPct   = Math.round(riskCfg.pct * 100);
   const ml        = maturityLabel(maturityScore);
+  const knowledge = knowledgeFromMaturity(maturityScore);
   const trend     = maturityHistory.slice(-10).reduce((acc, e) => acc + e.delta, 0);
   const mentor    = getMentorInfo(profile.mentor);
   const mentorPhoto = mentor ? MENTOR_PHOTOS[mentor.id] : null;
@@ -165,7 +164,7 @@ export default function InvestorScorecard() {
           <View style={s.dnaGrid}>
             {([
               { icon: "pulse-outline", label: "MENTALIDAD",   val: Q1_LABELS[qa.q1], ans: qa.q1 },
-              { icon: "school-outline", label: "CONOCIMIENTO", val: Q3_LABELS[qa.q3], ans: qa.q3 },
+              { icon: "school-outline", label: "CONOCIMIENTO", val: knowledge.label, ans: knowledge.key },
               { icon: "settings-outline", label: "GESTIÓN",     val: Q5_LABELS[qa.q5], ans: qa.q5 },
             ] as const).map((row) => {
               const tc = TRAIT_COLORS[row.ans] ?? ac;

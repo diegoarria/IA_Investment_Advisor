@@ -11,7 +11,7 @@ import { captureRef } from "react-native-view-shot";
 import * as Sharing from "expo-sharing";
 import * as ImagePicker from "expo-image-picker";
 import { useTheme, Colors } from "../../src/lib/ThemeContext";
-import { useAppStore, RISK_CONFIG, getAge, maturityLabel } from "../../src/lib/profileStore";
+import { useAppStore, RISK_CONFIG, getAge, maturityLabel, knowledgeFromMaturity } from "../../src/lib/profileStore";
 import { getMentorInfo } from "../../src/lib/mentorData";
 import InvestorScorecard from "../../src/components/InvestorScorecard";
 import { useSubscriptionStore, msgsRemaining, FREE_MSG_LIMIT } from "../../src/lib/subscriptionStore";
@@ -118,6 +118,7 @@ export default function ProfileScreen() {
   const age = getAge(profile.birth_date);
   const mentor = getMentorInfo(profile.mentor);
   const maturity = maturityLabel(maturityScore);
+  const knowledge = knowledgeFromMaturity(maturityScore);
   const quizKeys = ["q1", "q2", "q3", "q4", "q5"] as const;
 
   const msgUsed = isPremium ? 0 : FREE_MSG_LIMIT - (remaining === Infinity ? FREE_MSG_LIMIT : remaining);
@@ -424,11 +425,13 @@ export default function ProfileScreen() {
                 </View>
                 <View style={s.quizMid}>
                   <Text style={[s.quizCat, { color: colors.textDim }]}>{QUIZ_CATEGORIES[i]}</Text>
-                  <Text style={[s.quizAnswer, { color: colors.text }]}>{answer ? QUIZ_LABELS[key][answer] : "—"}</Text>
+                  <Text style={[s.quizAnswer, { color: colors.text }]}>
+                    {key === "q3" ? knowledge.label : answer ? QUIZ_LABELS[key][answer] : "—"}
+                  </Text>
                 </View>
                 {answer && (
                   <View style={[s.quizBadge, { backgroundColor: aColor }]}>
-                    <Text style={s.quizBadgeText}>{answer}</Text>
+                    <Text style={s.quizBadgeText}>{key === "q3" ? knowledge.key : answer}</Text>
                   </View>
                 )}
               </View>

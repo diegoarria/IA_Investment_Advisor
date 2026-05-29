@@ -92,11 +92,19 @@ export function computeMaturityDelta(signals: string[]): number {
 }
 
 export function maturityLabel(score: number): { label: string; color: string } {
-  if (score < 30) return { label: "Aprendiz", color: "#ef4444" };
-  if (score < 50) return { label: "Principiante", color: "#f97316" };
+  if (score < 30) return { label: "Aprendiz",      color: "#ef4444" };
+  if (score < 50) return { label: "Principiante",  color: "#f97316" };
   if (score < 65) return { label: "En Desarrollo", color: "#f59e0b" };
-  if (score < 80) return { label: "Maduro", color: "#22c55e" };
-  return { label: "Experto", color: "#16a34a" };
+  if (score < 80) return { label: "Maduro",        color: "#22c55e" };
+  return                 { label: "Experto",        color: "#16a34a" };
+}
+
+/** Knowledge level derived from the actual maturity score (overrides quiz self-report). */
+export function knowledgeFromMaturity(score: number): { label: string; key: "A" | "B" | "C" | "D" } {
+  if (score < 25) return { label: "Principiante", key: "A" };
+  if (score < 50) return { label: "Básico",       key: "B" };
+  if (score < 75) return { label: "Intermedio",   key: "C" };
+  return                 { label: "Avanzado",      key: "D" };
 }
 
 interface AppStore {
