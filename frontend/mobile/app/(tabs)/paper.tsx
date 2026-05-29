@@ -50,7 +50,15 @@ function SellModal({
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "flex-end" }}>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+      >
+        <TouchableOpacity
+          style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.6)" }}
+          activeOpacity={1}
+          onPress={onClose}
+        />
         <View style={[sellStyles.sheet, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <View style={sellStyles.handle} />
           <Text style={[sellStyles.title, { color: colors.text }]}>Vender {ticker}</Text>
@@ -98,7 +106,7 @@ function SellModal({
             </TouchableOpacity>
           </View>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
