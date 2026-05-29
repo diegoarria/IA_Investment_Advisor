@@ -12,7 +12,7 @@ import { useTheme, Colors } from "../../src/lib/ThemeContext";
 import { useAppStore, RISK_CONFIG, getAge } from "../../src/lib/profileStore";
 import { useChatStore, Message, BehavioralDiagnosis } from "../../src/lib/chatStore";
 import { usePortfolioStore } from "../../src/lib/portfolioStore";
-import { useSubscriptionStore, msgsRemaining, resetMinutes, FREE_MSG_LIMIT } from "../../src/lib/subscriptionStore";
+import { useSubscriptionStore, msgsRemaining, resetMinutes, FREE_MSG_LIMIT, hasPremiumAccess } from "../../src/lib/subscriptionStore";
 import PaywallModal from "../../src/components/PaywallModal";
 import StockChart from "../../src/components/StockChart";
 import { getMentorInfo } from "../../src/lib/mentorData";
@@ -105,13 +105,12 @@ export default function ChatScreen() {
   const diagnosis = currentDiagnosis();
   const positions = usePortfolioStore((s) => s.positions);
 
-  const subTier = useSubscriptionStore((s) => s.tier);
-  const subMsgCount = useSubscriptionStore((s) => s.msgCount);
-  const subWindowStart = useSubscriptionStore((s) => s.msgWindowStart);
-  const fetchSubStatus = useSubscriptionStore((s) => s.fetchStatus);
-  const incrementMsgCount = useSubscriptionStore((s) => s.incrementMsgCount);
-  const remaining = msgsRemaining({ tier: subTier, msgCount: subMsgCount, msgWindowStart: subWindowStart });
-  const isPremium = subTier === "premium";
+  const subStore = useSubscriptionStore();
+  const subTier = subStore.tier;
+  const fetchSubStatus = subStore.fetchStatus;
+  const incrementMsgCount = subStore.incrementMsgCount;
+  const remaining = msgsRemaining({ tier: subTier, msgCount: subStore.msgCount, msgWindowStart: subStore.msgWindowStart });
+  const isPremiumAccess = hasPremiumAccess(subStore);
 
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
@@ -250,8 +249,8 @@ Instrucciones críticas:
     if (!msg || streaming) return;
 
     // Client-side free limit check
-    if (!isPremium && remaining <= 0) {
-      const mins = resetMinutes(subWindowStart);
+    if (!isPremiumAccess && remaining <= 0) {
+      const mins = resetMinutes(subStore.msgWindowStart);
       openPaywall(`Alcanzaste el límite de ${FREE_MSG_LIMIT} mensajes. Vuelve en ${mins} min o activa Premium.`);
       return;
     }
@@ -506,7 +505,7 @@ Instrucciones críticas:
             />
           )}
 
-          {!isPremium && (
+          {!isPremiumAccess && (
             <TouchableOpacity
               style={[
                 styles.premiumBadge,
@@ -519,7 +518,7 @@ Instrucciones críticas:
                   <Ionicons name="time-outline" size={13} color="#ef4444" />
                   <Text style={[styles.premiumBadgeText, { color: "#ef4444" }]}>
                     {(() => {
-                      const mins = resetMinutes(subWindowStart);
+                      const mins = resetMinutes(subStore.msgWindowStart);
                       const hrs = Math.floor(mins / 60);
                       const min = mins % 60;
                       const timeStr = hrs > 0 ? `${hrs}h ${min > 0 ? `${min}min` : ""}`.trim() : `${mins}min`;

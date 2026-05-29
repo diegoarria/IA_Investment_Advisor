@@ -10,7 +10,7 @@ import { notificationsApi, marketApi } from "../../src/lib/api";
 import { useTheme, Colors } from "../../src/lib/ThemeContext";
 import { useWatchlistStore } from "../../src/lib/watchlistStore";
 import { usePortfolioStore } from "../../src/lib/portfolioStore";
-import { useSubscriptionStore } from "../../src/lib/subscriptionStore";
+import { useSubscriptionStore, hasPremiumAccess } from "../../src/lib/subscriptionStore";
 import PaywallModal from "../../src/components/PaywallModal";
 
 type IoniconName = React.ComponentProps<typeof Ionicons>["name"];
@@ -66,7 +66,8 @@ export default function NotificationsScreen() {
   const [prices, setPrices]  = useState<Record<string, PriceData>>({});
   const [pricesLoading, setPricesLoading] = useState(false);
 
-  const isPremium = useSubscriptionStore((s) => s.tier === "premium");
+  const subStore = useSubscriptionStore();
+  const isPremiumAccess = hasPremiumAccess(subStore);
   const [paywallOpen, setPaywallOpen] = useState(false);
 
   // Alert context modal
@@ -228,8 +229,8 @@ export default function NotificationsScreen() {
           </View>
         );
       }
-      const visibleNews = isPremium ? news : news.slice(0, 15);
-      const hasMore = !isPremium && news.length > 15;
+      const visibleNews = isPremiumAccess ? news : news.slice(0, 15);
+      const hasMore = !isPremiumAccess && news.length > 15;
       return (
         <>
           {visibleNews.map((item) => (

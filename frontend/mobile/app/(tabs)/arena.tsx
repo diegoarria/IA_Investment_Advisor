@@ -9,7 +9,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "../../src/lib/ThemeContext";
 import { learnApi } from "../../src/lib/api";
 import { useLearnStore, getMilestoneForStreak, getNextMilestone, STREAK_MILESTONES, STREAK_MILESTONES_PREMIUM } from "../../src/lib/learnStore";
-import { useSubscriptionStore } from "../../src/lib/subscriptionStore";
+import { useSubscriptionStore, hasPremiumAccess } from "../../src/lib/subscriptionStore";
 import PaywallModal from "../../src/components/PaywallModal";
 
 const FREE_SIM_LIMIT   = 5;
@@ -45,8 +45,8 @@ const DIFF_CONFIG: Record<Difficulty, { label: string; color: string; icon: stri
 export default function ArenaScreen() {
   const { colors } = useTheme();
   const { streak, completedToday, markTopicCompleted, initStreak } = useLearnStore();
-  const { tier } = useSubscriptionStore();
-  const isPremium = tier === "premium";
+  const subStore = useSubscriptionStore();
+  const isPremiumAccess = hasPremiumAccess(subStore);
 
   const [difficulty, setDifficulty] = useState<Difficulty>("intermedio");
   const [hallOfFame, setHallOfFame] = useState<{ name: string; streak: number }[]>([]);
@@ -79,18 +79,18 @@ export default function ArenaScreen() {
   const [debateInput, setDebateInput] = useState("");
   const debateScrollRef = useRef<ScrollView>(null);
 
-  const activeMilestones = isPremium ? STREAK_MILESTONES_PREMIUM : STREAK_MILESTONES;
-  const currentMilestone = getMilestoneForStreak(streak, isPremium);
-  const nextMilestone = getNextMilestone(streak, isPremium);
+  const activeMilestones = isPremiumAccess ? STREAK_MILESTONES_PREMIUM : STREAK_MILESTONES;
+  const currentMilestone = getMilestoneForStreak(streak, isPremiumAccess);
+  const nextMilestone = getNextMilestone(streak, isPremiumAccess);
   const diffCfg = DIFF_CONFIG[difficulty];
   const returnColor = (pct: number) => pct > 0 ? "#22c55e" : pct < 0 ? "#ef4444" : "#9ca3af";
 
   // ── Simulator handlers ───────────────────────────────────────────────────
 
   const openSimulator = async () => {
-    if (!isPremium && PREMIUM_DIFFICULTIES.has(difficulty))
+    if (!isPremiumAccess && PREMIUM_DIFFICULTIES.has(difficulty))
       return openPaywall("Los niveles Difícil e Imposible son exclusivos de Premium.");
-    if (!isPremium && simUsedToday >= FREE_SIM_LIMIT)
+    if (!isPremiumAccess && simUsedToday >= FREE_SIM_LIMIT)
       return openPaywall(`Alcanzaste el límite de ${FREE_SIM_LIMIT} simulaciones diarias. Activa Premium para acceso ilimitado.`);
     setSimOpen(true); setSimLoading(true);
     setScenario(null); setSimChoice(null); setSimResult(null);
@@ -105,7 +105,7 @@ export default function ArenaScreen() {
       const r = await learnApi.submitScenarioResult(scenario.id, choice, difficulty);
       setSimResult(r.data);
       markTopicCompleted();
-      if (!isPremium) setSimUsedToday(simUsedToday + 1);
+      if (!isPremiumAccess) setSimUsedToday(simUsedToday + 1);
     } catch {}
     setSimLoading(false);
   };
@@ -113,9 +113,9 @@ export default function ArenaScreen() {
   // ── Debate handlers ──────────────────────────────────────────────────────
 
   const openDebate = () => {
-    if (!isPremium && PREMIUM_DIFFICULTIES.has(difficulty))
+    if (!isPremiumAccess && PREMIUM_DIFFICULTIES.has(difficulty))
       return openPaywall("Los niveles Difícil e Imposible son exclusivos de Premium.");
-    if (!isPremium && debateUsedToday >= FREE_DEBATE_LIMIT)
+    if (!isPremiumAccess && debateUsedToday >= FREE_DEBATE_LIMIT)
       return openPaywall(`Alcanzaste el límite de ${FREE_DEBATE_LIMIT} debates diarios. Activa Premium para debates ilimitados.`);
     setDebateOpen(true); setDebateThesis(""); setDebateMessages([]);
     setDebateRound(1); setDebateInput("");
@@ -130,7 +130,7 @@ export default function ArenaScreen() {
       setDebateMessages([{ role: "user", text: debateThesis }, { role: "ai", text: r.data.response }]);
       setDebateRound(2);
       markTopicCompleted();
-      if (!isPremium) setDebateUsedToday(debateUsedToday + 1);
+      if (!isPremiumAccess) setDebateUsedToday(debateUsedToday + 1);
     } catch {}
     setDebateLoading(false);
     setTimeout(() => debateScrollRef.current?.scrollToEnd({ animated: true }), 300);
@@ -138,7 +138,7 @@ export default function ArenaScreen() {
 
   const sendDebateReply = async () => {
     if (!debateInput.trim() || debateLoading) return;
-    if (!isPremium && debateRound > FREE_MAX_ROUNDS)
+    if (!isPremiumAccess && debateRound > FREE_MAX_ROUNDS)
       return openPaywall(`Los usuarios free tienen hasta ${FREE_MAX_ROUNDS} rondas por debate. Activa Premium para debates ilimitados.`);
     const reply = debateInput.trim();
     setDebateInput("");
@@ -221,7 +221,7 @@ export default function ArenaScreen() {
           {(Object.keys(DIFF_CONFIG) as Difficulty[]).map((d) => {
             const cfg = DIFF_CONFIG[d];
             const active = difficulty === d;
-            const locked = !isPremium && PREMIUM_DIFFICULTIES.has(d);
+            const locked = !isPremiumAccess && PREMIUM_DIFFICULTIES.has(d);
             return (
               <TouchableOpacity key={d}
                 style={[styles.diffBtn, { borderColor: active ? cfg.color : colors.border,
@@ -257,7 +257,7 @@ export default function ArenaScreen() {
             <View style={[styles.diffTag, { backgroundColor: diffCfg.color + "18" }]}>
               <Text style={{ color: diffCfg.color, fontSize: 10, fontWeight: "700" }}>{diffCfg.label}</Text>
             </View>
-            {!isPremium && (
+            {!isPremiumAccess && (
               <Text style={{ color: simUsedToday >= FREE_SIM_LIMIT ? "#ef4444" : colors.textDim, fontSize: 10, marginTop: 6, fontWeight: "600" }}>
                 {simUsedToday >= FREE_SIM_LIMIT ? "Límite diario alcanzado" : `${FREE_SIM_LIMIT - simUsedToday}/${FREE_SIM_LIMIT} restantes hoy`}
               </Text>
@@ -276,7 +276,7 @@ export default function ArenaScreen() {
             <View style={[styles.diffTag, { backgroundColor: diffCfg.color + "18" }]}>
               <Text style={{ color: diffCfg.color, fontSize: 10, fontWeight: "700" }}>{diffCfg.label}</Text>
             </View>
-            {!isPremium && (
+            {!isPremiumAccess && (
               <Text style={{ color: debateUsedToday >= FREE_DEBATE_LIMIT ? "#ef4444" : colors.textDim, fontSize: 10, marginTop: 6, fontWeight: "600" }}>
                 {debateUsedToday >= FREE_DEBATE_LIMIT ? "Límite diario alcanzado" : `${FREE_DEBATE_LIMIT - debateUsedToday}/${FREE_DEBATE_LIMIT} restantes hoy`}
               </Text>

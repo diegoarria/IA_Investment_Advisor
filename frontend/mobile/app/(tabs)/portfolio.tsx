@@ -265,7 +265,6 @@ export default function PortfolioScreen() {
   const { positions, addPosition, removePosition, setPositions } = usePortfolioStore();
   const profile = useAppStore((s) => s.profile);
   const subStore = useSubscriptionStore();
-  const isPremium = subStore.tier === "premium";
   const isPremiumAccess = hasPremiumAccess(subStore);
   const [paywallOpen, setPaywallOpen] = useState(false);
   const age = profile?.birth_date ? getAge(profile.birth_date) : 0;
@@ -390,7 +389,7 @@ export default function PortfolioScreen() {
 
   const confirmScreenshotImport = () => {
     if (!screenshotPreview?.length) return;
-    if (!isPremium && screenshotPreview.length > FREE_POSITION_LIMIT) {
+    if (!isPremiumAccess && screenshotPreview.length > FREE_POSITION_LIMIT) {
       setPaywallOpen(true);
       return;
     }
@@ -410,7 +409,7 @@ export default function PortfolioScreen() {
     const shares = parseFloat(form.shares);
     const avgPrice = parseFloat(form.avgPrice);
     if (!ticker || !shares || !avgPrice) { Alert.alert("Completa todos los campos"); return; }
-    if (!isPremium && positions.length >= FREE_POSITION_LIMIT) { setPaywallOpen(true); return; }
+    if (!isPremiumAccess && positions.length >= FREE_POSITION_LIMIT) { setPaywallOpen(true); return; }
     setAddingLoading(true);
     try {
       const res = await marketApi.getPrices([ticker]);
@@ -437,7 +436,7 @@ export default function PortfolioScreen() {
         Alert.alert("No se encontraron posiciones", "El Excel debe tener columnas: Ticker / Acciones / Precio");
         return;
       }
-      if (!isPremium && parsed.length > FREE_POSITION_LIMIT) {
+      if (!isPremiumAccess && parsed.length > FREE_POSITION_LIMIT) {
         setPaywallOpen(true);
         return;
       }
@@ -594,7 +593,7 @@ export default function PortfolioScreen() {
         <View style={s.sectionHeader}>
           <View>
             <Text style={s.sectionTitle}>Mi Portafolio</Text>
-            {!isPremium && (
+            {!isPremiumAccess && (
               <Text style={{ fontSize: 11, color: positions.length >= FREE_POSITION_LIMIT ? "#ef4444" : colors.textDim, marginTop: -8, marginBottom: 4 }}>
                 {positions.length}/{FREE_POSITION_LIMIT} posiciones · <Text style={{ color: "#f59e0b" }} onPress={() => setPaywallOpen(true)}>Premium = ilimitadas</Text>
               </Text>
