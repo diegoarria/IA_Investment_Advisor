@@ -25,7 +25,29 @@ export default function AuthScreen() {
   const [checking, setChecking] = useState(true);
 
   useEffect(() => {
-    setChecking(false);
+    (async () => {
+      try {
+        const token = await SecureStore.getItemAsync("access_token");
+        if (!token) { setChecking(false); return; }
+        const profileRes = await profileApi.get();
+        const p = profileRes.data as UserProfile;
+        setProfile({
+          name: p.name,
+          birth_date: p.birth_date,
+          monthly_income: p.monthly_income,
+          monthly_contribution: p.monthly_contribution,
+          risk_tolerance: p.risk_tolerance as UserProfile["risk_tolerance"],
+          quiz_answers: p.quiz_answers as UserProfile["quiz_answers"],
+          mentor: p.mentor ?? null,
+        });
+        router.replace("/(tabs)/chat");
+      } catch {
+        // Token inválido o expirado — mostrar pantalla de login
+        await SecureStore.deleteItemAsync("access_token").catch(() => {});
+        await SecureStore.deleteItemAsync("refresh_token").catch(() => {});
+        setChecking(false);
+      }
+    })();
   }, []);
 
   const afterAuth = async (accessToken: string, refreshToken: string, userId: string) => {
