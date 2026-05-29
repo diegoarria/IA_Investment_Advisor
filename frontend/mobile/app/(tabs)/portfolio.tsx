@@ -262,7 +262,7 @@ export default function PortfolioScreen() {
 
   const [subTab, setSubTab] = useState<"portfolio" | "explore">("portfolio");
 
-  const { positions, addPosition, removePosition, setPositions } = usePortfolioStore();
+  const { positions, addPosition, removePosition, setPositions, mergePositions } = usePortfolioStore();
   const profile = useAppStore((s) => s.profile);
   const subStore = useSubscriptionStore();
   const isPremiumAccess = hasPremiumAccess(subStore);
@@ -393,14 +393,40 @@ export default function PortfolioScreen() {
       setPaywallOpen(true);
       return;
     }
-    setPositions(screenshotPreview.map((p) => ({
+
+    const incoming = screenshotPreview.map((p) => ({
       ticker: p.ticker,
       name: p.name,
       shares: p.shares,
       avgPrice: p.avg_price,
-    })));
-    setScreenshotPreview(null);
-    setScreenshotUris([]);
+    }));
+
+    const doImport = (replace: boolean) => {
+      if (replace) setPositions(incoming);
+      else mergePositions(incoming);
+      setScreenshotPreview(null);
+      setScreenshotUris([]);
+    };
+
+    if (positions.length > 0) {
+      const newTickers = incoming.filter(
+        (p) => !positions.some((e) => e.ticker.toUpperCase() === p.ticker.toUpperCase())
+      ).length;
+      Alert.alert(
+        "Ya tienes posiciones guardadas",
+        `Tienes ${positions.length} posición${positions.length !== 1 ? "es" : ""} en tu portafolio.\n\n` +
+        (newTickers > 0
+          ? `Se agregarán ${newTickers} nueva${newTickers !== 1 ? "s" : ""} (las duplicadas se ignoran).`
+          : "Todas las posiciones de la foto ya están en tu portafolio."),
+        [
+          { text: "Cancelar", style: "cancel" },
+          { text: "Eliminar y reemplazar", style: "destructive", onPress: () => doImport(true) },
+          { text: "Mantener y agregar", onPress: () => doImport(false) },
+        ]
+      );
+    } else {
+      doImport(true);
+    }
   };
 
   // ── Manual add ─────────────────────────────────────────────────────────

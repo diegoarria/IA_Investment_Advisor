@@ -15,6 +15,7 @@ interface PortfolioStore {
   addPosition: (p: Omit<Position, "id">) => void;
   removePosition: (id: string) => void;
   setPositions: (positions: Omit<Position, "id">[]) => void;
+  mergePositions: (incoming: Omit<Position, "id">[]) => void;
   clearPortfolio: () => void;
 }
 
@@ -31,6 +32,14 @@ export const usePortfolioStore = create<PortfolioStore>()(
       setPositions: (list) =>
         set({
           positions: list.map((p, i) => ({ ...p, id: `${p.ticker}-${i}-${Date.now()}` })),
+        }),
+      mergePositions: (incoming) =>
+        set((s) => {
+          const existing = new Set(s.positions.map((p) => p.ticker.toUpperCase()));
+          const toAdd = incoming
+            .filter((p) => !existing.has(p.ticker.toUpperCase()))
+            .map((p, i) => ({ ...p, id: `${p.ticker}-merge-${i}-${Date.now()}` }));
+          return { positions: [...s.positions, ...toAdd] };
         }),
       clearPortfolio: () => set({ positions: [] }),
     }),
