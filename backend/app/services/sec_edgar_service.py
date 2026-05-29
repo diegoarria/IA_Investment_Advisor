@@ -16,6 +16,7 @@ import time
 import math
 import concurrent.futures
 import requests
+from app.core.cache import cache_get, cache_set
 
 # SEC requires User-Agent with a real company/contact (enforced by rate limiter)
 _HEADERS = {"User-Agent": "NuvosAI research@nuvosai.app", "Accept-Encoding": "gzip"}
@@ -50,28 +51,26 @@ def get_cik(ticker: str) -> str | None:
     return _cik_map.get(ticker.upper().replace("-", "."))
 
 
-# ── Per-concept cache (20 min) ────────────────────────────────────────────
-_concept_cache: dict[str, tuple[list, float]] = {}
-CONCEPT_TTL = 1200
+CONCEPT_TTL = 1200  # 20 min
 
 
 def _fetch_concept(cik: str, concept: str) -> list[dict]:
-    key = f"{cik}/{concept}"
-    cached = _concept_cache.get(key)
-    if cached and time.time() - cached[1] < CONCEPT_TTL:
-        return cached[0]
+    ck = f"sec:{cik}:{concept}"
+    cached = cache_get(ck)
+    if cached is not None:
+        return cached
     try:
         url = (f"https://data.sec.gov/api/xbrl/companyconcept/"
                f"CIK{cik}/us-gaap/{concept}.json")
         r = requests.get(url, headers=_HEADERS, timeout=10)
         if r.status_code != 200:
-            _concept_cache[key] = ([], time.time())
+            cache_set(ck, [], ttl=CONCEPT_TTL)
             return []
         entries = r.json().get("units", {}).get("USD", [])
-        _concept_cache[key] = (entries, time.time())
+        cache_set(ck, entries, ttl=CONCEPT_TTL)
         return entries
     except Exception:
-        _concept_cache[key] = ([], time.time())
+        cache_set(ck, [], ttl=CONCEPT_TTL)
         return []
 
 

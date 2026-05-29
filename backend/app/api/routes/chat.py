@@ -3,7 +3,7 @@ import concurrent.futures
 import re
 import json
 from datetime import datetime, timedelta, timezone
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from app.api.deps import get_current_user_id
 from app.core.database import get_supabase
@@ -14,6 +14,7 @@ from app.services.market_data_service import (
     get_global_market_context,
     detect_tickers,
 )
+from app.core.limiter import limiter
 
 FREE_MSG_LIMIT = 20
 FREE_MSG_WINDOW_HOURS = 24
@@ -123,7 +124,9 @@ async def chat_stream(
 
 
 @router.post("/message")
+@limiter.limit("30/minute")
 async def chat_message(
+    http_request: Request,
     request: ChatRequest,
     user_id: str = Depends(get_current_user_id)
 ):

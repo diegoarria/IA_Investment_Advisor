@@ -1,4 +1,6 @@
-from fastapi import APIRouter, Depends, Query
+import asyncio
+import threading
+from fastapi import APIRouter, Depends, Query, Request
 from concurrent.futures import ThreadPoolExecutor
 import yfinance as yf
 import anthropic
@@ -11,15 +13,17 @@ from app.core.database import get_supabase
 from app.models.user import UserProfile
 from app.models.market import AssetAnalysisRequest, PortfolioScenarioRequest
 from app.services import market_service, ai_service
+from app.core.cache import cache_get, cache_set
+from app.core.limiter import limiter
+
+# Semaphore for the sync Anthropic call in the screenshot endpoint
+_screenshot_sem = threading.Semaphore(10)
 
 router = APIRouter(prefix="/market", tags=["market"])
 
-_INDEX_CACHE: dict = {}
-_NEWS_CACHE: dict = {}
-_SEARCH_CACHE: dict = {}
-_NEWS_CACHE_TTL = 900  # 15 minutes
-_INDEX_CACHE_TTL = 60  # seconds
-_SEARCH_CACHE_TTL = 300  # 5 minutes
+_NEWS_CACHE_TTL   = 900   # 15 minutes
+_INDEX_CACHE_TTL  = 60    # seconds
+_SEARCH_CACHE_TTL = 300   # 5 minutes
 
 INDICES = {
     "S&P 500":   "^GSPC",
@@ -98,10 +102,9 @@ def _fetch_one_index(symbol: str) -> tuple[float | None, float | None]:
 
 
 def _fetch_indices() -> list[dict]:
-    import time
-    now = time.time()
-    if _INDEX_CACHE.get("ts") and now - _INDEX_CACHE["ts"] < _INDEX_CACHE_TTL:
-        return _INDEX_CACHE["data"]
+    cached = cache_get("market:indices")
+    if cached:
+        return cached
     result = []
     with ThreadPoolExecutor(max_workers=5) as pool:
         prices = dict(zip(INDICES.values(), pool.map(_fetch_one_index, INDICES.values())))
@@ -113,8 +116,7 @@ def _fetch_indices() -> list[dict]:
             entry["change"]     = round(price - prev, 2)
             entry["change_pct"] = round((price - prev) / prev * 100, 2)
         result.append(entry)
-    _INDEX_CACHE["data"] = result
-    _INDEX_CACHE["ts"]   = now
+    cache_set("market:indices", result, ttl=_INDEX_CACHE_TTL)
     return result
 
 
@@ -132,10 +134,10 @@ async def search_tickers(q: str = Query(""), user_id: str = Depends(get_current_
     if len(q) < 1:
         return {"results": []}
 
-    cache_key = q
-    now = time.time()
-    if _SEARCH_CACHE.get(cache_key) and now - _SEARCH_CACHE[cache_key]["ts"] < _SEARCH_CACHE_TTL:
-        return {"results": _SEARCH_CACHE[cache_key]["data"]}
+    ck = f"market:search:{q}"
+    cached = cache_get(ck)
+    if cached is not None:
+        return {"results": cached}
 
     try:
         url = "https://query2.finance.yahoo.com/v1/finance/search"
@@ -149,7 +151,7 @@ async def search_tickers(q: str = Query(""), user_id: str = Depends(get_current_
             for item in quotes
             if item.get("symbol") and item.get("quoteType") in ("EQUITY", "ETF", "MUTUALFUND")
         ][:6]
-        _SEARCH_CACHE[cache_key] = {"data": results, "ts": now}
+        cache_set(ck, results, ttl=_SEARCH_CACHE_TTL)
         return {"results": results}
     except Exception:
         return {"results": []}
@@ -342,7 +344,9 @@ async def simulate_portfolio(
 
 
 @router.post("/portfolio/from-screenshot")
+@limiter.limit("6/minute")
 async def portfolio_from_screenshot(
+    http_request: Request,
     request: dict,
     user_id: str = Depends(get_current_user_id)
 ):
@@ -352,76 +356,62 @@ async def portfolio_from_screenshot(
     if not image_data:
         return {"positions": [], "error": "No image provided"}
 
-    client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
+    _PROMPT = (
+        "Analiza esta captura de pantalla de un portafolio de inversión y extrae todas las posiciones.\n\n"
+        "Devuelve ÚNICAMENTE un JSON array con este formato exacto (sin texto adicional, sin markdown, sin bloques de código):\n"
+        '[{"ticker":"AAPL","name":"Apple Inc.","shares":10.5,"avg_price":150.00}]\n\n'
+        "CAMPOS REQUERIDOS:\n"
+        "- ticker: símbolo bursátil en MAYÚSCULAS\n"
+        "- name: nombre de la empresa (usa el ticker si no aparece)\n"
+        "- shares: número de acciones/unidades\n"
+        "- avg_price: precio promedio de COMPRA por acción — sigue estas reglas EN ORDEN:\n\n"
+        "  REGLA 1 — Etiqueta explícita de precio de compra:\n"
+        "    Busca: 'P. Prom', 'Precio Prom', 'Precio Promedio', 'Costo Promedio',\n"
+        "    'Average Cost', 'Avg Cost', 'Cost Basis per Share', 'Cost Per Share',\n"
+        "    'Precio Prom. Compra', 'Avg Price'. Si lo encuentras, úsalo directamente.\n\n"
+        "  REGLA 2 — Número grande + número de color (patrón más común en apps móviles):\n"
+        "    Muchas apps muestran por posición UN número grande y DEBAJO un número en verde o rojo.\n"
+        "    La fórmula exacta para calcular el costo total (precio_compra × acciones) es:\n\n"
+        "      SI el número inferior está en VERDE:\n"
+        "        costo_total = número_grande + número_verde\n"
+        "        avg_price   = costo_total / shares\n"
+        "        EJEMPLO: grande=$1,200  verde=+$200  shares=10\n"
+        "                 costo = 1200 + 200 = $1,400  →  avg_price = $140.00\n\n"
+        "      SI el número inferior está en ROJO:\n"
+        "        costo_total = número_grande - número_rojo (usa el valor absoluto del rojo)\n"
+        "        avg_price   = costo_total / shares\n"
+        "        EJEMPLO: grande=$1,200  rojo=$150  shares=10\n"
+        "                 costo = 1200 - 150 = $1,050  →  avg_price = $105.00\n\n"
+        "    NUNCA uses el número grande directamente como avg_price.\n"
+        "    NUNCA uses el número en color directamente como avg_price.\n\n"
+        "  REGLA 3 — Monto invertido total etiquetado:\n"
+        "    Si ves 'Monto Invertido', 'Capital invertido' o 'Cost Basis' (total $),\n"
+        "    calcula: avg_price = monto_invertido_total / shares\n\n"
+        "  REGLA 4 — Sin dato de compra:\n"
+        "    Si no puedes calcular el precio de compra con ninguna regla, devuelve null.\n\n"
+        "REGLAS GENERALES:\n"
+        "- Aplica la Regla 2 a TODAS las posiciones de TODAS las imágenes\n"
+        "- Incluye TODAS las posiciones visibles aunque avg_price sea null\n"
+        "- Devuelve SOLO el JSON array, sin ningún otro texto"
+    )
 
-    try:
-        message = client.messages.create(
-            model="claude-sonnet-4-6",
-            max_tokens=2048,
-            messages=[{
-                "role": "user",
-                "content": [
-                    {
-                        "type": "image",
-                        "source": {
-                            "type": "base64",
-                            "media_type": image_type,
-                            "data": image_data,
-                        },
-                    },
-                    {
-                        "type": "text",
-                        "text": (
-                            "Analiza esta captura de pantalla de un portafolio de inversión y extrae todas las posiciones.\n\n"
-                            "Devuelve ÚNICAMENTE un JSON array con este formato exacto (sin texto adicional, sin markdown, sin bloques de código):\n"
-                            '[{"ticker":"AAPL","name":"Apple Inc.","shares":10.5,"avg_price":150.00}]\n\n'
-                            "CAMPOS REQUERIDOS:\n"
-                            "- ticker: símbolo bursátil en MAYÚSCULAS\n"
-                            "- name: nombre de la empresa (usa el ticker si no aparece)\n"
-                            "- shares: número de acciones/unidades\n"
-                            "- avg_price: precio promedio de COMPRA por acción — sigue estas reglas EN ORDEN:\n\n"
-                            "  REGLA 1 — Etiqueta explícita de precio de compra:\n"
-                            "    Busca: 'P. Prom', 'Precio Prom', 'Precio Promedio', 'Costo Promedio',\n"
-                            "    'Average Cost', 'Avg Cost', 'Cost Basis per Share', 'Cost Per Share',\n"
-                            "    'Precio Prom. Compra', 'Avg Price'. Si lo encuentras, úsalo directamente.\n\n"
-                            "  REGLA 2 — Número grande + número de color (patrón más común en apps móviles):\n"
-                            "    Muchas apps muestran por posición UN número grande y DEBAJO un número en verde o rojo.\n"
-                            "    La fórmula exacta para calcular el costo total (precio_compra × acciones) es:\n\n"
-                            "      SI el número inferior está en VERDE:\n"
-                            "        costo_total = número_grande + número_verde\n"
-                            "        avg_price   = costo_total / shares\n"
-                            "        EJEMPLO: grande=$1,200  verde=+$200  shares=10\n"
-                            "                 costo = 1200 + 200 = $1,400  →  avg_price = $140.00\n\n"
-                            "      SI el número inferior está en ROJO:\n"
-                            "        costo_total = número_grande - número_rojo (usa el valor absoluto del rojo)\n"
-                            "        avg_price   = costo_total / shares\n"
-                            "        EJEMPLO: grande=$1,200  rojo=$150  shares=10\n"
-                            "                 costo = 1200 - 150 = $1,050  →  avg_price = $105.00\n\n"
-                            "    NUNCA uses el número grande directamente como avg_price.\n"
-                            "    NUNCA uses el número en color directamente como avg_price.\n\n"
-                            "  REGLA 3 — Monto invertido total etiquetado:\n"
-                            "    Si ves 'Monto Invertido', 'Capital invertido' o 'Cost Basis' (total $),\n"
-                            "    calcula: avg_price = monto_invertido_total / shares\n\n"
-                            "  REGLA 4 — Sin dato de compra:\n"
-                            "    Si no puedes calcular el precio de compra con ninguna regla, devuelve null.\n\n"
-                            "REGLAS GENERALES:\n"
-                            "- Aplica la Regla 2 a TODAS las posiciones de TODAS las imágenes\n"
-                            "- Incluye TODAS las posiciones visibles aunque avg_price sea null\n"
-                            "- Devuelve SOLO el JSON array, sin ningún otro texto"
-                        ),
-                    },
-                ],
-            }],
-        )
-
-        raw = message.content[0].text.strip()
-        # Strip markdown code fences if present
+    def _run_sync(img_data: str, img_type: str) -> dict:
+        with _screenshot_sem:
+            sc = anthropic.Anthropic(api_key=settings.anthropic_api_key)
+            msg = sc.messages.create(
+                model="claude-sonnet-4-6",
+                max_tokens=2048,
+                messages=[{"role": "user", "content": [
+                    {"type": "image", "source": {"type": "base64", "media_type": img_type, "data": img_data}},
+                    {"type": "text", "text": _PROMPT},
+                ]}],
+            )
+        raw = msg.content[0].text.strip()
         if "```" in raw:
             raw = raw.split("```")[1]
             if raw.startswith("json"):
                 raw = raw[4:]
         raw = raw.strip()
-
         positions = json.loads(raw)
         result = []
         for p in positions:
@@ -429,7 +419,6 @@ async def portfolio_from_screenshot(
             if not ticker:
                 continue
             avg_price = p.get("avg_price")
-            # If avg_price missing, fetch current price via httpx
             if avg_price is None or avg_price == 0:
                 price, _ = _fetch_one_index(ticker)
                 avg_price = round(price, 4) if price else 0
@@ -439,9 +428,10 @@ async def portfolio_from_screenshot(
                 "shares": float(p.get("shares") or 0),
                 "avg_price": float(avg_price or 0),
             })
-
         return {"positions": result}
 
+    try:
+        return await asyncio.to_thread(_run_sync, image_data, image_type)
     except json.JSONDecodeError:
         return {"positions": [], "error": "No se pudo parsear la respuesta del modelo"}
     except Exception as e:
@@ -518,10 +508,10 @@ async def get_portfolio_news(
     if not tickers:
         return []
 
-    cache_key = ",".join(sorted(tickers))
-    now = time.time()
-    if _NEWS_CACHE.get(cache_key) and now - _NEWS_CACHE[cache_key]["ts"] < _NEWS_CACHE_TTL:
-        return _NEWS_CACHE[cache_key]["data"]
+    ck = f"market:news:{','.join(sorted(tickers))}"
+    cached = cache_get(ck)
+    if cached is not None:
+        return cached
 
     all_articles: list[dict] = []
     seen_uuids: set = set()
@@ -536,6 +526,5 @@ async def get_portfolio_news(
                 all_articles.append(a)
 
     all_articles.sort(key=lambda x: x["timestamp"], reverse=True)
-
-    _NEWS_CACHE[cache_key] = {"data": all_articles, "ts": now}
+    cache_set(ck, all_articles, ttl=_NEWS_CACHE_TTL)
     return all_articles

@@ -2,11 +2,12 @@ import random
 import re
 import json
 from datetime import date
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from app.api.deps import get_current_user_id
 from app.core.database import get_supabase
 from app.models.user import UserProfile
 from app.services import ai_service
+from app.core.limiter import limiter
 
 router = APIRouter(prefix="/learn", tags=["learn"])
 
@@ -218,7 +219,8 @@ def _get_profile(user_id: str) -> UserProfile | None:
 # ─── Scenario endpoints ────────────────────────────────────────────────────
 
 @router.post("/scenario")
-async def get_scenario(request: dict = None, user_id: str = Depends(get_current_user_id)):
+@limiter.limit("15/minute")
+async def get_scenario(http_request: Request, request: dict = None, user_id: str = Depends(get_current_user_id)):
     difficulty = (request or {}).get("difficulty", "intermedio").lower()
     premium = _is_premium(user_id)
 
@@ -270,7 +272,8 @@ async def scenario_result(request: dict, user_id: str = Depends(get_current_user
 # ─── Debate endpoints ──────────────────────────────────────────────────────
 
 @router.post("/debate")
-async def start_debate(request: dict, user_id: str = Depends(get_current_user_id)):
+@limiter.limit("10/minute")
+async def start_debate(http_request: Request, request: dict, user_id: str = Depends(get_current_user_id)):
     thesis = request.get("thesis", "").strip()
     difficulty = request.get("difficulty", "intermedio").lower()
     if not thesis:

@@ -5,6 +5,7 @@ import concurrent.futures
 import requests
 import yfinance as yf
 from datetime import datetime, timedelta
+from app.core.cache import cache_get, cache_set
 
 # ── Company name → ticker map ─────────────────────────────────────────────
 COMPANY_TICKERS: dict[str, str] = {
@@ -72,19 +73,17 @@ COMPANY_TICKERS: dict[str, str] = {
     "eth": "ETH-USD", "ethereum": "ETH-USD",
 }
 
-# ── Simple TTL cache (30 min for company data, 15 min for global) ─────────
-_cache: dict[str, tuple[str, float]] = {}
-CACHE_TTL = 1200  # 20 minutes — shorter so new earnings reports appear quickly
-_global_cache: dict[str, tuple[str, float]] = {}
-GLOBAL_CACHE_TTL = 900  # 15 minutes
+CACHE_TTL        = 1200  # 20 minutes
+GLOBAL_CACHE_TTL = 900   # 15 minutes
 
 
 def _cached(ticker: str, builder) -> str:
-    entry = _cache.get(ticker)
-    if entry and time.time() - entry[1] < CACHE_TTL:
-        return entry[0]
+    ck = f"mds:company:{ticker}"
+    cached = cache_get(ck)
+    if cached:
+        return cached
     result = builder(ticker)
-    _cache[ticker] = (result, time.time())
+    cache_set(ck, result, ttl=CACHE_TTL)
     return result
 
 
@@ -176,10 +175,9 @@ def get_global_market_context() -> str:
     Includes current date/time, major indices, and recent IPOs.
     Cached 15 minutes. All network calls run in parallel.
     """
-    cache_key = "__global__"
-    entry = _global_cache.get(cache_key)
-    if entry and time.time() - entry[1] < GLOBAL_CACHE_TTL:
-        return entry[0]
+    cached_global = cache_get("mds:global_market")
+    if cached_global:
+        return cached_global
 
     now = datetime.now()
 
@@ -222,7 +220,7 @@ def get_global_market_context() -> str:
     lines.append("---")
 
     result = "\n".join(lines)
-    _global_cache[cache_key] = (result, time.time())
+    cache_set("mds:global_market", result, ttl=GLOBAL_CACHE_TTL)
     return result
 
 

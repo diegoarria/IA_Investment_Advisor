@@ -1,9 +1,19 @@
+import asyncio
 import anthropic
 import json
 from app.core.config import settings
 from app.models.user import UserProfile, ChatMessage
 
 client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
+
+# Cap concurrent requests to Anthropic — prevents rate-limit cascade when traffic spikes.
+_claude_sem = asyncio.Semaphore(40)
+
+
+async def _claude(**kwargs):
+    """Wrapper that enforces the concurrency cap on every Anthropic call."""
+    async with _claude_sem:
+        return await client.messages.create(**kwargs)
 
 SYSTEM_PROMPT_BASE = """Eres un asesor de inversiones educativo de élite, radicalmente diferente a cualquier chatbot financiero. Tu superpoder es detectar la brecha entre lo que el usuario *cree* que es como inversionista y lo que *realmente* es bajo presión — y usarla para hacerlo crecer.
 
@@ -508,7 +518,7 @@ Luego, si el perfil del usuario está disponible, presenta escenarios:
 
 Recuerda: analiza el negocio, no el precio de la acción."""
 
-    response = await client.messages.create(
+    response = await _claude(
         model=settings.claude_model,
         max_tokens=2048,
         system=[{"type": "text", "text": system_prompt, "cache_control": {"type": "ephemeral"}}],
@@ -591,7 +601,7 @@ Para este portafolio de ejemplo:
 IMPORTANTE: Esto es completamente educativo/hipotético. No es una recomendación de inversión.
 Explica los conceptos de diversificación, correlación de activos y horizonte temporal."""
 
-    response = await client.messages.create(
+    response = await _claude(
         model=settings.claude_model,
         max_tokens=2048,
         system=[{"type": "text", "text": system_prompt, "cache_control": {"type": "ephemeral"}}],
@@ -611,7 +621,7 @@ Datos de acciones disponibles (JSON):
 Selecciona las 5 que mejor coincidan. Para cada una, una línea con: emoji + ticker + nombre + por qué coincide + score /10.
 Formato visual y compacto. Termina con una línea de insight general."""
 
-    response = await client.messages.create(
+    response = await _claude(
         model=settings.claude_model,
         max_tokens=500,
         system=[{"type": "text", "text": system_prompt, "cache_control": {"type": "ephemeral"}}],
@@ -633,7 +643,7 @@ En máximo 4 bullets visuales:
 
 Formato con emojis. Sin introducciones."""
 
-    response = await client.messages.create(
+    response = await _claude(
         model=settings.claude_model,
         max_tokens=400,
         system=[{"type": "text", "text": system_prompt, "cache_control": {"type": "ephemeral"}}],
@@ -663,7 +673,7 @@ El mensaje debe:
 
 NO alarmes innecesariamente. Contextualiza con perspectiva histórica."""
 
-    response = await client.messages.create(
+    response = await _claude(
         model=settings.claude_model,
         max_tokens=600,
         system=[{"type": "text", "text": system_prompt, "cache_control": {"type": "ephemeral"}}],

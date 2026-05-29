@@ -1,10 +1,10 @@
-import time
 import asyncio
 from fastapi import APIRouter, Depends
 import yfinance as yf
 from app.api.deps import get_current_user_id
 from app.services import ai_service
 from app.api.routes.market import _get_user_profile
+from app.core.cache import cache_get, cache_set
 
 router = APIRouter(prefix="/market/screener", tags=["screener"])
 
@@ -61,15 +61,14 @@ UNIVERSE = [
     {"ticker": "ARKK",  "name": "ARK Innovation",   "sector": "ETF"},
 ]
 
-_CACHE: dict[str, dict] = {}
 _TTL = 4 * 3600  # 4 hours
 
 
 def _fetch_one(entry: dict) -> dict:
     ticker = entry["ticker"]
-    cached = _CACHE.get(ticker)
-    if cached and time.time() - cached["ts"] < _TTL:
-        return cached["data"]
+    cached = cache_get(f"screener:{ticker}")
+    if cached:
+        return cached
     try:
         t  = yf.Ticker(ticker)
         fi = t.fast_info
@@ -114,7 +113,7 @@ def _fetch_one(entry: dict) -> dict:
             "recom":      recom,
             "score":      score,
         }
-        _CACHE[ticker] = {"data": data, "ts": time.time()}
+        cache_set(f"screener:{ticker}", data, ttl=_TTL)
         return data
     except Exception:
         return {**entry, "price": None, "score": 0}
