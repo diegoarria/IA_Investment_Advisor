@@ -1,14 +1,23 @@
 import { Stack, usePathname } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { View, Platform } from "react-native";
+import { useEffect } from "react";
 import { ThemeProvider, useTheme } from "../src/lib/ThemeContext";
 import Sidebar from "../src/components/Sidebar";
+import { useSubscriptionStore } from "../src/lib/subscriptionStore";
 
 const HIDE_SIDEBAR_ROUTES = ["/", "/onboarding"];
 
 function AppStack() {
   const { colors, isDark } = useTheme();
   const pathname = usePathname();
+  const startTrialIfNeeded = useSubscriptionStore((s) => s.startTrialIfNeeded);
+
+  useEffect(() => {
+    if (!HIDE_SIDEBAR_ROUTES.some((r) => pathname === r || pathname.startsWith(r + "/"))) {
+      startTrialIfNeeded();
+    }
+  }, [pathname]);
   const showSidebar = !HIDE_SIDEBAR_ROUTES.some(
     (r) => pathname === r || pathname.startsWith(r + "/")
   );

@@ -321,7 +321,10 @@ export default function ProfileScreen() {
         </View>
 
         {/* ── MADUREZ INVERSORA ── */}
-        <Text style={[s.sectionLabel, { color: colors.textDim }]}>Madurez inversora</Text>
+        <View style={{ flexDirection: "row", alignItems: "baseline", gap: 6, marginTop: 20, marginBottom: 8, marginLeft: 2 }}>
+          <Text style={[s.sectionLabel, { color: colors.textDim, marginTop: 0, marginBottom: 0 }]}>MADUREZ INVERSORA</Text>
+          <Text style={{ color: colors.textDim, fontSize: 9, fontStyle: "italic" }}>comportamiento en la app</Text>
+        </View>
         <View style={[s.maturityCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <View style={s.maturityTop}>
             <View>
@@ -345,6 +348,9 @@ export default function ProfileScreen() {
             <Text style={[s.progressLabel, { color: colors.textDim }]}>Racional</Text>
             <Text style={[s.progressLabel, { color: colors.textDim }]}>Especulativo</Text>
           </View>
+          <Text style={{ color: colors.textDim, fontSize: 10, marginTop: 8, lineHeight: 14 }}>
+            Sube con cada buena decisión en la app (mantener calma, diversificar, largo plazo). No refleja tu nivel de conocimiento declarado.
+          </Text>
 
           {maturityHistory.length > 0 && (
             <>

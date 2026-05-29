@@ -14,7 +14,7 @@ import { marketApi } from "../../src/lib/api";
 import { useTheme, Colors } from "../../src/lib/ThemeContext";
 import { usePortfolioStore, Position } from "../../src/lib/portfolioStore";
 import { useAppStore, getAge, UserProfile } from "../../src/lib/profileStore";
-import { useSubscriptionStore } from "../../src/lib/subscriptionStore";
+import { useSubscriptionStore, hasPremiumAccess } from "../../src/lib/subscriptionStore";
 import PaywallModal from "../../src/components/PaywallModal";
 
 const FREE_POSITION_LIMIT = 10;
@@ -25,16 +25,44 @@ type Scenario = "conservative" | "moderate" | "aggressive";
 // ─── Stress test data ──────────────────────────────────────────────────────
 
 const TICKER_SECTOR: Record<string, string> = {
+  // Tech — megacap & software
   AAPL: "Tech", MSFT: "Tech", GOOGL: "Tech", GOOG: "Tech", AMZN: "Tech", META: "Tech",
   NVDA: "Tech", TSLA: "Tech", AMD: "Tech", INTC: "Tech", CRM: "Tech", ADBE: "Tech",
   PYPL: "Tech", NFLX: "Tech", UBER: "Tech", SNAP: "Tech", SPOT: "Tech", ORCL: "Tech",
+  // Tech — semiconductores
+  MU: "Tech", QCOM: "Tech", TXN: "Tech", AVGO: "Tech", AMAT: "Tech", LRCX: "Tech",
+  KLAC: "Tech", ASML: "Tech", ON: "Tech", MRVL: "Tech", ARM: "Tech", TSM: "Tech",
+  SMCI: "Tech", MPWR: "Tech", ENTG: "Tech", WOLF: "Tech",
+  // Tech — hardware & infra
+  CSCO: "Tech", IBM: "Tech", HPQ: "Tech", DELL: "Tech", HPE: "Tech",
+  // Tech — cloud & software
+  NOW: "Tech", WDAY: "Tech", PANW: "Tech", CRWD: "Tech", ZS: "Tech", NET: "Tech",
+  OKTA: "Tech", FTNT: "Tech", DDOG: "Tech", SNOW: "Tech", MDB: "Tech",
+  PLTR: "Tech", RBLX: "Tech", U: "Tech", HOOD: "Tech", SOFI: "Tech",
+  SHOP: "Tech", SQ: "Tech", MSTR: "Tech", COIN: "Tech",
+  // Finance
   JPM: "Finance", BAC: "Finance", GS: "Finance", MS: "Finance", WFC: "Finance",
   C: "Finance", V: "Finance", MA: "Finance", AXP: "Finance",
-  JNJ: "Salud", PFE: "Salud", UNH: "Salud", ABBV: "Salud", MRK: "Salud", LLY: "Salud", AMGN: "Salud",
+  BRK: "Finance", BRKB: "Finance", BX: "Finance", KKR: "Finance", SCHW: "Finance",
+  // Salud
+  JNJ: "Salud", PFE: "Salud", UNH: "Salud", ABBV: "Salud", MRK: "Salud",
+  LLY: "Salud", AMGN: "Salud", MDT: "Salud", BSX: "Salud", ABT: "Salud",
+  ISRG: "Salud", REGN: "Salud", BIIB: "Salud", GILD: "Salud", CVS: "Salud",
+  // Consumo
   WMT: "Consumo", KO: "Consumo", PG: "Consumo", MCD: "Consumo", NKE: "Consumo",
   SBUX: "Consumo", COST: "Consumo", TGT: "Consumo", HD: "Consumo",
+  DIS: "Consumo", CMCSA: "Consumo", WBD: "Consumo", PARA: "Consumo",
+  T: "Consumo", VZ: "Consumo", TMUS: "Consumo",
+  // Energía
   XOM: "Energía", CVX: "Energía", COP: "Energía", OXY: "Energía", SLB: "Energía",
-  SPY: "ETF", QQQ: "ETF", VTI: "ETF", IVV: "ETF", VOO: "ETF", IWM: "ETF", GLD: "ETF",
+  // Industrial
+  BA: "Industrial", GE: "Industrial", CAT: "Industrial", DE: "Industrial",
+  HON: "Industrial", RTX: "Industrial", MMM: "Industrial", LMT: "Industrial",
+  // Real Estate
+  AMT: "Real Estate", EQIX: "Real Estate", PLD: "Real Estate", SPG: "Real Estate",
+  // ETF
+  SPY: "ETF", QQQ: "ETF", VTI: "ETF", IVV: "ETF", VOO: "ETF", IWM: "ETF",
+  GLD: "ETF", SLV: "ETF", TLT: "ETF", HYG: "ETF", XLK: "ETF", XLF: "ETF",
 };
 
 // ─── Portfolio risk classification ────────────────────────────────────────
@@ -53,6 +81,7 @@ const TICKER_RISK_OVERRIDE: Record<string, number> = {
 
 const SECTOR_RISK_BASE: Record<string, number> = {
   ETF: 22, Salud: 35, Consumo: 38, Finance: 52, Energía: 58, Tech: 72,
+  Industrial: 45, "Real Estate": 40,
 };
 
 const PORTFOLIO_LEVELS = [
@@ -148,31 +177,31 @@ const STRESS_SCENARIOS: StressScenario[] = [
   {
     id: "2008", name: "Crisis 2008", icon: "🏦", color: "#ef4444", year: "2008-09",
     desc: "Colapso del sistema financiero global",
-    drawdowns: { Tech: -52, Finance: -78, Salud: -18, Consumo: -28, Energía: -55, ETF: -38 },
+    drawdowns: { Tech: -52, Finance: -78, Salud: -18, Consumo: -28, Energía: -55, ETF: -38, Industrial: -42, "Real Estate": -45 },
     default: -42,
   },
   {
     id: "covid", name: "COVID-19", icon: "🦠", color: "#f97316", year: "Feb-Mar 2020",
     desc: "Crash de 33 días, caída brusca y rápida",
-    drawdowns: { Tech: -34, Finance: -45, Salud: -15, Consumo: -42, Energía: -60, ETF: -34 },
+    drawdowns: { Tech: -34, Finance: -45, Salud: -15, Consumo: -42, Energía: -60, ETF: -34, Industrial: -35, "Real Estate": -30 },
     default: -34,
   },
   {
     id: "tech2022", name: "Tech Crash '22", icon: "📉", color: "#f59e0b", year: "2022",
     desc: "Alza de tasas aplasta valuaciones tech",
-    drawdowns: { Tech: -55, Finance: -22, Salud: -10, Consumo: -15, Energía: 40, ETF: -18 },
+    drawdowns: { Tech: -55, Finance: -22, Salud: -10, Consumo: -15, Energía: 40, ETF: -18, Industrial: -20, "Real Estate": -28 },
     default: -20,
   },
   {
     id: "fed", name: "Fed +1%", icon: "🏛️", color: "#6366f1", year: "Escenario",
     desc: "Subida sorpresiva de 100pb en tasas",
-    drawdowns: { Tech: -20, Finance: 5, Salud: -8, Consumo: -10, Energía: -5, ETF: -12 },
+    drawdowns: { Tech: -20, Finance: 5, Salud: -8, Consumo: -10, Energía: -5, ETF: -12, Industrial: -12, "Real Estate": -18 },
     default: -12,
   },
   {
     id: "bull", name: "Bull Market", icon: "🚀", color: "#22c55e", year: "Escenario",
     desc: "Año de recuperación y euforia inversora",
-    drawdowns: { Tech: 35, Finance: 25, Salud: 20, Consumo: 18, Energía: 22, ETF: 24 },
+    drawdowns: { Tech: 35, Finance: 25, Salud: 20, Consumo: 18, Energía: 22, ETF: 24, Industrial: 22, "Real Estate": 18 },
     default: 22,
   },
 ];
@@ -235,7 +264,9 @@ export default function PortfolioScreen() {
 
   const { positions, addPosition, removePosition, setPositions } = usePortfolioStore();
   const profile = useAppStore((s) => s.profile);
-  const isPremium = useSubscriptionStore((s) => s.tier === "premium");
+  const subStore = useSubscriptionStore();
+  const isPremium = subStore.tier === "premium";
+  const isPremiumAccess = hasPremiumAccess(subStore);
   const [paywallOpen, setPaywallOpen] = useState(false);
   const age = profile?.birth_date ? getAge(profile.birth_date) : 0;
   const [prices, setPrices] = useState<Record<string, PriceData>>({});
@@ -818,7 +849,7 @@ export default function PortfolioScreen() {
               <View style={{ flex: 1 }}>
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 2 }}>
                   <Text style={s.sectionTitle}>Stress Test de Portafolio</Text>
-                  {!isPremium && (
+                  {!isPremiumAccess && (
                     <View style={{ flexDirection: "row", alignItems: "center", gap: 3, backgroundColor: "#f59e0b18", borderWidth: 1, borderColor: "#f59e0b40", borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 }}>
                       <Ionicons name="star" size={9} color="#f59e0b" />
                       <Text style={{ fontSize: 9, fontWeight: "700", color: "#f59e0b", letterSpacing: 0.3 }}>PREMIUM</Text>
@@ -827,24 +858,33 @@ export default function PortfolioScreen() {
                 </View>
                 <Text style={[s.simSubtitle, { color: colors.textMuted }]}>
                   ¿Cuánto aguantaría tu portafolio en una crisis histórica?
+                  {!isPremiumAccess && (
+                    <Text style={{ color: colors.textDim }}> COVID-19 gratis · el resto con Premium.</Text>
+                  )}
                 </Text>
               </View>
             </View>
 
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }} contentContainerStyle={{ gap: 8 }}>
-              {STRESS_SCENARIOS.map((sc) => (
-                <TouchableOpacity
-                  key={sc.id}
-                  style={[s.stressChip, { borderColor: stressScenario === sc.id ? sc.color : colors.border, backgroundColor: stressScenario === sc.id ? sc.color + "18" : "transparent", opacity: isPremium ? 1 : 0.5 }]}
-                  onPress={() => isPremium ? runStressTest(sc.id) : setPaywallOpen(true)}
-                >
-                  <Text style={s.stressChipIcon}>{sc.icon}</Text>
-                  <View>
-                    <Text style={[s.stressChipName, { color: stressScenario === sc.id ? sc.color : colors.textSub }]}>{sc.name}</Text>
-                    <Text style={[s.stressChipYear, { color: colors.textDim }]}>{sc.year}</Text>
-                  </View>
-                </TouchableOpacity>
-              ))}
+              {STRESS_SCENARIOS.map((sc) => {
+                const isFreeScenario = sc.id === "covid";
+                const canRun = isPremiumAccess || isFreeScenario;
+                return (
+                  <TouchableOpacity
+                    key={sc.id}
+                    style={[s.stressChip, { borderColor: stressScenario === sc.id ? sc.color : colors.border, backgroundColor: stressScenario === sc.id ? sc.color + "18" : "transparent", opacity: canRun ? 1 : 0.45 }]}
+                    onPress={() => canRun ? runStressTest(sc.id) : setPaywallOpen(true)}
+                  >
+                    <Text style={s.stressChipIcon}>{sc.icon}</Text>
+                    <View>
+                      <Text style={[s.stressChipName, { color: stressScenario === sc.id ? sc.color : colors.textSub }]}>{sc.name}</Text>
+                      <Text style={[s.stressChipYear, { color: colors.textDim }]}>
+                        {!isPremiumAccess && !isFreeScenario ? "🔒 " : ""}{sc.year}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
             </ScrollView>
 
             {stressResult && stressScenario && (() => {

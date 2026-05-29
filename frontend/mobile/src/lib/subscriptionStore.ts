@@ -5,14 +5,18 @@ import { billingApi } from "./api";
 
 export type SubscriptionTier = "free" | "premium";
 
+export const TRIAL_DAYS = 7;
+
 interface SubscriptionStore {
   tier: SubscriptionTier;
   msgCount: number;
   msgWindowStart: string | null;
+  trialStartDate: string | null;
   // Actions
   fetchStatus: () => Promise<void>;
   setTier: (tier: SubscriptionTier) => void;
   incrementMsgCount: () => void;
+  startTrialIfNeeded: () => void;
 }
 
 export const FREE_MSG_LIMIT = 20;
@@ -24,6 +28,7 @@ export const useSubscriptionStore = create<SubscriptionStore>()(
       tier: "free",
       msgCount: 0,
       msgWindowStart: null,
+      trialStartDate: null,
 
       fetchStatus: async () => {
         try {
@@ -52,6 +57,12 @@ export const useSubscriptionStore = create<SubscriptionStore>()(
           set({ msgCount: msgCount + 1 });
         }
       },
+
+      startTrialIfNeeded: () => {
+        const { tier, trialStartDate } = get();
+        if (tier === "premium" || trialStartDate !== null) return;
+        set({ trialStartDate: new Date().toISOString() });
+      },
     }),
     {
       name: "subscription-status",
@@ -60,7 +71,25 @@ export const useSubscriptionStore = create<SubscriptionStore>()(
   )
 );
 
-// Helpers
+// ─── Trial helpers ────────────────────────────────────────────────────────────
+
+export function trialDaysLeft(trialStartDate: string | null): number {
+  if (!trialStartDate) return 0;
+  const elapsed = (Date.now() - new Date(trialStartDate).getTime()) / (1000 * 60 * 60 * 24);
+  return Math.max(0, Math.ceil(TRIAL_DAYS - elapsed));
+}
+
+export function isTrialActive(store: { tier: SubscriptionTier; trialStartDate: string | null }): boolean {
+  if (store.tier === "premium") return false;
+  return trialDaysLeft(store.trialStartDate) > 0;
+}
+
+export function hasPremiumAccess(store: { tier: SubscriptionTier; trialStartDate: string | null }): boolean {
+  return store.tier === "premium" || isTrialActive(store);
+}
+
+// ─── Message helpers ──────────────────────────────────────────────────────────
+
 export function msgsRemaining(store: { tier: SubscriptionTier; msgCount: number; msgWindowStart: string | null }): number {
   if (store.tier === "premium") return Infinity;
   const { msgCount, msgWindowStart } = store;

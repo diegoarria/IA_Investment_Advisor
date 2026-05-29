@@ -38,16 +38,24 @@ export const TOP_UP_PLANS: TopUpPlan[] = [
 ];
 
 export const PAPER_INITIAL_CASH = 10_000;
+export const FREE_PAPER_INITIAL_CASH = 5_000;
+export const FREE_PAPER_MONTHLY_TRADES = 3;
+
+function currentMonth() { return new Date().toISOString().slice(0, 7); } // "YYYY-MM"
 
 interface PaperStore {
   cash: number;
   positions: PaperPosition[];
   trades: PaperTrade[];
+  freeTradeMonth: string | null;
+  freeTradeCount: number;
   /** Returns null on success, error string on failure */
   buy: (ticker: string, name: string, shares: number, price: number) => string | null;
   sell: (ticker: string, shares: number, price: number) => string | null;
   topUp: (amount: number) => void;
   reset: () => void;
+  incrementFreeTrade: () => void;
+  freeTradesThisMonth: () => number;
 }
 
 export const usePaperStore = create<PaperStore>()(
@@ -56,6 +64,22 @@ export const usePaperStore = create<PaperStore>()(
       cash: PAPER_INITIAL_CASH,
       positions: [],
       trades: [],
+      freeTradeMonth: null,
+      freeTradeCount: 0,
+
+      freeTradesThisMonth: () => {
+        const { freeTradeMonth, freeTradeCount } = get();
+        return freeTradeMonth === currentMonth() ? freeTradeCount : 0;
+      },
+
+      incrementFreeTrade: () => {
+        const month = currentMonth();
+        const { freeTradeMonth, freeTradeCount } = get();
+        set({
+          freeTradeMonth: month,
+          freeTradeCount: freeTradeMonth === month ? freeTradeCount + 1 : 1,
+        });
+      },
 
       buy: (ticker, name, shares, price) => {
         if (shares <= 0 || price <= 0) return "Cantidad o precio inválido";
@@ -125,7 +149,7 @@ export const usePaperStore = create<PaperStore>()(
         set((s) => ({ cash: s.cash + amount, trades: [trade, ...s.trades.slice(0, 49)] }));
       },
 
-      reset: () => set({ cash: PAPER_INITIAL_CASH, positions: [], trades: [] }),
+      reset: () => set({ cash: PAPER_INITIAL_CASH, positions: [], trades: [], freeTradeMonth: null, freeTradeCount: 0 }),
     }),
     {
       name: "paper-trading",
