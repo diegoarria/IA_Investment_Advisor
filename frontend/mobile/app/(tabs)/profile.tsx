@@ -193,11 +193,13 @@ export default function ProfileScreen() {
         {/* ── SCORECARD MODAL ── */}
         <Modal visible={scorecardOpen} transparent animationType="fade" onRequestClose={() => setScorecardOpen(false)}>
           <View style={s.modalOverlay}>
-            <TouchableOpacity style={s.modalCloseBtn} onPress={() => setScorecardOpen(false)}>
-              <Ionicons name="close" size={18} color="white" />
-            </TouchableOpacity>
-            <View ref={cardRef} collapsable={false}>
-              <InvestorScorecard />
+            <View style={{ position: "relative" }}>
+              <View ref={cardRef} collapsable={false}>
+                <InvestorScorecard />
+              </View>
+              <TouchableOpacity style={s.modalCloseBtn} onPress={() => setScorecardOpen(false)}>
+                <Ionicons name="close" size={18} color="white" />
+              </TouchableOpacity>
             </View>
             <Text style={s.modalHint}>Esta es la imagen que se compartirá</Text>
             {Platform.OS !== "web" && (
@@ -677,10 +679,12 @@ function makeStyles(c: Colors) {
       gap: 16, paddingHorizontal: 20, paddingVertical: 40,
     },
     modalCloseBtn: {
-      position: "absolute", top: 52, right: 20,
-      width: 34, height: 34, borderRadius: 17,
-      backgroundColor: "rgba(255,255,255,0.12)",
+      position: "absolute", top: 10, right: 10,
+      width: 32, height: 32, borderRadius: 16,
+      backgroundColor: "rgba(0,0,0,0.55)",
+      borderWidth: 1, borderColor: "rgba(255,255,255,0.2)",
       alignItems: "center", justifyContent: "center",
+      zIndex: 10,
     },
     modalHint: { color: "rgba(255,255,255,0.35)", fontSize: 11, fontWeight: "500" },
     modalShareBtn: {
