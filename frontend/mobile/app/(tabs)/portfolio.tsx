@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback } from "react";
+import React, { useState, useMemo, useCallback, useEffect } from "react";
 import { useFocusEffect } from "expo-router";
 import {
   View, Text, TouchableOpacity, TextInput, ScrollView,
@@ -305,6 +305,11 @@ export default function PortfolioScreen() {
     const interval = setInterval(() => fetchPrices(true), 30_000);
     return () => clearInterval(interval);
   }, [fetchPrices]));
+
+  // Re-fetch whenever positions are added/removed so new entries get prices immediately
+  useEffect(() => {
+    if (positions.length > 0) fetchPrices(true);
+  }, [positions.length]);
 
   const onRefresh = async () => {
     setRefreshing(true);
