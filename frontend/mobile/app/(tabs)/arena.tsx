@@ -54,6 +54,7 @@ export default function ArenaScreen() {
   const [debateUsedToday, setDebateUsedToday] = useState(0);
   const [paywallOpen, setPaywallOpen]         = useState(false);
   const [paywallReason, setPaywallReason]     = useState("");
+  const [milestonesOpen, setMilestonesOpen]   = useState(false);
 
   const openPaywall = (reason: string) => { setPaywallReason(reason); setPaywallOpen(true); };
 
@@ -158,7 +159,10 @@ export default function ArenaScreen() {
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
 
         {/* ── Streak card ───────────────────────────────────────────── */}
-        <View style={[styles.streakCard, { backgroundColor: colors.card, borderColor: completedToday ? "#f59e0b44" : colors.border }]}>
+        <TouchableOpacity
+          activeOpacity={0.75}
+          onPress={() => setMilestonesOpen(true)}
+          style={[styles.streakCard, { backgroundColor: colors.card, borderColor: completedToday ? "#f59e0b44" : colors.border }]}>
           <View style={styles.streakTop}>
             <View style={styles.streakLeft}>
               <Text style={styles.streakFire}>{completedToday ? "🔥" : "🌑"}</Text>
@@ -208,7 +212,7 @@ export default function ArenaScreen() {
               </View>
             ))}
           </View>
-        </View>
+        </TouchableOpacity>
 
         {/* ── Difficulty selector ───────────────────────────────────── */}
         <Text style={[styles.sectionTitle, { color: colors.textDim }]}>NIVEL DE DIFICULTAD</Text>
@@ -397,6 +401,86 @@ export default function ArenaScreen() {
                 )}
               </View>
             ) : null}
+          </ScrollView>
+        </SafeAreaView>
+      </Modal>
+
+      {/* ── Milestones Modal ─────────────────────────────────────────── */}
+      <Modal visible={milestonesOpen} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setMilestonesOpen(false)}>
+        <SafeAreaView style={[styles.modal, { backgroundColor: colors.bg }]}>
+          <View style={[styles.modalHeader, { borderBottomColor: colors.border }]}>
+            <TouchableOpacity onPress={() => setMilestonesOpen(false)}>
+              <Ionicons name="close" size={22} color={colors.textMuted} />
+            </TouchableOpacity>
+            <Text style={[styles.modalTitle, { color: colors.text }]}>🔥 Recompensas por Racha</Text>
+            <View style={{ width: 22 }} />
+          </View>
+
+          <ScrollView contentContainerStyle={{ padding: 20 }}>
+            {/* Current streak summary */}
+            <View style={[styles.resultBox, { backgroundColor: completedToday ? "#f59e0b10" : colors.card, borderColor: completedToday ? "#f59e0b44" : colors.border, alignItems: "center", marginBottom: 24 }]}>
+              <Text style={{ fontSize: 48, marginBottom: 4 }}>{completedToday ? "🔥" : "🌑"}</Text>
+              <Text style={{ color: completedToday ? "#f59e0b" : colors.textMuted, fontSize: 32, fontWeight: "800" }}>
+                {streak} {streak === 1 ? "día" : "días"}
+              </Text>
+              <Text style={{ color: colors.textDim, fontSize: 13, marginTop: 4 }}>
+                {completedToday ? "¡Racha activa hoy!" : "Aprende algo hoy para mantener tu racha"}
+              </Text>
+            </View>
+
+            {/* Milestones list */}
+            <Text style={[styles.sectionTitle, { color: colors.textDim, marginTop: 0 }]}>OBJETIVOS</Text>
+            {STREAK_MILESTONES.map((m, i) => {
+              const achieved = streak >= m.days;
+              const isNext = !achieved && (i === 0 || streak >= STREAK_MILESTONES[i - 1].days);
+              const progress = Math.min(streak / m.days, 1);
+              return (
+                <View key={m.days} style={[styles.resultBox, {
+                  backgroundColor: achieved ? "#f59e0b10" : colors.card,
+                  borderColor: achieved ? "#f59e0b44" : isNext ? "#f59e0b22" : colors.border,
+                  marginBottom: 12,
+                }]}>
+                  <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 10 }}>
+                    <Text style={{ fontSize: 28, marginRight: 12 }}>
+                      {achieved ? "✅" : isNext ? "🎯" : "🔒"}
+                    </Text>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ color: achieved ? "#f59e0b" : colors.text, fontSize: 16, fontWeight: "800" }}>
+                        {m.days} días seguidos
+                      </Text>
+                      <Text style={{ color: colors.textMuted, fontSize: 12, marginTop: 2 }}>
+                        {achieved ? "¡Conseguido!" : isNext ? `Te faltan ${m.days - streak} días` : `${m.days - streak} días restantes`}
+                      </Text>
+                    </View>
+                  </View>
+
+                  {/* Progress bar */}
+                  {!achieved && (
+                    <View style={{ height: 4, backgroundColor: colors.border, borderRadius: 2, overflow: "hidden", marginBottom: 12 }}>
+                      <View style={{ height: 4, borderRadius: 2, backgroundColor: "#f59e0b", width: `${progress * 100}%` }} />
+                    </View>
+                  )}
+
+                  {/* Rewards */}
+                  <View style={{ gap: 8 }}>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                      <View style={[styles.diffTag, { backgroundColor: "#22c55e18" }]}>
+                        <Text style={{ color: "#22c55e", fontSize: 11, fontWeight: "700" }}>RECOMPENSA</Text>
+                      </View>
+                      <Text style={{ color: colors.text, fontSize: 13, fontWeight: "600", flex: 1 }}>{m.reward}</Text>
+                    </View>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                      <View style={[styles.diffTag, { backgroundColor: "#8b5cf618" }]}>
+                        <Text style={{ color: "#8b5cf6", fontSize: 11, fontWeight: "700" }}>BONUS</Text>
+                      </View>
+                      <Text style={{ color: colors.textSub, fontSize: 13, flex: 1 }}>{m.bonus}</Text>
+                    </View>
+                  </View>
+                </View>
+              );
+            })}
+
+            <View style={{ height: 20 }} />
           </ScrollView>
         </SafeAreaView>
       </Modal>
