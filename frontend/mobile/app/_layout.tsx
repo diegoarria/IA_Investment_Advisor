@@ -6,6 +6,7 @@ import { ThemeProvider, useTheme } from "../src/lib/ThemeContext";
 import Sidebar from "../src/components/Sidebar";
 import { useSubscriptionStore, isTrialActive, hasPremiumAccess } from "../src/lib/subscriptionStore";
 import PaywallModal from "../src/components/PaywallModal";
+import * as Notifications from "expo-notifications";
 
 const HIDE_SIDEBAR_ROUTES = ["/", "/onboarding"];
 
@@ -68,10 +69,28 @@ function AppStack() {
   const startTrialIfNeeded = useSubscriptionStore((s) => s.startTrialIfNeeded);
 
   useEffect(() => {
-    if (!HIDE_SIDEBAR_ROUTES.some((r) => pathname === r || pathname.startsWith(r + "/"))) {
+    const inApp = !HIDE_SIDEBAR_ROUTES.some((r) => pathname === r || pathname.startsWith(r + "/"));
+    if (inApp) {
       startTrialIfNeeded();
+      registerPushToken();
     }
   }, [pathname]);
+
+  const registerPushToken = async () => {
+    if (Platform.OS === "web") return;
+    try {
+      const { status: existing } = await Notifications.getPermissionsAsync();
+      const { status } = existing === "granted"
+        ? { status: existing }
+        : await Notifications.requestPermissionsAsync();
+      if (status !== "granted") return;
+      const tokenData = await Notifications.getExpoPushTokenAsync({
+        projectId: "11c4956f-5fff-4fb2-9128-210b504a43b5",
+      });
+      const { default: api } = await import("../src/lib/api");
+      await api.post("/api/sync/push-token", { token: tokenData.data });
+    } catch {}
+  };
 
   const showSidebar = !HIDE_SIDEBAR_ROUTES.some(
     (r) => pathname === r || pathname.startsWith(r + "/")

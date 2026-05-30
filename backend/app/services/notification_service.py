@@ -2,6 +2,7 @@ from datetime import datetime
 from app.core.database import get_supabase
 from app.services.market_service import get_market_summary, detect_significant_moves, get_upcoming_earnings
 from app.services import ai_service
+from app.services.push_service import send_market_alert, send_streak_danger
 from app.models.user import UserProfile
 
 
@@ -53,7 +54,7 @@ async def scan_and_notify_all_users():
     moves = detect_significant_moves(threshold_pct=3.0)
     earnings = get_upcoming_earnings()
 
-    users_result = db.table("user_profiles").select("user_id, risk_tolerance, investment_experience, weak_areas, interaction_count").execute()
+    users_result = db.table("user_profiles").select("user_id, risk_tolerance, investment_experience, weak_areas, interaction_count, push_token").execute()
 
     for user_data in users_result.data:
         user_id = user_data["user_id"]
@@ -73,6 +74,7 @@ async def scan_and_notify_all_users():
         alert_threshold = 3 if is_premium else 5
         moves_filtered = [m for m in moves if abs(m.get("change_pct", 0)) >= alert_threshold]
 
+        push_token = user_data.get("push_token")
         for move in moves_filtered[:2]:
             direction = "subió" if move["direction"] == "up" else "cayó"
             event_desc = f"{move['symbol']} {direction} {abs(move['change_pct'])}% hoy"
@@ -86,6 +88,8 @@ async def scan_and_notify_all_users():
                 message=message,
                 data=move
             )
+            if push_token:
+                await send_market_alert(push_token, move["symbol"], move["change_pct"])
 
         for event in earnings[:1]:
             days = event["days_until"]

@@ -164,6 +164,10 @@ export const insightsApi = {
   get: () => api.get("/api/profile/insights"),
 };
 
+export const mentorLetterApi = {
+  get: () => api.get("/api/profile/mentor-letter"),
+};
+
 export const syncApi = {
   // Single call to restore everything after login
   getAll: () => api.get("/api/sync/all"),

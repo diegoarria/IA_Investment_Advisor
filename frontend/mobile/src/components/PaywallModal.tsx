@@ -37,8 +37,8 @@ const PREMIUM_FEATURES = [
 ];
 
 const PLANS = [
-  { key: "monthly", label: "Mensual", price: "$11.99", period: "/mes", badge: null },
-  { key: "yearly",  label: "Anual",   price: "$117.99", period: "/año", badge: "Ahorra 20%" },
+  { key: "yearly",  label: "Anual",   price: "$117.99", period: "/año",  monthly: "$9.83/mes", badge: "MÁS POPULAR" },
+  { key: "monthly", label: "Mensual", price: "$11.99",  period: "/mes",  monthly: null,        badge: null },
 ] as const;
 
 type Plan = "monthly" | "yearly";
@@ -52,7 +52,7 @@ interface Props {
 export default function PaywallModal({ visible, onClose, reason }: Props) {
   const { colors } = useTheme();
   const fetchStatus = useSubscriptionStore((s) => s.fetchStatus);
-  const [selectedPlan, setSelectedPlan] = useState<Plan>("monthly");
+  const [selectedPlan, setSelectedPlan] = useState<Plan>("yearly");
   const [expandedFeature, setExpandedFeature] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -124,6 +124,11 @@ export default function PaywallModal({ visible, onClose, reason }: Props) {
                     {plan.price}
                   </Text>
                   <Text style={[styles.planPeriod, { color: colors.textDim }]}>{plan.period}</Text>
+                  {plan.monthly && (
+                    <Text style={{ color: "#22c55e", fontSize: 10, fontWeight: "700", marginTop: 2 }}>
+                      {plan.monthly}
+                    </Text>
+                  )}
                 </TouchableOpacity>
               );
             })}

@@ -204,3 +204,16 @@ async def get_all(user_id: str = Depends(get_current_user_id)):
             "tier":             profile_row.get("subscription_tier", "free"),
         },
     }
+
+
+# ─── Push token ───────────────────────────────────────────────────────────────
+
+@router.post("/push-token")
+async def save_push_token(body: dict, user_id: str = Depends(get_current_user_id)):
+    """Save or update the Expo push token for this device."""
+    token = (body.get("token") or "").strip()
+    if not token:
+        return {"ok": False}
+    db = get_supabase()
+    db.table("user_profiles").update({"push_token": token}).eq("user_id", user_id).execute()
+    return {"ok": True}

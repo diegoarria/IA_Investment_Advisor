@@ -1,10 +1,13 @@
 import re
 import json
+import anthropic
 from fastapi import APIRouter, Depends, HTTPException
 from app.api.deps import get_current_user_id
 from app.core.database import get_supabase
 from app.models.user import UserProfile, UserProfileCreate, UserProfileUpdate
 from app.services import ai_service
+from app.core.cache import cache_get, cache_set
+from app.core.config import settings
 from datetime import datetime, timezone
 
 router = APIRouter(prefix="/profile", tags=["profile"])
@@ -140,3 +143,97 @@ async def update_profile(
     updates["updated_at"] = datetime.now(timezone.utc).isoformat()
     result = db.table("user_profiles").update(updates).eq("user_id", user_id).execute()
     return UserProfile(**result.data[0])
+
+
+# ─── Mentor Letter ────────────────────────────────────────────────────────────
+
+MENTOR_VOICES = {
+    "Warren Buffett": {
+        "title": "El Oráculo de Omaha",
+        "style": "Cálido, directo, usa analogías simples del mundo real, menciona el largo plazo y el margen de seguridad. Firma como 'Warren'.",
+    },
+    "Ray Dalio": {
+        "title": "Fundador de Bridgewater",
+        "style": "Analítico, habla de 'principios', ciclos económicos, diversificación y mecanismos de mercado. Firma como 'Ray'.",
+    },
+    "Bill Ackman": {
+        "title": "CEO de Pershing Square",
+        "style": "Directo, confiado, activista, habla de convicción en las posiciones y de entender profundamente cada empresa. Firma como 'Bill'.",
+    },
+}
+
+@router.get("/mentor-letter")
+async def get_mentor_letter(user_id: str = Depends(get_current_user_id)):
+    """
+    Generates a personalized monthly letter from the user's mentor.
+    Cached per user per calendar month — only calls Claude once/month per user.
+    """
+    profile = _get_profile_or_404(user_id)
+    mentor_name = profile.get("mentor")
+    if not mentor_name or mentor_name not in MENTOR_VOICES:
+        raise HTTPException(status_code=400, detail="No tienes un mentor configurado.")
+
+    month_key = datetime.now(timezone.utc).strftime("%Y-%m")
+    cache_key = f"mentor_letter:{user_id}:{month_key}"
+
+    cached = cache_get(cache_key)
+    if cached:
+        return cached
+
+    mentor = MENTOR_VOICES[mentor_name]
+    name = profile.get("name", "Inversor").split()[0]
+    risk = profile.get("risk_tolerance", "moderate")
+    maturity = profile.get("maturity_score", 0)
+    history = profile.get("maturity_history", [])
+
+    # Build behavioral summary from history
+    recent_signals = []
+    for ev in (history or [])[-10:]:
+        for sig in (ev.get("signals") or []):
+            recent_signals.append(sig.replace("_", " "))
+
+    signals_text = ", ".join(recent_signals[-6:]) if recent_signals else "aún sin señales registradas"
+    maturity_label = (
+        "Aprendiz" if maturity < 30 else
+        "Principiante" if maturity < 50 else
+        "En Desarrollo" if maturity < 65 else
+        "Maduro" if maturity < 80 else "Experto"
+    )
+    month_name = datetime.now(timezone.utc).strftime("%B %Y").capitalize()
+
+    prompt = f"""Eres {mentor_name}, {mentor['title']}.
+Escribe una carta personal de 180-220 palabras en español a {name}, tu estudiante de inversiones.
+
+Datos del estudiante este mes ({month_name}):
+- Perfil de riesgo: {risk}
+- Nivel de madurez inversora: {maturity}/100 ({maturity_label})
+- Señales de comportamiento recientes: {signals_text}
+
+Estilo: {mentor['style']}
+
+La carta debe:
+1. Comenzar con "Estimado {name}," 
+2. Comentar 1-2 comportamientos específicos observados (usa las señales reales)
+3. Dar 1 consejo concreto y accionable para el próximo mes
+4. Terminar con una frase motivadora y la firma
+
+Escribe SOLO la carta, sin título ni encabezado adicional."""
+
+    try:
+        client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
+        response = await client.messages.create(
+            model=settings.claude_model,
+            max_tokens=400,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        letter = response.content[0].text.strip()
+        result = {
+            "letter": letter,
+            "mentor": mentor_name,
+            "month": month_name,
+            "generated_at": datetime.now(timezone.utc).isoformat(),
+        }
+        cache_set(cache_key, result, ttl=28 * 24 * 3600)  # 28 days
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"No se pudo generar la carta: {str(e)}")

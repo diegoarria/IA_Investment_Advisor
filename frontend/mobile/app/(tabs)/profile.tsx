@@ -14,9 +14,10 @@ import { useTheme, Colors } from "../../src/lib/ThemeContext";
 import { useAppStore, RISK_CONFIG, getAge, maturityLabel, knowledgeFromMaturity } from "../../src/lib/profileStore";
 import { getMentorInfo } from "../../src/lib/mentorData";
 import InvestorScorecard from "../../src/components/InvestorScorecard";
+import ProgressModal from "../../src/components/ProgressModal";
 import { useSubscriptionStore, msgsRemaining, FREE_MSG_LIMIT } from "../../src/lib/subscriptionStore";
 import PaywallModal from "../../src/components/PaywallModal";
-import { insightsApi } from "../../src/lib/api";
+import { insightsApi, mentorLetterApi } from "../../src/lib/api";
 
 const MENTOR_PHOTOS: Record<string, number> = {
   "Warren Buffett": require("../../assets/images/mentors/warren_buffett.jpg"),
@@ -49,6 +50,72 @@ const RISK_LEVELS = [
   { key: "aggressive",   label: "Agresivo",    color: "#ef4444" },
 ];
 
+// ─── Mentor Letter Card ────────────────────────────────────────────────────────
+
+function MentorLetterCard({ mentor, colors }: { mentor: ReturnType<typeof getMentorInfo>; colors: any }) {
+  const [letter, setLetter] = React.useState<string | null>(null);
+  const [loading, setLoading] = React.useState(false);
+  const [open, setOpen] = React.useState(false);
+  const [error, setError] = React.useState(false);
+
+  const load = async () => {
+    if (letter) { setOpen(true); return; }
+    setLoading(true); setError(false);
+    try {
+      const res = await mentorLetterApi.get();
+      setLetter(res.data.letter ?? null);
+      setOpen(true);
+    } catch { setError(true); }
+    setLoading(false);
+  };
+
+  if (!mentor) return null;
+  const mc = mentor.color;
+
+  return (
+    <>
+      <TouchableOpacity
+        style={[{ borderRadius: 16, borderWidth: 1, padding: 16, flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: mc + "0a", borderColor: mc + "35" }]}
+        onPress={load}
+        activeOpacity={0.75}
+      >
+        <View style={{ width: 44, height: 44, borderRadius: 12, backgroundColor: mc + "20", alignItems: "center", justifyContent: "center" }}>
+          <Ionicons name="mail-outline" size={20} color={mc} />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={{ color: colors.text, fontSize: 14, fontWeight: "700" }}>Carta de {mentor.name.split(" ")[0]}</Text>
+          <Text style={{ color: colors.textMuted, fontSize: 12, marginTop: 2 }}>Tu carta mensual personalizada</Text>
+        </View>
+        {loading
+          ? <ActivityIndicator size="small" color={mc} />
+          : <Ionicons name="chevron-forward" size={16} color={mc} />}
+      </TouchableOpacity>
+
+      {error && <Text style={{ color: "#ef4444", fontSize: 11, textAlign: "center", marginTop: 4 }}>No se pudo cargar la carta. Intenta más tarde.</Text>}
+
+      <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
+        <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.7)", alignItems: "center", justifyContent: "center", padding: 24 }}>
+          <View style={{ backgroundColor: mc + "0f", borderColor: mc + "40", borderWidth: 1, borderRadius: 24, padding: 24, width: "100%", gap: 16 }}>
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+              <Text style={{ color: mc, fontSize: 13, fontWeight: "800", letterSpacing: 0.5 }}>{mentor.name.toUpperCase()}</Text>
+              <TouchableOpacity onPress={() => setOpen(false)}>
+                <Ionicons name="close" size={20} color={mc} />
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={{ maxHeight: 400 }} showsVerticalScrollIndicator={false}>
+              <Text style={{ color: colors.text, fontSize: 15, lineHeight: 24, fontStyle: "italic" }}>
+                {letter}
+              </Text>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+    </>
+  );
+}
+
+// ─── Profile Screen ────────────────────────────────────────────────────────────
+
 export default function ProfileScreen() {
   const { colors } = useTheme();
   const s = useMemo(() => makeStyles(colors), [colors]);
@@ -60,6 +127,7 @@ export default function ProfileScreen() {
   const setAvatarUri = useAppStore((s) => s.setAvatarUri);
 
   const [scorecardOpen, setScorecardOpen] = useState(false);
+  const [progressOpen, setProgressOpen] = useState(false);
   const [sharing, setSharing] = useState(false);
   const cardRef = useRef<View>(null);
 
@@ -328,7 +396,10 @@ export default function ProfileScreen() {
           <Text style={[s.sectionLabel, { color: colors.textDim, marginTop: 0, marginBottom: 0 }]}>MADUREZ INVERSORA</Text>
           <Text style={{ color: colors.textDim, fontSize: 9, fontStyle: "italic" }}>comportamiento en la app</Text>
         </View>
-        <View style={[s.maturityCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        <TouchableOpacity
+          activeOpacity={0.8}
+          onPress={() => setProgressOpen(true)}
+          style={[s.maturityCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <View style={s.maturityTop}>
             <View>
               <Text style={[s.maturityNum, { color: maturity.color }]}>
@@ -374,7 +445,7 @@ export default function ProfileScreen() {
               ))}
             </>
           )}
-        </View>
+        </TouchableOpacity>
 
         {/* ── MENTOR ── */}
         {mentor && (
@@ -408,6 +479,9 @@ export default function ProfileScreen() {
             </View>
           </>
         )}
+
+        {/* ── CARTA DEL MENTOR ── */}
+        {mentor && <MentorLetterCard mentor={mentor} colors={colors} />}
 
         {/* ── PERFIL PSICOLÓGICO ── */}
         <Text style={[s.sectionLabel, { color: colors.textDim }]}>Perfil psicológico</Text>
@@ -496,6 +570,7 @@ export default function ProfileScreen() {
       </ScrollView>
 
       <PaywallModal visible={paywallOpen} onClose={() => setPaywallOpen(false)} />
+      <ProgressModal visible={progressOpen} onClose={() => setProgressOpen(false)} />
     </SafeAreaView>
   );
 }
