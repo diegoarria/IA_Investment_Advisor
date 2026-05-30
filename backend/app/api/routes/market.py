@@ -346,12 +346,12 @@ async def simulate_portfolio(
 @router.post("/portfolio/from-screenshot")
 @limiter.limit("6/minute")
 async def portfolio_from_screenshot(
-    http_request: Request,
-    request: dict,
+    request: Request,
+    body: dict,
     user_id: str = Depends(get_current_user_id)
 ):
-    image_data = request.get("image", "")
-    image_type = request.get("type", "image/jpeg")
+    image_data = body.get("image", "")
+    image_type = body.get("type", "image/jpeg")
 
     if not image_data:
         return {"positions": [], "error": "No image provided"}

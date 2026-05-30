@@ -126,21 +126,21 @@ async def chat_stream(
 @router.post("/message")
 @limiter.limit("30/minute")
 async def chat_message(
-    http_request: Request,
-    request: ChatRequest,
+    request: Request,
+    body: ChatRequest,
     user_id: str = Depends(get_current_user_id)
 ):
     profile = _get_user_profile(user_id)
     if profile:
         _check_and_increment_msg_limit(user_id, profile)
-    tickers  = await asyncio.to_thread(detect_tickers, request.message)
-    enriched = await asyncio.to_thread(_enrich_message, request.message)
+    tickers  = await asyncio.to_thread(detect_tickers, body.message)
+    enriched = await asyncio.to_thread(_enrich_message, body.message)
     full = ""
     async for chunk in ai_service.chat_stream(
         message=enriched,
-        conversation_history=request.conversation_history,
+        conversation_history=body.conversation_history,
         profile=profile,
-        mentor=request.mentor,
+        mentor=body.mentor,
     ):
         full += chunk
     clean_reply, bscore = _extract_bscore(full)

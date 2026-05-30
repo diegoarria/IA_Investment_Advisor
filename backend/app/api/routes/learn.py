@@ -11,12 +11,15 @@ from app.core.limiter import limiter
 
 router = APIRouter(prefix="/learn", tags=["learn"])
 
-# ─── Free-tier limits ─────────────────────────────────────────────────────
+# ─── Tier limits ──────────────────────────────────────────────────────────
 
 FREE_SIM_DAILY        = 5
 FREE_DEBATE_DAILY     = 2
 FREE_DEBATE_MAX_ROUNDS = 5
 FREE_DIFFICULTIES     = {"principiante", "intermedio"}
+
+PREMIUM_SIM_DAILY     = 50
+PREMIUM_DEBATE_DAILY  = 20
 
 def _is_premium(user_id: str) -> bool:
     p = _get_profile_raw(user_id)
@@ -220,8 +223,8 @@ def _get_profile(user_id: str) -> UserProfile | None:
 
 @router.post("/scenario")
 @limiter.limit("15/minute")
-async def get_scenario(http_request: Request, request: dict = None, user_id: str = Depends(get_current_user_id)):
-    difficulty = (request or {}).get("difficulty", "intermedio").lower()
+async def get_scenario(request: Request, body: dict = None, user_id: str = Depends(get_current_user_id)):
+    difficulty = (body or {}).get("difficulty", "intermedio").lower()
     premium = _is_premium(user_id)
 
     if not premium and difficulty not in FREE_DIFFICULTIES:
@@ -229,7 +232,9 @@ async def get_scenario(http_request: Request, request: dict = None, user_id: str
             "code": "premium_required",
             "message": "Los niveles Difícil e Imposible son exclusivos de Premium.",
         })
-    if not premium:
+    if premium:
+        _check_daily(user_id, "sim_count", PREMIUM_SIM_DAILY, "simulaciones")
+    else:
         _check_daily(user_id, "sim_count", FREE_SIM_DAILY, "simulaciones")
 
     pool = SCENARIOS.get(difficulty, SCENARIOS["intermedio"])
@@ -273,9 +278,9 @@ async def scenario_result(request: dict, user_id: str = Depends(get_current_user
 
 @router.post("/debate")
 @limiter.limit("10/minute")
-async def start_debate(http_request: Request, request: dict, user_id: str = Depends(get_current_user_id)):
-    thesis = request.get("thesis", "").strip()
-    difficulty = request.get("difficulty", "intermedio").lower()
+async def start_debate(request: Request, body: dict, user_id: str = Depends(get_current_user_id)):
+    thesis = body.get("thesis", "").strip()
+    difficulty = body.get("difficulty", "intermedio").lower()
     if not thesis:
         return {"error": "Thesis required"}
     premium = _is_premium(user_id)
@@ -285,7 +290,9 @@ async def start_debate(http_request: Request, request: dict, user_id: str = Depe
             "code": "premium_required",
             "message": "Los niveles Difícil e Imposible son exclusivos de Premium.",
         })
-    if not premium:
+    if premium:
+        _check_daily(user_id, "debate_count", PREMIUM_DEBATE_DAILY, "debates")
+    else:
         _check_daily(user_id, "debate_count", FREE_DEBATE_DAILY, "debates")
 
     profile = _get_profile(user_id)
