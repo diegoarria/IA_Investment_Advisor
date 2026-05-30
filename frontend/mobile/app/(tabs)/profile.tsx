@@ -17,7 +17,7 @@ import InvestorScorecard from "../../src/components/InvestorScorecard";
 import ProgressModal from "../../src/components/ProgressModal";
 import { useSubscriptionStore, msgsRemaining, FREE_MSG_LIMIT } from "../../src/lib/subscriptionStore";
 import PaywallModal from "../../src/components/PaywallModal";
-import { insightsApi, mentorLetterApi, profileApi } from "../../src/lib/api";
+import { insightsApi, mentorLetterApi, profileApi, authApi } from "../../src/lib/api";
 
 const MENTOR_PHOTOS: Record<string, number> = {
   "Warren Buffett": require("../../assets/images/mentors/warren_buffett.jpg"),
@@ -228,13 +228,47 @@ export default function ProfileScreen() {
         text: "Cerrar sesión", style: "destructive", onPress: () => {
           logout();
           router.replace("/");
-          // Limpia tokens en background después de navegar
           SecureStore.deleteItemAsync("access_token").catch(() => {});
           SecureStore.deleteItemAsync("refresh_token").catch(() => {});
           SecureStore.deleteItemAsync("user_id").catch(() => {});
         },
       },
     ]);
+  };
+
+  const handleDeleteAccount = () => {
+    Alert.alert(
+      "Eliminar cuenta",
+      "Esta acción es permanente. Se borrarán todos tus datos, portafolio, historial y suscripción. No se puede deshacer.",
+      [
+        { text: "Cancelar", style: "cancel" },
+        {
+          text: "Eliminar mi cuenta", style: "destructive",
+          onPress: () => {
+            Alert.alert(
+              "¿Estás seguro?",
+              "Se eliminará tu cuenta y todos tus datos de forma permanente.",
+              [
+                { text: "Cancelar", style: "cancel" },
+                {
+                  text: "Sí, eliminar", style: "destructive",
+                  onPress: async () => {
+                    try {
+                      await authApi.deleteAccount();
+                    } catch { /* best-effort */ }
+                    logout();
+                    SecureStore.deleteItemAsync("access_token").catch(() => {});
+                    SecureStore.deleteItemAsync("refresh_token").catch(() => {});
+                    SecureStore.deleteItemAsync("user_id").catch(() => {});
+                    router.replace("/");
+                  },
+                },
+              ]
+            );
+          },
+        },
+      ]
+    );
   };
 
   return (
@@ -679,6 +713,16 @@ export default function ProfileScreen() {
         >
           <Ionicons name="log-out-outline" size={17} color="#ef4444" />
           <Text style={s.logoutText}>Cerrar sesión</Text>
+        </TouchableOpacity>
+
+        {/* ── DELETE ACCOUNT ── */}
+        <TouchableOpacity
+          style={{ alignItems: "center", paddingVertical: 12 }}
+          onPress={handleDeleteAccount}
+        >
+          <Text style={{ color: colors.textDim, fontSize: 12, fontWeight: "500" }}>
+            Eliminar mi cuenta
+          </Text>
         </TouchableOpacity>
 
       </ScrollView>

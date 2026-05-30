@@ -1,6 +1,7 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from app.core.database import get_supabase
 from app.models.user import AuthRequest, TokenResponse
+from app.api.deps import get_current_user_id
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -81,3 +82,24 @@ async def logout():
     except Exception:
         pass
     return {"message": "Logged out"}
+
+
+@router.delete("/account")
+async def delete_account(user_id: str = Depends(get_current_user_id)):
+    db = get_supabase()
+    try:
+        # Delete all user data from app tables
+        for table in ["user_profiles", "user_portfolio", "user_paper_trading",
+                       "user_daily_usage", "push_tokens", "chat_history",
+                       "user_notifications"]:
+            try:
+                db.table(table).delete().eq("user_id", user_id).execute()
+            except Exception:
+                pass
+
+        # Delete the auth user (requires service key)
+        db.auth.admin.delete_user(user_id)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="No se pudo eliminar la cuenta.")
+
+    return {"message": "Cuenta eliminada"}

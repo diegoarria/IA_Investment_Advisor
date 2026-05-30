@@ -69,6 +69,8 @@ export const authApi = {
     api.post("/api/auth/login", { email, password }),
   register: (email: string, password: string) =>
     api.post("/api/auth/register", { email, password }),
+  deleteAccount: () =>
+    api.delete("/api/auth/account"),
 };
 
 export const profileApi = {
