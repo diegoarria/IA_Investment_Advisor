@@ -5,8 +5,8 @@ import {
   StyleSheet, ActivityIndicator, SafeAreaView, Alert,
   RefreshControl, Image,
 } from "react-native";
-import ExploreScreen from "./explore";
 import { Ionicons } from "@expo/vector-icons";
+import Svg, { Path, Defs, RadialGradient as SvgRadial, Stop, Rect as SvgRect, G } from "react-native-svg";
 import * as ImagePicker from "expo-image-picker";
 import * as DocumentPicker from "expo-document-picker";
 import * as XLSX from "xlsx";
@@ -260,7 +260,6 @@ export default function PortfolioScreen() {
   const { colors } = useTheme();
   const s = useMemo(() => makeStyles(colors), [colors]);
 
-  const [subTab, setSubTab] = useState<"portfolio" | "explore">("portfolio");
 
   const { positions, addPosition, removePosition, setPositions, mergePositions } = usePortfolioStore();
   const profile = useAppStore((s) => s.profile);
@@ -292,6 +291,14 @@ export default function PortfolioScreen() {
   const [capital, setCapital] = useState("");
   const [analysis, setAnalysis] = useState("");
   const [simLoading, setSimLoading] = useState(false);
+  type PortfolioResult = {
+    summary: string;
+    mismatch?: string;
+    allocations: { ticker: string; name: string; pct: number; color: string; reason: string }[];
+    risks: string[];
+    history: Record<string, string>;
+  };
+  const [portfolioResult, setPortfolioResult] = useState<PortfolioResult | null>(null);
 
   const fetchPrices = useCallback(async (silent = false) => {
     if (!positions.length) return;
@@ -491,7 +498,7 @@ export default function PortfolioScreen() {
 
   // ── Simulator 1: portfolio AI analysis ────────────────────────────────
   const simulate = async () => {
-    setSimLoading(true); setAnalysis("");
+    setSimLoading(true); setAnalysis(""); setPortfolioResult(null);
     try {
       const positionsPayload = positions.length > 0
         ? positions.map((p) => ({ ticker: p.ticker, shares: p.shares, avg_price: p.avgPrice, name: p.name }))
@@ -501,9 +508,20 @@ export default function PortfolioScreen() {
         capital ? parseFloat(capital) : undefined,
         positionsPayload,
       );
-      setAnalysis(res.data.analysis);
+      const text: string = res.data.analysis;
+      // Try to parse structured JSON (no-positions mode)
+      if (!positionsPayload) {
+        try {
+          const jsonMatch = text.match(/\{[\s\S]*\}/);
+          if (jsonMatch) {
+            const parsed = JSON.parse(jsonMatch[0]) as PortfolioResult;
+            if (parsed.allocations?.length) { setPortfolioResult(parsed); return; }
+          }
+        } catch { /* fallback to text */ }
+      }
+      setAnalysis(text);
     } catch { setAnalysis("Error al generar el análisis. Intenta de nuevo."); }
-    setSimLoading(false);
+    finally { setSimLoading(false); }
   };
 
   // Stress Test state
@@ -600,28 +618,6 @@ export default function PortfolioScreen() {
 
   return (
     <SafeAreaView style={s.container}>
-      {/* ── Sub-tab bar ── */}
-      <View style={[s.subTabBar, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
-        {(["portfolio", "explore"] as const).map((tab) => {
-          const active = subTab === tab;
-          const label = tab === "portfolio" ? "Portafolio" : "Explorar";
-          const icon  = tab === "portfolio" ? "bar-chart-outline" : "telescope-outline";
-          return (
-            <TouchableOpacity
-              key={tab}
-              style={[s.subTab, active && { borderBottomColor: colors.accentLight }]}
-              onPress={() => setSubTab(tab)}
-            >
-              <Ionicons name={icon} size={15} color={active ? colors.accentLight : colors.textMuted} />
-              <Text style={[s.subTabText, { color: active ? colors.accentLight : colors.textMuted }]}>{label}</Text>
-            </TouchableOpacity>
-          );
-        })}
-      </View>
-
-      {subTab === "explore" ? (
-        <ExploreScreen />
-      ) : (
       <ScrollView
         contentContainerStyle={s.content}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#22c55e" />}
@@ -1110,6 +1106,180 @@ export default function PortfolioScreen() {
               </View>
             )}
         </TouchableOpacity>
+        {/* ── Resultado estructurado premium ── */}
+        {portfolioResult && (() => {
+          const scenarioColor = scenario === "conservative" ? "#3b82f6" : scenario === "moderate" ? "#22c55e" : "#f59e0b";
+          const scenarioLabel = scenario === "conservative" ? "Conservador" : scenario === "moderate" ? "Moderado" : "Agresivo";
+
+          // Donut chart math
+          const CHART = 180;
+          const cx = CHART / 2;
+          const cy = CHART / 2;
+          const R = 62;
+          const SW = 26;
+          const GAP = 3;
+          let cum = 0;
+          const segs = portfolioResult.allocations.map((a) => {
+            const s = cum; cum += a.pct; return { ...a, s, e: cum };
+          });
+          const arc = (s: number, e: number) => {
+            const sa = s * 3.6 + GAP / 2, ea = e * 3.6 - GAP / 2;
+            const toXY = (deg: number) => {
+              const r = ((deg - 90) * Math.PI) / 180;
+              return { x: cx + R * Math.cos(r), y: cy + R * Math.sin(r) };
+            };
+            const p1 = toXY(sa), p2 = toXY(ea);
+            const large = ea - sa > 180 ? 1 : 0;
+            return `M ${p1.x.toFixed(1)} ${p1.y.toFixed(1)} A ${R} ${R} 0 ${large} 1 ${p2.x.toFixed(1)} ${p2.y.toFixed(1)}`;
+          };
+
+          return (
+            <View style={{ gap: 12 }}>
+
+              {/* ── Hero card ── */}
+              <View style={{ borderRadius: 22, overflow: "hidden", borderWidth: 1, borderColor: scenarioColor + "35" }}>
+                <View style={{ backgroundColor: "#080d18", padding: 22, alignItems: "center", gap: 0 }}>
+                  {/* Glow bg */}
+                  <Svg style={StyleSheet.absoluteFillObject as any} width="100%" height="100%">
+                    <Defs>
+                      <SvgRadial id="hglow" cx="50%" cy="30%" r="60%">
+                        <Stop offset="0%" stopColor={scenarioColor} stopOpacity={0.18} />
+                        <Stop offset="100%" stopColor={scenarioColor} stopOpacity={0} />
+                      </SvgRadial>
+                    </Defs>
+                    <SvgRect x="0" y="0" width="100%" height="100%" fill="url(#hglow)" />
+                  </Svg>
+
+                  <Text style={{ color: "rgba(255,255,255,0.4)", fontSize: 9, fontWeight: "900", letterSpacing: 2.5 }}>PORTAFOLIO SUGERIDO</Text>
+                  <Text style={{ color: scenarioColor, fontSize: 26, fontWeight: "900", letterSpacing: -0.5, marginTop: 2 }}>{scenarioLabel.toUpperCase()}</Text>
+
+                  {/* Donut chart */}
+                  <View style={{ marginVertical: 18 }}>
+                    <Svg width={CHART} height={CHART}>
+                      {/* Track */}
+                      <G>
+                        {segs.map((sg) => (
+                          <Path key={sg.ticker} d={arc(sg.s, sg.e)} stroke={sg.color} strokeWidth={SW} fill="none" strokeLinecap="butt" opacity={0.9} />
+                        ))}
+                      </G>
+                    </Svg>
+                    {/* Center label */}
+                    <View style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, alignItems: "center", justifyContent: "center" }}>
+                      <Text style={{ color: "rgba(255,255,255,0.35)", fontSize: 8, fontWeight: "800", letterSpacing: 1 }}>ESTRATEGIA</Text>
+                      <Text style={{ color: "#fff", fontSize: 16, fontWeight: "900", marginTop: 2 }}>{scenarioLabel}</Text>
+                    </View>
+                  </View>
+
+                  {/* Legend */}
+                  <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, justifyContent: "center" }}>
+                    {portfolioResult.allocations.map((a) => (
+                      <View key={a.ticker} style={{ flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: a.color + "18", borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4 }}>
+                        <View style={{ width: 7, height: 7, borderRadius: 3.5, backgroundColor: a.color }} />
+                        <Text style={{ color: "rgba(255,255,255,0.8)", fontSize: 11, fontWeight: "700" }}>{a.ticker}</Text>
+                        <Text style={{ color: a.color, fontSize: 11, fontWeight: "900" }}>{a.pct}%</Text>
+                      </View>
+                    ))}
+                  </View>
+
+                  {/* Summary */}
+                  <Text style={{ color: "rgba(255,255,255,0.55)", fontSize: 12, lineHeight: 19, textAlign: "center", marginTop: 14 }}>
+                    {portfolioResult.summary}
+                  </Text>
+
+                  {/* Mismatch warning */}
+                  {!!portfolioResult.mismatch && (
+                    <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 8, marginTop: 12, backgroundColor: "#f59e0b14", borderRadius: 12, padding: 12, borderWidth: 1, borderColor: "#f59e0b30", width: "100%" }}>
+                      <Ionicons name="warning-outline" size={15} color="#f59e0b" style={{ marginTop: 1 }} />
+                      <Text style={{ color: "#f59e0b", fontSize: 11, fontWeight: "600", flex: 1, lineHeight: 17 }}>{portfolioResult.mismatch}</Text>
+                    </View>
+                  )}
+                </View>
+              </View>
+
+              {/* ── Allocation rows ── */}
+              <View style={{ backgroundColor: colors.card, borderRadius: 20, borderWidth: 1, borderColor: colors.border, overflow: "hidden" }}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 10, padding: 16, paddingBottom: 12 }}>
+                  <View style={{ width: 30, height: 30, borderRadius: 9, backgroundColor: scenarioColor + "20", alignItems: "center", justifyContent: "center" }}>
+                    <Ionicons name="pie-chart-outline" size={16} color={scenarioColor} />
+                  </View>
+                  <Text style={{ color: colors.text, fontSize: 14, fontWeight: "800" }}>Distribución de activos</Text>
+                </View>
+                {portfolioResult.allocations.map((a, i) => (
+                  <View key={a.ticker} style={{ flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 16, paddingVertical: 13, borderTopWidth: i === 0 ? 0 : 1, borderTopColor: colors.border }}>
+                    {/* Color stripe */}
+                    <View style={{ width: 4, height: 52, borderRadius: 2, backgroundColor: a.color }} />
+                    <View style={{ flex: 1, gap: 5 }}>
+                      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+                        <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flex: 1 }}>
+                          <View style={{ backgroundColor: a.color + "20", borderRadius: 7, paddingHorizontal: 8, paddingVertical: 3 }}>
+                            <Text style={{ color: a.color, fontSize: 12, fontWeight: "900" }}>{a.ticker}</Text>
+                          </View>
+                          <Text style={{ color: colors.textMuted, fontSize: 11, flex: 1 }} numberOfLines={1}>{a.name}</Text>
+                        </View>
+                        <Text style={{ color: a.color, fontSize: 22, fontWeight: "900", marginLeft: 8 }}>{a.pct}%</Text>
+                      </View>
+                      {/* Bar */}
+                      <View style={{ height: 5, backgroundColor: colors.border, borderRadius: 3 }}>
+                        <View style={{ width: `${a.pct}%` as any, height: 5, backgroundColor: a.color, borderRadius: 3, opacity: 0.85 }} />
+                      </View>
+                      <Text style={{ color: colors.textMuted, fontSize: 10, lineHeight: 14 }}>{a.reason}</Text>
+                    </View>
+                  </View>
+                ))}
+              </View>
+
+              {/* ── Historical performance ── */}
+              <View style={{ backgroundColor: colors.card, borderRadius: 20, borderWidth: 1, borderColor: colors.border, padding: 16, gap: 12 }}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                  <View style={{ width: 30, height: 30, borderRadius: 9, backgroundColor: "#6366f120", alignItems: "center", justifyContent: "center" }}>
+                    <Ionicons name="time-outline" size={16} color="#6366f1" />
+                  </View>
+                  <Text style={{ color: colors.text, fontSize: 14, fontWeight: "800" }}>Comportamiento histórico</Text>
+                </View>
+                <View style={{ flexDirection: "row", gap: 8 }}>
+                  {Object.entries(portfolioResult.history).map(([year, val]) => {
+                    const pos = !val.startsWith("-");
+                    const clr = pos ? "#22c55e" : "#ef4444";
+                    return (
+                      <View key={year} style={{ flex: 1, backgroundColor: clr + "10", borderRadius: 16, borderWidth: 1, borderColor: clr + "30", padding: 14, alignItems: "center", gap: 6 }}>
+                        <Text style={{ color: "rgba(255,255,255,0.4)", fontSize: 9, fontWeight: "800", letterSpacing: 1 }}>{year}</Text>
+                        <Ionicons name={pos ? "trending-up" : "trending-down"} size={20} color={clr} />
+                        <Text style={{ color: clr, fontSize: 20, fontWeight: "900" }}>{val}</Text>
+                      </View>
+                    );
+                  })}
+                </View>
+              </View>
+
+              {/* ── Risks ── */}
+              <View style={{ backgroundColor: colors.card, borderRadius: 20, borderWidth: 1, borderColor: "#f59e0b22", padding: 16, gap: 12 }}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                  <View style={{ width: 30, height: 30, borderRadius: 9, backgroundColor: "#f59e0b18", alignItems: "center", justifyContent: "center" }}>
+                    <Ionicons name="shield-outline" size={16} color="#f59e0b" />
+                  </View>
+                  <Text style={{ color: colors.text, fontSize: 14, fontWeight: "800" }}>Riesgos a considerar</Text>
+                </View>
+                {portfolioResult.risks.map((r, i) => (
+                  <View key={i} style={{ flexDirection: "row", alignItems: "flex-start", gap: 12 }}>
+                    <View style={{ width: 24, height: 24, borderRadius: 12, backgroundColor: "#f59e0b18", borderWidth: 1, borderColor: "#f59e0b30", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: 1 }}>
+                      <Text style={{ color: "#f59e0b", fontSize: 10, fontWeight: "900" }}>{i + 1}</Text>
+                    </View>
+                    <Text style={{ color: colors.textSub, fontSize: 12, lineHeight: 19, flex: 1 }}>{r}</Text>
+                  </View>
+                ))}
+              </View>
+
+              {/* Disclaimer */}
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 5, justifyContent: "center", paddingBottom: 4 }}>
+                <Ionicons name="warning-outline" size={10} color={colors.textDim} />
+                <Text style={{ color: colors.textDim, fontSize: 10 }}>Análisis educativo · No es asesoramiento financiero</Text>
+              </View>
+
+            </View>
+          );
+        })()}
+
+        {/* Resultado texto (con posiciones) */}
         {analysis !== "" && (
           <View style={[s.resultCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <Text style={[s.resultText, { color: colors.textSub }]}>{analysis}</Text>
@@ -1237,7 +1407,6 @@ export default function PortfolioScreen() {
           </View>
         )}
       </ScrollView>
-      )}
 
       <PaywallModal
         visible={paywallOpen}

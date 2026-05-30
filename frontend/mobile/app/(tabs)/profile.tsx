@@ -185,6 +185,7 @@ export default function ProfileScreen() {
   const isPremium = subStore.tier === "premium";
   const remaining = msgsRemaining(subStore);
   const [paywallOpen, setPaywallOpen] = useState(false);
+  const [riskExpanded, setRiskExpanded] = useState(false);
 
   const handleShare = async () => {
     if (Platform.OS === "web") return;
@@ -384,7 +385,11 @@ export default function ProfileScreen() {
 
         {/* ── PERFIL DE RIESGO ── */}
         <Text style={[s.sectionLabel, { color: colors.textDim }]}>Perfil de riesgo</Text>
-        <View style={[s.riskCard, { backgroundColor: colors.card, borderColor: riskCfg.color + "40" }]}>
+        <TouchableOpacity
+          activeOpacity={0.85}
+          onPress={() => setRiskExpanded((v) => !v)}
+          style={[s.riskCard, { backgroundColor: colors.card, borderColor: riskCfg.color + "40" }]}
+        >
           <View style={s.riskTopRow}>
             <View style={[s.riskIconBox, { backgroundColor: riskCfg.color + "18" }]}>
               <Ionicons name={riskCfg.icon} size={24} color={riskCfg.color} />
@@ -399,21 +404,23 @@ export default function ProfileScreen() {
                   : "Tu objetivo es el máximo crecimiento a largo plazo."}
               </Text>
             </View>
+            <Ionicons
+              name={riskExpanded ? "chevron-up" : "chevron-down"}
+              size={16} color={colors.textDim}
+            />
           </View>
+
           {/* Segment bar */}
           <View style={s.riskSegments}>
             {RISK_LEVELS.map((level) => {
               const isActive = level.key === profile.risk_tolerance;
               return (
-                <View
-                  key={level.key}
-                  style={[s.riskSegment, {
-                    backgroundColor: isActive ? level.color : colors.border,
-                    height: isActive ? 8 : 5,
-                    shadowColor: isActive ? level.color : "transparent",
-                    shadowOpacity: 0.5, shadowRadius: 6,
-                  }]}
-                />
+                <View key={level.key} style={[s.riskSegment, {
+                  backgroundColor: isActive ? level.color : colors.border,
+                  height: isActive ? 8 : 5,
+                  shadowColor: isActive ? level.color : "transparent",
+                  shadowOpacity: 0.5, shadowRadius: 6,
+                }]} />
               );
             })}
           </View>
@@ -430,7 +437,57 @@ export default function ProfileScreen() {
               );
             })}
           </View>
-        </View>
+
+          {/* Mini resumen expandible */}
+          {riskExpanded && (
+            <View style={{ marginTop: 14, gap: 10, borderTopWidth: 1, borderTopColor: riskCfg.color + "25", paddingTop: 14 }}>
+              {/* Distribución */}
+              <View style={{ gap: 6 }}>
+                {(profile.risk_tolerance === "conservative"
+                  ? [{ label: "Renta fija / Bonos", pct: 60, color: "#3b82f6" }, { label: "Acciones defensivas", pct: 30, color: "#22c55e" }, { label: "Liquidez / Oro", pct: 10, color: "#f59e0b" }]
+                  : profile.risk_tolerance === "moderate"
+                  ? [{ label: "Acciones diversificadas", pct: 60, color: "#22c55e" }, { label: "Renta fija", pct: 30, color: "#3b82f6" }, { label: "Alternativos / REITs", pct: 10, color: "#a855f7" }]
+                  : [{ label: "Acciones de crecimiento", pct: 75, color: "#22c55e" }, { label: "Mercados emergentes", pct: 15, color: "#f59e0b" }, { label: "Renta fija mínima", pct: 10, color: "#3b82f6" }]
+                ).map((item) => (
+                  <View key={item.label}>
+                    <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 3 }}>
+                      <Text style={{ color: colors.textSub, fontSize: 11 }}>{item.label}</Text>
+                      <Text style={{ color: item.color, fontSize: 11, fontWeight: "700" }}>{item.pct}%</Text>
+                    </View>
+                    <View style={{ height: 4, backgroundColor: colors.border, borderRadius: 2 }}>
+                      <View style={{ width: `${item.pct}%` as any, height: 4, backgroundColor: item.color, borderRadius: 2 }} />
+                    </View>
+                  </View>
+                ))}
+              </View>
+
+              {/* Datos clave */}
+              <View style={{ flexDirection: "row", gap: 8 }}>
+                {(profile.risk_tolerance === "conservative"
+                  ? [{ label: "Volatilidad", val: "Baja" }, { label: "Retorno esperado", val: "4–7% anual" }, { label: "Horizonte ideal", val: "1–5 años" }]
+                  : profile.risk_tolerance === "moderate"
+                  ? [{ label: "Volatilidad", val: "Media" }, { label: "Retorno esperado", val: "7–10% anual" }, { label: "Horizonte ideal", val: "5–10 años" }]
+                  : [{ label: "Volatilidad", val: "Alta" }, { label: "Retorno esperado", val: "10–15%+ anual" }, { label: "Horizonte ideal", val: "10+ años" }]
+                ).map((item) => (
+                  <View key={item.label} style={{ flex: 1, backgroundColor: riskCfg.color + "10", borderRadius: 10, padding: 8, alignItems: "center" }}>
+                    <Text style={{ color: colors.textMuted, fontSize: 9, fontWeight: "600", textAlign: "center" }}>{item.label}</Text>
+                    <Text style={{ color: riskCfg.color, fontSize: 12, fontWeight: "800", marginTop: 2, textAlign: "center" }}>{item.val}</Text>
+                  </View>
+                ))}
+              </View>
+
+              {/* ETFs típicos */}
+              <Text style={{ color: colors.textMuted, fontSize: 10 }}>
+                <Text style={{ fontWeight: "700", color: colors.textSub }}>ETFs típicos: </Text>
+                {profile.risk_tolerance === "conservative"
+                  ? "BND, AGG, SCHD, VTIP, SGOV, GLD"
+                  : profile.risk_tolerance === "moderate"
+                  ? "VTI, VEA, BND, QQQ, VNQ, SCHD"
+                  : "QQQ, VTI, VGT, SOXX, VWO, ARKK"}
+              </Text>
+            </View>
+          )}
+        </TouchableOpacity>
 
         {/* ── MADUREZ INVERSORA ── */}
         <View style={{ flexDirection: "row", alignItems: "baseline", gap: 6, marginTop: 20, marginBottom: 8, marginLeft: 2 }}>

@@ -601,34 +601,31 @@ Escenario solicitado para esta simulación: {scenario_label.upper()}
 Capital de referencia: {capital_str} {sectors_str}
 {mismatch_note}
 
-Construye un portafolio educativo CONCRETO y ESPECÍFICO para este perfil. Sé directo con ETFs reales.
+Responde SOLO en este formato JSON exacto, sin texto adicional:
 
-**DISTRIBUCIÓN SUGERIDA** (deben sumar 100%):
-Lista entre 5 y 7 instrumentos con ticker, nombre, porcentaje exacto y razón breve. Formato:
-- [TICKER] — [Nombre completo] — [X%]: [Por qué encaja en este perfil]
+{{
+  "summary": "1-2 frases explicando la estrategia {scenario_label} para perfil {risk_label}",
+  "mismatch": "{mismatch_note if user_risk != scenario else ''}",
+  "allocations": [
+    {{"ticker": "VTI", "name": "Vanguard Total Stock Market ETF", "pct": 40, "color": "#22c55e", "reason": "razón breve"}},
+    {{"ticker": "BND", "name": "Vanguard Total Bond Market ETF", "pct": 30, "color": "#3b82f6", "reason": "razón breve"}}
+  ],
+  "risks": ["Riesgo 1", "Riesgo 2", "Riesgo 3"],
+  "history": {{"2008": "-X%", "2020": "+X%", "2022": "-X%"}}
+}}
 
-Ejemplos de instrumentos según perfil:
-• Conservador: BND, AGG, SCHD, VIG, VTIP, GLD, SGOV
-• Moderado: VTI, VEA, BND, VNQ, QQQ, SCHD, VWO
-• Agresivo: QQQ, VTI, VGT, ARKK, SOXX, VWO, SMH
+ETFs típicos por perfil — úsalos de referencia:
+• Conservador (más bonos): SGOV 25%, BND 25%, VTIP 15%, SCHD 20%, VTI 15%
+• Moderado (equilibrado): VTI 35%, VEA 15%, BND 20%, QQQ 15%, VNQ 10%, GLD 5%
+• Agresivo (más acciones): QQQ 30%, VTI 25%, VGT 20%, VWO 15%, SOXX 10%
 
-**LÓGICA DE LA ESTRATEGIA:**
-2-3 líneas explicando por qué esta combinación encaja con el perfil {scenario_label}.
+Los porcentajes DEBEN sumar exactamente 100. Incluye entre 5 y 7 activos. Asigna un color hex distinto a cada categoría (verde para acciones, azul para bonos, amarillo para commodities, morado para REITs).
 
-**AJUSTE POR PERFIL DE RIESGO:**
-Cómo se adapta al perfil REAL del usuario ({risk_label}). Si el escenario elegido es más agresivo que su perfil, qué precauciones tomar.
-
-**COMPORTAMIENTO HISTÓRICO:**
-Una línea por cada crisis: 2008, COVID-2020, 2022.
-
-**TOP 3 RIESGOS:**
-Los riesgos más importantes de esta estrategia.
-
-IMPORTANTE: Esto es completamente educativo. No es recomendación de inversión."""
+IMPORTANTE: Solo devuelve JSON válido. Sin markdown, sin texto fuera del JSON."""
 
     response = await _claude(
         model=settings.claude_model,
-        max_tokens=2048,
+        max_tokens=700,
         system=[{"type": "text", "text": system_prompt, "cache_control": {"type": "ephemeral"}}],
         messages=[{"role": "user", "content": prompt}]
     )

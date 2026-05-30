@@ -21,7 +21,7 @@ const TAB_CONFIG: Record<string, { icon: IoniconName; iconFilled: IoniconName; l
   paper:     { icon: "game-controller-outline",     iconFilled: "game-controller",     label: "Virtual" },
 };
 
-const HIDDEN_TABS = ["profile", "notifications"];
+const HIDDEN_TABS = ["profile", "notifications", "explore"];
 
 // ─── Custom Tab Bar ───────────────────────────────────────────────────────────
 
@@ -243,6 +243,7 @@ export default function TabsLayout() {
           header: () => <MobileHeader title="Mi Portafolio" />,
         }}
       />
+      <Tabs.Screen name="explore" options={{ href: null }} />
       <Tabs.Screen name="profile" options={{ href: null, header: () => <MobileHeader title="Mi Perfil" /> }} />
       <Tabs.Screen
         name="arena"
