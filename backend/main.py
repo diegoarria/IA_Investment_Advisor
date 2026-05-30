@@ -1,4 +1,4 @@
-import traceback
+import logging
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -16,36 +16,33 @@ app = FastAPI(
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
-_all_origins = settings.frontend_url in ("*", "")
-_origins = ["*"] if _all_origins else [
-    settings.frontend_url,
-    "http://localhost:3000",
-    "http://localhost:3001",
-    "http://localhost:3002",
-    "http://localhost:3003",
-    "http://localhost:8081",
-    "http://localhost:8082",
-    "http://localhost:8083",
-    "http://localhost:19006",
-    "http://127.0.0.1:8081",
-    "http://127.0.0.1:19006",
+_dev_origins = [
+    "http://localhost:3000", "http://localhost:8081",
+    "http://localhost:19006", "http://127.0.0.1:8081",
 ]
+_all_origins = settings.frontend_url in ("*", "")
+_origins = (
+    ["*"] if _all_origins
+    else [settings.frontend_url] + _dev_origins
+)
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_origins,
     allow_credentials=not _all_origins,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type"],
 )
 
 
+logger = logging.getLogger("uvicorn.error")
+
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
-    tb = traceback.format_exc()
+    logger.exception("Unhandled error on %s %s", request.method, request.url.path)
     return JSONResponse(
         status_code=500,
-        content={"detail": f"Internal error: {str(exc)}", "trace": tb[-500:]},
+        content={"detail": "Internal server error"},
     )
 
 app.include_router(auth.router, prefix="/api")

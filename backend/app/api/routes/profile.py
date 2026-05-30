@@ -1,10 +1,11 @@
 import re
 import json
+import base64
 import anthropic
 from fastapi import APIRouter, Depends, HTTPException
 from app.api.deps import get_current_user_id
 from app.core.database import get_supabase
-from app.models.user import UserProfile, UserProfileCreate, UserProfileUpdate
+from app.models.user import UserProfile, UserProfileCreate, UserProfileUpdate, AvatarUpload
 from app.services import ai_service
 from app.core.cache import cache_get, cache_set
 from app.core.config import settings
@@ -143,6 +144,65 @@ async def update_profile(
     updates["updated_at"] = datetime.now(timezone.utc).isoformat()
     result = db.table("user_profiles").update(updates).eq("user_id", user_id).execute()
     return UserProfile(**result.data[0])
+
+
+# ─── Avatar ───────────────────────────────────────────────────────────────────
+
+@router.post("/avatar")
+async def upload_avatar(
+    data: AvatarUpload,
+    user_id: str = Depends(get_current_user_id),
+):
+    try:
+        image_bytes = base64.b64decode(data.image_base64)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid base64 image data")
+
+    db = get_supabase()
+    path = f"{user_id}.jpg"
+
+    try:
+        db.storage.from_("avatars").upload(
+            path=path,
+            file=image_bytes,
+            file_options={"content-type": "image/jpeg", "upsert": "true"},
+        )
+    except Exception:
+        # Try update if file already exists (some supabase-py versions raise on upsert)
+        try:
+            db.storage.from_("avatars").update(
+                path=path,
+                file=image_bytes,
+                file_options={"content-type": "image/jpeg"},
+            )
+        except Exception as e:
+            raise HTTPException(status_code=500, detail="Failed to upload avatar")
+
+    avatar_url = db.storage.from_("avatars").get_public_url(path)
+
+    db.table("user_profiles").update({
+        "avatar_url": avatar_url,
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+    }).eq("user_id", user_id).execute()
+
+    return {"avatar_url": avatar_url}
+
+
+@router.delete("/avatar")
+async def delete_avatar(user_id: str = Depends(get_current_user_id)):
+    db = get_supabase()
+    path = f"{user_id}.jpg"
+    try:
+        db.storage.from_("avatars").remove([path])
+    except Exception:
+        pass  # File may not exist, continue to clear DB field
+
+    db.table("user_profiles").update({
+        "avatar_url": None,
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+    }).eq("user_id", user_id).execute()
+
+    return {"ok": True}
 
 
 # ─── Mentor Letter ────────────────────────────────────────────────────────────

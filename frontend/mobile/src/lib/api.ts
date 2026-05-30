@@ -75,6 +75,9 @@ export const profileApi = {
   get: () => api.get("/api/profile"),
   create: (data: Record<string, unknown>) => api.post("/api/profile", data),
   update: (data: Record<string, unknown>) => api.put("/api/profile", data),
+  uploadAvatar: (imageBase64: string) =>
+    api.post("/api/profile/avatar", { image_base64: imageBase64 }),
+  deleteAvatar: () => api.delete("/api/profile/avatar"),
 };
 
 export const chatApi = {

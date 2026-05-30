@@ -39,7 +39,8 @@ export default function AuthScreen() {
         ]);
 
         if (profileRes.status === "fulfilled") {
-          const p = profileRes.value.data as UserProfile;
+          const p = profileRes.value.data as UserProfile & { avatar_url?: string };
+          const existingAvatar = useAppStore.getState().profile?.avatarUri;
           setProfile({
             name: p.name,
             birth_date: p.birth_date,
@@ -48,6 +49,7 @@ export default function AuthScreen() {
             risk_tolerance: p.risk_tolerance as UserProfile["risk_tolerance"],
             quiz_answers: p.quiz_answers as UserProfile["quiz_answers"],
             mentor: p.mentor ?? null,
+            avatarUri: p.avatar_url ?? existingAvatar ?? null,
           });
         } else {
           throw new Error("profile fetch failed");
@@ -144,7 +146,10 @@ export default function AuthScreen() {
       const res = await fn(email.trim().toLowerCase(), password);
       await afterAuth(res.data.access_token, res.data.refresh_token, res.data.user_id);
     } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+      const detail = (err as any)?.response?.data?.detail;
+      const msg = Array.isArray(detail)
+        ? detail.map((d: any) => d.msg ?? String(d)).join(", ")
+        : typeof detail === "string" ? detail : null;
       Alert.alert("Error", msg || (mode === "login" ? "Credenciales inválidas" : "No se pudo crear la cuenta"));
     } finally {
       setLoading(false);
@@ -224,6 +229,24 @@ export default function AuthScreen() {
               </Text>
             </TouchableOpacity>
 
+            {/* Demo account for App Store review */}
+            {mode === "login" && (
+              <View style={styles.demoBox}>
+                <Text style={styles.demoTitle}>Cuenta de demostración</Text>
+                <Text style={styles.demoCredential}>
+                  demo@nuvosai.app{"\n"}Demo1234!
+                </Text>
+                <TouchableOpacity
+                  style={styles.demoBtn}
+                  onPress={() => {
+                    setEmail("demo@nuvosai.app");
+                    setPassword("Demo1234!");
+                  }}
+                >
+                  <Text style={styles.demoBtnText}>Usar cuenta demo</Text>
+                </TouchableOpacity>
+              </View>
+            )}
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -275,5 +298,17 @@ function makeStyles(c: Colors) {
     switchLink: { color: "#22c55e", fontWeight: "500" },
     devSkip: { marginTop: 20, alignItems: "center", flexDirection: "row" },
     devSkipText: { color: c.textDim, fontSize: 12 },
+    demoBox: {
+      marginTop: 24, borderWidth: 1, borderColor: c.border,
+      borderRadius: 12, padding: 14, alignItems: "center", gap: 6,
+      backgroundColor: c.card,
+    },
+    demoTitle: { color: c.textMuted, fontSize: 11, fontWeight: "700", letterSpacing: 0.5 },
+    demoCredential: { color: c.textSub, fontSize: 12, textAlign: "center", lineHeight: 20 },
+    demoBtn: {
+      marginTop: 4, backgroundColor: c.border, borderRadius: 8,
+      paddingHorizontal: 16, paddingVertical: 8,
+    },
+    demoBtnText: { color: c.textSub, fontSize: 12, fontWeight: "700" },
   });
 }

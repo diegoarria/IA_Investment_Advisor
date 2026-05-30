@@ -15,9 +15,12 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.nuvosai.app",
-      "buildNumber": "6",
+      "buildNumber": "7",
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSPhotoLibraryUsageDescription": "Nuvos AI necesita acceso a tu galería para que puedas subir una foto de perfil y analizar capturas de tu portafolio.",
+        "NSPhotoLibraryAddUsageDescription": "Nuvos AI puede guardar imágenes en tu galería.",
+        "NSUserNotificationsUsageDescription": "Activa las notificaciones para recibir alertas de tus posiciones, oportunidades de mercado y mensajes de tu mentor."
       }
     },
     "android": {

@@ -310,8 +310,8 @@ Instrucciones críticas:
         openPaywall(serverMsg);
       } else {
         const errMsg = errObj?.message ?? String(err);
-        console.error("[chat] sendMessage error:", errMsg, err);
-        setMessages([...withAssistant.slice(0, -1), { role: "assistant", content: `Error: ${errMsg}` }]);
+        if (__DEV__) console.error("[chat] sendMessage error:", errMsg, err);
+        setMessages([...withAssistant.slice(0, -1), { role: "assistant", content: "Ocurrió un error al procesar tu mensaje. Inténtalo de nuevo." }]);
       }
       setStreaming(false);
     }

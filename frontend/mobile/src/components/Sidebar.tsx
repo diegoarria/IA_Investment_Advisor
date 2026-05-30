@@ -46,7 +46,11 @@ function ProfileCard({ colors }: { colors: ReturnType<typeof useTheme>["colors"]
     <View style={[styles.profileCard, { backgroundColor: colors.bg, borderColor: colors.border }]}>
       <View style={styles.profileHeader}>
         <View style={[styles.avatar, { backgroundColor: riskCfg?.color ?? "#16a34a" }]}>
-          <Text style={styles.avatarText}>{profile.name.charAt(0).toUpperCase()}</Text>
+          {profile.avatarUri ? (
+            <Image source={{ uri: profile.avatarUri }} style={styles.avatarImg} />
+          ) : (
+            <Text style={styles.avatarText}>{profile.name.charAt(0).toUpperCase()}</Text>
+          )}
         </View>
         <View style={{ flex: 1 }}>
           <Text style={[styles.profileName, { color: colors.text }]} numberOfLines={1}>
@@ -503,6 +507,7 @@ const styles = StyleSheet.create({
   profileHeader: { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 10 },
   avatar: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center" },
   avatarText: { color: "white", fontSize: 16, fontWeight: "700" },
+  avatarImg: { width: 36, height: 36, borderRadius: 18 },
   profileName: { fontSize: 14, fontWeight: "700", marginBottom: 2 },
   profileTypeBadge: { fontSize: 11, fontWeight: "600" },
   barTrack: { height: 7, borderRadius: 4, overflow: "hidden", flexDirection: "row", marginBottom: 5 },

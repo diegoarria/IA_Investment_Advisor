@@ -13,7 +13,7 @@ import * as XLSX from "xlsx";
 import { marketApi } from "../../src/lib/api";
 import { useTheme, Colors } from "../../src/lib/ThemeContext";
 import { usePortfolioStore, Position } from "../../src/lib/portfolioStore";
-import { useAppStore, getAge, UserProfile } from "../../src/lib/profileStore";
+import { useAppStore, getAge, UserProfile, RISK_CONFIG } from "../../src/lib/profileStore";
 import { useSubscriptionStore, hasPremiumAccess } from "../../src/lib/subscriptionStore";
 import PaywallModal from "../../src/components/PaywallModal";
 
@@ -270,6 +270,7 @@ export default function PortfolioScreen() {
   const age = profile?.birth_date ? getAge(profile.birth_date) : 0;
   const [prices, setPrices] = useState<Record<string, PriceData>>({});
   const [loadingPrices, setLoadingPrices] = useState(false);
+  const [priceError, setPriceError] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
   // Screenshot import
@@ -284,7 +285,10 @@ export default function PortfolioScreen() {
   const [addingLoading, setAddingLoading] = useState(false);
 
   // Simulator
-  const [scenario, setScenario] = useState<Scenario>("moderate");
+  const riskCfg = profile?.risk_tolerance ? RISK_CONFIG[profile.risk_tolerance] : null;
+  const [scenario, setScenario] = useState<Scenario>(
+    (profile?.risk_tolerance as Scenario) ?? "moderate"
+  );
   const [capital, setCapital] = useState("");
   const [analysis, setAnalysis] = useState("");
   const [simLoading, setSimLoading] = useState(false);
@@ -295,7 +299,10 @@ export default function PortfolioScreen() {
     try {
       const res = await marketApi.getPrices(positions.map((p) => p.ticker));
       setPrices(res.data);
-    } catch {}
+      setPriceError(false);
+    } catch {
+      if (!silent) setPriceError(true);
+    }
     setLoadingPrices(false);
   }, [positions]);
 
@@ -775,6 +782,12 @@ export default function PortfolioScreen() {
           </View>
         ) : positions.length > 0 ? (
           <>
+            {priceError && (
+              <View style={{ backgroundColor: "#f5931510", borderColor: "#f5931530", borderWidth: 1, borderRadius: 10, padding: 10, marginBottom: 8, flexDirection: "row", alignItems: "center", gap: 8 }}>
+                <Ionicons name="cloud-offline-outline" size={15} color="#f59315" />
+                <Text style={{ color: "#f59315", fontSize: 12, fontWeight: "600" }}>Sin conexión — precios desactualizados</Text>
+              </View>
+            )}
             <View style={[s.totalsCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
               {loadingPrices ? (
                 <ActivityIndicator color="#22c55e" />
@@ -1041,6 +1054,25 @@ export default function PortfolioScreen() {
           );
         })()}
 
+        {/* Risk profile indicator */}
+        {riskCfg && (
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 10 }}>
+            <View style={{ flex: 1, height: 4, borderRadius: 2, backgroundColor: colors.border, overflow: "hidden" }}>
+              <View style={{ width: `${Math.round(riskCfg.pct * 100)}%` as any, height: "100%", backgroundColor: riskCfg.color, borderRadius: 2 }} />
+            </View>
+            <Text style={{ color: riskCfg.color, fontSize: 11, fontWeight: "700" }}>
+              Tu perfil: {riskCfg.label}
+            </Text>
+          </View>
+        )}
+        {riskCfg && scenario !== profile?.risk_tolerance && (
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#f59e0b12", borderColor: "#f59e0b30", borderWidth: 1, borderRadius: 8, padding: 8, marginBottom: 8 }}>
+            <Ionicons name="warning-outline" size={13} color="#f59e0b" />
+            <Text style={{ color: "#f59e0b", fontSize: 11, fontWeight: "600", flex: 1 }}>
+              Este escenario difiere de tu perfil real ({riskCfg.label.toLowerCase()})
+            </Text>
+          </View>
+        )}
         <View style={s.scenarioRow}>
           {SCENARIOS.map((sc) => (
             <TouchableOpacity
@@ -1050,6 +1082,11 @@ export default function PortfolioScreen() {
             >
               <Ionicons name={sc.icon} size={20} color={scenario === sc.value ? "#22c55e" : colors.textSub} style={{ marginBottom: 2 }} />
               <Text style={[s.scenarioLabel, { color: scenario === sc.value ? colors.text : colors.textSub }]}>{sc.label}</Text>
+              {sc.value === profile?.risk_tolerance && (
+                <View style={{ backgroundColor: riskCfg?.color + "25", borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1, marginTop: 2 }}>
+                  <Text style={{ color: riskCfg?.color, fontSize: 8, fontWeight: "800" }}>TU PERFIL</Text>
+                </View>
+              )}
             </TouchableOpacity>
           ))}
         </View>

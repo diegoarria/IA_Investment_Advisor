@@ -1,7 +1,7 @@
 import React, { useMemo, useRef, useState, useEffect } from "react";
 import {
   View, Text, ScrollView, TouchableOpacity, Image,
-  StyleSheet, Alert, Modal, ActivityIndicator, Platform,
+  StyleSheet, Alert, Modal, ActivityIndicator, Platform, Linking,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -17,7 +17,7 @@ import InvestorScorecard from "../../src/components/InvestorScorecard";
 import ProgressModal from "../../src/components/ProgressModal";
 import { useSubscriptionStore, msgsRemaining, FREE_MSG_LIMIT } from "../../src/lib/subscriptionStore";
 import PaywallModal from "../../src/components/PaywallModal";
-import { insightsApi, mentorLetterApi } from "../../src/lib/api";
+import { insightsApi, mentorLetterApi, profileApi } from "../../src/lib/api";
 
 const MENTOR_PHOTOS: Record<string, number> = {
   "Warren Buffett": require("../../assets/images/mentors/warren_buffett.jpg"),
@@ -136,6 +136,8 @@ export default function ProfileScreen() {
     insightsApi.get().then((r) => setInsights(r.data)).catch(() => {});
   }, []);
 
+  const [avatarUploading, setAvatarUploading] = useState(false);
+
   const pickPhoto = async () => {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!perm.granted) {
@@ -145,12 +147,38 @@ export default function ProfileScreen() {
     const result = await ImagePicker.launchImageLibraryAsync({
       allowsEditing: true,
       aspect: [1, 1],
-      quality: 0.4,
+      quality: 0.5,
       base64: true,
     });
-    if (!result.canceled && result.assets[0].base64) {
-      setAvatarUri(`data:image/jpeg;base64,${result.assets[0].base64}`);
+    if (result.canceled || !result.assets[0].base64) return;
+
+    // Mostrar la foto inmediatamente (optimista)
+    const localUri = `data:image/jpeg;base64,${result.assets[0].base64}`;
+    setAvatarUri(localUri);
+
+    // Subir al backend en background para persistencia permanente
+    setAvatarUploading(true);
+    try {
+      const res = await profileApi.uploadAvatar(result.assets[0].base64);
+      setAvatarUri(res.data.avatar_url);
+    } catch {
+      // La foto local sigue visible aunque falle el upload
+    } finally {
+      setAvatarUploading(false);
     }
+  };
+
+  const removePhoto = () => {
+    Alert.alert("Eliminar foto", "¿Seguro que quieres quitar tu foto de perfil?", [
+      { text: "Cancelar", style: "cancel" },
+      {
+        text: "Eliminar", style: "destructive",
+        onPress: async () => {
+          setAvatarUri(null);
+          try { await profileApi.deleteAvatar(); } catch {}
+        },
+      },
+    ]);
   };
 
   const subStore = useSubscriptionStore();
@@ -217,7 +245,11 @@ export default function ProfileScreen() {
           <View style={[s.heroBand, { backgroundColor: riskCfg.color }]} />
           <View style={s.heroAvatarWrap}>
             <View style={[s.heroAvatarRing, { borderColor: colors.bg, backgroundColor: colors.bg }]}>
-              {profile.avatarUri ? (
+              {avatarUploading ? (
+                <View style={[s.heroAvatar, { backgroundColor: riskCfg.color, alignItems: "center", justifyContent: "center" }]}>
+                  <ActivityIndicator color="white" size="small" />
+                </View>
+              ) : profile.avatarUri ? (
                 <Image source={{ uri: profile.avatarUri }} style={s.heroAvatar} />
               ) : (
                 <View style={[s.heroAvatar, { backgroundColor: riskCfg.color }]}>
@@ -228,9 +260,18 @@ export default function ProfileScreen() {
             <TouchableOpacity
               style={[s.cameraBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
               onPress={pickPhoto}
+              disabled={avatarUploading}
             >
               <Ionicons name="camera" size={13} color={colors.accentLight} />
             </TouchableOpacity>
+            {profile.avatarUri && !avatarUploading && (
+              <TouchableOpacity
+                style={[s.cameraBtn, { backgroundColor: colors.card, borderColor: "#ef444440", marginTop: 4 }]}
+                onPress={removePhoto}
+              >
+                <Ionicons name="trash-outline" size={13} color="#ef4444" />
+              </TouchableOpacity>
+            )}
           </View>
           <View style={s.heroBody}>
             <Text style={[s.heroName, { color: colors.text }]}>{profile.name}</Text>
@@ -553,10 +594,26 @@ export default function ProfileScreen() {
             </View>
             <TouchableOpacity style={s.upgradeBtn} onPress={() => setPaywallOpen(true)}>
               <Ionicons name="star" size={15} color="white" />
-              <Text style={s.upgradeBtnText}>Activar Premium — $11.99/mes</Text>
+              <View style={{ alignItems: "center" }}>
+                <Text style={s.upgradeBtnText}>Activar Premium — $9.83/mes</Text>
+                <Text style={{ color: "rgba(255,255,255,0.75)", fontSize: 10, fontWeight: "600" }}>
+                  Plan anual · Más popular ✦ $117.99/año
+                </Text>
+              </View>
             </TouchableOpacity>
           </View>
         )}
+
+        {/* ── LEGAL ── */}
+        <View style={{ flexDirection: "row", justifyContent: "center", gap: 20, paddingVertical: 8 }}>
+          <TouchableOpacity onPress={() => Linking.openURL("https://nuvosai.app/privacy")}>
+            <Text style={[s.legalLink, { color: colors.textDim }]}>Política de privacidad</Text>
+          </TouchableOpacity>
+          <Text style={{ color: colors.textDim, fontSize: 11 }}>·</Text>
+          <TouchableOpacity onPress={() => Linking.openURL("https://nuvosai.app/terms")}>
+            <Text style={[s.legalLink, { color: colors.textDim }]}>Términos de uso</Text>
+          </TouchableOpacity>
+        </View>
 
         {/* ── LOGOUT ── */}
         <TouchableOpacity
@@ -770,5 +827,6 @@ function makeStyles(c: Colors) {
       backgroundColor: "#16a34a", borderRadius: 14, paddingVertical: 15, width: 320,
     },
     modalShareText: { color: "white", fontWeight: "700", fontSize: 15 },
+    legalLink: { fontSize: 11, fontWeight: "500" },
   });
 }

@@ -586,20 +586,45 @@ Con base en las posiciones REALES del usuario arriba, genera un análisis de su 
 
 IMPORTANTE: Esto es análisis educativo, no recomendación de inversión. Basa el forecast en los datos de analistas disponibles, no en predicciones propias."""
     else:
-        prompt = f"""Construye un portafolio educativo hipotético de ejemplo para un perfil {scenario}.
+        user_risk = profile.risk_tolerance if profile else "moderate"
+        risk_label = {"conservative": "conservador", "moderate": "moderado", "aggressive": "agresivo"}.get(user_risk, user_risk)
+        scenario_label = {"conservative": "conservador", "moderate": "moderado", "aggressive": "agresivo"}.get(scenario, scenario)
 
+        mismatch_note = ""
+        if user_risk != scenario:
+            mismatch_note = f"""
+⚠️ DIFERENCIA IMPORTANTE: El perfil real del usuario es "{risk_label}" pero está simulando el escenario "{scenario_label}".
+Menciona esto brevemente y explica cómo balancear ambos perfiles."""
+
+        prompt = f"""El usuario tiene un perfil de riesgo REAL: {risk_label.upper()}
+Escenario solicitado para esta simulación: {scenario_label.upper()}
 Capital de referencia: {capital_str} {sectors_str}
+{mismatch_note}
 
-Para este portafolio de ejemplo:
-1. Distribución por tipo de activo (% aproximado)
-2. Ejemplos de categorías o sectores (no nombres específicos de acciones como recomendación)
-3. Lógica detrás de cada decisión de distribución
-4. Riesgos específicos de esta estrategia
-5. Comportamiento histórico típico de esta estrategia en crisis (2008, COVID-19, 2022)
-6. En qué condiciones de mercado esta estrategia funciona mejor o peor
+Construye un portafolio educativo CONCRETO y ESPECÍFICO para este perfil. Sé directo con ETFs reales.
 
-IMPORTANTE: Esto es completamente educativo/hipotético. No es una recomendación de inversión.
-Explica los conceptos de diversificación, correlación de activos y horizonte temporal."""
+**DISTRIBUCIÓN SUGERIDA** (deben sumar 100%):
+Lista entre 5 y 7 instrumentos con ticker, nombre, porcentaje exacto y razón breve. Formato:
+- [TICKER] — [Nombre completo] — [X%]: [Por qué encaja en este perfil]
+
+Ejemplos de instrumentos según perfil:
+• Conservador: BND, AGG, SCHD, VIG, VTIP, GLD, SGOV
+• Moderado: VTI, VEA, BND, VNQ, QQQ, SCHD, VWO
+• Agresivo: QQQ, VTI, VGT, ARKK, SOXX, VWO, SMH
+
+**LÓGICA DE LA ESTRATEGIA:**
+2-3 líneas explicando por qué esta combinación encaja con el perfil {scenario_label}.
+
+**AJUSTE POR PERFIL DE RIESGO:**
+Cómo se adapta al perfil REAL del usuario ({risk_label}). Si el escenario elegido es más agresivo que su perfil, qué precauciones tomar.
+
+**COMPORTAMIENTO HISTÓRICO:**
+Una línea por cada crisis: 2008, COVID-2020, 2022.
+
+**TOP 3 RIESGOS:**
+Los riesgos más importantes de esta estrategia.
+
+IMPORTANTE: Esto es completamente educativo. No es recomendación de inversión."""
 
     response = await _claude(
         model=settings.claude_model,

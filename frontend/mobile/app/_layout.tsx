@@ -1,6 +1,6 @@
 import { Stack, usePathname } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { View, Platform, Modal, Text, TouchableOpacity, StyleSheet } from "react-native";
+import { View, Platform, Modal, Text, TouchableOpacity, StyleSheet, Alert } from "react-native";
 import { useEffect, useState } from "react";
 import { ThemeProvider, useTheme } from "../src/lib/ThemeContext";
 import Sidebar from "../src/components/Sidebar";
@@ -80,10 +80,34 @@ function AppStack() {
     if (Platform.OS === "web") return;
     try {
       const { status: existing } = await Notifications.getPermissionsAsync();
-      const { status } = existing === "granted"
-        ? { status: existing }
-        : await Notifications.requestPermissionsAsync();
-      if (status !== "granted") return;
+      let finalStatus = existing;
+
+      if (existing !== "granted") {
+        if (existing === "undetermined") {
+          // Show rationale before triggering the system dialog
+          await new Promise<void>((resolve) => {
+            Alert.alert(
+              "Mantente informado",
+              "Activa las notificaciones para recibir alertas de tus posiciones, oportunidades de mercado y mensajes de tu mentor.",
+              [
+                { text: "Ahora no", style: "cancel", onPress: () => resolve() },
+                {
+                  text: "Activar",
+                  onPress: async () => {
+                    const { status } = await Notifications.requestPermissionsAsync();
+                    finalStatus = status;
+                    resolve();
+                  },
+                },
+              ]
+            );
+          });
+        } else {
+          return; // already denied — don't ask again
+        }
+      }
+
+      if (finalStatus !== "granted") return;
       const tokenData = await Notifications.getExpoPushTokenAsync({
         projectId: "11c4956f-5fff-4fb2-9128-210b504a43b5",
       });

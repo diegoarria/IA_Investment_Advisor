@@ -34,6 +34,16 @@ const PREMIUM_FEATURES = [
     text: "Noticias ilimitadas en tiempo real",
     detail: "Los usuarios gratis ven solo 3 noticias. Con Premium ves todas las noticias de tus posiciones y watchlist actualizadas al momento.",
   },
+  {
+    icon: "game-controller-outline",
+    text: "Simulador de decisiones ilimitado",
+    detail: "Pon a prueba tu criterio inversor con escenarios reales: ¿compras, mantienes o vendes? La IA evalúa cada decisión y te explica qué haría un experto en tu lugar. Gratis: 5/día.",
+  },
+  {
+    icon: "mic-outline",
+    text: "Debates con la IA ilimitados",
+    detail: "Defiende tu tesis de inversión ante la IA y recibe argumentos en contra. Perfecciona tu razonamiento y descubre puntos ciegos antes de operar con dinero real. Gratis: 2/día.",
+  },
 ];
 
 const PLANS = [

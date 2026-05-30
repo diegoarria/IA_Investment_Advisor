@@ -1,7 +1,7 @@
 import React from "react";
 import { Tabs } from "expo-router";
 import {
-  View, Text, TouchableOpacity, StyleSheet, Platform, Pressable,
+  View, Text, TouchableOpacity, StyleSheet, Platform, Pressable, Image,
 } from "react-native";
 import type { BottomTabBarProps } from "@react-navigation/bottom-tabs";
 import { Ionicons } from "@expo/vector-icons";
@@ -21,7 +21,7 @@ const TAB_CONFIG: Record<string, { icon: IoniconName; iconFilled: IoniconName; l
   paper:     { icon: "game-controller-outline",     iconFilled: "game-controller",     label: "Virtual" },
 };
 
-const HIDDEN_TABS = ["explore", "profile", "notifications"];
+const HIDDEN_TABS = ["profile", "notifications"];
 
 // ─── Custom Tab Bar ───────────────────────────────────────────────────────────
 
@@ -167,9 +167,13 @@ function MobileHeader({ title }: { title: string }) {
             activeOpacity={0.8}
             onPress={() => router.navigate("/(tabs)/profile")}
           >
-            <Text style={[headerStyles.avatarText, { color: riskColor }]}>
-              {profile.name.charAt(0).toUpperCase()}
-            </Text>
+            {profile.avatarUri ? (
+              <Image source={{ uri: profile.avatarUri }} style={headerStyles.avatarImg} />
+            ) : (
+              <Text style={[headerStyles.avatarText, { color: riskColor }]}>
+                {profile.name.charAt(0).toUpperCase()}
+              </Text>
+            )}
           </TouchableOpacity>
         ) : (
           <View style={{ width: 36 }} />
@@ -207,6 +211,7 @@ const headerStyles = StyleSheet.create({
     alignItems: "center", justifyContent: "center",
   },
   avatarText: { fontSize: 14, fontWeight: "800" },
+  avatarImg: { width: 36, height: 36, borderRadius: 18 },
 });
 
 // ─── Root Tab Layout ──────────────────────────────────────────────────────────
@@ -238,7 +243,6 @@ export default function TabsLayout() {
           header: () => <MobileHeader title="Mi Portafolio" />,
         }}
       />
-      <Tabs.Screen name="explore" options={{ href: null }} />
       <Tabs.Screen name="profile" options={{ href: null, header: () => <MobileHeader title="Mi Perfil" /> }} />
       <Tabs.Screen
         name="arena"

@@ -20,6 +20,7 @@ class UserProfileUpdate(BaseModel):
     risk_tolerance: Optional[str] = None
     quiz_answers: Optional[dict] = None
     mentor: Optional[str] = None
+    avatar_url: Optional[str] = None
 
 
 class UserProfile(BaseModel):
@@ -32,12 +33,17 @@ class UserProfile(BaseModel):
     risk_tolerance: str
     quiz_answers: dict
     mentor: Optional[str] = None
+    avatar_url: Optional[str] = None
     subscription_tier: str = "free"
     stripe_customer_id: Optional[str] = None
     msg_count: int = 0
     msg_window_start: Optional[str] = None
     created_at: str
     updated_at: str
+
+
+class AvatarUpload(BaseModel):
+    image_base64: str
 
 
 class ChatMessage(BaseModel):
