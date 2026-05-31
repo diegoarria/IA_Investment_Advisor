@@ -1,114 +1,394 @@
 "use client";
 
-import { useEffect } from "react";
-import { useRouter } from "next/navigation";
-import { notifications as notifApi } from "@/lib/api";
-import { useAuthStore, useNotificationStore } from "@/lib/store";
-import { Bell, ArrowLeft, CheckCheck } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
+import { useRouter, usePathname } from "next/navigation";
+import ReactMarkdown from "react-markdown";
+import { notifications as notifApi, market as marketApi } from "@/lib/api";
+import { useAuthStore, useNotificationStore, useThemeStore, useWatchlistStore, useSubscriptionStore } from "@/lib/store";
+import { usePortfolioStore } from "@/lib/portfolioStore";
+import PaywallModal from "@/components/PaywallModal";
+import {
+  TrendingUp, BookOpen, PieChart, BarChart2, Bell, User, Menu, X,
+  GraduationCap, Trophy, Sun, Moon, Newspaper, Bookmark, RefreshCw, Loader2,
+} from "lucide-react";
+
+const NAV = [
+  { href: "/chat",          icon: BookOpen,      label: "Chat" },
+  { href: "/portfolio",     icon: PieChart,      label: "Portafolio" },
+  { href: "/paper",         icon: BarChart2,     label: "Paper Trading" },
+  { href: "/learn",         icon: GraduationCap, label: "Aprendizaje" },
+  { href: "/arena",         icon: Trophy,        label: "Arena" },
+  { href: "/notifications", icon: Bell,          label: "Notificaciones" },
+  { href: "/profile",       icon: User,          label: "Perfil" },
+];
 
 const TYPE_ICONS: Record<string, string> = {
-  market_move: "📉",
-  earnings_event: "📊",
-  learning_progress: "🚀",
-  personalized_insight: "🧠",
-  market_summary: "📈",
+  market_move:           "📉",
+  earnings_event:        "📊",
+  learning_progress:     "🚀",
+  personalized_insight:  "🧠",
+  market_summary:        "📈",
 };
+
+interface NewsItem {
+  uuid: string; title: string; publisher: string;
+  url: string; timestamp: number; symbol: string; thumbnail: string | null;
+}
+
+interface PriceData { price: number | null; change_pct: number | null; }
 
 export default function NotificationsPage() {
   const router = useRouter();
+  const pathname = usePathname();
   const { isAuthenticated } = useAuthStore();
   const { notifications, unreadCount, setNotifications, markRead } = useNotificationStore();
+  const { theme, toggleTheme } = useThemeStore();
+  const { items: watchlist, remove: removeFromWatchlist } = useWatchlistStore();
+  const { positions } = usePortfolioStore();
+  const subStore = useSubscriptionStore();
+  const isPremium = subStore.tier === "premium";
 
-  useEffect(() => {
-    if (!isAuthenticated) { router.push("/"); return; }
-    notifApi.getAll().then((res) => {
-      setNotifications(res.data.notifications, res.data.unread_count);
-    });
-  }, [isAuthenticated]);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [paywallOpen, setPaywallOpen] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+
+  // Portfolio news
+  const [news, setNews] = useState<NewsItem[]>([]);
+  const [newsLoading, setNewsLoading] = useState(false);
+  const [newsError, setNewsError] = useState(false);
+
+  // Watchlist prices
+  const [prices, setPrices] = useState<Record<string, PriceData>>({});
+  const [pricesLoading, setPricesLoading] = useState(false);
+
+  // Alert context modal
+  const [alertModal, setAlertModal] = useState<{ ticker: string; change_pct: number } | null>(null);
+  const [alertInsight, setAlertInsight] = useState<string | null>(null);
+  const [alertLoading, setAlertLoading] = useState(false);
+
+  const loadNotifications = async () => {
+    try {
+      const res = await notifApi.getAll();
+      setNotifications(res.data.notifications ?? [], res.data.unread_count ?? 0);
+    } catch {}
+  };
+
+  const loadPortfolioNews = useCallback(async () => {
+    if (positions.length === 0) return;
+    setNewsLoading(true); setNewsError(false);
+    try {
+      const tickers = [...new Set(positions.map((p) => p.ticker))];
+      const res = await marketApi.getNews(tickers);
+      setNews(res.data ?? []);
+    } catch { setNewsError(true); }
+    setNewsLoading(false);
+  }, [positions.length]);
+
+  const loadWatchlistPrices = useCallback(async () => {
+    if (watchlist.length === 0) return;
+    setPricesLoading(true);
+    try {
+      const results: Record<string, PriceData> = {};
+      await Promise.all(watchlist.map(async (item) => {
+        try {
+          const res = await marketApi.getChart(item.ticker, "1d");
+          results[item.ticker] = { price: res.data.current_price ?? null, change_pct: res.data.change_pct ?? null };
+        } catch { results[item.ticker] = { price: null, change_pct: null }; }
+      }));
+      setPrices(results);
+    } catch {}
+    setPricesLoading(false);
+  }, [watchlist.length]);
+
+  const openAlertContext = async (ticker: string, change_pct: number) => {
+    setAlertModal({ ticker, change_pct });
+    setAlertInsight(null); setAlertLoading(true);
+    try {
+      const res = await marketApi.alertContext(ticker, change_pct);
+      setAlertInsight(res.data.insight);
+    } catch {}
+    setAlertLoading(false);
+  };
 
   const handleMarkAllRead = async () => {
     await notifApi.markAllRead();
     setNotifications(notifications.map((n) => ({ ...n, read: true })), 0);
   };
 
-  const formatDate = (iso: string) => {
-    return new Date(iso).toLocaleDateString("es", {
-      day: "numeric", month: "short", hour: "2-digit", minute: "2-digit"
-    });
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await Promise.all([loadNotifications(), loadPortfolioNews(), loadWatchlistPrices()]);
+    setRefreshing(false);
   };
 
+  useEffect(() => {
+    if (!isAuthenticated) { router.push("/"); return; }
+    loadNotifications();
+    loadWatchlistPrices();
+  }, [isAuthenticated]);
+
+  useEffect(() => { loadPortfolioNews(); }, [positions.length]);
+
+  const formatDate = (iso: string) =>
+    new Date(iso).toLocaleDateString("es", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+
   return (
-    <div className="min-h-screen bg-[#0f1117] p-4">
-      <div className="max-w-2xl mx-auto">
-        <button
-          onClick={() => router.push("/chat")}
-          className="flex items-center gap-2 text-gray-400 hover:text-white mb-6 transition-colors"
-        >
-          <ArrowLeft className="w-4 h-4" /> Volver al chat
-        </button>
-
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-brand-600/20 border border-brand-500/30 rounded-xl flex items-center justify-center">
-              <Bell className="w-5 h-5 text-brand-400" />
+    <div className="h-screen flex flex-col overflow-hidden" style={{ background: "var(--bg)" }}>
+      {/* Top bar */}
+      <div className="border-b flex items-center justify-between px-4 py-2 shrink-0"
+           style={{ borderColor: "var(--border)", background: "var(--card)" }}>
+        <div className="flex items-center gap-3">
+          <button onClick={() => setSidebarOpen(!sidebarOpen)} className="lg:hidden p-1 rounded-lg" style={{ color: "var(--muted)" }}>
+            {sidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+          </button>
+          <div className="flex items-center gap-2">
+            <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: "var(--accent)" }}>
+              <TrendingUp className="w-3.5 h-3.5 text-white" />
             </div>
-            <div>
-              <h1 className="text-xl font-bold text-white">Notificaciones</h1>
-              <p className="text-gray-400 text-sm">{unreadCount} sin leer</p>
-            </div>
+            <span className="font-bold text-sm" style={{ color: "var(--text)" }}>Nuvos AI</span>
           </div>
-          {unreadCount > 0 && (
-            <button
-              onClick={handleMarkAllRead}
-              className="flex items-center gap-1 text-sm text-brand-400 hover:text-brand-300"
-            >
-              <CheckCheck className="w-4 h-4" /> Marcar todas leídas
-            </button>
-          )}
         </div>
-
-        {notifications.length === 0 && (
-          <div className="text-center py-16 text-gray-500">
-            <Bell className="w-12 h-12 mx-auto mb-3 opacity-30" />
-            <p>Sin notificaciones todavía</p>
-            <p className="text-sm mt-1">Las notificaciones aparecen cuando hay movimientos del mercado relevantes para ti</p>
-          </div>
-        )}
-
-        <div className="space-y-3">
-          {notifications.map((n) => (
-            <div
-              key={n.id}
-              onClick={() => { markRead(n.id); notifApi.markRead(n.id); }}
-              className={`p-4 rounded-2xl border cursor-pointer transition-all ${
-                n.read
-                  ? "border-[#2a2d3a] bg-[#1a1d27]"
-                  : "border-brand-500/40 bg-brand-500/5"
-              }`}
-            >
-              <div className="flex items-start gap-3">
-                <span className="text-xl flex-shrink-0">{TYPE_ICONS[n.type] || "🔔"}</span>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-start justify-between gap-2">
-                    <span className={`font-semibold text-sm ${n.read ? "text-gray-300" : "text-white"}`}>
-                      {n.title}
-                    </span>
-                    {!n.read && <span className="w-2 h-2 rounded-full bg-brand-400 flex-shrink-0 mt-1" />}
-                  </div>
-                  <p className="text-gray-400 text-sm mt-1">{n.message}</p>
-                  <p className="text-gray-600 text-xs mt-2">{formatDate(n.created_at)}</p>
-                </div>
-              </div>
-              <button
-                onClick={(e) => { e.stopPropagation(); router.push(`/chat`); }}
-                className="mt-3 text-xs text-brand-400 hover:text-brand-300"
-              >
-                Discutir con mi mentor →
-              </button>
-            </div>
-          ))}
+        <span className="font-semibold text-sm" style={{ color: "var(--sub)" }}>Notificaciones</span>
+        <div className="flex items-center gap-1">
+          <button onClick={handleRefresh} disabled={refreshing} className="p-2 rounded-lg hover:bg-white/5" style={{ color: "var(--muted)" }}>
+            <RefreshCw className={`w-4 h-4 ${refreshing ? "animate-spin" : ""}`} />
+          </button>
+          <button onClick={toggleTheme} className="p-2 rounded-lg hover:bg-white/5" style={{ color: "var(--muted)" }}>
+            {theme === "dark" ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+          </button>
         </div>
       </div>
+
+      <div className="flex flex-1 overflow-hidden relative">
+        {/* Sidebar */}
+        <aside className={`${sidebarOpen ? "flex" : "hidden"} lg:flex w-60 border-r flex-col py-4 absolute lg:relative z-20 h-full`}
+               style={{ borderColor: "var(--border)", background: "var(--card)" }}>
+          <nav className="flex-1 px-2 space-y-0.5">
+            {NAV.map(({ href, icon: Icon, label }) => {
+              const active = pathname === href;
+              const badge = href === "/notifications" && unreadCount > 0;
+              return (
+                <button key={href} onClick={() => { router.push(href); setSidebarOpen(false); }}
+                        className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors"
+                        style={{ background: active ? "rgba(0,168,94,0.12)" : "transparent", color: active ? "var(--accent-l)" : "var(--muted)" }}>
+                  <Icon className="w-4 h-4 shrink-0" />
+                  <span>{label}</span>
+                  {badge && <span className="ml-auto w-4 h-4 rounded-full text-white text-[10px] flex items-center justify-center font-bold" style={{ background: "var(--accent)" }}>{unreadCount}</span>}
+                </button>
+              );
+            })}
+          </nav>
+        </aside>
+
+        {/* Main */}
+        <main className="flex-1 overflow-y-auto scrollbar-thin p-4">
+          <div className="max-w-2xl mx-auto space-y-4 pb-8">
+
+            {/* Mark all read */}
+            {unreadCount > 0 && (
+              <button onClick={handleMarkAllRead}
+                      className="w-full py-2.5 rounded-xl border text-xs font-semibold text-center transition-colors hover:opacity-80"
+                      style={{ background: "var(--accent-l)" + "12", borderColor: "var(--accent-l)" + "40", color: "var(--accent-l)" }}>
+                Marcar todas como leídas ({unreadCount})
+              </button>
+            )}
+
+            {/* Portfolio news */}
+            <div className="rounded-2xl border overflow-hidden" style={{ background: "var(--card)", borderColor: "var(--border)" }}>
+              <div className="flex items-center gap-2 px-4 py-3 border-b" style={{ borderColor: "var(--border)" }}>
+                <Newspaper className="w-3.5 h-3.5" style={{ color: "var(--accent-l)" }} />
+                <span className="text-sm font-bold" style={{ color: "var(--text)" }}>Noticias del portafolio</span>
+                <span className="text-xs ml-1" style={{ color: "var(--dim)" }}>últimos 7 días</span>
+              </div>
+
+              {positions.length === 0 ? (
+                <div className="flex flex-col items-center gap-2 py-6 px-4 text-center">
+                  <span className="text-2xl">💼</span>
+                  <p className="text-sm" style={{ color: "var(--muted)" }}>Importa acciones en Portafolio para ver sus noticias aquí</p>
+                </div>
+              ) : newsLoading ? (
+                <div className="flex flex-col items-center gap-2 py-6">
+                  <Loader2 className="w-5 h-5 animate-spin" style={{ color: "var(--accent-l)" }} />
+                  <p className="text-xs" style={{ color: "var(--dim)" }}>
+                    Buscando noticias de {positions.map((p) => p.ticker).join(", ")}…
+                  </p>
+                </div>
+              ) : newsError ? (
+                <button onClick={loadPortfolioNews} className="w-full flex flex-col items-center gap-2 py-6 hover:opacity-70">
+                  <RefreshCw className="w-5 h-5" style={{ color: "var(--dim)" }} />
+                  <p className="text-xs" style={{ color: "var(--muted)" }}>Error al cargar. Toca para reintentar.</p>
+                </button>
+              ) : news.length === 0 ? (
+                <div className="flex flex-col items-center gap-2 py-6 text-center px-4">
+                  <Newspaper className="w-6 h-6" style={{ color: "var(--dim)" }} />
+                  <p className="text-sm" style={{ color: "var(--muted)" }}>Sin noticias en los últimos 7 días</p>
+                </div>
+              ) : (
+                <>
+                  {(isPremium ? news : news.slice(0, 15)).map((item) => (
+                    <a key={item.uuid} href={item.url} target="_blank" rel="noopener noreferrer"
+                       className="flex items-start gap-3 px-4 py-3 border-t hover:bg-white/3 transition-colors"
+                       style={{ borderColor: "var(--border)" }}>
+                      {item.thumbnail ? (
+                        <img src={item.thumbnail} alt="" className="w-14 h-14 rounded-xl object-cover shrink-0" />
+                      ) : (
+                        <div className="w-14 h-14 rounded-xl flex items-center justify-center shrink-0" style={{ background: "var(--border)" }}>
+                          <Newspaper className="w-5 h-5" style={{ color: "var(--dim)" }} />
+                        </div>
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-[10px] font-black px-1.5 py-0.5 rounded"
+                                style={{ background: "var(--accent)" + "18", color: "var(--accent-l)" }}>
+                            {item.symbol}
+                          </span>
+                          <span className="text-[10px]" style={{ color: "var(--dim)" }}>
+                            {new Date(item.timestamp * 1000).toLocaleDateString("es", { day: "numeric", month: "short" })}
+                          </span>
+                        </div>
+                        <p className="text-sm font-semibold leading-snug line-clamp-2" style={{ color: "var(--text)" }}>{item.title}</p>
+                        <p className="text-xs mt-1" style={{ color: "var(--muted)" }}>{item.publisher}</p>
+                      </div>
+                    </a>
+                  ))}
+                  {!isPremium && news.length > 15 && (
+                    <button onClick={() => setPaywallOpen(true)}
+                            className="w-full flex items-center justify-center gap-2 py-3 border-t text-xs font-semibold"
+                            style={{ borderColor: "rgba(245,158,11,0.4)", color: "#f59e0b" }}>
+                      ⭐ {news.length - 15} noticias más con Premium
+                    </button>
+                  )}
+                </>
+              )}
+            </div>
+
+            {/* Watchlist */}
+            {watchlist.length > 0 && (
+              <div className="rounded-2xl border overflow-hidden" style={{ background: "var(--card)", borderColor: "var(--border)" }}>
+                <div className="flex items-center gap-2 px-4 py-3 border-b" style={{ borderColor: "var(--border)" }}>
+                  <Bookmark className="w-3.5 h-3.5 fill-current" style={{ color: "var(--accent-l)" }} />
+                  <span className="text-sm font-bold" style={{ color: "var(--text)" }}>Watchlist</span>
+                  {pricesLoading && <Loader2 className="w-3.5 h-3.5 animate-spin ml-1" style={{ color: "var(--accent-l)" }} />}
+                </div>
+                {watchlist.map((item) => {
+                  const p = prices[item.ticker];
+                  const chgColor = !p?.change_pct ? "var(--dim)" : p.change_pct >= 0 ? "#22c55e" : "#ef4444";
+                  const bigMove = p?.change_pct !== null && p?.change_pct !== undefined && Math.abs(p.change_pct) >= 3;
+                  return (
+                    <div key={item.ticker} className="flex items-center gap-3 px-4 py-3 border-t"
+                         style={{ borderColor: "var(--border)" }}>
+                      <div className="flex-1">
+                        <div className="font-bold text-sm" style={{ color: "var(--text)" }}>{item.ticker}</div>
+                        <div className="text-xs mt-0.5" style={{ color: "var(--muted)" }}>{item.name}</div>
+                      </div>
+                      <div className="text-right">
+                        {p?.price ? (
+                          <div className="text-sm font-bold" style={{ color: "var(--text)" }}>
+                            ${p.price.toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                          </div>
+                        ) : <div className="text-sm" style={{ color: "var(--dim)" }}>—</div>}
+                        {p?.change_pct !== null && p?.change_pct !== undefined && (
+                          <button onClick={() => bigMove ? openAlertContext(item.ticker, p.change_pct!) : undefined}
+                                  className={`text-xs font-bold mt-0.5 ${bigMove ? "hover:opacity-70" : ""}`}
+                                  style={{ color: chgColor }}>
+                            {p.change_pct >= 0 ? "▲" : "▼"} {Math.abs(p.change_pct).toFixed(2)}%{bigMove ? " ⚠️" : ""}
+                          </button>
+                        )}
+                      </div>
+                      <button onClick={() => removeFromWatchlist(item.ticker)} className="ml-2 p-1 hover:opacity-70" style={{ color: "var(--dim)" }}>
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Notifications list */}
+            {notifications.length === 0 ? (
+              <div className="flex flex-col items-center py-16 gap-3">
+                <Bell className="w-12 h-12" style={{ color: "var(--dim)", opacity: 0.4 }} />
+                <p className="text-base font-bold" style={{ color: "var(--muted)" }}>Sin notificaciones todavía</p>
+                <p className="text-sm text-center max-w-xs" style={{ color: "var(--dim)" }}>
+                  Las alertas aparecen cuando hay eventos relevantes del mercado para tu perfil
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {notifications.map((n) => (
+                  <div key={n.id} onClick={() => { if (!n.read) { markRead(n.id); notifApi.markRead(n.id); } }}
+                       className="p-4 rounded-2xl border cursor-pointer transition-all"
+                       style={{
+                         background: n.read ? "var(--card)" : "var(--accent-l)" + "06",
+                         borderColor: n.read ? "var(--border)" : "var(--accent-l)" + "50",
+                       }}>
+                    <div className="flex items-start gap-3">
+                      <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
+                           style={{ background: n.read ? "var(--border)" + "60" : "var(--accent-l)" + "18" }}>
+                        <span className="text-lg">{TYPE_ICONS[n.type] ?? "🔔"}</span>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-start justify-between gap-2">
+                          <span className="font-semibold text-sm" style={{ color: n.read ? "var(--sub)" : "var(--text)" }}>
+                            {n.title}
+                          </span>
+                          {!n.read && (
+                            <div className="w-2 h-2 rounded-full shrink-0 mt-1" style={{ background: "var(--accent-l)" }} />
+                          )}
+                        </div>
+                        <p className="text-xs mt-1 leading-relaxed line-clamp-3" style={{ color: "var(--muted)" }}>{n.message}</p>
+                        <p className="text-[10px] mt-2" style={{ color: "var(--dim)" }}>{formatDate(n.created_at)}</p>
+                      </div>
+                    </div>
+                    <button onClick={(e) => { e.stopPropagation(); router.push("/chat"); }}
+                            className="mt-2 text-xs hover:opacity-70"
+                            style={{ color: "var(--accent-l)" }}>
+                      Discutir con mi mentor →
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </main>
+      </div>
+
+      {/* Alert context modal */}
+      {alertModal && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center"
+             style={{ background: "rgba(0,0,0,0.65)" }}
+             onClick={() => setAlertModal(null)}>
+          <div className="rounded-t-3xl border-t border-x p-6 w-full max-w-lg max-h-[60vh] flex flex-col"
+               style={{ background: "var(--card)", borderColor: "var(--border)" }}
+               onClick={(e) => e.stopPropagation()}>
+            <div className="w-9 h-1 rounded-full mx-auto mb-4" style={{ background: "var(--border)" }} />
+            <div className="flex items-center justify-between mb-4">
+              <span className="font-bold text-sm" style={{ color: "var(--text)" }}>
+                {(alertModal.change_pct ?? 0) >= 0 ? "📈" : "📉"} {alertModal.ticker}{" "}
+                {alertModal.change_pct >= 0 ? "subió" : "cayó"} {Math.abs(alertModal.change_pct).toFixed(1)}%
+              </span>
+              <button onClick={() => setAlertModal(null)} style={{ color: "var(--muted)" }}>
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto scrollbar-thin">
+              {alertLoading ? (
+                <div className="flex flex-col items-center py-8 gap-3">
+                  <Loader2 className="w-6 h-6 animate-spin" style={{ color: "var(--accent-l)" }} />
+                  <p className="text-xs" style={{ color: "var(--muted)" }}>Analizando con IA…</p>
+                </div>
+              ) : (
+                <div className="prose-sm" style={{ color: "var(--sub)" }}>
+                  <ReactMarkdown>{alertInsight ?? ""}</ReactMarkdown>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      <PaywallModal visible={paywallOpen} onClose={() => setPaywallOpen(false)}
+                    reason="Las noticias ilimitadas son exclusivas de Premium" />
     </div>
   );
 }

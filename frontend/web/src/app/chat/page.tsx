@@ -10,12 +10,14 @@ import {
   useAuthStore, useProfileStore, useChatStore, useNotificationStore,
   useThemeStore, useSubscriptionStore, msgsRemaining, FREE_MSG_LIMIT,
 } from "@/lib/store";
+import { getMentorInfo } from "@/lib/mentorData";
+import { usePortfolioStore } from "@/lib/portfolioStore";
 import PaywallModal from "@/components/PaywallModal";
 import type { IndexData } from "@/lib/types";
 import {
   Send, TrendingUp, Bell, LogOut, Menu, X,
-  ChevronRight, BookOpen, PieChart, BarChart2, User, GraduationCap,
-  Sun, Moon,
+  ChevronRight, BookOpen, PieChart, BarChart2, User, GraduationCap, Trophy,
+  Sun, Moon, MessageSquare, Plus, Square, Pencil,
 } from "lucide-react";
 
 const SUGGESTIONS = [
@@ -136,6 +138,7 @@ const NAV = [
   { href: "/portfolio",     icon: PieChart,      label: "Portafolio" },
   { href: "/paper",         icon: BarChart2,     label: "Paper Trading" },
   { href: "/learn",         icon: GraduationCap, label: "Aprendizaje" },
+  { href: "/arena",         icon: Trophy,        label: "Arena" },
   { href: "/notifications", icon: Bell,          label: "Notificaciones" },
   { href: "/profile",       icon: User,          label: "Perfil" },
 ];
@@ -144,15 +147,19 @@ export default function ChatPage() {
   const router = useRouter();
   const pathname = usePathname();
   const { isAuthenticated, clearAuth } = useAuthStore();
-  const { profile } = useProfileStore();
-  const { messages, isStreaming, addMessage, appendToLastAssistant, setStreaming, startAssistantMessage, removeLastMessage, setMessages } = useChatStore();
+  const { profile, updateMaturity } = useProfileStore();
+  const { messages, isStreaming, addMessage, appendToLastAssistant, setStreaming, startAssistantMessage, removeLastMessage, setMessages, sessions, currentId, createSession, loadSession, deleteSession } = useChatStore();
   const { notifications, setNotifications, markRead } = useNotificationStore();
   const { theme, toggleTheme } = useThemeStore();
   const subStore = useSubscriptionStore();
+  const { positions } = usePortfolioStore();
+  const mentor = getMentorInfo(profile?.mentor);
+  const cancelRef = useRef({ cancelled: false });
 
   const [input, setInput] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(true);
   const [paywallOpen, setPaywallOpen] = useState(false);
   const [indices, setIndices] = useState<IndexData[]>([]);
   const [lastAssessment, setLastAssessment] = useState<BScoreData | null>(null);
@@ -162,12 +169,60 @@ export default function ChatPage() {
   const isPremium = subStore.tier === "premium";
   const remaining = msgsRemaining(subStore);
 
+  const handleStop = () => {
+    cancelRef.current.cancelled = true;
+    setStreaming(false);
+  };
+
+  const handleEditMessage = (index: number, content: string) => {
+    if (isStreaming) { cancelRef.current.cancelled = true; setStreaming(false); }
+    setMessages(messages.slice(0, index));
+    setInput(content);
+    inputRef.current?.focus();
+  };
+
+  const buildProfileContext = () => {
+    if (!profile) return null;
+    const qa = profile.quiz_answers;
+    const q1Labels: Record<string, string> = { A: "vende ante caídas (reactivo conservador)", B: "espera sin actuar (pasivo)", C: "analiza fundamentos y mantiene (racional)", D: "compra más en caídas (inversor de valor)" };
+    const q2Labels: Record<string, string> = { A: "necesita el dinero en menos de 2 años", B: "horizonte de 3–5 años", C: "10+ años, busca independencia financiera", D: "largo plazo sin prisa" };
+    const q3Labels: Record<string, string> = { A: "principiante — apenas empieza", B: "básico — conoce fondos indexados", C: "intermedio — entiende P/E, diversificación", D: "avanzado — maneja análisis fundamental" };
+    const q4Labels: Record<string, string> = { A: "conservador — prefiere $5K garantizado", B: "moderado-bajo — acepta riesgo de $5K", C: "moderado-alto — acepta riesgo de $20K", D: "especulador — arriesga todo" };
+    const q5Labels: Record<string, string> = { A: "pasivo — inversión automática", B: "semipasivo — revisión mensual", C: "activo — revisiones semanales", D: "muy activo — gestión diaria" };
+
+    let portfolioBlock = "\n\n[PORTAFOLIO REAL DEL USUARIO]";
+    if (positions.length === 0) {
+      portfolioBlock += "\nEl usuario aún no tiene posiciones registradas.";
+    } else {
+      portfolioBlock += `\nPosiciones (${positions.length}):`;
+      for (const p of positions) {
+        portfolioBlock += `\n- ${p.ticker}${p.name ? ` (${p.name})` : ""}: ${p.shares} acc × $${p.avgPrice.toFixed(2)} costo promedio`;
+      }
+    }
+
+    const a = (key: string) => qa ? String(qa[key] ?? "") : "";
+    return `[PERFIL DEL USUARIO]\nNombre: ${profile.name}\nPerfil de riesgo: ${profile.risk_tolerance}\n\nRespuestas del cuestionario:\n- Comportamiento ante caídas: ${q1Labels[a("q1")] ?? "no disponible"}\n- Horizonte: ${q2Labels[a("q2")] ?? "no disponible"}\n- Conocimiento: ${q3Labels[a("q3")] ?? "no disponible"}\n- Tolerancia al riesgo: ${q4Labels[a("q4")] ?? "no disponible"}\n- Estilo de gestión: ${q5Labels[a("q5")] ?? "no disponible"}${portfolioBlock}\n\nInstrucciones: Llama siempre a este usuario por su nombre (${profile.name.split(" ")[0]}). Adapta el nivel al conocimiento declarado. Responde en español.`;
+  };
+
+  const handleNewChat = () => {
+    createSession();
+    setSidebarOpen(false);
+  };
+
+  const handleLoadSession = (id: string) => {
+    loadSession(id);
+    setSidebarOpen(false);
+  };
+
   useEffect(() => {
     if (!isAuthenticated) { router.push("/"); return; }
 
-    chatApi.getHistory()
-      .then((res) => setMessages(res.data.messages.map((m: { role: string; content: string }) => ({ role: m.role as "user" | "assistant", content: m.content }))))
-      .catch(() => {});
+    if (sessions.length === 0) {
+      createSession();
+      chatApi.getHistory()
+        .then((res) => setMessages(res.data.messages.map((m: { role: string; content: string }) => ({ role: m.role as "user" | "assistant", content: m.content }))))
+        .catch(() => {});
+    }
 
     notifApi.getAll()
       .then((res) => setNotifications(res.data.notifications, res.data.unread_count))
@@ -188,18 +243,25 @@ export default function ChatPage() {
     const msg = text || input.trim();
     if (!msg || isStreaming) return;
 
-    if (remaining === 0) {
-      setPaywallOpen(true);
-      return;
-    }
+    if (remaining === 0) { setPaywallOpen(true); return; }
 
     setInput("");
     setLastAssessment(null);
+    cancelRef.current.cancelled = false;
     subStore.incrementMsgCount();
     addMessage({ role: "user", content: msg });
     chatApi.saveMessage("user", msg).catch(() => {});
 
-    const historyForApi = messages.slice(-20).map((m) => ({ role: m.role, content: m.content }));
+    const profileCtx = buildProfileContext();
+    const recentHistory = messages.slice(-18).map((m) => ({ role: m.role, content: m.content }));
+    const historyForApi = profileCtx
+      ? [
+          { role: "user", content: profileCtx },
+          { role: "assistant", content: `Entendido. Tengo en cuenta el perfil de ${profile?.name?.split(" ")[0] || "usuario"}.` },
+          ...recentHistory,
+        ]
+      : messages.slice(-20).map((m) => ({ role: m.role, content: m.content }));
+
     startAssistantMessage();
     setStreaming(true);
 
@@ -208,23 +270,28 @@ export default function ChatPage() {
       await chatApi.stream(
         msg,
         historyForApi,
-        (chunk) => { appendToLastAssistant(chunk); fullResponse += chunk; },
+        (chunk) => {
+          if (cancelRef.current.cancelled) return;
+          appendToLastAssistant(chunk);
+          fullResponse += chunk;
+        },
         () => {
           setStreaming(false);
           chatApi.saveMessage("assistant", fullResponse).catch(() => {});
         },
-        (a) => setLastAssessment(a),
+        (a) => {
+          setLastAssessment(a);
+          updateMaturity(a.sig);
+        },
         undefined,
-        null,
+        profile?.mentor ?? null,
+        cancelRef.current,
       );
     } catch (err: unknown) {
       setStreaming(false);
       removeLastMessage();
       const status = (err as { response?: { status?: number } })?.response?.status;
-      if (status === 429) {
-        await subStore.fetchStatus();
-        setPaywallOpen(true);
-      }
+      if (status === 429) { await subStore.fetchStatus(); setPaywallOpen(true); }
     }
   };
 
@@ -337,7 +404,8 @@ export default function ChatPage() {
             </div>
           )}
 
-          <nav className="flex-1 px-2 space-y-0.5">
+          <div className="flex-1 overflow-y-auto scrollbar-thin">
+          <nav className="px-2 space-y-0.5">
             {NAV.map(({ href, icon: Icon, label }) => {
               const active = pathname === href;
               const notifBadge = href === "/notifications" && unreadNotifCount > 0;
@@ -362,7 +430,60 @@ export default function ChatPage() {
             })}
           </nav>
 
-          <div className="px-3 mt-2">
+          {/* Chat history */}
+          <div className="px-2 mt-3 border-t pt-3" style={{ borderColor: "var(--border)" }}>
+            <div className="flex items-center justify-between px-1 mb-1">
+              <button
+                onClick={() => setHistoryOpen((v) => !v)}
+                className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide hover:opacity-80 transition-opacity"
+                style={{ color: "var(--muted)" }}
+              >
+                <MessageSquare className="w-3 h-3" />
+                Chats recientes
+                <ChevronRight className={`w-3 h-3 transition-transform ${historyOpen ? "rotate-90" : ""}`} />
+              </button>
+              <button
+                onClick={handleNewChat}
+                className="w-5 h-5 rounded flex items-center justify-center border transition-colors hover:border-[var(--accent)]"
+                style={{ borderColor: "var(--border)", color: "var(--muted)" }}
+                title="Nuevo chat"
+              >
+                <Plus className="w-3 h-3" />
+              </button>
+            </div>
+
+            {historyOpen && (
+              <div className="space-y-0.5">
+                {sessions.length === 0 ? (
+                  <p className="text-xs px-2 py-2" style={{ color: "var(--dim)" }}>Sin chats guardados</p>
+                ) : (
+                  sessions.slice(0, 30).map((s) => (
+                    <div
+                      key={s.id}
+                      onClick={() => handleLoadSession(s.id)}
+                      className="flex items-center gap-2 group px-2 py-2 rounded-lg cursor-pointer transition-colors"
+                      style={{ background: s.id === currentId ? "rgba(0,168,94,0.1)" : "transparent" }}
+                    >
+                      <MessageSquare className="w-3 h-3 shrink-0" style={{ color: s.id === currentId ? "var(--accent-l)" : "var(--dim)" }} />
+                      <span className="text-xs flex-1 truncate" style={{ color: s.id === currentId ? "var(--accent-l)" : "var(--sub)" }}>
+                        {s.title}
+                      </span>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); deleteSession(s.id); }}
+                        className="opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
+                        style={{ color: "var(--dim)" }}
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
+          </div>
+          </div>{/* end scrollable */}
+
+          <div className="px-3 py-2 shrink-0">
             <button onClick={() => router.push("/onboarding")}
                     className="w-full text-xs text-center py-2 rounded-lg transition-colors hover:bg-white/5"
                     style={{ color: "var(--dim)" }}>
@@ -407,21 +528,39 @@ export default function ChatPage() {
           <div className="flex-1 overflow-y-auto scrollbar-thin p-4 space-y-4">
             {messages.length === 0 && (
               <div className="h-full flex flex-col items-center justify-center text-center px-4">
-                <div className="w-16 h-16 rounded-2xl flex items-center justify-center mb-4"
-                     style={{ background: "rgba(0,168,94,0.1)" }}>
-                  <TrendingUp className="w-8 h-8" style={{ color: "var(--accent)" }} />
-                </div>
-                <h2 className="text-xl font-bold mb-2" style={{ color: "var(--text)" }}>
-                  {profile?.name ? `Hola, ${profile.name}` : "Tu mentor de inversiones"}
+                {mentor ? (
+                  <div className="w-20 h-20 rounded-full flex items-center justify-center text-4xl mb-4"
+                       style={{ background: mentor.color + "22" }}>
+                    {mentor.emoji}
+                  </div>
+                ) : (
+                  <div className="w-16 h-16 rounded-2xl flex items-center justify-center mb-4"
+                       style={{ background: "rgba(0,168,94,0.1)" }}>
+                    <TrendingUp className="w-8 h-8" style={{ color: "var(--accent)" }} />
+                  </div>
+                )}
+                <h2 className="text-xl font-bold mb-1" style={{ color: "var(--text)" }}>
+                  {mentor ? mentor.name : profile?.name ? `Hola, ${profile.name.split(" ")[0]}!` : "Nuvos AI"}
                 </h2>
-                <p className="text-sm max-w-sm mb-8" style={{ color: "var(--muted)" }}>
-                  Pregunta sobre cualquier empresa, ETF, o concepto financiero.
+                <p className="text-sm max-w-sm mb-2" style={{ color: "var(--muted)" }}>
+                  {mentor ? `${mentor.title} · ${mentor.badge}` : "Pregunta sobre cualquier empresa, ETF, o concepto financiero."}
                 </p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 w-full max-w-lg">
+                {mentor && (
+                  <div className="flex flex-wrap justify-center gap-2 mb-6">
+                    {mentor.principles.map((p) => (
+                      <span key={p} className="text-xs px-3 py-1 rounded-full border font-medium"
+                            style={{ borderColor: mentor.color + "50", background: mentor.color + "12", color: mentor.color }}>
+                        {p}
+                      </span>
+                    ))}
+                  </div>
+                )}
+                <div className={`grid grid-cols-1 sm:grid-cols-2 gap-2 w-full max-w-lg ${mentor ? "" : "mt-6"}`}>
                   {SUGGESTIONS.map((s) => (
                     <button key={s} onClick={() => sendMessage(s)}
-                            className="text-left p-3 rounded-xl text-xs transition-colors hover:border-[var(--accent)] border"
+                            className="text-left p-3 rounded-xl text-xs transition-colors hover:border-[var(--accent)] border flex items-center gap-2"
                             style={{ background: "var(--card)", borderColor: "var(--border)", color: "var(--sub)" }}>
+                      <span style={{ color: "var(--accent-l)" }}>✦</span>
                       {s}
                     </button>
                   ))}
@@ -433,27 +572,38 @@ export default function ChatPage() {
               <div key={i}>
                 <div className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
                   {msg.role === "assistant" && (
-                    <div className="w-7 h-7 rounded-full flex items-center justify-center mr-2 mt-0.5 shrink-0"
-                         style={{ background: "var(--accent)" }}>
-                      <TrendingUp className="w-3.5 h-3.5 text-white" />
+                    <div className="w-7 h-7 rounded-full flex items-center justify-center mr-2 mt-0.5 shrink-0 overflow-hidden text-sm"
+                         style={{ background: mentor ? mentor.color + "22" : "var(--accent)" }}>
+                      {mentor ? mentor.emoji : <TrendingUp className="w-3.5 h-3.5 text-white" />}
                     </div>
                   )}
-                  <div className="max-w-[85%] px-4 py-3 rounded-2xl"
-                       style={{
-                         background: msg.role === "user" ? "var(--accent)" : "var(--card)",
-                         borderRadius: msg.role === "user" ? "18px 18px 4px 18px" : "18px 18px 18px 4px",
-                         border: msg.role === "user" ? "none" : "1px solid var(--border)",
-                         color: msg.role === "user" ? "white" : "var(--sub)",
-                       }}>
-                    {msg.role === "assistant" ? (
-                      <div className="prose-dark">
-                        {msg.content === "" && isStreaming && i === messages.length - 1
-                          ? <TypingDots />
-                          : <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
-                        }
+                  <div className={msg.role === "user" ? "max-w-[80%]" : "flex-1"}>
+                    <div className="max-w-[85%] px-4 py-3 rounded-2xl"
+                         style={{
+                           background: msg.role === "user" ? "var(--accent)" : "var(--card)",
+                           borderRadius: msg.role === "user" ? "18px 18px 4px 18px" : "18px 18px 18px 4px",
+                           border: msg.role === "user" ? "none" : "1px solid var(--border)",
+                           color: msg.role === "user" ? "white" : "var(--sub)",
+                         }}>
+                      {msg.role === "assistant" ? (
+                        <div className="prose-dark">
+                          {msg.content === "" && isStreaming && i === messages.length - 1
+                            ? <TypingDots />
+                            : <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
+                          }
+                        </div>
+                      ) : (
+                        <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
+                      )}
+                    </div>
+                    {msg.role === "user" && (
+                      <div className="flex justify-end mt-1">
+                        <button onClick={() => handleEditMessage(i, msg.content)}
+                                className="p-1 rounded hover:opacity-70 transition-opacity"
+                                style={{ color: "var(--dim)" }}>
+                          <Pencil className="w-3 h-3" />
+                        </button>
                       </div>
-                    ) : (
-                      <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
                     )}
                   </div>
                 </div>
@@ -499,11 +649,11 @@ export default function ChatPage() {
                 }}
               />
               <button
-                onClick={() => sendMessage()}
-                disabled={!input.trim() || isStreaming || (remaining === 0 && !isPremium)}
+                onClick={isStreaming ? handleStop : () => sendMessage()}
+                disabled={!isStreaming && (!input.trim() || (remaining === 0 && !isPremium))}
                 className="w-10 h-10 rounded-xl flex items-center justify-center transition-colors shrink-0 disabled:opacity-40"
-                style={{ background: "var(--accent)" }}>
-                <Send className="w-4 h-4 text-white" />
+                style={{ background: isStreaming ? "#ef4444" : "var(--accent)" }}>
+                {isStreaming ? <Square className="w-4 h-4 text-white" /> : <Send className="w-4 h-4 text-white" />}
               </button>
             </div>
             <p className="text-center text-xs mt-2" style={{ color: "var(--dim)" }}>

@@ -2,6 +2,72 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import type { UserProfile, ChatMessage, Notification } from "./types";
 
+// ─── Maturity helpers ───────────────────────────────────────────────────────
+
+export interface MaturityEvent {
+  timestamp: number;
+  delta: number;
+  signals: string[];
+  newScore: number;
+}
+
+const MATURITY_DELTAS: Record<string, number> = {
+  "análisis_racional": 4,
+  "tolera_volatilidad": 4,
+  "largo_plazo": 3,
+  "diversificación_consciente": 3,
+  "compra_en_caídas": 5,
+  "decisión_por_fundamentos": 4,
+  "acepta_pérdida_educada": 3,
+  "pánico_venta": -5,
+  "busca_garantías": -3,
+  "fomo": -4,
+  "especulación": -3,
+  "decisión_por_precio": -3,
+  "horizonte_corto": -2,
+};
+
+export function computeMaturityDelta(signals: string[]): number {
+  return signals.reduce((acc, sig) => acc + (MATURITY_DELTAS[sig] ?? 0), 0);
+}
+
+export function maturityLabel(score: number): { label: string; color: string } {
+  if (score < 30) return { label: "Aprendiz",      color: "#ef4444" };
+  if (score < 50) return { label: "Principiante",  color: "#f97316" };
+  if (score < 65) return { label: "En Desarrollo", color: "#f59e0b" };
+  if (score < 80) return { label: "Maduro",        color: "#22c55e" };
+  return                 { label: "Experto",        color: "#16a34a" };
+}
+
+// ─── Streak helpers ─────────────────────────────────────────────────────────
+
+function todayStr() { return new Date().toISOString().split("T")[0]; }
+function yesterdayStr() { return new Date(Date.now() - 86400000).toISOString().split("T")[0]; }
+
+export const STREAK_MILESTONES = [
+  { days: 15, reward: "Modo Experto desbloqueado 🧠", bonus: "+5 mensajes/día" },
+  { days: 30, reward: "+5 mensajes diarios activados 🎁", bonus: "Acceso a escenarios imposibles" },
+  { days: 60, reward: "Insignia Inversor Consistente 🏅", bonus: "1 semana Premium gratis" },
+  { days: 90, reward: "Hall of Fame — Top Inversor 🏆", bonus: "Mención especial" },
+];
+
+export const STREAK_MILESTONES_PREMIUM = [
+  { days: 15, reward: "Insignia Estratega 🎖️", bonus: "Análisis macro semanal exclusivo" },
+  { days: 30, reward: "Badge Inversor Élite ⭐", bonus: "Debates sin límite de rondas" },
+  { days: 60, reward: "Avatar Halcón de Mercado 🦅", bonus: "Escenarios históricos secretos desbloqueados" },
+  { days: 90, reward: "Leyenda del Hall of Fame 👑", bonus: "Top 1% — mención permanente en el perfil" },
+];
+
+export function getMilestoneForStreak(streak: number, premium = false) {
+  const milestones = premium ? STREAK_MILESTONES_PREMIUM : STREAK_MILESTONES;
+  return [...milestones].reverse().find((m) => streak >= m.days) ?? null;
+}
+
+export function getNextMilestone(streak: number, premium = false) {
+  const milestones = premium ? STREAK_MILESTONES_PREMIUM : STREAK_MILESTONES;
+  return milestones.find((m) => streak < m.days) ?? null;
+}
+
 export type SubscriptionTier = "free" | "premium";
 export const FREE_MSG_LIMIT = 20;
 export const FREE_MSG_WINDOW_HOURS = 24;
@@ -16,12 +82,49 @@ interface AuthState {
 
 interface ProfileState {
   profile: UserProfile | null;
+  maturityScore: number;
+  maturityHistory: MaturityEvent[];
   setProfile: (profile: UserProfile | null) => void;
+  updateMaturity: (signals: string[]) => void;
+}
+
+export interface ChatSession {
+  id: string;
+  title: string;
+  messages: ChatMessage[];
+  createdAt: number;
+  updatedAt: number;
+}
+
+function makeSessionId() {
+  return `chat-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+}
+
+function makeSessionTitle(messages: ChatMessage[]): string {
+  const first = messages.find((m) => m.role === "user");
+  if (!first) return "Nuevo chat";
+  return first.content.length > 36
+    ? first.content.slice(0, 36).trimEnd() + "…"
+    : first.content;
+}
+
+function syncSession(sessions: ChatSession[], currentId: string | null, messages: ChatMessage[]): ChatSession[] {
+  if (!currentId) return sessions;
+  return sessions.map((s) =>
+    s.id === currentId
+      ? { ...s, messages, title: makeSessionTitle(messages), updatedAt: Date.now() }
+      : s
+  );
 }
 
 interface ChatState {
+  sessions: ChatSession[];
+  currentId: string | null;
   messages: ChatMessage[];
   isStreaming: boolean;
+  createSession: () => string;
+  loadSession: (id: string) => void;
+  deleteSession: (id: string) => void;
   addMessage: (msg: ChatMessage) => void;
   appendToLastAssistant: (chunk: string) => void;
   setStreaming: (v: boolean) => void;
@@ -57,33 +160,114 @@ export const useAuthStore = create<AuthState>()(
   )
 );
 
-export const useProfileStore = create<ProfileState>((set) => ({
-  profile: null,
-  setProfile: (profile) => set({ profile }),
-}));
-
-export const useChatStore = create<ChatState>((set) => ({
-  messages: [],
-  isStreaming: false,
-  addMessage: (msg) => set((s) => ({ messages: [...s.messages, msg] })),
-  appendToLastAssistant: (chunk) =>
-    set((s) => {
-      const msgs = [...s.messages];
-      const last = msgs[msgs.length - 1];
-      if (last?.role === "assistant") {
-        msgs[msgs.length - 1] = { ...last, content: last.content + chunk };
-      }
-      return { messages: msgs };
+export const useProfileStore = create<ProfileState>()(
+  persist(
+    (set, get) => ({
+      profile: null,
+      maturityScore: 0,
+      maturityHistory: [],
+      setProfile: (profile) => set({ profile }),
+      updateMaturity: (signals) => {
+        const delta = computeMaturityDelta(signals);
+        if (delta === 0) return;
+        const current = get().maturityScore;
+        const newScore = Math.min(100, Math.max(0, current + delta));
+        const event: MaturityEvent = { timestamp: Date.now(), delta, signals, newScore };
+        set((s) => ({
+          maturityScore: newScore,
+          maturityHistory: [...s.maturityHistory.slice(-99), event],
+        }));
+      },
     }),
-  setStreaming: (v) => set({ isStreaming: v }),
-  startAssistantMessage: () =>
-    set((s) => ({
-      messages: [...s.messages, { role: "assistant", content: "" }],
-    })),
-  removeLastMessage: () => set((s) => ({ messages: s.messages.slice(0, -1) })),
-  clearMessages: () => set({ messages: [] }),
-  setMessages: (msgs) => set({ messages: msgs }),
-}));
+    {
+      name: "profile-store",
+      partialize: (s) => ({ profile: s.profile, maturityScore: s.maturityScore, maturityHistory: s.maturityHistory }),
+    }
+  )
+);
+
+export const useChatStore = create<ChatState>()(
+  persist(
+    (set, get) => ({
+      sessions: [],
+      currentId: null,
+      messages: [],
+      isStreaming: false,
+
+      createSession: () => {
+        const id = makeSessionId();
+        set((s) => ({
+          sessions: [
+            { id, title: "Nuevo chat", messages: [], createdAt: Date.now(), updatedAt: Date.now() },
+            ...s.sessions,
+          ],
+          currentId: id,
+          messages: [],
+        }));
+        return id;
+      },
+
+      loadSession: (id) => {
+        const { sessions } = get();
+        const session = sessions.find((s) => s.id === id);
+        set({ currentId: id, messages: session?.messages ?? [] });
+      },
+
+      deleteSession: (id) => {
+        set((s) => {
+          const remaining = s.sessions.filter((session) => session.id !== id);
+          const newCurrentId = s.currentId === id ? (remaining[0]?.id ?? null) : s.currentId;
+          const newMessages = s.currentId === id ? (remaining[0]?.messages ?? []) : s.messages;
+          return { sessions: remaining, currentId: newCurrentId, messages: newMessages };
+        });
+      },
+
+      addMessage: (msg) => set((s) => {
+        const newMsgs = [...s.messages, msg];
+        return { messages: newMsgs, sessions: syncSession(s.sessions, s.currentId, newMsgs) };
+      }),
+
+      appendToLastAssistant: (chunk) => set((s) => {
+        const msgs = [...s.messages];
+        const last = msgs[msgs.length - 1];
+        if (last?.role === "assistant") msgs[msgs.length - 1] = { ...last, content: last.content + chunk };
+        return { messages: msgs, sessions: syncSession(s.sessions, s.currentId, msgs) };
+      }),
+
+      setStreaming: (v) => set({ isStreaming: v }),
+
+      startAssistantMessage: () => set((s) => {
+        const newMsgs = [...s.messages, { role: "assistant" as const, content: "" }];
+        return { messages: newMsgs, sessions: syncSession(s.sessions, s.currentId, newMsgs) };
+      }),
+
+      removeLastMessage: () => set((s) => {
+        const newMsgs = s.messages.slice(0, -1);
+        return { messages: newMsgs, sessions: syncSession(s.sessions, s.currentId, newMsgs) };
+      }),
+
+      clearMessages: () => set((s) => ({
+        messages: [],
+        sessions: syncSession(s.sessions, s.currentId, []),
+      })),
+
+      setMessages: (msgs) => set((s) => ({
+        messages: msgs,
+        sessions: syncSession(s.sessions, s.currentId, msgs),
+      })),
+    }),
+    {
+      name: "chat-sessions",
+      partialize: (state) => ({ sessions: state.sessions, currentId: state.currentId }),
+      onRehydrateStorage: () => (state) => {
+        if (state?.currentId) {
+          const session = state.sessions.find((s) => s.id === state.currentId);
+          if (session) state.messages = session.messages;
+        }
+      },
+    }
+  )
+);
 
 export const useNotificationStore = create<NotificationState>((set) => ({
   notifications: [],
@@ -174,5 +358,88 @@ export const useThemeStore = create<ThemeState>()(
       },
     }),
     { name: "theme-store" }
+  )
+);
+
+// ─── Learn store ─────────────────────────────────────────────────────────────
+
+interface LearnState {
+  streak: number;
+  lastLearnDate: string | null;
+  totalCompleted: number;
+  completedToday: boolean;
+  markTopicCompleted: () => void;
+  initStreak: () => void;
+}
+
+export const useLearnStore = create<LearnState>()(
+  persist(
+    (set, get) => ({
+      streak: 0,
+      lastLearnDate: null,
+      totalCompleted: 0,
+      completedToday: false,
+
+      initStreak: () => {
+        const { lastLearnDate, streak } = get();
+        const today = todayStr();
+        const yesterday = yesterdayStr();
+        if (lastLearnDate === today) {
+          set({ completedToday: true });
+        } else if (lastLearnDate && lastLearnDate < yesterday) {
+          set({ streak: 0, completedToday: false });
+        } else {
+          set({ completedToday: false });
+        }
+        void streak;
+      },
+
+      markTopicCompleted: () => {
+        const { lastLearnDate, streak, totalCompleted } = get();
+        const today = todayStr();
+        const yesterday = yesterdayStr();
+        if (lastLearnDate === today) {
+          set({ totalCompleted: totalCompleted + 1 });
+          return;
+        }
+        const newStreak = lastLearnDate === yesterday ? streak + 1 : 1;
+        set({ streak: newStreak, lastLearnDate: today, totalCompleted: totalCompleted + 1, completedToday: true });
+      },
+    }),
+    { name: "learn-store" }
+  )
+);
+
+// ─── Watchlist store ──────────────────────────────────────────────────────────
+
+export interface WatchItem {
+  ticker: string;
+  name: string;
+  addedAt: number;
+}
+
+interface WatchlistState {
+  items: WatchItem[];
+  add: (ticker: string, name: string) => void;
+  remove: (ticker: string) => void;
+  has: (ticker: string) => boolean;
+}
+
+export const useWatchlistStore = create<WatchlistState>()(
+  persist(
+    (set, get) => ({
+      items: [],
+      add: (ticker, name) => {
+        const t = ticker.toUpperCase();
+        if (get().items.find((i) => i.ticker === t)) return;
+        set((s) => ({ items: [...s.items, { ticker: t, name, addedAt: Date.now() }] }));
+      },
+      remove: (ticker) => {
+        const t = ticker.toUpperCase();
+        set((s) => ({ items: s.items.filter((i) => i.ticker !== t) }));
+      },
+      has: (ticker) => !!get().items.find((i) => i.ticker === ticker.toUpperCase()),
+    }),
+    { name: "watchlist" }
   )
 );

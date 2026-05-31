@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 import { auth, profile as profileApi } from "@/lib/api";
 import { useAuthStore, useProfileStore } from "@/lib/store";
 import { TrendingUp, BookOpen, Shield, Bell } from "lucide-react";
@@ -64,10 +65,8 @@ export default function Home() {
       <div className="hidden lg:flex lg:w-1/2 flex-col justify-center px-16 bg-gradient-to-br from-[#0f1117] via-[#1a1d27] to-[#0f1117]">
         <div className="mb-12">
           <div className="flex items-center gap-3 mb-6">
-            <div className="w-10 h-10 bg-brand-600 rounded-xl flex items-center justify-center">
-              <TrendingUp className="w-5 h-5 text-white" />
-            </div>
-            <span className="text-xl font-bold text-white">IA Investment Advisor</span>
+            <Image src="/logo.png" alt="Nuvos AI" width={44} height={44} className="rounded-xl object-cover" />
+            <span className="text-xl font-bold text-white">Nuvos AI</span>
           </div>
           <h1 className="text-4xl font-bold text-white leading-tight mb-4">
             Aprende a tomar<br />
@@ -94,10 +93,8 @@ export default function Home() {
       <div className="w-full lg:w-1/2 flex items-center justify-center p-8">
         <div className="w-full max-w-md">
           <div className="lg:hidden flex items-center gap-2 mb-8">
-            <div className="w-8 h-8 bg-brand-600 rounded-lg flex items-center justify-center">
-              <TrendingUp className="w-4 h-4 text-white" />
-            </div>
-            <span className="font-bold text-white">IA Investment Advisor</span>
+            <Image src="/logo.png" alt="Nuvos AI" width={36} height={36} className="rounded-lg object-cover" />
+            <span className="font-bold text-white">Nuvos AI</span>
           </div>
 
           <h2 className="text-2xl font-bold text-white mb-2">

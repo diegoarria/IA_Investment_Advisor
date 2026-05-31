@@ -66,6 +66,7 @@ export const auth = {
   login: (email: string, password: string) =>
     api.post("/api/auth/login", { email, password }),
   logout: () => api.post("/api/auth/logout"),
+  deleteAccount: () => api.delete("/api/auth/account"),
 };
 
 export const profile = {
@@ -127,6 +128,34 @@ export const market = {
   getMovers: (threshold?: number) =>
     api.get("/api/market/movers", { params: { threshold } }),
   getEarnings: () => api.get("/api/market/earnings"),
+  getChart: (ticker: string, period = "1d") =>
+    api.get(`/api/market/chart/${encodeURIComponent(ticker)}`, { params: { period } }),
+  getNews: (symbols: string[]) =>
+    api.get("/api/market/news", { params: { symbols: symbols.join(",") } }),
+  alertContext: (ticker: string, change_pct: number) =>
+    api.post("/api/market/screener/alert-context", { ticker, change_pct }),
+  searchTickers: (q: string) => api.get("/api/market/search", { params: { q } }),
+};
+
+export const learn = {
+  getScenario: (difficulty: string) => api.post("/api/learn/scenario", { difficulty }),
+  submitScenarioResult: (scenarioId: string, choice: string, difficulty: string) =>
+    api.post("/api/learn/scenario/result", { scenario_id: scenarioId, choice, difficulty }),
+  startDebate: (thesis: string, difficulty: string) =>
+    api.post("/api/learn/debate", { thesis, difficulty }),
+  replyDebate: (thesis: string, previousDebate: string, userResponse: string, round: number, difficulty: string) =>
+    api.post("/api/learn/debate/reply", { thesis, previous_debate: previousDebate, user_response: userResponse, round, difficulty }),
+  syncStreak: (streak: number, lastLearnDate: string) =>
+    api.post("/api/learn/streak/sync", { streak, last_learn_date: lastLearnDate }),
+  getHallOfFame: () => api.get("/api/learn/hall-of-fame"),
+};
+
+export const insights = {
+  get: () => api.get("/api/profile/insights"),
+};
+
+export const mentorLetter = {
+  get: () => api.get("/api/profile/mentor-letter"),
 };
 
 export const notifications = {

@@ -5,10 +5,11 @@ import { useRouter, usePathname } from "next/navigation";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { chat as chatApi, notifications as notifApi } from "@/lib/api";
-import { useAuthStore, useProfileStore, useNotificationStore } from "@/lib/store";
+import { useAuthStore, useProfileStore, useNotificationStore, useLearnStore } from "@/lib/store";
 import {
   TrendingUp, Search, BookOpen, PieChart, BarChart2, Bell, User,
   Menu, X, GraduationCap, Loader2,
+  Trophy,
 } from "lucide-react";
 
 const NAV = [
@@ -16,6 +17,7 @@ const NAV = [
   { href: "/portfolio",     icon: PieChart,      label: "Portafolio" },
   { href: "/paper",         icon: BarChart2,     label: "Paper Trading" },
   { href: "/learn",         icon: GraduationCap, label: "Aprendizaje" },
+  { href: "/arena",         icon: Trophy,        label: "Arena" },
   { href: "/notifications", icon: Bell,          label: "Notificaciones" },
   { href: "/profile",       icon: User,          label: "Perfil" },
 ];
@@ -109,6 +111,7 @@ export default function LearnPage() {
   const pathname = usePathname();
   const { isAuthenticated } = useAuthStore();
   const { notifications } = useNotificationStore();
+  const { streak, completedToday, markTopicCompleted, initStreak } = useLearnStore();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const unreadCount = notifications.filter((n) => !n.read).length;
 
@@ -120,6 +123,7 @@ export default function LearnPage() {
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => { if (!isAuthenticated) router.push("/"); }, [isAuthenticated]);
+  useEffect(() => { initStreak(); }, []);
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
@@ -134,6 +138,7 @@ export default function LearnPage() {
     setModal({ title, prompt });
     setContent("");
     setStreaming(true);
+    markTopicCompleted();
     let full = "";
     await chatApi.stream(
       prompt,
@@ -202,8 +207,31 @@ export default function LearnPage() {
 
         {/* Main */}
         <main className="flex-1 flex flex-col overflow-hidden">
+          {/* Streak banner */}
+          <div className="px-4 pt-3 pb-1 shrink-0">
+            <div className="flex items-center justify-between rounded-xl border px-3 py-2.5 cursor-pointer hover:opacity-80 transition-opacity"
+                 style={{ background: "var(--card)", borderColor: completedToday ? "rgba(34,197,94,0.4)" : "var(--border)" }}
+                 onClick={() => router.push("/arena")}>
+              <div className="flex items-center gap-2">
+                <span className="text-xl">{completedToday ? "🔥" : "🌑"}</span>
+                <div>
+                  <span className="text-sm font-bold" style={{ color: completedToday ? "#f59e0b" : "var(--muted)" }}>
+                    {streak} {streak === 1 ? "día" : "días"} de racha
+                  </span>
+                  <p className="text-[10px]" style={{ color: "var(--dim)" }}>
+                    {completedToday ? "¡Racha activa hoy!" : "Lee un tema para mantener tu racha"}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-1 text-xs font-semibold" style={{ color: "var(--accent-l)" }}>
+                <Trophy className="w-3.5 h-3.5" />
+                Arena
+              </div>
+            </div>
+          </div>
+
           {/* Search bar */}
-          <div className="px-4 pt-4 pb-2 shrink-0">
+          <div className="px-4 pt-2 pb-2 shrink-0">
             <div className="flex items-center gap-2 rounded-xl border px-3 py-2.5"
                  style={{ background: "var(--card)", borderColor: "var(--border)" }}>
               <Search className="w-4 h-4 shrink-0" style={{ color: "var(--muted)" }} />
