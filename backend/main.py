@@ -20,10 +20,15 @@ _dev_origins = [
     "http://localhost:3000", "http://localhost:8081",
     "http://localhost:19006", "http://127.0.0.1:8081",
 ]
+_prod_origins = [
+    "https://nuvosai.com",
+    "https://www.nuvosai.com",
+    "https://nuvosai.vercel.app",
+]
 _all_origins = settings.frontend_url in ("*", "")
 _origins = (
     ["*"] if _all_origins
-    else [settings.frontend_url] + _dev_origins
+    else [settings.frontend_url] + _dev_origins + _prod_origins
 )
 
 app.add_middleware(
