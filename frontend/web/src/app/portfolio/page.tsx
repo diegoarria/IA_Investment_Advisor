@@ -514,6 +514,7 @@ export default function PortfolioPage() {
   if (!isAuthenticated) return null;
 
   return (
+    <>
     <div className="h-screen flex flex-col overflow-hidden" style={{ background: "var(--bg)" }}>
       {/* Top bar */}
       <div className="border-b flex items-center justify-between px-4 py-2 shrink-0"
@@ -1137,7 +1138,9 @@ export default function PortfolioPage() {
         </main>
       </div>
 
-      {/* ── Currency modal ── */}
+    </div>
+
+      {/* ── Currency modal — rendered outside overflow-hidden container ── */}
       {pendingImport && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
              style={{ background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)" }}>
@@ -1202,6 +1205,6 @@ export default function PortfolioPage() {
           </div>
         </div>
       )}
-    </div>
+    </>
   );
 }
