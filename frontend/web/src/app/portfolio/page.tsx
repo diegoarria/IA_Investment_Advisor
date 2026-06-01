@@ -342,8 +342,7 @@ export default function PortfolioPage() {
   }, [positions, prices]);
 
   // ── Screenshot import ──────────────────────────────────────────────────
-  const handleScreenshotChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files || []);
+  const processScreenshotFiles = useCallback(async (files: File[]) => {
     if (!files.length) return;
     setScreenshotAnalyzing(true);
     setScreenshotPreview(null);
@@ -355,10 +354,7 @@ export default function PortfolioPage() {
         const file = files[i];
         const base64 = await new Promise<string>((resolve) => {
           const reader = new FileReader();
-          reader.onload = () => {
-            const result = reader.result as string;
-            resolve(result.split(",")[1]);
-          };
+          reader.onload = () => resolve((reader.result as string).split(",")[1]);
           reader.readAsDataURL(file);
         });
         const res = await marketApi.analyzeScreenshot(base64, file.type || "image/jpeg");
@@ -383,9 +379,29 @@ export default function PortfolioPage() {
     } finally {
       setScreenshotAnalyzing(false);
       setScreenshotProgress("");
-      if (screenshotInputRef.current) screenshotInputRef.current.value = "";
     }
+  }, []);
+
+  const handleScreenshotChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    await processScreenshotFiles(files);
+    if (screenshotInputRef.current) screenshotInputRef.current.value = "";
   };
+
+  // Paste handler — Ctrl+V / ⌘+V anywhere on the page
+  useEffect(() => {
+    const handlePaste = async (e: ClipboardEvent) => {
+      const imageFiles = Array.from(e.clipboardData?.items || [])
+        .filter((item) => item.type.startsWith("image/"))
+        .map((item) => item.getAsFile())
+        .filter((f): f is File => f !== null);
+      if (!imageFiles.length) return;
+      e.preventDefault();
+      await processScreenshotFiles(imageFiles);
+    };
+    document.addEventListener("paste", handlePaste);
+    return () => document.removeEventListener("paste", handlePaste);
+  }, [processScreenshotFiles]);
 
   const confirmScreenshotImport = () => {
     if (!screenshotPreview?.length) return;
@@ -604,6 +620,15 @@ export default function PortfolioPage() {
               )}
             </button>
             <input ref={screenshotInputRef} type="file" accept="image/*" multiple className="hidden" onChange={handleScreenshotChange} />
+
+            {/* Paste zone */}
+            {!screenshotAnalyzing && !screenshotPreview && (
+              <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl border border-dashed text-xs"
+                   style={{ borderColor:"var(--border)", color:"var(--dim)" }}>
+                <span className="text-base">📋</span>
+                <span>También puedes <strong style={{ color:"var(--sub)" }}>pegar directamente</strong> con <kbd className="px-1.5 py-0.5 rounded text-[10px] font-mono" style={{ background:"var(--raised)", color:"var(--muted)" }}>Ctrl+V</kbd> o <kbd className="px-1.5 py-0.5 rounded text-[10px] font-mono" style={{ background:"var(--raised)", color:"var(--muted)" }}>⌘+V</kbd></span>
+              </div>
+            )}
 
             {/* Screenshot preview */}
             {screenshotPreview && (
