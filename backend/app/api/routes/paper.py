@@ -114,21 +114,54 @@ def _batch_prices(tickers: set[str]) -> dict[str, float | None]:
     return price_map
 
 
+def _calc_return_pct(positions: list, price_map: dict) -> tuple[float, str | None]:
+    """Returns (return_pct, top_holding_ticker) from real portfolio positions."""
+    cost_basis    = 0.0
+    current_value = 0.0
+    top_holding   = None
+    top_val       = 0.0
+
+    for pos in positions:
+        ticker    = (pos.get("ticker") or "").upper()
+        shares    = float(pos.get("shares") or 0)
+        # support both camelCase (frontend) and snake_case (screenshot parser)
+        avg_price = float(pos.get("avgPrice") or pos.get("avg_price") or 0)
+        cur_price = price_map.get(ticker) or avg_price
+
+        cost_basis    += shares * avg_price
+        cur_val        = shares * cur_price
+        current_value += cur_val
+
+        if cur_val > top_val:
+            top_val, top_holding = cur_val, ticker
+
+    if cost_basis <= 0:
+        return 0.0, top_holding
+
+    return_pct = round((current_value - cost_basis) / cost_basis * 100, 2)
+    return return_pct, top_holding
+
+
 def _build_leaderboard(user_id: str) -> list[dict]:
     db = get_supabase()
 
-    # 1. Ensure the requesting user has an alias (creates one if missing)
+    # 1. Ensure the requesting user has an alias
     _ensure_alias(db, user_id)
 
-    # 2. Fetch all paper portfolios
-    paper_rows = db.table("user_paper_trading") \
-                   .select("user_id, cash, positions") \
-                   .execute()
-    if not paper_rows.data:
+    # 2. Fetch all REAL portfolios (not paper trading)
+    portfolio_rows = db.table("user_portfolio") \
+                       .select("user_id, positions") \
+                       .execute()
+    if not portfolio_rows.data:
         return []
 
-    # 3. Fetch aliases for all users in one query
-    user_ids = [r["user_id"] for r in paper_rows.data]
+    # Only include users who have at least one position
+    portfolio_rows.data = [r for r in portfolio_rows.data if r.get("positions")]
+    if not portfolio_rows.data:
+        return []
+
+    # 3. Fetch aliases for all users
+    user_ids = [r["user_id"] for r in portfolio_rows.data]
     profile_rows = db.table("user_profiles") \
                      .select("user_id, paper_alias") \
                      .in_("user_id", user_ids) \
@@ -139,7 +172,7 @@ def _build_leaderboard(user_id: str) -> list[dict]:
 
     # 4. Collect all unique tickers
     all_tickers: set[str] = set()
-    for row in paper_rows.data:
+    for row in portfolio_rows.data:
         for pos in (row.get("positions") or []):
             t = (pos.get("ticker") or "").strip().upper()
             if t:
@@ -148,41 +181,21 @@ def _build_leaderboard(user_id: str) -> list[dict]:
     # 5. Batch-fetch current prices
     price_map = _batch_prices(all_tickers)
 
-    # 6. Compute each user's portfolio value and % return
+    # 6. Compute each user's return % from their real portfolio
     entries: list[dict] = []
-    for row in paper_rows.data:
-        uid   = row["user_id"]
-        cash  = float(row.get("cash") or PAPER_INITIAL_CASH)
+    for row in portfolio_rows.data:
+        uid       = row["user_id"]
         positions = row.get("positions") or []
 
-        positions_value  = 0.0
-        top_holding      = None
-        top_holding_value = 0.0
-
-        for pos in positions:
-            ticker    = (pos.get("ticker") or "").upper()
-            shares    = float(pos.get("shares") or 0)
-            avg_price = float(pos.get("avgPrice") or 0)
-            cur_price = price_map.get(ticker) or avg_price
-            pos_value = shares * cur_price
-            positions_value += pos_value
-            if pos_value > top_holding_value:
-                top_holding_value = pos_value
-                top_holding = ticker
-
-        portfolio_value = cash + positions_value
-        return_pct = round(
-            (portfolio_value - PAPER_INITIAL_CASH) / PAPER_INITIAL_CASH * 100, 2
-        )
+        return_pct, top_holding = _calc_return_pct(positions, price_map)
 
         entries.append({
-            "user_id":        uid,
-            "alias":          alias_map.get(uid) or "Inversor",
-            "return_pct":     return_pct,
-            "portfolio_value": round(portfolio_value, 2),
-            "top_holding":    top_holding or "—",
-            "rank_change":    0,  # populated from snapshots in a future version
-            "is_me":          uid == user_id,
+            "user_id":     uid,
+            "alias":       alias_map.get(uid) or "Inversor",
+            "return_pct":  return_pct,
+            "top_holding": top_holding or "—",
+            "rank_change": 0,
+            "is_me":       uid == user_id,
         })
 
     # 7. Sort by return_pct, assign rank, strip internal user_id

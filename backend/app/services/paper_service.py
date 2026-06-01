@@ -58,12 +58,16 @@ def build_global_leaderboard() -> list[dict]:
     """
     db = get_supabase()
 
-    paper_rows = db.table("user_paper_trading") \
-                   .select("user_id, cash, positions").execute()
-    if not paper_rows.data:
+    portfolio_rows = db.table("user_portfolio") \
+                       .select("user_id, positions").execute()
+    if not portfolio_rows.data:
         return []
 
-    user_ids = [r["user_id"] for r in paper_rows.data]
+    portfolio_rows.data = [r for r in portfolio_rows.data if r.get("positions")]
+    if not portfolio_rows.data:
+        return []
+
+    user_ids = [r["user_id"] for r in portfolio_rows.data]
     profile_rows = db.table("user_profiles") \
                      .select("user_id, paper_alias") \
                      .in_("user_id", user_ids).execute()
@@ -71,7 +75,7 @@ def build_global_leaderboard() -> list[dict]:
                  for r in (profile_rows.data or [])}
 
     all_tickers: set[str] = set()
-    for row in paper_rows.data:
+    for row in portfolio_rows.data:
         for pos in (row.get("positions") or []):
             t = (pos.get("ticker") or "").strip().upper()
             if t:
@@ -87,23 +91,28 @@ def build_global_leaderboard() -> list[dict]:
             cache_set(ck, price_map, ttl=_PRICES_TTL)
 
     entries: list[dict] = []
-    for row in paper_rows.data:
-        uid  = row["user_id"]
-        cash = float(row.get("cash") or PAPER_INITIAL_CASH)
+    for row in portfolio_rows.data:
+        uid       = row["user_id"]
         positions = row.get("positions") or []
+        if not positions:
+            continue
 
-        pos_value, top_holding, top_val = 0.0, None, 0.0
+        cost_basis = current_value = 0.0
+        top_holding, top_val = None, 0.0
         for pos in positions:
             ticker    = (pos.get("ticker") or "").upper()
             shares    = float(pos.get("shares") or 0)
-            avg_price = float(pos.get("avgPrice") or 0)
+            avg_price = float(pos.get("avgPrice") or pos.get("avg_price") or 0)
             cur_price = price_map.get(ticker) or avg_price
-            pv = shares * cur_price
-            pos_value += pv
+            cost_basis    += shares * avg_price
+            pv             = shares * cur_price
+            current_value += pv
             if pv > top_val:
                 top_val, top_holding = pv, ticker
 
-        return_pct = round((cash + pos_value - PAPER_INITIAL_CASH) / PAPER_INITIAL_CASH * 100, 2)
+        if cost_basis <= 0:
+            continue
+        return_pct = round((current_value - cost_basis) / cost_basis * 100, 2)
         entries.append({
             "user_id":     uid,
             "alias":       alias_map.get(uid, "Inversor"),

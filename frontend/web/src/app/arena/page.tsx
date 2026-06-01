@@ -13,7 +13,7 @@ import PaywallModal from "@/components/PaywallModal";
 import { usePaperStore, PAPER_INITIAL_CASH } from "@/lib/paperStore";
 import {
   TrendingUp, BookOpen, PieChart, BarChart2, Bell, User, Menu, X,
-  GraduationCap, Trophy, Sun, Moon, Clock, MessageSquare, Send,
+  GraduationCap, Trophy, Sun, Moon, Clock,
   Loader2, Lock, Flame,
 } from "lucide-react";
 
@@ -54,8 +54,6 @@ const MOCK_LEAGUE_OTHERS = [
 const LEAGUE_MEDALS: Record<number, string> = { 1: "🥇", 2: "🥈", 3: "🥉" };
 const LEAGUE_TOTAL = 847;
 const FREE_SIM_LIMIT   = 5;
-const FREE_DEBATE_LIMIT = 2;
-const FREE_MAX_ROUNDS   = 5;
 
 interface Scenario {
   id: string; title: string; date: string;
@@ -93,12 +91,11 @@ export default function ArenaPage() {
 
   const leagueEntries = useMemo(() => {
     const me = { alias: "Tú", returnPct: paperReturnPct, topHolding: positions[0]?.ticker ?? "—", rankChange: 2, isMe: true, rank: 0 };
-    return [...MOCK_LEAGUE_OTHERS, me]
+    return [...MOCK_LEAGUE_OTHERS.map(e => ({ ...e, isMe: false })), me]
       .sort((a, b) => b.returnPct - a.returnPct)
       .map((e, i) => ({ ...e, rank: i + 1 }));
   }, [paperReturnPct, positions]);
   const [simUsedToday, setSimUsedToday] = useState(0);
-  const [debateUsedToday, setDebateUsedToday] = useState(0);
   const [paywallOpen, setPaywallOpen] = useState(false);
   const [paywallReason, setPaywallReason] = useState("");
   const [milestonesOpen, setMilestonesOpen] = useState(false);
@@ -109,15 +106,6 @@ export default function ArenaPage() {
   const [simLoading, setSimLoading] = useState(false);
   const [simChoice, setSimChoice] = useState<string | null>(null);
   const [simResult, setSimResult] = useState<ScenarioResult | null>(null);
-
-  // Debate
-  const [debateOpen, setDebateOpen] = useState(false);
-  const [debateThesis, setDebateThesis] = useState("");
-  const [debateMessages, setDebateMessages] = useState<{ role: "user" | "ai"; text: string }[]>([]);
-  const [debateLoading, setDebateLoading] = useState(false);
-  const [debateRound, setDebateRound] = useState(1);
-  const [debateInput, setDebateInput] = useState("");
-  const debateScrollRef = useRef<HTMLDivElement>(null);
 
   const openPaywall = (reason: string) => { setPaywallReason(reason); setPaywallOpen(true); };
   const activeMilestones = isPremium ? STREAK_MILESTONES_PREMIUM : STREAK_MILESTONES;
@@ -156,49 +144,6 @@ export default function ArenaPage() {
     setSimLoading(false);
   };
 
-  // Debate
-  const openDebate = () => {
-    if (!isPremium && PREMIUM_DIFFICULTIES.has(difficulty))
-      return openPaywall("Los niveles Difícil e Imposible son exclusivos de Premium.");
-    if (!isPremium && debateUsedToday >= FREE_DEBATE_LIMIT)
-      return openPaywall(`Alcanzaste el límite de ${FREE_DEBATE_LIMIT} debates diarios.`);
-    setDebateOpen(true); setDebateThesis(""); setDebateMessages([]);
-    setDebateRound(1); setDebateInput("");
-  };
-
-  const submitDebateThesis = async () => {
-    if (!debateThesis.trim()) return;
-    setDebateLoading(true);
-    setDebateMessages([{ role: "user", text: debateThesis }]);
-    try {
-      const r = await learnApi.startDebate(debateThesis, difficulty);
-      setDebateMessages([{ role: "user", text: debateThesis }, { role: "ai", text: r.data.response }]);
-      setDebateRound(2);
-      markTopicCompleted();
-      if (!isPremium) setDebateUsedToday((v) => v + 1);
-    } catch {}
-    setDebateLoading(false);
-    setTimeout(() => debateScrollRef.current?.scrollTo({ top: 9999, behavior: "smooth" }), 300);
-  };
-
-  const sendDebateReply = async () => {
-    if (!debateInput.trim() || debateLoading) return;
-    if (!isPremium && debateRound > FREE_MAX_ROUNDS)
-      return openPaywall(`Los usuarios free tienen hasta ${FREE_MAX_ROUNDS} rondas por debate.`);
-    const reply = debateInput.trim();
-    setDebateInput("");
-    const lastAI = [...debateMessages].reverse().find((m) => m.role === "ai")?.text ?? "";
-    const updated = [...debateMessages, { role: "user" as const, text: reply }];
-    setDebateMessages(updated);
-    setDebateLoading(true);
-    try {
-      const r = await learnApi.replyDebate(debateThesis, lastAI, reply, debateRound, difficulty);
-      setDebateMessages([...updated, { role: "ai", text: r.data.response }]);
-      setDebateRound((v) => v + 1);
-    } catch {}
-    setDebateLoading(false);
-    setTimeout(() => debateScrollRef.current?.scrollTo({ top: 9999, behavior: "smooth" }), 300);
-  };
 
   return (
     <div className="h-screen flex flex-col overflow-hidden" style={{ background: "var(--bg)" }}>
@@ -324,7 +269,7 @@ export default function ArenaPage() {
             {/* Game cards */}
             <div>
               <p className="text-[10px] font-bold uppercase tracking-widest mb-2 ml-0.5" style={{ color: "var(--dim)" }}>Juegos</p>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 gap-3">
                 {/* Simulator */}
                 <button onClick={openSimulator} className="rounded-2xl border-2 p-4 text-center hover:opacity-90 transition-opacity"
                         style={{ background: "var(--card)", borderColor: "rgba(139,92,246,0.4)" }}>
@@ -348,28 +293,6 @@ export default function ArenaPage() {
                   )}
                 </button>
 
-                {/* Debate */}
-                <button onClick={openDebate} className="rounded-2xl border-2 p-4 text-center hover:opacity-90 transition-opacity"
-                        style={{ background: "var(--card)", borderColor: "rgba(14,165,233,0.4)" }}>
-                  <div className="w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3"
-                       style={{ background: "rgba(14,165,233,0.15)" }}>
-                    <MessageSquare className="w-6 h-6" style={{ color: "#0ea5e9" }} />
-                  </div>
-                  <div className="font-bold text-sm mb-1" style={{ color: "var(--text)" }}>Debate</div>
-                  <div className="text-xs leading-snug mb-2" style={{ color: "var(--muted)" }}>
-                    Presenta una tesis y defiéndela contra la IA
-                  </div>
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full"
-                        style={{ background: diffCfg.color + "18", color: diffCfg.color }}>
-                    {diffCfg.label}
-                  </span>
-                  {!isPremium && (
-                    <div className="text-[10px] mt-2 font-semibold"
-                         style={{ color: debateUsedToday >= FREE_DEBATE_LIMIT ? "#ef4444" : "var(--dim)" }}>
-                      {debateUsedToday >= FREE_DEBATE_LIMIT ? "Límite diario alcanzado" : `${FREE_DEBATE_LIMIT - debateUsedToday}/${FREE_DEBATE_LIMIT} restantes`}
-                    </div>
-                  )}
-                </button>
               </div>
             </div>
 
@@ -649,89 +572,6 @@ export default function ArenaPage() {
         </div>
       )}
 
-      {/* Debate Modal */}
-      {debateOpen && (
-        <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center"
-             style={{ background: "rgba(0,0,0,0.7)" }}>
-          <div className="w-full max-w-lg h-[90vh] flex flex-col rounded-t-3xl md:rounded-3xl border"
-               style={{ background: "var(--bg)", borderColor: "var(--border)" }}>
-            <div className="flex items-center justify-between p-5 border-b" style={{ borderColor: "var(--border)" }}>
-              <button onClick={() => setDebateOpen(false)} style={{ color: "var(--muted)" }}><X className="w-5 h-5" /></button>
-              <span className="font-bold text-sm" style={{ color: "var(--text)" }}>
-                💬 Debate · <span style={{ color: diffCfg.color }}>{diffCfg.label}</span>
-              </span>
-              <div className="w-5" />
-            </div>
-
-            {debateMessages.length === 0 ? (
-              <div className="flex-1 overflow-y-auto p-5 space-y-4">
-                <div className="rounded-2xl border p-4" style={{ background: "rgba(14,165,233,0.08)", borderColor: "rgba(14,165,233,0.3)" }}>
-                  <p className="text-xs font-bold mb-1" style={{ color: "#0ea5e9" }}>Modo {diffCfg.label}</p>
-                  <p className="text-sm leading-relaxed" style={{ color: "var(--sub)" }}>
-                    {diffCfg.desc} — La IA debatirá en tu contra con datos reales.
-                  </p>
-                </div>
-                <p className="font-bold text-sm" style={{ color: "var(--text)" }}>Tu tesis de inversión:</p>
-                <textarea
-                  value={debateThesis} onChange={(e) => setDebateThesis(e.target.value)}
-                  placeholder={"Ej: 'NVIDIA seguirá subiendo por la demanda de IA'\n'Los bonos son mejor opción que acciones ahora'"}
-                  rows={4}
-                  className="w-full rounded-xl border p-3 text-sm resize-none outline-none"
-                  style={{ background: "var(--card)", borderColor: "var(--border)", color: "var(--text)" }}
-                />
-                <button onClick={submitDebateThesis}
-                        disabled={debateThesis.trim().length < 10 || debateLoading}
-                        className="w-full py-3 rounded-xl font-bold text-white disabled:opacity-40 flex items-center justify-center gap-2"
-                        style={{ background: "#0ea5e9" }}>
-                  {debateLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-                  Iniciar debate
-                </button>
-              </div>
-            ) : (
-              <>
-                <div ref={debateScrollRef} className="flex-1 overflow-y-auto scrollbar-thin p-4 space-y-3">
-                  {debateMessages.map((msg, i) => (
-                    <div key={i} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
-                      <div className="max-w-[88%] rounded-2xl p-3"
-                           style={msg.role === "user"
-                             ? { background: "#0ea5e9", color: "white" }
-                             : { background: "var(--card)", border: "1px solid var(--border)", color: "var(--text)" }}>
-                        {msg.role === "ai" && (
-                          <p className="text-[9px] font-bold uppercase tracking-wider mb-1" style={{ color: diffCfg.color }}>
-                            IA · {diffCfg.label.toUpperCase()}
-                          </p>
-                        )}
-                        <p className="text-sm leading-relaxed">{msg.text}</p>
-                      </div>
-                    </div>
-                  ))}
-                  {debateLoading && (
-                    <div className="flex justify-start">
-                      <div className="rounded-2xl p-3 border" style={{ background: "var(--card)", borderColor: "var(--border)" }}>
-                        <Loader2 className="w-4 h-4 animate-spin" style={{ color: "#0ea5e9" }} />
-                      </div>
-                    </div>
-                  )}
-                </div>
-                <div className="flex gap-2 p-4 border-t" style={{ borderColor: "var(--border)" }}>
-                  <textarea value={debateInput} onChange={(e) => setDebateInput(e.target.value)}
-                            placeholder="Defiende tu tesis..."
-                            rows={1}
-                            className="flex-1 rounded-xl border px-3 py-2 text-sm resize-none outline-none"
-                            style={{ background: "var(--card)", borderColor: "var(--border)", color: "var(--text)" }}
-                            onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendDebateReply(); } }}
-                  />
-                  <button onClick={sendDebateReply} disabled={!debateInput.trim() || debateLoading}
-                          className="w-10 h-10 rounded-xl flex items-center justify-center disabled:opacity-40 shrink-0"
-                          style={{ background: "#0ea5e9" }}>
-                    <Send className="w-4 h-4 text-white" />
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
-        </div>
-      )}
 
       <PaywallModal visible={paywallOpen} onClose={() => setPaywallOpen(false)} reason={paywallReason} />
     </div>
