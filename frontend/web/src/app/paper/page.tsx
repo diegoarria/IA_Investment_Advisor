@@ -2,14 +2,12 @@
 
 import AppSidebar from "@/components/AppSidebar";
 import { useState, useEffect, useCallback, useRef } from "react";
-import { useRouter, usePathname } from "next/navigation";
+import { useRouter } from "next/navigation";
+import Image from "next/image";
 import { market as marketApi, paperApi } from "@/lib/api";
-import { useAuthStore, useNotificationStore } from "@/lib/store";
+import { useAuthStore } from "@/lib/store";
 import { usePaperStore, PAPER_INITIAL_CASH } from "@/lib/paperStore";
-import {
-  TrendingUp, Search, BookOpen, PieChart, BarChart2, Bell, User, Menu, X,
-  RefreshCw, GraduationCap, Trophy,
-} from "lucide-react";
+import { Search, Menu, X, RefreshCw } from "lucide-react";
 
 interface TickerInfo { ticker: string; name: string; price: number; change_pct: number; }
 interface PriceMap { [ticker: string]: { price: number | null; change_pct: number } }
@@ -22,21 +20,9 @@ function fmtMoney(n: number): string {
   return `${neg}$${abs.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
-const NAV = [
-  { href: "/chat",          icon: BookOpen,      label: "Chat" },
-  { href: "/portfolio",     icon: PieChart,      label: "Portafolio" },
-  { href: "/paper",         icon: BarChart2,     label: "Paper Trading" },
-  { href: "/learn",         icon: GraduationCap, label: "Aprendizaje" },
-  { href: "/arena",         icon: Trophy,        label: "Arena" },
-  { href: "/notifications", icon: Bell,          label: "Notificaciones" },
-  { href: "/profile",       icon: User,          label: "Perfil" },
-];
-
 export default function PaperPage() {
   const router   = useRouter();
-  const pathname = usePathname();
   const { isAuthenticated }  = useAuthStore();
-  const { notifications }    = useNotificationStore();
   const { cash, positions, trades, buy, sell, topUp, reset } = usePaperStore();
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -50,8 +36,6 @@ export default function PaperPage() {
   const [posPrices, setPosPrices]     = useState<PriceMap>({});
   const [loadingPrices, setLoadingPrices] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const unreadCount = notifications.filter((n) => !n.read).length;
 
   useEffect(() => { if (!isAuthenticated) router.push("/"); }, [isAuthenticated]);
 
@@ -122,11 +106,12 @@ export default function PaperPage() {
           <button onClick={() => setSidebarOpen(!sidebarOpen)} className="lg:hidden p-1" style={{ color: "var(--muted)" }}>
             {sidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
           </button>
-          <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: "var(--accent)" }}>
-              <TrendingUp className="w-3.5 h-3.5 text-white" />
+          <div className="flex items-center gap-2.5">
+            <div className="relative">
+              <Image src="/logo.png" alt="Nuvos AI" width={30} height={30} className="rounded-xl object-cover" />
+              <div className="absolute -inset-0.5 rounded-xl blur-sm opacity-40" style={{ background: "var(--grad-green)" }} />
             </div>
-            <span className="font-bold text-sm" style={{ color: "var(--text)" }}>Nuvo</span>
+            <span className="font-bold text-sm" style={{ color: "var(--text)" }}>Nuvos AI</span>
           </div>
         </div>
         <span className="font-semibold text-sm" style={{ color: "var(--sub)" }}>Paper Trading</span>

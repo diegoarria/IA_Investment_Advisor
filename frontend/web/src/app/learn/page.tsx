@@ -2,25 +2,13 @@
 
 import AppSidebar from "@/components/AppSidebar";
 import { useState, useMemo, useRef, useEffect } from "react";
-import { useRouter, usePathname } from "next/navigation";
+import { useRouter } from "next/navigation";
+import Image from "next/image";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { chat as chatApi, notifications as notifApi } from "@/lib/api";
-import { useAuthStore, useProfileStore, useNotificationStore, useLearnStore } from "@/lib/store";
-import {
-  TrendingUp, Search, BookOpen, PieChart, BarChart2, Bell, User,
-  Menu, X, GraduationCap, Loader2, Trophy,
-} from "lucide-react";
-
-const NAV = [
-  { href: "/chat",          icon: BookOpen,      label: "Chat" },
-  { href: "/portfolio",     icon: PieChart,      label: "Portafolio" },
-  { href: "/paper",         icon: BarChart2,     label: "Paper Trading" },
-  { href: "/learn",         icon: GraduationCap, label: "Aprendizaje" },
-  { href: "/arena",         icon: Trophy,        label: "Arena" },
-  { href: "/notifications", icon: Bell,          label: "Notificaciones" },
-  { href: "/profile",       icon: User,          label: "Perfil" },
-];
+import { chat as chatApi } from "@/lib/api";
+import { useAuthStore, useLearnStore } from "@/lib/store";
+import { Search, Menu, X, Loader2, Trophy } from "lucide-react";
 
 const CATEGORIES = [
   { id: "all",         emoji: "🗂️",  title: "Todo" },
@@ -108,12 +96,9 @@ const COMPANY_LOGOS: Record<string, string> = {
 
 export default function LearnPage() {
   const router = useRouter();
-  const pathname = usePathname();
   const { isAuthenticated } = useAuthStore();
-  const { notifications } = useNotificationStore();
   const { streak, completedToday, markTopicCompleted, initStreak } = useLearnStore();
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const unreadCount = notifications.filter((n) => !n.read).length;
 
   const [search, setSearch] = useState("");
   const [selectedCat, setSelectedCat] = useState("all");
@@ -173,11 +158,12 @@ export default function LearnPage() {
           <button onClick={() => setSidebarOpen(!sidebarOpen)} className="lg:hidden p-1" style={{ color: "var(--muted)" }}>
             {sidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
           </button>
-          <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: "var(--accent)" }}>
-              <TrendingUp className="w-3.5 h-3.5 text-white" />
+          <div className="flex items-center gap-2.5">
+            <div className="relative">
+              <Image src="/logo.png" alt="Nuvos AI" width={30} height={30} className="rounded-xl object-cover" />
+              <div className="absolute -inset-0.5 rounded-xl blur-sm opacity-40" style={{ background: "var(--grad-green)" }} />
             </div>
-            <span className="font-bold text-sm" style={{ color: "var(--text)" }}>Nuvo</span>
+            <span className="font-bold text-sm" style={{ color: "var(--text)" }}>Nuvos AI</span>
           </div>
         </div>
         <span className="font-semibold text-sm" style={{ color: "var(--sub)" }}>Aprendizaje</span>

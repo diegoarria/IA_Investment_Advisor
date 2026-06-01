@@ -2,26 +2,14 @@
 
 import AppSidebar from "@/components/AppSidebar";
 import { useCallback, useEffect, useState } from "react";
-import { useRouter, usePathname } from "next/navigation";
+import { useRouter } from "next/navigation";
+import Image from "next/image";
 import ReactMarkdown from "react-markdown";
 import { notifications as notifApi, market as marketApi } from "@/lib/api";
 import { useAuthStore, useNotificationStore, useThemeStore, useWatchlistStore, useSubscriptionStore } from "@/lib/store";
 import { usePortfolioStore } from "@/lib/portfolioStore";
 import PaywallModal from "@/components/PaywallModal";
-import {
-  TrendingUp, BookOpen, PieChart, BarChart2, Bell, User, Menu, X,
-  GraduationCap, Trophy, Sun, Moon, Newspaper, Bookmark, RefreshCw, Loader2,
-} from "lucide-react";
-
-const NAV = [
-  { href: "/chat",          icon: BookOpen,      label: "Chat" },
-  { href: "/portfolio",     icon: PieChart,      label: "Portafolio" },
-  { href: "/paper",         icon: BarChart2,     label: "Paper Trading" },
-  { href: "/learn",         icon: GraduationCap, label: "Aprendizaje" },
-  { href: "/arena",         icon: Trophy,        label: "Arena" },
-  { href: "/notifications", icon: Bell,          label: "Notificaciones" },
-  { href: "/profile",       icon: User,          label: "Perfil" },
-];
+import { Bell, Menu, X, Sun, Moon, Newspaper, Bookmark, RefreshCw, Loader2 } from "lucide-react";
 
 const TYPE_ICONS: Record<string, string> = {
   market_move:           "📉",
@@ -40,7 +28,6 @@ interface PriceData { price: number | null; change_pct: number | null; }
 
 export default function NotificationsPage() {
   const router = useRouter();
-  const pathname = usePathname();
   const { isAuthenticated } = useAuthStore();
   const { notifications, unreadCount, setNotifications, markRead } = useNotificationStore();
   const { theme, toggleTheme } = useThemeStore();
@@ -164,9 +151,10 @@ export default function NotificationsPage() {
           <button onClick={() => setSidebarOpen(!sidebarOpen)} className="lg:hidden p-1 rounded-lg" style={{ color: "var(--muted)" }}>
             {sidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
           </button>
-          <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: "var(--accent)" }}>
-              <TrendingUp className="w-3.5 h-3.5 text-white" />
+          <div className="flex items-center gap-2.5">
+            <div className="relative">
+              <Image src="/logo.png" alt="Nuvos AI" width={30} height={30} className="rounded-xl object-cover" />
+              <div className="absolute -inset-0.5 rounded-xl blur-sm opacity-40" style={{ background: "var(--grad-green)" }} />
             </div>
             <span className="font-bold text-sm" style={{ color: "var(--text)" }}>Nuvos AI</span>
           </div>

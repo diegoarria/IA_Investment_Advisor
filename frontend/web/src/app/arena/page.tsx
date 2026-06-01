@@ -2,31 +2,18 @@
 
 import AppSidebar from "@/components/AppSidebar";
 import { useEffect, useRef, useState, useMemo } from "react";
-import { useRouter, usePathname } from "next/navigation";
+import { useRouter } from "next/navigation";
+import Image from "next/image";
 import ReactMarkdown from "react-markdown";
 import { learn as learnApi } from "@/lib/api";
 import {
-  useAuthStore, useNotificationStore, useThemeStore, useSubscriptionStore,
+  useAuthStore, useThemeStore, useSubscriptionStore,
   useLearnStore, getMilestoneForStreak, getNextMilestone,
   STREAK_MILESTONES, STREAK_MILESTONES_PREMIUM,
 } from "@/lib/store";
 import PaywallModal from "@/components/PaywallModal";
 import { usePaperStore, PAPER_INITIAL_CASH } from "@/lib/paperStore";
-import {
-  TrendingUp, BookOpen, PieChart, BarChart2, Bell, User, Menu, X,
-  GraduationCap, Trophy, Sun, Moon, Clock,
-  Loader2, Lock, Flame,
-} from "lucide-react";
-
-const NAV = [
-  { href: "/chat",          icon: BookOpen,      label: "Chat" },
-  { href: "/portfolio",     icon: PieChart,      label: "Portafolio" },
-  { href: "/paper",         icon: BarChart2,     label: "Paper Trading" },
-  { href: "/learn",         icon: GraduationCap, label: "Aprendizaje" },
-  { href: "/arena",         icon: Trophy,        label: "Arena" },
-  { href: "/notifications", icon: Bell,          label: "Notificaciones" },
-  { href: "/profile",       icon: User,          label: "Perfil" },
-];
+import { Menu, X, Sun, Moon, Clock, Loader2, Lock, Flame } from "lucide-react";
 
 type Difficulty = "principiante" | "intermedio" | "dificil" | "imposible";
 
@@ -70,14 +57,11 @@ interface ScenarioResult {
 
 export default function ArenaPage() {
   const router = useRouter();
-  const pathname = usePathname();
   const { isAuthenticated } = useAuthStore();
-  const { notifications } = useNotificationStore();
   const { theme, toggleTheme } = useThemeStore();
   const subStore = useSubscriptionStore();
   const { streak, completedToday, markTopicCompleted, initStreak } = useLearnStore();
   const isPremium = subStore.tier === "premium";
-  const unreadCount = notifications.filter((n) => !n.read).length;
 
   const { cash, positions } = usePaperStore();
 
@@ -155,9 +139,10 @@ export default function ArenaPage() {
           <button onClick={() => setSidebarOpen(!sidebarOpen)} className="lg:hidden p-1 rounded-lg" style={{ color: "var(--muted)" }}>
             {sidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
           </button>
-          <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: "var(--accent)" }}>
-              <TrendingUp className="w-3.5 h-3.5 text-white" />
+          <div className="flex items-center gap-2.5">
+            <div className="relative">
+              <Image src="/logo.png" alt="Nuvos AI" width={30} height={30} className="rounded-xl object-cover" />
+              <div className="absolute -inset-0.5 rounded-xl blur-sm opacity-40" style={{ background: "var(--grad-green)" }} />
             </div>
             <span className="font-bold text-sm" style={{ color: "var(--text)" }}>Nuvos AI</span>
           </div>
