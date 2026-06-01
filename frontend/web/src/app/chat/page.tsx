@@ -586,7 +586,7 @@ export default function ChatPage() {
                       {mentor ? mentor.emoji : <TrendingUp className="w-3.5 h-3.5" style={{ color: "var(--accent-l)" }} />}
                     </div>
                   )}
-                  <div>
+                  <div className={msg.role === "user" ? "max-w-[78%]" : "flex-1"}>
                     {msg.role === "user" ? (
                       <div className="bubble-user">{msg.content}</div>
                     ) : (
