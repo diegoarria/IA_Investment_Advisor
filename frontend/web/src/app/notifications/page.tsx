@@ -1,13 +1,13 @@
 "use client";
 
 import AppSidebar from "@/components/AppSidebar";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import ReactMarkdown from "react-markdown";
 import { notifications as notifApi, market as marketApi } from "@/lib/api";
 import { useAuthStore, useNotificationStore, useThemeStore, useWatchlistStore, useSubscriptionStore } from "@/lib/store";
-import { usePortfolioStore } from "@/lib/portfolioStore";
+import { usePortfolioStore, type Position } from "@/lib/portfolioStore";
 import PaywallModal from "@/components/PaywallModal";
 import { Bell, Menu, X, Sun, Moon, Newspaper, Bookmark, RefreshCw, Loader2 } from "lucide-react";
 
@@ -48,6 +48,7 @@ export default function NotificationsPage() {
   // Portfolio today prices
   const [portPrices, setPortPrices] = useState<Record<string, PriceData>>({});
   const [portPricesLoading, setPortPricesLoading] = useState(false);
+  const [portSort, setPortSort] = useState<"default" | "gainers" | "losers">("gainers");
 
   // Watchlist prices
   const [prices, setPrices] = useState<Record<string, PriceData>>({});
@@ -139,6 +140,25 @@ export default function NotificationsPage() {
     loadPortfolioPrices();
   }, [positions.length]);
 
+  // Auto-refresh portfolio prices every 30s
+  useEffect(() => {
+    if (positions.length === 0) return;
+    const id = setInterval(() => loadPortfolioPrices(), 30_000);
+    return () => clearInterval(id);
+  }, [positions.length, loadPortfolioPrices]);
+
+  const sortedPositions = useMemo((): Position[] => {
+    if (portSort === "default") return positions;
+    return [...positions].sort((a, b) => {
+      const pa = portPrices[a.ticker]?.change_pct ?? null;
+      const pb = portPrices[b.ticker]?.change_pct ?? null;
+      if (pa === null && pb === null) return 0;
+      if (pa === null) return 1;
+      if (pb === null) return -1;
+      return portSort === "gainers" ? pb - pa : pa - pb;
+    });
+  }, [positions, portPrices, portSort]);
+
   const formatDate = (iso: string) =>
     new Date(iso).toLocaleDateString("es", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 
@@ -190,27 +210,61 @@ export default function NotificationsPage() {
             {/* Hoy en tu portafolio */}
             {positions.length > 0 && (
               <div className="rounded-2xl border overflow-hidden" style={{ background: "var(--card)", borderColor: "var(--border)" }}>
+                {/* Header */}
                 <div className="flex items-center justify-between px-4 py-3 border-b" style={{ borderColor: "var(--border)" }}>
-                  <span className="text-sm font-bold" style={{ color: "var(--text)" }}>Hoy en tu portafolio</span>
-                  {portPricesLoading && <Loader2 className="w-3.5 h-3.5 animate-spin" style={{ color: "var(--muted)" }} />}
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-bold" style={{ color: "var(--text)" }}>Hoy en tu portafolio</span>
+                    {portPricesLoading && <Loader2 className="w-3 h-3 animate-spin" style={{ color: "var(--muted)" }} />}
+                  </div>
+                  {/* Sort filters */}
+                  <div className="flex gap-1">
+                    {([
+                      { key: "gainers", label: "▲ Más subidas" },
+                      { key: "losers",  label: "▼ Más caídas" },
+                      { key: "default", label: "Normal" },
+                    ] as const).map(({ key, label }) => (
+                      <button key={key} onClick={() => setPortSort(key)}
+                              className="text-[10px] font-semibold px-2 py-1 rounded-lg transition-all"
+                              style={{
+                                background: portSort === key ? "var(--accent)" : "var(--raised)",
+                                color: portSort === key ? "#fff" : "var(--muted)",
+                              }}>
+                        {label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-px" style={{ background: "var(--border)" }}>
-                  {positions.map((pos) => {
-                    const d = portPrices[pos.ticker];
+
+                {/* List */}
+                <div className="divide-y" style={{ borderColor: "var(--border)" }}>
+                  {sortedPositions.map((pos) => {
+                    const d   = portPrices[pos.ticker];
                     const pct = d?.change_pct ?? null;
+                    const px  = d?.price ?? null;
                     const up  = pct !== null && pct >= 0;
                     return (
-                      <div key={pos.ticker} className="flex items-center justify-between px-3 py-3"
-                           style={{ background: "var(--card)" }}>
-                        <span className="font-bold text-sm" style={{ color: "var(--text)" }}>{pos.ticker}</span>
-                        {pct !== null ? (
-                          <span className="text-xs font-bold px-2 py-0.5 rounded-full"
-                                style={{ background: up ? "rgba(34,197,94,0.12)" : "rgba(239,68,68,0.12)", color: up ? "var(--up)" : "var(--down)" }}>
-                            {up ? "+" : ""}{pct.toFixed(2)}%
-                          </span>
-                        ) : (
-                          <span className="text-xs" style={{ color: "var(--dim)" }}>—</span>
-                        )}
+                      <div key={pos.ticker} className="flex items-center justify-between px-4 py-3">
+                        <div>
+                          <span className="font-bold text-sm" style={{ color: "var(--text)" }}>{pos.ticker}</span>
+                          {pos.name && pos.name !== pos.ticker && (
+                            <p className="text-[10px] mt-0.5" style={{ color: "var(--dim)" }}>{pos.name}</p>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {px !== null && (
+                            <span className="text-sm font-semibold tabular-nums" style={{ color: "var(--sub)" }}>
+                              ${px.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </span>
+                          )}
+                          {pct !== null ? (
+                            <span className="text-xs font-bold px-2 py-0.5 rounded-full min-w-[58px] text-center tabular-nums"
+                                  style={{ background: up ? "rgba(34,197,94,0.12)" : "rgba(239,68,68,0.12)", color: up ? "var(--up)" : "var(--down)" }}>
+                              {up ? "+" : ""}{pct.toFixed(2)}%
+                            </span>
+                          ) : (
+                            <span className="text-xs min-w-[58px] text-center" style={{ color: "var(--dim)" }}>—</span>
+                          )}
+                        </div>
                       </div>
                     );
                   })}
