@@ -396,6 +396,13 @@ export default function PortfolioPage() {
     setScreenshotPreview(null);
   };
 
+  // Approximate fallback rates (1 unit → USD). Updated periodically; good enough for cost basis.
+  const FALLBACK_RATES: Record<string, number> = {
+    MXN: 0.0500, EUR: 1.08, GBP: 1.27, CAD: 0.73,
+    ARS: 0.00095, BRL: 0.18, COP: 0.00024, CLP: 0.00105,
+    PEN: 0.265, JPY: 0.0065, CHF: 1.12, AUD: 0.65,
+  };
+
   const applyImport = async (positions: PendingImport, currency: string) => {
     if (currency === "USD") {
       setPositions(positions);
@@ -403,19 +410,15 @@ export default function PortfolioPage() {
       return;
     }
     setConvertingCurrency(true);
+    let rate = FALLBACK_RATES[currency] ?? 1;
     try {
       const res = await fetch(`https://api.frankfurter.app/latest?from=${currency}&to=USD`);
       const data = await res.json();
-      const rate: number = data.rates?.USD ?? 1;
-      setPositions(positions.map((p) => ({ ...p, avgPrice: parseFloat((p.avgPrice * rate).toFixed(4)) })));
-    } catch {
-      // If conversion fails, import as-is and warn
-      alert(`No se pudo obtener la tasa de cambio. Se importará con los precios originales en ${currency}.`);
-      setPositions(positions);
-    } finally {
-      setConvertingCurrency(false);
-      setPendingImport(null);
-    }
+      if (data.rates?.USD) rate = data.rates.USD;
+    } catch { /* use fallback */ }
+    setPositions(positions.map((p) => ({ ...p, avgPrice: parseFloat((p.avgPrice * rate).toFixed(4)) })));
+    setConvertingCurrency(false);
+    setPendingImport(null);
   };
 
   // ── Excel import ─────────────────────────────────────────────────────────
