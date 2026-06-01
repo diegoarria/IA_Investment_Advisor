@@ -5,7 +5,7 @@ import { useRouter, usePathname } from "next/navigation";
 import { market as marketApi } from "@/lib/api";
 import { useAuthStore, useNotificationStore } from "@/lib/store";
 import { usePaperStore, PAPER_INITIAL_CASH } from "@/lib/paperStore";
-import { TrendingUp, Search, BookOpen, PieChart, BarChart2, Bell, User, Menu, X, RefreshCw, GraduationCap, Trophy } from "lucide-react";
+import { TrendingUp, Search, BookOpen, PieChart, BarChart2, Bell, User, Menu, X, RefreshCw, GraduationCap, Trophy, Compass } from "lucide-react";
 
 interface TickerInfo { ticker: string; name: string; price: number; change_pct: number; }
 interface PriceMap { [ticker: string]: { price: number | null; change_pct: number } }
@@ -24,6 +24,7 @@ const NAV = [
   { href: "/paper",         icon: BarChart2,     label: "Paper Trading" },
   { href: "/learn",         icon: GraduationCap, label: "Aprendizaje" },
   { href: "/arena",         icon: Trophy,        label: "Arena" },
+  { href: "/explore",       icon: Compass,     label: "Explorar" },
   { href: "/notifications", icon: Bell,          label: "Notificaciones" },
   { href: "/profile",       icon: User,          label: "Perfil" },
 ];

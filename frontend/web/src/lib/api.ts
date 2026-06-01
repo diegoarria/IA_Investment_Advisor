@@ -73,6 +73,9 @@ export const profile = {
   get: () => api.get("/api/profile"),
   create: (data: Record<string, unknown>) => api.post("/api/profile", data),
   update: (data: Record<string, unknown>) => api.put("/api/profile", data),
+  uploadAvatar: (imageBase64: string) =>
+    api.post("/api/profile/avatar", { image_base64: imageBase64 }),
+  deleteAvatar: () => api.delete("/api/profile/avatar"),
 };
 
 export const chat = {
@@ -135,6 +138,8 @@ export const market = {
   alertContext: (ticker: string, change_pct: number) =>
     api.post("/api/market/screener/alert-context", { ticker, change_pct }),
   searchTickers: (q: string) => api.get("/api/market/search", { params: { q } }),
+  screener: (sector: string | null, query: string) =>
+    api.post("/api/market/screener", { sector, query }),
 };
 
 export const learn = {

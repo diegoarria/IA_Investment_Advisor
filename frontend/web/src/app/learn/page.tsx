@@ -8,8 +8,7 @@ import { chat as chatApi, notifications as notifApi } from "@/lib/api";
 import { useAuthStore, useProfileStore, useNotificationStore, useLearnStore } from "@/lib/store";
 import {
   TrendingUp, Search, BookOpen, PieChart, BarChart2, Bell, User,
-  Menu, X, GraduationCap, Loader2,
-  Trophy,
+  Menu, X, GraduationCap, Loader2, Trophy, Compass,
 } from "lucide-react";
 
 const NAV = [
@@ -18,6 +17,7 @@ const NAV = [
   { href: "/paper",         icon: BarChart2,     label: "Paper Trading" },
   { href: "/learn",         icon: GraduationCap, label: "Aprendizaje" },
   { href: "/arena",         icon: Trophy,        label: "Arena" },
+  { href: "/explore",       icon: Compass,     label: "Explorar" },
   { href: "/notifications", icon: Bell,          label: "Notificaciones" },
   { href: "/profile",       icon: User,          label: "Perfil" },
 ];

@@ -16,7 +16,7 @@ import PaywallModal from "@/components/PaywallModal";
 import type { IndexData } from "@/lib/types";
 import {
   Send, TrendingUp, Bell, LogOut, Menu, X,
-  ChevronRight, BookOpen, PieChart, BarChart2, User, GraduationCap, Trophy,
+  ChevronRight, BookOpen, PieChart, BarChart2, User, GraduationCap, Trophy, Compass,
   Sun, Moon, MessageSquare, Plus, Square, Pencil,
 } from "lucide-react";
 
@@ -139,6 +139,7 @@ const NAV = [
   { href: "/paper",         icon: BarChart2,     label: "Paper Trading" },
   { href: "/learn",         icon: GraduationCap, label: "Aprendizaje" },
   { href: "/arena",         icon: Trophy,        label: "Arena" },
+  { href: "/explore",       icon: Compass,     label: "Explorar" },
   { href: "/notifications", icon: Bell,          label: "Notificaciones" },
   { href: "/profile",       icon: User,          label: "Perfil" },
 ];

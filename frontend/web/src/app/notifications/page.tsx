@@ -9,7 +9,7 @@ import { usePortfolioStore } from "@/lib/portfolioStore";
 import PaywallModal from "@/components/PaywallModal";
 import {
   TrendingUp, BookOpen, PieChart, BarChart2, Bell, User, Menu, X,
-  GraduationCap, Trophy, Sun, Moon, Newspaper, Bookmark, RefreshCw, Loader2,
+  GraduationCap, Trophy, Sun, Moon, Newspaper, Bookmark, RefreshCw, Loader2, Compass,
 } from "lucide-react";
 
 const NAV = [
@@ -18,6 +18,7 @@ const NAV = [
   { href: "/paper",         icon: BarChart2,     label: "Paper Trading" },
   { href: "/learn",         icon: GraduationCap, label: "Aprendizaje" },
   { href: "/arena",         icon: Trophy,        label: "Arena" },
+  { href: "/explore",       icon: Compass,     label: "Explorar" },
   { href: "/notifications", icon: Bell,          label: "Notificaciones" },
   { href: "/profile",       icon: User,          label: "Perfil" },
 ];

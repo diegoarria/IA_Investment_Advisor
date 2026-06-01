@@ -6,13 +6,13 @@ import {
   useAuthStore, useProfileStore, useNotificationStore, useSubscriptionStore,
   useThemeStore, msgsRemaining, FREE_MSG_LIMIT, maturityLabel,
 } from "@/lib/store";
-import { auth as authApi, insights as insightsApi, mentorLetter as mentorLetterApi, notifications as notifApi } from "@/lib/api";
+import { auth as authApi, insights as insightsApi, mentorLetter as mentorLetterApi, notifications as notifApi, profile as profileApi } from "@/lib/api";
 import { getMentorInfo } from "@/lib/mentorData";
 import PaywallModal from "@/components/PaywallModal";
 import {
   TrendingUp, BookOpen, PieChart, BarChart2, Bell, User, LogOut, Menu, X,
   GraduationCap, Trophy, Sun, Moon, ChevronDown, ChevronUp, Star, BarChart,
-  Loader2,
+  Loader2, Compass,
 } from "lucide-react";
 
 const NAV = [
@@ -21,6 +21,7 @@ const NAV = [
   { href: "/paper",         icon: BarChart2,     label: "Paper Trading" },
   { href: "/learn",         icon: GraduationCap, label: "Aprendizaje" },
   { href: "/arena",         icon: Trophy,        label: "Arena" },
+  { href: "/explore",       icon: Compass,     label: "Explorar" },
   { href: "/notifications", icon: Bell,          label: "Notificaciones" },
   { href: "/profile",       icon: User,          label: "Perfil" },
 ];
@@ -120,6 +121,8 @@ export default function ProfilePage() {
   const [letterOpen, setLetterOpen] = useState(false);
   const [letter, setLetter] = useState<string | null>(null);
   const [letterLoading, setLetterLoading] = useState(false);
+  const [avatarUploading, setAvatarUploading] = useState(false);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [insights, setInsights] = useState<{
     ready: boolean; topics?: string[]; risk_match?: boolean;
     risk_note?: string; suggestion?: string;
@@ -138,6 +141,24 @@ export default function ProfilePage() {
     notifApi.getAll().then(() => {}).catch(() => {});
     subStore.fetchStatus().catch(() => {});
   }, [isAuthenticated]);
+
+  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const base64 = (reader.result as string).split(",")[1];
+      const localUrl = `data:image/jpeg;base64,${base64}`;
+      setAvatarUrl(localUrl);
+      setAvatarUploading(true);
+      try {
+        const res = await profileApi.uploadAvatar(base64);
+        setAvatarUrl(res.data.avatar_url);
+      } catch {}
+      setAvatarUploading(false);
+    };
+    reader.readAsDataURL(file);
+  };
 
   const openMentorLetter = async () => {
     if (letter) { setLetterOpen(true); return; }
@@ -239,10 +260,24 @@ export default function ProfilePage() {
                 <div className="rounded-2xl border overflow-hidden" style={{ background: "var(--card)", borderColor: riskColor + "44" }}>
                   <div className="h-16" style={{ background: riskColor }} />
                   <div className="flex flex-col items-center -mt-8 pb-4 px-5">
-                    <div className="w-16 h-16 rounded-full border-4 flex items-center justify-center text-2xl font-black text-white"
-                         style={{ background: riskColor, borderColor: "var(--card)" }}>
-                      {profile.name.charAt(0).toUpperCase()}
-                    </div>
+                    <label className="relative cursor-pointer group">
+                      <div className="w-16 h-16 rounded-full border-4 flex items-center justify-center text-2xl font-black text-white overflow-hidden"
+                           style={{ background: riskColor, borderColor: "var(--card)" }}>
+                        {avatarUrl ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={avatarUrl} alt="avatar" className="w-full h-full object-cover" />
+                        ) : avatarUploading ? (
+                          <Loader2 className="w-6 h-6 animate-spin text-white" />
+                        ) : (
+                          profile.name.charAt(0).toUpperCase()
+                        )}
+                      </div>
+                      <div className="absolute bottom-0 right-0 w-5 h-5 rounded-full flex items-center justify-center border-2 opacity-0 group-hover:opacity-100 transition-opacity"
+                           style={{ background: "var(--card)", borderColor: "var(--border)" }}>
+                        <span className="text-[9px]">📷</span>
+                      </div>
+                      <input type="file" accept="image/*" className="hidden" onChange={handleAvatarChange} disabled={avatarUploading} />
+                    </label>
                     <div className="mt-2 text-center space-y-2">
                       <div className="text-lg font-extrabold" style={{ color: "var(--text)" }}>{profile.name}</div>
                       <div className="flex flex-wrap justify-center gap-2">
