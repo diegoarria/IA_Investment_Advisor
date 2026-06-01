@@ -240,6 +240,12 @@ export default function PortfolioPage() {
   const [form, setForm] = useState({ ticker:"", shares:"", avgPrice:"" });
   const [addingLoading, setAddingLoading] = useState(false);
 
+  // Currency modal (shown after screenshot or Excel import)
+  type PendingImport = { ticker: string; name?: string; shares: number; avgPrice: number }[];
+  const [pendingImport, setPendingImport] = useState<PendingImport|null>(null);
+  const [importCurrency, setImportCurrency] = useState("USD");
+  const [convertingCurrency, setConvertingCurrency] = useState(false);
+
   // Excel
   const excelInputRef = useRef<HTMLInputElement>(null);
 
@@ -383,10 +389,33 @@ export default function PortfolioPage() {
 
   const confirmScreenshotImport = () => {
     if (!screenshotPreview?.length) return;
-    setPositions(screenshotPreview.map((p) => ({
+    setPendingImport(screenshotPreview.map((p) => ({
       ticker: p.ticker, name: p.name, shares: p.shares, avgPrice: p.avg_price,
     })));
+    setImportCurrency("USD");
     setScreenshotPreview(null);
+  };
+
+  const applyImport = async (positions: PendingImport, currency: string) => {
+    if (currency === "USD") {
+      setPositions(positions);
+      setPendingImport(null);
+      return;
+    }
+    setConvertingCurrency(true);
+    try {
+      const res = await fetch(`https://api.frankfurter.app/latest?from=${currency}&to=USD`);
+      const data = await res.json();
+      const rate: number = data.rates?.USD ?? 1;
+      setPositions(positions.map((p) => ({ ...p, avgPrice: parseFloat((p.avgPrice * rate).toFixed(4)) })));
+    } catch {
+      // If conversion fails, import as-is and warn
+      alert(`No se pudo obtener la tasa de cambio. Se importará con los precios originales en ${currency}.`);
+      setPositions(positions);
+    } finally {
+      setConvertingCurrency(false);
+      setPendingImport(null);
+    }
   };
 
   // ── Excel import ─────────────────────────────────────────────────────────
@@ -402,11 +431,8 @@ export default function PortfolioPage() {
         alert("El Excel debe tener columnas: Ticker / Acciones / Precio");
         return;
       }
-      const preview = parsed.slice(0,5).map((p) => `• ${p.ticker}: ${p.shares} acc @ $${p.avgPrice.toFixed(2)}`).join("\n");
-      const more = parsed.length > 5 ? `\n... y ${parsed.length-5} más` : "";
-      if (confirm(`${parsed.length} posiciones detectadas:\n${preview}${more}\n\n¿Importar?`)) {
-        setPositions(parsed);
-      }
+      setPendingImport(parsed);
+      setImportCurrency("USD");
     } catch {
       alert("No se pudo leer el archivo.");
     } finally {
@@ -1110,6 +1136,72 @@ export default function PortfolioPage() {
 
         </main>
       </div>
+
+      {/* ── Currency modal ── */}
+      {pendingImport && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
+             style={{ background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)" }}>
+          <div className="w-full max-w-sm rounded-3xl p-6" style={{ background: "var(--card)", border: "1px solid var(--border)" }}>
+            <p className="font-extrabold text-base mb-1" style={{ color: "var(--text)" }}>
+              ¿En qué moneda está tu portafolio?
+            </p>
+            <p className="text-xs mb-5" style={{ color: "var(--muted)" }}>
+              Convertiremos tus precios de compra a USD para calcular correctamente tus ganancias.
+            </p>
+
+            <div className="grid grid-cols-3 gap-2 mb-5">
+              {[
+                { code: "USD", flag: "🇺🇸", name: "Dólar" },
+                { code: "MXN", flag: "🇲🇽", name: "Peso MX" },
+                { code: "EUR", flag: "🇪🇺", name: "Euro" },
+                { code: "GBP", flag: "🇬🇧", name: "Libra" },
+                { code: "CAD", flag: "🇨🇦", name: "CAD" },
+                { code: "ARS", flag: "🇦🇷", name: "Peso AR" },
+                { code: "BRL", flag: "🇧🇷", name: "Real" },
+                { code: "COP", flag: "🇨🇴", name: "Peso CO" },
+                { code: "CLP", flag: "🇨🇱", name: "Peso CL" },
+                { code: "PEN", flag: "🇵🇪", name: "Sol" },
+                { code: "JPY", flag: "🇯🇵", name: "Yen" },
+                { code: "AUD", flag: "🇦🇺", name: "AUD" },
+              ].map(({ code, flag, name }) => {
+                const active = importCurrency === code;
+                return (
+                  <button key={code} onClick={() => setImportCurrency(code)}
+                          className="flex flex-col items-center py-2.5 px-1 rounded-2xl border transition-all text-center"
+                          style={{
+                            borderColor: active ? "var(--accent)" : "var(--border)",
+                            background: active ? "rgba(0,168,94,0.12)" : "var(--raised)",
+                          }}>
+                    <span className="text-lg leading-none mb-0.5">{flag}</span>
+                    <span className="text-[10px] font-bold" style={{ color: active ? "var(--accent-l)" : "var(--text)" }}>{code}</span>
+                    <span className="text-[9px]" style={{ color: "var(--dim)" }}>{name}</span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {importCurrency !== "USD" && (
+              <p className="text-xs mb-4 text-center" style={{ color: "var(--muted)" }}>
+                Se convertirá automáticamente usando la tasa de cambio actual {importCurrency} → USD.
+              </p>
+            )}
+
+            <div className="flex gap-2">
+              <button onClick={() => setPendingImport(null)}
+                      className="flex-1 py-2.5 rounded-xl border text-sm font-semibold"
+                      style={{ borderColor: "var(--border)", color: "var(--muted)" }}>
+                Cancelar
+              </button>
+              <button onClick={() => applyImport(pendingImport, importCurrency)}
+                      disabled={convertingCurrency}
+                      className="flex-[2] py-2.5 rounded-xl text-white text-sm font-bold disabled:opacity-50"
+                      style={{ background: "var(--accent)" }}>
+                {convertingCurrency ? "Convirtiendo..." : `Importar en ${importCurrency}`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
