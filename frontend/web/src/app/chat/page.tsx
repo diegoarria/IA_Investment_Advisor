@@ -304,17 +304,21 @@ export default function ChatPage() {
   return (
     <div className="h-screen flex flex-col overflow-hidden" style={{ background: "var(--bg)" }}>
       {/* Top bar */}
-      <div className="border-b flex items-center justify-between px-4 py-2 shrink-0"
-           style={{ borderColor: "var(--border)", background: "var(--card)" }}>
+      <div className="flex items-center justify-between px-4 py-2.5 shrink-0"
+           style={{ borderBottom: "1px solid var(--border)", background: "rgba(9,15,31,0.9)", backdropFilter: "blur(12px)" }}>
         <div className="flex items-center gap-3">
           <button onClick={() => setSidebarOpen(!sidebarOpen)}
-                  className="lg:hidden p-1 rounded-lg"
+                  className="lg:hidden p-1.5 rounded-lg transition-colors hover:bg-white/5"
                   style={{ color: "var(--muted)" }}>
-            {sidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+            {sidebarOpen ? <X className="w-4.5 h-4.5" /> : <Menu className="w-4.5 h-4.5" />}
           </button>
-          <div className="flex items-center gap-2">
-            <Image src="/logo.png" alt="Nuvos AI" width={28} height={28}
-                   className="rounded-lg object-cover" />
+          <div className="flex items-center gap-2.5">
+            <div className="relative">
+              <Image src="/logo.png" alt="Nuvos AI" width={30} height={30}
+                     className="rounded-xl object-cover" />
+              <div className="absolute -inset-0.5 rounded-xl blur-sm opacity-40"
+                   style={{ background: "var(--grad-green)" }} />
+            </div>
             <span className="font-bold text-sm" style={{ color: "var(--text)" }}>Nuvos AI</span>
           </div>
         </div>
@@ -354,74 +358,63 @@ export default function ChatPage() {
 
       <div className="flex flex-1 overflow-hidden relative">
         {/* Sidebar */}
-        <aside className={`${sidebarOpen ? "flex" : "hidden"} lg:flex w-60 border-r flex-col py-4 absolute lg:relative z-20 h-full`}
-               style={{ borderColor: "var(--border)", background: "var(--card)" }}>
+        <aside className={`${sidebarOpen ? "flex" : "hidden"} lg:flex w-64 flex-col absolute lg:relative z-20 h-full sidebar-gradient`}>
+          {/* Profile widget */}
           {profile && (
-            <div className="px-3 mb-4">
-              <div className="rounded-xl p-3 border" style={{ background: "var(--raised)", borderColor: "var(--border)" }}>
-                <div className="text-xs mb-2" style={{ color: "var(--muted)" }}>Perfil de riesgo</div>
+            <div className="px-3 pt-4 pb-2">
+              <div className="rounded-2xl p-3 card-accent">
+                <div className="flex items-center gap-2.5 mb-2">
+                  <div className="w-7 h-7 rounded-full flex items-center justify-center text-sm font-black text-white shrink-0"
+                       style={{ background: "var(--grad-green)" }}>
+                    {profile.name.charAt(0).toUpperCase()}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-xs font-bold truncate" style={{ color: "var(--text)" }}>{profile.name}</div>
+                    <div className="text-[10px]" style={{ color: "var(--muted)" }}>Perfil activo</div>
+                  </div>
+                </div>
                 <RiskBar level={profile.risk_tolerance} />
-                {profile.name && (
-                  <div className="text-xs mt-2" style={{ color: "var(--sub)" }}>{profile.name}</div>
-                )}
               </div>
             </div>
           )}
 
-          {/* Msg counter for free users */}
+          {/* Premium CTA */}
           {!isPremium && (
-            <div className="px-3 mb-3">
+            <div className="px-3 pb-2 space-y-2">
               <button onClick={() => setPaywallOpen(true)}
-                      className="w-full rounded-xl p-2.5 border text-left transition-colors hover:border-[var(--accent)]"
-                      style={{ background: "var(--raised)", borderColor: "var(--border)" }}>
-                <div className="text-[10px] mb-1" style={{ color: "var(--muted)" }}>
-                  Mensajes hoy
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="flex-1 h-1 rounded-full" style={{ background: "var(--border)" }}>
-                    <div className="h-1 rounded-full transition-all"
-                         style={{
-                           width: `${Math.round(((FREE_MSG_LIMIT - remaining) / FREE_MSG_LIMIT) * 100)}%`,
-                           background: remaining < 5 ? "var(--down)" : "var(--accent)",
-                         }} />
-                  </div>
-                  <span className="text-[10px] font-bold shrink-0"
-                        style={{ color: remaining < 5 ? "var(--down)" : "var(--accent-l)" }}>
+                      className="w-full rounded-xl p-2.5 text-left transition-all hover:border-[var(--accent-l)]"
+                      style={{ background: "var(--raised)", border: "1px solid var(--border)" }}>
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: "var(--muted)" }}>Mensajes hoy</span>
+                  <span className="text-[10px] font-bold" style={{ color: remaining < 5 ? "var(--down)" : "var(--accent-l)" }}>
                     {remaining}/{FREE_MSG_LIMIT}
                   </span>
                 </div>
+                <div className="h-1 rounded-full overflow-hidden" style={{ background: "var(--border)" }}>
+                  <div className="h-full rounded-full transition-all"
+                       style={{ width: `${Math.round(((FREE_MSG_LIMIT - remaining) / FREE_MSG_LIMIT) * 100)}%`, background: remaining < 5 ? "var(--down)" : "var(--grad-green)" }} />
+                </div>
               </button>
-            </div>
-          )}
-
-          {!isPremium && (
-            <div className="px-3 mb-2">
               <button onClick={() => setPaywallOpen(true)}
-                      className="w-full py-2 rounded-xl text-xs font-semibold text-white transition-opacity hover:opacity-90"
-                      style={{ background: "linear-gradient(90deg, #00a85e, #00d47e)" }}>
+                      className="btn-primary w-full text-xs py-2">
                 ⭐ Activar Premium
               </button>
             </div>
           )}
 
           <div className="flex-1 overflow-y-auto scrollbar-thin">
-          <nav className="px-2 space-y-0.5">
+          <nav className="px-2 py-1 space-y-0.5">
             {NAV.map(({ href, icon: Icon, label }) => {
               const active = pathname === href;
               const notifBadge = href === "/notifications" && unreadNotifCount > 0;
               return (
                 <button key={href}
                         onClick={() => { router.push(href); setSidebarOpen(false); }}
-                        className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors"
-                        style={{
-                          background: active ? "rgba(0,168,94,0.12)" : "transparent",
-                          color: active ? "var(--accent-l)" : "var(--muted)",
-                        }}>
+                        className={`nav-item ${active ? "active" : ""}`}>
                   <Icon className="w-4 h-4 shrink-0" />
                   <span>{label}</span>
                   {notifBadge && (
-                    <span className="ml-auto w-4 h-4 rounded-full text-white text-[10px] flex items-center justify-center font-bold"
-                          style={{ background: "var(--accent)" }}>
+                    <span className="ml-auto badge-green" style={{ fontSize: "10px" }}>
                       {unreadNotifCount}
                     </span>
                   )}
@@ -527,40 +520,53 @@ export default function ChatPage() {
         <main className="flex-1 flex flex-col overflow-hidden">
           <div className="flex-1 overflow-y-auto scrollbar-thin p-4 space-y-4">
             {messages.length === 0 && (
-              <div className="h-full flex flex-col items-center justify-center text-center px-4">
+              <div className="h-full flex flex-col items-center justify-center text-center px-6 animate-fade-in">
                 {mentor ? (
-                  <div className="w-20 h-20 rounded-full flex items-center justify-center text-4xl mb-4"
-                       style={{ background: mentor.color + "22" }}>
-                    {mentor.emoji}
+                  <div className="relative mb-5 animate-float">
+                    <div className="w-24 h-24 rounded-3xl flex items-center justify-center text-5xl"
+                         style={{ background: mentor.color + "18", border: `2px solid ${mentor.color}30` }}>
+                      {mentor.emoji}
+                    </div>
+                    <div className="absolute -inset-2 rounded-3xl blur-xl opacity-25"
+                         style={{ background: mentor.color }} />
                   </div>
                 ) : (
-                  <div className="w-16 h-16 rounded-2xl flex items-center justify-center mb-4"
-                       style={{ background: "rgba(0,168,94,0.1)" }}>
-                    <TrendingUp className="w-8 h-8" style={{ color: "var(--accent)" }} />
+                  <div className="relative mb-5 animate-float">
+                    <div className="w-20 h-20 rounded-3xl flex items-center justify-center"
+                         style={{ background: "var(--accent-glow)", border: "2px solid rgba(0,185,109,0.2)" }}>
+                      <TrendingUp className="w-9 h-9" style={{ color: "var(--accent-l)" }} />
+                    </div>
+                    <div className="absolute -inset-2 rounded-3xl blur-xl opacity-20"
+                         style={{ background: "var(--accent)" }} />
                   </div>
                 )}
-                <h2 className="text-xl font-bold mb-1" style={{ color: "var(--text)" }}>
-                  {mentor ? mentor.name : profile?.name ? `Hola, ${profile.name.split(" ")[0]}!` : "Nuvos AI"}
+                <h2 className="text-2xl font-black mb-1.5 tracking-tight"
+                    style={{ color: "var(--text)", fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                  {mentor ? mentor.name : profile?.name ? `Hola, ${profile.name.split(" ")[0]}` : "Nuvos AI"}
                 </h2>
-                <p className="text-sm max-w-sm mb-2" style={{ color: "var(--muted)" }}>
-                  {mentor ? `${mentor.title} · ${mentor.badge}` : "Pregunta sobre cualquier empresa, ETF, o concepto financiero."}
+                <p className="text-sm mb-1" style={{ color: "var(--muted)" }}>
+                  {mentor ? mentor.title : "Tu mentor de inversiones con IA"}
                 </p>
                 {mentor && (
-                  <div className="flex flex-wrap justify-center gap-2 mb-6">
+                  <span className="badge-green mb-5">{mentor.badge}</span>
+                )}
+                {mentor && (
+                  <div className="flex flex-wrap justify-center gap-2 mb-7 max-w-sm">
                     {mentor.principles.map((p) => (
-                      <span key={p} className="text-xs px-3 py-1 rounded-full border font-medium"
-                            style={{ borderColor: mentor.color + "50", background: mentor.color + "12", color: mentor.color }}>
+                      <span key={p} className="text-xs px-3 py-1.5 rounded-full border font-medium"
+                            style={{ borderColor: mentor.color + "40", background: mentor.color + "0e", color: mentor.color }}>
                         {p}
                       </span>
                     ))}
                   </div>
                 )}
-                <div className={`grid grid-cols-1 sm:grid-cols-2 gap-2 w-full max-w-lg ${mentor ? "" : "mt-6"}`}>
-                  {SUGGESTIONS.map((s) => (
+                {!mentor && <div className="mb-7" />}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 w-full max-w-lg">
+                  {SUGGESTIONS.map((s, i) => (
                     <button key={s} onClick={() => sendMessage(s)}
-                            className="text-left p-3 rounded-xl text-xs transition-colors hover:border-[var(--accent)] border flex items-center gap-2"
+                            className={`text-left p-3.5 rounded-2xl text-xs transition-all border hover:border-[var(--accent-l)] hover:-translate-y-0.5 animate-fade-in-up stagger-${i+1} group`}
                             style={{ background: "var(--card)", borderColor: "var(--border)", color: "var(--sub)" }}>
-                      <span style={{ color: "var(--accent-l)" }}>✦</span>
+                      <span className="block text-[10px] font-bold mb-1 group-hover:text-[var(--accent-l)] transition-colors" style={{ color: "var(--accent)" }}>✦</span>
                       {s}
                     </button>
                   ))}
@@ -569,37 +575,34 @@ export default function ChatPage() {
             )}
 
             {messages.map((msg, i) => (
-              <div key={i}>
+              <div key={i} className="animate-fade-in">
                 <div className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
                   {msg.role === "assistant" && (
-                    <div className="w-7 h-7 rounded-full flex items-center justify-center mr-2 mt-0.5 shrink-0 overflow-hidden text-sm"
-                         style={{ background: mentor ? mentor.color + "22" : "var(--accent)" }}>
-                      {mentor ? mentor.emoji : <TrendingUp className="w-3.5 h-3.5 text-white" />}
+                    <div className="w-8 h-8 rounded-2xl flex items-center justify-center mr-2.5 mt-0.5 shrink-0 overflow-hidden text-sm"
+                         style={{
+                           background: mentor ? mentor.color + "22" : "var(--accent-glow)",
+                           border: `1px solid ${mentor ? mentor.color + "30" : "rgba(0,185,109,0.2)"}`,
+                         }}>
+                      {mentor ? mentor.emoji : <TrendingUp className="w-3.5 h-3.5" style={{ color: "var(--accent-l)" }} />}
                     </div>
                   )}
-                  <div className={msg.role === "user" ? "max-w-[80%]" : "flex-1"}>
-                    <div className="max-w-[85%] px-4 py-3 rounded-2xl"
-                         style={{
-                           background: msg.role === "user" ? "var(--accent)" : "var(--card)",
-                           borderRadius: msg.role === "user" ? "18px 18px 4px 18px" : "18px 18px 18px 4px",
-                           border: msg.role === "user" ? "none" : "1px solid var(--border)",
-                           color: msg.role === "user" ? "white" : "var(--sub)",
-                         }}>
-                      {msg.role === "assistant" ? (
+                  <div className={msg.role === "user" ? "max-w-[78%]" : "flex-1"}>
+                    {msg.role === "user" ? (
+                      <div className="bubble-user">{msg.content}</div>
+                    ) : (
+                      <div className="bubble-ai">
                         <div className="prose-dark">
                           {msg.content === "" && isStreaming && i === messages.length - 1
                             ? <TypingDots />
                             : <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
                           }
                         </div>
-                      ) : (
-                        <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
-                      )}
-                    </div>
+                      </div>
+                    )}
                     {msg.role === "user" && (
                       <div className="flex justify-end mt-1">
                         <button onClick={() => handleEditMessage(i, msg.content)}
-                                className="p-1 rounded hover:opacity-70 transition-opacity"
+                                className="p-1.5 rounded-lg hover:bg-white/5 transition-all opacity-0 hover:opacity-100 group-hover:opacity-100"
                                 style={{ color: "var(--dim)" }}>
                           <Pencil className="w-3 h-3" />
                         </button>
@@ -616,48 +619,47 @@ export default function ChatPage() {
           </div>
 
           {/* Input */}
-          <div className="border-t p-4 shrink-0" style={{ borderColor: "var(--border)", background: "var(--card)" }}>
+          <div className="shrink-0 px-4 pb-4 pt-3"
+               style={{ borderTop: "1px solid var(--border)", background: "rgba(9,15,31,0.95)", backdropFilter: "blur(12px)" }}>
             {remaining === 0 && !isPremium && (
-              <div className="max-w-4xl mx-auto mb-3 px-4 py-2.5 rounded-xl border flex items-center justify-between"
-                   style={{ background: "rgba(255,71,87,0.06)", borderColor: "rgba(255,71,87,0.25)" }}>
-                <span className="text-xs" style={{ color: "var(--down)" }}>
-                  Alcanzaste el límite de {FREE_MSG_LIMIT} mensajes diarios.
-                </span>
-                <button onClick={() => setPaywallOpen(true)}
-                        className="text-xs font-bold ml-3 shrink-0"
-                        style={{ color: "var(--accent-l)" }}>
+              <div className="max-w-3xl mx-auto mb-3 px-4 py-2.5 rounded-xl flex items-center justify-between"
+                   style={{ background: "rgba(244,63,94,0.06)", border: "1px solid rgba(244,63,94,0.2)" }}>
+                <span className="text-xs" style={{ color: "var(--down)" }}>Alcanzaste el límite de {FREE_MSG_LIMIT} mensajes diarios.</span>
+                <button onClick={() => setPaywallOpen(true)} className="text-xs font-bold ml-3 shrink-0" style={{ color: "var(--accent-l)" }}>
                   Activar Premium →
                 </button>
               </div>
             )}
-            <div className="flex gap-3 items-end max-w-4xl mx-auto">
-              <textarea
-                ref={inputRef}
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={handleKeyDown}
-                placeholder={remaining === 0 && !isPremium ? "Límite diario alcanzado — activa Premium para continuar" : "Pregunta sobre cualquier empresa, concepto o estrategia..."}
-                rows={1}
-                disabled={isStreaming || (remaining === 0 && !isPremium)}
-                className="flex-1 rounded-xl px-4 py-3 text-sm outline-none resize-none transition-colors border"
-                style={{
-                  background: "var(--raised)",
-                  borderColor: "var(--border)",
-                  color: "var(--text)",
-                  maxHeight: "120px",
-                  overflowY: "auto",
-                }}
-              />
+            <div className="flex gap-2.5 items-end max-w-3xl mx-auto">
+              <div className="flex-1 relative">
+                <textarea
+                  ref={inputRef}
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  placeholder={remaining === 0 && !isPremium ? "Límite alcanzado — activa Premium" : "Pregunta sobre cualquier empresa, concepto o estrategia..."}
+                  rows={1}
+                  disabled={isStreaming || (remaining === 0 && !isPremium)}
+                  className="input-premium resize-none"
+                  style={{ maxHeight: "120px", overflowY: "auto", paddingRight: "16px", lineHeight: "1.6" }}
+                />
+              </div>
               <button
                 onClick={isStreaming ? handleStop : () => sendMessage()}
                 disabled={!isStreaming && (!input.trim() || (remaining === 0 && !isPremium))}
-                className="w-10 h-10 rounded-xl flex items-center justify-center transition-colors shrink-0 disabled:opacity-40"
-                style={{ background: isStreaming ? "#ef4444" : "var(--accent)" }}>
-                {isStreaming ? <Square className="w-4 h-4 text-white" /> : <Send className="w-4 h-4 text-white" />}
+                className="w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 transition-all disabled:opacity-30"
+                style={{
+                  background: isStreaming ? "rgba(244,63,94,0.15)" : "var(--grad-green)",
+                  border: isStreaming ? "1px solid rgba(244,63,94,0.3)" : "none",
+                  boxShadow: isStreaming ? "none" : "var(--shadow-accent-sm)",
+                }}>
+                {isStreaming
+                  ? <Square className="w-4 h-4" style={{ color: "#f87171" }} />
+                  : <Send className="w-4 h-4 text-white" />}
               </button>
             </div>
-            <p className="text-center text-xs mt-2" style={{ color: "var(--dim)" }}>
-              Solo educativo. No reemplaza asesoramiento financiero profesional.
+            <p className="text-center text-[10px] mt-2" style={{ color: "var(--dim)" }}>
+              Solo educativo · No reemplaza asesoramiento financiero profesional
             </p>
           </div>
         </main>
