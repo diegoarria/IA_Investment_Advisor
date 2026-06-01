@@ -1,4 +1,5 @@
 import axios from "axios";
+import { useAuthStore } from "@/lib/store";
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -52,6 +53,7 @@ api.interceptors.response.use(
       flushQueue(refreshErr);
       localStorage.removeItem("access_token");
       localStorage.removeItem("refresh_token");
+      useAuthStore.getState().clearAuth();
       window.location.href = "/";
       return Promise.reject(refreshErr);
     } finally {
