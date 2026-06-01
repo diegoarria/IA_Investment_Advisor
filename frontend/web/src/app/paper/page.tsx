@@ -24,7 +24,6 @@ const NAV = [
   { href: "/paper",         icon: BarChart2,     label: "Paper Trading" },
   { href: "/learn",         icon: GraduationCap, label: "Aprendizaje" },
   { href: "/arena",         icon: Trophy,        label: "Arena" },
-  { href: "/explore",       icon: Compass,     label: "Explorar" },
   { href: "/notifications", icon: Bell,          label: "Notificaciones" },
   { href: "/profile",       icon: User,          label: "Perfil" },
 ];

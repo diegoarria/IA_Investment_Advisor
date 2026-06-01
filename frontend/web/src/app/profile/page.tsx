@@ -12,7 +12,7 @@ import PaywallModal from "@/components/PaywallModal";
 import {
   TrendingUp, BookOpen, PieChart, BarChart2, Bell, User, LogOut, Menu, X,
   GraduationCap, Trophy, Sun, Moon, ChevronDown, ChevronUp, Star, BarChart,
-  Loader2, Compass,
+  Loader2,
 } from "lucide-react";
 
 const NAV = [
@@ -21,7 +21,6 @@ const NAV = [
   { href: "/paper",         icon: BarChart2,     label: "Paper Trading" },
   { href: "/learn",         icon: GraduationCap, label: "Aprendizaje" },
   { href: "/arena",         icon: Trophy,        label: "Arena" },
-  { href: "/explore",       icon: Compass,     label: "Explorar" },
   { href: "/notifications", icon: Bell,          label: "Notificaciones" },
   { href: "/profile",       icon: User,          label: "Perfil" },
 ];

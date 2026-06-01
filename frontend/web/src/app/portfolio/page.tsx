@@ -10,7 +10,7 @@ import { useAuthStore, useNotificationStore } from "@/lib/store";
 import { usePortfolioStore, type Position } from "@/lib/portfolioStore";
 import {
   TrendingUp, BookOpen, PieChart, BarChart2, Bell, User, Menu, X,
-  GraduationCap, Upload, FileSpreadsheet, Plus,  Trash2, Trophy, Compass,
+  GraduationCap, Upload, FileSpreadsheet, Plus,  Trash2, Trophy,
   BarChart, Calculator, Shield, Sparkles, RefreshCw, AlertTriangle,
 } from "lucide-react";
 
@@ -20,7 +20,6 @@ const NAV = [
   { href: "/paper",         icon: BarChart2,     label: "Paper Trading" },
   { href: "/learn",         icon: GraduationCap, label: "Aprendizaje" },
   { href: "/arena",         icon: Trophy,        label: "Arena" },
-  { href: "/explore",       icon: Compass,     label: "Explorar" },
   { href: "/notifications", icon: Bell,          label: "Notificaciones" },
   { href: "/profile",       icon: User,          label: "Perfil" },
 ];
