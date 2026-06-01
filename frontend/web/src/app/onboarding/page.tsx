@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { profile as profileApi } from "@/lib/api";
@@ -39,7 +39,8 @@ export default function OnboardingPage() {
   const [objective, setObjective] = useState("");
   const [mentor, setMentor]       = useState("none");
 
-  if (!isAuthenticated) { router.push("/"); return null; }
+  useEffect(() => { if (!isAuthenticated) router.push("/"); }, [isAuthenticated]);
+  if (!isAuthenticated) return null;
 
   const selectedObj = OBJECTIVES.find((o) => o.value === objective);
 
