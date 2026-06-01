@@ -1,5 +1,6 @@
 "use client";
 
+import AppSidebar from "@/components/AppSidebar";
 import { useState, useMemo, useRef, useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import ReactMarkdown from "react-markdown";
@@ -185,24 +186,7 @@ export default function LearnPage() {
 
       <div className="flex flex-1 overflow-hidden relative">
         {/* Sidebar */}
-        <aside className={`${sidebarOpen ? "flex" : "hidden"} lg:flex w-60 border-r flex-col py-4 absolute lg:relative z-20 h-full`}
-               style={{ borderColor: "var(--border)", background: "var(--card)" }}>
-          <nav className="flex-1 px-2 space-y-0.5">
-            {NAV.map(({ href, icon: Icon, label }) => {
-              const active = pathname === href;
-              const badge = href === "/notifications" && unreadCount > 0;
-              return (
-                <button key={href} onClick={() => { router.push(href); setSidebarOpen(false); }}
-                        className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors"
-                        style={{ background: active ? "rgba(0,168,94,0.12)" : "transparent", color: active ? "var(--accent-l)" : "var(--muted)" }}>
-                  <Icon className="w-4 h-4 shrink-0" />
-                  <span>{label}</span>
-                  {badge && <span className="ml-auto w-4 h-4 rounded-full text-white text-[10px] flex items-center justify-center font-bold" style={{ background: "var(--accent)" }}>{unreadCount}</span>}
-                </button>
-              );
-            })}
-          </nav>
-        </aside>
+        <AppSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
         {/* Main */}
         <main className="flex-1 flex flex-col overflow-hidden">

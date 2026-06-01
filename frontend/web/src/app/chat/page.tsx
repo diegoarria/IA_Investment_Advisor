@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { useRouter, usePathname } from "next/navigation";
+import { useRouter } from "next/navigation";
 import Image from "next/image";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -12,14 +12,14 @@ import {
 } from "@/lib/store";
 import { getMentorInfo } from "@/lib/mentorData";
 import { usePortfolioStore } from "@/lib/portfolioStore";
+import AppSidebar from "@/components/AppSidebar";
 import PaywallModal from "@/components/PaywallModal";
 import TutorialModal from "@/components/TutorialModal";
 import { useTutorialStore } from "@/lib/store";
 import type { IndexData } from "@/lib/types";
 import {
   Send, TrendingUp, Bell, LogOut, Menu, X,
-  ChevronRight, BookOpen, PieChart, BarChart2, User, GraduationCap, Trophy,
-  Sun, Moon, MessageSquare, Plus, Square, Pencil,
+  ChevronRight, Sun, Moon, Square, Pencil,
 } from "lucide-react";
 
 const SUGGESTIONS_DEFAULT = [
@@ -162,23 +162,12 @@ function IndexChip({ d }: { d: IndexData }) {
   );
 }
 
-const NAV = [
-  { href: "/chat",          icon: BookOpen,      label: "Chat" },
-  { href: "/portfolio",     icon: PieChart,      label: "Portafolio" },
-  { href: "/paper",         icon: BarChart2,     label: "Paper Trading" },
-  { href: "/learn",         icon: GraduationCap, label: "Aprendizaje" },
-  { href: "/arena",         icon: Trophy,        label: "Arena" },
-  { href: "/notifications", icon: Bell,          label: "Notificaciones" },
-  { href: "/profile",       icon: User,          label: "Perfil" },
-];
-
 export default function ChatPage() {
   const router = useRouter();
-  const pathname = usePathname();
   const { hasSeenTutorial, openTutorial } = useTutorialStore();
   const { isAuthenticated, clearAuth } = useAuthStore();
   const { profile, updateMaturity } = useProfileStore();
-  const { messages, isStreaming, addMessage, appendToLastAssistant, setStreaming, startAssistantMessage, removeLastMessage, setMessages, sessions, currentId, createSession, loadSession, deleteSession } = useChatStore();
+  const { messages, isStreaming, addMessage, appendToLastAssistant, setStreaming, startAssistantMessage, removeLastMessage, setMessages, sessions, createSession } = useChatStore();
   const { notifications, setNotifications, markRead } = useNotificationStore();
   const { theme, toggleTheme } = useThemeStore();
   const subStore = useSubscriptionStore();
@@ -189,7 +178,6 @@ export default function ChatPage() {
   const [input, setInput] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
-  const [historyOpen, setHistoryOpen] = useState(true);
   const [paywallOpen, setPaywallOpen] = useState(false);
   const [indices, setIndices] = useState<IndexData[]>([]);
   const [lastAssessment, setLastAssessment] = useState<BScoreData | null>(null);
@@ -232,16 +220,6 @@ export default function ChatPage() {
 
     const a = (key: string) => qa ? String(qa[key] ?? "") : "";
     return `[PERFIL DEL USUARIO]\nNombre: ${profile.name}\nPerfil de riesgo: ${profile.risk_tolerance}\n\nRespuestas del cuestionario:\n- Comportamiento ante caídas: ${q1Labels[a("q1")] ?? "no disponible"}\n- Horizonte: ${q2Labels[a("q2")] ?? "no disponible"}\n- Conocimiento: ${q3Labels[a("q3")] ?? "no disponible"}\n- Tolerancia al riesgo: ${q4Labels[a("q4")] ?? "no disponible"}\n- Estilo de gestión: ${q5Labels[a("q5")] ?? "no disponible"}${portfolioBlock}\n\nInstrucciones: Llama siempre a este usuario por su nombre (${profile.name.split(" ")[0]}). Adapta el nivel al conocimiento declarado. Responde en español.`;
-  };
-
-  const handleNewChat = () => {
-    createSession();
-    setSidebarOpen(false);
-  };
-
-  const handleLoadSession = (id: string) => {
-    loadSession(id);
-    setSidebarOpen(false);
   };
 
   useEffect(() => {
@@ -399,132 +377,7 @@ export default function ChatPage() {
 
       <div className="flex flex-1 overflow-hidden relative">
         {/* Sidebar */}
-        <aside className={`${sidebarOpen ? "flex" : "hidden"} lg:flex w-64 flex-col absolute lg:relative z-20 h-full sidebar-gradient`}>
-          {/* Profile widget */}
-          {profile && (
-            <div className="px-3 pt-4 pb-2">
-              <div className="rounded-2xl p-3 card-accent">
-                <div className="flex items-center gap-2.5 mb-2">
-                  <div className="w-7 h-7 rounded-full flex items-center justify-center text-sm font-black text-white shrink-0"
-                       style={{ background: "var(--grad-green)" }}>
-                    {profile.name.charAt(0).toUpperCase()}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="text-xs font-bold truncate" style={{ color: "var(--text)" }}>{profile.name}</div>
-                    <div className="text-[10px]" style={{ color: "var(--muted)" }}>Perfil activo</div>
-                  </div>
-                </div>
-                <RiskBar level={profile.risk_tolerance} />
-              </div>
-            </div>
-          )}
-
-          {/* Premium CTA */}
-          {!isPremium && (
-            <div className="px-3 pb-2 space-y-2">
-              <button onClick={() => setPaywallOpen(true)}
-                      className="w-full rounded-xl p-2.5 text-left transition-all hover:border-[var(--accent-l)]"
-                      style={{ background: "var(--raised)", border: "1px solid var(--border)" }}>
-                <div className="flex items-center justify-between mb-1.5">
-                  <span className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: "var(--muted)" }}>Mensajes hoy</span>
-                  <span className="text-[10px] font-bold" style={{ color: remaining < 5 ? "var(--down)" : "var(--accent-l)" }}>
-                    {remaining}/{FREE_MSG_LIMIT}
-                  </span>
-                </div>
-                <div className="h-1 rounded-full overflow-hidden" style={{ background: "var(--border)" }}>
-                  <div className="h-full rounded-full transition-all"
-                       style={{ width: `${Math.round(((FREE_MSG_LIMIT - remaining) / FREE_MSG_LIMIT) * 100)}%`, background: remaining < 5 ? "var(--down)" : "var(--grad-green)" }} />
-                </div>
-              </button>
-              <button onClick={() => setPaywallOpen(true)}
-                      className="btn-primary w-full text-xs py-2">
-                ⭐ Activar Premium
-              </button>
-            </div>
-          )}
-
-          <div className="flex-1 overflow-y-auto scrollbar-thin">
-          <nav className="px-2 py-1 space-y-0.5">
-            {NAV.map(({ href, icon: Icon, label }) => {
-              const active = pathname === href;
-              const notifBadge = href === "/notifications" && unreadNotifCount > 0;
-              return (
-                <button key={href}
-                        onClick={() => { router.push(href); setSidebarOpen(false); }}
-                        className={`nav-item ${active ? "active" : ""}`}>
-                  <Icon className="w-4 h-4 shrink-0" />
-                  <span>{label}</span>
-                  {notifBadge && (
-                    <span className="ml-auto badge-green" style={{ fontSize: "10px" }}>
-                      {unreadNotifCount}
-                    </span>
-                  )}
-                </button>
-              );
-            })}
-          </nav>
-
-          {/* Chat history */}
-          <div className="px-2 mt-3 border-t pt-3" style={{ borderColor: "var(--border)" }}>
-            <div className="flex items-center justify-between px-1 mb-1">
-              <button
-                onClick={() => setHistoryOpen((v) => !v)}
-                className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide hover:opacity-80 transition-opacity"
-                style={{ color: "var(--muted)" }}
-              >
-                <MessageSquare className="w-3 h-3" />
-                Chats recientes
-                <ChevronRight className={`w-3 h-3 transition-transform ${historyOpen ? "rotate-90" : ""}`} />
-              </button>
-              <button
-                onClick={handleNewChat}
-                className="w-5 h-5 rounded flex items-center justify-center border transition-colors hover:border-[var(--accent)]"
-                style={{ borderColor: "var(--border)", color: "var(--muted)" }}
-                title="Nuevo chat"
-              >
-                <Plus className="w-3 h-3" />
-              </button>
-            </div>
-
-            {historyOpen && (
-              <div className="space-y-0.5">
-                {sessions.length === 0 ? (
-                  <p className="text-xs px-2 py-2" style={{ color: "var(--dim)" }}>Sin chats guardados</p>
-                ) : (
-                  sessions.slice(0, 30).map((s) => (
-                    <div
-                      key={s.id}
-                      onClick={() => handleLoadSession(s.id)}
-                      className="flex items-center gap-2 group px-2 py-2 rounded-lg cursor-pointer transition-colors"
-                      style={{ background: s.id === currentId ? "rgba(0,168,94,0.1)" : "transparent" }}
-                    >
-                      <MessageSquare className="w-3 h-3 shrink-0" style={{ color: s.id === currentId ? "var(--accent-l)" : "var(--dim)" }} />
-                      <span className="text-xs flex-1 truncate" style={{ color: s.id === currentId ? "var(--accent-l)" : "var(--sub)" }}>
-                        {s.title}
-                      </span>
-                      <button
-                        onClick={(e) => { e.stopPropagation(); deleteSession(s.id); }}
-                        className="opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
-                        style={{ color: "var(--dim)" }}
-                      >
-                        <X className="w-3 h-3" />
-                      </button>
-                    </div>
-                  ))
-                )}
-              </div>
-            )}
-          </div>
-          </div>{/* end scrollable */}
-
-          <div className="px-3 py-2 shrink-0">
-            <button onClick={() => router.push("/onboarding")}
-                    className="w-full text-xs text-center py-2 rounded-lg transition-colors hover:bg-white/5"
-                    style={{ color: "var(--dim)" }}>
-              Actualizar perfil
-            </button>
-          </div>
-        </aside>
+        <AppSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
         {/* Notification panel */}
         {notifOpen && (
