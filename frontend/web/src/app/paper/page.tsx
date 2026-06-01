@@ -106,13 +106,13 @@ export default function PaperPage() {
           <button onClick={() => setSidebarOpen(!sidebarOpen)} className="lg:hidden p-1" style={{ color: "var(--muted)" }}>
             {sidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
           </button>
-          <div className="flex items-center gap-2.5">
+          <button onClick={() => router.push("/chat")} className="flex items-center gap-2.5">
             <div className="relative">
               <Image src="/logo.png" alt="Nuvos AI" width={30} height={30} className="rounded-xl object-cover" />
               <div className="absolute -inset-0.5 rounded-xl blur-sm opacity-40" style={{ background: "var(--grad-green)" }} />
             </div>
             <span className="font-bold text-sm" style={{ color: "var(--text)" }}>Nuvos AI</span>
-          </div>
+          </button>
         </div>
         <span className="font-semibold text-sm" style={{ color: "var(--sub)" }}>Paper Trading</span>
         <button onClick={loadPrices} className="p-2 rounded-lg hover:bg-[#0e1628] transition-colors" style={{ color: "var(--muted)" }}>

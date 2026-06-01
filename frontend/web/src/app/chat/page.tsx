@@ -323,7 +323,7 @@ export default function ChatPage() {
                   style={{ color: "var(--muted)" }}>
             {sidebarOpen ? <X className="w-4.5 h-4.5" /> : <Menu className="w-4.5 h-4.5" />}
           </button>
-          <div className="flex items-center gap-2.5">
+          <button onClick={() => router.push("/chat")} className="flex items-center gap-2.5">
             <div className="relative">
               <Image src="/logo.png" alt="Nuvos AI" width={30} height={30}
                      className="rounded-xl object-cover" />
@@ -331,7 +331,7 @@ export default function ChatPage() {
                    style={{ background: "var(--grad-green)" }} />
             </div>
             <span className="font-bold text-sm" style={{ color: "var(--text)" }}>Nuvos AI</span>
-          </div>
+          </button>
         </div>
 
         {/* Market ticker */}
