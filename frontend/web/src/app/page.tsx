@@ -39,7 +39,7 @@ export default function Home() {
     }
   }, [isAuthenticated]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setLoading(true); setError("");
     try {
@@ -59,7 +59,7 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen flex overflow-hidden relative" style={{ background: "var(--bg)" }}>
+    <div className="min-h-screen flex relative" style={{ background: "var(--bg)" }}>
 
       {/* Ambient background orbs */}
       <div className="pointer-events-none fixed inset-0 overflow-hidden">
@@ -73,7 +73,7 @@ export default function Home() {
       </div>
 
       {/* ── LEFT PANEL ────────────────────────────────────────────────── */}
-      <div className="hidden lg:flex lg:w-[55%] flex-col justify-center px-16 xl:px-24 relative z-10">
+      <div className="hidden lg:flex lg:w-[55%] flex-col justify-center overflow-y-auto scrollbar-thin px-16 xl:px-24 py-12 relative z-10 min-h-screen">
 
         {/* Logo */}
         <div className="flex items-center gap-3 mb-14 animate-fade-in">
@@ -132,8 +132,8 @@ export default function Home() {
       </div>
 
       {/* ── RIGHT PANEL ───────────────────────────────────────────────── */}
-      <div className="w-full lg:w-[45%] flex items-center justify-center p-6 lg:p-12 relative z-10">
-        <div className="w-full max-w-[420px]">
+      <div className="w-full lg:w-[45%] flex items-start justify-center overflow-y-auto scrollbar-thin p-6 lg:p-12 min-h-screen relative z-10">
+        <div className="w-full max-w-[420px] my-auto py-8">
 
           {/* Mobile logo */}
           <div className="lg:hidden flex items-center gap-3 mb-10 animate-fade-in">
