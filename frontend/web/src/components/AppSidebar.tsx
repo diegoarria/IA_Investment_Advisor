@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
-import Image from "next/image";
 import {
   BookOpen, PieChart, BarChart2, Bell, User, GraduationCap, Trophy,
   MessageSquare, ChevronRight, Plus, X,
@@ -92,15 +91,6 @@ export default function AppSidebar({ open, onClose }: Props) {
   return (
     <>
       <aside className={`${open ? "flex" : "hidden"} lg:flex w-64 flex-col absolute lg:relative z-20 h-full sidebar-gradient`}>
-
-        {/* Logo */}
-        <div className="flex items-center gap-2.5 px-4 pt-4 pb-3 shrink-0">
-          <div className="relative shrink-0">
-            <Image src="/logo.png" alt="Nuvos AI" width={30} height={30} className="rounded-xl object-cover" />
-            <div className="absolute -inset-0.5 rounded-xl blur-sm opacity-30" style={{ background: "var(--grad-green)" }} />
-          </div>
-          <span className="font-bold text-sm" style={{ color: "var(--text)" }}>Nuvos AI</span>
-        </div>
 
         {/* Profile widget */}
         {profile && (
