@@ -61,6 +61,15 @@ export default function NotificationsScreen() {
   const [newsLoading, setNewsLoading] = useState(false);
   const [newsError, setNewsError]   = useState(false);
 
+  // News filter + pagination
+  const [newsFilter, setNewsFilter] = useState<string | null>(null);
+  const [newsShown, setNewsShown]   = useState(10);
+
+  // Portfolio today prices
+  const [portPrices, setPortPrices] = useState<Record<string, PriceData>>({});
+  const [portPricesLoading, setPortPricesLoading] = useState(false);
+  const [portSort, setPortSort]     = useState<"gainers" | "losers" | "default">("gainers");
+
   // Watchlist prices
   const { items: watchlist } = useWatchlistStore();
   const [prices, setPrices]  = useState<Record<string, PriceData>>({});
@@ -91,6 +100,20 @@ export default function NotificationsScreen() {
     } catch {}
   };
 
+  const loadPortfolioPrices = useCallback(async () => {
+    if (positions.length === 0) return;
+    setPortPricesLoading(true);
+    try {
+      const res = await marketApi.getPrices(positions.map((p) => p.ticker));
+      const result: Record<string, PriceData> = {};
+      for (const [t, d] of Object.entries(res.data as Record<string, { price: number | null; change_pct: number | null }>)) {
+        result[t] = { price: d.price, change_pct: d.change_pct };
+      }
+      setPortPrices(result);
+    } catch {}
+    setPortPricesLoading(false);
+  }, [positions.length]);
+
   const loadPortfolioNews = useCallback(async () => {
     if (positions.length === 0) return;
     setNewsLoading(true);
@@ -110,7 +133,6 @@ export default function NotificationsScreen() {
     setPricesLoading(true);
     try {
       const symbols = watchlist.map((w) => w.ticker);
-      // Use indices-style approach: getChart for 1d gives us change
       const results: Record<string, PriceData> = {};
       await Promise.all(symbols.map(async (sym) => {
         try {
@@ -134,7 +156,11 @@ export default function NotificationsScreen() {
 
   useFocusEffect(useCallback(() => {
     loadPortfolioNews();
-  }, [loadPortfolioNews]));
+    loadPortfolioPrices();
+    // Auto-refresh portfolio prices every 30 seconds
+    const interval = setInterval(() => loadPortfolioPrices(), 30_000);
+    return () => clearInterval(interval);
+  }, [loadPortfolioNews, loadPortfolioPrices]));
 
   const handleMarkRead = async (id: string) => {
     await notificationsApi.markRead(id);
@@ -158,6 +184,26 @@ export default function NotificationsScreen() {
     } catch {}
     setAlertLoading(false);
   };
+
+  // Sorted positions for "Hoy en tu portafolio"
+  const sortedPositions = useMemo(() => {
+    if (portSort === "default") return positions;
+    return [...positions].sort((a, b) => {
+      const pa = portPrices[a.ticker]?.change_pct ?? null;
+      const pb = portPrices[b.ticker]?.change_pct ?? null;
+      if (pa === null && pb === null) return 0;
+      if (pa === null) return 1;
+      if (pb === null) return -1;
+      return portSort === "gainers" ? pb - pa : pa - pb;
+    });
+  }, [positions, portPrices, portSort]);
+
+  // Filtered + paginated news
+  const filteredNews = useMemo(
+    () => newsFilter ? news.filter((n) => n.symbol === newsFilter) : news,
+    [news, newsFilter]
+  );
+  const visibleNews = filteredNews.slice(0, newsShown);
 
   const renderNotification = ({ item }: { item: Notification }) => (
     <TouchableOpacity
@@ -184,6 +230,70 @@ export default function NotificationsScreen() {
       </View>
     </TouchableOpacity>
   );
+
+  const PortfolioTodaySection = () => {
+    if (positions.length === 0) return null;
+    return (
+      <View style={[styles.section, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        {/* Header */}
+        <View style={[styles.sectionHeader, { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border }]}>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>Hoy en tu portafolio</Text>
+          {portPricesLoading && <ActivityIndicator size="small" color={colors.accentLight} style={{ marginLeft: 4 }} />}
+          {/* Sort buttons */}
+          <View style={styles.sortButtons}>
+            {([
+              { key: "gainers" as const, label: "▲ Más subidas" },
+              { key: "losers"  as const, label: "▼ Más caídas" },
+              { key: "default" as const, label: "Normal" },
+            ]).map(({ key, label }) => (
+              <TouchableOpacity
+                key={key}
+                style={[styles.sortBtn, portSort === key && styles.sortBtnActive]}
+                onPress={() => setPortSort(key)}
+                activeOpacity={0.7}
+              >
+                <Text style={[styles.sortBtnText, portSort === key && styles.sortBtnTextActive]}>{label}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+
+        {/* Position rows */}
+        {sortedPositions.map((pos) => {
+          const d   = portPrices[pos.ticker];
+          const pct = d?.change_pct ?? null;
+          const px  = d?.price ?? null;
+          const up  = pct !== null && pct >= 0;
+          return (
+            <View key={pos.ticker} style={[styles.portTodayRow, { borderTopColor: colors.border }]}>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.portTodayTicker, { color: colors.text }]}>{pos.ticker}</Text>
+                {pos.name && pos.name !== pos.ticker && (
+                  <Text style={[styles.portTodayName, { color: colors.textDim }]}>{pos.name}</Text>
+                )}
+              </View>
+              <View style={styles.portTodayRight}>
+                {px !== null && (
+                  <Text style={[styles.portTodayPrice, { color: colors.textSub }]}>
+                    ${px.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </Text>
+                )}
+                {pct !== null ? (
+                  <View style={[styles.portTodayBadge, { backgroundColor: up ? "rgba(34,197,94,0.12)" : "rgba(239,68,68,0.12)" }]}>
+                    <Text style={[styles.portTodayBadgeText, { color: up ? "#22c55e" : "#ef4444" }]}>
+                      {up ? "+" : ""}{pct.toFixed(2)}%
+                    </Text>
+                  </View>
+                ) : (
+                  <Text style={{ color: colors.textDim, fontSize: 12, minWidth: 58, textAlign: "center" }}>—</Text>
+                )}
+              </View>
+            </View>
+          );
+        })}
+      </View>
+    );
+  };
 
   const PortfolioNewsSection = () => {
     const tickers = [...new Set(positions.map((p) => p.ticker))];
@@ -219,18 +329,18 @@ export default function NotificationsScreen() {
           </TouchableOpacity>
         );
       }
-      if (news.length === 0) {
+      if (filteredNews.length === 0) {
         return (
           <View style={styles.newsEmptyState}>
             <Ionicons name="newspaper-outline" size={28} color={colors.textDim} />
             <Text style={[styles.newsEmptyText, { color: colors.textMuted }]}>
-              Sin noticias en los últimos 7 días para {tickers.join(", ")}
+              {newsFilter
+                ? `Sin noticias de ${newsFilter} en los últimos 7 días`
+                : `Sin noticias en los últimos 7 días para ${tickers.join(", ")}`}
             </Text>
           </View>
         );
       }
-      const visibleNews = isPremiumAccess ? news : news.slice(0, 15);
-      const hasMore = !isPremiumAccess && news.length > 15;
       return (
         <>
           {visibleNews.map((item) => (
@@ -261,14 +371,14 @@ export default function NotificationsScreen() {
               </View>
             </TouchableOpacity>
           ))}
-          {hasMore && (
+          {visibleNews.length < filteredNews.length && (
             <TouchableOpacity
-              style={[styles.newsUpgradeBanner, { borderColor: "#f59e0b40", backgroundColor: "#f59e0b0e" }]}
-              onPress={() => setPaywallOpen(true)}
+              style={[styles.newsShowMore, { borderTopColor: colors.border }]}
+              onPress={() => setNewsShown((n) => n + 10)}
+              activeOpacity={0.7}
             >
-              <Ionicons name="star" size={13} color="#f59e0b" />
-              <Text style={{ color: "#f59e0b", fontSize: 12, fontWeight: "600" }}>
-                {news.length - 15} noticias más con Premium
+              <Text style={[styles.newsShowMoreText, { color: colors.accentLight }]}>
+                Ver {Math.min(10, filteredNews.length - visibleNews.length)} noticias más
               </Text>
             </TouchableOpacity>
           )}
@@ -278,11 +388,48 @@ export default function NotificationsScreen() {
 
     return (
       <View style={[styles.section, { backgroundColor: colors.card, borderColor: colors.border }]}>
-        <View style={styles.sectionHeader}>
+        {/* Header */}
+        <View style={[styles.sectionHeader, { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border }]}>
           <Ionicons name="newspaper-outline" size={14} color={colors.accentLight} />
           <Text style={[styles.sectionTitle, { color: colors.text }]}>Noticias del portafolio</Text>
           <Text style={[styles.sectionSubtitle, { color: colors.textDim }]}>últimos 7 días</Text>
         </View>
+
+        {/* Ticker filter chips */}
+        {positions.length > 0 && !newsLoading && news.length > 0 && (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.chipScroll}
+            contentContainerStyle={styles.chipScrollContent}
+          >
+            <TouchableOpacity
+              style={[styles.chip, newsFilter === null && styles.chipActive]}
+              onPress={() => { setNewsFilter(null); setNewsShown(10); }}
+              activeOpacity={0.7}
+            >
+              <Text style={[styles.chipText, newsFilter === null && styles.chipTextActive]}>Todas</Text>
+            </TouchableOpacity>
+            {[...new Set(positions.map((p) => p.ticker))].map((ticker) => {
+              const count = news.filter((n) => n.symbol === ticker).length;
+              if (count === 0) return null;
+              const active = newsFilter === ticker;
+              return (
+                <TouchableOpacity
+                  key={ticker}
+                  style={[styles.chip, active && styles.chipActive]}
+                  onPress={() => { setNewsFilter(ticker); setNewsShown(10); }}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[styles.chipText, active && styles.chipTextActive]}>
+                    {ticker} · {count}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+        )}
+
         {body()}
       </View>
     );
@@ -354,13 +501,13 @@ export default function NotificationsScreen() {
             refreshing={refreshing}
             onRefresh={async () => {
               setRefreshing(true);
-              await Promise.all([loadNotifications(), loadWatchlistWithChange(), loadPortfolioNews()]);
+              await Promise.all([loadNotifications(), loadWatchlistWithChange(), loadPortfolioNews(), loadPortfolioPrices()]);
               setRefreshing(false);
             }}
             tintColor="#22c55e"
           />
         }
-        ListHeaderComponent={<><PortfolioNewsSection /><WatchlistSection /></>}
+        ListHeaderComponent={<><PortfolioTodaySection /><PortfolioNewsSection /><WatchlistSection /></>}
         ListEmptyComponent={
           <View style={styles.empty}>
             <Ionicons name="notifications-outline" size={48} color={colors.textMuted} style={{ marginBottom: 16 }} />
@@ -423,17 +570,51 @@ function makeStyles(c: Colors) {
     },
     markAllText: { color: c.accentLight, fontSize: 13, fontWeight: "600", letterSpacing: 0.1 },
 
-    // Watchlist section
+    // Sections
     section: {
       borderRadius: 16, borderWidth: 1, overflow: "hidden", marginBottom: 16,
     },
     sectionHeader: {
       flexDirection: "row", alignItems: "center", gap: 7,
       paddingHorizontal: 14, paddingVertical: 12,
-      borderBottomWidth: StyleSheet.hairlineWidth,
     },
     sectionTitle: { fontSize: 13, fontWeight: "700", letterSpacing: 0.2 },
     sectionSubtitle: { fontSize: 11, letterSpacing: 0.2 },
+
+    // Sort buttons (for Hoy en tu portafolio)
+    sortButtons: { flexDirection: "row", gap: 4, marginLeft: "auto" },
+    sortBtn: {
+      paddingHorizontal: 7, paddingVertical: 4,
+      borderRadius: 8, backgroundColor: "transparent",
+    },
+    sortBtnActive: { backgroundColor: c.accent },
+    sortBtnText: { fontSize: 9, fontWeight: "600", color: c.textMuted },
+    sortBtnTextActive: { color: "#fff" },
+
+    // Portfolio today rows
+    portTodayRow: {
+      flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+      paddingHorizontal: 14, paddingVertical: 12,
+      borderTopWidth: StyleSheet.hairlineWidth,
+    },
+    portTodayTicker: { fontSize: 14, fontWeight: "800", letterSpacing: -0.2 },
+    portTodayName:   { fontSize: 10, marginTop: 2, letterSpacing: 0.1 },
+    portTodayRight:  { flexDirection: "row", alignItems: "center", gap: 8 },
+    portTodayPrice:  { fontSize: 13, fontWeight: "600" },
+    portTodayBadge:  { borderRadius: 20, paddingHorizontal: 8, paddingVertical: 3, minWidth: 62, alignItems: "center" },
+    portTodayBadgeText: { fontSize: 11, fontWeight: "700" },
+
+    // News filter chips
+    chipScroll: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.border },
+    chipScrollContent: { paddingHorizontal: 12, paddingVertical: 10, gap: 6, flexDirection: "row" },
+    chip: {
+      paddingHorizontal: 10, paddingVertical: 5,
+      borderRadius: 20, borderWidth: 1,
+      borderColor: c.border, backgroundColor: "transparent",
+    },
+    chipActive: { backgroundColor: c.accent, borderColor: c.accent },
+    chipText:       { fontSize: 10, fontWeight: "700", color: c.textMuted },
+    chipTextActive: { color: "#fff" },
 
     // Portfolio news
     newsRow: {
@@ -453,7 +634,14 @@ function makeStyles(c: Colors) {
       paddingHorizontal: 16, paddingVertical: 20,
     },
     newsEmptyText: { fontSize: 13, textAlign: "center" as const, lineHeight: 19 },
+    newsShowMore: {
+      borderTopWidth: StyleSheet.hairlineWidth,
+      paddingVertical: 14,
+      alignItems: "center",
+    },
+    newsShowMoreText: { fontSize: 12, fontWeight: "600" },
 
+    // Watchlist
     watchRow: {
       flexDirection: "row", alignItems: "center",
       paddingHorizontal: 14, paddingVertical: 12,
@@ -494,12 +682,6 @@ function makeStyles(c: Colors) {
     empty: { alignItems: "center", paddingTop: 56, paddingHorizontal: 32 },
     emptyText: { color: c.textMuted, fontSize: 17, fontWeight: "700", letterSpacing: -0.3, marginTop: 16 },
     emptySubtext: { color: c.textDim, fontSize: 13, textAlign: "center", marginTop: 8, lineHeight: 20 },
-
-    // News upgrade banner
-    newsUpgradeBanner: {
-      flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6,
-      borderWidth: 1, borderRadius: 10, paddingVertical: 12, marginHorizontal: 12, marginBottom: 10,
-    },
 
     // Alert modal
     modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.65)", justifyContent: "flex-end" },

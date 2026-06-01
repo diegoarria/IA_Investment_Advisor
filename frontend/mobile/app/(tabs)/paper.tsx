@@ -86,7 +86,7 @@ function LeagueRow({ entry, colors }: { entry: LeagueEntry; colors: Colors }) {
         marginHorizontal: 10,
         backgroundColor: entry.isMe
           ? "#00a85e"
-          : entry.rank <= 3 ? "rgba(251,191,36,0.18)" : colors.raised,
+          : entry.rank <= 3 ? "rgba(251,191,36,0.18)" : colors.bgRaised,
       }}>
         <Text style={{
           fontSize: 11, fontWeight: "800",
@@ -372,7 +372,7 @@ export default function PaperScreen() {
         <ScrollView contentContainerStyle={s.content} keyboardShouldPersistTaps="handled">
 
           {/* ── Tab switcher ── */}
-          <View style={[s.tabBar, { backgroundColor: colors.raised }]}>
+          <View style={[s.tabBar, { backgroundColor: colors.bgRaised }]}>
             <TouchableOpacity
               style={[s.tabBtn, activeTab === "portfolio" && { backgroundColor: colors.card }]}
               onPress={() => setActiveTab("portfolio")} activeOpacity={0.8}>

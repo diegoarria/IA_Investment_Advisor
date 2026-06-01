@@ -3,7 +3,7 @@ import { useFocusEffect } from "expo-router";
 import {
   View, Text, TouchableOpacity, TextInput, ScrollView,
   StyleSheet, ActivityIndicator, SafeAreaView, Alert,
-  RefreshControl, Image,
+  RefreshControl, Image, Modal,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import Svg, { Path, Defs, RadialGradient as SvgRadial, Stop, Rect as SvgRect, G } from "react-native-svg";
@@ -228,6 +228,13 @@ const SCENARIOS: { value: Scenario; icon: IoniconName; label: string }[] = [
 interface PriceData { price: number | null; currency: string; name: string }
 interface ExtractedPosition { id: string; ticker: string; name: string; shares: number; avg_price: number }
 
+// Fallback FX rates (1 unit of currency → USD). Used when the live API is unavailable.
+const FALLBACK_RATES: Record<string, number> = {
+  MXN: 0.0500, EUR: 1.08, GBP: 1.27, CAD: 0.73,
+  ARS: 0.00095, BRL: 0.18, COP: 0.00024, CLP: 0.00105,
+  PEN: 0.265, JPY: 0.0065, CHF: 1.12, AUD: 0.65,
+};
+
 // ─── Excel helpers ─────────────────────────────────────────────────────────
 
 const TICKER_KEYS = ["ticker", "symbol", "emisora", "instrumento", "accion", "titulo", "clave"];
@@ -271,6 +278,12 @@ export default function PortfolioScreen() {
   const [loadingPrices, setLoadingPrices] = useState(false);
   const [priceError, setPriceError] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+
+  // Currency import modal
+  type PendingImport = { ticker: string; name?: string; shares: number; avgPrice: number }[];
+  const [pendingImport, setPendingImport] = useState<PendingImport | null>(null);
+  const [importCurrency, setImportCurrency] = useState("USD");
+  const [convertingCurrency, setConvertingCurrency] = useState(false);
 
   // Screenshot import
   const [screenshotAnalyzing, setScreenshotAnalyzing] = useState(false);
@@ -329,6 +342,26 @@ export default function PortfolioScreen() {
     setRefreshing(true);
     await fetchPrices(true);
     setRefreshing(false);
+  };
+
+  // ── Currency conversion + import ───────────────────────────────────────
+  const applyImport = async (currency: string) => {
+    if (!pendingImport) return;
+    if (currency === "USD") {
+      setPositions(pendingImport);
+      setPendingImport(null);
+      return;
+    }
+    setConvertingCurrency(true);
+    let rate = FALLBACK_RATES[currency] ?? 1;
+    try {
+      const res = await fetch(`https://api.frankfurter.app/latest?from=${currency}&to=USD`);
+      const data = await res.json();
+      if (data.rates?.USD) rate = data.rates.USD;
+    } catch {}
+    setPositions(pendingImport.map((p) => ({ ...p, avgPrice: parseFloat((p.avgPrice * rate).toFixed(4)) })));
+    setConvertingCurrency(false);
+    setPendingImport(null);
   };
 
   // ── Screenshot import ──────────────────────────────────────────────────
@@ -413,18 +446,20 @@ export default function PortfolioScreen() {
       return;
     }
 
-    const incoming = screenshotPreview.map((p) => ({
+    type ImportItem = { ticker: string; name: string; shares: number; avgPrice: number };
+    const incoming: ImportItem[] = screenshotPreview.map((p) => ({
       ticker: p.ticker,
-      name: p.name,
+      name: p.name ?? "",
       shares: p.shares,
       avgPrice: p.avg_price,
     }));
 
-    const doImport = (replace: boolean) => {
-      if (replace) setPositions(incoming);
-      else mergePositions(incoming);
+    // Resolve merge vs replace now; store the final list in pendingImport for currency selection
+    const openCurrencyModal = (toImport: ImportItem[]) => {
+      setPendingImport(toImport);
       setScreenshotPreview(null);
       setScreenshotUris([]);
+      setImportCurrency("USD");
     };
 
     if (positions.length > 0) {
@@ -439,12 +474,23 @@ export default function PortfolioScreen() {
           : "Todas las posiciones de la foto ya están en tu portafolio."),
         [
           { text: "Cancelar", style: "cancel" },
-          { text: "Eliminar y reemplazar", style: "destructive", onPress: () => doImport(true) },
-          { text: "Mantener y agregar", onPress: () => doImport(false) },
+          { text: "Eliminar y reemplazar", style: "destructive", onPress: () => openCurrencyModal(incoming) },
+          {
+            text: "Mantener y agregar", onPress: () => {
+              // Pre-merge: deduplicate by ticker, keep existing entries for dupes
+              const merged = [...positions.map((p) => ({ ticker: p.ticker, name: p.name ?? "", shares: p.shares, avgPrice: p.avgPrice }))];
+              for (const inc of incoming) {
+                if (!merged.some((e) => e.ticker.toUpperCase() === inc.ticker.toUpperCase())) {
+                  merged.push(inc);
+                }
+              }
+              openCurrencyModal(merged);
+            },
+          },
         ]
       );
     } else {
-      doImport(true);
+      openCurrencyModal(incoming);
     }
   };
 
@@ -489,7 +535,7 @@ export default function PortfolioScreen() {
         `${parsed.length} posiciones detectadas`,
         parsed.slice(0, 5).map((p) => `• ${p.ticker}: ${p.shares.toLocaleString("en-US")} acc @ $${p.avgPrice.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`).join("\n") +
           (parsed.length > 5 ? `\n... y ${parsed.length - 5} más` : ""),
-        [{ text: "Cancelar", style: "cancel" }, { text: "Importar", onPress: () => setPositions(parsed) }]
+        [{ text: "Cancelar", style: "cancel" }, { text: "Siguiente →", onPress: () => { setPendingImport(parsed); setImportCurrency("USD"); } }]
       );
     } catch {
       Alert.alert("Error", "No se pudo leer el archivo.");
@@ -1413,6 +1459,76 @@ export default function PortfolioScreen() {
         onClose={() => setPaywallOpen(false)}
         reason="Más de 10 posiciones requiere Premium"
       />
+
+      {/* Currency modal */}
+      <Modal visible={!!pendingImport} transparent animationType="fade" onRequestClose={() => setPendingImport(null)}>
+        <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "center", alignItems: "center", padding: 20 }}>
+          <View style={{ backgroundColor: colors.card, borderRadius: 24, padding: 20, width: "100%", maxWidth: 400 }}>
+            <Text style={{ color: colors.text, fontWeight: "800", fontSize: 16, marginBottom: 4 }}>
+              ¿En qué moneda está tu portafolio?
+            </Text>
+            <Text style={{ color: colors.textMuted, fontSize: 12, marginBottom: 16 }}>
+              Convertiremos tus precios de compra a USD para calcular correctamente tus ganancias.
+            </Text>
+
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>
+              {([
+                { code: "USD", flag: "🇺🇸", name: "Dólar" },
+                { code: "MXN", flag: "🇲🇽", name: "Peso MX" },
+                { code: "EUR", flag: "🇪🇺", name: "Euro" },
+                { code: "GBP", flag: "🇬🇧", name: "Libra" },
+                { code: "CAD", flag: "🇨🇦", name: "CAD" },
+                { code: "ARS", flag: "🇦🇷", name: "Peso AR" },
+                { code: "BRL", flag: "🇧🇷", name: "Real" },
+                { code: "COP", flag: "🇨🇴", name: "Peso CO" },
+                { code: "CLP", flag: "🇨🇱", name: "Peso CL" },
+                { code: "PEN", flag: "🇵🇪", name: "Sol" },
+                { code: "JPY", flag: "🇯🇵", name: "Yen" },
+                { code: "AUD", flag: "🇦🇺", name: "AUD" },
+              ] as const).map(({ code, flag, name: cname }) => {
+                const active = importCurrency === code;
+                return (
+                  <TouchableOpacity
+                    key={code}
+                    onPress={() => setImportCurrency(code)}
+                    style={{
+                      width: "30%",
+                      alignItems: "center",
+                      paddingVertical: 10,
+                      borderRadius: 14,
+                      borderWidth: 1.5,
+                      borderColor: active ? colors.accent : colors.border,
+                      backgroundColor: active ? colors.accent + "18" : colors.bgRaised,
+                    }}
+                  >
+                    <Text style={{ fontSize: 20 }}>{flag}</Text>
+                    <Text style={{ color: active ? colors.accentLight : colors.text, fontSize: 11, fontWeight: "700" }}>{code}</Text>
+                    <Text style={{ color: colors.textDim, fontSize: 9 }}>{cname}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            <View style={{ flexDirection: "row", gap: 10 }}>
+              <TouchableOpacity
+                onPress={() => setPendingImport(null)}
+                style={{ flex: 1, paddingVertical: 12, borderRadius: 14, borderWidth: 1, borderColor: colors.border, alignItems: "center" }}
+              >
+                <Text style={{ color: colors.textMuted, fontWeight: "600" }}>Cancelar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => applyImport(importCurrency)}
+                disabled={convertingCurrency}
+                style={{ flex: 2, paddingVertical: 12, borderRadius: 14, backgroundColor: colors.accent, alignItems: "center", opacity: convertingCurrency ? 0.6 : 1 }}
+              >
+                <Text style={{ color: "#fff", fontWeight: "700" }}>
+                  {convertingCurrency ? "Convirtiendo..." : `Importar en ${importCurrency}`}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
