@@ -54,6 +54,10 @@ export default function NotificationsPage() {
   const [prices, setPrices] = useState<Record<string, PriceData>>({});
   const [pricesLoading, setPricesLoading] = useState(false);
 
+  // News filter + pagination
+  const [newsFilter, setNewsFilter] = useState<string | null>(null);
+  const [newsShown, setNewsShown] = useState(10);
+
   // Alert context modal
   const [alertModal, setAlertModal] = useState<{ ticker: string; change_pct: number } | null>(null);
   const [alertInsight, setAlertInsight] = useState<string | null>(null);
@@ -146,6 +150,12 @@ export default function NotificationsPage() {
     const id = setInterval(() => loadPortfolioPrices(), 30_000);
     return () => clearInterval(id);
   }, [positions.length, loadPortfolioPrices]);
+
+  const filteredNews = useMemo(
+    () => newsFilter ? news.filter((n) => n.symbol === newsFilter) : news,
+    [news, newsFilter]
+  );
+  const visibleNews = filteredNews.slice(0, newsShown);
 
   const sortedPositions = useMemo((): Position[] => {
     if (portSort === "default") return positions;
@@ -274,10 +284,43 @@ export default function NotificationsPage() {
 
             {/* Portfolio news */}
             <div className="rounded-2xl border overflow-hidden" style={{ background: "var(--card)", borderColor: "var(--border)" }}>
-              <div className="flex items-center gap-2 px-4 py-3 border-b" style={{ borderColor: "var(--border)" }}>
-                <Newspaper className="w-3.5 h-3.5" style={{ color: "var(--accent-l)" }} />
-                <span className="text-sm font-bold" style={{ color: "var(--text)" }}>Noticias del portafolio</span>
-                <span className="text-xs ml-1" style={{ color: "var(--dim)" }}>últimos 7 días</span>
+              {/* Header */}
+              <div className="px-4 py-3 border-b" style={{ borderColor: "var(--border)" }}>
+                <div className="flex items-center gap-2 mb-2">
+                  <Newspaper className="w-3.5 h-3.5" style={{ color: "var(--accent-l)" }} />
+                  <span className="text-sm font-bold" style={{ color: "var(--text)" }}>Noticias del portafolio</span>
+                  <span className="text-xs" style={{ color: "var(--dim)" }}>últimos 7 días</span>
+                </div>
+                {/* Ticker filter chips */}
+                {positions.length > 0 && !newsLoading && news.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5">
+                    <button onClick={() => { setNewsFilter(null); setNewsShown(10); }}
+                            className="text-[10px] font-bold px-2.5 py-1 rounded-full border transition-all"
+                            style={{
+                              background: newsFilter === null ? "var(--accent)" : "var(--raised)",
+                              borderColor: newsFilter === null ? "var(--accent)" : "var(--border)",
+                              color: newsFilter === null ? "#fff" : "var(--muted)",
+                            }}>
+                      Todas
+                    </button>
+                    {[...new Set(positions.map((p) => p.ticker))].map((ticker) => {
+                      const active = newsFilter === ticker;
+                      const count = news.filter((n) => n.symbol === ticker).length;
+                      if (count === 0) return null;
+                      return (
+                        <button key={ticker} onClick={() => { setNewsFilter(ticker); setNewsShown(10); }}
+                                className="text-[10px] font-bold px-2.5 py-1 rounded-full border transition-all"
+                                style={{
+                                  background: active ? "var(--accent)" : "var(--raised)",
+                                  borderColor: active ? "var(--accent)" : "var(--border)",
+                                  color: active ? "#fff" : "var(--muted)",
+                                }}>
+                          {ticker} <span style={{ opacity: 0.7 }}>·{count}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
 
               {positions.length === 0 ? (
@@ -297,14 +340,16 @@ export default function NotificationsPage() {
                   <RefreshCw className="w-5 h-5" style={{ color: "var(--dim)" }} />
                   <p className="text-xs" style={{ color: "var(--muted)" }}>Error al cargar. Toca para reintentar.</p>
                 </button>
-              ) : news.length === 0 ? (
+              ) : filteredNews.length === 0 ? (
                 <div className="flex flex-col items-center gap-2 py-6 text-center px-4">
                   <Newspaper className="w-6 h-6" style={{ color: "var(--dim)" }} />
-                  <p className="text-sm" style={{ color: "var(--muted)" }}>Sin noticias en los últimos 7 días</p>
+                  <p className="text-sm" style={{ color: "var(--muted)" }}>
+                    {newsFilter ? `Sin noticias de ${newsFilter} en los últimos 7 días` : "Sin noticias en los últimos 7 días"}
+                  </p>
                 </div>
               ) : (
                 <>
-                  {(isPremium ? news : news.slice(0, 15)).map((item) => (
+                  {visibleNews.map((item) => (
                     <a key={item.uuid} href={item.url} target="_blank" rel="noopener noreferrer"
                        className="flex items-start gap-3 px-4 py-3 border-t hover:bg-white/3 transition-colors"
                        style={{ borderColor: "var(--border)" }}>
@@ -318,7 +363,7 @@ export default function NotificationsPage() {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-1">
                           <span className="text-[10px] font-black px-1.5 py-0.5 rounded"
-                                style={{ background: "var(--accent)" + "18", color: "var(--accent-l)" }}>
+                                style={{ background: "rgba(0,168,94,0.12)", color: "var(--accent-l)" }}>
                             {item.symbol}
                           </span>
                           <span className="text-[10px]" style={{ color: "var(--dim)" }}>
@@ -330,11 +375,11 @@ export default function NotificationsPage() {
                       </div>
                     </a>
                   ))}
-                  {!isPremium && news.length > 15 && (
-                    <button onClick={() => setPaywallOpen(true)}
-                            className="w-full flex items-center justify-center gap-2 py-3 border-t text-xs font-semibold"
-                            style={{ borderColor: "rgba(245,158,11,0.4)", color: "#f59e0b" }}>
-                      ⭐ {news.length - 15} noticias más con Premium
+                  {visibleNews.length < filteredNews.length && (
+                    <button onClick={() => setNewsShown((n) => n + 10)}
+                            className="w-full py-3 border-t text-xs font-semibold transition-colors hover:bg-white/5"
+                            style={{ borderColor: "var(--border)", color: "var(--accent-l)" }}>
+                      Ver {Math.min(10, filteredNews.length - visibleNews.length)} noticias más
                     </button>
                   )}
                 </>
