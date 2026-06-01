@@ -163,6 +163,11 @@ export const mentorLetter = {
   get: () => api.get("/api/profile/mentor-letter"),
 };
 
+export const referral = {
+  getCode:  () => api.get("/api/referral/code"),
+  getStats: () => api.get("/api/referral/stats"),
+};
+
 export const notifications = {
   getAll: () => api.get("/api/notifications"),
   markRead: (id: string) => api.post(`/api/notifications/${id}/read`),

@@ -189,4 +189,9 @@ export const syncApi = {
     api.get("/api/sync/trial/status"),
 };
 
+export const referralApi = {
+  getCode:  () => api.get("/api/referral/code"),
+  getStats: () => api.get("/api/referral/stats"),
+};
+
 export default api;

@@ -6,13 +6,13 @@ import {
   useAuthStore, useProfileStore, useNotificationStore, useSubscriptionStore,
   useThemeStore, msgsRemaining, FREE_MSG_LIMIT, maturityLabel,
 } from "@/lib/store";
-import { auth as authApi, insights as insightsApi, mentorLetter as mentorLetterApi, notifications as notifApi, profile as profileApi } from "@/lib/api";
+import { auth as authApi, insights as insightsApi, mentorLetter as mentorLetterApi, notifications as notifApi, profile as profileApi, referral as referralApi } from "@/lib/api";
 import { getMentorInfo } from "@/lib/mentorData";
 import PaywallModal from "@/components/PaywallModal";
 import {
   TrendingUp, BookOpen, PieChart, BarChart2, Bell, User, LogOut, Menu, X,
   GraduationCap, Trophy, Sun, Moon, ChevronDown, ChevronUp, Star, BarChart,
-  Loader2,
+  Loader2, Copy, Check, Gift, Users,
 } from "lucide-react";
 
 const NAV = [
@@ -122,6 +122,9 @@ export default function ProfilePage() {
   const [letterLoading, setLetterLoading] = useState(false);
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [referralCode, setReferralCode] = useState<string | null>(null);
+  const [referralStats, setReferralStats] = useState<{ referred_count: number; pending_reward: string } | null>(null);
+  const [copiedLink, setCopiedLink] = useState(false);
   const [insights, setInsights] = useState<{
     ready: boolean; topics?: string[]; risk_match?: boolean;
     risk_note?: string; suggestion?: string;
@@ -139,6 +142,8 @@ export default function ProfilePage() {
     insightsApi.get().then((r) => setInsights(r.data)).catch(() => {});
     notifApi.getAll().then(() => {}).catch(() => {});
     subStore.fetchStatus().catch(() => {});
+    referralApi.getCode().then((r) => setReferralCode(r.data.code ?? null)).catch(() => {});
+    referralApi.getStats().then((r) => setReferralStats(r.data)).catch(() => {});
   }, [isAuthenticated]);
 
   const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -597,6 +602,90 @@ export default function ProfilePage() {
                       </button>
                     </div>
                   )}
+                </div>
+
+                {/* Referral program */}
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-widest mb-2 ml-0.5" style={{ color: "var(--dim)" }}>Programa de referidos</p>
+                  <div className="rounded-2xl border overflow-hidden" style={{ background: "var(--card)", borderColor: "rgba(245,158,11,0.3)" }}>
+                    {/* Header */}
+                    <div className="p-4 border-b" style={{ borderColor: "var(--border)", background: "linear-gradient(135deg, rgba(245,158,11,0.06) 0%, rgba(251,191,36,0.04) 100%)" }}>
+                      <div className="flex items-center gap-3 mb-1">
+                        <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ background: "rgba(245,158,11,0.15)" }}>
+                          <Gift className="w-5 h-5" style={{ color: "#f59e0b" }} />
+                        </div>
+                        <div>
+                          <div className="font-bold text-sm" style={{ color: "var(--text)" }}>Invita amigos, gana recompensas</div>
+                          <div className="text-xs mt-0.5" style={{ color: "var(--muted)" }}>1 mes Premium gratis por cada amigo que se una</div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Stats */}
+                    {referralStats && (
+                      <div className="flex border-b" style={{ borderColor: "var(--border)" }}>
+                        <div className="flex-1 flex flex-col items-center py-3">
+                          <div className="flex items-center gap-1.5 mb-0.5">
+                            <Users className="w-3.5 h-3.5" style={{ color: "#f59e0b" }} />
+                            <span className="text-xl font-black" style={{ color: "#f59e0b" }}>{referralStats.referred_count}</span>
+                          </div>
+                          <span className="text-[10px]" style={{ color: "var(--muted)" }}>Amigos referidos</span>
+                        </div>
+                        <div className="w-px" style={{ background: "var(--border)" }} />
+                        <div className="flex-1 flex flex-col items-center py-3">
+                          <span className="text-xl font-black" style={{ color: "#22c55e" }}>{referralStats.pending_reward || "—"}</span>
+                          <span className="text-[10px]" style={{ color: "var(--muted)" }}>Recompensa pendiente</span>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Link + copy */}
+                    <div className="p-4 space-y-3">
+                      <div>
+                        <div className="text-[10px] font-semibold uppercase tracking-wide mb-1.5" style={{ color: "var(--muted)" }}>Tu enlace de referido</div>
+                        <div className="flex items-center gap-2 rounded-xl border px-3 py-2.5" style={{ background: "var(--raised)", borderColor: "var(--border)" }}>
+                          <span className="flex-1 text-xs truncate font-mono" style={{ color: "var(--sub)" }}>
+                            {referralCode ? `nuvosai.app/join?ref=${referralCode}` : "Cargando..."}
+                          </span>
+                          <button
+                            onClick={() => {
+                              if (!referralCode) return;
+                              navigator.clipboard.writeText(`https://nuvosai.app/join?ref=${referralCode}`);
+                              setCopiedLink(true);
+                              setTimeout(() => setCopiedLink(false), 2000);
+                            }}
+                            className="shrink-0 p-1.5 rounded-lg transition-colors hover:opacity-70"
+                            style={{ color: copiedLink ? "#22c55e" : "var(--muted)" }}
+                          >
+                            {copiedLink ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                          </button>
+                        </div>
+                      </div>
+
+                      <button
+                        onClick={() => {
+                          if (!referralCode) return;
+                          const text = `Estoy usando Nuvos AI — el mejor mentor de inversiones con IA. Únete gratis 👉 https://nuvosai.app/join?ref=${referralCode}`;
+                          if (navigator.share) {
+                            navigator.share({ title: "Nuvos AI", text, url: `https://nuvosai.app/join?ref=${referralCode}` }).catch(() => {});
+                          } else {
+                            navigator.clipboard.writeText(text);
+                            setCopiedLink(true);
+                            setTimeout(() => setCopiedLink(false), 2000);
+                          }
+                        }}
+                        className="w-full py-3 rounded-2xl text-sm font-bold flex items-center justify-center gap-2 transition-opacity hover:opacity-80"
+                        style={{ background: "rgba(245,158,11,0.12)", border: "1px solid rgba(245,158,11,0.3)", color: "#f59e0b" }}
+                      >
+                        <Gift className="w-4 h-4" />
+                        Compartir invitación
+                      </button>
+
+                      <p className="text-[10px] text-center leading-relaxed" style={{ color: "var(--dim)" }}>
+                        Tu amigo obtiene 7 días Premium gratis al registrarse. Tú recibes 1 mes Premium cuando activa su plan.
+                      </p>
+                    </div>
+                  </div>
                 </div>
 
                 {/* Legal */}

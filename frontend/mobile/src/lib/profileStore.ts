@@ -121,6 +121,8 @@ interface AppStore {
   updateMaturity: (signals: string[]) => void;
   hasSeenFirstAction: boolean;
   markFirstActionSeen: () => void;
+  hasSeenTutorial: boolean;
+  markTutorialSeen: () => void;
 }
 
 export const useAppStore = create<AppStore>()(
@@ -138,6 +140,8 @@ export const useAppStore = create<AppStore>()(
       maturityHistory: [],
       hasSeenFirstAction: false,
       markFirstActionSeen: () => set({ hasSeenFirstAction: true }),
+      hasSeenTutorial: false,
+      markTutorialSeen: () => set({ hasSeenTutorial: true }),
       updateMaturity: (signals) => {
         const delta = computeMaturityDelta(signals);
         if (delta === 0) return;
@@ -157,7 +161,7 @@ export const useAppStore = create<AppStore>()(
     {
       name: "user-profile",
       storage: createJSONStorage(() => AsyncStorage),
-      partialize: (s) => ({ profile: s.profile, maturityScore: s.maturityScore, maturityHistory: s.maturityHistory, hasSeenFirstAction: s.hasSeenFirstAction }),
+      partialize: (s) => ({ profile: s.profile, maturityScore: s.maturityScore, maturityHistory: s.maturityHistory, hasSeenFirstAction: s.hasSeenFirstAction, hasSeenTutorial: s.hasSeenTutorial }),
     }
   )
 );

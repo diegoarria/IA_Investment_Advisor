@@ -13,6 +13,8 @@ import {
 import { getMentorInfo } from "@/lib/mentorData";
 import { usePortfolioStore } from "@/lib/portfolioStore";
 import PaywallModal from "@/components/PaywallModal";
+import TutorialModal from "@/components/TutorialModal";
+import { useTutorialStore } from "@/lib/store";
 import type { IndexData } from "@/lib/types";
 import {
   Send, TrendingUp, Bell, LogOut, Menu, X,
@@ -146,6 +148,7 @@ const NAV = [
 export default function ChatPage() {
   const router = useRouter();
   const pathname = usePathname();
+  const { hasSeenTutorial, openTutorial } = useTutorialStore();
   const { isAuthenticated, clearAuth } = useAuthStore();
   const { profile, updateMaturity } = useProfileStore();
   const { messages, isStreaming, addMessage, appendToLastAssistant, setStreaming, startAssistantMessage, removeLastMessage, setMessages, sessions, currentId, createSession, loadSession, deleteSession } = useChatStore();
@@ -216,6 +219,8 @@ export default function ChatPage() {
 
   useEffect(() => {
     if (!isAuthenticated) { router.push("/"); return; }
+
+    if (!hasSeenTutorial) setTimeout(() => openTutorial(), 800);
 
     if (sessions.length === 0) {
       createSession();
@@ -329,6 +334,14 @@ export default function ChatPage() {
         </div>
 
         <div className="flex items-center gap-1">
+          {/* Tutorial */}
+          <button onClick={openTutorial}
+                  className="p-2 rounded-lg hover:bg-white/5 transition-colors text-xs font-bold w-7 h-7 flex items-center justify-center border"
+                  style={{ color: "var(--muted)", borderColor: "var(--border)" }}
+                  title="Ver tutorial">
+            ?
+          </button>
+
           {/* Theme toggle */}
           <button onClick={toggleTheme}
                   className="p-2 rounded-lg hover:bg-white/5 transition-colors"
@@ -666,6 +679,7 @@ export default function ChatPage() {
       </div>
 
       <PaywallModal visible={paywallOpen} onClose={() => setPaywallOpen(false)} />
+      <TutorialModal />
     </div>
   );
 }

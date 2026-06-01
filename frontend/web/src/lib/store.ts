@@ -443,3 +443,26 @@ export const useWatchlistStore = create<WatchlistState>()(
     { name: "watchlist" }
   )
 );
+
+// ─── Tutorial store ───────────────────────────────────────────────────────────
+
+interface TutorialState {
+  hasSeenTutorial: boolean;
+  tutorialOpen: boolean;
+  openTutorial: () => void;
+  closeTutorial: () => void;
+  markSeen: () => void;
+}
+
+export const useTutorialStore = create<TutorialState>()(
+  persist(
+    (set) => ({
+      hasSeenTutorial: false,
+      tutorialOpen: false,
+      openTutorial: () => set({ tutorialOpen: true }),
+      closeTutorial: () => set({ tutorialOpen: false }),
+      markSeen: () => set({ hasSeenTutorial: true, tutorialOpen: false }),
+    }),
+    { name: "tutorial-store", partialize: (s) => ({ hasSeenTutorial: s.hasSeenTutorial }) }
+  )
+);

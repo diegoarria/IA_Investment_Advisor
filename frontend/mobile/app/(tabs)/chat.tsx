@@ -16,6 +16,7 @@ import { useSubscriptionStore, msgsRemaining, resetMinutes, FREE_MSG_LIMIT, hasP
 import PaywallModal from "../../src/components/PaywallModal";
 import StockChart from "../../src/components/StockChart";
 import FirstActionModal from "../../src/components/FirstActionModal";
+import TutorialModal from "../../src/components/TutorialModal";
 import { getMentorInfo } from "../../src/lib/mentorData";
 
 function TypingIndicator({ color }: { color: string }) {
@@ -96,6 +97,8 @@ export default function ChatScreen() {
   const profile = useAppStore((s) => s.profile);
   const maturityScore = useAppStore((s) => s.maturityScore);
   const updateMaturity = useAppStore((s) => s.updateMaturity);
+  const hasSeenTutorial = useAppStore((s) => s.hasSeenTutorial);
+  const markTutorialSeen = useAppStore((s) => s.markTutorialSeen);
   const riskCfg = profile?.risk_tolerance ? RISK_CONFIG[profile.risk_tolerance] : null;
   const pct = riskCfg ? Math.round(riskCfg.pct * 100) : 0;
   const mentor = getMentorInfo(profile?.mentor);
@@ -115,6 +118,7 @@ export default function ChatScreen() {
 
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
+  const [tutorialVisible, setTutorialVisible] = useState(false);
   const [lastTicker, setLastTicker] = useState<string | null>(null);
   const [livePrices, setLivePrices] = useState<Record<string, number>>({});
   const [paywallVisible, setPaywallVisible] = useState(false);
@@ -130,6 +134,9 @@ export default function ChatScreen() {
 
   // Refresh subscription status on mount
   useEffect(() => { fetchSubStatus(); }, []);
+  useEffect(() => {
+    if (!hasSeenTutorial) setTimeout(() => setTutorialVisible(true), 1000);
+  }, []);
 
   // Fetch live prices for portfolio positions
   useEffect(() => {
@@ -433,14 +440,22 @@ Instrucciones críticas:
             <Text style={[styles.topBarTitle, { color: colors.text }]}>Nuvos AI</Text>
           </View>
         )}
-        <TouchableOpacity
-          style={[styles.newChatBtn, { borderColor: colors.border }]}
-          onPress={handleNewChat}
-          disabled={streaming}
-        >
-          <Ionicons name="add-outline" size={16} color={colors.textSub} />
-          <Text style={[styles.newChatBtnText, { color: colors.textSub }]}>Nuevo chat</Text>
-        </TouchableOpacity>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+          <TouchableOpacity
+            onPress={() => setTutorialVisible(true)}
+            style={[styles.newChatBtn, { borderColor: colors.border, paddingHorizontal: 10 }]}
+          >
+            <Ionicons name="help-circle-outline" size={16} color={colors.textSub} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.newChatBtn, { borderColor: colors.border }]}
+            onPress={handleNewChat}
+            disabled={streaming}
+          >
+            <Ionicons name="add-outline" size={16} color={colors.textSub} />
+            <Text style={[styles.newChatBtnText, { color: colors.textSub }]}>Nuevo chat</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
         <View style={webContentStyle}>
@@ -573,6 +588,10 @@ Instrucciones críticas:
       reason={paywallReason}
     />
     <FirstActionModal />
+    <TutorialModal
+      visible={tutorialVisible}
+      onClose={() => { setTutorialVisible(false); markTutorialSeen(); }}
+    />
     </KeyboardAvoidingView>
   );
 }

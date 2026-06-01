@@ -1,7 +1,7 @@
 import React, { useMemo, useRef, useState, useEffect } from "react";
 import {
   View, Text, ScrollView, TouchableOpacity, Image,
-  StyleSheet, Alert, Modal, ActivityIndicator, Platform, Linking,
+  StyleSheet, Alert, Modal, ActivityIndicator, Platform, Linking, Share,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -15,9 +15,10 @@ import { useAppStore, RISK_CONFIG, getAge, maturityLabel, knowledgeFromMaturity 
 import { getMentorInfo } from "../../src/lib/mentorData";
 import InvestorScorecard from "../../src/components/InvestorScorecard";
 import ProgressModal from "../../src/components/ProgressModal";
+import TutorialModal from "../../src/components/TutorialModal";
 import { useSubscriptionStore, msgsRemaining, FREE_MSG_LIMIT } from "../../src/lib/subscriptionStore";
 import PaywallModal from "../../src/components/PaywallModal";
-import { insightsApi, mentorLetterApi, profileApi, authApi } from "../../src/lib/api";
+import { insightsApi, mentorLetterApi, profileApi, authApi, referralApi } from "../../src/lib/api";
 
 const MENTOR_PHOTOS: Record<string, number> = {
   "Warren Buffett": require("../../assets/images/mentors/warren_buffett.jpg"),
@@ -134,6 +135,8 @@ export default function ProfileScreen() {
   const [insights, setInsights] = useState<{ ready: boolean; topics?: string[]; risk_behavior?: string; risk_match?: boolean; risk_note?: string; suggestion?: string; interests?: string[] } | null>(null);
   useEffect(() => {
     insightsApi.get().then((r) => setInsights(r.data)).catch(() => {});
+    referralApi.getCode().then((r) => setReferralCode(r.data.code ?? null)).catch(() => {});
+    referralApi.getStats().then((r) => setReferralStats(r.data)).catch(() => {});
   }, []);
 
   const [avatarUploading, setAvatarUploading] = useState(false);
@@ -186,6 +189,10 @@ export default function ProfileScreen() {
   const remaining = msgsRemaining(subStore);
   const [paywallOpen, setPaywallOpen] = useState(false);
   const [riskExpanded, setRiskExpanded] = useState(false);
+  const [referralCode, setReferralCode] = useState<string | null>(null);
+  const [referralStats, setReferralStats] = useState<{ referred_count: number; pending_reward: string } | null>(null);
+  const [copiedLink, setCopiedLink] = useState(false);
+  const [tutorialFromProfile, setTutorialFromProfile] = useState(false);
 
   const handleShare = async () => {
     if (Platform.OS === "web") return;
@@ -695,6 +702,76 @@ export default function ProfileScreen() {
           </View>
         )}
 
+        {/* ── REFERIDOS ── */}
+        <Text style={[s.sectionLabel, { color: colors.textDim }]}>Programa de referidos</Text>
+        <View style={[s.referralCard, { backgroundColor: colors.card, borderColor: "#f59e0b50" }]}>
+          {/* Header */}
+          <View style={[s.referralHeader, { backgroundColor: "#f59e0b0a", borderBottomColor: colors.border }]}>
+            <View style={[s.referralIconBox, { backgroundColor: "#f59e0b18" }]}>
+              <Ionicons name="gift-outline" size={22} color="#f59e0b" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={[s.referralTitle, { color: colors.text }]}>Invita amigos, gana recompensas</Text>
+              <Text style={[s.referralSub, { color: colors.textMuted }]}>1 mes Premium gratis por cada amigo que se una</Text>
+            </View>
+          </View>
+
+          {/* Stats */}
+          {referralStats && (
+            <View style={[s.referralStats, { borderBottomColor: colors.border }]}>
+              <View style={s.referralStat}>
+                <Text style={[s.referralStatNum, { color: "#f59e0b" }]}>{referralStats.referred_count}</Text>
+                <Text style={[s.referralStatLabel, { color: colors.textMuted }]}>Amigos referidos</Text>
+              </View>
+              <View style={{ width: StyleSheet.hairlineWidth, backgroundColor: colors.border, marginVertical: 4 }} />
+              <View style={s.referralStat}>
+                <Text style={[s.referralStatNum, { color: "#22c55e" }]}>{referralStats.pending_reward || "—"}</Text>
+                <Text style={[s.referralStatLabel, { color: colors.textMuted }]}>Recompensa pendiente</Text>
+              </View>
+            </View>
+          )}
+
+          {/* Link + botones */}
+          <View style={{ padding: 14, gap: 10 }}>
+            {/* Link row */}
+            <View style={[s.referralLinkRow, { backgroundColor: colors.bg, borderColor: colors.border }]}>
+              <Text style={[s.referralLink, { color: colors.textSub }]} numberOfLines={1}>
+                {referralCode ? `nuvosai.app/join?ref=${referralCode}` : "Cargando..."}
+              </Text>
+              <TouchableOpacity
+                onPress={() => {
+                  if (!referralCode) return;
+                  Share.share({ message: `https://nuvosai.app/join?ref=${referralCode}` });
+                  setCopiedLink(true);
+                  setTimeout(() => setCopiedLink(false), 2000);
+                }}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <Ionicons name={copiedLink ? "checkmark" : "copy-outline"} size={16} color={copiedLink ? "#22c55e" : colors.textMuted} />
+              </TouchableOpacity>
+            </View>
+
+            {/* Share button */}
+            <TouchableOpacity
+              style={[s.referralShareBtn, { backgroundColor: "#f59e0b15", borderColor: "#f59e0b40" }]}
+              onPress={() => {
+                if (!referralCode) return;
+                Share.share({
+                  message: `Estoy usando Nuvos AI — el mejor mentor de inversiones con IA. Únete gratis 👉 https://nuvosai.app/join?ref=${referralCode}`,
+                  url: `https://nuvosai.app/join?ref=${referralCode}`,
+                });
+              }}
+            >
+              <Ionicons name="share-social-outline" size={16} color="#f59e0b" />
+              <Text style={[s.referralShareText, { color: "#f59e0b" }]}>Compartir invitación</Text>
+            </TouchableOpacity>
+
+            <Text style={[s.referralNote, { color: colors.textDim }]}>
+              Tu amigo obtiene 7 días Premium gratis al registrarse. Tú recibes 1 mes Premium cuando activa su plan.
+            </Text>
+          </View>
+        </View>
+
         {/* ── LEGAL ── */}
         <View style={{ flexDirection: "row", justifyContent: "center", gap: 20, paddingVertical: 8 }}>
           <TouchableOpacity onPress={() => Linking.openURL("https://nuvosai.app/privacy")}>
@@ -705,6 +782,15 @@ export default function ProfileScreen() {
             <Text style={[s.legalLink, { color: colors.textDim }]}>Términos de uso</Text>
           </TouchableOpacity>
         </View>
+
+        {/* ── TUTORIAL ── */}
+        <TouchableOpacity
+          style={[s.logoutBtn, { borderColor: colors.border + "60", backgroundColor: "transparent" }]}
+          onPress={() => setTutorialFromProfile(true)}
+        >
+          <Ionicons name="help-circle-outline" size={17} color={colors.textSub} />
+          <Text style={[s.logoutText, { color: colors.textSub }]}>Ver tutorial de la app</Text>
+        </TouchableOpacity>
 
         {/* ── LOGOUT ── */}
         <TouchableOpacity
@@ -729,6 +815,7 @@ export default function ProfileScreen() {
 
       <PaywallModal visible={paywallOpen} onClose={() => setPaywallOpen(false)} />
       <ProgressModal visible={progressOpen} onClose={() => setProgressOpen(false)} />
+      <TutorialModal visible={tutorialFromProfile} onClose={() => setTutorialFromProfile(false)} />
     </SafeAreaView>
   );
 }
@@ -929,5 +1016,21 @@ function makeStyles(c: Colors) {
     },
     modalShareText: { color: "white", fontWeight: "700", fontSize: 15 },
     legalLink: { fontSize: 11, fontWeight: "500" },
+
+    // ── Referral ──
+    referralCard: { borderRadius: 20, borderWidth: 1, overflow: "hidden" },
+    referralHeader: { flexDirection: "row", alignItems: "center", gap: 12, padding: 14, borderBottomWidth: StyleSheet.hairlineWidth },
+    referralIconBox: { width: 44, height: 44, borderRadius: 12, alignItems: "center", justifyContent: "center", flexShrink: 0 },
+    referralTitle: { fontSize: 14, fontWeight: "700", marginBottom: 2 },
+    referralSub: { fontSize: 11, lineHeight: 16 },
+    referralStats: { flexDirection: "row", borderBottomWidth: StyleSheet.hairlineWidth },
+    referralStat: { flex: 1, alignItems: "center", paddingVertical: 12 },
+    referralStatNum: { fontSize: 22, fontWeight: "800", marginBottom: 2 },
+    referralStatLabel: { fontSize: 10 },
+    referralLinkRow: { flexDirection: "row", alignItems: "center", borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, gap: 8 },
+    referralLink: { flex: 1, fontSize: 12, fontFamily: "monospace" },
+    referralShareBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, borderWidth: 1, borderRadius: 14, paddingVertical: 12 },
+    referralShareText: { fontSize: 13, fontWeight: "700" },
+    referralNote: { fontSize: 10, textAlign: "center", lineHeight: 15 },
   });
 }
