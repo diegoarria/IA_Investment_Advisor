@@ -29,9 +29,10 @@ export default function OnboardingPage() {
   const { tier } = useSubscriptionStore();
   const isPremium = tier === "premium";
 
-  const [step, setStep]       = useState(0);
-  const [loading, setLoading] = useState(false);
-  const [error, setError]     = useState("");
+  const [step, setStep]         = useState(0);
+  const [loading, setLoading]   = useState(false);
+  const [error, setError]       = useState("");
+  const [success, setSuccess]   = useState(false);
   const [paywallOpen, setPaywallOpen] = useState(false);
 
   const [name, setName]           = useState("");
@@ -165,7 +166,7 @@ export default function OnboardingPage() {
       };
       const res = await profileApi.create(payload);
       setProfile(res.data);
-      router.push("/chat");
+      setSuccess(true);
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
       setError(msg || "Error al guardar el perfil.");
@@ -173,6 +174,52 @@ export default function OnboardingPage() {
       setLoading(false);
     }
   };
+
+  if (success) {
+    const obj = OBJECTIVES.find((o) => o.value === objective);
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4" style={{ background: "var(--bg)" }}>
+        <div className="w-full max-w-sm text-center">
+          <div className="text-6xl mb-6">🎉</div>
+          <h1 className="text-3xl font-black mb-2" style={{ color: "var(--text)" }}>
+            ¡Listo, {name.split(" ")[0]}!
+          </h1>
+          <p className="text-sm mb-8" style={{ color: "var(--muted)" }}>
+            Tu perfil está configurado. Tu mentor ya sabe cómo ayudarte.
+          </p>
+
+          <div className="rounded-2xl border p-5 mb-6 text-left space-y-3" style={{ background: "var(--card)", borderColor: "var(--border)" }}>
+            {obj && (
+              <div className="flex items-center gap-3">
+                <span className="text-2xl">{obj.emoji}</span>
+                <div>
+                  <div className="text-xs font-bold uppercase tracking-wider mb-0.5" style={{ color: "var(--muted)" }}>Tu objetivo</div>
+                  <div className="text-sm font-semibold" style={{ color: "var(--text)" }}>{obj.label}</div>
+                </div>
+              </div>
+            )}
+            {mentor !== "none" && (
+              <div className="flex items-center gap-3 pt-3 border-t" style={{ borderColor: "var(--border)" }}>
+                <span className="text-2xl">🧠</span>
+                <div>
+                  <div className="text-xs font-bold uppercase tracking-wider mb-0.5" style={{ color: "var(--muted)" }}>Tu mentor</div>
+                  <div className="text-sm font-semibold" style={{ color: "var(--text)" }}>{mentor}</div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <button
+            onClick={() => router.push("/chat")}
+            className="w-full py-4 rounded-2xl text-white font-bold text-base"
+            style={{ background: "var(--accent)" }}
+          >
+            Empezar →
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4" style={{ background: "var(--bg)" }}>

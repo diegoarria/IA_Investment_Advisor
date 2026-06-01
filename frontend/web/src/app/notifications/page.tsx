@@ -57,6 +57,10 @@ export default function NotificationsPage() {
   const [newsLoading, setNewsLoading] = useState(false);
   const [newsError, setNewsError] = useState(false);
 
+  // Portfolio today prices
+  const [portPrices, setPortPrices] = useState<Record<string, PriceData>>({});
+  const [portPricesLoading, setPortPricesLoading] = useState(false);
+
   // Watchlist prices
   const [prices, setPrices] = useState<Record<string, PriceData>>({});
   const [pricesLoading, setPricesLoading] = useState(false);
@@ -72,6 +76,20 @@ export default function NotificationsPage() {
       setNotifications(res.data.notifications ?? [], res.data.unread_count ?? 0);
     } catch {}
   };
+
+  const loadPortfolioPrices = useCallback(async () => {
+    if (positions.length === 0) return;
+    setPortPricesLoading(true);
+    try {
+      const res = await marketApi.getPrices(positions.map((p) => p.ticker));
+      const result: Record<string, PriceData> = {};
+      for (const [t, d] of Object.entries(res.data as Record<string, { price: number | null; change_pct: number | null }>)) {
+        result[t] = { price: d.price, change_pct: d.change_pct };
+      }
+      setPortPrices(result);
+    } catch {}
+    setPortPricesLoading(false);
+  }, [positions.length]);
 
   const loadPortfolioNews = useCallback(async () => {
     if (positions.length === 0) return;
@@ -117,7 +135,7 @@ export default function NotificationsPage() {
 
   const handleRefresh = async () => {
     setRefreshing(true);
-    await Promise.all([loadNotifications(), loadPortfolioNews(), loadWatchlistPrices()]);
+    await Promise.all([loadNotifications(), loadPortfolioNews(), loadWatchlistPrices(), loadPortfolioPrices()]);
     setRefreshing(false);
   };
 
@@ -125,9 +143,13 @@ export default function NotificationsPage() {
     if (!isAuthenticated) { router.push("/"); return; }
     loadNotifications();
     loadWatchlistPrices();
+    loadPortfolioPrices();
   }, [isAuthenticated]);
 
-  useEffect(() => { loadPortfolioNews(); }, [positions.length]);
+  useEffect(() => {
+    loadPortfolioNews();
+    loadPortfolioPrices();
+  }, [positions.length]);
 
   const formatDate = (iso: string) =>
     new Date(iso).toLocaleDateString("es", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
@@ -191,6 +213,37 @@ export default function NotificationsPage() {
                       style={{ background: "var(--accent-l)" + "12", borderColor: "var(--accent-l)" + "40", color: "var(--accent-l)" }}>
                 Marcar todas como leídas ({unreadCount})
               </button>
+            )}
+
+            {/* Hoy en tu portafolio */}
+            {positions.length > 0 && (
+              <div className="rounded-2xl border overflow-hidden" style={{ background: "var(--card)", borderColor: "var(--border)" }}>
+                <div className="flex items-center justify-between px-4 py-3 border-b" style={{ borderColor: "var(--border)" }}>
+                  <span className="text-sm font-bold" style={{ color: "var(--text)" }}>Hoy en tu portafolio</span>
+                  {portPricesLoading && <Loader2 className="w-3.5 h-3.5 animate-spin" style={{ color: "var(--muted)" }} />}
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-px" style={{ background: "var(--border)" }}>
+                  {positions.map((pos) => {
+                    const d = portPrices[pos.ticker];
+                    const pct = d?.change_pct ?? null;
+                    const up  = pct !== null && pct >= 0;
+                    return (
+                      <div key={pos.ticker} className="flex items-center justify-between px-3 py-3"
+                           style={{ background: "var(--card)" }}>
+                        <span className="font-bold text-sm" style={{ color: "var(--text)" }}>{pos.ticker}</span>
+                        {pct !== null ? (
+                          <span className="text-xs font-bold px-2 py-0.5 rounded-full"
+                                style={{ background: up ? "rgba(34,197,94,0.12)" : "rgba(239,68,68,0.12)", color: up ? "var(--up)" : "var(--down)" }}>
+                            {up ? "+" : ""}{pct.toFixed(2)}%
+                          </span>
+                        ) : (
+                          <span className="text-xs" style={{ color: "var(--dim)" }}>—</span>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
             )}
 
             {/* Portfolio news */}

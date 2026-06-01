@@ -22,12 +22,39 @@ import {
   Sun, Moon, MessageSquare, Plus, Square, Pencil,
 } from "lucide-react";
 
-const SUGGESTIONS = [
+const SUGGESTIONS_DEFAULT = [
   "¿Cómo analizo si una empresa es buena inversión?",
   "Explícame qué es un ETF",
   "¿Qué hace NVIDIA para ganar dinero?",
   "¿Cómo construyo un portafolio diversificado?",
 ];
+
+const SUGGESTIONS_BY_OBJECTIVE: Record<string, string[]> = {
+  protect: [
+    "¿Cuáles son las inversiones más seguras para preservar capital?",
+    "¿Cómo protejo mis ahorros de la inflación?",
+    "Explícame qué son los bonos y cómo funcionan",
+    "¿Qué es un fondo indexado y por qué es bajo riesgo?",
+  ],
+  grow: [
+    "¿Cómo construyo un portafolio diversificado a largo plazo?",
+    "¿Qué diferencia hay entre acciones de crecimiento y valor?",
+    "¿Cada cuánto debería revisar mis inversiones?",
+    "¿Qué es el interés compuesto y por qué importa tanto?",
+  ],
+  maximize: [
+    "¿Cómo identifico acciones con alto potencial de retorno?",
+    "¿Qué sectores están creciendo más este año?",
+    "¿Cómo evalúo el riesgo antes de hacer una inversión agresiva?",
+    "Analiza NVDA — ¿sigue siendo buena oportunidad?",
+  ],
+};
+
+const OBJECTIVE_GREETING: Record<string, string> = {
+  protect:  "Veo que priorizas proteger tu capital. Buena base para empezar. ¿Por dónde quieres comenzar?",
+  grow:     "Tu objetivo es hacer crecer tu dinero a largo plazo. Es el enfoque más sólido. ¿Qué tienes en mente?",
+  maximize: "Buscas maximizar retorno. El riesgo es parte del juego — te enseño a manejarlo bien. ¿Empezamos?",
+};
 
 const RISK_LABEL: Record<string, string> = {
   conservative:            "Conservador",
@@ -557,33 +584,50 @@ export default function ChatPage() {
                     style={{ color: "var(--text)", fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
                   {mentor ? mentor.name : profile?.name ? `Hola, ${profile.name.split(" ")[0]}` : "Nuvos AI"}
                 </h2>
-                <p className="text-sm mb-1" style={{ color: "var(--muted)" }}>
-                  {mentor ? mentor.title : "Tu mentor de inversiones con IA"}
-                </p>
-                {mentor && (
-                  <span className="badge-green mb-5">{mentor.badge}</span>
-                )}
-                {mentor && (
-                  <div className="flex flex-wrap justify-center gap-2 mb-7 max-w-sm">
-                    {mentor.principles.map((p) => (
-                      <span key={p} className="text-xs px-3 py-1.5 rounded-full border font-medium"
-                            style={{ borderColor: mentor.color + "40", background: mentor.color + "0e", color: mentor.color }}>
-                        {p}
-                      </span>
-                    ))}
-                  </div>
-                )}
-                {!mentor && <div className="mb-7" />}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 w-full max-w-lg">
-                  {SUGGESTIONS.map((s, i) => (
-                    <button key={s} onClick={() => sendMessage(s)}
-                            className={`text-left p-3.5 rounded-2xl text-xs transition-all border hover:border-[var(--accent-l)] hover:-translate-y-0.5 animate-fade-in-up stagger-${i+1} group`}
-                            style={{ background: "var(--card)", borderColor: "var(--border)", color: "var(--sub)" }}>
-                      <span className="block text-[10px] font-bold mb-1 group-hover:text-[var(--accent-l)] transition-colors" style={{ color: "var(--accent)" }}>✦</span>
-                      {s}
-                    </button>
-                  ))}
-                </div>
+                {(() => {
+                  const obj = profile?.quiz_answers?.objective as string | undefined;
+                  const greeting = obj ? OBJECTIVE_GREETING[obj] : null;
+                  const suggestions = obj && SUGGESTIONS_BY_OBJECTIVE[obj]
+                    ? SUGGESTIONS_BY_OBJECTIVE[obj]
+                    : SUGGESTIONS_DEFAULT;
+                  return (
+                    <>
+                      {greeting && !mentor ? (
+                        <p className="text-sm mb-7 max-w-sm leading-relaxed" style={{ color: "var(--muted)" }}>
+                          {greeting}
+                        </p>
+                      ) : (
+                        <>
+                          <p className="text-sm mb-1" style={{ color: "var(--muted)" }}>
+                            {mentor ? mentor.title : "Tu mentor de inversiones con IA"}
+                          </p>
+                          {mentor && <span className="badge-green mb-5">{mentor.badge}</span>}
+                          {mentor && (
+                            <div className="flex flex-wrap justify-center gap-2 mb-7 max-w-sm">
+                              {mentor.principles.map((p) => (
+                                <span key={p} className="text-xs px-3 py-1.5 rounded-full border font-medium"
+                                      style={{ borderColor: mentor.color + "40", background: mentor.color + "0e", color: mentor.color }}>
+                                  {p}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                          {!mentor && <div className="mb-7" />}
+                        </>
+                      )}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 w-full max-w-lg">
+                        {suggestions.map((s, i) => (
+                          <button key={s} onClick={() => sendMessage(s)}
+                                  className={`text-left p-3.5 rounded-2xl text-xs transition-all border hover:border-[var(--accent-l)] hover:-translate-y-0.5 animate-fade-in-up stagger-${i+1} group`}
+                                  style={{ background: "var(--card)", borderColor: "var(--border)", color: "var(--sub)" }}>
+                            <span className="block text-[10px] font-bold mb-1 group-hover:text-[var(--accent-l)] transition-colors" style={{ color: "var(--accent)" }}>✦</span>
+                            {s}
+                          </button>
+                        ))}
+                      </div>
+                    </>
+                  );
+                })()}
               </div>
             )}
 
