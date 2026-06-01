@@ -182,7 +182,7 @@ export default function ChatPage() {
   const { notifications, setNotifications, markRead } = useNotificationStore();
   const { theme, toggleTheme } = useThemeStore();
   const subStore = useSubscriptionStore();
-  const { positions } = usePortfolioStore();
+  const { positions, loadFromServer: loadPortfolio } = usePortfolioStore();
   const mentor = getMentorInfo(profile?.mentor);
   const cancelRef = useRef({ cancelled: false });
 
@@ -265,6 +265,7 @@ export default function ChatPage() {
       .catch(() => {});
 
     subStore.fetchStatus().catch(() => {});
+    loadPortfolio();
   }, [isAuthenticated]);
 
   useEffect(() => {

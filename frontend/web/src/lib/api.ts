@@ -168,6 +168,11 @@ export const referral = {
   getStats: () => api.get("/api/referral/stats"),
 };
 
+export const sync = {
+  getPortfolio: () => api.get("/api/sync/portfolio"),
+  pushPortfolio: (positions: unknown[]) => api.post("/api/sync/portfolio", { positions }),
+};
+
 export const notifications = {
   getAll: () => api.get("/api/notifications"),
   markRead: (id: string) => api.post(`/api/notifications/${id}/read`),
