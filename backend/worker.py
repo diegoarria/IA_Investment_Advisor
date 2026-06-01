@@ -16,6 +16,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from app.core.config import settings
 from app.services.notification_service import scan_and_notify_all_users
 from app.services.email_service import generate_and_send_weekly_summary
+from app.services.paper_service import notify_rank_changes
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 logger = logging.getLogger(__name__)
@@ -72,10 +73,19 @@ async def run_notifications():
         logger.error("Notification scan failed: %s", e)
 
 
+async def run_league_notifications():
+    """Compare league rankings and notify users who lost positions — every 2h."""
+    try:
+        await notify_rank_changes()
+    except Exception as e:
+        logger.error("League notification job failed: %s", e)
+
+
 async def main():
     scheduler = AsyncIOScheduler()
     # Market alerts: 9am and 4pm Eastern (market open + close)
     scheduler.add_job(run_notifications, "cron", hour="9,16", minute="0", timezone="America/New_York")
+    scheduler.add_job(run_league_notifications, "interval", hours=2)
     # Weekly recap: Friday 6:30pm Eastern (2h after NYSE close)
     scheduler.add_job(send_weekly_emails, "cron", day_of_week="fri", hour=18, minute=30, timezone="America/New_York")
     scheduler.start()

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useMemo } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import ReactMarkdown from "react-markdown";
 import { learn as learnApi } from "@/lib/api";
@@ -10,6 +10,7 @@ import {
   STREAK_MILESTONES, STREAK_MILESTONES_PREMIUM,
 } from "@/lib/store";
 import PaywallModal from "@/components/PaywallModal";
+import { usePaperStore, PAPER_INITIAL_CASH } from "@/lib/paperStore";
 import {
   TrendingUp, BookOpen, PieChart, BarChart2, Bell, User, Menu, X,
   GraduationCap, Trophy, Sun, Moon, Clock, MessageSquare, Send,
@@ -36,6 +37,22 @@ const DIFF_CONFIG: Record<Difficulty, { label: string; color: string; desc: stri
 };
 
 const PREMIUM_DIFFICULTIES = new Set(["dificil", "imposible"]);
+
+// ─── Scoreboard — Liga mock (reemplazar con GET /paper/leaderboard) ────────────
+const MOCK_LEAGUE_OTHERS = [
+  { alias: "InversorPro",    returnPct: 18.4, topHolding: "NVDA",  rankChange:  0 },
+  { alias: "TauroMX",        returnPct: 14.2, topHolding: "AAPL",  rankChange:  2 },
+  { alias: "BullMkt99",      returnPct: 11.8, topHolding: "MSFT",  rankChange: -1 },
+  { alias: "WallStLearner",  returnPct:  9.3, topHolding: "TSLA",  rankChange:  1 },
+  { alias: "PipoCapital",    returnPct:  7.1, topHolding: "AMZN",  rankChange:  3 },
+  { alias: "Sigma_Returns",  returnPct:  5.8, topHolding: "GOOGL", rankChange:  0 },
+  { alias: "CrackMercado",   returnPct:  4.6, topHolding: "META",  rankChange: -2 },
+  { alias: "PatternBreaker", returnPct:  2.1, topHolding: "BRK-B", rankChange:  0 },
+  { alias: "ETFQueen",       returnPct:  1.4, topHolding: "SPY",   rankChange:  4 },
+  { alias: "LongTermLeo",    returnPct: -0.8, topHolding: "BABA",  rankChange: -3 },
+];
+const LEAGUE_MEDALS: Record<number, string> = { 1: "🥇", 2: "🥈", 3: "🥉" };
+const LEAGUE_TOTAL = 847;
 const FREE_SIM_LIMIT   = 5;
 const FREE_DEBATE_LIMIT = 2;
 const FREE_MAX_ROUNDS   = 5;
@@ -63,9 +80,23 @@ export default function ArenaPage() {
   const isPremium = subStore.tier === "premium";
   const unreadCount = notifications.filter((n) => !n.read).length;
 
+  const { cash, positions } = usePaperStore();
+
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [difficulty, setDifficulty] = useState<Difficulty>("intermedio");
   const [hallOfFame, setHallOfFame] = useState<{ name: string; streak: number }[]>([]);
+  const [hofTab, setHofTab] = useState<"rachas" | "portafolios">("rachas");
+
+  // Liga ranking — usuario insertado en posición real según su retorno de paper trading
+  const paperValue    = cash + positions.reduce((acc, p) => acc + p.shares * p.avgPrice, 0);
+  const paperReturnPct = parseFloat((((paperValue - PAPER_INITIAL_CASH) / PAPER_INITIAL_CASH) * 100).toFixed(1));
+
+  const leagueEntries = useMemo(() => {
+    const me = { alias: "Tú", returnPct: paperReturnPct, topHolding: positions[0]?.ticker ?? "—", rankChange: 2, isMe: true, rank: 0 };
+    return [...MOCK_LEAGUE_OTHERS, me]
+      .sort((a, b) => b.returnPct - a.returnPct)
+      .map((e, i) => ({ ...e, rank: i + 1 }));
+  }, [paperReturnPct, positions]);
   const [simUsedToday, setSimUsedToday] = useState(0);
   const [debateUsedToday, setDebateUsedToday] = useState(0);
   const [paywallOpen, setPaywallOpen] = useState(false);
@@ -342,32 +373,123 @@ export default function ArenaPage() {
               </div>
             </div>
 
-            {/* Hall of Fame */}
+            {/* Scoreboard */}
             <div>
-              <p className="text-[10px] font-bold uppercase tracking-widest mb-2 ml-0.5" style={{ color: "var(--dim)" }}>🏆 Hall of Fame</p>
+              <p className="text-[10px] font-bold uppercase tracking-widest mb-2 ml-0.5" style={{ color: "var(--dim)" }}>🏆 Scoreboard</p>
+
+              {/* Tab switcher */}
+              <div className="flex p-1 rounded-xl gap-1 mb-2" style={{ background: "var(--raised)" }}>
+                <button
+                  onClick={() => setHofTab("rachas")}
+                  className="flex-1 py-1.5 rounded-lg text-xs font-semibold transition-all"
+                  style={{ background: hofTab === "rachas" ? "var(--card)" : "transparent", color: hofTab === "rachas" ? "var(--text)" : "var(--muted)" }}
+                >
+                  🔥 Rachas
+                </button>
+                <button
+                  onClick={() => setHofTab("portafolios")}
+                  className="flex-1 py-1.5 rounded-lg text-xs font-semibold transition-all"
+                  style={{ background: hofTab === "portafolios" ? "var(--card)" : "transparent", color: hofTab === "portafolios" ? "var(--accent-l)" : "var(--muted)" }}
+                >
+                  📈 Portafolios
+                </button>
+              </div>
+
               <div className="rounded-2xl border overflow-hidden" style={{ background: "var(--card)", borderColor: "var(--border)" }}>
-                {hallOfFame.length === 0 ? (
-                  <div className="flex flex-col items-center py-8 gap-2">
-                    <span className="text-3xl">🏆</span>
-                    <p className="text-sm text-center" style={{ color: "var(--muted)" }}>
-                      Sé el primero en aparecer aquí.{"\n"}Mantén una racha de 10+ días.
-                    </p>
-                  </div>
-                ) : (
-                  hallOfFame.map((entry, i) => (
-                    <div key={i} className={`flex items-center gap-3 px-4 py-3 ${i > 0 ? "border-t" : ""}`}
-                         style={{ borderColor: "var(--border)" }}>
-                      <span className="text-lg w-8">
-                        {i < 3 ? ["🥇","🥈","🥉"][i] : <span className="text-sm font-bold" style={{ color: "var(--dim)" }}>{i + 1}.</span>}
-                      </span>
-                      <span className="flex-1 font-semibold text-sm" style={{ color: "var(--text)" }}>{entry.name}</span>
-                      <div className="flex items-center gap-1">
-                        <span>🔥</span>
-                        <span className="font-bold" style={{ color: "#f59e0b" }}>{entry.streak}</span>
-                      </div>
+
+                {/* ── Rachas tab ── */}
+                {hofTab === "rachas" && (
+                  hallOfFame.length === 0 ? (
+                    <div className="flex flex-col items-center py-8 gap-2">
+                      <span className="text-3xl">🏆</span>
+                      <p className="text-sm text-center" style={{ color: "var(--muted)" }}>
+                        Sé el primero en aparecer aquí.{"\n"}Mantén una racha de 10+ días.
+                      </p>
                     </div>
-                  ))
+                  ) : (
+                    hallOfFame.map((entry, i) => (
+                      <div key={i} className={`flex items-center gap-3 px-4 py-3 ${i > 0 ? "border-t" : ""}`}
+                           style={{ borderColor: "var(--border)" }}>
+                        <span className="text-lg w-8">
+                          {i < 3 ? ["🥇","🥈","🥉"][i] : <span className="text-sm font-bold" style={{ color: "var(--dim)" }}>{i + 1}.</span>}
+                        </span>
+                        <span className="flex-1 font-semibold text-sm" style={{ color: "var(--text)" }}>{entry.name}</span>
+                        <div className="flex items-center gap-1">
+                          <span>🔥</span>
+                          <span className="font-bold" style={{ color: "#f59e0b" }}>{entry.streak}</span>
+                        </div>
+                      </div>
+                    ))
+                  )
                 )}
+
+                {/* ── Portafolios tab ── */}
+                {hofTab === "portafolios" && (() => {
+                  const myEntry = leagueEntries.find((e) => e.isMe)!;
+                  const top5    = leagueEntries.slice(0, 5);
+                  const showEllipsis = myEntry?.rank > 5;
+                  const rows = [...top5, ...(showEllipsis ? [null, myEntry] : [])];
+                  return (
+                    <>
+                      <div className="px-4 py-2 border-b flex items-center justify-between"
+                           style={{ borderColor: "var(--border)" }}>
+                        <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: "var(--dim)" }}>
+                          Retorno % · Paper Trading
+                        </span>
+                        <span className="text-[10px]" style={{ color: "var(--dim)" }}>
+                          {LEAGUE_TOTAL.toLocaleString()} inversores
+                        </span>
+                      </div>
+                      {rows.map((entry, i) =>
+                        entry === null ? (
+                          <div key="ellipsis" className="text-center py-1.5 text-sm tracking-widest" style={{ color: "var(--dim)" }}>···</div>
+                        ) : (
+                          <div key={entry.rank}
+                               className={`flex items-center gap-2.5 px-4 py-2.5 ${i > 0 ? "border-t" : ""}`}
+                               style={{ borderColor: "var(--border)", background: entry.isMe ? "rgba(0,168,94,0.06)" : "transparent" }}>
+                            {/* Rank */}
+                            <div className="w-7 text-center shrink-0">
+                              {LEAGUE_MEDALS[entry.rank]
+                                ? <span className="text-base">{LEAGUE_MEDALS[entry.rank]}</span>
+                                : <span className="text-xs font-bold" style={{ color: "var(--dim)" }}>#{entry.rank}</span>}
+                            </div>
+                            {/* Avatar */}
+                            <div className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black shrink-0"
+                                 style={{ background: entry.isMe ? "var(--accent)" : entry.rank <= 3 ? "rgba(251,191,36,0.18)" : "var(--raised)", color: entry.isMe ? "white" : entry.rank <= 3 ? "#fbbf24" : "var(--muted)" }}>
+                              {entry.alias[0].toUpperCase()}
+                            </div>
+                            {/* Name */}
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-xs font-semibold truncate"
+                                      style={{ color: entry.isMe ? "var(--accent-l)" : "var(--text)" }}>
+                                  {entry.isMe ? "Tú" : entry.alias}
+                                </span>
+                                {entry.isMe && (
+                                  <span className="text-[9px] px-1 py-0.5 rounded-full font-bold shrink-0"
+                                        style={{ background: "rgba(0,168,94,0.15)", color: "var(--accent-l)" }}>★</span>
+                                )}
+                              </div>
+                              <span className="text-[10px]" style={{ color: "var(--dim)" }}>Top: {entry.topHolding}</span>
+                            </div>
+                            {/* Return + change */}
+                            <div className="text-right shrink-0">
+                              <div className="text-xs font-bold"
+                                   style={{ color: entry.returnPct >= 0 ? "var(--up)" : "var(--down)" }}>
+                                {entry.returnPct >= 0 ? "+" : ""}{entry.returnPct.toFixed(1)}%
+                              </div>
+                              <div className="text-[10px] font-semibold"
+                                   style={{ color: entry.rankChange > 0 ? "var(--up)" : entry.rankChange < 0 ? "var(--down)" : "var(--dim)" }}>
+                                {entry.rankChange > 0 ? `↑${entry.rankChange}` : entry.rankChange < 0 ? `↓${Math.abs(entry.rankChange)}` : "—"}
+                              </div>
+                            </div>
+                          </div>
+                        )
+                      )}
+                    </>
+                  );
+                })()}
+
               </div>
             </div>
           </div>

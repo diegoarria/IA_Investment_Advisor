@@ -180,4 +180,11 @@ export const billing = {
     api.post("/api/billing/create-checkout", { plan }),
 };
 
+export const paperApi = {
+  getLeaderboard: () => api.get("/api/paper/leaderboard"),
+  setAlias: (alias: string) => api.post("/api/paper/alias", { alias }),
+  syncState: (cash: number, positions: unknown[], trades: unknown[]) =>
+    api.post("/api/sync/paper", { cash, positions, trades, freeTradeMonth: null, freeTradeCount: 0 }),
+};
+
 export default api;
