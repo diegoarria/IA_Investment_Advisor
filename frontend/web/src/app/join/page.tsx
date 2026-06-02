@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
 import { TrendingUp, Shield, Brain, ArrowRight, Users } from "lucide-react";
@@ -11,7 +11,7 @@ const FEATURES = [
   { icon: Shield,     color: "#60a5fa", title: "Sin conflictos de interés", desc: "Te enseñamos a pensar, no qué comprar" },
 ];
 
-export default function JoinPage() {
+function JoinContent() {
   const router = useRouter();
   const params = useSearchParams();
   const ref = params.get("ref") ?? "";
@@ -94,5 +94,13 @@ export default function JoinPage() {
         </p>
       </div>
     </div>
+  );
+}
+
+export default function JoinPage() {
+  return (
+    <Suspense>
+      <JoinContent />
+    </Suspense>
   );
 }
