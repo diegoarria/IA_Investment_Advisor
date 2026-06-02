@@ -12,6 +12,9 @@ import * as ImagePicker from "expo-image-picker";
 import { marketApi } from "../../src/lib/api";
 import { useTheme, Colors } from "../../src/lib/ThemeContext";
 import { usePortfolioStore, Position } from "../../src/lib/portfolioStore";
+import MobileEarningsPanel from "../../src/components/MobileEarningsPanel";
+import MobileWhatIf from "../../src/components/MobileWhatIf";
+import MobileMonthlyReport from "../../src/components/MobileMonthlyReport";
 import { useAppStore, getAge, UserProfile, RISK_CONFIG } from "../../src/lib/profileStore";
 import { useSubscriptionStore, hasPremiumAccess } from "../../src/lib/subscriptionStore";
 import PaywallModal from "../../src/components/PaywallModal";
@@ -1392,6 +1395,48 @@ export default function PortfolioScreen() {
                 <Text style={[s.disclaimerText, { color: "#6366f1" }]}>Cálculo con interés compuesto mensual. Los rendimientos reales varían.</Text>
               </View>
             </View>
+          </View>
+        )}
+
+        {/* ══ PREMIUM FEATURES ══ */}
+        {positions.length > 0 && (
+          <View style={{ paddingHorizontal: 16, paddingBottom: 16, gap: 4 }}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 12, marginTop: 8 }}>
+              <View style={{ flex: 1, height: 1, backgroundColor: colors.border }} />
+              <Text style={{ fontSize: 10, fontWeight: "700", color: colors.muted }}>HERRAMIENTAS PREMIUM</Text>
+              <View style={{ flex: 1, height: 1, backgroundColor: colors.border }} />
+            </View>
+
+            <MobileMonthlyReport
+              positions={positions.map((p) => ({
+                ticker: p.ticker, name: p.name,
+                shares: p.shares, avg_cost: p.avgPrice,
+                current_price: prices[p.ticker]?.price ?? 0,
+                value: (p.shares || 0) * (prices[p.ticker]?.price ?? p.avgPrice),
+              }))}
+              isPremium={isPremiumAccess}
+              onUpgrade={() => setPaywallOpen(true)}
+            />
+
+            <MobileWhatIf
+              positions={positions.map((p) => ({
+                ticker: p.ticker, name: p.name,
+                shares: p.shares, avg_cost: p.avgPrice,
+                current_price: prices[p.ticker]?.price ?? 0,
+                value: (p.shares || 0) * (prices[p.ticker]?.price ?? p.avgPrice),
+              }))}
+              isPremium={isPremiumAccess}
+              onUpgrade={() => setPaywallOpen(true)}
+            />
+
+            <MobileEarningsPanel
+              positions={positions.map((p) => ({
+                ticker: p.ticker,
+                shares: p.shares, avg_cost: p.avgPrice,
+              }))}
+              isPremium={isPremiumAccess}
+              onUpgrade={() => setPaywallOpen(true)}
+            />
           </View>
         )}
       </ScrollView>

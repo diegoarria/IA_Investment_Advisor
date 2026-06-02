@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import {
   BookOpen, PieChart, BarChart2, Bell, User, GraduationCap, Trophy,
-  MessageSquare, ChevronRight, Plus, X, HeadphonesIcon,
+  MessageSquare, ChevronRight, Plus, X, HeadphonesIcon, Search, Brain,
 } from "lucide-react";
 import {
   useProfileStore, useNotificationStore, useSubscriptionStore,
@@ -13,14 +13,16 @@ import {
 import PaywallModal from "@/components/PaywallModal";
 
 const NAV = [
-  { href: "/chat",          icon: BookOpen,      label: "Chat" },
-  { href: "/portfolio",     icon: PieChart,      label: "Portafolio" },
-  { href: "/paper",         icon: BarChart2,     label: "Paper Trading" },
-  { href: "/learn",         icon: GraduationCap, label: "Aprendizaje" },
-  { href: "/arena",         icon: Trophy,        label: "Arena" },
-  { href: "/notifications", icon: Bell,             label: "Notificaciones" },
-  { href: "/support",       icon: HeadphonesIcon,  label: "Soporte" },
-  { href: "/profile",       icon: User,             label: "Perfil" },
+  { href: "/chat",          icon: BookOpen,       label: "Chat" },
+  { href: "/portfolio",     icon: PieChart,       label: "Portafolio" },
+  { href: "/paper",         icon: BarChart2,      label: "Paper Trading" },
+  { href: "/learn",         icon: GraduationCap,  label: "Aprendizaje" },
+  { href: "/arena",         icon: Trophy,         label: "Arena" },
+  { href: "/screener",      icon: Search,         label: "Screener Semanal", premium: true },
+  { href: "/decisions",     icon: Brain,          label: "Diario de Sesgos",  premium: true },
+  { href: "/notifications", icon: Bell,           label: "Notificaciones" },
+  { href: "/support",       icon: HeadphonesIcon, label: "Soporte" },
+  { href: "/profile",       icon: User,           label: "Perfil" },
 ];
 
 const RISK_SEGMENTS = [
@@ -138,7 +140,7 @@ export default function AppSidebar({ open, onClose }: Props) {
         {/* Scrollable area: nav + chat history */}
         <div className="flex-1 overflow-y-auto scrollbar-thin">
           <nav className="px-2 py-1 space-y-0.5">
-            {NAV.map(({ href, icon: Icon, label }) => {
+            {NAV.map(({ href, icon: Icon, label, premium }) => {
               const active = pathname === href;
               const badge = href === "/notifications" && unreadCount > 0;
               return (
@@ -148,6 +150,12 @@ export default function AppSidebar({ open, onClose }: Props) {
                   <span>{label}</span>
                   {badge && (
                     <span className="ml-auto badge-green" style={{ fontSize: "10px" }}>{unreadCount}</span>
+                  )}
+                  {premium && !isPremium && (
+                    <span className="ml-auto text-[9px] font-bold px-1.5 py-0.5 rounded-full"
+                          style={{ background: "rgba(0,168,94,0.15)", color: "var(--accent-l)" }}>
+                      ⭐
+                    </span>
                   )}
                 </button>
               );

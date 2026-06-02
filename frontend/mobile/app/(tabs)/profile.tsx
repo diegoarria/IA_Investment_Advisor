@@ -19,6 +19,7 @@ import TutorialModal from "../../src/components/TutorialModal";
 import { useSubscriptionStore, msgsRemaining, FREE_MSG_LIMIT } from "../../src/lib/subscriptionStore";
 import PaywallModal from "../../src/components/PaywallModal";
 import { insightsApi, mentorLetterApi, profileApi, authApi, referralApi } from "../../src/lib/api";
+import MobileDecisionDiary from "../../src/components/MobileDecisionDiary";
 
 const MENTOR_PHOTOS: Record<string, number> = {
   "Warren Buffett": require("../../assets/images/mentors/warren_buffett.jpg"),
@@ -810,6 +811,12 @@ export default function ProfileScreen() {
             Eliminar mi cuenta
           </Text>
         </TouchableOpacity>
+
+        {/* ══ DIARIO DE DECISIONES PREMIUM ══ */}
+        <MobileDecisionDiary
+          isPremium={isPremium}
+          onUpgrade={() => setPaywallOpen(true)}
+        />
 
       </ScrollView>
 

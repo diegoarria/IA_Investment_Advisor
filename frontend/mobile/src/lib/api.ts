@@ -203,4 +203,35 @@ export const supportApi = {
   getTickets:   () => api.get("/api/support/tickets"),
 };
 
+export const earningsApi = {
+  getCalendar: (symbols: string[]) =>
+    api.get("/api/earnings/calendar", { params: { symbols: symbols.join(",") } }),
+  getAnalysis: (symbol: string, shares = 0, avgCost = 0) =>
+    api.get(`/api/earnings/analysis/${symbol}`, { params: { shares, avg_cost: avgCost } }),
+};
+
+export const screenerWeeklyApi = {
+  getWeekly: (existingTickers: string[] = []) =>
+    api.get("/api/market/screener/weekly", { params: { tickers: existingTickers.join(",") } }),
+};
+
+export const simulateApi = {
+  whatIf: (
+    scenarioType: string,
+    scenarioParams: Record<string, unknown>,
+    portfolio: unknown[]
+  ) => api.post("/api/simulate", { scenario_type: scenarioType, scenario_params: scenarioParams, portfolio }),
+};
+
+export const reportApi = {
+  monthly: (portfolio: unknown[]) =>
+    api.post("/api/report/monthly", { portfolio }),
+};
+
+export const decisionsApi = {
+  log: (decision: Record<string, unknown>) => api.post("/api/decisions/log", decision),
+  getAll: (limit = 50) => api.get("/api/decisions", { params: { limit } }),
+  getBiases: () => api.get("/api/decisions/biases"),
+};
+
 export default api;

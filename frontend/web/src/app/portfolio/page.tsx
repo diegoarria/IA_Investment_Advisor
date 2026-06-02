@@ -7,8 +7,12 @@ import Image from "next/image";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { market as marketApi, paperApi } from "@/lib/api";
-import { useAuthStore } from "@/lib/store";
+import { useAuthStore, useSubscriptionStore } from "@/lib/store";
 import { usePortfolioStore, type Position } from "@/lib/portfolioStore";
+import EarningsPanel from "@/components/EarningsPanel";
+import WhatIfSimulator from "@/components/WhatIfSimulator";
+import MonthlyReport from "@/components/MonthlyReport";
+import PaywallModal from "@/components/PaywallModal";
 import {
   PieChart, Menu, X, Upload, Plus, Trash2, Trophy,
   BarChart, Calculator, Shield, Sparkles, RefreshCw, AlertTriangle, Lightbulb,
@@ -194,6 +198,9 @@ const SCENARIOS: {value:Scenario; label:string; emoji:string}[] = [
 export default function PortfolioPage() {
   const router = useRouter();
   const { isAuthenticated } = useAuthStore();
+  const sub = useSubscriptionStore();
+  const isPremium = sub.tier === "premium";
+  const [paywallOpen, setPaywallOpen] = useState(false);
   const { positions, addPosition, removePosition, setPositions } = usePortfolioStore();
   const [sidebarOpen, setSidebarOpen]   = useState(false);
   const [activeTab, setActiveTab]       = useState<"portfolio" | "liga">("portfolio");
@@ -1011,6 +1018,52 @@ export default function PortfolioPage() {
             )}
           </section>
 
+          {/* ══ PREMIUM FEATURES SECTION ══ */}
+          {positions.length > 0 && (
+            <div className="space-y-4 pt-2">
+              <div className="flex items-center gap-2">
+                <div className="h-px flex-1" style={{ background: "var(--border)" }} />
+                <span className="text-[10px] font-bold px-2" style={{ color: "var(--muted)" }}>HERRAMIENTAS PREMIUM</span>
+                <div className="h-px flex-1" style={{ background: "var(--border)" }} />
+              </div>
+
+              {/* Monthly Report trigger */}
+              <div className="flex items-center gap-2">
+                <MonthlyReport
+                  positions={positions.map((p) => ({
+                    ticker: p.ticker, name: p.name, shares: p.shares,
+                    avg_cost: p.avgPrice,
+                    current_price: prices[p.ticker]?.price ?? 0,
+                    value: (p.shares || 0) * (prices[p.ticker]?.price ?? p.avgPrice),
+                  }))}
+                  isPremium={isPremium}
+                  onUpgrade={() => setPaywallOpen(true)}
+                />
+              </div>
+
+              <EarningsPanel
+                positions={positions.map((p) => ({
+                  ticker: p.ticker,
+                  shares: p.shares,
+                  avg_cost: p.avgPrice,
+                }))}
+                isPremium={isPremium}
+                onUpgrade={() => setPaywallOpen(true)}
+              />
+
+              <WhatIfSimulator
+                positions={positions.map((p) => ({
+                  ticker: p.ticker, name: p.name, shares: p.shares,
+                  avg_cost: p.avgPrice,
+                  current_price: prices[p.ticker]?.price ?? 0,
+                  value: (p.shares || 0) * (prices[p.ticker]?.price ?? p.avgPrice),
+                }))}
+                isPremium={isPremium}
+                onUpgrade={() => setPaywallOpen(true)}
+              />
+            </div>
+          )}
+
           <div className="h-8" />
           </div>} {/* end activeTab === "portfolio" */}
 
@@ -1180,6 +1233,7 @@ export default function PortfolioPage() {
           </div>
         </div>
       )}
+      <PaywallModal visible={paywallOpen} onClose={() => setPaywallOpen(false)} />
     </>
   );
 }

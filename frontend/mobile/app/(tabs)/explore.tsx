@@ -5,9 +5,11 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import Markdown from "react-native-markdown-display";
-import { marketApi } from "../../src/lib/api";
+import { marketApi, screenerWeeklyApi } from "../../src/lib/api";
 import { useTheme, Colors } from "../../src/lib/ThemeContext";
 import { useWatchlistStore } from "../../src/lib/watchlistStore";
+import { useSubscriptionStore, hasPremiumAccess } from "../../src/lib/subscriptionStore";
+import PaywallModal from "../../src/components/PaywallModal";
 
 const SECTORS = ["Todos", "Tech", "Finance", "Salud", "Consumo", "Energía", "ETF"];
 
@@ -118,12 +120,31 @@ export default function ExploreScreen() {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
 
+  const subStore  = useSubscriptionStore();
+  const isPremium = hasPremiumAccess(subStore);
+
   const [sector, setSector]       = useState<string | null>(null);
   const [query, setQuery]         = useState("");
   const [results, setResults]     = useState<Stock[]>([]);
   const [aiInsight, setAiInsight] = useState<string | null>(null);
   const [loading, setLoading]     = useState(false);
   const [searched, setSearched]   = useState(false);
+  const [paywallOpen, setPaywallOpen] = useState(false);
+
+  // Weekly picks
+  const [weekly, setWeekly]         = useState<any>(null);
+  const [weeklyLoading, setWeeklyLoading] = useState(false);
+  const [weeklyExpanded, setWeeklyExpanded] = useState(false);
+
+  const loadWeekly = useCallback(async () => {
+    if (!isPremium || weekly) return;
+    setWeeklyLoading(true);
+    try {
+      const res: any = await screenerWeeklyApi.getWeekly([]);
+      setWeekly(res.data);
+    } catch {}
+    setWeeklyLoading(false);
+  }, [isPremium, weekly]);
 
   const markdownStyles = useMemo(() => ({
     body: { color: colors.textSub, fontSize: 13, lineHeight: 20 },
@@ -161,6 +182,69 @@ export default function ExploreScreen() {
         contentContainerStyle={styles.list}
         ListHeaderComponent={
           <View>
+            {/* ══ SCREENER SEMANAL PREMIUM ══ */}
+            <View style={{ marginHorizontal: 12, marginBottom: 12 }}>
+              <TouchableOpacity
+                style={{ flexDirection: "row", alignItems: "center", gap: 8, borderRadius: 14, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card, paddingHorizontal: 14, paddingVertical: 12 }}
+                onPress={() => { if (!isPremium) { setPaywallOpen(true); } else { setWeeklyExpanded(!weeklyExpanded); loadWeekly(); } }}
+              >
+                <Ionicons name="star-outline" size={16} color={colors.accent} />
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 13, fontWeight: "700", color: colors.text }}>Picks de la Semana</Text>
+                  {weekly?.week_theme && weeklyExpanded && (
+                    <Text style={{ fontSize: 11, color: colors.textMuted, marginTop: 1 }}>{weekly.week_theme}</Text>
+                  )}
+                </View>
+                {!isPremium && (
+                  <View style={{ backgroundColor: colors.accent + "20", borderRadius: 20, paddingHorizontal: 7, paddingVertical: 2 }}>
+                    <Text style={{ color: colors.accent, fontSize: 9, fontWeight: "800" }}>PREMIUM</Text>
+                  </View>
+                )}
+                {weeklyLoading
+                  ? <ActivityIndicator size="small" color={colors.accent} />
+                  : <Ionicons name={weeklyExpanded ? "chevron-up" : "chevron-down"} size={14} color={colors.textMuted} />
+                }
+              </TouchableOpacity>
+
+              {weeklyExpanded && weekly?.picks && (
+                <View style={{ marginTop: 8, gap: 8 }}>
+                  {weekly.picks.map((pick: any, i: number) => (
+                    <View key={pick.ticker} style={{ borderRadius: 14, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card, padding: 12 }}>
+                      <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 10 }}>
+                        <View style={{ width: 28, height: 28, borderRadius: 8, alignItems: "center", justifyContent: "center", backgroundColor: i === 0 ? "#fbbf2420" : colors.bgRaised }}>
+                          <Text style={{ fontSize: 11, fontWeight: "800", color: i === 0 ? "#fbbf24" : colors.textMuted }}>{i + 1}</Text>
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 4 }}>
+                            <Text style={{ fontSize: 15, fontWeight: "800", color: colors.text }}>{pick.ticker}</Text>
+                            <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text }}>${pick.price?.toFixed(2) ?? "—"}</Text>
+                          </View>
+                          <Text style={{ fontSize: 11, color: colors.textMuted, marginBottom: 6 }}>{pick.name} · {pick.sector}</Text>
+                          <Text style={{ fontSize: 12, color: colors.textSub, lineHeight: 17, marginBottom: 6 }}>{pick.why}</Text>
+                          <View style={{ flexDirection: "row", gap: 8 }}>
+                            <View style={{ flex: 1, borderRadius: 8, padding: 8, backgroundColor: "#22c55e0A", borderWidth: 1, borderColor: "#22c55e20" }}>
+                              <Text style={{ fontSize: 9, fontWeight: "800", color: "#22c55e", marginBottom: 2 }}>⚡ CATALIZADOR</Text>
+                              <Text style={{ fontSize: 10, color: colors.textSub }}>{pick.catalyst}</Text>
+                            </View>
+                            <View style={{ flex: 1, borderRadius: 8, padding: 8, backgroundColor: "#ef44440A", borderWidth: 1, borderColor: "#ef444420" }}>
+                              <Text style={{ fontSize: 9, fontWeight: "800", color: "#ef4444", marginBottom: 2 }}>⚠️ RIESGO</Text>
+                              <Text style={{ fontSize: 10, color: colors.textSub }}>{pick.risk}</Text>
+                            </View>
+                          </View>
+                        </View>
+                      </View>
+                    </View>
+                  ))}
+                  {weekly.mentor_note && (
+                    <View style={{ borderRadius: 14, borderWidth: 1, borderColor: colors.accent + "40", backgroundColor: colors.accent + "0D", padding: 12 }}>
+                      <Text style={{ fontSize: 10, fontWeight: "800", color: colors.accent, marginBottom: 6 }}>🎓 NOTA DE TU MENTOR</Text>
+                      <Text style={{ fontSize: 12, color: colors.textSub, lineHeight: 18 }}>{weekly.mentor_note}</Text>
+                    </View>
+                  )}
+                </View>
+              )}
+            </View>
+
             {/* Search bar */}
             <View style={[styles.searchWrap, { backgroundColor: colors.card, borderColor: colors.border }]}>
               <Ionicons name="search-outline" size={16} color={colors.textMuted} />
@@ -230,6 +314,11 @@ export default function ExploreScreen() {
             <Text style={[styles.emptyTitle, { color: colors.textMuted, textAlign: "center", marginTop: 32 }]}>Sin resultados</Text>
           ) : null
         }
+      />
+      <PaywallModal
+        visible={paywallOpen}
+        onClose={() => setPaywallOpen(false)}
+        reason="Activa Premium para ver los picks personalizados de la semana."
       />
     </SafeAreaView>
   );

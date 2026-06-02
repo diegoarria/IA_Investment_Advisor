@@ -708,3 +708,378 @@ NO alarmes innecesariamente. Contextualiza con perspectiva histórica."""
         messages=[{"role": "user", "content": prompt}]
     )
     return response.content[0].text
+
+
+# ──────────────────────────────────────────────────────────────
+# FEATURE: Análisis automático de earnings
+# ──────────────────────────────────────────────────────────────
+
+async def analyze_earnings(
+    symbol: str,
+    earnings_data: dict,
+    position: dict | None = None,
+    profile: UserProfile | None = None,
+) -> str:
+    system_prompt = build_system_prompt(profile)
+    position_ctx = ""
+    if position:
+        shares = position.get("shares", 0)
+        avg_cost = position.get("avg_cost", 0)
+        current_price = earnings_data.get("current_price", 0)
+        impact = round((current_price - avg_cost) * shares, 2) if current_price and avg_cost and shares else None
+        if impact is not None:
+            sign = "+" if impact >= 0 else ""
+            position_ctx = f"\n\nEl usuario tiene {shares} acciones con costo promedio ${avg_cost}. Impacto estimado en after-hours: {sign}${impact:.2f}."
+
+    eps_actual   = earnings_data.get("eps_actual")
+    eps_estimate = earnings_data.get("eps_estimate")
+    rev_actual   = earnings_data.get("revenue_actual")
+    rev_estimate = earnings_data.get("revenue_estimate")
+    guidance     = earnings_data.get("guidance", "No disponible")
+    highlights   = earnings_data.get("highlights", "")
+
+    beat_miss_eps = ""
+    if eps_actual is not None and eps_estimate is not None:
+        diff = eps_actual - eps_estimate
+        beat_miss_eps = f"✅ BEAT +${diff:.2f}" if diff >= 0 else f"❌ MISS ${diff:.2f}"
+
+    beat_miss_rev = ""
+    if rev_actual is not None and rev_estimate is not None:
+        diff_pct = ((rev_actual - rev_estimate) / rev_estimate * 100) if rev_estimate else 0
+        beat_miss_rev = f"✅ BEAT +{diff_pct:.1f}%" if diff_pct >= 0 else f"❌ MISS {diff_pct:.1f}%"
+
+    prompt = f"""Analiza los resultados de earnings de {symbol}:
+
+EPS: ${eps_actual} real vs ${eps_estimate} estimado {beat_miss_eps}
+Revenue: ${rev_actual}B real vs ${rev_estimate}B estimado {beat_miss_rev}
+Guidance: {guidance}
+Highlights: {highlights}{position_ctx}
+
+Responde en este formato exacto con bullets y emojis:
+
+**📊 Veredicto rápido**
+Una línea con el resultado general (beat/miss/en línea) y su calidad.
+
+**🔍 Lo que importa**
+3 bullets sobre los números que realmente mueven la tesis de inversión (no solo EPS/revenue).
+
+**📈 Impacto en tu portafolio**
+1-2 líneas sobre qué significa este resultado para quien tiene acciones de {symbol}.
+
+**🧠 Lo que diría tu mentor**
+1 párrafo corto con la perspectiva del asesor según el perfil del usuario.
+
+**⚡ Acción sugerida**
+Una línea directa: mantener / considerar agregar / monitorear — con la razón en 10 palabras.
+
+Sin introducciones. Sin conclusiones genéricas. Directo al punto."""
+
+    response = await _claude(
+        model=settings.claude_model,
+        max_tokens=700,
+        system=[{"type": "text", "text": system_prompt, "cache_control": {"type": "ephemeral"}}],
+        messages=[{"role": "user", "content": prompt}],
+    )
+    return response.content[0].text
+
+
+# ──────────────────────────────────────────────────────────────
+# FEATURE: Screener semanal personalizado
+# ──────────────────────────────────────────────────────────────
+
+async def generate_weekly_picks(
+    candidates: list[dict],
+    profile: UserProfile | None = None,
+    existing_tickers: list[str] | None = None,
+) -> dict:
+    system_prompt = build_system_prompt(profile)
+    risk = profile.risk_tolerance if profile else "moderado"
+    mentor = profile.mentor if profile else None
+    existing = existing_tickers or []
+
+    mentor_line = f"Mentor seleccionado: {mentor}." if mentor else ""
+    existing_line = f"Ya tiene en portafolio: {', '.join(existing)}. NO sugerir estas." if existing else ""
+
+    data_str = json.dumps(candidates[:30], ensure_ascii=False)
+
+    prompt = f"""Eres el asesor semanal personalizado. Hoy es lunes. Analiza estas acciones y selecciona exactamente 5 oportunidades de la semana.
+
+Perfil del usuario: riesgo {risk}. {mentor_line} {existing_line}
+
+Candidatos (JSON):
+{data_str}
+
+Reglas de selección:
+- Máximo 2 del mismo sector
+- Deben alinearse con el perfil de riesgo
+- Priorizar acciones con momentum positivo + fundamentos sólidos
+- Si el mentor es Buffett: priorizar calidad y valor. Si es Dalio: priorizar diversificación. Si es Ackman: concentración en alta convicción.
+
+Responde SOLO con JSON válido en este formato exacto:
+{{
+  "week_theme": "Tema de la semana en una frase (ej: 'Defensivas ante incertidumbre macro')",
+  "picks": [
+    {{
+      "ticker": "AAPL",
+      "name": "Apple",
+      "sector": "Tech",
+      "price": 185.50,
+      "change_pct": 1.2,
+      "score": 78,
+      "why": "Razón específica de 1-2 oraciones por qué encaja esta semana con el perfil del usuario",
+      "catalyst": "Catalizador concreto esta semana o próximas semanas",
+      "risk": "Principal riesgo en 10 palabras"
+    }}
+  ],
+  "mentor_note": "Nota del mentor de 2-3 oraciones sobre el enfoque de esta semana"
+}}
+
+Sin texto fuera del JSON."""
+
+    response = await _claude(
+        model=settings.claude_model,
+        max_tokens=1200,
+        system=[{"type": "text", "text": system_prompt, "cache_control": {"type": "ephemeral"}}],
+        messages=[{"role": "user", "content": prompt}],
+    )
+    raw = response.content[0].text.strip()
+    try:
+        return json.loads(raw)
+    except Exception:
+        import re
+        m = re.search(r"\{.*\}", raw, re.DOTALL)
+        if m:
+            return json.loads(m.group())
+        return {"week_theme": "Picks de la semana", "picks": candidates[:5], "mentor_note": raw}
+
+
+# ──────────────────────────────────────────────────────────────
+# FEATURE: Simulador ¿qué pasa si?
+# ──────────────────────────────────────────────────────────────
+
+async def simulate_whatif(
+    scenario_type: str,
+    scenario_params: dict,
+    portfolio: list[dict],
+    profile: UserProfile | None = None,
+) -> dict:
+    system_prompt = build_system_prompt(profile)
+    portfolio_str = json.dumps(portfolio, ensure_ascii=False)
+
+    if scenario_type == "swap":
+        sell_ticker = scenario_params.get("sell_ticker", "")
+        buy_ticker  = scenario_params.get("buy_ticker", "")
+        prompt_detail = f"El usuario quiere VENDER todas sus acciones de {sell_ticker} y comprar {buy_ticker} con ese dinero."
+    elif scenario_type == "add_monthly":
+        amount   = scenario_params.get("amount", 0)
+        years    = scenario_params.get("years", 5)
+        prompt_detail = f"El usuario quiere invertir ${amount}/mes adicionales durante {years} años manteniendo su portafolio actual."
+    elif scenario_type == "macro":
+        event = scenario_params.get("event", "")
+        prompt_detail = f"Evento macroeconómico hipotético: {event}. Analiza el impacto en el portafolio actual."
+    elif scenario_type == "custom":
+        prompt_detail = scenario_params.get("description", "Escenario personalizado del usuario.")
+    else:
+        prompt_detail = str(scenario_params)
+
+    prompt = f"""El usuario tiene este portafolio actual:
+{portfolio_str}
+
+Escenario ¿qué pasa si?: {prompt_detail}
+
+Responde SOLO con JSON válido en este formato:
+{{
+  "scenario_title": "Título descriptivo del escenario",
+  "scenario_type": "{scenario_type}",
+  "summary": "Resumen ejecutivo en 2-3 oraciones del impacto principal",
+  "before": {{
+    "total_value": 0,
+    "risk_level": "Moderado",
+    "top_sector": "Tech",
+    "diversification_score": 6
+  }},
+  "after": {{
+    "total_value_estimate": 0,
+    "risk_level": "Alto",
+    "top_sector": "Tech",
+    "diversification_score": 7,
+    "projected_1y": "+X%",
+    "projected_5y": "+X%"
+  }},
+  "impacts": [
+    {{"aspect": "Riesgo", "direction": "aumenta|disminuye|neutro", "detail": "Explicación breve"}},
+    {{"aspect": "Diversificación", "direction": "aumenta|disminuye|neutro", "detail": "Explicación breve"}},
+    {{"aspect": "Rendimiento esperado", "direction": "aumenta|disminuye|neutro", "detail": "Explicación breve"}},
+    {{"aspect": "Exposición sectorial", "direction": "aumenta|disminuye|neutro", "detail": "Explicación breve"}}
+  ],
+  "pros": ["Pro 1", "Pro 2", "Pro 3"],
+  "cons": ["Contra 1", "Contra 2", "Contra 3"],
+  "mentor_verdict": "Veredicto del mentor en 2-3 oraciones: ¿lo haría o no? ¿Por qué?",
+  "recommendation": "mantener_actual|proceder|proceder_con_cautela|no_recomendado"
+}}
+
+Usa los valores reales del portafolio para calcular estimaciones. Sin texto fuera del JSON."""
+
+    response = await _claude(
+        model=settings.claude_model,
+        max_tokens=1000,
+        system=[{"type": "text", "text": system_prompt, "cache_control": {"type": "ephemeral"}}],
+        messages=[{"role": "user", "content": prompt}],
+    )
+    raw = response.content[0].text.strip()
+    try:
+        return json.loads(raw)
+    except Exception:
+        import re
+        m = re.search(r"\{.*\}", raw, re.DOTALL)
+        if m:
+            return json.loads(m.group())
+        return {"summary": raw, "scenario_type": scenario_type}
+
+
+# ──────────────────────────────────────────────────────────────
+# FEATURE: Reporte mensual de portafolio
+# ──────────────────────────────────────────────────────────────
+
+async def generate_monthly_report(
+    portfolio: list[dict],
+    performance: dict,
+    profile: UserProfile | None = None,
+) -> dict:
+    system_prompt = build_system_prompt(profile)
+    portfolio_str = json.dumps(portfolio, ensure_ascii=False)
+    perf_str      = json.dumps(performance, ensure_ascii=False)
+
+    mentor = profile.mentor if profile else "tu asesor"
+    risk   = profile.risk_tolerance if profile else "moderado"
+
+    prompt = f"""Genera el reporte mensual de portafolio para este usuario.
+
+Perfil: riesgo {risk}, mentor: {mentor}
+Portafolio actual: {portfolio_str}
+Performance del mes: {perf_str}
+
+Responde SOLO con JSON válido:
+{{
+  "month": "Junio 2026",
+  "executive_summary": "2-3 oraciones del mes en términos simples",
+  "performance": {{
+    "total_return_pct": 0.0,
+    "vs_sp500": "+X% / -X% vs S&P 500",
+    "best_performer": {{"ticker": "X", "gain_pct": 0.0}},
+    "worst_performer": {{"ticker": "X", "loss_pct": 0.0}}
+  }},
+  "metrics": {{
+    "sharpe_ratio": 0.0,
+    "volatility_pct": 0.0,
+    "max_drawdown_pct": 0.0,
+    "total_value": 0.0,
+    "cash_invested": 0.0,
+    "unrealized_gain": 0.0
+  }},
+  "sector_breakdown": [
+    {{"sector": "Tech", "pct": 0, "color": "#3b82f6"}}
+  ],
+  "top_positions": [
+    {{"ticker": "X", "name": "X", "shares": 0, "value": 0, "gain_pct": 0, "weight_pct": 0}}
+  ],
+  "risk_assessment": "Evaluación del riesgo actual del portafolio en 2 oraciones",
+  "mentor_note": "Nota personal del mentor de 3-4 oraciones: qué hizo bien el usuario, qué cambiaría, qué oportunidades ve para el próximo mes",
+  "action_items": [
+    "Acción concreta sugerida 1",
+    "Acción concreta sugerida 2",
+    "Acción concreta sugerida 3"
+  ],
+  "learning_insight": "Un insight conductual: qué reveló el comportamiento del usuario este mes sobre su perfil real como inversor"
+}}
+
+Calcula los valores usando los datos del portafolio. Sin texto fuera del JSON."""
+
+    response = await _claude(
+        model=settings.claude_model,
+        max_tokens=1200,
+        system=[{"type": "text", "text": system_prompt, "cache_control": {"type": "ephemeral"}}],
+        messages=[{"role": "user", "content": prompt}],
+    )
+    raw = response.content[0].text.strip()
+    try:
+        return json.loads(raw)
+    except Exception:
+        import re
+        m = re.search(r"\{.*\}", raw, re.DOTALL)
+        if m:
+            return json.loads(m.group())
+        return {"executive_summary": raw}
+
+
+# ──────────────────────────────────────────────────────────────
+# FEATURE: Diario de decisiones + análisis de sesgos
+# ──────────────────────────────────────────────────────────────
+
+async def analyze_decision_biases(
+    decisions: list[dict],
+    profile: UserProfile | None = None,
+) -> dict:
+    system_prompt = build_system_prompt(profile)
+    decisions_str = json.dumps(decisions[-50:], ensure_ascii=False)  # last 50
+
+    prompt = f"""Analiza el historial de decisiones de inversión de este usuario y detecta sus sesgos conductuales.
+
+Decisiones registradas (JSON):
+{decisions_str}
+
+Detecta patrones reales. Solo reporta sesgos que tengan evidencia en los datos (mínimo 2-3 ocurrencias).
+
+Responde SOLO con JSON válido:
+{{
+  "total_decisions": 0,
+  "analysis_period": "Últimos X días",
+  "overall_score": 0,
+  "overall_label": "Inversor Racional / Inversor Emocional / Inversor en Desarrollo",
+  "biases_detected": [
+    {{
+      "name": "Nombre del sesgo (ej: Aversión a la pérdida)",
+      "severity": "alto|medio|bajo",
+      "occurrences": 0,
+      "description": "Qué hace exactamente el usuario que revela este sesgo",
+      "cost_estimate": "Estimación del costo en $ o % de rendimiento perdido",
+      "example": "Ejemplo concreto de una decisión que lo ilustra",
+      "fix": "Qué hacer diferente la próxima vez (1-2 oraciones prácticas)"
+    }}
+  ],
+  "strengths": [
+    {{
+      "name": "Fortaleza detectada",
+      "description": "Evidencia de esta fortaleza en las decisiones"
+    }}
+  ],
+  "patterns": {{
+    "avg_hold_days": 0,
+    "panic_sell_count": 0,
+    "fomo_buy_count": 0,
+    "ignored_alerts_count": 0,
+    "acted_on_alerts_count": 0,
+    "best_decision": "Descripción de la mejor decisión del período",
+    "worst_decision": "Descripción de la peor decisión del período"
+  }},
+  "mentor_assessment": "Evaluación del mentor en 3-4 oraciones: cómo ve el perfil real vs declarado del usuario, y el consejo más importante para mejorar",
+  "next_challenge": "Un reto específico para la próxima semana que ayude a corregir el sesgo más fuerte"
+}}
+
+Sin texto fuera del JSON."""
+
+    response = await _claude(
+        model=settings.claude_model,
+        max_tokens=1500,
+        system=[{"type": "text", "text": system_prompt, "cache_control": {"type": "ephemeral"}}],
+        messages=[{"role": "user", "content": prompt}],
+    )
+    raw = response.content[0].text.strip()
+    try:
+        return json.loads(raw)
+    except Exception:
+        import re
+        m = re.search(r"\{.*\}", raw, re.DOTALL)
+        if m:
+            return json.loads(m.group())
+        return {"mentor_assessment": raw, "biases_detected": []}

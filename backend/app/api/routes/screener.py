@@ -143,6 +143,37 @@ async def screen(request: dict, user_id: str = Depends(get_current_user_id)):
     return {"results": stocks[:15], "ai_insight": ai_insight}
 
 
+@router.get("/weekly")
+async def weekly_picks(
+    tickers: str = "",
+    user_id: str = Depends(get_current_user_id),
+):
+    """Return 5 personalized weekly picks based on user profile and existing portfolio."""
+    from datetime import datetime as _dt
+    existing = [t.strip().upper() for t in tickers.split(",") if t.strip()]
+
+    # Cache per user per week (Mon–Sun)
+    week_num  = _dt.now().isocalendar()[1]
+    year      = _dt.now().year
+    cache_key = f"screener:weekly:{user_id}:{year}:{week_num}"
+    cached    = cache_get(cache_key)
+    if cached:
+        return cached
+
+    # Fetch all universe stocks (cached 4h by _fetch_one)
+    stocks = await asyncio.to_thread(_fetch_batch, UNIVERSE)
+    stocks.sort(key=lambda x: x.get("score", 0), reverse=True)
+    # Filter out stocks already in portfolio
+    candidates = [s for s in stocks if s["ticker"] not in existing]
+
+    profile = _get_user_profile(user_id)
+    result  = await ai_service.generate_weekly_picks(candidates, profile, existing)
+    result["generated_at"] = _dt.now().isoformat()
+
+    cache_set(cache_key, result, ttl=_TTL)  # 4h, refreshes once a day at most
+    return result
+
+
 @router.post("/alert-context")
 async def alert_context(request: dict, user_id: str = Depends(get_current_user_id)):
     """Return AI context for a price alert (called when user taps an alert)."""
