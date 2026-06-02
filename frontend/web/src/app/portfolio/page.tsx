@@ -12,6 +12,7 @@ import { usePortfolioStore, type Position } from "@/lib/portfolioStore";
 import EarningsPanel from "@/components/EarningsPanel";
 import WhatIfSimulator from "@/components/WhatIfSimulator";
 import MonthlyReport from "@/components/MonthlyReport";
+import WeeklyScreenerCard from "@/components/WeeklyScreenerCard";
 import PaywallModal from "@/components/PaywallModal";
 import {
   PieChart, Menu, X, Upload, Plus, Trash2, Trophy,
@@ -203,7 +204,7 @@ export default function PortfolioPage() {
   const [paywallOpen, setPaywallOpen] = useState(false);
   const { positions, addPosition, removePosition, setPositions } = usePortfolioStore();
   const [sidebarOpen, setSidebarOpen]   = useState(false);
-  const [activeTab, setActiveTab]       = useState<"portfolio" | "liga">("portfolio");
+  const [activeTab, setActiveTab]       = useState<"portfolio" | "herramientas" | "liga">("portfolio");
   const [leaguePeriod, setLeaguePeriod] = useState<"week" | "month" | "all">("week");
   const [leagueData, setLeagueData]     = useState<LeagueEntry[]>([]);
   const [leagueLoading, setLeagueLoading] = useState(false);
@@ -530,6 +531,11 @@ export default function PortfolioPage() {
                     className="flex-1 py-2 rounded-lg text-sm font-semibold transition-all"
                     style={{ background: activeTab === "portfolio" ? "var(--card)" : "transparent", color: activeTab === "portfolio" ? "var(--text)" : "var(--muted)" }}>
               Mi Portafolio
+            </button>
+            <button onClick={() => setActiveTab("herramientas")}
+                    className="flex-1 py-2 rounded-lg text-sm font-semibold transition-all flex items-center justify-center gap-1.5"
+                    style={{ background: activeTab === "herramientas" ? "var(--card)" : "transparent", color: activeTab === "herramientas" ? "var(--accent-l)" : "var(--muted)" }}>
+              ⭐ Herramientas
             </button>
             <button onClick={() => setActiveTab("liga")}
                     className="flex-1 py-2 rounded-lg text-sm font-semibold transition-all flex items-center justify-center gap-1.5"
@@ -1018,28 +1024,26 @@ export default function PortfolioPage() {
             )}
           </section>
 
-          {/* ══ PREMIUM FEATURES SECTION ══ */}
-          {positions.length > 0 && (
-            <div className="space-y-4 pt-2">
-              <div className="flex items-center gap-2">
-                <div className="h-px flex-1" style={{ background: "var(--border)" }} />
-                <span className="text-[10px] font-bold px-2" style={{ color: "var(--muted)" }}>HERRAMIENTAS PREMIUM</span>
-                <div className="h-px flex-1" style={{ background: "var(--border)" }} />
-              </div>
+          <div className="h-8" />
+          </div>} {/* end activeTab === "portfolio" */}
 
-              {/* Monthly Report trigger */}
-              <div className="flex items-center gap-2">
-                <MonthlyReport
-                  positions={positions.map((p) => ({
-                    ticker: p.ticker, name: p.name, shares: p.shares,
-                    avg_cost: p.avgPrice,
-                    current_price: prices[p.ticker]?.price ?? 0,
-                    value: (p.shares || 0) * (prices[p.ticker]?.price ?? p.avgPrice),
-                  }))}
-                  isPremium={isPremium}
-                  onUpgrade={() => setPaywallOpen(true)}
-                />
-              </div>
+          {/* ══ HERRAMIENTAS TAB ══ */}
+          {activeTab === "herramientas" && (
+            <div className="space-y-4 pb-8">
+              <p className="text-xs" style={{ color: "var(--muted)" }}>
+                Herramientas de análisis avanzado para tu portafolio
+              </p>
+
+              <MonthlyReport
+                positions={positions.map((p) => ({
+                  ticker: p.ticker, name: p.name, shares: p.shares,
+                  avg_cost: p.avgPrice,
+                  current_price: prices[p.ticker]?.price ?? 0,
+                  value: (p.shares || 0) * (prices[p.ticker]?.price ?? p.avgPrice),
+                }))}
+                isPremium={isPremium}
+                onUpgrade={() => setPaywallOpen(true)}
+              />
 
               <EarningsPanel
                 positions={positions.map((p) => ({
@@ -1061,11 +1065,10 @@ export default function PortfolioPage() {
                 isPremium={isPremium}
                 onUpgrade={() => setPaywallOpen(true)}
               />
+
+              <WeeklyScreenerCard isPremium={isPremium} onUpgrade={() => setPaywallOpen(true)} tickers={positions.map(p => p.ticker)} />
             </div>
           )}
-
-          <div className="h-8" />
-          </div>} {/* end activeTab === "portfolio" */}
 
           {/* ══════════════════ LIGA TAB ══════════════════ */}
           {activeTab === "liga" && (

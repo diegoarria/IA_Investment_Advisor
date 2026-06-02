@@ -15,6 +15,7 @@ import { usePortfolioStore, Position } from "../../src/lib/portfolioStore";
 import MobileEarningsPanel from "../../src/components/MobileEarningsPanel";
 import MobileWhatIf from "../../src/components/MobileWhatIf";
 import MobileMonthlyReport from "../../src/components/MobileMonthlyReport";
+import MobileWeeklyScreener from "../../src/components/MobileWeeklyScreener";
 import { useAppStore, getAge, UserProfile, RISK_CONFIG } from "../../src/lib/profileStore";
 import { useSubscriptionStore, hasPremiumAccess } from "../../src/lib/subscriptionStore";
 import PaywallModal from "../../src/components/PaywallModal";
@@ -250,6 +251,7 @@ export default function PortfolioScreen() {
   const subStore = useSubscriptionStore();
   const isPremiumAccess = hasPremiumAccess(subStore);
   const [paywallOpen, setPaywallOpen] = useState(false);
+  const [activeSection, setActiveSection] = useState<"portafolio" | "herramientas">("portafolio");
   const age = profile?.birth_date ? getAge(profile.birth_date) : 0;
   const [prices, setPrices] = useState<Record<string, PriceData>>({});
   const [loadingPrices, setLoadingPrices] = useState(false);
@@ -618,6 +620,69 @@ export default function PortfolioScreen() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#22c55e" />}
       >
 
+        {/* ── TAB SWITCHER ── */}
+        <View style={[s.subTabBar, { backgroundColor: colors.bgRaised }]}>
+          <TouchableOpacity
+            style={[s.subTab, activeSection === "portafolio" && { backgroundColor: colors.card }]}
+            onPress={() => setActiveSection("portafolio")}
+          >
+            <Text style={[s.subTabText, { color: activeSection === "portafolio" ? colors.text : colors.textMuted }]}>
+              Mi Portafolio
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[s.subTab, activeSection === "herramientas" && { backgroundColor: colors.card }]}
+            onPress={() => setActiveSection("herramientas")}
+          >
+            <Text style={[s.subTabText, { color: activeSection === "herramientas" ? colors.accent : colors.textMuted }]}>
+              ⭐ Herramientas
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        {activeSection === "herramientas" && (
+          <View style={{ gap: 10, paddingBottom: 32 }}>
+            <Text style={{ fontSize: 11, color: colors.textMuted, marginBottom: 4 }}>
+              Herramientas de análisis avanzado para tu portafolio
+            </Text>
+            <MobileMonthlyReport
+              positions={positions.map((p) => ({
+                ticker: p.ticker, name: p.name,
+                shares: p.shares, avg_cost: p.avgPrice,
+                current_price: prices[p.ticker]?.price ?? 0,
+                value: (p.shares || 0) * (prices[p.ticker]?.price ?? p.avgPrice),
+              }))}
+              isPremium={isPremiumAccess}
+              onUpgrade={() => setPaywallOpen(true)}
+            />
+            <MobileWhatIf
+              positions={positions.map((p) => ({
+                ticker: p.ticker, name: p.name,
+                shares: p.shares, avg_cost: p.avgPrice,
+                current_price: prices[p.ticker]?.price ?? 0,
+                value: (p.shares || 0) * (prices[p.ticker]?.price ?? p.avgPrice),
+              }))}
+              isPremium={isPremiumAccess}
+              onUpgrade={() => setPaywallOpen(true)}
+            />
+            <MobileEarningsPanel
+              positions={positions.map((p) => ({
+                ticker: p.ticker,
+                shares: p.shares, avg_cost: p.avgPrice,
+              }))}
+              isPremium={isPremiumAccess}
+              onUpgrade={() => setPaywallOpen(true)}
+            />
+            <MobileWeeklyScreener
+              isPremium={isPremiumAccess}
+              onUpgrade={() => setPaywallOpen(true)}
+              existingTickers={positions.map(p => p.ticker)}
+            />
+          </View>
+        )}
+
+        {activeSection === "portafolio" && (
+        <View>
         {/* ── MI PORTAFOLIO ── */}
         <View style={s.sectionHeader}>
           <View>
@@ -1398,46 +1463,7 @@ export default function PortfolioScreen() {
           </View>
         )}
 
-        {/* ══ PREMIUM FEATURES ══ */}
-        {positions.length > 0 && (
-          <View style={{ paddingHorizontal: 16, paddingBottom: 16, gap: 4 }}>
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 12, marginTop: 8 }}>
-              <View style={{ flex: 1, height: 1, backgroundColor: colors.border }} />
-              <Text style={{ fontSize: 10, fontWeight: "700", color: colors.muted }}>HERRAMIENTAS PREMIUM</Text>
-              <View style={{ flex: 1, height: 1, backgroundColor: colors.border }} />
-            </View>
-
-            <MobileMonthlyReport
-              positions={positions.map((p) => ({
-                ticker: p.ticker, name: p.name,
-                shares: p.shares, avg_cost: p.avgPrice,
-                current_price: prices[p.ticker]?.price ?? 0,
-                value: (p.shares || 0) * (prices[p.ticker]?.price ?? p.avgPrice),
-              }))}
-              isPremium={isPremiumAccess}
-              onUpgrade={() => setPaywallOpen(true)}
-            />
-
-            <MobileWhatIf
-              positions={positions.map((p) => ({
-                ticker: p.ticker, name: p.name,
-                shares: p.shares, avg_cost: p.avgPrice,
-                current_price: prices[p.ticker]?.price ?? 0,
-                value: (p.shares || 0) * (prices[p.ticker]?.price ?? p.avgPrice),
-              }))}
-              isPremium={isPremiumAccess}
-              onUpgrade={() => setPaywallOpen(true)}
-            />
-
-            <MobileEarningsPanel
-              positions={positions.map((p) => ({
-                ticker: p.ticker,
-                shares: p.shares, avg_cost: p.avgPrice,
-              }))}
-              isPremium={isPremiumAccess}
-              onUpgrade={() => setPaywallOpen(true)}
-            />
-          </View>
+        </View>
         )}
       </ScrollView>
 
