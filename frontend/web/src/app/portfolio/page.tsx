@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import Image from "next/image";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { market as marketApi, paperApi } from "@/lib/api";
+import { market as marketApi } from "@/lib/api";
 import { useAuthStore, useSubscriptionStore } from "@/lib/store";
 import { usePortfolioStore, type Position } from "@/lib/portfolioStore";
 import EarningsPanel from "@/components/EarningsPanel";
@@ -17,78 +17,9 @@ import DiarioDecisionesCard from "@/components/DiarioDecisionesCard";
 import PremiumToolLockedWeb from "@/components/PremiumToolLocked";
 import PaywallModal from "@/components/PaywallModal";
 import {
-  PieChart, Menu, X, Upload, Plus, Trash2, Trophy,
-  BarChart, Calculator, Shield, Sparkles, RefreshCw, AlertTriangle, Lightbulb, FileText, Pencil, Eye,
+  PieChart, Menu, X, Upload, Plus, Trash2,
+  BarChart, Calculator, Shield, Sparkles, RefreshCw, AlertTriangle, FileText, Pencil, Eye,
 } from "lucide-react";
-
-// ─── Liga data ─────────────────────────────────────────────────────────────
-
-interface LeagueEntry {
-  rank: number; alias: string; returnPct: number;
-  topHolding: string; rankChange: number; isMe?: boolean;
-}
-
-const MOCK_LEAGUE_OTHERS = [
-  { alias: "InversorPro",    returnPct: 18.4, topHolding: "NVDA",  rankChange:  0 },
-  { alias: "TauroMX",        returnPct: 14.2, topHolding: "AAPL",  rankChange:  2 },
-  { alias: "BullMkt99",      returnPct: 11.8, topHolding: "MSFT",  rankChange: -1 },
-  { alias: "WallStLearner",  returnPct:  9.3, topHolding: "TSLA",  rankChange:  1 },
-  { alias: "PipoCapital",    returnPct:  7.1, topHolding: "AMZN",  rankChange:  3 },
-  { alias: "Sigma_Returns",  returnPct:  5.8, topHolding: "GOOGL", rankChange:  0 },
-  { alias: "CrackMercado",   returnPct:  4.6, topHolding: "META",  rankChange: -2 },
-  { alias: "PatternBreaker", returnPct:  2.1, topHolding: "BRK-B", rankChange:  0 },
-  { alias: "ETFQueen",       returnPct:  1.4, topHolding: "SPY",   rankChange:  4 },
-  { alias: "LongTermLeo",    returnPct: -0.8, topHolding: "BABA",  rankChange: -3 },
-];
-
-const LEAGUE_LESSONS: Record<"week" | "month" | "all", string> = {
-  week:  "Los líderes concentraron en semiconductores (NVDA, AMD +8.2% esta semana). Apostar a un sector en tendencia clara pagó.",
-  month: "Los portfolios top mantuvieron Big Tech (MSFT, AAPL, META) sin rotar. Paciencia > timing de mercado.",
-  all:   "Los mejores inversores balancearon crecimiento y dividendos. La consistencia supera al timing.",
-};
-
-const LEAGUE_MEDALS: Record<number, string> = { 1: "🥇", 2: "🥈", 3: "🥉" };
-const LEAGUE_TOTAL = 847;
-
-function LeaderRow({ entry }: { entry: LeagueEntry }) {
-  const medal = LEAGUE_MEDALS[entry.rank];
-  const up = entry.returnPct >= 0;
-  return (
-    <div className="flex items-center px-4 py-3 border-t"
-         style={{ borderColor: "var(--border)", background: entry.isMe ? "rgba(0,168,94,0.07)" : entry.rank === 1 ? "rgba(251,191,36,0.03)" : "transparent" }}>
-      <div className="w-8 shrink-0 text-center">
-        {medal
-          ? <span className="text-base leading-none">{medal}</span>
-          : <span className="text-xs font-bold" style={{ color: "var(--dim)" }}>#{entry.rank}</span>}
-      </div>
-      <div className="w-7 h-7 rounded-full flex items-center justify-center mx-2.5 text-[11px] font-black shrink-0"
-           style={{ background: entry.isMe ? "var(--accent)" : entry.rank <= 3 ? "rgba(251,191,36,0.18)" : "var(--raised)", color: entry.isMe ? "white" : entry.rank <= 3 ? "#fbbf24" : "var(--muted)" }}>
-        {entry.alias[0].toUpperCase()}
-      </div>
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-1.5">
-          <span className="text-sm font-semibold truncate" style={{ color: entry.isMe ? "var(--accent-l)" : "var(--text)" }}>
-            {entry.isMe ? "Tú" : entry.alias}
-          </span>
-          {entry.isMe && (
-            <span className="text-[10px] px-1.5 py-0.5 rounded-full font-bold shrink-0"
-                  style={{ background: "rgba(0,168,94,0.15)", color: "var(--accent-l)" }}>★</span>
-          )}
-        </div>
-        <div className="text-[11px]" style={{ color: "var(--dim)" }}>Top: {entry.topHolding}</div>
-      </div>
-      <div className="text-right shrink-0">
-        <div className="text-sm font-bold" style={{ color: up ? "var(--up)" : "var(--down)" }}>
-          {up ? "+" : ""}{entry.returnPct.toFixed(1)}%
-        </div>
-        <div className="text-[11px] font-semibold"
-             style={{ color: entry.rankChange > 0 ? "var(--up)" : entry.rankChange < 0 ? "var(--down)" : "var(--dim)" }}>
-          {entry.rankChange > 0 ? `↑${entry.rankChange}` : entry.rankChange < 0 ? `↓${Math.abs(entry.rankChange)}` : "—"}
-        </div>
-      </div>
-    </div>
-  );
-}
 
 // ─── Stress Test data ──────────────────────────────────────────────────────
 
@@ -206,10 +137,7 @@ export default function PortfolioPage() {
   const [paywallOpen, setPaywallOpen] = useState(false);
   const { positions, addPosition, removePosition, updatePosition, setPositions } = usePortfolioStore();
   const [sidebarOpen, setSidebarOpen]   = useState(false);
-  const [activeTab, setActiveTab]       = useState<"portfolio" | "herramientas" | "liga">("portfolio");
-  const [leaguePeriod, setLeaguePeriod] = useState<"week" | "month" | "all">("week");
-  const [leagueData, setLeagueData]     = useState<LeagueEntry[]>([]);
-  const [leagueLoading, setLeagueLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState<"portfolio" | "herramientas">("portfolio");
 
   const [prices, setPrices] = useState<Record<string, PriceData>>({});
   const [loadingPrices, setLoadingPrices] = useState(false);
@@ -259,43 +187,6 @@ export default function PortfolioPage() {
   const [calcResult, setCalcResult]   = useState<CalcResult|null>(null);
 
   useEffect(() => { if (!isAuthenticated) router.push("/"); }, [isAuthenticated]);
-
-  const loadLeaderboard = useCallback(async () => {
-    setLeagueLoading(true);
-    try {
-      const res = await paperApi.getLeaderboard();
-      setLeagueData(res.data as LeagueEntry[]);
-    } catch {}
-    setLeagueLoading(false);
-  }, []);
-
-  useEffect(() => {
-    if (activeTab === "liga" && leagueData.length === 0) loadLeaderboard();
-  }, [activeTab]);
-
-  // Compute local rank from real portfolio while API loads
-  const localReturnPct = useMemo(() => {
-    let invested = 0, current = 0;
-    for (const p of positions) {
-      invested += p.shares * p.avgPrice;
-      const cp = prices[p.ticker]?.price;
-      current += cp ? p.shares * cp : p.shares * p.avgPrice;
-    }
-    if (invested <= 0) return 0;
-    return parseFloat(((current - invested) / invested * 100).toFixed(1));
-  }, [positions, prices]);
-
-  const allLeagueEntries = useMemo<LeagueEntry[]>(() => {
-    if (leagueData.length > 0) return leagueData;
-    const me = { alias: "Tú", returnPct: localReturnPct, topHolding: positions[0]?.ticker ?? "—", rankChange: 0, isMe: true, rank: 0 };
-    return [...MOCK_LEAGUE_OTHERS.map(e => ({ ...e, isMe: false })), me]
-      .sort((a, b) => b.returnPct - a.returnPct)
-      .map((e, i) => ({ ...e, rank: i + 1 }));
-  }, [leagueData, localReturnPct, positions]);
-
-  const myEntry      = allLeagueEntries.find(e => e.isMe)!;
-  const top5         = allLeagueEntries.slice(0, 5);
-  const showEllipsis = myEntry?.rank > 5;
 
   const fetchPrices = useCallback(async () => {
     if (!positions.length) return;
@@ -590,11 +481,6 @@ export default function PortfolioPage() {
                     className="flex-1 py-2 rounded-lg text-sm font-semibold transition-all flex items-center justify-center gap-1.5"
                     style={{ background: activeTab === "herramientas" ? "var(--card)" : "transparent", color: activeTab === "herramientas" ? "var(--accent-l)" : "var(--muted)" }}>
               ⭐ Herramientas
-            </button>
-            <button onClick={() => setActiveTab("liga")}
-                    className="flex-1 py-2 rounded-lg text-sm font-semibold transition-all flex items-center justify-center gap-1.5"
-                    style={{ background: activeTab === "liga" ? "var(--card)" : "transparent", color: activeTab === "liga" ? "var(--accent-l)" : "var(--muted)" }}>
-              <Trophy className="w-3.5 h-3.5" /> Liga
             </button>
           </div>
 
@@ -1212,101 +1098,6 @@ export default function PortfolioPage() {
             </div>
           )}
 
-          {/* ══════════════════ LIGA TAB ══════════════════ */}
-          {activeTab === "liga" && (
-            <div className="space-y-3">
-
-              {/* Header + refresh */}
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold" style={{ color: "var(--muted)" }}>
-                  {leagueData.length > 0 ? `${leagueData.length} inversores · retorno real` : "Cargando ranking…"}
-                </span>
-                <button onClick={loadLeaderboard} disabled={leagueLoading}
-                        className="p-1.5 rounded-lg transition-colors hover:bg-white/5"
-                        style={{ color: "var(--muted)" }}>
-                  <RefreshCw className={`w-3.5 h-3.5 ${leagueLoading ? "animate-spin" : ""}`} />
-                </button>
-              </div>
-
-              {/* Period selector */}
-              <div className="flex gap-1.5">
-                {([
-                  { id: "week",  label: "Esta semana" },
-                  { id: "month", label: "Este mes" },
-                  { id: "all",   label: "Todo tiempo" },
-                ] as const).map((p) => (
-                  <button key={p.id} onClick={() => setLeaguePeriod(p.id)}
-                          className="px-3 py-1.5 rounded-xl text-xs font-semibold transition-all border"
-                          style={{
-                            background:  leaguePeriod === p.id ? "rgba(0,168,94,0.12)" : "transparent",
-                            borderColor: leaguePeriod === p.id ? "rgba(0,168,94,0.4)"  : "var(--border)",
-                            color:       leaguePeriod === p.id ? "var(--accent-l)"      : "var(--muted)",
-                          }}>
-                    {p.label}
-                  </button>
-                ))}
-              </div>
-
-              {/* My rank card */}
-              <div className="rounded-xl border p-4"
-                   style={{
-                     background:  (myEntry?.returnPct ?? 0) >= 0 ? "rgba(0,168,94,0.07)"  : "rgba(255,71,87,0.07)",
-                     borderColor: (myEntry?.returnPct ?? 0) >= 0 ? "rgba(0,168,94,0.25)"  : "rgba(255,71,87,0.25)",
-                   }}>
-                <div className="text-[11px] font-semibold uppercase tracking-widest mb-3" style={{ color: "var(--muted)" }}>
-                  Tu posición
-                </div>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-baseline gap-2">
-                    <span className="text-4xl font-black" style={{ color: "var(--text)" }}>#{myEntry?.rank ?? "—"}</span>
-                    <span className="text-xs" style={{ color: "var(--muted)" }}>de {LEAGUE_TOTAL.toLocaleString()} inversores</span>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-2xl font-black"
-                         style={{ color: (myEntry?.returnPct ?? 0) >= 0 ? "var(--up)" : "var(--down)" }}>
-                      {(myEntry?.returnPct ?? 0) >= 0 ? "+" : ""}{(myEntry?.returnPct ?? 0).toFixed(1)}%
-                    </div>
-                    {(myEntry?.rankChange ?? 0) > 0 && (
-                      <div className="text-xs mt-0.5" style={{ color: "#f59e0b" }}>
-                        ↑ Subiste {myEntry.rankChange} posiciones
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* Lesson card */}
-              <div className="rounded-xl border p-3.5"
-                   style={{ background: "rgba(59,130,246,0.05)", borderColor: "rgba(59,130,246,0.2)" }}>
-                <div className="flex items-center gap-2 mb-1.5">
-                  <Lightbulb className="w-3.5 h-3.5 shrink-0" style={{ color: "#60a5fa" }} />
-                  <span className="text-xs font-bold" style={{ color: "#60a5fa" }}>Lección del mercado</span>
-                </div>
-                <p className="text-xs leading-relaxed" style={{ color: "var(--sub)" }}>
-                  {LEAGUE_LESSONS[leaguePeriod]}
-                </p>
-              </div>
-
-              {/* Leaderboard */}
-              <div className="rounded-xl border overflow-hidden" style={{ background: "var(--card)", borderColor: "var(--border)" }}>
-                <div className="px-4 py-3 border-b flex items-center justify-between" style={{ borderColor: "var(--border)" }}>
-                  <span className="text-sm font-semibold" style={{ color: "var(--text)" }}>Tabla de líderes</span>
-                  <span className="text-xs" style={{ color: "var(--dim)" }}>Retorno % · portafolio real</span>
-                </div>
-                {top5.map((entry) => <LeaderRow key={entry.rank} entry={entry} />)}
-                {showEllipsis && (
-                  <>
-                    <div className="px-4 py-2 text-center text-sm tracking-widest" style={{ color: "var(--dim)" }}>···</div>
-                    {myEntry && <LeaderRow entry={myEntry} />}
-                  </>
-                )}
-              </div>
-
-              <p className="text-[11px] text-center pb-2" style={{ color: "var(--dim)" }}>
-                Ranking en tiempo real · basado en retorno % de tu portafolio real
-              </p>
-            </div>
-          )}
 
         </main>
       </div>
