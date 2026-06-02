@@ -18,7 +18,7 @@ import PremiumToolLockedWeb from "@/components/PremiumToolLocked";
 import PaywallModal from "@/components/PaywallModal";
 import {
   PieChart, Menu, X, Upload, Plus, Trash2, Trophy,
-  BarChart, Calculator, Shield, Sparkles, RefreshCw, AlertTriangle, Lightbulb, FileText,
+  BarChart, Calculator, Shield, Sparkles, RefreshCw, AlertTriangle, Lightbulb, FileText, Pencil, Eye,
 } from "lucide-react";
 
 // ─── Liga data ─────────────────────────────────────────────────────────────
@@ -204,7 +204,7 @@ export default function PortfolioPage() {
   const sub = useSubscriptionStore();
   const isPremium = sub.tier === "premium";
   const [paywallOpen, setPaywallOpen] = useState(false);
-  const { positions, addPosition, removePosition, setPositions } = usePortfolioStore();
+  const { positions, addPosition, removePosition, updatePosition, setPositions } = usePortfolioStore();
   const [sidebarOpen, setSidebarOpen]   = useState(false);
   const [activeTab, setActiveTab]       = useState<"portfolio" | "herramientas" | "liga">("portfolio");
   const [leaguePeriod, setLeaguePeriod] = useState<"week" | "month" | "all">("week");
@@ -222,6 +222,10 @@ export default function PortfolioPage() {
   const [screenshotPreview, setScreenshotPreview] = useState<ExtractedPos[]|null>(null);
   const [mergeModalOpen, setMergeModalOpen] = useState(false);
   const [pendingMerge, setPendingMerge] = useState<ExtractedPos[]>([]);
+
+  // Edit position modal
+  const [editingPos, setEditingPos] = useState<{ id: string; shares: string; avgPrice: string } | null>(null);
+  const [revealedPrices, setRevealedPrices] = useState<Set<string>>(new Set());
 
   // Manual form
   const [showForm, setShowForm] = useState(false);
@@ -309,6 +313,29 @@ export default function PortfolioPage() {
     const interval = setInterval(() => fetchPrices(), 30_000);
     return () => clearInterval(interval);
   }, [fetchPrices]);
+
+  // Period returns
+  type PeriodReturn = { pct: number; amount: number };
+  const PERIODS = [
+    { key: "1d", label: "1D" }, { key: "5d", label: "5D" },
+    { key: "1mo", label: "1M" }, { key: "3mo", label: "3M" },
+    { key: "6mo", label: "6M" }, { key: "ytd", label: "YTD" },
+    { key: "1y", label: "1A" }, { key: "3y", label: "3A" },
+    { key: "5y", label: "5A" }, { key: "max", label: "MAX" },
+  ] as const;
+  type PeriodKey = typeof PERIODS[number]["key"];
+  const [selectedPeriod, setSelectedPeriod] = useState<PeriodKey>("1d");
+  const [periodReturns, setPeriodReturns] = useState<Record<string, PeriodReturn>>({});
+  const [loadingReturns, setLoadingReturns] = useState(false);
+
+  useEffect(() => {
+    if (positions.length === 0) return;
+    setLoadingReturns(true);
+    marketApi.getPortfolioReturns(positions.map((p) => ({ ticker: p.ticker, shares: p.shares })))
+      .then((res: { data: { returns?: Record<string, PeriodReturn> } }) => setPeriodReturns(res.data.returns ?? {}))
+      .catch(() => {})
+      .finally(() => setLoadingReturns(false));
+  }, [positions]);
 
   const totals = useMemo(() => {
     let invested=0, current=0;
@@ -700,6 +727,52 @@ export default function PortfolioPage() {
             </div>
           ) : positions.length > 0 ? (
             <section>
+              {/* Period return tabs */}
+              <div className="mb-3">
+                <div className="flex gap-1 flex-wrap mb-2">
+                  {PERIODS.map(({ key, label }) => {
+                    const ret = periodReturns[key];
+                    const isSelected = selectedPeriod === key;
+                    const isUp = ret ? ret.pct >= 0 : true;
+                    return (
+                      <button
+                        key={key}
+                        onClick={() => setSelectedPeriod(key)}
+                        className="px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all"
+                        style={{
+                          background: isSelected ? (isUp ? "rgba(34,197,94,0.15)" : "rgba(239,68,68,0.15)") : "var(--raised)",
+                          color: isSelected ? (isUp ? "#22c55e" : "#ef4444") : "var(--muted)",
+                          border: `1px solid ${isSelected ? (isUp ? "rgba(34,197,94,0.4)" : "rgba(239,68,68,0.4)") : "transparent"}`,
+                        }}>
+                        {label}
+                      </button>
+                    );
+                  })}
+                </div>
+                {loadingReturns ? (
+                  <div className="flex items-center gap-1.5 text-xs" style={{ color:"var(--muted)" }}>
+                    <RefreshCw className="w-3 h-3 animate-spin" /> Calculando rendimientos...
+                  </div>
+                ) : periodReturns[selectedPeriod] ? (() => {
+                  const r = periodReturns[selectedPeriod]!;
+                  const up = r.pct >= 0;
+                  return (
+                    <div className="flex items-center gap-3 px-3 py-2 rounded-xl"
+                         style={{ background: up ? "rgba(34,197,94,0.08)" : "rgba(239,68,68,0.08)" }}>
+                      <span className="text-xs font-semibold" style={{ color:"var(--muted)" }}>
+                        {PERIODS.find(p => p.key === selectedPeriod)?.label}
+                      </span>
+                      <span className="text-lg font-black" style={{ color: up ? "#22c55e" : "#ef4444" }}>
+                        {up ? "+" : ""}{r.pct.toFixed(2)}%
+                      </span>
+                      <span className="text-xs font-semibold" style={{ color: up ? "#22c55e" : "#ef4444" }}>
+                        {up ? "+" : ""}${Math.abs(r.amount).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})}
+                      </span>
+                    </div>
+                  );
+                })() : null}
+              </div>
+
               {/* Totals card */}
               <div className="rounded-2xl border-2 p-5 mb-3" style={{ borderColor:"var(--accent-l)22", background:"var(--card)", borderTopColor:"var(--accent-l)" }}>
                 {loadingPrices ? (
@@ -735,6 +808,7 @@ export default function PortfolioPage() {
                 const diff = currentVal !== null && investedVal !== null ? currentVal - investedVal : null;
                 const pct = diff !== null && investedVal! > 0 ? (diff / investedVal!) * 100 : null;
                 const isUp = diff !== null && diff >= 0;
+                const priceRevealed = revealedPrices.has(pos.id);
                 return (
                   <div key={pos.id} className="rounded-2xl border p-4 mb-2"
                        style={{ borderColor:"var(--border)", background:"var(--card)" }}>
@@ -746,16 +820,24 @@ export default function PortfolioPage() {
                           <p className="text-xs mt-0.5" style={{ color:"var(--muted)" }}>{pd?.name || pos.name}</p>
                         )}
                       </div>
-                      <button onClick={() => removePosition(pos.id)} style={{ color:"var(--dim)" }}>
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => setEditingPos({ id: pos.id, shares: String(pos.shares), avgPrice: String(pos.avgPrice) })}
+                          style={{ color:"var(--muted)" }}>
+                          <Pencil className="w-3.5 h-3.5" />
+                        </button>
+                        <button onClick={() => removePosition(pos.id)} style={{ color:"var(--dim)" }}>
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
                     </div>
-                    {/* Prices row */}
+
+                    {/* Invested vs Current */}
                     <div className="grid grid-cols-3 gap-2 mb-3">
                       <div>
-                        <p className="text-[9px] font-bold uppercase tracking-wider mb-1" style={{ color:"var(--dim)" }}>Precio compra</p>
-                        <p className="text-sm font-bold" style={{ color: hasCost ? "var(--sub)" : "var(--dim)" }}>
-                          {hasCost ? `$${pos.avgPrice.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})}` : "—"}
+                        <p className="text-[9px] font-bold uppercase tracking-wider mb-1" style={{ color:"var(--dim)" }}>Invertido</p>
+                        <p className="text-sm font-bold" style={{ color:"var(--sub)" }}>
+                          {investedVal != null ? `$${investedVal.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})}` : "—"}
                         </p>
                       </div>
                       <div className="text-center">
@@ -763,35 +845,40 @@ export default function PortfolioPage() {
                         <p className="text-sm font-bold" style={{ color:"var(--sub)" }}>{pos.shares.toLocaleString("en-US")}</p>
                       </div>
                       <div className="text-right">
-                        <p className="text-[9px] font-bold uppercase tracking-wider mb-1" style={{ color:"var(--dim)" }}>Precio actual</p>
-                        {cp ? (
-                          <p className="text-sm font-extrabold" style={{ color:"var(--text)" }}>
-                            ${cp.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})}
-                          </p>
-                        ) : (
-                          <p className="text-sm" style={{ color:"var(--dim)" }}>...</p>
-                        )}
+                        <p className="text-[9px] font-bold uppercase tracking-wider mb-1" style={{ color:"var(--dim)" }}>Valor hoy</p>
+                        <p className="text-sm font-extrabold" style={{ color:"var(--text)" }}>
+                          {currentVal != null ? `$${currentVal.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})}` : "—"}
+                        </p>
                       </div>
                     </div>
-                    {/* Performance bar */}
-                    {cp && hasCost && (
-                      <div className="flex items-center justify-between px-3 py-2 rounded-xl"
+
+                    {/* Performance row */}
+                    {diff !== null && pct !== null && (
+                      <div className="flex items-center justify-between px-3 py-2 rounded-xl mb-2"
                            style={{ background: isUp ? "rgba(34,197,94,0.08)" : "rgba(239,68,68,0.08)" }}>
-                        <p className="text-xs" style={{ color:"var(--muted)" }}>
-                          ${investedVal!.toLocaleString("en-US",{minimumFractionDigits:2})}
-                          {" → "}
-                          ${currentVal!.toLocaleString("en-US",{minimumFractionDigits:2})}
+                        <p className="text-xs font-semibold" style={{ color: isUp ? "#22c55e" : "#ef4444" }}>
+                          {isUp ? "+" : ""}${diff.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})}
                         </p>
                         <p className="text-sm font-black" style={{ color: isUp ? "#22c55e" : "#ef4444" }}>
-                          {isUp ? "+" : ""}{pct!.toFixed(2)}%
+                          {isUp ? "+" : ""}{pct.toFixed(2)}%
                         </p>
                       </div>
                     )}
-                    {cp && !hasCost && (
-                      <p className="text-xs mt-1" style={{ color:"var(--dim)" }}>
-                        Sin precio de compra — edita la posición para ver rendimiento
-                      </p>
-                    )}
+
+                    {/* Reveal price */}
+                    <button
+                      onClick={() => setRevealedPrices((prev) => {
+                        const next = new Set(prev);
+                        next.has(pos.id) ? next.delete(pos.id) : next.add(pos.id);
+                        return next;
+                      })}
+                      className="flex items-center gap-1.5 text-[10px] font-semibold mt-1"
+                      style={{ color:"var(--muted)" }}>
+                      <Eye className="w-3 h-3" />
+                      {priceRevealed
+                        ? cp ? `$${cp.toLocaleString("en-US",{minimumFractionDigits:2})} / acción · ocultar` : "Sin precio"
+                        : "Ver precio por acción"}
+                    </button>
                   </div>
                 );
               })}
@@ -1281,6 +1368,63 @@ export default function PortfolioPage() {
         </div>
       )}
       <PaywallModal visible={paywallOpen} onClose={() => setPaywallOpen(false)} />
+
+      {/* Edit position modal */}
+      {editingPos && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
+             style={{ background: "rgba(0,0,0,0.7)", backdropFilter: "blur(4px)" }}>
+          <div className="w-full max-w-xs rounded-2xl border overflow-hidden"
+               style={{ background: "var(--card)", borderColor: "var(--border)" }}>
+            <div className="h-1" style={{ background: "linear-gradient(90deg,#00a85e,#00d47e)" }} />
+            <div className="p-5">
+              <div className="flex items-center justify-between mb-4">
+                <p className="font-bold text-sm" style={{ color:"var(--text)" }}>Editar posición</p>
+                <button onClick={() => setEditingPos(null)} style={{ color:"var(--muted)" }}>
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              <div className="space-y-3">
+                <div>
+                  <label className="text-[10px] font-bold uppercase block mb-1" style={{ color:"var(--muted)" }}>Acciones / unidades</label>
+                  <input
+                    type="number" min="0" step="any"
+                    value={editingPos.shares}
+                    onChange={(e) => setEditingPos((p) => p ? { ...p, shares: e.target.value } : p)}
+                    className="w-full rounded-xl border px-3 py-2 text-sm"
+                    style={{ background:"var(--raised)", borderColor:"var(--border)", color:"var(--text)" }}
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold uppercase block mb-1" style={{ color:"var(--muted)" }}>Precio promedio de compra ($)</label>
+                  <input
+                    type="number" min="0" step="any"
+                    value={editingPos.avgPrice}
+                    onChange={(e) => setEditingPos((p) => p ? { ...p, avgPrice: e.target.value } : p)}
+                    className="w-full rounded-xl border px-3 py-2 text-sm"
+                    style={{ background:"var(--raised)", borderColor:"var(--border)", color:"var(--text)" }}
+                  />
+                </div>
+                <button
+                  onClick={() => {
+                    const shares = parseFloat(editingPos.shares);
+                    const avgPrice = parseFloat(editingPos.avgPrice);
+                    if (!isNaN(shares) && shares > 0) {
+                      updatePosition(editingPos.id, {
+                        shares,
+                        avgPrice: isNaN(avgPrice) ? 0 : avgPrice,
+                      });
+                    }
+                    setEditingPos(null);
+                  }}
+                  className="w-full py-2.5 rounded-xl text-sm font-bold text-white"
+                  style={{ background: "linear-gradient(90deg,#00a85e,#00d47e)" }}>
+                  Guardar cambios
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Merge modal */}
       {mergeModalOpen && (

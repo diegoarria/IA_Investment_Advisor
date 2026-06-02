@@ -67,13 +67,14 @@ function ProfileCard({ colors }: { colors: ReturnType<typeof useTheme>["colors"]
       </View>
       {riskCfg && (
         <>
-          <View style={[styles.barTrack, { backgroundColor: colors.border }]}>
+          <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+            <Text style={[styles.barLabel, { color: colors.textDim }]}>Bajo riesgo</Text>
+            <Text style={{ fontSize: 13, fontWeight: "800", color: riskCfg.color }}>{pct}%</Text>
+            <Text style={[styles.barLabel, { color: colors.textDim }]}>Alto riesgo</Text>
+          </View>
+          <View style={[styles.barTrack, { backgroundColor: colors.border, marginBottom: 10 }]}>
             <View style={[styles.barFill, { flex: pct, backgroundColor: riskCfg.color }]} />
             {pct < 100 && <View style={{ flex: 100 - pct }} />}
-          </View>
-          <View style={[styles.barLabels, { marginBottom: 10 }]}>
-            <Text style={[styles.barLabel, { color: colors.textDim }]}>Bajo riesgo</Text>
-            <Text style={[styles.barLabel, { color: colors.textDim }]}>Alto riesgo</Text>
           </View>
         </>
       )}

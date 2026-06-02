@@ -59,8 +59,8 @@ export function formatBirthDate(text: string): string {
 }
 
 export const RISK_CONFIG: Record<RiskTolerance, { label: string; icon: "shield-checkmark-outline" | "scale-outline" | "rocket-outline"; pct: number; color: string }> = {
-  conservative: { label: "Inversionista Conservador", icon: "shield-checkmark-outline", pct: 0.33, color: "#3b82f6" },
-  moderate:     { label: "Inversionista Moderado",    icon: "scale-outline",             pct: 0.66, color: "#f59e0b" },
+  conservative: { label: "Inversionista Conservador", icon: "shield-checkmark-outline", pct: 0.15, color: "#3b82f6" },
+  moderate:     { label: "Inversionista Moderado",    icon: "scale-outline",             pct: 0.50, color: "#f59e0b" },
   aggressive:   { label: "Inversionista Agresivo",    icon: "rocket-outline",            pct: 1.0,  color: "#ef4444" },
 };
 

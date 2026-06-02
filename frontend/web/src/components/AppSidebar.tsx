@@ -24,14 +24,14 @@ const NAV = [
 ];
 
 const RISK_SEGMENTS = [
-  { key: "conservative",           color: "#00d47e" },
-  { key: "conservative_moderate",  color: "#3ecf8e" },
-  { key: "moderate",               color: "#8bd44e" },
-  { key: "moderate_growth",        color: "#c5d43c" },
-  { key: "growth",                 color: "#f5c842" },
-  { key: "aggressive",             color: "#f5973a" },
-  { key: "aggressive_speculative", color: "#f5613a" },
-  { key: "speculative",            color: "#ff2d3b" },
+  { key: "conservative",           color: "#00d47e", pct: 8  },
+  { key: "conservative_moderate",  color: "#3ecf8e", pct: 18 },
+  { key: "moderate",               color: "#8bd44e", pct: 30 },
+  { key: "moderate_growth",        color: "#c5d43c", pct: 42 },
+  { key: "growth",                 color: "#f5c842", pct: 55 },
+  { key: "aggressive",             color: "#f5973a", pct: 68 },
+  { key: "aggressive_speculative", color: "#f5613a", pct: 82 },
+  { key: "speculative",            color: "#ff2d3b", pct: 100 },
 ];
 
 const RISK_LABEL: Record<string, string> = {
@@ -41,18 +41,21 @@ const RISK_LABEL: Record<string, string> = {
 };
 
 function RiskBar({ level }: { level: string }) {
-  const idx = RISK_SEGMENTS.findIndex((s) => s.key === level);
-  if (idx < 0) return null;
+  const seg = RISK_SEGMENTS.find((s) => s.key === level);
+  if (!seg) return null;
   return (
     <div>
-      <div className="flex gap-0.5 mb-1">
-        {RISK_SEGMENTS.map((seg, i) => (
-          <div key={seg.key} className="h-1.5 flex-1 rounded-full"
-               style={{ background: i <= idx ? seg.color : "var(--border)", opacity: i === idx ? 1 : i < idx ? 0.65 : 0.25 }} />
-        ))}
+      <div className="flex items-center justify-between mb-1">
+        <div className="text-[10px] font-semibold" style={{ color: seg.color }}>
+          {RISK_LABEL[level] ?? level}
+        </div>
+        <div className="text-[11px] font-black" style={{ color: seg.color }}>{seg.pct}%</div>
       </div>
-      <div className="text-[10px] font-semibold" style={{ color: RISK_SEGMENTS[idx]?.color }}>
-        {RISK_LABEL[level] ?? level}
+      <div className="h-1.5 rounded-full overflow-hidden" style={{ background: "var(--border)" }}>
+        <div
+          className="h-full rounded-full transition-all duration-500"
+          style={{ width: `${seg.pct}%`, background: seg.color }}
+        />
       </div>
     </div>
   );

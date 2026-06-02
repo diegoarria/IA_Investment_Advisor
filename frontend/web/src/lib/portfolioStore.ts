@@ -13,6 +13,7 @@ interface PortfolioStore {
   positions: Position[];
   addPosition: (p: Omit<Position, "id">) => void;
   removePosition: (id: string) => void;
+  updatePosition: (id: string, updates: { shares?: number; avgPrice?: number }) => void;
   setPositions: (positions: Omit<Position, "id">[]) => void;
   clearPortfolio: () => void;
   loadFromServer: () => Promise<void>;
@@ -40,6 +41,16 @@ export const usePortfolioStore = create<PortfolioStore>()(
       removePosition: (id) => {
         set((s) => {
           const positions = s.positions.filter((pos) => pos.id !== id);
+          pushToServer(positions);
+          return { positions };
+        });
+      },
+
+      updatePosition: (id, updates) => {
+        set((s) => {
+          const positions = s.positions.map((pos) =>
+            pos.id === id ? { ...pos, ...updates } : pos
+          );
           pushToServer(positions);
           return { positions };
         });
