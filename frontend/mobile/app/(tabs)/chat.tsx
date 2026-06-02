@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo } from "react";
+import * as ImagePicker from "expo-image-picker";
 import {
   View, Text, TextInput, TouchableOpacity, FlatList, ScrollView,
   StyleSheet, KeyboardAvoidingView, Platform, Image, Animated,
@@ -118,6 +119,7 @@ export default function ChatScreen() {
 
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
+  const [pendingImage, setPendingImage] = useState<{ data: string; type: string; uri: string } | null>(null);
   const [tutorialVisible, setTutorialVisible] = useState(false);
   const [lastTicker, setLastTicker] = useState<string | null>(null);
   const [livePrices, setLivePrices] = useState<Record<string, number>>({});
@@ -252,9 +254,27 @@ Instrucciones críticas:
     inputRef.current?.focus();
   };
 
+  const handlePickImage = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== "granted") return;
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ["images"],
+      base64: true,
+      quality: 0.8,
+    });
+    if (!result.canceled && result.assets[0]) {
+      const asset = result.assets[0];
+      setPendingImage({
+        data: asset.base64!,
+        type: asset.mimeType ?? "image/jpeg",
+        uri: asset.uri,
+      });
+    }
+  };
+
   const sendMessage = async (text?: string) => {
     const msg = text || input.trim();
-    if (!msg || streaming) return;
+    if ((!msg && !pendingImage) || streaming) return;
 
     // Client-side free limit check
     if (!isPremiumAccess && remaining <= 0) {
@@ -263,13 +283,16 @@ Instrucciones críticas:
       return;
     }
 
+    const imgToSend = pendingImage;
     setInput("");
+    setPendingImage(null);
     cancelRef.current.cancelled = false;
 
-    const userMsg: Message = { role: "user", content: msg };
+    const displayMsg = msg || "📷 Captura enviada";
+    const userMsg: Message = { role: "user", content: displayMsg };
     const newMessages = [...messages, userMsg];
     setMessages(newMessages);
-    chatApi.saveMessage("user", msg).catch(() => {});
+    chatApi.saveMessage("user", displayMsg).catch(() => {});
 
     const profileCtx = buildProfileContext();
     const recentHistory = newMessages.slice(-18);
@@ -305,7 +328,9 @@ Instrucciones críticas:
         },
         (tickers) => { if (tickers.length > 0) setLastTicker(tickers[0]); },
         profile?.mentor,
-        cancelRef.current
+        cancelRef.current,
+        imgToSend?.data ?? null,
+        imgToSend?.type ?? null,
       );
     } catch (err: unknown) {
       const errObj = err as { response?: { status?: number; data?: { detail?: { message?: string } } }; message?: string };
@@ -555,7 +580,27 @@ Instrucciones críticas:
             </TouchableOpacity>
           )}
 
+          {pendingImage && (
+            <View style={{ paddingHorizontal: 12, paddingBottom: 6 }}>
+              <View style={{ position: "relative", width: 64, height: 64 }}>
+                <Image source={{ uri: pendingImage.uri }} style={{ width: 64, height: 64, borderRadius: 10 }} />
+                <TouchableOpacity
+                  onPress={() => setPendingImage(null)}
+                  style={{ position: "absolute", top: -6, right: -6, width: 20, height: 20, borderRadius: 10, backgroundColor: "rgba(0,0,0,0.7)", alignItems: "center", justifyContent: "center" }}
+                >
+                  <Ionicons name="close" size={12} color="white" />
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
           <View style={styles.inputContainer}>
+            <TouchableOpacity
+              onPress={handlePickImage}
+              disabled={streaming}
+              style={{ padding: 4, opacity: streaming ? 0.4 : 1 }}
+            >
+              <Ionicons name="image-outline" size={22} color={colors.textSub} />
+            </TouchableOpacity>
             <TextInput
               ref={inputRef}
               style={styles.input}
@@ -564,13 +609,12 @@ Instrucciones críticas:
               placeholder="¿Cómo puedo ayudarte hoy?"
               placeholderTextColor={colors.placeholder}
               multiline
-              maxLength={2000}
               editable={!streaming}
             />
             <TouchableOpacity
-              style={[styles.sendButton, !streaming && !input.trim() && styles.sendDisabled]}
+              style={[styles.sendButton, !streaming && !input.trim() && !pendingImage && styles.sendDisabled]}
               onPress={streaming ? handleStop : () => sendMessage()}
-              disabled={!streaming && !input.trim()}
+              disabled={!streaming && !input.trim() && !pendingImage}
             >
               {streaming ? (
                 <Ionicons name="stop" size={18} color="white" />

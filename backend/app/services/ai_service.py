@@ -476,11 +476,29 @@ async def chat_stream(
     conversation_history: list[ChatMessage],
     profile: UserProfile | None = None,
     mentor: str | None = None,
+    image_data: str | None = None,
+    image_type: str | None = None,
 ):
     system_prompt = build_system_prompt(profile, mentor)
 
     messages = [{"role": m.role, "content": m.content} for m in conversation_history]
-    messages.append({"role": "user", "content": message})
+
+    if image_data:
+        user_content = [
+            {
+                "type": "image",
+                "source": {
+                    "type": "base64",
+                    "media_type": image_type or "image/jpeg",
+                    "data": image_data,
+                },
+            },
+            {"type": "text", "text": message or "Analiza esta captura de pantalla de mi portafolio."},
+        ]
+    else:
+        user_content = message
+
+    messages.append({"role": "user", "content": user_content})
 
     async with client.messages.stream(
         model=settings.claude_model,
@@ -526,7 +544,7 @@ Recuerda: analiza el negocio, no el precio de la acción."""
 
     response = await _claude(
         model=settings.claude_model,
-        max_tokens=2048,
+        max_tokens=8192,
         system=[{"type": "text", "text": system_prompt, "cache_control": {"type": "ephemeral"}}],
         messages=[{"role": "user", "content": prompt}]
     )

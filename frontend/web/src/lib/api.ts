@@ -92,12 +92,16 @@ export const chat = {
     onAssessment?: (a: { s: number; p: string; sig: string[]; conf: string }) => void,
     onTickers?: (tickers: string[]) => void,
     mentor?: string | null,
-    cancelSignal?: { cancelled: boolean }
+    cancelSignal?: { cancelled: boolean },
+    imageData?: string | null,
+    imageType?: string | null,
   ) => {
     const res = await api.post("/api/chat/message", {
       message,
       conversation_history: history,
       mentor: mentor ?? null,
+      image_data: imageData ?? null,
+      image_type: imageType ?? null,
     });
     const reply: string = res.data.reply ?? "";
     const assessment = res.data.risk_assessment ?? null;

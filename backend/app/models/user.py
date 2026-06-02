@@ -55,6 +55,8 @@ class ChatRequest(BaseModel):
     message: str
     conversation_history: list[ChatMessage] = []
     mentor: Optional[str] = None
+    image_data: Optional[str] = None
+    image_type: Optional[str] = None
 
 
 class AuthRequest(BaseModel):

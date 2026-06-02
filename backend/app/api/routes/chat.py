@@ -134,13 +134,15 @@ async def chat_message(
     if profile:
         _check_and_increment_msg_limit(user_id, profile)
     tickers  = await asyncio.to_thread(detect_tickers, body.message)
-    enriched = await asyncio.to_thread(_enrich_message, body.message)
+    enriched = await asyncio.to_thread(_enrich_message, body.message) if not body.image_data else body.message
     full = ""
     async for chunk in ai_service.chat_stream(
         message=enriched,
         conversation_history=body.conversation_history,
         profile=profile,
         mentor=body.mentor,
+        image_data=body.image_data,
+        image_type=body.image_type,
     ):
         full += chunk
     clean_reply, bscore = _extract_bscore(full)

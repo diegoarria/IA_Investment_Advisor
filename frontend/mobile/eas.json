@@ -17,6 +17,9 @@
       "ios": {
         "buildConfiguration": "Release"
       },
+      "android": {
+        "buildType": "app-bundle"
+      },
       "env": {
         "EXPO_PUBLIC_API_URL": "https://iainvestmentadvisor-production.up.railway.app",
         "EXPO_PUBLIC_SUPABASE_URL": "https://nyxcqjzeiyptyipigsaz.supabase.co",
