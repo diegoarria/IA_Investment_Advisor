@@ -621,7 +621,7 @@ export default function PortfolioPage() {
               {/* Period return tabs */}
               <div className="mb-3">
                 <div className="flex gap-1 flex-wrap mb-2">
-                  {PERIODS.filter(({ key }) => periodReturns[key] || loadingReturns).map(({ key, label }) => {
+                  {PERIODS.map(({ key, label }) => {
                     const ret = periodReturns[key];
                     const isSelected = selectedPeriod === key;
                     const isUp = ret ? ret.pct >= 0 : true;

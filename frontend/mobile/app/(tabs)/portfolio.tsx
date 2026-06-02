@@ -923,7 +923,7 @@ export default function PortfolioScreen() {
             <View style={{ marginBottom: 10 }}>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 8 }}>
                 <View style={{ flexDirection: "row", gap: 6, paddingRight: 8 }}>
-                  {PERIODS.filter(({ key }) => periodReturns[key] || loadingReturns).map(({ key, label }) => {
+                  {PERIODS.map(({ key, label }) => {
                     const ret = periodReturns[key];
                     const isSelected = selectedPeriod === key;
                     const isUp = ret ? ret.pct >= 0 : true;
