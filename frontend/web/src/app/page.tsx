@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { auth, profile as profileApi } from "@/lib/api";
-import { useAuthStore, useProfileStore } from "@/lib/store";
+import { useAuthStore, useProfileStore, useChatStore } from "@/lib/store";
 import { Eye, EyeOff, ArrowRight, TrendingUp, Shield, Brain, Bell } from "lucide-react";
 
 const FEATURES = [
@@ -47,6 +47,8 @@ export default function Home() {
       const res = await fn(email, password);
       setAuth(res.data.access_token, res.data.user_id);
       if (res.data.refresh_token) localStorage.setItem("refresh_token", res.data.refresh_token);
+      // Load this user's own chat sessions (scoped by userId in storage key)
+      await useChatStore.persist.rehydrate();
       try {
         const p = await profileApi.get();
         setProfile(p.data);

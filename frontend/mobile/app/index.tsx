@@ -15,6 +15,7 @@ import type { UserProfile } from "../src/lib/profileStore";
 import { usePortfolioStore } from "../src/lib/portfolioStore";
 import { usePaperStore } from "../src/lib/paperStore";
 import { useSubscriptionStore } from "../src/lib/subscriptionStore";
+import { useChatStore } from "../src/lib/chatStore";
 
 export default function AuthScreen() {
   const { colors, isDark, toggle } = useTheme();
@@ -89,6 +90,8 @@ export default function AuthScreen() {
     await SecureStore.setItemAsync("access_token", accessToken);
     await SecureStore.setItemAsync("user_id", userId);
     if (refreshToken) await SecureStore.setItemAsync("refresh_token", refreshToken);
+    // Load this user's own chat sessions (storage key is scoped by user_id)
+    await useChatStore.persist.rehydrate();
     try {
       // Fetch profile + all synced data in parallel
       const [profileRes, syncRes] = await Promise.allSettled([

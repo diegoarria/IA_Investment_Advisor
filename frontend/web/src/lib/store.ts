@@ -1,6 +1,22 @@
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
+import { persist, createJSONStorage } from "zustand/middleware";
 import type { UserProfile, ChatMessage, Notification } from "./types";
+
+// Storage scoped per-user so each account has its own chat history.
+const userScopedChatStorage = createJSONStorage(() => ({
+  getItem: (name: string) => {
+    const uid = useAuthStore.getState().userId ?? "guest";
+    return localStorage.getItem(`${name}__${uid}`);
+  },
+  setItem: (name: string, value: string) => {
+    const uid = useAuthStore.getState().userId ?? "guest";
+    localStorage.setItem(`${name}__${uid}`, value);
+  },
+  removeItem: (name: string) => {
+    const uid = useAuthStore.getState().userId ?? "guest";
+    localStorage.removeItem(`${name}__${uid}`);
+  },
+}));
 
 // ─── Maturity helpers ───────────────────────────────────────────────────────
 
@@ -258,6 +274,7 @@ export const useChatStore = create<ChatState>()(
     }),
     {
       name: "chat-sessions",
+      storage: userScopedChatStorage,
       partialize: (state) => ({ sessions: state.sessions, currentId: state.currentId }),
       onRehydrateStorage: () => (state) => {
         if (state?.currentId) {
