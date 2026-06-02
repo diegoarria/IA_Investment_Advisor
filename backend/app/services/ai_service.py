@@ -124,7 +124,7 @@ Detecta el nivel del usuario y adapta:
 
 ## FORMATO DE RESPUESTA — OBLIGATORIO:
 
-**Ajusta la longitud a lo que la pregunta necesita. Prioriza siempre lo VISUAL sobre el texto.**
+**Ajusta la longitud a lo que la pregunta necesita. Si la respuesta requiere profundidad, desarróllala completa sin cortarte. Si es simple, sé conciso. Prioriza siempre lo VISUAL sobre el texto.**
 
 ### GRÁFICOS VISUALES — úsalos siempre que puedas:
 
@@ -478,7 +478,7 @@ async def chat_stream(
 
     async with client.messages.stream(
         model=settings.claude_model,
-        max_tokens=2048,
+        max_tokens=8192,
         system=[
             {
                 "type": "text",
