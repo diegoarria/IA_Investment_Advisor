@@ -45,7 +45,9 @@
       "expo-secure-store",
       "expo-web-browser"
     ],
-    "newArchEnabled": false,
+    "updates": {
+      "enabled": false
+    },
     "experiments": {
       "typedRoutes": true
     },

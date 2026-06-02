@@ -10,6 +10,7 @@ import { learnApi } from "../../src/lib/api";
 import { useLearnStore, getMilestoneForStreak, getNextMilestone, STREAK_MILESTONES, STREAK_MILESTONES_PREMIUM } from "../../src/lib/learnStore";
 import { useSubscriptionStore, hasPremiumAccess } from "../../src/lib/subscriptionStore";
 import PaywallModal from "../../src/components/PaywallModal";
+import MobileDecisionDiary from "../../src/components/MobileDecisionDiary";
 
 const FREE_SIM_LIMIT = 5;
 const PREMIUM_DIFFICULTIES = new Set(["dificil", "imposible"]);
@@ -210,6 +211,12 @@ export default function ArenaScreen() {
         </View>
 
         {/* ── Hall of Fame ──────────────────────────────────────────── */}
+        {/* Diario de Decisiones */}
+        <MobileDecisionDiary
+          isPremium={isPremiumAccess}
+          onUpgrade={() => openPaywall("Activa Premium para registrar tus decisiones y detectar tus sesgos.")}
+        />
+
         <Text style={[styles.sectionTitle, { color: colors.textDim }]}>🏆 HALL OF FAME</Text>
         <View style={[styles.hofCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
           {hallOfFame.length === 0 ? (

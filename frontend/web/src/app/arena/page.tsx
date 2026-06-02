@@ -12,7 +12,7 @@ import {
   STREAK_MILESTONES, STREAK_MILESTONES_PREMIUM,
 } from "@/lib/store";
 import PaywallModal from "@/components/PaywallModal";
-import { Menu, X, Sun, Moon, Clock, Loader2, Lock, Flame } from "lucide-react";
+import { Menu, X, Sun, Moon, Clock, Loader2, Lock, Flame, Brain } from "lucide-react";
 
 type Difficulty = "principiante" | "intermedio" | "dificil" | "imposible";
 
@@ -231,6 +231,24 @@ export default function ArenaPage() {
                       {simUsedToday >= FREE_SIM_LIMIT ? "Límite diario alcanzado" : `${FREE_SIM_LIMIT - simUsedToday}/${FREE_SIM_LIMIT} restantes`}
                     </div>
                   )}
+                </button>
+
+                {/* Decision Diary */}
+                <button onClick={() => router.push("/decisions")}
+                        className="rounded-2xl border-2 p-4 text-center hover:opacity-90 transition-opacity"
+                        style={{ background: "var(--card)", borderColor: "rgba(0,168,94,0.4)" }}>
+                  <div className="w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3"
+                       style={{ background: "rgba(0,168,94,0.12)" }}>
+                    <Brain className="w-6 h-6" style={{ color: "var(--accent-l)" }} />
+                  </div>
+                  <div className="font-bold text-sm mb-1" style={{ color: "var(--text)" }}>Diario de Decisiones</div>
+                  <div className="text-xs leading-snug mb-2" style={{ color: "var(--muted)" }}>
+                    Registra tus movimientos y descubre tus sesgos como inversor
+                  </div>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full"
+                        style={{ background: "rgba(0,168,94,0.15)", color: "var(--accent-l)" }}>
+                    {isPremium ? "Premium activo" : "⭐ Premium"}
+                  </span>
                 </button>
 
               </div>
