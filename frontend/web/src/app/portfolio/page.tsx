@@ -220,6 +220,8 @@ export default function PortfolioPage() {
   const [screenshotProgress, setScreenshotProgress] = useState("");
   type ExtractedPos = { id: string; ticker: string; name: string; shares: number; avg_price: number };
   const [screenshotPreview, setScreenshotPreview] = useState<ExtractedPos[]|null>(null);
+  const [mergeModalOpen, setMergeModalOpen] = useState(false);
+  const [pendingMerge, setPendingMerge] = useState<ExtractedPos[]>([]);
 
   // Manual form
   const [showForm, setShowForm] = useState(false);
@@ -389,11 +391,33 @@ export default function PortfolioPage() {
 
   const confirmScreenshotImport = () => {
     if (!screenshotPreview?.length) return;
+    if (positions.length > 0) {
+      setPendingMerge(screenshotPreview);
+      setMergeModalOpen(true);
+      setScreenshotPreview(null);
+      return;
+    }
     setPendingImport(screenshotPreview.map((p) => ({
       ticker: p.ticker, name: p.name, shares: p.shares, avgPrice: p.avg_price,
     })));
     setImportCurrency("USD");
     setScreenshotPreview(null);
+  };
+
+  const applyMerge = (mode: "keep" | "replace") => {
+    const incoming = pendingMerge.map((p) => ({ ticker: p.ticker, name: p.name, shares: p.shares, avgPrice: p.avg_price }));
+    let toImport;
+    if (mode === "keep") {
+      const existing = positions.map((p) => ({ ticker: p.ticker, name: p.name ?? "", shares: p.shares, avgPrice: p.avgPrice }));
+      const newOnly = incoming.filter((p) => !existing.some((e) => e.ticker.toUpperCase() === p.ticker.toUpperCase()));
+      toImport = [...existing, ...newOnly];
+    } else {
+      toImport = incoming;
+    }
+    setPendingImport(toImport);
+    setImportCurrency("USD");
+    setMergeModalOpen(false);
+    setPendingMerge([]);
   };
 
   // Approximate fallback rates (1 unit → USD). Updated periodically; good enough for cost basis.
@@ -1257,6 +1281,46 @@ export default function PortfolioPage() {
         </div>
       )}
       <PaywallModal visible={paywallOpen} onClose={() => setPaywallOpen(false)} />
+
+      {/* Merge modal */}
+      {mergeModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
+             style={{ background: "rgba(0,0,0,0.7)", backdropFilter: "blur(4px)" }}>
+          <div className="w-full max-w-sm rounded-2xl border overflow-hidden"
+               style={{ background: "var(--card)", borderColor: "var(--border)" }}>
+            <div className="h-1" style={{ background: "linear-gradient(90deg,#00a85e,#00d47e)" }} />
+            <div className="p-5">
+              <p className="font-bold text-sm mb-1" style={{ color: "var(--text)" }}>
+                Ya tienes posiciones guardadas
+              </p>
+              <p className="text-xs mb-5" style={{ color: "var(--muted)" }}>
+                Tienes {positions.length} posición{positions.length !== 1 ? "es" : ""} en tu portafolio.
+                {" "}Se detectaron {pendingMerge.length} en la captura. ¿Qué deseas hacer?
+              </p>
+              <div className="space-y-2">
+                <button
+                  onClick={() => applyMerge("keep")}
+                  className="w-full py-2.5 rounded-xl text-sm font-bold text-white"
+                  style={{ background: "linear-gradient(90deg,#00a85e,#00d47e)" }}>
+                  Mantener actuales y agregar nuevas
+                </button>
+                <button
+                  onClick={() => applyMerge("replace")}
+                  className="w-full py-2.5 rounded-xl text-sm font-semibold border"
+                  style={{ borderColor: "#ef4444", color: "#ef4444", background: "rgba(239,68,68,0.06)" }}>
+                  Reemplazar todo con la captura
+                </button>
+                <button
+                  onClick={() => { setMergeModalOpen(false); setPendingMerge([]); }}
+                  className="w-full py-2 text-xs"
+                  style={{ color: "var(--muted)" }}>
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }
