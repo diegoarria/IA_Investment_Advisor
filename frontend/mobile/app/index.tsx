@@ -9,6 +9,10 @@ import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import * as SecureStore from "expo-secure-store";
 import * as LocalAuthentication from "expo-local-authentication";
+import Constants, { ExecutionEnvironment } from "expo-constants";
+
+// Face ID no funciona en Expo Go — requiere build nativo
+const IS_EXPO_GO = Constants.executionEnvironment === ExecutionEnvironment.StoreClient;
 import { authApi, profileApi, syncApi, referralApi } from "../src/lib/api";
 import { useTheme, Colors } from "../src/lib/ThemeContext";
 import { useAppStore } from "../src/lib/profileStore";
@@ -100,8 +104,9 @@ export default function AuthScreen() {
   }, []);
 
   const _checkBiometricAvailability = async () => {
+    if (IS_EXPO_GO) return; // Face ID no disponible en Expo Go
     try {
-      const enabled  = await SecureStore.getItemAsync(BIOMETRIC_ENABLED_KEY);
+      const enabled    = await SecureStore.getItemAsync(BIOMETRIC_ENABLED_KEY);
       const savedEmail = await SecureStore.getItemAsync(BIOMETRIC_EMAIL_KEY);
       const savedPass  = await SecureStore.getItemAsync(BIOMETRIC_PASSWORD_KEY);
       if (enabled !== "true" || !savedEmail || !savedPass) return;
@@ -163,6 +168,7 @@ export default function AuthScreen() {
   };
 
   const _offerBiometricSetup = async (emailUsed: string, passwordUsed: string) => {
+    if (IS_EXPO_GO) return; // Face ID no disponible en Expo Go
     try {
       const hasHardware = await LocalAuthentication.hasHardwareAsync();
       const enrolled    = await LocalAuthentication.isEnrolledAsync();
