@@ -8,8 +8,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import Svg, { Path, Defs, RadialGradient as SvgRadial, Stop, Rect as SvgRect, G } from "react-native-svg";
 import * as ImagePicker from "expo-image-picker";
-import * as DocumentPicker from "expo-document-picker";
-import * as XLSX from "xlsx";
+
 import { marketApi } from "../../src/lib/api";
 import { useTheme, Colors } from "../../src/lib/ThemeContext";
 import { usePortfolioStore, Position } from "../../src/lib/portfolioStore";
@@ -235,31 +234,6 @@ const FALLBACK_RATES: Record<string, number> = {
   PEN: 0.265, JPY: 0.0065, CHF: 1.12, AUD: 0.65,
 };
 
-// ─── Excel helpers ─────────────────────────────────────────────────────────
-
-const TICKER_KEYS = ["ticker", "symbol", "emisora", "instrumento", "accion", "titulo", "clave"];
-const SHARES_KEYS = ["shares", "qty", "quantity", "cantidad", "titulos", "acciones", "unidades"];
-const PRICE_KEYS  = ["price", "precio", "promedio", "costo", "avg", "cost", "compra", "purchase"];
-
-function findCol(headers: string[], keys: string[]) {
-  return headers.findIndex((h) => keys.some((k) => h.toLowerCase().includes(k)));
-}
-
-function parseExcelRows(rows: Record<string, unknown>[]): Omit<Position, "id">[] {
-  if (!rows.length) return [];
-  const headers = Object.keys(rows[0]);
-  const tI = findCol(headers, TICKER_KEYS);
-  const sI = findCol(headers, SHARES_KEYS);
-  const pI = findCol(headers, PRICE_KEYS);
-  if (tI < 0) return [];
-  return rows
-    .map((row) => ({
-      ticker: String(row[headers[tI]] ?? "").trim().toUpperCase(),
-      shares: sI >= 0 ? parseFloat(String(row[headers[sI]] ?? "0")) || 0 : 0,
-      avgPrice: pI >= 0 ? parseFloat(String(row[headers[pI]] ?? "0")) || 0 : 0,
-    }))
-    .filter((p) => p.ticker.length > 0 && p.shares > 0);
-}
 
 // ─── Component ─────────────────────────────────────────────────────────────
 
@@ -513,34 +487,6 @@ export default function PortfolioScreen() {
     setAddingLoading(false);
   };
 
-  // ── Excel import ────────────────────────────────────────────────────────
-  const handleExcelImport = async () => {
-    try {
-      const result = await DocumentPicker.getDocumentAsync({ type: ["*/*"], copyToCacheDirectory: true });
-      if (result.canceled || !result.assets?.length) return;
-      const file = result.assets[0];
-      const buffer = await (await fetch(file.uri)).arrayBuffer();
-      const wb = XLSX.read(new Uint8Array(buffer), { type: "array" });
-      const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(wb.Sheets[wb.SheetNames[0]]);
-      const parsed = parseExcelRows(rows);
-      if (!parsed.length) {
-        Alert.alert("No se encontraron posiciones", "El Excel debe tener columnas: Ticker / Acciones / Precio");
-        return;
-      }
-      if (!isPremiumAccess && parsed.length > FREE_POSITION_LIMIT) {
-        setPaywallOpen(true);
-        return;
-      }
-      Alert.alert(
-        `${parsed.length} posiciones detectadas`,
-        parsed.slice(0, 5).map((p) => `• ${p.ticker}: ${p.shares.toLocaleString("en-US")} acc @ $${p.avgPrice.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`).join("\n") +
-          (parsed.length > 5 ? `\n... y ${parsed.length - 5} más` : ""),
-        [{ text: "Cancelar", style: "cancel" }, { text: "Siguiente →", onPress: () => { setPendingImport(parsed); setImportCurrency("USD"); } }]
-      );
-    } catch {
-      Alert.alert("Error", "No se pudo leer el archivo.");
-    }
-  };
 
   // ── Simulator 1: portfolio AI analysis ────────────────────────────────
   const simulate = async () => {
@@ -682,10 +628,6 @@ export default function PortfolioScreen() {
           <View style={s.headerButtons}>
             <TouchableOpacity style={[s.btnSmall, { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border }]} onPress={() => { setShowForm(!showForm); setScreenshotPreview(null); }}>
               <Text style={[s.btnSmallText, { color: colors.textSub }]}>+ Manual</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={[s.btnSmall, s.btnExcel, { flexDirection: "row", alignItems: "center", gap: 4 }]} onPress={handleExcelImport}>
-              <Ionicons name="document-outline" size={13} color="white" />
-              <Text style={s.btnSmallText}>Excel</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -1549,7 +1491,7 @@ function makeStyles(c: Colors) {
     sectionTitle: { fontSize: 17, fontWeight: "800", color: c.text, marginBottom: 12, letterSpacing: -0.3 },
     headerButtons: { flexDirection: "row", gap: 8 },
     btnSmall: { borderRadius: 10, paddingHorizontal: 13, paddingVertical: 7 },
-    btnExcel: { backgroundColor: "#1d4ed8" },
+
     btnSmallText: { color: "white", fontSize: 12, fontWeight: "700", letterSpacing: 0.1 },
     // Screenshot primary button
     screenshotBtn: {

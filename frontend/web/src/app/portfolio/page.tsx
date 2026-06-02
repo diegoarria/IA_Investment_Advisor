@@ -6,12 +6,11 @@ import { useRouter } from "next/navigation";
 import Image from "next/image";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import * as XLSX from "xlsx";
 import { market as marketApi, paperApi } from "@/lib/api";
 import { useAuthStore } from "@/lib/store";
 import { usePortfolioStore, type Position } from "@/lib/portfolioStore";
 import {
-  PieChart, Menu, X, Upload, FileSpreadsheet, Plus, Trash2, Trophy,
+  PieChart, Menu, X, Upload, Plus, Trash2, Trophy,
   BarChart, Calculator, Shield, Sparkles, RefreshCw, AlertTriangle, Lightbulb,
 } from "lucide-react";
 
@@ -182,29 +181,6 @@ function scorePortfolio(positions: Position[], pricesData: Record<string, PriceD
   return { score, levelIdx: idx===-1?7:idx, sectorPcts };
 }
 
-const TICKER_KEYS = ["ticker","symbol","emisora","instrumento","accion","titulo","clave"];
-const SHARES_KEYS = ["shares","qty","quantity","cantidad","titulos","acciones","unidades"];
-const PRICE_KEYS  = ["price","precio","promedio","costo","avg","cost","compra","purchase"];
-
-function findCol(headers: string[], keys: string[]) {
-  return headers.findIndex((h) => keys.some((k) => h.toLowerCase().includes(k)));
-}
-
-function parseExcelRows(rows: Record<string,unknown>[]): Omit<Position,"id">[] {
-  if (!rows.length) return [];
-  const headers = Object.keys(rows[0]);
-  const tI = findCol(headers, TICKER_KEYS);
-  const sI = findCol(headers, SHARES_KEYS);
-  const pI = findCol(headers, PRICE_KEYS);
-  if (tI < 0) return [];
-  return rows
-    .map((row) => ({
-      ticker: String(row[headers[tI]]??"").trim().toUpperCase(),
-      shares: sI>=0 ? parseFloat(String(row[headers[sI]]??"0"))||0 : 0,
-      avgPrice: pI>=0 ? parseFloat(String(row[headers[pI]]??"0"))||0 : 0,
-    }))
-    .filter((p) => p.ticker.length>0 && p.shares>0);
-}
 
 type Scenario = "conservative"|"moderate"|"aggressive";
 const SCENARIOS: {value:Scenario; label:string; emoji:string}[] = [
@@ -246,8 +222,6 @@ export default function PortfolioPage() {
   const [importCurrency, setImportCurrency] = useState("USD");
   const [convertingCurrency, setConvertingCurrency] = useState(false);
 
-  // Excel
-  const excelInputRef = useRef<HTMLInputElement>(null);
 
   // Stress test
   const [stressScenario, setStressScenario] = useState<string|null>(null);
@@ -437,27 +411,6 @@ export default function PortfolioPage() {
     setPendingImport(null);
   };
 
-  // ── Excel import ─────────────────────────────────────────────────────────
-  const handleExcelChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    try {
-      const buffer = await file.arrayBuffer();
-      const wb = XLSX.read(new Uint8Array(buffer), { type:"array" });
-      const rows = XLSX.utils.sheet_to_json<Record<string,unknown>>(wb.Sheets[wb.SheetNames[0]]);
-      const parsed = parseExcelRows(rows);
-      if (!parsed.length) {
-        alert("El Excel debe tener columnas: Ticker / Acciones / Precio");
-        return;
-      }
-      setPendingImport(parsed);
-      setImportCurrency("USD");
-    } catch {
-      alert("No se pudo leer el archivo.");
-    } finally {
-      if (excelInputRef.current) excelInputRef.current.value = "";
-    }
-  };
 
   // ── Manual add ─────────────────────────────────────────────────────────
   const handleAdd = async () => {
@@ -590,12 +543,6 @@ export default function PortfolioPage() {
                         style={{ borderColor:"var(--border)", color:"var(--sub)", background:"var(--card)" }}>
                   <Plus className="w-3.5 h-3.5" /> Manual
                 </button>
-                <button onClick={() => excelInputRef.current?.click()}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-white transition-colors"
-                        style={{ background:"#1d4ed8" }}>
-                  <FileSpreadsheet className="w-3.5 h-3.5" /> Excel
-                </button>
-                <input ref={excelInputRef} type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={handleExcelChange} />
               </div>
             </div>
 
