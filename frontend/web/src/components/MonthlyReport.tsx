@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { FileText, Download, Loader2, TrendingUp, TrendingDown, X } from "lucide-react";
 import { reportApi } from "@/lib/api";
+import PremiumToolLocked from "@/components/PremiumToolLocked";
 
 interface Position {
   ticker: string;

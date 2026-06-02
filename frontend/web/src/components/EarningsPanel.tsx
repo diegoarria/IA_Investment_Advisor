@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { TrendingUp, TrendingDown, Calendar, ChevronDown, ChevronUp, Zap, Loader2 } from "lucide-react";
 import { earningsApi } from "@/lib/api";
+import PremiumToolLocked from "@/components/PremiumToolLocked";
 
 interface EarningsEntry {
   ticker: string;
@@ -66,22 +67,20 @@ export default function EarningsPanel({ positions, isPremium, onUpgrade }: Earni
 
   if (!isPremium) {
     return (
-      <div className="rounded-xl border p-5" style={{ borderColor: "var(--border)", background: "var(--card)" }}>
-        <div className="flex items-center gap-2 mb-3">
-          <Calendar className="w-4 h-4" style={{ color: "var(--accent-l)" }} />
-          <span className="font-semibold text-sm" style={{ color: "var(--text)" }}>Análisis de Earnings</span>
-          <span className="ml-auto text-[10px] font-bold px-2 py-0.5 rounded-full"
-                style={{ background: "rgba(0,168,94,0.15)", color: "var(--accent-l)" }}>PREMIUM</span>
-        </div>
-        <p className="text-xs mb-3" style={{ color: "var(--muted)" }}>
-          Recibe análisis automático cada vez que una empresa de tu portafolio reporta resultados.
-        </p>
-        <button onClick={onUpgrade}
-                className="w-full py-2 rounded-lg text-xs font-bold text-white"
-                style={{ background: "linear-gradient(90deg,#00a85e,#00d47e)" }}>
-          Activar Premium
-        </button>
-      </div>
+      <PremiumToolLocked
+        title="Análisis de Earnings"
+        tagline="IA analiza resultados automáticamente"
+        description="Cuando una empresa de tu portafolio reporta resultados trimestrales, la IA los analiza al instante: EPS vs estimado, revenue, guidance e impacto exacto en tu posición."
+        icon={Calendar}
+        color="#22c55e"
+        benefits={[
+          { icon: "📅", text: "Calendario de earnings de tus posiciones" },
+          { icon: "📊", text: "EPS real vs estimado con contexto profundo" },
+          { icon: "💰", text: "Impacto calculado en tu inversión específica" },
+          { icon: "⚡", text: "Análisis automático sin buscar nada tú" },
+        ]}
+        onUnlock={onUpgrade}
+      />
     );
   }
 

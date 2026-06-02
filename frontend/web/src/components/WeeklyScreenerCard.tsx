@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { Search, TrendingUp, TrendingDown, Loader2, Lock, RefreshCw } from "lucide-react";
+import { Search, TrendingUp, TrendingDown, Loader2, RefreshCw } from "lucide-react";
+import PremiumToolLocked from "@/components/PremiumToolLocked";
 import { screenerApi } from "@/lib/api";
 
 interface Pick {
@@ -46,21 +47,20 @@ export default function WeeklyScreenerCard({ isPremium, onUpgrade, tickers = [] 
 
   if (!isPremium) {
     return (
-      <div className="rounded-xl border p-5" style={{ borderColor: "var(--border)", background: "var(--card)" }}>
-        <div className="flex items-center gap-2 mb-3">
-          <Search className="w-4 h-4" style={{ color: "var(--accent-l)" }} />
-          <span className="font-semibold text-sm" style={{ color: "var(--text)" }}>Screener Semanal</span>
-          <span className="ml-auto text-[10px] font-bold px-2 py-0.5 rounded-full"
-                style={{ background: "rgba(0,168,94,0.15)", color: "var(--accent-l)" }}>PREMIUM</span>
-        </div>
-        <p className="text-xs mb-3" style={{ color: "var(--muted)" }}>
-          Cada lunes la IA selecciona 5 oportunidades personalizadas según tu perfil y mentor.
-        </p>
-        <button onClick={onUpgrade} className="w-full py-2 rounded-lg text-xs font-bold text-white"
-                style={{ background: "linear-gradient(90deg,#00a85e,#00d47e)" }}>
-          Activar Premium
-        </button>
-      </div>
+      <PremiumToolLocked
+        title="Screener Semanal"
+        tagline="5 oportunidades personalizadas cada lunes"
+        description="Cada lunes la IA escanea el mercado y selecciona 5 oportunidades que encajan con tu perfil de riesgo, filosofía de tu mentor y los huecos en tu portafolio actual."
+        icon={Search}
+        color="#8b5cf6"
+        benefits={[
+          { icon: "🎯", text: "Filtradas por tu perfil de riesgo y mentor" },
+          { icon: "⚡", text: "Catalizador concreto y riesgo por cada pick" },
+          { icon: "🚫", text: "Nunca te sugiere lo que ya tienes" },
+          { icon: "📅", text: "Se actualiza cada lunes automáticamente" },
+        ]}
+        onUnlock={onUpgrade}
+      />
     );
   }
 
@@ -114,7 +114,6 @@ export default function WeeklyScreenerCard({ isPremium, onUpgrade, tickers = [] 
 
       {!loading && !data && (
         <div className="flex items-center gap-2 p-4">
-          <Lock className="w-4 h-4" style={{ color: "var(--muted)" }} />
           <span className="text-xs" style={{ color: "var(--muted)" }}>No hay picks disponibles aún.</span>
         </div>
       )}

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Zap, TrendingUp, TrendingDown, Minus, Loader2, ChevronDown } from "lucide-react";
+import PremiumToolLocked from "@/components/PremiumToolLocked";
 import { simulateApi } from "@/lib/api";
 
 interface Position {
@@ -99,21 +100,20 @@ export default function WhatIfSimulator({ positions, isPremium, onUpgrade }: Wha
 
   if (!isPremium) {
     return (
-      <div className="rounded-xl border p-5" style={{ borderColor: "var(--border)", background: "var(--card)" }}>
-        <div className="flex items-center gap-2 mb-3">
-          <Zap className="w-4 h-4" style={{ color: "var(--accent-l)" }} />
-          <span className="font-semibold text-sm" style={{ color: "var(--text)" }}>Simulador ¿Qué pasa si?</span>
-          <span className="ml-auto text-[10px] font-bold px-2 py-0.5 rounded-full"
-                style={{ background: "rgba(0,168,94,0.15)", color: "var(--accent-l)" }}>PREMIUM</span>
-        </div>
-        <p className="text-xs mb-3" style={{ color: "var(--muted)" }}>
-          Simula cambios en tu portafolio y escenarios macroeconómicos antes de tomar decisiones reales.
-        </p>
-        <button onClick={onUpgrade} className="w-full py-2 rounded-lg text-xs font-bold text-white"
-                style={{ background: "linear-gradient(90deg,#00a85e,#00d47e)" }}>
-          Activar Premium
-        </button>
-      </div>
+      <PremiumToolLocked
+        title="Simulador ¿Qué pasa si?"
+        tagline="Prueba decisiones antes de tomarlas"
+        description="Simula cualquier cambio en tu portafolio antes de ejecutarlo. Cambia posiciones, proyecta aportes mensuales o simula eventos macroeconómicos y ve el impacto real."
+        icon={Zap}
+        color="#f59e0b"
+        benefits={[
+          { icon: "🔄", text: "¿Qué pasa si vendo X y compro Y?" },
+          { icon: "💰", text: "Proyección de aportes mensuales a N años" },
+          { icon: "🌍", text: "Impacto de eventos macro en tu portafolio" },
+          { icon: "🧠", text: "Veredicto de tu mentor en cada escenario" },
+        ]}
+        onUnlock={onUpgrade}
+      />
     );
   }
 

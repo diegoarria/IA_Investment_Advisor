@@ -16,6 +16,7 @@ import MobileEarningsPanel from "../../src/components/MobileEarningsPanel";
 import MobileWhatIf from "../../src/components/MobileWhatIf";
 import MobileMonthlyReport from "../../src/components/MobileMonthlyReport";
 import MobileWeeklyScreener from "../../src/components/MobileWeeklyScreener";
+import PremiumToolCard from "../../src/components/PremiumToolCard";
 import { useAppStore, getAge, UserProfile, RISK_CONFIG } from "../../src/lib/profileStore";
 import { useSubscriptionStore, hasPremiumAccess } from "../../src/lib/subscriptionStore";
 import PaywallModal from "../../src/components/PaywallModal";
@@ -651,31 +652,20 @@ export default function PortfolioScreen() {
               ? <MobileMonthlyReport
                   positions={positions.map((p) => ({ ticker: p.ticker, name: p.name, shares: p.shares, avg_cost: p.avgPrice, current_price: prices[p.ticker]?.price ?? 0, value: (p.shares || 0) * (prices[p.ticker]?.price ?? p.avgPrice) }))}
                   isPremium={true} onUpgrade={() => setPaywallOpen(true)} />
-              : <TouchableOpacity style={[s.premiumToolCard, { borderColor: colors.border, backgroundColor: colors.card }]} onPress={() => setPaywallOpen(true)} activeOpacity={0.85}>
-                  <View style={s.premiumToolHeader}>
-                    <View style={[s.premiumToolIcon, { backgroundColor: "#3b82f620" }]}>
-                      <Ionicons name="document-text-outline" size={22} color="#3b82f6" />
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={[s.premiumToolTitle, { color: colors.text }]}>Reporte Mensual</Text>
-                      <Text style={[s.premiumToolSub, { color: colors.textMuted }]}>Tu portafolio analizado con IA cada mes</Text>
-                    </View>
-                    <View style={[s.lockBadge, { backgroundColor: colors.accent + "18" }]}>
-                      <Ionicons name="lock-closed" size={12} color={colors.accent} />
-                    </View>
-                  </View>
-                  <Text style={[s.premiumToolDesc, { color: colors.textSub }]}>
-                    Genera un reporte profesional con rendimiento vs S&P 500, Sharpe ratio, volatilidad, las mejores y peores posiciones del mes y una nota personal de tu mentor.
-                  </Text>
-                  <View style={{ gap: 4, marginTop: 8 }}>
-                    {["📊 Rendimiento real vs benchmarks", "📉 Sharpe ratio y drawdown máximo", "🎓 Nota personalizada de tu mentor", "✅ 3 acciones concretas para el mes"].map(b => (
-                      <Text key={b} style={[s.premiumBenefit, { color: colors.textSub }]}>{b}</Text>
-                    ))}
-                  </View>
-                  <View style={[s.unlockBtn, { backgroundColor: colors.accent }]}>
-                    <Text style={s.unlockBtnText}>Desbloquear con Premium</Text>
-                  </View>
-                </TouchableOpacity>
+              : <PremiumToolCard
+                  title="Reporte Mensual"
+                  tagline="Tu portafolio analizado con IA cada mes"
+                  description="Genera un reporte profesional con rendimiento vs S&P 500, Sharpe ratio, volatilidad, mejores y peores posiciones del mes y nota personal de tu mentor."
+                  icon="document-text-outline"
+                  color="#3b82f6"
+                  benefits={[
+                    { icon: "bar-chart-outline",    text: "Rendimiento real vs S&P 500 y benchmarks" },
+                    { icon: "trending-down-outline", text: "Sharpe ratio, volatilidad y drawdown máximo" },
+                    { icon: "school-outline",        text: "Nota personalizada de tu mentor cada mes" },
+                    { icon: "checkmark-circle-outline", text: "3 acciones concretas para el mes siguiente" },
+                  ]}
+                  onUnlock={() => setPaywallOpen(true)}
+                />
             }
 
             {/* ── SIMULADOR ¿QUÉ PASA SI? ── */}
@@ -683,31 +673,20 @@ export default function PortfolioScreen() {
               ? <MobileWhatIf
                   positions={positions.map((p) => ({ ticker: p.ticker, name: p.name, shares: p.shares, avg_cost: p.avgPrice, current_price: prices[p.ticker]?.price ?? 0, value: (p.shares || 0) * (prices[p.ticker]?.price ?? p.avgPrice) }))}
                   isPremium={true} onUpgrade={() => setPaywallOpen(true)} />
-              : <TouchableOpacity style={[s.premiumToolCard, { borderColor: colors.border, backgroundColor: colors.card }]} onPress={() => setPaywallOpen(true)} activeOpacity={0.85}>
-                  <View style={s.premiumToolHeader}>
-                    <View style={[s.premiumToolIcon, { backgroundColor: "#f59e0b20" }]}>
-                      <Ionicons name="flash-outline" size={22} color="#f59e0b" />
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={[s.premiumToolTitle, { color: colors.text }]}>Simulador ¿Qué pasa si?</Text>
-                      <Text style={[s.premiumToolSub, { color: colors.textMuted }]}>Prueba decisiones antes de tomarlas</Text>
-                    </View>
-                    <View style={[s.lockBadge, { backgroundColor: colors.accent + "18" }]}>
-                      <Ionicons name="lock-closed" size={12} color={colors.accent} />
-                    </View>
-                  </View>
-                  <Text style={[s.premiumToolDesc, { color: colors.textSub }]}>
-                    Simula cualquier cambio en tu portafolio antes de ejecutarlo. Cambia posiciones, agrega aportes mensuales o simula eventos macroeconómicos.
-                  </Text>
-                  <View style={{ gap: 4, marginTop: 8 }}>
-                    {["🔄 ¿Qué pasa si vendo X y compro Y?", "💰 Proyección de aportes mensuales", "🌍 Impacto de eventos macro en tu portafolio", "🧠 Veredicto de tu mentor en cada escenario"].map(b => (
-                      <Text key={b} style={[s.premiumBenefit, { color: colors.textSub }]}>{b}</Text>
-                    ))}
-                  </View>
-                  <View style={[s.unlockBtn, { backgroundColor: colors.accent }]}>
-                    <Text style={s.unlockBtnText}>Desbloquear con Premium</Text>
-                  </View>
-                </TouchableOpacity>
+              : <PremiumToolCard
+                  title="Simulador ¿Qué pasa si?"
+                  tagline="Prueba decisiones antes de tomarlas"
+                  description="Simula cualquier cambio en tu portafolio antes de ejecutarlo. Cambia posiciones, proyecta aportes o simula eventos macroeconómicos y ve el impacto real."
+                  icon="flash-outline"
+                  color="#f59e0b"
+                  benefits={[
+                    { icon: "swap-horizontal-outline", text: "¿Qué pasa si vendo X y compro Y?" },
+                    { icon: "wallet-outline",           text: "Proyección de aportes mensuales a N años" },
+                    { icon: "globe-outline",            text: "Impacto de eventos macro en tu portafolio" },
+                    { icon: "bulb-outline",             text: "Veredicto de tu mentor en cada escenario" },
+                  ]}
+                  onUnlock={() => setPaywallOpen(true)}
+                />
             }
 
             {/* ── ANÁLISIS DE EARNINGS ── */}
@@ -715,61 +694,39 @@ export default function PortfolioScreen() {
               ? <MobileEarningsPanel
                   positions={positions.map((p) => ({ ticker: p.ticker, shares: p.shares, avg_cost: p.avgPrice }))}
                   isPremium={true} onUpgrade={() => setPaywallOpen(true)} />
-              : <TouchableOpacity style={[s.premiumToolCard, { borderColor: colors.border, backgroundColor: colors.card }]} onPress={() => setPaywallOpen(true)} activeOpacity={0.85}>
-                  <View style={s.premiumToolHeader}>
-                    <View style={[s.premiumToolIcon, { backgroundColor: "#22c55e20" }]}>
-                      <Ionicons name="calendar-outline" size={22} color="#22c55e" />
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={[s.premiumToolTitle, { color: colors.text }]}>Análisis de Earnings</Text>
-                      <Text style={[s.premiumToolSub, { color: colors.textMuted }]}>IA analiza resultados por ti automáticamente</Text>
-                    </View>
-                    <View style={[s.lockBadge, { backgroundColor: colors.accent + "18" }]}>
-                      <Ionicons name="lock-closed" size={12} color={colors.accent} />
-                    </View>
-                  </View>
-                  <Text style={[s.premiumToolDesc, { color: colors.textSub }]}>
-                    Cuando una empresa de tu portafolio reporta resultados trimestrales, la IA los analiza automáticamente: EPS, revenue, guidance e impacto en tu posición específica.
-                  </Text>
-                  <View style={{ gap: 4, marginTop: 8 }}>
-                    {["📅 Calendario de earnings de tus posiciones", "📊 EPS real vs estimado con contexto", "💰 Impacto calculado en tu inversión", "⚡ Análisis sin que tengas que buscar nada"].map(b => (
-                      <Text key={b} style={[s.premiumBenefit, { color: colors.textSub }]}>{b}</Text>
-                    ))}
-                  </View>
-                  <View style={[s.unlockBtn, { backgroundColor: colors.accent }]}>
-                    <Text style={s.unlockBtnText}>Desbloquear con Premium</Text>
-                  </View>
-                </TouchableOpacity>
+              : <PremiumToolCard
+                  title="Análisis de Earnings"
+                  tagline="IA analiza resultados automáticamente"
+                  description="Cuando una empresa de tu portafolio reporta resultados, la IA los analiza al instante: EPS vs estimado, revenue, guidance e impacto exacto en tu posición."
+                  icon="calendar-outline"
+                  color="#22c55e"
+                  benefits={[
+                    { icon: "calendar-outline",       text: "Calendario de earnings de tus posiciones" },
+                    { icon: "stats-chart-outline",    text: "EPS real vs estimado con contexto profundo" },
+                    { icon: "cash-outline",           text: "Impacto calculado en tu inversión específica" },
+                    { icon: "notifications-outline",  text: "Análisis automático sin buscar nada tú" },
+                  ]}
+                  onUnlock={() => setPaywallOpen(true)}
+                />
             }
 
             {/* ── SCREENER SEMANAL ── */}
             {isPremiumAccess
               ? <MobileWeeklyScreener isPremium={true} onUpgrade={() => setPaywallOpen(true)} existingTickers={positions.map(p => p.ticker)} />
-              : <TouchableOpacity style={[s.premiumToolCard, { borderColor: colors.border, backgroundColor: colors.card }]} onPress={() => setPaywallOpen(true)} activeOpacity={0.85}>
-                  <View style={s.premiumToolHeader}>
-                    <View style={[s.premiumToolIcon, { backgroundColor: "#8b5cf620" }]}>
-                      <Ionicons name="search-outline" size={22} color="#8b5cf6" />
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={[s.premiumToolTitle, { color: colors.text }]}>Screener Semanal</Text>
-                      <Text style={[s.premiumToolSub, { color: colors.textMuted }]}>5 oportunidades personalizadas cada lunes</Text>
-                    </View>
-                    <View style={[s.lockBadge, { backgroundColor: colors.accent + "18" }]}>
-                      <Ionicons name="lock-closed" size={12} color={colors.accent} />
-                    </View>
-                  </View>
-                  <Text style={[s.premiumToolDesc, { color: colors.textSub }]}>
-                    Cada lunes la IA escanea el mercado y te entrega 5 oportunidades que encajan con tu perfil de riesgo, filosofía de tu mentor y los huecos en tu portafolio actual.
-                  </Text>
-                  <View style={{ gap: 4, marginTop: 8 }}>
-                    {["🎯 Filtradas por tu perfil y mentor", "⚡ Catalizador y riesgo de cada pick", "🚫 Nunca te sugiere lo que ya tienes", "📅 Se actualiza cada lunes sin que hagas nada"].map(b => (
-                      <Text key={b} style={[s.premiumBenefit, { color: colors.textSub }]}>{b}</Text>
-                    ))}
-                  </View>
-                  <View style={[s.unlockBtn, { backgroundColor: colors.accent }]}>
-                    <Text style={s.unlockBtnText}>Desbloquear con Premium</Text>
-                  </View>
-                </TouchableOpacity>
+              : <PremiumToolCard
+                  title="Screener Semanal"
+                  tagline="5 oportunidades personalizadas cada lunes"
+                  description="Cada lunes la IA escanea el mercado y selecciona 5 oportunidades que encajan con tu perfil de riesgo, filosofía de tu mentor y los huecos en tu portafolio."
+                  icon="search-outline"
+                  color="#8b5cf6"
+                  benefits={[
+                    { icon: "person-outline",       text: "Filtradas por tu perfil de riesgo y mentor" },
+                    { icon: "flash-outline",        text: "Catalizador concreto y riesgo por cada pick" },
+                    { icon: "close-circle-outline", text: "Nunca te sugiere lo que ya tienes" },
+                    { icon: "refresh-outline",      text: "Se actualiza cada lunes automáticamente" },
+                  ]}
+                  onUnlock={() => setPaywallOpen(true)}
+                />
             }
           </View>
         )}

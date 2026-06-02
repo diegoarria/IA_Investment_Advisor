@@ -13,10 +13,11 @@ import EarningsPanel from "@/components/EarningsPanel";
 import WhatIfSimulator from "@/components/WhatIfSimulator";
 import MonthlyReport from "@/components/MonthlyReport";
 import WeeklyScreenerCard from "@/components/WeeklyScreenerCard";
+import PremiumToolLockedWeb from "@/components/PremiumToolLocked";
 import PaywallModal from "@/components/PaywallModal";
 import {
   PieChart, Menu, X, Upload, Plus, Trash2, Trophy,
-  BarChart, Calculator, Shield, Sparkles, RefreshCw, AlertTriangle, Lightbulb,
+  BarChart, Calculator, Shield, Sparkles, RefreshCw, AlertTriangle, Lightbulb, FileText,
 } from "lucide-react";
 
 // ─── Liga data ─────────────────────────────────────────────────────────────
@@ -1034,16 +1035,32 @@ export default function PortfolioPage() {
                 Herramientas de análisis avanzado para tu portafolio
               </p>
 
-              <MonthlyReport
-                positions={positions.map((p) => ({
-                  ticker: p.ticker, name: p.name, shares: p.shares,
-                  avg_cost: p.avgPrice,
-                  current_price: prices[p.ticker]?.price ?? 0,
-                  value: (p.shares || 0) * (prices[p.ticker]?.price ?? p.avgPrice),
-                }))}
-                isPremium={isPremium}
-                onUpgrade={() => setPaywallOpen(true)}
-              />
+              {isPremium
+                ? <MonthlyReport
+                    positions={positions.map((p) => ({
+                      ticker: p.ticker, name: p.name, shares: p.shares,
+                      avg_cost: p.avgPrice,
+                      current_price: prices[p.ticker]?.price ?? 0,
+                      value: (p.shares || 0) * (prices[p.ticker]?.price ?? p.avgPrice),
+                    }))}
+                    isPremium={true}
+                    onUpgrade={() => setPaywallOpen(true)}
+                  />
+                : <PremiumToolLockedWeb
+                    title="Reporte Mensual"
+                    tagline="Tu portafolio analizado con IA cada mes"
+                    description="Genera un reporte profesional con rendimiento vs S&P 500, Sharpe ratio, volatilidad, mejores y peores posiciones del mes y nota personal de tu mentor."
+                    icon={FileText}
+                    color="#3b82f6"
+                    benefits={[
+                      { icon: "📊", text: "Rendimiento real vs S&P 500 y benchmarks" },
+                      { icon: "📉", text: "Sharpe ratio, volatilidad y drawdown máximo" },
+                      { icon: "🎓", text: "Nota personalizada de tu mentor cada mes" },
+                      { icon: "✅", text: "3 acciones concretas para el mes siguiente" },
+                    ]}
+                    onUnlock={() => setPaywallOpen(true)}
+                  />
+              }
 
               <EarningsPanel
                 positions={positions.map((p) => ({
