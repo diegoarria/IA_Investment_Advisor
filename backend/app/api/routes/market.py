@@ -164,7 +164,7 @@ async def get_prices(request: dict, user_id: str = Depends(get_current_user_id))
     def _fetch(symbol: str) -> tuple[str, dict]:
         import httpx
         encoded = symbol.replace("^", "%5E")
-        price, prev, currency = None, None, "USD"
+        price, prev, currency, name = None, None, "USD", symbol
 
         # Primary: direct Yahoo Finance API
         for domain in ("query1", "query2"):
@@ -175,11 +175,13 @@ async def get_prices(request: dict, user_id: str = Depends(get_current_user_id))
                 r = httpx.get(url, headers=_YF_HEADERS, timeout=8, follow_redirects=True)
                 if r.status_code == 200:
                     res = r.json()["chart"]["result"][0]
+                    meta = res.get("meta", {})
                     closes = [c for c in res["indicators"]["quote"][0]["close"] if c is not None]
                     if closes:
                         price = closes[-1]
                         prev  = closes[-2] if len(closes) >= 2 else None
-                        currency = res.get("meta", {}).get("currency", "USD")
+                        currency = meta.get("currency", "USD")
+                        name = meta.get("shortName") or meta.get("longName") or symbol
             except Exception:
                 pass
 
@@ -200,7 +202,7 @@ async def get_prices(request: dict, user_id: str = Depends(get_current_user_id))
             "price":      round(price, 4) if price else None,
             "change_pct": change_pct,
             "currency":   currency,
-            "name":       symbol,
+            "name":       name,
         }
 
     with ThreadPoolExecutor(max_workers=min(len(symbols), 10)) as pool:

@@ -65,7 +65,7 @@ export default function PaperPage() {
       try {
         const res = await marketApi.getPrices([t]);
         const d = res.data[t];
-        if (d?.price) setTickerInfo({ ticker: t, name: t, price: d.price, change_pct: d.change_pct ?? 0 });
+        if (d?.price) setTickerInfo({ ticker: t, name: (d as {name?: string}).name || t, price: d.price, change_pct: d.change_pct ?? 0 });
         else setSearchError("Ticker no encontrado");
       } catch { setSearchError("No se pudo obtener precio"); }
       setSearching(false);
@@ -210,6 +210,9 @@ export default function PaperPage() {
                   <div key={pos.ticker} className="flex items-center justify-between px-4 py-3 border-t" style={{ borderColor: "var(--border)" }}>
                     <div>
                       <div className="font-bold text-sm" style={{ color: "var(--text)" }}>{pos.ticker}</div>
+                      {pos.name && pos.name !== pos.ticker && (
+                        <div className="text-[10px] font-medium truncate max-w-[140px]" style={{ color: "var(--accent-l)" }}>{pos.name}</div>
+                      )}
                       <div className="text-xs" style={{ color: "var(--muted)" }}>{pos.shares} acc · avg ${pos.avgPrice.toFixed(2)}</div>
                     </div>
                     <div className="flex items-center gap-3">
