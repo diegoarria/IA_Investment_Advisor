@@ -641,43 +641,136 @@ export default function PortfolioScreen() {
         </View>
 
         {activeSection === "herramientas" && (
-          <View style={{ gap: 10, paddingBottom: 32 }}>
-            <Text style={{ fontSize: 11, color: colors.textMuted, marginBottom: 4 }}>
+          <View style={{ gap: 12, paddingBottom: 32 }}>
+            <Text style={{ fontSize: 11, color: colors.textMuted, marginBottom: 2 }}>
               Herramientas de análisis avanzado para tu portafolio
             </Text>
-            <MobileMonthlyReport
-              positions={positions.map((p) => ({
-                ticker: p.ticker, name: p.name,
-                shares: p.shares, avg_cost: p.avgPrice,
-                current_price: prices[p.ticker]?.price ?? 0,
-                value: (p.shares || 0) * (prices[p.ticker]?.price ?? p.avgPrice),
-              }))}
-              isPremium={isPremiumAccess}
-              onUpgrade={() => setPaywallOpen(true)}
-            />
-            <MobileWhatIf
-              positions={positions.map((p) => ({
-                ticker: p.ticker, name: p.name,
-                shares: p.shares, avg_cost: p.avgPrice,
-                current_price: prices[p.ticker]?.price ?? 0,
-                value: (p.shares || 0) * (prices[p.ticker]?.price ?? p.avgPrice),
-              }))}
-              isPremium={isPremiumAccess}
-              onUpgrade={() => setPaywallOpen(true)}
-            />
-            <MobileEarningsPanel
-              positions={positions.map((p) => ({
-                ticker: p.ticker,
-                shares: p.shares, avg_cost: p.avgPrice,
-              }))}
-              isPremium={isPremiumAccess}
-              onUpgrade={() => setPaywallOpen(true)}
-            />
-            <MobileWeeklyScreener
-              isPremium={isPremiumAccess}
-              onUpgrade={() => setPaywallOpen(true)}
-              existingTickers={positions.map(p => p.ticker)}
-            />
+
+            {/* ── REPORTE MENSUAL ── */}
+            {isPremiumAccess
+              ? <MobileMonthlyReport
+                  positions={positions.map((p) => ({ ticker: p.ticker, name: p.name, shares: p.shares, avg_cost: p.avgPrice, current_price: prices[p.ticker]?.price ?? 0, value: (p.shares || 0) * (prices[p.ticker]?.price ?? p.avgPrice) }))}
+                  isPremium={true} onUpgrade={() => setPaywallOpen(true)} />
+              : <TouchableOpacity style={[s.premiumToolCard, { borderColor: colors.border, backgroundColor: colors.card }]} onPress={() => setPaywallOpen(true)} activeOpacity={0.85}>
+                  <View style={s.premiumToolHeader}>
+                    <View style={[s.premiumToolIcon, { backgroundColor: "#3b82f620" }]}>
+                      <Ionicons name="document-text-outline" size={22} color="#3b82f6" />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={[s.premiumToolTitle, { color: colors.text }]}>Reporte Mensual</Text>
+                      <Text style={[s.premiumToolSub, { color: colors.textMuted }]}>Tu portafolio analizado con IA cada mes</Text>
+                    </View>
+                    <View style={[s.lockBadge, { backgroundColor: colors.accent + "18" }]}>
+                      <Ionicons name="lock-closed" size={12} color={colors.accent} />
+                    </View>
+                  </View>
+                  <Text style={[s.premiumToolDesc, { color: colors.textSub }]}>
+                    Genera un reporte profesional con rendimiento vs S&P 500, Sharpe ratio, volatilidad, las mejores y peores posiciones del mes y una nota personal de tu mentor.
+                  </Text>
+                  <View style={{ gap: 4, marginTop: 8 }}>
+                    {["📊 Rendimiento real vs benchmarks", "📉 Sharpe ratio y drawdown máximo", "🎓 Nota personalizada de tu mentor", "✅ 3 acciones concretas para el mes"].map(b => (
+                      <Text key={b} style={[s.premiumBenefit, { color: colors.textSub }]}>{b}</Text>
+                    ))}
+                  </View>
+                  <View style={[s.unlockBtn, { backgroundColor: colors.accent }]}>
+                    <Text style={s.unlockBtnText}>Desbloquear con Premium</Text>
+                  </View>
+                </TouchableOpacity>
+            }
+
+            {/* ── SIMULADOR ¿QUÉ PASA SI? ── */}
+            {isPremiumAccess
+              ? <MobileWhatIf
+                  positions={positions.map((p) => ({ ticker: p.ticker, name: p.name, shares: p.shares, avg_cost: p.avgPrice, current_price: prices[p.ticker]?.price ?? 0, value: (p.shares || 0) * (prices[p.ticker]?.price ?? p.avgPrice) }))}
+                  isPremium={true} onUpgrade={() => setPaywallOpen(true)} />
+              : <TouchableOpacity style={[s.premiumToolCard, { borderColor: colors.border, backgroundColor: colors.card }]} onPress={() => setPaywallOpen(true)} activeOpacity={0.85}>
+                  <View style={s.premiumToolHeader}>
+                    <View style={[s.premiumToolIcon, { backgroundColor: "#f59e0b20" }]}>
+                      <Ionicons name="flash-outline" size={22} color="#f59e0b" />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={[s.premiumToolTitle, { color: colors.text }]}>Simulador ¿Qué pasa si?</Text>
+                      <Text style={[s.premiumToolSub, { color: colors.textMuted }]}>Prueba decisiones antes de tomarlas</Text>
+                    </View>
+                    <View style={[s.lockBadge, { backgroundColor: colors.accent + "18" }]}>
+                      <Ionicons name="lock-closed" size={12} color={colors.accent} />
+                    </View>
+                  </View>
+                  <Text style={[s.premiumToolDesc, { color: colors.textSub }]}>
+                    Simula cualquier cambio en tu portafolio antes de ejecutarlo. Cambia posiciones, agrega aportes mensuales o simula eventos macroeconómicos.
+                  </Text>
+                  <View style={{ gap: 4, marginTop: 8 }}>
+                    {["🔄 ¿Qué pasa si vendo X y compro Y?", "💰 Proyección de aportes mensuales", "🌍 Impacto de eventos macro en tu portafolio", "🧠 Veredicto de tu mentor en cada escenario"].map(b => (
+                      <Text key={b} style={[s.premiumBenefit, { color: colors.textSub }]}>{b}</Text>
+                    ))}
+                  </View>
+                  <View style={[s.unlockBtn, { backgroundColor: colors.accent }]}>
+                    <Text style={s.unlockBtnText}>Desbloquear con Premium</Text>
+                  </View>
+                </TouchableOpacity>
+            }
+
+            {/* ── ANÁLISIS DE EARNINGS ── */}
+            {isPremiumAccess
+              ? <MobileEarningsPanel
+                  positions={positions.map((p) => ({ ticker: p.ticker, shares: p.shares, avg_cost: p.avgPrice }))}
+                  isPremium={true} onUpgrade={() => setPaywallOpen(true)} />
+              : <TouchableOpacity style={[s.premiumToolCard, { borderColor: colors.border, backgroundColor: colors.card }]} onPress={() => setPaywallOpen(true)} activeOpacity={0.85}>
+                  <View style={s.premiumToolHeader}>
+                    <View style={[s.premiumToolIcon, { backgroundColor: "#22c55e20" }]}>
+                      <Ionicons name="calendar-outline" size={22} color="#22c55e" />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={[s.premiumToolTitle, { color: colors.text }]}>Análisis de Earnings</Text>
+                      <Text style={[s.premiumToolSub, { color: colors.textMuted }]}>IA analiza resultados por ti automáticamente</Text>
+                    </View>
+                    <View style={[s.lockBadge, { backgroundColor: colors.accent + "18" }]}>
+                      <Ionicons name="lock-closed" size={12} color={colors.accent} />
+                    </View>
+                  </View>
+                  <Text style={[s.premiumToolDesc, { color: colors.textSub }]}>
+                    Cuando una empresa de tu portafolio reporta resultados trimestrales, la IA los analiza automáticamente: EPS, revenue, guidance e impacto en tu posición específica.
+                  </Text>
+                  <View style={{ gap: 4, marginTop: 8 }}>
+                    {["📅 Calendario de earnings de tus posiciones", "📊 EPS real vs estimado con contexto", "💰 Impacto calculado en tu inversión", "⚡ Análisis sin que tengas que buscar nada"].map(b => (
+                      <Text key={b} style={[s.premiumBenefit, { color: colors.textSub }]}>{b}</Text>
+                    ))}
+                  </View>
+                  <View style={[s.unlockBtn, { backgroundColor: colors.accent }]}>
+                    <Text style={s.unlockBtnText}>Desbloquear con Premium</Text>
+                  </View>
+                </TouchableOpacity>
+            }
+
+            {/* ── SCREENER SEMANAL ── */}
+            {isPremiumAccess
+              ? <MobileWeeklyScreener isPremium={true} onUpgrade={() => setPaywallOpen(true)} existingTickers={positions.map(p => p.ticker)} />
+              : <TouchableOpacity style={[s.premiumToolCard, { borderColor: colors.border, backgroundColor: colors.card }]} onPress={() => setPaywallOpen(true)} activeOpacity={0.85}>
+                  <View style={s.premiumToolHeader}>
+                    <View style={[s.premiumToolIcon, { backgroundColor: "#8b5cf620" }]}>
+                      <Ionicons name="search-outline" size={22} color="#8b5cf6" />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={[s.premiumToolTitle, { color: colors.text }]}>Screener Semanal</Text>
+                      <Text style={[s.premiumToolSub, { color: colors.textMuted }]}>5 oportunidades personalizadas cada lunes</Text>
+                    </View>
+                    <View style={[s.lockBadge, { backgroundColor: colors.accent + "18" }]}>
+                      <Ionicons name="lock-closed" size={12} color={colors.accent} />
+                    </View>
+                  </View>
+                  <Text style={[s.premiumToolDesc, { color: colors.textSub }]}>
+                    Cada lunes la IA escanea el mercado y te entrega 5 oportunidades que encajan con tu perfil de riesgo, filosofía de tu mentor y los huecos en tu portafolio actual.
+                  </Text>
+                  <View style={{ gap: 4, marginTop: 8 }}>
+                    {["🎯 Filtradas por tu perfil y mentor", "⚡ Catalizador y riesgo de cada pick", "🚫 Nunca te sugiere lo que ya tienes", "📅 Se actualiza cada lunes sin que hagas nada"].map(b => (
+                      <Text key={b} style={[s.premiumBenefit, { color: colors.textSub }]}>{b}</Text>
+                    ))}
+                  </View>
+                  <View style={[s.unlockBtn, { backgroundColor: colors.accent }]}>
+                    <Text style={s.unlockBtnText}>Desbloquear con Premium</Text>
+                  </View>
+                </TouchableOpacity>
+            }
           </View>
         )}
 
@@ -1557,6 +1650,16 @@ function makeStyles(c: Colors) {
       gap: 6, paddingVertical: 13, borderBottomWidth: 2, borderBottomColor: "transparent",
     },
     subTabText: { fontSize: 13, fontWeight: "600", letterSpacing: 0.1 },
+    premiumToolCard: { borderRadius: 18, borderWidth: 1, padding: 16 },
+    premiumToolHeader: { flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 10 },
+    premiumToolIcon: { width: 44, height: 44, borderRadius: 13, alignItems: "center", justifyContent: "center" },
+    premiumToolTitle: { fontSize: 15, fontWeight: "800", letterSpacing: -0.3 },
+    premiumToolSub: { fontSize: 11, marginTop: 1 },
+    premiumToolDesc: { fontSize: 12, lineHeight: 18 },
+    premiumBenefit: { fontSize: 12, lineHeight: 18 },
+    lockBadge: { width: 28, height: 28, borderRadius: 9, alignItems: "center", justifyContent: "center" },
+    unlockBtn: { borderRadius: 13, paddingVertical: 12, alignItems: "center", marginTop: 14 },
+    unlockBtnText: { color: "white", fontWeight: "800", fontSize: 14 },
     content: { padding: 16, paddingBottom: 48 },
     sectionHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 },
     sectionTitle: { fontSize: 17, fontWeight: "800", color: c.text, marginBottom: 12, letterSpacing: -0.3 },

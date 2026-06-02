@@ -211,11 +211,54 @@ export default function ArenaScreen() {
         </View>
 
         {/* ── Hall of Fame ──────────────────────────────────────────── */}
-        {/* Diario de Decisiones */}
-        <MobileDecisionDiary
-          isPremium={isPremiumAccess}
-          onUpgrade={() => openPaywall("Activa Premium para registrar tus decisiones y detectar tus sesgos.")}
-        />
+        {/* ── Diario de Decisiones ── */}
+        <View style={[styles.diaryCard, { backgroundColor: colors.card, borderColor: colors.accent + "30" }]}>
+          {/* Header gradient accent */}
+          <View style={styles.diaryAccent} />
+          <View style={styles.diaryBody}>
+            <View style={styles.diaryTop}>
+              <View style={[styles.diaryIconBox, { backgroundColor: colors.accent + "18" }]}>
+                <Ionicons name="book-outline" size={24} color={colors.accent} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                  <Text style={[styles.diaryTitle, { color: colors.text }]}>Diario de Decisiones</Text>
+                  {!isPremiumAccess && (
+                    <View style={[styles.diaryPremiumBadge, { backgroundColor: colors.accent + "20" }]}>
+                      <Text style={[styles.diaryPremiumText, { color: colors.accent }]}>PREMIUM</Text>
+                    </View>
+                  )}
+                </View>
+                <Text style={[styles.diarySub, { color: colors.textMuted }]}>
+                  Detecta tus sesgos como inversor
+                </Text>
+              </View>
+            </View>
+
+            <Text style={[styles.diaryDesc, { color: colors.textSub }]}>
+              Registra cada decisión de inversión — compras, ventas, alertas ignoradas — y la IA detecta tus patrones conductuales con el tiempo.
+            </Text>
+
+            <View style={{ gap: 6, marginTop: 10, marginBottom: 14 }}>
+              {[
+                { icon: "trending-up-outline",      text: "Registra compras, ventas y decisiones emocionales" },
+                { icon: "analytics-outline",        text: "Detecta sesgos como FOMO, pánico y aversión a pérdidas" },
+                { icon: "cash-outline",             text: "Calcula cuánto te ha costado cada sesgo en dinero real" },
+                { icon: "trophy-outline",           text: "Reto semanal personalizado para mejorar como inversor" },
+              ].map((item) => (
+                <View key={item.text} style={styles.diaryBenefitRow}>
+                  <Ionicons name={item.icon as any} size={14} color={colors.accent} />
+                  <Text style={[styles.diaryBenefitText, { color: colors.textSub }]}>{item.text}</Text>
+                </View>
+              ))}
+            </View>
+
+            <MobileDecisionDiary
+              isPremium={isPremiumAccess}
+              onUpgrade={() => openPaywall("Activa Premium para registrar tus decisiones y detectar tus sesgos.")}
+            />
+          </View>
+        </View>
 
         <Text style={[styles.sectionTitle, { color: colors.textDim }]}>🏆 HALL OF FAME</Text>
         <View style={[styles.hofCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
@@ -450,6 +493,19 @@ const styles = StyleSheet.create({
   gameTitle: { fontSize: 15, fontWeight: "800", marginBottom: 6, textAlign: "center" },
   gameDesc: { fontSize: 11, textAlign: "center", lineHeight: 16, marginBottom: 10 },
   diffTag: { borderRadius: 20, paddingHorizontal: 10, paddingVertical: 3 },
+
+  diaryCard:         { borderRadius: 20, borderWidth: 1, overflow: "hidden", marginBottom: 4 },
+  diaryAccent:       { height: 3, backgroundColor: "#00a85e" },
+  diaryBody:         { padding: 16 },
+  diaryTop:          { flexDirection: "row", alignItems: "flex-start", gap: 12, marginBottom: 12 },
+  diaryIconBox:      { width: 48, height: 48, borderRadius: 14, alignItems: "center", justifyContent: "center" },
+  diaryTitle:        { fontSize: 16, fontWeight: "800", letterSpacing: -0.3 },
+  diarySub:          { fontSize: 11, marginTop: 2 },
+  diaryPremiumBadge: { borderRadius: 20, paddingHorizontal: 7, paddingVertical: 2 },
+  diaryPremiumText:  { fontSize: 9, fontWeight: "800" },
+  diaryDesc:         { fontSize: 13, lineHeight: 19 },
+  diaryBenefitRow:   { flexDirection: "row", alignItems: "flex-start", gap: 8 },
+  diaryBenefitText:  { fontSize: 12, lineHeight: 18, flex: 1 },
 
   hofCard: { borderRadius: 16, borderWidth: 1, overflow: "hidden" },
   hofRow: { flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingVertical: 14 },
