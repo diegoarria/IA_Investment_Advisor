@@ -101,8 +101,10 @@ export default function AuthScreen() {
 
   const _checkBiometricAvailability = async () => {
     try {
-      const enabled = await SecureStore.getItemAsync(BIOMETRIC_ENABLED_KEY);
-      if (enabled !== "true") return;
+      const enabled  = await SecureStore.getItemAsync(BIOMETRIC_ENABLED_KEY);
+      const savedEmail = await SecureStore.getItemAsync(BIOMETRIC_EMAIL_KEY);
+      const savedPass  = await SecureStore.getItemAsync(BIOMETRIC_PASSWORD_KEY);
+      if (enabled !== "true" || !savedEmail || !savedPass) return;
       const hasHardware = await LocalAuthentication.hasHardwareAsync();
       const enrolled    = await LocalAuthentication.isEnrolledAsync();
       if (hasHardware && enrolled) setBiometricReady(true);
@@ -200,8 +202,11 @@ export default function AuthScreen() {
         referralApi.applyCode(refCode.trim().toUpperCase()).catch(() => {});
       }
       if (mode === "login") {
-        const alreadyEnabled = await SecureStore.getItemAsync(BIOMETRIC_ENABLED_KEY);
-        if (alreadyEnabled !== "true") await _offerBiometricSetup(trimmedEmail, password);
+        const isEnabled = await SecureStore.getItemAsync(BIOMETRIC_ENABLED_KEY);
+        const hasCreds  = await SecureStore.getItemAsync(BIOMETRIC_EMAIL_KEY);
+        if (isEnabled !== "true" || !hasCreds) {
+          await _offerBiometricSetup(trimmedEmail, password);
+        }
       }
     } catch (err: unknown) {
       const detail = (err as any)?.response?.data?.detail;
@@ -217,6 +222,19 @@ export default function AuthScreen() {
   const handleBiometric = async () => {
     setBiometricLoading(true);
     try {
+      // Verify credentials still exist before even trying biometrics
+      const savedEmail    = await SecureStore.getItemAsync(BIOMETRIC_EMAIL_KEY);
+      const savedPassword = await SecureStore.getItemAsync(BIOMETRIC_PASSWORD_KEY);
+      if (!savedEmail || !savedPassword) {
+        await SecureStore.deleteItemAsync(BIOMETRIC_ENABLED_KEY);
+        setBiometricReady(false);
+        Alert.alert(
+          "Configura Face ID",
+          "Ingresa con tu email y contraseña una vez. Al entrar te pediremos activar Face ID automáticamente.",
+        );
+        return;
+      }
+
       const types = await LocalAuthentication.supportedAuthenticationTypesAsync();
       const hasFaceId = types.includes(LocalAuthentication.AuthenticationType.FACIAL_RECOGNITION);
 
@@ -226,14 +244,13 @@ export default function AuthScreen() {
         disableDeviceFallback: true,
       });
 
-      if (!result.success) return;
-
-      const savedEmail    = await SecureStore.getItemAsync(BIOMETRIC_EMAIL_KEY);
-      const savedPassword = await SecureStore.getItemAsync(BIOMETRIC_PASSWORD_KEY);
-      if (!savedEmail || !savedPassword) {
-        await SecureStore.deleteItemAsync(BIOMETRIC_ENABLED_KEY);
-        setBiometricReady(false);
-        Alert.alert("Error", "No se encontraron credenciales guardadas. Inicia sesión con tu contraseña.");
+      if (!result.success) {
+        const err = (result as { error?: string }).error ?? "";
+        if (err === "user_cancel" || err === "app_cancel" || err === "system_cancel") return;
+        Alert.alert(
+          "Face ID no funcionó",
+          "Usa tu email y contraseña para entrar. Face ID se reactivará automáticamente.",
+        );
         return;
       }
 
