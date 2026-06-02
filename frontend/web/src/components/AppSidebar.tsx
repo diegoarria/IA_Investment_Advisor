@@ -96,7 +96,7 @@ export default function AppSidebar({ open, onClose }: Props) {
         {profile && (
           <div className="px-3 pb-2 shrink-0">
             <div className="rounded-2xl p-3 card-accent">
-              <div className="flex items-center gap-2.5 mb-2">
+              <div className="flex items-center gap-2.5 mb-4">
                 <div className="w-7 h-7 rounded-full flex items-center justify-center text-sm font-black text-white shrink-0"
                      style={{ background: "var(--grad-green)" }}>
                   {profile.name.charAt(0).toUpperCase()}
