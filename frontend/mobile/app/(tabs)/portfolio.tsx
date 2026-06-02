@@ -272,20 +272,21 @@ export default function PortfolioScreen() {
   const [screenshotUris, setScreenshotUris] = useState<string[]>([]);
 
   // Edit position
-  const [editingPos, setEditingPos] = useState<{ id: string; shares: string; avgPrice: string } | null>(null);
+  const [editingPos, setEditingPos] = useState<{ id: string; shares: string; avgPrice: string; purchaseDate: string } | null>(null);
   const [revealedPrices, setRevealedPrices] = useState<Set<string>>(new Set());
 
   // Period returns
-  type PeriodReturn = { pct: number; amount: number };
+  type PeriodReturn = { pct: number; amount: number; date?: string };
   const PERIODS = [
+    { key: "since_purchase", label: "Desde compra" },
     { key: "1d", label: "1D" }, { key: "5d", label: "5D" },
     { key: "1mo", label: "1M" }, { key: "3mo", label: "3M" },
     { key: "6mo", label: "6M" }, { key: "ytd", label: "YTD" },
     { key: "1y", label: "1A" }, { key: "3y", label: "3A" },
-    { key: "5y", label: "5A" }, { key: "max", label: "MAX" },
+    { key: "5y", label: "5A" },
   ] as const;
   type PeriodKey = typeof PERIODS[number]["key"];
-  const [selectedPeriod, setSelectedPeriod] = useState<PeriodKey>("1d");
+  const [selectedPeriod, setSelectedPeriod] = useState<PeriodKey>("since_purchase");
   const [periodReturns, setPeriodReturns] = useState<Record<string, PeriodReturn>>({});
   const [loadingReturns, setLoadingReturns] = useState(false);
 
@@ -340,7 +341,7 @@ export default function PortfolioScreen() {
   useEffect(() => {
     if (positions.length === 0) return;
     setLoadingReturns(true);
-    marketApi.getPortfolioReturns(positions.map((p) => ({ ticker: p.ticker, shares: p.shares })))
+    marketApi.getPortfolioReturns(positions.map((p) => ({ ticker: p.ticker, shares: p.shares, purchase_date: p.purchaseDate ?? null })))
       .then((res: { data: { returns?: Record<string, PeriodReturn> } }) => setPeriodReturns(res.data.returns ?? {}))
       .catch(() => {})
       .finally(() => setLoadingReturns(false));
@@ -922,10 +923,11 @@ export default function PortfolioScreen() {
             <View style={{ marginBottom: 10 }}>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 8 }}>
                 <View style={{ flexDirection: "row", gap: 6, paddingRight: 8 }}>
-                  {PERIODS.map(({ key, label }) => {
+                  {PERIODS.filter(({ key }) => periodReturns[key] || loadingReturns).map(({ key, label }) => {
                     const ret = periodReturns[key];
                     const isSelected = selectedPeriod === key;
                     const isUp = ret ? ret.pct >= 0 : true;
+                    const isSincePurchase = key === "since_purchase";
                     return (
                       <TouchableOpacity
                         key={key}
@@ -934,9 +936,9 @@ export default function PortfolioScreen() {
                           paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8,
                           backgroundColor: isSelected ? (isUp ? "#22c55e22" : "#ef444422") : colors.bgRaised,
                           borderWidth: 1,
-                          borderColor: isSelected ? (isUp ? "#22c55e66" : "#ef444466") : "transparent",
+                          borderColor: isSelected ? (isUp ? "#22c55e66" : "#ef444466") : isSincePurchase ? "rgba(0,168,94,0.3)" : "transparent",
                         }}>
-                        <Text style={{ fontSize: 11, fontWeight: "700", color: isSelected ? (isUp ? "#22c55e" : "#ef4444") : colors.textMuted }}>
+                        <Text style={{ fontSize: 11, fontWeight: "700", color: isSelected ? (isUp ? "#22c55e" : "#ef4444") : isSincePurchase ? colors.accentLight : colors.textMuted }}>
                           {label}
                         </Text>
                       </TouchableOpacity>
@@ -953,10 +955,15 @@ export default function PortfolioScreen() {
                 const r = periodReturns[selectedPeriod]!;
                 const up = r.pct >= 0;
                 return (
-                  <View style={{ flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: up ? "#22c55e0D" : "#ef44440D", borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8 }}>
-                    <Text style={{ fontSize: 11, fontWeight: "600", color: colors.textMuted }}>{PERIODS.find(p => p.key === selectedPeriod)?.label}</Text>
-                    <Text style={{ fontSize: 18, fontWeight: "900", color: up ? "#22c55e" : "#ef4444" }}>{up ? "+" : ""}{r.pct.toFixed(2)}%</Text>
-                    <Text style={{ fontSize: 12, fontWeight: "700", color: up ? "#22c55e" : "#ef4444" }}>{up ? "+" : ""}${Math.abs(r.amount).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</Text>
+                  <View style={{ backgroundColor: up ? "#22c55e0D" : "#ef44440D", borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8 }}>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                      <Text style={{ fontSize: 11, fontWeight: "600", color: colors.textMuted }}>{PERIODS.find(p => p.key === selectedPeriod)?.label}</Text>
+                      <Text style={{ fontSize: 18, fontWeight: "900", color: up ? "#22c55e" : "#ef4444" }}>{up ? "+" : ""}{r.pct.toFixed(2)}%</Text>
+                      <Text style={{ fontSize: 12, fontWeight: "700", color: up ? "#22c55e" : "#ef4444" }}>{up ? "+" : ""}${Math.abs(r.amount).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</Text>
+                    </View>
+                    {r.date && (
+                      <Text style={{ fontSize: 10, color: colors.textDim, marginTop: 2 }}>desde {r.date}</Text>
+                    )}
                   </View>
                 );
               })() : null}
@@ -1005,7 +1012,7 @@ export default function PortfolioScreen() {
                     </View>
                     <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
                       <TouchableOpacity
-                        onPress={() => setEditingPos({ id: pos.id, shares: String(pos.shares), avgPrice: String(pos.avgPrice) })}
+                        onPress={() => setEditingPos({ id: pos.id, shares: String(pos.shares), avgPrice: String(pos.avgPrice), purchaseDate: pos.purchaseDate ?? new Date().toISOString().split("T")[0] })}
                         hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
                         <Ionicons name="pencil-outline" size={16} color={colors.textMuted} />
                       </TouchableOpacity>
@@ -1631,12 +1638,21 @@ export default function PortfolioScreen() {
               />
               <Text style={{ fontSize: 10, color: colors.textMuted, fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>Precio promedio de compra ($)</Text>
               <TextInput
-                style={{ backgroundColor: colors.bgRaised, borderWidth: 1, borderColor: colors.border, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: colors.text, marginBottom: 16 }}
+                style={{ backgroundColor: colors.bgRaised, borderWidth: 1, borderColor: colors.border, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: colors.text, marginBottom: 12 }}
                 keyboardType="decimal-pad"
                 value={editingPos?.avgPrice ?? ""}
                 onChangeText={(v) => setEditingPos((p) => p ? { ...p, avgPrice: v } : p)}
                 placeholderTextColor={colors.textDim}
                 placeholder="Ej: 150.00"
+              />
+              <Text style={{ fontSize: 10, color: colors.textMuted, fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>Fecha de compra (YYYY-MM-DD)</Text>
+              <TextInput
+                style={{ backgroundColor: colors.bgRaised, borderWidth: 1, borderColor: colors.border, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: colors.text, marginBottom: 16 }}
+                keyboardType="default"
+                value={editingPos?.purchaseDate ?? ""}
+                onChangeText={(v) => setEditingPos((p) => p ? { ...p, purchaseDate: v } : p)}
+                placeholderTextColor={colors.textDim}
+                placeholder={new Date().toISOString().split("T")[0]}
               />
               <TouchableOpacity
                 style={{ backgroundColor: "#00a85e", borderRadius: 14, paddingVertical: 12, alignItems: "center" }}
@@ -1645,7 +1661,7 @@ export default function PortfolioScreen() {
                   const shares = parseFloat(editingPos.shares);
                   const avgPrice = parseFloat(editingPos.avgPrice);
                   if (!isNaN(shares) && shares > 0) {
-                    updatePosition(editingPos.id, { shares, avgPrice: isNaN(avgPrice) ? 0 : avgPrice });
+                    updatePosition(editingPos.id, { shares, avgPrice: isNaN(avgPrice) ? 0 : avgPrice, purchaseDate: editingPos.purchaseDate || undefined });
                   }
                   setEditingPos(null);
                 }}>

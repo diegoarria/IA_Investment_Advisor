@@ -8,13 +8,14 @@ export interface Position {
   name?: string;
   shares: number;
   avgPrice: number;
+  purchaseDate?: string; // ISO "YYYY-MM-DD"
 }
 
 interface PortfolioStore {
   positions: Position[];
   addPosition: (p: Omit<Position, "id">) => void;
   removePosition: (id: string) => void;
-  updatePosition: (id: string, updates: { shares?: number; avgPrice?: number }) => void;
+  updatePosition: (id: string, updates: { shares?: number; avgPrice?: number; purchaseDate?: string }) => void;
   setPositions: (positions: Omit<Position, "id">[]) => void;
   mergePositions: (incoming: Omit<Position, "id">[]) => void;
   clearPortfolio: () => void;
@@ -49,7 +50,7 @@ export const usePortfolioStore = create<PortfolioStore>()(
         _push(get().positions);
       },
 
-      updatePosition: (id, updates) => {
+      updatePosition: (id, updates: { shares?: number; avgPrice?: number; purchaseDate?: string }) => {
         set((s) => ({
           positions: s.positions.map((p) => p.id === id ? { ...p, ...updates } : p),
         }));

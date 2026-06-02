@@ -143,7 +143,7 @@ export const marketApi = {
     api.post("/api/market/screener/alert-context", { ticker, change_pct }),
   getNews: (symbols: string[]) =>
     api.get("/api/market/news", { params: { symbols: symbols.join(",") } }),
-  getPortfolioReturns: (positions: { ticker: string; shares: number }[]) =>
+  getPortfolioReturns: (positions: { ticker: string; shares: number; purchase_date?: string | null }[]) =>
     api.post("/api/market/portfolio-returns", { positions }),
 };
 

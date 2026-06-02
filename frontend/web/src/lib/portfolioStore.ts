@@ -7,13 +7,14 @@ export interface Position {
   name?: string;
   shares: number;
   avgPrice: number;
+  purchaseDate?: string; // ISO "YYYY-MM-DD"
 }
 
 interface PortfolioStore {
   positions: Position[];
   addPosition: (p: Omit<Position, "id">) => void;
   removePosition: (id: string) => void;
-  updatePosition: (id: string, updates: { shares?: number; avgPrice?: number }) => void;
+  updatePosition: (id: string, updates: { shares?: number; avgPrice?: number; purchaseDate?: string }) => void;
   setPositions: (positions: Omit<Position, "id">[]) => void;
   clearPortfolio: () => void;
   loadFromServer: () => Promise<void>;
@@ -46,7 +47,7 @@ export const usePortfolioStore = create<PortfolioStore>()(
         });
       },
 
-      updatePosition: (id, updates) => {
+      updatePosition: (id, updates: { shares?: number; avgPrice?: number; purchaseDate?: string }) => {
         set((s) => {
           const positions = s.positions.map((pos) =>
             pos.id === id ? { ...pos, ...updates } : pos

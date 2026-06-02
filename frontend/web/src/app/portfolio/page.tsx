@@ -224,12 +224,12 @@ export default function PortfolioPage() {
   const [pendingMerge, setPendingMerge] = useState<ExtractedPos[]>([]);
 
   // Edit position modal
-  const [editingPos, setEditingPos] = useState<{ id: string; shares: string; avgPrice: string } | null>(null);
+  const [editingPos, setEditingPos] = useState<{ id: string; shares: string; avgPrice: string; purchaseDate: string } | null>(null);
   const [revealedPrices, setRevealedPrices] = useState<Set<string>>(new Set());
 
   // Manual form
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ ticker:"", shares:"", avgPrice:"" });
+  const [form, setForm] = useState({ ticker:"", shares:"", avgPrice:"", purchaseDate: new Date().toISOString().split("T")[0] });
   const [addingLoading, setAddingLoading] = useState(false);
 
   // Currency modal (shown after screenshot or Excel import)
@@ -315,23 +315,24 @@ export default function PortfolioPage() {
   }, [fetchPrices]);
 
   // Period returns
-  type PeriodReturn = { pct: number; amount: number };
+  type PeriodReturn = { pct: number; amount: number; date?: string };
   const PERIODS = [
+    { key: "since_purchase", label: "Desde compra" },
     { key: "1d", label: "1D" }, { key: "5d", label: "5D" },
     { key: "1mo", label: "1M" }, { key: "3mo", label: "3M" },
     { key: "6mo", label: "6M" }, { key: "ytd", label: "YTD" },
     { key: "1y", label: "1A" }, { key: "3y", label: "3A" },
-    { key: "5y", label: "5A" }, { key: "max", label: "MAX" },
+    { key: "5y", label: "5A" },
   ] as const;
   type PeriodKey = typeof PERIODS[number]["key"];
-  const [selectedPeriod, setSelectedPeriod] = useState<PeriodKey>("1d");
+  const [selectedPeriod, setSelectedPeriod] = useState<PeriodKey>("since_purchase");
   const [periodReturns, setPeriodReturns] = useState<Record<string, PeriodReturn>>({});
   const [loadingReturns, setLoadingReturns] = useState(false);
 
   useEffect(() => {
     if (positions.length === 0) return;
     setLoadingReturns(true);
-    marketApi.getPortfolioReturns(positions.map((p) => ({ ticker: p.ticker, shares: p.shares })))
+    marketApi.getPortfolioReturns(positions.map((p) => ({ ticker: p.ticker, shares: p.shares, purchase_date: p.purchaseDate ?? null })))
       .then((res: { data: { returns?: Record<string, PeriodReturn> } }) => setPeriodReturns(res.data.returns ?? {}))
       .catch(() => {})
       .finally(() => setLoadingReturns(false));
@@ -482,11 +483,11 @@ export default function PortfolioPage() {
     setAddingLoading(true);
     try {
       const res = await marketApi.getPrices([ticker]);
-      addPosition({ ticker, shares, avgPrice, name: res.data[ticker]?.name });
+      addPosition({ ticker, shares, avgPrice, name: res.data[ticker]?.name, purchaseDate: form.purchaseDate });
     } catch {
-      addPosition({ ticker, shares, avgPrice });
+      addPosition({ ticker, shares, avgPrice, purchaseDate: form.purchaseDate });
     }
-    setForm({ ticker:"", shares:"", avgPrice:"" });
+    setForm({ ticker:"", shares:"", avgPrice:"", purchaseDate: new Date().toISOString().split("T")[0] });
     setShowForm(false);
     setAddingLoading(false);
   };
@@ -689,7 +690,7 @@ export default function PortfolioPage() {
                        className="w-full rounded-xl border px-3 py-2.5 text-sm mb-2 outline-none"
                        style={{ background:"var(--bg)", borderColor:"var(--border)", color:"var(--text)" }}
                        placeholder="Ticker (ej. AAPL)" />
-                <div className="grid grid-cols-2 gap-2 mb-3">
+                <div className="grid grid-cols-2 gap-2 mb-2">
                   <input value={form.shares} onChange={(e) => setForm({...form,shares:e.target.value})}
                          type="number" min="0"
                          className="rounded-xl border px-3 py-2.5 text-sm outline-none"
@@ -701,6 +702,10 @@ export default function PortfolioPage() {
                          style={{ background:"var(--bg)", borderColor:"var(--border)", color:"var(--text)" }}
                          placeholder="Precio promedio" />
                 </div>
+                <input value={form.purchaseDate} onChange={(e) => setForm({...form,purchaseDate:e.target.value})}
+                       type="date" max={new Date().toISOString().split("T")[0]}
+                       className="w-full rounded-xl border px-3 py-2.5 text-sm outline-none mb-3"
+                       style={{ background:"var(--bg)", borderColor:"var(--border)", color:"var(--text)" }} />
                 <div className="flex gap-2">
                   <button onClick={() => setShowForm(false)}
                           className="flex-1 py-2.5 rounded-xl border text-sm font-semibold"
@@ -730,10 +735,11 @@ export default function PortfolioPage() {
               {/* Period return tabs */}
               <div className="mb-3">
                 <div className="flex gap-1 flex-wrap mb-2">
-                  {PERIODS.map(({ key, label }) => {
+                  {PERIODS.filter(({ key }) => periodReturns[key] || loadingReturns).map(({ key, label }) => {
                     const ret = periodReturns[key];
                     const isSelected = selectedPeriod === key;
                     const isUp = ret ? ret.pct >= 0 : true;
+                    const isSincePurchase = key === "since_purchase";
                     return (
                       <button
                         key={key}
@@ -741,8 +747,8 @@ export default function PortfolioPage() {
                         className="px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all"
                         style={{
                           background: isSelected ? (isUp ? "rgba(34,197,94,0.15)" : "rgba(239,68,68,0.15)") : "var(--raised)",
-                          color: isSelected ? (isUp ? "#22c55e" : "#ef4444") : "var(--muted)",
-                          border: `1px solid ${isSelected ? (isUp ? "rgba(34,197,94,0.4)" : "rgba(239,68,68,0.4)") : "transparent"}`,
+                          color: isSelected ? (isUp ? "#22c55e" : "#ef4444") : isSincePurchase ? "var(--accent-l)" : "var(--muted)",
+                          border: `1px solid ${isSelected ? (isUp ? "rgba(34,197,94,0.4)" : "rgba(239,68,68,0.4)") : isSincePurchase ? "rgba(0,168,94,0.3)" : "transparent"}`,
                         }}>
                         {label}
                       </button>
@@ -759,9 +765,14 @@ export default function PortfolioPage() {
                   return (
                     <div className="flex items-center gap-3 px-3 py-2 rounded-xl"
                          style={{ background: up ? "rgba(34,197,94,0.08)" : "rgba(239,68,68,0.08)" }}>
-                      <span className="text-xs font-semibold" style={{ color:"var(--muted)" }}>
-                        {PERIODS.find(p => p.key === selectedPeriod)?.label}
-                      </span>
+                      <div>
+                        <span className="text-xs font-semibold" style={{ color:"var(--muted)" }}>
+                          {PERIODS.find(p => p.key === selectedPeriod)?.label}
+                        </span>
+                        {r.date && (
+                          <span className="text-[10px] ml-1.5" style={{ color:"var(--dim)" }}>desde {r.date}</span>
+                        )}
+                      </div>
                       <span className="text-lg font-black" style={{ color: up ? "#22c55e" : "#ef4444" }}>
                         {up ? "+" : ""}{r.pct.toFixed(2)}%
                       </span>
@@ -822,7 +833,7 @@ export default function PortfolioPage() {
                       </div>
                       <div className="flex items-center gap-2">
                         <button
-                          onClick={() => setEditingPos({ id: pos.id, shares: String(pos.shares), avgPrice: String(pos.avgPrice) })}
+                          onClick={() => setEditingPos({ id: pos.id, shares: String(pos.shares), avgPrice: String(pos.avgPrice), purchaseDate: pos.purchaseDate ?? new Date().toISOString().split("T")[0] })}
                           style={{ color:"var(--muted)" }}>
                           <Pencil className="w-3.5 h-3.5" />
                         </button>
@@ -1404,6 +1415,17 @@ export default function PortfolioPage() {
                     style={{ background:"var(--raised)", borderColor:"var(--border)", color:"var(--text)" }}
                   />
                 </div>
+                <div>
+                  <label className="text-[10px] font-bold uppercase block mb-1" style={{ color:"var(--muted)" }}>Fecha de compra</label>
+                  <input
+                    type="date"
+                    value={editingPos.purchaseDate}
+                    max={new Date().toISOString().split("T")[0]}
+                    onChange={(e) => setEditingPos((p) => p ? { ...p, purchaseDate: e.target.value } : p)}
+                    className="w-full rounded-xl border px-3 py-2 text-sm"
+                    style={{ background:"var(--raised)", borderColor:"var(--border)", color:"var(--text)" }}
+                  />
+                </div>
                 <button
                   onClick={() => {
                     const shares = parseFloat(editingPos.shares);
@@ -1412,6 +1434,7 @@ export default function PortfolioPage() {
                       updatePosition(editingPos.id, {
                         shares,
                         avgPrice: isNaN(avgPrice) ? 0 : avgPrice,
+                        purchaseDate: editingPos.purchaseDate,
                       });
                     }
                     setEditingPos(null);

@@ -145,7 +145,7 @@ export const market = {
   searchTickers: (q: string) => api.get("/api/market/search", { params: { q } }),
   screener: (sector: string | null, query: string) =>
     api.post("/api/market/screener", { sector, query }),
-  getPortfolioReturns: (positions: { ticker: string; shares: number }[]) =>
+  getPortfolioReturns: (positions: { ticker: string; shares: number; purchase_date?: string | null }[]) =>
     api.post("/api/market/portfolio-returns", { positions }),
 };
 

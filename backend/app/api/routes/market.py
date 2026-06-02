@@ -554,6 +554,7 @@ import pandas as _pd
 class _PortfolioReturnsItem(_BaseModel):
     ticker: str
     shares: float
+    purchase_date: _Opt[str] = None  # "YYYY-MM-DD"
 
 class _PortfolioReturnsRequest(_BaseModel):
     positions: list[_PortfolioReturnsItem]
@@ -564,11 +565,24 @@ def _compute_portfolio_returns(positions: list[_PortfolioReturnsItem]) -> dict:
     tickers = [p.ticker.upper() for p in positions]
     shares_map = {p.ticker.upper(): p.shares for p in positions}
 
+    # Earliest purchase date across all positions (to determine how long portfolio held)
+    purchase_dates = [p.purchase_date for p in positions if p.purchase_date]
+    oldest_date: _Opt[_dt] = None
+    if purchase_dates:
+        try:
+            oldest_date = min(_dt.fromisoformat(d) for d in purchase_dates).replace(tzinfo=_tz.utc)
+        except Exception:
+            oldest_date = None
+
+    today = _dt.now(_tz.utc)
+    holding_days = (today - oldest_date).days if oldest_date else 99999
+
+    # Download enough history (from oldest purchase date or 5y max)
+    dl_period = "max" if oldest_date and holding_days > 1800 else "5y"
     try:
-        raw = yf.download(tickers, period="5y", interval="1d", auto_adjust=True, progress=False)
+        raw = yf.download(tickers, period=dl_period, interval="1d", auto_adjust=True, progress=False)
         if raw.empty:
             return {}
-        # Normalize Close prices to a flat DataFrame
         if isinstance(raw.columns, _pd.MultiIndex):
             close = raw["Close"] if "Close" in raw.columns.get_level_values(0) else raw.xs("Close", axis=1, level=0)
         else:
@@ -578,41 +592,57 @@ def _compute_portfolio_returns(positions: list[_PortfolioReturnsItem]) -> dict:
     except Exception:
         return {}
 
-    # Drop rows where ALL tickers are NaN
     close = close.dropna(how="all")
     if close.empty:
         return {}
 
-    # Current prices = last row
     current_row = close.iloc[-1]
     current_val = sum(shares_map.get(t, 0) * float(current_row.get(t, 0) or 0) for t in tickers)
     if current_val <= 0:
         return {}
 
-    today = _dt.now(_tz.utc)
     ytd_start = _dt(today.year, 1, 1, tzinfo=_tz.utc)
 
-    PERIODS: list[tuple[str, _td | None]] = [
-        ("1d",  _td(days=2)),
-        ("5d",  _td(days=8)),
-        ("1mo", _td(days=35)),
-        ("3mo", _td(days=95)),
-        ("6mo", _td(days=185)),
-        ("ytd", None),
-        ("1y",  _td(days=370)),
-        ("3y",  _td(days=1100)),
-        ("5y",  _td(days=1835)),
-        ("max", _td(days=99999)),
+    # Standard periods — only show if holding_days >= period threshold
+    PERIODS: list[tuple[str, _td | None, int]] = [
+        ("1d",  _td(days=2),    1),
+        ("5d",  _td(days=8),    5),
+        ("1mo", _td(days=35),   28),
+        ("3mo", _td(days=95),   85),
+        ("6mo", _td(days=185),  175),
+        ("ytd", None,           (today - ytd_start).days),
+        ("1y",  _td(days=370),  355),
+        ("3y",  _td(days=1100), 1080),
+        ("5y",  _td(days=1835), 1800),
     ]
 
     results: dict[str, dict] = {}
-    for key, delta in PERIODS:
+
+    # "Desde compra" — if purchase_date provided, calculate return from that date
+    if oldest_date:
+        try:
+            cutoff_str = oldest_date.strftime("%Y-%m-%d")
+            subset = close[close.index >= cutoff_str]
+            if not subset.empty:
+                start_row = subset.iloc[0]
+                start_val = sum(shares_map.get(t, 0) * float(start_row.get(t, 0) or 0) for t in tickers)
+                if start_val > 0:
+                    results["since_purchase"] = {
+                        "pct": round((current_val - start_val) / start_val * 100, 2),
+                        "amount": round(current_val - start_val, 2),
+                        "date": cutoff_str,
+                    }
+        except Exception:
+            pass
+
+    for key, delta, min_days in PERIODS:
+        if holding_days < min_days:
+            continue  # skip periods longer than user's holding time
         try:
             if key == "ytd":
                 cutoff = ytd_start
             else:
                 cutoff = today - delta  # type: ignore[operator]
-
             cutoff_str = cutoff.strftime("%Y-%m-%d")
             subset = close[close.index >= cutoff_str]
             if subset.empty:
@@ -621,9 +651,7 @@ def _compute_portfolio_returns(positions: list[_PortfolioReturnsItem]) -> dict:
             start_val = sum(shares_map.get(t, 0) * float(start_row.get(t, 0) or 0) for t in tickers)
             if start_val <= 0:
                 continue
-            pct = (current_val - start_val) / start_val * 100
-            amt = current_val - start_val
-            results[key] = {"pct": round(pct, 2), "amount": round(amt, 2)}
+            results[key] = {"pct": round((current_val - start_val) / start_val * 100, 2), "amount": round(current_val - start_val, 2)}
         except Exception:
             continue
 
