@@ -223,8 +223,7 @@ export default function AuthScreen() {
       const result = await LocalAuthentication.authenticateAsync({
         promptMessage: hasFaceId ? "Usa Face ID para entrar a Nuvos AI" : "Usa tu huella para entrar a Nuvos AI",
         cancelLabel: "Cancelar",
-        fallbackLabel: "Usar contraseña",
-        disableDeviceFallback: false,
+        disableDeviceFallback: true,
       });
 
       if (!result.success) return;
