@@ -8,7 +8,8 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import * as SecureStore from "expo-secure-store";
-import { authApi, profileApi, syncApi } from "../src/lib/api";
+import * as LocalAuthentication from "expo-local-authentication";
+import { authApi, profileApi, syncApi, referralApi } from "../src/lib/api";
 import { useTheme, Colors } from "../src/lib/ThemeContext";
 import { useAppStore } from "../src/lib/profileStore";
 import type { UserProfile } from "../src/lib/profileStore";
@@ -16,6 +17,10 @@ import { usePortfolioStore } from "../src/lib/portfolioStore";
 import { usePaperStore } from "../src/lib/paperStore";
 import { useSubscriptionStore } from "../src/lib/subscriptionStore";
 import { useChatStore } from "../src/lib/chatStore";
+
+const BIOMETRIC_EMAIL_KEY    = "biometric_email";
+const BIOMETRIC_PASSWORD_KEY = "biometric_password";
+const BIOMETRIC_ENABLED_KEY  = "biometric_enabled";
 
 export default function AuthScreen() {
   const { colors, isDark, toggle } = useTheme();
@@ -25,14 +30,21 @@ export default function AuthScreen() {
   const [mode, setMode] = useState<"login" | "register">("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [refCode, setRefCode] = useState("");
   const [loading, setLoading] = useState(false);
   const [checking, setChecking] = useState(true);
+  const [biometricReady, setBiometricReady] = useState(false);
+  const [biometricLoading, setBiometricLoading] = useState(false);
 
   useEffect(() => {
     (async () => {
       try {
         const token = await SecureStore.getItemAsync("access_token");
-        if (!token) { setChecking(false); return; }
+        if (!token) {
+          await _checkBiometricAvailability();
+          setChecking(false);
+          return;
+        }
 
         const [profileRes, syncRes] = await Promise.allSettled([
           profileApi.get(),
@@ -81,19 +93,28 @@ export default function AuthScreen() {
       } catch {
         await SecureStore.deleteItemAsync("access_token").catch(() => {});
         await SecureStore.deleteItemAsync("refresh_token").catch(() => {});
+        await _checkBiometricAvailability();
         setChecking(false);
       }
     })();
   }, []);
 
+  const _checkBiometricAvailability = async () => {
+    try {
+      const enabled = await SecureStore.getItemAsync(BIOMETRIC_ENABLED_KEY);
+      if (enabled !== "true") return;
+      const hasHardware = await LocalAuthentication.hasHardwareAsync();
+      const enrolled    = await LocalAuthentication.isEnrolledAsync();
+      if (hasHardware && enrolled) setBiometricReady(true);
+    } catch {}
+  };
+
   const afterAuth = async (accessToken: string, refreshToken: string, userId: string) => {
     await SecureStore.setItemAsync("access_token", accessToken);
     await SecureStore.setItemAsync("user_id", userId);
     if (refreshToken) await SecureStore.setItemAsync("refresh_token", refreshToken);
-    // Load this user's own chat sessions (storage key is scoped by user_id)
     await useChatStore.persist.rehydrate();
     try {
-      // Fetch profile + all synced data in parallel
       const [profileRes, syncRes] = await Promise.allSettled([
         profileApi.get(),
         syncApi.getAll(),
@@ -112,7 +133,6 @@ export default function AuthScreen() {
         });
       }
 
-      // Restore backend data into stores (only if server has something)
       if (syncRes.status === "fulfilled") {
         const d = syncRes.value.data;
         if (d.portfolio?.positions?.length)
@@ -126,7 +146,6 @@ export default function AuthScreen() {
             freeTradeCount: d.paper.freeTradeCount,
           });
         if (d.maturity) {
-          // Only update if server score is higher (protect against stale server data)
           const local = useAppStore.getState().maturityScore;
           if (d.maturity.score > local)
             useAppStore.setState({ maturityScore: d.maturity.score, maturityHistory: d.maturity.history });
@@ -141,13 +160,49 @@ export default function AuthScreen() {
     }
   };
 
+  const _offerBiometricSetup = async (emailUsed: string, passwordUsed: string) => {
+    try {
+      const hasHardware = await LocalAuthentication.hasHardwareAsync();
+      const enrolled    = await LocalAuthentication.isEnrolledAsync();
+      if (!hasHardware || !enrolled) return;
+
+      const types = await LocalAuthentication.supportedAuthenticationTypesAsync();
+      const hasFaceId = types.includes(LocalAuthentication.AuthenticationType.FACIAL_RECOGNITION);
+      const label = hasFaceId ? "Face ID" : "huella digital";
+
+      Alert.alert(
+        `Activar ${label}`,
+        `¿Quieres usar ${label} para iniciar sesión la próxima vez sin escribir tu contraseña?`,
+        [
+          { text: "Ahora no", style: "cancel" },
+          {
+            text: "Activar",
+            onPress: async () => {
+              await SecureStore.setItemAsync(BIOMETRIC_EMAIL_KEY,    emailUsed);
+              await SecureStore.setItemAsync(BIOMETRIC_PASSWORD_KEY, passwordUsed);
+              await SecureStore.setItemAsync(BIOMETRIC_ENABLED_KEY,  "true");
+            },
+          },
+        ]
+      );
+    } catch {}
+  };
+
   const handleSubmit = async () => {
     if (!email.trim() || !password) return;
     setLoading(true);
     try {
+      const trimmedEmail = email.trim().toLowerCase();
       const fn = mode === "login" ? authApi.login : authApi.register;
-      const res = await fn(email.trim().toLowerCase(), password);
+      const res = await fn(trimmedEmail, password);
       await afterAuth(res.data.access_token, res.data.refresh_token, res.data.user_id);
+      if (mode === "register" && refCode.trim()) {
+        referralApi.applyCode(refCode.trim().toUpperCase()).catch(() => {});
+      }
+      if (mode === "login") {
+        const alreadyEnabled = await SecureStore.getItemAsync(BIOMETRIC_ENABLED_KEY);
+        if (alreadyEnabled !== "true") await _offerBiometricSetup(trimmedEmail, password);
+      }
     } catch (err: unknown) {
       const detail = (err as any)?.response?.data?.detail;
       const msg = Array.isArray(detail)
@@ -159,7 +214,38 @@ export default function AuthScreen() {
     }
   };
 
-  const anyLoading = loading;
+  const handleBiometric = async () => {
+    setBiometricLoading(true);
+    try {
+      const types = await LocalAuthentication.supportedAuthenticationTypesAsync();
+      const hasFaceId = types.includes(LocalAuthentication.AuthenticationType.FACIAL_RECOGNITION);
+
+      const result = await LocalAuthentication.authenticateAsync({
+        promptMessage: hasFaceId ? "Usa Face ID para entrar a Nuvos AI" : "Usa tu huella para entrar a Nuvos AI",
+        cancelLabel: "Cancelar",
+        fallbackLabel: "Usar contraseña",
+        disableDeviceFallback: false,
+      });
+
+      if (!result.success) return;
+
+      const savedEmail    = await SecureStore.getItemAsync(BIOMETRIC_EMAIL_KEY);
+      const savedPassword = await SecureStore.getItemAsync(BIOMETRIC_PASSWORD_KEY);
+      if (!savedEmail || !savedPassword) {
+        await SecureStore.deleteItemAsync(BIOMETRIC_ENABLED_KEY);
+        setBiometricReady(false);
+        Alert.alert("Error", "No se encontraron credenciales guardadas. Inicia sesión con tu contraseña.");
+        return;
+      }
+
+      const res = await authApi.login(savedEmail, savedPassword);
+      await afterAuth(res.data.access_token, res.data.refresh_token, res.data.user_id);
+    } catch {
+      Alert.alert("Error", "No se pudo autenticar. Intenta con tu contraseña.");
+    } finally {
+      setBiometricLoading(false);
+    }
+  };
 
   if (checking) {
     return (
@@ -186,6 +272,24 @@ export default function AuthScreen() {
             <Text style={styles.subtitle}>Tu mentor de inversiones inteligente</Text>
           </View>
 
+          {/* Face ID / Biometric button — shown when credentials are saved */}
+          {biometricReady && mode === "login" && (
+            <TouchableOpacity
+              style={[styles.biometricBtn, biometricLoading && styles.buttonDisabled]}
+              onPress={handleBiometric}
+              disabled={biometricLoading}
+            >
+              {biometricLoading ? (
+                <ActivityIndicator color="#16a34a" />
+              ) : (
+                <>
+                  <Ionicons name="scan-outline" size={26} color="#16a34a" />
+                  <Text style={styles.biometricText}>Entrar con Face ID</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          )}
+
           {/* Email/password form */}
           <View style={styles.form}>
             <Text style={styles.label}>Email</Text>
@@ -209,10 +313,25 @@ export default function AuthScreen() {
               secureTextEntry
             />
 
+            {mode === "register" && (
+              <>
+                <Text style={[styles.label, { marginTop: 16 }]}>Código de referido (opcional)</Text>
+                <TextInput
+                  style={styles.input}
+                  value={refCode}
+                  onChangeText={(t) => setRefCode(t.toUpperCase())}
+                  placeholder="Ej: AB3XY7Z2"
+                  placeholderTextColor={colors.placeholder}
+                  autoCapitalize="characters"
+                  maxLength={8}
+                />
+              </>
+            )}
+
             <TouchableOpacity
-              style={[styles.button, anyLoading && styles.buttonDisabled]}
+              style={[styles.button, loading && styles.buttonDisabled]}
               onPress={handleSubmit}
-              disabled={anyLoading}
+              disabled={loading}
             >
               {loading ? (
                 <ActivityIndicator color="white" />
@@ -268,21 +387,13 @@ function makeStyles(c: Colors) {
     title: { fontSize: 24, fontWeight: "700", color: c.text, marginBottom: 8 },
     subtitle: { fontSize: 14, color: c.textMuted, textAlign: "center" },
 
-    socialGroup: { gap: 10, marginBottom: 20 },
-    appleBtn: { width: "100%", height: 52 },
-    socialBtn: {
+    biometricBtn: {
       flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10,
-      backgroundColor: c.card, borderWidth: 1, borderColor: c.border,
-      borderRadius: 12, paddingVertical: 14,
+      borderWidth: 2, borderColor: "#16a34a", borderRadius: 14,
+      paddingVertical: 16, marginBottom: 24,
+      backgroundColor: "rgba(22,163,74,0.06)",
     },
-    googleG: { fontSize: 16, fontWeight: "700", color: "#4285F4", width: 20, textAlign: "center" },
-    socialBtnText: { color: c.text, fontSize: 15, fontWeight: "500" },
-    facebookBtn: { backgroundColor: "#1877F2", borderColor: "#1877F2" },
-    facebookBtnText: { color: "white" },
-
-    divider: { flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 20 },
-    dividerLine: { flex: 1, height: 1, backgroundColor: c.border },
-    dividerText: { color: c.textMuted, fontSize: 13 },
+    biometricText: { color: "#16a34a", fontSize: 16, fontWeight: "700" },
 
     form: {},
     label: { color: c.textSub, fontSize: 14, fontWeight: "500", marginBottom: 6 },
@@ -313,5 +424,20 @@ function makeStyles(c: Colors) {
       paddingHorizontal: 16, paddingVertical: 8,
     },
     demoBtnText: { color: c.textSub, fontSize: 12, fontWeight: "700" },
+
+    socialGroup: { gap: 10, marginBottom: 20 },
+    appleBtn: { width: "100%", height: 52 },
+    socialBtn: {
+      flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10,
+      backgroundColor: c.card, borderWidth: 1, borderColor: c.border,
+      borderRadius: 12, paddingVertical: 14,
+    },
+    googleG: { fontSize: 16, fontWeight: "700", color: "#4285F4", width: 20, textAlign: "center" },
+    socialBtnText: { color: c.text, fontSize: 15, fontWeight: "500" },
+    facebookBtn: { backgroundColor: "#1877F2", borderColor: "#1877F2" },
+    facebookBtnText: { color: "white" },
+    divider: { flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 20 },
+    dividerLine: { flex: 1, height: 1, backgroundColor: c.border },
+    dividerText: { color: c.textMuted, fontSize: 13 },
   });
 }

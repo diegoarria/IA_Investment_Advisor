@@ -358,51 +358,63 @@ async def portfolio_from_screenshot(
     if not image_data:
         return {"positions": [], "error": "No image provided"}
 
+    _SYSTEM = (
+        "Eres un sistema experto en visión computacional especializado en leer capturas de pantalla de "
+        "aplicaciones de inversión (Robinhood, Fidelity, Schwab, IBKR, GBM+, Kuspit, Bursanet, Bitso, "
+        "TD Ameritrade, Charles Schwab, Vanguard, E*Trade, Webull, Alpaca, etc.). "
+        "Tu única función es extraer datos de portafolios con precisión absoluta. "
+        "Nunca inventes datos — si un campo no está visible, devuelve null."
+    )
+
     _PROMPT = (
-        "Analiza esta captura de pantalla de un portafolio de inversión y extrae todas las posiciones.\n\n"
-        "Devuelve ÚNICAMENTE un JSON array con este formato exacto (sin texto adicional, sin markdown, sin bloques de código):\n"
-        '[{"ticker":"AAPL","name":"Apple Inc.","shares":10.5,"avg_price":150.00}]\n\n'
-        "CAMPOS REQUERIDOS:\n"
-        "- ticker: símbolo bursátil en MAYÚSCULAS\n"
-        "- name: nombre de la empresa (usa el ticker si no aparece)\n"
-        "- shares: número de acciones/unidades\n"
-        "- avg_price: precio promedio de COMPRA por acción — sigue estas reglas EN ORDEN:\n\n"
-        "  REGLA 1 — Etiqueta explícita de precio de compra:\n"
-        "    Busca: 'P. Prom', 'Precio Prom', 'Precio Promedio', 'Costo Promedio',\n"
-        "    'Average Cost', 'Avg Cost', 'Cost Basis per Share', 'Cost Per Share',\n"
-        "    'Precio Prom. Compra', 'Avg Price'. Si lo encuentras, úsalo directamente.\n\n"
-        "  REGLA 2 — Número grande + número de color (patrón más común en apps móviles):\n"
-        "    Muchas apps muestran por posición UN número grande y DEBAJO un número en verde o rojo.\n"
-        "    La fórmula exacta para calcular el costo total (precio_compra × acciones) es:\n\n"
-        "      SI el número inferior está en VERDE:\n"
-        "        costo_total = número_grande + número_verde\n"
-        "        avg_price   = costo_total / shares\n"
-        "        EJEMPLO: grande=$1,200  verde=+$200  shares=10\n"
-        "                 costo = 1200 + 200 = $1,400  →  avg_price = $140.00\n\n"
-        "      SI el número inferior está en ROJO:\n"
-        "        costo_total = número_grande - número_rojo (usa el valor absoluto del rojo)\n"
-        "        avg_price   = costo_total / shares\n"
-        "        EJEMPLO: grande=$1,200  rojo=$150  shares=10\n"
-        "                 costo = 1200 - 150 = $1,050  →  avg_price = $105.00\n\n"
-        "    NUNCA uses el número grande directamente como avg_price.\n"
-        "    NUNCA uses el número en color directamente como avg_price.\n\n"
-        "  REGLA 3 — Monto invertido total etiquetado:\n"
-        "    Si ves 'Monto Invertido', 'Capital invertido' o 'Cost Basis' (total $),\n"
-        "    calcula: avg_price = monto_invertido_total / shares\n\n"
-        "  REGLA 4 — Sin dato de compra:\n"
-        "    Si no puedes calcular el precio de compra con ninguna regla, devuelve null.\n\n"
-        "REGLAS GENERALES:\n"
-        "- Aplica la Regla 2 a TODAS las posiciones de TODAS las imágenes\n"
-        "- Incluye TODAS las posiciones visibles aunque avg_price sea null\n"
-        "- Devuelve SOLO el JSON array, sin ningún otro texto"
+        "Analiza CADA PÍXEL de esta imagen para extraer TODAS las posiciones del portafolio.\n\n"
+        "Devuelve ÚNICAMENTE un JSON array sin texto adicional, markdown ni bloques de código:\n"
+        '[{"ticker":"AAPL","name":"Apple Inc.","shares":10.5,"avg_price":150.00,"current_price":187.50,"gain_loss_pct":25.0}]\n\n'
+        "═══ CAMPOS ═══\n"
+        "• ticker       — símbolo bursátil EXACTO en MAYÚSCULAS (ej: AAPL, BTC-USD, VOO)\n"
+        "• name         — nombre completo de la empresa/fondo (usa ticker si no aparece)\n"
+        "• shares       — cantidad exacta de acciones/unidades (admite decimales)\n"
+        "• avg_price    — precio promedio de COMPRA por unidad (ver reglas abajo)\n"
+        "• current_price— precio actual visible en la imagen (null si no aparece)\n"
+        "• gain_loss_pct— rendimiento % visible (ej: +12.5 o -3.2, null si no aparece)\n\n"
+        "═══ REGLAS PARA avg_price (aplica EN ORDEN, la primera que funcione) ═══\n\n"
+        "REGLA 1 — Etiqueta explícita de costo:\n"
+        "  Busca cualquiera de estas etiquetas y usa su valor directamente:\n"
+        "  'P. Prom', 'Precio Prom', 'Precio Promedio', 'Costo Promedio', 'Precio Compra',\n"
+        "  'Average Cost', 'Avg Cost', 'Cost Basis/Share', 'Cost Per Share',\n"
+        "  'Avg Price', 'Purchase Price', 'Book Cost', 'Precio Prom. Compra'\n\n"
+        "REGLA 2 — Valor actual + ganancia/pérdida (patrón universal de apps móviles):\n"
+        "  Cada posición muestra: valor_actual_total + número_coloreado\n"
+        "  • Número VERDE (ganancia): costo_total = valor_actual - ganancia\n"
+        "    Ejemplo: actual=$1,400 | verde=+$200 | shares=10 → costo=$1,200 → avg=$120\n"
+        "  • Número ROJO (pérdida): costo_total = valor_actual + pérdida (absoluto)\n"
+        "    Ejemplo: actual=$950 | rojo=-$50 | shares=5 → costo=$1,000 → avg=$200\n"
+        "  avg_price = costo_total / shares\n\n"
+        "REGLA 3 — Porcentaje de ganancia visible:\n"
+        "  Si ves el % de ganancia/pérdida y el valor actual:\n"
+        "  costo_total = valor_actual / (1 + pct/100)\n"
+        "  avg_price = costo_total / shares\n\n"
+        "REGLA 4 — Monto invertido etiquetado:\n"
+        "  Si ves 'Monto Invertido', 'Capital', 'Cost Basis' (total):\n"
+        "  avg_price = monto_total / shares\n\n"
+        "REGLA 5 — Sin dato calculable: avg_price = null\n\n"
+        "═══ INSTRUCCIONES CRÍTICAS ═══\n"
+        "• Extrae ABSOLUTAMENTE TODAS las posiciones visibles, sin excepción\n"
+        "• Lee los números con atención: no confundas comas con puntos decimales\n"
+        "• Si hay scroll implícito (la lista se ve cortada), extrae las visibles\n"
+        "• Tokens de cripto: usa formato correcto (BTC-USD, ETH-USD, SOL-USD)\n"
+        "• ETFs y fondos: extrae igual que acciones\n"
+        "• NUNCA uses el precio actual como avg_price a menos que no haya otro dato\n"
+        "• Responde SOLO con el JSON array, sin ningún otro texto"
     )
 
     def _run_sync(img_data: str, img_type: str) -> dict:
         with _screenshot_sem:
             sc = anthropic.Anthropic(api_key=settings.anthropic_api_key)
             msg = sc.messages.create(
-                model="claude-sonnet-4-6",
-                max_tokens=2048,
+                model="claude-opus-4-8",
+                max_tokens=4096,
+                system=_SYSTEM,
                 messages=[{"role": "user", "content": [
                     {"type": "image", "source": {"type": "base64", "media_type": img_type, "data": img_data}},
                     {"type": "text", "text": _PROMPT},

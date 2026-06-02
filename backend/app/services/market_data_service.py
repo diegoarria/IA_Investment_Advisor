@@ -73,7 +73,7 @@ COMPANY_TICKERS: dict[str, str] = {
     "eth": "ETH-USD", "ethereum": "ETH-USD",
 }
 
-CACHE_TTL        = 1200  # 20 minutes
+CACHE_TTL        = 600   # 10 minutes — fresher financial data
 GLOBAL_CACHE_TTL = 900   # 15 minutes
 
 

@@ -20,7 +20,8 @@
         "ITSAppUsesNonExemptEncryption": false,
         "NSPhotoLibraryUsageDescription": "Nuvos AI necesita acceso a tu galería para que puedas subir una foto de perfil y analizar capturas de tu portafolio.",
         "NSPhotoLibraryAddUsageDescription": "Nuvos AI puede guardar imágenes en tu galería.",
-        "NSUserNotificationsUsageDescription": "Activa las notificaciones para recibir alertas de tus posiciones, oportunidades de mercado y mensajes de tu mentor."
+        "NSUserNotificationsUsageDescription": "Activa las notificaciones para recibir alertas de tus posiciones, oportunidades de mercado y mensajes de tu mentor.",
+        "NSFaceIDUsageDescription": "Nuvos AI usa Face ID para que puedas iniciar sesión de forma rápida y segura sin escribir tu contraseña."
       }
     },
     "android": {

@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import {
   BookOpen, PieChart, BarChart2, Bell, User, GraduationCap, Trophy,
-  MessageSquare, ChevronRight, Plus, X,
+  MessageSquare, ChevronRight, Plus, X, HeadphonesIcon,
 } from "lucide-react";
 import {
   useProfileStore, useNotificationStore, useSubscriptionStore,
@@ -18,8 +18,9 @@ const NAV = [
   { href: "/paper",         icon: BarChart2,     label: "Paper Trading" },
   { href: "/learn",         icon: GraduationCap, label: "Aprendizaje" },
   { href: "/arena",         icon: Trophy,        label: "Arena" },
-  { href: "/notifications", icon: Bell,          label: "Notificaciones" },
-  { href: "/profile",       icon: User,          label: "Perfil" },
+  { href: "/notifications", icon: Bell,             label: "Notificaciones" },
+  { href: "/support",       icon: HeadphonesIcon,  label: "Soporte" },
+  { href: "/profile",       icon: User,             label: "Perfil" },
 ];
 
 const RISK_SEGMENTS = [

@@ -26,6 +26,7 @@ const NAV_ITEMS: { icon: IoniconName; label: string; path: string }[] = [
   { icon: "game-controller-outline",     label: "Paper Trading", path: "/paper" },
   { icon: "notifications-outline",       label: "Alertas",       path: "/notifications" },
   { icon: "school-outline",              label: "Aprendizaje",   path: "/learn" },
+  { icon: "headset-outline",             label: "Soporte",       path: "/support" },
 ];
 
 // ─── Profile card ─────────────────────────────────────────────────────────────

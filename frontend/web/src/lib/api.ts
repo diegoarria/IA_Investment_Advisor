@@ -165,8 +165,20 @@ export const mentorLetter = {
 };
 
 export const referral = {
-  getCode:  () => api.get("/api/referral/code"),
-  getStats: () => api.get("/api/referral/stats"),
+  getCode:    () => api.get("/api/referral/code"),
+  getStats:   () => api.get("/api/referral/stats"),
+  applyCode:  (code: string) => api.post("/api/referral/apply", { code }),
+};
+
+export const support = {
+  chat:         (message: string, history: {role:string;content:string}[]) =>
+    fetch(`${BASE_URL}/api/support/chat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${localStorage.getItem("access_token") ?? ""}` },
+      body: JSON.stringify({ message, history }),
+    }),
+  createTicket: (subject: string, message: string) => api.post("/api/support/ticket", { subject, message }),
+  getTickets:   () => api.get("/api/support/tickets"),
 };
 
 export const sync = {

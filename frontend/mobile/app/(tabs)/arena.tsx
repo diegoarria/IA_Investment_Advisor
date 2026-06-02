@@ -1,8 +1,7 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View, Text, TouchableOpacity, ScrollView, Modal,
-  StyleSheet, ActivityIndicator, TextInput,
-  KeyboardAvoidingView, Platform,
+  StyleSheet, ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -12,9 +11,7 @@ import { useLearnStore, getMilestoneForStreak, getNextMilestone, STREAK_MILESTON
 import { useSubscriptionStore, hasPremiumAccess } from "../../src/lib/subscriptionStore";
 import PaywallModal from "../../src/components/PaywallModal";
 
-const FREE_SIM_LIMIT   = 5;
-const FREE_DEBATE_LIMIT = 2;
-const FREE_MAX_ROUNDS  = 5;
+const FREE_SIM_LIMIT = 5;
 const PREMIUM_DIFFICULTIES = new Set(["dificil", "imposible"]);
 
 // ─── Types ─────────────────────────────────────────────────────────────────
@@ -50,9 +47,8 @@ export default function ArenaScreen() {
 
   const [difficulty, setDifficulty] = useState<Difficulty>("intermedio");
   const [hallOfFame, setHallOfFame] = useState<{ name: string; streak: number }[]>([]);
-  const [simUsedToday, setSimUsedToday]       = useState(0);
-  const [debateUsedToday, setDebateUsedToday] = useState(0);
-  const [paywallOpen, setPaywallOpen]         = useState(false);
+  const [simUsedToday, setSimUsedToday] = useState(0);
+  const [paywallOpen, setPaywallOpen]   = useState(false);
   const [paywallReason, setPaywallReason]     = useState("");
   const [milestonesOpen, setMilestonesOpen]   = useState(false);
 
@@ -70,14 +66,6 @@ export default function ArenaScreen() {
   const [simChoice, setSimChoice] = useState<string | null>(null);
   const [simResult, setSimResult] = useState<ScenarioResult | null>(null);
 
-  // ── Debate state ─────────────────────────────────────────────────────────
-  const [debateOpen, setDebateOpen] = useState(false);
-  const [debateThesis, setDebateThesis] = useState("");
-  const [debateMessages, setDebateMessages] = useState<{ role: "user" | "ai"; text: string }[]>([]);
-  const [debateLoading, setDebateLoading] = useState(false);
-  const [debateRound, setDebateRound] = useState(1);
-  const [debateInput, setDebateInput] = useState("");
-  const debateScrollRef = useRef<ScrollView>(null);
 
   const activeMilestones = isPremiumAccess ? STREAK_MILESTONES_PREMIUM : STREAK_MILESTONES;
   const currentMilestone = getMilestoneForStreak(streak, isPremiumAccess);
@@ -108,51 +96,6 @@ export default function ArenaScreen() {
       if (!isPremiumAccess) setSimUsedToday(simUsedToday + 1);
     } catch {}
     setSimLoading(false);
-  };
-
-  // ── Debate handlers ──────────────────────────────────────────────────────
-
-  const openDebate = () => {
-    if (!isPremiumAccess && PREMIUM_DIFFICULTIES.has(difficulty))
-      return openPaywall("Los niveles Difícil e Imposible son exclusivos de Premium.");
-    if (!isPremiumAccess && debateUsedToday >= FREE_DEBATE_LIMIT)
-      return openPaywall(`Alcanzaste el límite de ${FREE_DEBATE_LIMIT} debates diarios. Activa Premium para debates ilimitados.`);
-    setDebateOpen(true); setDebateThesis(""); setDebateMessages([]);
-    setDebateRound(1); setDebateInput("");
-  };
-
-  const submitDebateThesis = async () => {
-    if (!debateThesis.trim()) return;
-    setDebateLoading(true);
-    setDebateMessages([{ role: "user", text: debateThesis }]);
-    try {
-      const r = await learnApi.startDebate(debateThesis, difficulty);
-      setDebateMessages([{ role: "user", text: debateThesis }, { role: "ai", text: r.data.response }]);
-      setDebateRound(2);
-      markTopicCompleted();
-      if (!isPremiumAccess) setDebateUsedToday(debateUsedToday + 1);
-    } catch {}
-    setDebateLoading(false);
-    setTimeout(() => debateScrollRef.current?.scrollToEnd({ animated: true }), 300);
-  };
-
-  const sendDebateReply = async () => {
-    if (!debateInput.trim() || debateLoading) return;
-    if (!isPremiumAccess && debateRound > FREE_MAX_ROUNDS)
-      return openPaywall(`Los usuarios free tienen hasta ${FREE_MAX_ROUNDS} rondas por debate. Activa Premium para debates ilimitados.`);
-    const reply = debateInput.trim();
-    setDebateInput("");
-    const lastAI = [...debateMessages].reverse().find((m) => m.role === "ai")?.text ?? "";
-    const updated = [...debateMessages, { role: "user" as const, text: reply }];
-    setDebateMessages(updated);
-    setDebateLoading(true);
-    try {
-      const r = await learnApi.replyDebate(debateThesis, lastAI, reply, debateRound, difficulty);
-      setDebateMessages([...updated, { role: "ai", text: r.data.response }]);
-      setDebateRound(debateRound + 1);
-    } catch {}
-    setDebateLoading(false);
-    setTimeout(() => debateScrollRef.current?.scrollToEnd({ animated: true }), 300);
   };
 
   return (
@@ -264,24 +207,6 @@ export default function ArenaScreen() {
             )}
           </TouchableOpacity>
 
-          <TouchableOpacity style={[styles.gameCard, { backgroundColor: colors.card, borderColor: "#0ea5e944" }]}
-            onPress={openDebate} activeOpacity={0.75}>
-            <View style={[styles.gameIcon, { backgroundColor: "#0ea5e918" }]}>
-              <Ionicons name="chatbubbles-outline" size={26} color="#0ea5e9" />
-            </View>
-            <Text style={[styles.gameTitle, { color: colors.text }]}>Debate</Text>
-            <Text style={[styles.gameDesc, { color: colors.textMuted }]}>
-              Presenta una tesis y defiéndela contra la IA
-            </Text>
-            <View style={[styles.diffTag, { backgroundColor: diffCfg.color + "18" }]}>
-              <Text style={{ color: diffCfg.color, fontSize: 10, fontWeight: "700" }}>{diffCfg.label}</Text>
-            </View>
-            {!isPremiumAccess && (
-              <Text style={{ color: debateUsedToday >= FREE_DEBATE_LIMIT ? "#ef4444" : colors.textDim, fontSize: 10, marginTop: 6, fontWeight: "600" }}>
-                {debateUsedToday >= FREE_DEBATE_LIMIT ? "Límite diario alcanzado" : `${FREE_DEBATE_LIMIT - debateUsedToday}/${FREE_DEBATE_LIMIT} restantes hoy`}
-              </Text>
-            )}
-          </TouchableOpacity>
         </View>
 
         {/* ── Hall of Fame ──────────────────────────────────────────── */}
@@ -488,84 +413,6 @@ export default function ArenaScreen() {
 
       <PaywallModal visible={paywallOpen} onClose={() => setPaywallOpen(false)} reason={paywallReason} />
 
-      {/* ── Debate Modal ─────────────────────────────────────────────────── */}
-      <Modal visible={debateOpen} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setDebateOpen(false)}>
-        <SafeAreaView style={[styles.modal, { backgroundColor: colors.bg }]}>
-          <View style={[styles.modalHeader, { borderBottomColor: colors.border }]}>
-            <TouchableOpacity onPress={() => setDebateOpen(false)}>
-              <Ionicons name="close" size={22} color={colors.textMuted} />
-            </TouchableOpacity>
-            <Text style={[styles.modalTitle, { color: colors.text }]}>
-              💬 Debate · <Text style={{ color: diffCfg.color }}>{diffCfg.label}</Text>
-            </Text>
-            <View style={{ width: 22 }} />
-          </View>
-
-          <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }}>
-            {debateMessages.length === 0 ? (
-              <ScrollView contentContainerStyle={{ padding: 20 }}>
-                <View style={[styles.resultBox, { backgroundColor: "#0ea5e910", borderColor: "#0ea5e930" }]}>
-                  <Text style={{ color: "#0ea5e9", fontWeight: "700", fontSize: 13, marginBottom: 6 }}>Modo {diffCfg.label}</Text>
-                  <Text style={{ color: colors.textSub, fontSize: 13, lineHeight: 20 }}>{diffCfg.desc} — La IA debatirá en tu contra con datos reales.</Text>
-                </View>
-                <Text style={[styles.scenarioQ, { color: colors.text, marginBottom: 10 }]}>Tu tesis de inversión:</Text>
-                <TextInput
-                  style={[styles.thesisInput, { backgroundColor: colors.card, borderColor: colors.border, color: colors.text }]}
-                  placeholder={"Ej: 'NVIDIA seguirá subiendo por la demanda de IA'\n'Los bonos son mejor opción que acciones ahora'"}
-                  placeholderTextColor={colors.placeholder}
-                  value={debateThesis} onChangeText={setDebateThesis} multiline
-                />
-                <TouchableOpacity
-                  style={[styles.actionBtn, { backgroundColor: "#0ea5e9", opacity: debateThesis.trim().length < 10 || debateLoading ? 0.4 : 1 }]}
-                  onPress={submitDebateThesis}
-                  disabled={debateThesis.trim().length < 10 || debateLoading}>
-                  {debateLoading
-                    ? <ActivityIndicator color="white" />
-                    : <Text style={{ color: "white", fontWeight: "700", fontSize: 15 }}>Iniciar debate</Text>}
-                </TouchableOpacity>
-              </ScrollView>
-            ) : (
-              <>
-                <ScrollView ref={debateScrollRef} contentContainerStyle={{ padding: 16, gap: 12 }}>
-                  {debateMessages.map((msg, i) => (
-                    <View key={i} style={[styles.bubble,
-                      msg.role === "user"
-                        ? { alignSelf: "flex-end", backgroundColor: "#0ea5e9" }
-                        : { alignSelf: "flex-start", backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border }]}>
-                      {msg.role === "ai" && (
-                        <Text style={{ color: diffCfg.color, fontSize: 10, fontWeight: "700", marginBottom: 5, letterSpacing: 0.5 }}>
-                          IA · {diffCfg.label.toUpperCase()}
-                        </Text>
-                      )}
-                      <Text style={{ color: msg.role === "user" ? "white" : colors.text, fontSize: 14, lineHeight: 21 }}>
-                        {msg.text}
-                      </Text>
-                    </View>
-                  ))}
-                  {debateLoading && (
-                    <View style={[styles.bubble, { alignSelf: "flex-start", backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border }]}>
-                      <ActivityIndicator color="#0ea5e9" size="small" />
-                    </View>
-                  )}
-                </ScrollView>
-                <View style={[styles.inputRow, { borderTopColor: colors.border }]}>
-                  <TextInput
-                    style={[styles.chatInput, { backgroundColor: colors.card, borderColor: colors.border, color: colors.text }]}
-                    placeholder="Defiende tu tesis..."
-                    placeholderTextColor={colors.placeholder}
-                    value={debateInput} onChangeText={setDebateInput} multiline
-                  />
-                  <TouchableOpacity
-                    style={[styles.sendBtn, { backgroundColor: "#0ea5e9", opacity: !debateInput.trim() || debateLoading ? 0.4 : 1 }]}
-                    onPress={sendDebateReply} disabled={!debateInput.trim() || debateLoading}>
-                    <Ionicons name="send" size={18} color="white" />
-                  </TouchableOpacity>
-                </View>
-              </>
-            )}
-          </KeyboardAvoidingView>
-        </SafeAreaView>
-      </Modal>
     </SafeAreaView>
   );
 }

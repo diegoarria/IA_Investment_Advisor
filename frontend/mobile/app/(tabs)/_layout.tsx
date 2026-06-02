@@ -274,6 +274,14 @@ export default function TabsLayout() {
           header: () => <MobileHeader title="Notificaciones" />,
         }}
       />
+      <Tabs.Screen
+        name="support"
+        options={{
+          href: null,
+          title: "Soporte",
+          header: () => <MobileHeader title="Soporte" />,
+        }}
+      />
     </Tabs>
   );
 }

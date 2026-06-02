@@ -190,8 +190,17 @@ export const syncApi = {
 };
 
 export const referralApi = {
-  getCode:  () => api.get("/api/referral/code"),
-  getStats: () => api.get("/api/referral/stats"),
+  getCode:   () => api.get("/api/referral/code"),
+  getStats:  () => api.get("/api/referral/stats"),
+  applyCode: (code: string) => api.post("/api/referral/apply", { code }),
+};
+
+export const supportApi = {
+  chat:         (message: string, history: { role: string; content: string }[]) =>
+    api.post("/api/support/chat", { message, history }, { responseType: "text" }),
+  createTicket: (subject: string, message: string) =>
+    api.post("/api/support/ticket", { subject, message }),
+  getTickets:   () => api.get("/api/support/tickets"),
 };
 
 export default api;
