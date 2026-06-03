@@ -18,11 +18,6 @@ interface TickerInfo {
   change_pct: number;
 }
 
-interface LeagueEntry {
-  rank: number; alias: string; returnPct: number;
-  topHolding: string; rankChange: number; isMe?: boolean;
-}
-
 function fmtMoney(n: number): string {
   const abs = Math.abs(n);
   const neg = n < 0 ? "-" : "";
@@ -34,97 +29,6 @@ function fmtMoney(n: number): string {
 
 function fmtPct(n: number, sign = true): string {
   return `${sign && n >= 0 ? "+" : ""}${n.toFixed(2)}%`;
-}
-
-// ─── Liga mock data (reemplazar con GET /paper/leaderboard) ──────────────────
-const MOCK_OTHERS = [
-  { alias: "InversorPro",    returnPct: 18.4, topHolding: "NVDA",  rankChange:  0 },
-  { alias: "TauroMX",        returnPct: 14.2, topHolding: "AAPL",  rankChange:  2 },
-  { alias: "BullMkt99",      returnPct: 11.8, topHolding: "MSFT",  rankChange: -1 },
-  { alias: "WallStLearner",  returnPct:  9.3, topHolding: "TSLA",  rankChange:  1 },
-  { alias: "PipoCapital",    returnPct:  7.1, topHolding: "AMZN",  rankChange:  3 },
-  { alias: "Sigma_Returns",  returnPct:  5.8, topHolding: "GOOGL", rankChange:  0 },
-  { alias: "CrackMercado",   returnPct:  4.6, topHolding: "META",  rankChange: -2 },
-  { alias: "PatternBreaker", returnPct:  2.1, topHolding: "BRK-B", rankChange:  0 },
-  { alias: "ETFQueen",       returnPct:  1.4, topHolding: "SPY",   rankChange:  4 },
-  { alias: "LongTermLeo",    returnPct: -0.8, topHolding: "BABA",  rankChange: -3 },
-];
-
-const LEAGUE_LESSONS: Record<"week" | "month" | "all", string> = {
-  week:  "Los líderes concentraron en semiconductores (NVDA, AMD +8.2% esta semana). Apostar a un sector en tendencia clara pagó.",
-  month: "Los portfolios top mantuvieron Big Tech (MSFT, AAPL, META) sin rotar. Paciencia > timing de mercado.",
-  all:   "Los mejores inversores balancearon crecimiento y dividendos. La consistencia supera al timing.",
-};
-
-const MEDALS: Record<number, string> = { 1: "🥇", 2: "🥈", 3: "🥉" };
-const TOTAL_PARTICIPANTS = 847;
-
-// ─── LeagueRow ────────────────────────────────────────────────────────────────
-function LeagueRow({ entry, colors }: { entry: LeagueEntry; colors: Colors }) {
-  const medal = MEDALS[entry.rank];
-  const up = entry.returnPct >= 0;
-  return (
-    <View style={{
-      flexDirection: "row", alignItems: "center",
-      paddingHorizontal: 14, paddingVertical: 12,
-      borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border,
-      backgroundColor: entry.isMe
-        ? "rgba(0,168,94,0.07)"
-        : entry.rank === 1 ? "rgba(251,191,36,0.03)" : "transparent",
-    }}>
-      {/* Rank */}
-      <View style={{ width: 26, alignItems: "center" }}>
-        {medal
-          ? <Text style={{ fontSize: 16 }}>{medal}</Text>
-          : <Text style={{ fontSize: 11, fontWeight: "700", color: colors.textDim }}>#{entry.rank}</Text>}
-      </View>
-
-      {/* Avatar */}
-      <View style={{
-        width: 30, height: 30, borderRadius: 15,
-        alignItems: "center", justifyContent: "center",
-        marginHorizontal: 10,
-        backgroundColor: entry.isMe
-          ? "#00a85e"
-          : entry.rank <= 3 ? "rgba(251,191,36,0.18)" : colors.bgRaised,
-      }}>
-        <Text style={{
-          fontSize: 11, fontWeight: "800",
-          color: entry.isMe ? "white" : entry.rank <= 3 ? "#fbbf24" : colors.textMuted,
-        }}>
-          {entry.alias[0].toUpperCase()}
-        </Text>
-      </View>
-
-      {/* Name + holding */}
-      <View style={{ flex: 1 }}>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-          <Text style={{ fontSize: 13, fontWeight: "700", color: entry.isMe ? colors.accentLight : colors.text }}>
-            {entry.isMe ? "Tú" : entry.alias}
-          </Text>
-          {entry.isMe && (
-            <View style={{ backgroundColor: "rgba(0,168,94,0.15)", borderRadius: 8, paddingHorizontal: 6, paddingVertical: 2 }}>
-              <Text style={{ fontSize: 9, fontWeight: "800", color: colors.accentLight }}>★</Text>
-            </View>
-          )}
-        </View>
-        <Text style={{ fontSize: 11, color: colors.textDim, marginTop: 1 }}>Top: {entry.topHolding}</Text>
-      </View>
-
-      {/* Return + rank change */}
-      <View style={{ alignItems: "flex-end" }}>
-        <Text style={{ fontSize: 14, fontWeight: "800", color: up ? "#22c55e" : "#ef4444" }}>
-          {up ? "+" : ""}{entry.returnPct.toFixed(1)}%
-        </Text>
-        <Text style={{
-          fontSize: 11, fontWeight: "600", marginTop: 1,
-          color: entry.rankChange > 0 ? "#22c55e" : entry.rankChange < 0 ? "#ef4444" : colors.textDim,
-        }}>
-          {entry.rankChange > 0 ? `↑${entry.rankChange}` : entry.rankChange < 0 ? `↓${Math.abs(entry.rankChange)}` : "—"}
-        </Text>
-      </View>
-    </View>
-  );
 }
 
 // ─── Sell Modal ───────────────────────────────────────────────────────────────
@@ -209,10 +113,6 @@ export default function PaperScreen() {
 
   const { cash, positions, trades, buy, sell, topUp, reset, freeTradesThisMonth, incrementFreeTrade } = usePaperStore();
   const [topUpOpen, setTopUpOpen] = useState(false);
-
-  // Tab state
-  const [activeTab, setActiveTab]       = useState<"portfolio" | "liga">("portfolio");
-  const [leaguePeriod, setLeaguePeriod] = useState<"week" | "month" | "all">("week");
 
   // Ticker search
   const [query, setQuery]             = useState("");
@@ -325,21 +225,6 @@ export default function PaperScreen() {
 
   const isUp = totalReturn >= 0;
 
-  // Liga — insertar al usuario según su retorno real
-  const allLeagueEntries = useMemo<LeagueEntry[]>(() => {
-    const me: LeagueEntry = {
-      alias: "Tú", returnPct: parseFloat(totalReturnPct.toFixed(1)),
-      topHolding: positions[0]?.ticker ?? "—", rankChange: 2, isMe: true, rank: 0,
-    };
-    return [...MOCK_OTHERS, me]
-      .sort((a, b) => b.returnPct - a.returnPct)
-      .map((e, i) => ({ ...e, rank: i + 1 }));
-  }, [totalReturnPct, positions]);
-
-  const myEntry      = allLeagueEntries.find((e) => e.isMe)!;
-  const top5         = allLeagueEntries.slice(0, 5);
-  const showEllipsis = myEntry?.rank > 5;
-
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <SafeAreaView style={s.container}>
@@ -371,32 +256,7 @@ export default function PaperScreen() {
 
         <ScrollView contentContainerStyle={s.content} keyboardShouldPersistTaps="handled">
 
-          {/* ── Tab switcher ── */}
-          <View style={[s.tabBar, { backgroundColor: colors.bgRaised }]}>
-            <TouchableOpacity
-              style={[s.tabBtn, activeTab === "portfolio" && { backgroundColor: colors.card }]}
-              onPress={() => setActiveTab("portfolio")} activeOpacity={0.8}>
-              <Text style={[s.tabBtnText, { color: activeTab === "portfolio" ? colors.text : colors.textMuted }]}>
-                Mi Portafolio
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[s.tabBtn, activeTab === "liga" && { backgroundColor: colors.card }]}
-              onPress={() => setActiveTab("liga")} activeOpacity={0.8}>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
-                <Ionicons name="trophy-outline" size={13}
-                  color={activeTab === "liga" ? colors.accentLight : colors.textMuted} />
-                <Text style={[s.tabBtnText, { color: activeTab === "liga" ? colors.accentLight : colors.textMuted }]}>
-                  Liga
-                </Text>
-              </View>
-            </TouchableOpacity>
-          </View>
-
-          {/* ══════════════════ PORTAFOLIO TAB ══════════════════ */}
-          {activeTab === "portfolio" && (
-            <>
-              {/* Balance card */}
+          {/* Balance card */}
               <View style={[s.balanceCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
                 <View style={s.balanceRow}>
                   <View style={{ flex: 1 }}>
@@ -615,101 +475,6 @@ export default function PaperScreen() {
                   )}
                 </>
               )}
-            </>
-          )}
-
-          {/* ══════════════════ LIGA TAB ══════════════════ */}
-          {activeTab === "liga" && (
-            <View style={{ gap: 12 }}>
-
-              {/* Period selector */}
-              <View style={{ flexDirection: "row", gap: 8 }}>
-                {([
-                  { id: "week",  label: "Esta semana" },
-                  { id: "month", label: "Este mes" },
-                  { id: "all",   label: "Todo tiempo" },
-                ] as const).map((p) => (
-                  <TouchableOpacity key={p.id} onPress={() => setLeaguePeriod(p.id)}
-                    style={{
-                      paddingHorizontal: 12, paddingVertical: 7, borderRadius: 12, borderWidth: 1,
-                      borderColor: leaguePeriod === p.id ? "rgba(0,168,94,0.4)" : colors.border,
-                      backgroundColor: leaguePeriod === p.id ? "rgba(0,168,94,0.12)" : "transparent",
-                    }}>
-                    <Text style={{
-                      fontSize: 12, fontWeight: "600",
-                      color: leaguePeriod === p.id ? colors.accentLight : colors.textMuted,
-                    }}>{p.label}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-
-              {/* My rank card */}
-              <View style={{
-                borderRadius: 20, borderWidth: 1, padding: 18,
-                borderColor: (myEntry?.returnPct ?? 0) >= 0 ? "rgba(0,168,94,0.25)" : "rgba(255,71,87,0.25)",
-                backgroundColor: (myEntry?.returnPct ?? 0) >= 0 ? "rgba(0,168,94,0.07)" : "rgba(255,71,87,0.07)",
-              }}>
-                <Text style={{ fontSize: 10, fontWeight: "700", textTransform: "uppercase", letterSpacing: 1.2, color: colors.textMuted, marginBottom: 12 }}>
-                  Tu posición
-                </Text>
-                <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
-                  <View style={{ flexDirection: "row", alignItems: "baseline", gap: 6 }}>
-                    <Text style={{ fontSize: 44, fontWeight: "900", letterSpacing: -2, color: colors.text }}>
-                      #{myEntry?.rank ?? "—"}
-                    </Text>
-                    <Text style={{ fontSize: 12, color: colors.textMuted }}>
-                      de {TOTAL_PARTICIPANTS.toLocaleString()}
-                    </Text>
-                  </View>
-                  <View style={{ alignItems: "flex-end" }}>
-                    <Text style={{
-                      fontSize: 28, fontWeight: "900", letterSpacing: -1,
-                      color: (myEntry?.returnPct ?? 0) >= 0 ? "#22c55e" : "#ef4444",
-                    }}>
-                      {(myEntry?.returnPct ?? 0) >= 0 ? "+" : ""}{(myEntry?.returnPct ?? 0).toFixed(1)}%
-                    </Text>
-                    <Text style={{ fontSize: 11, color: "#f59e0b", fontWeight: "600", marginTop: 3 }}>
-                      ↑ Subiste 2 posiciones
-                    </Text>
-                  </View>
-                </View>
-              </View>
-
-              {/* Lesson card */}
-              <View style={{
-                borderRadius: 16, borderWidth: 1, padding: 14,
-                borderColor: "rgba(59,130,246,0.2)", backgroundColor: "rgba(59,130,246,0.05)",
-              }}>
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 7, marginBottom: 7 }}>
-                  <Ionicons name="bulb-outline" size={14} color="#60a5fa" />
-                  <Text style={{ fontSize: 12, fontWeight: "700", color: "#60a5fa" }}>Lección del mercado</Text>
-                </View>
-                <Text style={{ fontSize: 12, color: colors.textSub, lineHeight: 19 }}>
-                  {LEAGUE_LESSONS[leaguePeriod]}
-                </Text>
-              </View>
-
-              {/* Leaderboard */}
-              <View style={{ borderRadius: 20, borderWidth: 1, overflow: "hidden", backgroundColor: colors.card, borderColor: colors.border }}>
-                <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 14, paddingVertical: 12 }}>
-                  <Text style={{ fontSize: 15, fontWeight: "700", color: colors.text }}>Tabla de líderes</Text>
-                  <Text style={{ fontSize: 11, color: colors.textDim }}>{TOTAL_PARTICIPANTS.toLocaleString()} inversores</Text>
-                </View>
-                {top5.map((entry) => <LeagueRow key={entry.rank} entry={entry} colors={colors} />)}
-                {showEllipsis && (
-                  <>
-                    <Text style={{ textAlign: "center", paddingVertical: 8, fontSize: 14, letterSpacing: 3, color: colors.textDim }}>···</Text>
-                    {myEntry && <LeagueRow entry={myEntry} colors={colors} />}
-                  </>
-                )}
-              </View>
-
-              <Text style={{ textAlign: "center", fontSize: 11, color: colors.textDim, paddingBottom: 8 }}>
-                Retorno % desde $10,000 virtuales · Actualizado en tiempo real
-              </Text>
-            </View>
-          )}
-
         </ScrollView>
       </KeyboardAvoidingView>
 
@@ -764,11 +529,6 @@ function makeStyles(c: Colors) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: c.bg },
     content: { padding: 14, paddingBottom: 48, gap: 12 },
-
-    // Tab switcher
-    tabBar: { flexDirection: "row", borderRadius: 16, padding: 4, gap: 4, marginBottom: 2 },
-    tabBtn: { flex: 1, paddingVertical: 9, alignItems: "center", justifyContent: "center", borderRadius: 12 },
-    tabBtnText: { fontSize: 13, fontWeight: "700", letterSpacing: -0.2 },
 
     // Balance card
     balanceCard: { borderRadius: 20, borderWidth: 1, padding: 18 },
