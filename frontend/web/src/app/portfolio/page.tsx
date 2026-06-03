@@ -23,32 +23,252 @@ import {
 
 // ─── Stress Test data ──────────────────────────────────────────────────────
 
+// ─── Sector taxonomy ────────────────────────────────────────────────────────
 const TICKER_SECTOR: Record<string, string> = {
-  AAPL:"Tech",MSFT:"Tech",GOOGL:"Tech",GOOG:"Tech",AMZN:"Tech",META:"Tech",
-  NVDA:"Tech",TSLA:"Tech",AMD:"Tech",INTC:"Tech",CRM:"Tech",ADBE:"Tech",
-  PYPL:"Tech",NFLX:"Tech",UBER:"Tech",SNAP:"Tech",SPOT:"Tech",ORCL:"Tech",
-  JPM:"Finance",BAC:"Finance",GS:"Finance",MS:"Finance",WFC:"Finance",
-  C:"Finance",V:"Finance",MA:"Finance",AXP:"Finance",
-  JNJ:"Salud",PFE:"Salud",UNH:"Salud",ABBV:"Salud",MRK:"Salud",LLY:"Salud",AMGN:"Salud",
-  WMT:"Consumo",KO:"Consumo",PG:"Consumo",MCD:"Consumo",NKE:"Consumo",
-  SBUX:"Consumo",COST:"Consumo",TGT:"Consumo",HD:"Consumo",
-  XOM:"Energía",CVX:"Energía",COP:"Energía",OXY:"Energía",SLB:"Energía",
-  SPY:"ETF",QQQ:"ETF",VTI:"ETF",IVV:"ETF",VOO:"ETF",IWM:"ETF",GLD:"ETF",
+  // Semiconductores
+  NVDA:"Semiconductores",AMD:"Semiconductores",INTC:"Semiconductores",
+  QCOM:"Semiconductores",AVGO:"Semiconductores",MU:"Semiconductores",
+  TSM:"Semiconductores",AMAT:"Semiconductores",LRCX:"Semiconductores",
+  KLAC:"Semiconductores",TXN:"Semiconductores",ADI:"Semiconductores",
+  MCHP:"Semiconductores",ON:"Semiconductores",SWKS:"Semiconductores",
+  SMCI:"Semiconductores",MRVL:"Semiconductores",ARM:"Semiconductores",
+  WOLF:"Semiconductores",MPWR:"Semiconductores",SOXX:"Semiconductores",
+  SMH:"Semiconductores",
+
+  // Software
+  MSFT:"Software",CRM:"Software",ADBE:"Software",ORCL:"Software",
+  NOW:"Software",INTU:"Software",CDNS:"Software",SNPS:"Software",
+  ANSS:"Software",WDAY:"Software",DDOG:"Software",TEAM:"Software",
+  HUBS:"Software",VEEV:"Software",NET:"Software",ZS:"Software",
+  OKTA:"Software",PANW:"Software",FTNT:"Software",MDB:"Software",
+  SNOW:"Software",GTLB:"Software",ESTC:"Software",SMAR:"Software",
+  SPLK:"Software",DOCN:"Software",
+
+  // Tecnología (plataformas, ecosistemas consumer)
+  AAPL:"Tecnología",GOOGL:"Tecnología",GOOG:"Tecnología",
+  META:"Tecnología",AMZN:"Tecnología",SPOT:"Tecnología",
+  SNAP:"Tecnología",PINS:"Tecnología",RBLX:"Tecnología",
+  TWTR:"Tecnología",VGT:"Tecnología",
+
+  // Inteligencia Artificial
+  PLTR:"Inteligencia Artificial",AI:"Inteligencia Artificial",
+  BBAI:"Inteligencia Artificial",SOUN:"Inteligencia Artificial",
+
+  // Fintech
+  PYPL:"Fintech",SQ:"Fintech",HOOD:"Fintech",SOFI:"Fintech",
+  AFRM:"Fintech",UPST:"Fintech",NERDW:"Fintech",
+
+  // eCommerce
+  SHOP:"eCommerce",MELI:"eCommerce",SE:"eCommerce",
+  BABA:"eCommerce",JD:"eCommerce",EBAY:"eCommerce",
+  ETSY:"eCommerce",W:"eCommerce",CHWY:"eCommerce",
+  CPNG:"eCommerce",
+
+  // Consumo Discrecional
+  TSLA:"Consumo Discrecional",NFLX:"Consumo Discrecional",
+  NKE:"Consumo Discrecional",SBUX:"Consumo Discrecional",
+  MCD:"Consumo Discrecional",HD:"Consumo Discrecional",
+  LOW:"Consumo Discrecional",TGT:"Consumo Discrecional",
+  TJX:"Consumo Discrecional",ROST:"Consumo Discrecional",
+  ABNB:"Consumo Discrecional",BKNG:"Consumo Discrecional",
+  YUM:"Consumo Discrecional",CMG:"Consumo Discrecional",
+  DKNG:"Consumo Discrecional",DIS:"Consumo Discrecional",
+  LVS:"Consumo Discrecional",MGM:"Consumo Discrecional",
+  WYNN:"Consumo Discrecional",EXPE:"Consumo Discrecional",
+  PTON:"Consumo Discrecional",UBER:"Consumo Discrecional",
+  LYFT:"Consumo Discrecional",F:"Consumo Discrecional",
+  GM:"Consumo Discrecional",RIVN:"Consumo Discrecional",
+  LCID:"Consumo Discrecional",NIO:"Consumo Discrecional",
+
+  // Consumo Básico
+  WMT:"Consumo Básico",KO:"Consumo Básico",PG:"Consumo Básico",
+  COST:"Consumo Básico",PEP:"Consumo Básico",MDLZ:"Consumo Básico",
+  CLX:"Consumo Básico",KHC:"Consumo Básico",GIS:"Consumo Básico",
+  HSY:"Consumo Básico",CL:"Consumo Básico",KMB:"Consumo Básico",
+  EL:"Consumo Básico",K:"Consumo Básico",CHD:"Consumo Básico",
+  TSN:"Consumo Básico",HRL:"Consumo Básico",
+
+  // Salud (aseguradoras médicas + hospitales)
+  UNH:"Salud",HCA:"Salud",CNC:"Salud",CVS:"Salud",
+  CI:"Salud",HUM:"Salud",MOH:"Salud",ELV:"Salud",
+
+  // Farmacéutica
+  JNJ:"Farmacéutica",PFE:"Farmacéutica",ABBV:"Farmacéutica",
+  MRK:"Farmacéutica",LLY:"Farmacéutica",BMY:"Farmacéutica",
+  AZN:"Farmacéutica",GSK:"Farmacéutica",SNY:"Farmacéutica",
+  NVO:"Farmacéutica",RHHBY:"Farmacéutica",
+
+  // Biotecnología
+  AMGN:"Biotecnología",GILD:"Biotecnología",REGN:"Biotecnología",
+  VRTX:"Biotecnología",BIIB:"Biotecnología",MRNA:"Biotecnología",
+  BNTX:"Biotecnología",ILMN:"Biotecnología",IONS:"Biotecnología",
+  ALNY:"Biotecnología",SGEN:"Biotecnología",BEAM:"Biotecnología",
+
+  // Financiero (bancos de inversión, gestoras, pagos)
+  GS:"Financiero",MS:"Financiero",BX:"Financiero",
+  KKR:"Financiero",APO:"Financiero",SCHW:"Financiero",
+  V:"Financiero",MA:"Financiero",AXP:"Financiero",
+  IBKR:"Financiero",
+
+  // Bancario
+  JPM:"Bancario",BAC:"Bancario",WFC:"Bancario",
+  C:"Bancario",USB:"Bancario",PNC:"Bancario",
+  TFC:"Bancario",FITB:"Bancario",HBAN:"Bancario",
+
+  // Seguros
+  BRK:"Seguros",PRU:"Seguros",MET:"Seguros",AFL:"Seguros",
+  TRV:"Seguros",AIG:"Seguros",CB:"Seguros",ALL:"Seguros",
+  PGR:"Seguros",UNM:"Seguros",
+
+  // Energía
+  XOM:"Energía",CVX:"Energía",COP:"Energía",OXY:"Energía",
+  SLB:"Energía",HAL:"Energía",EOG:"Energía",PXD:"Energía",
+  DVN:"Energía",PSX:"Energía",VLO:"Energía",MPC:"Energía",
+  HES:"Energía",BKR:"Energía",MRO:"Energía",
+
+  // Energía Renovable
+  ENPH:"Energía Renovable",SEDG:"Energía Renovable",FSLR:"Energía Renovable",
+  RUN:"Energía Renovable",PLUG:"Energía Renovable",BE:"Energía Renovable",
+  NEE:"Energía Renovable",ITRI:"Energía Renovable",
+
+  // Industriales
+  CAT:"Industriales",DE:"Industriales",GE:"Industriales",
+  HON:"Industriales",EMR:"Industriales",ETN:"Industriales",
+  ITW:"Industriales",PH:"Industriales",ROK:"Industriales",
+  XYL:"Industriales",AME:"Industriales",MMM:"Industriales",
+  CARR:"Industriales",OTIS:"Industriales",
+
+  // Aeroespacial & Defensa
+  LMT:"Aeroespacial",RTX:"Aeroespacial",NOC:"Aeroespacial",
+  GD:"Aeroespacial",BA:"Aeroespacial",TDG:"Aeroespacial",
+  HEI:"Aeroespacial",AXON:"Aeroespacial",RKLB:"Aeroespacial",
+  SPCE:"Aeroespacial",
+
+  // Logística & Transporte
+  UPS:"Logística",FDX:"Logística",CHRW:"Logística",
+  EXPD:"Logística",GXO:"Logística",XPO:"Logística",
+  ODFL:"Logística",SAIA:"Logística",JBHT:"Logística",
+  LSTR:"Logística",WERN:"Logística",
+
+  // Materiales
+  LIN:"Materiales",APD:"Materiales",DOW:"Materiales",
+  NEM:"Materiales",FCX:"Materiales",AA:"Materiales",
+  CLF:"Materiales",NUE:"Materiales",MLM:"Materiales",
+  VMC:"Materiales",ALB:"Materiales",SQM:"Materiales",
+  MP:"Materiales",ECL:"Materiales",PPG:"Materiales",
+
+  // Telecomunicaciones
+  T:"Telecomunicaciones",VZ:"Telecomunicaciones",TMUS:"Telecomunicaciones",
+  CMCSA:"Telecomunicaciones",CHTR:"Telecomunicaciones",
+
+  // Medios & Entretenimiento
+  WBD:"Medios",PARA:"Medios",FOX:"Medios",FOXA:"Medios",
+
+  // Real Estate
+  AMT:"Real Estate",CCI:"Real Estate",PLD:"Real Estate",
+  EQR:"Real Estate",VTR:"Real Estate",SPG:"Real Estate",
+  MAA:"Real Estate",PSA:"Real Estate",INVH:"Real Estate",
+  VICI:"Real Estate",VNQ:"Real Estate",
+
+  // Cripto / Blockchain
+  COIN:"Cripto",MSTR:"Cripto",MARA:"Cripto",
+  RIOT:"Cripto",HUT:"Cripto",CLSK:"Cripto",
+
+  // ETF
+  SPY:"ETF",QQQ:"ETF",VTI:"ETF",IVV:"ETF",VOO:"ETF",
+  IWM:"ETF",GLD:"ETF",SLV:"ETF",USO:"ETF",TLT:"ETF",
+  HYG:"ETF",LQD:"ETF",EEM:"ETF",EFA:"ETF",IEF:"ETF",
+  DIA:"ETF",ARKK:"ETF",TQQQ:"ETF",SQQQ:"ETF",
 };
 
 const TICKER_RISK_OVERRIDE: Record<string, number> = {
-  GME:96,AMC:96,MSTR:92,COIN:91,RIVN:88,LCID:88,
-  TSLA:84,PLTR:82,SNAP:82,SPOT:80,RBLX:80,HOOD:82,SOFI:78,
-  NVDA:77,AMD:76,SHOP:74,SQ:75,META:70,NFLX:70,UBER:72,
+  // Especulativo
+  GME:96,AMC:96,BBBY:96,SPCE:90,
+  MSTR:93,MARA:92,RIOT:92,COIN:90,CLSK:90,
+  RIVN:88,LCID:88,NIO:86,RKLB:84,
+  TQQQ:90,SQQQ:90,ARKK:82,
+  // Alto riesgo
+  TSLA:84,PLTR:82,SNAP:82,HOOD:82,RBLX:80,
+  SOFI:78,AFRM:83,UPST:85,DKNG:80,
+  NVDA:77,AMD:76,SMCI:80,ARM:78,SNOW:77,MDB:75,
+  // Crecimiento moderado-alto
+  SHOP:74,SQ:75,META:68,NFLX:68,UBER:70,LYFT:75,
+  ABNB:72,DDOG:73,NET:72,ZS:72,BNTX:72,MRNA:72,
+  // Blue chip tech
   AAPL:60,MSFT:58,GOOGL:60,AMZN:63,ORCL:55,
-  JPM:48,BAC:50,GS:55,V:45,MA:45,AXP:50,
+  ADBE:60,CRM:62,NOW:62,INTU:58,
+  // Financiero establecido
+  JPM:48,BAC:50,GS:55,MS:52,V:45,MA:45,AXP:50,
+  SCHW:52,BX:58,
+  // Salud / Farma
   JNJ:28,PFE:35,UNH:32,ABBV:38,LLY:42,AMGN:36,
+  MRK:34,BMY:36,VRTX:65,REGN:60,
+  // Consumo defensivo
   WMT:22,KO:18,PG:18,MCD:25,COST:30,SBUX:35,
-  XOM:48,CVX:48,COP:55,OXY:58,
+  NKE:45,TGT:40,HD:38,
+  // Energía
+  XOM:48,CVX:48,COP:55,OXY:58,SLB:55,
+  // Semis establecidos
+  INTC:52,TXN:55,QCOM:62,AVGO:60,ADI:58,
+  // ETF
   SPY:20,VOO:20,VTI:20,IVV:20,QQQ:38,IWM:45,GLD:30,
 };
+
 const SECTOR_RISK_BASE: Record<string, number> = {
-  ETF:22,Salud:35,Consumo:38,Finance:52,Energía:58,Tech:72,
+  ETF:22,
+  "Consumo Básico":20,
+  "Real Estate":40,
+  Seguros:40,
+  "Farmacéutica":38,
+  Salud:32,
+  Telecomunicaciones:35,
+  Logística:44,
+  Bancario:48,
+  Industriales:48,
+  Aeroespacial:52,
+  Financiero:52,
+  Materiales:54,
+  Medios:55,
+  Energía:58,
+  "Consumo Discrecional":55,
+  eCommerce:62,
+  Software:65,
+  "Energía Renovable":68,
+  Tecnología:70,
+  Fintech:74,
+  Biotecnología:72,
+  "Inteligencia Artificial":82,
+  Semiconductores:78,
+  Cripto:92,
+};
+
+// Color por sector para la barra de diagnóstico
+const SECTOR_COLOR: Record<string, string> = {
+  Semiconductores:"#8b5cf6",
+  Software:"#3b82f6",
+  Tecnología:"#06b6d4",
+  "Inteligencia Artificial":"#a855f7",
+  Fintech:"#10b981",
+  eCommerce:"#f59e0b",
+  "Consumo Discrecional":"#f97316",
+  "Consumo Básico":"#eab308",
+  Salud:"#ec4899",
+  "Farmacéutica":"#f43f5e",
+  Biotecnología:"#c026d3",
+  Financiero:"#475569",
+  Bancario:"#64748b",
+  Seguros:"#6b7280",
+  Energía:"#ef4444",
+  "Energía Renovable":"#22c55e",
+  Industriales:"#78716c",
+  Aeroespacial:"#0ea5e9",
+  Logística:"#84cc16",
+  Materiales:"#d97706",
+  Telecomunicaciones:"#7c3aed",
+  Medios:"#db2777",
+  "Real Estate":"#14b8a6",
+  Cripto:"#f59e0b",
+  ETF:"#94a3b8",
 };
 
 const PORTFOLIO_LEVELS = [
@@ -62,17 +282,80 @@ const PORTFOLIO_LEVELS = [
   { label:"Especulativo",          min:88, max:101, color:"#7f1d1d" },
 ];
 
-const STRESS_SCENARIOS = [
-  { id:"2008",    name:"Crisis 2008",    icon:"🏦", color:"#ef4444", year:"2008-09",    desc:"Colapso del sistema financiero global",
-    drawdowns:{Tech:-52,Finance:-78,Salud:-18,Consumo:-28,Energía:-55,ETF:-38}, default:-42 },
-  { id:"covid",   name:"COVID-19",       icon:"🦠", color:"#f97316", year:"Feb-Mar 2020", desc:"Crash de 33 días, caída brusca y rápida",
-    drawdowns:{Tech:-34,Finance:-45,Salud:-15,Consumo:-42,Energía:-60,ETF:-34}, default:-34 },
-  { id:"tech2022",name:"Tech Crash '22", icon:"📉", color:"#f59e0b", year:"2022",        desc:"Alza de tasas aplasta valuaciones tech",
-    drawdowns:{Tech:-55,Finance:-22,Salud:-10,Consumo:-15,Energía:40,ETF:-18},  default:-20 },
-  { id:"fed",     name:"Fed +1%",        icon:"🏛️", color:"#6366f1", year:"Escenario",   desc:"Subida sorpresiva de 100pb en tasas",
-    drawdowns:{Tech:-20,Finance:5,Salud:-8,Consumo:-10,Energía:-5,ETF:-12},     default:-12 },
-  { id:"bull",    name:"Bull Market",    icon:"🚀", color:"#22c55e", year:"Escenario",   desc:"Año de recuperación y euforia inversora",
-    drawdowns:{Tech:35,Finance:25,Salud:20,Consumo:18,Energía:22,ETF:24},       default:22  },
+const STRESS_SCENARIOS: Array<{
+  id: string; name: string; icon: string; color: string; year: string; desc: string;
+  drawdowns: Record<string, number>; default: number;
+}> = [
+  { id:"2008", name:"Crisis 2008", icon:"🏦", color:"#ef4444", year:"2008-09",
+    desc:"Colapso del sistema financiero global",
+    default:-42,
+    drawdowns:{
+      Semiconductores:-55, Software:-48, Tecnología:-52, "Inteligencia Artificial":-52,
+      Fintech:-55, eCommerce:-50,
+      "Consumo Discrecional":-42, "Consumo Básico":-20,
+      Salud:-18, "Farmacéutica":-22, Biotecnología:-30,
+      Bancario:-80, Financiero:-68, Seguros:-55,
+      Energía:-55, "Energía Renovable":-60,
+      Industriales:-42, Aeroespacial:-40, Logística:-40, Materiales:-55,
+      Telecomunicaciones:-32, Medios:-42, "Real Estate":-65,
+      Cripto:-55, ETF:-38,
+    }},
+  { id:"covid", name:"COVID-19", icon:"🦠", color:"#f97316", year:"Feb-Mar 2020",
+    desc:"Crash de 33 días, caída brusca y rápida",
+    default:-34,
+    drawdowns:{
+      Semiconductores:-35, Software:-28, Tecnología:-32, "Inteligencia Artificial":-30,
+      Fintech:-38, eCommerce:18,
+      "Consumo Discrecional":-50, "Consumo Básico":-12,
+      Salud:-10, "Farmacéutica":-15, Biotecnología:15,
+      Bancario:-48, Financiero:-42, Seguros:-38,
+      Energía:-65, "Energía Renovable":-38,
+      Industriales:-40, Aeroespacial:-55, Logística:-32, Materiales:-40,
+      Telecomunicaciones:-22, Medios:-45, "Real Estate":-40,
+      Cripto:-50, ETF:-34,
+    }},
+  { id:"tech2022", name:"Tech Crash '22", icon:"📉", color:"#f59e0b", year:"2022",
+    desc:"Alza de tasas aplasta valuaciones tech",
+    default:-20,
+    drawdowns:{
+      Semiconductores:-62, Software:-58, Tecnología:-52, "Inteligencia Artificial":-60,
+      Fintech:-70, eCommerce:-55,
+      "Consumo Discrecional":-18, "Consumo Básico":-10,
+      Salud:-8, "Farmacéutica":-10, Biotecnología:-32,
+      Bancario:-18, Financiero:-22, Seguros:-12,
+      Energía:45, "Energía Renovable":-35,
+      Industriales:-12, Aeroespacial:-8, Logística:-20, Materiales:-20,
+      Telecomunicaciones:-28, Medios:-40, "Real Estate":-25,
+      Cripto:-75, ETF:-18,
+    }},
+  { id:"fed", name:"Fed +1%", icon:"🏛️", color:"#6366f1", year:"Escenario",
+    desc:"Subida sorpresiva de 100pb en tasas",
+    default:-12,
+    drawdowns:{
+      Semiconductores:-22, Software:-25, Tecnología:-20, "Inteligencia Artificial":-28,
+      Fintech:-28, eCommerce:-22,
+      "Consumo Discrecional":-12, "Consumo Básico":-8,
+      Salud:-5, "Farmacéutica":-8, Biotecnología:-15,
+      Bancario:8, Financiero:5, Seguros:3,
+      Energía:-8, "Energía Renovable":-20,
+      Industriales:-10, Aeroespacial:-8, Logística:-10, Materiales:-12,
+      Telecomunicaciones:-15, Medios:-10, "Real Estate":-20,
+      Cripto:-35, ETF:-12,
+    }},
+  { id:"bull", name:"Bull Market", icon:"🚀", color:"#22c55e", year:"Escenario",
+    desc:"Año de recuperación y euforia inversora",
+    default:22,
+    drawdowns:{
+      Semiconductores:55, Software:40, Tecnología:38, "Inteligencia Artificial":60,
+      Fintech:42, eCommerce:38,
+      "Consumo Discrecional":25, "Consumo Básico":12,
+      Salud:18, "Farmacéutica":20, Biotecnología:32,
+      Bancario:25, Financiero:28, Seguros:18,
+      Energía:22, "Energía Renovable":40,
+      Industriales:22, Aeroespacial:28, Logística:20, Materiales:25,
+      Telecomunicaciones:15, Medios:20, "Real Estate":25,
+      Cripto:80, ETF:25,
+    }},
 ];
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
@@ -1103,12 +1386,15 @@ export default function PortfolioPage() {
                 </div>
                 {Object.keys(diagnosis.sectorPcts).length>0 && (
                   <div className="flex flex-wrap gap-1.5 mb-3">
-                    {Object.entries(diagnosis.sectorPcts).sort((a,b)=>b[1]-a[1]).map(([sector,pct]) => (
-                      <span key={sector} className="text-xs px-2 py-1 rounded-lg border font-semibold"
-                            style={{ background:"var(--raised)", borderColor:"var(--border)", color:"var(--sub)" }}>
-                        {sector} {pct}%
-                      </span>
-                    ))}
+                    {Object.entries(diagnosis.sectorPcts).sort((a,b)=>b[1]-a[1]).map(([sector,pct]) => {
+                      const col = SECTOR_COLOR[sector] ?? "#94a3b8";
+                      return (
+                        <span key={sector} className="text-xs px-2.5 py-1 rounded-lg font-bold"
+                              style={{ background:`${col}18`, border:`1px solid ${col}40`, color: col }}>
+                          {sector} {pct}%
+                        </span>
+                      );
+                    })}
                   </div>
                 )}
               </section>
