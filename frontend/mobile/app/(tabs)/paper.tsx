@@ -318,13 +318,13 @@ export default function PaperScreen() {
                 </View>
 
                 {suggestions.length > 0 && !tickerInfo && !searching && (
-                  <View style={[s.suggestionsBox, { backgroundColor: "rgba(59,130,246,0.07)", borderColor: "rgba(59,130,246,0.28)" }]}>
+                  <View style={[s.suggestionsBox, { backgroundColor: "#dbeafe", borderColor: "#93c5fd" }]}>
                     {suggestions.map((s2, i) => (
                       <TouchableOpacity key={s2.ticker}
-                        style={[s.suggestionRow, i < suggestions.length - 1 && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: "rgba(59,130,246,0.18)" }]}
+                        style={[s.suggestionRow, i < suggestions.length - 1 && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: "#bfdbfe" }]}
                         onPress={() => selectSuggestion(s2.ticker)}>
-                        <Text style={[s.suggestionTicker, { color: "#3b82f6" }]}>{s2.ticker}</Text>
-                        <Text style={[s.suggestionName, { color: colors.textSub }]} numberOfLines={1}>{s2.name}</Text>
+                        <Text style={[s.suggestionTicker, { color: "#1d4ed8" }]}>{s2.ticker}</Text>
+                        <Text style={[s.suggestionName, { color: "#2563eb" }]} numberOfLines={1}>{s2.name}</Text>
                       </TouchableOpacity>
                     ))}
                   </View>
