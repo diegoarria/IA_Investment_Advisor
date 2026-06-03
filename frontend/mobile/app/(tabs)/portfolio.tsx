@@ -708,9 +708,18 @@ export default function PortfolioScreen() {
 
         {activeSection === "herramientas" && (
           <View style={{ gap: 12, paddingBottom: 32 }}>
-            <Text style={{ fontSize: 11, color: colors.textMuted, marginBottom: 2 }}>
-              Herramientas de análisis avanzado para tu portafolio
-            </Text>
+            {/* Section header */}
+            <View style={{ paddingHorizontal: 2, paddingBottom: 4 }}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 6 }}>
+                <View style={{ width: 36, height: 36, borderRadius: 12, backgroundColor: "rgba(0,168,94,0.15)", alignItems: "center", justifyContent: "center" }}>
+                  <Ionicons name="sparkles" size={18} color={colors.accent} />
+                </View>
+                <View>
+                  <Text style={{ fontSize: 18, fontWeight: "900", color: colors.text, letterSpacing: -0.4 }}>Herramientas Premium</Text>
+                  <Text style={{ fontSize: 11, color: colors.textMuted, marginTop: 1 }}>Análisis avanzado de tu portafolio</Text>
+                </View>
+              </View>
+            </View>
 
             {/* ── REPORTE MENSUAL ── */}
             {isPremiumAccess

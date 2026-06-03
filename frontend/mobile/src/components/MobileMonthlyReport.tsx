@@ -50,42 +50,71 @@ export default function MobileMonthlyReport({ positions, isPremium, onUpgrade }:
   const retPct   = report?.performance?.total_return_pct ?? 0;
   const isPos    = retPct >= 0;
 
+  const TOOL_COLOR = "#3b82f6";
+
   return (
     <>
-      <TouchableOpacity
-        style={[s.trigger, { borderColor: colors.border, backgroundColor: colors.raised }]}
-        onPress={handleGenerate}
-        disabled={loading}
-      >
-        {loading
-          ? <ActivityIndicator size="small" color={colors.accent} />
-          : <Ionicons name="document-text-outline" size={16} color={colors.accent} />
-        }
-        <Text style={[s.triggerText, { color: colors.subtext }]}>
-          {loading ? "Generando..." : "Reporte mensual"}
-        </Text>
-        {!isPremium && (
-          <View style={[s.premiumBadge, { backgroundColor: colors.accent + "20" }]}>
-            <Text style={[s.premiumBadgeText, { color: colors.accent }]}>PREMIUM</Text>
+      <TouchableOpacity onPress={handleGenerate} disabled={loading} activeOpacity={0.93}
+        style={[s.card, { backgroundColor: colors.card }]}>
+
+        {/* Hero */}
+        <View style={[s.hero, { backgroundColor: TOOL_COLOR + "18" }]}>
+          <View style={[s.circle1, { backgroundColor: TOOL_COLOR + "15" }]} />
+          <View style={[s.circle2, { backgroundColor: TOOL_COLOR + "0A" }]} />
+          <View style={[s.iconOuter, { backgroundColor: TOOL_COLOR + "25", borderColor: TOOL_COLOR + "40" }]}>
+            <View style={[s.iconInner, { backgroundColor: TOOL_COLOR }]}>
+              {loading
+                ? <ActivityIndicator color="white" size="small" />
+                : <Ionicons name="document-text" size={28} color="white" />}
+            </View>
           </View>
-        )}
-        <Ionicons name="chevron-forward" size={14} color={colors.muted} style={{ marginLeft: "auto" }} />
+        </View>
+
+        {/* Content */}
+        <View style={s.cardContent}>
+          <Text style={[s.cardTitle, { color: colors.text }]}>Reporte Mensual</Text>
+          <Text style={[s.cardTagline, { color: TOOL_COLOR }]}>Tu portafolio analizado con IA cada mes</Text>
+
+          <View style={[s.featureList, { borderColor: colors.border }]}>
+            {[
+              { icon: "📊", text: "Rendimiento real vs S&P 500 y benchmarks" },
+              { icon: "📉", text: "Sharpe ratio, volatilidad y drawdown" },
+              { icon: "✅", text: "3 acciones concretas para el mes siguiente" },
+            ].map((f, i, arr) => (
+              <View key={f.text} style={[s.featureRow,
+                i < arr.length - 1 && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border }]}>
+                <View style={[s.featureIconBox, { backgroundColor: TOOL_COLOR + "12" }]}>
+                  <Text style={{ fontSize: 15 }}>{f.icon}</Text>
+                </View>
+                <Text style={[s.featureText, { color: colors.textSub }]}>{f.text}</Text>
+              </View>
+            ))}
+          </View>
+
+          <TouchableOpacity onPress={handleGenerate} disabled={loading} activeOpacity={0.85}
+            style={[s.cta, { backgroundColor: TOOL_COLOR }]}>
+            <View style={s.ctaGlow} />
+            {loading
+              ? <><ActivityIndicator color="white" size="small" /><Text style={s.ctaText}>Generando...</Text></>
+              : <><Ionicons name="sparkles" size={16} color="white" /><Text style={s.ctaText}>Generar Reporte</Text></>}
+          </TouchableOpacity>
+        </View>
       </TouchableOpacity>
 
       <Modal visible={open} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setOpen(false)}>
-        <View style={[s.modal, { backgroundColor: colors.background }]}>
+        <View style={[s.modal, { backgroundColor: colors.bg }]}>
           {/* Header */}
           <View style={[s.modalHeader, { borderBottomColor: colors.border }]}>
             <View>
               <Text style={[s.modalTitle, { color: colors.text }]}>📊 {report?.month}</Text>
-              <Text style={[s.modalSub, { color: colors.muted }]}>Reporte de portafolio</Text>
+              <Text style={[s.modalSub, { color: colors.textMuted }]}>Reporte de portafolio</Text>
             </View>
             <View style={{ flexDirection: "row", gap: 12, alignItems: "center" }}>
               <TouchableOpacity onPress={handleShare}>
                 <Ionicons name="share-outline" size={20} color={colors.accent} />
               </TouchableOpacity>
               <TouchableOpacity onPress={() => setOpen(false)}>
-                <Ionicons name="close" size={22} color={colors.muted} />
+                <Ionicons name="close" size={22} color={colors.textMuted} />
               </TouchableOpacity>
             </View>
           </View>
@@ -93,7 +122,7 @@ export default function MobileMonthlyReport({ positions, isPremium, onUpgrade }:
           <ScrollView style={{ flex: 1 }} contentContainerStyle={s.content}>
             {/* Executive summary */}
             {report?.executive_summary && (
-              <View style={[s.summaryBox, { backgroundColor: colors.raised }]}>
+              <View style={[s.summaryBox, { backgroundColor: colors.bgRaised }]}>
                 <Text style={[s.summaryText, { color: colors.text }]}>{report.executive_summary}</Text>
               </View>
             )}
@@ -104,10 +133,10 @@ export default function MobileMonthlyReport({ positions, isPremium, onUpgrade }:
                 { label: "Rendimiento", value: `${isPos ? "+" : ""}${retPct.toFixed(2)}%`, color: isPos ? "#22c55e" : "#ef4444" },
                 { label: "Valor total", value: `$${(report?.performance?.total_value ?? 0).toLocaleString()}`, color: colors.text },
                 { label: "Ganancia", value: `${(report?.performance?.unrealized_gain ?? 0) >= 0 ? "+" : ""}$${Math.abs(report?.performance?.unrealized_gain ?? 0).toLocaleString()}`, color: (report?.performance?.unrealized_gain ?? 0) >= 0 ? "#22c55e" : "#ef4444" },
-                { label: "vs S&P 500", value: report?.performance?.vs_sp500 ?? "—", color: colors.subtext },
+                { label: "vs S&P 500", value: report?.performance?.vs_sp500 ?? "—", color: colors.textSub },
               ].map((m) => (
-                <View key={m.label} style={[s.metricCard, { backgroundColor: colors.raised, borderColor: colors.border }]}>
-                  <Text style={[s.metricLabel, { color: colors.muted }]}>{m.label}</Text>
+                <View key={m.label} style={[s.metricCard, { backgroundColor: colors.bgRaised, borderColor: colors.border }]}>
+                  <Text style={[s.metricLabel, { color: colors.textMuted }]}>{m.label}</Text>
                   <Text style={[s.metricValue, { color: m.color }]}>{m.value}</Text>
                 </View>
               ))}
@@ -135,8 +164,8 @@ export default function MobileMonthlyReport({ positions, isPremium, onUpgrade }:
                   { label: "Volatilidad", value: report.metrics.volatility_pct ? `${report.metrics.volatility_pct.toFixed(1)}%` : "—" },
                   { label: "Drawdown", value: report.metrics.max_drawdown_pct ? `${report.metrics.max_drawdown_pct.toFixed(1)}%` : "—" },
                 ].map((m) => (
-                  <View key={m.label} style={[s.advCard, { backgroundColor: colors.raised, borderColor: colors.border }]}>
-                    <Text style={[s.advLabel, { color: colors.muted }]}>{m.label}</Text>
+                  <View key={m.label} style={[s.advCard, { backgroundColor: colors.bgRaised, borderColor: colors.border }]}>
+                    <Text style={[s.advLabel, { color: colors.textMuted }]}>{m.label}</Text>
                     <Text style={[s.advValue, { color: colors.text }]}>{m.value}</Text>
                   </View>
                 ))}
@@ -147,18 +176,18 @@ export default function MobileMonthlyReport({ positions, isPremium, onUpgrade }:
             {report?.mentor_note && (
               <View style={[s.mentorBox, { backgroundColor: colors.accent + "0D", borderColor: colors.accent + "40" }]}>
                 <Text style={[s.mentorLabel, { color: colors.accent }]}>🎓 NOTA DE TU MENTOR</Text>
-                <Text style={[s.mentorText, { color: colors.subtext }]}>{report.mentor_note}</Text>
+                <Text style={[s.mentorText, { color: colors.textSub }]}>{report.mentor_note}</Text>
               </View>
             )}
 
             {/* Action items */}
             {report?.action_items?.length > 0 && (
               <View>
-                <Text style={[s.sectionLabel, { color: colors.muted }]}>✅ ACCIONES PARA EL PRÓXIMO MES</Text>
+                <Text style={[s.sectionLabel, { color: colors.textMuted }]}>✅ ACCIONES PARA EL PRÓXIMO MES</Text>
                 {report.action_items.map((item: string, i: number) => (
-                  <View key={i} style={[s.actionRow, { backgroundColor: colors.raised }]}>
+                  <View key={i} style={[s.actionRow, { backgroundColor: colors.bgRaised }]}>
                     <Text style={[s.actionNum, { color: colors.accent }]}>{i + 1}.</Text>
-                    <Text style={[s.actionText, { color: colors.subtext }]}>{item}</Text>
+                    <Text style={[s.actionText, { color: colors.textSub }]}>{item}</Text>
                   </View>
                 ))}
               </View>
@@ -168,7 +197,7 @@ export default function MobileMonthlyReport({ positions, isPremium, onUpgrade }:
             {report?.learning_insight && (
               <View style={[s.insightBox, { backgroundColor: "#8b5cf60D", borderColor: "#8b5cf640" }]}>
                 <Text style={[s.insightLabel, { color: "#a78bfa" }]}>💡 INSIGHT CONDUCTUAL</Text>
-                <Text style={[s.insightText, { color: colors.subtext }]}>{report.learning_insight}</Text>
+                <Text style={[s.insightText, { color: colors.textSub }]}>{report.learning_insight}</Text>
               </View>
             )}
           </ScrollView>
@@ -178,11 +207,24 @@ export default function MobileMonthlyReport({ positions, isPremium, onUpgrade }:
   );
 }
 
-const styles = (c: any) => StyleSheet.create({
-  trigger:     { flexDirection: "row", alignItems: "center", gap: 8, borderRadius: 14, borderWidth: 1, paddingHorizontal: 14, paddingVertical: 12, marginBottom: 10 },
-  triggerText: { fontSize: 13, fontWeight: "600" },
-  premiumBadge:     { borderRadius: 20, paddingHorizontal: 7, paddingVertical: 2 },
-  premiumBadgeText: { fontSize: 9, fontWeight: "800" },
+const styles = (_c: any) => StyleSheet.create({
+  // ── Trigger card ──────────────────────────────────────
+  card:        { borderRadius: 24, overflow: "hidden", marginBottom: 4, shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.18, shadowRadius: 12, elevation: 6 },
+  hero:        { paddingTop: 30, paddingBottom: 24, alignItems: "center", position: "relative", overflow: "hidden" },
+  circle1:     { position: "absolute", width: 160, height: 160, borderRadius: 80, top: -50, right: -30 },
+  circle2:     { position: "absolute", width: 100, height: 100, borderRadius: 50, bottom: -25, left: -15 },
+  iconOuter:   { width: 80, height: 80, borderRadius: 24, borderWidth: 2, alignItems: "center", justifyContent: "center" },
+  iconInner:   { width: 64, height: 64, borderRadius: 20, alignItems: "center", justifyContent: "center" },
+  cardContent: { padding: 20, paddingTop: 16 },
+  cardTitle:   { fontSize: 20, fontWeight: "900", letterSpacing: -0.5, marginBottom: 4, textAlign: "center" },
+  cardTagline: { fontSize: 12, fontWeight: "700", textAlign: "center", marginBottom: 16, letterSpacing: 0.2 },
+  featureList: { borderRadius: 14, borderWidth: StyleSheet.hairlineWidth, overflow: "hidden", marginBottom: 18 },
+  featureRow:  { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 11, paddingHorizontal: 14 },
+  featureIconBox: { width: 32, height: 32, borderRadius: 9, alignItems: "center", justifyContent: "center", flexShrink: 0 },
+  featureText: { fontSize: 13, flex: 1, lineHeight: 18, fontWeight: "500" },
+  cta:         { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, borderRadius: 16, paddingVertical: 15, overflow: "hidden" },
+  ctaGlow:     { position: "absolute", top: 0, left: 0, right: 0, height: "50%", backgroundColor: "rgba(255,255,255,0.12)" },
+  ctaText:     { color: "white", fontWeight: "800", fontSize: 15, letterSpacing: 0.2 },
   modal:       { flex: 1 },
   modalHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 18, borderBottomWidth: StyleSheet.hairlineWidth },
   modalTitle:  { fontSize: 17, fontWeight: "800" },
