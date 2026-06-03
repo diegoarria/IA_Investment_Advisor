@@ -346,144 +346,140 @@ async def simulate_portfolio(
 
 
 @router.post("/portfolio/from-screenshot")
-@limiter.limit("6/minute")
+@limiter.limit("20/minute")
 async def portfolio_from_screenshot(
     request: Request,
     body: dict,
     user_id: str = Depends(get_current_user_id)
 ):
+    import base64 as _b64
+
     image_data = body.get("image", "")
     image_type = body.get("type", "image/jpeg")
 
     if not image_data:
         return {"positions": [], "error": "No image provided"}
 
-    _SYSTEM = (
-        "Eres el sistema de extracción de portafolios más preciso del mundo. "
-        "Tienes visión computacional de nivel experto y extraes datos financieros con precisión quirúrgica "
-        "de cualquier app de inversión: Robinhood, Fidelity, Schwab, IBKR, GBM+, Kuspit, Bursanet, Bitso, "
-        "TD Ameritrade, Vanguard, E*Trade, Webull, Alpaca, Nu Invest, XTB, Trading212, Degiro, "
-        "eToro, Wealthsimple, Stake, Freetrade, Libertex, Plus500, y cualquier otra app o broker. "
-        "Entiendes layouts en español, inglés y portugués. "
-        "REGLA DE ORO: Nunca inventas datos. Si un valor no es claramente visible, devuelves null."
-    )
+    # Normalize image type — Claude only accepts jpeg, png, gif, webp
+    _TYPE_MAP = {
+        "image/jpg": "image/jpeg",
+        "image/heic": "image/jpeg",
+        "image/heif": "image/jpeg",
+        "image/tiff": "image/jpeg",
+        "image/bmp": "image/jpeg",
+    }
+    image_type = _TYPE_MAP.get(image_type.lower(), image_type)
+    if image_type not in ("image/jpeg", "image/png", "image/gif", "image/webp"):
+        image_type = "image/jpeg"
 
-    _PROMPT = (
-        "Examina METICULOSAMENTE esta imagen y extrae TODAS las posiciones del portafolio que veas.\n\n"
-        "━━━ SALIDA REQUERIDA ━━━\n"
-        "Devuelve ÚNICAMENTE un JSON array. Sin markdown, sin bloques de código, sin explicaciones.\n"
-        "Formato exacto:\n"
-        '[{"ticker":"AAPL","name":"Apple Inc.","shares":10.5,"avg_price":150.00,"current_price":187.50,"gain_loss_pct":25.0}]\n\n'
-        "━━━ DEFINICIÓN DE CAMPOS ━━━\n"
-        "ticker        → Símbolo en MAYÚSCULAS. Cripto: BTC-USD, ETH-USD, SOL-USD. ETFs: SPY, QQQ, VOO.\n"
-        "name          → Nombre completo visible. Si no aparece, usa el ticker.\n"
-        "shares        → Cantidad de unidades/acciones. Acepta decimales (ej: 0.00145 BTC).\n"
-        "avg_price     → Precio promedio de COMPRA por unidad. Ver algoritmo de cálculo abajo.\n"
-        "current_price → Precio actual de mercado por unidad visible en pantalla. null si no aparece.\n"
-        "gain_loss_pct → % de ganancia (+) o pérdida (-) visible. null si no aparece.\n\n"
-        "━━━ ALGORITMO PARA avg_price — APLICA EN ORDEN ESTRICTO ━━━\n\n"
-        "① ETIQUETA DIRECTA (más confiable)\n"
-        "   Busca exactamente estas etiquetas y copia el número que las acompaña:\n"
-        "   ES: 'P. Prom', 'Precio Prom', 'Precio Promedio', 'Precio de Compra', 'Costo Promedio',\n"
-        "       'Costo por Acción', 'Precio Medio', 'Comprado a', 'Precio Medio de Compra'\n"
-        "   EN: 'Avg Cost', 'Average Cost', 'Cost Basis/Share', 'Cost Per Share', 'Avg Price',\n"
-        "       'Average Price', 'Purchase Price', 'Book Value/Share', 'Break-even Price'\n"
-        "   PT: 'Preço Médio', 'Custo Médio', 'PM'\n\n"
-        "② CÁLCULO DESDE VALOR TOTAL + GANANCIA/PÉRDIDA COLOREADA\n"
-        "   La mayoría de apps muestran: [valor_mercado_total] y un número coloreado [+/- diferencia]\n"
-        "   • Si el número adicional es VERDE o tiene '+': es ganancia\n"
-        "     costo_total = valor_mercado - ganancia → avg_price = costo_total / shares\n"
-        "     Ej: valor=$2,100 | ganancia=+$600 | shares=12 → costo=$1,500 → avg=$125.00\n"
-        "   • Si el número adicional es ROJO o tiene '-': es pérdida\n"
-        "     costo_total = valor_mercado + |pérdida| → avg_price = costo_total / shares\n"
-        "     Ej: valor=$800 | pérdida=-$200 | shares=5 → costo=$1,000 → avg=$200.00\n\n"
-        "③ CÁLCULO DESDE % DE RETORNO + VALOR ACTUAL\n"
-        "   Si ves el porcentaje de ganancia/pérdida y el valor de mercado actual:\n"
-        "   costo_total = valor_actual / (1 + pct/100)\n"
-        "   avg_price = costo_total / shares\n"
-        "   Ej: valor=$1,320 | +32% | 8 shares → costo=$1,000 → avg=$125.00\n\n"
-        "④ MONTO INVERTIDO ETIQUETADO\n"
-        "   Si ves 'Invertido', 'Capital Invertido', 'Monto Invertido', 'Invested', 'Cost Basis' (total):\n"
-        "   avg_price = monto_invertido_total / shares\n\n"
-        "⑤ SIN DATOS SUFICIENTES → avg_price = null\n\n"
-        "━━━ INSTRUCCIONES CRÍTICAS ━━━\n"
-        "✓ Extrae CADA posición visible — ni una sola excepción\n"
-        "✓ Si la lista tiene scroll (imagen cortada abajo), extrae todas las que SÍ están visibles\n"
-        "✓ Lee con precisión: '1,234.56' es mil doscientos treinta y cuatro punto cincuenta y seis\n"
-        "✓ En apps latinas el punto separa miles y la coma los decimales: '1.234,56' = 1234.56\n"
-        "✓ Acciones fraccionadas son válidas: 0.5 shares de AAPL, 0.00234 BTC\n"
-        "✓ Si ves múltiples cuentas/carteras en la misma pantalla, extrae todas\n"
-        "✓ Fondos de inversión, ETFs, REITs, bonos — extrae igual que acciones\n"
-        "✓ Para criptos con valor muy bajo (SHIB, PEPE), mantén todos los decimales\n"
-        "✗ NUNCA uses el precio actual como avg_price salvo como último recurso\n"
-        "✗ NUNCA redondees shares — mantén la precisión exacta de la imagen\n"
-        "✗ NUNCA incluyas texto fuera del JSON array"
-    )
+    _SYSTEM = """Eres un experto en visión por computadora especializado en extraer datos de portafolios de inversión de capturas de pantalla. Tu tarea es extraer TODOS los activos visibles y devolver un JSON estructurado. Analizas cualquier app: Robinhood, Fidelity, GBM+, Interactive Brokers, Schwab, TD Ameritrade, E*Trade, Webull, eToro, Degiro, Trading212, Kuspit, Bursanet, Bitso, Nu Invest, y cualquier otra app de inversión en cualquier idioma."""
+
+    _PROMPT = """Analiza esta imagen de un portafolio de inversión y extrae TODAS las posiciones visibles.
+
+Responde ÚNICAMENTE con un JSON array con este formato exacto (sin texto adicional, sin markdown):
+[{"ticker":"AAPL","name":"Apple Inc.","shares":10.5,"avg_price":150.00,"current_price":187.50,"gain_loss_pct":25.0}]
+
+CAMPOS:
+- ticker: símbolo bursátil en MAYÚSCULAS (BTC-USD, ETH-USD para cripto)
+- name: nombre de la empresa/activo (usa ticker si no aparece)
+- shares: cantidad exacta de unidades (acepta decimales)
+- avg_price: precio promedio de COMPRA por unidad (ver cálculo abajo)
+- current_price: precio actual por unidad (null si no visible)
+- gain_loss_pct: porcentaje de ganancia/pérdida (null si no visible)
+
+CÓMO CALCULAR avg_price (en orden de prioridad):
+1. Si ves etiquetas como "Precio Prom", "Avg Cost", "Average Cost", "Cost Per Share", "Preço Médio", "P.M." → usa ese número directamente
+2. Si ves valor_total_mercado y ganancia/pérdida en color:
+   - Verde/positivo: avg_price = (valor_mercado - ganancia) / shares
+   - Rojo/negativo: avg_price = (valor_mercado + pérdida_absoluta) / shares
+3. Si ves % de retorno y valor actual: avg_price = (valor_actual / (1 + pct/100)) / shares
+4. Si ves "Invertido" o "Cost Basis" total: avg_price = monto_total / shares
+5. Si no puedes calcular: avg_price = 0
+
+NOTAS IMPORTANTES:
+- En apps latinoamericanas: el punto puede ser separador de miles (1.234,56 = 1234.56)
+- Incluye TODAS las posiciones visibles sin excepción
+- Acciones fraccionadas son válidas (0.5 acciones, 0.00234 BTC)
+- Si la lista está cortada, extrae las posiciones que SÍ están visibles
+- Responde SOLO el JSON array, nada más"""
+
+    def _extract_json(text: str) -> list:
+        """Robustly extract JSON array from model response."""
+        text = text.strip()
+        # Remove markdown code blocks
+        if "```" in text:
+            import re
+            match = re.search(r"```(?:json)?\s*(\[[\s\S]*?\])\s*```", text)
+            if match:
+                text = match.group(1)
+        # Find JSON array boundaries
+        start = text.find("[")
+        end = text.rfind("]")
+        if start != -1 and end > start:
+            text = text[start:end+1]
+        return json.loads(text)
+
+    def _call_claude(img_data: str, img_type: str, use_thinking: bool) -> list:
+        sc = anthropic.Anthropic(api_key=settings.anthropic_api_key)
+        kwargs: dict = {
+            "model": "claude-opus-4-8",
+            "max_tokens": 16000 if use_thinking else 4096,
+            "system": _SYSTEM,
+            "messages": [{"role": "user", "content": [
+                {"type": "image", "source": {"type": "base64", "media_type": img_type, "data": img_data}},
+                {"type": "text", "text": _PROMPT},
+            ]}],
+        }
+        if use_thinking:
+            kwargs["thinking"] = {"type": "enabled", "budget_tokens": 8000}
+
+        msg = sc.messages.create(**kwargs)
+
+        # Extract text from response (handles both thinking and non-thinking responses)
+        raw = ""
+        for block in msg.content:
+            if hasattr(block, "type") and block.type == "text":
+                raw = block.text
+                break
+        if not raw:
+            raw = str(msg.content[0]) if msg.content else ""
+        return _extract_json(raw)
 
     def _run_sync(img_data: str, img_type: str) -> dict:
         with _screenshot_sem:
-            sc = anthropic.Anthropic(api_key=settings.anthropic_api_key)
-            msg = sc.messages.create(
-                model="claude-opus-4-8",
-                max_tokens=16000,
-                # Extended thinking: Claude reasons step-by-step before answering
-                # This dramatically improves accuracy for complex images
-                thinking={"type": "enabled", "budget_tokens": 10000},
-                system=_SYSTEM,
-                messages=[{"role": "user", "content": [
-                    {"type": "image", "source": {"type": "base64", "media_type": img_type, "data": img_data}},
-                    {"type": "text", "text": _PROMPT},
-                ]}],
-            )
+            positions_raw = None
+            last_error = None
 
-        # With extended thinking, response has multiple blocks (thinking + text)
-        # We only need the final text block which contains the JSON
-        raw = ""
-        for block in msg.content:
-            if block.type == "text":
-                raw = block.text.strip()
-                break
+            # Try with extended thinking first (most accurate)
+            try:
+                positions_raw = _call_claude(img_data, img_type, use_thinking=True)
+            except Exception as e:
+                last_error = str(e)
+                # Fallback: try without thinking (broader SDK compatibility)
+                try:
+                    positions_raw = _call_claude(img_data, img_type, use_thinking=False)
+                except Exception as e2:
+                    last_error = str(e2)
 
-        if not raw:
-            return {"positions": [], "error": "No se recibió respuesta del modelo"}
+            if positions_raw is None:
+                return {"positions": [], "error": last_error or "Error al procesar la imagen"}
 
-        # Strip markdown code blocks if present
-        if "```" in raw:
-            parts = raw.split("```")
-            for i, part in enumerate(parts):
-                if i % 2 == 1:  # inside a code block
-                    candidate = part.lstrip("json").strip()
-                    if candidate.startswith("["):
-                        raw = candidate
-                        break
-        raw = raw.strip()
-
-        # Find the JSON array if there's surrounding text
-        start = raw.find("[")
-        end = raw.rfind("]")
-        if start != -1 and end != -1 and end > start:
-            raw = raw[start:end+1]
-
-        positions = json.loads(raw)
-        result = []
-        for p in positions:
-            ticker = str(p.get("ticker") or "").strip().upper()
-            if not ticker:
-                continue
-            avg_price = p.get("avg_price")
-            # Return the price exactly as read from the screenshot — never fabricate
-            result.append({
-                "ticker": ticker,
-                "name": p.get("name") or ticker,
-                "shares": float(p.get("shares") or 0),
-                "avg_price": float(avg_price) if avg_price is not None else 0,
-            })
-        return {"positions": result}
+            result = []
+            for p in positions_raw:
+                ticker = str(p.get("ticker") or "").strip().upper()
+                if not ticker:
+                    continue
+                avg_price = p.get("avg_price")
+                result.append({
+                    "ticker": ticker,
+                    "name": p.get("name") or ticker,
+                    "shares": float(p.get("shares") or 0),
+                    "avg_price": float(avg_price) if avg_price else 0,
+                })
+            return {"positions": result}
 
     try:
         return await asyncio.to_thread(_run_sync, image_data, image_type)
-    except json.JSONDecodeError:
-        return {"positions": [], "error": "No se pudo parsear la respuesta del modelo"}
     except Exception as e:
         return {"positions": [], "error": str(e)}
 
