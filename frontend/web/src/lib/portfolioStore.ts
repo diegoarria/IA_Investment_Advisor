@@ -22,9 +22,9 @@ interface PortfolioStore {
   loadFromServer: () => Promise<void>;
 }
 
-function pushToServer(positions: Position[]) {
+function pushToServer(positions: Position[], currency?: string) {
   import("./api").then(({ sync }) => {
-    sync.pushPortfolio(positions).catch(() => {});
+    sync.pushPortfolio(positions, currency).catch(() => {});
   });
 }
 
@@ -34,12 +34,15 @@ export const usePortfolioStore = create<PortfolioStore>()(
       positions: [],
       portfolioCurrency: "USD",
 
-      setCurrency: (currency) => set({ portfolioCurrency: currency }),
+      setCurrency: (currency) => {
+        set({ portfolioCurrency: currency });
+        pushToServer(get().positions, currency);
+      },
 
       addPosition: (p) => {
         set((s) => {
           const positions = [...s.positions, { ...p, id: `${p.ticker}-${Date.now()}` }];
-          pushToServer(positions);
+          pushToServer(positions, s.portfolioCurrency);
           return { positions };
         });
       },
@@ -47,7 +50,7 @@ export const usePortfolioStore = create<PortfolioStore>()(
       removePosition: (id) => {
         set((s) => {
           const positions = s.positions.filter((pos) => pos.id !== id);
-          pushToServer(positions);
+          pushToServer(positions, s.portfolioCurrency);
           return { positions };
         });
       },
@@ -57,7 +60,7 @@ export const usePortfolioStore = create<PortfolioStore>()(
           const positions = s.positions.map((pos) =>
             pos.id === id ? { ...pos, ...updates } : pos
           );
-          pushToServer(positions);
+          pushToServer(positions, s.portfolioCurrency);
           return { positions };
         });
       },
@@ -65,12 +68,12 @@ export const usePortfolioStore = create<PortfolioStore>()(
       setPositions: (list) => {
         const positions = list.map((p, i) => ({ ...p, id: `${p.ticker}-${i}-${Date.now()}` }));
         set({ positions });
-        pushToServer(positions);
+        pushToServer(positions, get().portfolioCurrency);
       },
 
       clearPortfolio: () => {
         set({ positions: [] });
-        pushToServer([]);
+        pushToServer([], get().portfolioCurrency);
       },
 
       loadFromServer: async () => {
@@ -78,15 +81,16 @@ export const usePortfolioStore = create<PortfolioStore>()(
           const { sync } = await import("./api");
           const res = await sync.getPortfolio();
           const serverPositions: (Omit<Position, "id"> & { id?: string })[] = res.data.positions ?? [];
+          const serverCurrency: string = res.data.currency ?? "USD";
           if (serverPositions.length > 0) {
             const positions = serverPositions.map((p, i) => ({
               ...p,
               id: p.id ?? `${p.ticker}-${i}`,
             }));
-            set({ positions });
+            set({ positions, portfolioCurrency: serverCurrency });
           } else if (get().positions.length > 0) {
             // El servidor no tiene nada — sube lo que hay en localStorage
-            pushToServer(get().positions);
+            pushToServer(get().positions, get().portfolioCurrency);
           }
         } catch {}
       },

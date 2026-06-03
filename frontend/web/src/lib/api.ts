@@ -189,7 +189,8 @@ export const support = {
 
 export const sync = {
   getPortfolio: () => api.get("/api/sync/portfolio"),
-  pushPortfolio: (positions: unknown[]) => api.post("/api/sync/portfolio", { positions }),
+  pushPortfolio: (positions: unknown[], currency?: string) =>
+    api.post("/api/sync/portfolio", { positions, currency: currency ?? "USD" }),
 };
 
 export const notifications = {

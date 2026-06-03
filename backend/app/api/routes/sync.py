@@ -17,15 +17,27 @@ _NOW = lambda: datetime.now(timezone.utc).isoformat()
 
 @router.post("/portfolio")
 async def sync_portfolio(body: dict, user_id: str = Depends(get_current_user_id)):
-    """Upsert portfolio positions. body: { positions: [...] }"""
+    """Upsert portfolio positions + currency. body: { positions: [...], currency: 'USD' }"""
     positions = body.get("positions", [])
+    currency = body.get("currency", "USD")
+    # Store as versioned wrapper object inside the JSONB field (no schema migration needed)
+    portfolio_state = {"_v": 2, "currency": currency, "positions": positions}
     db = get_supabase()
     db.table("user_portfolio").upsert({
         "user_id": user_id,
-        "positions": positions,
+        "positions": portfolio_state,
         "updated_at": _NOW(),
     }, on_conflict="user_id").execute()
     return {"ok": True}
+
+
+def _parse_portfolio(raw) -> dict:
+    """Parse portfolio data regardless of storage format (v1 array or v2 object)."""
+    if isinstance(raw, list):
+        return {"currency": "USD", "positions": raw}
+    if isinstance(raw, dict) and "_v" in raw:
+        return {"currency": raw.get("currency", "USD"), "positions": raw.get("positions", [])}
+    return {"currency": "USD", "positions": []}
 
 
 @router.get("/portfolio")
@@ -34,8 +46,9 @@ async def get_portfolio(user_id: str = Depends(get_current_user_id)):
     result = db.table("user_portfolio").select("positions, updated_at") \
         .eq("user_id", user_id).execute()
     if result.data:
-        return result.data[0]
-    return {"positions": [], "updated_at": None}
+        parsed = _parse_portfolio(result.data[0]["positions"])
+        return {**parsed, "updated_at": result.data[0]["updated_at"]}
+    return {"positions": [], "currency": "USD", "updated_at": None}
 
 
 # ─── Paper Trading ────────────────────────────────────────────────────────────
@@ -167,7 +180,8 @@ async def get_all(user_id: str = Depends(get_current_user_id)):
         .select("maturity_score, maturity_history, trial_started_at, subscription_tier") \
         .eq("user_id", user_id).execute()
 
-    portfolio = portfolio_res.data[0]["positions"] if portfolio_res.data else []
+    raw_portfolio = portfolio_res.data[0]["positions"] if portfolio_res.data else []
+    portfolio_parsed = _parse_portfolio(raw_portfolio)
     paper = paper_res.data[0] if paper_res.data else {
         "cash": 10000, "positions": [], "trades": [],
         "free_trade_month": None, "free_trade_count": 0,
@@ -185,7 +199,8 @@ async def get_all(user_id: str = Depends(get_current_user_id)):
 
     return {
         "portfolio": {
-            "positions": portfolio,
+            "positions": portfolio_parsed["positions"],
+            "currency":  portfolio_parsed["currency"],
         },
         "paper": {
             "cash":           paper["cash"],

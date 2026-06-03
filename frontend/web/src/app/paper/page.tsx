@@ -7,10 +7,11 @@ import Image from "next/image";
 import { market as marketApi, paperApi } from "@/lib/api";
 import { useAuthStore } from "@/lib/store";
 import { usePaperStore, PAPER_INITIAL_CASH } from "@/lib/paperStore";
-import { Search, Menu, X, RefreshCw } from "lucide-react";
+import { Search, Menu, X, RefreshCw, Loader2 } from "lucide-react";
 
 interface TickerInfo { ticker: string; name: string; price: number; change_pct: number; }
 interface PriceMap { [ticker: string]: { price: number | null; change_pct: number } }
+interface SearchResult { ticker: string; name: string; }
 
 function fmtMoney(n: number): string {
   const abs = Math.abs(n);
@@ -27,8 +28,11 @@ export default function PaperPage() {
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [query, setQuery]             = useState("");
+  const [suggestions, setSuggestions] = useState<SearchResult[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [loadingSuggestions, setLoadingSuggestions] = useState(false);
   const [tickerInfo, setTickerInfo]   = useState<TickerInfo | null>(null);
-  const [searching, setSearching]     = useState(false);
+  const [loadingPrice, setLoadingPrice] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
   const [buyQty, setBuyQty]           = useState("");
   const [sellModal, setSellModal]     = useState<{ ticker: string; shares: number; price: number } | null>(null);
@@ -36,8 +40,20 @@ export default function PaperPage() {
   const [posPrices, setPosPrices]     = useState<PriceMap>({});
   const [loadingPrices, setLoadingPrices] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const searchWrapperRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => { if (!isAuthenticated) router.push("/"); }, [isAuthenticated]);
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (searchWrapperRef.current && !searchWrapperRef.current.contains(e.target as Node)) {
+        setShowSuggestions(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
 
   const syncPaper = useCallback(() => {
     const { cash: c, positions: p, trades: t } = usePaperStore.getState();
@@ -56,23 +72,42 @@ export default function PaperPage() {
 
   useEffect(() => { loadPrices(); }, [positions.length]);
 
-  const searchTicker = useCallback((raw: string) => {
-    const t = raw.trim().toUpperCase();
-    if (!t) { setTickerInfo(null); setSearchError(null); return; }
+  const handleQueryChange = (v: string) => {
+    setQuery(v);
+    setTickerInfo(null);
+    setSearchError(null);
+    setBuyQty("");
     if (debounceRef.current) clearTimeout(debounceRef.current);
+    if (!v.trim()) { setSuggestions([]); setShowSuggestions(false); return; }
     debounceRef.current = setTimeout(async () => {
-      setSearching(true); setSearchError(null); setTickerInfo(null);
+      setLoadingSuggestions(true);
       try {
-        const res = await marketApi.getPrices([t]);
-        const d = res.data[t];
-        if (d?.price) setTickerInfo({ ticker: t, name: (d as {name?: string}).name || t, price: d.price, change_pct: d.change_pct ?? 0 });
-        else setSearchError("Ticker no encontrado");
-      } catch { setSearchError("No se pudo obtener precio"); }
-      setSearching(false);
-    }, 500);
-  }, []);
+        const res = await marketApi.searchTickers(v.trim());
+        setSuggestions(res.data.results ?? []);
+        setShowSuggestions(true);
+      } catch {}
+      setLoadingSuggestions(false);
+    }, 150);
+  };
 
-  const handleQueryChange = (v: string) => { setQuery(v.toUpperCase()); setBuyQty(""); searchTicker(v); };
+  const selectSuggestion = useCallback(async (result: SearchResult) => {
+    setShowSuggestions(false);
+    setQuery(result.ticker);
+    setSuggestions([]);
+    setLoadingPrice(true);
+    setSearchError(null);
+    setTickerInfo(null);
+    try {
+      const res = await marketApi.getPrices([result.ticker]);
+      const d = res.data[result.ticker];
+      if (d?.price) {
+        setTickerInfo({ ticker: result.ticker, name: result.name || result.ticker, price: d.price, change_pct: d.change_pct ?? 0 });
+      } else {
+        setSearchError("No se pudo obtener precio");
+      }
+    } catch { setSearchError("No se pudo obtener precio"); }
+    setLoadingPrice(false);
+  }, []);
 
   const handleBuy = () => {
     if (!tickerInfo) return;
@@ -150,18 +185,42 @@ export default function PaperPage() {
           {/* Search & buy */}
           <div className="rounded-xl border p-4 space-y-3" style={{ background: "var(--card)", borderColor: "var(--border)" }}>
             <div className="text-sm font-semibold" style={{ color: "var(--text)" }}>Comprar acciones</div>
-            <div className="flex items-center gap-2 rounded-xl border px-3 py-2" style={{ background: "var(--raised)", borderColor: "var(--border)" }}>
-              <Search className="w-4 h-4 shrink-0" style={{ color: "var(--muted)" }} />
-              <input value={query} onChange={(e) => handleQueryChange(e.target.value)}
-                     placeholder="Busca ticker: NVDA, AAPL, TSLA…"
-                     className="flex-1 bg-transparent outline-none text-sm"
-                     style={{ color: "var(--text)" }} />
+            <div ref={searchWrapperRef} className="relative">
+              <div className="flex items-center gap-2 rounded-xl border px-3 py-2" style={{ background: "var(--raised)", borderColor: "var(--border)" }}>
+                {loadingSuggestions || loadingPrice
+                  ? <Loader2 className="w-4 h-4 shrink-0 animate-spin" style={{ color: "var(--muted)" }} />
+                  : <Search className="w-4 h-4 shrink-0" style={{ color: "var(--muted)" }} />}
+                <input value={query} onChange={(e) => handleQueryChange(e.target.value)}
+                       onFocus={() => suggestions.length > 0 && setShowSuggestions(true)}
+                       placeholder="Tesla, NVDA, Apple, TSLA…"
+                       className="flex-1 bg-transparent outline-none text-sm"
+                       style={{ color: "var(--text)" }} />
+                {query && (
+                  <button onClick={() => { setQuery(""); setSuggestions([]); setShowSuggestions(false); setTickerInfo(null); setSearchError(null); }}
+                          style={{ color: "var(--muted)" }}>
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+
+              {/* Suggestions dropdown */}
+              {showSuggestions && suggestions.length > 0 && (
+                <div className="absolute z-20 left-0 right-0 top-full mt-1 rounded-xl border overflow-hidden shadow-xl"
+                     style={{ background: "var(--card)", borderColor: "var(--border)" }}>
+                  {suggestions.map((s) => (
+                    <button key={s.ticker} onMouseDown={() => selectSuggestion(s)}
+                            className="w-full flex items-center justify-between px-4 py-2.5 hover:bg-[#0e1628] transition-colors text-left">
+                      <span className="font-bold text-sm" style={{ color: "var(--text)" }}>{s.ticker}</span>
+                      <span className="text-xs ml-3 truncate max-w-[200px]" style={{ color: "var(--muted)" }}>{s.name}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
 
-            {searching && <div className="text-xs" style={{ color: "var(--muted)" }}>Buscando…</div>}
-            {searchError && !searching && <div className="text-xs" style={{ color: "var(--down)" }}>{searchError}</div>}
+            {searchError && <div className="text-xs" style={{ color: "var(--down)" }}>{searchError}</div>}
 
-            {tickerInfo && !searching && (
+            {tickerInfo && !loadingPrice && (
               <div className="rounded-xl border p-3 space-y-3" style={{ borderColor: "var(--border)", background: "var(--raised)" }}>
                 <div className="flex items-center justify-between">
                   <div>
