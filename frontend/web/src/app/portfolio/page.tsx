@@ -135,7 +135,7 @@ export default function PortfolioPage() {
   const sub = useSubscriptionStore();
   const isPremium = sub.tier === "premium";
   const [paywallOpen, setPaywallOpen] = useState(false);
-  const { positions, addPosition, removePosition, updatePosition, setPositions, portfolioCurrency, setCurrency } = usePortfolioStore();
+  const { positions, addPosition, removePosition, updatePosition, setPositions, clearPortfolio, portfolioCurrency, setCurrency } = usePortfolioStore();
   const [sidebarOpen, setSidebarOpen]   = useState(false);
   const [activeTab, setActiveTab] = useState<"portfolio" | "herramientas">("portfolio");
 
@@ -534,6 +534,18 @@ export default function PortfolioPage() {
                         style={{ borderColor:"var(--border)", color:"var(--sub)", background:"var(--card)" }}>
                   <Plus className="w-3.5 h-3.5" /> Manual
                 </button>
+                {positions.length > 0 && (
+                  <button
+                    onClick={() => {
+                      if (window.confirm(`¿Eliminar las ${positions.length} posiciones de tu portafolio? Esta acción no se puede deshacer.`)) {
+                        clearPortfolio();
+                      }
+                    }}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-bold transition-colors"
+                    style={{ borderColor:"rgba(239,68,68,0.3)", color:"#ef4444", background:"rgba(239,68,68,0.06)" }}>
+                    <Trash2 className="w-3.5 h-3.5" /> Vaciar
+                  </button>
+                )}
               </div>
             </div>
 

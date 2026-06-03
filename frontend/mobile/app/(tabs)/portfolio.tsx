@@ -242,7 +242,7 @@ export default function PortfolioScreen() {
   const s = useMemo(() => makeStyles(colors), [colors]);
 
 
-  const { positions, addPosition, removePosition, updatePosition, setPositions, mergePositions, portfolioCurrency, setCurrency } = usePortfolioStore();
+  const { positions, addPosition, removePosition, updatePosition, setPositions, mergePositions, clearPortfolio, portfolioCurrency, setCurrency } = usePortfolioStore();
   const profile = useAppStore((s) => s.profile);
   const subStore = useSubscriptionStore();
   const isPremiumAccess = hasPremiumAccess(subStore);
@@ -815,6 +815,20 @@ export default function PortfolioScreen() {
             <TouchableOpacity style={[s.btnSmall, { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border }]} onPress={() => { setShowForm(!showForm); setScreenshotPreview(null); }}>
               <Text style={[s.btnSmallText, { color: colors.textSub }]}>+ Manual</Text>
             </TouchableOpacity>
+            {positions.length > 0 && (
+              <TouchableOpacity
+                style={[s.btnSmall, { backgroundColor: "rgba(239,68,68,0.06)", borderWidth: 1, borderColor: "rgba(239,68,68,0.3)" }]}
+                onPress={() => Alert.alert(
+                  "Vaciar portafolio",
+                  `¿Eliminar las ${positions.length} posiciones? Esta acción no se puede deshacer.`,
+                  [
+                    { text: "Cancelar", style: "cancel" },
+                    { text: "Vaciar todo", style: "destructive", onPress: () => clearPortfolio() },
+                  ]
+                )}>
+                <Text style={[s.btnSmallText, { color: "#ef4444" }]}>🗑 Vaciar</Text>
+              </TouchableOpacity>
+            )}
           </View>
         </View>
 
