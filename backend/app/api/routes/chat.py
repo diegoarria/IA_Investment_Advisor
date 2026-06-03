@@ -109,7 +109,13 @@ async def chat_stream(
     user_id: str = Depends(get_current_user_id)
 ):
     profile = _get_user_profile(user_id)
-    enriched = await asyncio.to_thread(_enrich_message, request.message)
+    has_images = bool(request.images or request.image_data)
+    enriched = await asyncio.to_thread(_enrich_message, request.message) if not has_images else request.message
+
+    # Normalize: merge legacy single-image into the images list
+    images = [{"data": img.data, "type": img.type} for img in request.images] if request.images else None
+    if not images and request.image_data:
+        images = [{"data": request.image_data, "type": request.image_type or "image/jpeg"}]
 
     async def generate():
         async for chunk in ai_service.chat_stream(
@@ -117,6 +123,7 @@ async def chat_stream(
             conversation_history=request.conversation_history,
             profile=profile,
             mentor=request.mentor,
+            images=images,
         ):
             yield chunk
 
@@ -134,15 +141,18 @@ async def chat_message(
     if profile:
         _check_and_increment_msg_limit(user_id, profile)
     tickers  = await asyncio.to_thread(detect_tickers, body.message)
-    enriched = await asyncio.to_thread(_enrich_message, body.message) if not body.image_data else body.message
+    has_images = bool(body.images or body.image_data)
+    enriched = await asyncio.to_thread(_enrich_message, body.message) if not has_images else body.message
+    images = [{"data": img.data, "type": img.type} for img in body.images] if body.images else None
+    if not images and body.image_data:
+        images = [{"data": body.image_data, "type": body.image_type or "image/jpeg"}]
     full = ""
     async for chunk in ai_service.chat_stream(
         message=enriched,
         conversation_history=body.conversation_history,
         profile=profile,
         mentor=body.mentor,
-        image_data=body.image_data,
-        image_type=body.image_type,
+        images=images,
     ):
         full += chunk
     clean_reply, bscore = _extract_bscore(full)

@@ -51,12 +51,19 @@ class ChatMessage(BaseModel):
     content: str
 
 
+class ChatImage(BaseModel):
+    data: str
+    type: str = "image/jpeg"
+
 class ChatRequest(BaseModel):
     message: str
     conversation_history: list[ChatMessage] = []
     mentor: Optional[str] = None
+    # Legacy single-image fields (kept for backward compat)
     image_data: Optional[str] = None
     image_type: Optional[str] = None
+    # Multi-image support (1-8 images)
+    images: list[ChatImage] = []
 
 
 class AuthRequest(BaseModel):

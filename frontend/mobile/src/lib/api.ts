@@ -97,6 +97,7 @@ export const chatApi = {
     cancelSignal?: { cancelled: boolean },
     imageData?: string | null,
     imageType?: string | null,
+    images?: Array<{ data: string; type: string }> | null,
   ) => {
     const res = await api.post("/api/chat/message", {
       message,
@@ -104,6 +105,7 @@ export const chatApi = {
       mentor: mentor ?? null,
       image_data: imageData ?? null,
       image_type: imageType ?? null,
+      images: images ?? [],
     });
     const reply: string = res.data.reply ?? "";
     const assessment = res.data.risk_assessment ?? null;

@@ -180,7 +180,8 @@ export default function ChatPage() {
   const [paywallOpen, setPaywallOpen] = useState(false);
   const [indices, setIndices] = useState<IndexData[]>([]);
   const [lastAssessment, setLastAssessment] = useState<BScoreData | null>(null);
-  const [pendingImage, setPendingImage] = useState<{ data: string; type: string; preview: string } | null>(null);
+  const [pendingImages, setPendingImages] = useState<Array<{ data: string; type: string; preview: string }>>([]);
+  const [isDragging, setIsDragging] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -193,18 +194,34 @@ export default function ChatPage() {
     setStreaming(false);
   };
 
+  const addImageFiles = (files: FileList | File[]) => {
+    const arr = Array.from(files).filter((f) => f.type.startsWith("image/"));
+    const remaining = 8 - pendingImages.length;
+    const toAdd = arr.slice(0, remaining);
+    toAdd.forEach((file) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const result = reader.result as string;
+        const base64 = result.split(",")[1];
+        setPendingImages((prev) => prev.length < 8 ? [...prev, { data: base64, type: file.type, preview: result }] : prev);
+      };
+      reader.readAsDataURL(file);
+    });
+  };
+
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      const result = reader.result as string;
-      const base64 = result.split(",")[1];
-      setPendingImage({ data: base64, type: file.type, preview: result });
-    };
-    reader.readAsDataURL(file);
+    if (e.target.files) addImageFiles(e.target.files);
     e.target.value = "";
   };
+
+  const handleDragOver = (e: React.DragEvent) => { e.preventDefault(); setIsDragging(true); };
+  const handleDragLeave = (e: React.DragEvent) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setIsDragging(false); };
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault(); setIsDragging(false);
+    if (e.dataTransfer.files) addImageFiles(e.dataTransfer.files);
+  };
+
+  const removeImage = (idx: number) => setPendingImages((prev) => prev.filter((_, i) => i !== idx));
 
   const handleEditMessage = (index: number, content: string) => {
     if (isStreaming) { cancelRef.current.cancelled = true; setStreaming(false); }
@@ -266,18 +283,20 @@ export default function ChatPage() {
 
   const sendMessage = async (text?: string) => {
     const msg = text || input.trim();
-    if ((!msg && !pendingImage) || isStreaming) return;
+    if ((!msg && pendingImages.length === 0) || isStreaming) return;
 
     if (remaining === 0) { setPaywallOpen(true); return; }
 
-    const imgToSend = pendingImage;
+    const imagesToSend = [...pendingImages];
     setInput("");
-    setPendingImage(null);
+    setPendingImages([]);
     setLastAssessment(null);
     cancelRef.current.cancelled = false;
     subStore.incrementMsgCount();
-    addMessage({ role: "user", content: msg || "📷 Captura enviada" });
-    chatApi.saveMessage("user", msg || "📷 Captura enviada").catch(() => {});
+    const n = imagesToSend.length;
+    const displayMsg = msg || (n === 1 ? "📷 Imagen enviada" : `📷 ${n} imágenes enviadas`);
+    addMessage({ role: "user", content: displayMsg });
+    chatApi.saveMessage("user", displayMsg).catch(() => {});
 
     const profileCtx = buildProfileContext();
     const recentHistory = messages.slice(-18).map((m) => ({ role: m.role, content: m.content }));
@@ -313,8 +332,9 @@ export default function ChatPage() {
         undefined,
         profile?.mentor ?? null,
         cancelRef.current,
-        imgToSend?.data ?? null,
-        imgToSend?.type ?? null,
+        null,
+        null,
+        imagesToSend.length > 0 ? imagesToSend.map((i) => ({ data: i.data, type: i.type })) : null,
       );
     } catch (err: unknown) {
       setStreaming(false);
@@ -559,42 +579,79 @@ export default function ChatPage() {
                 </button>
               </div>
             )}
-            <div className="flex flex-col gap-2 max-w-3xl mx-auto">
-              {/* Image preview */}
-              {pendingImage && (
-                <div className="relative w-20 h-20 rounded-xl overflow-hidden border" style={{ borderColor: "var(--border)" }}>
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={pendingImage.preview} alt="preview" className="w-full h-full object-cover" />
-                  <button
-                    onClick={() => setPendingImage(null)}
-                    className="absolute top-1 right-1 w-5 h-5 rounded-full flex items-center justify-center"
-                    style={{ background: "rgba(0,0,0,0.7)" }}>
-                    <X className="w-3 h-3 text-white" />
-                  </button>
+            <div
+              className="flex flex-col gap-2 max-w-3xl mx-auto"
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
+            >
+              {/* Drag overlay */}
+              {isDragging && (
+                <div className="absolute inset-0 z-10 flex items-center justify-center rounded-2xl border-2 border-dashed pointer-events-none"
+                     style={{ borderColor: "var(--accent)", background: "rgba(0,212,126,0.06)" }}>
+                  <span className="text-sm font-bold" style={{ color: "var(--accent)" }}>Suelta las imágenes aquí</span>
                 </div>
               )}
+
+              {/* Multi-image thumbnails */}
+              {pendingImages.length > 0 && (
+                <div className="flex gap-2 flex-wrap">
+                  {pendingImages.map((img, idx) => (
+                    <div key={idx} className="relative w-16 h-16 rounded-xl overflow-hidden border shrink-0"
+                         style={{ borderColor: "var(--border)" }}>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={img.preview} alt={`img-${idx}`} className="w-full h-full object-cover" />
+                      <button
+                        onClick={() => removeImage(idx)}
+                        className="absolute top-0.5 right-0.5 w-5 h-5 rounded-full flex items-center justify-center"
+                        style={{ background: "rgba(0,0,0,0.75)" }}>
+                        <X className="w-3 h-3 text-white" />
+                      </button>
+                    </div>
+                  ))}
+                  {pendingImages.length < 8 && (
+                    <button
+                      onClick={() => fileInputRef.current?.click()}
+                      className="w-16 h-16 rounded-xl border-2 border-dashed flex items-center justify-center shrink-0 transition-colors hover:border-solid"
+                      style={{ borderColor: "var(--border)" }}>
+                      <ImagePlus className="w-5 h-5" style={{ color: "var(--muted)" }} />
+                    </button>
+                  )}
+                </div>
+              )}
+
               <div className="flex gap-2.5 items-end">
                 <input
                   ref={fileInputRef}
                   type="file"
                   accept="image/*"
+                  multiple
                   className="hidden"
                   onChange={handleImageSelect}
                 />
-                <button
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={isStreaming}
-                  className="w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 transition-all disabled:opacity-30"
-                  style={{ background: "var(--raised)", border: "1px solid var(--border)" }}>
-                  <ImagePlus className="w-4 h-4" style={{ color: "var(--muted)" }} />
-                </button>
+                {pendingImages.length === 0 && (
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={isStreaming}
+                    title="Adjuntar hasta 8 imágenes (o arrastra aquí)"
+                    className="w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 transition-all disabled:opacity-30"
+                    style={{ background: "var(--raised)", border: "1px solid var(--border)" }}>
+                    <ImagePlus className="w-4 h-4" style={{ color: "var(--muted)" }} />
+                  </button>
+                )}
                 <div className="flex-1 relative">
                   <textarea
                     ref={inputRef}
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
                     onKeyDown={handleKeyDown}
-                    placeholder={remaining === 0 && !isPremium ? "Límite alcanzado — activa Premium" : "Pregunta sobre cualquier empresa, concepto o estrategia..."}
+                    placeholder={
+                      remaining === 0 && !isPremium
+                        ? "Límite alcanzado — activa Premium"
+                        : pendingImages.length > 0
+                        ? `Describe qué quieres analizar en ${pendingImages.length === 1 ? "esta imagen" : "estas imágenes"} (opcional)...`
+                        : "Pregunta sobre cualquier empresa, concepto o estrategia..."
+                    }
                     rows={1}
                     disabled={isStreaming || (remaining === 0 && !isPremium)}
                     className="input-premium resize-none"
@@ -603,7 +660,7 @@ export default function ChatPage() {
                 </div>
                 <button
                   onClick={isStreaming ? handleStop : () => sendMessage()}
-                  disabled={!isStreaming && (!input.trim() && !pendingImage) || (remaining === 0 && !isPremium)}
+                  disabled={!isStreaming && ((!input.trim() && pendingImages.length === 0) || (remaining === 0 && !isPremium))}
                   className="w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 transition-all disabled:opacity-30"
                   style={{
                     background: isStreaming ? "rgba(244,63,94,0.15)" : "var(--grad-green)",

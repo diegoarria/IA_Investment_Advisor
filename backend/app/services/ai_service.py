@@ -492,23 +492,41 @@ async def chat_stream(
     mentor: str | None = None,
     image_data: str | None = None,
     image_type: str | None = None,
+    images: list[dict] | None = None,
 ):
     system_prompt = build_system_prompt(profile, mentor)
 
     messages = [{"role": m.role, "content": m.content} for m in conversation_history]
 
-    if image_data:
-        user_content = [
-            {
+    # Build the list of image blocks from either multi-image array or legacy single image
+    image_blocks: list[dict] = []
+    if images:
+        for img in images[:8]:  # hard cap at 8
+            image_blocks.append({
                 "type": "image",
                 "source": {
                     "type": "base64",
-                    "media_type": image_type or "image/jpeg",
-                    "data": image_data,
+                    "media_type": img.get("type", "image/jpeg"),
+                    "data": img["data"],
                 },
+            })
+    elif image_data:
+        image_blocks.append({
+            "type": "image",
+            "source": {
+                "type": "base64",
+                "media_type": image_type or "image/jpeg",
+                "data": image_data,
             },
-            {"type": "text", "text": message or "Analiza esta captura de pantalla de mi portafolio."},
-        ]
+        })
+
+    if image_blocks:
+        n = len(image_blocks)
+        fallback = (
+            f"Analiza {'esta imagen' if n == 1 else f'estas {n} imágenes'} "
+            "y dime todo lo relevante que observes."
+        )
+        user_content = image_blocks + [{"type": "text", "text": message or fallback}]
     else:
         user_content = message
 

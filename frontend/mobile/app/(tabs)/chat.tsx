@@ -119,7 +119,7 @@ export default function ChatScreen() {
 
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
-  const [pendingImage, setPendingImage] = useState<{ data: string; type: string; uri: string } | null>(null);
+  const [pendingImages, setPendingImages] = useState<Array<{ data: string; type: string; uri: string }>>([]);
   const [tutorialVisible, setTutorialVisible] = useState(false);
   const [lastTicker, setLastTicker] = useState<string | null>(null);
   const [livePrices, setLivePrices] = useState<Record<string, number>>({});
@@ -264,21 +264,20 @@ Instrucciones críticas:
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ["images"],
       base64: true,
-      quality: 0.8,
+      quality: 0.7,
+      allowsMultipleSelection: true,
+      selectionLimit: 8,
     });
-    if (!result.canceled && result.assets[0]) {
-      const asset = result.assets[0];
-      setPendingImage({
-        data: asset.base64!,
-        type: asset.mimeType ?? "image/jpeg",
-        uri: asset.uri,
-      });
+    if (!result.canceled && result.assets.length > 0) {
+      const toAdd = result.assets.filter((a) => a.base64).slice(0, 8 - pendingImages.length);
+      const newImgs = toAdd.map((a) => ({ data: a.base64!, type: a.mimeType ?? "image/jpeg", uri: a.uri }));
+      setPendingImages((prev) => [...prev, ...newImgs].slice(0, 8));
     }
   };
 
   const sendMessage = async (text?: string) => {
     const msg = text || input.trim();
-    if ((!msg && !pendingImage) || streaming) return;
+    if ((!msg && pendingImages.length === 0) || streaming) return;
 
     // Client-side free limit check
     if (!isPremiumAccess && remaining <= 0) {
@@ -287,9 +286,9 @@ Instrucciones críticas:
       return;
     }
 
-    const imgToSend = pendingImage;
+    const imagesToSend = [...pendingImages];
     setInput("");
-    setPendingImage(null);
+    setPendingImages([]);
     cancelRef.current.cancelled = false;
 
     const displayMsg = msg || "📷 Captura enviada";
@@ -333,8 +332,9 @@ Instrucciones críticas:
         (tickers) => { if (tickers.length > 0) setLastTicker(tickers[0]); },
         profile?.mentor,
         cancelRef.current,
-        imgToSend?.data ?? null,
-        imgToSend?.type ?? null,
+        null,
+        null,
+        imagesToSend.length > 0 ? imagesToSend.map((i) => ({ data: i.data, type: i.type })) : null,
       );
     } catch (err: unknown) {
       const errObj = err as { response?: { status?: number; data?: { detail?: { message?: string } } }; message?: string };
@@ -584,24 +584,34 @@ Instrucciones críticas:
             </TouchableOpacity>
           )}
 
-          {pendingImage && (
-            <View style={{ paddingHorizontal: 12, paddingBottom: 6 }}>
-              <View style={{ position: "relative", width: 64, height: 64 }}>
-                <Image source={{ uri: pendingImage.uri }} style={{ width: 64, height: 64, borderRadius: 10 }} />
+          {pendingImages.length > 0 && (
+            <View style={{ paddingHorizontal: 12, paddingBottom: 6, flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+              {pendingImages.map((img, idx) => (
+                <View key={idx} style={{ position: "relative", width: 60, height: 60 }}>
+                  <Image source={{ uri: img.uri }} style={{ width: 60, height: 60, borderRadius: 10 }} />
+                  <TouchableOpacity
+                    onPress={() => setPendingImages((prev) => prev.filter((_, i) => i !== idx))}
+                    style={{ position: "absolute", top: -5, right: -5, width: 18, height: 18, borderRadius: 9, backgroundColor: "rgba(0,0,0,0.75)", alignItems: "center", justifyContent: "center" }}
+                  >
+                    <Ionicons name="close" size={11} color="white" />
+                  </TouchableOpacity>
+                </View>
+              ))}
+              {pendingImages.length < 8 && (
                 <TouchableOpacity
-                  onPress={() => setPendingImage(null)}
-                  style={{ position: "absolute", top: -6, right: -6, width: 20, height: 20, borderRadius: 10, backgroundColor: "rgba(0,0,0,0.7)", alignItems: "center", justifyContent: "center" }}
+                  onPress={handlePickImage}
+                  style={{ width: 60, height: 60, borderRadius: 10, borderWidth: 1.5, borderStyle: "dashed", borderColor: colors.border, alignItems: "center", justifyContent: "center" }}
                 >
-                  <Ionicons name="close" size={12} color="white" />
+                  <Ionicons name="add" size={22} color={colors.textMuted} />
                 </TouchableOpacity>
-              </View>
+              )}
             </View>
           )}
           <View style={styles.inputContainer}>
             <TouchableOpacity
               onPress={handlePickImage}
-              disabled={streaming}
-              style={{ padding: 4, opacity: streaming ? 0.4 : 1 }}
+              disabled={streaming || pendingImages.length >= 8}
+              style={{ padding: 4, opacity: (streaming || pendingImages.length >= 8) ? 0.4 : 1 }}
             >
               <Ionicons name="image-outline" size={22} color={colors.textSub} />
             </TouchableOpacity>
@@ -610,15 +620,15 @@ Instrucciones críticas:
               style={styles.input}
               value={input}
               onChangeText={setInput}
-              placeholder="¿Cómo puedo ayudarte hoy?"
+              placeholder={pendingImages.length > 0 ? "Describe qué analizar (opcional)..." : "¿Cómo puedo ayudarte hoy?"}
               placeholderTextColor={colors.placeholder}
               multiline
               editable={!streaming}
             />
             <TouchableOpacity
-              style={[styles.sendButton, !streaming && !input.trim() && !pendingImage && styles.sendDisabled]}
+              style={[styles.sendButton, !streaming && !input.trim() && pendingImages.length === 0 && styles.sendDisabled]}
               onPress={streaming ? handleStop : () => sendMessage()}
-              disabled={!streaming && !input.trim() && !pendingImage}
+              disabled={!streaming && !input.trim() && pendingImages.length === 0}
             >
               {streaming ? (
                 <Ionicons name="stop" size={18} color="white" />
