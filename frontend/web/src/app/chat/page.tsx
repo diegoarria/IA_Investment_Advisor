@@ -139,7 +139,6 @@ function TypingDots() {
 }
 
 function IndexChip({ d }: { d: IndexData }) {
-  const isVix = d.symbol === "^VIX";
   const up = d.change_pct >= 0;
   return (
     <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg border shrink-0"
@@ -151,8 +150,8 @@ function IndexChip({ d }: { d: IndexData }) {
             {d.price.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </span>
           <span className="text-[10px] font-semibold"
-                style={{ color: isVix ? "var(--sub)" : up ? "var(--up)" : "var(--down)" }}>
-            {!isVix && (up ? "▲" : "▼")}{Math.abs(d.change_pct).toFixed(2)}%
+                style={{ color: up ? "var(--up)" : "var(--down)" }}>
+            {up ? "▲" : "▼"}{Math.abs(d.change_pct).toFixed(2)}%
           </span>
         </>
       ) : (

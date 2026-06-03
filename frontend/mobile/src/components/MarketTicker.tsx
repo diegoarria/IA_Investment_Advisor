@@ -35,14 +35,9 @@ function IndexChip({
   colors: ReturnType<typeof useTheme>["colors"];
   isLast: boolean;
 }) {
-  const isVix = d.symbol === "^VIX";
   const up    = d.change >= 0;
-  const color = isVix ? colors.textSub : up ? "#22c55e" : "#ef4444";
-  const bg    = isVix
-    ? "transparent"
-    : up
-    ? "rgba(34,197,94,0.08)"
-    : "rgba(239,68,68,0.08)";
+  const color = up ? "#22c55e" : "#ef4444";
+  const bg    = up ? "rgba(34,197,94,0.08)" : "rgba(239,68,68,0.08)";
 
   return (
     <View style={[styles.chip, { borderColor: colors.border, marginRight: isLast ? 0 : 8, backgroundColor: bg }]}>
@@ -51,7 +46,7 @@ function IndexChip({
         <View style={styles.chipRight}>
           <Text style={[styles.chipPrice, { color: colors.text }]}>{fmt(d.price, d.symbol)}</Text>
           <Text style={[styles.chipChange, { color }]}>
-            {!isVix && (up ? "▲" : "▼")}{Math.abs(d.change_pct).toFixed(2)}%
+            {up ? "▲" : "▼"}{Math.abs(d.change_pct).toFixed(2)}%
           </Text>
         </View>
       ) : (
