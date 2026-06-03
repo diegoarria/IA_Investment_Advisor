@@ -37,8 +37,17 @@ export default function AuthScreen() {
   const [refCode, setRefCode] = useState("");
   const [loading, setLoading] = useState(false);
   const [checking, setChecking] = useState(true);
+  const [biometricAvailable, setBiometricAvailable] = useState(false);
   const [biometricReady, setBiometricReady] = useState(false);
   const [biometricLoading, setBiometricLoading] = useState(false);
+
+  // Auto-dispara Face ID al cargar si ya hay credenciales guardadas
+  useEffect(() => {
+    if (biometricReady && mode === "login" && !checking) {
+      const t = setTimeout(() => handleBiometric(), 300);
+      return () => clearTimeout(t);
+    }
+  }, [biometricReady, checking]);
 
   useEffect(() => {
     (async () => {
@@ -104,15 +113,16 @@ export default function AuthScreen() {
   }, []);
 
   const _checkBiometricAvailability = async () => {
-    if (IS_EXPO_GO) return; // Face ID no disponible en Expo Go
+    if (IS_EXPO_GO) return;
     try {
+      const hasHardware = await LocalAuthentication.hasHardwareAsync();
+      const enrolled    = await LocalAuthentication.isEnrolledAsync();
+      if (!hasHardware || !enrolled) return;
+      setBiometricAvailable(true);
       const enabled    = await SecureStore.getItemAsync(BIOMETRIC_ENABLED_KEY);
       const savedEmail = await SecureStore.getItemAsync(BIOMETRIC_EMAIL_KEY);
       const savedPass  = await SecureStore.getItemAsync(BIOMETRIC_PASSWORD_KEY);
-      if (enabled !== "true" || !savedEmail || !savedPass) return;
-      const hasHardware = await LocalAuthentication.hasHardwareAsync();
-      const enrolled    = await LocalAuthentication.isEnrolledAsync();
-      if (hasHardware && enrolled) setBiometricReady(true);
+      if (enabled === "true" && savedEmail && savedPass) setBiometricReady(true);
     } catch {}
   };
 
@@ -294,22 +304,34 @@ export default function AuthScreen() {
             <Text style={styles.subtitle}>Tu mentor de inversiones inteligente</Text>
           </View>
 
-          {/* Face ID / Biometric button — shown when credentials are saved */}
-          {biometricReady && mode === "login" && (
+          {/* Face ID button — always visible when hardware exists */}
+          {biometricAvailable && mode === "login" && (
             <TouchableOpacity
               style={[styles.biometricBtn, biometricLoading && styles.buttonDisabled]}
               onPress={handleBiometric}
               disabled={biometricLoading}
+              activeOpacity={0.82}
             >
               {biometricLoading ? (
-                <ActivityIndicator color="#16a34a" />
+                <ActivityIndicator color="white" />
               ) : (
                 <>
-                  <Ionicons name="scan-outline" size={26} color="#16a34a" />
-                  <Text style={styles.biometricText}>Entrar con Face ID</Text>
+                  <Ionicons name="scan-circle-outline" size={30} color="white" />
+                  <Text style={styles.biometricText}>
+                    {biometricReady ? "Entrar con Face ID" : "Configurar Face ID"}
+                  </Text>
                 </>
               )}
             </TouchableOpacity>
+          )}
+
+          {/* Divider */}
+          {biometricAvailable && mode === "login" && (
+            <View style={styles.divider}>
+              <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
+              <Text style={[styles.dividerText, { color: colors.textMuted }]}>o continúa con email</Text>
+              <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
+            </View>
           )}
 
           {/* Email/password form */}
@@ -411,11 +433,12 @@ function makeStyles(c: Colors) {
 
     biometricBtn: {
       flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10,
-      borderWidth: 2, borderColor: "#16a34a", borderRadius: 14,
-      paddingVertical: 16, marginBottom: 24,
-      backgroundColor: "rgba(22,163,74,0.06)",
+      borderRadius: 14, paddingVertical: 16, marginBottom: 24,
+      backgroundColor: "#16a34a",
+      shadowColor: "#16a34a", shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.35, shadowRadius: 10, elevation: 6,
     },
-    biometricText: { color: "#16a34a", fontSize: 16, fontWeight: "700" },
+    biometricText: { color: "white", fontSize: 16, fontWeight: "700" },
 
     form: {},
     label: { color: c.textSub, fontSize: 14, fontWeight: "500", marginBottom: 6 },
