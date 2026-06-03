@@ -327,7 +327,6 @@ export default function PortfolioScreen() {
   const [scenario, setScenario] = useState<Scenario>(
     (profile?.risk_tolerance as Scenario) ?? "moderate"
   );
-  const [capital, setCapital] = useState("");
   const [analysis, setAnalysis] = useState("");
   const [simLoading, setSimLoading] = useState(false);
   type PortfolioResult = {
@@ -548,7 +547,7 @@ export default function PortfolioScreen() {
         : undefined;
       const res = await marketApi.getPortfolio(
         scenario,
-        capital ? parseFloat(capital) : undefined,
+        undefined,
         positionsPayload,
       );
       const text: string = res.data.analysis;
@@ -1384,14 +1383,6 @@ export default function PortfolioScreen() {
             </TouchableOpacity>
           ))}
         </View>
-        {positions.length === 0 && (
-          <TextInput
-            style={[s.simInput, { color: colors.text, backgroundColor: colors.card, borderColor: colors.border }]}
-            value={capital} onChangeText={setCapital}
-            placeholder="Capital de referencia (USD, opcional)" placeholderTextColor={colors.placeholder}
-            keyboardType="numeric"
-          />
-        )}
         <TouchableOpacity style={[s.simBtn, simLoading && s.btnDisabled]} onPress={simulate} disabled={simLoading}>
           {simLoading
             ? <ActivityIndicator color="white" />
