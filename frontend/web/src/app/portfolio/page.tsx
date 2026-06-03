@@ -19,6 +19,7 @@ import PaywallModal from "@/components/PaywallModal";
 import {
   PieChart, Menu, X, Upload, Plus, Trash2,
   BarChart, Calculator, Shield, Sparkles, RefreshCw, AlertTriangle, FileText, Pencil, Eye,
+  Cloud, CloudOff, Check,
 } from "lucide-react";
 
 // ─── Stress Test data ──────────────────────────────────────────────────────
@@ -470,7 +471,11 @@ export default function PortfolioPage() {
   const sub = useSubscriptionStore();
   const isPremium = sub.tier === "premium";
   const [paywallOpen, setPaywallOpen] = useState(false);
-  const { positions, addPosition, removePosition, updatePosition, setPositions, clearPortfolio, portfolioCurrency, setCurrency } = usePortfolioStore();
+  const {
+    positions, addPosition, removePosition, updatePosition, setPositions,
+    clearPortfolio, portfolioCurrency, setCurrency,
+    loadFromServer, syncStatus, lastSaved,
+  } = usePortfolioStore();
   const [sidebarOpen, setSidebarOpen]   = useState(false);
   const [activeTab, setActiveTab] = useState<"portfolio" | "herramientas">("portfolio");
 
@@ -539,6 +544,12 @@ export default function PortfolioPage() {
   };
 
   useEffect(() => { if (!isAuthenticated) router.push("/"); }, [isAuthenticated]);
+
+  // Cargar portafolio del servidor al montar — garantiza sincronía entre dispositivos
+  useEffect(() => {
+    if (isAuthenticated) loadFromServer();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthenticated]);
 
   const fetchPrices = useCallback(async () => {
     if (!positions.length) return;
@@ -857,10 +868,38 @@ export default function PortfolioPage() {
           </button>
         </div>
         <span className="font-semibold text-sm" style={{ color: "var(--sub)" }}>Portafolio</span>
-        <button onClick={fetchPrices} className="p-1.5 rounded-lg transition-colors" style={{ color: "var(--muted)" }}
-                title="Actualizar precios">
-          <RefreshCw className="w-4 h-4" />
-        </button>
+
+        {/* Sync status + refresh */}
+        <div className="flex items-center gap-2">
+          {syncStatus === "syncing" && (
+            <div className="flex items-center gap-1 text-[10px] font-semibold" style={{ color: "var(--muted)" }}>
+              <RefreshCw className="w-3 h-3 animate-spin" />
+              <span className="hidden sm:inline">Guardando...</span>
+            </div>
+          )}
+          {syncStatus === "saved" && (
+            <div className="flex items-center gap-1 text-[10px] font-semibold" style={{ color: "#22c55e" }}>
+              <Check className="w-3 h-3" />
+              <span className="hidden sm:inline">Guardado</span>
+            </div>
+          )}
+          {syncStatus === "error" && (
+            <div className="flex items-center gap-1 text-[10px] font-semibold" style={{ color: "#ef4444" }}>
+              <CloudOff className="w-3 h-3" />
+              <span className="hidden sm:inline">Error al guardar</span>
+            </div>
+          )}
+          {syncStatus === "idle" && lastSaved && (
+            <div className="flex items-center gap-1 text-[10px]" style={{ color: "var(--dim)" }}
+                 title={`Guardado: ${new Date(lastSaved).toLocaleTimeString()}`}>
+              <Cloud className="w-3 h-3" />
+            </div>
+          )}
+          <button onClick={fetchPrices} className="p-1.5 rounded-lg transition-colors"
+                  style={{ color: "var(--muted)" }} title="Actualizar precios">
+            <RefreshCw className="w-4 h-4" />
+          </button>
+        </div>
       </div>
 
       <div className="flex flex-1 overflow-hidden relative">
@@ -886,83 +925,93 @@ export default function PortfolioPage() {
 
           {activeTab === "portfolio" && <div className="space-y-5">
 
-          {/* ── Import section ── */}
+          {/* ── Acciones del portafolio ── */}
           <section>
+            {/* Cloud sync info + vaciar */}
             <div className="flex items-center justify-between mb-3">
-              <h2 className="text-sm font-extrabold uppercase tracking-wider" style={{ color: "var(--sub)" }}>Mi Portafolio</h2>
-              <div className="flex gap-2">
-                <button onClick={() => { setShowForm(!showForm); setScreenshotPreview(null); }}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-bold transition-colors"
-                        style={{ borderColor:"var(--border)", color:"var(--sub)", background:"var(--card)" }}>
-                  <Plus className="w-3.5 h-3.5" /> Manual
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-xl flex items-center justify-center shrink-0"
+                     style={{ background: "rgba(34,197,94,0.12)" }}>
+                  <Cloud className="w-3.5 h-3.5" style={{ color: "#22c55e" }} />
+                </div>
+                <div>
+                  <p className="text-xs font-bold" style={{ color: "var(--text)" }}>Portafolio en la nube</p>
+                  <p className="text-[10px]" style={{ color: "var(--muted)" }}>
+                    Sincronizado en todos tus dispositivos
+                  </p>
+                </div>
+              </div>
+              {positions.length > 0 && (
+                <button
+                  onClick={() => {
+                    if (window.confirm(`¿Eliminar las ${positions.length} posiciones de tu portafolio? Esta acción no se puede deshacer.`)) {
+                      clearPortfolio();
+                    }
+                  }}
+                  className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-[11px] font-bold transition-colors"
+                  style={{ color: "#ef4444", background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.2)" }}>
+                  <Trash2 className="w-3 h-3" /> Vaciar
                 </button>
-                {positions.length > 0 && (
-                  <button
-                    onClick={() => {
-                      if (window.confirm(`¿Eliminar las ${positions.length} posiciones de tu portafolio? Esta acción no se puede deshacer.`)) {
-                        clearPortfolio();
-                      }
-                    }}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-bold transition-colors"
-                    style={{ borderColor:"rgba(239,68,68,0.3)", color:"#ef4444", background:"rgba(239,68,68,0.06)" }}>
-                    <Trash2 className="w-3.5 h-3.5" /> Vaciar
-                  </button>
+              )}
+            </div>
+
+            {/* Botones principales: Agregar posición + Importar captura */}
+            <div className="grid grid-cols-2 gap-2 mb-3">
+              {/* Agregar posición — acción primaria */}
+              <button
+                onClick={() => { setShowForm(!showForm); setScreenshotPreview(null); }}
+                className="flex items-center justify-center gap-2 py-3.5 rounded-2xl font-bold text-sm transition-all"
+                style={{
+                  background: showForm ? "var(--accent-glow)" : "var(--grad-green)",
+                  color: "white",
+                  border: showForm ? "2px solid var(--accent-l)" : "none",
+                  boxShadow: showForm ? "none" : "var(--shadow-accent-sm)",
+                }}>
+                <Plus className="w-4 h-4" />
+                Agregar posición
+              </button>
+
+              {/* Importar captura — con drag-drop integrado */}
+              <div
+                onClick={() => !screenshotAnalyzing && screenshotInputRef.current?.click()}
+                onDragOver={(e) => { e.preventDefault(); if (!screenshotAnalyzing) setIsDragOver(true); }}
+                onDragEnter={(e) => { e.preventDefault(); if (!screenshotAnalyzing) setIsDragOver(true); }}
+                onDragLeave={() => setIsDragOver(false)}
+                onDrop={(e) => {
+                  e.preventDefault(); setIsDragOver(false);
+                  if (screenshotAnalyzing) return;
+                  const files = Array.from(e.dataTransfer.files).filter((f) => f.type.startsWith("image/"));
+                  if (files.length) processScreenshotFiles(files);
+                }}
+                className="flex items-center justify-center gap-2 py-3.5 rounded-2xl font-bold text-sm transition-all cursor-pointer select-none"
+                style={{
+                  background: isDragOver ? "rgba(0,168,94,0.08)" : "var(--raised)",
+                  border: `2px ${isDragOver ? "dashed" : "solid"} ${isDragOver ? "var(--accent)" : "var(--border)"}`,
+                  color: "var(--sub)",
+                  opacity: screenshotAnalyzing ? 0.7 : 1,
+                }}>
+                {screenshotAnalyzing ? (
+                  <><RefreshCw className="w-4 h-4 animate-spin" /><span>{screenshotProgress || "Analizando..."}</span></>
+                ) : isDragOver ? (
+                  <><Upload className="w-4 h-4" /><span>¡Suelta aquí!</span></>
+                ) : (
+                  <><Upload className="w-4 h-4" /><span>Importar captura</span></>
                 )}
               </div>
             </div>
 
-            {/* Screenshot import — drop zone */}
-            <div
-              onClick={() => !screenshotAnalyzing && screenshotInputRef.current?.click()}
-              onDragOver={(e) => { e.preventDefault(); if (!screenshotAnalyzing) setIsDragOver(true); }}
-              onDragEnter={(e) => { e.preventDefault(); if (!screenshotAnalyzing) setIsDragOver(true); }}
-              onDragLeave={() => setIsDragOver(false)}
-              onDrop={(e) => {
-                e.preventDefault();
-                setIsDragOver(false);
-                if (screenshotAnalyzing) return;
-                const files = Array.from(e.dataTransfer.files).filter((f) => f.type.startsWith("image/"));
-                if (files.length) processScreenshotFiles(files);
-              }}
-              className="w-full rounded-2xl transition-all cursor-pointer select-none"
-              style={{
-                background: isDragOver ? "var(--accent-l)" : "var(--accent)",
-                border: isDragOver ? "2px dashed white" : "2px solid transparent",
-                opacity: screenshotAnalyzing ? 0.7 : 1,
-              }}>
-              <div className="flex items-center gap-4 p-4">
-                {screenshotAnalyzing ? (
-                  <>
-                    <RefreshCw className="w-7 h-7 text-white animate-spin shrink-0" />
-                    <span className="text-white font-bold">{screenshotProgress || "Analizando con IA..."}</span>
-                  </>
-                ) : isDragOver ? (
-                  <>
-                    <Upload className="w-7 h-7 text-white shrink-0 animate-bounce" />
-                    <div>
-                      <p className="text-white font-extrabold text-sm">¡Suelta aquí!</p>
-                      <p className="text-white/80 text-xs mt-0.5">La IA analizará tus capturas al instante</p>
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <Upload className="w-7 h-7 text-white shrink-0" />
-                    <div>
-                      <p className="text-white font-extrabold text-sm">Importar capturas de pantalla</p>
-                      <p className="text-white/70 text-xs mt-0.5">Arrastra aquí, selecciona fotos o pega con ⌘V</p>
-                    </div>
-                  </>
-                )}
-              </div>
-            </div>
             <input ref={screenshotInputRef} type="file" accept="image/*" multiple className="hidden" onChange={handleScreenshotChange} />
 
-            {/* Paste zone hint — solo si no hay drag zone visible */}
-            {!screenshotAnalyzing && !screenshotPreview && !isDragOver && (
-              <div className="flex items-center gap-2 px-3 py-2 rounded-xl border border-dashed text-xs"
-                   style={{ borderColor:"var(--border)", color:"var(--dim)" }}>
-                <span className="text-base">📋</span>
-                <span>Puedes <strong style={{ color:"var(--sub)" }}>arrastrar imágenes</strong>, <strong style={{ color:"var(--sub)" }}>pegar</strong> con <kbd className="px-1.5 py-0.5 rounded text-[10px] font-mono" style={{ background:"var(--raised)", color:"var(--muted)" }}>⌘V</kbd> o seleccionar desde tu galería</span>
+            {/* Hint pegado / arrastrar — sutil */}
+            {!screenshotAnalyzing && !screenshotPreview && !showForm && (
+              <div className="flex items-center gap-2 text-[10px] px-1 mb-1"
+                   style={{ color: "var(--dim)" }}>
+                <span>📋</span>
+                <span>También puedes pegar con{" "}
+                  <kbd className="px-1 py-0.5 rounded font-mono text-[9px]"
+                       style={{ background: "var(--raised)", color: "var(--muted)" }}>⌘V</kbd>
+                  {" "}o arrastrar imágenes directamente
+                </span>
               </div>
             )}
 
@@ -1004,39 +1053,63 @@ export default function PortfolioPage() {
               </div>
             )}
 
-            {/* Manual form */}
+            {/* Formulario manual — se expande al hacer click en "Agregar posición" */}
             {showForm && (
-              <div className="mt-3 rounded-2xl border p-4" style={{ borderColor:"var(--border)", background:"var(--card)" }}>
-                <p className="text-sm font-bold mb-3" style={{ color:"var(--text)" }}>Nueva posición manual</p>
-                <input value={form.ticker} onChange={(e) => setForm({...form,ticker:e.target.value.toUpperCase()})}
-                       className="w-full rounded-xl border px-3 py-2.5 text-sm mb-2 outline-none"
-                       style={{ background:"var(--bg)", borderColor:"var(--border)", color:"var(--text)" }}
-                       placeholder="Ticker (ej. AAPL)" />
-                <div className="grid grid-cols-2 gap-2 mb-2">
-                  <input value={form.shares} onChange={(e) => setForm({...form,shares:e.target.value})}
-                         type="number" min="0"
-                         className="rounded-xl border px-3 py-2.5 text-sm outline-none"
-                         style={{ background:"var(--bg)", borderColor:"var(--border)", color:"var(--text)" }}
-                         placeholder="Acciones" />
-                  <input value={form.avgPrice} onChange={(e) => setForm({...form,avgPrice:e.target.value})}
-                         type="number" min="0"
-                         className="rounded-xl border px-3 py-2.5 text-sm outline-none"
-                         style={{ background:"var(--bg)", borderColor:"var(--border)", color:"var(--text)" }}
-                         placeholder="Precio promedio" />
-                </div>
-                <input value={form.purchaseDate} onChange={(e) => setForm({...form,purchaseDate:e.target.value})}
-                       type="date" max={new Date().toISOString().split("T")[0]}
-                       className="w-full rounded-xl border px-3 py-2.5 text-sm outline-none mb-3"
-                       style={{ background:"var(--bg)", borderColor:"var(--border)", color:"var(--text)" }} />
-                <div className="flex gap-2">
-                  <button onClick={() => setShowForm(false)}
-                          className="flex-1 py-2.5 rounded-xl border text-sm font-semibold"
-                          style={{ borderColor:"var(--border)", color:"var(--muted)" }}>Cancelar</button>
-                  <button onClick={handleAdd} disabled={addingLoading}
-                          className="flex-1 py-2.5 rounded-xl text-white text-sm font-bold disabled:opacity-40"
-                          style={{ background:"var(--accent)" }}>
-                    {addingLoading ? "..." : "Agregar"}
-                  </button>
+              <div className="rounded-2xl border-2 overflow-hidden"
+                   style={{ borderColor: "var(--accent-l)30" }}>
+                <div className="h-0.5" style={{ background: "var(--grad-green)" }} />
+                <div className="p-4" style={{ background: "var(--card)" }}>
+                  <p className="text-sm font-extrabold mb-3" style={{ color: "var(--text)" }}>
+                    Agregar posición al portafolio
+                  </p>
+                  <input
+                    value={form.ticker}
+                    onChange={(e) => setForm({ ...form, ticker: e.target.value.toUpperCase() })}
+                    className="w-full rounded-xl border px-3 py-2.5 text-sm mb-2 outline-none font-bold tracking-wide"
+                    style={{ background: "var(--bg)", borderColor: "var(--border)", color: "var(--text)" }}
+                    placeholder="Ticker — ej. AAPL, NVDA, SPY"
+                    autoFocus
+                  />
+                  <div className="grid grid-cols-2 gap-2 mb-2">
+                    <div>
+                      <label className="text-[9px] font-bold uppercase tracking-wider block mb-1" style={{ color: "var(--muted)" }}>Acciones / unidades</label>
+                      <input value={form.shares} onChange={(e) => setForm({ ...form, shares: e.target.value })}
+                             type="number" min="0"
+                             className="w-full rounded-xl border px-3 py-2.5 text-sm outline-none"
+                             style={{ background: "var(--bg)", borderColor: "var(--border)", color: "var(--text)" }}
+                             placeholder="10" />
+                    </div>
+                    <div>
+                      <label className="text-[9px] font-bold uppercase tracking-wider block mb-1" style={{ color: "var(--muted)" }}>Precio promedio ($)</label>
+                      <input value={form.avgPrice} onChange={(e) => setForm({ ...form, avgPrice: e.target.value })}
+                             type="number" min="0"
+                             className="w-full rounded-xl border px-3 py-2.5 text-sm outline-none"
+                             style={{ background: "var(--bg)", borderColor: "var(--border)", color: "var(--text)" }}
+                             placeholder="150.00" />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-[9px] font-bold uppercase tracking-wider block mb-1" style={{ color: "var(--muted)" }}>Fecha de compra (opcional)</label>
+                    <input value={form.purchaseDate} onChange={(e) => setForm({ ...form, purchaseDate: e.target.value })}
+                           type="date" max={new Date().toISOString().split("T")[0]}
+                           className="w-full rounded-xl border px-3 py-2.5 text-sm outline-none mb-3"
+                           style={{ background: "var(--bg)", borderColor: "var(--border)", color: "var(--text)" }} />
+                  </div>
+                  <div className="flex gap-2">
+                    <button onClick={() => setShowForm(false)}
+                            className="flex-1 py-2.5 rounded-xl border text-sm font-semibold"
+                            style={{ borderColor: "var(--border)", color: "var(--muted)" }}>
+                      Cancelar
+                    </button>
+                    <button onClick={handleAdd} disabled={addingLoading}
+                            className="flex-[2] py-2.5 rounded-xl text-white text-sm font-bold disabled:opacity-40 flex items-center justify-center gap-2"
+                            style={{ background: "var(--grad-green)" }}>
+                      {addingLoading
+                        ? <><RefreshCw className="w-3.5 h-3.5 animate-spin" /> Agregando...</>
+                        : <><Plus className="w-3.5 h-3.5" /> Agregar al portafolio</>
+                      }
+                    </button>
+                  </div>
                 </div>
               </div>
             )}
