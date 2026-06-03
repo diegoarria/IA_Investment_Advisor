@@ -205,13 +205,16 @@ export default function PaperPage() {
 
               {/* Suggestions dropdown */}
               {showSuggestions && suggestions.length > 0 && (
-                <div className="absolute z-20 left-0 right-0 top-full mt-1 rounded-xl border overflow-hidden shadow-xl"
-                     style={{ background: "var(--card)", borderColor: "var(--border)" }}>
-                  {suggestions.map((s) => (
+                <div className="absolute z-20 left-0 right-0 top-full mt-1 rounded-xl overflow-hidden shadow-xl"
+                     style={{ background: "rgba(59,130,246,0.07)", border: "1px solid rgba(59,130,246,0.25)" }}>
+                  {suggestions.map((s, i) => (
                     <button key={s.ticker} onMouseDown={() => selectSuggestion(s)}
-                            className="w-full flex items-center justify-between px-4 py-2.5 hover:bg-[#0e1628] transition-colors text-left">
-                      <span className="font-bold text-sm" style={{ color: "var(--text)" }}>{s.ticker}</span>
-                      <span className="text-xs ml-3 truncate max-w-[200px]" style={{ color: "var(--muted)" }}>{s.name}</span>
+                            className="w-full flex items-center justify-between px-4 py-2.5 transition-colors text-left"
+                            style={{ borderTop: i > 0 ? "1px solid rgba(59,130,246,0.12)" : "none" }}
+                            onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(59,130,246,0.12)")}
+                            onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}>
+                      <span className="font-bold text-sm" style={{ color: "#3b82f6" }}>{s.ticker}</span>
+                      <span className="text-xs ml-3 truncate max-w-[200px]" style={{ color: "var(--sub)" }}>{s.name}</span>
                     </button>
                   ))}
                 </div>
