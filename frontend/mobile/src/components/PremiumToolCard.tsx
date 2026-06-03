@@ -1,12 +1,10 @@
 import React from "react";
-import {
-  View, Text, TouchableOpacity, StyleSheet,
-} from "react-native";
+import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "../lib/ThemeContext";
 
 interface Benefit {
-  icon: string;
+  icon: string; // emoji string, e.g. "📊"
   text: string;
 }
 
@@ -14,7 +12,7 @@ interface Props {
   title: string;
   tagline: string;
   description: string;
-  icon: string;
+  icon: string; // Ionicons name for the main icon
   color: string;
   benefits: Benefit[];
   onUnlock: () => void;
@@ -31,7 +29,7 @@ export default function PremiumToolCard({
       onPress={onUnlock}
       activeOpacity={0.92}
     >
-      {/* Top accent bar */}
+      {/* Accent bar */}
       <View style={[s.accentBar, { backgroundColor: color }]} />
 
       <View style={s.body}>
@@ -41,9 +39,9 @@ export default function PremiumToolCard({
           <Text style={[s.lockText, { color }]}>PREMIUM</Text>
         </View>
 
-        {/* Icon */}
+        {/* Main icon */}
         <View style={[s.iconWrap, { backgroundColor: color + "18" }]}>
-          <Ionicons name={icon as any} size={34} color={color} />
+          <Ionicons name={icon as any} size={36} color={color} />
         </View>
 
         {/* Title */}
@@ -53,19 +51,17 @@ export default function PremiumToolCard({
         {/* Description */}
         <Text style={[s.desc, { color: colors.textSub }]}>{description}</Text>
 
-        {/* Benefits */}
-        <View style={[s.benefitsBox, { backgroundColor: color + "08", borderColor: color + "20" }]}>
+        {/* Benefits — 2-column grid like web */}
+        <View style={s.grid}>
           {benefits.map((b) => (
-            <View key={b.text} style={s.benefitRow}>
-              <View style={[s.benefitDot, { backgroundColor: color + "30" }]}>
-                <Ionicons name={b.icon as any} size={12} color={color} />
-              </View>
+            <View key={b.text} style={[s.benefitCell, { backgroundColor: color + "0A", borderColor: color + "22" }]}>
+              <Text style={s.benefitIcon}>{b.icon}</Text>
               <Text style={[s.benefitText, { color: colors.textSub }]}>{b.text}</Text>
             </View>
           ))}
         </View>
 
-        {/* CTA */}
+        {/* CTA with gradient simulation */}
         <TouchableOpacity
           style={[s.btn, { backgroundColor: color }]}
           onPress={onUnlock}
@@ -80,19 +76,19 @@ export default function PremiumToolCard({
 }
 
 const s = StyleSheet.create({
-  card:       { borderRadius: 20, borderWidth: 1, overflow: "hidden", marginBottom: 4 },
-  accentBar:  { height: 4 },
-  body:       { padding: 20, alignItems: "center" },
-  lockBadge:  { flexDirection: "row", alignItems: "center", gap: 5, borderWidth: 1, borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4, marginBottom: 18 },
-  lockText:   { fontSize: 10, fontWeight: "800", letterSpacing: 0.5 },
-  iconWrap:   { width: 72, height: 72, borderRadius: 22, alignItems: "center", justifyContent: "center", marginBottom: 14 },
-  title:      { fontSize: 20, fontWeight: "900", letterSpacing: -0.5, marginBottom: 4, textAlign: "center" },
-  tagline:    { fontSize: 13, textAlign: "center", marginBottom: 14 },
-  desc:       { fontSize: 13, lineHeight: 20, textAlign: "center", marginBottom: 18 },
-  benefitsBox:{ width: "100%", borderRadius: 14, borderWidth: 1, padding: 14, gap: 10, marginBottom: 18 },
-  benefitRow: { flexDirection: "row", alignItems: "center", gap: 10 },
-  benefitDot: { width: 26, height: 26, borderRadius: 8, alignItems: "center", justifyContent: "center" },
-  benefitText:{ fontSize: 13, flex: 1, lineHeight: 18 },
-  btn:        { flexDirection: "row", alignItems: "center", gap: 8, width: "100%", borderRadius: 14, paddingVertical: 14, justifyContent: "center" },
-  btnText:    { color: "white", fontWeight: "800", fontSize: 15 },
+  card:        { borderRadius: 20, borderWidth: 1, overflow: "hidden", marginBottom: 4 },
+  accentBar:   { height: 4 },
+  body:        { padding: 22, alignItems: "center" },
+  lockBadge:   { flexDirection: "row", alignItems: "center", gap: 5, borderWidth: 1, borderRadius: 20, paddingHorizontal: 12, paddingVertical: 5, marginBottom: 20 },
+  lockText:    { fontSize: 10, fontWeight: "800", letterSpacing: 1 },
+  iconWrap:    { width: 76, height: 76, borderRadius: 22, alignItems: "center", justifyContent: "center", marginBottom: 16 },
+  title:       { fontSize: 21, fontWeight: "900", letterSpacing: -0.5, marginBottom: 5, textAlign: "center" },
+  tagline:     { fontSize: 13, textAlign: "center", marginBottom: 14 },
+  desc:        { fontSize: 13, lineHeight: 20, textAlign: "center", marginBottom: 18 },
+  grid:        { flexDirection: "row", flexWrap: "wrap", gap: 8, width: "100%", marginBottom: 20 },
+  benefitCell: { width: "47%", borderWidth: 1, borderRadius: 14, padding: 12, gap: 6 },
+  benefitIcon: { fontSize: 18 },
+  benefitText: { fontSize: 12, lineHeight: 17 },
+  btn:         { flexDirection: "row", alignItems: "center", gap: 8, width: "100%", borderRadius: 14, paddingVertical: 15, justifyContent: "center" },
+  btnText:     { color: "white", fontWeight: "800", fontSize: 15 },
 });

@@ -689,10 +689,10 @@ export default function PortfolioScreen() {
                   icon="document-text-outline"
                   color="#3b82f6"
                   benefits={[
-                    { icon: "bar-chart-outline",    text: "Rendimiento real vs S&P 500 y benchmarks" },
-                    { icon: "trending-down-outline", text: "Sharpe ratio, volatilidad y drawdown máximo" },
-                    { icon: "school-outline",        text: "Nota personalizada de tu mentor cada mes" },
-                    { icon: "checkmark-circle-outline", text: "3 acciones concretas para el mes siguiente" },
+                    { icon: "📊", text: "Rendimiento real vs S&P 500 y benchmarks" },
+                    { icon: "📉", text: "Sharpe ratio, volatilidad y drawdown máximo" },
+                    { icon: "🎓", text: "Nota personalizada de tu mentor cada mes" },
+                    { icon: "✅", text: "3 acciones concretas para el mes siguiente" },
                   ]}
                   onUnlock={() => setPaywallOpen(true)}
                 />
@@ -710,10 +710,10 @@ export default function PortfolioScreen() {
                   icon="flash-outline"
                   color="#f59e0b"
                   benefits={[
-                    { icon: "swap-horizontal-outline", text: "¿Qué pasa si vendo X y compro Y?" },
-                    { icon: "wallet-outline",           text: "Proyección de aportes mensuales a N años" },
-                    { icon: "globe-outline",            text: "Impacto de eventos macro en tu portafolio" },
-                    { icon: "bulb-outline",             text: "Veredicto de tu mentor en cada escenario" },
+                    { icon: "🔄", text: "¿Qué pasa si vendo X y compro Y?" },
+                    { icon: "💰", text: "Proyección de aportes mensuales a N años" },
+                    { icon: "🌍", text: "Impacto de eventos macro en tu portafolio" },
+                    { icon: "💡", text: "Veredicto de tu mentor en cada escenario" },
                   ]}
                   onUnlock={() => setPaywallOpen(true)}
                 />
@@ -731,10 +731,10 @@ export default function PortfolioScreen() {
                   icon="calendar-outline"
                   color="#22c55e"
                   benefits={[
-                    { icon: "calendar-outline",       text: "Calendario de earnings de tus posiciones" },
-                    { icon: "stats-chart-outline",    text: "EPS real vs estimado con contexto profundo" },
-                    { icon: "cash-outline",           text: "Impacto calculado en tu inversión específica" },
-                    { icon: "notifications-outline",  text: "Análisis automático sin buscar nada tú" },
+                    { icon: "📅", text: "Calendario de earnings de tus posiciones" },
+                    { icon: "📈", text: "EPS real vs estimado con contexto profundo" },
+                    { icon: "💵", text: "Impacto calculado en tu inversión específica" },
+                    { icon: "🔔", text: "Análisis automático sin buscar nada tú" },
                   ]}
                   onUnlock={() => setPaywallOpen(true)}
                 />
@@ -750,10 +750,10 @@ export default function PortfolioScreen() {
                   icon="search-outline"
                   color="#8b5cf6"
                   benefits={[
-                    { icon: "person-outline",       text: "Filtradas por tu perfil de riesgo y mentor" },
-                    { icon: "flash-outline",        text: "Catalizador concreto y riesgo por cada pick" },
-                    { icon: "close-circle-outline", text: "Nunca te sugiere lo que ya tienes" },
-                    { icon: "refresh-outline",      text: "Se actualiza cada lunes automáticamente" },
+                    { icon: "🎯", text: "Filtradas por tu perfil de riesgo y mentor" },
+                    { icon: "⚡", text: "Catalizador concreto y riesgo por cada pick" },
+                    { icon: "🚫", text: "Nunca te sugiere lo que ya tienes" },
+                    { icon: "🔄", text: "Se actualiza cada lunes automáticamente" },
                   ]}
                   onUnlock={() => setPaywallOpen(true)}
                 />
