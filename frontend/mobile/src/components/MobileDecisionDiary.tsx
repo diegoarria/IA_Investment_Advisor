@@ -84,24 +84,40 @@ export default function MobileDecisionDiary({ isPremium, onUpgrade }: Props) {
 
   return (
     <>
-      {/* Trigger row in profile */}
-      <TouchableOpacity style={[s.trigger, { borderColor: colors.border, backgroundColor: colors.card }]} onPress={handleOpen}>
-        <View style={[s.iconBox, { backgroundColor: colors.accent + "18" }]}>
-          <Ionicons name="brain-outline" size={18} color={colors.accent} />
+      {/* Card trigger — purple accent like web */}
+      <TouchableOpacity
+        onPress={handleOpen}
+        activeOpacity={0.85}
+        style={{ borderRadius: 20, overflow: "hidden", borderWidth: 1, borderColor: "#a78bfa40", backgroundColor: colors.card }}
+      >
+        <View style={{ height: 4, backgroundColor: "#a78bfa" }} />
+        <View style={{ padding: 16 }}>
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+              <View style={{ width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center", backgroundColor: "#a78bfa18" }}>
+                <Ionicons name="book-outline" size={20} color="#a78bfa" />
+              </View>
+              <View>
+                <Text style={[s.triggerTitle, { color: colors.text }]}>Diario de Sesgos</Text>
+                <Text style={[s.triggerSub, { color: colors.textMuted }]}>Registra movimientos · Detecta tus sesgos</Text>
+              </View>
+            </View>
+            {!isPremium
+              ? <View style={{ borderRadius: 20, paddingHorizontal: 8, paddingVertical: 3, backgroundColor: "#a78bfa20" }}>
+                  <Text style={{ fontSize: 9, fontWeight: "800", color: "#a78bfa" }}>PREMIUM</Text>
+                </View>
+              : <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                  <Text style={{ fontSize: 11, fontWeight: "700", color: "#a78bfa" }}>Abrir</Text>
+                  <Ionicons name="chevron-forward" size={14} color="#a78bfa" />
+                </View>
+            }
+          </View>
         </View>
-        <View style={{ flex: 1 }}>
-          <Text style={[s.triggerTitle, { color: colors.text }]}>Diario de Decisiones</Text>
-          <Text style={[s.triggerSub, { color: colors.textMuted }]}>Registra movimientos · Detecta tus sesgos</Text>
-        </View>
-        {!isPremium
-          ? <View style={[s.badge, { backgroundColor: colors.accent + "20" }]}><Text style={[s.badgeText, { color: colors.accent }]}>PREMIUM</Text></View>
-          : <Ionicons name="chevron-forward" size={16} color={colors.textMuted} />
-        }
       </TouchableOpacity>
 
       {/* Main modal */}
       <Modal visible={open} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setOpen(false)}>
-        <View style={[s.modal, { backgroundColor: colors.background }]}>
+        <View style={[s.modal, { backgroundColor: colors.bg }]}>
           <View style={[s.header, { borderBottomColor: colors.border }]}>
             <Text style={[s.headerTitle, { color: colors.text }]}>📔 Diario de Inversión</Text>
             <View style={{ flexDirection: "row", gap: 12 }}>
@@ -237,7 +253,7 @@ export default function MobileDecisionDiary({ isPremium, onUpgrade }: Props) {
 
       {/* Log decision modal */}
       <Modal visible={logOpen} animationType="slide" presentationStyle="formSheet" onRequestClose={() => setLogOpen(false)}>
-        <View style={[s.logModal, { backgroundColor: colors.background }]}>
+        <View style={[s.logModal, { backgroundColor: colors.bg }]}>
           <View style={[s.header, { borderBottomColor: colors.border }]}>
             <Text style={[s.headerTitle, { color: colors.text }]}>Registrar decisión</Text>
             <TouchableOpacity onPress={() => setLogOpen(false)}>

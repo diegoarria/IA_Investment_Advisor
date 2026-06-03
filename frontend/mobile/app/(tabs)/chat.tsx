@@ -105,7 +105,7 @@ export default function ChatScreen() {
   const mentor = getMentorInfo(profile?.mentor);
   const mentorPhoto = mentor ? MENTOR_PHOTOS[mentor.id] : null;
 
-  const { currentId, currentMessages, setMessages, createSession, currentDiagnosis, setDiagnosis } = useChatStore();
+  const { currentId, currentMessages, setMessages, createSession, currentDiagnosis, setDiagnosis, restoreFromServer, sessions } = useChatStore();
   const messages = currentMessages();
   const diagnosis = currentDiagnosis();
   const positions = usePortfolioStore((s) => s.positions);
@@ -129,9 +129,13 @@ export default function ChatScreen() {
   const cancelRef = useRef({ cancelled: false });
   const inputRef = useRef<TextInput>(null);
 
-  // Ensure there's always an active session
+  // On first load: restore history from server if no local sessions, then ensure active session
   useEffect(() => {
-    if (!currentId) createSession();
+    const init = async () => {
+      if (sessions.length === 0) await restoreFromServer();
+      if (!useChatStore.getState().currentId) createSession();
+    };
+    init();
   }, []);
 
   // Refresh subscription status on mount

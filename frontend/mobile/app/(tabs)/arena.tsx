@@ -212,53 +212,10 @@ export default function ArenaScreen() {
 
         {/* ── Hall of Fame ──────────────────────────────────────────── */}
         {/* ── Diario de Decisiones ── */}
-        <View style={[styles.diaryCard, { backgroundColor: colors.card, borderColor: colors.accent + "30" }]}>
-          {/* Header gradient accent */}
-          <View style={styles.diaryAccent} />
-          <View style={styles.diaryBody}>
-            <View style={styles.diaryTop}>
-              <View style={[styles.diaryIconBox, { backgroundColor: colors.accent + "18" }]}>
-                <Ionicons name="book-outline" size={24} color={colors.accent} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                  <Text style={[styles.diaryTitle, { color: colors.text }]}>Diario de Decisiones</Text>
-                  {!isPremiumAccess && (
-                    <View style={[styles.diaryPremiumBadge, { backgroundColor: colors.accent + "20" }]}>
-                      <Text style={[styles.diaryPremiumText, { color: colors.accent }]}>PREMIUM</Text>
-                    </View>
-                  )}
-                </View>
-                <Text style={[styles.diarySub, { color: colors.textMuted }]}>
-                  Detecta tus sesgos como inversor
-                </Text>
-              </View>
-            </View>
-
-            <Text style={[styles.diaryDesc, { color: colors.textSub }]}>
-              Registra cada decisión de inversión — compras, ventas, alertas ignoradas — y la IA detecta tus patrones conductuales con el tiempo.
-            </Text>
-
-            <View style={{ gap: 6, marginTop: 10, marginBottom: 14 }}>
-              {[
-                { icon: "trending-up-outline",      text: "Registra compras, ventas y decisiones emocionales" },
-                { icon: "analytics-outline",        text: "Detecta sesgos como FOMO, pánico y aversión a pérdidas" },
-                { icon: "cash-outline",             text: "Calcula cuánto te ha costado cada sesgo en dinero real" },
-                { icon: "trophy-outline",           text: "Reto semanal personalizado para mejorar como inversor" },
-              ].map((item) => (
-                <View key={item.text} style={styles.diaryBenefitRow}>
-                  <Ionicons name={item.icon as any} size={14} color={colors.accent} />
-                  <Text style={[styles.diaryBenefitText, { color: colors.textSub }]}>{item.text}</Text>
-                </View>
-              ))}
-            </View>
-
-            <MobileDecisionDiary
-              isPremium={isPremiumAccess}
-              onUpgrade={() => openPaywall("Activa Premium para registrar tus decisiones y detectar tus sesgos.")}
-            />
-          </View>
-        </View>
+        <MobileDecisionDiary
+          isPremium={isPremiumAccess}
+          onUpgrade={() => openPaywall("Activa Premium para registrar tus decisiones y detectar tus sesgos.")}
+        />
 
         <Text style={[styles.sectionTitle, { color: colors.textDim }]}>🏆 HALL OF FAME</Text>
         <View style={[styles.hofCard, { backgroundColor: colors.card, borderColor: colors.border }]}>

@@ -62,6 +62,7 @@ interface ChatStore {
   setDiagnosis: (d: BehavioralDiagnosis, currentMaturity: number) => void;
   deleteSession: (id: string) => void;
   clearAll: () => void;
+  restoreFromServer: () => Promise<void>;
 }
 
 function makeId() {
@@ -145,6 +146,34 @@ export const useChatStore = create<ChatStore>()(
         }),
 
       clearAll: () => set({ sessions: [], currentId: null, behavioralTimeline: [] }),
+
+      restoreFromServer: async () => {
+        // Only restore if no local sessions exist (new device or fresh install)
+        if (get().sessions.length > 0) return;
+        try {
+          const { chatApi } = await import("./api");
+          const res = await chatApi.getHistory();
+          const messages: Message[] = (res.data?.messages ?? []).map(
+            (m: { role: string; content: string }) => ({
+              role: m.role as "user" | "assistant",
+              content: m.content,
+            })
+          );
+          if (messages.length === 0) return;
+          const id = makeId();
+          set({
+            sessions: [{
+              id,
+              title: makeTitle(messages),
+              messages,
+              createdAt: Date.now(),
+              updatedAt: Date.now(),
+              diagnosis: null,
+            }],
+            currentId: id,
+          });
+        } catch {}
+      },
     }),
     {
       name: "chat-sessions",
