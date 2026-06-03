@@ -186,7 +186,6 @@ export default function PortfolioPage() {
 
   // AI Simulator
   const [scenario, setScenario] = useState<Scenario>("moderate");
-  const [capital, setCapital] = useState("");
   const [analysis, setAnalysis] = useState("");
   const [simLoading, setSimLoading] = useState(false);
 
@@ -195,8 +194,14 @@ export default function PortfolioPage() {
   const [calcMonthly, setCalcMonthly] = useState("");
   const [calcReturn, setCalcReturn]   = useState("");
   const [calcYears, setCalcYears]     = useState("");
-  type CalcResult = { final:number; invested:number; gain:number; pct:number; milestones:{year:number;value:number}[] };
+  type CalcBar    = { year:number; invested:number; returns:number; total:number };
+  type CalcResult = { final:number; invested:number; gain:number; pct:number; multiplier:number; realFinal:number; bars:CalcBar[] };
   const [calcResult, setCalcResult]   = useState<CalcResult|null>(null);
+  const CHART_YEARS = [1, 5, 10, 15, 20];
+  const _fv = (pv:number, pmt:number, r:number, n:number) => {
+    const f = Math.pow(1+r, n);
+    return pv*f + (pmt>0 && r>0 ? pmt*(f-1)/r : pmt*n);
+  };
 
   useEffect(() => { if (!isAuthenticated) router.push("/"); }, [isAuthenticated]);
 
@@ -447,7 +452,7 @@ export default function PortfolioPage() {
       const posPayload = positions.length>0
         ? positions.map((p) => ({ ticker:p.ticker, shares:p.shares, avg_price:p.avgPrice, name:p.name }))
         : undefined;
-      const res = await marketApi.getPortfolio(scenario, capital?parseFloat(capital):undefined, posPayload);
+      const res = await marketApi.getPortfolio(scenario, undefined, posPayload);
       setAnalysis(res.data.analysis);
     } catch { setAnalysis("Error al generar el análisis. Intenta de nuevo."); }
     setSimLoading(false);
@@ -460,19 +465,21 @@ export default function PortfolioPage() {
     const ann = parseFloat(calcReturn)  || 0;
     const yrs = parseFloat(calcYears)   || 0;
     if (!pv || !ann || !yrs) return;
-    const r = ann/100/12;
-    const n = Math.round(yrs*12);
-    const fvPV  = pv * Math.pow(1+r, n);
-    const fvPMT = pmt>0 ? pmt*(Math.pow(1+r,n)-1)/r : 0;
-    const final = fvPV + fvPMT;
-    const invested = pv + pmt*n;
-    const milestoneYears = Array.from(new Set([1,2,3,5,10,Math.round(yrs)].filter((y) => y>0&&y<=yrs))).sort((a,b)=>a-b);
-    const milestones = milestoneYears.map((y) => {
+    const r     = ann/100/12;
+    const rReal = (ann-3.5)/100/12;
+    const n     = Math.round(yrs*12);
+    const final         = _fv(pv, pmt, r, n);
+    const totalInvested = pv + pmt*n;
+    const gain          = final - totalInvested;
+    const realFinal     = _fv(pv, pmt, Math.max(0.0001, rReal), n);
+    const multiplier    = totalInvested>0 ? final/totalInvested : 1;
+    const bars: CalcBar[] = CHART_YEARS.map((y) => {
       const mn = y*12;
-      const val = pv*Math.pow(1+r,mn) + (pmt>0?pmt*(Math.pow(1+r,mn)-1)/r:0);
-      return { year:y, value:val };
+      const inv = pv + pmt*mn;
+      const tot = _fv(pv, pmt, r, mn);
+      return { year:y, invested:inv, returns:tot-inv, total:tot };
     });
-    setCalcResult({ final, invested, gain:final-invested, pct:invested>0?((final-invested)/invested)*100:0, milestones });
+    setCalcResult({ final, invested:totalInvested, gain, pct:totalInvested>0?(gain/totalInvested)*100:0, multiplier, realFinal, bars });
   };
 
   if (!isAuthenticated) return null;
@@ -1022,12 +1029,6 @@ export default function PortfolioPage() {
                 </button>
               ))}
             </div>
-            {positions.length===0 && (
-              <input value={capital} onChange={(e) => setCapital(e.target.value)} type="number" min="0"
-                     className="w-full rounded-xl border px-3 py-2.5 text-sm mb-3 outline-none"
-                     style={{ background:"var(--card)", borderColor:"var(--border)", color:"var(--text)" }}
-                     placeholder="Capital de referencia (USD, opcional)" />
-            )}
             <button onClick={simulate} disabled={simLoading}
                     className="w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl text-white font-bold text-sm disabled:opacity-40 transition-colors"
                     style={{ background:"var(--accent)" }}>
@@ -1104,40 +1105,90 @@ export default function PortfolioPage() {
                 Calcular
               </button>
             </div>
-            {calcResult && (
-              <div className="mt-3 rounded-2xl border-2 p-5" style={{ borderColor:"#6366f1", background:"var(--card)" }}>
-                <div className="text-center mb-4">
-                  <p className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color:"var(--muted)" }}>Valor final</p>
-                  <p className="text-4xl font-black" style={{ color:"#6366f1" }}>
-                    {fmtMoney(calcResult.final)}
-                  </p>
-                </div>
-                <div className="grid grid-cols-2 gap-0 border-t border-b py-4 mb-4" style={{ borderColor:"var(--border)" }}>
-                  <div className="text-center">
-                    <p className="text-[10px] mb-1" style={{ color:"var(--muted)" }}>Total invertido</p>
-                    <p className="text-sm font-extrabold" style={{ color:"var(--text)" }}>{fmtMoney(calcResult.invested)}</p>
-                  </div>
-                  <div className="text-center border-l" style={{ borderColor:"var(--border)" }}>
-                    <p className="text-[10px] mb-1" style={{ color:"var(--muted)" }}>Ganancia neta</p>
-                    <p className="text-sm font-extrabold text-[#22c55e]">+{fmtMoney(calcResult.gain)} (+{calcResult.pct.toFixed(0)}%)</p>
-                  </div>
-                </div>
-                <p className="text-[10px] font-bold uppercase tracking-wider mb-3" style={{ color:"var(--muted)" }}>Evolución año a año</p>
-                {calcResult.milestones.map((m) => (
-                  <div key={m.year} className="flex items-center gap-3 mb-2">
-                    <span className="text-xs font-bold w-12 shrink-0" style={{ color:"var(--sub)" }}>Año {m.year}</span>
-                    <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ background:"var(--border)" }}>
-                      <div className="h-full rounded-full" style={{ width:`${(m.value/calcResult.final)*100}%`, background:"#6366f1" }} />
+            {calcResult && (() => {
+              const maxTotal = Math.max(...calcResult.bars.map(b => b.total));
+              const yrs = parseFloat(calcYears) || 0;
+              const BAR_H = 120;
+              return (
+                <div className="mt-3 rounded-2xl border overflow-hidden" style={{ borderColor:"rgba(99,102,241,0.25)", background:"var(--card)" }}>
+                  {/* Hero */}
+                  <div className="p-5 text-center" style={{ background:"rgba(99,102,241,0.07)" }}>
+                    <p className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color:"var(--muted)" }}>
+                      Valor final en {calcYears} {parseInt(calcYears)===1?"año":"años"}
+                    </p>
+                    <p className="text-4xl font-black mb-3" style={{ color:"#6366f1" }}>{fmtMoney(calcResult.final)}</p>
+                    <div className="flex justify-center gap-2">
+                      <span className="text-xs font-bold px-3 py-1.5 rounded-full" style={{ background:"rgba(34,197,94,0.15)", color:"#22c55e" }}>
+                        ×{calcResult.multiplier.toFixed(1)} tu dinero
+                      </span>
+                      <span className="text-xs font-bold px-3 py-1.5 rounded-full" style={{ background:"rgba(99,102,241,0.15)", color:"#a78bfa" }}>
+                        +{calcResult.pct.toFixed(0)}% retorno
+                      </span>
                     </div>
-                    <span className="text-xs font-bold w-20 text-right" style={{ color:"var(--text)" }}>{fmtMoney(m.value)}</span>
                   </div>
-                ))}
-                <div className="flex items-center gap-1.5 mt-3 px-3 py-2 rounded-lg" style={{ background:"rgba(99,102,241,0.1)", border:"1px solid rgba(99,102,241,0.3)" }}>
-                  <BarChart className="w-3 h-3 text-[#6366f1] shrink-0" />
-                  <p className="text-[11px] text-[#6366f1]">Cálculo con interés compuesto mensual. Los rendimientos reales varían.</p>
+
+                  {/* Stats */}
+                  <div className="grid grid-cols-3 border-t border-b" style={{ borderColor:"var(--border)" }}>
+                    {[
+                      { label:"Invertido",   val:fmtMoney(calcResult.invested), color:"var(--sub)" },
+                      { label:"Ganancias",   val:`+${fmtMoney(calcResult.gain)}`, color:"#22c55e" },
+                      { label:"Valor real*", val:fmtMoney(calcResult.realFinal),  color:"#f59e0b" },
+                    ].map((st, i) => (
+                      <div key={st.label} className={`text-center py-3 ${i>0?"border-l":""}`} style={{ borderColor:"var(--border)" }}>
+                        <p className="text-[9px] font-bold uppercase tracking-wider mb-1" style={{ color:"var(--muted)" }}>{st.label}</p>
+                        <p className="text-xs font-extrabold" style={{ color:st.color }}>{st.val}</p>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Bar chart */}
+                  <div className="p-4">
+                    <p className="text-[9px] font-bold uppercase tracking-wider mb-4" style={{ color:"var(--muted)" }}>Invertido vs Retorno por año</p>
+                    <div className="flex items-end gap-2" style={{ height: BAR_H + 40 }}>
+                      {calcResult.bars.map(bar => {
+                        const barH   = Math.max(8, (bar.total/maxTotal)*BAR_H);
+                        const invH   = bar.total>0 ? (bar.invested/bar.total)*barH : barH;
+                        const retH   = barH - invH;
+                        const beyond = yrs>0 && bar.year>yrs;
+                        return (
+                          <div key={bar.year} className="flex-1 flex flex-col items-center gap-1">
+                            <span className="text-[8px] font-bold text-center leading-tight" style={{ color: beyond?"var(--dim)":"var(--sub)" }}>
+                              {fmtMoney(bar.total)}
+                            </span>
+                            <div className="w-full flex flex-col justify-end rounded overflow-hidden"
+                                 style={{ height:BAR_H, opacity: beyond?0.4:1 }}>
+                              <div style={{ height:retH, background:"#22c55e" }} />
+                              <div style={{ height:invH, background:"#6366f1" }} />
+                            </div>
+                            <span className="text-[9px] font-bold" style={{ color: beyond?"var(--dim)":"var(--muted)" }}>
+                              {bar.year}a
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <div className="flex gap-4 mt-3">
+                      {[{color:"#6366f1",label:"Invertido"},{color:"#22c55e",label:"Retorno"}].map(l=>(
+                        <div key={l.label} className="flex items-center gap-1.5">
+                          <div className="w-2 h-2 rounded-full" style={{ background:l.color }} />
+                          <span className="text-[9px] font-semibold" style={{ color:"var(--muted)" }}>{l.label}</span>
+                        </div>
+                      ))}
+                      <span className="text-[9px]" style={{ color:"var(--dim)" }}>Opaco = proyección</span>
+                    </div>
+                  </div>
+
+                  {/* Disclaimer */}
+                  <div className="mx-4 mb-4 flex items-start gap-1.5 px-3 py-2 rounded-lg"
+                       style={{ background:"rgba(99,102,241,0.07)", border:"1px solid rgba(99,102,241,0.2)" }}>
+                    <BarChart className="w-3 h-3 shrink-0 mt-0.5" style={{ color:"#a78bfa" }} />
+                    <p className="text-[10px] leading-relaxed" style={{ color:"#a78bfa" }}>
+                      Interés compuesto mensual. *Valor real descontando 3.5% inflación anual. Rendimientos pasados no garantizan futuros.
+                    </p>
+                  </div>
                 </div>
-              </div>
-            )}
+              );
+            })()}
           </section>
 
           <div className="h-8" />
