@@ -13,6 +13,8 @@ export interface Position {
 
 interface PortfolioStore {
   positions: Position[];
+  portfolioCurrency: string;
+  setCurrency: (currency: string) => void;
   addPosition: (p: Omit<Position, "id">) => void;
   removePosition: (id: string) => void;
   updatePosition: (id: string, updates: { shares?: number; avgPrice?: number; purchaseDate?: string }) => void;
@@ -37,6 +39,9 @@ export const usePortfolioStore = create<PortfolioStore>()(
   persist(
     (set, get) => ({
       positions: [],
+      portfolioCurrency: "USD",
+
+      setCurrency: (currency) => set({ portfolioCurrency: currency }),
 
       addPosition: (p) => {
         set((s) => ({

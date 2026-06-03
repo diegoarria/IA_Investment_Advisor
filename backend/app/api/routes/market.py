@@ -445,14 +445,12 @@ async def portfolio_from_screenshot(
             if not ticker:
                 continue
             avg_price = p.get("avg_price")
-            if avg_price is None or avg_price == 0:
-                price, _ = _fetch_one_index(ticker)
-                avg_price = round(price, 4) if price else 0
+            # Return the price exactly as read from the screenshot — never fabricate or substitute with USD prices from yfinance
             result.append({
                 "ticker": ticker,
                 "name": p.get("name") or ticker,
                 "shares": float(p.get("shares") or 0),
-                "avg_price": float(avg_price or 0),
+                "avg_price": float(avg_price) if avg_price is not None else 0,
             })
         return {"positions": result}
 

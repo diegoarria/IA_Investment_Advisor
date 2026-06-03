@@ -135,12 +135,13 @@ export default function PortfolioPage() {
   const sub = useSubscriptionStore();
   const isPremium = sub.tier === "premium";
   const [paywallOpen, setPaywallOpen] = useState(false);
-  const { positions, addPosition, removePosition, updatePosition, setPositions } = usePortfolioStore();
+  const { positions, addPosition, removePosition, updatePosition, setPositions, portfolioCurrency, setCurrency } = usePortfolioStore();
   const [sidebarOpen, setSidebarOpen]   = useState(false);
   const [activeTab, setActiveTab] = useState<"portfolio" | "herramientas">("portfolio");
 
   const [prices, setPrices] = useState<Record<string, PriceData>>({});
   const [loadingPrices, setLoadingPrices] = useState(false);
+  const [fxRate, setFxRate] = useState(1);
 
   // Screenshot import
   const screenshotInputRef = useRef<HTMLInputElement>(null);
@@ -229,17 +230,25 @@ export default function PortfolioPage() {
       .finally(() => setLoadingReturns(false));
   }, [positions]);
 
+  // Currency symbol for display
+  const currencySymbol = portfolioCurrency === "USD" ? "$"
+    : portfolioCurrency === "EUR" ? "€"
+    : portfolioCurrency === "GBP" ? "£"
+    : portfolioCurrency === "JPY" ? "¥"
+    : `${portfolioCurrency} `;
+
   const totals = useMemo(() => {
     let invested=0, current=0;
     for (const p of positions) {
-      invested += p.shares * p.avgPrice;
-      const cp = prices[p.ticker]?.price;
-      current += cp ? p.shares*cp : p.shares*p.avgPrice;
+      invested += p.shares * p.avgPrice; // stored in user's currency
+      const cpUSD = prices[p.ticker]?.price;
+      // Convert USD price → user's currency
+      current += cpUSD ? p.shares * cpUSD * fxRate : p.shares * p.avgPrice;
     }
     const diff = current - invested;
     const pct = invested>0 ? (diff/invested)*100 : 0;
     return { invested, current, diff, pct };
-  }, [positions, prices]);
+  }, [positions, prices, fxRate]);
 
   const diagnosis = useMemo(() => {
     if (!positions.length) return null;
@@ -339,27 +348,26 @@ export default function PortfolioPage() {
     setPendingMerge([]);
   };
 
-  // Approximate fallback rates (1 unit → USD). Updated periodically; good enough for cost basis.
-  const FALLBACK_RATES: Record<string, number> = {
+  // Exchange rate: USD → portfolioCurrency (for converting current market prices to user's currency)
+  const FALLBACK_RATES_TO_USD: Record<string, number> = {
     MXN: 0.0500, EUR: 1.08, GBP: 1.27, CAD: 0.73,
     ARS: 0.00095, BRL: 0.18, COP: 0.00024, CLP: 0.00105,
     PEN: 0.265, JPY: 0.0065, CHF: 1.12, AUD: 0.65,
   };
 
+  // Fetch exchange rate whenever portfolioCurrency changes
+  useEffect(() => {
+    if (portfolioCurrency === "USD") { setFxRate(1); return; }
+    fetch(`https://api.frankfurter.app/latest?from=USD&to=${portfolioCurrency}`)
+      .then((r) => r.json())
+      .then((d) => { if (d.rates?.[portfolioCurrency]) setFxRate(d.rates[portfolioCurrency]); })
+      .catch(() => { setFxRate(1 / (FALLBACK_RATES_TO_USD[portfolioCurrency] ?? 1)); });
+  }, [portfolioCurrency]);
+
+  // Import: keep prices in original currency, just store the currency
   const applyImport = async (positions: PendingImport, currency: string) => {
-    if (currency === "USD") {
-      setPositions(positions);
-      setPendingImport(null);
-      return;
-    }
-    setConvertingCurrency(true);
-    let rate = FALLBACK_RATES[currency] ?? 1;
-    try {
-      const res = await fetch(`https://api.frankfurter.app/latest?from=${currency}&to=USD`);
-      const data = await res.json();
-      if (data.rates?.USD) rate = data.rates.USD;
-    } catch { /* use fallback */ }
-    setPositions(positions.map((p) => ({ ...p, avgPrice: parseFloat((p.avgPrice * rate).toFixed(4)) })));
+    setCurrency(currency);
+    setPositions(positions);
     setConvertingCurrency(false);
     setPendingImport(null);
   };
@@ -679,16 +687,19 @@ export default function PortfolioPage() {
                   </div>
                 ) : (
                   <>
-                    <p className="text-xs font-bold uppercase tracking-wider mb-1" style={{ color:"var(--muted)" }}>Valor actual del portafolio</p>
+                    <div className="flex items-center justify-between mb-1">
+                      <p className="text-xs font-bold uppercase tracking-wider" style={{ color:"var(--muted)" }}>Valor actual del portafolio</p>
+                      {portfolioCurrency !== "USD" && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background:"var(--raised)", color:"var(--muted)" }}>{portfolioCurrency}</span>}
+                    </div>
                     <p className="text-3xl font-black" style={{ color:"var(--text)" }}>
-                      ${totals.current.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})}
+                      {currencySymbol}{totals.current.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})}
                     </p>
                     <div className="flex items-center justify-between mt-1">
                       <span className="text-xs" style={{ color:"var(--muted)" }}>
-                        Invertido: ${totals.invested.toLocaleString("en-US",{minimumFractionDigits:2})}
+                        Invertido: {currencySymbol}{totals.invested.toLocaleString("en-US",{minimumFractionDigits:2})}
                       </span>
                       <span className="text-sm font-bold" style={{ color:totals.diff>=0?"#22c55e":"#ef4444" }}>
-                        {totals.diff>=0?"+":""}{totals.diff.toLocaleString("en-US",{minimumFractionDigits:2})} ({totals.pct>=0?"+":""}{totals.pct.toFixed(2)}%)
+                        {totals.diff>=0?"+":""}{currencySymbol}{Math.abs(totals.diff).toLocaleString("en-US",{minimumFractionDigits:2})} ({totals.pct>=0?"+":""}{totals.pct.toFixed(2)}%)
                       </span>
                     </div>
                   </>
@@ -698,7 +709,9 @@ export default function PortfolioPage() {
               {/* Position cards */}
               {positions.map((pos) => {
                 const pd = prices[pos.ticker];
-                const cp = pd?.price;
+                const cpUSD = pd?.price;
+                // Convert USD market price → user's currency
+                const cp = cpUSD ? cpUSD * fxRate : null;
                 const hasCost = pos.avgPrice > 0;
                 const currentVal = cp ? pos.shares * cp : null;
                 const investedVal = hasCost ? pos.shares * pos.avgPrice : null;
@@ -734,7 +747,7 @@ export default function PortfolioPage() {
                       <div>
                         <p className="text-[9px] font-bold uppercase tracking-wider mb-1" style={{ color:"var(--dim)" }}>Invertido</p>
                         <p className="text-sm font-bold" style={{ color:"var(--sub)" }}>
-                          {investedVal != null ? `$${investedVal.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})}` : "—"}
+                          {investedVal != null ? `${currencySymbol}${investedVal.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})}` : "—"}
                         </p>
                       </div>
                       <div className="text-center">
@@ -744,7 +757,7 @@ export default function PortfolioPage() {
                       <div className="text-right">
                         <p className="text-[9px] font-bold uppercase tracking-wider mb-1" style={{ color:"var(--dim)" }}>Valor hoy</p>
                         <p className="text-sm font-extrabold" style={{ color:"var(--text)" }}>
-                          {currentVal != null ? `$${currentVal.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})}` : "—"}
+                          {currentVal != null ? `${currencySymbol}${currentVal.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})}` : "—"}
                         </p>
                       </div>
                     </div>
@@ -754,7 +767,7 @@ export default function PortfolioPage() {
                       <div className="flex items-center justify-between px-3 py-2 rounded-xl mb-2"
                            style={{ background: isUp ? "rgba(34,197,94,0.08)" : "rgba(239,68,68,0.08)" }}>
                         <p className="text-xs font-semibold" style={{ color: isUp ? "#22c55e" : "#ef4444" }}>
-                          {isUp ? "+" : ""}${diff.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})}
+                          {isUp ? "+" : ""}{currencySymbol}{Math.abs(diff).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})}
                         </p>
                         <p className="text-sm font-black" style={{ color: isUp ? "#22c55e" : "#ef4444" }}>
                           {isUp ? "+" : ""}{pct.toFixed(2)}%
@@ -773,7 +786,7 @@ export default function PortfolioPage() {
                       style={{ color:"var(--muted)" }}>
                       <Eye className="w-3 h-3" />
                       {priceRevealed
-                        ? cp ? `$${cp.toLocaleString("en-US",{minimumFractionDigits:2})} / acción · ocultar` : "Sin precio"
+                        ? cp ? `${currencySymbol}${cp.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})} / acción · ocultar` : "Sin precio"
                         : "Ver precio por acción"}
                     </button>
                   </div>
@@ -1113,7 +1126,7 @@ export default function PortfolioPage() {
               ¿En qué moneda está tu portafolio?
             </p>
             <p className="text-xs mb-5" style={{ color: "var(--muted)" }}>
-              Convertiremos tus precios de compra a USD para calcular correctamente tus ganancias.
+              Los precios se mostrarán en la moneda que elijas. Los precios de mercado en tiempo real se convierten automáticamente.
             </p>
 
             <div className="grid grid-cols-3 gap-2 mb-5">
@@ -1147,11 +1160,6 @@ export default function PortfolioPage() {
               })}
             </div>
 
-            {importCurrency !== "USD" && (
-              <p className="text-xs mb-4 text-center" style={{ color: "var(--muted)" }}>
-                Se convertirá automáticamente usando la tasa de cambio actual {importCurrency} → USD.
-              </p>
-            )}
 
             <div className="flex gap-2">
               <button onClick={() => setPendingImport(null)}

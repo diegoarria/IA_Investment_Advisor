@@ -233,12 +233,6 @@ const SCENARIOS: { value: Scenario; icon: IoniconName; label: string }[] = [
 interface PriceData { price: number | null; currency: string; name: string }
 interface ExtractedPosition { id: string; ticker: string; name: string; shares: number; avg_price: number }
 
-// Fallback FX rates (1 unit of currency → USD). Used when the live API is unavailable.
-const FALLBACK_RATES: Record<string, number> = {
-  MXN: 0.0500, EUR: 1.08, GBP: 1.27, CAD: 0.73,
-  ARS: 0.00095, BRL: 0.18, COP: 0.00024, CLP: 0.00105,
-  PEN: 0.265, JPY: 0.0065, CHF: 1.12, AUD: 0.65,
-};
 
 
 // ─── Component ─────────────────────────────────────────────────────────────
@@ -248,7 +242,7 @@ export default function PortfolioScreen() {
   const s = useMemo(() => makeStyles(colors), [colors]);
 
 
-  const { positions, addPosition, removePosition, updatePosition, setPositions, mergePositions } = usePortfolioStore();
+  const { positions, addPosition, removePosition, updatePosition, setPositions, mergePositions, portfolioCurrency, setCurrency } = usePortfolioStore();
   const profile = useAppStore((s) => s.profile);
   const subStore = useSubscriptionStore();
   const isPremiumAccess = hasPremiumAccess(subStore);
@@ -259,6 +253,29 @@ export default function PortfolioScreen() {
   const [loadingPrices, setLoadingPrices] = useState(false);
   const [priceError, setPriceError] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [fxRate, setFxRate] = useState(1);
+
+  // Currency symbol for display
+  const currencySymbol = portfolioCurrency === "USD" ? "$"
+    : portfolioCurrency === "EUR" ? "€"
+    : portfolioCurrency === "GBP" ? "£"
+    : portfolioCurrency === "JPY" ? "¥"
+    : `${portfolioCurrency} `;
+
+  // Fallback rates USD → user currency
+  const FALLBACK_TO_LOCAL: Record<string, number> = {
+    MXN: 17.5, EUR: 0.92, GBP: 0.79, CAD: 1.37, ARS: 870,
+    BRL: 5.0, COP: 4000, CLP: 900, PEN: 3.7, JPY: 150, AUD: 1.55,
+  };
+
+  // Fetch live FX rate USD → portfolioCurrency when currency changes
+  useEffect(() => {
+    if (portfolioCurrency === "USD") { setFxRate(1); return; }
+    fetch(`https://api.frankfurter.app/latest?from=USD&to=${portfolioCurrency}`)
+      .then((r) => r.json())
+      .then((d) => { if (d.rates?.[portfolioCurrency]) setFxRate(d.rates[portfolioCurrency]); })
+      .catch(() => setFxRate(FALLBACK_TO_LOCAL[portfolioCurrency] ?? 1));
+  }, [portfolioCurrency]);
 
   // Currency import modal
   type PendingImport = { ticker: string; name?: string; shares: number; avgPrice: number }[];
@@ -354,22 +371,11 @@ export default function PortfolioScreen() {
     setRefreshing(false);
   };
 
-  // ── Currency conversion + import ───────────────────────────────────────
+  // ── Currency import — keep prices in original currency, just store the currency ──
   const applyImport = async (currency: string) => {
     if (!pendingImport) return;
-    if (currency === "USD") {
-      setPositions(pendingImport);
-      setPendingImport(null);
-      return;
-    }
-    setConvertingCurrency(true);
-    let rate = FALLBACK_RATES[currency] ?? 1;
-    try {
-      const res = await fetch(`https://api.frankfurter.app/latest?from=${currency}&to=USD`);
-      const data = await res.json();
-      if (data.rates?.USD) rate = data.rates.USD;
-    } catch {}
-    setPositions(pendingImport.map((p) => ({ ...p, avgPrice: parseFloat((p.avgPrice * rate).toFixed(4)) })));
+    setCurrency(currency);
+    setPositions(pendingImport);
     setConvertingCurrency(false);
     setPendingImport(null);
   };
@@ -628,14 +634,14 @@ export default function PortfolioScreen() {
   const totals = useMemo(() => {
     let invested = 0, current = 0;
     for (const p of positions) {
-      invested += p.shares * p.avgPrice;
-      const cp = prices[p.ticker]?.price;
-      current += cp ? p.shares * cp : p.shares * p.avgPrice;
+      invested += p.shares * p.avgPrice; // stored in user's currency
+      const cpUSD = prices[p.ticker]?.price;
+      current += cpUSD ? p.shares * cpUSD * fxRate : p.shares * p.avgPrice;
     }
     const diff = current - invested;
     const pct = invested > 0 ? (diff / invested) * 100 : 0;
     return { invested, current, diff, pct };
-  }, [positions, prices]);
+  }, [positions, prices, fxRate]);
 
   const diagnosis = useMemo(() => {
     if (!positions.length) return null;
@@ -978,16 +984,23 @@ export default function PortfolioScreen() {
                 <ActivityIndicator color="#22c55e" />
               ) : (
                 <>
-                  <Text style={[s.totalsLabel, { color: colors.textMuted }]}>Valor actual del portafolio</Text>
+                  <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 2 }}>
+                    <Text style={[s.totalsLabel, { color: colors.textMuted }]}>Valor actual del portafolio</Text>
+                    {portfolioCurrency !== "USD" && (
+                      <View style={{ backgroundColor: colors.bgRaised, borderRadius: 8, paddingHorizontal: 6, paddingVertical: 2 }}>
+                        <Text style={{ fontSize: 10, fontWeight: "700", color: colors.textMuted }}>{portfolioCurrency}</Text>
+                      </View>
+                    )}
+                  </View>
                   <Text style={[s.totalsValue, { color: colors.text }]}>
-                    ${totals.current.toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    {currencySymbol}{totals.current.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </Text>
                   <View style={s.totalsRow}>
                     <Text style={[s.totalsInvested, { color: colors.textMuted }]}>
-                      Invertido: ${totals.invested.toLocaleString("es-MX", { minimumFractionDigits: 2 })}
+                      Invertido: {currencySymbol}{totals.invested.toLocaleString("en-US", { minimumFractionDigits: 2 })}
                     </Text>
                     <Text style={[s.totalsDiff, { color: totals.diff >= 0 ? "#22c55e" : "#ef4444" }]}>
-                      {totals.diff >= 0 ? "+" : ""}${totals.diff.toLocaleString("es-MX", { minimumFractionDigits: 2 })} ({totals.pct >= 0 ? "+" : ""}{totals.pct.toFixed(2)}%)
+                      {totals.diff >= 0 ? "+" : ""}{currencySymbol}{Math.abs(totals.diff).toLocaleString("en-US", { minimumFractionDigits: 2 })} ({totals.pct >= 0 ? "+" : ""}{totals.pct.toFixed(2)}%)
                     </Text>
                   </View>
                 </>
@@ -996,7 +1009,8 @@ export default function PortfolioScreen() {
 
             {positions.map((pos) => {
               const pd = prices[pos.ticker];
-              const cp = pd?.price;
+              const cpUSD = pd?.price;
+              const cp = cpUSD ? cpUSD * fxRate : null; // convert USD → user currency
               const hasCost = pos.avgPrice > 0;
               const currentVal = cp ? pos.shares * cp : null;
               const investedVal = hasCost ? pos.shares * pos.avgPrice : null;
@@ -1031,7 +1045,7 @@ export default function PortfolioScreen() {
                     <View>
                       <Text style={{ fontSize: 10, color: colors.textDim, fontWeight: "600", letterSpacing: 0.4, textTransform: "uppercase", marginBottom: 2 }}>Invertido</Text>
                       <Text style={{ fontSize: 14, fontWeight: "700", color: colors.textSub }}>
-                        {investedVal != null ? `$${investedVal.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "—"}
+                        {investedVal != null ? `${currencySymbol}${investedVal.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "—"}
                       </Text>
                     </View>
                     <View style={{ alignItems: "center" }}>
@@ -1041,7 +1055,7 @@ export default function PortfolioScreen() {
                     <View style={{ alignItems: "flex-end" }}>
                       <Text style={{ fontSize: 10, color: colors.textDim, fontWeight: "600", letterSpacing: 0.4, textTransform: "uppercase", marginBottom: 2 }}>Valor hoy</Text>
                       <Text style={{ fontSize: 14, fontWeight: "800", color: colors.text }}>
-                        {currentVal != null ? `$${currentVal.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "—"}
+                        {currentVal != null ? `${currencySymbol}${currentVal.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "—"}
                       </Text>
                     </View>
                   </View>
@@ -1052,7 +1066,7 @@ export default function PortfolioScreen() {
                       backgroundColor: isUp ? "#22c55e14" : "#ef444414",
                       borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, marginBottom: 8 }}>
                       <Text style={{ fontSize: 12, fontWeight: "700", color: isUp ? "#22c55e" : "#ef4444" }}>
-                        {isUp ? "+" : ""}${diff.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        {isUp ? "+" : ""}{currencySymbol}{Math.abs(diff).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </Text>
                       <Text style={{ fontSize: 14, fontWeight: "900", color: isUp ? "#22c55e" : "#ef4444" }}>
                         {isUp ? "+" : ""}{pct.toFixed(2)}%
@@ -1071,7 +1085,7 @@ export default function PortfolioScreen() {
                     <Ionicons name="eye-outline" size={13} color={colors.textMuted} />
                     <Text style={{ fontSize: 11, fontWeight: "600", color: colors.textMuted }}>
                       {priceRevealed
-                        ? cp ? `$${cp.toLocaleString("en-US", { minimumFractionDigits: 2 })} / acción · ocultar` : "Sin precio"
+                        ? cp ? `${currencySymbol}${cp.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} / acción · ocultar` : "Sin precio"
                         : "Ver precio por acción"}
                     </Text>
                   </TouchableOpacity>
@@ -1684,7 +1698,7 @@ export default function PortfolioScreen() {
               ¿En qué moneda está tu portafolio?
             </Text>
             <Text style={{ color: colors.textMuted, fontSize: 12, marginBottom: 16 }}>
-              Convertiremos tus precios de compra a USD para calcular correctamente tus ganancias.
+              Los precios se mostrarán en la moneda que elijas. Los precios de mercado en tiempo real se convierten automáticamente.
             </Text>
 
             <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>
