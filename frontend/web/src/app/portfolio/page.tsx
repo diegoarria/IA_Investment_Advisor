@@ -152,6 +152,16 @@ export default function PortfolioPage() {
   const [mergeModalOpen, setMergeModalOpen] = useState(false);
   const [pendingMerge, setPendingMerge] = useState<ExtractedPos[]>([]);
 
+  // Sort
+  type SortField = "return" | "invested" | "price";
+  const [sortField, setSortField] = useState<SortField | null>(null);
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+
+  const handleSort = (field: SortField) => {
+    if (sortField === field) setSortDir((d) => d === "desc" ? "asc" : "desc");
+    else { setSortField(field); setSortDir("desc"); }
+  };
+
   // Edit position modal
   const [editingPos, setEditingPos] = useState<{ id: string; shares: string; avgPrice: string; purchaseDate: string } | null>(null);
   const [revealedPrices, setRevealedPrices] = useState<Set<string>>(new Set());
@@ -249,6 +259,26 @@ export default function PortfolioPage() {
     const pct = invested>0 ? (diff/invested)*100 : 0;
     return { invested, current, diff, pct };
   }, [positions, prices, fxRate]);
+
+  const sortedPositions = useMemo(() => {
+    if (!sortField) return positions;
+    return [...positions].sort((a, b) => {
+      let va = 0, vb = 0;
+      if (sortField === "invested") {
+        va = a.shares * a.avgPrice;
+        vb = b.shares * b.avgPrice;
+      } else if (sortField === "price") {
+        va = (prices[a.ticker]?.price ?? 0) * fxRate;
+        vb = (prices[b.ticker]?.price ?? 0) * fxRate;
+      } else if (sortField === "return") {
+        const cpA = (prices[a.ticker]?.price ?? 0) * fxRate;
+        const cpB = (prices[b.ticker]?.price ?? 0) * fxRate;
+        va = a.avgPrice > 0 && cpA > 0 ? (cpA - a.avgPrice) / a.avgPrice * 100 : 0;
+        vb = b.avgPrice > 0 && cpB > 0 ? (cpB - b.avgPrice) / b.avgPrice * 100 : 0;
+      }
+      return sortDir === "desc" ? vb - va : va - vb;
+    });
+  }, [positions, prices, fxRate, sortField, sortDir]);
 
   const diagnosis = useMemo(() => {
     if (!positions.length) return null;
@@ -706,8 +736,34 @@ export default function PortfolioPage() {
                 )}
               </div>
 
+              {/* Sort chips */}
+              <div className="flex items-center gap-1.5 mb-3 flex-wrap">
+                <span className="text-[10px] font-semibold" style={{ color:"var(--dim)" }}>Ordenar:</span>
+                {([
+                  { field: "return" as const,   label: "Rentabilidad" },
+                  { field: "invested" as const,  label: "Invertido" },
+                  { field: "price" as const,     label: "Precio" },
+                ] as const).map(({ field, label }) => {
+                  const active = sortField === field;
+                  return (
+                    <button
+                      key={field}
+                      onClick={() => handleSort(field)}
+                      className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-all"
+                      style={{
+                        background: active ? "rgba(0,168,94,0.12)" : "var(--raised)",
+                        color: active ? "var(--accent-l)" : "var(--muted)",
+                        border: `1px solid ${active ? "rgba(0,168,94,0.35)" : "transparent"}`,
+                      }}>
+                      {label}
+                      {active && <span>{sortDir === "desc" ? " ↓" : " ↑"}</span>}
+                    </button>
+                  );
+                })}
+              </div>
+
               {/* Position cards */}
-              {positions.map((pos) => {
+              {sortedPositions.map((pos) => {
                 const pd = prices[pos.ticker];
                 const cpUSD = pd?.price;
                 // Convert USD market price → user's currency

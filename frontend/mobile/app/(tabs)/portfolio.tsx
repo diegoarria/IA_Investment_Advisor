@@ -289,6 +289,15 @@ export default function PortfolioScreen() {
   const [screenshotPreview, setScreenshotPreview] = useState<ExtractedPosition[] | null>(null);
   const [screenshotUris, setScreenshotUris] = useState<string[]>([]);
 
+  // Sort
+  type SortField = "return" | "invested" | "price";
+  const [sortField, setSortField] = useState<SortField | null>(null);
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+  const handleSort = (field: SortField) => {
+    if (sortField === field) setSortDir((d) => d === "desc" ? "asc" : "desc");
+    else { setSortField(field); setSortDir("desc"); }
+  };
+
   // Edit position
   const [editingPos, setEditingPos] = useState<{ id: string; shares: string; avgPrice: string; purchaseDate: string } | null>(null);
   const [revealedPrices, setRevealedPrices] = useState<Set<string>>(new Set());
@@ -642,6 +651,26 @@ export default function PortfolioScreen() {
     const pct = invested > 0 ? (diff / invested) * 100 : 0;
     return { invested, current, diff, pct };
   }, [positions, prices, fxRate]);
+
+  const sortedPositions = useMemo(() => {
+    if (!sortField) return positions;
+    return [...positions].sort((a, b) => {
+      let va = 0, vb = 0;
+      if (sortField === "invested") {
+        va = a.shares * a.avgPrice;
+        vb = b.shares * b.avgPrice;
+      } else if (sortField === "price") {
+        va = (prices[a.ticker]?.price ?? 0) * fxRate;
+        vb = (prices[b.ticker]?.price ?? 0) * fxRate;
+      } else if (sortField === "return") {
+        const cpA = (prices[a.ticker]?.price ?? 0) * fxRate;
+        const cpB = (prices[b.ticker]?.price ?? 0) * fxRate;
+        va = a.avgPrice > 0 && cpA > 0 ? (cpA - a.avgPrice) / a.avgPrice * 100 : 0;
+        vb = b.avgPrice > 0 && cpB > 0 ? (cpB - b.avgPrice) / b.avgPrice * 100 : 0;
+      }
+      return sortDir === "desc" ? vb - va : va - vb;
+    });
+  }, [positions, prices, fxRate, sortField, sortDir]);
 
   const diagnosis = useMemo(() => {
     if (!positions.length) return null;
@@ -1007,7 +1036,37 @@ export default function PortfolioScreen() {
               )}
             </View>
 
-            {positions.map((pos) => {
+            {/* Sort chips */}
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 10 }}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 6, paddingRight: 8 }}>
+                <Text style={{ fontSize: 10, fontWeight: "600", color: colors.textDim }}>Ordenar:</Text>
+                {([
+                  { field: "return" as const,  label: "Rentabilidad" },
+                  { field: "invested" as const, label: "Invertido" },
+                  { field: "price" as const,    label: "Precio" },
+                ] as const).map(({ field, label }) => {
+                  const active = sortField === field;
+                  return (
+                    <TouchableOpacity
+                      key={field}
+                      onPress={() => handleSort(field)}
+                      style={{
+                        flexDirection: "row", alignItems: "center", gap: 4,
+                        paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10,
+                        backgroundColor: active ? "rgba(0,168,94,0.12)" : colors.bgRaised,
+                        borderWidth: 1,
+                        borderColor: active ? "rgba(0,168,94,0.35)" : "transparent",
+                      }}>
+                      <Text style={{ fontSize: 11, fontWeight: "700", color: active ? colors.accentLight : colors.textMuted }}>
+                        {label}{active ? (sortDir === "desc" ? " ↓" : " ↑") : ""}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </ScrollView>
+
+            {sortedPositions.map((pos) => {
               const pd = prices[pos.ticker];
               const cpUSD = pd?.price;
               const cp = cpUSD ? cpUSD * fxRate : null; // convert USD → user currency
