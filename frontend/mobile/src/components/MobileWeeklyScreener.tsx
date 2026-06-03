@@ -12,11 +12,13 @@ interface Props {
   existingTickers?: string[];
 }
 
+const TOOL_COLOR = "#8b5cf6";
+
 export default function MobileWeeklyScreener({ isPremium, onUpgrade, existingTickers = [] }: Props) {
   const { colors } = useTheme();
   const [data, setData]       = useState<any>(null);
   const [loading, setLoading] = useState(false);
-  const s = styles(colors);
+  const s = styles();
 
   useEffect(() => {
     if (!isPremium) return;
@@ -27,80 +29,105 @@ export default function MobileWeeklyScreener({ isPremium, onUpgrade, existingTic
       .finally(() => setLoading(false));
   }, [isPremium]);
 
-  if (!isPremium) {
-    return (
-      <View style={[s.card, { borderColor: colors.border }]}>
-        <View style={s.row}>
-          <Ionicons name="search-outline" size={16} color={colors.accent} />
-          <Text style={[s.title, { color: colors.text }]}>Screener Semanal</Text>
-          <View style={[s.badge, { backgroundColor: colors.accent + "20" }]}>
-            <Text style={[s.badgeText, { color: colors.accent }]}>PREMIUM</Text>
+  return (
+    <View style={[s.card, { backgroundColor: colors.card }]}>
+
+      {/* ── Hero ── */}
+      <View style={[s.hero, { backgroundColor: TOOL_COLOR + "18" }]}>
+        <View style={[s.circle1, { backgroundColor: TOOL_COLOR + "15" }]} />
+        <View style={[s.circle2, { backgroundColor: TOOL_COLOR + "0A" }]} />
+        <View style={[s.iconOuter, { backgroundColor: TOOL_COLOR + "25", borderColor: TOOL_COLOR + "40" }]}>
+          <View style={[s.iconInner, { backgroundColor: TOOL_COLOR }]}>
+            {loading
+              ? <ActivityIndicator color="white" size="small" />
+              : <Ionicons name="search" size={26} color="white" />}
           </View>
         </View>
-        <Text style={[s.desc, { color: colors.textMuted }]}>
-          5 oportunidades personalizadas cada lunes según tu perfil y mentor.
-        </Text>
-        <TouchableOpacity style={[s.btn, { backgroundColor: colors.accent }]} onPress={onUpgrade}>
-          <Text style={s.btnText}>Activar Premium</Text>
-        </TouchableOpacity>
-      </View>
-    );
-  }
-
-  return (
-    <View style={[s.card, { borderColor: colors.border }]}>
-      <View style={[s.row, { marginBottom: 10 }]}>
-        <Ionicons name="search-outline" size={16} color={colors.accent} />
-        <Text style={[s.title, { color: colors.text }]}>Screener Semanal</Text>
+        <Text style={[s.heroTitle, { color: colors.text }]}>Screener Semanal</Text>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 2 }}>
+          <Text style={[s.heroTagline, { color: TOOL_COLOR }]}>5 oportunidades personalizadas cada lunes</Text>
+        </View>
         {data?.week_theme && (
-          <View style={[s.badge, { backgroundColor: colors.accent + "15", marginLeft: 4 }]}>
-            <Text style={[s.badgeText, { color: colors.accent }]}>{data.week_theme}</Text>
+          <View style={[s.themeBadge, { backgroundColor: TOOL_COLOR + "20", borderColor: TOOL_COLOR + "40" }]}>
+            <Text style={[s.themeBadgeText, { color: TOOL_COLOR }]}>{data.week_theme}</Text>
           </View>
         )}
-        {loading && <ActivityIndicator size="small" color={colors.accent} style={{ marginLeft: "auto" }} />}
       </View>
 
-      {!loading && data?.picks?.map((pick: any, i: number) => (
-        <View key={pick.ticker} style={[s.pickRow, { borderTopColor: colors.border }]}>
-          <Text style={[s.rank, { color: colors.textDim }]}>{i + 1}</Text>
-          <View style={{ flex: 1 }}>
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-              <Text style={[s.ticker, { color: colors.text }]}>{pick.ticker}</Text>
-              <Text style={[s.sector, { color: colors.textMuted }]}>{pick.sector}</Text>
-            </View>
-            <Text style={[s.why, { color: colors.textSub }]} numberOfLines={2}>{pick.why}</Text>
+      {/* ── Content ── */}
+      <View style={s.content}>
+        {loading && (
+          <View style={s.loadingRow}>
+            <ActivityIndicator size="small" color={TOOL_COLOR} />
+            <Text style={[s.loadingText, { color: colors.textMuted }]}>Buscando oportunidades...</Text>
           </View>
-          <View style={{ alignItems: "flex-end" }}>
-            <Text style={[s.price, { color: colors.text }]}>${pick.price?.toFixed(2) ?? "—"}</Text>
-            <Text style={[s.change, { color: (pick.change_pct ?? 0) >= 0 ? "#22c55e" : "#ef4444" }]}>
-              {(pick.change_pct ?? 0) >= 0 ? "+" : ""}{pick.change_pct?.toFixed(1) ?? 0}%
-            </Text>
-          </View>
-        </View>
-      ))}
+        )}
 
-      {!loading && !data && (
-        <Text style={[s.empty, { color: colors.textMuted }]}>No hay picks disponibles aún.</Text>
-      )}
+        {!loading && data?.picks?.map((pick: any, i: number) => (
+          <View key={pick.ticker} style={[s.pickRow, { borderTopColor: colors.border }]}>
+            <View style={[s.rankBox, { backgroundColor: TOOL_COLOR + "15" }]}>
+              <Text style={[s.rank, { color: TOOL_COLOR }]}>{i + 1}</Text>
+            </View>
+            <View style={{ flex: 1 }}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                <Text style={[s.ticker, { color: colors.text }]}>{pick.ticker}</Text>
+                {pick.sector && (
+                  <View style={[s.sectorBadge, { backgroundColor: colors.bgRaised }]}>
+                    <Text style={[s.sector, { color: colors.textMuted }]}>{pick.sector}</Text>
+                  </View>
+                )}
+              </View>
+              <Text style={[s.why, { color: colors.textSub }]} numberOfLines={2}>{pick.why}</Text>
+            </View>
+            <View style={{ alignItems: "flex-end" }}>
+              <Text style={[s.price, { color: colors.text }]}>${pick.price?.toFixed(2) ?? "—"}</Text>
+              <Text style={[s.change, { color: (pick.change_pct ?? 0) >= 0 ? "#22c55e" : "#ef4444" }]}>
+                {(pick.change_pct ?? 0) >= 0 ? "+" : ""}{pick.change_pct?.toFixed(1) ?? 0}%
+              </Text>
+            </View>
+          </View>
+        ))}
+
+        {!loading && !data && (
+          <View style={s.emptyWrap}>
+            <Text style={{ fontSize: 28 }}>🔍</Text>
+            <Text style={[s.emptyText, { color: colors.textMuted }]}>No hay picks disponibles aún.</Text>
+          </View>
+        )}
+      </View>
     </View>
   );
 }
 
-const styles = (c: any) => StyleSheet.create({
-  card:    { borderRadius: 16, borderWidth: 1, padding: 14, marginBottom: 10 },
-  row:     { flexDirection: "row", alignItems: "center", gap: 8 },
-  title:   { fontSize: 14, fontWeight: "700" },
-  desc:    { fontSize: 12, lineHeight: 18, marginVertical: 8 },
-  btn:     { borderRadius: 12, paddingVertical: 10, alignItems: "center", marginTop: 4 },
-  btnText: { color: "white", fontWeight: "700", fontSize: 13 },
-  badge:     { borderRadius: 20, paddingHorizontal: 7, paddingVertical: 2, marginLeft: "auto" },
-  badgeText: { fontSize: 9, fontWeight: "800" },
-  pickRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 10, borderTopWidth: StyleSheet.hairlineWidth },
-  rank:    { fontSize: 11, fontWeight: "800", width: 14, textAlign: "center" },
-  ticker:  { fontSize: 14, fontWeight: "800" },
-  sector:  { fontSize: 10 },
-  why:     { fontSize: 11, marginTop: 2, lineHeight: 15 },
-  price:   { fontSize: 13, fontWeight: "700" },
-  change:  { fontSize: 10, fontWeight: "700" },
-  empty:   { fontSize: 12, textAlign: "center", paddingVertical: 8 },
+const styles = () => StyleSheet.create({
+  card:       { borderRadius: 24, overflow: "hidden", marginBottom: 4, shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.18, shadowRadius: 12, elevation: 6 },
+
+  // Hero
+  hero:        { paddingTop: 28, paddingBottom: 20, alignItems: "center", position: "relative", overflow: "hidden" },
+  circle1:     { position: "absolute", width: 160, height: 160, borderRadius: 80, top: -50, right: -30 },
+  circle2:     { position: "absolute", width: 100, height: 100, borderRadius: 50, bottom: -25, left: -15 },
+  iconOuter:   { width: 80, height: 80, borderRadius: 24, borderWidth: 2, alignItems: "center", justifyContent: "center", marginBottom: 12 },
+  iconInner:   { width: 64, height: 64, borderRadius: 20, alignItems: "center", justifyContent: "center" },
+  heroTitle:   { fontSize: 20, fontWeight: "900", letterSpacing: -0.5, marginBottom: 2, textAlign: "center" },
+  heroTagline: { fontSize: 12, fontWeight: "700", textAlign: "center", letterSpacing: 0.2 },
+  themeBadge:  { marginTop: 10, borderRadius: 20, borderWidth: 1, paddingHorizontal: 12, paddingVertical: 4 },
+  themeBadgeText: { fontSize: 11, fontWeight: "700" },
+
+  // Content
+  content:    { paddingHorizontal: 16, paddingBottom: 16 },
+  loadingRow: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 18, justifyContent: "center" },
+  loadingText:{ fontSize: 13 },
+  emptyWrap:  { alignItems: "center", paddingVertical: 20, gap: 8 },
+  emptyText:  { fontSize: 13, textAlign: "center" },
+
+  // Picks
+  pickRow:    { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 11, borderTopWidth: StyleSheet.hairlineWidth },
+  rankBox:    { width: 28, height: 28, borderRadius: 8, alignItems: "center", justifyContent: "center", flexShrink: 0 },
+  rank:       { fontSize: 12, fontWeight: "900" },
+  ticker:     { fontSize: 14, fontWeight: "800" },
+  sectorBadge:{ borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 },
+  sector:     { fontSize: 10, fontWeight: "600" },
+  why:        { fontSize: 11, marginTop: 2, lineHeight: 15 },
+  price:      { fontSize: 13, fontWeight: "700" },
+  change:     { fontSize: 10, fontWeight: "700" },
 });
