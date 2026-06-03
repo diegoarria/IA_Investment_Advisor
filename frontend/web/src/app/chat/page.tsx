@@ -294,9 +294,13 @@ export default function ChatPage() {
     cancelRef.current.cancelled = false;
     subStore.incrementMsgCount();
     const n = imagesToSend.length;
-    const displayMsg = msg || (n === 1 ? "📷 Imagen enviada" : `📷 ${n} imágenes enviadas`);
-    addMessage({ role: "user", content: displayMsg });
-    chatApi.saveMessage("user", displayMsg).catch(() => {});
+    const saveMsg = msg || (n === 1 ? "📷 Imagen enviada" : `📷 ${n} imágenes enviadas`);
+    addMessage({
+      role: "user",
+      content: msg,
+      images: imagesToSend.length > 0 ? imagesToSend.map((i) => ({ preview: i.preview })) : undefined,
+    });
+    chatApi.saveMessage("user", saveMsg).catch(() => {});
 
     const profileCtx = buildProfileContext();
     const recentHistory = messages.slice(-18).map((m) => ({ role: m.role, content: m.content }));
@@ -537,7 +541,23 @@ export default function ChatPage() {
                   )}
                   <div className={msg.role === "user" ? "max-w-[78%]" : "flex-1"}>
                     {msg.role === "user" ? (
-                      <div className="bubble-user">{msg.content}</div>
+                      <div className="bubble-user">
+                        {msg.images && msg.images.length > 0 && (
+                          <div className={`flex flex-wrap gap-1.5${msg.content ? " mb-2" : ""}`}>
+                            {msg.images.map((img, idx) => (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img
+                                key={idx}
+                                src={img.preview}
+                                alt={`img-${idx}`}
+                                className="rounded-xl object-cover"
+                                style={{ maxWidth: "180px", maxHeight: "160px" }}
+                              />
+                            ))}
+                          </div>
+                        )}
+                        {msg.content && <span>{msg.content}</span>}
+                      </div>
                     ) : (
                       <div className="bubble-ai">
                         <div className="prose-dark">

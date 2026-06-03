@@ -223,14 +223,14 @@ export default function PortfolioPage() {
   }, [fetchPrices]);
 
   // Period returns
-  type PeriodReturn = { pct: number; amount: number; date?: string };
+  type PeriodReturn = { pct: number; amount: number; date?: string; breakdown?: Record<string, number> };
   const PERIODS = [
-    { key: "since_purchase", label: "Desde compra" },
-    { key: "1d", label: "1D" }, { key: "5d", label: "5D" },
-    { key: "1mo", label: "1M" }, { key: "3mo", label: "3M" },
-    { key: "6mo", label: "6M" }, { key: "ytd", label: "YTD" },
-    { key: "1y", label: "1A" }, { key: "3y", label: "3A" },
-    { key: "5y", label: "5A" },
+    { key: "since_purchase", label: "Compra" },
+    { key: "1d",  label: "1D"  }, { key: "5d",  label: "5D"  },
+    { key: "1mo", label: "1M"  }, { key: "3mo", label: "3M"  },
+    { key: "6mo", label: "6M"  }, { key: "ytd", label: "YTD" },
+    { key: "1y",  label: "1A"  }, { key: "3y",  label: "3A"  },
+    { key: "5y",  label: "5A"  },
   ] as const;
   type PeriodKey = typeof PERIODS[number]["key"];
   const [selectedPeriod, setSelectedPeriod] = useState<PeriodKey>("since_purchase");
@@ -700,56 +700,132 @@ export default function PortfolioPage() {
             </div>
           ) : positions.length > 0 ? (
             <section>
-              {/* Period return tabs */}
-              <div className="mb-3">
-                <div className="flex gap-1 flex-wrap mb-2">
-                  {PERIODS.map(({ key, label }) => {
-                    const ret = periodReturns[key];
-                    const isSelected = selectedPeriod === key;
-                    const isUp = ret ? ret.pct >= 0 : true;
-                    const isSincePurchase = key === "since_purchase";
-                    return (
-                      <button
-                        key={key}
-                        onClick={() => setSelectedPeriod(key)}
-                        className="px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all"
-                        style={{
-                          background: isSelected ? (isUp ? "rgba(34,197,94,0.15)" : "rgba(239,68,68,0.15)") : "var(--raised)",
-                          color: isSelected ? (isUp ? "#22c55e" : "#ef4444") : isSincePurchase ? "var(--accent-l)" : "var(--muted)",
-                          border: `1px solid ${isSelected ? (isUp ? "rgba(34,197,94,0.4)" : "rgba(239,68,68,0.4)") : isSincePurchase ? "rgba(0,168,94,0.3)" : "transparent"}`,
-                        }}>
-                        {label}
-                      </button>
-                    );
-                  })}
+              {/* ── Period performance stats ── */}
+              <div className="mb-4">
+                {/* Scrollable period chips — each shows label + mini % */}
+                <div className="overflow-x-auto scrollbar-none -mx-1 mb-3">
+                  <div className="flex gap-1.5 px-1 pb-1" style={{ minWidth: "max-content" }}>
+                    {PERIODS.map(({ key, label }) => {
+                      const ret = periodReturns[key];
+                      const isSelected = selectedPeriod === key;
+                      const isUp = ret ? ret.pct >= 0 : null;
+                      return (
+                        <button
+                          key={key}
+                          onClick={() => setSelectedPeriod(key)}
+                          className="flex flex-col items-center px-3 py-2 rounded-xl transition-all shrink-0"
+                          style={{
+                            minWidth: "52px",
+                            background: isSelected
+                              ? (isUp === null ? "rgba(0,168,94,0.12)" : isUp ? "rgba(34,197,94,0.15)" : "rgba(239,68,68,0.15)")
+                              : "var(--raised)",
+                            border: `1px solid ${isSelected
+                              ? (isUp === null ? "rgba(0,168,94,0.4)" : isUp ? "rgba(34,197,94,0.4)" : "rgba(239,68,68,0.4)")
+                              : "var(--border)"}`,
+                          }}>
+                          <span className="text-[10px] font-bold mb-0.5" style={{ color: isSelected ? "var(--text)" : "var(--muted)" }}>
+                            {label}
+                          </span>
+                          {loadingReturns ? (
+                            <span className="text-[9px]" style={{ color: "var(--dim)" }}>···</span>
+                          ) : ret ? (
+                            <span className="text-[10px] font-extrabold" style={{ color: isUp ? "#22c55e" : "#ef4444" }}>
+                              {isUp ? "+" : ""}{ret.pct.toFixed(1)}%
+                            </span>
+                          ) : (
+                            <span className="text-[9px]" style={{ color: "var(--dim)" }}>—</span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
+
+                {/* Selected period detail card */}
                 {loadingReturns ? (
-                  <div className="flex items-center gap-1.5 text-xs" style={{ color:"var(--muted)" }}>
-                    <RefreshCw className="w-3 h-3 animate-spin" /> Calculando rendimientos...
+                  <div className="flex items-center gap-2 px-4 py-3 rounded-2xl text-xs"
+                       style={{ background: "var(--raised)", color: "var(--muted)" }}>
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin shrink-0" />
+                    Calculando rendimientos con Yahoo Finance...
                   </div>
                 ) : periodReturns[selectedPeriod] ? (() => {
                   const r = periodReturns[selectedPeriod]!;
                   const up = r.pct >= 0;
+                  const breakdown = r.breakdown;
+                  const breakdownEntries = breakdown
+                    ? Object.entries(breakdown).sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]))
+                    : [];
+                  const maxAbs = breakdownEntries.length > 0
+                    ? Math.max(...breakdownEntries.map(([, p]) => Math.abs(p)))
+                    : 1;
+                  const periodLabel = PERIODS.find((p) => p.key === selectedPeriod)?.label ?? "";
                   return (
-                    <div className="flex items-center gap-3 px-3 py-2 rounded-xl"
-                         style={{ background: up ? "rgba(34,197,94,0.08)" : "rgba(239,68,68,0.08)" }}>
-                      <div>
-                        <span className="text-xs font-semibold" style={{ color:"var(--muted)" }}>
-                          {PERIODS.find(p => p.key === selectedPeriod)?.label}
-                        </span>
-                        {r.date && (
-                          <span className="text-[10px] ml-1.5" style={{ color:"var(--dim)" }}>desde {r.date}</span>
+                    <div className="rounded-2xl border overflow-hidden"
+                         style={{ borderColor: up ? "rgba(34,197,94,0.3)" : "rgba(239,68,68,0.3)", background: "var(--card)" }}>
+                      {/* Colored top strip */}
+                      <div className="h-0.5" style={{ background: up ? "linear-gradient(90deg,#22c55e,#4ade80)" : "linear-gradient(90deg,#ef4444,#f87171)" }} />
+                      <div className="p-4">
+                        {/* Header: label + return */}
+                        <div className="flex items-start justify-between mb-1">
+                          <div>
+                            <p className="text-[10px] font-bold uppercase tracking-wider" style={{ color: "var(--muted)" }}>
+                              Rendimiento · {periodLabel}
+                            </p>
+                            {r.date && (
+                              <p className="text-[10px] mt-0.5" style={{ color: "var(--dim)" }}>desde {r.date}</p>
+                            )}
+                          </div>
+                          <div className="text-right">
+                            <p className="text-2xl font-black leading-none" style={{ color: up ? "#22c55e" : "#ef4444" }}>
+                              {up ? "+" : ""}{r.pct.toFixed(2)}%
+                            </p>
+                            <p className="text-sm font-bold mt-0.5" style={{ color: up ? "#22c55e" : "#ef4444" }}>
+                              {up ? "+" : ""}{currencySymbol}{Math.abs(r.amount).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* Per-position breakdown */}
+                        {breakdownEntries.length > 0 && (
+                          <div className="mt-3 pt-3 border-t space-y-2" style={{ borderColor: "var(--border)" }}>
+                            <p className="text-[9px] font-bold uppercase tracking-widest mb-2" style={{ color: "var(--dim)" }}>
+                              Rendimiento por posición
+                            </p>
+                            {breakdownEntries.map(([ticker, pct]) => {
+                              const isPos = pct >= 0;
+                              const barW = maxAbs > 0 ? Math.round((Math.abs(pct) / maxAbs) * 100) : 0;
+                              return (
+                                <div key={ticker} className="flex items-center gap-2">
+                                  <span className="text-[11px] font-extrabold shrink-0 w-12" style={{ color: "var(--text)" }}>
+                                    {ticker}
+                                  </span>
+                                  <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ background: "var(--raised)" }}>
+                                    <div
+                                      className="h-full rounded-full"
+                                      style={{ width: `${barW}%`, background: isPos ? "#22c55e" : "#ef4444", transition: "width 0.4s ease" }}
+                                    />
+                                  </div>
+                                  <span className="text-[11px] font-bold shrink-0 w-16 text-right"
+                                        style={{ color: isPos ? "#22c55e" : "#ef4444" }}>
+                                    {isPos ? "+" : ""}{pct.toFixed(2)}%
+                                  </span>
+                                </div>
+                              );
+                            })}
+                            <p className="text-[9px] pt-1" style={{ color: "var(--dim)" }}>
+                              Fuente: Yahoo Finance · Datos históricos ajustados por splits y dividendos
+                            </p>
+                          </div>
                         )}
                       </div>
-                      <span className="text-lg font-black" style={{ color: up ? "#22c55e" : "#ef4444" }}>
-                        {up ? "+" : ""}{r.pct.toFixed(2)}%
-                      </span>
-                      <span className="text-xs font-semibold" style={{ color: up ? "#22c55e" : "#ef4444" }}>
-                        {up ? "+" : ""}${Math.abs(r.amount).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})}
-                      </span>
                     </div>
                   );
-                })() : null}
+                })() : (
+                  <div className="px-4 py-3 rounded-2xl text-xs text-center"
+                       style={{ background: "var(--raised)", color: "var(--dim)" }}>
+                    Sin datos históricos para este período
+                  </div>
+                )}
               </div>
 
               {/* Totals card */}

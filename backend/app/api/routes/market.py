@@ -596,23 +596,13 @@ def _compute_portfolio_returns(positions: list[_PortfolioReturnsItem]) -> dict:
         return {}
     tickers = [p.ticker.upper() for p in positions]
     shares_map = {p.ticker.upper(): p.shares for p in positions}
-
-    # Earliest purchase date across all positions (to determine how long portfolio held)
-    purchase_dates = [p.purchase_date for p in positions if p.purchase_date]
-    oldest_date: _Opt[_dt] = None
-    if purchase_dates:
-        try:
-            oldest_date = min(_dt.fromisoformat(d) for d in purchase_dates).replace(tzinfo=_tz.utc)
-        except Exception:
-            oldest_date = None
+    purchase_date_map = {p.ticker.upper(): p.purchase_date for p in positions if p.purchase_date}
 
     today = _dt.now(_tz.utc)
-    holding_days = (today - oldest_date).days if oldest_date else 99999
 
-    # Download enough history (from oldest purchase date or 5y max)
-    dl_period = "max" if oldest_date and holding_days > 1800 else "5y"
+    # Always download 5 years of history (covers all standard periods)
     try:
-        raw = yf.download(tickers, period=dl_period, interval="1d", auto_adjust=True, progress=False)
+        raw = yf.download(tickers, period="5y", interval="1d", auto_adjust=True, progress=False)
         if raw.empty:
             return {}
         if isinstance(raw.columns, _pd.MultiIndex):
@@ -635,41 +625,60 @@ def _compute_portfolio_returns(positions: list[_PortfolioReturnsItem]) -> dict:
 
     ytd_start = _dt(today.year, 1, 1, tzinfo=_tz.utc)
 
-    # Standard periods — only show if holding_days >= period threshold
-    PERIODS: list[tuple[str, _td | None, int]] = [
-        ("1d",  _td(days=2),    1),
-        ("5d",  _td(days=8),    5),
-        ("1mo", _td(days=35),   28),
-        ("3mo", _td(days=95),   85),
-        ("6mo", _td(days=185),  175),
-        ("ytd", None,           (today - ytd_start).days),
-        ("1y",  _td(days=370),  355),
-        ("3y",  _td(days=1100), 1080),
-        ("5y",  _td(days=1835), 1800),
+    PERIODS: list[tuple[str, _td | None]] = [
+        ("1d",  _td(days=2)),
+        ("5d",  _td(days=8)),
+        ("1mo", _td(days=35)),
+        ("3mo", _td(days=95)),
+        ("6mo", _td(days=185)),
+        ("ytd", None),
+        ("1y",  _td(days=370)),
+        ("3y",  _td(days=1100)),
+        ("5y",  _td(days=1835)),
     ]
 
     results: dict[str, dict] = {}
 
-    # "Desde compra" — if purchase_date provided, calculate return from that date
-    if oldest_date:
+    # "Desde compra" — weighted by each position's individual purchase date
+    if purchase_date_map:
         try:
-            cutoff_str = oldest_date.strftime("%Y-%m-%d")
-            subset = close[close.index >= cutoff_str]
-            if not subset.empty:
-                start_row = subset.iloc[0]
-                start_val = sum(shares_map.get(t, 0) * float(start_row.get(t, 0) or 0) for t in tickers)
-                if start_val > 0:
-                    results["since_purchase"] = {
-                        "pct": round((current_val - start_val) / start_val * 100, 2),
-                        "amount": round(current_val - start_val, 2),
-                        "date": cutoff_str,
-                    }
+            total_cost = 0.0
+            total_gain = 0.0
+            breakdown: dict[str, float] = {}
+            oldest_date_str: _Opt[str] = None
+            for t in tickers:
+                pd_str = purchase_date_map.get(t)
+                if not pd_str:
+                    continue
+                try:
+                    pd_dt = _dt.fromisoformat(pd_str).replace(tzinfo=_tz.utc)
+                    subset = close[close.index >= pd_dt.strftime("%Y-%m-%d")]
+                    if subset.empty:
+                        continue
+                    start_price = float((subset.iloc[0].get(t) if hasattr(subset.iloc[0], "get") else subset.iloc[0][t]) or 0)
+                    curr_price = float((current_row.get(t) if hasattr(current_row, "get") else current_row[t]) or 0)
+                    if start_price > 0 and curr_price > 0:
+                        shares = shares_map.get(t, 0)
+                        cost = shares * start_price
+                        gain = shares * (curr_price - start_price)
+                        total_cost += cost
+                        total_gain += gain
+                        breakdown[t] = round((curr_price - start_price) / start_price * 100, 2)
+                        if oldest_date_str is None or pd_str < oldest_date_str:
+                            oldest_date_str = pd_str
+                except Exception:
+                    continue
+            if total_cost > 0:
+                results["since_purchase"] = {
+                    "pct": round(total_gain / total_cost * 100, 2),
+                    "amount": round(total_gain, 2),
+                    "date": oldest_date_str,
+                    "breakdown": breakdown,
+                }
         except Exception:
             pass
 
-    for key, delta, min_days in PERIODS:
-        if holding_days < min_days:
-            continue  # skip periods longer than user's holding time
+    for key, delta in PERIODS:
         try:
             if key == "ytd":
                 cutoff = ytd_start
@@ -680,10 +689,24 @@ def _compute_portfolio_returns(positions: list[_PortfolioReturnsItem]) -> dict:
             if subset.empty:
                 continue
             start_row = subset.iloc[0]
-            start_val = sum(shares_map.get(t, 0) * float(start_row.get(t, 0) or 0) for t in tickers)
+            start_val = sum(shares_map.get(t, 0) * float((start_row.get(t) if hasattr(start_row, "get") else start_row[t]) or 0) for t in tickers)
             if start_val <= 0:
                 continue
-            results[key] = {"pct": round((current_val - start_val) / start_val * 100, 2), "amount": round(current_val - start_val, 2)}
+            # Per-position breakdown: % each ticker moved in this period
+            breakdown = {}
+            for t in tickers:
+                try:
+                    sp = float((start_row.get(t) if hasattr(start_row, "get") else start_row[t]) or 0)
+                    cp = float((current_row.get(t) if hasattr(current_row, "get") else current_row[t]) or 0)
+                    if sp > 0 and cp > 0:
+                        breakdown[t] = round((cp - sp) / sp * 100, 2)
+                except Exception:
+                    continue
+            results[key] = {
+                "pct": round((current_val - start_val) / start_val * 100, 2),
+                "amount": round(current_val - start_val, 2),
+                "breakdown": breakdown,
+            }
         except Exception:
             continue
 

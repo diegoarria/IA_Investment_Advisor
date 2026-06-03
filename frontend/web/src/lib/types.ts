@@ -26,6 +26,7 @@ export interface ChatMessage {
   id?: string;
   role: "user" | "assistant";
   content: string;
+  images?: Array<{ preview: string }>;
   created_at?: string;
 }
 
