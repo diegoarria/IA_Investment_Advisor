@@ -425,19 +425,45 @@ async def portfolio_from_screenshot(
             sc = anthropic.Anthropic(api_key=settings.anthropic_api_key)
             msg = sc.messages.create(
                 model="claude-opus-4-8",
-                max_tokens=4096,
+                max_tokens=16000,
+                # Extended thinking: Claude reasons step-by-step before answering
+                # This dramatically improves accuracy for complex images
+                thinking={"type": "enabled", "budget_tokens": 10000},
                 system=_SYSTEM,
                 messages=[{"role": "user", "content": [
                     {"type": "image", "source": {"type": "base64", "media_type": img_type, "data": img_data}},
                     {"type": "text", "text": _PROMPT},
                 ]}],
             )
-        raw = msg.content[0].text.strip()
+
+        # With extended thinking, response has multiple blocks (thinking + text)
+        # We only need the final text block which contains the JSON
+        raw = ""
+        for block in msg.content:
+            if block.type == "text":
+                raw = block.text.strip()
+                break
+
+        if not raw:
+            return {"positions": [], "error": "No se recibió respuesta del modelo"}
+
+        # Strip markdown code blocks if present
         if "```" in raw:
-            raw = raw.split("```")[1]
-            if raw.startswith("json"):
-                raw = raw[4:]
+            parts = raw.split("```")
+            for i, part in enumerate(parts):
+                if i % 2 == 1:  # inside a code block
+                    candidate = part.lstrip("json").strip()
+                    if candidate.startswith("["):
+                        raw = candidate
+                        break
         raw = raw.strip()
+
+        # Find the JSON array if there's surrounding text
+        start = raw.find("[")
+        end = raw.rfind("]")
+        if start != -1 and end != -1 and end > start:
+            raw = raw[start:end+1]
+
         positions = json.loads(raw)
         result = []
         for p in positions:
@@ -445,7 +471,7 @@ async def portfolio_from_screenshot(
             if not ticker:
                 continue
             avg_price = p.get("avg_price")
-            # Return the price exactly as read from the screenshot — never fabricate or substitute with USD prices from yfinance
+            # Return the price exactly as read from the screenshot — never fabricate
             result.append({
                 "ticker": ticker,
                 "name": p.get("name") or ticker,

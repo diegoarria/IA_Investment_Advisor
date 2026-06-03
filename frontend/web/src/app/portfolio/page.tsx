@@ -147,6 +147,7 @@ export default function PortfolioPage() {
   const screenshotInputRef = useRef<HTMLInputElement>(null);
   const [screenshotAnalyzing, setScreenshotAnalyzing] = useState(false);
   const [screenshotProgress, setScreenshotProgress] = useState("");
+  const [isDragOver, setIsDragOver] = useState(false);
   type ExtractedPos = { id: string; ticker: string; name: string; shares: number; avg_price: number };
   const [screenshotPreview, setScreenshotPreview] = useState<ExtractedPos[]|null>(null);
   const [mergeModalOpen, setMergeModalOpen] = useState(false);
@@ -549,34 +550,58 @@ export default function PortfolioPage() {
               </div>
             </div>
 
-            {/* Screenshot import button */}
-            <button onClick={() => screenshotInputRef.current?.click()}
-                    disabled={screenshotAnalyzing}
-                    className="w-full flex items-center gap-4 p-4 rounded-2xl text-left transition-all disabled:opacity-50"
-                    style={{ background:"var(--accent)" }}>
-              {screenshotAnalyzing ? (
-                <>
-                  <RefreshCw className="w-7 h-7 text-white animate-spin shrink-0" />
-                  <span className="text-white font-bold">{screenshotProgress || "Analizando con IA..."}</span>
-                </>
-              ) : (
-                <>
-                  <Upload className="w-7 h-7 text-white shrink-0" />
-                  <div>
-                    <p className="text-white font-extrabold text-sm">Importar capturas de pantalla</p>
-                    <p className="text-white/70 text-xs mt-0.5">Selecciona 1 o más fotos — la IA detecta todo</p>
-                  </div>
-                </>
-              )}
-            </button>
+            {/* Screenshot import — drop zone */}
+            <div
+              onClick={() => !screenshotAnalyzing && screenshotInputRef.current?.click()}
+              onDragOver={(e) => { e.preventDefault(); if (!screenshotAnalyzing) setIsDragOver(true); }}
+              onDragEnter={(e) => { e.preventDefault(); if (!screenshotAnalyzing) setIsDragOver(true); }}
+              onDragLeave={() => setIsDragOver(false)}
+              onDrop={(e) => {
+                e.preventDefault();
+                setIsDragOver(false);
+                if (screenshotAnalyzing) return;
+                const files = Array.from(e.dataTransfer.files).filter((f) => f.type.startsWith("image/"));
+                if (files.length) processScreenshotFiles(files);
+              }}
+              className="w-full rounded-2xl transition-all cursor-pointer select-none"
+              style={{
+                background: isDragOver ? "var(--accent-l)" : "var(--accent)",
+                border: isDragOver ? "2px dashed white" : "2px solid transparent",
+                opacity: screenshotAnalyzing ? 0.7 : 1,
+              }}>
+              <div className="flex items-center gap-4 p-4">
+                {screenshotAnalyzing ? (
+                  <>
+                    <RefreshCw className="w-7 h-7 text-white animate-spin shrink-0" />
+                    <span className="text-white font-bold">{screenshotProgress || "Analizando con IA..."}</span>
+                  </>
+                ) : isDragOver ? (
+                  <>
+                    <Upload className="w-7 h-7 text-white shrink-0 animate-bounce" />
+                    <div>
+                      <p className="text-white font-extrabold text-sm">¡Suelta aquí!</p>
+                      <p className="text-white/80 text-xs mt-0.5">La IA analizará tus capturas al instante</p>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <Upload className="w-7 h-7 text-white shrink-0" />
+                    <div>
+                      <p className="text-white font-extrabold text-sm">Importar capturas de pantalla</p>
+                      <p className="text-white/70 text-xs mt-0.5">Arrastra aquí, selecciona fotos o pega con ⌘V</p>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
             <input ref={screenshotInputRef} type="file" accept="image/*" multiple className="hidden" onChange={handleScreenshotChange} />
 
-            {/* Paste zone */}
-            {!screenshotAnalyzing && !screenshotPreview && (
-              <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl border border-dashed text-xs"
+            {/* Paste zone hint — solo si no hay drag zone visible */}
+            {!screenshotAnalyzing && !screenshotPreview && !isDragOver && (
+              <div className="flex items-center gap-2 px-3 py-2 rounded-xl border border-dashed text-xs"
                    style={{ borderColor:"var(--border)", color:"var(--dim)" }}>
                 <span className="text-base">📋</span>
-                <span>También puedes <strong style={{ color:"var(--sub)" }}>pegar directamente</strong> con <kbd className="px-1.5 py-0.5 rounded text-[10px] font-mono" style={{ background:"var(--raised)", color:"var(--muted)" }}>Ctrl+V</kbd> o <kbd className="px-1.5 py-0.5 rounded text-[10px] font-mono" style={{ background:"var(--raised)", color:"var(--muted)" }}>⌘+V</kbd></span>
+                <span>Puedes <strong style={{ color:"var(--sub)" }}>arrastrar imágenes</strong>, <strong style={{ color:"var(--sub)" }}>pegar</strong> con <kbd className="px-1.5 py-0.5 rounded text-[10px] font-mono" style={{ background:"var(--raised)", color:"var(--muted)" }}>⌘V</kbd> o seleccionar desde tu galería</span>
               </div>
             )}
 
