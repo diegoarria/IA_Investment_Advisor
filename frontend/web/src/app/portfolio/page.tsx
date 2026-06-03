@@ -127,6 +127,58 @@ const SCENARIOS: {value:Scenario; label:string; emoji:string}[] = [
   { value:"aggressive",   label:"Agresivo",    emoji:"🚀" },
 ];
 
+// ─── Portfolio historical chart ────────────────────────────────────────────
+
+type ChartPoint = { date: string; pct: number; value: number };
+
+function PortfolioSparkline({ history, color }: { history: ChartPoint[]; color: string }) {
+  if (history.length < 2) return null;
+
+  const W = 400;
+  const H = 110;
+  const PY = 6;
+
+  const values = history.map((h) => h.pct);
+  const minV = Math.min(...values);
+  const maxV = Math.max(...values);
+  const spread = maxV - minV || Math.abs(maxV) || 1;
+  const lo = minV - spread * 0.12;
+  const hi = maxV + spread * 0.12;
+  const range = hi - lo;
+
+  const toX = (i: number) => (i / (history.length - 1)) * W;
+  const toY = (v: number) => PY + ((hi - v) / range) * (H - PY * 2);
+  const zeroY = Math.max(PY, Math.min(H - PY, toY(0)));
+
+  const pts = history.map((h, i) => `${toX(i).toFixed(1)},${toY(h.pct).toFixed(1)}`);
+  const linePath = "M" + pts.join("L");
+  const lastX = toX(history.length - 1).toFixed(1);
+  const lastY = toY(values[values.length - 1]).toFixed(1);
+  const areaPath = `${linePath}L${lastX},${zeroY.toFixed(1)}L0,${zeroY.toFixed(1)}Z`;
+
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="w-full" style={{ height: 110, display: "block" }}>
+      <defs>
+        <linearGradient id="psg" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={color} stopOpacity="0.22" />
+          <stop offset="100%" stopColor={color} stopOpacity="0.01" />
+        </linearGradient>
+      </defs>
+      {/* Zero baseline */}
+      <line x1="0" y1={zeroY} x2={W} y2={zeroY}
+        stroke={color} strokeWidth="0.7" strokeDasharray="4,4" strokeOpacity="0.3" />
+      {/* Area fill */}
+      <path d={areaPath} fill="url(#psg)" />
+      {/* Line */}
+      <path d={linePath} fill="none" stroke={color} strokeWidth="1.8"
+        strokeLinejoin="round" strokeLinecap="round" />
+      {/* End dot */}
+      <circle cx={lastX} cy={lastY} r="5" fill={color} fillOpacity="0.25" />
+      <circle cx={lastX} cy={lastY} r="2.5" fill={color} />
+    </svg>
+  );
+}
+
 // ─── Component ─────────────────────────────────────────────────────────────
 
 export default function PortfolioPage() {
@@ -230,12 +282,17 @@ export default function PortfolioPage() {
     { key: "1mo", label: "1M"  }, { key: "3mo", label: "3M"  },
     { key: "6mo", label: "6M"  }, { key: "ytd", label: "YTD" },
     { key: "1y",  label: "1A"  }, { key: "3y",  label: "3A"  },
-    { key: "5y",  label: "5A"  },
+    { key: "5y",  label: "5A"  }, { key: "max", label: "MÁX" },
   ] as const;
   type PeriodKey = typeof PERIODS[number]["key"];
   const [selectedPeriod, setSelectedPeriod] = useState<PeriodKey>("since_purchase");
   const [periodReturns, setPeriodReturns] = useState<Record<string, PeriodReturn>>({});
   const [loadingReturns, setLoadingReturns] = useState(false);
+
+  // Chart state
+  type ChartData = { history: ChartPoint[]; period_pct: number; period_amount: number };
+  const [chartData, setChartData] = useState<ChartData | null>(null);
+  const [chartLoading, setChartLoading] = useState(false);
 
   useEffect(() => {
     if (positions.length === 0) return;
@@ -245,6 +302,20 @@ export default function PortfolioPage() {
       .catch(() => {})
       .finally(() => setLoadingReturns(false));
   }, [positions]);
+
+  // Fetch chart data whenever period or positions change
+  useEffect(() => {
+    if (positions.length === 0) return;
+    setChartData(null);
+    setChartLoading(true);
+    marketApi.getPortfolioChart(
+      positions.map((p) => ({ ticker: p.ticker, shares: p.shares, purchase_date: p.purchaseDate ?? null })),
+      selectedPeriod,
+    )
+      .then((res: { data: ChartData }) => setChartData(res.data))
+      .catch(() => {})
+      .finally(() => setChartLoading(false));
+  }, [selectedPeriod, positions]);
 
   // Currency symbol for display
   const currencySymbol = portfolioCurrency === "USD" ? "$"
@@ -700,37 +771,39 @@ export default function PortfolioPage() {
             </div>
           ) : positions.length > 0 ? (
             <section>
-              {/* ── Period performance stats ── */}
+              {/* ── Rendimiento histórico del portafolio ── */}
               <div className="mb-4">
-                {/* Scrollable period chips — each shows label + mini % */}
-                <div className="overflow-x-auto scrollbar-none -mx-1 mb-3">
+                {/* Chips scrollables — label + mini % de cada período */}
+                <div className="overflow-x-auto scrollbar-none -mx-1 mb-2">
                   <div className="flex gap-1.5 px-1 pb-1" style={{ minWidth: "max-content" }}>
                     {PERIODS.map(({ key, label }) => {
                       const ret = periodReturns[key];
                       const isSelected = selectedPeriod === key;
-                      const isUp = ret ? ret.pct >= 0 : null;
+                      const chipUp = ret ? ret.pct >= 0 : null;
                       return (
                         <button
                           key={key}
                           onClick={() => setSelectedPeriod(key)}
                           className="flex flex-col items-center px-3 py-2 rounded-xl transition-all shrink-0"
                           style={{
-                            minWidth: "52px",
+                            minWidth: "50px",
                             background: isSelected
-                              ? (isUp === null ? "rgba(0,168,94,0.12)" : isUp ? "rgba(34,197,94,0.15)" : "rgba(239,68,68,0.15)")
+                              ? (chipUp === null ? "rgba(0,168,94,0.12)" : chipUp ? "rgba(34,197,94,0.15)" : "rgba(239,68,68,0.15)")
                               : "var(--raised)",
                             border: `1px solid ${isSelected
-                              ? (isUp === null ? "rgba(0,168,94,0.4)" : isUp ? "rgba(34,197,94,0.4)" : "rgba(239,68,68,0.4)")
+                              ? (chipUp === null ? "rgba(0,168,94,0.4)" : chipUp ? "rgba(34,197,94,0.4)" : "rgba(239,68,68,0.4)")
                               : "var(--border)"}`,
                           }}>
-                          <span className="text-[10px] font-bold mb-0.5" style={{ color: isSelected ? "var(--text)" : "var(--muted)" }}>
+                          <span className="text-[10px] font-bold mb-0.5"
+                                style={{ color: isSelected ? "var(--text)" : "var(--muted)" }}>
                             {label}
                           </span>
                           {loadingReturns ? (
                             <span className="text-[9px]" style={{ color: "var(--dim)" }}>···</span>
                           ) : ret ? (
-                            <span className="text-[10px] font-extrabold" style={{ color: isUp ? "#22c55e" : "#ef4444" }}>
-                              {isUp ? "+" : ""}{ret.pct.toFixed(1)}%
+                            <span className="text-[10px] font-extrabold"
+                                  style={{ color: chipUp ? "#22c55e" : "#ef4444" }}>
+                              {chipUp ? "+" : ""}{ret.pct.toFixed(1)}%
                             </span>
                           ) : (
                             <span className="text-[9px]" style={{ color: "var(--dim)" }}>—</span>
@@ -741,91 +814,121 @@ export default function PortfolioPage() {
                   </div>
                 </div>
 
-                {/* Selected period detail card */}
-                {loadingReturns ? (
-                  <div className="flex items-center gap-2 px-4 py-3 rounded-2xl text-xs"
-                       style={{ background: "var(--raised)", color: "var(--muted)" }}>
-                    <RefreshCw className="w-3.5 h-3.5 animate-spin shrink-0" />
-                    Calculando rendimientos con Yahoo Finance...
-                  </div>
-                ) : periodReturns[selectedPeriod] ? (() => {
-                  const r = periodReturns[selectedPeriod]!;
-                  const up = r.pct >= 0;
-                  const breakdown = r.breakdown;
-                  const breakdownEntries = breakdown
+                {/* Tarjeta principal: gráfica + stats + breakdown */}
+                {(() => {
+                  const r = periodReturns[selectedPeriod];
+                  // Stats: prefer chartData (más preciso), fallback a periodReturns
+                  const displayPct   = chartData ? chartData.period_pct   : r?.pct;
+                  const displayAmt   = chartData ? chartData.period_amount : r?.amount;
+                  const up           = displayPct !== undefined ? displayPct >= 0 : true;
+                  const color        = up ? "#22c55e" : "#ef4444";
+                  const periodLabel  = PERIODS.find((p) => p.key === selectedPeriod)?.label ?? "";
+                  const breakdown    = r?.breakdown;
+                  const bEntries     = breakdown
                     ? Object.entries(breakdown).sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]))
                     : [];
-                  const maxAbs = breakdownEntries.length > 0
-                    ? Math.max(...breakdownEntries.map(([, p]) => Math.abs(p)))
-                    : 1;
-                  const periodLabel = PERIODS.find((p) => p.key === selectedPeriod)?.label ?? "";
+                  const maxAbs = bEntries.length > 0
+                    ? Math.max(...bEntries.map(([, p]) => Math.abs(p))) : 1;
+
                   return (
                     <div className="rounded-2xl border overflow-hidden"
-                         style={{ borderColor: up ? "rgba(34,197,94,0.3)" : "rgba(239,68,68,0.3)", background: "var(--card)" }}>
-                      {/* Colored top strip */}
-                      <div className="h-0.5" style={{ background: up ? "linear-gradient(90deg,#22c55e,#4ade80)" : "linear-gradient(90deg,#ef4444,#f87171)" }} />
-                      <div className="p-4">
-                        {/* Header: label + return */}
-                        <div className="flex items-start justify-between mb-1">
-                          <div>
-                            <p className="text-[10px] font-bold uppercase tracking-wider" style={{ color: "var(--muted)" }}>
-                              Rendimiento · {periodLabel}
-                            </p>
-                            {r.date && (
-                              <p className="text-[10px] mt-0.5" style={{ color: "var(--dim)" }}>desde {r.date}</p>
-                            )}
-                          </div>
-                          <div className="text-right">
-                            <p className="text-2xl font-black leading-none" style={{ color: up ? "#22c55e" : "#ef4444" }}>
-                              {up ? "+" : ""}{r.pct.toFixed(2)}%
-                            </p>
-                            <p className="text-sm font-bold mt-0.5" style={{ color: up ? "#22c55e" : "#ef4444" }}>
-                              {up ? "+" : ""}{currencySymbol}{Math.abs(r.amount).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                            </p>
-                          </div>
-                        </div>
+                         style={{ borderColor: `${color}30`, background: "var(--card)" }}>
+                      {/* Franja de color */}
+                      <div className="h-0.5"
+                           style={{ background: `linear-gradient(90deg,${color},${color}66)` }} />
 
-                        {/* Per-position breakdown */}
-                        {breakdownEntries.length > 0 && (
-                          <div className="mt-3 pt-3 border-t space-y-2" style={{ borderColor: "var(--border)" }}>
-                            <p className="text-[9px] font-bold uppercase tracking-widest mb-2" style={{ color: "var(--dim)" }}>
-                              Rendimiento por posición
+                      {/* Header stats */}
+                      <div className="flex items-start justify-between px-4 pt-4 pb-1">
+                        <div>
+                          <p className="text-[10px] font-bold uppercase tracking-wider"
+                             style={{ color: "var(--muted)" }}>
+                            Rendimiento · {periodLabel}
+                          </p>
+                          {r?.date && (
+                            <p className="text-[10px] mt-0.5" style={{ color: "var(--dim)" }}>
+                              desde {r.date}
                             </p>
-                            {breakdownEntries.map(([ticker, pct]) => {
-                              const isPos = pct >= 0;
-                              const barW = maxAbs > 0 ? Math.round((Math.abs(pct) / maxAbs) * 100) : 0;
-                              return (
-                                <div key={ticker} className="flex items-center gap-2">
-                                  <span className="text-[11px] font-extrabold shrink-0 w-12" style={{ color: "var(--text)" }}>
-                                    {ticker}
-                                  </span>
-                                  <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ background: "var(--raised)" }}>
-                                    <div
-                                      className="h-full rounded-full"
-                                      style={{ width: `${barW}%`, background: isPos ? "#22c55e" : "#ef4444", transition: "width 0.4s ease" }}
-                                    />
-                                  </div>
-                                  <span className="text-[11px] font-bold shrink-0 w-16 text-right"
-                                        style={{ color: isPos ? "#22c55e" : "#ef4444" }}>
-                                    {isPos ? "+" : ""}{pct.toFixed(2)}%
-                                  </span>
-                                </div>
-                              );
-                            })}
-                            <p className="text-[9px] pt-1" style={{ color: "var(--dim)" }}>
-                              Fuente: Yahoo Finance · Datos históricos ajustados por splits y dividendos
-                            </p>
-                          </div>
-                        )}
+                          )}
+                        </div>
+                        <div className="text-right">
+                          {displayPct !== undefined ? (
+                            <>
+                              <p className="text-2xl font-black leading-none" style={{ color }}>
+                                {up ? "+" : ""}{displayPct.toFixed(2)}%
+                              </p>
+                              {displayAmt !== undefined && (
+                                <p className="text-sm font-bold mt-0.5" style={{ color }}>
+                                  {up ? "+" : ""}{currencySymbol}
+                                  {Math.abs(displayAmt).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                </p>
+                              )}
+                            </>
+                          ) : chartLoading ? (
+                            <span className="text-sm" style={{ color: "var(--muted)" }}>···</span>
+                          ) : null}
+                        </div>
                       </div>
+
+                      {/* Gráfica histórica */}
+                      <div className="px-3 pb-1">
+                        {chartLoading ? (
+                          <div className="h-[110px] flex items-center justify-center gap-2 text-xs"
+                               style={{ color: "var(--muted)" }}>
+                            <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                            Cargando datos históricos...
+                          </div>
+                        ) : chartData && chartData.history.length >= 2 ? (
+                          <PortfolioSparkline history={chartData.history} color={color} />
+                        ) : !chartLoading ? (
+                          <div className="h-[110px] flex items-center justify-center text-xs"
+                               style={{ color: "var(--dim)" }}>
+                            Sin datos históricos para este período
+                          </div>
+                        ) : null}
+                      </div>
+
+                      {/* Fuente */}
+                      <div className="px-4 pb-3">
+                        <p className="text-[9px]" style={{ color: "var(--dim)" }}>
+                          Yahoo Finance · precios ajustados por splits y dividendos
+                        </p>
+                      </div>
+
+                      {/* Breakdown por posición */}
+                      {bEntries.length > 0 && (
+                        <div className="px-4 pb-4 pt-2 border-t space-y-2"
+                             style={{ borderColor: "var(--border)" }}>
+                          <p className="text-[9px] font-bold uppercase tracking-widest mb-2"
+                             style={{ color: "var(--dim)" }}>
+                            Rendimiento por posición · {periodLabel}
+                          </p>
+                          {bEntries.map(([ticker, pct]) => {
+                            const isPos = pct >= 0;
+                            const barW  = maxAbs > 0 ? Math.round((Math.abs(pct) / maxAbs) * 100) : 0;
+                            return (
+                              <div key={ticker} className="flex items-center gap-2">
+                                <span className="text-[11px] font-extrabold shrink-0 w-12"
+                                      style={{ color: "var(--text)" }}>
+                                  {ticker}
+                                </span>
+                                <div className="flex-1 h-1.5 rounded-full overflow-hidden"
+                                     style={{ background: "var(--raised)" }}>
+                                  <div className="h-full rounded-full"
+                                       style={{ width: `${barW}%`, background: isPos ? "#22c55e" : "#ef4444",
+                                                transition: "width 0.5s ease" }} />
+                                </div>
+                                <span className="text-[11px] font-bold shrink-0 w-16 text-right"
+                                      style={{ color: isPos ? "#22c55e" : "#ef4444" }}>
+                                  {isPos ? "+" : ""}{pct.toFixed(2)}%
+                                </span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
                     </div>
                   );
-                })() : (
-                  <div className="px-4 py-3 rounded-2xl text-xs text-center"
-                       style={{ background: "var(--raised)", color: "var(--dim)" }}>
-                    Sin datos históricos para este período
-                  </div>
-                )}
+                })()}
               </div>
 
               {/* Totals card */}

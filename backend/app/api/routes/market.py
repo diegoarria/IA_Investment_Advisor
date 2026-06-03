@@ -720,3 +720,140 @@ async def get_portfolio_returns(
 ):
     data = await asyncio.to_thread(_compute_portfolio_returns, body.positions)
     return {"returns": data}
+
+
+# ─── Portfolio historical chart ───────────────────────────────────────────────
+
+class _PortfolioChartRequest(_BaseModel):
+    positions: list[_PortfolioReturnsItem]
+    period: str = "1y"  # "1d","5d","1mo","3mo","6mo","ytd","1y","3y","5y","max","since_purchase"
+
+
+def _compute_portfolio_chart(positions: list[_PortfolioReturnsItem], period: str) -> dict:
+    if not positions:
+        return {"history": []}
+
+    tickers = [p.ticker.upper() for p in positions]
+    shares_map = {p.ticker.upper(): p.shares for p in positions}
+    purchase_date_map = {p.ticker.upper(): p.purchase_date for p in positions if p.purchase_date}
+
+    today = _dt.now(_tz.utc)
+
+    # Map frontend period keys → yfinance (period, interval)
+    PERIOD_MAP: dict[str, tuple[str, str]] = {
+        "1d":  ("2d",   "1h"),
+        "5d":  ("5d",   "1h"),
+        "1mo": ("1mo",  "1d"),
+        "3mo": ("3mo",  "1d"),
+        "6mo": ("6mo",  "1d"),
+        "ytd": ("ytd",  "1d"),
+        "1y":  ("1y",   "1d"),
+        "3y":  ("3y",   "1wk"),
+        "5y":  ("5y",   "1wk"),
+        "max": ("max",  "1mo"),
+    }
+
+    if period == "since_purchase":
+        if not purchase_date_map:
+            return {"history": []}
+        oldest_str = min(v for v in purchase_date_map.values() if v)
+        try:
+            oldest_dt = _dt.fromisoformat(oldest_str).replace(tzinfo=_tz.utc)
+            days = (today - oldest_dt).days
+            if days > 1800:
+                yf_period, interval = "max", "1wk"
+            elif days > 365:
+                yf_period, interval = "5y", "1d"
+            else:
+                yf_period, interval = "2y", "1d"
+        except Exception:
+            yf_period, interval = "5y", "1d"
+    else:
+        yf_period, interval = PERIOD_MAP.get(period, ("1y", "1d"))
+
+    try:
+        raw = yf.download(tickers, period=yf_period, interval=interval,
+                          auto_adjust=True, progress=False)
+        if raw.empty:
+            return {"history": []}
+        if isinstance(raw.columns, _pd.MultiIndex):
+            close = raw["Close"] if "Close" in raw.columns.get_level_values(0) \
+                    else raw.xs("Close", axis=1, level=0)
+        else:
+            close = raw[["Close"]] if "Close" in raw.columns else raw
+            if len(tickers) == 1:
+                close.columns = tickers
+    except Exception:
+        return {"history": []}
+
+    close = close.ffill().dropna(how="all")
+    if close.empty:
+        return {"history": []}
+
+    # Trim to the period's actual start
+    try:
+        if period == "1d":
+            today_str = today.strftime("%Y-%m-%d")
+            mask = [str(idx)[:10] == today_str for idx in close.index]
+            if any(mask):
+                close = close.iloc[[i for i, m in enumerate(mask) if m]]
+            else:
+                last_day = str(close.index[-1])[:10]
+                close = close.iloc[[i for i, idx in enumerate(close.index) if str(idx)[:10] == last_day]]
+        elif period == "since_purchase":
+            oldest_str = min(v for v in purchase_date_map.values() if v)
+            ts = _pd.Timestamp(oldest_str)
+            if ts.tzinfo is None:
+                ts = ts.tz_localize("UTC")
+            close = close[close.index >= ts]
+        elif period == "ytd":
+            ts = _pd.Timestamp(f"{today.year}-01-01", tz="UTC")
+            close = close[close.index >= ts]
+    except Exception:
+        pass
+
+    if close.empty or len(close) < 2:
+        return {"history": []}
+
+    # Build portfolio value time series
+    fmt = "%Y-%m-%d %H:%M" if interval == "1h" else "%Y-%m-%d"
+    history: list[dict] = []
+    for idx, row in close.iterrows():
+        val = 0.0
+        for t in tickers:
+            try:
+                price = float(row.get(t, 0) or 0)
+                if _pd.isna(price):
+                    price = 0.0
+                val += shares_map.get(t, 0) * price
+            except Exception:
+                pass
+        if val > 0:
+            try:
+                date_str = idx.strftime(fmt)
+            except Exception:
+                date_str = str(idx)[:16]
+            history.append({"date": date_str, "value": round(val, 2)})
+
+    if len(history) < 2:
+        return {"history": []}
+
+    # Normalize: express every point as % change from the first point
+    start_val = history[0]["value"]
+    for h in history:
+        h["pct"] = round((h["value"] - start_val) / start_val * 100, 4) if start_val > 0 else 0.0
+
+    end_val = history[-1]["value"]
+    period_pct = round((end_val - start_val) / start_val * 100, 2) if start_val > 0 else 0.0
+    period_amount = round(end_val - start_val, 2)
+
+    return {"history": history, "period_pct": period_pct, "period_amount": period_amount}
+
+
+@router.post("/portfolio-chart")
+async def get_portfolio_chart(
+    body: _PortfolioChartRequest,
+    user_id: str = Depends(get_current_user_id),
+):
+    data = await asyncio.to_thread(_compute_portfolio_chart, body.positions, body.period)
+    return data

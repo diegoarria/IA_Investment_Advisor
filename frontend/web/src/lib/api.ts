@@ -149,6 +149,8 @@ export const market = {
     api.post("/api/market/screener", { sector, query }),
   getPortfolioReturns: (positions: { ticker: string; shares: number; purchase_date?: string | null }[]) =>
     api.post("/api/market/portfolio-returns", { positions }),
+  getPortfolioChart: (positions: { ticker: string; shares: number; purchase_date?: string | null }[], period: string) =>
+    api.post("/api/market/portfolio-chart", { positions, period }),
 };
 
 export const learn = {
