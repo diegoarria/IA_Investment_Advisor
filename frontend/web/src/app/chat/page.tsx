@@ -354,7 +354,7 @@ export default function ChatPage() {
     <div className="h-screen flex flex-col overflow-hidden" style={{ background: "var(--bg)" }}>
       {/* Top bar */}
       <div className="flex items-center justify-between px-4 py-2.5 shrink-0"
-           style={{ borderBottom: "1px solid var(--border)", background: "rgba(9,15,31,0.9)", backdropFilter: "blur(12px)" }}>
+           style={{ borderBottom: "1px solid var(--border)", background: "var(--card)" }}>
         <div className="flex items-center gap-3">
           <button onClick={() => setSidebarOpen(!sidebarOpen)}
                   className="lg:hidden p-1.5 rounded-lg transition-colors hover:bg-white/5"
@@ -569,7 +569,7 @@ export default function ChatPage() {
 
           {/* Input */}
           <div className="shrink-0 px-4 pb-4 pt-3"
-               style={{ borderTop: "1px solid var(--border)", background: "rgba(9,15,31,0.95)", backdropFilter: "blur(12px)" }}>
+               style={{ borderTop: "1px solid var(--border)", background: "var(--card)" }}>
             {remaining === 0 && !isPremium && (
               <div className="max-w-3xl mx-auto mb-3 px-4 py-2.5 rounded-xl flex items-center justify-between"
                    style={{ background: "rgba(244,63,94,0.06)", border: "1px solid rgba(244,63,94,0.2)" }}>
