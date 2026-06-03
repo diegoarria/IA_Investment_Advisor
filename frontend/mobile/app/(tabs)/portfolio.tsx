@@ -573,39 +573,53 @@ export default function PortfolioScreen() {
     rows: { ticker: string; invested: number; stressed: number; diff: number; pct: number; sector: string }[];
   }>(null);
 
-  // ── Simulator 2: compound interest calculator ──────────────────────────
+  // ── Calculadora de Inversión ────────────────────────────────────────────
   const [calcCapital, setCalcCapital] = useState("");
   const [calcMonthly, setCalcMonthly] = useState("");
   const [calcReturn, setCalcReturn]   = useState("");
   const [calcYears, setCalcYears]     = useState("");
+
+  interface CalcBar { year: number; invested: number; returns: number; total: number; }
   const [calcResult, setCalcResult]   = useState<{
     final: number; invested: number; gain: number; pct: number;
-    milestones: { year: number; value: number }[];
+    multiplier: number; realFinal: number;
+    bars: CalcBar[];
   } | null>(null);
 
+  // FV de una anualidad ordinaria mensual
+  const _fv = (pv: number, pmt: number, rMonthly: number, months: number) => {
+    const f = Math.pow(1 + rMonthly, months);
+    return pv * f + (pmt > 0 && rMonthly > 0 ? pmt * (f - 1) / rMonthly : pmt * months);
+  };
+
+  const CHART_YEARS = [1, 5, 10, 15, 20];
+
   const calculateCompound = () => {
-    const pv  = parseFloat(calcCapital)  || 0;
-    const pmt = parseFloat(calcMonthly)  || 0;
-    const ann = parseFloat(calcReturn)   || 0;
-    const yrs = parseFloat(calcYears)    || 0;
+    const pv  = parseFloat(calcCapital) || 0;
+    const pmt = parseFloat(calcMonthly) || 0;
+    const ann = parseFloat(calcReturn)  || 0;
+    const yrs = parseFloat(calcYears)   || 0;
     if (!pv || !ann || !yrs) return;
 
-    const r = ann / 100 / 12;
-    const n = Math.round(yrs * 12);
+    const r       = ann / 100 / 12;           // tasa mensual nominal
+    const rReal   = (ann - 3.5) / 100 / 12;  // tasa mensual real (descontando 3.5% inflación)
+    const n       = Math.round(yrs * 12);
 
-    const fvPV  = pv * Math.pow(1 + r, n);
-    const fvPMT = pmt > 0 ? pmt * (Math.pow(1 + r, n) - 1) / r : 0;
-    const final = fvPV + fvPMT;
-    const invested = pv + pmt * n;
+    const final         = _fv(pv, pmt, r, n);
+    const totalInvested = pv + pmt * n;
+    const gain          = final - totalInvested;
+    const realFinal     = _fv(pv, pmt, Math.max(0.0001, rReal), n); // ajustado por inflación
+    const multiplier    = totalInvested > 0 ? final / totalInvested : 1;
 
-    const milestoneYears = Array.from(new Set([1, 2, 3, 5, 10, Math.round(yrs)].filter((y) => y > 0 && y <= yrs))).sort((a, b) => a - b);
-    const milestones = milestoneYears.map((y) => {
-      const mn = y * 12;
-      const val = pv * Math.pow(1 + r, mn) + (pmt > 0 ? pmt * (Math.pow(1 + r, mn) - 1) / r : 0);
-      return { year: y, value: val };
+    // Barras fijas en 1, 5, 10, 15, 20 años (siempre, sin importar el plazo)
+    const bars: CalcBar[] = CHART_YEARS.map((y) => {
+      const mn       = y * 12;
+      const invested = pv + pmt * mn;
+      const total    = _fv(pv, pmt, r, mn);
+      return { year: y, invested, returns: total - invested, total };
     });
 
-    setCalcResult({ final, invested, gain: final - invested, pct: invested > 0 ? ((final - invested) / invested) * 100 : 0, milestones });
+    setCalcResult({ final, invested: totalInvested, gain, pct: totalInvested > 0 ? (gain / totalInvested) * 100 : 0, multiplier, realFinal, bars });
   };
 
   // ── Stress Test ─────────────────────────────────────────────────────────
@@ -1649,52 +1663,110 @@ export default function PortfolioScreen() {
           </TouchableOpacity>
         </View>
 
-        {calcResult && (
-          <View style={[s.calcResultCard, { backgroundColor: colors.card, borderColor: "#6366f1" }]}>
-            <View style={s.calcResultTop}>
-              <Text style={[s.calcResultLabel, { color: colors.textMuted }]}>Valor final</Text>
-              <Text style={[s.calcResultFinal, { color: "#6366f1" }]}>
-                ${fmtMoney(calcResult.final)}
-              </Text>
-            </View>
-            <View style={[s.calcResultRow, { borderTopColor: colors.border }]}>
-              <View style={s.calcResultItem}>
-                <Text style={[s.calcResultItemLabel, { color: colors.textMuted }]}>Total invertido</Text>
-                <Text style={[s.calcResultItemVal, { color: colors.text }]}>
-                  ${fmtMoney(calcResult.invested)}
+        {calcResult && (() => {
+          const maxTotal = Math.max(...calcResult.bars.map((b) => b.total));
+          const BAR_MAX_H = 150;
+          const yrs = parseFloat(calcYears) || 0;
+          return (
+            <View style={[s.calcResultCard, { backgroundColor: colors.card, borderColor: "#6366f130" }]}>
+
+              {/* ── Hero: valor final ── */}
+              <View style={[s.calcHero, { backgroundColor: "#6366f110" }]}>
+                <Text style={[s.calcHeroLabel, { color: colors.textMuted }]}>
+                  Valor final en {calcYears} {parseInt(calcYears) === 1 ? "año" : "años"}
                 </Text>
-              </View>
-              <View style={[s.calcResultDivider, { backgroundColor: colors.border }]} />
-              <View style={s.calcResultItem}>
-                <Text style={[s.calcResultItemLabel, { color: colors.textMuted }]}>Ganancia neta</Text>
-                <Text style={[s.calcResultItemVal, { color: "#22c55e" }]}>
-                  +${fmtMoney(calcResult.gain)} (+{calcResult.pct.toFixed(0)}%)
+                <Text style={[s.calcHeroValue, { color: "#6366f1" }]}>
+                  ${fmtMoney(calcResult.final)}
                 </Text>
-              </View>
-            </View>
-            <View style={[s.milestoneSection, { borderTopColor: colors.border }]}>
-              <Text style={[s.milestoneTitle, { color: colors.textMuted }]}>Evolución año a año</Text>
-              {calcResult.milestones.map((m) => (
-                <View key={m.year} style={s.milestoneRow}>
-                  <Text style={[s.milestoneYear, { color: colors.textSub }]}>Año {m.year}</Text>
-                  <View style={[s.milestoneBar, { backgroundColor: colors.border }]}>
-                    <View style={[s.milestoneBarFill, { flex: m.value / calcResult.final, backgroundColor: "#6366f1" }]} />
-                    <View style={{ flex: 1 - m.value / calcResult.final }} />
+                <View style={s.calcHeroRow}>
+                  <View style={[s.calcHeroBadge, { backgroundColor: "#22c55e18" }]}>
+                    <Text style={[s.calcHeroBadgeText, { color: "#22c55e" }]}>
+                      ×{calcResult.multiplier.toFixed(1)} tu dinero
+                    </Text>
                   </View>
-                  <Text style={[s.milestoneVal, { color: colors.text }]}>
-                    ${fmtMoney(m.value)}
-                  </Text>
+                  <View style={[s.calcHeroBadge, { backgroundColor: "#6366f118" }]}>
+                    <Text style={[s.calcHeroBadgeText, { color: "#a78bfa" }]}>
+                      +{calcResult.pct.toFixed(0)}% retorno
+                    </Text>
+                  </View>
                 </View>
-              ))}
-            </View>
-            <View style={s.disclaimer}>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                <Ionicons name="information-circle-outline" size={13} color="#6366f1" />
-                <Text style={[s.disclaimerText, { color: "#6366f1" }]}>Cálculo con interés compuesto mensual. Los rendimientos reales varían.</Text>
+              </View>
+
+              {/* ── Stats row ── */}
+              <View style={[s.calcStatsRow, { borderColor: colors.border }]}>
+                {[
+                  { label: "Invertido",    val: `$${fmtMoney(calcResult.invested)}`,  col: colors.textSub },
+                  { label: "Ganancias",    val: `+$${fmtMoney(calcResult.gain)}`,      col: "#22c55e"      },
+                  { label: "Valor real*",  val: `$${fmtMoney(calcResult.realFinal)}`,  col: "#f59e0b"      },
+                ].map((st, i) => (
+                  <View key={st.label} style={[s.calcStatItem, i > 0 && { borderLeftWidth: StyleSheet.hairlineWidth, borderLeftColor: colors.border }]}>
+                    <Text style={[s.calcStatLabel, { color: colors.textMuted }]}>{st.label}</Text>
+                    <Text style={[s.calcStatVal, { color: st.col }]}>{st.val}</Text>
+                  </View>
+                ))}
+              </View>
+
+              {/* ── Bar chart ── */}
+              <View style={s.chartSection}>
+                <Text style={[s.chartTitle, { color: colors.textMuted }]}>Invertido vs Retorno por año</Text>
+
+                <View style={s.chartBars}>
+                  {calcResult.bars.map((bar) => {
+                    const barH   = Math.max(12, (bar.total / maxTotal) * BAR_MAX_H);
+                    const invH   = bar.total > 0 ? (bar.invested / bar.total) * barH : barH;
+                    const retH   = barH - invH;
+                    const isBeyond = yrs > 0 && bar.year > yrs;
+                    return (
+                      <View key={bar.year} style={s.barCol}>
+                        {/* value label */}
+                        <Text style={[s.barTopLabel, { color: isBeyond ? colors.textDim : colors.textSub }]}
+                          numberOfLines={1} adjustsFontSizeToFit>
+                          ${fmtMoney(bar.total)}
+                        </Text>
+                        {/* bar container aligned to bottom */}
+                        <View style={[s.barContainer, { height: BAR_MAX_H }]}>
+                          <View style={[s.barStack, { height: barH, opacity: isBeyond ? 0.45 : 1 }]}>
+                            {retH > 0 && (
+                              <View style={[s.barSegReturns, { height: retH }]} />
+                            )}
+                            <View style={[s.barSegInvested, { height: invH }]} />
+                          </View>
+                        </View>
+                        <Text style={[s.barYearLabel, { color: isBeyond ? colors.textDim : colors.textMuted }]}>
+                          {bar.year}a
+                        </Text>
+                      </View>
+                    );
+                  })}
+                </View>
+
+                {/* Legend */}
+                <View style={s.chartLegend}>
+                  <View style={s.legendItem}>
+                    <View style={[s.legendDot, { backgroundColor: "#6366f1" }]} />
+                    <Text style={[s.legendText, { color: colors.textMuted }]}>Invertido</Text>
+                  </View>
+                  <View style={s.legendItem}>
+                    <View style={[s.legendDot, { backgroundColor: "#22c55e" }]} />
+                    <Text style={[s.legendText, { color: colors.textMuted }]}>Retorno</Text>
+                  </View>
+                  <View style={s.legendItem}>
+                    <View style={[s.legendDot, { backgroundColor: "#f59e0b", width: 8, height: 8, borderRadius: 2 }]} />
+                    <Text style={[s.legendText, { color: colors.textMuted }]}>Opaco = proyección</Text>
+                  </View>
+                </View>
+              </View>
+
+              {/* ── Disclaimer ── */}
+              <View style={[s.calcDisclaimer, { borderColor: "#6366f120", backgroundColor: "#6366f108" }]}>
+                <Ionicons name="information-circle-outline" size={12} color="#a78bfa" />
+                <Text style={[s.calcDisclaimerText, { color: "#a78bfa" }]}>
+                  Interés compuesto mensual. *Valor real descontando 3.5% inflación anual. Rendimientos pasados no garantizan futuros.
+                </Text>
               </View>
             </View>
-          </View>
-        )}
+          );
+        })()}
 
         </View>
         )}
@@ -1956,33 +2028,50 @@ function makeStyles(c: Colors) {
     resultText: { fontSize: 13, lineHeight: 21 },
     disclaimer: { marginTop: 12, backgroundColor: "rgba(234,179,8,0.08)", borderWidth: 1, borderColor: "rgba(234,179,8,0.25)", borderRadius: 10, padding: 10 },
     disclaimerText: { color: "#ca8a04", fontSize: 11, lineHeight: 16 },
-    // Compound interest calculator
-    calcCard: { borderRadius: 18, borderWidth: 1, padding: 16, marginBottom: 14 },
-    calcRow: { flexDirection: "row", gap: 10, marginBottom: 12 },
-    calcField: { flex: 1 },
-    calcLabel: { fontSize: 10, fontWeight: "700", marginBottom: 6, textTransform: "uppercase", letterSpacing: 0.5 },
-    calcInput: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 13, paddingVertical: 11, fontSize: 14 },
-    calcInputWrap: { flexDirection: "row", alignItems: "center", borderWidth: 1, borderRadius: 12, paddingHorizontal: 13, paddingVertical: 11 },
-    calcInputPrefix: { fontSize: 14, fontWeight: "700", marginRight: 4 },
-    calcInputInner: { flex: 1, fontSize: 14, padding: 0 },
-    calcBtn: { backgroundColor: "#6366f1", borderRadius: 14, paddingVertical: 15, alignItems: "center", marginTop: 4 },
-    calcBtnText: { color: "white", fontWeight: "700", fontSize: 15 },
-    calcResultCard: { borderRadius: 18, borderWidth: 1.5, padding: 18, marginBottom: 4 },
-    calcResultTop: { alignItems: "center", marginBottom: 16 },
-    calcResultLabel: { fontSize: 11, fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 },
-    calcResultFinal: { fontSize: 36, fontWeight: "900", letterSpacing: -1 },
-    calcResultRow: { flexDirection: "row", borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 14, marginBottom: 16 },
-    calcResultItem: { flex: 1, alignItems: "center" },
-    calcResultItemLabel: { fontSize: 11, marginBottom: 4, letterSpacing: 0.1 },
-    calcResultItemVal: { fontSize: 14, fontWeight: "800" },
-    calcResultDivider: { width: 1, marginVertical: 4 },
-    milestoneSection: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 14 },
-    milestoneTitle: { fontSize: 10, fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 12 },
-    milestoneRow: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 9 },
-    milestoneYear: { fontSize: 12, fontWeight: "700", width: 46 },
-    milestoneBar: { flex: 1, height: 6, borderRadius: 3, overflow: "hidden", flexDirection: "row" },
-    milestoneBarFill: { height: "100%", borderRadius: 3 },
-    milestoneVal: { fontSize: 12, fontWeight: "700", width: 80, textAlign: "right" },
+    // ── Calculadora de Inversión ─────────────────────────────────────────
+    calcCard:          { borderRadius: 20, borderWidth: 1, padding: 18, marginBottom: 14 },
+    calcRow:           { flexDirection: "row", gap: 10, marginBottom: 14 },
+    calcField:         { flex: 1 },
+    calcLabel:         { fontSize: 10, fontWeight: "700", marginBottom: 6, textTransform: "uppercase", letterSpacing: 0.5 },
+    calcInput:         { borderWidth: 1, borderRadius: 12, paddingHorizontal: 13, paddingVertical: 12, fontSize: 15 },
+    calcInputWrap:     { flexDirection: "row", alignItems: "center", borderWidth: 1, borderRadius: 12, paddingHorizontal: 13, paddingVertical: 12 },
+    calcInputPrefix:   { fontSize: 15, fontWeight: "800", marginRight: 4 },
+    calcInputInner:    { flex: 1, fontSize: 15, padding: 0 },
+    calcBtn:           { backgroundColor: "#6366f1", borderRadius: 14, paddingVertical: 16, alignItems: "center", marginTop: 4,
+                         shadowColor: "#6366f1", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.35, shadowRadius: 10, elevation: 6 },
+    calcBtnText:       { color: "white", fontWeight: "800", fontSize: 16, letterSpacing: 0.2 },
+    // Result card
+    calcResultCard:    { borderRadius: 20, borderWidth: 1, overflow: "hidden", marginBottom: 4 },
+    calcHero:          { padding: 20, alignItems: "center", gap: 6 },
+    calcHeroLabel:     { fontSize: 11, fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.8 },
+    calcHeroValue:     { fontSize: 40, fontWeight: "900", letterSpacing: -1.5 },
+    calcHeroRow:       { flexDirection: "row", gap: 8, marginTop: 4 },
+    calcHeroBadge:     { borderRadius: 20, paddingHorizontal: 12, paddingVertical: 5 },
+    calcHeroBadgeText: { fontSize: 12, fontWeight: "800" },
+    // Stats
+    calcStatsRow:      { flexDirection: "row", borderTopWidth: StyleSheet.hairlineWidth, borderBottomWidth: StyleSheet.hairlineWidth },
+    calcStatItem:      { flex: 1, alignItems: "center", paddingVertical: 14 },
+    calcStatLabel:     { fontSize: 9, fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 5 },
+    calcStatVal:       { fontSize: 13, fontWeight: "800" },
+    // Chart
+    chartSection:      { padding: 16, paddingBottom: 12 },
+    chartTitle:        { fontSize: 10, fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 14 },
+    chartBars:         { flexDirection: "row", alignItems: "flex-end", gap: 6 },
+    barCol:            { flex: 1, alignItems: "center" },
+    barTopLabel:       { fontSize: 9, fontWeight: "700", marginBottom: 4, textAlign: "center" },
+    barContainer:      { justifyContent: "flex-end", width: "100%" },
+    barStack:          { width: "100%", borderRadius: 6, overflow: "hidden" },
+    barSegReturns:     { width: "100%", backgroundColor: "#22c55e" },
+    barSegInvested:    { width: "100%", backgroundColor: "#6366f1" },
+    barYearLabel:      { fontSize: 10, fontWeight: "700", marginTop: 6 },
+    // Legend
+    chartLegend:       { flexDirection: "row", gap: 12, marginTop: 12, flexWrap: "wrap" },
+    legendItem:        { flexDirection: "row", alignItems: "center", gap: 5 },
+    legendDot:         { width: 8, height: 8, borderRadius: 4 },
+    legendText:        { fontSize: 10, fontWeight: "600" },
+    // Disclaimer
+    calcDisclaimer:    { flexDirection: "row", alignItems: "flex-start", gap: 6, margin: 14, marginTop: 0, borderWidth: 1, borderRadius: 10, padding: 10 },
+    calcDisclaimerText:{ fontSize: 10, flex: 1, lineHeight: 15 },
     // Risk Diagnosis card
     diagCard: {
       borderRadius: 18, borderWidth: 1.5, padding: 16, marginBottom: 16,
