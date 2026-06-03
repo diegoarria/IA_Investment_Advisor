@@ -568,7 +568,7 @@ export default function PortfolioPage() {
     { key: "5y",  label: "5A"  }, { key: "max", label: "MÁX" },
   ] as const;
   type PeriodKey = typeof PERIODS[number]["key"];
-  const [selectedPeriod, setSelectedPeriod] = useState<PeriodKey>("since_purchase");
+  const [selectedPeriod, setSelectedPeriod] = useState<PeriodKey>("1y");
   const [periodReturns, setPeriodReturns] = useState<Record<string, PeriodReturn>>({});
   const [loadingReturns, setLoadingReturns] = useState(false);
 
@@ -1056,46 +1056,81 @@ export default function PortfolioPage() {
             <section>
               {/* ── Rendimiento histórico del portafolio ── */}
               <div className="mb-4">
-                {/* Chips scrollables — label + mini % de cada período */}
-                <div className="overflow-x-auto scrollbar-none -mx-1 mb-2">
-                  <div className="flex gap-1.5 px-1 pb-1" style={{ minWidth: "max-content" }}>
-                    {PERIODS.map(({ key, label }) => {
-                      const ret = periodReturns[key];
-                      const isSelected = selectedPeriod === key;
-                      const chipUp = ret ? ret.pct >= 0 : null;
-                      return (
-                        <button
-                          key={key}
-                          onClick={() => setSelectedPeriod(key)}
-                          className="flex flex-col items-center px-3 py-2 rounded-xl transition-all shrink-0"
-                          style={{
-                            minWidth: "50px",
-                            background: isSelected
-                              ? (chipUp === null ? "rgba(0,168,94,0.12)" : chipUp ? "rgba(34,197,94,0.15)" : "rgba(239,68,68,0.15)")
-                              : "var(--raised)",
-                            border: `1px solid ${isSelected
-                              ? (chipUp === null ? "rgba(0,168,94,0.4)" : chipUp ? "rgba(34,197,94,0.4)" : "rgba(239,68,68,0.4)")
-                              : "var(--border)"}`,
-                          }}>
-                          <span className="text-[10px] font-bold mb-0.5"
-                                style={{ color: isSelected ? "var(--text)" : "var(--muted)" }}>
-                            {label}
+                <p className="text-[10px] font-extrabold uppercase tracking-wider mb-2"
+                   style={{ color: "var(--dim)" }}>
+                  Rendimiento histórico · Yahoo Finance
+                </p>
+
+                {/* Grid de períodos estándar — todos visibles de un vistazo */}
+                <div className="grid grid-cols-5 gap-1.5 mb-2">
+                  {PERIODS.filter(({ key }) => key !== "since_purchase").map(({ key, label }) => {
+                    const ret = periodReturns[key];
+                    const isSel = selectedPeriod === key;
+                    const isUp = ret ? ret.pct >= 0 : null;
+                    const valColor = isUp === null ? "var(--dim)" : isUp ? "#22c55e" : "#ef4444";
+                    return (
+                      <button
+                        key={key}
+                        onClick={() => setSelectedPeriod(key)}
+                        className="flex flex-col items-center py-2.5 rounded-xl transition-all"
+                        style={{
+                          background: isSel
+                            ? (isUp === null ? "rgba(0,168,94,0.10)" : isUp ? "rgba(34,197,94,0.13)" : "rgba(239,68,68,0.13)")
+                            : "var(--raised)",
+                          border: `1px solid ${isSel
+                            ? (isUp === null ? "rgba(0,168,94,0.35)" : isUp ? "rgba(34,197,94,0.4)" : "rgba(239,68,68,0.4)")
+                            : "transparent"}`,
+                        }}>
+                        <span className="text-[10px] font-semibold mb-0.5"
+                              style={{ color: isSel ? "var(--sub)" : "var(--muted)" }}>
+                          {label}
+                        </span>
+                        {loadingReturns ? (
+                          <span className="text-[10px]" style={{ color: "var(--dim)" }}>···</span>
+                        ) : ret ? (
+                          <span className="text-[11px] font-black" style={{ color: valColor }}>
+                            {isUp ? "+" : ""}{ret.pct.toFixed(2)}%
                           </span>
-                          {loadingReturns ? (
-                            <span className="text-[9px]" style={{ color: "var(--dim)" }}>···</span>
-                          ) : ret ? (
-                            <span className="text-[10px] font-extrabold"
-                                  style={{ color: chipUp ? "#22c55e" : "#ef4444" }}>
-                              {chipUp ? "+" : ""}{ret.pct.toFixed(1)}%
-                            </span>
-                          ) : (
-                            <span className="text-[9px]" style={{ color: "var(--dim)" }}>—</span>
-                          )}
-                        </button>
-                      );
-                    })}
-                  </div>
+                        ) : (
+                          <span className="text-[10px]" style={{ color: "var(--dim)" }}>—</span>
+                        )}
+                      </button>
+                    );
+                  })}
                 </div>
+
+                {/* "Desde compra" — solo si alguna posición tiene fecha de compra */}
+                {positions.some((p) => p.purchaseDate) && (() => {
+                  const r = periodReturns["since_purchase"];
+                  const up = r ? r.pct >= 0 : true;
+                  const isSel = selectedPeriod === "since_purchase";
+                  return (
+                    <button
+                      onClick={() => setSelectedPeriod("since_purchase")}
+                      className="w-full flex items-center justify-between px-3 py-2 rounded-xl mb-2 transition-all"
+                      style={{
+                        background: isSel ? (up ? "rgba(34,197,94,0.10)" : "rgba(239,68,68,0.10)") : "var(--raised)",
+                        border: `1px solid ${isSel ? (up ? "rgba(34,197,94,0.35)" : "rgba(239,68,68,0.35)") : "var(--border)"}`,
+                      }}>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] font-bold uppercase tracking-wide"
+                              style={{ color: "var(--muted)" }}>Desde compra</span>
+                        {r?.date && (
+                          <span className="text-[9px]" style={{ color: "var(--dim)" }}>desde {r.date}</span>
+                        )}
+                      </div>
+                      {r ? (
+                        <span className="text-sm font-black" style={{ color: up ? "#22c55e" : "#ef4444" }}>
+                          {up ? "+" : ""}{r.pct.toFixed(2)}%
+                        </span>
+                      ) : (
+                        <span className="text-[10px]" style={{ color: "var(--dim)" }}>
+                          {loadingReturns ? "···" : "—"}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })()}
 
                 {/* Tarjeta principal: gráfica + stats + breakdown */}
                 {(() => {
