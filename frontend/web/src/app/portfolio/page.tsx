@@ -521,6 +521,7 @@ export default function PortfolioPage() {
 
   // Stress test
   const [stressScenario, setStressScenario] = useState<string|null>(null);
+  const [selectedSector, setSelectedSector] = useState<string | null>(null);
   type StressResult = { total:number; stressed:number; diff:number; pct:number; rows:{ticker:string;invested:number;stressed:number;diff:number;pct:number;sector:string}[] };
   const [stressResult, setStressResult] = useState<StressResult|null>(null);
 
@@ -1621,17 +1622,97 @@ export default function PortfolioPage() {
                   <span className="text-[10px]" style={{ color:"var(--dim)" }}>Especulativo</span>
                 </div>
                 {Object.keys(diagnosis.sectorPcts).length>0 && (
-                  <div className="flex flex-wrap gap-1.5 mb-3">
-                    {Object.entries(diagnosis.sectorPcts).sort((a,b)=>b[1]-a[1]).map(([sector,pct]) => {
-                      const col = SECTOR_COLOR[sector] ?? "#94a3b8";
-                      return (
-                        <span key={sector} className="text-xs px-2.5 py-1 rounded-lg font-bold"
-                              style={{ background:`${col}18`, border:`1px solid ${col}40`, color: col }}>
-                          {sector} {pct}%
-                        </span>
+                  <>
+                    <div className="flex flex-wrap gap-1.5 mb-3">
+                      {Object.entries(diagnosis.sectorPcts).sort((a,b)=>b[1]-a[1]).map(([sector,pct]) => {
+                        const col = SECTOR_COLOR[sector] ?? "#94a3b8";
+                        const isSelected = selectedSector === sector;
+                        return (
+                          <button
+                            key={sector}
+                            onClick={() => setSelectedSector(isSelected ? null : sector)}
+                            className="text-xs px-2.5 py-1 rounded-lg font-bold transition-all"
+                            style={{
+                              background: isSelected ? col : `${col}18`,
+                              border: `1px solid ${isSelected ? col : col+"40"}`,
+                              color: isSelected ? "#fff" : col,
+                            }}
+                          >
+                            {sector} {pct}%
+                          </button>
+                        );
+                      })}
+                    </div>
+                    {selectedSector && (() => {
+                      const col = SECTOR_COLOR[selectedSector] ?? "#94a3b8";
+                      const sectorPositions = positions.filter(
+                        (p) => (TICKER_SECTOR[p.ticker] ?? "Otro") === selectedSector
                       );
-                    })}
-                  </div>
+                      const sectorTotal = sectorPositions.reduce((sum, p) => {
+                        const price = (prices[p.ticker]?.price ?? p.avgPrice) * fxRate;
+                        return sum + p.shares * price;
+                      }, 0);
+                      return (
+                        <div className="rounded-xl p-3 mb-3 border"
+                             style={{ background:`${col}0e`, borderColor:`${col}40` }}>
+                          <div className="flex items-center justify-between mb-2.5">
+                            <span className="text-xs font-extrabold" style={{ color: col }}>
+                              Posiciones · {selectedSector}
+                            </span>
+                            <button
+                              onClick={() => setSelectedSector(null)}
+                              className="text-[10px] font-semibold transition-opacity hover:opacity-60"
+                              style={{ color:"var(--muted)" }}
+                            >
+                              Cerrar ✕
+                            </button>
+                          </div>
+                          <div className="space-y-1.5">
+                            {sectorPositions.map((pos) => {
+                              const price = (prices[pos.ticker]?.price ?? pos.avgPrice) * fxRate;
+                              const val = pos.shares * price;
+                              const pctOfSector = sectorTotal > 0 ? Math.round((val / sectorTotal) * 100) : 0;
+                              return (
+                                <div key={pos.id}
+                                     className="flex items-center justify-between gap-2 px-2.5 py-2 rounded-lg"
+                                     style={{ background:"var(--bg)" }}>
+                                  <div className="flex items-center gap-2 min-w-0">
+                                    <span className="text-xs font-extrabold shrink-0" style={{ color: col }}>
+                                      {pos.ticker}
+                                    </span>
+                                    {pos.name && (
+                                      <span className="text-[11px] truncate" style={{ color:"var(--sub)" }}>
+                                        {pos.name}
+                                      </span>
+                                    )}
+                                  </div>
+                                  <div className="flex items-center gap-3 shrink-0 text-right">
+                                    <span className="text-[11px]" style={{ color:"var(--muted)" }}>
+                                      {pos.shares} acc.
+                                    </span>
+                                    <span className="text-xs font-bold" style={{ color:"var(--text)" }}>
+                                      {currencySymbol}{val.toLocaleString("en-US",{maximumFractionDigits:0})}
+                                    </span>
+                                    <span className="text-[10px] font-bold w-8 text-right" style={{ color: col }}>
+                                      {pctOfSector}%
+                                    </span>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                          <div className="flex justify-end mt-2 pt-2 border-t" style={{ borderColor:`${col}30` }}>
+                            <span className="text-xs font-extrabold" style={{ color:"var(--muted)" }}>
+                              Total sector:&nbsp;
+                              <span style={{ color: col }}>
+                                {currencySymbol}{sectorTotal.toLocaleString("en-US",{maximumFractionDigits:0})}
+                              </span>
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })()}
+                  </>
                 )}
               </section>
             );
