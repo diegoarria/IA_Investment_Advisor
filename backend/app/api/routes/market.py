@@ -830,33 +830,45 @@ def _compute_portfolio_returns(positions: list[_PortfolioReturnsItem]) -> dict:
     for key, delta in PERIODS:
         try:
             if key == "ytd":
-                cutoff = ytd_start  # naive Timestamp
+                cutoff = ytd_start
             else:
-                cutoff = _pd.Timestamp(today - delta)  # naive (today is naive from _dt.now())
+                cutoff = _pd.Timestamp(today - delta)
 
             subset = close[close.index >= cutoff]
             if subset.empty:
                 continue
 
             start_row = subset.iloc[0]
-            start_val = sum(
-                shares_map.get(t, 0) * _safe_price(start_row, t)
-                for t in tickers if t in close.columns
-            )
-            if start_val <= 0:
-                continue
 
-            # Per-position breakdown
-            breakdown = {}
+            # For each position, use its own cost basis:
+            # - Bought BEFORE period start → price at period start (normal)
+            # - Bought AFTER period start  → avg_price paid (only counts from purchase)
+            start_cost = 0.0
+            end_value  = 0.0
+            breakdown  = {}
             for t in tickers:
                 if t not in close.columns:
                     continue
-                sp = _safe_price(start_row, t)
+                shares = shares_map.get(t, 0)
                 cp = _safe_price(current_row, t)
+                pd_str = purchase_date_map.get(t)
+                if pd_str and _pd.Timestamp(pd_str) > cutoff:
+                    # Bought mid-period: cost is what we actually paid
+                    sp = avg_price_map.get(t) or _safe_price(
+                        close[close.index >= _pd.Timestamp(pd_str)].iloc[0], t
+                    )
+                else:
+                    # Held since before period start: use price at start of period
+                    sp = _safe_price(start_row, t)
                 if sp > 0 and cp > 0:
+                    start_cost += shares * sp
+                    end_value  += shares * cp
                     breakdown[t] = round((cp - sp) / sp * 100, 2)
 
-            # SPY benchmark
+            if start_cost <= 0:
+                continue
+
+            # SPY benchmark (always from period start, independent of positions)
             spy_pct = None
             if spy_current > 0 and "SPY" in close.columns:
                 spy_start = _safe_price(start_row, "SPY")
@@ -864,8 +876,8 @@ def _compute_portfolio_returns(positions: list[_PortfolioReturnsItem]) -> dict:
                     spy_pct = round((spy_current - spy_start) / spy_start * 100, 2)
 
             results[key] = {
-                "pct": round((current_val - start_val) / start_val * 100, 2),
-                "amount": round(current_val - start_val, 2),
+                "pct":    round((end_value - start_cost) / start_cost * 100, 2),
+                "amount": round(end_value - start_cost, 2),
                 "breakdown": breakdown,
                 **({"spy_pct": spy_pct} if spy_pct is not None else {}),
             }
