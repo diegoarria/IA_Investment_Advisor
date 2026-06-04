@@ -740,9 +740,10 @@ def _compute_portfolio_returns(positions: list[_PortfolioReturnsItem]) -> dict:
     for key, delta in PERIODS:
         try:
             if key == "ytd":
-                cutoff = ytd_start
+                cutoff = ytd_start  # already naive (built from string)
             else:
-                cutoff = _pd.Timestamp(today - delta)  # type: ignore[operator]
+                # .strftime strips timezone → _pd.Timestamp from string is naive
+                cutoff = _pd.Timestamp((today - delta).strftime("%Y-%m-%d"))  # type: ignore[operator]
 
             subset = close[close.index >= cutoff]
             if subset.empty:
