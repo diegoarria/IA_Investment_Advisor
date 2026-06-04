@@ -1153,6 +1153,34 @@ export default function PortfolioPage() {
             </div>
           ) : positions.length > 0 ? (
             <section>
+              {/* Totals card */}
+              <div className="rounded-2xl border-2 p-5 mb-4" style={{ borderColor:"var(--accent-l)22", background:"var(--card)", borderTopColor:"var(--accent-l)" }}>
+                {loadingPrices ? (
+                  <div className="flex items-center gap-2" style={{ color:"var(--muted)" }}>
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                    <span className="text-sm">Actualizando precios...</span>
+                  </div>
+                ) : (
+                  <>
+                    <div className="flex items-center justify-between mb-1">
+                      <p className="text-xs font-bold uppercase tracking-wider" style={{ color:"var(--muted)" }}>Valor actual del portafolio</p>
+                      {portfolioCurrency !== "USD" && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background:"var(--raised)", color:"var(--muted)" }}>{portfolioCurrency}</span>}
+                    </div>
+                    <p className="text-3xl font-black" style={{ color:"var(--text)" }}>
+                      {currencySymbol}{totals.current.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})}
+                    </p>
+                    <div className="flex items-center justify-between mt-1">
+                      <span className="text-xs" style={{ color:"var(--muted)" }}>
+                        Invertido: {currencySymbol}{totals.invested.toLocaleString("en-US",{minimumFractionDigits:2})}
+                      </span>
+                      <span className="text-sm font-bold" style={{ color:totals.diff>=0?"#22c55e":"#ef4444" }}>
+                        {totals.diff>=0?"+":""}{currencySymbol}{Math.abs(totals.diff).toLocaleString("en-US",{minimumFractionDigits:2})} ({totals.pct>=0?"+":""}{totals.pct.toFixed(2)}%)
+                      </span>
+                    </div>
+                  </>
+                )}
+              </div>
+
               {/* ── Rendimiento histórico del portafolio ── */}
               <div className="mb-4">
                 <p className="text-[10px] font-extrabold uppercase tracking-wider mb-2"
@@ -1398,34 +1426,6 @@ export default function PortfolioPage() {
                     </div>
                   );
                 })()}
-              </div>
-
-              {/* Totals card */}
-              <div className="rounded-2xl border-2 p-5 mb-3" style={{ borderColor:"var(--accent-l)22", background:"var(--card)", borderTopColor:"var(--accent-l)" }}>
-                {loadingPrices ? (
-                  <div className="flex items-center gap-2" style={{ color:"var(--muted)" }}>
-                    <RefreshCw className="w-4 h-4 animate-spin" />
-                    <span className="text-sm">Actualizando precios...</span>
-                  </div>
-                ) : (
-                  <>
-                    <div className="flex items-center justify-between mb-1">
-                      <p className="text-xs font-bold uppercase tracking-wider" style={{ color:"var(--muted)" }}>Valor actual del portafolio</p>
-                      {portfolioCurrency !== "USD" && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background:"var(--raised)", color:"var(--muted)" }}>{portfolioCurrency}</span>}
-                    </div>
-                    <p className="text-3xl font-black" style={{ color:"var(--text)" }}>
-                      {currencySymbol}{totals.current.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})}
-                    </p>
-                    <div className="flex items-center justify-between mt-1">
-                      <span className="text-xs" style={{ color:"var(--muted)" }}>
-                        Invertido: {currencySymbol}{totals.invested.toLocaleString("en-US",{minimumFractionDigits:2})}
-                      </span>
-                      <span className="text-sm font-bold" style={{ color:totals.diff>=0?"#22c55e":"#ef4444" }}>
-                        {totals.diff>=0?"+":""}{currencySymbol}{Math.abs(totals.diff).toLocaleString("en-US",{minimumFractionDigits:2})} ({totals.pct>=0?"+":""}{totals.pct.toFixed(2)}%)
-                      </span>
-                    </div>
-                  </>
-                )}
               </div>
 
               {/* Sort chips */}

@@ -1316,6 +1316,35 @@ export default function PortfolioScreen() {
                 <Text style={{ color: "#f59315", fontSize: 12, fontWeight: "600" }}>Sin conexión — precios desactualizados</Text>
               </View>
             )}
+            {/* Totals card — arriba del rendimiento histórico */}
+            <View style={[s.totalsCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              {loadingPrices ? (
+                <ActivityIndicator color="#22c55e" />
+              ) : (
+                <>
+                  <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 2 }}>
+                    <Text style={[s.totalsLabel, { color: colors.textMuted }]}>Valor actual del portafolio</Text>
+                    {portfolioCurrency !== "USD" && (
+                      <View style={{ backgroundColor: colors.bgRaised, borderRadius: 8, paddingHorizontal: 6, paddingVertical: 2 }}>
+                        <Text style={{ fontSize: 10, fontWeight: "700", color: colors.textMuted }}>{portfolioCurrency}</Text>
+                      </View>
+                    )}
+                  </View>
+                  <Text style={[s.totalsValue, { color: colors.text }]}>
+                    {currencySymbol}{totals.current.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </Text>
+                  <View style={s.totalsRow}>
+                    <Text style={[s.totalsInvested, { color: colors.textMuted }]}>
+                      Invertido: {currencySymbol}{totals.invested.toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                    </Text>
+                    <Text style={[s.totalsDiff, { color: totals.diff >= 0 ? "#22c55e" : "#ef4444" }]}>
+                      {totals.diff >= 0 ? "+" : ""}{currencySymbol}{Math.abs(totals.diff).toLocaleString("en-US", { minimumFractionDigits: 2 })} ({totals.pct >= 0 ? "+" : ""}{totals.pct.toFixed(2)}%)
+                    </Text>
+                  </View>
+                </>
+              )}
+            </View>
+
             {/* ── Rendimiento histórico — grid 2×5 + gráfica ── */}
             <View style={{ marginBottom: 12 }}>
               <Text style={{ fontSize: 9, fontWeight: "800", color: colors.textDim, letterSpacing: 1.2, textTransform: "uppercase", marginBottom: 8 }}>
@@ -1527,34 +1556,6 @@ export default function PortfolioScreen() {
                   </View>
                 );
               })()}
-            </View>
-
-            <View style={[s.totalsCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-              {loadingPrices ? (
-                <ActivityIndicator color="#22c55e" />
-              ) : (
-                <>
-                  <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 2 }}>
-                    <Text style={[s.totalsLabel, { color: colors.textMuted }]}>Valor actual del portafolio</Text>
-                    {portfolioCurrency !== "USD" && (
-                      <View style={{ backgroundColor: colors.bgRaised, borderRadius: 8, paddingHorizontal: 6, paddingVertical: 2 }}>
-                        <Text style={{ fontSize: 10, fontWeight: "700", color: colors.textMuted }}>{portfolioCurrency}</Text>
-                      </View>
-                    )}
-                  </View>
-                  <Text style={[s.totalsValue, { color: colors.text }]}>
-                    {currencySymbol}{totals.current.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                  </Text>
-                  <View style={s.totalsRow}>
-                    <Text style={[s.totalsInvested, { color: colors.textMuted }]}>
-                      Invertido: {currencySymbol}{totals.invested.toLocaleString("en-US", { minimumFractionDigits: 2 })}
-                    </Text>
-                    <Text style={[s.totalsDiff, { color: totals.diff >= 0 ? "#22c55e" : "#ef4444" }]}>
-                      {totals.diff >= 0 ? "+" : ""}{currencySymbol}{Math.abs(totals.diff).toLocaleString("en-US", { minimumFractionDigits: 2 })} ({totals.pct >= 0 ? "+" : ""}{totals.pct.toFixed(2)}%)
-                    </Text>
-                  </View>
-                </>
-              )}
             </View>
 
             {/* Sort chips */}
