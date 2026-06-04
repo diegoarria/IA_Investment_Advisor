@@ -736,12 +736,12 @@ export default function ProfileScreen() {
             {/* Link row */}
             <View style={[s.referralLinkRow, { backgroundColor: colors.bg, borderColor: colors.border }]}>
               <Text style={[s.referralLink, { color: colors.textSub }]} numberOfLines={1}>
-                {referralCode ? `nuvosai.app/join?ref=${referralCode}` : "Cargando..."}
+                {referralCode ? `nuvosai.com/join?ref=${referralCode}` : "Cargando..."}
               </Text>
               <TouchableOpacity
                 onPress={() => {
                   if (!referralCode) return;
-                  Share.share({ message: `https://nuvosai.app/join?ref=${referralCode}` });
+                  Share.share({ message: `https://nuvosai.com/join?ref=${referralCode}` });
                   setCopiedLink(true);
                   setTimeout(() => setCopiedLink(false), 2000);
                 }}
@@ -757,8 +757,8 @@ export default function ProfileScreen() {
               onPress={() => {
                 if (!referralCode) return;
                 Share.share({
-                  message: `Estoy usando Nuvos AI — el mejor mentor de inversiones con IA. Únete gratis 👉 https://nuvosai.app/join?ref=${referralCode}`,
-                  url: `https://nuvosai.app/join?ref=${referralCode}`,
+                  message: `Estoy usando Nuvos AI — el mejor mentor de inversiones con IA. Únete gratis 👉 https://nuvosai.com/join?ref=${referralCode}`,
+                  url: `https://nuvosai.com/join?ref=${referralCode}`,
                 });
               }}
             >
