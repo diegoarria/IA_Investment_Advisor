@@ -169,7 +169,7 @@ export default function AppSidebar({ open, onClose }: Props) {
               {/* Stats: edad, ingresos, aportación */}
               <div className="grid grid-cols-3 gap-1.5 mb-3">
                 {[
-                  { label: "Edad", value: `${Math.floor((Date.now() - new Date(profile.birth_date).getTime()) / (365.25 * 24 * 3600 * 1000))}`, sub: "años" },
+                  { label: "Edad", value: (() => { if (!profile.birth_date) return "—"; const sep = profile.birth_date.includes("/") ? "/" : "-"; const p = profile.birth_date.split(sep).map(Number); const [y, m, d] = sep === "-" ? p : [p[2], p[1], p[0]]; const t = new Date(); let a = t.getFullYear() - y; if (t.getMonth() + 1 < m || (t.getMonth() + 1 === m && t.getDate() < d)) a--; return String(Math.max(0, a)); })(), sub: "años" },
                   { label: "Ingresos", value: `$${Number(profile.monthly_income).toLocaleString()}`, sub: "/mes" },
                   { label: "Inversión", value: `$${Number(profile.monthly_contribution).toLocaleString()}`, sub: "/mes" },
                 ].map(({ label, value, sub }) => (
