@@ -5,6 +5,10 @@ import ThemeProvider from "@/components/ThemeProvider";
 export const metadata: Metadata = {
   title: "Nuvos AI — Tu mentor de inversiones",
   description: "Aprende a pensar como un inversor profesional",
+  icons: {
+    icon: "/logo.png",
+    apple: "/logo.png",
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
