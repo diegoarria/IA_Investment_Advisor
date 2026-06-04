@@ -11,7 +11,7 @@ async def send_email(to: str, subject: str, html: str) -> bool:
                 "https://api.resend.com/emails",
                 headers={"Authorization": f"Bearer {settings.resend_api_key}"},
                 json={
-                    "from": "Nuvos AI <resumen@nuvosai.app>",
+                    "from": "Nuvos AI <resumen@nuvosai.com>",
                     "to": [to],
                     "subject": subject,
                     "html": html,
