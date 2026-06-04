@@ -815,8 +815,10 @@ def _compute_portfolio_returns(positions: list[_PortfolioReturnsItem]) -> dict:
 
             if total_cost > 0:
                 spy_pct_buy = round((spy_current - spy_start_buy) / spy_start_buy * 100, 2) if spy_start_buy > 0 else None
+                avg_pct = round(sum(breakdown.values()) / len(breakdown), 2) if breakdown else None
                 results["since_purchase"] = {
                     "pct": round(total_gain / total_cost * 100, 2),
+                    "avg_pct": avg_pct,
                     "amount": round(total_gain, 2),
                     "date": oldest_date_str,
                     "breakdown": breakdown,

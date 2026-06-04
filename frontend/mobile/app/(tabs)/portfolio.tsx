@@ -566,7 +566,7 @@ export default function PortfolioScreen() {
   const [revealedPrices, setRevealedPrices] = useState<Set<string>>(new Set());
 
   // Period returns
-  type PeriodReturn = { pct: number; amount: number; date?: string; breakdown?: Record<string, number>; spy_pct?: number };
+  type PeriodReturn = { pct: number; avg_pct?: number; amount: number; date?: string; breakdown?: Record<string, number>; spy_pct?: number };
   const PERIODS = [
     { key: "since_purchase", label: "Compra" },
     { key: "1d",  label: "1D"  }, { key: "5d",  label: "5D"  },
@@ -1335,31 +1335,45 @@ export default function PortfolioScreen() {
                 })}
               </View>
 
-              {/* "Desde compra" — solo si hay fechas de compra */}
-              {positions.some((p) => p.purchaseDate) && (() => {
+              {/* "Desde compra" — siempre visible */}
+              {(() => {
                 const r = periodReturns["since_purchase"];
                 const isSel = selectedPeriod === "since_purchase";
                 const up = r ? r.pct >= 0 : true;
+                const avgUp = r?.avg_pct !== undefined ? r.avg_pct >= 0 : up;
                 return (
                   <TouchableOpacity
                     onPress={() => setSelectedPeriod("since_purchase")}
                     style={{
                       flexDirection: "row", alignItems: "center", justifyContent: "space-between",
-                      paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12, marginBottom: 6,
+                      paddingHorizontal: 12, paddingVertical: 10, borderRadius: 12, marginBottom: 6,
                       backgroundColor: isSel ? (up ? "#22c55e0D" : "#ef44440D") : colors.bgRaised,
                       borderWidth: 1,
                       borderColor: isSel ? (up ? "#22c55e40" : "#ef444440") : colors.border,
                     }}>
                     <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
                       <Text style={{ fontSize: 10, fontWeight: "700", color: colors.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>Desde compra</Text>
-                      {r?.date && <Text style={{ fontSize: 9, color: colors.textDim }}>desde {r.date}</Text>}
+                      {r?.date && <Text style={{ fontSize: 9, color: colors.textDim }}>· {r.date}</Text>}
                     </View>
                     {r ? (
-                      <Text style={{ fontSize: 14, fontWeight: "900", color: up ? "#22c55e" : "#ef4444" }}>
-                        {up ? "+" : ""}{r.pct.toFixed(2)}%
-                      </Text>
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+                        {r.avg_pct !== undefined && (
+                          <View style={{ alignItems: "flex-end" }}>
+                            <Text style={{ fontSize: 9, fontWeight: "600", color: colors.textDim }}>promedio</Text>
+                            <Text style={{ fontSize: 12, fontWeight: "900", color: avgUp ? "#22c55e" : "#ef4444" }}>
+                              {avgUp ? "+" : ""}{r.avg_pct.toFixed(2)}%
+                            </Text>
+                          </View>
+                        )}
+                        <View style={{ alignItems: "flex-end" }}>
+                          <Text style={{ fontSize: 9, fontWeight: "600", color: colors.textDim }}>portafolio</Text>
+                          <Text style={{ fontSize: 14, fontWeight: "900", color: up ? "#22c55e" : "#ef4444" }}>
+                            {up ? "+" : ""}{r.pct.toFixed(2)}%
+                          </Text>
+                        </View>
+                      </View>
                     ) : (
-                      <Text style={{ fontSize: 10, color: colors.textDim }}>{loadingReturns ? "···" : "—"}</Text>
+                      <Text style={{ fontSize: 10, color: colors.textDim }}>{loadingReturns ? "···" : "Agrega precio de compra"}</Text>
                     )}
                   </TouchableOpacity>
                 );

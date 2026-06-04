@@ -569,7 +569,7 @@ export default function PortfolioPage() {
   }, [fetchPrices]);
 
   // Period returns
-  type PeriodReturn = { pct: number; amount: number; date?: string; breakdown?: Record<string, number>; spy_pct?: number };
+  type PeriodReturn = { pct: number; avg_pct?: number; amount: number; date?: string; breakdown?: Record<string, number>; spy_pct?: number };
   const PERIODS = [
     { key: "since_purchase", label: "Compra" },
     { key: "1d",  label: "1D"  }, { key: "5d",  label: "5D"  },
@@ -1188,15 +1188,16 @@ export default function PortfolioPage() {
                   })}
                 </div>
 
-                {/* "Desde compra" — solo si alguna posición tiene fecha de compra */}
-                {positions.some((p) => p.purchaseDate) && (() => {
+                {/* "Desde compra" — siempre visible si hay datos */}
+                {(() => {
                   const r = periodReturns["since_purchase"];
                   const up = r ? r.pct >= 0 : true;
                   const isSel = selectedPeriod === "since_purchase";
+                  const avgUp = r?.avg_pct !== undefined ? r.avg_pct >= 0 : up;
                   return (
                     <button
                       onClick={() => setSelectedPeriod("since_purchase")}
-                      className="w-full flex items-center justify-between px-3 py-2 rounded-xl mb-2 transition-all"
+                      className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl mb-2 transition-all"
                       style={{
                         background: isSel ? (up ? "rgba(34,197,94,0.10)" : "rgba(239,68,68,0.10)") : "var(--raised)",
                         border: `1px solid ${isSel ? (up ? "rgba(34,197,94,0.35)" : "rgba(239,68,68,0.35)") : "var(--border)"}`,
@@ -1205,16 +1206,29 @@ export default function PortfolioPage() {
                         <span className="text-[10px] font-bold uppercase tracking-wide"
                               style={{ color: "var(--muted)" }}>Desde compra</span>
                         {r?.date && (
-                          <span className="text-[9px]" style={{ color: "var(--dim)" }}>desde {r.date}</span>
+                          <span className="text-[9px]" style={{ color: "var(--dim)" }}>· {r.date}</span>
                         )}
                       </div>
                       {r ? (
-                        <span className="text-sm font-black" style={{ color: up ? "#22c55e" : "#ef4444" }}>
-                          {up ? "+" : ""}{r.pct.toFixed(2)}%
-                        </span>
+                        <div className="flex items-center gap-3">
+                          {r.avg_pct !== undefined && (
+                            <div className="flex flex-col items-end">
+                              <span className="text-[9px] font-semibold" style={{ color: "var(--dim)" }}>promedio</span>
+                              <span className="text-xs font-black" style={{ color: avgUp ? "#22c55e" : "#ef4444" }}>
+                                {avgUp ? "+" : ""}{r.avg_pct.toFixed(2)}%
+                              </span>
+                            </div>
+                          )}
+                          <div className="flex flex-col items-end">
+                            <span className="text-[9px] font-semibold" style={{ color: "var(--dim)" }}>portafolio</span>
+                            <span className="text-sm font-black" style={{ color: up ? "#22c55e" : "#ef4444" }}>
+                              {up ? "+" : ""}{r.pct.toFixed(2)}%
+                            </span>
+                          </div>
+                        </div>
                       ) : (
                         <span className="text-[10px]" style={{ color: "var(--dim)" }}>
-                          {loadingReturns ? "···" : "—"}
+                          {loadingReturns ? "···" : "Agrega precio de compra"}
                         </span>
                       )}
                     </button>
