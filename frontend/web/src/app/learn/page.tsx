@@ -1,14 +1,14 @@
 "use client";
 
 import AppSidebar from "@/components/AppSidebar";
-import { useState, useMemo, useRef, useEffect } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { chat as chatApi } from "@/lib/api";
 import { useAuthStore, useLearnStore } from "@/lib/store";
-import { Search, Menu, X, Loader2, Trophy } from "lucide-react";
+import { Search, Menu, X, Trophy } from "lucide-react";
 
 const CATEGORIES = [
   { id: "all",         emoji: "🗂️",  title: "Todo" },
@@ -234,10 +234,9 @@ export default function LearnPage() {
 
   const [search, setSearch] = useState("");
   const [selectedCat, setSelectedCat] = useState("all");
-  const [modal, setModal] = useState<{ title: string; prompt: string } | null>(null);
+  const [modal, setModal] = useState<{ title: string; emoji: string } | null>(null);
   const [content, setContent] = useState("");
   const [streaming, setStreaming] = useState(false);
-  const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => { if (!isAuthenticated) router.push("/"); }, [isAuthenticated]);
   useEffect(() => { initStreak(); }, []);
@@ -251,14 +250,25 @@ export default function LearnPage() {
     });
   }, [search, selectedCat]);
 
-  const openTopic = async (title: string, prompt: string) => {
-    setModal({ title, prompt });
+  const openTopic = async (title: string, _prompt: string, emoji = "📚") => {
+    setModal({ title, emoji });
     setContent("");
     setStreaming(true);
     markTopicCompleted();
+    // Prompt flashcard: breve, estructurado, ~70 palabras → respuesta en <3 seg
+    const flashcard = `Eres un mentor de finanzas. Explica "${title}" en formato FLASHCARD — exactamente esta estructura, máximo 70 palabras en total, en español:
+
+**${title}**
+[Definición en 1 oración directa]
+
+• [Clave 1]
+• [Clave 2]
+• [Clave 3]
+
+💡 *Ejemplo:* [1 oración concreta con dato real]`;
     let full = "";
     await chatApi.stream(
-      prompt,
+      flashcard,
       [],
       (chunk) => { full += chunk; setContent(full); },
       () => setStreaming(false)
@@ -268,17 +278,8 @@ export default function LearnPage() {
   const handleSearch = (term?: string) => {
     const q = (term || search).trim();
     if (!q) return;
-    openTopic(
-      q,
-      `Eres una enciclopedia financiera. Explica "${q}" de forma exhaustiva: definición precisa, cómo funciona en la práctica, ejemplos reales con números cuando aplique, fórmulas si corresponde, errores comunes y por qué importa para un inversor. Usa secciones claras con encabezados.`
-    );
+    openTopic(q, "", "🔍");
   };
-
-  useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
-  }, [content]);
 
   if (!isAuthenticated) return null;
 
@@ -383,7 +384,7 @@ export default function LearnPage() {
                 const logoUrl = COMPANY_LOGOS[topic.id];
                 return (
                   <button key={topic.id}
-                          onClick={() => openTopic(topic.title, topic.prompt)}
+                          onClick={() => openTopic(topic.title, topic.prompt, topic.emoji)}
                           className="text-left p-3 rounded-2xl border transition-all hover:border-[#00d47e]/40 hover:bg-[#00d47e]/5"
                           style={{ background: "var(--card)", borderColor: "var(--border)" }}>
                     {logoUrl ? (
@@ -430,34 +431,54 @@ export default function LearnPage() {
         </main>
       </div>
 
-      {/* Modal */}
+      {/* Flashcard modal */}
       {modal && (
-        <div className="fixed inset-0 z-50 flex flex-col" style={{ background: "var(--bg)" }}>
-          {/* Modal header */}
-          <div className="flex items-center justify-between px-4 py-3 border-b shrink-0"
-               style={{ borderColor: "var(--border)", background: "var(--card)" }}>
-            <button onClick={() => setModal(null)}
-                    className="w-8 h-8 rounded-full flex items-center justify-center"
-                    style={{ color: "var(--muted)" }}>
-              <X className="w-5 h-5" />
-            </button>
-            <h2 className="text-sm font-bold flex-1 text-center" style={{ color: "var(--text)" }}>
-              {modal.title}
-            </h2>
-            <div className="w-8" />
-          </div>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
+             style={{ background: "rgba(0,0,0,0.7)", backdropFilter: "blur(8px)" }}
+             onClick={() => !streaming && setModal(null)}>
+          <div className="w-full max-w-md rounded-3xl overflow-hidden"
+               style={{ background: "var(--card)", border: "1px solid var(--border)" }}
+               onClick={(e) => e.stopPropagation()}>
 
-          {/* Modal content */}
-          <div ref={scrollRef} className="flex-1 overflow-y-auto scrollbar-thin px-5 py-6">
-            {!content ? (
-              <div className="flex flex-col items-center justify-center h-40 gap-3">
-                <Loader2 className="w-8 h-8 animate-spin" style={{ color: "var(--accent-l)" }} />
-                <p className="text-sm" style={{ color: "var(--muted)" }}>La IA está preparando la explicación...</p>
+            {/* Color strip */}
+            <div className="h-1" style={{ background: "var(--grad-green)" }} />
+
+            {/* Header */}
+            <div className="flex items-center justify-between px-5 py-4 border-b"
+                 style={{ borderColor: "var(--border)" }}>
+              <div className="flex items-center gap-2.5">
+                <span className="text-2xl">{modal.emoji}</span>
+                <span className="font-extrabold text-base" style={{ color: "var(--text)" }}>{modal.title}</span>
               </div>
-            ) : (
-              <div className="prose prose-sm max-w-none learn-markdown">
-                <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
-                {streaming && <span className="text-[#22c55e] text-base">▋</span>}
+              <button onClick={() => setModal(null)} style={{ color: "var(--muted)" }}>
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="px-5 py-5 min-h-[180px]">
+              {!content ? (
+                <div className="flex flex-col items-center justify-center h-36 gap-3">
+                  <div className="w-7 h-7 border-2 rounded-full animate-spin"
+                       style={{ borderColor: "rgba(0,212,126,0.2)", borderTopColor: "#00d47e" }} />
+                  <p className="text-xs" style={{ color: "var(--muted)" }}>Preparando flashcard... ~2 seg</p>
+                </div>
+              ) : (
+                <div className="learn-markdown">
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
+                  {streaming && <span style={{ color: "#22c55e" }}>▋</span>}
+                </div>
+              )}
+            </div>
+
+            {/* Action */}
+            {!streaming && content && (
+              <div className="px-5 pb-5">
+                <button onClick={() => setModal(null)}
+                        className="w-full py-2.5 rounded-2xl text-sm font-bold text-white"
+                        style={{ background: "var(--grad-green)" }}>
+                  Entendido ✓
+                </button>
               </div>
             )}
           </div>
@@ -465,22 +486,13 @@ export default function LearnPage() {
       )}
 
       <style>{`
-        .learn-markdown { color: var(--sub); font-size: 15px; line-height: 1.7; }
-        .learn-markdown h1 { color: var(--text); font-size: 21px; font-weight: 800; letter-spacing: -0.4px; margin-top: 18px; margin-bottom: 8px; padding-bottom: 6px; border-bottom: 1.5px solid var(--accent-l); }
-        .learn-markdown h2 { color: var(--text); font-size: 17px; font-weight: 700; letter-spacing: -0.2px; margin-top: 16px; margin-bottom: 6px; }
-        .learn-markdown h3 { color: var(--accent-l); font-size: 13px; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase; margin-top: 12px; margin-bottom: 5px; }
-        .learn-markdown strong { color: var(--text); font-weight: 700; }
-        .learn-markdown em { color: var(--accent-l); font-style: italic; }
-        .learn-markdown code { background: rgba(0,212,126,0.1); color: var(--accent-l); border-radius: 5px; padding: 1px 5px; font-size: 13px; font-weight: 600; }
-        .learn-markdown pre { background: var(--card); border-radius: 12px; padding: 14px; margin: 8px 0; border: 1px solid var(--border); }
-        .learn-markdown blockquote { border-left: 3px solid var(--accent-l); background: rgba(0,212,126,0.05); padding-left: 12px; padding-top: 8px; padding-bottom: 8px; margin: 8px 0; border-radius: 0 4px 4px 0; }
-        .learn-markdown table { border: 1px solid var(--border); border-radius: 10px; overflow: hidden; margin: 8px 0; width: 100%; border-collapse: collapse; }
-        .learn-markdown th { background: rgba(0,168,94,0.2); color: var(--accent-l); font-weight: 700; padding: 9px; font-size: 12px; letter-spacing: 0.4px; text-align: left; }
-        .learn-markdown td { color: var(--sub); padding: 9px; font-size: 13px; border-top: 1px solid var(--border); }
-        .learn-markdown hr { border-color: var(--border); margin: 14px 0; }
-        .learn-markdown a { color: var(--accent-l); text-decoration: underline; }
-        .learn-markdown ul, .learn-markdown ol { margin: 6px 0; padding-left: 20px; }
-        .learn-markdown li { margin: 3px 0; }
+        .learn-markdown { color: var(--sub); font-size: 14px; line-height: 1.65; }
+        .learn-markdown p { margin: 6px 0; }
+        .learn-markdown strong { color: var(--text); font-weight: 800; font-size: 15px; }
+        .learn-markdown em { color: var(--accent-l); font-style: normal; font-weight: 600; }
+        .learn-markdown ul { margin: 8px 0; padding-left: 18px; }
+        .learn-markdown li { margin: 4px 0; color: var(--sub); }
+        .learn-markdown li::marker { color: var(--accent-l); }
       `}</style>
     </div>
   );

@@ -1,8 +1,8 @@
-import React, { useState, useMemo, useRef, useEffect } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import {
   View, Text, TextInput, TouchableOpacity, ScrollView, FlatList,
   Modal, StyleSheet, SafeAreaView, ActivityIndicator,
-  KeyboardAvoidingView, Platform, Image,
+  Image,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import Markdown from "react-native-markdown-display";
@@ -246,10 +246,9 @@ export default function LearnScreen() {
 
   const [search, setSearch] = useState("");
   const [selectedCat, setSelectedCat] = useState("all");
-  const [modal, setModal] = useState<{ title: string; prompt: string } | null>(null);
+  const [modal, setModal] = useState<{ title: string; icon: IoniconName } | null>(null);
   const [content, setContent] = useState("");
   const [streaming, setStreaming] = useState(false);
-  const scrollRef = useRef<ScrollView>(null);
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
@@ -260,24 +259,25 @@ export default function LearnScreen() {
     });
   }, [search, selectedCat]);
 
-  const openTopic = async (title: string, topicContext: string) => {
-    setModal({ title, prompt: topicContext });
+  const openTopic = async (title: string, _topicContext: string, icon: IoniconName = "book-outline") => {
+    setModal({ title, icon });
     setContent("");
     setStreaming(true);
     markTopicCompleted();
-    const prompt =
-      `Explícame "${title}" de forma breve y fácil de entender, como si le explicaras a alguien que nunca ha invertido.\n\n` +
-      `Usa exactamente este formato:\n\n` +
-      `## ¿Qué es?\n` +
-      `(1-2 oraciones simples, sin jerga)\n\n` +
-      `## Ejemplo real\n` +
-      `(un caso concreto y cotidiano que cualquiera pueda visualizar)\n\n` +
-      `## ¿Por qué importa?\n` +
-      `(1-2 oraciones sobre qué decisión de inversión mejora saber esto)\n\n` +
-      `Contexto del tema para tu referencia: ${topicContext}`;
+    // Prompt flashcard: máximo 70 palabras → respuesta en <3 segundos
+    const flashcard = `Eres un mentor de finanzas. Explica "${title}" en formato FLASHCARD — exactamente esta estructura, máximo 70 palabras en total, en español:
+
+**${title}**
+[Definición en 1 oración directa]
+
+• [Clave 1]
+• [Clave 2]
+• [Clave 3]
+
+💡 *Ejemplo:* [1 oración concreta con dato real]`;
     let full = "";
     await chatApi.stream(
-      prompt,
+      flashcard,
       [],
       (chunk) => { full += chunk; setContent(full); },
       () => setStreaming(false)
@@ -287,10 +287,7 @@ export default function LearnScreen() {
   const handleCustomSearch = (term?: string) => {
     const q = (term || search).trim();
     if (!q) return;
-    openTopic(
-      q,
-      `Eres una enciclopedia financiera. Explica "${q}" de forma exhaustiva: definición precisa, cómo funciona en la práctica, ejemplos reales con números cuando aplique, fórmulas si corresponde, errores comunes y por qué importa para un inversor. Usa secciones claras con encabezados.`
-    );
+    openTopic(q, "", "search-outline");
   };
 
   return (
@@ -389,7 +386,7 @@ export default function LearnScreen() {
         renderItem={({ item }) => (
           <TouchableOpacity
             style={[s.topicCard, { backgroundColor: colors.card, borderColor: colors.border }]}
-            onPress={() => openTopic(item.title, item.prompt)}
+            onPress={() => openTopic(item.title, item.prompt, item.icon)}
             activeOpacity={0.75}
           >
             {COMPANY_LOGOS[item.id] ? (
@@ -409,29 +406,53 @@ export default function LearnScreen() {
         )}
       />
 
-      {/* Modal de contenido */}
-      <Modal visible={!!modal} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setModal(null)}>
-        <SafeAreaView style={[s.modalContainer, { backgroundColor: colors.bg }]}>
-          <View style={[s.modalHeader, { borderBottomColor: colors.border }]}>
-            <TouchableOpacity onPress={() => setModal(null)} style={s.closeBtn}>
-              <Ionicons name="close" size={22} color={colors.textMuted} />
-            </TouchableOpacity>
-            <Text style={[s.modalTitle, { color: colors.text }]}>{modal?.title}</Text>
-            <View style={{ width: 32 }} />
-          </View>
-          <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }}>
-            <ScrollView ref={scrollRef} contentContainerStyle={s.modalContent}
-              onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: true })}>
-              {content ? <Markdown style={markdownStyles}>{content}</Markdown> : (
-                <View style={s.loadingState}>
+      {/* Flashcard modal — centrado, breve */}
+      <Modal visible={!!modal} animationType="fade" transparent onRequestClose={() => !streaming && setModal(null)}>
+        <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.72)", alignItems: "center", justifyContent: "center", padding: 20 }}>
+          <View style={{ width: "100%", maxWidth: 420, borderRadius: 24, overflow: "hidden", backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border }}>
+            {/* Color strip */}
+            <View style={{ height: 3, backgroundColor: "#00a85e" }} />
+
+            {/* Header */}
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 18, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: colors.border }}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 10, flex: 1 }}>
+                <View style={{ width: 34, height: 34, borderRadius: 10, backgroundColor: colors.accentLight + "18", alignItems: "center", justifyContent: "center" }}>
+                  <Ionicons name={modal?.icon ?? "book-outline"} size={18} color={colors.accentLight} />
+                </View>
+                <Text style={{ fontSize: 15, fontWeight: "800", color: colors.text, flex: 1 }} numberOfLines={1}>{modal?.title}</Text>
+              </View>
+              <TouchableOpacity onPress={() => setModal(null)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                <Ionicons name="close" size={20} color={colors.textMuted} />
+              </TouchableOpacity>
+            </View>
+
+            {/* Content */}
+            <View style={{ paddingHorizontal: 18, paddingVertical: 18, minHeight: 160 }}>
+              {!content ? (
+                <View style={{ alignItems: "center", justifyContent: "center", height: 120, gap: 12 }}>
                   <ActivityIndicator color={colors.accentLight} size="large" />
-                  <Text style={[s.loadingText, { color: colors.textMuted }]}>La IA está preparando la explicación...</Text>
+                  <Text style={{ fontSize: 12, color: colors.textMuted }}>Preparando flashcard... ~2 seg</Text>
+                </View>
+              ) : (
+                <View>
+                  <Markdown style={markdownStyles}>{content}</Markdown>
+                  {streaming && <Text style={{ color: "#22c55e", fontSize: 16 }}>▋</Text>}
                 </View>
               )}
-              {streaming && content && <Text style={{ color: "#22c55e", fontSize: 16 }}>▋</Text>}
-            </ScrollView>
-          </KeyboardAvoidingView>
-        </SafeAreaView>
+            </View>
+
+            {/* Action */}
+            {!streaming && content && (
+              <View style={{ paddingHorizontal: 18, paddingBottom: 18 }}>
+                <TouchableOpacity
+                  onPress={() => setModal(null)}
+                  style={{ backgroundColor: "#00a85e", borderRadius: 16, paddingVertical: 12, alignItems: "center" }}>
+                  <Text style={{ color: "white", fontWeight: "800", fontSize: 14 }}>Entendido ✓</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
+        </View>
       </Modal>
 
     </SafeAreaView>
