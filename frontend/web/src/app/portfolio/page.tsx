@@ -1203,7 +1203,7 @@ export default function PortfolioPage() {
                         <div className="flex items-center justify-between pt-2 border-t"
                              style={{ borderColor:"var(--border)" }}>
                           <span className="text-xs" style={{ color:"var(--muted)" }}>
-                            Invertido {currencySymbol}{totals.invested.toLocaleString("en-US",{minimumFractionDigits:2})}
+                            Total Invertido {currencySymbol}{totals.invested.toLocaleString("en-US",{minimumFractionDigits:2})}
                             {histDate && <span style={{ color:"var(--dim)" }}> · desde {histDate}</span>}
                           </span>
                           {spyPct !== undefined && histPct !== undefined && (

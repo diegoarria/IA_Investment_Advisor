@@ -1362,7 +1362,7 @@ export default function PortfolioScreen() {
                       </View>
                       <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingTop: 8, borderTopWidth: 1, borderTopColor: colors.border }}>
                         <Text style={{ fontSize: 11, color: colors.textMuted }}>
-                          Invertido {currencySymbol}{totals.invested.toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                          Total Invertido {currencySymbol}{totals.invested.toLocaleString("en-US", { minimumFractionDigits: 2 })}
                           {histDate ? `  ·  desde ${histDate}` : ""}
                         </Text>
                         {spyPct !== undefined && histPct !== undefined && (() => {
