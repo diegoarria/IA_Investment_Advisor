@@ -1382,8 +1382,8 @@ export default function PortfolioScreen() {
               {/* Tarjeta: gráfica + stats + breakdown */}
               {(() => {
                 const r = periodReturns[selectedPeriod];
-                const displayPct = chartData ? chartData.period_pct : r?.pct;
-                const displayAmt = chartData ? chartData.period_amount : r?.amount;
+                const displayPct = r?.pct !== undefined ? r.pct : chartData?.period_pct;
+                const displayAmt = r?.amount !== undefined ? r.amount : chartData?.period_amount;
                 const up = displayPct !== undefined ? displayPct >= 0 : true;
                 const color = up ? "#22c55e" : "#ef4444";
                 const periodLabel = PERIODS.find((p) => p.key === selectedPeriod)?.label ?? "";

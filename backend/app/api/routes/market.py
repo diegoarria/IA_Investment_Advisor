@@ -1014,16 +1014,24 @@ def _compute_portfolio_chart(positions: list[_PortfolioReturnsItem], period: str
     start_val = history[0]["value"]
     end_val   = history[-1]["value"]
 
-    # For since_purchase: base is cost basis (what you actually paid).
-    # For all other periods: base is the first value of the period (standard % change).
     if period == "since_purchase":
+        # Base = what you actually paid for all positions
         total_cost = sum(
             shares_map.get(t, 0) * avg_price_map[t]
             for t in tickers if t in avg_price_map
         )
         base = total_cost if total_cost > 0 else start_val
     else:
-        base = start_val
+        # For other periods: base = start_val + cost of positions bought mid-period.
+        # history[0] only includes positions held at period start, so mid-period
+        # purchases aren't in the denominator — we add their cost to fix this.
+        first_chart_ts = close.index[0] if len(close) > 0 else None
+        extra_cost = 0.0
+        if first_chart_ts is not None:
+            for t, ts in purchase_ts_map.items():
+                if ts > first_chart_ts and avg_price_map.get(t):
+                    extra_cost += shares_map.get(t, 0) * avg_price_map[t]
+        base = (start_val + extra_cost) if (start_val + extra_cost) > 0 else start_val
 
     for h in history:
         h["pct"] = round((h["value"] - base) / base * 100, 4) if base > 0 else 0.0

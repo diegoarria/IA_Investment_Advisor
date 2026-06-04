@@ -1238,9 +1238,9 @@ export default function PortfolioPage() {
                 {/* Tarjeta principal: gráfica + stats + breakdown */}
                 {(() => {
                   const r = periodReturns[selectedPeriod];
-                  // Stats: prefer chartData (más preciso), fallback a periodReturns
-                  const displayPct   = chartData ? chartData.period_pct   : r?.pct;
-                  const displayAmt   = chartData ? chartData.period_amount : r?.amount;
+                  // Prefer returns pct (cost-adjusted, exact) over chart period_pct
+                  const displayPct   = r?.pct !== undefined ? r.pct : chartData?.period_pct;
+                  const displayAmt   = r?.amount !== undefined ? r.amount : chartData?.period_amount;
                   const up           = displayPct !== undefined ? displayPct >= 0 : true;
                   const color        = up ? "#22c55e" : "#ef4444";
                   const periodLabel  = PERIODS.find((p) => p.key === selectedPeriod)?.label ?? "";
