@@ -591,39 +591,97 @@ class _PortfolioReturnsItem(_BaseModel):
 class _PortfolioReturnsRequest(_BaseModel):
     positions: list[_PortfolioReturnsItem]
 
+def _safe_price(row, ticker: str) -> float:
+    """Safely extract a price from a pandas Series row."""
+    try:
+        val = row[ticker]
+        if _pd.isna(val):
+            return 0.0
+        return float(val)
+    except Exception:
+        return 0.0
+
+
+def _extract_close(raw: "_pd.DataFrame", tickers: list[str]) -> "_pd.DataFrame | None":
+    """Extract Close price columns from a yf.download() result — handles all yfinance versions."""
+    if raw is None or raw.empty:
+        return None
+    try:
+        cols = raw.columns
+        if isinstance(cols, _pd.MultiIndex):
+            l0 = cols.get_level_values(0).unique().tolist()
+            if "Close" in l0:
+                df = raw["Close"]
+            elif "Adj Close" in l0:
+                df = raw["Adj Close"]
+            elif "Price" in l0:
+                df = raw.xs("Close", axis=1, level=1)
+            else:
+                return None
+        else:
+            if "Close" in cols:
+                df = raw[["Close"]]
+            elif "Adj Close" in cols:
+                df = raw[["Adj Close"]]
+            else:
+                return None
+            if len(tickers) == 1:
+                df = df.copy()
+                df.columns = tickers
+        # Remove timezone so string/Timestamp comparisons are consistent
+        if hasattr(df.index, "tz") and df.index.tz is not None:
+            df.index = df.index.tz_localize(None)
+        df.index = _pd.to_datetime(df.index).normalize()
+        return df.ffill().dropna(how="all") if not df.empty else None
+    except Exception:
+        return None
+
+
 def _compute_portfolio_returns(positions: list[_PortfolioReturnsItem]) -> dict:
     if not positions:
         return {}
+
     tickers = [p.ticker.upper() for p in positions]
     shares_map = {p.ticker.upper(): p.shares for p in positions}
     purchase_date_map = {p.ticker.upper(): p.purchase_date for p in positions if p.purchase_date}
 
     today = _dt.now(_tz.utc)
 
-    # Always download 5 years of history (covers all standard periods)
+    # Include SPY as benchmark alongside portfolio tickers
+    all_tickers = list(dict.fromkeys(tickers + ["SPY"]))  # preserves order, dedupes
+
+    # Use start/end dates (more reliable than period= in some yfinance versions)
+    start_str = (today - _td(days=1835)).strftime("%Y-%m-%d")
+    end_str = today.strftime("%Y-%m-%d")
+
     try:
-        raw = yf.download(tickers, period="5y", interval="1d", auto_adjust=True, progress=False)
-        if raw.empty:
-            return {}
-        if isinstance(raw.columns, _pd.MultiIndex):
-            close = raw["Close"] if "Close" in raw.columns.get_level_values(0) else raw.xs("Close", axis=1, level=0)
-        else:
-            close = raw[["Close"]] if "Close" in raw.columns else raw
-            if len(tickers) == 1:
-                close.columns = tickers
+        raw = yf.download(
+            all_tickers, start=start_str, end=end_str,
+            interval="1d", auto_adjust=True, progress=False, threads=False,
+        )
     except Exception:
+        raw = _pd.DataFrame()
+
+    close = _extract_close(raw, all_tickers)
+    if close is None:
         return {}
 
-    close = close.dropna(how="all")
-    if close.empty:
+    # Ensure all portfolio tickers are present (SPY might be missing in some envs)
+    missing = [t for t in tickers if t not in close.columns]
+    if missing == tickers:   # none of the user tickers found — bail
         return {}
 
     current_row = close.iloc[-1]
-    current_val = sum(shares_map.get(t, 0) * float(current_row.get(t, 0) or 0) for t in tickers)
+    current_val = sum(
+        shares_map.get(t, 0) * _safe_price(current_row, t)
+        for t in tickers if t in close.columns
+    )
     if current_val <= 0:
         return {}
 
-    ytd_start = _dt(today.year, 1, 1, tzinfo=_tz.utc)
+    spy_current = _safe_price(current_row, "SPY") if "SPY" in close.columns else 0.0
+
+    ytd_start = _pd.Timestamp(f"{today.year}-01-01")
 
     PERIODS: list[tuple[str, _td | None]] = [
         ("1d",  _td(days=2)),
@@ -642,38 +700,39 @@ def _compute_portfolio_returns(positions: list[_PortfolioReturnsItem]) -> dict:
     # "Desde compra" — weighted by each position's individual purchase date
     if purchase_date_map:
         try:
-            total_cost = 0.0
-            total_gain = 0.0
+            total_cost = 0.0; total_gain = 0.0
             breakdown: dict[str, float] = {}
             oldest_date_str: _Opt[str] = None
+            spy_start_buy = 0.0
+
             for t in tickers:
                 pd_str = purchase_date_map.get(t)
-                if not pd_str:
+                if not pd_str or t not in close.columns:
                     continue
-                try:
-                    pd_dt = _dt.fromisoformat(pd_str).replace(tzinfo=_tz.utc)
-                    subset = close[close.index >= pd_dt.strftime("%Y-%m-%d")]
-                    if subset.empty:
-                        continue
-                    start_price = float((subset.iloc[0].get(t) if hasattr(subset.iloc[0], "get") else subset.iloc[0][t]) or 0)
-                    curr_price = float((current_row.get(t) if hasattr(current_row, "get") else current_row[t]) or 0)
-                    if start_price > 0 and curr_price > 0:
-                        shares = shares_map.get(t, 0)
-                        cost = shares * start_price
-                        gain = shares * (curr_price - start_price)
-                        total_cost += cost
-                        total_gain += gain
-                        breakdown[t] = round((curr_price - start_price) / start_price * 100, 2)
-                        if oldest_date_str is None or pd_str < oldest_date_str:
-                            oldest_date_str = pd_str
-                except Exception:
+                cutoff = _pd.Timestamp(pd_str)
+                subset = close[close.index >= cutoff]
+                if subset.empty:
                     continue
+                sp = _safe_price(subset.iloc[0], t)
+                cp = _safe_price(current_row, t)
+                if sp > 0 and cp > 0:
+                    shares = shares_map.get(t, 0)
+                    total_cost += shares * sp
+                    total_gain += shares * (cp - sp)
+                    breakdown[t] = round((cp - sp) / sp * 100, 2)
+                    if oldest_date_str is None or pd_str < oldest_date_str:
+                        oldest_date_str = pd_str
+                        if "SPY" in close.columns:
+                            spy_start_buy = _safe_price(subset.iloc[0], "SPY")
+
             if total_cost > 0:
+                spy_pct_buy = round((spy_current - spy_start_buy) / spy_start_buy * 100, 2) if spy_start_buy > 0 else None
                 results["since_purchase"] = {
                     "pct": round(total_gain / total_cost * 100, 2),
                     "amount": round(total_gain, 2),
                     "date": oldest_date_str,
                     "breakdown": breakdown,
+                    **({"spy_pct": spy_pct_buy} if spy_pct_buy is not None else {}),
                 }
         except Exception:
             pass
@@ -683,29 +742,42 @@ def _compute_portfolio_returns(positions: list[_PortfolioReturnsItem]) -> dict:
             if key == "ytd":
                 cutoff = ytd_start
             else:
-                cutoff = today - delta  # type: ignore[operator]
-            cutoff_str = cutoff.strftime("%Y-%m-%d")
-            subset = close[close.index >= cutoff_str]
+                cutoff = _pd.Timestamp(today - delta)  # type: ignore[operator]
+
+            subset = close[close.index >= cutoff]
             if subset.empty:
                 continue
+
             start_row = subset.iloc[0]
-            start_val = sum(shares_map.get(t, 0) * float((start_row.get(t) if hasattr(start_row, "get") else start_row[t]) or 0) for t in tickers)
+            start_val = sum(
+                shares_map.get(t, 0) * _safe_price(start_row, t)
+                for t in tickers if t in close.columns
+            )
             if start_val <= 0:
                 continue
-            # Per-position breakdown: % each ticker moved in this period
+
+            # Per-position breakdown
             breakdown = {}
             for t in tickers:
-                try:
-                    sp = float((start_row.get(t) if hasattr(start_row, "get") else start_row[t]) or 0)
-                    cp = float((current_row.get(t) if hasattr(current_row, "get") else current_row[t]) or 0)
-                    if sp > 0 and cp > 0:
-                        breakdown[t] = round((cp - sp) / sp * 100, 2)
-                except Exception:
+                if t not in close.columns:
                     continue
+                sp = _safe_price(start_row, t)
+                cp = _safe_price(current_row, t)
+                if sp > 0 and cp > 0:
+                    breakdown[t] = round((cp - sp) / sp * 100, 2)
+
+            # SPY benchmark
+            spy_pct = None
+            if spy_current > 0 and "SPY" in close.columns:
+                spy_start = _safe_price(start_row, "SPY")
+                if spy_start > 0:
+                    spy_pct = round((spy_current - spy_start) / spy_start * 100, 2)
+
             results[key] = {
                 "pct": round((current_val - start_val) / start_val * 100, 2),
                 "amount": round(current_val - start_val, 2),
                 "breakdown": breakdown,
+                **({"spy_pct": spy_pct} if spy_pct is not None else {}),
             }
         except Exception:
             continue
@@ -739,78 +811,75 @@ def _compute_portfolio_chart(positions: list[_PortfolioReturnsItem], period: str
 
     today = _dt.now(_tz.utc)
 
-    # Map frontend period keys → yfinance (period, interval)
-    PERIOD_MAP: dict[str, tuple[str, str]] = {
-        "1d":  ("2d",   "1h"),
-        "5d":  ("5d",   "1h"),
-        "1mo": ("1mo",  "1d"),
-        "3mo": ("3mo",  "1d"),
-        "6mo": ("6mo",  "1d"),
-        "ytd": ("ytd",  "1d"),
-        "1y":  ("1y",   "1d"),
-        "3y":  ("3y",   "1wk"),
-        "5y":  ("5y",   "1wk"),
-        "max": ("max",  "1mo"),
-    }
-
-    if period == "since_purchase":
+    # Determine download parameters
+    # 1D uses period= (intraday), rest use explicit start/end dates (more reliable)
+    if period == "1d":
+        yf_period, interval = "2d", "1h"
+        start_str = end_str = None
+    elif period == "5d":
+        yf_period, interval = "5d", "1h"
+        start_str = end_str = None
+    elif period == "since_purchase":
         if not purchase_date_map:
             return {"history": []}
+        yf_period, interval = None, "1d"
         oldest_str = min(v for v in purchase_date_map.values() if v)
         try:
-            oldest_dt = _dt.fromisoformat(oldest_str).replace(tzinfo=_tz.utc)
-            days = (today - oldest_dt).days
-            if days > 1800:
-                yf_period, interval = "max", "1wk"
-            elif days > 365:
-                yf_period, interval = "5y", "1d"
-            else:
-                yf_period, interval = "2y", "1d"
+            oldest_dt = _dt.fromisoformat(oldest_str)
+            days = (today.replace(tzinfo=None) - oldest_dt).days
+            interval = "1wk" if days > 1800 else "1d"
         except Exception:
-            yf_period, interval = "5y", "1d"
+            pass
+        start_str = oldest_str
+        end_str = today.strftime("%Y-%m-%d")
     else:
-        yf_period, interval = PERIOD_MAP.get(period, ("1y", "1d"))
-
-    try:
-        raw = yf.download(tickers, period=yf_period, interval=interval,
-                          auto_adjust=True, progress=False)
-        if raw.empty:
-            return {"history": []}
-        if isinstance(raw.columns, _pd.MultiIndex):
-            close = raw["Close"] if "Close" in raw.columns.get_level_values(0) \
-                    else raw.xs("Close", axis=1, level=0)
-        else:
-            close = raw[["Close"]] if "Close" in raw.columns else raw
-            if len(tickers) == 1:
-                close.columns = tickers
-    except Exception:
-        return {"history": []}
-
-    close = close.ffill().dropna(how="all")
-    if close.empty:
-        return {"history": []}
-
-    # Trim to the period's actual start
-    try:
-        if period == "1d":
-            today_str = today.strftime("%Y-%m-%d")
-            mask = [str(idx)[:10] == today_str for idx in close.index]
-            if any(mask):
-                close = close.iloc[[i for i, m in enumerate(mask) if m]]
-            else:
-                last_day = str(close.index[-1])[:10]
-                close = close.iloc[[i for i, idx in enumerate(close.index) if str(idx)[:10] == last_day]]
-        elif period == "since_purchase":
-            oldest_str = min(v for v in purchase_date_map.values() if v)
-            ts = _pd.Timestamp(oldest_str)
-            if ts.tzinfo is None:
-                ts = ts.tz_localize("UTC")
-            close = close[close.index >= ts]
+        PERIOD_DAYS = {
+            "1mo": 35, "3mo": 95, "6mo": 185, "ytd": None,
+            "1y": 370, "3y": 1100, "5y": 1835,
+        }
+        PERIOD_INTERVAL = {
+            "1mo": "1d", "3mo": "1d", "6mo": "1d", "ytd": "1d",
+            "1y": "1d", "3y": "1wk", "5y": "1wk",
+        }
+        if period == "max":
+            yf_period, interval = None, "1mo"
+            start_str = "1990-01-01"
         elif period == "ytd":
-            ts = _pd.Timestamp(f"{today.year}-01-01", tz="UTC")
-            close = close[close.index >= ts]
+            yf_period, interval = None, "1d"
+            start_str = f"{today.year}-01-01"
+        else:
+            days = PERIOD_DAYS.get(period, 370)
+            yf_period, interval = None, PERIOD_INTERVAL.get(period, "1d")
+            start_str = (today - _td(days=days)).strftime("%Y-%m-%d")
+        end_str = today.strftime("%Y-%m-%d")
+
+    try:
+        if yf_period:
+            raw = yf.download(tickers, period=yf_period, interval=interval,
+                              auto_adjust=True, progress=False, threads=False)
+        else:
+            raw = yf.download(tickers, start=start_str, end=end_str,
+                              interval=interval, auto_adjust=True, progress=False, threads=False)
     except Exception:
-        pass
+        return {"history": []}
+
+    close = _extract_close(raw, tickers)
+    if close is None:
+        return {"history": []}
+
+    # For 1D: filter to today's session only (or last trading day)
+    if period == "1d":
+        today_str = today.strftime("%Y-%m-%d")
+        mask = [str(idx)[:10] == today_str for idx in close.index]
+        if any(mask):
+            close = close.iloc[[i for i, m in enumerate(mask) if m]]
+        elif len(close) > 0:
+            last_day = str(close.index[-1])[:10]
+            close = close.iloc[[i for i, idx in enumerate(close.index) if str(idx)[:10] == last_day]]
+
+    elif period == "since_purchase" and purchase_date_map:
+        cutoff = _pd.Timestamp(min(v for v in purchase_date_map.values() if v))
+        close = close[close.index >= cutoff]
 
     if close.empty or len(close) < 2:
         return {"history": []}
@@ -819,15 +888,7 @@ def _compute_portfolio_chart(positions: list[_PortfolioReturnsItem], period: str
     fmt = "%Y-%m-%d %H:%M" if interval == "1h" else "%Y-%m-%d"
     history: list[dict] = []
     for idx, row in close.iterrows():
-        val = 0.0
-        for t in tickers:
-            try:
-                price = float(row.get(t, 0) or 0)
-                if _pd.isna(price):
-                    price = 0.0
-                val += shares_map.get(t, 0) * price
-            except Exception:
-                pass
+        val = sum(shares_map.get(t, 0) * _safe_price(row, t) for t in tickers if t in close.columns)
         if val > 0:
             try:
                 date_str = idx.strftime(fmt)
@@ -838,7 +899,6 @@ def _compute_portfolio_chart(positions: list[_PortfolioReturnsItem], period: str
     if len(history) < 2:
         return {"history": []}
 
-    # Normalize: express every point as % change from the first point
     start_val = history[0]["value"]
     for h in history:
         h["pct"] = round((h["value"] - start_val) / start_val * 100, 4) if start_val > 0 else 0.0

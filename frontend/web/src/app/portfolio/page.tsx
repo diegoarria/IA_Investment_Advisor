@@ -569,7 +569,7 @@ export default function PortfolioPage() {
   }, [fetchPrices]);
 
   // Period returns
-  type PeriodReturn = { pct: number; amount: number; date?: string; breakdown?: Record<string, number> };
+  type PeriodReturn = { pct: number; amount: number; date?: string; breakdown?: Record<string, number>; spy_pct?: number };
   const PERIODS = [
     { key: "since_purchase", label: "Compra" },
     { key: "1d",  label: "1D"  }, { key: "5d",  label: "5D"  },
@@ -1229,35 +1229,63 @@ export default function PortfolioPage() {
                            style={{ background: `linear-gradient(90deg,${color},${color}66)` }} />
 
                       {/* Header stats */}
-                      <div className="flex items-start justify-between px-4 pt-4 pb-1">
-                        <div>
-                          <p className="text-[10px] font-bold uppercase tracking-wider"
-                             style={{ color: "var(--muted)" }}>
-                            Rendimiento · {periodLabel}
-                          </p>
-                          {r?.date && (
-                            <p className="text-[10px] mt-0.5" style={{ color: "var(--dim)" }}>
-                              desde {r.date}
+                      <div className="px-4 pt-4 pb-1">
+                        <div className="flex items-start justify-between">
+                          <div>
+                            <p className="text-[10px] font-bold uppercase tracking-wider"
+                               style={{ color: "var(--muted)" }}>
+                              Rendimiento · {periodLabel}
                             </p>
-                          )}
-                        </div>
-                        <div className="text-right">
-                          {displayPct !== undefined ? (
-                            <>
-                              <p className="text-2xl font-black leading-none" style={{ color }}>
-                                {up ? "+" : ""}{displayPct.toFixed(2)}%
+                            {r?.date && (
+                              <p className="text-[10px] mt-0.5" style={{ color: "var(--dim)" }}>
+                                desde {r.date}
                               </p>
-                              {displayAmt !== undefined && (
-                                <p className="text-sm font-bold mt-0.5" style={{ color }}>
-                                  {up ? "+" : ""}{currencySymbol}
-                                  {Math.abs(displayAmt).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            )}
+                          </div>
+                          <div className="text-right">
+                            {displayPct !== undefined ? (
+                              <>
+                                <p className="text-2xl font-black leading-none" style={{ color }}>
+                                  {up ? "+" : ""}{displayPct.toFixed(2)}%
                                 </p>
-                              )}
-                            </>
-                          ) : chartLoading ? (
-                            <span className="text-sm" style={{ color: "var(--muted)" }}>···</span>
-                          ) : null}
+                                {displayAmt !== undefined && (
+                                  <p className="text-sm font-bold mt-0.5" style={{ color }}>
+                                    {up ? "+" : ""}{currencySymbol}
+                                    {Math.abs(displayAmt).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                  </p>
+                                )}
+                              </>
+                            ) : chartLoading ? (
+                              <span className="text-sm" style={{ color: "var(--muted)" }}>···</span>
+                            ) : null}
+                          </div>
                         </div>
+                        {/* S&P 500 comparison */}
+                        {r?.spy_pct !== undefined && displayPct !== undefined && (
+                          <div className="flex items-center gap-2 mt-2 pt-2 border-t"
+                               style={{ borderColor: "var(--border)" }}>
+                            <span className="text-[10px] font-semibold" style={{ color: "var(--muted)" }}>
+                              vs S&P 500
+                            </span>
+                            <span className="text-[11px] font-bold"
+                                  style={{ color: r.spy_pct >= 0 ? "#22c55e" : "#ef4444" }}>
+                              {r.spy_pct >= 0 ? "+" : ""}{r.spy_pct.toFixed(2)}%
+                            </span>
+                            {(() => {
+                              const diff = displayPct - r.spy_pct;
+                              const beats = diff >= 0;
+                              return (
+                                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full"
+                                      style={{
+                                        background: beats ? "rgba(34,197,94,0.12)" : "rgba(239,68,68,0.12)",
+                                        color: beats ? "#22c55e" : "#ef4444",
+                                      }}>
+                                  {beats ? "▲" : "▼"} {Math.abs(diff).toFixed(2)}% {beats ? "mejor" : "peor"}
+                                </span>
+                              );
+                            })()}
+                          </div>
+                        )}
                       </div>
 
                       {/* Gráfica histórica */}
