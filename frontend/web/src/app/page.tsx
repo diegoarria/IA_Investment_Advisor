@@ -30,17 +30,24 @@ export default function Home() {
   const [forgotNewPass, setForgotNewPass] = useState("");
   const [forgotDone, setForgotDone]       = useState(false);
 
+  const [checking, setChecking] = useState(true);
+
   const router = useRouter();
-  const { setAuth, isAuthenticated } = useAuthStore();
+  const { setAuth } = useAuthStore();
   const { setProfile } = useProfileStore();
 
+  // On mount: check stored token directly — no Zustand rehydration timing issues
   useEffect(() => {
-    if (isAuthenticated) {
-      profileApi.get()
-        .then((res) => { setProfile(res.data); router.push("/chat"); })
-        .catch(() => router.push("/onboarding"));
-    }
-  }, [isAuthenticated]);
+    const token = localStorage.getItem("access_token");
+    if (!token) { setChecking(false); return; }
+    profileApi.get()
+      .then((res) => { setProfile(res.data); router.push("/chat"); })
+      .catch(() => {
+        localStorage.removeItem("access_token");
+        localStorage.removeItem("refresh_token");
+        setChecking(false);
+      });
+  }, []);
 
   const handleForgotSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -85,6 +92,15 @@ export default function Home() {
       setError(msg || "Verifica tus credenciales e inténtalo de nuevo.");
     } finally { setLoading(false); }
   };
+
+  if (checking) {
+    return (
+      <div className="min-h-screen flex items-center justify-center" style={{ background: "var(--bg)" }}>
+        <div className="w-8 h-8 border-2 border-white/10 border-t-green-400 rounded-full"
+             style={{ animation: "spin 0.7s linear infinite" }} />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex relative" style={{ background: "var(--bg)" }}>
