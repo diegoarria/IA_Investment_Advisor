@@ -796,11 +796,12 @@ def _compute_portfolio_returns(positions: list[_PortfolioReturnsItem]) -> dict:
                 pd_str = purchase_date_map.get(t)
                 if not pd_str or t not in close.columns:
                     continue
-                cutoff = _pd.Timestamp(pd_str)  # naive (from "YYYY-MM-DD" string)
+                cutoff = _pd.Timestamp(pd_str)
                 subset = close[close.index >= cutoff]
                 if subset.empty:
                     continue
-                sp = _safe_price(subset.iloc[0], t)
+                # Use avg_price (real cost paid) when available — more accurate than historical close
+                sp = avg_price_map.get(t) or _safe_price(subset.iloc[0], t)
                 cp = _safe_price(current_row, t)
                 if sp > 0 and cp > 0:
                     shares = shares_map.get(t, 0)
