@@ -843,6 +843,9 @@ def _compute_portfolio_returns(positions: list[_PortfolioReturnsItem]) -> dict:
             # For each position, use its own cost basis:
             # - Bought BEFORE period start → price at period start (normal)
             # - Bought AFTER period start  → avg_price paid (only counts from purchase)
+            # For 1D/5D: ALWAYS use period-start price — avg_price as cost basis
+            # only makes sense for longer periods where a position clearly didn't exist.
+            short_period = key in ("1d", "5d")
             start_cost = 0.0
             end_value  = 0.0
             breakdown  = {}
@@ -852,13 +855,13 @@ def _compute_portfolio_returns(positions: list[_PortfolioReturnsItem]) -> dict:
                 shares = shares_map.get(t, 0)
                 cp = _safe_price(current_row, t)
                 pd_str = purchase_date_map.get(t)
-                if pd_str and _pd.Timestamp(pd_str) > cutoff:
-                    # Bought mid-period: cost is what we actually paid
+                if not short_period and pd_str and _pd.Timestamp(pd_str) > cutoff:
+                    # Bought mid-period (only for periods > 5D): cost is what we actually paid
                     sp = avg_price_map.get(t) or _safe_price(
                         close[close.index >= _pd.Timestamp(pd_str)].iloc[0], t
                     )
                 else:
-                    # Held since before period start: use price at start of period
+                    # Use price at start of period (always for 1D/5D)
                     sp = _safe_price(start_row, t)
                 if sp > 0 and cp > 0:
                     start_cost += shares * sp
