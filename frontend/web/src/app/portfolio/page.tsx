@@ -582,6 +582,7 @@ export default function PortfolioPage() {
   const [selectedPeriod, setSelectedPeriod] = useState<PeriodKey>("1y");
   const [periodReturns, setPeriodReturns] = useState<Record<string, PeriodReturn>>({});
   const [loadingReturns, setLoadingReturns] = useState(false);
+  const [breakdownSort, setBreakdownSort] = useState<"desc" | "asc">("desc");
 
   // Chart state
   type ChartData = { history: ChartPoint[]; period_pct: number; period_amount: number };
@@ -1246,7 +1247,9 @@ export default function PortfolioPage() {
                   const periodLabel  = PERIODS.find((p) => p.key === selectedPeriod)?.label ?? "";
                   const breakdown    = r?.breakdown;
                   const bEntries     = breakdown
-                    ? Object.entries(breakdown).sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]))
+                    ? Object.entries(breakdown).sort((a, b) =>
+                        breakdownSort === "desc" ? b[1] - a[1] : a[1] - b[1]
+                      )
                     : [];
                   const maxAbs = bEntries.length > 0
                     ? Math.max(...bEntries.map(([, p]) => Math.abs(p))) : 1;
@@ -1347,10 +1350,18 @@ export default function PortfolioPage() {
                       {bEntries.length > 0 && (
                         <div className="px-4 pb-4 pt-2 border-t space-y-2"
                              style={{ borderColor: "var(--border)" }}>
-                          <p className="text-[9px] font-bold uppercase tracking-widest mb-2"
-                             style={{ color: "var(--dim)" }}>
-                            Rendimiento por posición · {periodLabel}
-                          </p>
+                          <div className="flex items-center justify-between mb-2">
+                            <p className="text-[9px] font-bold uppercase tracking-widest"
+                               style={{ color: "var(--dim)" }}>
+                              Rendimiento por posición · {periodLabel}
+                            </p>
+                            <button
+                              onClick={() => setBreakdownSort(s => s === "desc" ? "asc" : "desc")}
+                              className="flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-bold transition-all"
+                              style={{ background: "var(--raised)", color: "var(--muted)" }}>
+                              {breakdownSort === "desc" ? "▲ Verde → Rojo" : "▼ Rojo → Verde"}
+                            </button>
+                          </div>
                           {bEntries.map(([ticker, pct]) => {
                             const isPos = pct >= 0;
                             const barW  = maxAbs > 0 ? Math.round((Math.abs(pct) / maxAbs) * 100) : 0;

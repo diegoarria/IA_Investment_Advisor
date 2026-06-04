@@ -579,6 +579,7 @@ export default function PortfolioScreen() {
   const [selectedPeriod, setSelectedPeriod] = useState<PeriodKey>("1y");
   const [periodReturns, setPeriodReturns] = useState<Record<string, PeriodReturn>>({});
   const [loadingReturns, setLoadingReturns] = useState(false);
+  const [breakdownSort, setBreakdownSort] = useState<"desc" | "asc">("desc");
 
   // Chart state
   type ChartData = { history: ChartPoint[]; period_pct: number; period_amount: number };
@@ -1402,7 +1403,9 @@ export default function PortfolioScreen() {
                 const color = up ? "#22c55e" : "#ef4444";
                 const periodLabel = PERIODS.find((p) => p.key === selectedPeriod)?.label ?? "";
                 const bEntries = r?.breakdown
-                  ? Object.entries(r.breakdown).sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]))
+                  ? Object.entries(r.breakdown).sort((a, b) =>
+                      breakdownSort === "desc" ? b[1] - a[1] : a[1] - b[1]
+                    )
                   : [];
                 const maxAbs = bEntries.length > 0 ? Math.max(...bEntries.map(([, p]) => Math.abs(p))) : 1;
                 return (
@@ -1481,9 +1484,19 @@ export default function PortfolioScreen() {
                     {/* Breakdown por posición */}
                     {bEntries.length > 0 && (
                       <View style={{ paddingHorizontal: 14, paddingBottom: 12, borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 10 }}>
-                        <Text style={{ fontSize: 9, fontWeight: "800", color: colors.textDim, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>
-                          Rendimiento por posición · {periodLabel}
-                        </Text>
+                        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+                          <Text style={{ fontSize: 9, fontWeight: "800", color: colors.textDim, textTransform: "uppercase", letterSpacing: 1 }}>
+                            Rendimiento por posición · {periodLabel}
+                          </Text>
+                          <TouchableOpacity
+                            onPress={() => setBreakdownSort(s => s === "desc" ? "asc" : "desc")}
+                            style={{ backgroundColor: colors.bgRaised, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 }}
+                            activeOpacity={0.7}>
+                            <Text style={{ fontSize: 10, fontWeight: "800", color: colors.textMuted }}>
+                              {breakdownSort === "desc" ? "▲ Verde → Rojo" : "▼ Rojo → Verde"}
+                            </Text>
+                          </TouchableOpacity>
+                        </View>
                         {bEntries.map(([ticker, pct]) => {
                           const isPos = pct >= 0;
                           const barW = maxAbs > 0 ? Math.round((Math.abs(pct) / maxAbs) * 100) : 0;
