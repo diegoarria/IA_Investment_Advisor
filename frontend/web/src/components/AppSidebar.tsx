@@ -1,10 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import {
   BookOpen, PieChart, BarChart2, Bell, User, GraduationCap, Trophy,
-  MessageSquare, ChevronRight, Plus, X, HeadphonesIcon,
+  MessageSquare, ChevronRight, Plus, X, HeadphonesIcon, GripVertical,
 } from "lucide-react";
 import {
   useProfileStore, useNotificationStore, useSubscriptionStore,
@@ -76,6 +76,25 @@ export default function AppSidebar({ open, onClose }: Props) {
   const [historyOpen, setHistoryOpen] = useState(true);
   const [paywallOpen, setPaywallOpen] = useState(false);
 
+  const [navOrder, setNavOrder] = useState<string[]>(() => {
+    if (typeof window === "undefined") return NAV.map((n) => n.href);
+    try {
+      const saved = localStorage.getItem("nuvos_nav_order");
+      if (saved) {
+        const parsed: string[] = JSON.parse(saved);
+        const current = NAV.map((n) => n.href);
+        const valid = parsed.filter((h) => current.includes(h));
+        const missing = current.filter((h) => !valid.includes(h));
+        return [...valid, ...missing];
+      }
+    } catch {}
+    return NAV.map((n) => n.href);
+  });
+  const [dragOver, setDragOver] = useState<string | null>(null);
+  const [dragging, setDragging] = useState<string | null>(null);
+  const dragItem = useRef<string | null>(null);
+
+  const orderedNav = navOrder.map((href) => NAV.find((n) => n.href === href)!).filter(Boolean);
   const isPremium = subStore.tier === "premium";
   const remaining = msgsRemaining(subStore);
   const unreadCount = notifications.filter((n) => !n.read).length;
@@ -90,6 +109,38 @@ export default function AppSidebar({ open, onClose }: Props) {
   const handleLoadSession = (id: string) => {
     loadSession(id);
     navigate("/chat");
+  };
+
+  const handleDragStart = (href: string) => {
+    dragItem.current = href;
+    setDragging(href);
+  };
+
+  const handleDragOver = (e: React.DragEvent, href: string) => {
+    e.preventDefault();
+    if (dragItem.current !== href) setDragOver(href);
+  };
+
+  const handleDrop = (e: React.DragEvent, targetHref: string) => {
+    e.preventDefault();
+    const from = dragItem.current;
+    if (!from || from === targetHref) { setDragOver(null); return; }
+    const next = [...navOrder];
+    const fi = next.indexOf(from);
+    const ti = next.indexOf(targetHref);
+    next.splice(fi, 1);
+    next.splice(ti, 0, from);
+    setNavOrder(next);
+    localStorage.setItem("nuvos_nav_order", JSON.stringify(next));
+    dragItem.current = null;
+    setDragging(null);
+    setDragOver(null);
+  };
+
+  const handleDragEnd = () => {
+    dragItem.current = null;
+    setDragging(null);
+    setDragOver(null);
   };
 
   return (
@@ -164,12 +215,28 @@ export default function AppSidebar({ open, onClose }: Props) {
         {/* Scrollable area: nav + chat history */}
         <div className="flex-1 overflow-y-auto scrollbar-thin">
           <nav className="px-2 py-1 space-y-0.5">
-            {NAV.map(({ href, icon: Icon, label }) => {
+            {orderedNav.map(({ href, icon: Icon, label }) => {
               const active = pathname === href;
               const badge = href === "/notifications" && unreadCount > 0;
               return (
-                <button key={href} onClick={() => navigate(href)}
-                        className={`nav-item ${active ? "active" : ""}`}>
+                <button
+                  key={href}
+                  draggable
+                  onDragStart={() => handleDragStart(href)}
+                  onDragOver={(e) => handleDragOver(e, href)}
+                  onDrop={(e) => handleDrop(e, href)}
+                  onDragEnd={handleDragEnd}
+                  onClick={() => navigate(href)}
+                  className={`nav-item ${active ? "active" : ""} group transition-opacity`}
+                  style={{
+                    opacity: dragging === href ? 0.35 : 1,
+                    borderTop: dragOver === href ? "2px solid var(--accent)" : undefined,
+                  }}
+                >
+                  <GripVertical
+                    className="w-3 h-3 shrink-0 opacity-0 group-hover:opacity-40 cursor-grab active:cursor-grabbing transition-opacity"
+                    style={{ color: "var(--muted)" }}
+                  />
                   <Icon className="w-4 h-4 shrink-0" />
                   <span>{label}</span>
                   {badge && (

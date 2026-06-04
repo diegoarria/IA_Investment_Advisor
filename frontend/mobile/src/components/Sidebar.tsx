@@ -12,6 +12,7 @@ import { usePortfolioStore } from "../lib/portfolioStore";
 import { useChatStore } from "../lib/chatStore";
 import { useTheme } from "../lib/ThemeContext";
 import MarketTicker from "./MarketTicker";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const SIDEBAR_WIDTH = Math.min(Dimensions.get("window").width * 0.78, 300);
 const WEB_EXPANDED = 260;
@@ -135,29 +136,139 @@ function NavItems({
   onPress: (path: string) => void;
   collapsed?: boolean;
 }) {
+  const [items, setItems] = useState(() => [...NAV_ITEMS]);
+  const [editMode, setEditMode] = useState(false);
+  const [liftedPath, setLiftedPath] = useState<string | null>(null);
+
+  useEffect(() => {
+    AsyncStorage.getItem("nuvos_nav_order").then((saved) => {
+      if (!saved) return;
+      try {
+        const order: string[] = JSON.parse(saved);
+        setItems(
+          [...NAV_ITEMS].sort((a, b) => {
+            const ai = order.indexOf(a.path);
+            const bi = order.indexOf(b.path);
+            return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi);
+          })
+        );
+      } catch {}
+    });
+  }, []);
+
+  const moveItem = (index: number, dir: -1 | 1) => {
+    const to = index + dir;
+    if (to < 0 || to >= items.length) return;
+    const next = [...items];
+    [next[index], next[to]] = [next[to], next[index]];
+    setItems(next);
+    AsyncStorage.setItem("nuvos_nav_order", JSON.stringify(next.map((i) => i.path)));
+  };
+
+  if (collapsed) {
+    return (
+      <>
+        {items.map((item) => {
+          const isActive = pathname.includes(item.path.replace("/", ""));
+          return (
+            <TouchableOpacity
+              key={item.path}
+              style={[
+                styles.navItemCollapsed,
+                isActive && { backgroundColor: "rgba(34,197,94,0.1)", borderRadius: 12 },
+              ]}
+              onPress={() => onPress(item.path)}
+            >
+              <Ionicons name={item.icon} size={20} color={isActive ? "#22c55e" : colors.textSub} />
+            </TouchableOpacity>
+          );
+        })}
+      </>
+    );
+  }
+
   return (
     <>
-      {NAV_ITEMS.map((item) => {
+      <TouchableOpacity
+        style={[styles.editModeToggle, { borderColor: colors.border }]}
+        onPress={() => { setEditMode((v) => !v); setLiftedPath(null); }}
+      >
+        <Ionicons
+          name={editMode ? "checkmark-circle" : "reorder-three-outline"}
+          size={15}
+          color={editMode ? "#22c55e" : colors.textDim}
+        />
+        <Text style={[styles.editModeText, { color: editMode ? "#22c55e" : colors.textDim }]}>
+          {editMode ? "Listo" : "Reordenar"}
+        </Text>
+      </TouchableOpacity>
+
+      {items.map((item, index) => {
         const isActive = pathname.includes(item.path.replace("/", ""));
+        const isLifted = liftedPath === item.path;
         return (
-          <TouchableOpacity
+          <View
             key={item.path}
-            style={[
-              collapsed ? styles.navItemCollapsed : styles.navItem,
-              isActive && { backgroundColor: "rgba(34,197,94,0.1)", borderRadius: 12 },
-            ]}
-            onPress={() => onPress(item.path)}
+            style={[styles.navItemRow, isLifted && styles.navItemLifted]}
           >
-            <Ionicons name={item.icon} size={20} color={isActive ? "#22c55e" : colors.textSub} />
-            {!collapsed && (
-              <>
-                <Text style={[styles.navLabel, { color: isActive ? "#22c55e" : colors.textSub }]}>
-                  {item.label}
-                </Text>
-                {isActive && <View style={styles.activeDot} />}
-              </>
+            <TouchableOpacity
+              style={[
+                styles.navItem,
+                { flex: 1, borderRadius: 12 },
+                isActive && { backgroundColor: "rgba(34,197,94,0.1)" },
+                isLifted && { backgroundColor: "rgba(34,197,94,0.08)" },
+              ]}
+              onPress={() => {
+                if (editMode) { setLiftedPath(null); return; }
+                onPress(item.path);
+              }}
+              onLongPress={() => {
+                setEditMode(true);
+                setLiftedPath(item.path);
+              }}
+              delayLongPress={400}
+            >
+              <Ionicons name={item.icon} size={20} color={isActive ? "#22c55e" : colors.textSub} />
+              <Text style={[styles.navLabel, { color: isActive ? "#22c55e" : colors.textSub }]}>
+                {item.label}
+              </Text>
+              {isActive && !editMode && <View style={styles.activeDot} />}
+              {editMode && (
+                <Ionicons
+                  name="reorder-two-outline"
+                  size={18}
+                  color={isLifted ? "#22c55e" : colors.textDim}
+                />
+              )}
+            </TouchableOpacity>
+
+            {editMode && (
+              <View style={styles.arrowGroup}>
+                <TouchableOpacity
+                  onPress={() => moveItem(index, -1)}
+                  disabled={index === 0}
+                  hitSlop={{ top: 6, bottom: 3, left: 6, right: 6 }}
+                >
+                  <Ionicons
+                    name="chevron-up"
+                    size={16}
+                    color={index === 0 ? colors.border : colors.textSub}
+                  />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => moveItem(index, 1)}
+                  disabled={index === items.length - 1}
+                  hitSlop={{ top: 3, bottom: 6, left: 6, right: 6 }}
+                >
+                  <Ionicons
+                    name="chevron-down"
+                    size={16}
+                    color={index === items.length - 1 ? colors.border : colors.textSub}
+                  />
+                </TouchableOpacity>
+              </View>
             )}
-          </TouchableOpacity>
+          </View>
         );
       })}
     </>
@@ -542,6 +653,19 @@ const styles = StyleSheet.create({
   recentEmpty: { fontSize: 12, paddingVertical: 8, paddingLeft: 4 },
   recentItem: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 8, paddingVertical: 9 },
   recentItemText: { fontSize: 13, flex: 1 },
+  // Reorder mode
+  editModeToggle: {
+    flexDirection: "row", alignItems: "center", gap: 5,
+    paddingHorizontal: 10, paddingVertical: 5, marginBottom: 4,
+    borderRadius: 8, borderWidth: 1, alignSelf: "flex-start",
+  },
+  editModeText: { fontSize: 11, fontWeight: "600" },
+  navItemRow: { flexDirection: "row", alignItems: "center" },
+  navItemLifted: {
+    elevation: 4, shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.12, shadowRadius: 4,
+  },
+  arrowGroup: { flexDirection: "column", paddingRight: 12, alignItems: "center", gap: 2 },
   // Maturity
   maturitySection: { borderTopWidth: 1, paddingTop: 10, marginTop: 2 },
   maturityRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 6 },
