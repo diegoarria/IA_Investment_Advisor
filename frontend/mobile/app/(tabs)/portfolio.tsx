@@ -637,7 +637,13 @@ export default function PortfolioScreen() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Fetch period returns whenever positions change
+  // Clave estable que cambia con tickers, acciones o fecha de compra
+  const positionsKey = useMemo(
+    () => positions.map((p) => `${p.ticker}:${p.shares}:${p.purchaseDate ?? ""}`).join("|"),
+    [positions]
+  );
+
+  // Recalcula rendimientos cuando cambian tickers O acciones (no solo al agregar/eliminar)
   useEffect(() => {
     if (positions.length === 0) return;
     setLoadingReturns(true);
@@ -645,9 +651,9 @@ export default function PortfolioScreen() {
       .then((res: { data: { returns?: Record<string, PeriodReturn> } }) => setPeriodReturns(res.data.returns ?? {}))
       .catch(() => {})
       .finally(() => setLoadingReturns(false));
-  }, [positions.length]);
+  }, [positionsKey]);
 
-  // Fetch chart data when selected period or positions change
+  // Recalcula gráfica cuando cambia período o cualquier dato de posición
   useEffect(() => {
     if (positions.length === 0) return;
     setChartData(null);
@@ -659,7 +665,7 @@ export default function PortfolioScreen() {
       .then((res: { data: ChartData }) => setChartData(res.data))
       .catch(() => {})
       .finally(() => setChartLoading(false));
-  }, [selectedPeriod, positions.length]);
+  }, [selectedPeriod, positionsKey]);
 
   const onRefresh = async () => {
     setRefreshing(true);
