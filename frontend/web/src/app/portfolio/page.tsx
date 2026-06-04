@@ -589,44 +589,53 @@ export default function PortfolioPage() {
   const [chartData, setChartData] = useState<ChartData | null>(null);
   const [chartLoading, setChartLoading] = useState(false);
 
-  useEffect(() => {
-    if (positions.length === 0) return;
-    setLoadingReturns(true);
-    marketApi.getPortfolioReturns(positions.map((p) => ({
+  const posPayload = useCallback(
+    () => positions.map((p) => ({
       ticker: p.ticker, shares: p.shares,
       purchase_date: p.purchaseDate ?? null,
       avg_price: p.avgPrice ?? null,
-    })))
+    })),
+    [positions]
+  );
+
+  const fetchReturns = useCallback((showLoader = false) => {
+    if (positions.length === 0) return;
+    if (showLoader) setLoadingReturns(true);
+    marketApi.getPortfolioReturns(posPayload())
       .then((res: { data: { returns?: Record<string, PeriodReturn>; inferred_dates?: Record<string, string> } }) => {
         setPeriodReturns(res.data.returns ?? {});
-        // Auto-save inferred purchase dates to positions that didn't have one
-        const inferred = res.data.inferred_dates ?? {};
-        for (const [ticker, date] of Object.entries(inferred)) {
-          const pos = positions.find((p) => p.ticker === ticker && !p.purchaseDate);
-          if (pos) updatePosition(pos.id, { purchaseDate: date });
+        if (showLoader) {
+          const inferred = res.data.inferred_dates ?? {};
+          for (const [ticker, date] of Object.entries(inferred)) {
+            const pos = positions.find((p) => p.ticker === ticker && !p.purchaseDate);
+            if (pos) updatePosition(pos.id, { purchaseDate: date });
+          }
         }
       })
       .catch(() => {})
-      .finally(() => setLoadingReturns(false));
-  }, [positions.length]);
+      .finally(() => { if (showLoader) setLoadingReturns(false); });
+  }, [positions, posPayload, updatePosition]);
 
-  // Fetch chart data whenever period or positions change
-  useEffect(() => {
+  const fetchChart = useCallback((resetChart = false) => {
     if (positions.length === 0) return;
-    setChartData(null);
-    setChartLoading(true);
-    marketApi.getPortfolioChart(
-      positions.map((p) => ({
-        ticker: p.ticker, shares: p.shares,
-        purchase_date: p.purchaseDate ?? null,
-        avg_price: p.avgPrice ?? null,
-      })),
-      selectedPeriod,
-    )
+    if (resetChart) { setChartData(null); setChartLoading(true); }
+    marketApi.getPortfolioChart(posPayload(), selectedPeriod)
       .then((res: { data: ChartData }) => setChartData(res.data))
       .catch(() => {})
-      .finally(() => setChartLoading(false));
-  }, [selectedPeriod, positions.length]);
+      .finally(() => { if (resetChart) setChartLoading(false); });
+  }, [positions, selectedPeriod, posPayload]);
+
+  // Initial load
+  useEffect(() => { fetchReturns(true); }, [positions.length]);
+  useEffect(() => { fetchChart(true); }, [selectedPeriod, positions.length]);
+
+  // Auto-refresh en tiempo real — returns cada 30s, chart cada 60s
+  useEffect(() => {
+    if (positions.length === 0) return;
+    const ri = setInterval(() => fetchReturns(false), 30_000);
+    const ci = setInterval(() => fetchChart(false), 60_000);
+    return () => { clearInterval(ri); clearInterval(ci); };
+  }, [positions.length, fetchReturns, fetchChart]);
 
   // Currency symbol for display
   const currencySymbol = portfolioCurrency === "USD" ? "$"
