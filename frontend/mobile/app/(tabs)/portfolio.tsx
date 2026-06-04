@@ -1326,12 +1326,14 @@ export default function PortfolioScreen() {
               const up = histPct !== undefined ? histPct >= 0 : totals.diff >= 0;
               const color = up ? "#22c55e" : "#ef4444";
               return (
-                <View style={[s.totalsCard, { backgroundColor: colors.card, borderTopWidth: 3, borderTopColor: color, borderColor: colors.border }]}>
+                <View style={[s.totalsCard, { backgroundColor: colors.card, borderColor: color + "30" }]}>
+                  {/* Colored accent top line */}
+                  <View style={{ height: 3, backgroundColor: color, marginHorizontal: -20, marginTop: -20, marginBottom: 16, borderTopLeftRadius: 20, borderTopRightRadius: 20 }} />
                   {loadingPrices ? (
                     <ActivityIndicator color="#22c55e" />
                   ) : (
                     <>
-                      <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                      <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
                         <Text style={[s.totalsLabel, { color: colors.textMuted }]}>Valor actual del portafolio</Text>
                         {portfolioCurrency !== "USD" && (
                           <View style={{ backgroundColor: colors.bgRaised, borderRadius: 8, paddingHorizontal: 6, paddingVertical: 2 }}>
@@ -1339,37 +1341,43 @@ export default function PortfolioScreen() {
                           </View>
                         )}
                       </View>
-                      <View style={{ flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 10 }}>
+                      <View style={{ flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 12 }}>
                         <Text style={[s.totalsValue, { color: colors.text }]}>
                           {currencySymbol}{totals.current.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </Text>
                         {histPct !== undefined ? (
-                          <View style={{ alignItems: "flex-end" }}>
-                            <Text style={{ fontSize: 20, fontWeight: "900", color, lineHeight: 22 }}>
-                              {up ? "+" : ""}{histPct.toFixed(2)}%
-                            </Text>
+                          <View style={{ alignItems: "flex-end", gap: 4 }}>
+                            <View style={{ flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: color + "18", borderRadius: 12, paddingHorizontal: 10, paddingVertical: 5 }}>
+                              <Text style={{ fontSize: 13, color }}>{up ? "▲" : "▼"}</Text>
+                              <Text style={{ fontSize: 16, fontWeight: "900", color }}>
+                                {up ? "+" : ""}{histPct.toFixed(2)}%
+                              </Text>
+                            </View>
                             {histAmt !== undefined && (
-                              <Text style={{ fontSize: 11, fontWeight: "700", color, marginTop: 1 }}>
+                              <Text style={{ fontSize: 12, fontWeight: "700", color }}>
                                 {up ? "+" : ""}{currencySymbol}{Math.abs(histAmt).toLocaleString("en-US", { minimumFractionDigits: 2 })}
                               </Text>
                             )}
                           </View>
                         ) : (
-                          <Text style={[s.totalsDiff, { color: totals.diff >= 0 ? "#22c55e" : "#ef4444" }]}>
-                            {totals.diff >= 0 ? "+" : ""}{currencySymbol}{Math.abs(totals.diff).toLocaleString("en-US", { minimumFractionDigits: 2 })} ({totals.pct >= 0 ? "+" : ""}{totals.pct.toFixed(2)}%)
-                          </Text>
+                          <View style={{ backgroundColor: (totals.diff >= 0 ? "rgba(34,197,94,0.15)" : "rgba(239,68,68,0.15)"), borderRadius: 12, paddingHorizontal: 10, paddingVertical: 5 }}>
+                            <Text style={[s.totalsDiff, { color: totals.diff >= 0 ? "#22c55e" : "#ef4444" }]}>
+                              {totals.diff >= 0 ? "▲ +" : "▼ "}{totals.pct.toFixed(2)}%
+                            </Text>
+                          </View>
                         )}
                       </View>
-                      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingTop: 8, borderTopWidth: 1, borderTopColor: colors.border }}>
+                      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingTop: 10, borderTopWidth: 1, borderTopColor: colors.border }}>
                         <Text style={{ fontSize: 11, color: colors.textMuted }}>
-                          Total Invertido {currencySymbol}{totals.invested.toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                          Total Invertido{" "}
+                          <Text style={{ fontWeight: "700", color: colors.textSub }}>{currencySymbol}{totals.invested.toLocaleString("en-US", { minimumFractionDigits: 2 })}</Text>
                           {histDate ? `  ·  desde ${histDate}` : ""}
                         </Text>
                         {spyPct !== undefined && histPct !== undefined && (() => {
                           const diff = histPct - spyPct;
                           const beats = diff >= 0;
                           return (
-                            <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                            <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
                               <Text style={{ fontSize: 10, color: colors.textMuted }}>vs S&P</Text>
                               <View style={{ backgroundColor: beats ? "rgba(34,197,94,0.12)" : "rgba(239,68,68,0.12)", borderRadius: 20, paddingHorizontal: 7, paddingVertical: 2 }}>
                                 <Text style={{ fontSize: 10, fontWeight: "800", color: beats ? "#22c55e" : "#ef4444" }}>
@@ -1641,7 +1649,11 @@ export default function PortfolioScreen() {
               const isUp = diff !== null && diff >= 0;
               const priceRevealed = revealedPrices.has(pos.id);
               return (
-                <View key={pos.id} style={[s.posCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                <View key={pos.id} style={[s.posCardWrapper, { backgroundColor: colors.card, borderColor: diff !== null ? (isUp ? "rgba(34,197,94,0.2)" : "rgba(239,68,68,0.2)") : colors.border }]}>
+                  {diff !== null && (
+                    <View style={[s.posCardAccent, { backgroundColor: isUp ? "#22c55e" : "#ef4444" }]} />
+                  )}
+                  <View style={s.posCard}>
                   {/* Header: ticker + edit + remove */}
                   <View style={s.posHeader}>
                     <View>
@@ -1711,6 +1723,7 @@ export default function PortfolioScreen() {
                         : "Ver precio por acción"}
                     </Text>
                   </TouchableOpacity>
+                  </View>
                 </View>
               );
             })}
@@ -2520,15 +2533,19 @@ function makeStyles(c: Colors) {
     // Totals
     totalsCard: {
       borderRadius: 20, borderWidth: 1, padding: 20, marginBottom: 14,
-      borderTopWidth: 3, borderTopColor: c.accentLight,
+      overflow: "hidden",
+      shadowColor: "#000", shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.1, shadowRadius: 10, elevation: 4,
     },
-    totalsLabel: { fontSize: 11, fontWeight: "600", letterSpacing: 0.4, textTransform: "uppercase", marginBottom: 6 },
-    totalsValue: { fontSize: 30, fontWeight: "900", marginBottom: 6, letterSpacing: -1 },
+    totalsLabel: { fontSize: 10, fontWeight: "700", letterSpacing: 1, textTransform: "uppercase", marginBottom: 6 },
+    totalsValue: { fontSize: 36, fontWeight: "900", marginBottom: 6, letterSpacing: -1.5 },
     totalsRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
     totalsInvested: { fontSize: 12, letterSpacing: 0.1 },
-    totalsDiff: { fontSize: 13, fontWeight: "700" },
+    totalsDiff: { fontSize: 15, fontWeight: "900" },
     // Position card
-    posCard: { borderRadius: 16, borderWidth: 1, padding: 14, marginBottom: 8 },
+    posCardWrapper: { borderRadius: 18, borderWidth: 1, marginBottom: 8, overflow: "hidden" },
+    posCardAccent: { height: 3 },
+    posCard: { padding: 14 },
     posHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 },
     posTicker: { fontSize: 16, fontWeight: "800", letterSpacing: -0.3 },
     posName: { fontSize: 11, marginTop: 2, letterSpacing: 0.1 },

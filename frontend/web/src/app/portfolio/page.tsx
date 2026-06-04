@@ -1164,7 +1164,15 @@ export default function PortfolioPage() {
                 const up = histPct !== undefined ? histPct >= 0 : totals.diff >= 0;
                 const color = up ? "#22c55e" : "#ef4444";
                 return (
-                  <div className="rounded-2xl border-2 p-5 mb-4" style={{ borderColor: `${color}22`, background:"var(--card)", borderTopColor: color }}>
+                  <div className="rounded-2xl mb-4 relative overflow-hidden"
+                       style={{
+                         background: "var(--card)",
+                         border: `1px solid ${color}30`,
+                         boxShadow: `0 0 40px ${color}08`,
+                       }}>
+                    {/* Top accent line */}
+                    <div className="h-0.5" style={{ background: color }} />
+                    <div className="p-5">
                     {loadingPrices ? (
                       <div className="flex items-center gap-2" style={{ color:"var(--muted)" }}>
                         <RefreshCw className="w-4 h-4 animate-spin" />
@@ -1172,39 +1180,41 @@ export default function PortfolioPage() {
                       </div>
                     ) : (
                       <>
-                        <div className="flex items-center justify-between mb-1">
-                          <p className="text-xs font-bold uppercase tracking-wider" style={{ color:"var(--muted)" }}>Valor actual del portafolio</p>
+                        <div className="flex items-center justify-between mb-2">
+                          <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color:"var(--muted)" }}>Valor actual del portafolio</p>
                           {portfolioCurrency !== "USD" && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background:"var(--raised)", color:"var(--muted)" }}>{portfolioCurrency}</span>}
                         </div>
 
                         {/* Valor + rendimiento total */}
-                        <div className="flex items-end justify-between gap-2 mb-2">
-                          <p className="text-3xl font-black leading-none" style={{ color:"var(--text)" }}>
+                        <div className="flex items-end justify-between gap-2 mb-3">
+                          <p className="text-4xl font-black leading-none tracking-tight" style={{ color:"var(--text)" }}>
                             {currencySymbol}{totals.current.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})}
                           </p>
                           {histPct !== undefined ? (
-                            <div className="text-right">
-                              <p className="text-xl font-black leading-none" style={{ color }}>
-                                {up?"+":""}{histPct.toFixed(2)}%
-                              </p>
+                            <div className="flex flex-col items-end gap-1">
+                              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-black"
+                                   style={{ background:`${color}18`, color }}>
+                                {up ? "▲" : "▼"} {up?"+":""}{histPct.toFixed(2)}%
+                              </div>
                               {histAmt !== undefined && (
-                                <p className="text-xs font-bold mt-0.5" style={{ color }}>
+                                <p className="text-xs font-bold" style={{ color }}>
                                   {up?"+":""}{currencySymbol}{Math.abs(histAmt).toLocaleString("en-US",{minimumFractionDigits:2})}
                                 </p>
                               )}
                             </div>
                           ) : (
-                            <span className="text-sm font-bold" style={{ color: totals.diff>=0?"#22c55e":"#ef4444" }}>
-                              {totals.diff>=0?"+":""}{currencySymbol}{Math.abs(totals.diff).toLocaleString("en-US",{minimumFractionDigits:2})} ({totals.pct>=0?"+":""}{totals.pct.toFixed(2)}%)
-                            </span>
+                            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-black"
+                                 style={{ background: (totals.diff>=0?"rgba(34,197,94,0.15)":"rgba(239,68,68,0.15)"), color: totals.diff>=0?"#22c55e":"#ef4444" }}>
+                              {totals.diff>=0?"▲":"▼"} {totals.pct>=0?"+":""}{totals.pct.toFixed(2)}%
+                            </div>
                           )}
                         </div>
 
                         {/* Invertido + fecha + vs S&P 500 */}
-                        <div className="flex items-center justify-between pt-2 border-t"
+                        <div className="flex items-center justify-between pt-3 border-t"
                              style={{ borderColor:"var(--border)" }}>
                           <span className="text-xs" style={{ color:"var(--muted)" }}>
-                            Total Invertido {currencySymbol}{totals.invested.toLocaleString("en-US",{minimumFractionDigits:2})}
+                            Total Invertido <span className="font-semibold" style={{ color:"var(--sub)" }}>{currencySymbol}{totals.invested.toLocaleString("en-US",{minimumFractionDigits:2})}</span>
                             {histDate && <span style={{ color:"var(--dim)" }}> · desde {histDate}</span>}
                           </span>
                           {spyPct !== undefined && histPct !== undefined && (
@@ -1228,6 +1238,7 @@ export default function PortfolioPage() {
                         </div>
                       </>
                     )}
+                    </div>
                   </div>
                 );
               })()}
@@ -1519,8 +1530,17 @@ export default function PortfolioPage() {
                 const isUp = diff !== null && diff >= 0;
                 const priceRevealed = revealedPrices.has(pos.id);
                 return (
-                  <div key={pos.id} className="rounded-2xl border p-4 mb-2"
-                       style={{ borderColor:"var(--border)", background:"var(--card)" }}>
+                  <div key={pos.id} className="rounded-2xl mb-2 overflow-hidden"
+                       style={{
+                         borderColor: diff !== null ? `${isUp?"#22c55e":"#ef4444"}22` : "var(--border)",
+                         background:"var(--card)",
+                         border: `1px solid ${diff !== null ? (isUp?"rgba(34,197,94,0.2)":"rgba(239,68,68,0.2)") : "var(--border)"}`,
+                       }}>
+                    {/* Top accent line */}
+                    {diff !== null && (
+                      <div className="h-0.5" style={{ background: isUp ? "#22c55e" : "#ef4444" }} />
+                    )}
+                    <div className="p-4">
                     {/* Header */}
                     <div className="flex items-start justify-between mb-3">
                       <div>
@@ -1588,6 +1608,7 @@ export default function PortfolioPage() {
                         ? cp ? `${currencySymbol}${cp.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})} / acción · ocultar` : "Sin precio"
                         : "Ver precio por acción"}
                     </button>
+                    </div>
                   </div>
                 );
               })}

@@ -257,54 +257,64 @@ export default function PaperScreen() {
         <ScrollView contentContainerStyle={s.content} keyboardShouldPersistTaps="handled">
 
           {/* Balance card */}
-              <View style={[s.balanceCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                <View style={s.balanceRow}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={[s.balanceLabel, { color: colors.textMuted }]}>Portafolio virtual</Text>
-                    <Text style={[s.balanceTotal, { color: colors.text }]}>{fmtMoney(totalValue)}</Text>
-                    <View style={s.balanceReturnRow}>
-                      <View style={[s.returnBadge, { backgroundColor: (isUp ? "#22c55e" : "#ef4444") + "18" }]}>
-                        <Ionicons name={isUp ? "trending-up" : "trending-down"} size={12} color={isUp ? "#22c55e" : "#ef4444"} />
-                        <Text style={[s.returnBadgeText, { color: isUp ? "#22c55e" : "#ef4444" }]}>
-                          {fmtMoney(Math.abs(totalReturn))} ({fmtPct(totalReturnPct)})
-                        </Text>
+              <View style={[s.balanceCard, { backgroundColor: colors.card, borderColor: isUp ? "rgba(34,197,94,0.3)" : "rgba(239,68,68,0.3)" }]}>
+                {/* Colored top accent */}
+                <View style={[s.posCardAccent, { backgroundColor: isUp ? "#22c55e" : "#ef4444", height: 3 }]} />
+                <View style={s.balanceCardInner}>
+                  <View style={s.balanceRow}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={[s.balanceLabel, { color: colors.textMuted }]}>Portafolio virtual</Text>
+                      <Text style={[s.balanceTotal, { color: colors.text }]}>{fmtMoney(totalValue)}</Text>
+                      <View style={s.balanceReturnRow}>
+                        <View style={[s.returnBadge, { backgroundColor: (isUp ? "#22c55e" : "#ef4444") + "18" }]}>
+                          <Ionicons name={isUp ? "trending-up" : "trending-down"} size={13} color={isUp ? "#22c55e" : "#ef4444"} />
+                          <Text style={[s.returnBadgeText, { color: isUp ? "#22c55e" : "#ef4444" }]}>
+                            {isUp ? "+" : ""}{fmtMoney(Math.abs(totalReturn))} ({fmtPct(totalReturnPct)})
+                          </Text>
+                        </View>
                       </View>
                     </View>
+                    <View style={s.actionBtns}>
+                      <TouchableOpacity style={[s.resetBtn, { backgroundColor: "#22c55e12", borderColor: "#22c55e44" }]} onPress={() => setTopUpOpen(true)}>
+                        <Ionicons name="add-circle-outline" size={14} color="#22c55e" />
+                        <Text style={s.topUpBtnText}>Recargar</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity style={s.resetBtn} onPress={() => Alert.alert("Reiniciar", "¿Volver a $10,000 virtuales?", [
+                        { text: "Cancelar", style: "cancel" },
+                        { text: "Reiniciar", style: "destructive", onPress: reset },
+                      ])}>
+                        <Ionicons name="refresh-outline" size={14} color="#ef4444" />
+                        <Text style={s.resetBtnText}>Reset</Text>
+                      </TouchableOpacity>
+                    </View>
                   </View>
-                  <View style={{ flexDirection: "row", gap: 8, alignItems: "center" }}>
-                    <TouchableOpacity style={[s.resetBtn, { backgroundColor: "#22c55e18", borderColor: "#22c55e55" }]} onPress={() => setTopUpOpen(true)}>
-                      <Ionicons name="add-circle-outline" size={14} color="#22c55e" />
-                      <Text style={[s.resetBtnText, { color: "#22c55e" }]}>Recargar</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity style={s.resetBtn} onPress={() => Alert.alert("Reiniciar", "¿Volver a $10,000 virtuales?", [
-                      { text: "Cancelar", style: "cancel" },
-                      { text: "Reiniciar", style: "destructive", onPress: reset },
-                    ])}>
-                      <Ionicons name="refresh-outline" size={14} color="#ef4444" />
-                      <Text style={s.resetBtnText}>Reset</Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
-                <View style={[s.balanceSplit, { borderTopColor: colors.border }]}>
-                  <View style={s.balanceSplitItem}>
-                    <Text style={[s.balanceSplitLabel, { color: colors.textMuted }]}>Efectivo</Text>
-                    <Text style={[s.balanceSplitVal, { color: "#8b5cf6" }]}>{fmtMoney(cash)}</Text>
-                  </View>
-                  <View style={[s.balanceSplitDivider, { backgroundColor: colors.border }]} />
-                  <View style={s.balanceSplitItem}>
-                    <Text style={[s.balanceSplitLabel, { color: colors.textMuted }]}>En acciones</Text>
-                    <Text style={[s.balanceSplitVal, { color: colors.text }]}>{fmtMoney(virtualValue)}</Text>
-                  </View>
-                  <View style={[s.balanceSplitDivider, { backgroundColor: colors.border }]} />
-                  <View style={s.balanceSplitItem}>
-                    <Text style={[s.balanceSplitLabel, { color: colors.textMuted }]}>Posiciones</Text>
-                    <Text style={[s.balanceSplitVal, { color: colors.text }]}>{positions.length}</Text>
+                  <View style={[s.balanceSplit, { borderTopColor: colors.border }]}>
+                    <View style={s.balanceSplitItem}>
+                      <Text style={[s.balanceSplitLabel, { color: colors.textMuted }]}>Efectivo</Text>
+                      <Text style={[s.balanceSplitVal, { color: "#8b5cf6" }]}>{fmtMoney(cash)}</Text>
+                    </View>
+                    <View style={[s.balanceSplitDivider, { backgroundColor: colors.border }]} />
+                    <View style={s.balanceSplitItem}>
+                      <Text style={[s.balanceSplitLabel, { color: colors.textMuted }]}>En acciones</Text>
+                      <Text style={[s.balanceSplitVal, { color: colors.text }]}>{fmtMoney(virtualValue)}</Text>
+                    </View>
+                    <View style={[s.balanceSplitDivider, { backgroundColor: colors.border }]} />
+                    <View style={s.balanceSplitItem}>
+                      <Text style={[s.balanceSplitLabel, { color: colors.textMuted }]}>Posiciones</Text>
+                      <Text style={[s.balanceSplitVal, { color: colors.text }]}>{positions.length}</Text>
+                    </View>
                   </View>
                 </View>
               </View>
 
               {/* Search + buy */}
               <View style={[s.buyCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                <View style={s.buyCardHeader}>
+                  <View style={s.buyCardIcon}>
+                    <Ionicons name="add" size={16} color="#00d47e" />
+                  </View>
+                  <Text style={[s.buyCardTitle, { color: colors.text }]}>Comprar acciones</Text>
+                </View>
                 <View style={[s.searchBar, { backgroundColor: colors.bg, borderColor: colors.border }]}>
                   <Ionicons name="search-outline" size={18} color={colors.textMuted} />
                   <TextInput style={[s.searchInput, { color: colors.text }]} value={query}
@@ -396,28 +406,32 @@ export default function PaperScreen() {
                     const diff = pos.shares * cp - pos.shares * pos.avgPrice;
                     const pct  = pos.avgPrice > 0 ? (diff / (pos.shares * pos.avgPrice)) * 100 : 0;
                     const up   = diff >= 0;
+                    const col  = up ? "#22c55e" : "#ef4444";
                     return (
-                      <View key={pos.id} style={[s.posCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                        <View style={s.posTop}>
-                          <View style={{ flex: 1 }}>
-                            <Text style={[s.posTicker, { color: colors.text }]}>{pos.ticker}</Text>
-                            <Text style={[s.posName, { color: colors.textMuted }]}>{pos.name}</Text>
-                          </View>
-                          <View style={{ alignItems: "flex-end" }}>
-                            <Text style={[s.posValue, { color: colors.text }]}>{fmtMoney(pos.shares * cp)}</Text>
-                            <View style={[s.posChangeBadge, { backgroundColor: (up ? "#22c55e" : "#ef4444") + "18" }]}>
-                              <Ionicons name={up ? "caret-up" : "caret-down"} size={10} color={up ? "#22c55e" : "#ef4444"} />
-                              <Text style={[s.posChangePct, { color: up ? "#22c55e" : "#ef4444" }]}>{fmtPct(pct)} ({up ? "+" : ""}{fmtMoney(Math.abs(diff))})</Text>
+                      <View key={pos.id} style={[s.posCardWrapper, { backgroundColor: colors.card, borderColor: col + "30" }]}>
+                        <View style={[s.posCardAccent, { backgroundColor: col }]} />
+                        <View style={s.posCard}>
+                          <View style={s.posTop}>
+                            <View style={{ flex: 1 }}>
+                              <Text style={[s.posTicker, { color: colors.text }]}>{pos.ticker}</Text>
+                              <Text style={[s.posName, { color: colors.textMuted }]}>{pos.name}</Text>
+                            </View>
+                            <View style={{ alignItems: "flex-end" }}>
+                              <Text style={[s.posValue, { color: colors.text }]}>{fmtMoney(pos.shares * cp)}</Text>
+                              <View style={[s.posChangeBadge, { backgroundColor: col + "18" }]}>
+                                <Ionicons name={up ? "caret-up" : "caret-down"} size={10} color={col} />
+                                <Text style={[s.posChangePct, { color: col }]}>{fmtPct(pct)} ({up ? "+" : ""}{fmtMoney(Math.abs(diff))})</Text>
+                              </View>
                             </View>
                           </View>
-                        </View>
-                        <View style={[s.posBottom, { borderTopColor: colors.border }]}>
-                          <Text style={[s.posDetail, { color: colors.textDim }]}>
-                            {pos.shares} acc · Costo ${pos.avgPrice.toLocaleString("en-US", { minimumFractionDigits: 2 })} · Actual ${cp.toLocaleString("en-US", { minimumFractionDigits: 2 })}
-                          </Text>
-                          <TouchableOpacity style={s.sellBtn} onPress={() => setSellModal({ ticker: pos.ticker, maxShares: pos.shares, price: cp })}>
-                            <Text style={s.sellBtnText}>Vender</Text>
-                          </TouchableOpacity>
+                          <View style={[s.posBottom, { borderTopColor: colors.border }]}>
+                            <Text style={[s.posDetail, { color: colors.textDim }]}>
+                              {pos.shares} acc · Costo ${pos.avgPrice.toLocaleString("en-US", { minimumFractionDigits: 2 })} · Actual ${cp.toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                            </Text>
+                            <TouchableOpacity style={s.sellBtn} onPress={() => setSellModal({ ticker: pos.ticker, maxShares: pos.shares, price: cp })}>
+                              <Text style={s.sellBtnText}>Vender</Text>
+                            </TouchableOpacity>
+                          </View>
                         </View>
                       </View>
                     );
@@ -530,72 +544,104 @@ function makeStyles(c: Colors) {
     container: { flex: 1, backgroundColor: c.bg },
     content: { padding: 14, paddingBottom: 48, gap: 12 },
 
-    // Balance card
-    balanceCard: { borderRadius: 20, borderWidth: 1, padding: 18 },
-    balanceRow: { flexDirection: "row", alignItems: "flex-start", marginBottom: 14 },
-    balanceLabel: { fontSize: 10, fontWeight: "700", textTransform: "uppercase", letterSpacing: 1, marginBottom: 6 },
-    balanceTotal: { fontSize: 34, fontWeight: "900", marginBottom: 8, letterSpacing: -1 },
+    // Balance card — hero section
+    balanceCard: {
+      borderRadius: 22, borderWidth: 1, overflow: "hidden",
+      shadowColor: "#000", shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.12, shadowRadius: 12, elevation: 6,
+    },
+    balanceCardInner: { padding: 18 },
+    balanceRow: { flexDirection: "row", alignItems: "flex-start", marginBottom: 16 },
+    balanceLabel: { fontSize: 10, fontWeight: "700", textTransform: "uppercase", letterSpacing: 1.2, marginBottom: 6 },
+    balanceTotal: { fontSize: 36, fontWeight: "900", marginBottom: 10, letterSpacing: -1.5 },
     balanceReturnRow: { flexDirection: "row" },
-    returnBadge: { flexDirection: "row", alignItems: "center", gap: 5, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 5 },
-    returnBadgeText: { fontSize: 12, fontWeight: "700" },
-    resetBtn: { flexDirection: "row", alignItems: "center", gap: 5, borderWidth: 1, borderColor: c.border, borderRadius: 10, paddingHorizontal: 11, paddingVertical: 7 },
+    returnBadge: {
+      flexDirection: "row", alignItems: "center", gap: 6,
+      borderRadius: 12, paddingHorizontal: 12, paddingVertical: 6,
+    },
+    returnBadgeText: { fontSize: 13, fontWeight: "800" },
+    actionBtns: { flexDirection: "column", gap: 7, alignItems: "flex-end" },
+    resetBtn: {
+      flexDirection: "row", alignItems: "center", gap: 5,
+      borderWidth: 1, borderColor: c.border, borderRadius: 10,
+      paddingHorizontal: 10, paddingVertical: 7,
+    },
     resetBtnText: { fontSize: 11, fontWeight: "600", color: "#ef4444" },
-    balanceSplit: { flexDirection: "row", borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 14 },
-    balanceSplitItem: { flex: 1, alignItems: "center", gap: 3 },
-    balanceSplitLabel: { fontSize: 10, letterSpacing: 0.3 },
-    balanceSplitVal: { fontSize: 14, fontWeight: "800" },
+    topUpBtnText: { fontSize: 11, fontWeight: "700", color: "#22c55e" },
+    balanceSplit: { flexDirection: "row", borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 14, marginTop: 2 },
+    balanceSplitItem: { flex: 1, alignItems: "center", gap: 4 },
+    balanceSplitLabel: { fontSize: 9, fontWeight: "600", textTransform: "uppercase", letterSpacing: 0.5 },
+    balanceSplitVal: { fontSize: 15, fontWeight: "900" },
     balanceSplitDivider: { width: StyleSheet.hairlineWidth, marginVertical: 2 },
 
     // Buy card
     buyCard: { borderRadius: 20, borderWidth: 1, padding: 16 },
+    buyCardHeader: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 12 },
+    buyCardIcon: { width: 28, height: 28, borderRadius: 8, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(0,212,126,0.12)" },
+    buyCardTitle: { fontSize: 14, fontWeight: "700" },
     searchBar: { flexDirection: "row", alignItems: "center", gap: 10, borderWidth: 1, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 12, marginBottom: 10 },
     searchInput: { flex: 1, fontSize: 15, fontWeight: "600", letterSpacing: 0.3 },
     searchState: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 8, paddingHorizontal: 4 },
     searchStateText: { fontSize: 13 },
-    tickerResult: { flexDirection: "row", alignItems: "center", borderWidth: 1, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 12, marginBottom: 10 },
+    tickerResult: {
+      flexDirection: "row", alignItems: "center", borderWidth: 1,
+      borderRadius: 14, paddingHorizontal: 14, paddingVertical: 12, marginBottom: 10,
+      borderColor: "rgba(0,212,126,0.25)", backgroundColor: "rgba(0,212,126,0.04)",
+    },
     tickerResultLeft: { flex: 1, gap: 3 },
     tickerSymbol: { fontSize: 22, fontWeight: "900", letterSpacing: -0.5 },
     tickerName: { fontSize: 12, letterSpacing: 0.1 },
-    tickerResultRight: { alignItems: "flex-end", gap: 5 },
+    tickerResultRight: { alignItems: "flex-end", gap: 6 },
     tickerPrice: { fontSize: 22, fontWeight: "900", letterSpacing: -0.5 },
-    tickerChangeBadge: { flexDirection: "row", alignItems: "center", gap: 3, borderRadius: 8, paddingHorizontal: 7, paddingVertical: 4 },
+    tickerChangeBadge: { flexDirection: "row", alignItems: "center", gap: 3, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4 },
     tickerChangePct: { fontSize: 12, fontWeight: "700" },
     buyForm: { flexDirection: "row", gap: 10, alignItems: "flex-end" },
     qtyWrap: { borderWidth: 1, borderRadius: 14, padding: 12, width: 110 },
     qtyLabel: { fontSize: 9, fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 4 },
     qtyInput: { fontSize: 22, fontWeight: "900", padding: 0, letterSpacing: -0.5 },
     totalCost: { fontSize: 12, marginBottom: 7 },
-    buyBtn: { backgroundColor: c.accent, borderRadius: 14, paddingVertical: 14, alignItems: "center", justifyContent: "center", shadowColor: c.accentLight, shadowOpacity: 0.35, shadowRadius: 10, shadowOffset: { width: 0, height: 3 } },
+    buyBtn: {
+      backgroundColor: c.accent, borderRadius: 14, paddingVertical: 14,
+      alignItems: "center", justifyContent: "center",
+      shadowColor: "#00a85e", shadowOpacity: 0.35, shadowRadius: 10, shadowOffset: { width: 0, height: 3 },
+    },
     buyBtnDisabled: { opacity: 0.35 },
     buyBtnText: { color: "white", fontWeight: "800", fontSize: 14, letterSpacing: 0.1 },
 
     // Sections
-    sectionRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 10, marginTop: 6 },
-    sectionTitle: { fontSize: 16, fontWeight: "700", letterSpacing: -0.2 },
+    sectionRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8, marginTop: 4 },
+    sectionTitle: { fontSize: 11, fontWeight: "700", textTransform: "uppercase", letterSpacing: 1 },
 
-    // Position card
-    posCard: { borderRadius: 18, borderWidth: 1, padding: 14 },
+    // Position card — with colored top border via wrapper
+    posCardWrapper: { borderRadius: 18, overflow: "hidden", borderWidth: 1 },
+    posCardAccent: { height: 3 },
+    posCard: { padding: 14 },
     posTop: { flexDirection: "row", alignItems: "flex-start", marginBottom: 12 },
-    posTicker: { fontSize: 18, fontWeight: "900", letterSpacing: -0.3 },
-    posName: { fontSize: 11, marginTop: 2, letterSpacing: 0.1 },
-    posValue: { fontSize: 18, fontWeight: "800" },
-    posChangeBadge: { flexDirection: "row", alignItems: "center", gap: 3, borderRadius: 8, paddingHorizontal: 7, paddingVertical: 4, marginTop: 4 },
-    posChangePct: { fontSize: 12, fontWeight: "700" },
-    posBottom: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 11 },
+    posTicker: { fontSize: 20, fontWeight: "900", letterSpacing: -0.5 },
+    posName: { fontSize: 11, marginTop: 3, letterSpacing: 0.1 },
+    posValue: { fontSize: 20, fontWeight: "900" },
+    posChangeBadge: { flexDirection: "row", alignItems: "center", gap: 3, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 5, marginTop: 5 },
+    posChangePct: { fontSize: 12, fontWeight: "800" },
+    posBottom: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 12 },
     posDetail: { fontSize: 11, flex: 1, marginRight: 10, lineHeight: 17 },
-    sellBtn: { borderWidth: 1, borderColor: c.down + "66", borderRadius: 10, paddingHorizontal: 13, paddingVertical: 7 },
+    sellBtn: {
+      borderWidth: 1, borderColor: c.down + "55", borderRadius: 10,
+      paddingHorizontal: 14, paddingVertical: 8,
+      backgroundColor: "rgba(239,68,68,0.06)",
+    },
     sellBtnText: { color: c.down, fontSize: 12, fontWeight: "700" },
 
     // Empty state
     emptyState: { alignItems: "center", paddingTop: 56, paddingHorizontal: 32 },
+    emptyIcon: { width: 64, height: 64, borderRadius: 20, alignItems: "center", justifyContent: "center", marginBottom: 16, backgroundColor: "rgba(0,212,126,0.1)" },
     emptyTitle: { fontSize: 18, fontWeight: "700", marginBottom: 8, letterSpacing: -0.3 },
     emptySub: { fontSize: 13, textAlign: "center", lineHeight: 21 },
 
     // History
-    historyCard: { borderRadius: 16, borderWidth: 1, overflow: "hidden" },
-    tradeRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 14, paddingVertical: 12, borderBottomWidth: StyleSheet.hairlineWidth },
-    tradeBadge: { width: 32, height: 32, borderRadius: 10, alignItems: "center", justifyContent: "center", flexShrink: 0 },
-    tradeBadgeText: { fontSize: 12, fontWeight: "800" },
+    historyCard: { borderRadius: 18, borderWidth: 1, overflow: "hidden" },
+    tradeRow: { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 14, paddingVertical: 13, borderBottomWidth: StyleSheet.hairlineWidth },
+    tradeBadge: { width: 34, height: 34, borderRadius: 10, alignItems: "center", justifyContent: "center", flexShrink: 0 },
+    tradeBadgeText: { fontSize: 13, fontWeight: "900" },
     tradeTicker: { fontSize: 14, fontWeight: "700", letterSpacing: -0.1 },
     tradeDetail: { fontSize: 11, marginTop: 2, letterSpacing: 0.1 },
     tradeTotal: { fontSize: 14, fontWeight: "800" },
@@ -614,9 +660,9 @@ function makeStyles(c: Colors) {
     planPrice: { fontSize: 14, fontWeight: "600" },
     topUpCloseBtn: { borderWidth: 1, borderRadius: 14, paddingVertical: 14, alignItems: "center" },
     topUpCloseBtnText: { fontWeight: "600", fontSize: 14 },
-    suggestionsBox: { borderRadius: 12, borderWidth: 1, marginBottom: 8, overflow: "hidden" },
-    suggestionRow: { paddingHorizontal: 14, paddingVertical: 10 },
-    suggestionTicker: { fontSize: 13, fontWeight: "700" },
+    suggestionsBox: { borderRadius: 14, borderWidth: 1, marginBottom: 8, overflow: "hidden", backgroundColor: "#0f172a", borderColor: "rgba(0,212,126,0.25)" },
+    suggestionRow: { paddingHorizontal: 14, paddingVertical: 11 },
+    suggestionTicker: { fontSize: 13, fontWeight: "700", color: "#00d47e" },
     suggestionName: { fontSize: 11, marginTop: 1 },
   });
 }
