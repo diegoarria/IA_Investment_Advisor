@@ -7,7 +7,7 @@ import { Ionicons } from "@expo/vector-icons";
 import * as SecureStore from "expo-secure-store";
 import { router, usePathname } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useAppStore, RISK_CONFIG, getAge, maturityLabel } from "../lib/profileStore";
+import { useAppStore, getAge } from "../lib/profileStore";
 import { usePortfolioStore } from "../lib/portfolioStore";
 import { useChatStore } from "../lib/chatStore";
 import { useTheme } from "../lib/ThemeContext";
@@ -30,98 +30,86 @@ const NAV_ITEMS: { icon: IoniconName; label: string; path: string }[] = [
   { icon: "headset-outline",             label: "Soporte",       path: "/support" },
 ];
 
+// ─── Risk segments (same 8 levels as web) ────────────────────────────────────
+
+const RISK_SEGMENTS = [
+  { key: "conservative",           color: "#00d47e", pct: 8  },
+  { key: "conservative_moderate",  color: "#3ecf8e", pct: 18 },
+  { key: "moderate",               color: "#8bd44e", pct: 30 },
+  { key: "moderate_growth",        color: "#c5d43c", pct: 42 },
+  { key: "growth",                 color: "#f5c842", pct: 55 },
+  { key: "aggressive",             color: "#f5973a", pct: 68 },
+  { key: "aggressive_speculative", color: "#f5613a", pct: 82 },
+  { key: "speculative",            color: "#ff2d3b", pct: 100 },
+];
+
+const RISK_LABEL: Record<string, string> = {
+  conservative: "Conservador",
+  conservative_moderate: "Cons-Moderado",
+  moderate: "Moderado",
+  moderate_growth: "Mod-Growth",
+  growth: "Growth",
+  aggressive: "Agresivo",
+  aggressive_speculative: "Agr-Especulativo",
+  speculative: "Especulativo",
+};
+
 // ─── Profile card ─────────────────────────────────────────────────────────────
 
 function ProfileCard({ colors }: { colors: ReturnType<typeof useTheme>["colors"] }) {
-  const { profile, maturityScore, maturityHistory } = useAppStore();
-  const riskCfg = profile?.risk_tolerance ? RISK_CONFIG[profile.risk_tolerance] : null;
-  const pct = riskCfg ? Math.round(riskCfg.pct * 100) : 0;
-  const ml = maturityLabel(maturityScore);
+  const { profile } = useAppStore();
   if (!profile) return null;
 
-  const recentEvents = maturityHistory.slice(-10);
-  const trend = recentEvents.reduce((acc, e) => acc + e.delta, 0);
-  const trendText = trend > 0 ? `+${trend} pts` : trend < 0 ? `${trend} pts` : "estable";
-  const trendColor = trend > 0 ? "#22c55e" : trend < 0 ? "#ef4444" : colors.textDim;
+  const seg = RISK_SEGMENTS.find((s) => s.key === profile.risk_tolerance);
 
   return (
     <View style={[styles.profileCard, { backgroundColor: colors.bg, borderColor: colors.border }]}>
+      {/* Avatar + name + "Perfil activo" */}
       <View style={styles.profileHeader}>
-        <View style={[styles.avatar, { backgroundColor: riskCfg?.color ?? "#16a34a" }]}>
+        <View style={styles.avatar}>
           {profile.avatarUri ? (
             <Image source={{ uri: profile.avatarUri }} style={styles.avatarImg} />
           ) : (
             <Text style={styles.avatarText}>{profile.name.charAt(0).toUpperCase()}</Text>
           )}
         </View>
-        <View style={{ flex: 1 }}>
+        <View style={{ flex: 1, minWidth: 0 }}>
           <Text style={[styles.profileName, { color: colors.text }]} numberOfLines={1}>
             {profile.name}
           </Text>
-          {riskCfg && (
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
-              <Ionicons name={riskCfg.icon} size={12} color={riskCfg.color} />
-              <Text style={[styles.profileTypeBadge, { color: riskCfg.color }]}>{riskCfg.label}</Text>
-            </View>
-          )}
-        </View>
-      </View>
-      {riskCfg && (
-        <>
-          <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
-            <Text style={[styles.barLabel, { color: colors.textDim }]}>Bajo riesgo</Text>
-            <Text style={{ fontSize: 13, fontWeight: "800", color: riskCfg.color }}>{pct}%</Text>
-            <Text style={[styles.barLabel, { color: colors.textDim }]}>Alto riesgo</Text>
-          </View>
-          <View style={[styles.barTrack, { backgroundColor: colors.border, marginBottom: 10 }]}>
-            <View style={[styles.barFill, { flex: pct, backgroundColor: riskCfg.color }]} />
-            {pct < 100 && <View style={{ flex: 100 - pct }} />}
-          </View>
-        </>
-      )}
-      <View style={[styles.statsGrid, { borderTopColor: colors.border }]}>
-        <View style={styles.statItem}>
-          <Text style={[styles.statLabel, { color: colors.textMuted }]}>Edad</Text>
-          <Text style={[styles.statValue, { color: colors.text }]}>{getAge(profile.birth_date)} años</Text>
-        </View>
-        <View style={[styles.statDivider, { backgroundColor: colors.border }]} />
-        <View style={styles.statItem}>
-          <Text style={[styles.statLabel, { color: colors.textMuted }]}>Ingresos</Text>
-          <Text style={[styles.statValue, { color: colors.text }]}>
-            ${Number(profile.monthly_income).toLocaleString()}/mes
-          </Text>
-        </View>
-        <View style={[styles.statDivider, { backgroundColor: colors.border }]} />
-        <View style={styles.statItem}>
-          <Text style={[styles.statLabel, { color: colors.textMuted }]}>Aportación</Text>
-          <Text style={[styles.statValue, { color: colors.accentLight }]}>
-            ${Number(profile.monthly_contribution).toLocaleString()}/mes
-          </Text>
+          <Text style={[styles.profileSub, { color: colors.textMuted }]}>Perfil activo</Text>
         </View>
       </View>
 
-      <View style={[styles.maturitySection, { borderTopColor: colors.border }]}>
-        <View style={styles.maturityRow}>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
-            <Ionicons name="trophy-outline" size={12} color={ml.color} />
-            <Text style={[styles.maturityLabel, { color: colors.textMuted }]}>Madurez Inversora</Text>
+      {/* Stats grid: Edad · Ingresos · Inversión */}
+      <View style={styles.statsGrid}>
+        {[
+          { label: "Edad",      value: String(getAge(profile.birth_date)), sub: "años" },
+          { label: "Ingresos",  value: `$${Number(profile.monthly_income).toLocaleString()}`, sub: "/mes" },
+          { label: "Inversión", value: `$${Number(profile.monthly_contribution).toLocaleString()}`, sub: "/mes" },
+        ].map(({ label, value, sub }) => (
+          <View key={label} style={[styles.statBox, { backgroundColor: colors.card }]}>
+            <Text style={[styles.statLabel, { color: colors.textDim }]}>{label}</Text>
+            <Text style={[styles.statValue, { color: colors.text }]}>{value}</Text>
+            <Text style={[styles.statSub, { color: colors.textMuted }]}>{sub}</Text>
           </View>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-            <Text style={[styles.maturityTrend, { color: trendColor }]}>{trendText}</Text>
-            <View style={[styles.maturityBadge, { backgroundColor: ml.color + "22", borderColor: ml.color + "55" }]}>
-              <Text style={[styles.maturityBadgeText, { color: ml.color }]}>{ml.label}</Text>
-            </View>
-          </View>
-        </View>
-        <View style={[styles.barTrack, { backgroundColor: colors.border, marginBottom: 0 }]}>
-          <View style={[styles.barFill, { flex: maturityScore, backgroundColor: ml.color }]} />
-          {maturityScore < 100 && <View style={{ flex: 100 - maturityScore }} />}
-        </View>
-        <View style={styles.maturityScoreRow}>
-          <Text style={[styles.maturityScore, { color: ml.color }]}>{maturityScore}</Text>
-          <Text style={[styles.maturityScoreMax, { color: colors.textDim }]}>/100</Text>
-        </View>
+        ))}
       </View>
+
+      {/* Risk bar */}
+      {seg && (
+        <View>
+          <View style={styles.riskRow}>
+            <Text style={[styles.riskLabel, { color: seg.color }]}>
+              {RISK_LABEL[profile.risk_tolerance] ?? profile.risk_tolerance}
+            </Text>
+            <Text style={[styles.riskPct, { color: seg.color }]}>{seg.pct}%</Text>
+          </View>
+          <View style={[styles.riskBarTrack, { backgroundColor: colors.border }]}>
+            <View style={[styles.riskBarFill, { width: `${seg.pct}%` as any, backgroundColor: seg.color }]} />
+          </View>
+        </View>
+      )}
     </View>
   );
 }
@@ -612,26 +600,33 @@ const styles = StyleSheet.create({
     width: 30, height: 30, borderRadius: 8, borderWidth: 1,
     alignItems: "center", justifyContent: "center", flexShrink: 0,
   },
-  // Profile card
+  // Profile card — identical to web AppSidebar
   profileCard: {
     marginHorizontal: 12, marginBottom: 8,
-    borderRadius: 12, borderWidth: 1, padding: 12,
+    borderRadius: 16, borderWidth: 1, padding: 12,
   },
-  profileHeader: { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 10 },
-  avatar: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center" },
-  avatarText: { color: "white", fontSize: 16, fontWeight: "700" },
+  profileHeader: { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 12 },
+  avatar: {
+    width: 36, height: 36, borderRadius: 18, flexShrink: 0,
+    alignItems: "center", justifyContent: "center",
+    backgroundColor: "#00a85e",
+  },
+  avatarText: { color: "white", fontSize: 14, fontWeight: "900" },
   avatarImg: { width: 36, height: 36, borderRadius: 18 },
-  profileName: { fontSize: 14, fontWeight: "700", marginBottom: 2 },
-  profileTypeBadge: { fontSize: 11, fontWeight: "600" },
-  barTrack: { height: 7, borderRadius: 4, overflow: "hidden", flexDirection: "row", marginBottom: 5 },
-  barFill: { height: "100%", borderRadius: 4 },
-  barLabels: { flexDirection: "row", justifyContent: "space-between" },
-  barLabel: { fontSize: 10 },
-  statsGrid: { flexDirection: "row", borderTopWidth: 1, paddingTop: 10, marginTop: 2 },
-  statItem: { flex: 1, alignItems: "center" },
-  statLabel: { fontSize: 10, marginBottom: 2 },
-  statValue: { fontSize: 11, fontWeight: "600", textAlign: "center" },
-  statDivider: { width: 1, marginVertical: 2 },
+  profileName: { fontSize: 12, fontWeight: "700", marginBottom: 1 },
+  profileSub: { fontSize: 10 },
+  // Stats grid: 3 equal columns with individual boxes
+  statsGrid: { flexDirection: "row", gap: 6, marginBottom: 12 },
+  statBox: { flex: 1, borderRadius: 12, padding: 8, alignItems: "center" },
+  statLabel: { fontSize: 9, fontWeight: "600", textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 2 },
+  statValue: { fontSize: 11, fontWeight: "900", lineHeight: 13 },
+  statSub: { fontSize: 9, marginTop: 2 },
+  // Risk bar
+  riskRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 4 },
+  riskLabel: { fontSize: 10, fontWeight: "600" },
+  riskPct: { fontSize: 11, fontWeight: "900" },
+  riskBarTrack: { height: 6, borderRadius: 3, overflow: "hidden" },
+  riskBarFill: { height: "100%", borderRadius: 3 },
   // Nav
   navSection: { paddingHorizontal: 12, paddingTop: 4, gap: 2 },
   navSectionCollapsed: { paddingHorizontal: 6, alignItems: "center" },
