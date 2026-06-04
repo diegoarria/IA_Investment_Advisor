@@ -57,7 +57,7 @@ _YF_HEADERS = {
 def _fetch_one_index(symbol: str) -> tuple[float | None, float | None]:
     """Returns (price, prev_close). Direct httpx call → yfinance fallback."""
     import httpx
-    encoded = symbol.replace("^", "%5E")
+    encoded = _yf_symbol(symbol).replace("^", "%5E")
 
     # Primary: direct Yahoo Finance chart API with browser headers
     try:
@@ -163,7 +163,7 @@ async def get_prices(request: dict, user_id: str = Depends(get_current_user_id))
 
     def _fetch(symbol: str) -> tuple[str, dict]:
         import httpx
-        encoded = symbol.replace("^", "%5E")
+        encoded = _yf_symbol(symbol).replace("^", "%5E")
         price, prev, currency, name = None, None, "USD", symbol
 
         # Primary: direct Yahoo Finance API
@@ -504,7 +504,7 @@ def _fetch_symbol_news(symbol: str) -> list[dict]:
     """Fetch recent news for a symbol via Yahoo Finance search API."""
     import httpx, time
 
-    encoded = symbol.replace("^", "%5E")
+    encoded = _yf_symbol(symbol).replace("^", "%5E")
     cutoff  = time.time() - 7 * 86400  # 7 days ago
     results = []
 
@@ -623,12 +623,17 @@ def _safe_price(row, ticker: str) -> float:
         return 0.0
 
 
+def _yf_symbol(ticker: str) -> str:
+    """Normalize ticker for Yahoo Finance: BRK.B → BRK-B (dots become hyphens)."""
+    return ticker.replace(".", "-")
+
+
 def _fetch_ticker_history(
     ticker: str, period1: int, period2: int, interval: str = "1d"
 ) -> tuple[list[int], list[float]]:
     """Fetch historical adjusted-close prices via Yahoo Finance Chart API (same endpoint as getPrices)."""
     import httpx
-    encoded = ticker.replace("^", "%5E")
+    encoded = _yf_symbol(ticker).replace("^", "%5E")
     params = {"period1": period1, "period2": period2, "interval": interval, "includePrePost": "false"}
     for domain in ("query1", "query2"):
         try:
@@ -688,7 +693,7 @@ def _build_close_df_range(
     from concurrent.futures import ThreadPoolExecutor
 
     def _one(t: str) -> tuple[str, "_pd.Series | None"]:
-        encoded = t.replace("^", "%5E")
+        encoded = _yf_symbol(t).replace("^", "%5E")
         params = {"range": range_str, "interval": interval, "includePrePost": "false"}
         for domain in ("query1", "query2"):
             try:
