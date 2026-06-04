@@ -1154,32 +1154,82 @@ export default function PortfolioPage() {
           ) : positions.length > 0 ? (
             <section>
               {/* Totals card */}
-              <div className="rounded-2xl border-2 p-5 mb-4" style={{ borderColor:"var(--accent-l)22", background:"var(--card)", borderTopColor:"var(--accent-l)" }}>
-                {loadingPrices ? (
-                  <div className="flex items-center gap-2" style={{ color:"var(--muted)" }}>
-                    <RefreshCw className="w-4 h-4 animate-spin" />
-                    <span className="text-sm">Actualizando precios...</span>
+              {(() => {
+                const sp = periodReturns["since_purchase"];
+                const histPct = sp?.pct;
+                const histAmt = sp?.amount;
+                const histDate = sp?.date;
+                const spyPct = sp?.spy_pct;
+                const up = histPct !== undefined ? histPct >= 0 : totals.diff >= 0;
+                const color = up ? "#22c55e" : "#ef4444";
+                return (
+                  <div className="rounded-2xl border-2 p-5 mb-4" style={{ borderColor: `${color}22`, background:"var(--card)", borderTopColor: color }}>
+                    {loadingPrices ? (
+                      <div className="flex items-center gap-2" style={{ color:"var(--muted)" }}>
+                        <RefreshCw className="w-4 h-4 animate-spin" />
+                        <span className="text-sm">Actualizando precios...</span>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="flex items-center justify-between mb-1">
+                          <p className="text-xs font-bold uppercase tracking-wider" style={{ color:"var(--muted)" }}>Valor actual del portafolio</p>
+                          {portfolioCurrency !== "USD" && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background:"var(--raised)", color:"var(--muted)" }}>{portfolioCurrency}</span>}
+                        </div>
+
+                        {/* Valor + rendimiento total */}
+                        <div className="flex items-end justify-between gap-2 mb-2">
+                          <p className="text-3xl font-black leading-none" style={{ color:"var(--text)" }}>
+                            {currencySymbol}{totals.current.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})}
+                          </p>
+                          {histPct !== undefined ? (
+                            <div className="text-right">
+                              <p className="text-xl font-black leading-none" style={{ color }}>
+                                {up?"+":""}{histPct.toFixed(2)}%
+                              </p>
+                              {histAmt !== undefined && (
+                                <p className="text-xs font-bold mt-0.5" style={{ color }}>
+                                  {up?"+":""}{currencySymbol}{Math.abs(histAmt).toLocaleString("en-US",{minimumFractionDigits:2})}
+                                </p>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-sm font-bold" style={{ color: totals.diff>=0?"#22c55e":"#ef4444" }}>
+                              {totals.diff>=0?"+":""}{currencySymbol}{Math.abs(totals.diff).toLocaleString("en-US",{minimumFractionDigits:2})} ({totals.pct>=0?"+":""}{totals.pct.toFixed(2)}%)
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Invertido + fecha + vs S&P 500 */}
+                        <div className="flex items-center justify-between pt-2 border-t"
+                             style={{ borderColor:"var(--border)" }}>
+                          <span className="text-xs" style={{ color:"var(--muted)" }}>
+                            Invertido {currencySymbol}{totals.invested.toLocaleString("en-US",{minimumFractionDigits:2})}
+                            {histDate && <span style={{ color:"var(--dim)" }}> · desde {histDate}</span>}
+                          </span>
+                          {spyPct !== undefined && histPct !== undefined && (
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-[10px]" style={{ color:"var(--muted)" }}>vs S&P 500</span>
+                              <span className="text-[11px] font-bold" style={{ color: spyPct>=0?"#22c55e":"#ef4444" }}>
+                                {spyPct>=0?"+":""}{spyPct.toFixed(2)}%
+                              </span>
+                              {(() => {
+                                const diff = histPct - spyPct;
+                                const beats = diff >= 0;
+                                return (
+                                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full"
+                                        style={{ background: beats?"rgba(34,197,94,0.12)":"rgba(239,68,68,0.12)", color: beats?"#22c55e":"#ef4444" }}>
+                                    {beats?"▲":"▼"} {Math.abs(diff).toFixed(2)}%
+                                  </span>
+                                );
+                              })()}
+                            </div>
+                          )}
+                        </div>
+                      </>
+                    )}
                   </div>
-                ) : (
-                  <>
-                    <div className="flex items-center justify-between mb-1">
-                      <p className="text-xs font-bold uppercase tracking-wider" style={{ color:"var(--muted)" }}>Valor actual del portafolio</p>
-                      {portfolioCurrency !== "USD" && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background:"var(--raised)", color:"var(--muted)" }}>{portfolioCurrency}</span>}
-                    </div>
-                    <p className="text-3xl font-black" style={{ color:"var(--text)" }}>
-                      {currencySymbol}{totals.current.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})}
-                    </p>
-                    <div className="flex items-center justify-between mt-1">
-                      <span className="text-xs" style={{ color:"var(--muted)" }}>
-                        Invertido: {currencySymbol}{totals.invested.toLocaleString("en-US",{minimumFractionDigits:2})}
-                      </span>
-                      <span className="text-sm font-bold" style={{ color:totals.diff>=0?"#22c55e":"#ef4444" }}>
-                        {totals.diff>=0?"+":""}{currencySymbol}{Math.abs(totals.diff).toLocaleString("en-US",{minimumFractionDigits:2})} ({totals.pct>=0?"+":""}{totals.pct.toFixed(2)}%)
-                      </span>
-                    </div>
-                  </>
-                )}
-              </div>
+                );
+              })()}
 
               {/* ── Rendimiento histórico del portafolio ── */}
               <div className="mb-4">

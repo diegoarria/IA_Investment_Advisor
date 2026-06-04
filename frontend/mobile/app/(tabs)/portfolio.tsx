@@ -1317,33 +1317,74 @@ export default function PortfolioScreen() {
               </View>
             )}
             {/* Totals card — arriba del rendimiento histórico */}
-            <View style={[s.totalsCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-              {loadingPrices ? (
-                <ActivityIndicator color="#22c55e" />
-              ) : (
-                <>
-                  <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 2 }}>
-                    <Text style={[s.totalsLabel, { color: colors.textMuted }]}>Valor actual del portafolio</Text>
-                    {portfolioCurrency !== "USD" && (
-                      <View style={{ backgroundColor: colors.bgRaised, borderRadius: 8, paddingHorizontal: 6, paddingVertical: 2 }}>
-                        <Text style={{ fontSize: 10, fontWeight: "700", color: colors.textMuted }}>{portfolioCurrency}</Text>
+            {(() => {
+              const sp = periodReturns["since_purchase"];
+              const histPct = sp?.pct;
+              const histAmt = sp?.amount;
+              const histDate = sp?.date;
+              const spyPct = sp?.spy_pct;
+              const up = histPct !== undefined ? histPct >= 0 : totals.diff >= 0;
+              const color = up ? "#22c55e" : "#ef4444";
+              return (
+                <View style={[s.totalsCard, { backgroundColor: colors.card, borderTopWidth: 3, borderTopColor: color, borderColor: colors.border }]}>
+                  {loadingPrices ? (
+                    <ActivityIndicator color="#22c55e" />
+                  ) : (
+                    <>
+                      <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                        <Text style={[s.totalsLabel, { color: colors.textMuted }]}>Valor actual del portafolio</Text>
+                        {portfolioCurrency !== "USD" && (
+                          <View style={{ backgroundColor: colors.bgRaised, borderRadius: 8, paddingHorizontal: 6, paddingVertical: 2 }}>
+                            <Text style={{ fontSize: 10, fontWeight: "700", color: colors.textMuted }}>{portfolioCurrency}</Text>
+                          </View>
+                        )}
                       </View>
-                    )}
-                  </View>
-                  <Text style={[s.totalsValue, { color: colors.text }]}>
-                    {currencySymbol}{totals.current.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                  </Text>
-                  <View style={s.totalsRow}>
-                    <Text style={[s.totalsInvested, { color: colors.textMuted }]}>
-                      Invertido: {currencySymbol}{totals.invested.toLocaleString("en-US", { minimumFractionDigits: 2 })}
-                    </Text>
-                    <Text style={[s.totalsDiff, { color: totals.diff >= 0 ? "#22c55e" : "#ef4444" }]}>
-                      {totals.diff >= 0 ? "+" : ""}{currencySymbol}{Math.abs(totals.diff).toLocaleString("en-US", { minimumFractionDigits: 2 })} ({totals.pct >= 0 ? "+" : ""}{totals.pct.toFixed(2)}%)
-                    </Text>
-                  </View>
-                </>
-              )}
-            </View>
+                      <View style={{ flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 10 }}>
+                        <Text style={[s.totalsValue, { color: colors.text }]}>
+                          {currencySymbol}{totals.current.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </Text>
+                        {histPct !== undefined ? (
+                          <View style={{ alignItems: "flex-end" }}>
+                            <Text style={{ fontSize: 20, fontWeight: "900", color, lineHeight: 22 }}>
+                              {up ? "+" : ""}{histPct.toFixed(2)}%
+                            </Text>
+                            {histAmt !== undefined && (
+                              <Text style={{ fontSize: 11, fontWeight: "700", color, marginTop: 1 }}>
+                                {up ? "+" : ""}{currencySymbol}{Math.abs(histAmt).toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                              </Text>
+                            )}
+                          </View>
+                        ) : (
+                          <Text style={[s.totalsDiff, { color: totals.diff >= 0 ? "#22c55e" : "#ef4444" }]}>
+                            {totals.diff >= 0 ? "+" : ""}{currencySymbol}{Math.abs(totals.diff).toLocaleString("en-US", { minimumFractionDigits: 2 })} ({totals.pct >= 0 ? "+" : ""}{totals.pct.toFixed(2)}%)
+                          </Text>
+                        )}
+                      </View>
+                      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingTop: 8, borderTopWidth: 1, borderTopColor: colors.border }}>
+                        <Text style={{ fontSize: 11, color: colors.textMuted }}>
+                          Invertido {currencySymbol}{totals.invested.toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                          {histDate ? `  ·  desde ${histDate}` : ""}
+                        </Text>
+                        {spyPct !== undefined && histPct !== undefined && (() => {
+                          const diff = histPct - spyPct;
+                          const beats = diff >= 0;
+                          return (
+                            <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                              <Text style={{ fontSize: 10, color: colors.textMuted }}>vs S&P</Text>
+                              <View style={{ backgroundColor: beats ? "rgba(34,197,94,0.12)" : "rgba(239,68,68,0.12)", borderRadius: 20, paddingHorizontal: 7, paddingVertical: 2 }}>
+                                <Text style={{ fontSize: 10, fontWeight: "800", color: beats ? "#22c55e" : "#ef4444" }}>
+                                  {beats ? "▲" : "▼"} {Math.abs(diff).toFixed(2)}%
+                                </Text>
+                              </View>
+                            </View>
+                          );
+                        })()}
+                      </View>
+                    </>
+                  )}
+                </View>
+              );
+            })()}
 
             {/* ── Rendimiento histórico — grid 2×5 + gráfica ── */}
             <View style={{ marginBottom: 12 }}>
