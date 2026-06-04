@@ -14,11 +14,6 @@ const FEATURES = [
   { icon: Bell,       color: "#f59e0b", title: "Alertas inteligentes",    desc: "Noticias de tus posiciones interpretadas para ti" },
 ];
 
-const STATS = [
-  { value: "12K+",   label: "Inversores activos" },
-  { value: "4.9★",   label: "App Store" },
-  { value: "< 30s",  label: "Análisis de portafolio" },
-];
 
 export default function Home() {
   const [mode, setMode]       = useState<"login" | "register">("login");
@@ -124,16 +119,6 @@ export default function Home() {
           ))}
         </div>
 
-        {/* Stats */}
-        <div className="flex items-center gap-8 animate-fade-in">
-          {STATS.map(({ value, label }, i) => (
-            <div key={label}>
-              {i > 0 && <div className="hidden" />}
-              <div className="text-2xl font-black" style={{ color: "var(--accent-l)", fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{value}</div>
-              <div className="text-xs" style={{ color: "var(--muted)" }}>{label}</div>
-            </div>
-          ))}
-        </div>
       </div>
 
       {/* ── RIGHT PANEL ───────────────────────────────────────────────── */}
