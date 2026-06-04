@@ -12,37 +12,72 @@ const PREMIUM_FEATURES = [
   {
     icon: "chatbubbles-outline",
     text: "Mensajes ilimitados",
-    detail: "En el plan gratis tienes 20 mensajes cada 5 horas. Con Premium puedes chatear sin límite con la IA en cualquier momento.",
+    detail: "Sin límite de 20 mensajes al día. Habla con tu mentor cuando quieras sin restricciones.",
   },
   {
     icon: "people-outline",
     text: "5 mentores de inversión",
-    detail: "Accede a Warren Buffett, Ray Dalio, Michael Burry, Bill Ackman y Peter Lynch. Cada mentor tiene su filosofía única y te responde desde su perspectiva real.",
-  },
-  {
-    icon: "flash-outline",
-    text: "Stress Test de portafolio",
-    detail: "Simula cómo reaccionaría tu portafolio ante crisis históricas como el crash del 2008, la pandemia del 2020 o una subida agresiva de tasas.",
+    detail: "Accede a Warren Buffett, Ray Dalio, Michael Burry, Bill Ackman y Peter Lynch. Cada uno responde desde su filosofía real.",
   },
   {
     icon: "trending-up-outline",
-    text: "Paper Trading completo",
-    detail: "Opera con dinero virtual en tiempo real. Practica estrategias, prueba ideas y aprende sin arriesgar tu capital.",
+    text: "Portafolio ilimitado",
+    detail: "Agrega más de 10 posiciones y da seguimiento completo con rendimientos en tiempo real.",
+  },
+  {
+    icon: "search-outline",
+    text: "Screener semanal personalizado",
+    detail: "Cada lunes la IA selecciona 5 oportunidades del mercado adaptadas a tu perfil de riesgo y mentor.",
+  },
+  {
+    icon: "stats-chart-outline",
+    text: "Análisis de earnings automático",
+    detail: "Cuando una empresa de tu portafolio reporta, la IA analiza EPS, revenue y calcula el impacto en tu inversión al instante.",
+  },
+  {
+    icon: "flash-outline",
+    text: "Stress test de portafolio",
+    detail: "Simula crisis del 2008, COVID-19, subida de tasas y otros escenarios extremos sobre tu portafolio actual.",
+  },
+  {
+    icon: "git-branch-outline",
+    text: "Simulador What-If",
+    detail: "¿Qué pasa si vendo X y compro Y? Proyecta swaps, aportes mensuales y eventos macro antes de ejecutarlos.",
+  },
+  {
+    icon: "journal-outline",
+    text: "Diario de decisiones + sesgos",
+    detail: "Registra operaciones, detecta FOMO y pánico, y recibe un score como inversor con retos semanales del mentor.",
+  },
+  {
+    icon: "document-text-outline",
+    text: "Reporte mensual PDF",
+    detail: "Análisis completo: rendimiento, Sharpe Ratio, comparativa S&P 500 y nota personalizada del mentor.",
+  },
+  {
+    icon: "analytics-outline",
+    text: "Análisis de riesgo avanzado",
+    detail: "Barra de riesgo en cada respuesta para entender tu exposición real por sector y ticker.",
   },
   {
     icon: "newspaper-outline",
-    text: "Noticias ilimitadas en tiempo real",
-    detail: "Los usuarios gratis ven solo 3 noticias. Con Premium ves todas las noticias de tus posiciones y watchlist actualizadas al momento.",
+    text: "Noticias + filtros por empresa",
+    detail: "Todas las noticias de tus posiciones en tiempo real, filtrables por ticker para enfocarte en lo que importa.",
   },
   {
     icon: "game-controller-outline",
-    text: "Simulador de decisiones · 50/día",
-    detail: "Pon a prueba tu criterio inversor con escenarios reales: ¿compras, mantienes o vendes? La IA evalúa cada decisión y te explica qué haría un experto en tu lugar. Plan gratis: 5/día.",
+    text: "Arena: 50 simulaciones/día",
+    detail: "Niveles difícil e imposible desbloqueados. Pon a prueba tu criterio inversor sin límites. Plan gratis: 5/día.",
   },
   {
     icon: "mic-outline",
     text: "Debates con la IA · 20/día",
-    detail: "Defiende tu tesis de inversión ante la IA y recibe argumentos en contra. Perfecciona tu razonamiento y descubre puntos ciegos antes de operar con dinero real. Plan gratis: 2/día.",
+    detail: "Defiende tu tesis ante la IA y descubre puntos ciegos antes de operar. Plan gratis: 2/día.",
+  },
+  {
+    icon: "mail-outline",
+    text: "Emails semanales personalizados",
+    detail: "Cada viernes recibes un resumen del mercado adaptado a tu perfil, conversaciones y portafolio.",
   },
 ];
 

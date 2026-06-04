@@ -24,31 +24,55 @@ const PLANS = [
 const FEATURES = [
   {
     text: "Mensajes ilimitados",
-    detail: "Sin límite de 20 mensajes al día. Habla con tu mentor cuando quieras.",
+    detail: "Sin límite de 20 mensajes al día. Habla con tu mentor cuando quieras sin restricciones.",
   },
   {
-    text: "Mentores de inversión",
-    detail: "Elige la filosofía de Warren Buffett, Ray Dalio o Bill Ackman como base de tus consejos.",
+    text: "5 mentores de inversión",
+    detail: "Elige entre Warren Buffett, Ray Dalio, Michael Burry, Bill Ackman y Peter Lynch. Cada uno responde desde su filosofía real.",
   },
   {
     text: "Portafolio ilimitado",
-    detail: "Agrega más de 10 posiciones a tu portafolio y da seguimiento completo.",
+    detail: "Agrega más de 10 posiciones y da seguimiento completo con rendimientos en tiempo real.",
   },
   {
-    text: "Análisis de riesgo avanzado",
-    detail: "Ve la barra de riesgo detallada en cada respuesta para entender la exposición real.",
+    text: "Screener semanal personalizado",
+    detail: "Cada lunes la IA selecciona 5 oportunidades del mercado adaptadas a tu perfil de riesgo y mentor.",
   },
   {
-    text: "Paper Trading sin límites",
-    detail: "Practica estrategias con capital virtual sin restricciones.",
-  },
-  {
-    text: "Noticias de portafolio",
-    detail: "Noticias en tiempo real filtradas específicamente para tus posiciones.",
+    text: "Análisis de earnings automático",
+    detail: "Cuando una empresa de tu portafolio reporta resultados, la IA los analiza al instante y calcula el impacto en tu inversión.",
   },
   {
     text: "Stress test de portafolio",
-    detail: "Simula crisis del 2008, COVID-19 y otros escenarios extremos sobre tu portafolio.",
+    detail: "Simula crisis del 2008, COVID-19, subida de tasas y otros escenarios extremos sobre tu portafolio actual.",
+  },
+  {
+    text: "Simulador What-If",
+    detail: "¿Qué pasa si vendo X y compro Y? Proyecta swaps, aportes mensuales y eventos macroeconómicos antes de ejecutarlos.",
+  },
+  {
+    text: "Diario de decisiones + sesgos",
+    detail: "Registra cada operación, detecta sesgos como FOMO y pánico, y recibe un score como inversor con retos semanales del mentor.",
+  },
+  {
+    text: "Reporte mensual PDF",
+    detail: "Descarga un análisis completo con rendimiento, Sharpe Ratio, comparativa vs S&P 500 y nota personalizada del mentor.",
+  },
+  {
+    text: "Análisis de riesgo avanzado",
+    detail: "Barra de riesgo detallada en cada respuesta para entender tu exposición real por sector y ticker.",
+  },
+  {
+    text: "Noticias + filtros por empresa",
+    detail: "Todas las noticias de tus posiciones en tiempo real, filtrables por ticker para enfocarte en lo que importa.",
+  },
+  {
+    text: "Paper Trading sin límites",
+    detail: "Practica estrategias con capital virtual sin restricciones de cantidad ni frecuencia.",
+  },
+  {
+    text: "Emails semanales personalizados",
+    detail: "Cada viernes recibes un resumen del mercado adaptado a tu perfil, tus conversaciones y tu portafolio.",
   },
 ];
 
