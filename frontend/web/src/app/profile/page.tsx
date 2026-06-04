@@ -615,12 +615,12 @@ export default function ProfilePage() {
                         <div className="text-[10px] font-semibold uppercase tracking-wide mb-1.5" style={{ color: "var(--muted)" }}>Tu enlace de referido</div>
                         <div className="flex items-center gap-2 rounded-xl border px-3 py-2.5" style={{ background: "var(--raised)", borderColor: "var(--border)" }}>
                           <span className="flex-1 text-xs truncate font-mono" style={{ color: "var(--sub)" }}>
-                            {referralCode ? `nuvosai.app/join?ref=${referralCode}` : "Cargando..."}
+                            {referralCode ? `nuvosai.com/join?ref=${referralCode}` : "Cargando..."}
                           </span>
                           <button
                             onClick={() => {
                               if (!referralCode) return;
-                              navigator.clipboard.writeText(`https://nuvosai.app/join?ref=${referralCode}`);
+                              navigator.clipboard.writeText(`https://nuvosai.com/join?ref=${referralCode}`);
                               setCopiedLink(true);
                               setTimeout(() => setCopiedLink(false), 2000);
                             }}
@@ -635,9 +635,9 @@ export default function ProfilePage() {
                       <button
                         onClick={() => {
                           if (!referralCode) return;
-                          const text = `Estoy usando Nuvos AI — el mejor mentor de inversiones con IA. Únete gratis 👉 https://nuvosai.app/join?ref=${referralCode}`;
+                          const text = `Estoy usando Nuvos AI — el mejor mentor de inversiones con IA. Únete gratis 👉 https://nuvosai.com/join?ref=${referralCode}`;
                           if (navigator.share) {
-                            navigator.share({ title: "Nuvos AI", text, url: `https://nuvosai.app/join?ref=${referralCode}` }).catch(() => {});
+                            navigator.share({ title: "Nuvos AI", text, url: `https://nuvosai.com/join?ref=${referralCode}` }).catch(() => {});
                           } else {
                             navigator.clipboard.writeText(text);
                             setCopiedLink(true);
