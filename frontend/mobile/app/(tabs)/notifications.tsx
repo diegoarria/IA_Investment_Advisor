@@ -417,12 +417,12 @@ export default function NotificationsScreen() {
               return (
                 <TouchableOpacity
                   key={ticker}
-                  style={[styles.chip, active && styles.chipActive]}
-                  onPress={() => { setNewsFilter(ticker); setNewsShown(10); }}
+                  style={[styles.chip, active && styles.chipActive, !isPremiumAccess && { opacity: 0.7 }]}
+                  onPress={() => isPremiumAccess ? (setNewsFilter(ticker), setNewsShown(10)) : setPaywallOpen(true)}
                   activeOpacity={0.7}
                 >
                   <Text style={[styles.chipText, active && styles.chipTextActive]}>
-                    {ticker} · {count}
+                    {!isPremiumAccess ? "🔒 " : ""}{ticker} · {count}
                   </Text>
                 </TouchableOpacity>
               );

@@ -308,13 +308,16 @@ export default function NotificationsPage() {
                       const count = news.filter((n) => n.symbol === ticker).length;
                       if (count === 0) return null;
                       return (
-                        <button key={ticker} onClick={() => { setNewsFilter(ticker); setNewsShown(10); }}
-                                className="text-[10px] font-bold px-2.5 py-1 rounded-full border transition-all"
+                        <button key={ticker}
+                                onClick={() => isPremium ? (setNewsFilter(ticker), setNewsShown(10)) : setPaywallOpen(true)}
+                                className="text-[10px] font-bold px-2.5 py-1 rounded-full border transition-all flex items-center gap-1"
                                 style={{
                                   background: active ? "var(--accent)" : "var(--raised)",
                                   borderColor: active ? "var(--accent)" : "var(--border)",
                                   color: active ? "#fff" : "var(--muted)",
+                                  opacity: isPremium ? 1 : 0.7,
                                 }}>
+                          {!isPremium && <span style={{ fontSize: 9 }}>🔒</span>}
                           {ticker} <span style={{ opacity: 0.7 }}>·{count}</span>
                         </button>
                       );
