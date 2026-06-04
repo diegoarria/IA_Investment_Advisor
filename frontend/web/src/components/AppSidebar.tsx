@@ -100,16 +100,39 @@ export default function AppSidebar({ open, onClose }: Props) {
         {profile && (
           <div className="px-3 pb-3 pt-2 shrink-0">
             <div className="rounded-2xl p-3 card-accent">
-              <div className="flex items-center gap-2.5 mb-5">
-                <div className="w-7 h-7 rounded-full flex items-center justify-center text-sm font-black text-white shrink-0"
+              {/* Avatar + name */}
+              <div className="flex items-center gap-2.5 mb-3">
+                <div className="w-9 h-9 rounded-full overflow-hidden shrink-0 flex items-center justify-center text-sm font-black text-white"
                      style={{ background: "var(--grad-green)" }}>
-                  {profile.name.charAt(0).toUpperCase()}
+                  {profile.avatar_url
+                    ? <img src={profile.avatar_url} alt="avatar" className="w-full h-full object-cover" />
+                    : profile.name.charAt(0).toUpperCase()
+                  }
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="text-xs font-bold truncate" style={{ color: "var(--text)" }}>{profile.name}</div>
                   <div className="text-[10px]" style={{ color: "var(--muted)" }}>Perfil activo</div>
                 </div>
               </div>
+
+              {/* Stats: edad, ingresos, aportación */}
+              <div className="grid grid-cols-3 gap-1.5 mb-3">
+                {[
+                  { label: "Edad", value: `${Math.floor((Date.now() - new Date(profile.birth_date).getTime()) / (365.25 * 24 * 3600 * 1000))}`, sub: "años" },
+                  { label: "Ingresos", value: `$${Number(profile.monthly_income).toLocaleString()}`, sub: "/mes" },
+                  { label: "Inversión", value: `$${Number(profile.monthly_contribution).toLocaleString()}`, sub: "/mes" },
+                ].map(({ label, value, sub }) => (
+                  <div key={label} className="rounded-xl p-2 text-center"
+                       style={{ background: "var(--bg)" }}>
+                    <div className="text-[9px] font-semibold uppercase tracking-wide mb-0.5"
+                         style={{ color: "var(--dim)" }}>{label}</div>
+                    <div className="text-[11px] font-black leading-none"
+                         style={{ color: "var(--text)" }}>{value}</div>
+                    <div className="text-[9px] mt-0.5" style={{ color: "var(--muted)" }}>{sub}</div>
+                  </div>
+                ))}
+              </div>
+
               <RiskBar level={profile.risk_tolerance} />
             </div>
           </div>

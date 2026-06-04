@@ -49,7 +49,18 @@ async def create_profile(
 
 @router.get("", response_model=UserProfile)
 async def get_profile(user_id: str = Depends(get_current_user_id)):
-    return UserProfile(**_get_profile_or_404(user_id))
+    data = _get_profile_or_404(user_id)
+    # If avatar_url not stored yet, try to generate public URL from storage
+    if not data.get("avatar_url"):
+        try:
+            db = get_supabase()
+            path = f"{user_id}.jpg"
+            url = db.storage.from_("avatars").get_public_url(path)
+            if url:
+                data["avatar_url"] = url
+        except Exception:
+            pass
+    return UserProfile(**data)
 
 
 @router.get("/insights")

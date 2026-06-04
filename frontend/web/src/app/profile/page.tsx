@@ -98,7 +98,7 @@ const riskETFs: Record<string, string> = {
 export default function ProfilePage() {
   const router = useRouter();
   const { isAuthenticated, clearAuth } = useAuthStore();
-  const { profile, maturityScore, maturityHistory } = useProfileStore();
+  const { profile, maturityScore, maturityHistory, setProfile } = useProfileStore();
   const subStore = useSubscriptionStore();
   const { theme, toggleTheme } = useThemeStore();
 
@@ -132,6 +132,8 @@ export default function ProfilePage() {
     subStore.fetchStatus().catch(() => {});
     referralApi.getCode().then((r) => setReferralCode(r.data.code ?? null)).catch(() => {});
     referralApi.getStats().then((r) => setReferralStats(r.data)).catch(() => {});
+    // Load avatar from profile store on mount
+    if (profile?.avatar_url) setAvatarUrl(profile.avatar_url);
   }, [isAuthenticated]);
 
   const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -145,7 +147,10 @@ export default function ProfilePage() {
       setAvatarUploading(true);
       try {
         const res = await profileApi.uploadAvatar(base64);
-        setAvatarUrl(res.data.avatar_url);
+        const url = res.data.avatar_url;
+        setAvatarUrl(url);
+        // Persist to store so sidebar and other pages see it immediately
+        if (profile) setProfile({ ...profile, avatar_url: url });
       } catch {}
       setAvatarUploading(false);
     };

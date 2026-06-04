@@ -18,6 +18,7 @@ export interface UserProfile {
   risk_tolerance: string;
   quiz_answers: Record<string, unknown>;
   mentor?: string | null;
+  avatar_url?: string | null;
   created_at: string;
   updated_at: string;
 }
