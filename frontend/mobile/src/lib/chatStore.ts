@@ -22,6 +22,7 @@ const userScopedStorage = createJSONStorage(() => ({
 export interface Message {
   role: "user" | "assistant";
   content: string;
+  images?: Array<{ uri: string }>;
 }
 
 export interface BehavioralDiagnosis {

@@ -3,10 +3,10 @@ import { useFocusEffect } from "expo-router";
 import {
   View, Text, TouchableOpacity, TextInput, ScrollView,
   StyleSheet, ActivityIndicator, SafeAreaView, Alert,
-  RefreshControl, Image, Modal,
+  RefreshControl, Image, Modal, useWindowDimensions,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import Svg, { Path, Defs, RadialGradient as SvgRadial, Stop, Rect as SvgRect, G } from "react-native-svg";
+import Svg, { Path, Defs, RadialGradient as SvgRadial, Stop, Rect as SvgRect, G, LinearGradient, Circle } from "react-native-svg";
 import * as ImagePicker from "expo-image-picker";
 
 import { marketApi } from "../../src/lib/api";
@@ -30,63 +30,231 @@ type Scenario = "conservative" | "moderate" | "aggressive";
 // ─── Stress test data ──────────────────────────────────────────────────────
 
 const TICKER_SECTOR: Record<string, string> = {
-  // Tech — megacap & software
-  AAPL: "Tech", MSFT: "Tech", GOOGL: "Tech", GOOG: "Tech", AMZN: "Tech", META: "Tech",
-  NVDA: "Tech", TSLA: "Tech", AMD: "Tech", INTC: "Tech", CRM: "Tech", ADBE: "Tech",
-  PYPL: "Tech", NFLX: "Tech", UBER: "Tech", SNAP: "Tech", SPOT: "Tech", ORCL: "Tech",
-  // Tech — semiconductores
-  MU: "Tech", QCOM: "Tech", TXN: "Tech", AVGO: "Tech", AMAT: "Tech", LRCX: "Tech",
-  KLAC: "Tech", ASML: "Tech", ON: "Tech", MRVL: "Tech", ARM: "Tech", TSM: "Tech",
-  SMCI: "Tech", MPWR: "Tech", ENTG: "Tech", WOLF: "Tech",
-  // Tech — hardware & infra
-  CSCO: "Tech", IBM: "Tech", HPQ: "Tech", DELL: "Tech", HPE: "Tech",
-  // Tech — cloud & software
-  NOW: "Tech", WDAY: "Tech", PANW: "Tech", CRWD: "Tech", ZS: "Tech", NET: "Tech",
-  OKTA: "Tech", FTNT: "Tech", DDOG: "Tech", SNOW: "Tech", MDB: "Tech",
-  PLTR: "Tech", RBLX: "Tech", U: "Tech", HOOD: "Tech", SOFI: "Tech",
-  SHOP: "Tech", SQ: "Tech", MSTR: "Tech", COIN: "Tech",
-  // Finance
-  JPM: "Finance", BAC: "Finance", GS: "Finance", MS: "Finance", WFC: "Finance",
-  C: "Finance", V: "Finance", MA: "Finance", AXP: "Finance",
-  BRK: "Finance", BRKB: "Finance", BX: "Finance", KKR: "Finance", SCHW: "Finance",
-  // Salud
-  JNJ: "Salud", PFE: "Salud", UNH: "Salud", ABBV: "Salud", MRK: "Salud",
-  LLY: "Salud", AMGN: "Salud", MDT: "Salud", BSX: "Salud", ABT: "Salud",
-  ISRG: "Salud", REGN: "Salud", BIIB: "Salud", GILD: "Salud", CVS: "Salud",
-  // Consumo
-  WMT: "Consumo", KO: "Consumo", PG: "Consumo", MCD: "Consumo", NKE: "Consumo",
-  SBUX: "Consumo", COST: "Consumo", TGT: "Consumo", HD: "Consumo",
-  DIS: "Consumo", CMCSA: "Consumo", WBD: "Consumo", PARA: "Consumo",
-  T: "Consumo", VZ: "Consumo", TMUS: "Consumo",
+  // Semiconductores
+  NVDA:"Semiconductores",AMD:"Semiconductores",INTC:"Semiconductores",
+  QCOM:"Semiconductores",AVGO:"Semiconductores",MU:"Semiconductores",
+  TSM:"Semiconductores",AMAT:"Semiconductores",LRCX:"Semiconductores",
+  KLAC:"Semiconductores",TXN:"Semiconductores",ADI:"Semiconductores",
+  MCHP:"Semiconductores",ON:"Semiconductores",SWKS:"Semiconductores",
+  SMCI:"Semiconductores",MRVL:"Semiconductores",ARM:"Semiconductores",
+  WOLF:"Semiconductores",MPWR:"Semiconductores",SOXX:"Semiconductores",
+  ASML:"Semiconductores",ENTG:"Semiconductores",
+
+  // Software
+  MSFT:"Software",CRM:"Software",ADBE:"Software",ORCL:"Software",
+  NOW:"Software",INTU:"Software",CDNS:"Software",SNPS:"Software",
+  ANSS:"Software",WDAY:"Software",DDOG:"Software",TEAM:"Software",
+  HUBS:"Software",VEEV:"Software",NET:"Software",ZS:"Software",
+  OKTA:"Software",PANW:"Software",FTNT:"Software",MDB:"Software",
+  SNOW:"Software",GTLB:"Software",ESTC:"Software",SMAR:"Software",
+  SPLK:"Software",DOCN:"Software",CRWD:"Software",
+
+  // Tecnología (plataformas, ecosistemas consumer)
+  AAPL:"Tecnología",GOOGL:"Tecnología",GOOG:"Tecnología",
+  META:"Tecnología",AMZN:"Tecnología",SPOT:"Tecnología",
+  SNAP:"Tecnología",PINS:"Tecnología",RBLX:"Tecnología",
+  CSCO:"Tecnología",IBM:"Tecnología",DELL:"Tecnología",HPQ:"Tecnología",
+
+  // Inteligencia Artificial
+  PLTR:"Inteligencia Artificial",AI:"Inteligencia Artificial",
+  BBAI:"Inteligencia Artificial",SOUN:"Inteligencia Artificial",
+  U:"Inteligencia Artificial",
+
+  // Fintech
+  PYPL:"Fintech",SQ:"Fintech",HOOD:"Fintech",SOFI:"Fintech",
+  AFRM:"Fintech",UPST:"Fintech",
+
+  // eCommerce
+  SHOP:"eCommerce",MELI:"eCommerce",SE:"eCommerce",
+  BABA:"eCommerce",JD:"eCommerce",EBAY:"eCommerce",
+  ETSY:"eCommerce",W:"eCommerce",CHWY:"eCommerce",CPNG:"eCommerce",
+
+  // Consumo Discrecional
+  TSLA:"Consumo Discrecional",NFLX:"Consumo Discrecional",
+  NKE:"Consumo Discrecional",SBUX:"Consumo Discrecional",
+  MCD:"Consumo Discrecional",HD:"Consumo Discrecional",
+  LOW:"Consumo Discrecional",TGT:"Consumo Discrecional",
+  TJX:"Consumo Discrecional",ROST:"Consumo Discrecional",
+  ABNB:"Consumo Discrecional",BKNG:"Consumo Discrecional",
+  YUM:"Consumo Discrecional",CMG:"Consumo Discrecional",
+  DKNG:"Consumo Discrecional",DIS:"Consumo Discrecional",
+  UBER:"Consumo Discrecional",LYFT:"Consumo Discrecional",
+  F:"Consumo Discrecional",GM:"Consumo Discrecional",
+  RIVN:"Consumo Discrecional",LCID:"Consumo Discrecional",NIO:"Consumo Discrecional",
+
+  // Consumo Básico
+  WMT:"Consumo Básico",KO:"Consumo Básico",PG:"Consumo Básico",
+  COST:"Consumo Básico",PEP:"Consumo Básico",MDLZ:"Consumo Básico",
+  CLX:"Consumo Básico",KHC:"Consumo Básico",GIS:"Consumo Básico",
+  HSY:"Consumo Básico",CL:"Consumo Básico",KMB:"Consumo Básico",
+  EL:"Consumo Básico",K:"Consumo Básico",TSN:"Consumo Básico",
+
+  // Salud (aseguradoras + hospitales)
+  UNH:"Salud",HCA:"Salud",CNC:"Salud",CVS:"Salud",
+  CI:"Salud",HUM:"Salud",MOH:"Salud",ELV:"Salud",
+  ABT:"Salud",MDT:"Salud",BSX:"Salud",ISRG:"Salud",
+
+  // Farmacéutica
+  JNJ:"Farmacéutica",PFE:"Farmacéutica",ABBV:"Farmacéutica",
+  MRK:"Farmacéutica",LLY:"Farmacéutica",BMY:"Farmacéutica",
+  AZN:"Farmacéutica",GSK:"Farmacéutica",SNY:"Farmacéutica",NVO:"Farmacéutica",
+
+  // Biotecnología
+  AMGN:"Biotecnología",GILD:"Biotecnología",REGN:"Biotecnología",
+  VRTX:"Biotecnología",BIIB:"Biotecnología",MRNA:"Biotecnología",
+  BNTX:"Biotecnología",ILMN:"Biotecnología",ALNY:"Biotecnología",
+
+  // Financiero (bancos de inversión, gestoras, pagos)
+  GS:"Financiero",MS:"Financiero",BX:"Financiero",
+  KKR:"Financiero",APO:"Financiero",SCHW:"Financiero",
+  V:"Financiero",MA:"Financiero",AXP:"Financiero",
+  BRK:"Financiero",BRKB:"Financiero",
+
+  // Bancario
+  JPM:"Bancario",BAC:"Bancario",WFC:"Bancario",
+  C:"Bancario",USB:"Bancario",PNC:"Bancario",TFC:"Bancario",
+
+  // Seguros
+  PRU:"Seguros",MET:"Seguros",AFL:"Seguros",
+  TRV:"Seguros",AIG:"Seguros",CB:"Seguros",ALL:"Seguros",PGR:"Seguros",
+
   // Energía
-  XOM: "Energía", CVX: "Energía", COP: "Energía", OXY: "Energía", SLB: "Energía",
-  // Industrial
-  BA: "Industrial", GE: "Industrial", CAT: "Industrial", DE: "Industrial",
-  HON: "Industrial", RTX: "Industrial", MMM: "Industrial", LMT: "Industrial",
+  XOM:"Energía",CVX:"Energía",COP:"Energía",OXY:"Energía",
+  SLB:"Energía",HAL:"Energía",EOG:"Energía",PXD:"Energía",
+  DVN:"Energía",PSX:"Energía",VLO:"Energía",MPC:"Energía",
+
+  // Energía Renovable
+  ENPH:"Energía Renovable",SEDG:"Energía Renovable",FSLR:"Energía Renovable",
+  RUN:"Energía Renovable",PLUG:"Energía Renovable",BE:"Energía Renovable",NEE:"Energía Renovable",
+
+  // Industriales
+  CAT:"Industriales",DE:"Industriales",GE:"Industriales",
+  HON:"Industriales",EMR:"Industriales",ETN:"Industriales",
+  ITW:"Industriales",PH:"Industriales",MMM:"Industriales",CARR:"Industriales",
+
+  // Aeroespacial & Defensa
+  LMT:"Aeroespacial",RTX:"Aeroespacial",NOC:"Aeroespacial",
+  GD:"Aeroespacial",BA:"Aeroespacial",TDG:"Aeroespacial",
+  HEI:"Aeroespacial",AXON:"Aeroespacial",RKLB:"Aeroespacial",
+
+  // Logística & Transporte
+  UPS:"Logística",FDX:"Logística",CHRW:"Logística",
+  EXPD:"Logística",GXO:"Logística",XPO:"Logística",ODFL:"Logística",
+
+  // Materiales
+  LIN:"Materiales",APD:"Materiales",DOW:"Materiales",
+  NEM:"Materiales",FCX:"Materiales",AA:"Materiales",
+  NUE:"Materiales",MLM:"Materiales",VMC:"Materiales",ALB:"Materiales",
+
+  // Telecomunicaciones
+  T:"Telecomunicaciones",VZ:"Telecomunicaciones",TMUS:"Telecomunicaciones",
+  CMCSA:"Telecomunicaciones",CHTR:"Telecomunicaciones",
+
+  // Medios & Entretenimiento
+  WBD:"Medios",PARA:"Medios",FOX:"Medios",FOXA:"Medios",
+
   // Real Estate
-  AMT: "Real Estate", EQIX: "Real Estate", PLD: "Real Estate", SPG: "Real Estate",
+  AMT:"Real Estate",CCI:"Real Estate",PLD:"Real Estate",
+  EQR:"Real Estate",SPG:"Real Estate",PSA:"Real Estate",
+  VICI:"Real Estate",VNQ:"Real Estate",EQIX:"Real Estate",
+
+  // Cripto / Blockchain
+  COIN:"Cripto",MSTR:"Cripto",MARA:"Cripto",RIOT:"Cripto",
+
   // ETF
-  SPY: "ETF", QQQ: "ETF", VTI: "ETF", IVV: "ETF", VOO: "ETF", IWM: "ETF",
-  GLD: "ETF", SLV: "ETF", TLT: "ETF", HYG: "ETF", XLK: "ETF", XLF: "ETF",
+  SPY:"ETF",QQQ:"ETF",VTI:"ETF",IVV:"ETF",VOO:"ETF",
+  IWM:"ETF",GLD:"ETF",SLV:"ETF",TLT:"ETF",HYG:"ETF",
+  XLK:"ETF",XLF:"ETF",DIA:"ETF",ARKK:"ETF",TQQQ:"ETF",
+  SQQQ:"ETF",VGT:"ETF",SMH:"ETF",
 };
 
 // ─── Portfolio risk classification ────────────────────────────────────────
 
 const TICKER_RISK_OVERRIDE: Record<string, number> = {
-  GME: 96, AMC: 96, MSTR: 92, COIN: 91, RIVN: 88, LCID: 88,
-  TSLA: 84, PLTR: 82, SNAP: 82, SPOT: 80, RBLX: 80, HOOD: 82, SOFI: 78,
-  NVDA: 77, AMD: 76, SHOP: 74, SQ: 75, META: 70, NFLX: 70, UBER: 72,
-  AAPL: 60, MSFT: 58, GOOGL: 60, AMZN: 63, ORCL: 55,
-  JPM: 48, BAC: 50, GS: 55, V: 45, MA: 45, AXP: 50,
-  JNJ: 28, PFE: 35, UNH: 32, ABBV: 38, LLY: 42, AMGN: 36,
-  WMT: 22, KO: 18, PG: 18, MCD: 25, COST: 30, SBUX: 35,
-  XOM: 48, CVX: 48, COP: 55, OXY: 58,
-  SPY: 20, VOO: 20, VTI: 20, IVV: 20, QQQ: 38, IWM: 45, GLD: 30,
+  // Especulativo
+  GME:96, AMC:96, BBBY:96, SPCE:90,
+  MSTR:93, MARA:92, RIOT:92, COIN:90,
+  RIVN:88, LCID:88, NIO:86, RKLB:84,
+  TQQQ:90, SQQQ:90, ARKK:82,
+  // Alto riesgo
+  TSLA:84, PLTR:82, SNAP:82, HOOD:82, RBLX:80,
+  SOFI:78, AFRM:83, UPST:85, DKNG:80,
+  NVDA:77, AMD:76, SMCI:80, ARM:78, SNOW:77, MDB:75,
+  // Crecimiento moderado-alto
+  SHOP:74, SQ:75, META:68, NFLX:68, UBER:70, LYFT:75,
+  ABNB:72, DDOG:73, NET:72, ZS:72, BNTX:72, MRNA:72,
+  // Blue chip tech
+  AAPL:60, MSFT:58, GOOGL:60, AMZN:63, ORCL:55,
+  ADBE:60, CRM:62, NOW:62, INTU:58,
+  // Financiero establecido
+  JPM:48, BAC:50, GS:55, MS:52, V:45, MA:45, AXP:50, SCHW:52,
+  // Salud / Farma
+  JNJ:28, PFE:35, UNH:32, ABBV:38, LLY:42, AMGN:36,
+  MRK:34, BMY:36, VRTX:65, REGN:60,
+  // Consumo defensivo
+  WMT:22, KO:18, PG:18, MCD:25, COST:30, SBUX:35, NKE:45, HD:38,
+  // Energía
+  XOM:48, CVX:48, COP:55, OXY:58, SLB:55,
+  // Semis establecidos
+  INTC:52, TXN:55, QCOM:62, AVGO:60, ADI:58,
+  // ETF
+  SPY:20, VOO:20, VTI:20, IVV:20, QQQ:38, IWM:45, GLD:30,
 };
 
 const SECTOR_RISK_BASE: Record<string, number> = {
-  ETF: 22, Salud: 35, Consumo: 38, Finance: 52, Energía: 58, Tech: 72,
-  Industrial: 45, "Real Estate": 40,
+  ETF:22,
+  "Consumo Básico":20,
+  "Real Estate":40,
+  Seguros:40,
+  "Farmacéutica":38,
+  Salud:32,
+  Telecomunicaciones:35,
+  Logística:44,
+  Bancario:48,
+  Industriales:48,
+  Aeroespacial:52,
+  Financiero:52,
+  Materiales:54,
+  Medios:55,
+  Energía:58,
+  "Consumo Discrecional":55,
+  eCommerce:62,
+  Software:65,
+  "Energía Renovable":68,
+  Tecnología:70,
+  Fintech:74,
+  Biotecnología:72,
+  "Inteligencia Artificial":82,
+  Semiconductores:78,
+  Cripto:92,
+};
+
+const SECTOR_COLOR: Record<string, string> = {
+  Semiconductores:"#8b5cf6",
+  Software:"#3b82f6",
+  Tecnología:"#06b6d4",
+  "Inteligencia Artificial":"#a855f7",
+  Fintech:"#10b981",
+  eCommerce:"#f59e0b",
+  "Consumo Discrecional":"#f97316",
+  "Consumo Básico":"#eab308",
+  Salud:"#ec4899",
+  "Farmacéutica":"#f43f5e",
+  Biotecnología:"#c026d3",
+  Financiero:"#475569",
+  Bancario:"#64748b",
+  Seguros:"#6b7280",
+  Energía:"#ef4444",
+  "Energía Renovable":"#22c55e",
+  Industriales:"#78716c",
+  Aeroespacial:"#0ea5e9",
+  Logística:"#84cc16",
+  Materiales:"#d97706",
+  Telecomunicaciones:"#7c3aed",
+  Medios:"#db2777",
+  "Real Estate":"#14b8a6",
+  Cripto:"#f59e0b",
+  ETF:"#94a3b8",
 };
 
 const PORTFOLIO_LEVELS = [
@@ -181,33 +349,68 @@ interface StressScenario {
 const STRESS_SCENARIOS: StressScenario[] = [
   {
     id: "2008", name: "Crisis 2008", icon: "🏦", color: "#ef4444", year: "2008-09",
-    desc: "Colapso del sistema financiero global",
-    drawdowns: { Tech: -52, Finance: -78, Salud: -18, Consumo: -28, Energía: -55, ETF: -38, Industrial: -42, "Real Estate": -45 },
-    default: -42,
+    desc: "Colapso del sistema financiero global", default: -42,
+    drawdowns: {
+      Semiconductores:-55, Software:-48, Tecnología:-52, "Inteligencia Artificial":-52,
+      Fintech:-55, eCommerce:-50, "Consumo Discrecional":-42, "Consumo Básico":-20,
+      Salud:-18, "Farmacéutica":-22, Biotecnología:-30,
+      Bancario:-80, Financiero:-68, Seguros:-55,
+      Energía:-55, "Energía Renovable":-60,
+      Industriales:-42, Aeroespacial:-40, Logística:-40, Materiales:-55,
+      Telecomunicaciones:-32, Medios:-42, "Real Estate":-65, Cripto:-55, ETF:-38,
+    },
   },
   {
     id: "covid", name: "COVID-19", icon: "🦠", color: "#f97316", year: "Feb-Mar 2020",
-    desc: "Crash de 33 días, caída brusca y rápida",
-    drawdowns: { Tech: -34, Finance: -45, Salud: -15, Consumo: -42, Energía: -60, ETF: -34, Industrial: -35, "Real Estate": -30 },
-    default: -34,
+    desc: "Crash de 33 días, caída brusca y rápida", default: -34,
+    drawdowns: {
+      Semiconductores:-35, Software:-28, Tecnología:-32, "Inteligencia Artificial":-30,
+      Fintech:-38, eCommerce:18, "Consumo Discrecional":-50, "Consumo Básico":-12,
+      Salud:-10, "Farmacéutica":-15, Biotecnología:15,
+      Bancario:-48, Financiero:-42, Seguros:-38,
+      Energía:-65, "Energía Renovable":-38,
+      Industriales:-40, Aeroespacial:-55, Logística:-32, Materiales:-40,
+      Telecomunicaciones:-22, Medios:-45, "Real Estate":-40, Cripto:-50, ETF:-34,
+    },
   },
   {
     id: "tech2022", name: "Tech Crash '22", icon: "📉", color: "#f59e0b", year: "2022",
-    desc: "Alza de tasas aplasta valuaciones tech",
-    drawdowns: { Tech: -55, Finance: -22, Salud: -10, Consumo: -15, Energía: 40, ETF: -18, Industrial: -20, "Real Estate": -28 },
-    default: -20,
+    desc: "Alza de tasas aplasta valuaciones tech", default: -20,
+    drawdowns: {
+      Semiconductores:-62, Software:-58, Tecnología:-52, "Inteligencia Artificial":-60,
+      Fintech:-70, eCommerce:-55, "Consumo Discrecional":-18, "Consumo Básico":-10,
+      Salud:-8, "Farmacéutica":-10, Biotecnología:-32,
+      Bancario:-18, Financiero:-22, Seguros:-12,
+      Energía:45, "Energía Renovable":-35,
+      Industriales:-12, Aeroespacial:-8, Logística:-20, Materiales:-20,
+      Telecomunicaciones:-28, Medios:-40, "Real Estate":-25, Cripto:-75, ETF:-18,
+    },
   },
   {
     id: "fed", name: "Fed +1%", icon: "🏛️", color: "#6366f1", year: "Escenario",
-    desc: "Subida sorpresiva de 100pb en tasas",
-    drawdowns: { Tech: -20, Finance: 5, Salud: -8, Consumo: -10, Energía: -5, ETF: -12, Industrial: -12, "Real Estate": -18 },
-    default: -12,
+    desc: "Subida sorpresiva de 100pb en tasas", default: -12,
+    drawdowns: {
+      Semiconductores:-22, Software:-25, Tecnología:-20, "Inteligencia Artificial":-28,
+      Fintech:-28, eCommerce:-22, "Consumo Discrecional":-12, "Consumo Básico":-8,
+      Salud:-5, "Farmacéutica":-8, Biotecnología:-15,
+      Bancario:8, Financiero:5, Seguros:3,
+      Energía:-8, "Energía Renovable":-20,
+      Industriales:-10, Aeroespacial:-8, Logística:-10, Materiales:-12,
+      Telecomunicaciones:-15, Medios:-10, "Real Estate":-20, Cripto:-35, ETF:-12,
+    },
   },
   {
     id: "bull", name: "Bull Market", icon: "🚀", color: "#22c55e", year: "Escenario",
-    desc: "Año de recuperación y euforia inversora",
-    drawdowns: { Tech: 35, Finance: 25, Salud: 20, Consumo: 18, Energía: 22, ETF: 24, Industrial: 22, "Real Estate": 18 },
-    default: 22,
+    desc: "Año de recuperación y euforia inversora", default: 22,
+    drawdowns: {
+      Semiconductores:55, Software:40, Tecnología:38, "Inteligencia Artificial":60,
+      Fintech:42, eCommerce:38, "Consumo Discrecional":25, "Consumo Básico":12,
+      Salud:18, "Farmacéutica":20, Biotecnología:32,
+      Bancario:25, Financiero:28, Seguros:18,
+      Energía:22, "Energía Renovable":40,
+      Industriales:22, Aeroespacial:28, Logística:20, Materiales:25,
+      Telecomunicaciones:15, Medios:20, "Real Estate":25, Cripto:80, ETF:25,
+    },
   },
 ];
 
@@ -235,6 +438,62 @@ interface ExtractedPosition { id: string; ticker: string; name: string; shares: 
 
 
 
+// ─── Portfolio sparkline chart ────────────────────────────────────────────
+
+type ChartPoint = { date: string; pct: number; value: number };
+
+function PortfolioSparkline({ history, color }: { history: ChartPoint[]; color: string }) {
+  const { width: screenW } = useWindowDimensions();
+  const W = screenW - 48; // padding 24 each side
+  const H = 100;
+  const PY = 6;
+
+  if (history.length < 2) return null;
+
+  const values = history.map((h) => h.pct);
+  const minV = Math.min(...values);
+  const maxV = Math.max(...values);
+  const spread = maxV - minV || Math.abs(maxV) || 1;
+  const lo = minV - spread * 0.12;
+  const hi = maxV + spread * 0.12;
+  const range = hi - lo;
+
+  const toX = (i: number) => (i / (history.length - 1)) * W;
+  const toY = (v: number) => PY + ((hi - v) / range) * (H - PY * 2);
+  const zeroY = Math.max(PY, Math.min(H - PY, toY(0)));
+
+  const pts = history.map((h, i) => `${toX(i).toFixed(1)},${toY(h.pct).toFixed(1)}`);
+  const linePath = "M" + pts.join("L");
+  const lastX = toX(history.length - 1).toFixed(1);
+  const lastY = toY(values[values.length - 1]).toFixed(1);
+  const areaPath = `${linePath}L${lastX},${zeroY.toFixed(1)}L0,${zeroY.toFixed(1)}Z`;
+
+  return (
+    <Svg width={W} height={H} style={{ display: "flex" }}>
+      <Defs>
+        <LinearGradient id="psg" x1="0" y1="0" x2="0" y2="1">
+          <Stop offset="0" stopColor={color} stopOpacity="0.22" />
+          <Stop offset="1" stopColor={color} stopOpacity="0.01" />
+        </LinearGradient>
+      </Defs>
+      {/* Zero baseline */}
+      <Path
+        d={`M0,${zeroY.toFixed(1)} L${W},${zeroY.toFixed(1)}`}
+        stroke={color} strokeWidth="0.7"
+        strokeDasharray="4,4" strokeOpacity="0.3"
+      />
+      {/* Area fill */}
+      <Path d={areaPath} fill="url(#psg)" />
+      {/* Line */}
+      <Path d={linePath} fill="none" stroke={color} strokeWidth="1.8"
+        strokeLinejoin="round" strokeLinecap="round" />
+      {/* End dot */}
+      <Circle cx={lastX} cy={lastY} r="5" fill={color} fillOpacity="0.25" />
+      <Circle cx={lastX} cy={lastY} r="2.5" fill={color} />
+    </Svg>
+  );
+}
+
 // ─── Component ─────────────────────────────────────────────────────────────
 
 export default function PortfolioScreen() {
@@ -242,7 +501,11 @@ export default function PortfolioScreen() {
   const s = useMemo(() => makeStyles(colors), [colors]);
 
 
-  const { positions, addPosition, removePosition, updatePosition, setPositions, mergePositions, clearPortfolio, portfolioCurrency, setCurrency } = usePortfolioStore();
+  const {
+    positions, addPosition, removePosition, updatePosition, setPositions, mergePositions,
+    clearPortfolio, portfolioCurrency, setCurrency,
+    loadFromServer, syncStatus, lastSaved,
+  } = usePortfolioStore();
   const profile = useAppStore((s) => s.profile);
   const subStore = useSubscriptionStore();
   const isPremiumAccess = hasPremiumAccess(subStore);
@@ -303,19 +566,24 @@ export default function PortfolioScreen() {
   const [revealedPrices, setRevealedPrices] = useState<Set<string>>(new Set());
 
   // Period returns
-  type PeriodReturn = { pct: number; amount: number; date?: string };
+  type PeriodReturn = { pct: number; amount: number; date?: string; breakdown?: Record<string, number> };
   const PERIODS = [
-    { key: "since_purchase", label: "Desde compra" },
-    { key: "1d", label: "1D" }, { key: "5d", label: "5D" },
-    { key: "1mo", label: "1M" }, { key: "3mo", label: "3M" },
-    { key: "6mo", label: "6M" }, { key: "ytd", label: "YTD" },
-    { key: "1y", label: "1A" }, { key: "3y", label: "3A" },
-    { key: "5y", label: "5A" },
+    { key: "since_purchase", label: "Compra" },
+    { key: "1d",  label: "1D"  }, { key: "5d",  label: "5D"  },
+    { key: "1mo", label: "1M"  }, { key: "3mo", label: "3M"  },
+    { key: "6mo", label: "6M"  }, { key: "ytd", label: "YTD" },
+    { key: "1y",  label: "1A"  }, { key: "3y",  label: "3A"  },
+    { key: "5y",  label: "5A"  }, { key: "max", label: "MÁX" },
   ] as const;
   type PeriodKey = typeof PERIODS[number]["key"];
-  const [selectedPeriod, setSelectedPeriod] = useState<PeriodKey>("since_purchase");
+  const [selectedPeriod, setSelectedPeriod] = useState<PeriodKey>("1y");
   const [periodReturns, setPeriodReturns] = useState<Record<string, PeriodReturn>>({});
   const [loadingReturns, setLoadingReturns] = useState(false);
+
+  // Chart state
+  type ChartData = { history: ChartPoint[]; period_pct: number; period_amount: number };
+  const [chartData, setChartData] = useState<ChartData | null>(null);
+  const [chartLoading, setChartLoading] = useState(false);
 
   // Manual add form
   const [showForm, setShowForm] = useState(false);
@@ -363,6 +631,12 @@ export default function PortfolioScreen() {
     if (positions.length > 0) fetchPrices(true);
   }, [positions.length]);
 
+  // Cargar portafolio del servidor al montar — garantiza sync entre dispositivos
+  useEffect(() => {
+    loadFromServer();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Fetch period returns whenever positions change
   useEffect(() => {
     if (positions.length === 0) return;
@@ -372,6 +646,20 @@ export default function PortfolioScreen() {
       .catch(() => {})
       .finally(() => setLoadingReturns(false));
   }, [positions.length]);
+
+  // Fetch chart data when selected period or positions change
+  useEffect(() => {
+    if (positions.length === 0) return;
+    setChartData(null);
+    setChartLoading(true);
+    marketApi.getPortfolioChart(
+      positions.map((p) => ({ ticker: p.ticker, shares: p.shares, purchase_date: p.purchaseDate ?? null })),
+      selectedPeriod,
+    )
+      .then((res: { data: ChartData }) => setChartData(res.data))
+      .catch(() => {})
+      .finally(() => setChartLoading(false));
+  }, [selectedPeriod, positions.length]);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -823,59 +1111,62 @@ export default function PortfolioScreen() {
 
         {activeSection === "portafolio" && (
         <View>
-        {/* ── MI PORTAFOLIO ── */}
-        <View style={s.sectionHeader}>
-          <View>
-            <Text style={s.sectionTitle}>Mi Portafolio</Text>
+        {/* ── Nube + sync status ── */}
+        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+            <View style={{ width: 30, height: 30, borderRadius: 10, backgroundColor: "rgba(34,197,94,0.12)", alignItems: "center", justifyContent: "center" }}>
+              <Ionicons name="cloud-outline" size={16} color="#22c55e" />
+            </View>
+            <View>
+              <Text style={{ fontSize: 12, fontWeight: "700", color: colors.text }}>Portafolio en la nube</Text>
+              <Text style={{ fontSize: 10, color: colors.textMuted }}>
+                {syncStatus === "syncing" ? "Guardando..." : syncStatus === "saved" ? "✓ Guardado" : syncStatus === "error" ? "⚠ Error al guardar" : lastSaved ? "Sincronizado" : "Sincronizado en todos tus dispositivos"}
+              </Text>
+            </View>
+          </View>
+          <View style={{ flexDirection: "row", gap: 6, alignItems: "center" }}>
             {!isPremiumAccess && (
-              <Text style={{ fontSize: 11, color: positions.length >= FREE_POSITION_LIMIT ? "#ef4444" : colors.textDim, marginTop: -8, marginBottom: 4 }}>
-                {positions.length}/{FREE_POSITION_LIMIT} posiciones · <Text style={{ color: "#f59e0b" }} onPress={() => setPaywallOpen(true)}>Premium = ilimitadas</Text>
+              <Text style={{ fontSize: 10, color: positions.length >= FREE_POSITION_LIMIT ? "#ef4444" : colors.textDim }}>
+                {positions.length}/{FREE_POSITION_LIMIT}
               </Text>
             )}
-          </View>
-          <View style={s.headerButtons}>
-            <TouchableOpacity style={[s.btnSmall, { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border }]} onPress={() => { setShowForm(!showForm); setScreenshotPreview(null); }}>
-              <Text style={[s.btnSmallText, { color: colors.textSub }]}>+ Manual</Text>
-            </TouchableOpacity>
             {positions.length > 0 && (
               <TouchableOpacity
-                style={[s.btnSmall, { backgroundColor: "rgba(239,68,68,0.06)", borderWidth: 1, borderColor: "rgba(239,68,68,0.3)" }]}
+                style={{ paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, backgroundColor: "rgba(239,68,68,0.08)", borderWidth: 1, borderColor: "rgba(239,68,68,0.2)" }}
                 onPress={() => Alert.alert(
                   "Vaciar portafolio",
                   `¿Eliminar las ${positions.length} posiciones? Esta acción no se puede deshacer.`,
-                  [
-                    { text: "Cancelar", style: "cancel" },
-                    { text: "Vaciar todo", style: "destructive", onPress: () => clearPortfolio() },
-                  ]
+                  [{ text: "Cancelar", style: "cancel" }, { text: "Vaciar todo", style: "destructive", onPress: () => clearPortfolio() }]
                 )}>
-                <Text style={[s.btnSmallText, { color: "#ef4444" }]}>🗑 Vaciar</Text>
+                <Text style={{ fontSize: 11, fontWeight: "700", color: "#ef4444" }}>Vaciar</Text>
               </TouchableOpacity>
             )}
           </View>
         </View>
 
-        {/* ── BOTÓN PRINCIPAL: CAPTURA ── */}
-        <TouchableOpacity
-          style={[s.screenshotBtn, screenshotAnalyzing && s.btnDisabled]}
-          onPress={handleScreenshotImport}
-          disabled={screenshotAnalyzing}
-          activeOpacity={0.8}
-        >
-          {screenshotAnalyzing ? (
-            <View style={s.screenshotBtnInner}>
-              <ActivityIndicator color="white" size="small" />
-              <Text style={s.screenshotBtnText}>{screenshotProgress || "Analizando con IA..."}</Text>
-            </View>
-          ) : (
-            <View style={s.screenshotBtnInner}>
-              <Ionicons name="images-outline" size={28} color="white" />
-              <View>
-                <Text style={s.screenshotBtnText}>Importar capturas de pantalla</Text>
-                <Text style={s.screenshotBtnSub}>Selecciona 1 o más fotos — la IA detecta todo</Text>
-              </View>
-            </View>
-          )}
-        </TouchableOpacity>
+        {/* ── Botones principales: Agregar posición + Importar captura ── */}
+        <View style={{ flexDirection: "row", gap: 8, marginBottom: 10 }}>
+          {/* Agregar posición — acción primaria */}
+          <TouchableOpacity
+            style={{ flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 14, borderRadius: 16, backgroundColor: "#00a85e" }}
+            onPress={() => { setShowForm(!showForm); setScreenshotPreview(null); }}
+            activeOpacity={0.8}>
+            <Ionicons name="add-circle-outline" size={18} color="white" />
+            <Text style={{ fontSize: 13, fontWeight: "800", color: "white" }}>Agregar posición</Text>
+          </TouchableOpacity>
+
+          {/* Importar captura — acción secundaria */}
+          <TouchableOpacity
+            style={{ flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 14, borderRadius: 16, backgroundColor: colors.bgRaised, borderWidth: 1, borderColor: colors.border, opacity: screenshotAnalyzing ? 0.7 : 1 }}
+            onPress={handleScreenshotImport}
+            disabled={screenshotAnalyzing}
+            activeOpacity={0.8}>
+            {screenshotAnalyzing
+              ? <><ActivityIndicator size="small" color={colors.textSub} /><Text style={{ fontSize: 13, fontWeight: "700", color: colors.textSub }}>{screenshotProgress || "Analizando..."}</Text></>
+              : <><Ionicons name="images-outline" size={18} color={colors.textSub} /><Text style={{ fontSize: 13, fontWeight: "700", color: colors.textSub }}>Importar captura</Text></>
+            }
+          </TouchableOpacity>
+        </View>
 
         {/* ── PREVIEW DE CAPTURA ── */}
         {screenshotPreview && (
@@ -994,54 +1285,170 @@ export default function PortfolioScreen() {
                 <Text style={{ color: "#f59315", fontSize: 12, fontWeight: "600" }}>Sin conexión — precios desactualizados</Text>
               </View>
             )}
-            {/* Period return tabs */}
-            <View style={{ marginBottom: 10 }}>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 8 }}>
-                <View style={{ flexDirection: "row", gap: 6, paddingRight: 8 }}>
-                  {PERIODS.map(({ key, label }) => {
-                    const ret = periodReturns[key];
-                    const isSelected = selectedPeriod === key;
-                    const isUp = ret ? ret.pct >= 0 : true;
-                    const isSincePurchase = key === "since_purchase";
-                    return (
-                      <TouchableOpacity
-                        key={key}
-                        onPress={() => setSelectedPeriod(key)}
-                        style={{
-                          paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8,
-                          backgroundColor: isSelected ? (isUp ? "#22c55e22" : "#ef444422") : colors.bgRaised,
-                          borderWidth: 1,
-                          borderColor: isSelected ? (isUp ? "#22c55e66" : "#ef444466") : isSincePurchase ? "rgba(0,168,94,0.3)" : "transparent",
-                        }}>
-                        <Text style={{ fontSize: 11, fontWeight: "700", color: isSelected ? (isUp ? "#22c55e" : "#ef4444") : isSincePurchase ? colors.accentLight : colors.textMuted }}>
-                          {label}
+            {/* ── Rendimiento histórico — grid 2×5 + gráfica ── */}
+            <View style={{ marginBottom: 12 }}>
+              <Text style={{ fontSize: 9, fontWeight: "800", color: colors.textDim, letterSpacing: 1.2, textTransform: "uppercase", marginBottom: 8 }}>
+                Rendimiento histórico · Yahoo Finance
+              </Text>
+
+              {/* Grid de períodos estándar — todos visibles de un vistazo */}
+              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 4, marginBottom: 6 }}>
+                {PERIODS.filter(({ key }) => key !== "since_purchase").map(({ key, label }) => {
+                  const ret = periodReturns[key];
+                  const isSel = selectedPeriod === key;
+                  const isUp = ret ? ret.pct >= 0 : null;
+                  const valColor = isUp === null ? colors.textDim : isUp ? "#22c55e" : "#ef4444";
+                  return (
+                    <TouchableOpacity
+                      key={key}
+                      onPress={() => setSelectedPeriod(key)}
+                      style={{
+                        width: "18%", alignItems: "center", paddingVertical: 8, borderRadius: 12,
+                        backgroundColor: isSel
+                          ? (isUp === null ? "rgba(0,168,94,0.10)" : isUp ? "#22c55e1A" : "#ef44441A")
+                          : colors.bgRaised,
+                        borderWidth: 1,
+                        borderColor: isSel
+                          ? (isUp === null ? "rgba(0,168,94,0.35)" : isUp ? "#22c55e55" : "#ef444455")
+                          : "transparent",
+                      }}>
+                      <Text style={{ fontSize: 10, fontWeight: "600", color: isSel ? colors.textSub : colors.textMuted, marginBottom: 2 }}>
+                        {label}
+                      </Text>
+                      {loadingReturns ? (
+                        <Text style={{ fontSize: 9, color: colors.textDim }}>···</Text>
+                      ) : ret ? (
+                        <Text style={{ fontSize: 10, fontWeight: "900", color: valColor }}>
+                          {isUp ? "+" : ""}{ret.pct.toFixed(1)}%
                         </Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
-              </ScrollView>
-              {loadingReturns ? (
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                  <ActivityIndicator size="small" color={colors.textMuted} />
-                  <Text style={{ fontSize: 11, color: colors.textMuted }}>Calculando rendimientos...</Text>
-                </View>
-              ) : periodReturns[selectedPeriod] ? (() => {
-                const r = periodReturns[selectedPeriod]!;
-                const up = r.pct >= 0;
+                      ) : (
+                        <Text style={{ fontSize: 9, color: colors.textDim }}>—</Text>
+                      )}
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+
+              {/* "Desde compra" — solo si hay fechas de compra */}
+              {positions.some((p) => p.purchaseDate) && (() => {
+                const r = periodReturns["since_purchase"];
+                const isSel = selectedPeriod === "since_purchase";
+                const up = r ? r.pct >= 0 : true;
                 return (
-                  <View style={{ backgroundColor: up ? "#22c55e0D" : "#ef44440D", borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8 }}>
-                    <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-                      <Text style={{ fontSize: 11, fontWeight: "600", color: colors.textMuted }}>{PERIODS.find(p => p.key === selectedPeriod)?.label}</Text>
-                      <Text style={{ fontSize: 18, fontWeight: "900", color: up ? "#22c55e" : "#ef4444" }}>{up ? "+" : ""}{r.pct.toFixed(2)}%</Text>
-                      <Text style={{ fontSize: 12, fontWeight: "700", color: up ? "#22c55e" : "#ef4444" }}>{up ? "+" : ""}${Math.abs(r.amount).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</Text>
+                  <TouchableOpacity
+                    onPress={() => setSelectedPeriod("since_purchase")}
+                    style={{
+                      flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+                      paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12, marginBottom: 6,
+                      backgroundColor: isSel ? (up ? "#22c55e0D" : "#ef44440D") : colors.bgRaised,
+                      borderWidth: 1,
+                      borderColor: isSel ? (up ? "#22c55e40" : "#ef444440") : colors.border,
+                    }}>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                      <Text style={{ fontSize: 10, fontWeight: "700", color: colors.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>Desde compra</Text>
+                      {r?.date && <Text style={{ fontSize: 9, color: colors.textDim }}>desde {r.date}</Text>}
                     </View>
-                    {r.date && (
-                      <Text style={{ fontSize: 10, color: colors.textDim, marginTop: 2 }}>desde {r.date}</Text>
+                    {r ? (
+                      <Text style={{ fontSize: 14, fontWeight: "900", color: up ? "#22c55e" : "#ef4444" }}>
+                        {up ? "+" : ""}{r.pct.toFixed(2)}%
+                      </Text>
+                    ) : (
+                      <Text style={{ fontSize: 10, color: colors.textDim }}>{loadingReturns ? "···" : "—"}</Text>
+                    )}
+                  </TouchableOpacity>
+                );
+              })()}
+
+              {/* Tarjeta: gráfica + stats + breakdown */}
+              {(() => {
+                const r = periodReturns[selectedPeriod];
+                const displayPct = chartData ? chartData.period_pct : r?.pct;
+                const displayAmt = chartData ? chartData.period_amount : r?.amount;
+                const up = displayPct !== undefined ? displayPct >= 0 : true;
+                const color = up ? "#22c55e" : "#ef4444";
+                const periodLabel = PERIODS.find((p) => p.key === selectedPeriod)?.label ?? "";
+                const bEntries = r?.breakdown
+                  ? Object.entries(r.breakdown).sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]))
+                  : [];
+                const maxAbs = bEntries.length > 0 ? Math.max(...bEntries.map(([, p]) => Math.abs(p))) : 1;
+                return (
+                  <View style={{ borderRadius: 16, overflow: "hidden", borderWidth: 1, borderColor: `${color}30`, backgroundColor: colors.card }}>
+                    {/* Franja de color */}
+                    <View style={{ height: 2, backgroundColor: color }} />
+
+                    {/* Stats header */}
+                    <View style={{ flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", paddingHorizontal: 14, paddingTop: 12, paddingBottom: 4 }}>
+                      <View>
+                        <Text style={{ fontSize: 10, fontWeight: "700", color: colors.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>
+                          Rendimiento · {periodLabel}
+                        </Text>
+                        {r?.date && <Text style={{ fontSize: 9, color: colors.textDim, marginTop: 1 }}>desde {r.date}</Text>}
+                      </View>
+                      <View style={{ alignItems: "flex-end" }}>
+                        {displayPct !== undefined ? (
+                          <>
+                            <Text style={{ fontSize: 22, fontWeight: "900", color, lineHeight: 24 }}>
+                              {up ? "+" : ""}{displayPct.toFixed(2)}%
+                            </Text>
+                            {displayAmt !== undefined && (
+                              <Text style={{ fontSize: 12, fontWeight: "700", color, marginTop: 1 }}>
+                                {up ? "+" : ""}{currencySymbol}{Math.abs(displayAmt).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              </Text>
+                            )}
+                          </>
+                        ) : chartLoading ? (
+                          <Text style={{ fontSize: 12, color: colors.textMuted }}>···</Text>
+                        ) : null}
+                      </View>
+                    </View>
+
+                    {/* Gráfica SVG */}
+                    <View style={{ paddingHorizontal: 14, paddingBottom: 4 }}>
+                      {chartLoading ? (
+                        <View style={{ height: 100, alignItems: "center", justifyContent: "center", flexDirection: "row", gap: 8 }}>
+                          <ActivityIndicator size="small" color={colors.textMuted} />
+                          <Text style={{ fontSize: 11, color: colors.textMuted }}>Cargando datos históricos...</Text>
+                        </View>
+                      ) : chartData && chartData.history.length >= 2 ? (
+                        <PortfolioSparkline history={chartData.history} color={color} />
+                      ) : !chartLoading ? (
+                        <View style={{ height: 100, alignItems: "center", justifyContent: "center" }}>
+                          <Text style={{ fontSize: 11, color: colors.textDim }}>Sin datos históricos para este período</Text>
+                        </View>
+                      ) : null}
+                    </View>
+
+                    {/* Fuente */}
+                    <Text style={{ fontSize: 9, color: colors.textDim, paddingHorizontal: 14, paddingBottom: 8 }}>
+                      Yahoo Finance · ajustado por splits y dividendos
+                    </Text>
+
+                    {/* Breakdown por posición */}
+                    {bEntries.length > 0 && (
+                      <View style={{ paddingHorizontal: 14, paddingBottom: 12, borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 10 }}>
+                        <Text style={{ fontSize: 9, fontWeight: "800", color: colors.textDim, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>
+                          Rendimiento por posición · {periodLabel}
+                        </Text>
+                        {bEntries.map(([ticker, pct]) => {
+                          const isPos = pct >= 0;
+                          const barW = maxAbs > 0 ? Math.round((Math.abs(pct) / maxAbs) * 100) : 0;
+                          return (
+                            <View key={ticker} style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                              <Text style={{ fontSize: 11, fontWeight: "800", color: colors.text, width: 46 }}>{ticker}</Text>
+                              <View style={{ flex: 1, height: 5, borderRadius: 3, backgroundColor: colors.bgRaised, overflow: "hidden" }}>
+                                <View style={{ width: `${barW}%`, height: "100%", borderRadius: 3, backgroundColor: isPos ? "#22c55e" : "#ef4444" }} />
+                              </View>
+                              <Text style={{ fontSize: 11, fontWeight: "700", color: isPos ? "#22c55e" : "#ef4444", width: 52, textAlign: "right" }}>
+                                {isPos ? "+" : ""}{pct.toFixed(2)}%
+                              </Text>
+                            </View>
+                          );
+                        })}
+                      </View>
                     )}
                   </View>
                 );
-              })() : null}
+              })()}
             </View>
 
             <View style={[s.totalsCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
@@ -1333,11 +1740,14 @@ export default function PortfolioScreen() {
                 <View style={s.diagSectors}>
                   {Object.entries(diagnosis.sectorPcts)
                     .sort((a, b) => b[1] - a[1])
-                    .map(([sector, pct]) => (
-                      <View key={sector} style={[s.diagSectorChip, { backgroundColor: colors.bg, borderColor: colors.border }]}>
-                        <Text style={[s.diagSectorText, { color: colors.textSub }]}>{sector} {pct}%</Text>
-                      </View>
-                    ))}
+                    .map(([sector, pct]) => {
+                      const col = SECTOR_COLOR[sector] ?? "#94a3b8";
+                      return (
+                        <View key={sector} style={[s.diagSectorChip, { backgroundColor: `${col}18`, borderColor: `${col}40` }]}>
+                          <Text style={[s.diagSectorText, { color: col, fontWeight: "700" }]}>{sector} {pct}%</Text>
+                        </View>
+                      );
+                    })}
                 </View>
               )}
 

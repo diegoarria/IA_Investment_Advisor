@@ -147,6 +147,8 @@ export const marketApi = {
     api.get("/api/market/news", { params: { symbols: symbols.join(",") } }),
   getPortfolioReturns: (positions: { ticker: string; shares: number; purchase_date?: string | null }[]) =>
     api.post("/api/market/portfolio-returns", { positions }),
+  getPortfolioChart: (positions: { ticker: string; shares: number; purchase_date?: string | null }[], period: string) =>
+    api.post("/api/market/portfolio-chart", { positions, period }),
 };
 
 export const notificationsApi = {

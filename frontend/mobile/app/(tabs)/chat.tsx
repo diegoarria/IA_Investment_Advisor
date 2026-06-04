@@ -291,11 +291,15 @@ Instrucciones críticas:
     setPendingImages([]);
     cancelRef.current.cancelled = false;
 
-    const displayMsg = msg || "📷 Captura enviada";
-    const userMsg: Message = { role: "user", content: displayMsg };
+    const saveMsg = msg || (imagesToSend.length === 1 ? "📷 Captura enviada" : `📷 ${imagesToSend.length} capturas enviadas`);
+    const userMsg: Message = {
+      role: "user",
+      content: msg,
+      images: imagesToSend.length > 0 ? imagesToSend.map((i) => ({ uri: i.uri })) : undefined,
+    };
     const newMessages = [...messages, userMsg];
     setMessages(newMessages);
-    chatApi.saveMessage("user", displayMsg).catch(() => {});
+    chatApi.saveMessage("user", saveMsg).catch(() => {});
 
     const profileCtx = buildProfileContext();
     const recentHistory = newMessages.slice(-18);
@@ -372,7 +376,20 @@ Instrucciones críticas:
         <View style={item.role === "user" ? { maxWidth: "80%" } : { flex: 1 }}>
           <View style={[styles.bubble, item.role === "user" ? styles.userBubble : styles.assistantBubble]}>
             {item.role === "user" ? (
-              <Text style={styles.userText}>{item.content}</Text>
+              <>
+                {item.images && item.images.length > 0 && (
+                  <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 4, marginBottom: item.content ? 6 : 0 }}>
+                    {item.images.map((img, idx) => (
+                      <Image
+                        key={idx}
+                        source={{ uri: img.uri }}
+                        style={{ width: 120, height: 100, borderRadius: 10, resizeMode: "cover" }}
+                      />
+                    ))}
+                  </View>
+                )}
+                {!!item.content && <Text style={styles.userText}>{item.content}</Text>}
+              </>
             ) : (
               <>
                 <Markdown style={markdownStyles} rules={markdownRules}>{item.content || ""}</Markdown>
