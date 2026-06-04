@@ -587,9 +587,30 @@ class _PortfolioReturnsItem(_BaseModel):
     ticker: str
     shares: float
     purchase_date: _Opt[str] = None  # "YYYY-MM-DD"
+    avg_price: _Opt[float] = None    # precio de compra promedio por acción
 
 class _PortfolioReturnsRequest(_BaseModel):
     positions: list[_PortfolioReturnsItem]
+
+
+def _infer_purchase_date(ticker: str, avg_price: float, close_df: "_pd.DataFrame") -> "_Opt[str]":
+    """Find the most recent date where closing price was within 5% of avg_price."""
+    if ticker not in close_df.columns or avg_price <= 0:
+        return None
+    series = close_df[ticker].dropna()
+    if series.empty:
+        return None
+    diffs = (series - avg_price).abs()
+    tolerance = avg_price * 0.05
+    candidates = diffs[diffs <= tolerance]
+    if candidates.empty:
+        tolerance = avg_price * 0.15
+        candidates = diffs[diffs <= tolerance]
+    best_idx = candidates.index[-1] if not candidates.empty else diffs.idxmin()
+    try:
+        return str(best_idx.date())
+    except Exception:
+        return str(best_idx)[:10]
 
 def _safe_price(row, ticker: str) -> float:
     """Safely extract a price from a pandas Series row."""
@@ -703,6 +724,7 @@ def _compute_portfolio_returns(positions: list[_PortfolioReturnsItem]) -> dict:
 
     tickers = [p.ticker.upper() for p in positions]
     shares_map = {p.ticker.upper(): p.shares for p in positions}
+    avg_price_map = {p.ticker.upper(): p.avg_price for p in positions if p.avg_price and p.avg_price > 0}
     purchase_date_map = {p.ticker.upper(): p.purchase_date for p in positions if p.purchase_date}
 
     today = _dt.now()
@@ -713,6 +735,15 @@ def _compute_portfolio_returns(positions: list[_PortfolioReturnsItem]) -> dict:
     today_ts = int(today.timestamp())
     start_ts = int((today - _td(days=1835)).timestamp())
     close = _build_close_df(all_tickers, start_ts, today_ts, interval="1d")
+
+    # Infer purchase dates for positions that have avg_price but no purchase_date
+    inferred_dates: dict[str, str] = {}
+    for t in tickers:
+        if t not in purchase_date_map and t in avg_price_map and t in close.columns:
+            inferred = _infer_purchase_date(t, avg_price_map[t], close)
+            if inferred:
+                purchase_date_map[t] = inferred
+                inferred_dates[t] = inferred
 
     if close.empty:
         return {}
@@ -838,7 +869,7 @@ def _compute_portfolio_returns(positions: list[_PortfolioReturnsItem]) -> dict:
         except Exception:
             continue
 
-    return results
+    return results, inferred_dates
 
 
 @router.post("/portfolio-returns")
@@ -846,8 +877,8 @@ async def get_portfolio_returns(
     body: _PortfolioReturnsRequest,
     user_id: str = Depends(get_current_user_id),
 ):
-    data = await asyncio.to_thread(_compute_portfolio_returns, body.positions)
-    return {"returns": data}
+    data, inferred_dates = await asyncio.to_thread(_compute_portfolio_returns, body.positions)
+    return {"returns": data, "inferred_dates": inferred_dates}
 
 
 # ─── Portfolio historical chart ───────────────────────────────────────────────
@@ -863,12 +894,22 @@ def _compute_portfolio_chart(positions: list[_PortfolioReturnsItem], period: str
 
     tickers = [p.ticker.upper() for p in positions]
     shares_map = {p.ticker.upper(): p.shares for p in positions}
+    avg_price_map = {p.ticker.upper(): p.avg_price for p in positions if p.avg_price and p.avg_price > 0}
     purchase_date_map = {p.ticker.upper(): p.purchase_date for p in positions if p.purchase_date}
-
-    today = _dt.now(_tz.utc)
 
     today = _dt.now()
     today_ts = int(today.timestamp())
+
+    # Pre-fetch 5y to infer purchase dates from avg_price before deciding chart range
+    if any(t not in purchase_date_map and t in avg_price_map for t in tickers):
+        all_tickers_inf = list(dict.fromkeys(tickers))
+        start_inf = int((today - _td(days=1835)).timestamp())
+        close_inf = _build_close_df(all_tickers_inf, start_inf, today_ts, interval="1d")
+        for t in tickers:
+            if t not in purchase_date_map and t in avg_price_map and t in close_inf.columns:
+                inferred = _infer_purchase_date(t, avg_price_map[t], close_inf)
+                if inferred:
+                    purchase_date_map[t] = inferred
 
     # Use direct Yahoo Finance API — same as getPrices (guaranteed to work)
     if period in ("1d", "5d"):
@@ -928,11 +969,23 @@ def _compute_portfolio_chart(positions: list[_PortfolioReturnsItem], period: str
     if close.empty or len(close) < 2:
         return {"history": []}
 
-    # Build portfolio value time series
+    # Build portfolio value time series — each position only counts from its own purchase date
     fmt = "%Y-%m-%d %H:%M" if intraday else "%Y-%m-%d"
+    purchase_ts_map = {
+        t: _pd.Timestamp(pd_str)
+        for t, pd_str in purchase_date_map.items()
+        if pd_str
+    }
     history: list[dict] = []
     for idx, row in close.iterrows():
-        val = sum(shares_map.get(t, 0) * _safe_price(row, t) for t in tickers if t in close.columns)
+        val = 0.0
+        for t in tickers:
+            if t not in close.columns:
+                continue
+            # Skip if position wasn't purchased yet at this date
+            if t in purchase_ts_map and idx < purchase_ts_map[t]:
+                continue
+            val += shares_map.get(t, 0) * _safe_price(row, t)
         if val > 0:
             try:
                 date_str = idx.strftime(fmt)
@@ -943,15 +996,26 @@ def _compute_portfolio_chart(positions: list[_PortfolioReturnsItem], period: str
     if len(history) < 2:
         return {"history": []}
 
+    # Calculate cost basis for accurate return %
+    total_cost = sum(
+        shares_map.get(t, 0) * avg_price_map[t]
+        for t in tickers if t in avg_price_map
+    )
     start_val = history[0]["value"]
+    base = total_cost if total_cost > 0 else start_val
     for h in history:
-        h["pct"] = round((h["value"] - start_val) / start_val * 100, 4) if start_val > 0 else 0.0
+        h["pct"] = round((h["value"] - base) / base * 100, 4) if base > 0 else 0.0
 
     end_val = history[-1]["value"]
-    period_pct = round((end_val - start_val) / start_val * 100, 2) if start_val > 0 else 0.0
-    period_amount = round(end_val - start_val, 2)
+    period_pct = round((end_val - base) / base * 100, 2) if base > 0 else 0.0
+    period_amount = round(end_val - (total_cost if total_cost > 0 else start_val), 2)
 
-    return {"history": history, "period_pct": period_pct, "period_amount": period_amount}
+    return {
+        "history": history,
+        "period_pct": period_pct,
+        "period_amount": period_amount,
+        "inferred_dates": {t: purchase_date_map[t] for t in tickers if t in purchase_date_map},
+    }
 
 
 @router.post("/portfolio-chart")

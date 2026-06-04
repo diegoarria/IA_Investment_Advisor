@@ -151,9 +151,9 @@ export const market = {
   searchTickers: (q: string) => api.get("/api/market/search", { params: { q } }),
   screener: (sector: string | null, query: string) =>
     api.post("/api/market/screener", { sector, query }),
-  getPortfolioReturns: (positions: { ticker: string; shares: number; purchase_date?: string | null }[]) =>
+  getPortfolioReturns: (positions: { ticker: string; shares: number; purchase_date?: string | null; avg_price?: number | null }[]) =>
     api.post("/api/market/portfolio-returns", { positions }),
-  getPortfolioChart: (positions: { ticker: string; shares: number; purchase_date?: string | null }[], period: string) =>
+  getPortfolioChart: (positions: { ticker: string; shares: number; purchase_date?: string | null; avg_price?: number | null }[], period: string) =>
     api.post("/api/market/portfolio-chart", { positions, period }),
 };
 
