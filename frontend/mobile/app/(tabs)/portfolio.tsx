@@ -566,7 +566,7 @@ export default function PortfolioScreen() {
   const [revealedPrices, setRevealedPrices] = useState<Set<string>>(new Set());
 
   // Period returns
-  type PeriodReturn = { pct: number; amount: number; date?: string; breakdown?: Record<string, number> };
+  type PeriodReturn = { pct: number; amount: number; date?: string; breakdown?: Record<string, number>; spy_pct?: number };
   const PERIODS = [
     { key: "since_purchase", label: "Compra" },
     { key: "1d",  label: "1D"  }, { key: "5d",  label: "5D"  },
@@ -1407,6 +1407,27 @@ export default function PortfolioScreen() {
                         ) : null}
                       </View>
                     </View>
+
+                    {/* vs S&P 500 */}
+                    {r?.spy_pct !== undefined && displayPct !== undefined && (
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 14, paddingBottom: 10, borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 8 }}>
+                        <Text style={{ fontSize: 10, fontWeight: "600", color: colors.textMuted }}>vs S&P 500</Text>
+                        <Text style={{ fontSize: 11, fontWeight: "800", color: r.spy_pct >= 0 ? "#22c55e" : "#ef4444" }}>
+                          {r.spy_pct >= 0 ? "+" : ""}{r.spy_pct.toFixed(2)}%
+                        </Text>
+                        {(() => {
+                          const diff = displayPct - r.spy_pct;
+                          const beats = diff >= 0;
+                          return (
+                            <View style={{ backgroundColor: beats ? "rgba(34,197,94,0.12)" : "rgba(239,68,68,0.12)", borderRadius: 20, paddingHorizontal: 8, paddingVertical: 3 }}>
+                              <Text style={{ fontSize: 10, fontWeight: "800", color: beats ? "#22c55e" : "#ef4444" }}>
+                                {beats ? "▲" : "▼"} {Math.abs(diff).toFixed(2)}% {beats ? "mejor" : "peor"}
+                              </Text>
+                            </View>
+                          );
+                        })()}
+                      </View>
+                    )}
 
                     {/* Gráfica SVG */}
                     <View style={{ paddingHorizontal: 14, paddingBottom: 4 }}>
