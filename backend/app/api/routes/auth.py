@@ -10,6 +10,8 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 # email -> {code, expires_at}
 _reset_codes: dict[str, dict] = {}
+# phone -> {code, expires_at, email}
+_reset_codes_phone: dict[str, dict] = {}
 
 
 @router.post("/register", response_model=TokenResponse)
@@ -111,30 +113,70 @@ async def forgot_password(request: dict):
     return {"message": "Si el email existe recibirás un código en tu correo"}
 
 
+@router.post("/forgot-password-sms")
+async def forgot_password_sms(request: dict):
+    email = request.get("email", "").strip().lower()
+    phone = request.get("phone", "").strip()
+    if not email or not phone:
+        raise HTTPException(status_code=400, detail="Email y teléfono requeridos")
+    db = get_supabase()
+    try:
+        users = db.auth.admin.list_users()
+        user = next((u for u in users if u.email and u.email.lower() == email), None)
+        if user:
+            code = f"{secrets.randbelow(1000000):06d}"
+            _reset_codes_phone[phone] = {"code": code, "expires_at": time.time() + 900, "email": email}
+            from app.services.sms_service import send_sms
+            await send_sms(phone, f"Tu código Nuvos AI: {code}. Expira en 15 min. No lo compartas.")
+    except Exception:
+        pass
+    return {"message": "Si los datos son correctos, recibirás un SMS con el código"}
+
+
 @router.post("/reset-password")
 async def reset_password(request: dict):
+    phone = request.get("phone", "").strip()
     email = request.get("email", "").strip().lower()
-    code = request.get("code", "").strip()
+    code  = request.get("code", "").strip()
     new_password = request.get("new_password", "")
-    if not email or not code or not new_password:
+
+    if not code or not new_password:
         raise HTTPException(status_code=400, detail="Todos los campos son requeridos")
     if len(new_password) < 6:
         raise HTTPException(status_code=400, detail="La contraseña debe tener al menos 6 caracteres")
-    entry = _reset_codes.get(email)
-    if not entry:
-        raise HTTPException(status_code=400, detail="Código inválido o expirado")
-    if time.time() > entry["expires_at"]:
+
+    if phone:
+        # SMS flow: look up code by phone
+        entry = _reset_codes_phone.get(phone)
+        if not entry:
+            raise HTTPException(status_code=400, detail="Código inválido o expirado")
+        if time.time() > entry["expires_at"]:
+            _reset_codes_phone.pop(phone, None)
+            raise HTTPException(status_code=400, detail="El código expiró. Solicita uno nuevo")
+        if entry["code"] != code:
+            raise HTTPException(status_code=400, detail="Código incorrecto")
+        email = entry["email"]
+        _reset_codes_phone.pop(phone, None)
+    else:
+        # Email flow
+        if not email:
+            raise HTTPException(status_code=400, detail="Email requerido")
+        entry = _reset_codes.get(email)
+        if not entry:
+            raise HTTPException(status_code=400, detail="Código inválido o expirado")
+        if time.time() > entry["expires_at"]:
+            _reset_codes.pop(email, None)
+            raise HTTPException(status_code=400, detail="El código expiró. Solicita uno nuevo")
+        if entry["code"] != code:
+            raise HTTPException(status_code=400, detail="Código incorrecto")
         _reset_codes.pop(email, None)
-        raise HTTPException(status_code=400, detail="El código expiró. Solicita uno nuevo")
-    if entry["code"] != code:
-        raise HTTPException(status_code=400, detail="Código incorrecto")
+
     db = get_supabase()
     users = db.auth.admin.list_users()
     user = next((u for u in users if u.email and u.email.lower() == email), None)
     if not user:
         raise HTTPException(status_code=400, detail="Usuario no encontrado")
     db.auth.admin.update_user_by_id(user.id, {"password": new_password})
-    _reset_codes.pop(email, None)
     return {"message": "Contraseña actualizada correctamente"}
 
 

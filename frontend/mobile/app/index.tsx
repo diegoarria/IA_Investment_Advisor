@@ -43,10 +43,13 @@ export default function AuthScreen() {
 
   // Forgot password
   const [forgotStep, setForgotStep]       = useState<"email" | "code" | "newpass">("email");
+  const [forgotMethod, setForgotMethod]   = useState<"email" | "sms">("email");
   const [forgotEmail, setForgotEmail]     = useState("");
+  const [forgotPhone, setForgotPhone]     = useState("");
   const [forgotCode, setForgotCode]       = useState("");
   const [forgotNewPass, setForgotNewPass] = useState("");
   const [forgotDone, setForgotDone]       = useState(false);
+  const [resendCooldown, setResendCooldown] = useState(0);
 
   // Auto-dispara Face ID al cargar si ya hay credenciales guardadas
   useEffect(() => {
@@ -213,16 +216,31 @@ export default function AuthScreen() {
     } catch {}
   };
 
+  // 30s resend countdown when code step is entered
+  useEffect(() => {
+    if (forgotStep !== "code") return;
+    setResendCooldown(30);
+    const id = setInterval(() => setResendCooldown((v) => (v > 0 ? v - 1 : 0)), 1000);
+    return () => clearInterval(id);
+  }, [forgotStep]);
+
   const handleForgotSubmit = async () => {
     setLoading(true);
     try {
       if (forgotStep === "email") {
-        await authApi.forgotPassword(forgotEmail.trim().toLowerCase());
+        if (forgotMethod === "sms") {
+          await authApi.forgotPasswordSms(forgotEmail.trim().toLowerCase(), forgotPhone.trim());
+        } else {
+          await authApi.forgotPassword(forgotEmail.trim().toLowerCase());
+        }
         setForgotStep("code");
       } else if (forgotStep === "code") {
         setForgotStep("newpass");
       } else {
-        await authApi.resetPassword(forgotEmail.trim().toLowerCase(), forgotCode, forgotNewPass);
+        await authApi.resetPassword(
+          forgotEmail.trim().toLowerCase(), forgotCode, forgotNewPass,
+          forgotMethod === "sms" ? forgotPhone.trim() : undefined,
+        );
         setForgotDone(true);
       }
     } catch (err: unknown) {
@@ -382,19 +400,34 @@ export default function AuthScreen() {
                   </TouchableOpacity>
 
                   <Text style={[styles.label, { fontSize: 18, fontWeight: "700", color: colors.text, marginBottom: 4 }]}>
-                    {forgotStep === "email" ? "¿Olvidaste tu contraseña?" : forgotStep === "code" ? "Revisa tu email" : "Nueva contraseña"}
+                    {forgotStep === "email" ? "¿Olvidaste tu contraseña?" : forgotStep === "code" ? `Revisa tu ${forgotMethod === "sms" ? "teléfono" : "email"}` : "Nueva contraseña"}
                   </Text>
                   <Text style={[styles.switchText, { textAlign: "left", marginBottom: 20 }]}>
                     {forgotStep === "email"
-                      ? "Te enviamos un código de 6 dígitos."
+                      ? "Elige cómo recibir tu código de verificación."
                       : forgotStep === "code"
-                      ? `Ingresa el código enviado a ${forgotEmail}.`
+                      ? `Ingresa el código enviado a ${forgotMethod === "sms" ? forgotPhone : forgotEmail}.`
                       : "Elige una contraseña segura (mínimo 6 caracteres)."}
                   </Text>
 
                   {forgotStep === "email" && (
                     <>
-                      <Text style={styles.label}>Email</Text>
+                      {/* Method selector */}
+                      <View style={[styles.methodRow, { backgroundColor: colors.bg }]}>
+                        {(["email", "sms"] as const).map((m) => (
+                          <TouchableOpacity
+                            key={m}
+                            style={[styles.methodBtn, forgotMethod === m && { backgroundColor: colors.card }]}
+                            onPress={() => setForgotMethod(m)}
+                          >
+                            <Text style={[styles.methodBtnText, { color: forgotMethod === m ? colors.text : colors.textMuted }]}>
+                              {m === "email" ? "📧  Email" : "💬  SMS"}
+                            </Text>
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+
+                      <Text style={styles.label}>Correo electrónico</Text>
                       <TextInput
                         style={styles.input}
                         value={forgotEmail}
@@ -405,6 +438,23 @@ export default function AuthScreen() {
                         autoCapitalize="none"
                         autoFocus
                       />
+
+                      {forgotMethod === "sms" && (
+                        <>
+                          <Text style={[styles.label, { marginTop: 12 }]}>Número de teléfono</Text>
+                          <TextInput
+                            style={styles.input}
+                            value={forgotPhone}
+                            onChangeText={setForgotPhone}
+                            placeholder="+52 55 1234 5678"
+                            placeholderTextColor={colors.placeholder}
+                            keyboardType="phone-pad"
+                          />
+                          <Text style={[styles.switchText, { fontSize: 11, marginTop: 4, marginBottom: 0 }]}>
+                            Incluye el código de país, ej: +52 para México
+                          </Text>
+                        </>
+                      )}
                     </>
                   )}
 
@@ -421,6 +471,35 @@ export default function AuthScreen() {
                         maxLength={6}
                         autoFocus
                       />
+                      {/* Resend countdown */}
+                      <View style={{ alignItems: "center", marginTop: 12 }}>
+                        {resendCooldown > 0 ? (
+                          <Text style={[styles.switchText, { marginBottom: 0 }]}>
+                            Reenviar en{" "}
+                            <Text style={{ fontWeight: "700", color: "#22c55e" }}>{resendCooldown}s</Text>
+                          </Text>
+                        ) : (
+                          <TouchableOpacity
+                            disabled={loading}
+                            onPress={async () => {
+                              setLoading(true);
+                              try {
+                                if (forgotMethod === "sms") {
+                                  await authApi.forgotPasswordSms(forgotEmail.trim().toLowerCase(), forgotPhone.trim());
+                                } else {
+                                  await authApi.forgotPassword(forgotEmail.trim().toLowerCase());
+                                }
+                                setResendCooldown(30);
+                              } catch {}
+                              setLoading(false);
+                            }}
+                          >
+                            <Text style={{ color: "#22c55e", fontWeight: "700", fontSize: 13 }}>
+                              Reenviar código →
+                            </Text>
+                          </TouchableOpacity>
+                        )}
+                      </View>
                     </>
                   )}
 
@@ -440,9 +519,19 @@ export default function AuthScreen() {
                   )}
 
                   <TouchableOpacity
-                    style={[styles.button, loading && styles.buttonDisabled]}
+                    style={[
+                      styles.button,
+                      (loading
+                        || (forgotStep === "email" && (!forgotEmail || (forgotMethod === "sms" && !forgotPhone)))
+                        || (forgotStep === "code" && forgotCode.length < 6)
+                        || (forgotStep === "newpass" && forgotNewPass.length < 6)
+                      ) && styles.buttonDisabled,
+                    ]}
                     onPress={handleForgotSubmit}
-                    disabled={loading}
+                    disabled={loading
+                      || (forgotStep === "email" && (!forgotEmail || (forgotMethod === "sms" && !forgotPhone)))
+                      || (forgotStep === "code" && forgotCode.length < 6)
+                      || (forgotStep === "newpass" && forgotNewPass.length < 6)}
                   >
                     {loading ? <ActivityIndicator color="white" /> : (
                       <Text style={styles.buttonText}>
@@ -581,6 +670,10 @@ function makeStyles(c: Colors) {
     },
     buttonDisabled: { opacity: 0.5 },
     buttonText: { color: "white", fontWeight: "600", fontSize: 16 },
+    // Method selector (email / SMS)
+    methodRow: { flexDirection: "row", borderRadius: 12, padding: 4, gap: 4, marginBottom: 16 },
+    methodBtn: { flex: 1, borderRadius: 10, paddingVertical: 10, alignItems: "center" },
+    methodBtnText: { fontSize: 14, fontWeight: "600" },
     switchText: { color: c.textMuted, textAlign: "center", fontSize: 14 },
     switchLink: { color: "#22c55e", fontWeight: "500" },
     devSkip: { marginTop: 20, alignItems: "center", flexDirection: "row" },

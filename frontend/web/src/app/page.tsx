@@ -25,10 +25,13 @@ export default function Home() {
 
   // Forgot password flow
   const [forgotStep, setForgotStep]       = useState<"email" | "code" | "newpass">("email");
+  const [forgotMethod, setForgotMethod]   = useState<"email" | "sms">("email");
   const [forgotEmail, setForgotEmail]     = useState("");
+  const [forgotPhone, setForgotPhone]     = useState("");
   const [forgotCode, setForgotCode]       = useState("");
   const [forgotNewPass, setForgotNewPass] = useState("");
   const [forgotDone, setForgotDone]       = useState(false);
+  const [resendCooldown, setResendCooldown] = useState(0);
 
   const [checking, setChecking] = useState(true);
 
@@ -49,23 +52,53 @@ export default function Home() {
       });
   }, []);
 
+  // Start 30s resend countdown whenever the code step is entered
+  useEffect(() => {
+    if (forgotStep !== "code") return;
+    setResendCooldown(30);
+    const id = setInterval(() => setResendCooldown((v) => (v > 0 ? v - 1 : 0)), 1000);
+    return () => clearInterval(id);
+  }, [forgotStep]);
+
   const handleForgotSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true); setError("");
     try {
       if (forgotStep === "email") {
-        await auth.forgotPassword(forgotEmail);
+        if (forgotMethod === "sms") {
+          await auth.forgotPasswordSms(forgotEmail, forgotPhone);
+        } else {
+          await auth.forgotPassword(forgotEmail);
+        }
         setForgotStep("code");
       } else if (forgotStep === "code") {
-        // just advance — actual verify happens on reset
         setForgotStep("newpass");
       } else {
-        await auth.resetPassword(forgotEmail, forgotCode, forgotNewPass);
+        await auth.resetPassword(
+          forgotEmail, forgotCode, forgotNewPass,
+          forgotMethod === "sms" ? forgotPhone : undefined,
+        );
         setForgotDone(true);
       }
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
       setError(msg || "Ocurrió un error. Inténtalo de nuevo.");
+    } finally { setLoading(false); }
+  };
+
+  const handleResend = async () => {
+    if (resendCooldown > 0) return;
+    setLoading(true); setError("");
+    try {
+      if (forgotMethod === "sms") {
+        await auth.forgotPasswordSms(forgotEmail, forgotPhone);
+      } else {
+        await auth.forgotPassword(forgotEmail);
+      }
+      setResendCooldown(30);
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+      setError(msg || "No se pudo reenviar. Inténtalo de nuevo.");
     } finally { setLoading(false); }
   };
 
@@ -203,24 +236,54 @@ export default function Home() {
                   </button>
                   <h2 className="text-2xl font-black tracking-tight mb-1"
                       style={{ color: "var(--text)", fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
-                    {forgotStep === "email" ? "¿Olvidaste tu contraseña?" : forgotStep === "code" ? "Verifica tu email" : "Nueva contraseña"}
+                    {forgotStep === "email" ? "¿Olvidaste tu contraseña?" : forgotStep === "code" ? `Verifica tu ${forgotMethod === "sms" ? "teléfono" : "email"}` : "Nueva contraseña"}
                   </h2>
                   <p className="text-sm mb-6" style={{ color: "var(--muted)" }}>
                     {forgotStep === "email"
-                      ? "Ingresa tu email y te enviamos un código de verificación."
+                      ? "Elige cómo recibir tu código de verificación."
                       : forgotStep === "code"
-                      ? `Ingresa el código de 6 dígitos que enviamos a ${forgotEmail}.`
+                      ? `Ingresa el código de 6 dígitos que enviamos a ${forgotMethod === "sms" ? forgotPhone : forgotEmail}.`
                       : "Elige una nueva contraseña segura."}
                   </p>
 
                   <form onSubmit={handleForgotSubmit} className="space-y-4">
                     {forgotStep === "email" && (
-                      <div>
-                        <label className="block text-xs font-semibold mb-2 uppercase tracking-wider"
-                               style={{ color: "var(--muted)" }}>Correo electrónico</label>
-                        <input type="email" value={forgotEmail} onChange={(e) => setForgotEmail(e.target.value)}
-                               className="input-premium" placeholder="tu@email.com" required autoFocus />
-                      </div>
+                      <>
+                        {/* Method selector */}
+                        <div className="flex gap-2 p-1 rounded-xl mb-1" style={{ background: "var(--raised)" }}>
+                          {(["email", "sms"] as const).map((m) => (
+                            <button
+                              key={m} type="button"
+                              onClick={() => setForgotMethod(m)}
+                              className="flex-1 py-2 rounded-lg text-sm font-semibold transition-all"
+                              style={{
+                                background: forgotMethod === m ? "var(--card)" : "transparent",
+                                color: forgotMethod === m ? "var(--text)" : "var(--muted)",
+                              }}>
+                              {m === "email" ? "📧 Email" : "💬 SMS"}
+                            </button>
+                          ))}
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-semibold mb-2 uppercase tracking-wider"
+                                 style={{ color: "var(--muted)" }}>Correo electrónico</label>
+                          <input type="email" value={forgotEmail} onChange={(e) => setForgotEmail(e.target.value)}
+                                 className="input-premium" placeholder="tu@email.com" required autoFocus />
+                        </div>
+
+                        {forgotMethod === "sms" && (
+                          <div>
+                            <label className="block text-xs font-semibold mb-2 uppercase tracking-wider"
+                                   style={{ color: "var(--muted)" }}>Número de teléfono</label>
+                            <input type="tel" value={forgotPhone} onChange={(e) => setForgotPhone(e.target.value)}
+                                   className="input-premium" placeholder="+52 55 1234 5678" required />
+                            <p className="text-[11px] mt-1.5" style={{ color: "var(--dim)" }}>
+                              Incluye el código de país, ej: +52 para México
+                            </p>
+                          </div>
+                        )}
+                      </>
                     )}
 
                     {forgotStep === "code" && (
@@ -230,6 +293,20 @@ export default function Home() {
                         <input type="text" value={forgotCode} onChange={(e) => setForgotCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
                                className="input-premium text-center text-2xl tracking-[0.5em] font-black"
                                placeholder="000000" required maxLength={6} autoFocus />
+                        {/* Resend countdown */}
+                        <div className="flex items-center justify-center mt-3 gap-2">
+                          {resendCooldown > 0 ? (
+                            <span className="text-xs" style={{ color: "var(--muted)" }}>
+                              Reenviar código en <span className="font-bold tabular-nums" style={{ color: "var(--accent-l)" }}>{resendCooldown}s</span>
+                            </span>
+                          ) : (
+                            <button type="button" onClick={handleResend} disabled={loading}
+                                    className="text-xs font-semibold transition-opacity hover:opacity-70 disabled:opacity-40"
+                                    style={{ color: "var(--accent-l)" }}>
+                              Reenviar código →
+                            </button>
+                          )}
+                        </div>
                       </div>
                     )}
 
@@ -250,7 +327,10 @@ export default function Home() {
                     )}
 
                     <button type="submit"
-                            disabled={loading || (forgotStep === "email" && !forgotEmail) || (forgotStep === "code" && forgotCode.length < 6) || (forgotStep === "newpass" && forgotNewPass.length < 6)}
+                            disabled={loading
+                              || (forgotStep === "email" && (!forgotEmail || (forgotMethod === "sms" && !forgotPhone)))
+                              || (forgotStep === "code" && forgotCode.length < 6)
+                              || (forgotStep === "newpass" && forgotNewPass.length < 6)}
                             className="btn-primary w-full flex items-center justify-center gap-2">
                       {loading ? (
                         <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full" style={{ animation: "spin 0.7s linear infinite" }} />
