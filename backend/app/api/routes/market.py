@@ -602,39 +602,99 @@ def _safe_price(row, ticker: str) -> float:
         return 0.0
 
 
-def _extract_close(raw: "_pd.DataFrame", tickers: list[str]) -> "_pd.DataFrame | None":
-    """Extract Close price columns from a yf.download() result — handles all yfinance versions."""
-    if raw is None or raw.empty:
-        return None
-    try:
-        cols = raw.columns
-        if isinstance(cols, _pd.MultiIndex):
-            l0 = cols.get_level_values(0).unique().tolist()
-            if "Close" in l0:
-                df = raw["Close"]
-            elif "Adj Close" in l0:
-                df = raw["Adj Close"]
-            elif "Price" in l0:
-                df = raw.xs("Close", axis=1, level=1)
-            else:
-                return None
-        else:
-            if "Close" in cols:
-                df = raw[["Close"]]
-            elif "Adj Close" in cols:
-                df = raw[["Adj Close"]]
-            else:
-                return None
-            if len(tickers) == 1:
-                df = df.copy()
-                df.columns = tickers
-        # Remove timezone so string/Timestamp comparisons are consistent
-        if hasattr(df.index, "tz") and df.index.tz is not None:
-            df.index = df.index.tz_localize(None)
-        df.index = _pd.to_datetime(df.index).normalize()
-        return df.ffill().dropna(how="all") if not df.empty else None
-    except Exception:
-        return None
+def _fetch_ticker_history(
+    ticker: str, period1: int, period2: int, interval: str = "1d"
+) -> tuple[list[int], list[float]]:
+    """Fetch historical adjusted-close prices via Yahoo Finance Chart API (same endpoint as getPrices)."""
+    import httpx
+    encoded = ticker.replace("^", "%5E")
+    params = {"period1": period1, "period2": period2, "interval": interval, "includePrePost": "false"}
+    for domain in ("query1", "query2"):
+        try:
+            r = httpx.get(
+                f"https://{domain}.finance.yahoo.com/v8/finance/chart/{encoded}",
+                headers=_YF_HEADERS, params=params, timeout=20, follow_redirects=True,
+            )
+            if r.status_code != 200:
+                continue
+            res = r.json()["chart"]["result"][0]
+            ts = res.get("timestamp") or []
+            # Prefer adjclose (accounts for splits + dividends)
+            ac = (res.get("indicators", {}).get("adjclose") or [])
+            closes = ac[0].get("adjclose") if ac else None
+            if not closes:
+                closes = (res.get("indicators", {}).get("quote") or [{}])[0].get("close")
+            if ts and closes and len(ts) == len(closes):
+                return ts, closes
+        except Exception:
+            continue
+    return [], []
+
+
+def _build_close_df(
+    tickers: list[str], period1: int, period2: int, interval: str = "1d"
+) -> "_pd.DataFrame":
+    """Parallel fetch of historical close prices via direct Yahoo Finance API. Index is timezone-naive."""
+    from concurrent.futures import ThreadPoolExecutor
+
+    def _one(t: str) -> tuple[str, "_pd.Series | None"]:
+        ts, closes = _fetch_ticker_history(t, period1, period2, interval)
+        if not ts:
+            return t, None
+        pairs = [
+            (_pd.Timestamp(s, unit="s").normalize(), float(c))
+            for s, c in zip(ts, closes) if c is not None
+        ]
+        if not pairs:
+            return t, None
+        dates, vals = zip(*pairs)
+        return t, _pd.Series(list(vals), index=list(dates), name=t, dtype=float)
+
+    with ThreadPoolExecutor(max_workers=min(len(tickers), 8)) as pool:
+        results = list(pool.map(_one, tickers))
+
+    series = [s for _, s in results if s is not None]
+    if not series:
+        return _pd.DataFrame()
+    return _pd.concat(series, axis=1).ffill().dropna(how="all")
+
+
+def _build_close_df_range(
+    tickers: list[str], range_str: str, interval: str = "1h"
+) -> "_pd.DataFrame":
+    """Fetch short-range intraday data (1d, 5d) via Yahoo Finance range parameter."""
+    import httpx
+    from concurrent.futures import ThreadPoolExecutor
+
+    def _one(t: str) -> tuple[str, "_pd.Series | None"]:
+        encoded = t.replace("^", "%5E")
+        params = {"range": range_str, "interval": interval, "includePrePost": "false"}
+        for domain in ("query1", "query2"):
+            try:
+                r = httpx.get(
+                    f"https://{domain}.finance.yahoo.com/v8/finance/chart/{encoded}",
+                    headers=_YF_HEADERS, params=params, timeout=15, follow_redirects=True,
+                )
+                if r.status_code != 200:
+                    continue
+                res = r.json()["chart"]["result"][0]
+                ts = res.get("timestamp") or []
+                closes = (res.get("indicators", {}).get("quote") or [{}])[0].get("close") or []
+                pairs = [(s, float(c)) for s, c in zip(ts, closes) if c is not None]
+                if pairs:
+                    dates, vals = zip(*pairs)
+                    return t, _pd.Series(list(vals), index=[_pd.Timestamp(d, unit="s") for d in dates], name=t)
+            except Exception:
+                continue
+        return t, None
+
+    with ThreadPoolExecutor(max_workers=min(len(tickers), 8)) as pool:
+        results = list(pool.map(_one, tickers))
+
+    series = [s for _, s in results if s is not None]
+    if not series:
+        return _pd.DataFrame()
+    return _pd.concat(series, axis=1).ffill().dropna(how="all")
 
 
 def _compute_portfolio_returns(positions: list[_PortfolioReturnsItem]) -> dict:
@@ -645,25 +705,20 @@ def _compute_portfolio_returns(positions: list[_PortfolioReturnsItem]) -> dict:
     shares_map = {p.ticker.upper(): p.shares for p in positions}
     purchase_date_map = {p.ticker.upper(): p.purchase_date for p in positions if p.purchase_date}
 
-    today = _dt.now(_tz.utc)
+    today = _dt.now()
+    # Include SPY as benchmark
+    all_tickers = list(dict.fromkeys(tickers + ["SPY"]))
 
-    # Include SPY as benchmark alongside portfolio tickers
-    all_tickers = list(dict.fromkeys(tickers + ["SPY"]))  # preserves order, dedupes
+    # Fetch 5+ years via direct Yahoo Finance Chart API (same as getPrices — guaranteed to work)
+    today_ts = int(today.timestamp())
+    start_ts = int((today - _td(days=1835)).timestamp())
+    close = _build_close_df(all_tickers, start_ts, today_ts, interval="1d")
 
-    # Use start/end dates (more reliable than period= in some yfinance versions)
-    start_str = (today - _td(days=1835)).strftime("%Y-%m-%d")
-    end_str = today.strftime("%Y-%m-%d")
+    if close.empty:
+        return {}
 
-    try:
-        raw = yf.download(
-            all_tickers, start=start_str, end=end_str,
-            interval="1d", auto_adjust=True, progress=False, threads=False,
-        )
-    except Exception:
-        raw = _pd.DataFrame()
-
-    close = _extract_close(raw, all_tickers)
-    if close is None:
+    # Bail if none of the user's tickers returned data
+    if not any(t in close.columns for t in tickers):
         return {}
 
     # Ensure all portfolio tickers are present (SPY might be missing in some envs)
@@ -681,6 +736,7 @@ def _compute_portfolio_returns(positions: list[_PortfolioReturnsItem]) -> dict:
 
     spy_current = _safe_price(current_row, "SPY") if "SPY" in close.columns else 0.0
 
+    # All cutoffs use timezone-naive today (index is also timezone-naive from _build_close_df)
     ytd_start = _pd.Timestamp(f"{today.year}-01-01")
 
     PERIODS: list[tuple[str, _td | None]] = [
@@ -709,7 +765,7 @@ def _compute_portfolio_returns(positions: list[_PortfolioReturnsItem]) -> dict:
                 pd_str = purchase_date_map.get(t)
                 if not pd_str or t not in close.columns:
                     continue
-                cutoff = _pd.Timestamp(pd_str)
+                cutoff = _pd.Timestamp(pd_str)  # naive (from "YYYY-MM-DD" string)
                 subset = close[close.index >= cutoff]
                 if subset.empty:
                     continue
@@ -740,10 +796,9 @@ def _compute_portfolio_returns(positions: list[_PortfolioReturnsItem]) -> dict:
     for key, delta in PERIODS:
         try:
             if key == "ytd":
-                cutoff = ytd_start  # already naive (built from string)
+                cutoff = ytd_start  # naive Timestamp
             else:
-                # .strftime strips timezone → _pd.Timestamp from string is naive
-                cutoff = _pd.Timestamp((today - delta).strftime("%Y-%m-%d"))  # type: ignore[operator]
+                cutoff = _pd.Timestamp(today - delta)  # naive (today is naive from _dt.now())
 
             subset = close[close.index >= cutoff]
             if subset.empty:
@@ -812,63 +867,55 @@ def _compute_portfolio_chart(positions: list[_PortfolioReturnsItem], period: str
 
     today = _dt.now(_tz.utc)
 
-    # Determine download parameters
-    # 1D uses period= (intraday), rest use explicit start/end dates (more reliable)
-    if period == "1d":
-        yf_period, interval = "2d", "1h"
-        start_str = end_str = None
-    elif period == "5d":
-        yf_period, interval = "5d", "1h"
-        start_str = end_str = None
+    today = _dt.now()
+    today_ts = int(today.timestamp())
+
+    # Use direct Yahoo Finance API — same as getPrices (guaranteed to work)
+    if period in ("1d", "5d"):
+        range_str = "2d" if period == "1d" else "5d"
+        close = _build_close_df_range(tickers, range_str, interval="1h")
+        intraday = True
     elif period == "since_purchase":
         if not purchase_date_map:
             return {"history": []}
-        yf_period, interval = None, "1d"
         oldest_str = min(v for v in purchase_date_map.values() if v)
         try:
             oldest_dt = _dt.fromisoformat(oldest_str)
-            days = (today.replace(tzinfo=None) - oldest_dt).days
-            interval = "1wk" if days > 1800 else "1d"
+            days_held = (today - oldest_dt).days
+            interval = "1wk" if days_held > 1800 else "1d"
         except Exception:
-            pass
-        start_str = oldest_str
-        end_str = today.strftime("%Y-%m-%d")
+            interval = "1d"
+        start_ts = int(_dt.fromisoformat(oldest_str).timestamp())
+        close = _build_close_df(tickers, start_ts, today_ts, interval=interval)
+        intraday = False
     else:
-        PERIOD_DAYS = {
-            "1mo": 35, "3mo": 95, "6mo": 185, "ytd": None,
-            "1y": 370, "3y": 1100, "5y": 1835,
+        PERIOD_CFG: dict[str, tuple[int, str]] = {
+            "1mo": (35,   "1d"),
+            "3mo": (95,   "1d"),
+            "6mo": (185,  "1d"),
+            "ytd": (0,    "1d"),   # days=0 handled below
+            "1y":  (370,  "1d"),
+            "3y":  (1100, "1wk"),
+            "5y":  (1835, "1wk"),
+            "max": (9999, "1mo"),
         }
-        PERIOD_INTERVAL = {
-            "1mo": "1d", "3mo": "1d", "6mo": "1d", "ytd": "1d",
-            "1y": "1d", "3y": "1wk", "5y": "1wk",
-        }
-        if period == "max":
-            yf_period, interval = None, "1mo"
-            start_str = "1990-01-01"
-        elif period == "ytd":
-            yf_period, interval = None, "1d"
-            start_str = f"{today.year}-01-01"
+        days_back, interval = PERIOD_CFG.get(period, (370, "1d"))
+        if period == "ytd":
+            start_ts = int(_dt(today.year, 1, 1).timestamp())
+        elif period == "max":
+            start_ts = int(_dt(1993, 1, 1).timestamp())
         else:
-            days = PERIOD_DAYS.get(period, 370)
-            yf_period, interval = None, PERIOD_INTERVAL.get(period, "1d")
-            start_str = (today - _td(days=days)).strftime("%Y-%m-%d")
-        end_str = today.strftime("%Y-%m-%d")
+            start_ts = int((today - _td(days=days_back)).timestamp())
+        close = _build_close_df(tickers, start_ts, today_ts, interval=interval)
+        intraday = False
 
-    try:
-        if yf_period:
-            raw = yf.download(tickers, period=yf_period, interval=interval,
-                              auto_adjust=True, progress=False, threads=False)
-        else:
-            raw = yf.download(tickers, start=start_str, end=end_str,
-                              interval=interval, auto_adjust=True, progress=False, threads=False)
-    except Exception:
+    if close is None or close.empty:
         return {"history": []}
 
-    close = _extract_close(raw, tickers)
-    if close is None:
+    if not any(t in close.columns for t in tickers):
         return {"history": []}
 
-    # For 1D: filter to today's session only (or last trading day)
+    # For 1D: keep only today's session (or last trading day)
     if period == "1d":
         today_str = today.strftime("%Y-%m-%d")
         mask = [str(idx)[:10] == today_str for idx in close.index]
@@ -878,15 +925,11 @@ def _compute_portfolio_chart(positions: list[_PortfolioReturnsItem], period: str
             last_day = str(close.index[-1])[:10]
             close = close.iloc[[i for i, idx in enumerate(close.index) if str(idx)[:10] == last_day]]
 
-    elif period == "since_purchase" and purchase_date_map:
-        cutoff = _pd.Timestamp(min(v for v in purchase_date_map.values() if v))
-        close = close[close.index >= cutoff]
-
     if close.empty or len(close) < 2:
         return {"history": []}
 
     # Build portfolio value time series
-    fmt = "%Y-%m-%d %H:%M" if interval == "1h" else "%Y-%m-%d"
+    fmt = "%Y-%m-%d %H:%M" if intraday else "%Y-%m-%d"
     history: list[dict] = []
     for idx, row in close.iterrows():
         val = sum(shares_map.get(t, 0) * _safe_price(row, t) for t in tickers if t in close.columns)
