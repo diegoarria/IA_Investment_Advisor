@@ -68,6 +68,10 @@ export const auth = {
     api.post("/api/auth/login", { email, password }),
   logout: () => api.post("/api/auth/logout"),
   deleteAccount: () => api.delete("/api/auth/account"),
+  forgotPassword: (email: string) =>
+    api.post("/api/auth/forgot-password", { email }),
+  resetPassword: (email: string, code: string, new_password: string) =>
+    api.post("/api/auth/reset-password", { email, code, new_password }),
 };
 
 export const profile = {

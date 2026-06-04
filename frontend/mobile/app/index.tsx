@@ -31,7 +31,7 @@ export default function AuthScreen() {
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const setProfile = useAppStore((s) => s.setProfile);
 
-  const [mode, setMode] = useState<"login" | "register">("login");
+  const [mode, setMode] = useState<"login" | "register" | "forgot">("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [refCode, setRefCode] = useState("");
@@ -40,6 +40,13 @@ export default function AuthScreen() {
   const [biometricAvailable, setBiometricAvailable] = useState(false);
   const [biometricReady, setBiometricReady] = useState(false);
   const [biometricLoading, setBiometricLoading] = useState(false);
+
+  // Forgot password
+  const [forgotStep, setForgotStep]       = useState<"email" | "code" | "newpass">("email");
+  const [forgotEmail, setForgotEmail]     = useState("");
+  const [forgotCode, setForgotCode]       = useState("");
+  const [forgotNewPass, setForgotNewPass] = useState("");
+  const [forgotDone, setForgotDone]       = useState(false);
 
   // Auto-dispara Face ID al cargar si ya hay credenciales guardadas
   useEffect(() => {
@@ -206,6 +213,26 @@ export default function AuthScreen() {
     } catch {}
   };
 
+  const handleForgotSubmit = async () => {
+    setLoading(true);
+    try {
+      if (forgotStep === "email") {
+        await authApi.forgotPassword(forgotEmail.trim().toLowerCase());
+        setForgotStep("code");
+      } else if (forgotStep === "code") {
+        setForgotStep("newpass");
+      } else {
+        await authApi.resetPassword(forgotEmail.trim().toLowerCase(), forgotCode, forgotNewPass);
+        setForgotDone(true);
+      }
+    } catch (err: unknown) {
+      const detail = (err as any)?.response?.data?.detail;
+      Alert.alert("Error", typeof detail === "string" ? detail : "Ocurrió un error. Inténtalo de nuevo.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleSubmit = async () => {
     if (!email.trim() || !password) return;
     setLoading(true);
@@ -334,7 +361,100 @@ export default function AuthScreen() {
             </View>
           )}
 
-          {/* Email/password form */}
+          {/* Forgot password flow */}
+          {mode === "forgot" ? (
+            <View style={styles.form}>
+              {forgotDone ? (
+                <View style={{ alignItems: "center", gap: 12, paddingVertical: 16 }}>
+                  <View style={{ width: 56, height: 56, borderRadius: 28, backgroundColor: "rgba(34,197,94,0.12)", alignItems: "center", justifyContent: "center" }}>
+                    <Text style={{ fontSize: 24, color: "#22c55e" }}>✓</Text>
+                  </View>
+                  <Text style={[styles.buttonText, { color: colors.text, fontSize: 18 }]}>¡Contraseña actualizada!</Text>
+                  <Text style={[styles.switchText, { textAlign: "center" }]}>Ya puedes iniciar sesión con tu nueva contraseña.</Text>
+                  <TouchableOpacity style={styles.button} onPress={() => { setMode("login"); setForgotStep("email"); setForgotDone(false); }}>
+                    <Text style={styles.buttonText}>Iniciar sesión</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <>
+                  <TouchableOpacity onPress={() => { setMode("login"); setForgotStep("email"); }} style={{ marginBottom: 20 }}>
+                    <Text style={[styles.switchLink, { fontSize: 14 }]}>← Volver</Text>
+                  </TouchableOpacity>
+
+                  <Text style={[styles.label, { fontSize: 18, fontWeight: "700", color: colors.text, marginBottom: 4 }]}>
+                    {forgotStep === "email" ? "¿Olvidaste tu contraseña?" : forgotStep === "code" ? "Revisa tu email" : "Nueva contraseña"}
+                  </Text>
+                  <Text style={[styles.switchText, { textAlign: "left", marginBottom: 20 }]}>
+                    {forgotStep === "email"
+                      ? "Te enviamos un código de 6 dígitos."
+                      : forgotStep === "code"
+                      ? `Ingresa el código enviado a ${forgotEmail}.`
+                      : "Elige una contraseña segura (mínimo 6 caracteres)."}
+                  </Text>
+
+                  {forgotStep === "email" && (
+                    <>
+                      <Text style={styles.label}>Email</Text>
+                      <TextInput
+                        style={styles.input}
+                        value={forgotEmail}
+                        onChangeText={setForgotEmail}
+                        placeholder="tu@email.com"
+                        placeholderTextColor={colors.placeholder}
+                        keyboardType="email-address"
+                        autoCapitalize="none"
+                        autoFocus
+                      />
+                    </>
+                  )}
+
+                  {forgotStep === "code" && (
+                    <>
+                      <Text style={styles.label}>Código de verificación</Text>
+                      <TextInput
+                        style={[styles.input, { textAlign: "center", fontSize: 28, fontWeight: "900", letterSpacing: 12 }]}
+                        value={forgotCode}
+                        onChangeText={(t) => setForgotCode(t.replace(/\D/g, "").slice(0, 6))}
+                        placeholder="000000"
+                        placeholderTextColor={colors.placeholder}
+                        keyboardType="number-pad"
+                        maxLength={6}
+                        autoFocus
+                      />
+                    </>
+                  )}
+
+                  {forgotStep === "newpass" && (
+                    <>
+                      <Text style={styles.label}>Nueva contraseña</Text>
+                      <TextInput
+                        style={styles.input}
+                        value={forgotNewPass}
+                        onChangeText={setForgotNewPass}
+                        placeholder="Mínimo 6 caracteres"
+                        placeholderTextColor={colors.placeholder}
+                        secureTextEntry
+                        autoFocus
+                      />
+                    </>
+                  )}
+
+                  <TouchableOpacity
+                    style={[styles.button, loading && styles.buttonDisabled]}
+                    onPress={handleForgotSubmit}
+                    disabled={loading}
+                  >
+                    {loading ? <ActivityIndicator color="white" /> : (
+                      <Text style={styles.buttonText}>
+                        {forgotStep === "email" ? "Enviar código" : forgotStep === "code" ? "Verificar" : "Actualizar contraseña"}
+                      </Text>
+                    )}
+                  </TouchableOpacity>
+                </>
+              )}
+            </View>
+          ) : (
+          /* Email/password form */
           <View style={styles.form}>
             <Text style={styles.label}>Email</Text>
             <TextInput
@@ -347,7 +467,14 @@ export default function AuthScreen() {
               autoCapitalize="none"
             />
 
-            <Text style={[styles.label, { marginTop: 16 }]}>Contraseña</Text>
+            <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: 16, marginBottom: 6 }}>
+              <Text style={styles.label}>Contraseña</Text>
+              {mode === "login" && (
+                <TouchableOpacity onPress={() => { setMode("forgot"); setForgotEmail(email); setForgotStep("email"); }}>
+                  <Text style={[styles.switchLink, { fontSize: 12 }]}>¿Olvidaste tu contraseña?</Text>
+                </TouchableOpacity>
+              )}
+            </View>
             <TextInput
               style={styles.input}
               value={password}
@@ -414,6 +541,7 @@ export default function AuthScreen() {
               </View>
             )}
           </View>
+          )}
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>

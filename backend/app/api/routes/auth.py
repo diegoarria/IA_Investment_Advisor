@@ -1,9 +1,15 @@
+import secrets
+import time
+
 from fastapi import APIRouter, HTTPException, Depends
 from app.core.database import get_supabase
 from app.models.user import AuthRequest, TokenResponse
 from app.api.deps import get_current_user_id
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+
+# email -> {code, expires_at}
+_reset_codes: dict[str, dict] = {}
 
 
 @router.post("/register", response_model=TokenResponse)
@@ -72,6 +78,64 @@ async def refresh_token(request: dict):
         raise
     except Exception as e:
         raise HTTPException(status_code=401, detail=f"Refresh error: {str(e)}")
+
+
+@router.post("/forgot-password")
+async def forgot_password(request: dict):
+    email = request.get("email", "").strip().lower()
+    if not email:
+        raise HTTPException(status_code=400, detail="Email requerido")
+    db = get_supabase()
+    try:
+        users = db.auth.admin.list_users()
+        user = next((u for u in users if u.email and u.email.lower() == email), None)
+        if user:
+            code = f"{secrets.randbelow(1000000):06d}"
+            _reset_codes[email] = {"code": code, "expires_at": time.time() + 900}
+            from app.services.email_service import send_email
+            html = f"""<!DOCTYPE html>
+<html><head><meta charset="utf-8"></head>
+<body style="margin:0;padding:0;background:#0f1117;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">
+  <div style="max-width:480px;margin:0 auto;padding:40px 20px">
+    <div style="background:#1a1d27;border-radius:20px;padding:32px;border:1px solid #2a2d3a">
+      <div style="color:#fff;font-size:20px;font-weight:800;margin-bottom:8px">Código de verificación</div>
+      <p style="color:#9ca3af;font-size:14px;margin:0 0 28px">Usa este código para restablecer tu contraseña en Nuvos AI. Expira en 15 minutos.</p>
+      <div style="background:#0f1117;border-radius:14px;padding:28px;text-align:center;border:1px solid #2a2d3a;letter-spacing:10px;font-size:36px;font-weight:900;color:#22c55e;margin-bottom:24px">{code}</div>
+      <p style="color:#6b7280;font-size:12px;margin:0;text-align:center">Si no solicitaste esto, ignora este correo.</p>
+    </div>
+  </div>
+</body></html>"""
+            await send_email(email, "Tu código de verificación — Nuvos AI", html)
+    except Exception:
+        pass
+    return {"message": "Si el email existe recibirás un código en tu correo"}
+
+
+@router.post("/reset-password")
+async def reset_password(request: dict):
+    email = request.get("email", "").strip().lower()
+    code = request.get("code", "").strip()
+    new_password = request.get("new_password", "")
+    if not email or not code or not new_password:
+        raise HTTPException(status_code=400, detail="Todos los campos son requeridos")
+    if len(new_password) < 6:
+        raise HTTPException(status_code=400, detail="La contraseña debe tener al menos 6 caracteres")
+    entry = _reset_codes.get(email)
+    if not entry:
+        raise HTTPException(status_code=400, detail="Código inválido o expirado")
+    if time.time() > entry["expires_at"]:
+        _reset_codes.pop(email, None)
+        raise HTTPException(status_code=400, detail="El código expiró. Solicita uno nuevo")
+    if entry["code"] != code:
+        raise HTTPException(status_code=400, detail="Código incorrecto")
+    db = get_supabase()
+    users = db.auth.admin.list_users()
+    user = next((u for u in users if u.email and u.email.lower() == email), None)
+    if not user:
+        raise HTTPException(status_code=400, detail="Usuario no encontrado")
+    db.auth.admin.update_user_by_id(user.id, {"password": new_password})
+    _reset_codes.pop(email, None)
+    return {"message": "Contraseña actualizada correctamente"}
 
 
 @router.post("/logout")

@@ -16,12 +16,20 @@ const FEATURES = [
 
 
 export default function Home() {
-  const [mode, setMode]       = useState<"login" | "register">("login");
+  const [mode, setMode]       = useState<"login" | "register" | "forgot">("login");
   const [email, setEmail]     = useState("");
   const [password, setPassword] = useState("");
   const [showPass, setShowPass] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError]     = useState("");
+
+  // Forgot password flow
+  const [forgotStep, setForgotStep]       = useState<"email" | "code" | "newpass">("email");
+  const [forgotEmail, setForgotEmail]     = useState("");
+  const [forgotCode, setForgotCode]       = useState("");
+  const [forgotNewPass, setForgotNewPass] = useState("");
+  const [forgotDone, setForgotDone]       = useState(false);
+
   const router = useRouter();
   const { setAuth, isAuthenticated } = useAuthStore();
   const { setProfile } = useProfileStore();
@@ -33,6 +41,26 @@ export default function Home() {
         .catch(() => router.push("/onboarding"));
     }
   }, [isAuthenticated]);
+
+  const handleForgotSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true); setError("");
+    try {
+      if (forgotStep === "email") {
+        await auth.forgotPassword(forgotEmail);
+        setForgotStep("code");
+      } else if (forgotStep === "code") {
+        // just advance — actual verify happens on reset
+        setForgotStep("newpass");
+      } else {
+        await auth.resetPassword(forgotEmail, forgotCode, forgotNewPass);
+        setForgotDone(true);
+      }
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+      setError(msg || "Ocurrió un error. Inténtalo de nuevo.");
+    } finally { setLoading(false); }
+  };
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -135,101 +163,188 @@ export default function Home() {
           <div className="glass rounded-3xl p-8 animate-fade-in-up"
                style={{ border: "1px solid rgba(255,255,255,0.07)" }}>
 
-            {/* Mode toggle */}
-            <div className="flex gap-1 p-1 rounded-xl mb-8"
-                 style={{ background: "var(--raised)", border: "1px solid var(--border)" }}>
-              {(["login","register"] as const).map((m) => (
-                <button key={m} onClick={() => { setMode(m); setError(""); }}
-                        className="flex-1 py-2 rounded-lg text-sm font-semibold transition-all duration-200"
-                        style={{
-                          background: mode === m ? "var(--card)" : "transparent",
-                          color: mode === m ? "var(--text)" : "var(--muted)",
-                          boxShadow: mode === m ? "var(--shadow-sm)" : "none",
-                        }}>
-                  {m === "login" ? "Iniciar sesión" : "Crear cuenta"}
-                </button>
-              ))}
-            </div>
-
-            {/* Greeting */}
-            <div className="mb-6">
-              <h2 className="text-2xl font-black tracking-tight mb-1"
-                  style={{ color: "var(--text)", fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
-                {mode === "login" ? "Bienvenido de vuelta" : "Empieza hoy"}
-              </h2>
-              <p className="text-sm" style={{ color: "var(--muted)" }}>
-                {mode === "login"
-                  ? "Accede a tu perfil y continúa aprendiendo"
-                  : "Crea tu perfil de inversor en minutos"}
-              </p>
-            </div>
-
-            <form onSubmit={handleSubmit} className="space-y-4">
-              {/* Email */}
-              <div>
-                <label className="block text-xs font-semibold mb-2 uppercase tracking-wider"
-                       style={{ color: "var(--muted)" }}>
-                  Correo electrónico
-                </label>
-                <input type="email" value={email} onChange={(e) => setEmail(e.target.value)}
-                       className="input-premium" placeholder="tu@email.com" required />
-              </div>
-
-              {/* Password */}
-              <div>
-                <label className="block text-xs font-semibold mb-2 uppercase tracking-wider"
-                       style={{ color: "var(--muted)" }}>
-                  Contraseña
-                </label>
-                <div className="relative">
-                  <input type={showPass ? "text" : "password"}
-                         value={password}
-                         onChange={(e) => setPassword(e.target.value)}
-                         className="input-premium pr-11"
-                         placeholder="••••••••" required minLength={6} />
-                  <button type="button"
-                          onClick={() => setShowPass(!showPass)}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded-lg transition-colors"
-                          style={{ color: "var(--muted)" }}>
-                    {showPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+            {mode === "forgot" ? (
+              /* ── FORGOT PASSWORD FLOW ── */
+              forgotDone ? (
+                <div className="text-center py-4 space-y-4">
+                  <div className="w-14 h-14 rounded-full flex items-center justify-center mx-auto"
+                       style={{ background: "rgba(34,197,94,0.12)" }}>
+                    <span className="text-2xl">✓</span>
+                  </div>
+                  <h2 className="text-xl font-black" style={{ color: "var(--text)" }}>¡Contraseña actualizada!</h2>
+                  <p className="text-sm" style={{ color: "var(--muted)" }}>Ya puedes iniciar sesión con tu nueva contraseña.</p>
+                  <button onClick={() => { setMode("login"); setForgotStep("email"); setForgotDone(false); setError(""); }}
+                          className="btn-primary w-full mt-2">
+                    Iniciar sesión
                   </button>
                 </div>
-              </div>
+              ) : (
+                <>
+                  <button onClick={() => { setMode("login"); setForgotStep("email"); setError(""); }}
+                          className="flex items-center gap-2 text-sm mb-6 transition-opacity hover:opacity-70"
+                          style={{ color: "var(--muted)" }}>
+                    ← Volver
+                  </button>
+                  <h2 className="text-2xl font-black tracking-tight mb-1"
+                      style={{ color: "var(--text)", fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                    {forgotStep === "email" ? "¿Olvidaste tu contraseña?" : forgotStep === "code" ? "Verifica tu email" : "Nueva contraseña"}
+                  </h2>
+                  <p className="text-sm mb-6" style={{ color: "var(--muted)" }}>
+                    {forgotStep === "email"
+                      ? "Ingresa tu email y te enviamos un código de verificación."
+                      : forgotStep === "code"
+                      ? `Ingresa el código de 6 dígitos que enviamos a ${forgotEmail}.`
+                      : "Elige una nueva contraseña segura."}
+                  </p>
 
-              {/* Error */}
-              {error && (
-                <div className="rounded-xl px-4 py-3 text-sm animate-fade-in"
-                     style={{ background: "rgba(244,63,94,0.08)", border: "1px solid rgba(244,63,94,0.25)", color: "#f87171" }}>
-                  {error}
+                  <form onSubmit={handleForgotSubmit} className="space-y-4">
+                    {forgotStep === "email" && (
+                      <div>
+                        <label className="block text-xs font-semibold mb-2 uppercase tracking-wider"
+                               style={{ color: "var(--muted)" }}>Correo electrónico</label>
+                        <input type="email" value={forgotEmail} onChange={(e) => setForgotEmail(e.target.value)}
+                               className="input-premium" placeholder="tu@email.com" required autoFocus />
+                      </div>
+                    )}
+
+                    {forgotStep === "code" && (
+                      <div>
+                        <label className="block text-xs font-semibold mb-2 uppercase tracking-wider"
+                               style={{ color: "var(--muted)" }}>Código de verificación</label>
+                        <input type="text" value={forgotCode} onChange={(e) => setForgotCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                               className="input-premium text-center text-2xl tracking-[0.5em] font-black"
+                               placeholder="000000" required maxLength={6} autoFocus />
+                      </div>
+                    )}
+
+                    {forgotStep === "newpass" && (
+                      <div>
+                        <label className="block text-xs font-semibold mb-2 uppercase tracking-wider"
+                               style={{ color: "var(--muted)" }}>Nueva contraseña</label>
+                        <input type="password" value={forgotNewPass} onChange={(e) => setForgotNewPass(e.target.value)}
+                               className="input-premium" placeholder="Mínimo 6 caracteres" required minLength={6} autoFocus />
+                      </div>
+                    )}
+
+                    {error && (
+                      <div className="rounded-xl px-4 py-3 text-sm animate-fade-in"
+                           style={{ background: "rgba(244,63,94,0.08)", border: "1px solid rgba(244,63,94,0.25)", color: "#f87171" }}>
+                        {error}
+                      </div>
+                    )}
+
+                    <button type="submit"
+                            disabled={loading || (forgotStep === "email" && !forgotEmail) || (forgotStep === "code" && forgotCode.length < 6) || (forgotStep === "newpass" && forgotNewPass.length < 6)}
+                            className="btn-primary w-full flex items-center justify-center gap-2">
+                      {loading ? (
+                        <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full" style={{ animation: "spin 0.7s linear infinite" }} />
+                      ) : (
+                        <>
+                          {forgotStep === "email" ? "Enviar código" : forgotStep === "code" ? "Verificar" : "Actualizar contraseña"}
+                          <ArrowRight className="w-4 h-4" />
+                        </>
+                      )}
+                    </button>
+                  </form>
+                </>
+              )
+            ) : (
+              /* ── LOGIN / REGISTER FLOW ── */
+              <>
+                {/* Mode toggle */}
+                <div className="flex gap-1 p-1 rounded-xl mb-8"
+                     style={{ background: "var(--raised)", border: "1px solid var(--border)" }}>
+                  {(["login","register"] as const).map((m) => (
+                    <button key={m} onClick={() => { setMode(m); setError(""); }}
+                            className="flex-1 py-2 rounded-lg text-sm font-semibold transition-all duration-200"
+                            style={{
+                              background: mode === m ? "var(--card)" : "transparent",
+                              color: mode === m ? "var(--text)" : "var(--muted)",
+                              boxShadow: mode === m ? "var(--shadow-sm)" : "none",
+                            }}>
+                      {m === "login" ? "Iniciar sesión" : "Crear cuenta"}
+                    </button>
+                  ))}
                 </div>
-              )}
 
-              {/* Submit */}
-              <button type="submit" disabled={loading || !email || !password}
-                      className="btn-primary w-full flex items-center justify-center gap-2 mt-2">
-                {loading ? (
-                  <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full" style={{ animation: "spin 0.7s linear infinite" }} />
-                ) : (
-                  <>
-                    {mode === "login" ? "Entrar a Nuvos AI" : "Crear mi cuenta"}
-                    <ArrowRight className="w-4 h-4" />
-                  </>
-                )}
-              </button>
-            </form>
+                {/* Greeting */}
+                <div className="mb-6">
+                  <h2 className="text-2xl font-black tracking-tight mb-1"
+                      style={{ color: "var(--text)", fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                    {mode === "login" ? "Bienvenido de vuelta" : "Empieza hoy"}
+                  </h2>
+                  <p className="text-sm" style={{ color: "var(--muted)" }}>
+                    {mode === "login"
+                      ? "Accede a tu perfil y continúa aprendiendo"
+                      : "Crea tu perfil de inversor en minutos"}
+                  </p>
+                </div>
 
-            {/* Divider */}
-            <div className="flex items-center gap-3 my-5">
-              <div className="flex-1 h-px" style={{ background: "var(--border)" }} />
-              <span className="text-xs" style={{ color: "var(--dim)" }}>o</span>
-              <div className="flex-1 h-px" style={{ background: "var(--border)" }} />
-            </div>
+                <form onSubmit={handleSubmit} className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-semibold mb-2 uppercase tracking-wider"
+                           style={{ color: "var(--muted)" }}>Correo electrónico</label>
+                    <input type="email" value={email} onChange={(e) => setEmail(e.target.value)}
+                           className="input-premium" placeholder="tu@email.com" required />
+                  </div>
 
-            {/* Demo */}
-            <button onClick={() => { setEmail("demo@nuvosai.app"); setPassword("demo1234"); }}
-                    className="btn-ghost w-full text-sm">
-              Probar con cuenta demo
-            </button>
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="block text-xs font-semibold uppercase tracking-wider"
+                             style={{ color: "var(--muted)" }}>Contraseña</label>
+                      {mode === "login" && (
+                        <button type="button"
+                                onClick={() => { setMode("forgot"); setForgotEmail(email); setForgotStep("email"); setError(""); }}
+                                className="text-xs transition-opacity hover:opacity-70"
+                                style={{ color: "var(--accent, #22c55e)" }}>
+                          ¿Olvidaste tu contraseña?
+                        </button>
+                      )}
+                    </div>
+                    <div className="relative">
+                      <input type={showPass ? "text" : "password"}
+                             value={password} onChange={(e) => setPassword(e.target.value)}
+                             className="input-premium pr-11" placeholder="••••••••" required minLength={6} />
+                      <button type="button" onClick={() => setShowPass(!showPass)}
+                              className="absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded-lg transition-colors"
+                              style={{ color: "var(--muted)" }}>
+                        {showPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
+                  </div>
+
+                  {error && (
+                    <div className="rounded-xl px-4 py-3 text-sm animate-fade-in"
+                         style={{ background: "rgba(244,63,94,0.08)", border: "1px solid rgba(244,63,94,0.25)", color: "#f87171" }}>
+                      {error}
+                    </div>
+                  )}
+
+                  <button type="submit" disabled={loading || !email || !password}
+                          className="btn-primary w-full flex items-center justify-center gap-2 mt-2">
+                    {loading ? (
+                      <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full" style={{ animation: "spin 0.7s linear infinite" }} />
+                    ) : (
+                      <>
+                        {mode === "login" ? "Entrar a Nuvos AI" : "Crear mi cuenta"}
+                        <ArrowRight className="w-4 h-4" />
+                      </>
+                    )}
+                  </button>
+                </form>
+
+                <div className="flex items-center gap-3 my-5">
+                  <div className="flex-1 h-px" style={{ background: "var(--border)" }} />
+                  <span className="text-xs" style={{ color: "var(--dim)" }}>o</span>
+                  <div className="flex-1 h-px" style={{ background: "var(--border)" }} />
+                </div>
+
+                <button onClick={() => { setEmail("demo@nuvosai.app"); setPassword("demo1234"); }}
+                        className="btn-ghost w-full text-sm">
+                  Probar con cuenta demo
+                </button>
+              </>
+            )}
           </div>
 
           {/* Footer links */}

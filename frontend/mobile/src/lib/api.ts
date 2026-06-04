@@ -71,6 +71,10 @@ export const authApi = {
     api.post("/api/auth/register", { email, password }),
   deleteAccount: () =>
     api.delete("/api/auth/account"),
+  forgotPassword: (email: string) =>
+    api.post("/api/auth/forgot-password", { email }),
+  resetPassword: (email: string, code: string, new_password: string) =>
+    api.post("/api/auth/reset-password", { email, code, new_password }),
 };
 
 export const profileApi = {
