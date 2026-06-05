@@ -126,6 +126,33 @@ def _fetch_extended_price(ticker: str) -> dict:
     return result
 
 
+def _fetch_logo_url(ticker: str) -> str | None:
+    """Fetch company logo URL via Yahoo Finance quoteSummary → Clearbit CDN."""
+    from urllib.parse import urlparse
+    encoded = ticker.replace(".", "-").replace("^", "%5E")
+
+    # Try quoteSummary assetProfile for company website
+    for domain in ("query1", "query2"):
+        try:
+            url = (
+                f"https://{domain}.finance.yahoo.com/v10/finance/quoteSummary/{encoded}"
+                f"?modules=assetProfile"
+            )
+            r = httpx.get(url, headers=_YF_HEADERS, timeout=8, follow_redirects=True)
+            if r.status_code == 200:
+                data = r.json().get("quoteSummary", {}).get("result") or []
+                if data:
+                    website = (data[0].get("assetProfile") or {}).get("website", "")
+                    if website:
+                        netloc = urlparse(website).netloc.replace("www.", "")
+                        if netloc:
+                            return f"https://logo.clearbit.com/{netloc}"
+        except Exception:
+            continue
+
+    return None
+
+
 def _fetch_prices_batch(tickers: list[str]) -> dict[str, dict]:
     """Fetch extended prices for a list of tickers, with cache."""
     if not tickers:
@@ -162,9 +189,24 @@ def _get_watchlist(user_id: str) -> list[dict]:
     return res.data or []
 
 
+def _enrich_logos_background(items_without_logo: list[dict]) -> None:
+    """Silently fetch and store logo_url for entries that don't have one yet."""
+    db = get_supabase()
+    for item in items_without_logo:
+        ticker = item["ticker"]
+        try:
+            logo = _fetch_logo_url(ticker)
+            if logo:
+                db.table("watchlist").update({"logo_url": logo}) \
+                  .eq("id", item["id"]).execute()
+        except Exception:
+            pass
+
+
 @router.get("")
 async def get_watchlist(user_id: str = Depends(get_current_user_id)):
     """Return user's watchlist enriched with current prices."""
+    import threading
     items = await asyncio.to_thread(_get_watchlist, user_id)
     if not items:
         return []
@@ -173,12 +215,17 @@ async def get_watchlist(user_id: str = Depends(get_current_user_id)):
     prices = await asyncio.to_thread(_fetch_prices_batch, tickers)
 
     result = []
+    missing_logos = []
     for item in items:
         ticker = item["ticker"]
         price_data = prices.get(ticker, {})
+        logo_url = item.get("logo_url")
+        if not logo_url:
+            missing_logos.append(item)
         result.append({
             "ticker": ticker,
             "name": price_data.get("name") or item.get("name") or ticker,
+            "logo_url": logo_url,
             "price": price_data.get("price"),
             "prev_close": price_data.get("prev_close"),
             "change": price_data.get("change", 0.0),
@@ -191,6 +238,15 @@ async def get_watchlist(user_id: str = Depends(get_current_user_id)):
             "post_market_change_pct": price_data.get("post_market_change_pct"),
             "added_at": item.get("added_at"),
         })
+
+    # Enrich missing logos in background — next GET will return them
+    if missing_logos:
+        threading.Thread(
+            target=_enrich_logos_background,
+            args=(missing_logos,),
+            daemon=True,
+        ).start()
+
     return result
 
 
@@ -217,14 +273,21 @@ async def add_to_watchlist(body: dict, user_id: str = Depends(get_current_user_i
                     detail=f"Free tier limit of {FREE_LIMIT} items reached. Upgrade to Premium."
                 )
 
-        # Resolve name via YF if not provided
+        # Resolve name and logo via YF if not provided
         resolved_name = name
-        if not resolved_name:
-            try:
-                price_data = _fetch_extended_price(ticker)
+        resolved_logo: str | None = None
+        try:
+            price_data = _fetch_extended_price(ticker)
+            if not resolved_name:
                 resolved_name = price_data.get("name") or ticker
-            except Exception:
-                resolved_name = ticker
+        except Exception:
+            pass
+        if not resolved_name:
+            resolved_name = ticker
+        try:
+            resolved_logo = _fetch_logo_url(ticker)
+        except Exception:
+            pass
 
         # Insert (will raise unique constraint if duplicate)
         try:
@@ -232,6 +295,7 @@ async def add_to_watchlist(body: dict, user_id: str = Depends(get_current_user_i
                 "user_id": user_id,
                 "ticker": ticker,
                 "name": resolved_name,
+                "logo_url": resolved_logo,
             }).execute()
         except Exception as e:
             err_str = str(e).lower()

@@ -17,6 +17,7 @@ import PaywallModal from "@/components/PaywallModal";
 interface WatchlistItem {
   ticker: string;
   name: string;
+  logo_url: string | null;
   price: number | null;
   prev_close: number | null;
   change: number;
@@ -87,6 +88,32 @@ function MarketStateBadge({ state }: { state: string }) {
   );
 }
 
+// ─── Stock Avatar ───────────────────────────────────────────────────────────
+
+function StockAvatar({ ticker, logoUrl }: { ticker: string; logoUrl: string | null }) {
+  const [err, setErr] = useState(false);
+  const initials = ticker.slice(0, 2).toUpperCase();
+
+  if (logoUrl && !err) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={logoUrl}
+        alt={ticker}
+        className="w-10 h-10 rounded-full object-contain p-1.5 shrink-0"
+        style={{ background: "var(--raised)", border: "1px solid var(--border)" }}
+        onError={() => setErr(true)}
+      />
+    );
+  }
+  return (
+    <div className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-black shrink-0"
+         style={{ background: "rgba(0,168,94,0.14)", color: "var(--accent-l)" }}>
+      {initials}
+    </div>
+  );
+}
+
 // ─── Stock Card ─────────────────────────────────────────────────────────────
 
 interface StockCardProps {
@@ -107,7 +134,6 @@ function StockCard({ item, confirmDelete, onRequestDelete, onConfirmDelete, onCa
   const showPostMkt = item.post_market_price !== null &&
     (state === "POST" || state === "POSTPOST" || state === "CLOSED");
 
-  const initials = item.ticker.slice(0, 2).toUpperCase();
   const isConfirming = confirmDelete === item.ticker;
 
   return (
@@ -120,12 +146,7 @@ function StockCard({ item, confirmDelete, onRequestDelete, onConfirmDelete, onCa
       }}
     >
       {/* Avatar */}
-      <div
-        className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-black shrink-0"
-        style={{ background: "rgba(0,168,94,0.14)", color: "var(--accent-l)" }}
-      >
-        {initials}
-      </div>
+      <StockAvatar ticker={item.ticker} logoUrl={item.logo_url} />
 
       {/* Info */}
       <div className="flex-1 min-w-0">
