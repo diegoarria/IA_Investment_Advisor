@@ -104,7 +104,7 @@ export default function ArenaPage() {
   return (
     <div className="h-screen flex flex-col overflow-hidden" style={{ background: "var(--bg)" }}>
       {/* Top bar */}
-      <div className="border-b flex items-center justify-between px-4 py-2 shrink-0"
+      <div className="font-ui border-b flex items-center justify-between px-4 py-2 shrink-0"
            style={{ borderColor: "var(--border)", background: "var(--card)" }}>
         <div className="flex items-center gap-3">
           <button onClick={() => setSidebarOpen(!sidebarOpen)} className="lg:hidden p-1 rounded-lg" style={{ color: "var(--muted)" }}>

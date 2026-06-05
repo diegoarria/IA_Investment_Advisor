@@ -1,6 +1,19 @@
 import type { Metadata } from "next";
+import { DM_Sans, Inter } from "next/font/google";
 import "./globals.css";
 import ThemeProvider from "@/components/ThemeProvider";
+
+const dmSans = DM_Sans({
+  subsets: ["latin"],
+  variable: "--font-body",
+  display: "swap",
+});
+
+const inter = Inter({
+  subsets: ["latin"],
+  variable: "--font-ui",
+  display: "swap",
+});
 
 export const metadata: Metadata = {
   title: "Nuvos AI — Tu mentor de inversiones",
@@ -13,7 +26,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="es" suppressHydrationWarning>
+    <html lang="es" suppressHydrationWarning className={`${dmSans.variable} ${inter.variable}`}>
       <body className="antialiased">
         <ThemeProvider>{children}</ThemeProvider>
       </body>

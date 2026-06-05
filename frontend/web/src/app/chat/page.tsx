@@ -486,7 +486,7 @@ export default function ChatPage() {
   return (
     <div className="h-screen flex flex-col overflow-hidden" style={{ background: "var(--bg)" }}>
       {/* Top bar */}
-      <div className="flex items-center justify-between px-4 py-2.5 shrink-0"
+      <div className="font-ui flex items-center justify-between px-4 py-2.5 shrink-0"
            style={{ borderBottom: "1px solid var(--border)", background: "var(--card)" }}>
         <div className="flex items-center gap-3">
           <button onClick={() => setSidebarOpen(!sidebarOpen)}

@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+/* Fonts loaded via next/font/google in layout.tsx (DM Sans body, Inter header) */
 
 @tailwind base;
 @tailwind components;
@@ -75,10 +75,15 @@
 body {
   background-color: var(--bg);
   color: var(--text);
-  font-family: 'Inter', 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-family: var(--font-body), 'DM Sans', system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
+}
+
+/* Top navigation bars keep Inter for a distinct UI feel */
+.font-ui {
+  font-family: var(--font-ui), 'Inter', system-ui, sans-serif;
 }
 
 /* ─── Scrollbars ─────────────────────────────────────────────────────── */
