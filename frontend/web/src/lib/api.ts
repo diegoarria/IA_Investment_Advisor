@@ -257,4 +257,10 @@ export const decisionsApi = {
   getBiases: () => api.get("/api/decisions/biases"),
 };
 
+export const watchlist = {
+  get: () => api.get("/api/watchlist"),
+  add: (ticker: string, name?: string) => api.post("/api/watchlist", { ticker, name }),
+  remove: (ticker: string) => api.delete(`/api/watchlist/${encodeURIComponent(ticker)}`),
+};
+
 export default api;

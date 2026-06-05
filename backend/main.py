@@ -6,7 +6,7 @@ from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from app.core.config import settings
 from app.core.limiter import limiter
-from app.api.routes import auth, profile, chat, market, notifications, screener, billing, learn, sync, paper, referral, support, earnings, simulate, report, decisions
+from app.api.routes import auth, profile, chat, market, notifications, screener, billing, learn, sync, paper, referral, support, earnings, simulate, report, decisions, watchlist
 
 app = FastAPI(
     title="Nuvo API",
@@ -66,6 +66,7 @@ app.include_router(earnings.router,     prefix="/api")
 app.include_router(simulate.router,     prefix="/api")
 app.include_router(report.router,       prefix="/api")
 app.include_router(decisions.router,    prefix="/api")
+app.include_router(watchlist.router,    prefix="/api")
 
 # Scheduler runs in worker.py (separate process) — not here.
 # This prevents duplicate job execution when the web process scales horizontally.

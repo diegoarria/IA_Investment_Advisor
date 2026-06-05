@@ -4,7 +4,7 @@ import { useState, useRef } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import {
   BookOpen, PieChart, BarChart2, Bell, User, GraduationCap, Trophy,
-  MessageSquare, ChevronRight, Plus, X, HeadphonesIcon, GripVertical,
+  MessageSquare, ChevronRight, Plus, X, HeadphonesIcon, GripVertical, Eye,
 } from "lucide-react";
 import {
   useProfileStore, useNotificationStore, useSubscriptionStore,
@@ -15,6 +15,7 @@ import PaywallModal from "@/components/PaywallModal";
 const NAV = [
   { href: "/chat",          icon: BookOpen,       label: "Chat" },
   { href: "/portfolio",     icon: PieChart,       label: "Portafolio" },
+  { href: "/watchlist",     icon: Eye,            label: "Watchlist" },
   { href: "/paper",         icon: BarChart2,      label: "Paper Trading" },
   { href: "/learn",         icon: GraduationCap,  label: "Aprendizaje" },
   { href: "/arena",         icon: Trophy,         label: "Arena" },
