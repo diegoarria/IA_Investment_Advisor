@@ -695,7 +695,7 @@ export default function ProfileScreen() {
               <View style={{ alignItems: "center" }}>
                 <Text style={s.upgradeBtnText}>Activar Premium — $10.33/mes</Text>
                 <Text style={{ color: "rgba(255,255,255,0.75)", fontSize: 10, fontWeight: "600" }}>
-                  Plan anual · Más popular ✦ $123.99/año
+                  Plan anual · Más popular ✦ $125.99/año
                 </Text>
               </View>
             </TouchableOpacity>

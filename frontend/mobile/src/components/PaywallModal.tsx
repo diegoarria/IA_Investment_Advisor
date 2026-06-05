@@ -34,7 +34,7 @@ const ALL_FEATURES: { icon: string; text: string; detail: string }[] = [
 ];
 
 const PLANS = [
-  { key: "yearly",  label: "Anual",   price: "$123.99", period: "/año",  sub: "$10.33/mes · Ahorra $31.89", badge: "MÁS POPULAR" },
+  { key: "yearly",  label: "Anual",   price: "$125.99", period: "/año",  sub: "$10.50/mes · Ahorra $29.89", badge: "MÁS POPULAR" },
   { key: "monthly", label: "Mensual", price: "$12.99",  period: "/mes",  sub: "Facturado mensualmente",     badge: null },
 ] as const;
 

@@ -17,11 +17,11 @@ const PLANS = [
   {
     id: "yearly" as const,
     label: "Anual",
-    price: "$123.99",
-    priceNum: 123.99,
+    price: "$125.99",
+    priceNum: 125.99,
     period: "/año",
     badge: "MÁS POPULAR",
-    sub: "$10.33/mes · Ahorra $31.89",
+    sub: "$10.50/mes · Ahorra $29.89",
   },
 ];
 
