@@ -143,21 +143,10 @@ function IndexChip({ d }: { d: IndexData }) {
   const [open, setOpen] = useState(false);
   const [news, setNews] = useState<IndexNewsItem[] | null>(null);
   const [loadingNews, setLoadingNews] = useState(false);
-  const chipRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const handler = (e: MouseEvent) => {
-      if (chipRef.current && !chipRef.current.contains(e.target as Node)) setOpen(false);
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, [open]);
 
   const handleClick = async () => {
-    const next = !open;
-    setOpen(next);
-    if (next && !news && !loadingNews) {
+    setOpen(true);
+    if (!news && !loadingNews) {
       setLoadingNews(true);
       try {
         const res = await marketApi.getIndexNews(d.symbol);
@@ -180,15 +169,11 @@ function IndexChip({ d }: { d: IndexData }) {
   };
 
   return (
-    <div ref={chipRef} className="relative shrink-0">
+    <>
       <button
         onClick={handleClick}
-        className="flex items-center gap-2 px-3 py-1.5 rounded-lg border transition-colors"
-        style={{
-          borderColor: open ? "var(--accent)" : "var(--border)",
-          background: open ? "var(--raised)" : "var(--card)",
-          cursor: "pointer",
-        }}
+        className="flex items-center gap-2 px-3 py-1.5 rounded-lg border transition-colors shrink-0 hover:bg-white/5"
+        style={{ borderColor: "var(--border)", background: "var(--card)" }}
       >
         <span className="text-[11px] font-bold" style={{ color: "var(--muted)" }}>{d.name}</span>
         {d.price !== null ? (
@@ -196,8 +181,7 @@ function IndexChip({ d }: { d: IndexData }) {
             <span className="text-[12px] font-bold" style={{ color: "var(--text)" }}>
               {d.price.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </span>
-            <span className="text-[10px] font-semibold"
-                  style={{ color: up ? "var(--up)" : "var(--down)" }}>
+            <span className="text-[10px] font-semibold" style={{ color: up ? "var(--up)" : "var(--down)" }}>
               {up ? "▲" : "▼"}{Math.abs(d.change_pct).toFixed(2)}%
             </span>
           </>
@@ -208,55 +192,101 @@ function IndexChip({ d }: { d: IndexData }) {
 
       {open && (
         <div
-          className="absolute top-full left-0 mt-1.5 w-72 rounded-xl border shadow-2xl z-50 overflow-hidden"
-          style={{ background: "var(--card)", borderColor: "var(--border)" }}
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          style={{ background: "rgba(0,0,0,0.6)", backdropFilter: "blur(2px)" }}
+          onClick={(e) => { if (e.target === e.currentTarget) setOpen(false); }}
         >
-          <div className="flex items-center justify-between px-3 pt-2.5 pb-1.5 border-b"
-               style={{ borderColor: "var(--border)" }}>
-            <span className="text-[11px] font-bold" style={{ color: "var(--text)" }}>
-              Noticias · {d.name}
-            </span>
-            <button onClick={() => setOpen(false)} className="hover:opacity-70 transition-opacity"
-                    style={{ color: "var(--muted)" }}>
-              <X className="w-3 h-3" />
-            </button>
-          </div>
-          <div className="p-2 space-y-0.5">
+          <div className="w-full max-w-md rounded-2xl overflow-hidden shadow-2xl"
+               style={{ background: "var(--card)", border: "1px solid var(--border)" }}>
+
+            {/* Header */}
+            <div className="flex items-center justify-between px-5 py-4 border-b"
+                 style={{ borderColor: "var(--border)" }}>
+              <div>
+                <p className="text-sm font-bold" style={{ color: "var(--text)" }}>
+                  Noticias — {d.name}
+                </p>
+                {d.price !== null && (
+                  <p className="text-xs mt-0.5 flex items-center gap-2">
+                    <span style={{ color: "var(--muted)" }}>
+                      {d.price.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </span>
+                    <span className="font-semibold" style={{ color: up ? "var(--up)" : "var(--down)" }}>
+                      {up ? "▲" : "▼"} {Math.abs(d.change_pct).toFixed(2)}%
+                    </span>
+                  </p>
+                )}
+              </div>
+              <button onClick={() => setOpen(false)}
+                      className="p-1.5 rounded-lg hover:bg-white/5 transition-colors"
+                      style={{ color: "var(--muted)" }}>
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* News items */}
             {loadingNews ? (
-              Array.from({ length: 3 }).map((_, i) => (
-                <div key={i} className="h-12 rounded-lg animate-pulse mx-0.5"
-                     style={{ background: "var(--raised)" }} />
-              ))
+              <div className="p-4 space-y-4">
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <div key={i} className="flex gap-3">
+                    <div className="flex-1 space-y-2">
+                      <div className="h-4 w-full rounded-md animate-pulse" style={{ background: "var(--raised)" }} />
+                      <div className="h-4 w-4/5 rounded-md animate-pulse" style={{ background: "var(--raised)" }} />
+                      <div className="h-3 w-1/3 rounded-md animate-pulse" style={{ background: "var(--raised)" }} />
+                    </div>
+                    <div className="w-20 h-16 rounded-xl animate-pulse shrink-0" style={{ background: "var(--raised)" }} />
+                  </div>
+                ))}
+              </div>
             ) : news && news.length > 0 ? (
               news.map((item, i) => (
-                <a
+                <div
                   key={item.uuid || i}
-                  href={item.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-start gap-2 p-2 rounded-lg transition-colors hover:bg-white/5"
+                  className="flex gap-4 px-5 py-4"
+                  style={{ borderTop: i > 0 ? "1px solid var(--border)" : "none" }}
                 >
-                  <span className="text-[10px] font-bold mt-0.5 shrink-0 w-3.5" style={{ color: "var(--dim)" }}>
-                    {i + 1}.
-                  </span>
-                  <div className="min-w-0">
-                    <p className="text-[11px] font-medium leading-snug line-clamp-2"
-                       style={{ color: "var(--text)" }}>{item.title}</p>
-                    <p className="text-[9px] mt-0.5" style={{ color: "var(--dim)" }}>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-start gap-2 mb-2">
+                      <span className="text-xs font-bold shrink-0 mt-px" style={{ color: "var(--accent-l)" }}>
+                        {i + 1}.
+                      </span>
+                      <p className="text-sm font-semibold leading-snug" style={{ color: "var(--text)" }}>
+                        {item.title}
+                      </p>
+                    </div>
+                    <p className="text-xs mb-3" style={{ color: "var(--dim)" }}>
                       {item.publisher} · {formatAge(item.timestamp)}
                     </p>
+                    <a
+                      href={item.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 text-xs font-medium px-3 py-1.5 rounded-lg border transition-colors hover:bg-white/5"
+                      style={{ color: "var(--accent-l)", borderColor: "var(--border)" }}
+                    >
+                      Leer artículo <ChevronRight className="w-3 h-3" />
+                    </a>
                   </div>
-                </a>
+                  {item.thumbnail && (
+                    <img
+                      src={item.thumbnail}
+                      alt=""
+                      className="w-24 h-18 object-cover rounded-xl shrink-0"
+                      style={{ height: "72px" }}
+                      onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+                    />
+                  )}
+                </div>
               ))
             ) : (
-              <p className="text-[11px] text-center py-3" style={{ color: "var(--dim)" }}>
-                Sin noticias disponibles
-              </p>
+              <div className="p-8 text-center">
+                <p className="text-sm" style={{ color: "var(--dim)" }}>Sin noticias disponibles</p>
+              </div>
             )}
           </div>
         </div>
       )}
-    </div>
+    </>
   );
 }
 

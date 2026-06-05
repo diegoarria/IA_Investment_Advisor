@@ -541,7 +541,8 @@ def _fetch_symbol_news(symbol: str) -> list[dict]:
                 thumbnail = None
                 resolutions = a.get("thumbnail", {}).get("resolutions", [])
                 if resolutions:
-                    thumbnail = resolutions[0].get("url")
+                    best = max(resolutions, key=lambda r: r.get("width", 0))
+                    thumbnail = best.get("url")
                 results.append({
                     "uuid":      a.get("uuid", ""),
                     "title":     a.get("title", ""),
