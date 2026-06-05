@@ -568,7 +568,7 @@ export default function ProfilePage() {
                               className="mx-4 mb-4 w-[calc(100%-2rem)] py-3 rounded-2xl text-sm font-bold text-white flex items-center justify-center gap-2"
                               style={{ background: "linear-gradient(90deg, #f59e0b, #f97316)" }}>
                         <Star className="w-4 h-4 fill-current" />
-                        Activar Premium — $9.83/mes
+                        Activar Premium — $10.33/mes
                       </button>
                     </div>
                   )}

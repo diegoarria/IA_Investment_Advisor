@@ -693,9 +693,9 @@ export default function ProfileScreen() {
             <TouchableOpacity style={s.upgradeBtn} onPress={() => setPaywallOpen(true)}>
               <Ionicons name="star" size={15} color="white" />
               <View style={{ alignItems: "center" }}>
-                <Text style={s.upgradeBtnText}>Activar Premium — $9.83/mes</Text>
+                <Text style={s.upgradeBtnText}>Activar Premium — $10.33/mes</Text>
                 <Text style={{ color: "rgba(255,255,255,0.75)", fontSize: 10, fontWeight: "600" }}>
-                  Plan anual · Más popular ✦ $117.99/año
+                  Plan anual · Más popular ✦ $123.99/año
                 </Text>
               </View>
             </TouchableOpacity>

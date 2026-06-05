@@ -8,8 +8,8 @@ const PLANS = [
   {
     id: "monthly" as const,
     label: "Mensual",
-    price: "$11.99",
-    priceNum: 11.99,
+    price: "$12.99",
+    priceNum: 12.99,
     period: "/mes",
     badge: null,
     sub: "Facturado mensualmente",
@@ -17,11 +17,11 @@ const PLANS = [
   {
     id: "yearly" as const,
     label: "Anual",
-    price: "$117.99",
-    priceNum: 117.99,
+    price: "$123.99",
+    priceNum: 123.99,
     period: "/año",
     badge: "MÁS POPULAR",
-    sub: "$9.83/mes · Ahorra $25.89",
+    sub: "$10.33/mes · Ahorra $31.89",
   },
 ];
 
