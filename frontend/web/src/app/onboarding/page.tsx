@@ -164,6 +164,8 @@ export default function OnboardingPage() {
   const [error, setError]   = useState("");
   const [success, setSuccess] = useState(false);
   const [paywallOpen, setPaywallOpen] = useState(false);
+  const [acceptedTerms, setAcceptedTerms]           = useState(false);
+  const [acceptedDisclaimer, setAcceptedDisclaimer] = useState(false);
 
   const [form, setForm] = useState<FormState>({
     name: "", birth_date: "", monthly_income: "", monthly_contribution: "",
@@ -418,6 +420,73 @@ export default function OnboardingPage() {
               </div>
             </div>
           </button>
+        </div>
+      ),
+    },
+    {
+      subtitle: "AVISO LEGAL",
+      title: "Antes de empezar",
+      valid: () => acceptedTerms && acceptedDisclaimer,
+      content: (
+        <div className="space-y-4">
+          {/* Financial disclaimer box */}
+          <div className="rounded-xl border p-4 space-y-2"
+               style={{ background: "rgba(245,158,11,0.07)", borderColor: "rgba(245,158,11,0.3)" }}>
+            <p className="text-xs font-black uppercase tracking-widest" style={{ color: "#f59e0b" }}>
+              ⚠️ Herramienta educativa — no asesoría financiera
+            </p>
+            <p className="text-xs leading-relaxed" style={{ color: "var(--sub)" }}>
+              Nuvos AI es una plataforma de <strong style={{ color: "var(--text)" }}>educación e información financiera</strong>.
+              El análisis generado por la IA, los portafolios simulados, las noticias y el paper trading
+              son <strong style={{ color: "var(--text)" }}>únicamente educativos</strong> y no constituyen
+              asesoramiento financiero, de inversión, legal ni fiscal regulado.
+            </p>
+            <p className="text-xs leading-relaxed" style={{ color: "var(--sub)" }}>
+              Los datos de mercado pueden ser inexactos o retrasados. El rendimiento pasado no
+              garantiza resultados futuros. <strong style={{ color: "var(--text)" }}>Nunca tomes decisiones
+              de inversión basándote únicamente en esta app.</strong> Consulta siempre a un asesor
+              financiero certificado antes de invertir.
+            </p>
+          </div>
+
+          {/* Checkboxes */}
+          <label className="flex items-start gap-3 cursor-pointer group">
+            <div className="mt-0.5 w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 transition-all"
+                 style={{
+                   borderColor: acceptedTerms ? "var(--accent)" : "var(--border)",
+                   background: acceptedTerms ? "var(--accent)" : "transparent",
+                 }}
+                 onClick={() => setAcceptedTerms((v) => !v)}>
+              {acceptedTerms && <svg viewBox="0 0 12 12" fill="none" className="w-3 h-3"><path d="M2 6l3 3 5-5" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+            </div>
+            <span className="text-xs leading-relaxed" style={{ color: "var(--sub)" }}>
+              He leído y acepto los{" "}
+              <a href="/terms" target="_blank" style={{ color: "var(--accent-l)", textDecoration: "underline" }}>
+                Términos de Uso
+              </a>
+              {" "}y la{" "}
+              <a href="/privacy" target="_blank" style={{ color: "var(--accent-l)", textDecoration: "underline" }}>
+                Política de Privacidad
+              </a>
+              .
+            </span>
+          </label>
+
+          <label className="flex items-start gap-3 cursor-pointer">
+            <div className="mt-0.5 w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 transition-all"
+                 style={{
+                   borderColor: acceptedDisclaimer ? "var(--accent)" : "var(--border)",
+                   background: acceptedDisclaimer ? "var(--accent)" : "transparent",
+                 }}
+                 onClick={() => setAcceptedDisclaimer((v) => !v)}>
+              {acceptedDisclaimer && <svg viewBox="0 0 12 12" fill="none" className="w-3 h-3"><path d="M2 6l3 3 5-5" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+            </div>
+            <span className="text-xs leading-relaxed" style={{ color: "var(--sub)" }}>
+              Entiendo que Nuvos AI es una herramienta educativa y{" "}
+              <strong style={{ color: "var(--text)" }}>NO constituye asesoría financiera regulada</strong>.
+              Soy responsable de mis propias decisiones de inversión.
+            </span>
+          </label>
         </div>
       ),
     },

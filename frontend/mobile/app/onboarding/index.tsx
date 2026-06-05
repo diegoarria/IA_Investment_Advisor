@@ -142,6 +142,8 @@ export default function OnboardingScreen() {
   });
   const isPremium = useSubscriptionStore((s) => s.tier === "premium");
   const [paywallOpen, setPaywallOpen] = useState(false);
+  const [acceptedTerms, setAcceptedTerms]           = useState(false);
+  const [acceptedDisclaimer, setAcceptedDisclaimer] = useState(false);
 
   const quizAnswers = { q1: form.q1, q2: form.q2, q3: form.q3, q4: form.q4, q5: form.q5 };
   const calculated = calculateRisk(quizAnswers);
@@ -400,6 +402,50 @@ export default function OnboardingScreen() {
         </View>
       ),
     },
+    {
+      title: "Antes de empezar",
+      isValid: () => acceptedTerms && acceptedDisclaimer,
+      content: (
+        <View style={{ gap: 16 }}>
+          <View style={[s.legalBox, { borderColor: "rgba(245,158,11,0.35)", backgroundColor: "rgba(245,158,11,0.07)" }]}>
+            <Text style={[s.legalBadge, { color: "#f59e0b" }]}>⚠️ HERRAMIENTA EDUCATIVA — NO ASESORÍA FINANCIERA</Text>
+            <Text style={[s.legalBody, { color: colors.textSub }]}>
+              Nuvos AI es una plataforma de <Text style={{ color: colors.text, fontWeight: "700" }}>educación e información financiera</Text>.
+              El análisis de la IA, los portafolios simulados y el paper trading son{" "}
+              <Text style={{ color: colors.text, fontWeight: "700" }}>únicamente educativos</Text> y no constituyen
+              asesoramiento financiero, de inversión, legal ni fiscal regulado.
+            </Text>
+            <Text style={[s.legalBody, { color: colors.textSub, marginTop: 6 }]}>
+              Los datos pueden ser inexactos o retrasados. El rendimiento pasado no garantiza resultados futuros.{" "}
+              <Text style={{ color: colors.text, fontWeight: "700" }}>Nunca tomes decisiones de inversión basándote únicamente en esta app.</Text>
+            </Text>
+          </View>
+
+          <TouchableOpacity style={s.checkRow} onPress={() => setAcceptedTerms((v) => !v)} activeOpacity={0.7}>
+            <View style={[s.checkbox, { borderColor: acceptedTerms ? colors.accent : colors.border, backgroundColor: acceptedTerms ? colors.accent : "transparent" }]}>
+              {acceptedTerms && <Ionicons name="checkmark" size={12} color="white" />}
+            </View>
+            <Text style={[s.checkLabel, { color: colors.textSub }]}>
+              He leído y acepto los{" "}
+              <Text style={{ color: colors.accentLight, textDecorationLine: "underline" }}>Términos de Uso</Text>
+              {" "}y la{" "}
+              <Text style={{ color: colors.accentLight, textDecorationLine: "underline" }}>Política de Privacidad</Text>.
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={s.checkRow} onPress={() => setAcceptedDisclaimer((v) => !v)} activeOpacity={0.7}>
+            <View style={[s.checkbox, { borderColor: acceptedDisclaimer ? colors.accent : colors.border, backgroundColor: acceptedDisclaimer ? colors.accent : "transparent" }]}>
+              {acceptedDisclaimer && <Ionicons name="checkmark" size={12} color="white" />}
+            </View>
+            <Text style={[s.checkLabel, { color: colors.textSub }]}>
+              Entiendo que Nuvos AI es educativa y{" "}
+              <Text style={{ color: colors.text, fontWeight: "700" }}>NO constituye asesoría financiera regulada</Text>.
+              Soy responsable de mis propias decisiones de inversión.
+            </Text>
+          </TouchableOpacity>
+        </View>
+      ),
+    },
   ];
 
   const current = steps[step];
@@ -456,9 +502,9 @@ export default function OnboardingScreen() {
           </TouchableOpacity>
         )}
         <TouchableOpacity
-          style={[s.nextBtn, !current.isValid() && s.nextDisabled]}
+          style={[s.nextBtn, !(current.isValid?.() ?? true) && s.nextDisabled]}
           onPress={handleNext}
-          disabled={!current.isValid()}
+          disabled={!(current.isValid?.() ?? true)}
         >
           <Text style={s.nextText}>{isLastStep ? "¡Comenzar!" : "Siguiente"}</Text>
         </TouchableOpacity>
@@ -587,6 +633,17 @@ function makeStyles(c: Colors) {
     noMentorLeft: { flexDirection: "row" as const, alignItems: "center" as const, gap: 14, flex: 1 },
     noMentorTitle: { fontSize: 14, fontWeight: "800" as const, letterSpacing: -0.2 },
     noMentorSub: { fontSize: 11, marginTop: 3, lineHeight: 16 },
+    // Legal disclaimer
+    legalBox: { borderWidth: 1, borderRadius: 16, padding: 16, gap: 6 },
+    legalBadge: { fontSize: 11, fontWeight: "700" as const, letterSpacing: 0.5, marginBottom: 4 },
+    legalBody: { fontSize: 12, lineHeight: 18 },
+    checkRow: { flexDirection: "row" as const, alignItems: "flex-start" as const, gap: 12 },
+    checkbox: {
+      width: 22, height: 22, borderRadius: 6, borderWidth: 2,
+      alignItems: "center" as const, justifyContent: "center" as const,
+      marginTop: 1, flexShrink: 0,
+    },
+    checkLabel: { flex: 1, fontSize: 13, lineHeight: 20 },
     // Footer
     footer: { flexDirection: "row", gap: 10, padding: 20, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.border },
     backBtn: {

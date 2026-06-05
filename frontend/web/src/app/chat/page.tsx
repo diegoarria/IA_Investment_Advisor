@@ -695,6 +695,11 @@ export default function ChatPage() {
                             : <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
                           }
                         </div>
+                        {msg.content !== "" && !(isStreaming && i === messages.length - 1) && (
+                          <p className="mt-2 text-[10px] leading-tight" style={{ color: "var(--dim)" }}>
+                            Análisis educativo · No constituye asesoría financiera · Los datos pueden ser inexactos
+                          </p>
+                        )}
                       </div>
                     )}
                     {msg.role === "user" && (

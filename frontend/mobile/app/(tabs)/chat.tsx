@@ -407,6 +407,11 @@ Instrucciones críticas:
               <Ionicons name="pencil" size={15} color={colors.textSub} />
             </TouchableOpacity>
           )}
+          {item.role === "assistant" && item.content !== "" && !(streaming && isLastAssistant) && (
+            <Text style={styles.aiDisclaimer}>
+              Análisis educativo · No constituye asesoría financiera · Los datos pueden ser inexactos
+            </Text>
+          )}
           {showChart && <StockChart ticker={lastTicker!} />}
         </View>
       </View>
@@ -794,6 +799,7 @@ function makeStyles(c: Colors) {
     },
     msgCounterText: { fontSize: 11, fontWeight: "500" as const, flex: 1 },
     editBtn: { alignSelf: "flex-end", marginTop: 3, padding: 4 },
+    aiDisclaimer: { fontSize: 10, lineHeight: 14, marginTop: 4, color: c.textDim },
 
     // Diagnostic
     diagSeparator: { borderTopWidth: StyleSheet.hairlineWidth, marginTop: 8, marginBottom: 8 },
