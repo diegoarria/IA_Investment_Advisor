@@ -356,7 +356,93 @@ export default function OnboardingPage() {
         </div>
       ),
     },
-    // 8 — Mentor
+    // 8 — ROI demo
+    {
+      subtitle: "TU PROYECCIÓN",
+      title: `Así crece $${(Number(form.monthly_contribution) || 300).toLocaleString()} / mes`,
+      valid: () => true,
+      content: (() => {
+        const pmt = Math.max(Number(form.monthly_contribution) || 300, 1);
+        const annualRate = calculated === "conservative" ? 0.07 : calculated === "moderate" ? 0.10 : 0.12;
+        const rateLabel  = calculated === "conservative" ? "7%" : calculated === "moderate" ? "10%" : "12%";
+        const r = annualRate / 12;
+        const proj = [12, 60, 120].map((months) => {
+          const fv = Math.round(pmt * ((Math.pow(1 + r, months) - 1) / r) * (1 + r));
+          return { years: months / 12, fv, invested: Math.round(pmt * months) };
+        });
+        const maxFV = proj[2].fv;
+        return (
+          <div className="space-y-5">
+            {/* Projection bars */}
+            <div className="rounded-xl border p-4 space-y-4" style={{ background: "var(--raised)", borderColor: "var(--border)" }}>
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-bold uppercase tracking-wider" style={{ color: "var(--muted)" }}>Proyección ilustrativa</p>
+                <span className="text-[10px] px-2 py-0.5 rounded-full font-bold"
+                      style={{ background: riskCfg.color + "20", color: riskCfg.color }}>~{rateLabel}/año</span>
+              </div>
+              {proj.map(({ years, fv, invested }) => (
+                <div key={years}>
+                  <div className="flex justify-between text-xs mb-1.5">
+                    <span style={{ color: "var(--sub)" }}>{years} año{years !== 1 ? "s" : ""}</span>
+                    <span className="font-extrabold" style={{ color: "var(--text)" }}>${fv.toLocaleString()}</span>
+                  </div>
+                  <div className="relative h-2.5 rounded-full overflow-hidden" style={{ background: "var(--border)" }}>
+                    <div className="absolute inset-y-0 left-0 rounded-full opacity-35"
+                         style={{ width: `${(invested / maxFV) * 100}%`, background: riskCfg.color }} />
+                    <div className="absolute inset-y-0 left-0 rounded-full"
+                         style={{ width: `${(fv / maxFV) * 100}%`, background: riskCfg.color }} />
+                  </div>
+                  <div className="flex gap-3 mt-1">
+                    <span className="text-[10px]" style={{ color: "var(--dim)" }}>Aportado: ${invested.toLocaleString()}</span>
+                    <span className="text-[10px] font-semibold" style={{ color: riskCfg.color }}>
+                      +${(fv - invested).toLocaleString()} rendimiento
+                    </span>
+                  </div>
+                </div>
+              ))}
+              <p className="text-[10px] italic" style={{ color: "var(--dim)" }}>
+                * Ilustrativo. Basado en promedios históricos del mercado. No garantiza rendimientos futuros.
+              </p>
+            </div>
+
+            {/* Features */}
+            <div className="space-y-2">
+              <p className="text-xs font-bold uppercase tracking-wider mb-1" style={{ color: "var(--muted)" }}>
+                Nuvos AI trabaja contigo
+              </p>
+              {[
+                { icon: "🤖", title: "IA que conoce tu perfil", sub: "Análisis personalizado según tu tolerancia al riesgo" },
+                { icon: "📰", title: "Noticias de tus acciones", sub: "Solo lo relevante para empresas que posees o sigues" },
+                { icon: "🔔", title: "Guardian del domingo", sub: "Revisión semanal automática con alertas accionables" },
+                { icon: "📄", title: "Paper trading sin riesgo", sub: "Practica estrategias reales sin dinero en juego" },
+              ].map((f) => (
+                <div key={f.title} className="flex items-center gap-3 p-3 rounded-xl border"
+                     style={{ background: "var(--card)", borderColor: "var(--border)" }}>
+                  <span className="text-xl shrink-0">{f.icon}</span>
+                  <div>
+                    <p className="text-sm font-semibold" style={{ color: "var(--text)" }}>{f.title}</p>
+                    <p className="text-xs" style={{ color: "var(--muted)" }}>{f.sub}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Value pill */}
+            <div className="rounded-xl border p-4 text-center"
+                 style={{ background: "rgba(0,168,94,0.06)", borderColor: "rgba(0,168,94,0.25)" }}>
+              <p className="text-3xl font-black" style={{ color: "var(--accent-l)" }}>$0.43 / día</p>
+              <p className="text-xs mt-1.5" style={{ color: "var(--sub)" }}>
+                Nuvos AI Premium · menos que un café ☕
+              </p>
+              <p className="text-[10px] mt-0.5" style={{ color: "var(--dim)" }}>
+                $12.99/mes · cancela cuando quieras
+              </p>
+            </div>
+          </div>
+        );
+      })(),
+    },
+    // 9 — Mentor
     {
       title: "¿Con qué estilo quieres que te asesore?",
       subtitle: "La IA adoptará el marco de pensamiento de tu mentor. Puedes cambiarlo después.",

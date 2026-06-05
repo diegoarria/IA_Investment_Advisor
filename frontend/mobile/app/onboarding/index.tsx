@@ -300,7 +300,84 @@ export default function OnboardingScreen() {
         </View>
       ),
     },
-    // 8 — Mentor selection
+    // 8 — ROI demo
+    {
+      title: `Así crece $${(Number(form.monthly_contribution) || 300).toLocaleString()} / mes`,
+      isValid: () => true,
+      content: (() => {
+        const pmt = Math.max(Number(form.monthly_contribution) || 300, 1);
+        const annualRate = calculated === "conservative" ? 0.07 : calculated === "moderate" ? 0.10 : 0.12;
+        const rateLabel  = calculated === "conservative" ? "7%" : calculated === "moderate" ? "10%" : "12%";
+        const r = annualRate / 12;
+        const proj = [12, 60, 120].map((months) => {
+          const fv = Math.round(pmt * ((Math.pow(1 + r, months) - 1) / r) * (1 + r));
+          return { years: months / 12, fv, invested: Math.round(pmt * months) };
+        });
+        const maxFV = proj[2].fv;
+        return (
+          <View style={{ gap: 16 }}>
+            {/* Projection bars */}
+            <View style={[s.revealCard, { alignItems: "stretch" as const }]}>
+              <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+                <Text style={[s.factorsTitle, { color: colors.textSub, marginBottom: 0 }]}>Proyección ilustrativa</Text>
+                <View style={{ backgroundColor: riskCfg.color + "22", borderRadius: 20, paddingHorizontal: 8, paddingVertical: 3 }}>
+                  <Text style={{ color: riskCfg.color, fontSize: 10, fontWeight: "700" }}>~{rateLabel}/año</Text>
+                </View>
+              </View>
+              {proj.map(({ years, fv, invested }) => (
+                <View key={years} style={{ marginBottom: 12 }}>
+                  <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 5 }}>
+                    <Text style={{ color: colors.textSub, fontSize: 12 }}>{years} año{years !== 1 ? "s" : ""}</Text>
+                    <Text style={{ color: colors.text, fontSize: 13, fontWeight: "800" }}>${fv.toLocaleString()}</Text>
+                  </View>
+                  <View style={[s.barTrack, { backgroundColor: colors.border }]}>
+                    <View style={{ flex: invested, backgroundColor: riskCfg.color, opacity: 0.35, height: "100%" }} />
+                    <View style={{ flex: fv - invested, backgroundColor: riskCfg.color, height: "100%" }} />
+                    {maxFV > fv && <View style={{ flex: maxFV - fv }} />}
+                  </View>
+                  <View style={{ flexDirection: "row", gap: 10, marginTop: 3 }}>
+                    <Text style={{ color: colors.textDim, fontSize: 10 }}>Aportado: ${invested.toLocaleString()}</Text>
+                    <Text style={{ color: riskCfg.color, fontSize: 10, fontWeight: "600" }}>
+                      +${(fv - invested).toLocaleString()} rendimiento
+                    </Text>
+                  </View>
+                </View>
+              ))}
+              <Text style={{ color: colors.textDim, fontSize: 10, fontStyle: "italic" }}>
+                * Ilustrativo. Basado en promedios históricos. No garantiza rendimientos futuros.
+              </Text>
+            </View>
+
+            {/* Features */}
+            <Text style={[s.factorsTitle, { color: colors.textSub }]}>Nuvos AI trabaja contigo</Text>
+            {[
+              { icon: "🤖", title: "IA que conoce tu perfil", sub: "Análisis personalizado según tu tolerancia al riesgo" },
+              { icon: "📰", title: "Noticias de tus acciones", sub: "Solo lo relevante para empresas que posees o sigues" },
+              { icon: "🔔", title: "Guardian del domingo", sub: "Revisión semanal automática con alertas accionables" },
+              { icon: "📄", title: "Paper trading sin riesgo", sub: "Practica estrategias reales sin dinero en juego" },
+            ].map((f) => (
+              <View key={f.title} style={[s.factorRow, { borderColor: colors.border, alignItems: "center", gap: 12, borderBottomWidth: StyleSheet.hairlineWidth }]}>
+                <Text style={{ fontSize: 20, flexShrink: 0 }}>{f.icon}</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ color: colors.text, fontSize: 13, fontWeight: "600" }}>{f.title}</Text>
+                  <Text style={{ color: colors.textMuted, fontSize: 11, marginTop: 1, lineHeight: 16 }}>{f.sub}</Text>
+                </View>
+              </View>
+            ))}
+
+            {/* Value pill */}
+            <View style={[s.revealCard, { borderColor: "rgba(0,168,94,0.3)", backgroundColor: "rgba(0,168,94,0.06)", alignItems: "center" as const }]}>
+              <Text style={{ fontSize: 28, fontWeight: "900", color: colors.accentLight }}>$0.43 / día</Text>
+              <Text style={{ color: colors.textSub, fontSize: 12, marginTop: 4, textAlign: "center" }}>
+                Nuvos AI Premium · menos que un café ☕
+              </Text>
+              <Text style={{ color: colors.textDim, fontSize: 10, marginTop: 2 }}>$12.99/mes · cancela cuando quieras</Text>
+            </View>
+          </View>
+        );
+      })(),
+    },
+    // 9 — Mentor selection
     {
       title: "¿Con qué estilo quieres que te asesore?",
       isValid: () => true,
