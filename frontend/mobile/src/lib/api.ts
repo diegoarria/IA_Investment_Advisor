@@ -143,6 +143,7 @@ export const marketApi = {
   analyzeScreenshot: (base64: string, mimeType: string) =>
     api.post("/api/market/portfolio/from-screenshot", { image: base64, type: mimeType }),
   getIndices: () => api.get("/api/market/indices"),
+  getIndexNews: (symbol: string) => api.get("/api/market/index-news", { params: { symbol } }),
   getChart: (ticker: string, period = "1y") =>
     api.get(`/api/market/chart/${encodeURIComponent(ticker)}`, { params: { period } }),
   screener: (sector: string | null, query: string) =>
@@ -242,6 +243,11 @@ export const simulateApi = {
 export const reportApi = {
   monthly: (portfolio: unknown[]) =>
     api.post("/api/report/monthly", { portfolio }),
+};
+
+export const watchlistExtApi = {
+  batchPrices: (tickers: string[]) =>
+    api.post("/api/watchlist/batch-prices", { tickers }),
 };
 
 export const decisionsApi = {

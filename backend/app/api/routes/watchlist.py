@@ -203,6 +203,16 @@ def _enrich_logos_background(items_without_logo: list[dict]) -> None:
             pass
 
 
+@router.post("/batch-prices")
+async def get_batch_prices(body: dict):
+    """Get extended prices (pre/post market) for a list of tickers. No auth required."""
+    tickers = [t.strip().upper() for t in body.get("tickers", []) if t]
+    if not tickers:
+        return {}
+    prices = await asyncio.to_thread(_fetch_prices_batch, tickers[:50])
+    return prices
+
+
 @router.get("")
 async def get_watchlist(user_id: str = Depends(get_current_user_id)):
     """Return user's watchlist enriched with current prices."""

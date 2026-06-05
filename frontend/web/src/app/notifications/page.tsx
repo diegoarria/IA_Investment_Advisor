@@ -1,6 +1,7 @@
 "use client";
 
 import AppSidebar from "@/components/AppSidebar";
+import StockAvatar from "@/components/StockAvatar";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
@@ -254,11 +255,14 @@ export default function NotificationsPage() {
                     const up  = pct !== null && pct >= 0;
                     return (
                       <div key={pos.ticker} className="flex items-center justify-between px-4 py-3">
-                        <div>
-                          <span className="font-bold text-sm" style={{ color: "var(--text)" }}>{pos.ticker}</span>
-                          {pos.name && pos.name !== pos.ticker && (
-                            <p className="text-[10px] mt-0.5" style={{ color: "var(--dim)" }}>{pos.name}</p>
-                          )}
+                        <div className="flex items-center gap-2.5">
+                          <StockAvatar ticker={pos.ticker} size="sm" />
+                          <div>
+                            <span className="font-bold text-sm" style={{ color: "var(--text)" }}>{pos.ticker}</span>
+                            {pos.name && pos.name !== pos.ticker && (
+                              <p className="text-[10px] mt-0.5" style={{ color: "var(--dim)" }}>{pos.name}</p>
+                            )}
+                          </div>
                         </div>
                         <div className="flex items-center gap-2">
                           {px !== null && (
@@ -404,6 +408,7 @@ export default function NotificationsPage() {
                   return (
                     <div key={item.ticker} className="flex items-center gap-3 px-4 py-3 border-t"
                          style={{ borderColor: "var(--border)" }}>
+                      <StockAvatar ticker={item.ticker} size="sm" />
                       <div className="flex-1">
                         <div className="font-bold text-sm" style={{ color: "var(--text)" }}>{item.ticker}</div>
                         <div className="text-xs mt-0.5" style={{ color: "var(--muted)" }}>{item.name}</div>

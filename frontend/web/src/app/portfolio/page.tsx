@@ -1,6 +1,7 @@
 "use client";
 
 import AppSidebar from "@/components/AppSidebar";
+import StockAvatar from "@/components/StockAvatar";
 import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
@@ -1543,11 +1544,14 @@ export default function PortfolioPage() {
                     <div className="p-4">
                     {/* Header */}
                     <div className="flex items-start justify-between mb-3">
-                      <div>
-                        <p className="font-extrabold text-base" style={{ color:"var(--text)" }}>{pos.ticker}</p>
-                        {(pd?.name || pos.name) && (
-                          <p className="text-xs mt-0.5" style={{ color:"var(--muted)" }}>{pd?.name || pos.name}</p>
-                        )}
+                      <div className="flex items-center gap-2.5">
+                        <StockAvatar ticker={pos.ticker} size="sm" />
+                        <div>
+                          <p className="font-extrabold text-base" style={{ color:"var(--text)" }}>{pos.ticker}</p>
+                          {(pd?.name || pos.name) && (
+                            <p className="text-xs mt-0.5" style={{ color:"var(--muted)" }}>{pd?.name || pos.name}</p>
+                          )}
+                        </div>
                       </div>
                       <div className="flex items-center gap-2">
                         <button

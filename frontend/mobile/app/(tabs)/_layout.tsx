@@ -1,8 +1,16 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { Tabs } from "expo-router";
 import {
   View, Text, TouchableOpacity, StyleSheet, Platform, Pressable, Image,
 } from "react-native";
+import { useFonts } from "expo-font";
+import {
+  DMSans_400Regular,
+  DMSans_500Medium,
+  DMSans_600SemiBold,
+  DMSans_700Bold,
+  DMSans_800ExtraBold,
+} from "@expo-google-fonts/dm-sans";
 import type { BottomTabBarProps } from "@react-navigation/bottom-tabs";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -16,6 +24,7 @@ type IoniconName = React.ComponentProps<typeof Ionicons>["name"];
 const TAB_CONFIG: Record<string, { icon: IoniconName; iconFilled: IoniconName; label: string }> = {
   chat:      { icon: "chatbubble-ellipses-outline", iconFilled: "chatbubble-ellipses", label: "Chat" },
   portfolio: { icon: "bar-chart-outline",           iconFilled: "bar-chart",           label: "Portafolio" },
+  watchlist: { icon: "eye-outline",                 iconFilled: "eye",                 label: "Watchlist" },
   arena:     { icon: "trophy-outline",              iconFilled: "trophy",              label: "Arena" },
   learn:     { icon: "school-outline",              iconFilled: "school",              label: "Aprender" },
   paper:     { icon: "game-controller-outline",     iconFilled: "game-controller",     label: "Virtual" },
@@ -219,6 +228,24 @@ const headerStyles = StyleSheet.create({
 export default function TabsLayout() {
   const isWeb = Platform.OS === "web";
 
+  const [fontsLoaded] = useFonts({
+    DMSans_400Regular,
+    DMSans_500Medium,
+    DMSans_600SemiBold,
+    DMSans_700Bold,
+    DMSans_800ExtraBold,
+  });
+
+  useEffect(() => {
+    if (fontsLoaded) {
+      // Apply DM Sans as the default font for all Text components
+      // @ts-ignore
+      Text.defaultProps = Text.defaultProps ?? {};
+      // @ts-ignore
+      Text.defaultProps.style = [{ fontFamily: "DMSans_400Regular" }];
+    }
+  }, [fontsLoaded]);
+
   return (
     <Tabs
       tabBar={isWeb ? undefined : (props) => <CustomTabBar {...props} />}
@@ -241,6 +268,13 @@ export default function TabsLayout() {
           tabBarIcon: ({ color }) => <Ionicons name="bar-chart-outline" size={22} color={color} />,
           title: "Portafolios",
           header: () => <MobileHeader title="Mi Portafolio" />,
+        }}
+      />
+      <Tabs.Screen
+        name="watchlist"
+        options={{
+          title: "Watchlist",
+          header: () => <MobileHeader title="Watchlist" />,
         }}
       />
       <Tabs.Screen name="explore" options={{ href: null }} />

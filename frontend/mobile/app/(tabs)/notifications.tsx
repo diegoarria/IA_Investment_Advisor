@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useMemo, useCallback } from "react";
+import StockAvatar from "../../src/components/StockAvatar";
 import { useFocusEffect } from "expo-router";
 import {
   View, Text, FlatList, TouchableOpacity, Modal,
@@ -266,11 +267,14 @@ export default function NotificationsScreen() {
           const up  = pct !== null && pct >= 0;
           return (
             <View key={pos.ticker} style={[styles.portTodayRow, { borderTopColor: colors.border }]}>
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.portTodayTicker, { color: colors.text }]}>{pos.ticker}</Text>
-                {pos.name && pos.name !== pos.ticker && (
-                  <Text style={[styles.portTodayName, { color: colors.textDim }]}>{pos.name}</Text>
-                )}
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 10, flex: 1 }}>
+                <StockAvatar ticker={pos.ticker} size={34} />
+                <View>
+                  <Text style={[styles.portTodayTicker, { color: colors.text }]}>{pos.ticker}</Text>
+                  {pos.name && pos.name !== pos.ticker && (
+                    <Text style={[styles.portTodayName, { color: colors.textDim }]}>{pos.name}</Text>
+                  )}
+                </View>
               </View>
               <View style={styles.portTodayRight}>
                 {px !== null && (
@@ -451,7 +455,8 @@ export default function NotificationsScreen() {
           const bigDrop = p?.change_pct !== null && p?.change_pct !== undefined && Math.abs(p.change_pct) >= 3;
           return (
             <View key={item.ticker} style={[styles.watchRow, { borderTopColor: colors.border }]}>
-              <View style={{ flex: 1 }}>
+              <StockAvatar ticker={item.ticker} size={34} />
+              <View style={{ flex: 1, marginLeft: 10 }}>
                 <Text style={[styles.watchTicker, { color: colors.text }]}>{item.ticker}</Text>
                 <Text style={[styles.watchName, { color: colors.textMuted }]}>{item.name}</Text>
               </View>

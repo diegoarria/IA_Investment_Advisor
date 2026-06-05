@@ -1,6 +1,7 @@
 "use client";
 
 import AppSidebar from "@/components/AppSidebar";
+import StockAvatar from "@/components/StockAvatar";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
@@ -339,7 +340,9 @@ export default function PaperPage() {
                        style={{ background: "var(--card)", borderColor: "var(--border)" }}>
                     <div className="h-0.5" style={{ background: col }} />
                     <div className="flex items-center justify-between px-4 py-3">
-                      <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2.5 flex-1 min-w-0">
+                        <StockAvatar ticker={pos.ticker} size="sm" />
+                        <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-0.5">
                           <span className="font-black text-base" style={{ color: "var(--text)" }}>{pos.ticker}</span>
                           {pos.name && pos.name !== pos.ticker && (
@@ -349,6 +352,7 @@ export default function PaperPage() {
                         <span className="text-xs" style={{ color: "var(--muted)" }}>
                           {pos.shares} acc · avg ${pos.avgPrice.toFixed(2)} · actual ${cur.toFixed(2)}
                         </span>
+                        </div>
                       </div>
                       <div className="flex items-center gap-3 shrink-0">
                         <div className="text-right">

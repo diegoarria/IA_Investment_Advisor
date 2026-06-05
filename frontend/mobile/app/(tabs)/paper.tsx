@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useCallback, useEffect, useRef } from "react";
+import StockAvatar from "../../src/components/StockAvatar";
 import {
   View, Text, TextInput, TouchableOpacity,
   StyleSheet, ActivityIndicator, SafeAreaView, Modal,
@@ -412,9 +413,12 @@ export default function PaperScreen() {
                         <View style={[s.posCardAccent, { backgroundColor: col }]} />
                         <View style={s.posCard}>
                           <View style={s.posTop}>
-                            <View style={{ flex: 1 }}>
-                              <Text style={[s.posTicker, { color: colors.text }]}>{pos.ticker}</Text>
-                              <Text style={[s.posName, { color: colors.textMuted }]}>{pos.name}</Text>
+                            <View style={{ flexDirection: "row", alignItems: "center", gap: 10, flex: 1 }}>
+                              <StockAvatar ticker={pos.ticker} size={36} />
+                              <View style={{ flex: 1 }}>
+                                <Text style={[s.posTicker, { color: colors.text }]}>{pos.ticker}</Text>
+                                <Text style={[s.posName, { color: colors.textMuted }]}>{pos.name}</Text>
+                              </View>
                             </View>
                             <View style={{ alignItems: "flex-end" }}>
                               <Text style={[s.posValue, { color: colors.text }]}>{fmtMoney(pos.shares * cp)}</Text>

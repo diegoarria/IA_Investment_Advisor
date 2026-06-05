@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useCallback, useEffect } from "react";
+import StockAvatar from "../../src/components/StockAvatar";
 import { useFocusEffect } from "expo-router";
 import {
   View, Text, TouchableOpacity, TextInput, ScrollView,
@@ -1656,11 +1657,14 @@ export default function PortfolioScreen() {
                   <View style={s.posCard}>
                   {/* Header: ticker + edit + remove */}
                   <View style={s.posHeader}>
-                    <View>
-                      <Text style={[s.posTicker, { color: colors.text }]}>{pos.ticker}</Text>
-                      {(pd?.name || pos.name) && (
-                        <Text style={[s.posName, { color: colors.textMuted }]}>{pd?.name || pos.name}</Text>
-                      )}
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                      <StockAvatar ticker={pos.ticker} size={36} />
+                      <View>
+                        <Text style={[s.posTicker, { color: colors.text }]}>{pos.ticker}</Text>
+                        {(pd?.name || pos.name) && (
+                          <Text style={[s.posName, { color: colors.textMuted }]}>{pd?.name || pos.name}</Text>
+                        )}
+                      </View>
                     </View>
                     <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
                       <TouchableOpacity
