@@ -128,6 +128,22 @@ async def get_indices(user_id: str = Depends(get_current_user_id)):
     return data
 
 
+@router.get("/index-news")
+async def get_index_news(
+    symbol: str = Query(..., description="Index symbol, e.g. ^GSPC"),
+    user_id: str = Depends(get_current_user_id),
+):
+    import asyncio
+    ck = f"market:index-news:{symbol}"
+    cached = cache_get(ck)
+    if cached is not None:
+        return cached
+    articles = await asyncio.to_thread(_fetch_symbol_news, symbol)
+    top3 = sorted(articles, key=lambda x: x.get("timestamp", 0), reverse=True)[:3]
+    cache_set(ck, top3, ttl=_NEWS_CACHE_TTL)
+    return top3
+
+
 @router.get("/search")
 async def search_tickers(q: str = Query(""), user_id: str = Depends(get_current_user_id)):
     q = q.strip().upper()

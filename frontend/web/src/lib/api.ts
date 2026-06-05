@@ -148,6 +148,8 @@ export const market = {
     api.get(`/api/market/chart/${encodeURIComponent(ticker)}`, { params: { period } }),
   getNews: (symbols: string[]) =>
     api.get("/api/market/news", { params: { symbols: symbols.join(",") } }),
+  getIndexNews: (symbol: string) =>
+    api.get("/api/market/index-news", { params: { symbol } }),
   alertContext: (ticker: string, change_pct: number) =>
     api.post("/api/market/screener/alert-context", { ticker, change_pct }),
   searchTickers: (q: string) => api.get("/api/market/search", { params: { q } }),

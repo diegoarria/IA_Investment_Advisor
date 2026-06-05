@@ -49,3 +49,13 @@ export interface IndexData {
   change: number;
   change_pct: number;
 }
+
+export interface IndexNewsItem {
+  uuid: string;
+  title: string;
+  publisher: string;
+  url: string;
+  timestamp: number;
+  symbol: string;
+  thumbnail: string | null;
+}
