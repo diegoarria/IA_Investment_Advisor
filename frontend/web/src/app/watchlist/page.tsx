@@ -91,18 +91,27 @@ function MarketStateBadge({ state }: { state: string }) {
 // ─── Stock Avatar ───────────────────────────────────────────────────────────
 
 function StockAvatar({ ticker, logoUrl }: { ticker: string; logoUrl: string | null }) {
-  const [err, setErr] = useState(false);
   const initials = ticker.slice(0, 2).toUpperCase();
+  const clean = ticker.replace(".", "-");
 
-  if (logoUrl && !err) {
+  // Tries sources in order; falls back to initials when all fail
+  const sources = [
+    ...(logoUrl ? [logoUrl] : []),
+    `https://assets.parqet.com/logos/symbol/${clean}?format=svg`,
+    `https://financialmodelingprep.com/image-stock/${clean}.png`,
+  ];
+  const [failed, setFailed] = useState<Set<string>>(new Set());
+  const activeSrc = sources.find((s) => !failed.has(s));
+
+  if (activeSrc) {
     return (
       // eslint-disable-next-line @next/next/no-img-element
       <img
-        src={logoUrl}
+        src={activeSrc}
         alt={ticker}
         className="w-10 h-10 rounded-full object-contain p-1.5 shrink-0"
         style={{ background: "var(--raised)", border: "1px solid var(--border)" }}
-        onError={() => setErr(true)}
+        onError={() => setFailed((prev) => new Set([...prev, activeSrc]))}
       />
     );
   }
@@ -540,12 +549,7 @@ export default function WatchlistPage() {
                       onClick={() => handleAddTicker(r.ticker, r.name)}
                       className="w-full flex items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-[var(--raised)]"
                     >
-                      <div
-                        className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-black shrink-0"
-                        style={{ background: "rgba(0,168,94,0.14)", color: "var(--accent-l)" }}
-                      >
-                        {r.ticker.slice(0, 2)}
-                      </div>
+                      <StockAvatar ticker={r.ticker} logoUrl={null} />
                       <div className="min-w-0 flex-1">
                         <p className="text-sm font-bold" style={{ color: "var(--text)" }}>{r.ticker}</p>
                         <p className="text-[11px] truncate" style={{ color: "var(--muted)" }}>{r.name}</p>
