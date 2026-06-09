@@ -5,6 +5,7 @@ import {
   X, TrendingUp, TrendingDown, Globe, Users, Building2,
   BarChart3, Loader2, ChevronRight, Activity,
   ArrowUpRight, ArrowDownRight, DollarSign, Percent, ShieldCheck,
+  ExternalLink,
 } from "lucide-react";
 import { market as marketApi } from "@/lib/api";
 
@@ -77,42 +78,8 @@ interface ScoreData {
   categories: ScoreCategory[];
 }
 
-// ─── TradingView Widget Loader ────────────────────────────────────────────────
-
-const TV_CDN = "https://s3.tradingview.com/external-embedding";
-
-function TVWidget({
-  name, config, height,
-}: {
-  name: string;
-  config: Record<string, unknown>;
-  height: number;
-}) {
-  const ref = useRef<HTMLDivElement>(null);
-  const key = `${name}|${JSON.stringify(config)}`;
-
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    el.innerHTML = "";
-    const script = document.createElement("script");
-    script.type = "text/javascript";
-    script.async = true;
-    script.src = `${TV_CDN}/embed-widget-${name}.js`;
-    script.innerHTML = JSON.stringify(config);
-    el.appendChild(script);
-    return () => { el.innerHTML = ""; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [key]);
-
-  return (
-    <div
-      ref={ref}
-      className="tradingview-widget-container"
-      style={{ width: "100%", height }}
-    />
-  );
-}
+interface Peer { ticker: string; name: string; price: number | null; change_pct: number | null }
+interface NewsItem { headline: string; source: string; datetime: number; url: string }
 
 // ─── Formatters ───────────────────────────────────────────────────────────────
 
@@ -642,15 +609,60 @@ function ForecastChart({ prices, current, targetLow, targetMean, targetHigh }: {
   );
 }
 
+// ─── Financial bar chart ──────────────────────────────────────────────────────
+
+function FinancialBarChart({ data, field, label, color = "#22c55e" }: {
+  data: Record<string, unknown>[];
+  field: string;
+  label: string;
+  color?: string;
+}) {
+  const values = data.map((d) => { const v = d[field]; return v != null ? Number(v) : null; });
+  const periods = data.map((d) => String(d.period ?? "").slice(0, 4));
+  const nonNull = values.filter((v): v is number => v != null);
+  if (!nonNull.length) return null;
+  const lastVal = nonNull[nonNull.length - 1];
+  const W = 560, H = 90, PB = 18;
+  const chartH = H - PB;
+  const maxAbs = Math.max(...nonNull.map(Math.abs), 1);
+  const n = values.length;
+  const gap = W / n;
+  const bw = gap * 0.62;
+  return (
+    <div>
+      <div className="flex items-baseline justify-between mb-1.5">
+        <span className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: "var(--dim)" }}>{label}</span>
+        <span className="text-sm font-black" style={{ color: lastVal >= 0 ? "var(--text)" : "#ef4444" }}>{fmtBig(lastVal)}</span>
+      </div>
+      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto", display: "block" }}>
+        {values.map((v, i) => {
+          if (v == null) return null;
+          const barH = Math.max((Math.abs(v) / maxAbs) * chartH * 0.88, 2);
+          const x = i * gap + (gap - bw) / 2;
+          const y = chartH - barH;
+          const barColor = v >= 0 ? color : "#ef4444";
+          return (
+            <g key={i}>
+              <rect x={x} y={y} width={bw} height={barH} rx="2.5" fill={barColor} opacity="0.85" />
+              <text x={x + bw / 2} y={H - 2} fontSize="8" fill="var(--muted)" textAnchor="middle">{periods[i]}</text>
+            </g>
+          );
+        })}
+      </svg>
+    </div>
+  );
+}
+
 // ─── Tabs ─────────────────────────────────────────────────────────────────────
 
-type Tab = "verdict" | "chart" | "financials" | "analyst" | "company";
+type Tab = "verdict" | "chart" | "financials" | "analyst" | "noticias" | "company";
 
 const TABS: { key: Tab; label: string }[] = [
   { key: "verdict",    label: "Veredicto" },
   { key: "chart",      label: "Gráfica" },
   { key: "financials", label: "Financieros" },
   { key: "analyst",    label: "Analistas" },
+  { key: "noticias",   label: "Noticias" },
   { key: "company",    label: "Empresa" },
 ];
 
@@ -670,11 +682,28 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
   const [loadingChart, setLoadingChart] = useState(true);
   const [chartError, setChartError] = useState(false);
 
-  const [tvTheme, setTvTheme] = useState<"dark" | "light">("dark");
+  const [peers, setPeers] = useState<Peer[]>([]);
+  const [loadingPeers, setLoadingPeers] = useState(false);
+  const [news, setNews] = useState<NewsItem[]>([]);
+  const [loadingNews, setLoadingNews] = useState(false);
+
   useEffect(() => {
-    const saved = localStorage.getItem("nuvos_theme") ?? "dark";
-    setTvTheme(saved === "light" ? "light" : "dark");
-  }, []);
+    setLoadingNews(true);
+    setNews([]);
+    marketApi.getNews([ticker])
+      .then((r) => setNews((r.data ?? []).slice(0, 8)))
+      .catch(() => setNews([]))
+      .finally(() => setLoadingNews(false));
+  }, [ticker]);
+
+  useEffect(() => {
+    setLoadingPeers(true);
+    setPeers([]);
+    marketApi.getPeers(ticker)
+      .then((r) => setPeers(r.data ?? []))
+      .catch(() => setPeers([]))
+      .finally(() => setLoadingPeers(false));
+  }, [ticker]);
 
   useEffect(() => {
     const fn = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
@@ -968,28 +997,60 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
             )
           )}
 
-          {/* ── FINANCIEROS — TradingView Fundamentals ── */}
+          {/* ── FINANCIEROS ── */}
           {tab === "financials" && (
-            <div>
-              <TVWidget
-                name="financials"
-                config={{
-                  isTransparent: false,
-                  largeChartUrl: "",
-                  displayMode:   "regular",
-                  width:         "100%",
-                  height:        830,
-                  colorTheme:    tvTheme,
-                  symbol:        ticker,
-                  locale:        "es",
-                }}
-                height={830}
-              />
-              {data?.financials?.source && (
-                <p className="text-[9px] text-center py-2" style={{ color: "var(--dim)" }}>
-                  Datos · {data.financials.source === "fmp" ? "Financial Modeling Prep" : "Yahoo Finance"} · SEC EDGAR
-                </p>
-              )}
+            <div className="px-5 py-4 space-y-6">
+              {loading ? (
+                <div className="flex justify-center py-12">
+                  <Loader2 className="w-6 h-6 animate-spin" style={{ color: "var(--accent-l)" }} />
+                </div>
+              ) : (() => {
+                const income   = (data?.financials?.income?.annual   ?? []).slice().reverse();
+                const balance  = (data?.financials?.balance?.annual  ?? []).slice().reverse();
+                const cashflow = (data?.financials?.cashflow?.annual ?? []).slice().reverse();
+                if (!income.length && !balance.length && !cashflow.length) {
+                  return <p className="text-xs text-center py-10" style={{ color: "var(--muted)" }}>Sin datos financieros</p>;
+                }
+                return (
+                  <>
+                    {income.length > 0 && (
+                      <div>
+                        <p className="text-[10px] font-bold uppercase tracking-wider mb-3" style={{ color: "var(--dim)" }}>Estado de Resultados</p>
+                        <div className="space-y-5">
+                          <FinancialBarChart data={income} field="Total Revenue" label="Ingresos Totales" />
+                          <FinancialBarChart data={income} field="Gross Profit" label="Utilidad Bruta" />
+                          <FinancialBarChart data={income} field="Net Income" label="Utilidad Neta" />
+                        </div>
+                      </div>
+                    )}
+                    {balance.length > 0 && (
+                      <div>
+                        <p className="text-[10px] font-bold uppercase tracking-wider mb-3" style={{ color: "var(--dim)" }}>Balance General</p>
+                        <div className="space-y-5">
+                          <FinancialBarChart data={balance} field="Total Assets" label="Activos Totales" />
+                          <FinancialBarChart data={balance} field="Total Liabilities Net Minority Interest" label="Pasivos Totales" />
+                          <FinancialBarChart data={balance} field="Stockholders Equity" label="Patrimonio Neto" />
+                        </div>
+                      </div>
+                    )}
+                    {cashflow.length > 0 && (
+                      <div>
+                        <p className="text-[10px] font-bold uppercase tracking-wider mb-3" style={{ color: "var(--dim)" }}>Flujo de Caja</p>
+                        <div className="space-y-5">
+                          <FinancialBarChart data={cashflow} field="Operating Cash Flow" label="Flujo Operativo" />
+                          <FinancialBarChart data={cashflow} field="Free Cash Flow" label="Flujo Libre" />
+                          <FinancialBarChart data={cashflow} field="Capital Expenditure" label="CapEx" />
+                        </div>
+                      </div>
+                    )}
+                    {data?.financials?.source && (
+                      <p className="text-[9px] text-center" style={{ color: "var(--dim)" }}>
+                        Datos · {data.financials.source === "fmp" ? "Financial Modeling Prep" : "Yahoo Finance"} · SEC EDGAR
+                      </p>
+                    )}
+                  </>
+                );
+              })()}
             </div>
           )}
 
@@ -1229,6 +1290,42 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
             </div>
           )}
 
+          {/* ── NOTICIAS ── */}
+          {tab === "noticias" && (
+            <div className="py-2">
+              {loadingNews ? (
+                <div className="flex justify-center py-12">
+                  <Loader2 className="w-6 h-6 animate-spin" style={{ color: "var(--accent-l)" }} />
+                </div>
+              ) : news.length === 0 ? (
+                <p className="text-xs text-center py-10" style={{ color: "var(--muted)" }}>Sin noticias recientes</p>
+              ) : (
+                news.map((item, i) => {
+                  const diff = Math.floor(Date.now() / 1000) - item.datetime;
+                  const ago = diff < 3600 ? `${Math.floor(diff / 60)}m`
+                    : diff < 86400 ? `${Math.floor(diff / 3600)}h`
+                    : `${Math.floor(diff / 86400)}d`;
+                  return (
+                    <a key={i} href={item.url} target="_blank" rel="noopener noreferrer"
+                       className="flex items-start gap-3 px-5 py-4 hover:bg-white/5 transition-colors border-b"
+                       style={{ borderColor: "var(--border)" }}>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1.5">
+                          <span className="text-[10px] font-bold" style={{ color: "var(--accent-l)" }}>{item.source}</span>
+                          <span className="text-[10px]" style={{ color: "var(--dim)" }}>· {ago}</span>
+                        </div>
+                        <p className="text-sm font-semibold leading-snug" style={{ color: "var(--text)" }}>
+                          {item.headline}
+                        </p>
+                      </div>
+                      <ExternalLink className="w-3.5 h-3.5 shrink-0 mt-1" style={{ color: "var(--muted)" }} />
+                    </a>
+                  );
+                })
+              )}
+            </div>
+          )}
+
           {/* ── EMPRESA ── */}
           {tab === "company" && (
             <div className="px-5 py-4 space-y-5">
@@ -1457,6 +1554,54 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
                       </a>
                     )}
                   </div>
+
+                  {/* Competitors */}
+                  {(loadingPeers || peers.length > 0) && (
+                    <div>
+                      <p className="text-[10px] font-bold uppercase tracking-wider mb-2" style={{ color: "var(--dim)" }}>
+                        Empresas Similares
+                      </p>
+                      {loadingPeers ? (
+                        <div className="flex justify-center py-4">
+                          <Loader2 className="w-4 h-4 animate-spin" style={{ color: "var(--accent-l)" }} />
+                        </div>
+                      ) : (
+                        <div className="rounded-xl overflow-hidden border" style={{ borderColor: "var(--border)" }}>
+                          {peers.map((peer, i) => {
+                            const isUp = (peer.change_pct ?? 0) >= 0;
+                            const pColor = isUp ? "#22c55e" : "#ef4444";
+                            return (
+                              <div key={peer.ticker} className="flex items-center gap-3 px-3 py-2.5"
+                                   style={{ borderBottom: i < peers.length - 1 ? "1px solid var(--border)" : "none" }}>
+                                <div className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-black shrink-0"
+                                     style={{ background: "rgba(0,168,94,0.14)", color: "var(--accent-l)" }}>
+                                  {peer.ticker.slice(0, 2)}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-xs font-bold" style={{ color: "var(--text)" }}>{peer.ticker}</p>
+                                  <p className="text-[10px] truncate" style={{ color: "var(--muted)" }}>{peer.name}</p>
+                                </div>
+                                {peer.price != null && (
+                                  <div className="text-right shrink-0">
+                                    <p className="text-xs font-bold tabular-nums" style={{ color: "var(--text)" }}>
+                                      {peer.price >= 1000
+                                        ? `$${peer.price.toLocaleString("en-US", { maximumFractionDigits: 0 })}`
+                                        : `$${peer.price.toFixed(2)}`}
+                                    </p>
+                                    {peer.change_pct != null && (
+                                      <p className="text-[10px] font-semibold" style={{ color: pColor }}>
+                                        {isUp ? "+" : ""}{peer.change_pct.toFixed(2)}%
+                                      </p>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </>
               ) : (
                 <p className="text-xs text-center py-10" style={{ color: "var(--muted)" }}>Sin datos de empresa</p>

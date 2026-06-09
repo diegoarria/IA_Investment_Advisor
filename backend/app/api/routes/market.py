@@ -1932,6 +1932,53 @@ async def get_stock_detail(
     return result
 
 
+@router.get("/peers/{symbol}")
+async def get_peers(
+    symbol: str,
+    user_id: str = Depends(get_current_user_id),
+):
+    """Return peer/competitor companies using Finnhub + basic price info."""
+    sym = symbol.upper()
+    cache_key = f"peers:{sym}"
+    if cached := await redis_get(cache_key):
+        return cached
+
+    def _fetch():
+        peers = []
+        # 1. Get peer tickers from Finnhub
+        if _FINNHUB_KEY:
+            try:
+                r = _requests.get(
+                    f"{_FINNHUB_BASE}/stock/peers",
+                    params={"symbol": sym},
+                    headers={"X-Finnhub-Token": _FINNHUB_KEY},
+                    timeout=6,
+                )
+                if r.status_code == 200:
+                    tickers = [t for t in r.json() if t != sym][:7]
+                    for t in tickers:
+                        try:
+                            info = yf.Ticker(t).fast_info
+                            price = getattr(info, "last_price", None)
+                            prev  = getattr(info, "previous_close", None)
+                            chg   = ((price - prev) / prev * 100) if price and prev else None
+                            peers.append({
+                                "ticker": t,
+                                "name":   getattr(info, "short_name", t),
+                                "price":  round(price, 2) if price else None,
+                                "change_pct": round(chg, 2) if chg is not None else None,
+                            })
+                        except Exception:
+                            peers.append({"ticker": t, "name": t, "price": None, "change_pct": None})
+            except Exception:
+                pass
+        return peers
+
+    result = await asyncio.to_thread(_fetch)
+    await redis_set(cache_key, result, ttl=3600)
+    return result
+
+
 # ── Stock Score / Veredicto ───────────────────────────────────────────────────
 
 def _score_val(v, tiers):

@@ -160,6 +160,8 @@ export const marketApi = {
     api.get(`/api/market/stock-detail/${encodeURIComponent(symbol)}`),
   getStockScore: (symbol: string) =>
     api.get(`/api/market/stock-score/${encodeURIComponent(symbol)}`),
+  getPeers: (symbol: string) =>
+    api.get(`/api/market/peers/${encodeURIComponent(symbol)}`),
 };
 
 export const notificationsApi = {
