@@ -19,6 +19,38 @@ const userScopedChatStorage = createJSONStorage(() => ({
   },
 }));
 
+// ─── Behavioral risk helpers ────────────────────────────────────────────────
+
+// Map onboarding risk_tolerance label → approximate 0-100 score baseline
+const RISK_TOLERANCE_TO_SCORE: Record<string, number> = {
+  conservative:           15,
+  conservative_moderate:  25,
+  moderate:               45,
+  moderate_growth:        57,
+  growth:                 65,
+  aggressive:             73,
+  aggressive_speculative: 85,
+  speculative:            95,
+};
+
+export function behavioralRiskColor(score: number): string {
+  if (score < 20) return "#3b82f6";
+  if (score < 35) return "#00d47e";
+  if (score < 55) return "#8bd44e";
+  if (score < 68) return "#f5c842";
+  if (score < 82) return "#f5973a";
+  return "#ff2d3b";
+}
+
+export function behavioralRiskLabel(score: number): string {
+  if (score < 20) return "Muy conservador";
+  if (score < 35) return "Conservador";
+  if (score < 55) return "Moderado";
+  if (score < 68) return "Crecimiento";
+  if (score < 82) return "Agresivo";
+  return "Especulativo";
+}
+
 // ─── Maturity helpers ───────────────────────────────────────────────────────
 
 export interface MaturityEvent {
@@ -101,8 +133,10 @@ interface ProfileState {
   profile: UserProfile | null;
   maturityScore: number;
   maturityHistory: MaturityEvent[];
+  behavioralRiskScore: number | null;
   setProfile: (profile: UserProfile | null) => void;
   updateMaturity: (signals: string[]) => void;
+  updateBehavioralRisk: (score: number, conf: string) => void;
 }
 
 export interface ChatSession {
@@ -183,6 +217,7 @@ export const useProfileStore = create<ProfileState>()(
       profile: null,
       maturityScore: 0,
       maturityHistory: [],
+      behavioralRiskScore: null,
       setProfile: (profile) => set({ profile }),
       updateMaturity: (signals) => {
         const delta = computeMaturityDelta(signals);
@@ -195,10 +230,23 @@ export const useProfileStore = create<ProfileState>()(
           maturityHistory: [...s.maturityHistory.slice(-99), event],
         }));
       },
+      updateBehavioralRisk: (incoming: number, conf: string) => {
+        const alpha = conf === "high" ? 0.35 : conf === "medium" ? 0.2 : 0.08;
+        const state = get();
+        const current = state.behavioralRiskScore ??
+          (state.profile ? (RISK_TOLERANCE_TO_SCORE[state.profile.risk_tolerance] ?? 50) : 50);
+        const next = Math.round((1 - alpha) * current + alpha * incoming);
+        set({ behavioralRiskScore: Math.min(100, Math.max(0, next)) });
+      },
     }),
     {
       name: "profile-store",
-      partialize: (s) => ({ profile: s.profile, maturityScore: s.maturityScore, maturityHistory: s.maturityHistory }),
+      partialize: (s) => ({
+        profile: s.profile,
+        maturityScore: s.maturityScore,
+        maturityHistory: s.maturityHistory,
+        behavioralRiskScore: s.behavioralRiskScore,
+      }),
     }
   )
 );

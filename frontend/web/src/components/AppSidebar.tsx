@@ -9,6 +9,7 @@ import {
 import {
   useProfileStore, useNotificationStore, useSubscriptionStore,
   useChatStore, msgsRemaining, FREE_MSG_LIMIT,
+  behavioralRiskColor, behavioralRiskLabel,
 } from "@/lib/store";
 import PaywallModal from "@/components/PaywallModal";
 
@@ -41,23 +42,41 @@ const RISK_LABEL: Record<string, string> = {
   aggressive: "Agresivo", aggressive_speculative: "Agr-Especulativo", speculative: "Especulativo",
 };
 
-function RiskBar({ level }: { level: string }) {
+function RiskBar({ level, behavioralScore }: { level: string; behavioralScore: number | null }) {
   const seg = RISK_SEGMENTS.find((s) => s.key === level);
-  if (!seg) return null;
+  const hasBehavioral = behavioralScore !== null;
+  const displayPct   = hasBehavioral ? behavioralScore : (seg?.pct ?? 50);
+  const color        = hasBehavioral ? behavioralRiskColor(behavioralScore!) : (seg?.color ?? "var(--accent)");
+  const label        = hasBehavioral ? behavioralRiskLabel(behavioralScore!) : (RISK_LABEL[level] ?? level);
+  const staticPct    = seg?.pct ?? 50;
+
   return (
     <div>
       <div className="flex items-center justify-between mb-1">
-        <div className="text-[10px] font-semibold" style={{ color: seg.color }}>
-          {RISK_LABEL[level] ?? level}
+        <div className="text-[10px] font-semibold" style={{ color }}>{label}</div>
+        <div className="flex items-center gap-1">
+          {hasBehavioral && (
+            <span className="text-[9px]" style={{ color: "var(--dim)" }} title="Perfil declarado">
+              {RISK_LABEL[level] ?? level}
+            </span>
+          )}
+          <div className="text-[11px] font-black" style={{ color }}>{displayPct}</div>
         </div>
-        <div className="text-[11px] font-black" style={{ color: seg.color }}>{seg.pct}%</div>
       </div>
-      <div className="h-1.5 rounded-full overflow-hidden" style={{ background: "var(--border)" }}>
-        <div
-          className="h-full rounded-full transition-all duration-500"
-          style={{ width: `${seg.pct}%`, background: seg.color }}
-        />
+      {/* Bar: static baseline (faded) + behavioral overlay */}
+      <div className="relative h-1.5 rounded-full overflow-hidden" style={{ background: "var(--border)" }}>
+        {/* Static onboarding baseline */}
+        <div className="absolute inset-y-0 left-0 rounded-full opacity-25 transition-all duration-700"
+             style={{ width: `${staticPct}%`, background: seg?.color ?? "var(--accent)" }} />
+        {/* Live behavioral score */}
+        <div className="absolute inset-y-0 left-0 rounded-full transition-all duration-700"
+             style={{ width: `${displayPct}%`, background: color }} />
       </div>
+      {hasBehavioral && (
+        <div className="text-[9px] mt-1" style={{ color: "var(--dim)" }}>
+          Riesgo conductual en tiempo real
+        </div>
+      )}
     </div>
   );
 }
@@ -70,7 +89,7 @@ interface Props {
 export default function AppSidebar({ open, onClose }: Props) {
   const router = useRouter();
   const pathname = usePathname();
-  const { profile } = useProfileStore();
+  const { profile, behavioralRiskScore } = useProfileStore();
   const { notifications } = useNotificationStore();
   const subStore = useSubscriptionStore();
   const { sessions, currentId, createSession, loadSession, deleteSession } = useChatStore();
@@ -197,7 +216,7 @@ export default function AppSidebar({ open, onClose }: Props) {
                 ))}
               </div>
 
-              <RiskBar level={profile.risk_tolerance} />
+              <RiskBar level={profile.risk_tolerance} behavioralScore={behavioralRiskScore} />
             </div>
           </div>
         )}

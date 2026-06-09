@@ -294,7 +294,7 @@ export default function ChatPage() {
   const router = useRouter();
   const { hasSeenTutorial, openTutorial } = useTutorialStore();
   const { isAuthenticated, clearAuth } = useAuthStore();
-  const { profile, updateMaturity } = useProfileStore();
+  const { profile, updateMaturity, updateBehavioralRisk } = useProfileStore();
   const { messages, isStreaming, addMessage, appendToLastAssistant, setStreaming, startAssistantMessage, removeLastMessage, setMessages, sessions, createSession } = useChatStore();
   const { notifications, setNotifications, markRead } = useNotificationStore();
   const { theme, toggleTheme } = useThemeStore();
@@ -461,6 +461,7 @@ export default function ChatPage() {
         (a) => {
           setLastAssessment(a);
           updateMaturity(a.sig);
+          updateBehavioralRisk(a.s, a.conf);
         },
         undefined,
         profile?.mentor ?? null,
