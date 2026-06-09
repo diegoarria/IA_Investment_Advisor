@@ -303,46 +303,178 @@ def _fetch_position_data(positions: list) -> list[dict]:
     return enriched
 
 
+# ── Yahoo Finance v8 direct chart (same data as Google Finance) ───────────────
+
+_YF_HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+    "Accept": "application/json, text/plain, */*",
+    "Accept-Language": "en-US,en;q=0.9",
+    "Origin": "https://finance.yahoo.com",
+    "Referer": "https://finance.yahoo.com/",
+}
+
+_CHART_PERIOD_MAP = {
+    "1d":  ("1d",  "5m"),
+    "5d":  ("5d",  "15m"),
+    "1m":  ("1mo", "1d"),
+    "3m":  ("3mo", "1d"),
+    "6m":  ("6mo", "1wk"),
+    "ytd": ("ytd", "1wk"),
+    "1y":  ("1y",  "1wk"),
+    "5y":  ("5y",  "1mo"),
+    "max": ("max", "3mo"),
+}
+
+def _yf_v8_chart(symbol: str, yf_range: str, interval: str) -> dict | None:
+    """Call Yahoo Finance v8 chart API directly — same source as Google Finance."""
+    try:
+        r = _requests.get(
+            f"https://query1.finance.yahoo.com/v8/finance/chart/{symbol}",
+            params={"interval": interval, "range": yf_range, "includePrePost": "false"},
+            headers=_YF_HEADERS,
+            timeout=10,
+        )
+        if r.status_code != 200:
+            # try query2 mirror
+            r = _requests.get(
+                f"https://query2.finance.yahoo.com/v8/finance/chart/{symbol}",
+                params={"interval": interval, "range": yf_range, "includePrePost": "false"},
+                headers=_YF_HEADERS,
+                timeout=10,
+            )
+        if r.status_code != 200:
+            return None
+        data   = r.json()
+        result = (data.get("chart") or {}).get("result") or []
+        if not result:
+            return None
+        chart      = result[0]
+        meta       = chart.get("meta") or {}
+        timestamps = chart.get("timestamp") or []
+        quotes     = (chart.get("indicators") or {}).get("quote") or [{}]
+        closes     = quotes[0].get("close") or []
+        pairs      = [(ts, c) for ts, c in zip(timestamps, closes) if c is not None and ts is not None]
+        if not pairs:
+            return None
+        ts_list, price_list = zip(*pairs)
+        from datetime import datetime, timezone as _tz
+        intraday = interval in ("1m", "2m", "5m", "15m", "30m", "60m", "90m", "1h")
+        date_strs = [
+            datetime.fromtimestamp(int(t), tz=_tz.utc).strftime("%Y-%m-%d %H:%M" if intraday else "%Y-%m-%d")
+            for t in ts_list
+        ]
+        prices      = [round(float(p), 2) for p in price_list]
+        current     = round(float(meta.get("regularMarketPrice") or prices[-1]), 2)
+        prev_close  = round(float(meta.get("chartPreviousClose") or meta.get("previousClose") or prices[0]), 2)
+        name        = meta.get("longName") or meta.get("shortName") or symbol
+        change_pct  = round((current - prev_close) / prev_close * 100, 2) if prev_close else 0
+        return {"name": name, "prices": prices, "timestamps": date_strs,
+                "current_price": current, "change_pct": change_pct}
+    except Exception:
+        return None
+
+
+def _finnhub_candles(symbol: str, resolution: str, from_ts: int, to_ts: int) -> dict | None:
+    """Finnhub candle data — real-time, no delay on US stocks."""
+    if not _FINNHUB_KEY:
+        return None
+    try:
+        r = _requests.get(
+            f"{_FINNHUB_BASE}/stock/candle",
+            params={"symbol": symbol, "resolution": resolution,
+                    "from": from_ts, "to": to_ts, "token": _FINNHUB_KEY},
+            timeout=8,
+        )
+        if r.status_code != 200:
+            return None
+        data = r.json()
+        if data.get("s") != "ok":
+            return None
+        closes, tss = data.get("c", []), data.get("t", [])
+        if not closes:
+            return None
+        from datetime import datetime, timezone as _tz
+        date_strs = [datetime.fromtimestamp(t, tz=_tz.utc).strftime("%Y-%m-%d") for t in tss]
+        prices    = [round(float(p), 2) for p in closes]
+        current   = prices[-1]
+        change_pct = round((current - prices[0]) / prices[0] * 100, 2) if prices[0] else 0
+        return {"prices": prices, "timestamps": date_strs,
+                "current_price": current, "change_pct": change_pct}
+    except Exception:
+        return None
+
+
+def _yfinance_chart_fallback(symbol: str, yf_period: str, interval: str) -> dict | None:
+    """yfinance as last-resort fallback."""
+    try:
+        t    = yf.Ticker(symbol)
+        hist = t.history(period=yf_period, interval=interval, raise_errors=False)
+        if hist is None or hist.empty:
+            return None
+        prices     = [round(float(p), 2) for p in hist["Close"].dropna().tolist()]
+        timestamps = [str(idx.date()) if hasattr(idx, "date") else str(idx)[:10] for idx in hist.index]
+        if not prices:
+            return None
+        try:
+            current = round(float(t.fast_info.last_price), 2)
+        except Exception:
+            current = prices[-1]
+        name = (t.info or {}).get("shortName") or symbol
+        change_pct = round((prices[-1] - prices[0]) / prices[0] * 100, 2) if prices[0] else 0
+        return {"name": name, "prices": prices, "timestamps": timestamps,
+                "current_price": current, "change_pct": change_pct}
+    except Exception:
+        return None
+
+
 @router.get("/chart/{ticker}")
 async def get_chart(
     ticker: str,
     period: str = "1y",
-    user_id: str = Depends(get_current_user_id)
+    user_id: str = Depends(get_current_user_id),
 ):
-    import asyncio
+    sym = ticker.upper().strip()
+    cache_key = f"chart3:{sym}:{period}"
+    cached = cache_get(cache_key)
+    if cached:
+        return cached
 
-    def _fetch():
-        period_map = {
-            "1d":  ("1d",  "5m"),
-            "5d":  ("5d",  "30m"),
-            "1m":  ("1mo", "1d"),
-            "3m":  ("3mo", "1d"),
-            "6m":  ("6mo", "1wk"),
-            "ytd": ("ytd", "1wk"),
-            "1y":  ("1y",  "1wk"),
-            "5y":  ("5y",  "1mo"),
-            "max": ("max", "3mo"),
-        }
-        yf_period, interval = period_map.get(period, ("1y", "1wk"))
-        t = yf.Ticker(ticker.upper())
-        hist = t.history(period=yf_period, interval=interval)
-        if hist is None or hist.empty:
-            return None
-        prices     = [round(float(p), 2) for p in hist["Close"].tolist()]
-        timestamps = [str(idx.date()) if hasattr(idx, "date") else str(idx)[:10] for idx in hist.index]
-        fi         = t.fast_info
-        current    = round(float(fi.last_price), 2) if fi.last_price else prices[-1]
-        info       = t.info or {}
-        name       = info.get("shortName") or ticker.upper()
-        change_pct = round((prices[-1] - prices[0]) / prices[0] * 100, 2) if prices[0] else 0
-        return {"ticker": ticker.upper(), "name": name, "prices": prices,
-                "timestamps": timestamps, "current_price": current,
-                "change_pct": change_pct, "period": period}
+    yf_range, interval = _CHART_PERIOD_MAP.get(period, ("1y", "1wk"))
+
+    def _fetch() -> dict | None:
+        import time as _time
+
+        # ── 1. Finnhub candles (real-time, most reliable when key is set) ──
+        if _FINNHUB_KEY and period not in ("max",):
+            now_ts = int(_time.time())
+            range_secs = {
+                "1d": 86400, "5d": 5*86400, "1m": 30*86400,
+                "3m": 90*86400, "6m": 180*86400, "ytd": 365*86400,
+                "1y": 365*86400, "5y": 5*365*86400,
+            }
+            fh_resolution = {"1d": "5", "5d": "15", "1m": "D", "3m": "D",
+                             "6m": "W", "ytd": "W", "1y": "W", "5y": "M"}.get(period, "W")
+            from_ts = now_ts - range_secs.get(period, 365*86400)
+            result  = _finnhub_candles(sym, fh_resolution, from_ts, now_ts)
+            if result:
+                return result
+
+        # ── 2. Yahoo Finance v8 direct API (Google Finance underlying source) ──
+        result = _yf_v8_chart(sym, yf_range, interval)
+        if result:
+            return result
+
+        # ── 3. yfinance wrapper fallback ──
+        return _yfinance_chart_fallback(sym, yf_range, interval)
 
     result = await asyncio.to_thread(_fetch)
-    if result is None:
-        return {"error": "No data", "ticker": ticker.upper()}
-    return result
+    if not result:
+        return {"error": "No data available", "ticker": sym, "prices": [], "timestamps": [], "change_pct": 0}
+
+    payload = {"ticker": sym, "period": period, **result}
+    ttl = 60 if period == "1d" else 300 if period in ("5d", "1m") else 900
+    cache_set(cache_key, payload, ttl=ttl)
+    return payload
 
 
 @router.post("/portfolio")

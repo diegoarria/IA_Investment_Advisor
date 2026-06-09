@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef } from "react";
 import {
   X, TrendingUp, TrendingDown, Globe, Users, Building2,
-  Target, BarChart3, Loader2, ChevronRight, Activity,
+  BarChart3, Loader2, ChevronRight, Activity,
   ArrowUpRight, ArrowDownRight, DollarSign, Percent, ShieldCheck,
 } from "lucide-react";
 import { market as marketApi } from "@/lib/api";
@@ -232,46 +232,6 @@ function RatingsBar({ ratings }: { ratings: Ratings }) {
         ))}
       </div>
       <p className="text-[10px] mt-1.5" style={{ color: "var(--dim)" }}>{total} analistas en total</p>
-    </div>
-  );
-}
-
-function PriceTargetGauge({ current, low, mean, high }: {
-  current?: number | null; low?: number | null; mean?: number | null; high?: number | null;
-}) {
-  if (!low || !mean || !high || !current) return null;
-  const range = high - low || 1;
-  const curPct  = Math.min(Math.max((current - low) / range * 100, 0), 100);
-  const meanPct = Math.min(Math.max((mean    - low) / range * 100, 0), 100);
-  const upside  = ((mean - current) / current * 100).toFixed(1);
-  const isUp    = mean >= current;
-  return (
-    <div className="p-4 rounded-2xl" style={{ background: "var(--raised)" }}>
-      <div className="flex items-center justify-between mb-1">
-        <span className="text-xs font-semibold" style={{ color: "var(--muted)" }}>
-          Precio objetivo 12 meses
-        </span>
-        <span className="text-sm font-black" style={{ color: isUp ? "#22c55e" : "#ef4444" }}>
-          {isUp ? "+" : ""}{upside}% potencial
-        </span>
-      </div>
-      <div className="text-2xl font-black mb-3" style={{ color: "var(--text)" }}>
-        ${mean?.toFixed(2)}
-        <span className="text-xs font-normal ml-2" style={{ color: "var(--muted)" }}>consenso</span>
-      </div>
-      <div className="relative h-2 rounded-full mb-3" style={{ background: "var(--border)" }}>
-        <div className="absolute h-0.5 rounded top-0.5"
-             style={{ left: 0, width: "100%", background: "linear-gradient(90deg,#ef4444,#f59e0b,#22c55e)" }} />
-        <div className="absolute w-0.5 h-4 -top-1 rounded"
-             style={{ left: `${meanPct}%`, transform: "translateX(-50%)", background: "#22c55e" }} />
-        <div className="absolute w-3 h-3 rounded-full border-2 -top-0.5"
-             style={{ left: `${curPct}%`, transform: "translateX(-50%)", background: "var(--card)", borderColor: "var(--text)" }} />
-      </div>
-      <div className="flex justify-between text-[10px]" style={{ color: "var(--muted)" }}>
-        <span>Mín ${low?.toFixed(2)}</span>
-        <span>Actual ${current?.toFixed(2)}</span>
-        <span>Máx ${high?.toFixed(2)}</span>
-      </div>
     </div>
   );
 }
@@ -699,14 +659,16 @@ const TABS: { key: Tab; label: string }[] = [
 interface Props { ticker: string; onClose: () => void }
 
 export default function StockDetailModal({ ticker, onClose }: Props) {
-  const [tab, setTab] = useState<Tab>("verdict");
+  const [tab, setTab] = useState<Tab>("chart");
   const [data, setData] = useState<StockData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [dataError, setDataError] = useState(false);
   const [score, setScore] = useState<ScoreData | null>(null);
   const [loadingScore, setLoadingScore] = useState(true);
   const [period, setPeriod] = useState("1y");
   const [chartData, setChartData] = useState<{ prices: number[]; timestamps: string[]; change_pct: number } | null>(null);
   const [loadingChart, setLoadingChart] = useState(true);
+  const [chartError, setChartError] = useState(false);
 
   const [tvTheme, setTvTheme] = useState<"dark" | "light">("dark");
   useEffect(() => {
@@ -723,9 +685,13 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
   useEffect(() => {
     setLoading(true);
     setData(null);
+    setDataError(false);
     marketApi.getStockDetail(ticker)
-      .then((r) => setData(r.data))
-      .catch(() => {})
+      .then((r) => {
+        if (r.data?.profile) setData(r.data);
+        else setDataError(true);
+      })
+      .catch(() => setDataError(true))
       .finally(() => setLoading(false));
   }, [ticker]);
 
@@ -733,16 +699,22 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
     setLoadingScore(true);
     setScore(null);
     marketApi.getStockScore(ticker)
-      .then((r) => setScore(r.data))
+      .then((r) => { if (r.data?.overall_score != null) setScore(r.data); })
       .catch(() => {})
       .finally(() => setLoadingScore(false));
   }, [ticker]);
 
   useEffect(() => {
     setLoadingChart(true);
+    setChartData(null);
+    setChartError(false);
     marketApi.getChart(ticker, period)
-      .then((r) => setChartData(r.data))
-      .catch(() => {})
+      .then((r) => {
+        const d = r.data;
+        if (d?.prices?.length > 0) setChartData(d);
+        else setChartError(true);
+      })
+      .catch(() => setChartError(true))
       .finally(() => setLoadingChart(false));
   }, [ticker, period]);
 
@@ -818,6 +790,8 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
               </>
             ) : loading ? (
               <Loader2 className="w-5 h-5 animate-spin" style={{ color: "var(--muted)" }} />
+            ) : dataError ? (
+              <p className="text-xs font-bold" style={{ color: "#ef4444" }}>Sin datos</p>
             ) : null}
           </div>
           <button onClick={onClose}
@@ -975,14 +949,23 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
 
           {/* ── GRÁFICA — Google Finance style ── */}
           {tab === "chart" && (
-            <GoogleFinanceChart
-              prices={chartData?.prices ?? []}
-              timestamps={chartData?.timestamps ?? []}
-              changePct={chartData?.change_pct ?? 0}
-              loading={loadingChart}
-              period={period}
-              onPeriodChange={setPeriod}
-            />
+            chartError && !loadingChart ? (
+              <div className="flex flex-col items-center justify-center py-20 gap-2 px-6 text-center">
+                <p className="text-sm font-bold" style={{ color: "#ef4444" }}>No se pudieron cargar los datos</p>
+                <p className="text-xs" style={{ color: "var(--muted)" }}>
+                  Intenta con otro período o vuelve a intentarlo más tarde
+                </p>
+              </div>
+            ) : (
+              <GoogleFinanceChart
+                prices={chartData?.prices ?? []}
+                timestamps={chartData?.timestamps ?? []}
+                changePct={chartData?.change_pct ?? 0}
+                loading={loadingChart}
+                period={period}
+                onPeriodChange={setPeriod}
+              />
+            )
           )}
 
           {/* ── FINANCIEROS — TradingView Fundamentals ── */}
