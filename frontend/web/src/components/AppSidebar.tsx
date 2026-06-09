@@ -165,7 +165,17 @@ export default function AppSidebar({ open, onClose }: Props) {
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="text-xs font-bold truncate" style={{ color: "var(--text)" }}>{profile.name}</div>
-                  <div className="text-[10px]" style={{ color: "var(--muted)" }}>Perfil activo</div>
+                  {isPremium ? (
+                    <span className="text-[9px] font-black px-1.5 py-0.5 rounded-full"
+                          style={{ background: "rgba(245,158,11,0.15)", color: "#f59e0b" }}>
+                      ✦ Premium
+                    </span>
+                  ) : (
+                    <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full"
+                          style={{ background: "var(--raised)", color: "var(--dim)" }}>
+                      Free
+                    </span>
+                  )}
                 </div>
               </div>
 
