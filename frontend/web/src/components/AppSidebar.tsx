@@ -16,9 +16,9 @@ const NAV = [
   { href: "/chat",          icon: BookOpen,       label: "Chat" },
   { href: "/portfolio",     icon: PieChart,       label: "Portafolio" },
   { href: "/watchlist",     icon: Eye,            label: "Watchlist" },
-  { href: "/paper",         icon: BarChart2,      label: "Paper Trading" },
+  { href: "/paper",         icon: BarChart2,      label: "Simulador" },
   { href: "/learn",         icon: GraduationCap,  label: "Aprendizaje" },
-  { href: "/arena",         icon: Trophy,         label: "Arena" },
+  { href: "/arena",         icon: Trophy,         label: "Play" },
   { href: "/notifications", icon: Bell,           label: "Notificaciones" },
   { href: "/support",       icon: HeadphonesIcon, label: "Soporte" },
   { href: "/profile",       icon: User,           label: "Perfil" },
@@ -96,8 +96,10 @@ export default function AppSidebar({ open, onClose }: Props) {
   const dragItem = useRef<string | null>(null);
 
   const orderedNav = navOrder.map((href) => NAV.find((n) => n.href === href)!).filter(Boolean);
-  const isPremium = subStore.tier === "premium";
-  const remaining = msgsRemaining(subStore);
+  const isPremium      = subStore.tier === "premium";
+  const isTrialPremium = subStore.isTrialPremium;
+  const trialDaysLeft  = subStore.trialDaysLeft;
+  const remaining      = msgsRemaining(subStore);
   const unreadCount = notifications.filter((n) => !n.read).length;
 
   const navigate = (href: string) => { router.push(href); onClose(); };
@@ -190,7 +192,32 @@ export default function AppSidebar({ open, onClose }: Props) {
           </div>
         )}
 
-        {/* Premium CTA */}
+        {/* Trial banner — shown when user is on 90-day promo */}
+        {isPremium && isTrialPremium && (
+          <div className="px-3 pb-2 shrink-0">
+            <div className="rounded-xl p-3" style={{ background: "rgba(0,168,94,0.08)", border: "1px solid rgba(0,212,126,0.2)" }}>
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="text-[10px] font-bold uppercase tracking-wide" style={{ color: "var(--accent-l)" }}>
+                  ✦ Premium Gratis
+                </span>
+                <span className="text-[10px] font-semibold" style={{ color: "var(--muted)" }}>
+                  {trialDaysLeft}d restantes
+                </span>
+              </div>
+              <div className="h-1 rounded-full overflow-hidden mb-2" style={{ background: "var(--border)" }}>
+                <div className="h-full rounded-full transition-all"
+                     style={{ width: `${Math.round((trialDaysLeft / 90) * 100)}%`, background: "var(--grad-green)" }} />
+              </div>
+              <button onClick={() => setPaywallOpen(true)}
+                      className="w-full text-[10px] font-semibold py-1 rounded-lg transition-colors hover:opacity-80"
+                      style={{ color: "var(--accent-l)" }}>
+                Suscribirse para no perder acceso →
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Premium CTA — shown only for truly free users (no trial) */}
         {!isPremium && (
           <div className="px-3 pb-2 space-y-2 shrink-0">
             <button onClick={() => setPaywallOpen(true)}

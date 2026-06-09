@@ -303,6 +303,9 @@ export const useNotificationStore = create<NotificationState>((set) => ({
 
 interface SubscriptionState {
   tier: SubscriptionTier;
+  trialStartedAt: string | null;
+  isTrialPremium: boolean;
+  trialDaysLeft: number;
   msgCount: number;
   msgWindowStart: string | null;
   fetchStatus: () => Promise<void>;
@@ -314,6 +317,9 @@ export const useSubscriptionStore = create<SubscriptionState>()(
   persist(
     (set, get) => ({
       tier: "free",
+      trialStartedAt: null,
+      isTrialPremium: false,
+      trialDaysLeft: 0,
       msgCount: 0,
       msgWindowStart: null,
       fetchStatus: async () => {
@@ -321,8 +327,11 @@ export const useSubscriptionStore = create<SubscriptionState>()(
           const { billing } = await import("./api");
           const res = await billing.getStatus();
           set({
-            tier: res.data.tier ?? "free",
-            msgCount: res.data.msg_count ?? 0,
+            tier:           res.data.tier ?? "free",
+            trialStartedAt: res.data.trial_started_at ?? get().trialStartedAt ?? null,
+            isTrialPremium: res.data.is_trial ?? false,
+            trialDaysLeft:  res.data.trial_days_left ?? 0,
+            msgCount:       res.data.msg_count ?? 0,
             msgWindowStart: res.data.msg_window_start ?? null,
           });
         } catch {}

@@ -1,4 +1,5 @@
 import stripe
+from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, Request, HTTPException
 from pydantic import BaseModel
 from typing import Literal
@@ -102,16 +103,52 @@ async def stripe_webhook(request: Request):
     return {"received": True}
 
 
+_PROMO_DAYS = 90
+
+
 @router.get("/status")
 async def get_status(user_id: str = Depends(get_current_user_id)):
     db = get_supabase()
     result = db.table("user_profiles").select(
-        "subscription_tier, msg_count, msg_window_start"
+        "subscription_tier, msg_count, msg_window_start, trial_started_at, stripe_customer_id"
     ).eq("user_id", user_id).single().execute()
+
     if not result.data:
         return {"tier": "free", "msg_count": 0, "msg_window_start": None}
+
+    data            = result.data
+    tier            = data.get("subscription_tier", "free")
+    trial_started   = data.get("trial_started_at")
+    has_stripe      = bool(data.get("stripe_customer_id"))
+
+    # Auto-start 90-day promo for any user who hasn't paid and hasn't started a trial yet
+    if tier != "premium" and not trial_started and not has_stripe:
+        trial_started = datetime.now(timezone.utc).isoformat()
+        db.table("user_profiles") \
+            .update({"trial_started_at": trial_started}) \
+            .eq("user_id", user_id).execute()
+
+    # Compute effective tier: premium if paid OR within 90-day promo window
+    effective_tier = tier
+    is_trial       = False
+    days_left      = 0
+    if tier != "premium" and trial_started:
+        try:
+            started   = datetime.fromisoformat(trial_started.replace("Z", "+00:00"))
+            elapsed   = (datetime.now(timezone.utc) - started).total_seconds() / 86400
+            remaining = _PROMO_DAYS - elapsed
+            if remaining > 0:
+                effective_tier = "premium"
+                is_trial       = True
+                days_left      = int(remaining)
+        except Exception:
+            pass
+
     return {
-        "tier": result.data.get("subscription_tier", "free"),
-        "msg_count": result.data.get("msg_count", 0),
-        "msg_window_start": result.data.get("msg_window_start"),
+        "tier":             effective_tier,
+        "is_trial":         is_trial,
+        "trial_days_left":  days_left,
+        "msg_count":        data.get("msg_count", 0),
+        "msg_window_start": data.get("msg_window_start"),
+        "trial_started_at": trial_started,
     }

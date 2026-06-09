@@ -184,9 +184,11 @@ export default function ProfileScreen() {
     ]);
   };
 
-  const subStore = useSubscriptionStore();
-  const isPremium = subStore.tier === "premium";
-  const remaining = msgsRemaining(subStore);
+  const subStore       = useSubscriptionStore();
+  const isPremium      = subStore.tier === "premium";
+  const isTrialPremium = subStore.isTrialPremium;
+  const trialDaysLeft  = subStore.trialDaysLeftServer;
+  const remaining      = msgsRemaining(subStore);
   const [paywallOpen, setPaywallOpen] = useState(false);
   const [riskExpanded, setRiskExpanded] = useState(false);
   const [referralCode, setReferralCode] = useState<string | null>(null);
@@ -655,21 +657,40 @@ export default function ProfileScreen() {
         {/* ── SUSCRIPCIÓN ── */}
         <Text style={[s.sectionLabel, { color: colors.textDim }]}>Suscripción</Text>
         {isPremium ? (
-          <View style={[s.subCard, { backgroundColor: colors.card, borderColor: "#f59e0b50" }]}>
-            <View style={[s.subAccent, { backgroundColor: "#f59e0b" }]} />
+          <View style={[s.subCard, { backgroundColor: colors.card, borderColor: isTrialPremium ? "rgba(0,212,126,0.3)" : "#f59e0b50" }]}>
+            <View style={[s.subAccent, { backgroundColor: isTrialPremium ? "#00d47e" : "#f59e0b" }]} />
             <View style={s.subRow}>
-              <View style={[s.subIconBox, { backgroundColor: "#f59e0b18" }]}>
-                <Ionicons name="star" size={22} color="#f59e0b" />
+              <View style={[s.subIconBox, { backgroundColor: isTrialPremium ? "rgba(0,212,126,0.12)" : "#f59e0b18" }]}>
+                <Ionicons name={isTrialPremium ? "gift-outline" : "star"} size={22} color={isTrialPremium ? "#00d47e" : "#f59e0b"} />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={[s.subTitle, { color: colors.text }]}>Nuvos AI Premium</Text>
-                <Text style={[s.subDesc, { color: colors.textMuted }]}>Acceso completo · Mensajes ilimitados</Text>
+                <Text style={[s.subTitle, { color: colors.text }]}>
+                  {isTrialPremium ? "Premium Gratis · 90 días" : "Nuvos AI Premium"}
+                </Text>
+                <Text style={[s.subDesc, { color: colors.textMuted }]}>
+                  {isTrialPremium ? `${trialDaysLeft} días restantes · Acceso completo` : "Acceso completo · Mensajes ilimitados"}
+                </Text>
               </View>
               <View style={[s.subActivePill, { backgroundColor: "#22c55e18", borderColor: "#22c55e40" }]}>
                 <View style={[s.subActiveDot, { backgroundColor: "#22c55e" }]} />
                 <Text style={[s.subActiveTxt, { color: "#22c55e" }]}>Activo</Text>
               </View>
             </View>
+            {isTrialPremium && (
+              <View style={{ paddingHorizontal: 14, paddingBottom: 12, gap: 6 }}>
+                <View style={[s.msgTrack, { backgroundColor: colors.border }]}>
+                  <View style={[s.msgFill, {
+                    width: `${Math.round((trialDaysLeft / 90) * 100)}%` as any,
+                    backgroundColor: "#00d47e",
+                  }]} />
+                </View>
+                <TouchableOpacity onPress={() => setPaywallOpen(true)}>
+                  <Text style={{ fontSize: 11, color: "#00d47e", fontWeight: "600", textAlign: "center" }}>
+                    Suscribirse para no perder acceso →
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            )}
           </View>
         ) : (
           <View style={[s.subCard, { backgroundColor: colors.card, borderColor: colors.border }]}>

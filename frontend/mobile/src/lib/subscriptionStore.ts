@@ -5,13 +5,15 @@ import { billingApi } from "./api";
 
 export type SubscriptionTier = "free" | "premium";
 
-export const TRIAL_DAYS = 7;
+export const TRIAL_DAYS = 90;
 
 interface SubscriptionStore {
   tier: SubscriptionTier;
   msgCount: number;
   msgWindowStart: string | null;
   trialStartDate: string | null;
+  isTrialPremium: boolean;
+  trialDaysLeftServer: number;
   // Actions
   fetchStatus: () => Promise<void>;
   setTier: (tier: SubscriptionTier) => void;
@@ -29,14 +31,21 @@ export const useSubscriptionStore = create<SubscriptionStore>()(
       msgCount: 0,
       msgWindowStart: null,
       trialStartDate: null,
+      isTrialPremium: false,
+      trialDaysLeftServer: 0,
 
       fetchStatus: async () => {
         try {
           const res = await billingApi.getStatus();
           set({
-            tier: res.data.tier ?? "free",
-            msgCount: res.data.msg_count ?? 0,
-            msgWindowStart: res.data.msg_window_start ?? null,
+            tier:                res.data.tier ?? "free",
+            msgCount:            res.data.msg_count ?? 0,
+            msgWindowStart:      res.data.msg_window_start ?? null,
+            isTrialPremium:      res.data.is_trial ?? false,
+            trialDaysLeftServer: res.data.trial_days_left ?? 0,
+            ...(res.data.trial_started_at
+              ? { trialStartDate: res.data.trial_started_at }
+              : {}),
           });
         } catch {}
       },

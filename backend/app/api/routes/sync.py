@@ -154,7 +154,7 @@ async def get_trial_status(user_id: str = Depends(get_current_user_id)):
     if trial_started_at:
         try:
             started = datetime.fromisoformat(trial_started_at.replace("Z", "+00:00"))
-            is_active = datetime.now(timezone.utc) < started + timedelta(days=7)
+            is_active = datetime.now(timezone.utc) < started + timedelta(days=90)
         except Exception:
             pass
     return {
@@ -197,7 +197,7 @@ async def get_all(user_id: str = Depends(get_current_user_id)):
     if trial_started_at:
         try:
             started = datetime.fromisoformat(trial_started_at.replace("Z", "+00:00"))
-            trial_active = datetime.now(timezone.utc) < started + timedelta(days=7)
+            trial_active = datetime.now(timezone.utc) < started + timedelta(days=90)
         except Exception:
             pass
 
