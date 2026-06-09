@@ -17,7 +17,6 @@ import StockDetailModal from "@/components/StockDetailModal";
 import WhatIfSimulator from "@/components/WhatIfSimulator";
 import MonthlyReport from "@/components/MonthlyReport";
 import WeeklyScreenerCard from "@/components/WeeklyScreenerCard";
-import DiarioDecisionesCard from "@/components/DiarioDecisionesCard";
 import PremiumToolLockedWeb from "@/components/PremiumToolLocked";
 import PaywallModal from "@/components/PaywallModal";
 import {
@@ -2252,8 +2251,6 @@ export default function PortfolioPage() {
               />
 
               <WeeklyScreenerCard isPremium={isPremium} onUpgrade={() => setPaywallOpen(true)} tickers={positions.map(p => p.ticker)} />
-
-              <DiarioDecisionesCard isPremium={isPremium} onUpgrade={() => setPaywallOpen(true)} />
             </div>
           )}
 
