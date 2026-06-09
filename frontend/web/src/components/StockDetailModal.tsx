@@ -426,6 +426,262 @@ function MetricCard({ metric }: { metric: ScoreMetric }) {
   );
 }
 
+// ─── Google Finance-style chart ──────────────────────────────────────────────
+
+const PERIODS = [
+  { label: "1D", key: "1d" }, { label: "5D", key: "5d" }, { label: "1M", key: "1m" },
+  { label: "3M", key: "3m" }, { label: "6M", key: "6m" }, { label: "1A", key: "1y" },
+  { label: "5A", key: "5y" }, { label: "Máx", key: "max" },
+];
+
+function fmtChartDate(ts: string | undefined, intraday: boolean) {
+  if (!ts) return "";
+  try {
+    if (intraday) return new Date(ts).toLocaleTimeString("es", { hour: "2-digit", minute: "2-digit" });
+    return new Date(ts + "T12:00:00").toLocaleDateString("es", { month: "short", year: "2-digit" });
+  } catch { return ts.slice(0, 7); }
+}
+
+function PeriodBar({ period, onChange }: { period: string; onChange: (p: string) => void }) {
+  return (
+    <div className="flex gap-0.5 px-4 pt-3 pb-1 flex-wrap">
+      {PERIODS.map(({ label, key }) => (
+        <button key={key} onClick={() => onChange(key)}
+                className="px-2.5 py-1 text-xs font-bold rounded-lg transition-colors"
+                style={{
+                  color: period === key ? "var(--accent-l)" : "var(--muted)",
+                  background: period === key ? "rgba(0,168,94,0.12)" : "transparent",
+                  borderBottom: period === key ? "2px solid var(--accent-l)" : "2px solid transparent",
+                }}>
+          {label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function GoogleFinanceChart({ prices, timestamps, changePct, loading, period, onPeriodChange }: {
+  prices: number[]; timestamps: string[]; changePct: number;
+  loading: boolean; period: string; onPeriodChange: (p: string) => void;
+}) {
+  const svgRef = useRef<SVGSVGElement>(null);
+  const [hovered, setHovered] = useState<number | null>(null);
+  const intraday = period === "1d" || period === "5d";
+  const isUp = changePct >= 0;
+  const lineColor = isUp ? "#1a9641" : "#d7191c";
+
+  const W = 640, H = 224, PL = 8, PR = 56, PT = 10, PB = 26;
+  const cW = W - PL - PR, cH = H - PT - PB;
+
+  const handleMM = (e: React.MouseEvent<SVGSVGElement>) => {
+    const rect = svgRef.current?.getBoundingClientRect();
+    if (!rect || !prices.length) return;
+    const rx = (e.clientX - rect.left) * (W / rect.width) - PL;
+    const idx = Math.max(0, Math.min(prices.length - 1, Math.round(rx / cW * (prices.length - 1))));
+    setHovered(idx);
+  };
+
+  return (
+    <div>
+      <PeriodBar period={period} onChange={onPeriodChange} />
+      <div className="px-5 h-7 flex items-center gap-3 mb-1">
+        {hovered !== null && prices[hovered] != null ? (
+          <>
+            <span className="text-lg font-black tabular-nums" style={{ color: "var(--text)" }}>
+              ${prices[hovered].toFixed(2)}
+            </span>
+            <span className="text-xs" style={{ color: "var(--muted)" }}>
+              {fmtChartDate(timestamps[hovered], intraday)}
+            </span>
+          </>
+        ) : (
+          <span className="text-xs" style={{ color: isUp ? "#22c55e" : "#ef4444" }}>
+            {isUp ? "+" : ""}{changePct.toFixed(2)}%
+            <span className="ml-2" style={{ color: "var(--dim)" }}>
+              {period === "1d" ? "hoy" : "período seleccionado"}
+            </span>
+          </span>
+        )}
+      </div>
+      <div className="px-1">
+        {loading ? (
+          <div className="flex items-center justify-center" style={{ height: H }}>
+            <Loader2 className="w-6 h-6 animate-spin" style={{ color: "var(--accent-l)" }} />
+          </div>
+        ) : !prices.length ? (
+          <div className="flex items-center justify-center" style={{ height: H }}>
+            <p className="text-xs" style={{ color: "var(--muted)" }}>Sin datos</p>
+          </div>
+        ) : (() => {
+          const min = Math.min(...prices), max = Math.max(...prices);
+          const pad = (max - min) * 0.06 || max * 0.01;
+          const minP = min - pad, maxP = max + pad, rng = maxP - minP;
+          const sx = (i: number) => PL + (i / (prices.length - 1)) * cW;
+          const sy = (p: number) => PT + cH - ((p - minP) / rng) * cH;
+          const line = prices.map((p, i) => `${i === 0 ? "M" : "L"}${sx(i).toFixed(1)},${sy(p).toFixed(1)}`).join(" ");
+          const area = `${line} L${sx(prices.length - 1).toFixed(1)},${(PT + cH).toFixed(1)} L${PL},${(PT + cH).toFixed(1)} Z`;
+          const hi = hovered ?? prices.length - 1;
+          const hx = sx(hi), hy = sy(prices[hi]);
+          const yLvls = Array.from({ length: 5 }, (_, i) => minP + (rng * i / 4));
+          const xIdxs = [0, Math.floor(prices.length * 0.25), Math.floor(prices.length * 0.5), Math.floor(prices.length * 0.75), prices.length - 1];
+          return (
+            <svg ref={svgRef} viewBox={`0 0 ${W} ${H}`}
+                 style={{ width: "100%", height: "auto", cursor: "crosshair", display: "block" }}
+                 onMouseMove={handleMM} onMouseLeave={() => setHovered(null)}>
+              <defs>
+                <linearGradient id="gf-fill" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor={lineColor} stopOpacity="0.18" />
+                  <stop offset="90%" stopColor={lineColor} stopOpacity="0.02" />
+                </linearGradient>
+                <clipPath id="gf-clip">
+                  <rect x={PL} y={PT} width={cW} height={cH} />
+                </clipPath>
+              </defs>
+              {yLvls.map((v, i) => (
+                <line key={i} x1={PL} y1={sy(v)} x2={W - PR} y2={sy(v)} stroke="var(--border)" strokeWidth="0.5" />
+              ))}
+              <path d={area} fill="url(#gf-fill)" clipPath="url(#gf-clip)" />
+              <path d={line} fill="none" stroke={lineColor} strokeWidth="1.8" strokeLinejoin="round" clipPath="url(#gf-clip)" />
+              {hovered !== null && (
+                <line x1={hx} y1={PT} x2={hx} y2={PT + cH} stroke="var(--muted)" strokeWidth="0.8" strokeDasharray="3,2" />
+              )}
+              <circle cx={hx} cy={hy} r="3.5" fill={lineColor} stroke="var(--card)" strokeWidth="2" />
+              {yLvls.map((v, i) => (
+                <text key={i} x={W - PR + 6} y={sy(v) + 3.5} fontSize="9.5" fill="var(--muted)" textAnchor="start" fontFamily="monospace">
+                  {v >= 10000 ? `${(v / 1000).toFixed(0)}K` : v >= 1000 ? `${(v / 1000).toFixed(1)}K` : v.toFixed(v < 10 ? 2 : 0)}
+                </text>
+              ))}
+              {xIdxs.map((idx) => (
+                <text key={idx} x={sx(idx)} y={H - 4} fontSize="9" fill="var(--muted)" textAnchor="middle">
+                  {fmtChartDate(timestamps[idx], intraday)}
+                </text>
+              ))}
+            </svg>
+          );
+        })()}
+      </div>
+    </div>
+  );
+}
+
+// ─── Speedometer gauge ────────────────────────────────────────────────────────
+
+function signalToAngle(signal?: string): number {
+  if (!signal) return 90;
+  const s = signal.toLowerCase();
+  if (s.includes("fuerte") && s.includes("compra")) return 162;
+  if (s.includes("compra")) return 126;
+  if (s.includes("mantener") || s.includes("neutral")) return 90;
+  if (s.includes("fuerte") && (s.includes("vent") || s.includes("sell"))) return 18;
+  if (s.includes("vend") || s.includes("sell")) return 54;
+  return 90;
+}
+
+function gaugeArcPath(cx: number, cy: number, R: number, r: number, t1: number, t2: number): string {
+  const p = (θ: number, rad: number) => ({
+    x: +(cx - rad * Math.cos(θ * Math.PI / 180)).toFixed(2),
+    y: +(cy - rad * Math.sin(θ * Math.PI / 180)).toFixed(2),
+  });
+  const o1 = p(t1, R), o2 = p(t2, R), i2 = p(t2, r), i1 = p(t1, r);
+  const lg = (t2 - t1) > 180 ? 1 : 0;
+  return `M${o1.x} ${o1.y} A${R} ${R} 0 ${lg} 0 ${o2.x} ${o2.y} L${i2.x} ${i2.y} A${r} ${r} 0 ${lg} 1 ${i1.x} ${i1.y}Z`;
+}
+
+function SpeedometerGauge({ signal }: { signal?: string }) {
+  const CX = 100, CY = 92, R = 72, r = 50;
+  const SEGS = [
+    { t1: 0,   t2: 36,  color: "#dc2626" },
+    { t1: 37,  t2: 72,  color: "#f97316" },
+    { t1: 73,  t2: 107, color: "#eab308" },
+    { t1: 108, t2: 143, color: "#84cc16" },
+    { t1: 144, t2: 180, color: "#16a34a" },
+  ];
+  const θ = signalToAngle(signal);
+  const θr = θ * Math.PI / 180;
+  const nx = +(CX - R * 0.7 * Math.cos(θr)).toFixed(2);
+  const ny = +(CY - R * 0.7 * Math.sin(θr)).toFixed(2);
+  return (
+    <svg viewBox="0 0 200 100" style={{ width: "100%", maxWidth: 200, height: "auto" }}>
+      {SEGS.map((s) => <path key={s.t1} d={gaugeArcPath(CX, CY, R, r, s.t1, s.t2)} fill={s.color} />)}
+      <line x1={CX} y1={CY} x2={nx} y2={ny} stroke="var(--text)" strokeWidth="2.5" strokeLinecap="round" />
+      <circle cx={CX} cy={CY} r="5" fill="var(--text)" />
+      <circle cx={CX} cy={CY} r="2.5" fill="var(--card)" />
+    </svg>
+  );
+}
+
+// ─── Forecast fan chart ───────────────────────────────────────────────────────
+
+function ForecastChart({ prices, current, targetLow, targetMean, targetHigh }: {
+  prices: number[]; current: number;
+  targetLow?: number | null; targetMean?: number | null; targetHigh?: number | null;
+}) {
+  const W = 500, H = 180, PL = 8, PR = 76, PT = 24, PB = 22;
+  const cW = W - PL - PR, cH = H - PT - PB;
+  const hist = prices.slice(-60);
+  const HFRAC = 0.62;
+  const histW = cW * HFRAC, foreW = cW - histW;
+
+  const targets = [targetLow, targetMean, targetHigh].filter((v): v is number => v != null);
+  const allVals = [...hist, ...targets, current];
+  const minP = Math.min(...allVals) * 0.97, maxP = Math.max(...allVals) * 1.03;
+  const rng = maxP - minP || 1;
+
+  const sy  = (p: number) => PT + cH - ((p - minP) / rng) * cH;
+  const shx = (i: number) => PL + (i / (hist.length - 1)) * histW;
+  const fX  = PL + histW, fEndX = PL + cW;
+  const lastY = sy(current);
+
+  const linePts = hist.map((p, i) => `${i === 0 ? "M" : "L"}${shx(i).toFixed(1)},${sy(p).toFixed(1)}`).join(" ");
+  const area = `${linePts} L${shx(hist.length - 1).toFixed(1)},${(PT + cH).toFixed(1)} L${PL},${(PT + cH).toFixed(1)} Z`;
+
+  const foreLines = [
+    { target: targetHigh, color: "#16a34a", label: "Alto" },
+    { target: targetMean, color: "#6b7280", label: "Prom." },
+    { target: targetLow,  color: "#dc2626", label: "Bajo" },
+  ].filter((f): f is typeof f & { target: number } => f.target != null);
+
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto" }}>
+      <defs>
+        <linearGradient id="fc-area" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#ef4444" stopOpacity="0.1" />
+          <stop offset="100%" stopColor="#ef4444" stopOpacity="0.01" />
+        </linearGradient>
+      </defs>
+      {/* Labels */}
+      <text x={PL + histW / 2} y={PT - 6} fontSize="8.5" fill="var(--muted)" textAnchor="middle">Últimos 12 meses</text>
+      <text x={PL + histW + foreW / 2} y={PT - 6} fontSize="8.5" fill="var(--muted)" textAnchor="middle">Pronóstico 12m</text>
+      {/* Separator */}
+      <line x1={fX} y1={PT - 10} x2={fX} y2={PT + cH} stroke="var(--border)" strokeWidth="1" strokeDasharray="3,3" />
+      {/* Area + line */}
+      <path d={area} fill="url(#fc-area)" />
+      <path d={linePts} fill="none" stroke="#ef4444" strokeWidth="1.8" strokeLinejoin="round" />
+      {/* Forecast fan */}
+      {foreLines.map((f) => {
+        const fy = sy(f.target);
+        const upside = current > 0 ? ((f.target - current) / current * 100) : 0;
+        return (
+          <g key={f.label}>
+            <line x1={fX} y1={lastY} x2={fEndX} y2={fy} stroke={f.color} strokeWidth="1.5" strokeDasharray="6,3" />
+            <text x={fEndX + 4} y={fy - 2} fontSize="8.5" fill={f.color} textAnchor="start" fontWeight="bold">{f.label}</text>
+            <text x={fEndX + 4} y={fy + 9} fontSize="8.5" fill={f.color} textAnchor="start">${f.target.toFixed(0)}</text>
+            <text x={fEndX + 4} y={fy + 19} fontSize="7.5" fill={f.color} textAnchor="start" opacity="0.8">
+              {upside >= 0 ? "+" : ""}{upside.toFixed(1)}%
+            </text>
+          </g>
+        );
+      })}
+      {/* Dot at current */}
+      <circle cx={fX} cy={lastY} r="3" fill="#ef4444" stroke="var(--card)" strokeWidth="1.5" />
+      {/* X labels */}
+      <text x={PL} y={H - 4} fontSize="8.5" fill="var(--muted)" textAnchor="start">hace 1 año</text>
+      <text x={fX} y={H - 4} fontSize="8.5" fill="var(--muted)" textAnchor="middle">hoy</text>
+      <text x={fEndX} y={H - 4} fontSize="8.5" fill="var(--muted)" textAnchor="end">+12 meses</text>
+    </svg>
+  );
+}
+
 // ─── Tabs ─────────────────────────────────────────────────────────────────────
 
 type Tab = "verdict" | "chart" | "financials" | "analyst" | "company";
@@ -448,6 +704,9 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
   const [loading, setLoading] = useState(true);
   const [score, setScore] = useState<ScoreData | null>(null);
   const [loadingScore, setLoadingScore] = useState(true);
+  const [period, setPeriod] = useState("1y");
+  const [chartData, setChartData] = useState<{ prices: number[]; timestamps: string[]; change_pct: number } | null>(null);
+  const [loadingChart, setLoadingChart] = useState(true);
 
   const [tvTheme, setTvTheme] = useState<"dark" | "light">("dark");
   useEffect(() => {
@@ -478,6 +737,14 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
       .catch(() => {})
       .finally(() => setLoadingScore(false));
   }, [ticker]);
+
+  useEffect(() => {
+    setLoadingChart(true);
+    marketApi.getChart(ticker, period)
+      .then((r) => setChartData(r.data))
+      .catch(() => {})
+      .finally(() => setLoadingChart(false));
+  }, [ticker, period]);
 
   const profile = data?.profile;
   const analyst = data?.analyst;
@@ -706,28 +973,15 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
             </div>
           )}
 
-          {/* ── GRÁFICA — TradingView Advanced Chart ── */}
+          {/* ── GRÁFICA — Google Finance style ── */}
           {tab === "chart" && (
-            <TVWidget
-              name="advanced-chart"
-              config={{
-                autosize:            true,
-                symbol:              ticker,
-                interval:            "D",
-                timezone:            "America/New_York",
-                theme:               tvTheme,
-                style:               "1",
-                locale:              "es",
-                withdateranges:      true,
-                range:               "12M",
-                hide_side_toolbar:   false,
-                allow_symbol_change: false,
-                save_image:          false,
-                calendar:            false,
-                studies:             ["STD;RSI", "STD;MACD", "STD;Volume"],
-                support_host:        "https://www.tradingview.com",
-              }}
-              height={560}
+            <GoogleFinanceChart
+              prices={chartData?.prices ?? []}
+              timestamps={chartData?.timestamps ?? []}
+              changePct={chartData?.change_pct ?? 0}
+              loading={loadingChart}
+              period={period}
+              onPeriodChange={setPeriod}
             />
           )}
 
@@ -756,37 +1010,136 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
             </div>
           )}
 
-          {/* ── ANALISTAS ── */}
+          {/* ── ANALISTAS — StockAnalysis.com style ── */}
           {tab === "analyst" && (
-            <div>
-              <TVWidget
-                name="technical-analysis"
-                config={{
-                  interval:         "1W",
-                  width:            "100%",
-                  isTransparent:    false,
-                  height:           400,
-                  symbol:           ticker,
-                  showIntervalTabs: true,
-                  displayMode:      "single",
-                  locale:           "es",
-                  colorTheme:       tvTheme,
-                }}
-                height={400}
-              />
+            <div className="px-5 py-4 space-y-5">
+              {loading ? (
+                <div className="flex justify-center py-12">
+                  <Loader2 className="w-6 h-6 animate-spin" style={{ color: "var(--accent-l)" }} />
+                </div>
+              ) : (() => {
+                const pt = analyst?.price_target;
+                const cur = profile?.current_price ?? pt?.current;
+                const mean = pt?.mean, low = pt?.low, high = pt?.high;
+                const r = analyst?.ratings ?? { strong_buy: 0, buy: 0, hold: 0, sell: 0, strong_sell: 0 };
+                const total = r.strong_buy + r.buy + r.hold + r.sell + r.strong_sell;
+                const bullPct = total > 0 ? (r.strong_buy + r.buy) / total : 0;
+                const bearPct = total > 0 ? (r.sell + r.strong_sell) / total : 0;
+                const consensusText = total === 0 ? "Sin datos"
+                  : bullPct > 0.7 ? "Compra Fuerte"
+                  : bullPct > 0.5 ? "Compra"
+                  : r.hold / total > 0.5 ? "Mantener"
+                  : bearPct > 0.5 ? "Vender" : "Mantener";
+                const cColor = consensusText.includes("Compra") ? "#22c55e" : consensusText === "Mantener" ? "#f59e0b" : "#ef4444";
+                const upside = mean && cur ? ((mean - cur) / cur * 100) : null;
 
-              <div className="px-5 py-4 space-y-5">
-                {loading ? (
-                  <div className="flex justify-center py-8">
-                    <Loader2 className="w-5 h-5 animate-spin" style={{ color: "var(--accent-l)" }} />
-                  </div>
-                ) : (
+                return (
                   <>
-                    {/* Consensus */}
+                    {/* ── Forecast hero: gauge left + chart right ── */}
+                    <div>
+                      <h2 className="text-base font-black mb-3" style={{ color: "var(--text)" }}>
+                        Pronóstico y Consenso de Analistas
+                      </h2>
+
+                      <div className="flex gap-4 items-start">
+                        {/* Left panel */}
+                        <div className="w-44 shrink-0 space-y-2">
+                          {total > 0 && cur && (
+                            <p className="text-[10px] leading-relaxed" style={{ color: "var(--sub)" }}>
+                              Según <span className="font-bold">{analyst?.n_analysts ?? total}</span> analistas,{" "}
+                              consenso de{" "}
+                              <span className="font-bold" style={{ color: cColor }}>"{consensusText}"</span>.
+                              {mean && upside != null && (
+                                <> Precio objetivo <span className="font-bold" style={{ color: "var(--text)" }}>${mean.toFixed(2)}</span>{" "}
+                                (<span style={{ color: upside >= 0 ? "#22c55e" : "#ef4444" }}>
+                                  {upside >= 0 ? "+" : ""}{upside.toFixed(2)}%
+                                </span>).</>
+                              )}
+                            </p>
+                          )}
+
+                          {mean && cur && upside != null && (
+                            <div>
+                              <p className="text-[9px] font-semibold mb-0.5" style={{ color: "var(--muted)" }}>
+                                Precio Objetivo:
+                              </p>
+                              <p className="text-xl font-black leading-tight" style={{ color: cColor }}>
+                                ${mean.toFixed(2)}
+                              </p>
+                              <p className="text-sm font-bold" style={{ color: upside >= 0 ? "#22c55e" : "#ef4444" }}>
+                                ({upside >= 0 ? "+" : ""}{upside.toFixed(2)}%)
+                              </p>
+                            </div>
+                          )}
+
+                          <div className="flex flex-col items-center -mx-2">
+                            <SpeedometerGauge signal={consensusText} />
+                            <p className="text-xs font-black -mt-1" style={{ color: cColor }}>
+                              {consensusText}
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* Right: forecast chart */}
+                        <div className="flex-1 min-w-0">
+                          {(chartData?.prices?.length ?? 0) > 10 ? (
+                            <ForecastChart
+                              prices={chartData!.prices}
+                              current={cur ?? chartData!.prices[chartData!.prices.length - 1]}
+                              targetLow={low}
+                              targetMean={mean}
+                              targetHigh={high}
+                            />
+                          ) : (
+                            <div className="flex items-center justify-center" style={{ height: 180 }}>
+                              <p className="text-xs" style={{ color: "var(--muted)" }}>Cargando gráfica…</p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* ── Price target table ── */}
+                    {mean && low && high && cur && (
+                      <div className="rounded-xl overflow-hidden border" style={{ borderColor: "var(--border)" }}>
+                        <table className="w-full text-xs">
+                          <thead>
+                            <tr style={{ background: "var(--raised)", borderBottom: "1px solid var(--border)" }}>
+                              {["Objetivo", "Mínimo", "Promedio", "Máximo"].map((h) => (
+                                <th key={h} className="px-3 py-2 text-right first:text-left font-semibold"
+                                    style={{ color: "var(--muted)" }}>{h}</th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            <tr style={{ borderBottom: "1px solid var(--border)" }}>
+                              <td className="px-3 py-2 font-semibold" style={{ color: "var(--sub)" }}>Precio</td>
+                              <td className="px-3 py-2 text-right font-bold tabular-nums" style={{ color: "var(--text)" }}>${low.toFixed(2)}</td>
+                              <td className="px-3 py-2 text-right font-bold tabular-nums" style={{ color: "#22c55e" }}>${mean.toFixed(2)}</td>
+                              <td className="px-3 py-2 text-right font-bold tabular-nums" style={{ color: "var(--text)" }}>${high.toFixed(2)}</td>
+                            </tr>
+                            <tr>
+                              <td className="px-3 py-2 font-semibold" style={{ color: "var(--sub)" }}>Potencial</td>
+                              {[low, mean, high].map((t, i) => {
+                                const pct = ((t - cur) / cur * 100);
+                                return (
+                                  <td key={i} className="px-3 py-2 text-right font-semibold tabular-nums"
+                                      style={{ color: pct >= 0 ? "#22c55e" : "#ef4444" }}>
+                                    {pct >= 0 ? "+" : ""}{pct.toFixed(2)}%
+                                  </td>
+                                );
+                              })}
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+
+                    {/* ── Ratings bar ── */}
                     <div>
                       <div className="flex items-center justify-between mb-3">
                         <h3 className="text-sm font-bold" style={{ color: "var(--text)" }}>
-                          Consenso de Analistas de Wall Street
+                          Distribución de Recomendaciones
                         </h3>
                         {analyst?.n_analysts ? (
                           <span className="text-[10px]" style={{ color: "var(--muted)" }}>
@@ -794,46 +1147,27 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
                           </span>
                         ) : null}
                       </div>
-                      <RatingsBar ratings={analyst?.ratings ?? { strong_buy: 0, buy: 0, hold: 0, sell: 0, strong_sell: 0 }} />
+                      <RatingsBar ratings={r} />
                     </div>
 
-                    {/* Price target */}
-                    {analyst?.price_target && (
-                      <div>
-                        <h3 className="text-sm font-bold mb-3" style={{ color: "var(--text)" }}>
-                          <Target className="w-4 h-4 inline mr-1.5" />
-                          Precio Objetivo
-                        </h3>
-                        <PriceTargetGauge
-                          current={analyst.price_target.current}
-                          low={analyst.price_target.low}
-                          mean={analyst.price_target.mean}
-                          high={analyst.price_target.high}
-                        />
-                      </div>
-                    )}
-
-                    {/* EPS Surprises */}
+                    {/* ── EPS surprises ── */}
                     {(analyst?.eps_surprises?.length ?? 0) > 0 && (
                       <div>
                         <h3 className="text-sm font-bold mb-2" style={{ color: "var(--text)" }}>
                           <Activity className="w-4 h-4 inline mr-1.5" />
-                          Sorpresas EPS (beat / miss)
+                          Sorpresas EPS
                         </h3>
-                        <div className="flex items-center gap-4 text-[10px] mb-1 px-0.5"
-                             style={{ color: "var(--dim)" }}>
+                        <div className="flex items-center gap-4 text-[10px] mb-1 px-0.5" style={{ color: "var(--dim)" }}>
                           <span className="w-20">Período</span>
                           <span className="w-14 text-right">Real</span>
                           <span className="w-14 text-right">Estimado</span>
                           <span className="ml-auto">Sorpresa</span>
                         </div>
-                        {analyst!.eps_surprises.map((s) => (
-                          <EpsSurpriseRow key={s.period} item={s} />
-                        ))}
+                        {analyst!.eps_surprises.map((s) => <EpsSurpriseRow key={s.period} item={s} />)}
                       </div>
                     )}
 
-                    {/* EPS estimates */}
+                    {/* ── EPS estimates ── */}
                     {(analyst?.eps_estimates?.length ?? 0) > 0 && (
                       <div>
                         <h3 className="text-sm font-bold mb-2" style={{ color: "var(--text)" }}>
@@ -852,14 +1186,12 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
                             </thead>
                             <tbody>
                               {analyst!.eps_estimates.map((e, i) => (
-                                <tr key={e.period}
-                                    style={{ borderBottom: i < analyst!.eps_estimates.length - 1 ? "1px solid var(--border)" : "none" }}>
+                                <tr key={e.period} style={{ borderBottom: i < analyst!.eps_estimates.length - 1 ? "1px solid var(--border)" : "none" }}>
                                   <td className="px-3 py-2 font-semibold" style={{ color: "var(--sub)" }}>{e.period}</td>
                                   <td className="px-3 py-2 text-right font-bold" style={{ color: "var(--text)" }}>${fmtNum(e.avg)}</td>
                                   <td className="px-3 py-2 text-right" style={{ color: "var(--muted)" }}>${fmtNum(e.low)}</td>
                                   <td className="px-3 py-2 text-right" style={{ color: "var(--muted)" }}>${fmtNum(e.high)}</td>
-                                  <td className="px-3 py-2 text-right font-semibold"
-                                      style={{ color: (e.growth ?? 0) >= 0 ? "#22c55e" : "#ef4444" }}>
+                                  <td className="px-3 py-2 text-right font-semibold" style={{ color: (e.growth ?? 0) >= 0 ? "#22c55e" : "#ef4444" }}>
                                     {fmtPct(e.growth)}
                                   </td>
                                 </tr>
@@ -870,7 +1202,7 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
                       </div>
                     )}
 
-                    {/* Revenue estimates */}
+                    {/* ── Revenue estimates ── */}
                     {(analyst?.revenue_estimates?.length ?? 0) > 0 && (
                       <div>
                         <h3 className="text-sm font-bold mb-2" style={{ color: "var(--text)" }}>
@@ -889,14 +1221,12 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
                             </thead>
                             <tbody>
                               {analyst!.revenue_estimates.map((e, i) => (
-                                <tr key={e.period}
-                                    style={{ borderBottom: i < analyst!.revenue_estimates.length - 1 ? "1px solid var(--border)" : "none" }}>
+                                <tr key={e.period} style={{ borderBottom: i < analyst!.revenue_estimates.length - 1 ? "1px solid var(--border)" : "none" }}>
                                   <td className="px-3 py-2 font-semibold" style={{ color: "var(--sub)" }}>{e.period}</td>
                                   <td className="px-3 py-2 text-right font-bold" style={{ color: "var(--text)" }}>{fmtBig(e.avg)}</td>
                                   <td className="px-3 py-2 text-right" style={{ color: "var(--muted)" }}>{fmtBig(e.low)}</td>
                                   <td className="px-3 py-2 text-right" style={{ color: "var(--muted)" }}>{fmtBig(e.high)}</td>
-                                  <td className="px-3 py-2 text-right font-semibold"
-                                      style={{ color: (e.growth ?? 0) >= 0 ? "#22c55e" : "#ef4444" }}>
+                                  <td className="px-3 py-2 text-right font-semibold" style={{ color: (e.growth ?? 0) >= 0 ? "#22c55e" : "#ef4444" }}>
                                     {fmtPct(e.growth)}
                                   </td>
                                 </tr>
@@ -911,8 +1241,8 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
                       Fuente: {data?.sources?.analyst === "finnhub" ? "Finnhub" : data?.sources?.analyst === "fmp" ? "Financial Modeling Prep" : "Yahoo Finance"} · Wall Street
                     </p>
                   </>
-                )}
-              </div>
+                );
+              })()}
             </div>
           )}
 
