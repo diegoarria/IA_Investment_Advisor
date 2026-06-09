@@ -12,11 +12,10 @@ import { useTheme } from "../../lib/ThemeContext";
 import { marketApi } from "../../lib/api";
 
 interface NewsItem {
-  headline: string;
-  source:   string;
-  datetime: number;
-  url:      string;
-  summary?: string;
+  title:     string;
+  publisher: string;
+  timestamp: number;
+  url:       string;
 }
 
 function timeAgo(ts: number): string {
@@ -72,11 +71,11 @@ export default function StockNews({ ticker }: { ticker: string }) {
           activeOpacity={0.7}
         >
           <View style={s.meta}>
-            <Text style={[s.source, { color: colors.accentLight }]}>{item.source}</Text>
-            <Text style={[s.time, { color: colors.textMuted }]}>· {timeAgo(item.datetime)}</Text>
+            <Text style={[s.source, { color: colors.accentLight }]}>{item.publisher}</Text>
+            <Text style={[s.time, { color: colors.textMuted }]}>· {timeAgo(item.timestamp)}</Text>
           </View>
           <Text style={[s.headline, { color: colors.text }]} numberOfLines={3}>
-            {item.headline}
+            {item.title}
           </Text>
           <Ionicons
             name="chevron-forward"

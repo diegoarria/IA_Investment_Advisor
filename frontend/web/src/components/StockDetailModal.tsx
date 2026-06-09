@@ -79,7 +79,7 @@ interface ScoreData {
 }
 
 interface Peer { ticker: string; name: string; price: number | null; change_pct: number | null }
-interface NewsItem { headline: string; source: string; datetime: number; url: string }
+interface NewsItem { title: string; publisher: string; timestamp: number; url: string }
 
 // ─── Formatters ───────────────────────────────────────────────────────────────
 
@@ -1301,7 +1301,7 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
                 <p className="text-xs text-center py-10" style={{ color: "var(--muted)" }}>Sin noticias recientes</p>
               ) : (
                 news.map((item, i) => {
-                  const diff = Math.floor(Date.now() / 1000) - item.datetime;
+                  const diff = Math.floor(Date.now() / 1000) - item.timestamp;
                   const ago = diff < 3600 ? `${Math.floor(diff / 60)}m`
                     : diff < 86400 ? `${Math.floor(diff / 3600)}h`
                     : `${Math.floor(diff / 86400)}d`;
@@ -1311,11 +1311,11 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
                        style={{ borderColor: "var(--border)" }}>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-1.5">
-                          <span className="text-[10px] font-bold" style={{ color: "var(--accent-l)" }}>{item.source}</span>
+                          <span className="text-[10px] font-bold" style={{ color: "var(--accent-l)" }}>{item.publisher}</span>
                           <span className="text-[10px]" style={{ color: "var(--dim)" }}>· {ago}</span>
                         </div>
                         <p className="text-sm font-semibold leading-snug" style={{ color: "var(--text)" }}>
-                          {item.headline}
+                          {item.title}
                         </p>
                       </div>
                       <ExternalLink className="w-3.5 h-3.5 shrink-0 mt-1" style={{ color: "var(--muted)" }} />

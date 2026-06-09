@@ -1593,6 +1593,113 @@ def _finnhub_insiders(symbol: str) -> list[dict]:
         return []
 
 
+# ── Yahoo Finance quoteSummary (direct HTTP — more reliable than yfinance lib) ─
+
+def _yf_quote_summary(symbol: str) -> dict:
+    """Call YF v10 quoteSummary directly with browser headers — same source as website."""
+    modules = ",".join([
+        "incomeStatementHistory", "incomeStatementHistoryQuarterly",
+        "balanceSheetHistory", "balanceSheetHistoryQuarterly",
+        "cashflowStatementHistory", "cashflowStatementHistoryQuarterly",
+        "recommendationTrend", "earningsTrend", "earningsHistory",
+        "financialData", "defaultKeyStatistics",
+    ])
+    for host in ("query2", "query1"):
+        try:
+            r = _requests.get(
+                f"https://{host}.finance.yahoo.com/v10/finance/quoteSummary/{symbol}",
+                params={"modules": modules, "corsDomain": "finance.yahoo.com"},
+                headers=_YF_HEADERS,
+                timeout=14,
+            )
+            if r.status_code == 200:
+                data = r.json().get("quoteSummary", {}).get("result", [])
+                if data:
+                    return data[0]
+        except Exception:
+            pass
+    return {}
+
+
+def _qs_raw(obj: dict | None, key: str):
+    if not obj:
+        return None
+    v = obj.get(key)
+    if isinstance(v, dict):
+        return v.get("raw")
+    return v
+
+
+def _parse_qs_income(qs: dict, quarterly: bool = False, n: int = 5) -> list[dict]:
+    key = "incomeStatementHistoryQuarterly" if quarterly else "incomeStatementHistory"
+    sub = "incomeStatementHistory"
+    rows = (qs.get(key) or {}).get(sub, [])
+    result = []
+    for row in rows[:n]:
+        period = ((row.get("endDate") or {}).get("fmt") or "")[:7]
+        result.append({
+            "period":                       period,
+            "Total Revenue":                _qs_raw(row, "totalRevenue"),
+            "Gross Profit":                 _qs_raw(row, "grossProfit"),
+            "Operating Income":             _qs_raw(row, "operatingIncome") or _qs_raw(row, "ebit"),
+            "EBITDA":                       _qs_raw(row, "ebitda"),
+            "Net Income":                   _qs_raw(row, "netIncome"),
+            "Diluted EPS":                  _qs_raw(row, "dilutedEps"),
+            "Research And Development":     _qs_raw(row, "researchDevelopment"),
+            "Selling General Administrative": _qs_raw(row, "sellingGeneralAdministrative"),
+            "Interest Expense":             _qs_raw(row, "interestExpense"),
+            "Tax Provision":                _qs_raw(row, "incomeTaxExpense"),
+        })
+    return result
+
+
+def _parse_qs_balance(qs: dict, quarterly: bool = False, n: int = 5) -> list[dict]:
+    key = "balanceSheetHistoryQuarterly" if quarterly else "balanceSheetHistory"
+    sub = "balanceSheetStatements"
+    rows = (qs.get(key) or {}).get(sub, [])
+    result = []
+    for row in rows[:n]:
+        period = ((row.get("endDate") or {}).get("fmt") or "")[:7]
+        long_debt  = _qs_raw(row, "longTermDebt") or 0
+        short_debt = _qs_raw(row, "shortTermDebt") or _qs_raw(row, "currentDebt") or 0
+        total_debt = _qs_raw(row, "totalDebt") or ((long_debt + short_debt) if (long_debt or short_debt) else None)
+        result.append({
+            "period":                                    period,
+            "Total Assets":                              _qs_raw(row, "totalAssets"),
+            "Current Assets":                            _qs_raw(row, "totalCurrentAssets"),
+            "Cash And Cash Equivalents":                 _qs_raw(row, "cash"),
+            "Total Debt":                                total_debt,
+            "Long Term Debt":                            _qs_raw(row, "longTermDebt"),
+            "Current Debt":                              short_debt or None,
+            "Total Liabilities Net Minority Interest":   _qs_raw(row, "totalLiab"),
+            "Stockholders Equity":                       _qs_raw(row, "totalStockholderEquity"),
+            "Retained Earnings":                         _qs_raw(row, "retainedEarnings"),
+            "Goodwill And Other Intangible Assets":      _qs_raw(row, "goodWill"),
+        })
+    return result
+
+
+def _parse_qs_cashflow(qs: dict, quarterly: bool = False, n: int = 5) -> list[dict]:
+    key = "cashflowStatementHistoryQuarterly" if quarterly else "cashflowStatementHistory"
+    sub = "cashflowStatements"
+    rows = (qs.get(key) or {}).get(sub, [])
+    result = []
+    for row in rows[:n]:
+        period = ((row.get("endDate") or {}).get("fmt") or "")[:7]
+        op_cf  = _qs_raw(row, "totalCashFromOperatingActivities")
+        capex  = _qs_raw(row, "capitalExpenditures")
+        fcf    = (op_cf + capex) if (op_cf is not None and capex is not None) else None
+        result.append({
+            "period":                   period,
+            "Operating Cash Flow":      op_cf,
+            "Capital Expenditure":      capex,
+            "Free Cash Flow":           fcf,
+            "Dividends Paid":           _qs_raw(row, "dividendsPaid"),
+            "Repurchase Of Capital Stock": _qs_raw(row, "repurchaseOfStock"),
+        })
+    return result
+
+
 # ── Main detail fetcher ───────────────────────────────────────────────────────
 
 def _fetch_stock_detail(symbol: str) -> dict:
@@ -1696,6 +1803,7 @@ def _fetch_stock_detail(symbol: str) -> dict:
     ]
 
     # Prefer FMP (10 years) over yfinance (4 years) when key is available
+    _qs: dict = {}  # quoteSummary cache — fetched at most once
     if _FMP_KEY:
         income_annual    = _fmp_income(symbol)
         balance_annual   = _fmp_balance(symbol)
@@ -1707,6 +1815,12 @@ def _fetch_stock_detail(symbol: str) -> dict:
             cf_quarterly      = _df_to_periods(t.quarterly_cash_flow, CF_ROWS, 6)
         except Exception:
             income_quarterly = balance_quarterly = cf_quarterly = []
+        # Fill quarterly gaps with quoteSummary if yfinance failed
+        if not income_quarterly:
+            _qs = _qs or _yf_quote_summary(symbol)
+            income_quarterly  = _parse_qs_income(_qs, quarterly=True, n=6)
+            balance_quarterly = _parse_qs_balance(_qs, quarterly=True, n=6)
+            cf_quarterly      = _parse_qs_cashflow(_qs, quarterly=True, n=6)
     else:
         try:
             income_annual     = _df_to_periods(t.income_stmt, IS_ROWS, 5)
@@ -1723,6 +1837,16 @@ def _fetch_stock_detail(symbol: str) -> dict:
             cf_quarterly      = _df_to_periods(t.quarterly_cash_flow, CF_ROWS, 6)
         except Exception:
             cashflow_annual = cf_quarterly = []
+
+        # Fallback: yfinance DataFrame calls failed — use quoteSummary directly
+        if not income_annual and not balance_annual and not cashflow_annual:
+            _qs = _yf_quote_summary(symbol)
+            income_annual     = _parse_qs_income(_qs, quarterly=False, n=5)
+            income_quarterly  = _parse_qs_income(_qs, quarterly=True,  n=6)
+            balance_annual    = _parse_qs_balance(_qs, quarterly=False, n=5)
+            balance_quarterly = _parse_qs_balance(_qs, quarterly=True,  n=6)
+            cashflow_annual   = _parse_qs_cashflow(_qs, quarterly=False, n=5)
+            cf_quarterly      = _parse_qs_cashflow(_qs, quarterly=True,  n=6)
 
     financials = {
         "income":   {"annual": income_annual,   "quarterly": income_quarterly},
@@ -1825,6 +1949,75 @@ def _fetch_stock_detail(symbol: str) -> dict:
                 eps_surprises = list(reversed(eps_surprises))[:8]
         except Exception:
             pass
+
+    # ── quoteSummary fallback for analyst data when yfinance library fails ─────
+    _no_ratings  = sum(ratings.values()) == 0
+    _no_targets  = not target_mean
+    _no_eps_est  = not eps_estimates
+    _no_rev_est  = not revenue_estimates
+    _no_eps_surp = not eps_surprises
+    if _no_ratings or _no_targets or _no_eps_est or _no_rev_est or _no_eps_surp:
+        _qs = _qs or _yf_quote_summary(symbol)
+        if _qs:
+            # Ratings from recommendationTrend
+            if _no_ratings:
+                trend = (_qs.get("recommendationTrend") or {}).get("trend", [])
+                if trend:
+                    row = trend[0]
+                    ratings = {
+                        "strong_buy":  int(row.get("strongBuy", 0) or 0),
+                        "buy":         int(row.get("buy", 0) or 0),
+                        "hold":        int(row.get("hold", 0) or 0),
+                        "sell":        int(row.get("sell", 0) or 0),
+                        "strong_sell": int(row.get("strongSell", 0) or 0),
+                    }
+            # Price targets from financialData
+            fd = _qs.get("financialData") or {}
+            if _no_targets:
+                target_mean = _qs_raw(fd, "targetMeanPrice") or target_mean
+                target_low  = _qs_raw(fd, "targetLowPrice")  or target_low
+                target_high = _qs_raw(fd, "targetHighPrice") or target_high
+                n_analysts  = int(_qs_raw(fd, "numberOfAnalystOpinions") or n_analysts or 0)
+            # EPS / revenue estimates from earningsTrend
+            et = (_qs.get("earningsTrend") or {}).get("trend", [])
+            if et:
+                for item in et:
+                    end_date = item.get("endDate") or item.get("period", "")
+                    ee  = item.get("earningsEstimate") or {}
+                    re_ = item.get("revenueEstimate") or {}
+                    if _no_eps_est:
+                        eps_estimates.append({
+                            "period": end_date,
+                            "avg":    _qs_raw(ee, "avg"),
+                            "low":    _qs_raw(ee, "low"),
+                            "high":   _qs_raw(ee, "high"),
+                            "growth": (_qs_raw(ee, "growth") or 0) * 100,
+                        })
+                    if _no_rev_est:
+                        revenue_estimates.append({
+                            "period": end_date,
+                            "avg":    _qs_raw(re_, "avg"),
+                            "low":    _qs_raw(re_, "low"),
+                            "high":   _qs_raw(re_, "high"),
+                            "growth": (_qs_raw(re_, "growth") or 0) * 100,
+                        })
+            # EPS surprises from earningsHistory
+            if _no_eps_surp:
+                hist = (_qs.get("earningsHistory") or {}).get("history", [])
+                for item in hist[:8]:
+                    q = (item.get("quarter") or {})
+                    period = q.get("fmt") or q.get("raw", "")
+                    if isinstance(period, (int, float)):
+                        from datetime import datetime as _dt
+                        period = _dt.utcfromtimestamp(int(period)).strftime("%Y-%m-%d")
+                    eps_surprises.append({
+                        "period":       str(period)[:7],
+                        "actual":       _qs_raw(item, "epsActual"),
+                        "estimate":     _qs_raw(item, "epsEstimate"),
+                        "surprise":     _qs_raw(item, "epsDifference"),
+                        "surprise_pct": (_qs_raw(item, "surprisePercent") or 0) * 100,
+                    })
+                eps_surprises = list(reversed(eps_surprises))
 
     analyst = {
         "ratings":           ratings,
