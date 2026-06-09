@@ -1598,11 +1598,12 @@ def _finnhub_insiders(symbol: str) -> list[dict]:
 def _yf_quote_summary(symbol: str) -> dict:
     """Call YF v10 quoteSummary directly with browser headers — same source as website."""
     modules = ",".join([
+        "price", "summaryProfile", "summaryDetail",
+        "financialData", "defaultKeyStatistics",
         "incomeStatementHistory", "incomeStatementHistoryQuarterly",
         "balanceSheetHistory", "balanceSheetHistoryQuarterly",
         "cashflowStatementHistory", "cashflowStatementHistoryQuarterly",
         "recommendationTrend", "earningsTrend", "earningsHistory",
-        "financialData", "defaultKeyStatistics",
     ])
     for host in ("query2", "query1"):
         try:
@@ -1709,7 +1710,94 @@ def _fetch_stock_detail(symbol: str) -> dict:
         return cached
 
     t = yf.Ticker(symbol)
-    info = t.info or {}
+    _qs: dict = {}  # quoteSummary — fetched lazily, at most once
+
+    # t.info is the most common failure point (Yahoo Finance rate limits)
+    # Wrap it so we never throw a 500 — fall back to quoteSummary instead.
+    try:
+        info = t.info or {}
+    except Exception:
+        info = {}
+
+    # If yfinance returned empty/minimal info, use quoteSummary for profile data
+    if not info.get("shortName") and not info.get("longName"):
+        _qs = _yf_quote_summary(symbol)
+        if _qs:
+            _p   = _qs.get("price") or {}
+            _sd  = _qs.get("summaryDetail") or {}
+            _sp  = _qs.get("summaryProfile") or {}
+            _fd  = _qs.get("financialData") or {}
+            _ks  = _qs.get("defaultKeyStatistics") or {}
+            def _rv(d, k):
+                v = d.get(k)
+                return v.get("raw") if isinstance(v, dict) else v
+            info = {
+                "shortName":                     _p.get("shortName") or _p.get("longName") or symbol,
+                "longName":                       _p.get("longName"),
+                "sector":                         _sp.get("sector"),
+                "industry":                       _sp.get("industry"),
+                "longBusinessSummary":            _sp.get("longBusinessSummary"),
+                "fullTimeEmployees":              _sp.get("fullTimeEmployees"),
+                "website":                        _sp.get("website"),
+                "country":                        _sp.get("country"),
+                "city":                           _sp.get("city"),
+                "exchange":                       _p.get("exchange"),
+                "currentPrice":                   _rv(_p, "regularMarketPrice"),
+                "regularMarketPrice":             _rv(_p, "regularMarketPrice"),
+                "regularMarketPreviousClose":     _rv(_p, "regularMarketPreviousClose"),
+                "regularMarketOpen":              _rv(_p, "regularMarketOpen"),
+                "regularMarketDayHigh":           _rv(_p, "regularMarketDayHigh"),
+                "regularMarketDayLow":            _rv(_p, "regularMarketDayLow"),
+                "regularMarketVolume":            _rv(_p, "regularMarketVolume"),
+                "marketCap":                      _rv(_p, "marketCap"),
+                "enterpriseValue":                _rv(_ks, "enterpriseValue"),
+                "trailingPE":                     _rv(_sd, "trailingPE"),
+                "forwardPE":                      _rv(_sd, "forwardPE"),
+                "pegRatio":                       _rv(_ks, "pegRatio"),
+                "priceToSalesTrailing12Months":   _rv(_sd, "priceToSalesTrailing12Months"),
+                "priceToBook":                    _rv(_ks, "priceToBook"),
+                "enterpriseToEbitda":             _rv(_ks, "enterpriseToEbitda"),
+                "enterpriseToRevenue":            _rv(_ks, "enterpriseToRevenue"),
+                "trailingEps":                    _rv(_ks, "trailingEps"),
+                "forwardEps":                     _rv(_ks, "forwardEps"),
+                "bookValue":                      _rv(_ks, "bookValue"),
+                "dividendYield":                  _rv(_sd, "dividendYield"),
+                "dividendRate":                   _rv(_sd, "dividendRate"),
+                "payoutRatio":                    _rv(_sd, "payoutRatio"),
+                "beta":                           _rv(_ks, "beta"),
+                "fiftyTwoWeekHigh":               _rv(_sd, "fiftyTwoWeekHigh"),
+                "fiftyTwoWeekLow":                _rv(_sd, "fiftyTwoWeekLow"),
+                "fiftyDayAverage":                _rv(_sd, "fiftyDayAverage"),
+                "twoHundredDayAverage":           _rv(_sd, "twoHundredDayAverage"),
+                "averageVolume":                  _rv(_sd, "averageVolume"),
+                "averageVolume10days":            _rv(_sd, "averageVolume10days"),
+                "floatShares":                    _rv(_ks, "floatShares"),
+                "sharesOutstanding":              _rv(_ks, "sharesOutstanding"),
+                "shortRatio":                     _rv(_ks, "shortRatio"),
+                "shortPercentOfFloat":            _rv(_ks, "shortPercentOfFloat"),
+                "targetMeanPrice":                _rv(_fd, "targetMeanPrice"),
+                "targetLowPrice":                 _rv(_fd, "targetLowPrice"),
+                "targetHighPrice":                _rv(_fd, "targetHighPrice"),
+                "recommendationKey":              _fd.get("recommendationKey"),
+                "numberOfAnalystOpinions":        _rv(_fd, "numberOfAnalystOpinions"),
+                "revenueGrowth":                  _rv(_fd, "revenueGrowth"),
+                "earningsGrowth":                 _rv(_fd, "earningsGrowth"),
+                "profitMargins":                  _rv(_fd, "profitMargins"),
+                "grossMargins":                   _rv(_fd, "grossMargins"),
+                "operatingMargins":               _rv(_fd, "operatingMargins"),
+                "ebitdaMargins":                  _rv(_fd, "ebitdaMargins"),
+                "returnOnAssets":                 _rv(_fd, "returnOnAssets"),
+                "returnOnEquity":                 _rv(_fd, "returnOnEquity"),
+                "debtToEquity":                   _rv(_fd, "debtToEquity"),
+                "currentRatio":                   _rv(_fd, "currentRatio"),
+                "quickRatio":                     _rv(_fd, "quickRatio"),
+                "totalCash":                      _rv(_fd, "totalCash"),
+                "totalDebt":                      _rv(_fd, "totalDebt"),
+                "freeCashflow":                   _rv(_fd, "freeCashflow"),
+                "operatingCashflow":              _rv(_fd, "operatingCashflow"),
+                "totalRevenue":                   _rv(_fd, "totalRevenue"),
+                "ebitda":                         _rv(_fd, "ebitda"),
+            }
 
     # ── Profile ──────────────────────────────────────────────────────────────
     profile = {
@@ -1803,7 +1891,6 @@ def _fetch_stock_detail(symbol: str) -> dict:
     ]
 
     # Prefer FMP (10 years) over yfinance (4 years) when key is available
-    _qs: dict = {}  # quoteSummary cache — fetched at most once
     if _FMP_KEY:
         income_annual    = _fmp_income(symbol)
         balance_annual   = _fmp_balance(symbol)
@@ -1840,7 +1927,7 @@ def _fetch_stock_detail(symbol: str) -> dict:
 
         # Fallback: yfinance DataFrame calls failed — use quoteSummary directly
         if not income_annual and not balance_annual and not cashflow_annual:
-            _qs = _yf_quote_summary(symbol)
+            _qs = _qs or _yf_quote_summary(symbol)
             income_annual     = _parse_qs_income(_qs, quarterly=False, n=5)
             income_quarterly  = _parse_qs_income(_qs, quarterly=True,  n=6)
             balance_annual    = _parse_qs_balance(_qs, quarterly=False, n=5)
