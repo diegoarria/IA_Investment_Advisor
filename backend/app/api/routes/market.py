@@ -1207,3 +1207,206 @@ async def get_quote_details(
         return {}
     data = await asyncio.to_thread(_fetch_quote_details, tickers)
     return data
+
+
+# ─── Stock Detail ──────────────────────────────────────────────────────────────
+
+_DETAIL_TTL = 1800  # 30 min
+
+
+def _fmt_number(v) -> float | None:
+    try:
+        f = float(v)
+        return None if (f != f) else round(f, 4)  # NaN check
+    except Exception:
+        return None
+
+
+def _df_to_periods(df, rows: list[str]) -> list[dict]:
+    """Convert a yfinance financial DataFrame to a list of period dicts."""
+    if df is None or df.empty:
+        return []
+    results = []
+    for col in df.columns:
+        try:
+            period = str(col.date()) if hasattr(col, "date") else str(col)[:10]
+        except Exception:
+            period = str(col)[:10]
+        entry = {"period": period}
+        for row in rows:
+            # Try exact match first, then partial match
+            val = None
+            if row in df.index:
+                val = _fmt_number(df.loc[row, col])
+            else:
+                matches = [i for i in df.index if row.lower() in str(i).lower()]
+                if matches:
+                    val = _fmt_number(df.loc[matches[0], col])
+            entry[row] = val
+        results.append(entry)
+    return results[:5]  # last 5 periods
+
+
+def _fetch_stock_detail(symbol: str) -> dict:
+    cache_key = f"detail:{symbol}"
+    cached = cache_get(cache_key)
+    if cached:
+        return cached
+
+    t = yf.Ticker(symbol)
+    info = t.info or {}
+
+    # ── Profile ──────────────────────────────────────────────────────────────
+    profile = {
+        "name":            info.get("shortName") or info.get("longName") or symbol,
+        "sector":          info.get("sector"),
+        "industry":        info.get("industry"),
+        "description":     info.get("longBusinessSummary"),
+        "employees":       info.get("fullTimeEmployees"),
+        "website":         info.get("website"),
+        "country":         info.get("country"),
+        "city":            info.get("city"),
+        "market_cap":      _fmt_number(info.get("marketCap")),
+        "current_price":   _fmt_number(info.get("currentPrice") or info.get("regularMarketPrice")),
+        "currency":        info.get("currency", "USD"),
+        "pe_ratio":        _fmt_number(info.get("trailingPE")),
+        "forward_pe":      _fmt_number(info.get("forwardPE")),
+        "eps":             _fmt_number(info.get("trailingEps")),
+        "forward_eps":     _fmt_number(info.get("forwardEps")),
+        "dividend_yield":  _fmt_number((info.get("dividendYield") or 0) * 100),
+        "beta":            _fmt_number(info.get("beta")),
+        "week_52_high":    _fmt_number(info.get("fiftyTwoWeekHigh")),
+        "week_52_low":     _fmt_number(info.get("fiftyTwoWeekLow")),
+        "avg_volume":      _fmt_number(info.get("averageVolume")),
+        "float_shares":    _fmt_number(info.get("floatShares")),
+        "target_mean":     _fmt_number(info.get("targetMeanPrice")),
+        "target_low":      _fmt_number(info.get("targetLowPrice")),
+        "target_high":     _fmt_number(info.get("targetHighPrice")),
+        "recommendation":  info.get("recommendationKey"),
+        "number_of_analysts": info.get("numberOfAnalystOpinions"),
+        "revenue_growth":  _fmt_number((info.get("revenueGrowth") or 0) * 100),
+        "earnings_growth": _fmt_number((info.get("earningsGrowth") or 0) * 100),
+        "profit_margins":  _fmt_number((info.get("profitMargins") or 0) * 100),
+        "gross_margins":   _fmt_number((info.get("grossMargins") or 0) * 100),
+        "ebitda_margins":  _fmt_number((info.get("ebitdaMargins") or 0) * 100),
+        "return_on_equity": _fmt_number((info.get("returnOnEquity") or 0) * 100),
+        "debt_to_equity":  _fmt_number(info.get("debtToEquity")),
+        "price_to_book":   _fmt_number(info.get("priceToBook")),
+    }
+
+    # ── Financial Statements ─────────────────────────────────────────────────
+    IS_ROWS = [
+        "Total Revenue", "Gross Profit", "Operating Income",
+        "EBITDA", "Net Income", "Diluted EPS",
+    ]
+    BS_ROWS = [
+        "Total Assets", "Current Assets", "Cash And Cash Equivalents",
+        "Total Debt", "Total Liabilities Net Minority Interest",
+        "Stockholders Equity",
+    ]
+    CF_ROWS = [
+        "Operating Cash Flow", "Capital Expenditure",
+        "Free Cash Flow", "Dividends Paid",
+    ]
+
+    try:
+        income_annual     = _df_to_periods(t.income_stmt, IS_ROWS)
+        income_quarterly  = _df_to_periods(t.quarterly_income_stmt, IS_ROWS)
+    except Exception:
+        income_annual = income_quarterly = []
+
+    try:
+        balance_annual    = _df_to_periods(t.balance_sheet, BS_ROWS)
+        balance_quarterly = _df_to_periods(t.quarterly_balance_sheet, BS_ROWS)
+    except Exception:
+        balance_annual = balance_quarterly = []
+
+    try:
+        cf_annual     = _df_to_periods(t.cash_flow, CF_ROWS)
+        cf_quarterly  = _df_to_periods(t.quarterly_cash_flow, CF_ROWS)
+    except Exception:
+        cf_annual = cf_quarterly = []
+
+    financials = {
+        "income":  {"annual": income_annual,  "quarterly": income_quarterly},
+        "balance": {"annual": balance_annual, "quarterly": balance_quarterly},
+        "cashflow":{"annual": cf_annual,      "quarterly": cf_quarterly},
+    }
+
+    # ── Analyst Data ─────────────────────────────────────────────────────────
+    ratings = {"strong_buy": 0, "buy": 0, "hold": 0, "sell": 0, "strong_sell": 0}
+    try:
+        rec = t.recommendations_summary
+        if rec is not None and not rec.empty:
+            cols = rec.columns.tolist()
+            row  = rec.iloc[0]
+            for c in cols:
+                cl = c.lower().replace(" ", "_")
+                if "strongbuy" in cl or "strong_buy" in cl:
+                    ratings["strong_buy"]  += int(row[c] or 0)
+                elif "buy" in cl:
+                    ratings["buy"]         += int(row[c] or 0)
+                elif "hold" in cl:
+                    ratings["hold"]        += int(row[c] or 0)
+                elif "strongsell" in cl or "strong_sell" in cl:
+                    ratings["strong_sell"] += int(row[c] or 0)
+                elif "sell" in cl:
+                    ratings["sell"]        += int(row[c] or 0)
+    except Exception:
+        pass
+
+    eps_estimates = []
+    try:
+        ee = t.earnings_estimate
+        if ee is not None and not ee.empty:
+            for idx, r in ee.iterrows():
+                eps_estimates.append({
+                    "period":   str(idx),
+                    "avg":      _fmt_number(r.get("avg")),
+                    "low":      _fmt_number(r.get("low")),
+                    "high":     _fmt_number(r.get("high")),
+                    "growth":   _fmt_number((r.get("growth") or 0) * 100),
+                })
+    except Exception:
+        pass
+
+    revenue_estimates = []
+    try:
+        re_df = t.revenue_estimate
+        if re_df is not None and not re_df.empty:
+            for idx, r in re_df.iterrows():
+                revenue_estimates.append({
+                    "period":   str(idx),
+                    "avg":      _fmt_number(r.get("avg")),
+                    "low":      _fmt_number(r.get("low")),
+                    "high":     _fmt_number(r.get("high")),
+                    "growth":   _fmt_number((r.get("growth") or 0) * 100),
+                })
+    except Exception:
+        pass
+
+    analyst = {
+        "ratings":            ratings,
+        "price_target":       {
+            "mean":    profile["target_mean"],
+            "low":     profile["target_low"],
+            "high":    profile["target_high"],
+            "current": profile["current_price"],
+        },
+        "eps_estimates":      eps_estimates,
+        "revenue_estimates":  revenue_estimates,
+    }
+
+    result = {"profile": profile, "financials": financials, "analyst": analyst}
+    cache_set(cache_key, result, ttl=_DETAIL_TTL)
+    return result
+
+
+@router.get("/stock-detail/{symbol}")
+async def get_stock_detail(
+    symbol: str,
+    user_id: str = Depends(get_current_user_id),
+):
+    """Full stock detail: profile, financial statements, analyst data."""
+    result = await asyncio.to_thread(_fetch_stock_detail, symbol.upper())
+    return result

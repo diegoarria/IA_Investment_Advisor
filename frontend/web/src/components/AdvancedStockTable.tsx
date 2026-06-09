@@ -37,6 +37,7 @@ interface Props {
   rows: AdvancedRow[];
   mode: Mode;
   onRemove?: (ticker: string) => void;
+  onRowClick?: (ticker: string) => void;
 }
 
 // ─── Formatters ───────────────────────────────────────────────────────────────
@@ -149,7 +150,7 @@ function Th({
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
-export default function AdvancedStockTable({ rows, mode, onRemove }: Props) {
+export default function AdvancedStockTable({ rows, mode, onRemove, onRowClick }: Props) {
   const [details, setDetails] = useState<Record<string, {
     volume?: number | null; marketCap?: number | null; pe?: number | null;
     week52Pct?: number | null; earningsDate?: string | null;
@@ -245,7 +246,9 @@ export default function AdvancedStockTable({ rows, mode, onRemove }: Props) {
                 <tr
                   key={row.ticker}
                   className="transition-colors hover:bg-white/[0.025]"
+                  onClick={() => onRowClick?.(row.ticker)}
                   style={{
+                    cursor: onRowClick ? "pointer" : "default",
                     borderBottom: idx < sorted.length - 1 ? "1px solid var(--border)" : "none",
                     borderLeft: `3px solid ${isUp ? "rgba(34,197,94,0.4)" : "rgba(239,68,68,0.4)"}`,
                   }}

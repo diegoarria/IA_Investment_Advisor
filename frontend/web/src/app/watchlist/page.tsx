@@ -15,6 +15,7 @@ import PaywallModal from "@/components/PaywallModal";
 import WatchlistEarningsCalendar from "@/components/WatchlistEarningsCalendar";
 import AdvancedStockTable from "@/components/AdvancedStockTable";
 import type { AdvancedRow } from "@/components/AdvancedStockTable";
+import StockDetailModal from "@/components/StockDetailModal";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -135,9 +136,10 @@ interface StockCardProps {
   onRequestDelete: (ticker: string) => void;
   onConfirmDelete: (ticker: string) => void;
   onCancelDelete: () => void;
+  onSelect: (ticker: string) => void;
 }
 
-function StockCard({ item, confirmDelete, onRequestDelete, onConfirmDelete, onCancelDelete }: StockCardProps) {
+function StockCard({ item, confirmDelete, onRequestDelete, onConfirmDelete, onCancelDelete, onSelect }: StockCardProps) {
   const isUp = item.change_pct >= 0;
   const borderColor = isUp ? "rgba(34,197,94,0.5)" : "rgba(239,68,68,0.5)";
   const priceColor = isUp ? "#22c55e" : "#ef4444";
@@ -151,7 +153,8 @@ function StockCard({ item, confirmDelete, onRequestDelete, onConfirmDelete, onCa
 
   return (
     <div
-      className="rounded-2xl p-4 flex items-start gap-3 relative overflow-hidden"
+      className="rounded-2xl p-4 flex items-start gap-3 relative overflow-hidden cursor-pointer"
+      onClick={() => onSelect(item.ticker)}
       style={{
         background: "var(--card)",
         border: "1px solid var(--border)",
@@ -238,7 +241,7 @@ function StockCard({ item, confirmDelete, onRequestDelete, onConfirmDelete, onCa
       </div>
 
       {/* Delete button */}
-      <div className="shrink-0 ml-1">
+      <div className="shrink-0 ml-1" onClick={(e) => e.stopPropagation()}>
         {isConfirming ? (
           <div className="flex flex-col items-end gap-1">
             <span className="text-[10px] font-semibold" style={{ color: "var(--muted)" }}>
@@ -316,6 +319,7 @@ export default function WatchlistPage() {
 
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [paywallOpen, setPaywallOpen] = useState(false);
+  const [selectedStock, setSelectedStock] = useState<string | null>(null);
 
   const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null);
   const [secondsSince, setSecondsSince] = useState(0);
@@ -662,6 +666,7 @@ export default function WatchlistPage() {
                   extLabel: i.pre_market_price ? "Pre" : i.post_market_price ? "Post" : null,
                 }))}
                 onRemove={handleRequestDelete}
+                onRowClick={setSelectedStock}
               />
             ) : items.length === 0 ? (
               /* Empty state */
@@ -692,6 +697,7 @@ export default function WatchlistPage() {
                     onRequestDelete={handleRequestDelete}
                     onConfirmDelete={handleConfirmDelete}
                     onCancelDelete={handleCancelDelete}
+                    onSelect={setSelectedStock}
                   />
                 ))}
               </div>
@@ -711,6 +717,11 @@ export default function WatchlistPage() {
           </main>
         </div>
       </div>
+
+      {/* ── Stock Detail Modal ── */}
+      {selectedStock && (
+        <StockDetailModal ticker={selectedStock} onClose={() => setSelectedStock(null)} />
+      )}
 
       {/* ── Paywall Modal ── */}
       <PaywallModal visible={paywallOpen} onClose={() => setPaywallOpen(false)} />

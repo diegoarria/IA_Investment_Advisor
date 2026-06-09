@@ -13,6 +13,7 @@ import { usePortfolioStore, type Position } from "@/lib/portfolioStore";
 import EarningsPanel from "@/components/EarningsPanel";
 import AdvancedStockTable from "@/components/AdvancedStockTable";
 import type { AdvancedRow } from "@/components/AdvancedStockTable";
+import StockDetailModal from "@/components/StockDetailModal";
 import WhatIfSimulator from "@/components/WhatIfSimulator";
 import MonthlyReport from "@/components/MonthlyReport";
 import WeeklyScreenerCard from "@/components/WeeklyScreenerCard";
@@ -505,6 +506,7 @@ export default function PortfolioPage() {
     if (typeof window === "undefined") return "basic";
     return (localStorage.getItem("nuvos_portfolio_view") as "basic" | "advanced") ?? "basic";
   });
+  const [selectedStock, setSelectedStock] = useState<string | null>(null);
 
   const handleSort = (field: SortField) => {
     if (sortField === field) setSortDir((d) => d === "desc" ? "asc" : "desc");
@@ -1521,6 +1523,7 @@ export default function PortfolioPage() {
                 <div className="mb-4">
                   <AdvancedStockTable
                     mode="portfolio"
+                    onRowClick={setSelectedStock}
                     rows={sortedPositions.map((pos): AdvancedRow => {
                       const pd = prices[pos.ticker];
                       const cp = pd?.price ? pd.price * fxRate : null;
@@ -1586,7 +1589,8 @@ export default function PortfolioPage() {
                 const isUp = diff !== null && diff >= 0;
                 const priceRevealed = revealedPrices.has(pos.id);
                 return (
-                  <div key={pos.id} className="rounded-2xl mb-2 overflow-hidden"
+                  <div key={pos.id} className="rounded-2xl mb-2 overflow-hidden cursor-pointer"
+                       onClick={() => setSelectedStock(pos.ticker)}
                        style={{
                          borderColor: diff !== null ? `${isUp?"#22c55e":"#ef4444"}22` : "var(--border)",
                          background:"var(--card)",
@@ -1608,7 +1612,7 @@ export default function PortfolioPage() {
                           )}
                         </div>
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
                         <button
                           onClick={() => setEditingPos({ id: pos.id, shares: String(pos.shares), avgPrice: String(pos.avgPrice), purchaseDate: pos.purchaseDate ?? new Date().toISOString().split("T")[0] })}
                           style={{ color:"var(--muted)" }}>
@@ -2293,6 +2297,11 @@ export default function PortfolioPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* ── Stock Detail Modal ── */}
+      {selectedStock && (
+        <StockDetailModal ticker={selectedStock} onClose={() => setSelectedStock(null)} />
       )}
     </>
   );
