@@ -1133,3 +1133,40 @@ Sin texto fuera del JSON."""
         if m:
             return json.loads(m.group())
         return {"mentor_assessment": raw, "biases_detected": []}
+
+
+async def summarize_news_article(title: str, content: str) -> str:
+    """Summarize a financial news article in 4-8 sentences in Spanish."""
+    has_content = bool(content and len(content) > 80)
+
+    if has_content:
+        source_block = f"Fragmento del artículo:\n{content[:3000]}"
+        instruction = (
+            "Basándote en el fragmento anterior, extrae la idea central y resume "
+            "esta noticia en 4-6 oraciones en español para un inversor de largo plazo."
+        )
+    else:
+        source_block = ""
+        instruction = (
+            "No se pudo obtener el cuerpo del artículo. Usa tu conocimiento sobre "
+            "este titular para explicar la idea central y el contexto relevante en "
+            "4-6 oraciones en español para un inversor de largo plazo."
+        )
+
+    prompt = f"""Titular: {title}
+{chr(10) + source_block + chr(10) if source_block else ""}
+{instruction}
+
+Estructura esperada:
+• Qué ocurrió o qué significa este titular
+• Por qué importa para los mercados, la empresa o el sector
+• Contexto relevante que ayude al inversor a entenderlo mejor
+
+Sin frases introductorias como "Este artículo..." o "La noticia indica...". Directo al punto. Tono claro y educativo."""
+
+    response = await _claude(
+        model=settings.claude_model,
+        max_tokens=420,
+        messages=[{"role": "user", "content": prompt}],
+    )
+    return response.content[0].text.strip()

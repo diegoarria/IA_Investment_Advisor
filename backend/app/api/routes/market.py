@@ -761,6 +761,56 @@ async def get_portfolio_news(
     return all_articles
 
 
+@router.post("/summarize-news")
+async def summarize_news(body: dict, user_id: str = Depends(get_current_user_id)):
+    """AI summary of a news article — premium-only, enforced on the frontend."""
+    import re as _re
+    title = (body.get("title") or "").strip()
+    url   = (body.get("url") or "").strip()
+    if not title:
+        return {"summary": "No se pudo resumir: falta el titular."}
+
+    # Attempt to extract readable text from the article page
+    content = ""
+    if url:
+        _HEADERS = {
+            "User-Agent": (
+                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/124.0.0.0 Safari/537.36"
+            ),
+            "Accept": "text/html,application/xhtml+xml;q=0.9,*/*;q=0.8",
+            "Accept-Language": "es-419,en-US;q=0.7",
+        }
+        try:
+            async with httpx.AsyncClient(timeout=10, follow_redirects=True) as client:
+                r = await client.get(url, headers=_HEADERS)
+            if r.status_code == 200:
+                html = r.text
+                # 1. Try og:description / meta description first (always present, even on paywalls)
+                meta = ""
+                m = _re.search(r'(?:og:description|name="description")[^>]*content="([^"]{40,})"', html, _re.IGNORECASE)
+                if not m:
+                    m = _re.search(r'content="([^"]{40,})"[^>]*(?:og:description|name="description")', html, _re.IGNORECASE)
+                if m:
+                    meta = m.group(1).strip()
+
+                # 2. Extract text from <p> tags (article body)
+                paras = _re.findall(r"<p[^>]*>(.*?)</p>", html, _re.DOTALL | _re.IGNORECASE)
+                para_text = " ".join(
+                    _re.sub(r"<[^>]+>", "", p).strip()
+                    for p in paras if len(_re.sub(r"<[^>]+>", "", p).strip()) > 60
+                )
+                para_text = _re.sub(r"\s+", " ", para_text).strip()[:3500]
+
+                content = (meta + (" " + para_text if para_text else "")).strip()
+        except Exception:
+            pass
+
+    summary = await ai_service.summarize_news_article(title, content)
+    return {"summary": summary}
+
+
 # ── Portfolio period returns ────────────────────────────────────────────────
 
 from pydantic import BaseModel as _BaseModel
