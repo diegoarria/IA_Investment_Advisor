@@ -419,73 +419,81 @@ const SCENARIOS: {value:Scenario; label:string; emoji:string}[] = [
 
 type ChartPoint = { date: string; pct: number; value: number };
 
-function PortfolioSparkline({ history, color }: { history: ChartPoint[]; color: string }) {
+function fmtChartDate(s: string, full = false) {
+  try {
+    const hasTime = s.includes("T") || (s.includes(" ") && s.includes(":"));
+    const d = new Date(hasTime ? s.replace(" ", "T") : s + "T12:00:00");
+    if (hasTime) return d.toLocaleTimeString("es", { hour: "2-digit", minute: "2-digit" });
+    if (full) return d.toLocaleDateString("es", { day: "numeric", month: "short", year: "numeric" });
+    return d.toLocaleDateString("es", { month: "short", day: "numeric" });
+  } catch { return s.slice(5, 10); }
+}
+
+function PortfolioHistoryChart({
+  history, color, currencySymbol,
+}: {
+  history: ChartPoint[];
+  color: string;
+  currencySymbol: string;
+}) {
   const [hovered, setHovered] = useState<number | null>(null);
 
   if (history.length < 2) return null;
 
-  const W = 400;
-  const H = 120;
-  const PY = 8;
+  const W = 600, H = 195, PB = 28, PAD = 3;
+  const chartH = H - PB - PAD;
 
-  const values = history.map((h) => h.pct);
-  const minV = Math.min(...values);
-  const maxV = Math.max(...values);
+  // Plot dollar value on Y-axis
+  const vals = history.map((h) => h.value);
+  const minV = Math.min(...vals);
+  const maxV = Math.max(...vals);
   const spread = maxV - minV || Math.abs(maxV) || 1;
-  const lo = minV - spread * 0.12;
+  const lo = minV - spread * 0.1;
   const hi = maxV + spread * 0.12;
   const range = hi - lo;
 
-  const toX = (i: number) => (i / (history.length - 1)) * W;
-  const toY = (v: number) => PY + ((hi - v) / range) * (H - PY * 2);
-  const zeroY = Math.max(PY, Math.min(H - PY, toY(0)));
+  const toX = (i: number) => PAD + (i / (history.length - 1)) * (W - PAD * 2);
+  const toY = (v: number) => PAD + ((hi - v) / range) * chartH;
 
-  const pts = history.map((h, i) => `${toX(i).toFixed(1)},${toY(h.pct).toFixed(1)}`);
+  const pts = history.map((h, i) => `${toX(i).toFixed(1)},${toY(h.value).toFixed(1)}`);
   const linePath = "M" + pts.join("L");
   const lastX = toX(history.length - 1);
-  const lastY = toY(values[values.length - 1]);
-  const areaPath = `${linePath}L${lastX.toFixed(1)},${zeroY.toFixed(1)}L0,${zeroY.toFixed(1)}Z`;
+  const lastY = toY(vals[vals.length - 1]);
+  const bottomY = PAD + chartH;
+  const areaPath = `${linePath}L${lastX.toFixed(1)},${bottomY}L${PAD},${bottomY}Z`;
 
-  // Hovered point data
-  const hPt   = hovered !== null ? history[hovered] : null;
-  const hX    = hovered !== null ? toX(hovered) : null;
-  const hY    = hovered !== null ? toY(values[hovered]) : null;
-  const hUp   = hPt ? hPt.pct >= 0 : true;
+  // Baseline = portfolio's starting value (cost entry)
+  const baselineY = toY(history[0].value);
+
+  // 3 subtle horizontal gridlines
+  const gridYs = [0.2, 0.5, 0.8].map((t) => PAD + t * chartH);
+
+  const hPt    = hovered !== null ? history[hovered] : null;
+  const hX     = hovered !== null ? toX(hovered) : null;
+  const hY     = hovered !== null ? toY(vals[hovered]) : null;
+  const hUp    = hPt ? hPt.pct >= 0 : true;
   const hColor = hPt ? (hUp ? "#22c55e" : "#ef4444") : color;
 
-  // Mouse → closest data point
   const handleMouseMove = (e: React.MouseEvent<SVGSVGElement>) => {
     const rect = e.currentTarget.getBoundingClientRect();
-    const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+    const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left - PAD) / (rect.width - PAD * 2)));
     setHovered(Math.round(ratio * (history.length - 1)));
   };
 
-  // X-axis: 5 evenly spaced date labels
+  const fmtVal = (v: number) => {
+    if (v >= 1e6) return `${currencySymbol}${(v / 1e6).toFixed(1)}M`;
+    if (v >= 1e3) return `${currencySymbol}${(v / 1e3).toFixed(0)}K`;
+    return `${currencySymbol}${v.toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
+  };
+
   const N_LABELS = 5;
   const labelIdxs = Array.from({ length: N_LABELS }, (_, i) =>
     Math.round((i * (history.length - 1)) / (N_LABELS - 1))
   );
 
-  const fmtAxisDate = (dateStr: string) => {
-    try {
-      const hasTime = dateStr.includes("T") || (dateStr.includes(" ") && dateStr.includes(":"));
-      const d = new Date(hasTime ? dateStr.replace(" ", "T") : dateStr + "T12:00:00");
-      if (hasTime) return d.toLocaleTimeString("es", { hour: "2-digit", minute: "2-digit" });
-      return d.toLocaleDateString("es", { month: "short", day: "numeric" });
-    } catch { return dateStr.slice(5, 10); }
-  };
-
-  const fmtTooltipDate = (dateStr: string) => {
-    try {
-      const hasTime = dateStr.includes("T") || (dateStr.includes(" ") && dateStr.includes(":"));
-      const d = new Date(hasTime ? dateStr.replace(" ", "T") : dateStr + "T12:00:00");
-      if (hasTime) return d.toLocaleTimeString("es", { hour: "2-digit", minute: "2-digit" });
-      return d.toLocaleDateString("es", { day: "numeric", month: "short", year: "numeric" });
-    } catch { return dateStr.slice(0, 10); }
-  };
-
-  // Tooltip left % — clamped so it stays within chart
-  const tooltipPct = hX !== null ? Math.max(5, Math.min(95, (hX / W) * 100)) : 50;
+  const tooltipLeft = hX !== null
+    ? Math.max(5, Math.min(88, (hX / W) * 100))
+    : 50;
 
   return (
     <div className="relative select-none">
@@ -493,86 +501,90 @@ function PortfolioSparkline({ history, color }: { history: ChartPoint[]; color: 
       {hPt !== null && hX !== null && (
         <div
           className="absolute pointer-events-none z-10"
-          style={{ left: `${tooltipPct}%`, top: 6, transform: "translateX(-50%)" }}
+          style={{ left: `${tooltipLeft}%`, top: 4, transform: "translateX(-50%)" }}
         >
           <div
-            className="px-2.5 py-1 rounded-lg text-[11px] font-bold whitespace-nowrap shadow-lg"
+            className="px-3 py-2 rounded-xl text-[11px] font-bold whitespace-nowrap"
             style={{
-              background: "var(--raised)",
-              border: `1px solid ${hColor}40`,
-              color: hColor,
+              background: "var(--card)",
+              border: `1px solid ${hColor}30`,
+              boxShadow: `0 4px 20px rgba(0,0,0,0.25)`,
             }}
           >
-            {hUp ? "+" : ""}{hPt.pct.toFixed(2)}%
-            <span className="font-normal ml-1.5" style={{ color: "var(--muted)" }}>
-              {fmtTooltipDate(hPt.date)}
-            </span>
+            <div className="flex items-center gap-2.5">
+              <span style={{ color: hColor }}>
+                {hUp ? "+" : ""}{hPt.pct.toFixed(2)}%
+              </span>
+              <span style={{ color: "var(--text)" }}>{fmtVal(hPt.value)}</span>
+            </div>
+            <div className="text-[10px] font-normal mt-0.5" style={{ color: "var(--muted)" }}>
+              {fmtChartDate(hPt.date, true)}
+            </div>
           </div>
         </div>
       )}
 
-      {/* SVG chart */}
       <svg
         viewBox={`0 0 ${W} ${H}`}
         preserveAspectRatio="none"
         className="w-full"
-        style={{ height: 120, display: "block", cursor: "crosshair" }}
+        style={{ height: 195, display: "block", cursor: "crosshair" }}
         onMouseMove={handleMouseMove}
         onMouseLeave={() => setHovered(null)}
       >
         <defs>
-          <linearGradient id="psg" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor={color} stopOpacity="0.22" />
+          <linearGradient id="pfhg" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%"  stopColor={color} stopOpacity="0.26" />
+            <stop offset="75%" stopColor={color} stopOpacity="0.05" />
             <stop offset="100%" stopColor={color} stopOpacity="0.01" />
           </linearGradient>
         </defs>
 
-        {/* Zero baseline */}
-        <line x1="0" y1={zeroY} x2={W} y2={zeroY}
-          stroke={color} strokeWidth="0.7" strokeDasharray="4,3" strokeOpacity="0.3" />
+        {/* Subtle horizontal gridlines */}
+        {gridYs.map((y, i) => (
+          <line key={i} x1={0} y1={y} x2={W} y2={y}
+            stroke="currentColor" strokeWidth="0.6" strokeOpacity="0.07"
+            style={{ color: "var(--text)" }} />
+        ))}
+
+        {/* Baseline — where portfolio started */}
+        <line
+          x1={0} y1={baselineY} x2={W} y2={baselineY}
+          stroke={color} strokeWidth="0.9" strokeDasharray="5,4" strokeOpacity="0.35"
+        />
 
         {/* Area fill */}
-        <path d={areaPath} fill="url(#psg)" />
+        <path d={areaPath} fill="url(#pfhg)" />
 
-        {/* Price line */}
-        <path d={linePath} fill="none" stroke={color} strokeWidth="2"
+        {/* Value line */}
+        <path d={linePath} fill="none" stroke={color} strokeWidth="2.2"
           strokeLinejoin="round" strokeLinecap="round" />
 
-        {/* End dot — only when not hovering */}
+        {/* End dot */}
         {hovered === null && (
           <>
-            <circle cx={lastX} cy={lastY} r="5" fill={color} fillOpacity="0.25" />
-            <circle cx={lastX} cy={lastY} r="2.5" fill={color} />
+            <circle cx={lastX} cy={lastY} r="6"  fill={color} fillOpacity="0.2" />
+            <circle cx={lastX} cy={lastY} r="2.8" fill={color} />
           </>
         )}
 
         {/* Crosshair + hover dot */}
         {hovered !== null && hX !== null && hY !== null && (
           <>
-            {/* Vertical cursor line */}
-            <line
-              x1={hX} y1={PY - 2} x2={hX} y2={H - PY + 2}
-              stroke={hColor} strokeWidth="1.5" strokeDasharray="3,3" strokeOpacity="0.65"
-            />
-            {/* Dot glow */}
-            <circle cx={hX} cy={hY} r="7" fill={hColor} fillOpacity="0.15" />
-            {/* Dot core */}
+            <line x1={hX} y1={PAD} x2={hX} y2={PAD + chartH}
+              stroke={hColor} strokeWidth="1.5" strokeDasharray="3,3" strokeOpacity="0.6" />
+            <circle cx={hX} cy={hY} r="7"   fill={hColor} fillOpacity="0.15" />
             <circle cx={hX} cy={hY} r="3.5" fill={hColor} />
-            {/* Dot ring */}
-            <circle cx={hX} cy={hY} r="5.5" fill="none" stroke={hColor} strokeWidth="1" strokeOpacity="0.5" />
+            <circle cx={hX} cy={hY} r="5.5" fill="none" stroke={hColor} strokeWidth="1" strokeOpacity="0.4" />
           </>
         )}
       </svg>
 
       {/* X-axis date labels */}
-      <div className="flex justify-between mt-1.5 px-0">
+      <div className="flex justify-between mt-1.5">
         {labelIdxs.map((idx) => (
-          <span
-            key={idx}
-            className="text-[9px] font-medium"
-            style={{ color: "var(--dim)" }}
-          >
-            {fmtAxisDate(history[idx].date)}
+          <span key={idx} className="text-[9px] font-medium" style={{ color: "var(--dim)" }}>
+            {fmtChartDate(history[idx].date)}
           </span>
         ))}
       </div>
@@ -703,7 +715,7 @@ export default function PortfolioPage() {
     { key: "5y",  label: "5A"  }, { key: "max", label: "MÁX" },
   ] as const;
   type PeriodKey = typeof PERIODS[number]["key"];
-  const [selectedPeriod, setSelectedPeriod] = useState<PeriodKey>("1y");
+  const [selectedPeriod, setSelectedPeriod] = useState<PeriodKey>("since_purchase");
   const [periodReturns, setPeriodReturns] = useState<Record<string, PeriodReturn>>({});
   const [loadingReturns, setLoadingReturns] = useState(false);
   const [breakdownSort, setBreakdownSort] = useState<"desc" | "asc">("desc");
@@ -1570,7 +1582,7 @@ export default function PortfolioPage() {
                             Cargando datos históricos...
                           </div>
                         ) : chartData && chartData.history.length >= 2 ? (
-                          <PortfolioSparkline history={chartData.history} color={color} />
+                          <PortfolioHistoryChart history={chartData.history} color={color} currencySymbol={currencySymbol} />
                         ) : !chartLoading ? (
                           <div className="h-[110px] flex items-center justify-center text-xs"
                                style={{ color: "var(--dim)" }}>
