@@ -209,6 +209,11 @@ export const syncApi = {
     api.post("/api/sync/nav-order", { order }),
   getNavOrder: () =>
     api.get("/api/sync/nav-order"),
+  // Theme sync
+  pushTheme: (theme: "dark" | "light") =>
+    api.post("/api/sync/theme", { theme }),
+  getTheme: () =>
+    api.get("/api/sync/theme"),
 };
 
 export const referralApi = {

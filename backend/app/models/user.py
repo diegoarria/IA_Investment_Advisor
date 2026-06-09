@@ -22,6 +22,7 @@ class UserProfileUpdate(BaseModel):
     mentor: Optional[str] = None
     avatar_url: Optional[str] = None
     nav_order: Optional[list] = None
+    theme: Optional[str] = None
 
 
 class UserProfile(BaseModel):
@@ -40,6 +41,7 @@ class UserProfile(BaseModel):
     msg_count: int = 0
     msg_window_start: Optional[str] = None
     nav_order: Optional[list] = None
+    theme: Optional[str] = None
     created_at: str
     updated_at: str
 

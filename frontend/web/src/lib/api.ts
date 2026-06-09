@@ -203,6 +203,8 @@ export const sync = {
   getPortfolio: () => api.get("/api/sync/portfolio"),
   pushPortfolio: (positions: unknown[], currency?: string) =>
     api.post("/api/sync/portfolio", { positions, currency: currency ?? "USD" }),
+  getAll: () => api.get("/api/sync/all"),
+  pushTheme: (theme: "dark" | "light") => api.post("/api/sync/theme", { theme }),
 };
 
 export const notifications = {

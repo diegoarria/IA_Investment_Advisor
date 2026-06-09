@@ -177,7 +177,7 @@ async def get_all(user_id: str = Depends(get_current_user_id)):
         .select("cash, positions, trades, free_trade_month, free_trade_count") \
         .eq("user_id", user_id).execute()
     profile_res = db.table("user_profiles") \
-        .select("maturity_score, maturity_history, trial_started_at, subscription_tier, nav_order") \
+        .select("maturity_score, maturity_history, trial_started_at, subscription_tier, nav_order, theme") \
         .eq("user_id", user_id).execute()
     watchlist_res = db.table("watchlist") \
         .select("ticker, name, added_at") \
@@ -224,6 +224,7 @@ async def get_all(user_id: str = Depends(get_current_user_id)):
         },
         "watchlist": watchlist_res.data if watchlist_res.data else [],
         "nav_order":  profile_row.get("nav_order"),
+        "theme":      profile_row.get("theme", "dark"),
     }
 
 
@@ -245,6 +246,28 @@ async def get_nav_order(user_id: str = Depends(get_current_user_id)):
     if result.data:
         return {"nav_order": result.data[0].get("nav_order")}
     return {"nav_order": None}
+
+
+# ─── Theme ───────────────────────────────────────────────────────────────────
+
+@router.post("/theme")
+async def sync_theme(body: dict, user_id: str = Depends(get_current_user_id)):
+    """Persist the user's dark/light theme preference for cross-device sync."""
+    theme = body.get("theme", "dark")
+    if theme not in ("dark", "light"):
+        theme = "dark"
+    db = get_supabase()
+    db.table("user_profiles").update({"theme": theme}).eq("user_id", user_id).execute()
+    return {"ok": True}
+
+
+@router.get("/theme")
+async def get_theme(user_id: str = Depends(get_current_user_id)):
+    db = get_supabase()
+    result = db.table("user_profiles").select("theme").eq("user_id", user_id).execute()
+    if result.data:
+        return {"theme": result.data[0].get("theme", "dark")}
+    return {"theme": "dark"}
 
 
 # ─── Push token ───────────────────────────────────────────────────────────────

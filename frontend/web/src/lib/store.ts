@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import type { UserProfile, ChatMessage, Notification } from "./types";
+import { sync as syncApi } from "./api";
 
 // Storage scoped per-user so each account has its own chat history.
 const userScopedChatStorage = createJSONStorage(() => ({
@@ -360,6 +361,8 @@ export function msgsRemaining(store: { tier: SubscriptionTier; msgCount: number;
 interface ThemeState {
   theme: "dark" | "light";
   toggleTheme: () => void;
+  setTheme: (t: "dark" | "light") => void;
+  loadThemeFromServer: () => Promise<void>;
 }
 
 export const useThemeStore = create<ThemeState>()(
@@ -372,6 +375,22 @@ export const useThemeStore = create<ThemeState>()(
           document.documentElement.setAttribute("data-theme", next);
         }
         set({ theme: next });
+        syncApi.pushTheme(next).catch(() => {});
+      },
+      setTheme: (t) => {
+        if (typeof document !== "undefined") {
+          document.documentElement.setAttribute("data-theme", t);
+        }
+        set({ theme: t });
+      },
+      loadThemeFromServer: async () => {
+        try {
+          const res = await syncApi.getAll();
+          const serverTheme: "dark" | "light" | undefined = res.data?.theme;
+          if (serverTheme === "dark" || serverTheme === "light") {
+            get().setTheme(serverTheme);
+          }
+        } catch {}
       },
     }),
     { name: "theme-store" }

@@ -1,4 +1,8 @@
-import React, { createContext, useContext, useState } from "react";
+import React, { createContext, useContext, useState, useEffect } from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { syncApi } from "./api";
+
+const STORAGE_KEY = "nuvos_theme";
 
 // Exact mirror of the web app's CSS variables (globals.css)
 export const dark = {
@@ -76,10 +80,39 @@ const ThemeContext = createContext<ThemeCtx>({
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [isDark, setIsDark] = useState(true);
+
+  useEffect(() => {
+    (async () => {
+      // 1. Apply AsyncStorage immediately — no flash on relaunch
+      try {
+        const saved = await AsyncStorage.getItem(STORAGE_KEY);
+        if (saved === "dark" || saved === "light") {
+          setIsDark(saved === "dark");
+        }
+      } catch {}
+
+      // 2. Fetch from server — authoritative for cross-device sync
+      try {
+        const res = await syncApi.getTheme();
+        const serverTheme: string | undefined = res.data?.theme;
+        if (serverTheme === "dark" || serverTheme === "light") {
+          setIsDark(serverTheme === "dark");
+          await AsyncStorage.setItem(STORAGE_KEY, serverTheme);
+        }
+      } catch {}
+    })();
+  }, []);
+
+  const toggle = () => {
+    const next = !isDark;
+    setIsDark(next);
+    const str = next ? "dark" : "light";
+    AsyncStorage.setItem(STORAGE_KEY, str).catch(() => {});
+    syncApi.pushTheme(str).catch(() => {});
+  };
+
   return (
-    <ThemeContext.Provider
-      value={{ colors: isDark ? dark : light, isDark, toggle: () => setIsDark((v) => !v) }}
-    >
+    <ThemeContext.Provider value={{ colors: isDark ? dark : light, isDark, toggle }}>
       {children}
     </ThemeContext.Provider>
   );
