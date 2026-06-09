@@ -85,7 +85,7 @@ export default function ProgressModal({ visible, onClose }: Props) {
               <View style={s.emptyGraph}>
                 <Ionicons name="trending-up-outline" size={32} color={colors.textDim} />
                 <Text style={[s.emptyGraphText, { color: colors.textDim }]}>
-                  Usa el chat y el Arena para ver tu evolución aquí
+                  Usa el chat y el Play para ver tu evolución aquí
                 </Text>
               </View>
             ) : (

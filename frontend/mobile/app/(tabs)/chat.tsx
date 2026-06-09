@@ -363,13 +363,19 @@ Instrucciones críticas:
     return (
       <View style={[styles.messageContainer, item.role === "user" ? styles.userContainer : styles.assistantContainer]}>
         {item.role === "assistant" && (
-          <View style={[styles.avatar, { backgroundColor: mentor?.color ?? "#16a34a" }]}>
+          <View style={[
+            styles.avatar,
+            {
+              backgroundColor: mentor ? mentor.color + "22" : colors.accentGlow,
+              borderColor: mentor ? mentor.color + "30" : "rgba(0,185,109,0.2)",
+            },
+          ]}>
             {mentorPhoto ? (
               <Image source={mentorPhoto} style={styles.avatarPhoto} />
             ) : mentor ? (
               <Text style={{ fontSize: 12 }}>{mentor.emoji}</Text>
             ) : (
-              <Ionicons name="trending-up" size={14} color="white" />
+              <Ionicons name="trending-up" size={14} color={colors.accentLight} />
             )}
           </View>
         )}
@@ -526,7 +532,9 @@ Instrucciones críticas:
                   </View>
                 )
               ) : (
-                <Ionicons name="flash-outline" size={48} color={colors.accentLight} style={{ marginBottom: 16 }} />
+                <View style={[styles.emptyIconBox, { backgroundColor: colors.accentGlow, borderColor: "rgba(0,185,109,0.2)" }]}>
+                <Ionicons name="trending-up" size={40} color={colors.accentLight} />
+              </View>
               )}
               <Text style={styles.emptyTitle}>
                 {mentor
@@ -552,9 +560,8 @@ Instrucciones críticas:
               <View style={styles.suggestions}>
                 {SUGGESTIONS.map((s) => (
                   <TouchableOpacity key={s} style={[styles.suggestion, { borderColor: colors.border }]} onPress={() => sendMessage(s)}>
-                    <Ionicons name="sparkles-outline" size={14} color={colors.accentLight} style={{ flexShrink: 0 }} />
+                    <Text style={[styles.suggestionBullet, { color: colors.accent }]}>✦</Text>
                     <Text style={[styles.suggestionText, { color: colors.textSub }]}>{s}</Text>
-                    <Ionicons name="chevron-forward" size={13} color={colors.textDim} style={{ flexShrink: 0 }} />
                   </TouchableOpacity>
                 ))}
               </View>
@@ -708,14 +715,20 @@ function makeStyles(c: Colors) {
     empty: { flexGrow: 1, alignItems: "center", justifyContent: "center", padding: 28 },
     emptyTitle: { fontSize: 22, fontWeight: "800", color: c.text, marginBottom: 6, letterSpacing: -0.5 },
     emptySubtitle: { fontSize: 14, color: c.textMuted, textAlign: "center", marginBottom: 32, lineHeight: 21 },
-    suggestions: { width: "100%", gap: 9 },
+    emptyIconBox: {
+      width: 80, height: 80, borderRadius: 24,
+      alignItems: "center", justifyContent: "center",
+      marginBottom: 16, borderWidth: 2,
+    },
+    suggestions: { width: "100%", gap: 8 },
     suggestion: {
       backgroundColor: c.card,
       borderWidth: 1, borderColor: c.border,
-      borderRadius: 14, paddingHorizontal: 16, paddingVertical: 14,
-      flexDirection: "row", alignItems: "center", gap: 10,
+      borderRadius: 18, paddingHorizontal: 16, paddingVertical: 14,
+      flexDirection: "column", gap: 4,
     },
-    suggestionText: { color: c.textSub, fontSize: 13, flex: 1, lineHeight: 19 },
+    suggestionBullet: { fontSize: 10, fontWeight: "700" as const },
+    suggestionText: { color: c.textSub, fontSize: 13, lineHeight: 19 },
 
     // Message list
     list: { paddingHorizontal: 14, paddingVertical: 16, paddingBottom: 8 },
@@ -725,14 +738,14 @@ function makeStyles(c: Colors) {
 
     // Avatars
     avatar: {
-      width: 30, height: 30, borderRadius: 15,
+      width: 32, height: 32, borderRadius: 14,
       alignItems: "center", justifyContent: "center", marginRight: 8,
-      overflow: "hidden",
+      overflow: "hidden", borderWidth: 1,
     },
-    avatarPhoto: { width: 30, height: 30, borderRadius: 15 },
-    mentorAvatar: { width: 88, height: 88, borderRadius: 44, marginBottom: 14 },
+    avatarPhoto: { width: 32, height: 32, borderRadius: 14 },
+    mentorAvatar: { width: 96, height: 96, borderRadius: 24, marginBottom: 14 },
     mentorAvatarEmoji: {
-      width: 88, height: 88, borderRadius: 44,
+      width: 96, height: 96, borderRadius: 24,
       alignItems: "center", justifyContent: "center", marginBottom: 14,
     },
     mentorPrinciples: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 10, justifyContent: "center" },
@@ -741,27 +754,31 @@ function makeStyles(c: Colors) {
     },
     principlePillText: { fontSize: 11, fontWeight: "600", letterSpacing: 0.2 },
 
-    // Bubbles
-    bubble: { maxWidth: "80%", minWidth: 0, flexShrink: 1, borderRadius: 18, paddingHorizontal: 14, paddingVertical: 10 },
+    // Bubbles — mirror web: .bubble-user (20/4 tail) and .bubble-ai (20/4 tail)
+    bubble: { maxWidth: "80%", minWidth: 0, flexShrink: 1, borderRadius: 20, paddingHorizontal: 14, paddingVertical: 12 },
     userBubble: {
-      backgroundColor: c.accent,
-      borderBottomRightRadius: 5,
+      backgroundColor: c.accentLight,   // bright end of web's grad-green
+      borderBottomRightRadius: 4,        // tail point (web: 4px)
       shadowColor: c.accentLight,
-      shadowOpacity: 0.3,
-      shadowRadius: 8,
-      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.25,
+      shadowRadius: 16,
+      shadowOffset: { width: 0, height: 4 },
     },
     assistantBubble: {
       backgroundColor: c.card,
       borderWidth: 1, borderColor: c.border,
-      borderBottomLeftRadius: 5,
+      borderBottomLeftRadius: 4,         // tail point (web: 4px)
+      shadowColor: "#000",
+      shadowOpacity: 0.4,
+      shadowRadius: 3,
+      shadowOffset: { width: 0, height: 1 },
     },
-    userText: { color: "white", fontSize: 14, lineHeight: 21, flexWrap: "wrap", fontWeight: "500" },
+    userText: { color: "white", fontSize: 14, lineHeight: 22, flexWrap: "wrap", fontWeight: "500", fontFamily: "Inter_400Regular" },
 
-    // Input area
+    // Input area — mirrors web: input-premium (radius 12) + send rounded-2xl (14)
     inputContainer: {
       flexDirection: "row", alignItems: "flex-end",
-      paddingHorizontal: 12, paddingVertical: 10,
+      paddingHorizontal: 16, paddingBottom: 16, paddingTop: 12,
       borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.border,
       backgroundColor: c.card, gap: 8,
     },
@@ -769,19 +786,19 @@ function makeStyles(c: Colors) {
       flex: 1,
       backgroundColor: c.bgRaised ?? c.bg,
       borderWidth: 1, borderColor: c.border,
-      borderRadius: 20,
+      borderRadius: 12,
       paddingHorizontal: 16, paddingVertical: 10,
       color: c.text, fontSize: 15, maxHeight: 110, lineHeight: 20,
     },
     sendButton: {
       width: 44, height: 44,
-      backgroundColor: c.accent,
-      borderRadius: 22,
+      backgroundColor: c.accentLight,
+      borderRadius: 14,
       alignItems: "center", justifyContent: "center",
       shadowColor: c.accentLight,
-      shadowOpacity: 0.4,
-      shadowRadius: 8,
-      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.3,
+      shadowRadius: 12,
+      shadowOffset: { width: 0, height: 0 },
     },
     sendDisabled: { opacity: 0.35 },
     premiumBadge: {
@@ -799,7 +816,7 @@ function makeStyles(c: Colors) {
     },
     msgCounterText: { fontSize: 11, fontWeight: "500" as const, flex: 1 },
     editBtn: { alignSelf: "flex-end", marginTop: 3, padding: 4 },
-    aiDisclaimer: { fontSize: 10, lineHeight: 14, marginTop: 4, color: c.textDim },
+    aiDisclaimer: { fontSize: 10, lineHeight: 14, marginTop: 4, color: c.textDim, fontFamily: "Inter_400Regular" },
 
     // Diagnostic
     diagSeparator: { borderTopWidth: StyleSheet.hairlineWidth, marginTop: 8, marginBottom: 8 },
@@ -812,35 +829,41 @@ function makeStyles(c: Colors) {
 function makeMarkdownStyles(c: Colors) {
   return {
     body: {
-      color: c.textSub, fontSize: 14, lineHeight: 22, flexShrink: 1,
+      color: c.textSub, fontSize: 14, lineHeight: 24, flexShrink: 1,
+      fontFamily: "Inter_400Regular",
       ...(Platform.OS === "web" ? { wordBreak: "break-word", overflowWrap: "break-word" } : {}),
     },
     paragraph: {
       flexShrink: 1, flexWrap: "wrap" as const, marginVertical: 4,
+      fontFamily: "Inter_400Regular",
       ...(Platform.OS === "web" ? { wordBreak: "break-word", overflowWrap: "break-word" } : {}),
     },
-    text: { flexShrink: 1, flexWrap: "wrap" as const },
+    text: { flexShrink: 1, flexWrap: "wrap" as const, fontFamily: "Inter_400Regular" },
     heading1: {
-      color: c.text, fontSize: 17, fontWeight: "800" as const, letterSpacing: -0.4,
+      color: c.text, fontSize: 17, fontWeight: "700" as const, letterSpacing: -0.4,
+      fontFamily: "Inter_700Bold",
       marginBottom: 8, marginTop: 14, paddingBottom: 6,
       borderBottomWidth: 1.5, borderBottomColor: c.accentLight,
     },
     heading2: {
       color: c.text, fontSize: 15, fontWeight: "700" as const, letterSpacing: -0.2,
+      fontFamily: "Inter_700Bold",
       marginBottom: 6, marginTop: 12,
     },
     heading3: {
-      color: c.accentLight, fontSize: 13, fontWeight: "700" as const,
-      marginBottom: 4, marginTop: 8, letterSpacing: 0.4, textTransform: "uppercase" as const,
+      color: c.accentLight, fontSize: 12, fontWeight: "600" as const,
+      fontFamily: "Inter_600SemiBold",
+      marginBottom: 4, marginTop: 8, letterSpacing: 0.5, textTransform: "uppercase" as const,
     },
-    strong: { color: c.text, fontWeight: "700" as const },
-    em: { color: c.accentLight, fontStyle: "italic" as const },
+    strong: { color: c.text, fontWeight: "700" as const, fontFamily: "Inter_700Bold" },
+    em: { color: c.accentLight, fontStyle: "italic" as const, fontFamily: "Inter_400Regular" },
     bullet_list: { marginVertical: 6, flexShrink: 1 },
     ordered_list: { marginVertical: 6, flexShrink: 1 },
-    list_item: { color: c.textSub, fontSize: 14, lineHeight: 22, flexShrink: 1, marginVertical: 2 },
+    list_item: { color: c.textSub, fontSize: 14, lineHeight: 24, flexShrink: 1, marginVertical: 2, fontFamily: "Inter_400Regular" },
     code_inline: {
       backgroundColor: c.accentLight + "1a", color: c.accentLight,
-      borderRadius: 5, paddingHorizontal: 6, fontSize: 13, fontWeight: "600" as const,
+      borderRadius: 5, paddingHorizontal: 6, fontSize: 12.5, fontWeight: "500" as const,
+      fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
     },
     fence: {
       backgroundColor: c.bgRaised ?? c.card,

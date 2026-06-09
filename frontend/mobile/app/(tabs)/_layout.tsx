@@ -3,42 +3,42 @@ import { Tabs } from "expo-router";
 import {
   View, Text, TouchableOpacity, StyleSheet, Platform, Pressable, Image,
 } from "react-native";
-import { useFonts } from "expo-font";
-import {
-  DMSans_400Regular,
-  DMSans_500Medium,
-  DMSans_600SemiBold,
-  DMSans_700Bold,
-  DMSans_800ExtraBold,
-} from "@expo-google-fonts/dm-sans";
 import type { BottomTabBarProps } from "@react-navigation/bottom-tabs";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { useTheme } from "../../src/lib/ThemeContext";
 import { useAppStore } from "../../src/lib/profileStore";
+import { useNavOrderStore, getTop5TabPaths, pathToRoute } from "../../src/lib/navOrderStore";
+import { useWatchlistStore } from "../../src/lib/watchlistStore";
 import MarketTicker from "../../src/components/MarketTicker";
 
 type IoniconName = React.ComponentProps<typeof Ionicons>["name"];
 
+// Icons mirror the web app's Lucide icons: BookOpen, PieChart, Eye, Trophy,
+// GraduationCap, BarChart2, User, Bell, Headphones
 const TAB_CONFIG: Record<string, { icon: IoniconName; iconFilled: IoniconName; label: string }> = {
-  chat:      { icon: "chatbubble-ellipses-outline", iconFilled: "chatbubble-ellipses", label: "Chat" },
-  portfolio: { icon: "bar-chart-outline",           iconFilled: "bar-chart",           label: "Portafolio" },
-  watchlist: { icon: "eye-outline",                 iconFilled: "eye",                 label: "Watchlist" },
-  arena:     { icon: "trophy-outline",              iconFilled: "trophy",              label: "Arena" },
-  learn:     { icon: "school-outline",              iconFilled: "school",              label: "Aprender" },
-  paper:     { icon: "game-controller-outline",     iconFilled: "game-controller",     label: "Virtual" },
+  chat:          { icon: "book-outline",          iconFilled: "book",          label: "Chat" },
+  portfolio:     { icon: "pie-chart-outline",     iconFilled: "pie-chart",     label: "Portafolio" },
+  watchlist:     { icon: "eye-outline",           iconFilled: "eye",           label: "Watchlist" },
+  arena:         { icon: "trophy-outline",        iconFilled: "trophy",        label: "Play" },
+  learn:         { icon: "school-outline",        iconFilled: "school",        label: "Aprender" },
+  paper:         { icon: "bar-chart-outline",     iconFilled: "bar-chart",     label: "Simulador" },
+  profile:       { icon: "person-outline",        iconFilled: "person",        label: "Perfil" },
+  notifications: { icon: "notifications-outline", iconFilled: "notifications", label: "Alertas" },
 };
-
-const HIDDEN_TABS = ["profile", "notifications", "explore"];
 
 // ─── Custom Tab Bar ───────────────────────────────────────────────────────────
 
 function CustomTabBar({ state, descriptors: _d, navigation }: BottomTabBarProps) {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
+  const navOrder = useNavOrderStore((s) => s.order);
 
-  const visibleRoutes = state.routes.filter((r) => !HIDDEN_TABS.includes(r.name));
+  const top5RouteNames = getTop5TabPaths(navOrder).map(pathToRoute);
+  const visibleRoutes = top5RouteNames
+    .map((name) => state.routes.find((r) => r.name === name))
+    .filter(Boolean) as typeof state.routes;
 
   return (
     <View style={[
@@ -227,24 +227,13 @@ const headerStyles = StyleSheet.create({
 
 export default function TabsLayout() {
   const isWeb = Platform.OS === "web";
-
-  const [fontsLoaded] = useFonts({
-    DMSans_400Regular,
-    DMSans_500Medium,
-    DMSans_600SemiBold,
-    DMSans_700Bold,
-    DMSans_800ExtraBold,
-  });
+  const loadOrder = useNavOrderStore((s) => s.loadOrder);
+  const loadWatchlist = useWatchlistStore((s) => s.loadFromServer);
 
   useEffect(() => {
-    if (fontsLoaded) {
-      // Apply DM Sans as the default font for all Text components
-      // @ts-ignore
-      Text.defaultProps = Text.defaultProps ?? {};
-      // @ts-ignore
-      Text.defaultProps.style = [{ fontFamily: "DMSans_400Regular" }];
-    }
-  }, [fontsLoaded]);
+    loadOrder();
+    loadWatchlist();
+  }, []);
 
   return (
     <Tabs
@@ -254,68 +243,16 @@ export default function TabsLayout() {
         headerShown: !isWeb,
       }}
     >
-      <Tabs.Screen
-        name="chat"
-        options={{
-          tabBarIcon: ({ color }) => <Ionicons name="chatbubble-ellipses-outline" size={22} color={color} />,
-          title: "Chat",
-          header: () => <MobileHeader title="Nuvos AI" />,
-        }}
-      />
-      <Tabs.Screen
-        name="portfolio"
-        options={{
-          tabBarIcon: ({ color }) => <Ionicons name="bar-chart-outline" size={22} color={color} />,
-          title: "Portafolios",
-          header: () => <MobileHeader title="Mi Portafolio" />,
-        }}
-      />
-      <Tabs.Screen
-        name="watchlist"
-        options={{
-          title: "Watchlist",
-          header: () => <MobileHeader title="Watchlist" />,
-        }}
-      />
-      <Tabs.Screen name="explore" options={{ href: null }} />
-      <Tabs.Screen name="profile" options={{ href: null, header: () => <MobileHeader title="Mi Perfil" /> }} />
-      <Tabs.Screen
-        name="arena"
-        options={{
-          title: "Arena",
-          header: () => <MobileHeader title="🏆 Arena" />,
-        }}
-      />
-      <Tabs.Screen
-        name="learn"
-        options={{
-          title: "Aprender",
-          header: () => <MobileHeader title="Aprendizaje" />,
-        }}
-      />
-      <Tabs.Screen
-        name="paper"
-        options={{
-          title: "Virtual",
-          header: () => <MobileHeader title="Paper Trading" />,
-        }}
-      />
-      <Tabs.Screen
-        name="notifications"
-        options={{
-          href: null,
-          title: "Notificaciones",
-          header: () => <MobileHeader title="Notificaciones" />,
-        }}
-      />
-      <Tabs.Screen
-        name="support"
-        options={{
-          href: null,
-          title: "Soporte",
-          header: () => <MobileHeader title="Soporte" />,
-        }}
-      />
+      <Tabs.Screen name="chat"      options={{ title: "Chat",          header: () => <MobileHeader title="Nuvos AI" /> }} />
+      <Tabs.Screen name="portfolio" options={{ title: "Portafolios",   header: () => <MobileHeader title="Mi Portafolio" /> }} />
+      <Tabs.Screen name="watchlist" options={{ title: "Watchlist",     header: () => <MobileHeader title="Watchlist" /> }} />
+      <Tabs.Screen name="arena"     options={{ title: "Play",          header: () => <MobileHeader title="🏆 Play" /> }} />
+      <Tabs.Screen name="learn"     options={{ title: "Aprender",      header: () => <MobileHeader title="Aprendizaje" /> }} />
+      <Tabs.Screen name="paper"     options={{ title: "Simulador",     header: () => <MobileHeader title="Simulador" /> }} />
+      <Tabs.Screen name="profile"   options={{ title: "Perfil",        header: () => <MobileHeader title="Mi Perfil" /> }} />
+      <Tabs.Screen name="notifications" options={{ title: "Alertas",   header: () => <MobileHeader title="Notificaciones" /> }} />
+      <Tabs.Screen name="explore"   options={{ href: null }} />
+      <Tabs.Screen name="support"   options={{ href: null, title: "Soporte", header: () => <MobileHeader title="Soporte" /> }} />
     </Tabs>
   );
 }

@@ -2,6 +2,20 @@ import { Stack, usePathname } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { View, Platform, Modal, Text, TouchableOpacity, StyleSheet, Alert } from "react-native";
 import { useEffect, useState } from "react";
+import { useFonts } from "expo-font";
+import {
+  DMSans_400Regular,
+  DMSans_500Medium,
+  DMSans_600SemiBold,
+  DMSans_700Bold,
+  DMSans_800ExtraBold,
+} from "@expo-google-fonts/dm-sans";
+import {
+  Inter_400Regular,
+  Inter_500Medium,
+  Inter_600SemiBold,
+  Inter_700Bold,
+} from "@expo-google-fonts/inter";
 import { ThemeProvider, useTheme } from "../src/lib/ThemeContext";
 import Sidebar from "../src/components/Sidebar";
 import { useSubscriptionStore, isTrialActive, hasPremiumAccess } from "../src/lib/subscriptionStore";
@@ -32,7 +46,7 @@ function TrialExpiredModal() {
             <Text style={{ fontSize: 40, textAlign: "center", marginBottom: 12 }}>⏰</Text>
             <Text style={[s.title, { color: colors.text }]}>Tu prueba Premium terminó</Text>
             <Text style={[s.body, { color: colors.textMuted }]}>
-              Tuviste 7 días de acceso completo. Activa Premium para seguir usando el Simulador avanzado, Paper Trading ilimitado, Stress Test completo y más.
+              Tuviste 7 días de acceso completo. Activa Premium para seguir usando el Simulador avanzado, Simulador ilimitado, Stress Test completo y más.
             </Text>
             <TouchableOpacity
               style={[s.btn, { backgroundColor: "#f59e0b" }]}
@@ -167,6 +181,27 @@ function AppStack() {
 }
 
 export default function RootLayout() {
+  const [fontsLoaded] = useFonts({
+    DMSans_400Regular,
+    DMSans_500Medium,
+    DMSans_600SemiBold,
+    DMSans_700Bold,
+    DMSans_800ExtraBold,
+    Inter_400Regular,
+    Inter_500Medium,
+    Inter_600SemiBold,
+    Inter_700Bold,
+  });
+
+  useEffect(() => {
+    if (fontsLoaded) {
+      // @ts-ignore
+      Text.defaultProps = Text.defaultProps ?? {};
+      // @ts-ignore
+      Text.defaultProps.style = [{ fontFamily: "DMSans_400Regular" }];
+    }
+  }, [fontsLoaded]);
+
   return (
     <ThemeProvider>
       <AppStack />

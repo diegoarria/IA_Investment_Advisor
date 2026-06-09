@@ -12,23 +12,13 @@ import { usePortfolioStore } from "../lib/portfolioStore";
 import { useChatStore } from "../lib/chatStore";
 import { useTheme } from "../lib/ThemeContext";
 import MarketTicker from "./MarketTicker";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import { ALL_NAV_ITEMS, useNavOrderStore, getTop5TabPaths } from "../lib/navOrderStore";
 
 const SIDEBAR_WIDTH = Math.min(Dimensions.get("window").width * 0.78, 300);
 const WEB_EXPANDED = 260;
 const WEB_COLLAPSED = 62;
 
 type IoniconName = React.ComponentProps<typeof Ionicons>["name"];
-
-const NAV_ITEMS: { icon: IoniconName; label: string; path: string }[] = [
-  { icon: "chatbubble-ellipses-outline", label: "Chat IA",       path: "/chat" },
-  { icon: "bar-chart-outline",           label: "Portafolios",   path: "/portfolio" },
-  { icon: "person-circle-outline",       label: "Mi Perfil",     path: "/profile" },
-  { icon: "game-controller-outline",     label: "Paper Trading", path: "/paper" },
-  { icon: "notifications-outline",       label: "Alertas",       path: "/notifications" },
-  { icon: "school-outline",              label: "Aprendizaje",   path: "/learn" },
-  { icon: "headset-outline",             label: "Soporte",       path: "/support" },
-];
 
 // ─── Risk segments (same 8 levels as web) ────────────────────────────────────
 
@@ -124,33 +114,22 @@ function NavItems({
   onPress: (path: string) => void;
   collapsed?: boolean;
 }) {
-  const [items, setItems] = useState(() => [...NAV_ITEMS]);
+  const { order, setOrder } = useNavOrderStore();
   const [editMode, setEditMode] = useState(false);
   const [liftedPath, setLiftedPath] = useState<string | null>(null);
 
-  useEffect(() => {
-    AsyncStorage.getItem("nuvos_nav_order").then((saved) => {
-      if (!saved) return;
-      try {
-        const order: string[] = JSON.parse(saved);
-        setItems(
-          [...NAV_ITEMS].sort((a, b) => {
-            const ai = order.indexOf(a.path);
-            const bi = order.indexOf(b.path);
-            return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi);
-          })
-        );
-      } catch {}
-    });
-  }, []);
+  const items = order
+    .map((path) => ALL_NAV_ITEMS.find((i) => i.path === path))
+    .filter(Boolean) as typeof ALL_NAV_ITEMS;
+
+  const top5Paths = new Set(getTop5TabPaths(order));
 
   const moveItem = (index: number, dir: -1 | 1) => {
     const to = index + dir;
-    if (to < 0 || to >= items.length) return;
-    const next = [...items];
+    if (to < 0 || to >= order.length) return;
+    const next = [...order];
     [next[index], next[to]] = [next[to], next[index]];
-    setItems(next);
-    AsyncStorage.setItem("nuvos_nav_order", JSON.stringify(next.map((i) => i.path)));
+    setOrder(next);
   };
 
   if (collapsed) {
@@ -167,7 +146,7 @@ function NavItems({
               ]}
               onPress={() => onPress(item.path)}
             >
-              <Ionicons name={item.icon} size={20} color={isActive ? "#22c55e" : colors.textSub} />
+              <Ionicons name={item.icon as IoniconName} size={20} color={isActive ? "#22c55e" : colors.textSub} />
             </TouchableOpacity>
           );
         })}
@@ -191,9 +170,17 @@ function NavItems({
         </Text>
       </TouchableOpacity>
 
+      {/* Hint text shown in edit mode */}
+      {editMode && (
+        <Text style={[styles.tabHintText, { color: colors.textDim }]}>
+          Los primeros 5 aparecen en la barra inferior
+        </Text>
+      )}
+
       {items.map((item, index) => {
         const isActive = pathname.includes(item.path.replace("/", ""));
         const isLifted = liftedPath === item.path;
+        const isInTab = top5Paths.has(item.path);
         return (
           <View
             key={item.path}
@@ -216,11 +203,22 @@ function NavItems({
               }}
               delayLongPress={400}
             >
-              <Ionicons name={item.icon} size={20} color={isActive ? "#22c55e" : colors.textSub} />
+              <Ionicons name={item.icon as IoniconName} size={20} color={isActive ? "#22c55e" : colors.textSub} />
               <Text style={[styles.navLabel, { color: isActive ? "#22c55e" : colors.textSub }]}>
                 {item.label}
               </Text>
               {isActive && !editMode && <View style={styles.activeDot} />}
+              {/* Tab badge: shown always for tab-capable items, dimmed when not in top 5 */}
+              {!editMode && item.tabCapable && (
+                <View style={[
+                  styles.tabBadge,
+                  { borderColor: isInTab ? "#22c55e44" : colors.border },
+                ]}>
+                  <Text style={[styles.tabBadgeText, { color: isInTab ? "#22c55e" : colors.textDim }]}>
+                    TAB
+                  </Text>
+                </View>
+              )}
               {editMode && (
                 <Ionicons
                   name="reorder-two-outline"
@@ -655,6 +653,12 @@ const styles = StyleSheet.create({
     borderRadius: 8, borderWidth: 1, alignSelf: "flex-start",
   },
   editModeText: { fontSize: 11, fontWeight: "600" },
+  tabHintText: { fontSize: 10, paddingHorizontal: 10, marginBottom: 6, fontStyle: "italic" },
+  tabBadge: {
+    borderWidth: 1, borderRadius: 4,
+    paddingHorizontal: 5, paddingVertical: 1, marginLeft: 2,
+  },
+  tabBadgeText: { fontSize: 8, fontWeight: "800", letterSpacing: 0.5 },
   navItemRow: { flexDirection: "row", alignItems: "center" },
   navItemLifted: {
     elevation: 4, shadowColor: "#000",

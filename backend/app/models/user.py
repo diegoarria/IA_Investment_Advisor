@@ -21,6 +21,7 @@ class UserProfileUpdate(BaseModel):
     quiz_answers: Optional[dict] = None
     mentor: Optional[str] = None
     avatar_url: Optional[str] = None
+    nav_order: Optional[list] = None
 
 
 class UserProfile(BaseModel):
@@ -38,6 +39,7 @@ class UserProfile(BaseModel):
     stripe_customer_id: Optional[str] = None
     msg_count: int = 0
     msg_window_start: Optional[str] = None
+    nav_order: Optional[list] = None
     created_at: str
     updated_at: str
 

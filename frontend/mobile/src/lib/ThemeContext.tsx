@@ -1,56 +1,61 @@
 import React, { createContext, useContext, useState } from "react";
 
+// Exact mirror of the web app's CSS variables (globals.css)
 export const dark = {
   // ── Backgrounds ──────────────────────────────────────────────────
-  bg:           "#06090f",   // True deep black with cool blue tint
-  bgRaised:     "#080d17",   // Slightly lifted surface
-  card:         "#0b1120",   // Card background
-  cardElevated: "#0e1628",   // Modal / elevated cards
+  bg:           "#03060e",   // --bg
+  bgRaised:     "#060c1a",   // --raised
+  card:         "#090f1f",   // --card
+  cardElevated: "#0d1526",   // --card-2
 
   // ── Borders ──────────────────────────────────────────────────────
-  border:       "#152034",   // Subtle cool border
-  borderStrong: "#1e3148",   // Stronger separator
+  border:       "#162035",   // --border
+  borderStrong: "#1e2e48",   // --border-s
 
   // ── Text hierarchy ────────────────────────────────────────────────
-  text:         "#e4eeff",   // Near-white with cool tint
-  textSub:      "#9ab4cc",   // Secondary text
-  textMuted:    "#5b7a96",   // Muted labels
-  textDim:      "#2e4a62",   // Disabled / very dim
-  placeholder:  "#3a5570",   // Input placeholders
+  text:         "#eef2ff",   // --text
+  textSub:      "#8fa3c0",   // --sub
+  textMuted:    "#546b85",   // --muted
+  textDim:      "#2a3f58",   // --dim
+  placeholder:  "#2a3f58",
 
   // ── Accent ───────────────────────────────────────────────────────
-  accent:       "#00a85e",   // Primary green
-  accentLight:  "#00d47e",   // Bright / interactive green
-  accentGlow:   "#00d47e1a", // Glow overlay
+  accent:       "#00b96d",   // --accent
+  accentLight:  "#00e887",   // --accent-l
+  accentDark:   "#008c52",   // --accent-d
+  accentGlow:   "#00b96d2e", // --accent-glow (rgba(0,185,109,0.18))
+  accentPulse:  "#00e88714", // --accent-pulse (rgba(0,232,135,0.08))
 
   // ── Semantic ─────────────────────────────────────────────────────
-  up:           "#00d47e",
-  down:         "#ff4757",
-  warning:      "#ffb300",
-  info:         "#4d9fff",
+  up:           "#00e887",   // --up
+  down:         "#f43f5e",   // --down
+  warning:      "#f59e0b",
+  info:         "#3b82f6",
 };
 
 export const light = {
-  bg:           "#f4f8ff",
-  bgRaised:     "#ffffff",
-  card:         "#ffffff",
-  cardElevated: "#f0f5ff",
+  bg:           "#f4f7fb",   // --bg (light)
+  bgRaised:     "#eaeff7",   // --raised (light)
+  card:         "#ffffff",   // --card (light)
+  cardElevated: "#f8fafd",   // --card-2 (light)
 
-  border:       "#d8e8f8",
-  borderStrong: "#b0cce8",
+  border:       "#dce5f0",   // --border (light)
+  borderStrong: "#c8d8ea",   // --border-s (light)
 
-  text:         "#08142a",
-  textSub:      "#1a3050",
-  textMuted:    "#476880",
-  textDim:      "#90aabf",
-  placeholder:  "#90aabf",
+  text:         "#0a1628",   // --text (light)
+  textSub:      "#304660",   // --sub (light)
+  textMuted:    "#5b7a96",   // --muted (light)
+  textDim:      "#9ab4cc",   // --dim (light)
+  placeholder:  "#9ab4cc",
 
-  accent:       "#00a055",
-  accentLight:  "#00b96b",
-  accentGlow:   "#00b96b1a",
+  accent:       "#009958",   // --accent (light)
+  accentLight:  "#00b96d",   // --accent-l (light)
+  accentDark:   "#007a44",   // --accent-d (light)
+  accentGlow:   "#00995814", // --accent-glow (light)
+  accentPulse:  "#00b96d0a",
 
-  up:           "#00b96b",
-  down:         "#e8304a",
+  up:           "#009958",   // --up (light)
+  down:         "#e1173d",   // --down (light)
   warning:      "#d97706",
   info:         "#2563eb",
 };

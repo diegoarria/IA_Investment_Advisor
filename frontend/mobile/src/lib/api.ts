@@ -204,6 +204,11 @@ export const syncApi = {
     api.post("/api/sync/trial/start"),
   getTrialStatus: () =>
     api.get("/api/sync/trial/status"),
+  // Nav/tab order sync
+  pushNavOrder: (order: string[]) =>
+    api.post("/api/sync/nav-order", { order }),
+  getNavOrder: () =>
+    api.get("/api/sync/nav-order"),
 };
 
 export const referralApi = {
@@ -248,6 +253,12 @@ export const reportApi = {
 export const watchlistExtApi = {
   batchPrices: (tickers: string[]) =>
     api.post("/api/watchlist/batch-prices", { tickers }),
+};
+
+export const watchlistServerApi = {
+  getAll:  () => api.get("/api/watchlist"),
+  add:     (ticker: string, name?: string) => api.post("/api/watchlist", { ticker, name }),
+  remove:  (ticker: string) => api.delete(`/api/watchlist/${ticker}`),
 };
 
 export const decisionsApi = {
