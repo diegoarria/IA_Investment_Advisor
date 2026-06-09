@@ -420,11 +420,13 @@ const SCENARIOS: {value:Scenario; label:string; emoji:string}[] = [
 type ChartPoint = { date: string; pct: number; value: number };
 
 function PortfolioSparkline({ history, color }: { history: ChartPoint[]; color: string }) {
+  const [hovered, setHovered] = useState<number | null>(null);
+
   if (history.length < 2) return null;
 
   const W = 400;
-  const H = 110;
-  const PY = 6;
+  const H = 120;
+  const PY = 8;
 
   const values = history.map((h) => h.pct);
   const minV = Math.min(...values);
@@ -440,30 +442,141 @@ function PortfolioSparkline({ history, color }: { history: ChartPoint[]; color: 
 
   const pts = history.map((h, i) => `${toX(i).toFixed(1)},${toY(h.pct).toFixed(1)}`);
   const linePath = "M" + pts.join("L");
-  const lastX = toX(history.length - 1).toFixed(1);
-  const lastY = toY(values[values.length - 1]).toFixed(1);
-  const areaPath = `${linePath}L${lastX},${zeroY.toFixed(1)}L0,${zeroY.toFixed(1)}Z`;
+  const lastX = toX(history.length - 1);
+  const lastY = toY(values[values.length - 1]);
+  const areaPath = `${linePath}L${lastX.toFixed(1)},${zeroY.toFixed(1)}L0,${zeroY.toFixed(1)}Z`;
+
+  // Hovered point data
+  const hPt   = hovered !== null ? history[hovered] : null;
+  const hX    = hovered !== null ? toX(hovered) : null;
+  const hY    = hovered !== null ? toY(values[hovered]) : null;
+  const hUp   = hPt ? hPt.pct >= 0 : true;
+  const hColor = hPt ? (hUp ? "#22c55e" : "#ef4444") : color;
+
+  // Mouse → closest data point
+  const handleMouseMove = (e: React.MouseEvent<SVGSVGElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+    setHovered(Math.round(ratio * (history.length - 1)));
+  };
+
+  // X-axis: 5 evenly spaced date labels
+  const N_LABELS = 5;
+  const labelIdxs = Array.from({ length: N_LABELS }, (_, i) =>
+    Math.round((i * (history.length - 1)) / (N_LABELS - 1))
+  );
+
+  const fmtAxisDate = (dateStr: string) => {
+    try {
+      const hasTime = dateStr.includes("T") || (dateStr.includes(" ") && dateStr.includes(":"));
+      const d = new Date(hasTime ? dateStr.replace(" ", "T") : dateStr + "T12:00:00");
+      if (hasTime) return d.toLocaleTimeString("es", { hour: "2-digit", minute: "2-digit" });
+      return d.toLocaleDateString("es", { month: "short", day: "numeric" });
+    } catch { return dateStr.slice(5, 10); }
+  };
+
+  const fmtTooltipDate = (dateStr: string) => {
+    try {
+      const hasTime = dateStr.includes("T") || (dateStr.includes(" ") && dateStr.includes(":"));
+      const d = new Date(hasTime ? dateStr.replace(" ", "T") : dateStr + "T12:00:00");
+      if (hasTime) return d.toLocaleTimeString("es", { hour: "2-digit", minute: "2-digit" });
+      return d.toLocaleDateString("es", { day: "numeric", month: "short", year: "numeric" });
+    } catch { return dateStr.slice(0, 10); }
+  };
+
+  // Tooltip left % — clamped so it stays within chart
+  const tooltipPct = hX !== null ? Math.max(5, Math.min(95, (hX / W) * 100)) : 50;
 
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="w-full" style={{ height: 110, display: "block" }}>
-      <defs>
-        <linearGradient id="psg" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor={color} stopOpacity="0.22" />
-          <stop offset="100%" stopColor={color} stopOpacity="0.01" />
-        </linearGradient>
-      </defs>
-      {/* Zero baseline */}
-      <line x1="0" y1={zeroY} x2={W} y2={zeroY}
-        stroke={color} strokeWidth="0.7" strokeDasharray="4,4" strokeOpacity="0.3" />
-      {/* Area fill */}
-      <path d={areaPath} fill="url(#psg)" />
-      {/* Line */}
-      <path d={linePath} fill="none" stroke={color} strokeWidth="1.8"
-        strokeLinejoin="round" strokeLinecap="round" />
-      {/* End dot */}
-      <circle cx={lastX} cy={lastY} r="5" fill={color} fillOpacity="0.25" />
-      <circle cx={lastX} cy={lastY} r="2.5" fill={color} />
-    </svg>
+    <div className="relative select-none">
+      {/* Floating tooltip */}
+      {hPt !== null && hX !== null && (
+        <div
+          className="absolute pointer-events-none z-10"
+          style={{ left: `${tooltipPct}%`, top: 6, transform: "translateX(-50%)" }}
+        >
+          <div
+            className="px-2.5 py-1 rounded-lg text-[11px] font-bold whitespace-nowrap shadow-lg"
+            style={{
+              background: "var(--raised)",
+              border: `1px solid ${hColor}40`,
+              color: hColor,
+            }}
+          >
+            {hUp ? "+" : ""}{hPt.pct.toFixed(2)}%
+            <span className="font-normal ml-1.5" style={{ color: "var(--muted)" }}>
+              {fmtTooltipDate(hPt.date)}
+            </span>
+          </div>
+        </div>
+      )}
+
+      {/* SVG chart */}
+      <svg
+        viewBox={`0 0 ${W} ${H}`}
+        preserveAspectRatio="none"
+        className="w-full"
+        style={{ height: 120, display: "block", cursor: "crosshair" }}
+        onMouseMove={handleMouseMove}
+        onMouseLeave={() => setHovered(null)}
+      >
+        <defs>
+          <linearGradient id="psg" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={color} stopOpacity="0.22" />
+            <stop offset="100%" stopColor={color} stopOpacity="0.01" />
+          </linearGradient>
+        </defs>
+
+        {/* Zero baseline */}
+        <line x1="0" y1={zeroY} x2={W} y2={zeroY}
+          stroke={color} strokeWidth="0.7" strokeDasharray="4,3" strokeOpacity="0.3" />
+
+        {/* Area fill */}
+        <path d={areaPath} fill="url(#psg)" />
+
+        {/* Price line */}
+        <path d={linePath} fill="none" stroke={color} strokeWidth="2"
+          strokeLinejoin="round" strokeLinecap="round" />
+
+        {/* End dot — only when not hovering */}
+        {hovered === null && (
+          <>
+            <circle cx={lastX} cy={lastY} r="5" fill={color} fillOpacity="0.25" />
+            <circle cx={lastX} cy={lastY} r="2.5" fill={color} />
+          </>
+        )}
+
+        {/* Crosshair + hover dot */}
+        {hovered !== null && hX !== null && hY !== null && (
+          <>
+            {/* Vertical cursor line */}
+            <line
+              x1={hX} y1={PY - 2} x2={hX} y2={H - PY + 2}
+              stroke={hColor} strokeWidth="1.5" strokeDasharray="3,3" strokeOpacity="0.65"
+            />
+            {/* Dot glow */}
+            <circle cx={hX} cy={hY} r="7" fill={hColor} fillOpacity="0.15" />
+            {/* Dot core */}
+            <circle cx={hX} cy={hY} r="3.5" fill={hColor} />
+            {/* Dot ring */}
+            <circle cx={hX} cy={hY} r="5.5" fill="none" stroke={hColor} strokeWidth="1" strokeOpacity="0.5" />
+          </>
+        )}
+      </svg>
+
+      {/* X-axis date labels */}
+      <div className="flex justify-between mt-1.5 px-0">
+        {labelIdxs.map((idx) => (
+          <span
+            key={idx}
+            className="text-[9px] font-medium"
+            style={{ color: "var(--dim)" }}
+          >
+            {fmtAxisDate(history[idx].date)}
+          </span>
+        ))}
+      </div>
+    </div>
   );
 }
 
