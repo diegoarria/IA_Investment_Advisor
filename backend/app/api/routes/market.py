@@ -313,6 +313,33 @@ _YF_HEADERS = {
     "Referer": "https://finance.yahoo.com/",
 }
 
+# Persistent session for quoteSummary — Yahoo Finance requires cookies + crumb
+_YF_SESSION = _requests.Session()
+_YF_SESSION.headers.update(_YF_HEADERS)
+_yf_crumb: str | None = None
+_yf_crumb_ts: float = 0.0
+_yf_crumb_lock = threading.Lock()
+
+def _get_yf_crumb() -> str | None:
+    """Get (or refresh) Yahoo Finance crumb token — required for quoteSummary."""
+    global _yf_crumb, _yf_crumb_ts
+    with _yf_crumb_lock:
+        if _yf_crumb and (time.time() - _yf_crumb_ts) < 3600:
+            return _yf_crumb
+        try:
+            _YF_SESSION.get("https://fc.yahoo.com", timeout=6)
+            r = _YF_SESSION.get(
+                "https://query1.finance.yahoo.com/v1/test/getcrumb",
+                timeout=6,
+            )
+            if r.status_code == 200 and r.text and len(r.text) < 60:
+                _yf_crumb = r.text.strip()
+                _yf_crumb_ts = time.time()
+                return _yf_crumb
+        except Exception:
+            pass
+        return None
+
 _CHART_PERIOD_MAP = {
     "1d":  ("1d",  "5m"),
     "5d":  ("5d",  "15m"),
@@ -1596,7 +1623,7 @@ def _finnhub_insiders(symbol: str) -> list[dict]:
 # ── Yahoo Finance quoteSummary (direct HTTP — more reliable than yfinance lib) ─
 
 def _yf_quote_summary(symbol: str) -> dict:
-    """Call YF v10 quoteSummary directly with browser headers — same source as website."""
+    """Call YF v10 quoteSummary directly with browser headers + crumb auth."""
     modules = ",".join([
         "price", "summaryProfile", "summaryDetail",
         "financialData", "defaultKeyStatistics",
@@ -1605,18 +1632,25 @@ def _yf_quote_summary(symbol: str) -> dict:
         "cashflowStatementHistory", "cashflowStatementHistoryQuarterly",
         "recommendationTrend", "earningsTrend", "earningsHistory",
     ])
+    crumb = _get_yf_crumb()
+    params: dict = {"modules": modules, "corsDomain": "finance.yahoo.com"}
+    if crumb:
+        params["crumb"] = crumb
     for host in ("query2", "query1"):
         try:
-            r = _requests.get(
+            r = _YF_SESSION.get(
                 f"https://{host}.finance.yahoo.com/v10/finance/quoteSummary/{symbol}",
-                params={"modules": modules, "corsDomain": "finance.yahoo.com"},
-                headers=_YF_HEADERS,
+                params=params,
                 timeout=14,
             )
             if r.status_code == 200:
                 data = r.json().get("quoteSummary", {}).get("result", [])
                 if data:
                     return data[0]
+            elif r.status_code in (401, 403):
+                # Crumb likely expired — force refresh next call
+                global _yf_crumb
+                _yf_crumb = None
         except Exception:
             pass
     return {}
@@ -1706,7 +1740,8 @@ def _parse_qs_cashflow(qs: dict, quarterly: bool = False, n: int = 5) -> list[di
 def _fetch_stock_detail(symbol: str) -> dict:
     cache_key = f"detail2:{symbol}"
     cached = cache_get(cache_key)
-    if cached:
+    # Discard stale cache entries where name wasn't resolved (empty data bug)
+    if cached and cached.get("name") and cached.get("name") != symbol:
         return cached
 
     t = yf.Ticker(symbol)
