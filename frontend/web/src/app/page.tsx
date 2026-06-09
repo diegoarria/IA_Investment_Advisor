@@ -39,16 +39,27 @@ export default function Home() {
   const { setAuth } = useAuthStore();
   const { setProfile } = useProfileStore();
 
-  // On mount: check stored token directly — no Zustand rehydration timing issues
+  // On mount: if the user has ANY stored token they've logged in before — keep them in.
+  // The axios interceptor auto-refreshes access_token using refresh_token on 401.
+  // Only truly clear tokens when both have definitively failed (401/403 after refresh).
   useEffect(() => {
-    const token = localStorage.getItem("access_token");
-    if (!token) { setChecking(false); return; }
+    const hasAccess  = !!localStorage.getItem("access_token");
+    const hasRefresh = !!localStorage.getItem("refresh_token");
+    if (!hasAccess && !hasRefresh) { setChecking(false); return; }
+
     profileApi.get()
       .then((res) => { setProfile(res.data); router.push("/chat"); })
-      .catch(() => {
-        localStorage.removeItem("access_token");
-        localStorage.removeItem("refresh_token");
-        setChecking(false);
+      .catch((err) => {
+        const status = (err as { response?: { status?: number } })?.response?.status;
+        if (status === 401 || status === 403) {
+          // Both tokens genuinely failed — interceptor already tried refresh
+          localStorage.removeItem("access_token");
+          localStorage.removeItem("refresh_token");
+          setChecking(false);
+        } else {
+          // Network error or server error — tokens are likely still valid, go to app
+          router.push("/chat");
+        }
       });
   }, []);
 
