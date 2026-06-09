@@ -1170,3 +1170,85 @@ Sin frases introductorias como "Este artículo..." o "La noticia indica...". Dir
         messages=[{"role": "user", "content": prompt}],
     )
     return response.content[0].text.strip()
+
+
+async def analyze_paper_portfolio(
+    positions: list[dict],
+    trades: list[dict],
+    total_return_pct: float,
+    cash: float,
+    portfolio_value: float,
+) -> dict:
+    """Analyze paper trading portfolio and return structured readiness verdict."""
+    import json as _json
+
+    num_positions  = len(positions)
+    num_trades     = len(trades)
+    buy_trades     = [t for t in trades if t.get("type") == "buy"]
+    sell_trades    = [t for t in trades if t.get("type") == "sell"]
+    tickers        = sorted({p.get("ticker", "") for p in positions})
+    ticker_str     = ", ".join(tickers) if tickers else "ninguna"
+
+    # Detect behavioral signals from trade history
+    sell_count = len(sell_trades)
+    rapid_sells = []
+    for s in sell_trades:
+        for b in buy_trades:
+            if b.get("ticker") == s.get("ticker"):
+                diff = abs((s.get("timestamp", 0) - b.get("timestamp", 0)) / 86400000)
+                if diff < 3:
+                    rapid_sells.append(s.get("ticker"))
+                    break
+
+    prompt = f"""Eres un coach de inversiones que analiza el portafolio de simulación (paper trading) de un usuario.
+
+DATOS DEL PORTAFOLIO SIMULADO:
+- Valor total: ${portfolio_value:,.2f} (empezó con $10,000)
+- Retorno total: {total_return_pct:+.2f}%
+- Efectivo disponible: ${cash:,.2f}
+- Posiciones actuales ({num_positions}): {ticker_str}
+- Total de operaciones: {num_trades} ({len(buy_trades)} compras, {sell_count} ventas)
+- Ventas rápidas (<3 días tras compra): {len(rapid_sells)} ({', '.join(rapid_sells) if rapid_sells else 'ninguna'})
+
+INSTRUCCIONES:
+Analiza este portafolio y evalúa si el usuario está listo para invertir dinero real en acciones individuales.
+
+Devuelve ÚNICAMENTE un JSON válido con esta estructura exacta (sin markdown, sin texto extra):
+{{
+  "verdict": "practice_more" | "promising" | "ready",
+  "headline": "<frase corta y directa, máx 12 palabras>",
+  "feedback": "<párrafo de 3-5 oraciones con análisis honesto del comportamiento>",
+  "positives": ["<punto positivo 1>", "<punto positivo 2>"],
+  "improvements": ["<área de mejora 1>", "<área de mejora 2>"],
+  "disclaimer": "Invertir en acciones individuales conlleva riesgo de pérdida de capital. Realiza tu propia investigación antes de tomar cualquier decisión financiera."
+}}
+
+Criterios para el veredicto:
+- "practice_more": < 5 operaciones, sin diversificación, retorno muy negativo (< -15%), o patrón de pánico frecuente
+- "promising": comportamiento razonable pero con margen de mejora; puede continuar practicando unos meses más
+- "ready": ≥ 10 operaciones con criterio, diversificación correcta, sin ventas de pánico, retorno entre -5% y positivo
+
+Sé honesto, educativo y empático. No des consejos sobre acciones específicas."""
+
+    response = await _claude(
+        model=settings.claude_model,
+        max_tokens=600,
+        messages=[{"role": "user", "content": prompt}],
+    )
+    text = response.content[0].text.strip()
+    # Strip markdown code fences if model wraps it
+    if text.startswith("```"):
+        text = text.split("```")[1]
+        if text.startswith("json"):
+            text = text[4:]
+    try:
+        return _json.loads(text)
+    except Exception:
+        return {
+            "verdict": "promising",
+            "headline": "Análisis disponible",
+            "feedback": text,
+            "positives": [],
+            "improvements": [],
+            "disclaimer": "Invertir en acciones individuales conlleva riesgo de pérdida de capital. Realiza tu propia investigación antes de tomar cualquier decisión financiera.",
+        }

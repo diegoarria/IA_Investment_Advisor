@@ -6,9 +6,19 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { market as marketApi, paperApi } from "@/lib/api";
-import { useAuthStore } from "@/lib/store";
+import { useAuthStore, useSubscriptionStore } from "@/lib/store";
 import { usePaperStore, PAPER_INITIAL_CASH } from "@/lib/paperStore";
-import { Search, Menu, X, RefreshCw, Loader2, TrendingUp, TrendingDown, Plus, RotateCcw, Clock, Wallet } from "lucide-react";
+import PaywallModal from "@/components/PaywallModal";
+import { Search, Menu, X, RefreshCw, Loader2, TrendingUp, TrendingDown, Plus, RotateCcw, Clock, Wallet, Sparkles, Lock } from "lucide-react";
+
+interface PaperAnalysis {
+  verdict: "practice_more" | "promising" | "ready";
+  headline: string;
+  feedback: string;
+  positives: string[];
+  improvements: string[];
+  disclaimer: string;
+}
 
 interface TickerInfo { ticker: string; name: string; price: number; change_pct: number; }
 interface PriceMap { [ticker: string]: { price: number | null; change_pct: number } }
@@ -25,7 +35,13 @@ function fmtMoney(n: number): string {
 export default function PaperPage() {
   const router   = useRouter();
   const { isAuthenticated }  = useAuthStore();
+  const subStore = useSubscriptionStore();
+  const isPremium = subStore.tier === "premium";
   const { cash, positions, trades, buy, sell, topUp, reset } = usePaperStore();
+
+  const [paywallOpen, setPaywallOpen]       = useState(false);
+  const [analysis, setAnalysis]             = useState<PaperAnalysis | null>(null);
+  const [analysisLoading, setAnalysisLoading] = useState(false);
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [query, setQuery]             = useState("");
@@ -443,9 +459,159 @@ export default function PaperPage() {
             </div>
           )}
 
+          {/* ── Análisis IA del portafolio (premium) ── */}
+          <div className="rounded-2xl border overflow-hidden" style={{ background: "var(--card)", borderColor: "var(--border)" }}>
+            <div className="flex items-center gap-2 px-4 py-3 border-b" style={{ borderColor: "var(--border)" }}>
+              <div className="w-6 h-6 rounded-lg flex items-center justify-center shrink-0"
+                   style={{ background: "rgba(168,85,247,0.12)" }}>
+                <Sparkles className="w-3.5 h-3.5" style={{ color: "#a855f7" }} />
+              </div>
+              <span className="font-bold text-sm" style={{ color: "var(--text)" }}>Análisis IA de tu simulación</span>
+              {!isPremium && (
+                <span className="ml-auto text-[9px] font-bold px-2 py-0.5 rounded-full"
+                      style={{ background: "rgba(168,85,247,0.12)", color: "#a855f7" }}>Premium</span>
+              )}
+            </div>
+
+            {!isPremium ? (
+              /* Locked state */
+              <div className="flex flex-col items-center gap-3 py-8 px-6 text-center">
+                <div className="w-12 h-12 rounded-2xl flex items-center justify-center"
+                     style={{ background: "rgba(168,85,247,0.08)", border: "1px solid rgba(168,85,247,0.2)" }}>
+                  <Lock className="w-5 h-5" style={{ color: "#a855f7" }} />
+                </div>
+                <div>
+                  <p className="font-bold text-sm mb-1" style={{ color: "var(--text)" }}>
+                    La IA evalúa si estás listo para invertir de verdad
+                  </p>
+                  <p className="text-xs leading-relaxed" style={{ color: "var(--muted)" }}>
+                    Recibe feedback personalizado sobre tu estrategia, diversificación y comportamiento. Solo Premium.
+                  </p>
+                </div>
+                <button onClick={() => setPaywallOpen(true)}
+                        className="px-5 py-2.5 rounded-xl text-sm font-bold text-white"
+                        style={{ background: "linear-gradient(135deg, #a855f7, #7c3aed)" }}>
+                  Activar Premium
+                </button>
+              </div>
+            ) : analysis ? (
+              /* Results */
+              <div className="p-4 space-y-4">
+                {/* Verdict badge */}
+                <div className="flex items-center gap-3">
+                  <div className="text-3xl">
+                    {analysis.verdict === "ready" ? "🏆" : analysis.verdict === "promising" ? "📈" : "📚"}
+                  </div>
+                  <div>
+                    <div className="font-black text-base leading-tight" style={{
+                      color: analysis.verdict === "ready" ? "#22c55e"
+                           : analysis.verdict === "promising" ? "#f59e0b" : "var(--text)"
+                    }}>
+                      {analysis.headline}
+                    </div>
+                    <div className="text-[10px] font-bold mt-0.5 px-2 py-0.5 rounded-full inline-block" style={{
+                      background: analysis.verdict === "ready" ? "rgba(34,197,94,0.12)"
+                                : analysis.verdict === "promising" ? "rgba(245,158,11,0.12)" : "rgba(99,102,241,0.12)",
+                      color: analysis.verdict === "ready" ? "#22c55e"
+                           : analysis.verdict === "promising" ? "#f59e0b" : "#818cf8",
+                    }}>
+                      {analysis.verdict === "ready" ? "✓ Listo para invertir con responsabilidad"
+                     : analysis.verdict === "promising" ? "↗ Vas por buen camino"
+                     : "↺ Sigue practicando un poco más"}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Main feedback */}
+                <p className="text-sm leading-relaxed" style={{ color: "var(--sub)" }}>{analysis.feedback}</p>
+
+                {/* Positives */}
+                {analysis.positives.length > 0 && (
+                  <div className="space-y-1.5">
+                    <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color: "#22c55e" }}>Lo que haces bien</p>
+                    {analysis.positives.map((p, i) => (
+                      <div key={i} className="flex items-start gap-2 text-xs" style={{ color: "var(--sub)" }}>
+                        <span className="text-green-500 mt-0.5 shrink-0">✓</span>{p}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Improvements */}
+                {analysis.improvements.length > 0 && (
+                  <div className="space-y-1.5">
+                    <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color: "#f59e0b" }}>Áreas a mejorar</p>
+                    {analysis.improvements.map((imp, i) => (
+                      <div key={i} className="flex items-start gap-2 text-xs" style={{ color: "var(--sub)" }}>
+                        <span style={{ color: "#f59e0b", marginTop: 2 }} className="shrink-0">→</span>{imp}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Disclaimer */}
+                <p className="text-[10px] leading-relaxed p-3 rounded-xl border"
+                   style={{ color: "var(--dim)", borderColor: "var(--border)", background: "var(--raised)" }}>
+                  ⚠️ {analysis.disclaimer}
+                </p>
+
+                {/* Re-analyze */}
+                <button onClick={() => setAnalysis(null)}
+                        className="w-full py-2 rounded-xl text-xs font-semibold border hover:opacity-80 transition-opacity"
+                        style={{ borderColor: "rgba(168,85,247,0.3)", color: "#a855f7", background: "rgba(168,85,247,0.06)" }}>
+                  Volver a analizar
+                </button>
+              </div>
+            ) : (
+              /* CTA */
+              <div className="p-4 space-y-3">
+                <p className="text-xs leading-relaxed" style={{ color: "var(--muted)" }}>
+                  La IA analiza tu estrategia, diversificación y comportamiento para decirte si estás listo para invertir dinero real en acciones individuales — siempre con responsabilidad e investigación previa.
+                </p>
+                <button
+                  onClick={async () => {
+                    setAnalysisLoading(true);
+                    try {
+                      const res = await paperApi.analyze(
+                        positions,
+                        trades,
+                        totalReturn,
+                        cash,
+                        portfolioValue,
+                      );
+                      setAnalysis(res.data as PaperAnalysis);
+                    } catch {
+                      setAnalysis({
+                        verdict: "promising",
+                        headline: "Error al generar análisis",
+                        feedback: "No se pudo conectar con la IA. Intenta de nuevo.",
+                        positives: [],
+                        improvements: [],
+                        disclaimer: "",
+                      });
+                    }
+                    setAnalysisLoading(false);
+                  }}
+                  disabled={analysisLoading || trades.length === 0}
+                  className="w-full py-3 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-all disabled:opacity-50"
+                  style={{ background: "linear-gradient(135deg, #a855f7, #7c3aed)", color: "#fff" }}
+                >
+                  {analysisLoading
+                    ? <><Loader2 className="w-4 h-4 animate-spin" /> Analizando tu simulación…</>
+                    : <><Sparkles className="w-4 h-4" /> Analizar mi portafolio con IA</>}
+                </button>
+                {trades.length === 0 && (
+                  <p className="text-[10px] text-center" style={{ color: "var(--dim)" }}>
+                    Realiza al menos una operación para desbloquear el análisis
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+
           {/* ── Reset ── */}
           <div className="flex justify-end pb-2">
-            <button onClick={() => { if (confirm("¿Reiniciar portfolio paper trading?")) reset(); }}
+            <button onClick={() => { if (confirm("¿Reiniciar portfolio paper trading?")) { reset(); setAnalysis(null); } }}
                     className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold border transition-colors hover:opacity-80"
                     style={{ borderColor: "rgba(239,68,68,0.2)", color: "#ef4444", background: "rgba(239,68,68,0.04)" }}>
               <RotateCcw className="w-3 h-3" />
@@ -455,6 +621,9 @@ export default function PaperPage() {
 
         </main>
       </div>
+
+      <PaywallModal visible={paywallOpen} onClose={() => setPaywallOpen(false)}
+                    reason="El análisis IA del simulador es exclusivo de Premium" />
 
       {/* Sell modal */}
       {sellModal && (

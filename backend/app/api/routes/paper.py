@@ -17,6 +17,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from app.api.deps import get_current_user_id
 from app.core.cache import cache_get, cache_set
 from app.core.database import get_supabase
+from app.services import ai_service
 
 logger = logging.getLogger(__name__)
 
@@ -223,6 +224,25 @@ async def get_leaderboard(user_id: str = Depends(get_current_user_id)):
 
     result = await asyncio.to_thread(_build_leaderboard, user_id)
     cache_set(ck, result, ttl=_LEADERBOARD_TTL)
+    return result
+
+
+@router.post("/analyze")
+async def analyze_paper(body: dict, user_id: str = Depends(get_current_user_id)):
+    """AI analysis of the user's paper trading portfolio — premium only (enforced on frontend)."""
+    positions      = body.get("positions") or []
+    trades         = body.get("trades") or []
+    total_return   = float(body.get("total_return_pct") or 0)
+    cash           = float(body.get("cash") or 0)
+    portfolio_value = float(body.get("portfolio_value") or 10000)
+
+    result = await ai_service.analyze_paper_portfolio(
+        positions=positions,
+        trades=trades,
+        total_return_pct=total_return,
+        cash=cash,
+        portfolio_value=portfolio_value,
+    )
     return result
 
 
