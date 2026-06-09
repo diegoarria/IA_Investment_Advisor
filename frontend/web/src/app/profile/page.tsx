@@ -13,7 +13,7 @@ import { getMentorInfo } from "@/lib/mentorData";
 import PaywallModal from "@/components/PaywallModal";
 import {
   User, LogOut, Menu, X, Sun, Moon, ChevronDown, ChevronUp, Star, BarChart,
-  Loader2, Copy, Check, Gift, Users,
+  Loader2, Copy, Check, Gift, Users, Share2,
 } from "lucide-react";
 
 const RISK_LABEL: Record<string, string> = {
@@ -113,6 +113,8 @@ export default function ProfilePage() {
   const [referralCode, setReferralCode] = useState<string | null>(null);
   const [referralStats, setReferralStats] = useState<{ referred_count: number; pending_reward: string } | null>(null);
   const [copiedLink, setCopiedLink] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
+  const [copiedProfile, setCopiedProfile] = useState(false);
   const [insights, setInsights] = useState<{
     ready: boolean; topics?: string[]; risk_match?: boolean;
     risk_note?: string; suggestion?: string;
@@ -270,11 +272,74 @@ export default function ProfilePage() {
                   </div>
                   <div className="border-t flex" style={{ borderColor: "var(--border)" }}>
                     <button onClick={() => router.push("/onboarding")}
-                            className="flex-1 py-3 text-xs font-semibold text-center hover:bg-white/5 transition-colors"
-                            style={{ color: "var(--muted)" }}>
+                            className="flex-1 py-3 text-xs font-semibold text-center hover:bg-white/5 transition-colors border-r"
+                            style={{ color: "var(--muted)", borderColor: "var(--border)" }}>
                       Editar perfil
                     </button>
+                    <button
+                      onClick={() => {
+                        const riskLabel = RISK_LABEL[profile.risk_tolerance] ?? profile.risk_tolerance;
+                        const mentorLine = mentor ? `\nMi mentor: ${mentor.emoji} ${mentor.name}` : "";
+                        const maturityLine = `\nMadurez inversora: ${maturityScore}/100`;
+                        const text = `Soy un/a ${riskLabel} 📊${mentorLine}${maturityLine}\n\nAprende a invertir con IA 👉 https://nuvosai.com`;
+                        if (navigator.share) {
+                          navigator.share({ title: "Mi perfil en Nuvos AI", text, url: "https://nuvosai.com" }).catch(() => {});
+                        } else {
+                          setShareOpen((v) => !v);
+                        }
+                      }}
+                      className="flex-1 py-3 text-xs font-semibold text-center hover:bg-white/5 transition-colors flex items-center justify-center gap-1.5"
+                      style={{ color: "var(--accent-l)" }}
+                    >
+                      <Share2 className="w-3.5 h-3.5" />
+                      Compartir perfil
+                    </button>
                   </div>
+
+                  {/* Share options panel (desktop fallback) */}
+                  {shareOpen && (
+                    <div className="border-t px-4 py-4" style={{ borderColor: "var(--border)" }}>
+                      {(() => {
+                        const riskLabel = RISK_LABEL[profile.risk_tolerance] ?? profile.risk_tolerance;
+                        const mentorLine = mentor ? `\nMi mentor: ${mentor.emoji} ${mentor.name}` : "";
+                        const text = encodeURIComponent(`Soy un/a ${riskLabel} 📊${mentorLine}\nMadurez inversora: ${maturityScore}/100\n\nAprende a invertir con IA 👉 https://nuvosai.com`);
+                        const url = encodeURIComponent("https://nuvosai.com");
+                        return (
+                          <div className="space-y-3">
+                            <p className="text-[10px] font-bold uppercase tracking-widest text-center" style={{ color: "var(--dim)" }}>Compartir en</p>
+                            <div className="grid grid-cols-4 gap-2">
+                              {[
+                                { label: "X", bg: "#000", href: `https://twitter.com/intent/tweet?text=${text}`, icon: "𝕏" },
+                                { label: "WhatsApp", bg: "#25D366", href: `https://wa.me/?text=${text}`, icon: "💬" },
+                                { label: "LinkedIn", bg: "#0A66C2", href: `https://www.linkedin.com/sharing/share-offsite/?url=${url}&summary=${text}`, icon: "in" },
+                                { label: "Telegram", bg: "#229ED9", href: `https://t.me/share/url?url=${url}&text=${text}`, icon: "✈️" },
+                              ].map(({ label, bg, href, icon }) => (
+                                <a key={label} href={href} target="_blank" rel="noopener noreferrer"
+                                   className="flex flex-col items-center gap-1.5 py-3 rounded-2xl hover:opacity-80 transition-opacity"
+                                   style={{ background: bg + "18", border: `1px solid ${bg}30` }}>
+                                  <span className="text-lg leading-none font-black" style={{ color: bg === "#000" ? "var(--text)" : bg }}>{icon}</span>
+                                  <span className="text-[9px] font-semibold" style={{ color: "var(--muted)" }}>{label}</span>
+                                </a>
+                              ))}
+                            </div>
+                            <button
+                              onClick={() => {
+                                const raw = `Soy un/a ${RISK_LABEL[profile.risk_tolerance] ?? profile.risk_tolerance} 📊${mentor ? `\nMi mentor: ${mentor.emoji} ${mentor.name}` : ""}\nMadurez inversora: ${maturityScore}/100\n\nAprende a invertir con IA 👉 https://nuvosai.com`;
+                                navigator.clipboard.writeText(raw);
+                                setCopiedProfile(true);
+                                setTimeout(() => setCopiedProfile(false), 2000);
+                              }}
+                              className="w-full py-2.5 rounded-xl border text-xs font-semibold flex items-center justify-center gap-2 transition-colors hover:opacity-80"
+                              style={{ borderColor: "var(--border)", color: copiedProfile ? "#22c55e" : "var(--muted)", background: "var(--raised)" }}
+                            >
+                              {copiedProfile ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                              {copiedProfile ? "¡Copiado!" : "Copiar texto"}
+                            </button>
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  )}
                 </div>
 
                 {/* AI Insights */}
