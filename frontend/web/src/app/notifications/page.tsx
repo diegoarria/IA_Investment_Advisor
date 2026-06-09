@@ -64,6 +64,11 @@ export default function NotificationsPage() {
   const [alertInsight, setAlertInsight] = useState<string | null>(null);
   const [alertLoading, setAlertLoading] = useState(false);
 
+  // AI news summary modal
+  const [newsModal, setNewsModal] = useState<NewsItem | null>(null);
+  const [summaryLoading, setSummaryLoading] = useState(false);
+  const [summaryText, setSummaryText] = useState<string | null>(null);
+
   const loadNotifications = async () => {
     try {
       const res = await notifApi.getAll();
@@ -357,9 +362,19 @@ export default function NotificationsPage() {
               ) : (
                 <>
                   {visibleNews.map((item) => (
-                    <a key={item.uuid} href={item.url} target="_blank" rel="noopener noreferrer"
-                       className="flex items-start gap-3 px-4 py-3 border-t hover:bg-white/3 transition-colors"
-                       style={{ borderColor: "var(--border)" }}>
+                    <button
+                      key={item.uuid}
+                      onClick={() => {
+                        if (isPremium) {
+                          setSummaryText(null);
+                          setNewsModal(item);
+                        } else {
+                          window.open(item.url, "_blank", "noopener,noreferrer");
+                        }
+                      }}
+                      className="w-full flex items-start gap-3 px-4 py-3 border-t hover:bg-white/3 transition-colors text-left"
+                      style={{ borderColor: "var(--border)" }}
+                    >
                       {item.thumbnail ? (
                         <img src={item.thumbnail} alt="" className="w-14 h-14 rounded-xl object-cover shrink-0" />
                       ) : (
@@ -376,11 +391,17 @@ export default function NotificationsPage() {
                           <span className="text-[10px]" style={{ color: "var(--dim)" }}>
                             {new Date(item.timestamp * 1000).toLocaleDateString("es", { day: "numeric", month: "short" })}
                           </span>
+                          {isPremium && (
+                            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full ml-auto"
+                                  style={{ background: "rgba(168,85,247,0.12)", color: "#a855f7" }}>
+                              ✦ IA
+                            </span>
+                          )}
                         </div>
                         <p className="text-sm font-semibold leading-snug line-clamp-2" style={{ color: "var(--text)" }}>{item.title}</p>
                         <p className="text-xs mt-1" style={{ color: "var(--muted)" }}>{item.publisher}</p>
                       </div>
-                    </a>
+                    </button>
                   ))}
                   {visibleNews.length < filteredNews.length && (
                     <button onClick={() => setNewsShown((n) => n + 10)}
@@ -521,6 +542,125 @@ export default function NotificationsPage() {
 
       <PaywallModal visible={paywallOpen} onClose={() => setPaywallOpen(false)}
                     reason="Las noticias ilimitadas son exclusivas de Premium" />
+
+      {/* ── Modal elección + resumen IA ── */}
+      {newsModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4"
+          style={{ background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)" }}
+          onClick={() => { if (!summaryLoading) setNewsModal(null); }}
+        >
+          <div
+            className="w-full max-w-lg rounded-3xl overflow-hidden"
+            style={{ background: "var(--card)", border: "1px solid var(--border)" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="px-5 pt-5 pb-4 border-b" style={{ borderColor: "var(--border)" }}>
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-[10px] font-black px-1.5 py-0.5 rounded"
+                      style={{ background: "rgba(0,168,94,0.12)", color: "var(--accent-l)" }}>
+                  {newsModal.symbol}
+                </span>
+                <span className="text-[10px]" style={{ color: "var(--dim)" }}>{newsModal.publisher}</span>
+              </div>
+              <p className="text-sm font-bold leading-snug" style={{ color: "var(--text)" }}>
+                {newsModal.title}
+              </p>
+            </div>
+
+            {/* Contenido */}
+            <div className="px-5 py-4">
+              {summaryText ? (
+                /* Resumen generado */
+                <div>
+                  <div className="flex items-center gap-2 mb-3">
+                    <span className="text-xs font-black px-2 py-0.5 rounded-full"
+                          style={{ background: "rgba(168,85,247,0.12)", color: "#a855f7" }}>
+                      ✦ Resumen IA
+                    </span>
+                  </div>
+                  <p className="text-sm leading-relaxed" style={{ color: "var(--text)" }}>
+                    {summaryText}
+                  </p>
+                  <div className="flex gap-2 mt-4">
+                    <button
+                      onClick={() => window.open(newsModal.url, "_blank", "noopener,noreferrer")}
+                      className="flex-1 py-2.5 rounded-xl text-sm font-semibold border transition-colors hover:opacity-80"
+                      style={{ borderColor: "var(--border)", color: "var(--muted)" }}
+                    >
+                      Ver artículo completo
+                    </button>
+                    <button
+                      onClick={() => setNewsModal(null)}
+                      className="flex-1 py-2.5 rounded-xl text-sm font-bold transition-colors"
+                      style={{ background: "var(--raised)", color: "var(--text)" }}
+                    >
+                      Cerrar
+                    </button>
+                  </div>
+                </div>
+              ) : summaryLoading ? (
+                /* Cargando resumen */
+                <div className="flex flex-col items-center gap-3 py-6">
+                  <div className="w-8 h-8 rounded-full flex items-center justify-center"
+                       style={{ background: "rgba(168,85,247,0.12)" }}>
+                    <Loader2 className="w-4 h-4 animate-spin" style={{ color: "#a855f7" }} />
+                  </div>
+                  <p className="text-sm font-semibold" style={{ color: "var(--muted)" }}>
+                    Leyendo el artículo…
+                  </p>
+                </div>
+              ) : (
+                /* Elección inicial */
+                <div>
+                  <p className="text-sm font-semibold mb-4" style={{ color: "var(--muted)" }}>
+                    ¿Qué prefieres?
+                  </p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      onClick={() => window.open(newsModal.url, "_blank", "noopener,noreferrer")}
+                      className="flex flex-col items-center gap-2 py-4 px-3 rounded-2xl border transition-all hover:opacity-80"
+                      style={{ borderColor: "var(--border)", background: "var(--raised)" }}
+                    >
+                      <span className="text-2xl">🌐</span>
+                      <span className="text-sm font-bold" style={{ color: "var(--text)" }}>
+                        Ver noticia completa
+                      </span>
+                      <span className="text-[10px] text-center" style={{ color: "var(--dim)" }}>
+                        Abre el artículo original
+                      </span>
+                    </button>
+                    <button
+                      onClick={async () => {
+                        setSummaryLoading(true);
+                        try {
+                          const res = await marketApi.summarizeNews(newsModal.title, newsModal.url);
+                          setSummaryText(res.data.summary);
+                        } catch {
+                          setSummaryText("No se pudo generar el resumen. Intenta ver el artículo completo.");
+                        } finally {
+                          setSummaryLoading(false);
+                        }
+                      }}
+                      className="flex flex-col items-center gap-2 py-4 px-3 rounded-2xl border transition-all hover:opacity-80"
+                      style={{ borderColor: "#a855f740", background: "rgba(168,85,247,0.06)" }}
+                    >
+                      <span className="text-2xl">✦</span>
+                      <span className="text-sm font-bold" style={{ color: "#a855f7" }}>
+                        Resumen de IA
+                      </span>
+                      <span className="text-[10px] text-center" style={{ color: "var(--dim)" }}>
+                        4–8 líneas con lo esencial
+                      </span>
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
