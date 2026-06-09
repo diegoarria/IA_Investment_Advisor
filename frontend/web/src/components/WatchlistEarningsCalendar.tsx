@@ -7,10 +7,15 @@ import {
 } from "lucide-react";
 import { earningsApi } from "@/lib/api";
 
-interface EarningsEntry {
+type EventType = "earnings" | "ex_dividend" | "dividend";
+
+interface CalendarEvent {
   ticker: string;
-  earnings_date: string | null;
-  status: "upcoming" | "past" | "unknown";
+  event_date: string | null;
+  event_type: EventType;
+  status: "upcoming" | "today" | "past" | "unknown";
+  dividend_amount?: number | null;
+  dividend_yield?: number | null;
 }
 
 interface Props {
@@ -30,38 +35,44 @@ function toDateStr(year: number, month: number, day: number) {
   return `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 }
 
+const EVENT_META: Record<EventType, { icon: string; label: string; bg: string; color: string; bgPortfolio: string; colorPortfolio: string }> = {
+  earnings:    { icon: "📊", label: "Resultados",  bg: "rgba(59,130,246,0.22)",   color: "#60a5fa", bgPortfolio: "rgba(0,168,94,0.22)",  colorPortfolio: "var(--accent-l)" },
+  ex_dividend: { icon: "✂️",  label: "Ex-Dividendo", bg: "rgba(245,158,11,0.22)", color: "#f59e0b", bgPortfolio: "rgba(245,158,11,0.28)", colorPortfolio: "#f59e0b" },
+  dividend:    { icon: "💰",  label: "Dividendo",    bg: "rgba(168,85,247,0.22)",  color: "#a855f7", bgPortfolio: "rgba(168,85,247,0.28)", colorPortfolio: "#a855f7" },
+};
+
 export default function WatchlistEarningsCalendar({
   watchlistTickers,
   portfolioTickers = [],
   isPremium,
   onUpgrade,
 }: Props) {
-  const [calendar, setCalendar]   = useState<EarningsEntry[]>([]);
+  const [events, setEvents]       = useState<CalendarEvent[]>([]);
   const [loading, setLoading]     = useState(false);
   const [viewDate, setViewDate]   = useState(() => new Date());
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
   const [analysis, setAnalysis]   = useState<Record<string, string>>({});
   const [analyzing, setAnalyzing] = useState<string | null>(null);
 
-  const allTickers    = [...new Set([...watchlistTickers, ...portfolioTickers])].filter(Boolean);
-  const portfolioSet  = new Set(portfolioTickers);
+  const allTickers   = [...new Set([...watchlistTickers, ...portfolioTickers])].filter(Boolean);
+  const portfolioSet = new Set(portfolioTickers);
 
   useEffect(() => {
     if (!isPremium || allTickers.length === 0) return;
     setLoading(true);
     earningsApi
       .getCalendar(allTickers)
-      .then((res) => setCalendar(res.data.earnings || []))
+      .then((res) => setEvents(res.data.earnings || []))
       .catch(() => {})
       .finally(() => setLoading(false));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isPremium, allTickers.join(",")]);
 
-  // date → entries
-  const earningsMap: Record<string, EarningsEntry[]> = {};
-  for (const e of calendar) {
-    if (e.earnings_date) {
-      (earningsMap[e.earnings_date] ??= []).push(e);
+  // date → events map
+  const eventMap: Record<string, CalendarEvent[]> = {};
+  for (const e of events) {
+    if (e.event_date) {
+      (eventMap[e.event_date] ??= []).push(e);
     }
   }
 
@@ -72,7 +83,6 @@ export default function WatchlistEarningsCalendar({
   const firstDayDOW = new Date(year, month, 1).getDay();
   const daysInMonth = new Date(year, month + 1, 0).getDate();
 
-  // Grid cells: null = empty pad, number = day
   const cells: (number | null)[] = [
     ...Array(firstDayDOW).fill(null),
     ...Array.from({ length: daysInMonth }, (_, i) => i + 1),
@@ -92,7 +102,7 @@ export default function WatchlistEarningsCalendar({
     }
   };
 
-  const selectedEntries = selectedDay ? (earningsMap[selectedDay] ?? []) : [];
+  const selectedEntries = selectedDay ? (eventMap[selectedDay] ?? []) : [];
 
   // ── Locked state ──────────────────────────────────────────────────────────
   if (!isPremium) {
@@ -107,10 +117,10 @@ export default function WatchlistEarningsCalendar({
         </div>
         <div>
           <p className="text-sm font-bold mb-1" style={{ color: "var(--text)" }}>
-            Calendario de Earnings
+            Calendario de Eventos
           </p>
           <p className="text-xs" style={{ color: "var(--muted)" }}>
-            Ve las fechas de earnings de tu watchlist en un calendario visual. Incluye análisis IA de cada reporte.
+            Ve las fechas de earnings y dividendos de tu watchlist. Incluye análisis IA de cada reporte.
           </p>
         </div>
         <button onClick={onUpgrade} className="btn-primary text-xs px-4 py-2">
@@ -174,9 +184,9 @@ export default function WatchlistEarningsCalendar({
 
           const dateStr  = toDateStr(year, month, day);
           const isToday  = dateStr === todayStr;
-          const entries  = earningsMap[dateStr] ?? [];
+          const dayEvents = eventMap[dateStr] ?? [];
           const isSel    = selectedDay === dateStr;
-          const hasEvent = entries.length > 0;
+          const hasEvent = dayEvents.length > 0;
 
           return (
             <div
@@ -201,30 +211,32 @@ export default function WatchlistEarningsCalendar({
                 </span>
               </div>
 
-              {/* Ticker badges */}
+              {/* Event badges */}
               <div className="flex flex-col gap-0.5 items-center">
-                {entries.slice(0, 2).map((e) => (
-                  <span
-                    key={e.ticker}
-                    className="text-[7px] font-black px-1 py-px rounded leading-tight"
-                    style={{
-                      background: portfolioSet.has(e.ticker)
-                        ? "rgba(0,168,94,0.22)"
-                        : "rgba(59,130,246,0.22)",
-                      color: portfolioSet.has(e.ticker) ? "var(--accent-l)" : "#60a5fa",
-                      maxWidth: "calc(100% - 2px)",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    {e.ticker}
-                  </span>
-                ))}
-                {entries.length > 2 && (
+                {dayEvents.slice(0, 2).map((e, ei) => {
+                  const meta = EVENT_META[e.event_type] ?? EVENT_META.earnings;
+                  const isPortfolio = portfolioSet.has(e.ticker);
+                  return (
+                    <span
+                      key={`${e.ticker}-${e.event_type}-${ei}`}
+                      className="text-[7px] font-black px-1 py-px rounded leading-tight flex items-center gap-px"
+                      style={{
+                        background: isPortfolio ? meta.bgPortfolio : meta.bg,
+                        color: isPortfolio ? meta.colorPortfolio : meta.color,
+                        maxWidth: "calc(100% - 2px)",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {meta.icon} {e.ticker}
+                    </span>
+                  );
+                })}
+                {dayEvents.length > 2 && (
                   <span className="text-[7px] font-bold px-1 py-px rounded"
                         style={{ background: "var(--raised)", color: "var(--muted)" }}>
-                    +{entries.length - 2}
+                    +{dayEvents.length - 2}
                   </span>
                 )}
               </div>
@@ -238,72 +250,114 @@ export default function WatchlistEarningsCalendar({
         <div className="border-t" style={{ borderColor: "var(--border)" }}>
           <div className="px-4 pt-3 pb-2">
             <p className="text-xs font-bold" style={{ color: "var(--text)" }}>
-              Earnings · {new Date(selectedDay + "T12:00:00").toLocaleDateString("es", {
+              Eventos · {new Date(selectedDay + "T12:00:00").toLocaleDateString("es", {
                 weekday: "long", month: "long", day: "numeric",
               })}
             </p>
           </div>
           <div className="divide-y" style={{ borderColor: "var(--border)" }}>
-            {selectedEntries.map((entry) => (
-              <div key={entry.ticker} className="px-4 py-2.5">
-                <div className="flex items-center gap-2 mb-1.5">
-                  <span className="text-xs font-black" style={{ color: "var(--text)" }}>
-                    {entry.ticker}
-                  </span>
-                  {portfolioSet.has(entry.ticker) ? (
-                    <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold px-1.5 py-0.5 rounded-full"
-                          style={{ background: "rgba(0,168,94,0.12)", color: "var(--accent-l)" }}>
-                      <Briefcase className="w-2 h-2" /> Portafolio
+            {selectedEntries.map((entry, ei) => {
+              const meta = EVENT_META[entry.event_type] ?? EVENT_META.earnings;
+              const isPortfolio = portfolioSet.has(entry.ticker);
+              return (
+                <div key={`${entry.ticker}-${entry.event_type}-${ei}`} className="px-4 py-2.5">
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <span className="text-base">{meta.icon}</span>
+                    <span className="text-xs font-black" style={{ color: "var(--text)" }}>
+                      {entry.ticker}
                     </span>
-                  ) : (
-                    <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold px-1.5 py-0.5 rounded-full"
-                          style={{ background: "rgba(59,130,246,0.12)", color: "#60a5fa" }}>
-                      <Eye className="w-2 h-2" /> Watchlist
+                    {/* Origin badge */}
+                    {isPortfolio ? (
+                      <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold px-1.5 py-0.5 rounded-full"
+                            style={{ background: "rgba(0,168,94,0.12)", color: "var(--accent-l)" }}>
+                        <Briefcase className="w-2 h-2" /> Portafolio
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold px-1.5 py-0.5 rounded-full"
+                            style={{ background: "rgba(59,130,246,0.12)", color: "#60a5fa" }}>
+                        <Eye className="w-2 h-2" /> Watchlist
+                      </span>
+                    )}
+                    {/* Event type badge */}
+                    <span className="inline-flex text-[9px] font-semibold px-1.5 py-0.5 rounded-full"
+                          style={{ background: isPortfolio ? meta.bgPortfolio : meta.bg, color: isPortfolio ? meta.colorPortfolio : meta.color }}>
+                      {meta.label}
                     </span>
-                  )}
-                  <span className="ml-auto text-[9px]"
-                        style={{ color: entry.status === "upcoming" ? "var(--accent-l)" : "var(--muted)" }}>
-                    {entry.status === "upcoming" ? "📅 Próximo" : "📊 Reportó"}
-                  </span>
-                </div>
+                    {/* Status */}
+                    <span className="ml-auto text-[9px]"
+                          style={{ color: entry.status === "upcoming" || entry.status === "today" ? "var(--accent-l)" : "var(--muted)" }}>
+                      {entry.status === "today" ? "🔴 Hoy" : entry.status === "upcoming" ? "📅 Próximo" : "✓ Completado"}
+                    </span>
+                  </div>
 
-                {analysis[entry.ticker] ? (
-                  <div className="text-[11px] leading-relaxed p-2.5 rounded-xl whitespace-pre-line"
-                       style={{ background: "var(--raised)", color: "var(--sub)" }}>
-                    {analysis[entry.ticker]}
-                  </div>
-                ) : analyzing === entry.ticker ? (
-                  <div className="flex items-center gap-1.5 py-1">
-                    <Loader2 className="w-3 h-3 animate-spin" style={{ color: "var(--accent-l)" }} />
-                    <span className="text-[10px]" style={{ color: "var(--muted)" }}>
-                      Analizando con IA...
-                    </span>
-                  </div>
-                ) : (
-                  <button
-                    onClick={() => handleAnalyze(entry.ticker)}
-                    className="flex items-center gap-1 text-[10px] font-semibold transition-opacity hover:opacity-70"
-                    style={{ color: "var(--accent-l)" }}
-                  >
-                    <Zap className="w-2.5 h-2.5" /> Análisis IA
-                  </button>
-                )}
-              </div>
-            ))}
+                  {/* Extra info for dividend events */}
+                  {(entry.event_type === "ex_dividend" || entry.event_type === "dividend") && (
+                    <div className="text-[10px] mb-1.5 flex gap-3 flex-wrap"
+                         style={{ color: "var(--sub)" }}>
+                      {entry.event_type === "ex_dividend" && (
+                        <span>✂️ Para recibir el dividendo debes poseer acciones <strong>antes</strong> de esta fecha</span>
+                      )}
+                      {entry.event_type === "dividend" && (
+                        <span>💰 Fecha de pago del dividendo</span>
+                      )}
+                      {entry.dividend_amount != null && (
+                        <span className="font-semibold" style={{ color: "#f59e0b" }}>
+                          ${entry.dividend_amount.toFixed(4)} / acción
+                        </span>
+                      )}
+                      {entry.dividend_yield != null && entry.dividend_yield > 0 && (
+                        <span style={{ color: "var(--muted)" }}>
+                          Yield: {entry.dividend_yield.toFixed(2)}%
+                        </span>
+                      )}
+                    </div>
+                  )}
+
+                  {/* AI analysis — only for earnings */}
+                  {entry.event_type === "earnings" && (
+                    analysis[entry.ticker] ? (
+                      <div className="text-[11px] leading-relaxed p-2.5 rounded-xl whitespace-pre-line"
+                           style={{ background: "var(--raised)", color: "var(--sub)" }}>
+                        {analysis[entry.ticker]}
+                      </div>
+                    ) : analyzing === entry.ticker ? (
+                      <div className="flex items-center gap-1.5 py-1">
+                        <Loader2 className="w-3 h-3 animate-spin" style={{ color: "var(--accent-l)" }} />
+                        <span className="text-[10px]" style={{ color: "var(--muted)" }}>
+                          Analizando con IA...
+                        </span>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => handleAnalyze(entry.ticker)}
+                        className="flex items-center gap-1 text-[10px] font-semibold transition-opacity hover:opacity-70"
+                        style={{ color: "var(--accent-l)" }}
+                      >
+                        <Zap className="w-2.5 h-2.5" /> Análisis IA
+                      </button>
+                    )
+                  )}
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
 
       {/* ── Legend ── */}
-      <div className="flex items-center gap-4 px-4 py-2.5 border-t"
+      <div className="flex items-center gap-3 px-4 py-2.5 border-t flex-wrap"
            style={{ borderColor: "var(--border)" }}>
-        <div className="flex items-center gap-1.5">
-          <span className="w-2 h-2 rounded-full" style={{ background: "var(--accent-l)" }} />
-          <span className="text-[10px]" style={{ color: "var(--muted)" }}>Portafolio</span>
+        <div className="flex items-center gap-1">
+          <span className="text-[9px]">📊</span>
+          <span className="text-[10px]" style={{ color: "var(--muted)" }}>Resultados</span>
         </div>
-        <div className="flex items-center gap-1.5">
-          <span className="w-2 h-2 rounded-full" style={{ background: "#60a5fa" }} />
-          <span className="text-[10px]" style={{ color: "var(--muted)" }}>Watchlist</span>
+        <div className="flex items-center gap-1">
+          <span className="text-[9px]">✂️</span>
+          <span className="text-[10px]" style={{ color: "var(--muted)" }}>Ex-Dividendo</span>
+        </div>
+        <div className="flex items-center gap-1">
+          <span className="text-[9px]">💰</span>
+          <span className="text-[10px]" style={{ color: "var(--muted)" }}>Pago Dividendo</span>
         </div>
         {allTickers.length > 0 && (
           <span className="text-[10px] ml-auto" style={{ color: "var(--dim)" }}>

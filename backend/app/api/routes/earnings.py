@@ -13,43 +13,97 @@ _TTL_CALENDAR = 3600   # 1 hour
 _TTL_ANALYSIS = 1800   # 30 minutes
 
 
-def _fetch_earnings_calendar(symbols: list[str]) -> list[dict]:
-    """Return upcoming + recent earnings dates for a list of symbols."""
-    results = []
-    today = datetime.now().date()
-    window_start = today - timedelta(days=7)
-    window_end   = today + timedelta(days=60)
+def _fetch_events_for_symbol(symbol: str) -> list[dict]:
+    """Return all calendar events (earnings + dividends) for one symbol."""
+    key = f"events:cal:{symbol}"
+    cached = cache_get(key)
+    if cached is not None:
+        return cached
 
-    for symbol in symbols:
-        key = f"earnings:cal:{symbol}"
-        cached = cache_get(key)
-        if cached:
-            results.append(cached)
-            continue
-        try:
-            t = yf.Ticker(symbol)
-            cal = t.calendar
-            entry: dict = {"ticker": symbol, "earnings_date": None, "status": "unknown"}
-            if cal is not None and not cal.empty and "Earnings Date" in cal.index:
-                raw_dates = cal.loc["Earnings Date"]
-                if hasattr(raw_dates, "__iter__"):
-                    dates = [d for d in raw_dates if d is not None]
-                else:
-                    dates = [raw_dates]
-                for d in dates:
+    today        = datetime.now().date()
+    window_start = today - timedelta(days=7)
+    window_end   = today + timedelta(days=90)
+    events: list[dict] = []
+
+    try:
+        t    = yf.Ticker(symbol)
+        info = t.info or {}
+
+        # ── Earnings dates ────────────────────────────────────────────────────
+        cal = t.calendar
+        if cal is not None and not cal.empty and "Earnings Date" in cal.index:
+            raw_dates = cal.loc["Earnings Date"]
+            dates_iter = list(raw_dates) if hasattr(raw_dates, "__iter__") else [raw_dates]
+            for d in dates_iter:
+                try:
+                    dt = d.date() if hasattr(d, "date") else d
+                    if window_start <= dt <= window_end:
+                        events.append({
+                            "ticker":     symbol,
+                            "event_date": str(dt),
+                            "event_type": "earnings",
+                            "status":     "past" if dt < today else "today" if dt == today else "upcoming",
+                        })
+                except Exception:
+                    continue
+
+        # ── Ex-dividend date ──────────────────────────────────────────────────
+        ex_ts = info.get("exDividendDate")
+        if ex_ts:
+            try:
+                ex_dt = datetime.utcfromtimestamp(int(ex_ts)).date()
+                if window_start <= ex_dt <= window_end:
+                    # Try to get dividend amount from recent history
+                    div_amount: float | None = None
                     try:
-                        dt = d.date() if hasattr(d, "date") else d
-                        if window_start <= dt <= window_end:
-                            entry["earnings_date"] = str(dt)
-                            entry["status"] = "past" if dt <= today else "upcoming"
-                            break
+                        divs = t.dividends
+                        if divs is not None and not divs.empty:
+                            div_amount = round(float(divs.iloc[-1]), 4)
                     except Exception:
-                        continue
-            cache_set(key, entry, ttl=_TTL_CALENDAR)
-            results.append(entry)
-        except Exception:
-            results.append({"ticker": symbol, "earnings_date": None, "status": "unknown"})
-    return results
+                        pass
+                    events.append({
+                        "ticker":         symbol,
+                        "event_date":     str(ex_dt),
+                        "event_type":     "ex_dividend",
+                        "status":         "past" if ex_dt < today else "today" if ex_dt == today else "upcoming",
+                        "dividend_amount": div_amount,
+                        "dividend_yield":  round(float(info.get("dividendYield") or 0) * 100, 2),
+                    })
+            except Exception:
+                pass
+
+        # ── Dividend payment date ─────────────────────────────────────────────
+        pay_ts = info.get("dividendDate")
+        if pay_ts:
+            try:
+                pay_dt = datetime.utcfromtimestamp(int(pay_ts)).date()
+                if window_start <= pay_dt <= window_end:
+                    events.append({
+                        "ticker":     symbol,
+                        "event_date": str(pay_dt),
+                        "event_type": "dividend",
+                        "status":     "past" if pay_dt < today else "today" if pay_dt == today else "upcoming",
+                    })
+            except Exception:
+                pass
+
+    except Exception:
+        pass
+
+    # Fallback: at least return an empty-date earnings entry so the ticker shows in the list
+    if not events:
+        events.append({"ticker": symbol, "event_date": None, "event_type": "earnings", "status": "unknown"})
+
+    cache_set(key, events, ttl=_TTL_CALENDAR)
+    return events
+
+
+def _fetch_earnings_calendar(symbols: list[str]) -> list[dict]:
+    """Return all calendar events for a list of symbols (earnings + dividends)."""
+    all_events: list[dict] = []
+    for symbol in symbols:
+        all_events.extend(_fetch_events_for_symbol(symbol))
+    return all_events
 
 
 def _fetch_earnings_data(symbol: str) -> dict:
@@ -126,9 +180,9 @@ async def get_earnings_calendar(
         return {"earnings": []}
 
     results = await asyncio.to_thread(_fetch_earnings_calendar, ticker_list[:20])
-    # Sort: upcoming first, then past, then unknown
-    order = {"upcoming": 0, "past": 1, "unknown": 2}
-    results.sort(key=lambda x: (order.get(x["status"], 2), x.get("earnings_date") or ""))
+    # Sort: upcoming/today first, then past, then unknown; secondary by date
+    order = {"upcoming": 0, "today": 0, "past": 1, "unknown": 2}
+    results.sort(key=lambda x: (order.get(x["status"], 2), x.get("event_date") or ""))
     return {"earnings": results}
 
 
