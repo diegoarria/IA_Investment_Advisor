@@ -14,6 +14,11 @@ interface CalendarEvent {
   event_date: string | null;
   event_type: EventType;
   status: "upcoming" | "today" | "past" | "unknown";
+  // earnings fields
+  eps_estimate?: number | null;
+  eps_range?: string | null;
+  revenue_estimate?: string | null;
+  // dividend fields
   dividend_amount?: number | null;
   dividend_yield?: number | null;
 }
@@ -308,6 +313,24 @@ export default function WatchlistEarningsCalendar({
                       {entry.dividend_yield != null && entry.dividend_yield > 0 && (
                         <span style={{ color: "var(--muted)" }}>
                           Yield: {entry.dividend_yield.toFixed(2)}%
+                        </span>
+                      )}
+                    </div>
+                  )}
+
+                  {/* EPS + Revenue estimates for earnings */}
+                  {entry.event_type === "earnings" && (entry.eps_estimate != null || entry.revenue_estimate) && (
+                    <div className="text-[10px] mb-1.5 flex gap-3 flex-wrap"
+                         style={{ color: "var(--sub)" }}>
+                      {entry.eps_estimate != null && (
+                        <span>
+                          EPS est. <strong style={{ color: "#60a5fa" }}>${entry.eps_estimate.toFixed(2)}</strong>
+                          {entry.eps_range && <span style={{ color: "var(--dim)" }}> ({entry.eps_range})</span>}
+                        </span>
+                      )}
+                      {entry.revenue_estimate && (
+                        <span>
+                          Ingresos est. <strong style={{ color: "#60a5fa" }}>{entry.revenue_estimate}</strong>
                         </span>
                       )}
                     </div>

@@ -13,8 +13,21 @@ _TTL_CALENDAR = 3600   # 1 hour
 _TTL_ANALYSIS = 1800   # 30 minutes
 
 
+def _as_date(d):
+    """Coerce a yfinance date value (date, datetime, or Timestamp) to date."""
+    if d is None:
+        return None
+    if hasattr(d, "date"):
+        return d.date()
+    return d
+
+
 def _fetch_events_for_symbol(symbol: str) -> list[dict]:
-    """Return all calendar events (earnings + dividends) for one symbol."""
+    """Return all calendar events (earnings + dividends) for one symbol.
+
+    Handles both the legacy DataFrame format and the current dict format
+    that yfinance returns from t.calendar.
+    """
     key = f"events:cal:{symbol}"
     cached = cache_get(key)
     if cached is not None:
@@ -28,69 +41,97 @@ def _fetch_events_for_symbol(symbol: str) -> list[dict]:
     try:
         t    = yf.Ticker(symbol)
         info = t.info or {}
+        cal  = t.calendar  # dict in yfinance ≥ 0.2.x, DataFrame in older versions
+
+        # ── Normalise calendar to a plain dict ────────────────────────────────
+        cal_dict: dict = {}
+        if isinstance(cal, dict):
+            cal_dict = cal
+        elif cal is not None and hasattr(cal, "to_dict"):
+            # Old DataFrame: rows are field names, single column
+            try:
+                cal_dict = cal.iloc[:, 0].to_dict()
+            except Exception:
+                pass
 
         # ── Earnings dates ────────────────────────────────────────────────────
-        cal = t.calendar
-        if cal is not None and not cal.empty and "Earnings Date" in cal.index:
-            raw_dates = cal.loc["Earnings Date"]
-            dates_iter = list(raw_dates) if hasattr(raw_dates, "__iter__") else [raw_dates]
-            for d in dates_iter:
-                try:
-                    dt = d.date() if hasattr(d, "date") else d
-                    if window_start <= dt <= window_end:
-                        events.append({
-                            "ticker":     symbol,
-                            "event_date": str(dt),
-                            "event_type": "earnings",
-                            "status":     "past" if dt < today else "today" if dt == today else "upcoming",
-                        })
-                except Exception:
+        earn_list = cal_dict.get("Earnings Date") or []
+        if not isinstance(earn_list, list):
+            earn_list = [earn_list]
+
+        eps_est = cal_dict.get("Earnings Average")
+        eps_hi  = cal_dict.get("Earnings High")
+        eps_lo  = cal_dict.get("Earnings Low")
+        rev_est = cal_dict.get("Revenue Average")
+
+        for d in earn_list:
+            try:
+                dt = _as_date(d)
+                if dt is None or not (window_start <= dt <= window_end):
                     continue
+                events.append({
+                    "ticker":           symbol,
+                    "event_date":       str(dt),
+                    "event_type":       "earnings",
+                    "status":           "past" if dt < today else "today" if dt == today else "upcoming",
+                    "eps_estimate":     round(float(eps_est), 2) if eps_est else None,
+                    "eps_range":        f"${eps_lo:.2f}–${eps_hi:.2f}" if eps_lo and eps_hi else None,
+                    "revenue_estimate": f"{round(float(rev_est)/1e9, 1)}B" if rev_est else None,
+                })
+            except Exception:
+                continue
 
         # ── Ex-dividend date ──────────────────────────────────────────────────
-        ex_ts = info.get("exDividendDate")
-        if ex_ts:
+        # Prefer cal_dict (already a date object) over unix timestamp from info
+        ex_dt = _as_date(cal_dict.get("Ex-Dividend Date"))
+        if ex_dt is None:
+            ex_ts = info.get("exDividendDate")
+            if ex_ts:
+                try:
+                    ex_dt = datetime.utcfromtimestamp(int(ex_ts)).date()
+                except Exception:
+                    pass
+
+        if ex_dt and window_start <= ex_dt <= window_end:
+            div_amount: float | None = None
             try:
-                ex_dt = datetime.utcfromtimestamp(int(ex_ts)).date()
-                if window_start <= ex_dt <= window_end:
-                    # Try to get dividend amount from recent history
-                    div_amount: float | None = None
-                    try:
-                        divs = t.dividends
-                        if divs is not None and not divs.empty:
-                            div_amount = round(float(divs.iloc[-1]), 4)
-                    except Exception:
-                        pass
-                    events.append({
-                        "ticker":         symbol,
-                        "event_date":     str(ex_dt),
-                        "event_type":     "ex_dividend",
-                        "status":         "past" if ex_dt < today else "today" if ex_dt == today else "upcoming",
-                        "dividend_amount": div_amount,
-                        "dividend_yield":  round(float(info.get("dividendYield") or 0) * 100, 2),
-                    })
+                divs = t.dividends
+                if divs is not None and not divs.empty:
+                    div_amount = round(float(divs.iloc[-1]), 4)
             except Exception:
                 pass
+            div_rate  = info.get("dividendRate")
+            div_yield = info.get("dividendYield")  # decimal, e.g. 0.0054 for 0.54 %
+            events.append({
+                "ticker":          symbol,
+                "event_date":      str(ex_dt),
+                "event_type":      "ex_dividend",
+                "status":          "past" if ex_dt < today else "today" if ex_dt == today else "upcoming",
+                "dividend_amount": div_amount or (round(float(div_rate) / 4, 4) if div_rate else None),
+                "dividend_yield":  round(float(div_yield) * 100, 2) if div_yield else None,
+            })
 
         # ── Dividend payment date ─────────────────────────────────────────────
-        pay_ts = info.get("dividendDate")
-        if pay_ts:
-            try:
-                pay_dt = datetime.utcfromtimestamp(int(pay_ts)).date()
-                if window_start <= pay_dt <= window_end:
-                    events.append({
-                        "ticker":     symbol,
-                        "event_date": str(pay_dt),
-                        "event_type": "dividend",
-                        "status":     "past" if pay_dt < today else "today" if pay_dt == today else "upcoming",
-                    })
-            except Exception:
-                pass
+        pay_dt = _as_date(cal_dict.get("Dividend Date"))
+        if pay_dt is None:
+            pay_ts = info.get("dividendDate")
+            if pay_ts:
+                try:
+                    pay_dt = datetime.utcfromtimestamp(int(pay_ts)).date()
+                except Exception:
+                    pass
+
+        if pay_dt and window_start <= pay_dt <= window_end:
+            events.append({
+                "ticker":     symbol,
+                "event_date": str(pay_dt),
+                "event_type": "dividend",
+                "status":     "past" if pay_dt < today else "today" if pay_dt == today else "upcoming",
+            })
 
     except Exception:
         pass
 
-    # Fallback: at least return an empty-date earnings entry so the ticker shows in the list
     if not events:
         events.append({"ticker": symbol, "event_date": None, "event_type": "earnings", "status": "unknown"})
 
