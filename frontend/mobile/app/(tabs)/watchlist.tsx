@@ -7,9 +7,11 @@ import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "../../src/lib/ThemeContext";
 import { useWatchlistStore } from "../../src/lib/watchlistStore";
 import { useSubscriptionStore, hasPremiumAccess } from "../../src/lib/subscriptionStore";
+import { usePortfolioStore } from "../../src/lib/portfolioStore";
 import { marketApi, watchlistExtApi } from "../../src/lib/api";
 import StockAvatar from "../../src/components/StockAvatar";
 import PaywallModal from "../../src/components/PaywallModal";
+import MobileEarningsCalendar from "../../src/components/MobileEarningsCalendar";
 
 const FREE_LIMIT = 30;
 
@@ -86,6 +88,7 @@ export default function WatchlistScreen() {
   const { items, add, remove, has } = useWatchlistStore();
   const subStore = useSubscriptionStore();
   const isPremium = hasPremiumAccess(subStore);
+  const { positions } = usePortfolioStore();
 
   const [prices, setPrices]             = useState<Record<string, ExtPrice>>({});
   const [pricesLoading, setPricesLoading] = useState(false);
@@ -344,6 +347,14 @@ export default function WatchlistScreen() {
             })}
           </View>
         )}
+
+        {/* ── Earnings Calendar ── */}
+        <MobileEarningsCalendar
+          watchlistTickers={items.map((i) => i.ticker)}
+          portfolioTickers={positions.map((p) => p.ticker)}
+          isPremium={isPremium}
+          onUpgrade={() => setPaywallOpen(true)}
+        />
       </ScrollView>
 
       <PaywallModal visible={paywallOpen} onClose={() => setPaywallOpen(false)} />

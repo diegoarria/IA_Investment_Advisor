@@ -9,8 +9,10 @@ import {
 } from "lucide-react";
 import { watchlist as watchlistApi, market as marketApi } from "@/lib/api";
 import { useAuthStore, useSubscriptionStore } from "@/lib/store";
+import { usePortfolioStore } from "@/lib/portfolioStore";
 import AppSidebar from "@/components/AppSidebar";
 import PaywallModal from "@/components/PaywallModal";
+import WatchlistEarningsCalendar from "@/components/WatchlistEarningsCalendar";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -298,6 +300,7 @@ export default function WatchlistPage() {
   const { isAuthenticated, clearAuth } = useAuthStore();
   const { tier } = useSubscriptionStore();
   const isPremium = tier === "premium";
+  const { positions } = usePortfolioStore();
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [items, setItems] = useState<WatchlistItem[]>([]);
@@ -644,6 +647,18 @@ export default function WatchlistPage() {
                     onCancelDelete={handleCancelDelete}
                   />
                 ))}
+              </div>
+            )}
+
+            {/* ── Earnings Calendar ── */}
+            {!loading && (
+              <div className="mt-4">
+                <WatchlistEarningsCalendar
+                  watchlistTickers={items.map((i) => i.ticker)}
+                  portfolioTickers={positions.map((p) => p.ticker)}
+                  isPremium={isPremium}
+                  onUpgrade={() => setPaywallOpen(true)}
+                />
               </div>
             )}
           </main>

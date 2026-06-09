@@ -18,7 +18,7 @@ def _fetch_earnings_calendar(symbols: list[str]) -> list[dict]:
     results = []
     today = datetime.now().date()
     window_start = today - timedelta(days=7)
-    window_end   = today + timedelta(days=30)
+    window_end   = today + timedelta(days=60)
 
     for symbol in symbols:
         key = f"earnings:cal:{symbol}"
