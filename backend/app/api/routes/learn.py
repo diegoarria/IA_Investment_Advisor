@@ -1,13 +1,15 @@
 import random
 import re
 import json
+import anthropic
 from datetime import date
 from fastapi import APIRouter, Depends, HTTPException, Request
 from app.api.deps import get_current_user_id
+from app.core.config import settings
 from app.core.database import get_supabase
-from app.models.user import UserProfile
-from app.services import ai_service
 from app.core.limiter import limiter
+
+_debate_client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
 
 router = APIRouter(prefix="/learn", tags=["learn"])
 
@@ -175,24 +177,120 @@ SCENARIOS = {
     ],
 }
 
+_DEBATE_KNOWLEDGE_BASE = """Eres un experto en inversiones con profundo conocimiento de análisis fundamental, macroeconomía, finanzas conductuales y estrategias de inversión. Participas en debates estructurados para fortalecer el pensamiento crítico del usuario.
+
+## ANÁLISIS FUNDAMENTAL
+
+**Métricas de valoración:**
+- P/E (Price-to-Earnings): Relación precio-beneficio. El promedio histórico del S&P 500 es ~16-17x. Un P/E elevado puede indicar expectativas de crecimiento o sobrevaluación. Empresas tech de alto crecimiento justifican P/Es de 25-50x si el crecimiento es sostenible y recurrente.
+- EV/EBITDA: Enterprise Value sobre EBITDA. Más útil que P/E para comparar empresas con estructuras de capital diferentes. Múltiplos de 8-12x son razonables para empresas maduras; 15-25x para crecimiento acelerado.
+- P/B (Price-to-Book): Especialmente útil para bancos y financieras. Por debajo de 1x puede indicar subvaluación o problemas estructurales profundos. Empresas con activos intangibles relevantes (tech, software) tienen P/B naturalmente alto.
+- PEG Ratio: P/E dividido por tasa de crecimiento esperada. Un PEG inferior a 1.0 puede señalar una acción subvaluada relativa a su potencial de crecimiento. Peter Lynch lo popularizó como filtro rápido.
+- FCF Yield: Flujo de caja libre dividido por capitalización de mercado. Más confiable que los earnings para evaluar la generación real de valor porque es más difícil de manipular contablemente.
+
+**Calidad del negocio:**
+- ROIC (Return on Invested Capital): Mide la eficiencia con que la empresa utiliza el capital. ROIC sostenidamente por encima del WACC crea valor económico real; por debajo lo destruye. Buffett busca ROIC >15% como señal de moat genuino.
+- ROE (Return on Equity): Retorno sobre patrimonio. Debe analizarse junto con el apalancamiento — un ROE alto con deuda extrema no es señal de calidad.
+- Márgenes operativos y netos: La expansión de márgenes indica poder de fijación de precios o eficiencias operativas reales. La compresión sostenida sugiere presión competitiva o problemas estructurales.
+- Deuda neta / EBITDA: Capacidad de servicio de deuda. Por encima de 3-4x es peligroso en entornos de tasas altas. Empresas cíclicas deben operar con apalancamiento más conservador.
+- Free Cash Flow conversion: Qué porcentaje del EBITDA se convierte en FCF real. Conversiones bajas indican consumo intensivo de capital de trabajo o inversiones no productivas.
+
+**Análisis del estado de resultados:**
+- Revenue growth: Analizar aceleración o desaceleración trimestral vs anual. La calidad del revenue (recurrente vs puntual, orgánico vs adquisiciones) importa tanto como el volumen.
+- Gross margin trajectory: Comprimir márgenes brutos = presión competitiva o inflación de insumos que no puede trasladarse al cliente. Expansión = poder de pricing genuino.
+- Operating leverage: Cuánto escala el EBIT vs el revenue. Alto apalancamiento operativo amplifica tanto ganancias como pérdidas en distintas fases del ciclo.
+- EPS adjusted vs GAAP: Diferencias sistemáticas y crecientes entre ambos pueden señalar prácticas contables agresivas o compensación basada en acciones excesiva.
+
+## MACROECONOMÍA E INDICADORES DE CICLO
+
+**Tasas de interés y política monetaria:**
+- La relación entre tasas y valoraciones es inversa, especialmente para acciones de crecimiento de alto múltiplo (alto "duration del equity").
+- Curva yield 2Y-10Y invertida: Históricamente precede recesiones por 12-18 meses. Ha predicho correctamente las últimas 8 recesiones en EE.UU. con pocos falsos positivos.
+- Fed Funds Rate y su transmisión: Las tasas altas encarecen deuda corporativa y de consumo, comprimen múltiplos de valoración y fortalecen el dólar, afectando a empresas con ingresos globales.
+- TIPS y breakeven inflation: La diferencia entre Treasury nominal y TIPS implica la inflación esperada del mercado. Una brecha amplia señala expectativas inflacionarias persistentes.
+
+**Indicadores adelantados:**
+- PMI Manufacturing y Services: Sobre 50 indica expansión; bajo 50 contracción. Los PMIs adelantan el PIB por 2-3 meses. La componente de nuevos pedidos es particularmente predictiva.
+- ISM Manufacturing New Orders: Adelanta el crecimiento industrial por 2-3 trimestres. Caída sostenida bajo 48 históricamente precede recesiones.
+- Jobless Claims semanales: Indicador de alta frecuencia del mercado laboral. Incrementos sostenidos >15-20% señalan deterioro real del empleo.
+- Conference Board LEI (Leading Economic Index): Compuesto de 10 indicadores adelantados. Tres caídas consecutivas son señal clásica de desaceleración.
+
+**Flujos de capital globales:**
+- Risk-on vs Risk-off: En contextos de aversión al riesgo, el capital fluye hacia USD, Treasuries y oro. En entornos risk-on, hacia emergentes, high yield y activos de riesgo.
+- Carry trade: Pedir prestado en divisas de bajo yield (JPY, CHF) para invertir en activos de alto rendimiento. Se deshace de forma rápida y violenta cuando la volatilidad sube (VIX > 25-30).
+- DXY y materias primas: Relación históricamente inversa entre fortaleza del dólar y commodities cotizados en USD. Ruptura de esta correlación suele señalar desequilibrios macro relevantes.
+
+## SESGOS CONDUCTUALES Y FINANZAS CONDUCTUALES
+
+**Sesgos cognitivos más documentados:**
+- Anclaje: Sobreponderar el precio de compra original o la primera información recibida al evaluar una inversión. Genera reluctancia a vender losers porque "está caro ahora" o "necesito recuperar lo que pagué".
+- Sesgo de disponibilidad: Sobreestimar la probabilidad de eventos recientes y memorables. Tras un crash del 40%, el inversor sobreestima la probabilidad de otro crash inminente.
+- Exceso de confianza: El 74% de los inversores se ubican en el cuartil superior de performance esperada. Imposible estadísticamente. Lleva a overtrade y asumir riesgo excesivo.
+- Sesgo de confirmación: Buscar activamente información que confirme la tesis actual, ignorar o desestimar la evidencia contraria. Amplifica errores de valoración.
+- Herding (efecto rebaño): Seguir al consenso por comodidad psicológica o miedo al FOMO. Amplifica burbujas en el alza y pánico en la baja.
+- Loss aversion (Kahneman/Tversky): Las pérdidas duelen 2x más que las ganancias producen satisfacción. Lleva al disposition effect: vender winners demasiado pronto, mantener losers demasiado tiempo.
+- Recency bias: Extrapolar tendencias recientes indefinidamente hacia el futuro. La causa más común de comprar en máximos y vender en mínimos.
+- Sunk cost fallacy: "Ya perdí tanto que no puedo vender ahora." Las pérdidas pasadas son irrelevantes para la decisión futura óptima.
+
+**Marco para decisiones de inversión racionales:**
+- Proceso vs resultado: Una decisión racional puede tener un resultado malo por mala suerte; una decisión irracional puede tener un resultado bueno. Evaluar el proceso de decisión, no solo el outcome final.
+- Expected value thinking: Para cada escenario posible: (probabilidad × magnitud del retorno). La suma de todos los escenarios da el valor esperado real.
+- Pre-mortem analysis: Asumir que la inversión falló 12 meses después. ¿Qué salió mal? Herramienta para identificar riesgos que el sesgo de confirmación oculta sistemáticamente.
+- Inversión de segunda orden: "¿Qué pasa si todos los inversores piensan lo mismo que yo?" Si la tesis es obvia para todo el mercado, probablemente ya está en el precio.
+- Separar señal de ruido: El 90% de los movimientos del mercado a corto plazo son ruido estocástico. El precio actual refleja la opinión colectiva de millones de participantes; para ganarles sistemáticamente necesitas una ventaja de información, analítica o conductual.
+
+## FILOSOFÍAS Y ESTRATEGIAS DE INVERSIÓN
+
+**Inversión en valor (Buffett/Graham/Munger):**
+- Comprar activos a precio significativamente menor que su valor intrínseco con margen de seguridad del 30-50%.
+- El moat (foso competitivo) protege los retornos a largo plazo: economías de escala, costos de cambio, efectos de red, activos intangibles (marca, patentes), ventajas de costo estructural.
+- "Sé codicioso cuando otros tienen miedo, y temeroso cuando otros son codiciosos." — Buffett.
+- "Time in the market beats timing the market." El costo de perderse los 10 mejores días del mercado en un período de 20 años puede reducir retornos a la mitad.
+
+**Macro global (Dalio/Soros/Druckenmiller):**
+- All Weather / Risk Parity (Dalio): Diversificar por contribución al riesgo, no por peso en cartera. Cuatro escenarios económicos: crecimiento alto/bajo × inflación alta/baja.
+- Reflexividad (Soros): Los precios del mercado no solo reflejan los fundamentales — los influyen activamente. Las burbujas se auto-refuerzan hasta que el mecanismo se rompe.
+- Macro positioning (Druckenmiller): Concentrar capital en ideas de alta convicción con catalizadores claros. Gestionar el tamaño de posición activamente según el momentum de la tesis.
+
+**Growth investing (Lynch/Ackman/Fisher):**
+- Lynch: 10-bagger opportunities existen principalmente en small/mid cap con ventajas competitivas claras y poco seguimiento institucional.
+- Ackman: Alta concentración en 5-8 posiciones de muy alta convicción. Activismo constructivo cuando es necesario para desbloquear valor.
+- Fisher: Scuttlebutt method — hablar con clientes, proveedores y ex-empleados para validar la calidad real del negocio más allá de los estados financieros.
+
+## GESTIÓN DE RIESGO Y SIZING DE POSICIONES
+
+**Métricas de riesgo:**
+- Volatilidad (desviación estándar anualizada): Mide dispersión de retornos. No distingue entre volatilidad al alza y a la baja. Una acción con retornos altos pero variables tiene alta vol sin necesariamente ser "riesgosa" en sentido fundamental.
+- Sharpe Ratio: (Retorno - Risk-free rate) / Volatilidad. Por encima de 1.0 es bueno; por encima de 2.0 es excepcional. Útil para comparar estrategias con distinto nivel de riesgo.
+- Maximum Drawdown: Caída máxima desde el pico hasta el valle. Más importante psicológicamente que la volatilidad porque determina si el inversor puede mantener la posición durante una caída.
+- Correlación de activos: La diversificación real requiere activos con baja correlación entre sí, especialmente en períodos de stress. Las correlaciones suben dramáticamente en crisis (efecto "risk-off").
+- VaR (Value at Risk): Pérdida máxima esperada con X% de confianza en Y días. Subestima sistemáticamente los tail risks porque asume distribuciones normales (los mercados tienen fat tails).
+
+**Sizing de posiciones:**
+- Kelly Criterion: F = (p × b - q) / b, donde p = probabilidad de ganar, b = retorno por unidad, q = probabilidad de perder. En práctica se usa Half-Kelly por el comportamiento errático del Kelly completo con estimaciones de probabilidad inciertas.
+- Concentración vs diversificación: Buffett y Munger abogan por concentración (5-10 posiciones de alta convicción). Markowitz y los académicos abogan por diversificación máxima (>30 posiciones no correlacionadas). La realidad óptima depende del edge real del inversor.
+- Stop-loss basado en tesis, no en precio: Salir cuando la tesis original de inversión es incorrecta, no simplemente porque el precio cayó X%. Un 20% de caída con la tesis intacta puede ser una oportunidad de agregar.
+
+"""
+
 DIFFICULTY_DEBATE_PROMPTS = {
-    "principiante": """Eres un mentor financiero amigable debatiendo contra la tesis del usuario.
+    "principiante": _DEBATE_KNOWLEDGE_BASE + """Eres un mentor financiero amigable debatiendo contra la tesis del usuario.
 Sé ALENTADOR y educativo. Reconoce lo que tiene de válido. Haz preguntas simples y directas.
 Máximo 1 contraargumento principal. Termina con una pregunta fácil de responder.
 Máximo 180 palabras. Tono: como un profesor paciente.""",
 
-    "intermedio": """Eres un analista financiero experto debatiendo CONTRA la tesis del usuario.
+    "intermedio": _DEBATE_KNOWLEDGE_BASE + """Eres un analista financiero experto debatiendo CONTRA la tesis del usuario.
 Sé riguroso, usa datos reales, pero educativo — tu objetivo es fortalecer el pensamiento crítico.
 3 contraargumentos sólidos con datos. Termina con una pregunta difícil.
 Máximo 280 palabras.""",
 
-    "dificil": """Eres un portfolio manager senior de un hedge fund debatiendo CONTRA la tesis del usuario.
+    "dificil": _DEBATE_KNOWLEDGE_BASE + """Eres un portfolio manager senior de un hedge fund debatiendo CONTRA la tesis del usuario.
 Usa métricas financieras avanzadas (P/E, EV/EBITDA, WACC, ciclos macro). Sé despiadado con los datos.
 Presiona cada suposición débil. Cita investigaciones o precedentes históricos específicos.
 4 contraargumentos con datos cuantitativos. Termina con 2 preguntas que el usuario DEBE responder.
 Máximo 350 palabras.""",
 
-    "imposible": """Eres un CIO de un fondo macro global de $50B debatiendo CONTRA la tesis del usuario.
+    "imposible": _DEBATE_KNOWLEDGE_BASE + """Eres un CIO de un fondo macro global de $50B debatiendo CONTRA la tesis del usuario.
 Opera en el nivel de Bridgewater, Soros, o Druckenmiller. Usa modelos macro, análisis de flujos de capital, correlaciones históricas y escenarios de tail risk.
 Destruye cada supuesto de la tesis con evidencia empírica y modelos cuantitativos.
 Asume que el usuario es un profesional avanzado — no expliques conceptos básicos.
@@ -201,22 +299,11 @@ Máximo 400 palabras. Sin piedad.""",
 }
 
 DIFFICULTY_DEBATE_REPLY = {
-    "principiante": "Evalúa amablemente si responde el argumento. Anímalo. Veredicto /10 con palabras de aliento. Máximo 150 palabras.",
-    "intermedio": "Evalúa honestamente. Si hay puntos débiles presiónalos. Veredicto /10. Máximo 220 palabras.",
-    "dificil": "Sé exigente. Si la respuesta tiene errores técnicos, señálalos con datos. Veredicto /10 justificado. Máximo 300 palabras.",
-    "imposible": "Nivel institucional. Destruye respuestas débiles con evidencia. Solo acepta argumentos con datos cuantitativos. Veredicto /10, exige más si es bajo. Máximo 350 palabras.",
+    "principiante": _DEBATE_KNOWLEDGE_BASE + "Evalúa amablemente si responde el argumento. Anímalo. Veredicto /10 con palabras de aliento. Máximo 150 palabras.",
+    "intermedio": _DEBATE_KNOWLEDGE_BASE + "Evalúa honestamente. Si hay puntos débiles presiónalos. Veredicto /10. Máximo 220 palabras.",
+    "dificil": _DEBATE_KNOWLEDGE_BASE + "Sé exigente. Si la respuesta tiene errores técnicos, señálalos con datos. Veredicto /10 justificado. Máximo 300 palabras.",
+    "imposible": _DEBATE_KNOWLEDGE_BASE + "Nivel institucional. Destruye respuestas débiles con evidencia. Solo acepta argumentos con datos cuantitativos. Veredicto /10, exige más si es bajo. Máximo 350 palabras.",
 }
-
-
-def _get_profile(user_id: str) -> UserProfile | None:
-    try:
-        db = get_supabase()
-        result = db.table("user_profiles").select("*").eq("user_id", user_id).execute()
-        if result.data:
-            return UserProfile(**result.data[0])
-    except Exception:
-        pass
-    return None
 
 
 # ─── Scenario endpoints ────────────────────────────────────────────────────
@@ -295,19 +382,16 @@ async def start_debate(request: Request, body: dict, user_id: str = Depends(get_
     else:
         _check_daily(user_id, "debate_count", FREE_DEBATE_DAILY, "debates")
 
-    profile = _get_profile(user_id)
-    system = DIFFICULTY_DEBATE_PROMPTS.get(difficulty, DIFFICULTY_DEBATE_PROMPTS["intermedio"])
-    prompt = f"""{system}
+    system_prompt = DIFFICULTY_DEBATE_PROMPTS.get(difficulty, DIFFICULTY_DEBATE_PROMPTS["intermedio"])
+    message = f'TESIS DEL USUARIO: "{thesis}"\n\nResponde directamente con tus contraargumentos. Sin introducción meta.'
 
-TESIS DEL USUARIO: "{thesis}"
-
-Responde directamente con tus contraargumentos. Sin introducción meta."""
-
-    response = ""
-    async for chunk in ai_service.chat_stream(
-        message=prompt, conversation_history=[], profile=profile, mentor=None,
-    ):
-        response += chunk
+    result = await _debate_client.messages.create(
+        model=settings.claude_model,
+        max_tokens=800,
+        system=[{"type": "text", "text": system_prompt, "cache_control": {"type": "ephemeral"}}],
+        messages=[{"role": "user", "content": message}],
+    )
+    response = result.content[0].text
 
     return {
         "debate_id": str(abs(hash(thesis)) % 100000),
@@ -330,22 +414,21 @@ async def debate_reply(request: dict, user_id: str = Depends(get_current_user_id
             "message": f"Los usuarios free tienen hasta {FREE_DEBATE_MAX_ROUNDS} rondas por debate. Activa Premium para debates ilimitados.",
         })
 
-    profile = _get_profile(user_id)
-    reply_instruction = DIFFICULTY_DEBATE_REPLY.get(difficulty, DIFFICULTY_DEBATE_REPLY["intermedio"])
-
-    prompt = f"""Continuamos el debate (ronda {round_num}, dificultad: {difficulty.upper()}).
+    system_prompt = DIFFICULTY_DEBATE_REPLY.get(difficulty, DIFFICULTY_DEBATE_REPLY["intermedio"])
+    message = f"""Continuamos el debate (ronda {round_num}, dificultad: {difficulty.upper()}).
 
 TESIS: "{thesis}"
 TU ARGUMENTO ANTERIOR: {previous[:600]}
 RESPUESTA DEL USUARIO: "{user_response}"
+"""
 
-{reply_instruction}"""
-
-    response = ""
-    async for chunk in ai_service.chat_stream(
-        message=prompt, conversation_history=[], profile=profile, mentor=None,
-    ):
-        response += chunk
+    result = await _debate_client.messages.create(
+        model=settings.claude_model,
+        max_tokens=600,
+        system=[{"type": "text", "text": system_prompt, "cache_control": {"type": "ephemeral"}}],
+        messages=[{"role": "user", "content": message}],
+    )
+    response = result.content[0].text
 
     return {"response": response, "round": round_num + 1, "difficulty": difficulty}
 

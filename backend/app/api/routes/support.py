@@ -80,7 +80,7 @@ async def support_chat(
         async with _client.messages.stream(
             model=settings.claude_model,
             max_tokens=512,
-            system=_SUPPORT_SYSTEM,
+            system=[{"type": "text", "text": _SUPPORT_SYSTEM, "cache_control": {"type": "ephemeral"}}],
             messages=messages,
         ) as stream:
             async for chunk in stream.text_stream:

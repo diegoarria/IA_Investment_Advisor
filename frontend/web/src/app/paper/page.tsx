@@ -153,7 +153,7 @@ export default function PaperPage() {
         </div>
         <div className="flex items-center gap-2">
           <div className="w-2 h-2 rounded-full" style={{ background: "#22c55e", boxShadow: "0 0 6px #22c55e" }} />
-          <span className="font-semibold text-sm" style={{ color: "var(--sub)" }}>Paper Trading</span>
+          <span className="font-semibold text-sm" style={{ color: "var(--sub)" }}>Simulador</span>
         </div>
         <button onClick={loadPrices} className="p-2 rounded-lg hover:bg-white/5 transition-colors" style={{ color: "var(--muted)" }}>
           <RefreshCw className={`w-4 h-4 ${loadingPrices ? "animate-spin" : ""}`} />

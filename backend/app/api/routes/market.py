@@ -1,4 +1,5 @@
 import asyncio
+import os
 import threading
 from fastapi import APIRouter, Depends, Query, Request
 from concurrent.futures import ThreadPoolExecutor
@@ -24,6 +25,13 @@ router = APIRouter(prefix="/market", tags=["market"])
 _NEWS_CACHE_TTL   = 900   # 15 minutes
 _INDEX_CACHE_TTL  = 60    # seconds
 _SEARCH_CACHE_TTL = 300   # 5 minutes
+
+# ── Optional enrichment API keys ─────────────────────────────────────────────
+_FINNHUB_KEY  = os.getenv("FINNHUB_API_KEY", "")
+_FMP_KEY      = os.getenv("FMP_API_KEY", "")
+_FINNHUB_BASE = "https://finnhub.io/api/v1"
+_FMP_BASE     = "https://financialmodelingprep.com/api"
+_DETAIL_TTL   = 1800   # 30 min detail cache
 
 INDICES = {
     "S&P 500":   "^GSPC",
@@ -1222,7 +1230,7 @@ def _fmt_number(v) -> float | None:
         return None
 
 
-def _df_to_periods(df, rows: list[str]) -> list[dict]:
+def _df_to_periods(df, rows: list[str], limit: int = 5) -> list[dict]:
     """Convert a yfinance financial DataFrame to a list of period dicts."""
     if df is None or df.empty:
         return []
@@ -1234,7 +1242,6 @@ def _df_to_periods(df, rows: list[str]) -> list[dict]:
             period = str(col)[:10]
         entry = {"period": period}
         for row in rows:
-            # Try exact match first, then partial match
             val = None
             if row in df.index:
                 val = _fmt_number(df.loc[row, col])
@@ -1244,11 +1251,219 @@ def _df_to_periods(df, rows: list[str]) -> list[dict]:
                     val = _fmt_number(df.loc[matches[0], col])
             entry[row] = val
         results.append(entry)
-    return results[:5]  # last 5 periods
+    return results[:limit]
 
+
+# ── FMP helpers ───────────────────────────────────────────────────────────────
+
+def _fmp_income(symbol: str) -> list[dict]:
+    """Fetch income statements from FMP (10 years)."""
+    try:
+        r = _requests.get(
+            f"{_FMP_BASE}/v3/income-statement/{symbol}",
+            params={"limit": 10, "apikey": _FMP_KEY},
+            timeout=8,
+        )
+        data = r.json() if r.status_code == 200 else []
+        result = []
+        for d in data:
+            result.append({
+                "period":        d.get("date", "")[:7],
+                "Total Revenue": _fmt_number(d.get("revenue")),
+                "Gross Profit":  _fmt_number(d.get("grossProfit")),
+                "Operating Income": _fmt_number(d.get("operatingIncome")),
+                "EBITDA":        _fmt_number(d.get("ebitda")),
+                "Net Income":    _fmt_number(d.get("netIncome")),
+                "Diluted EPS":   _fmt_number(d.get("epsdiluted")),
+            })
+        return result
+    except Exception:
+        return []
+
+
+def _fmp_balance(symbol: str) -> list[dict]:
+    try:
+        r = _requests.get(
+            f"{_FMP_BASE}/v3/balance-sheet-statement/{symbol}",
+            params={"limit": 10, "apikey": _FMP_KEY},
+            timeout=8,
+        )
+        data = r.json() if r.status_code == 200 else []
+        result = []
+        for d in data:
+            result.append({
+                "period":        d.get("date", "")[:7],
+                "Total Assets":  _fmt_number(d.get("totalAssets")),
+                "Current Assets":_fmt_number(d.get("totalCurrentAssets")),
+                "Cash And Cash Equivalents": _fmt_number(d.get("cashAndCashEquivalents")),
+                "Total Debt":    _fmt_number(d.get("totalDebt")),
+                "Total Liabilities Net Minority Interest": _fmt_number(d.get("totalLiabilities")),
+                "Stockholders Equity": _fmt_number(d.get("totalStockholdersEquity")),
+            })
+        return result
+    except Exception:
+        return []
+
+
+def _fmp_cashflow(symbol: str) -> list[dict]:
+    try:
+        r = _requests.get(
+            f"{_FMP_BASE}/v3/cash-flow-statement/{symbol}",
+            params={"limit": 10, "apikey": _FMP_KEY},
+            timeout=8,
+        )
+        data = r.json() if r.status_code == 200 else []
+        result = []
+        for d in data:
+            result.append({
+                "period":        d.get("date", "")[:7],
+                "Operating Cash Flow": _fmt_number(d.get("operatingCashFlow")),
+                "Capital Expenditure": _fmt_number(d.get("capitalExpenditure")),
+                "Free Cash Flow":      _fmt_number(d.get("freeCashFlow")),
+                "Dividends Paid":      _fmt_number(d.get("dividendsPaid")),
+            })
+        return result
+    except Exception:
+        return []
+
+
+def _fmp_analyst(symbol: str) -> dict:
+    """Analyst recommendations + price targets from FMP."""
+    try:
+        rt = _requests.get(
+            f"{_FMP_BASE}/v3/price-target-consensus/{symbol}",
+            params={"apikey": _FMP_KEY},
+            timeout=5,
+        )
+        pt = (rt.json() or [{}])[0] if rt.status_code == 200 else {}
+
+        rr = _requests.get(
+            f"{_FMP_BASE}/v3/analyst-stock-recommendations/{symbol}",
+            params={"limit": 10, "apikey": _FMP_KEY},
+            timeout=5,
+        )
+        recs = rr.json() if rr.status_code == 200 else []
+
+        ratings = {"strong_buy": 0, "buy": 0, "hold": 0, "sell": 0, "strong_sell": 0}
+        for rec in recs:
+            sb = int(rec.get("analystRatingsStrongBuy") or 0)
+            b  = int(rec.get("analystRatingsBuy") or 0)
+            h  = int(rec.get("analystRatingsHold") or 0)
+            ss = int(rec.get("analystRatingsStrongSell") or 0)
+            s  = int(rec.get("analystRatingsSell") or 0)
+            ratings["strong_buy"]  += sb
+            ratings["buy"]         += b
+            ratings["hold"]        += h
+            ratings["sell"]        += s
+            ratings["strong_sell"] += ss
+            break  # only most recent period
+
+        return {
+            "ratings": ratings,
+            "target_mean":  _fmt_number(pt.get("targetConsensus")),
+            "target_high":  _fmt_number(pt.get("targetHigh")),
+            "target_low":   _fmt_number(pt.get("targetLow")),
+        }
+    except Exception:
+        return {}
+
+
+# ── Finnhub helpers ───────────────────────────────────────────────────────────
+
+def _finnhub_analyst(symbol: str) -> dict:
+    """Analyst recommendations + EPS surprises from Finnhub."""
+    if not _FINNHUB_KEY:
+        return {}
+    headers = {"X-Finnhub-Token": _FINNHUB_KEY}
+    try:
+        # Recommendations
+        rr = _requests.get(
+            f"{_FINNHUB_BASE}/stock/recommendation",
+            params={"symbol": symbol},
+            headers=headers,
+            timeout=5,
+        )
+        recs = rr.json() if rr.status_code == 200 else []
+        ratings = {"strong_buy": 0, "buy": 0, "hold": 0, "sell": 0, "strong_sell": 0}
+        if recs:
+            latest = recs[0]
+            ratings["strong_buy"]  = int(latest.get("strongBuy", 0))
+            ratings["buy"]         = int(latest.get("buy", 0))
+            ratings["hold"]        = int(latest.get("hold", 0))
+            ratings["sell"]        = int(latest.get("sell", 0))
+            ratings["strong_sell"] = int(latest.get("strongSell", 0))
+
+        # Price target
+        ptr = _requests.get(
+            f"{_FINNHUB_BASE}/stock/price-target",
+            params={"symbol": symbol},
+            headers=headers,
+            timeout=5,
+        )
+        pt = ptr.json() if ptr.status_code == 200 else {}
+
+        # EPS surprises
+        esr = _requests.get(
+            f"{_FINNHUB_BASE}/stock/earnings",
+            params={"symbol": symbol, "limit": 8},
+            headers=headers,
+            timeout=5,
+        )
+        surprises_raw = esr.json() if esr.status_code == 200 else []
+        surprises = [
+            {
+                "period":     s.get("period", ""),
+                "actual":     _fmt_number(s.get("actual")),
+                "estimate":   _fmt_number(s.get("estimate")),
+                "surprise":   _fmt_number(s.get("surprise")),
+                "surprise_pct": _fmt_number(s.get("surprisePercent")),
+            }
+            for s in surprises_raw[:8]
+        ]
+
+        return {
+            "ratings":     ratings,
+            "target_mean": _fmt_number(pt.get("targetMean")),
+            "target_high": _fmt_number(pt.get("targetHigh")),
+            "target_low":  _fmt_number(pt.get("targetLow")),
+            "n_analysts":  int(pt.get("targetNumberAnalysts", 0)),
+            "eps_surprises": surprises,
+        }
+    except Exception:
+        return {}
+
+
+def _finnhub_insiders(symbol: str) -> list[dict]:
+    if not _FINNHUB_KEY:
+        return []
+    try:
+        r = _requests.get(
+            f"{_FINNHUB_BASE}/stock/insider-transactions",
+            params={"symbol": symbol},
+            headers={"X-Finnhub-Token": _FINNHUB_KEY},
+            timeout=5,
+        )
+        data = (r.json() or {}).get("data", []) if r.status_code == 200 else []
+        result = []
+        for tx in sorted(data, key=lambda x: x.get("transactionDate", ""), reverse=True)[:15]:
+            result.append({
+                "name":        tx.get("name", ""),
+                "title":       tx.get("officerTitle", ""),
+                "transaction": tx.get("transactionCode", ""),
+                "shares":      int(tx.get("share", 0) or 0),
+                "value":       _fmt_number(tx.get("value")),
+                "price":       _fmt_number(tx.get("transactionPrice")),
+                "date":        tx.get("transactionDate", ""),
+            })
+        return result
+    except Exception:
+        return []
+
+
+# ── Main detail fetcher ───────────────────────────────────────────────────────
 
 def _fetch_stock_detail(symbol: str) -> dict:
-    cache_key = f"detail:{symbol}"
+    cache_key = f"detail2:{symbol}"
     cached = cache_get(cache_key)
     if cached:
         return cached
@@ -1266,19 +1481,42 @@ def _fetch_stock_detail(symbol: str) -> dict:
         "website":         info.get("website"),
         "country":         info.get("country"),
         "city":            info.get("city"),
+        "exchange":        info.get("exchange") or info.get("fullExchangeName"),
+        "quote_type":      info.get("quoteType"),
         "market_cap":      _fmt_number(info.get("marketCap")),
+        "enterprise_value":_fmt_number(info.get("enterpriseValue")),
         "current_price":   _fmt_number(info.get("currentPrice") or info.get("regularMarketPrice")),
+        "open":            _fmt_number(info.get("regularMarketOpen") or info.get("open")),
+        "day_high":        _fmt_number(info.get("dayHigh") or info.get("regularMarketDayHigh")),
+        "day_low":         _fmt_number(info.get("dayLow") or info.get("regularMarketDayLow")),
+        "prev_close":      _fmt_number(info.get("regularMarketPreviousClose") or info.get("previousClose")),
+        "volume":          _fmt_number(info.get("regularMarketVolume") or info.get("volume")),
         "currency":        info.get("currency", "USD"),
         "pe_ratio":        _fmt_number(info.get("trailingPE")),
         "forward_pe":      _fmt_number(info.get("forwardPE")),
+        "peg_ratio":       _fmt_number(info.get("pegRatio")),
+        "ps_ratio":        _fmt_number(info.get("priceToSalesTrailing12Months")),
+        "pb_ratio":        _fmt_number(info.get("priceToBook")),
+        "ev_to_ebitda":    _fmt_number(info.get("enterpriseToEbitda")),
+        "ev_to_revenue":   _fmt_number(info.get("enterpriseToRevenue")),
         "eps":             _fmt_number(info.get("trailingEps")),
         "forward_eps":     _fmt_number(info.get("forwardEps")),
+        "book_value":      _fmt_number(info.get("bookValue")),
         "dividend_yield":  _fmt_number((info.get("dividendYield") or 0) * 100),
+        "dividend_rate":   _fmt_number(info.get("dividendRate")),
+        "ex_dividend_date":str(info.get("exDividendDate") or ""),
+        "payout_ratio":    _fmt_number((info.get("payoutRatio") or 0) * 100),
         "beta":            _fmt_number(info.get("beta")),
         "week_52_high":    _fmt_number(info.get("fiftyTwoWeekHigh")),
         "week_52_low":     _fmt_number(info.get("fiftyTwoWeekLow")),
+        "sma_50":          _fmt_number(info.get("fiftyDayAverage")),
+        "sma_200":         _fmt_number(info.get("twoHundredDayAverage")),
         "avg_volume":      _fmt_number(info.get("averageVolume")),
+        "avg_volume_10d":  _fmt_number(info.get("averageVolume10days")),
         "float_shares":    _fmt_number(info.get("floatShares")),
+        "shares_outstanding": _fmt_number(info.get("sharesOutstanding")),
+        "short_ratio":     _fmt_number(info.get("shortRatio")),
+        "short_pct_float": _fmt_number((info.get("shortPercentOfFloat") or 0) * 100),
         "target_mean":     _fmt_number(info.get("targetMeanPrice")),
         "target_low":      _fmt_number(info.get("targetLowPrice")),
         "target_high":     _fmt_number(info.get("targetHighPrice")),
@@ -1286,74 +1524,126 @@ def _fetch_stock_detail(symbol: str) -> dict:
         "number_of_analysts": info.get("numberOfAnalystOpinions"),
         "revenue_growth":  _fmt_number((info.get("revenueGrowth") or 0) * 100),
         "earnings_growth": _fmt_number((info.get("earningsGrowth") or 0) * 100),
+        "revenue_quarterly_growth": _fmt_number((info.get("revenueQuarterlyGrowth") or 0) * 100),
         "profit_margins":  _fmt_number((info.get("profitMargins") or 0) * 100),
         "gross_margins":   _fmt_number((info.get("grossMargins") or 0) * 100),
+        "operating_margins": _fmt_number((info.get("operatingMargins") or 0) * 100),
         "ebitda_margins":  _fmt_number((info.get("ebitdaMargins") or 0) * 100),
+        "return_on_assets": _fmt_number((info.get("returnOnAssets") or 0) * 100),
         "return_on_equity": _fmt_number((info.get("returnOnEquity") or 0) * 100),
         "debt_to_equity":  _fmt_number(info.get("debtToEquity")),
-        "price_to_book":   _fmt_number(info.get("priceToBook")),
+        "current_ratio":   _fmt_number(info.get("currentRatio")),
+        "quick_ratio":     _fmt_number(info.get("quickRatio")),
+        "total_cash":      _fmt_number(info.get("totalCash")),
+        "total_debt":      _fmt_number(info.get("totalDebt")),
+        "free_cashflow":   _fmt_number(info.get("freeCashflow")),
+        "operating_cashflow": _fmt_number(info.get("operatingCashflow")),
+        "revenue_ttm":     _fmt_number(info.get("totalRevenue")),
+        "ebitda_ttm":      _fmt_number(info.get("ebitda")),
     }
 
     # ── Financial Statements ─────────────────────────────────────────────────
     IS_ROWS = [
         "Total Revenue", "Gross Profit", "Operating Income",
         "EBITDA", "Net Income", "Diluted EPS",
+        "Research And Development", "Selling General Administrative",
+        "Interest Expense", "Tax Provision",
     ]
     BS_ROWS = [
         "Total Assets", "Current Assets", "Cash And Cash Equivalents",
-        "Total Debt", "Total Liabilities Net Minority Interest",
-        "Stockholders Equity",
+        "Total Debt", "Long Term Debt", "Current Debt",
+        "Total Liabilities Net Minority Interest",
+        "Stockholders Equity", "Retained Earnings",
+        "Goodwill And Other Intangible Assets",
     ]
     CF_ROWS = [
         "Operating Cash Flow", "Capital Expenditure",
         "Free Cash Flow", "Dividends Paid",
+        "Repurchase Of Capital Stock", "Issuance Of Debt", "Repayment Of Debt",
     ]
 
-    try:
-        income_annual     = _df_to_periods(t.income_stmt, IS_ROWS)
-        income_quarterly  = _df_to_periods(t.quarterly_income_stmt, IS_ROWS)
-    except Exception:
-        income_annual = income_quarterly = []
-
-    try:
-        balance_annual    = _df_to_periods(t.balance_sheet, BS_ROWS)
-        balance_quarterly = _df_to_periods(t.quarterly_balance_sheet, BS_ROWS)
-    except Exception:
-        balance_annual = balance_quarterly = []
-
-    try:
-        cf_annual     = _df_to_periods(t.cash_flow, CF_ROWS)
-        cf_quarterly  = _df_to_periods(t.quarterly_cash_flow, CF_ROWS)
-    except Exception:
-        cf_annual = cf_quarterly = []
+    # Prefer FMP (10 years) over yfinance (4 years) when key is available
+    if _FMP_KEY:
+        income_annual    = _fmp_income(symbol)
+        balance_annual   = _fmp_balance(symbol)
+        cashflow_annual  = _fmp_cashflow(symbol)
+        # yfinance for quarterly (FMP quarterly needs paid plan)
+        try:
+            income_quarterly  = _df_to_periods(t.quarterly_income_stmt, IS_ROWS, 6)
+            balance_quarterly = _df_to_periods(t.quarterly_balance_sheet, BS_ROWS, 6)
+            cf_quarterly      = _df_to_periods(t.quarterly_cash_flow, CF_ROWS, 6)
+        except Exception:
+            income_quarterly = balance_quarterly = cf_quarterly = []
+    else:
+        try:
+            income_annual     = _df_to_periods(t.income_stmt, IS_ROWS, 5)
+            income_quarterly  = _df_to_periods(t.quarterly_income_stmt, IS_ROWS, 6)
+        except Exception:
+            income_annual = income_quarterly = []
+        try:
+            balance_annual    = _df_to_periods(t.balance_sheet, BS_ROWS, 5)
+            balance_quarterly = _df_to_periods(t.quarterly_balance_sheet, BS_ROWS, 6)
+        except Exception:
+            balance_annual = balance_quarterly = []
+        try:
+            cashflow_annual   = _df_to_periods(t.cash_flow, CF_ROWS, 5)
+            cf_quarterly      = _df_to_periods(t.quarterly_cash_flow, CF_ROWS, 6)
+        except Exception:
+            cashflow_annual = cf_quarterly = []
 
     financials = {
-        "income":  {"annual": income_annual,  "quarterly": income_quarterly},
-        "balance": {"annual": balance_annual, "quarterly": balance_quarterly},
-        "cashflow":{"annual": cf_annual,      "quarterly": cf_quarterly},
+        "income":   {"annual": income_annual,   "quarterly": income_quarterly},
+        "balance":  {"annual": balance_annual,  "quarterly": balance_quarterly},
+        "cashflow": {"annual": cashflow_annual, "quarterly": cf_quarterly},
+        "source":   "fmp" if _FMP_KEY else "yfinance",
     }
 
-    # ── Analyst Data ─────────────────────────────────────────────────────────
+    # ── Analyst Data — priority: Finnhub > FMP > yfinance ────────────────────
     ratings = {"strong_buy": 0, "buy": 0, "hold": 0, "sell": 0, "strong_sell": 0}
-    try:
-        rec = t.recommendations_summary
-        if rec is not None and not rec.empty:
-            cols = rec.columns.tolist()
-            row  = rec.iloc[0]
-            for c in cols:
-                cl = c.lower().replace(" ", "_")
-                if "strongbuy" in cl or "strong_buy" in cl:
-                    ratings["strong_buy"]  += int(row[c] or 0)
-                elif "buy" in cl:
-                    ratings["buy"]         += int(row[c] or 0)
-                elif "hold" in cl:
-                    ratings["hold"]        += int(row[c] or 0)
-                elif "strongsell" in cl or "strong_sell" in cl:
-                    ratings["strong_sell"] += int(row[c] or 0)
-                elif "sell" in cl:
-                    ratings["sell"]        += int(row[c] or 0)
-    except Exception:
-        pass
+    target_mean = profile["target_mean"]
+    target_low  = profile["target_low"]
+    target_high = profile["target_high"]
+    eps_surprises: list[dict] = []
+    n_analysts = profile["number_of_analysts"] or 0
+
+    if _FINNHUB_KEY:
+        fh = _finnhub_analyst(symbol)
+        if fh.get("ratings"):
+            ratings = fh["ratings"]
+        if fh.get("target_mean"):
+            target_mean = fh["target_mean"]
+            target_low  = fh.get("target_low") or target_low
+            target_high = fh.get("target_high") or target_high
+            n_analysts  = fh.get("n_analysts") or n_analysts
+        eps_surprises = fh.get("eps_surprises", [])
+    elif _FMP_KEY:
+        fa = _fmp_analyst(symbol)
+        if fa.get("ratings"):
+            ratings = fa["ratings"]
+        if fa.get("target_mean"):
+            target_mean = fa["target_mean"]
+            target_low  = fa.get("target_low") or target_low
+            target_high = fa.get("target_high") or target_high
+    else:
+        # yfinance recommendations summary
+        try:
+            rec = t.recommendations_summary
+            if rec is not None and not rec.empty:
+                row = rec.iloc[0]
+                for c in rec.columns.tolist():
+                    cl = c.lower().replace(" ", "_")
+                    if "strongbuy" in cl or "strong_buy" in cl:
+                        ratings["strong_buy"]  += int(row[c] or 0)
+                    elif "buy" in cl:
+                        ratings["buy"]         += int(row[c] or 0)
+                    elif "hold" in cl:
+                        ratings["hold"]        += int(row[c] or 0)
+                    elif "strongsell" in cl or "strong_sell" in cl:
+                        ratings["strong_sell"] += int(row[c] or 0)
+                    elif "sell" in cl:
+                        ratings["sell"]        += int(row[c] or 0)
+        except Exception:
+            pass
 
     eps_estimates = []
     try:
@@ -1361,11 +1651,11 @@ def _fetch_stock_detail(symbol: str) -> dict:
         if ee is not None and not ee.empty:
             for idx, r in ee.iterrows():
                 eps_estimates.append({
-                    "period":   str(idx),
-                    "avg":      _fmt_number(r.get("avg")),
-                    "low":      _fmt_number(r.get("low")),
-                    "high":     _fmt_number(r.get("high")),
-                    "growth":   _fmt_number((r.get("growth") or 0) * 100),
+                    "period": str(idx),
+                    "avg":    _fmt_number(r.get("avg")),
+                    "low":    _fmt_number(r.get("low")),
+                    "high":   _fmt_number(r.get("high")),
+                    "growth": _fmt_number((r.get("growth") or 0) * 100),
                 })
     except Exception:
         pass
@@ -1376,28 +1666,125 @@ def _fetch_stock_detail(symbol: str) -> dict:
         if re_df is not None and not re_df.empty:
             for idx, r in re_df.iterrows():
                 revenue_estimates.append({
-                    "period":   str(idx),
-                    "avg":      _fmt_number(r.get("avg")),
-                    "low":      _fmt_number(r.get("low")),
-                    "high":     _fmt_number(r.get("high")),
-                    "growth":   _fmt_number((r.get("growth") or 0) * 100),
+                    "period": str(idx),
+                    "avg":    _fmt_number(r.get("avg")),
+                    "low":    _fmt_number(r.get("low")),
+                    "high":   _fmt_number(r.get("high")),
+                    "growth": _fmt_number((r.get("growth") or 0) * 100),
                 })
     except Exception:
         pass
 
+    # EPS surprises from yfinance if Finnhub not available
+    if not eps_surprises:
+        try:
+            eh = t.earnings_history
+            if eh is not None and not eh.empty:
+                for idx, r in eh.iterrows():
+                    period = str(idx.date()) if hasattr(idx, "date") else str(idx)[:10]
+                    eps_surprises.append({
+                        "period":       period,
+                        "actual":       _fmt_number(r.get("epsActual")),
+                        "estimate":     _fmt_number(r.get("epsEstimate")),
+                        "surprise":     _fmt_number(r.get("epsDifference")),
+                        "surprise_pct": _fmt_number(r.get("surprisePercent")),
+                    })
+                eps_surprises = list(reversed(eps_surprises))[:8]
+        except Exception:
+            pass
+
     analyst = {
-        "ratings":            ratings,
-        "price_target":       {
-            "mean":    profile["target_mean"],
-            "low":     profile["target_low"],
-            "high":    profile["target_high"],
+        "ratings":           ratings,
+        "price_target":      {
+            "mean":    target_mean,
+            "low":     target_low,
+            "high":    target_high,
             "current": profile["current_price"],
         },
-        "eps_estimates":      eps_estimates,
-        "revenue_estimates":  revenue_estimates,
+        "n_analysts":        n_analysts,
+        "eps_estimates":     eps_estimates,
+        "revenue_estimates": revenue_estimates,
+        "eps_surprises":     eps_surprises,
     }
 
-    result = {"profile": profile, "financials": financials, "analyst": analyst}
+    # ── Institutional Holders ─────────────────────────────────────────────────
+    holders_inst: list[dict] = []
+    holders_major: dict = {}
+    try:
+        ih = t.institutional_holders
+        if ih is not None and not ih.empty:
+            for _, row in ih.head(10).iterrows():
+                holders_inst.append({
+                    "holder":  str(row.get("Holder", "")),
+                    "shares":  int(row.get("Shares", 0) or 0),
+                    "value":   _fmt_number(row.get("Value")),
+                    "pct_held":_fmt_number(row.get("% Out")),
+                })
+    except Exception:
+        pass
+
+    try:
+        mh = t.major_holders
+        if mh is not None and not mh.empty:
+            for _, row in mh.iterrows():
+                key = str(row.iloc[1] if len(row) > 1 else "").strip()
+                val = _fmt_number(row.iloc[0] if len(row) > 0 else None)
+                if val is not None and key:
+                    holders_major[key] = val
+    except Exception:
+        pass
+
+    holders = {"institutional": holders_inst, "major": holders_major}
+
+    # ── Insider Transactions ──────────────────────────────────────────────────
+    insiders: list[dict] = []
+    if _FINNHUB_KEY:
+        insiders = _finnhub_insiders(symbol)
+    else:
+        try:
+            it = t.insider_transactions
+            if it is not None and not it.empty:
+                for _, row in it.head(15).iterrows():
+                    dt = row.get("Start Date") or row.get("Date")
+                    insiders.append({
+                        "name":        str(row.get("Insider", "") or row.get("Name", "")),
+                        "title":       str(row.get("Title", "") or ""),
+                        "transaction": str(row.get("Transaction", "") or row.get("Type", "")),
+                        "shares":      int(row.get("Shares", 0) or 0),
+                        "value":       _fmt_number(row.get("Value")),
+                        "price":       _fmt_number(row.get("Price")),
+                        "date":        str(dt.date() if hasattr(dt, "date") else dt or ""),
+                    })
+        except Exception:
+            pass
+
+    # ── Dividend History ──────────────────────────────────────────────────────
+    dividends: list[dict] = []
+    try:
+        dh = t.dividends
+        if dh is not None and len(dh) > 0:
+            for dt, amount in dh.tail(12).items():
+                dividends.append({
+                    "date":   str(dt.date() if hasattr(dt, "date") else dt)[:10],
+                    "amount": _fmt_number(amount),
+                })
+            dividends.reverse()
+    except Exception:
+        pass
+
+    result = {
+        "profile":    profile,
+        "financials": financials,
+        "analyst":    analyst,
+        "holders":    holders,
+        "insiders":   insiders,
+        "dividends":  dividends,
+        "sources": {
+            "financials": "fmp" if _FMP_KEY else "yfinance",
+            "analyst":    "finnhub" if _FINNHUB_KEY else ("fmp" if _FMP_KEY else "yfinance"),
+            "insiders":   "finnhub" if _FINNHUB_KEY else "yfinance",
+        },
+    }
     cache_set(cache_key, result, ttl=_DETAIL_TTL)
     return result
 

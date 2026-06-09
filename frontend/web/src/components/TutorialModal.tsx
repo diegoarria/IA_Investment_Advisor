@@ -32,15 +32,15 @@ const STEPS = [
   {
     emoji: "🎮",
     color: "#8b5cf6",
-    title: "Paper Trading",
+    title: "Simulador",
     subtitle: "Practica sin dinero real",
     desc: "Opera con $100,000 virtuales en mercados reales. Compra y vende acciones, sigue tus rendimientos y aprende a ejecutar estrategias sin arriesgar tu capital.",
-    tip: "💡 El paper trading usa precios reales del mercado en tiempo real.",
+    tip: "💡 El simulador usa precios reales del mercado en tiempo real.",
   },
   {
     emoji: "🏋️",
     color: "#f59e0b",
-    title: "Arena",
+    title: "Play",
     subtitle: "Aprende jugando",
     desc: "Dos juegos de aprendizaje: el Simulador te pone en escenarios históricos reales (¿qué harías en el crash de 2020?) y el Debate te hace defender tus tesis de inversión contra la IA.",
     tip: "💡 Mantén una racha diaria y sube al Hall of Fame. Las rachas desbloquean recompensas.",

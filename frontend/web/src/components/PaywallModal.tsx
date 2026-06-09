@@ -45,7 +45,7 @@ const ALL_FEATURES = [
   { text: "Reporte mensual PDF", detail: "Descarga un análisis completo con rendimiento, Sharpe Ratio, comparativa vs S&P 500 y nota personalizada del mentor." },
   { text: "Análisis de riesgo avanzado", detail: "Barra de riesgo detallada en cada respuesta para entender tu exposición real por sector y ticker." },
   { text: "Noticias + filtros por empresa", detail: "Todas las noticias de tus posiciones en tiempo real, filtrables por ticker para enfocarte en lo que importa." },
-  { text: "Paper Trading sin límites", detail: "Practica estrategias con capital virtual sin restricciones de cantidad ni frecuencia." },
+  { text: "Simulador sin límites", detail: "Practica estrategias con capital virtual sin restricciones de cantidad ni frecuencia." },
   { text: "Emails semanales personalizados", detail: "Cada viernes recibes un resumen del mercado adaptado a tu perfil, tus conversaciones y tu portafolio." },
 ];
 

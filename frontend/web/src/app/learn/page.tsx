@@ -328,7 +328,7 @@ export default function LearnPage() {
               </div>
               <div className="flex items-center gap-1 text-xs font-semibold" style={{ color: "var(--accent-l)" }}>
                 <Trophy className="w-3.5 h-3.5" />
-                Arena
+                Play
               </div>
             </div>
           </div>
