@@ -161,6 +161,8 @@ export const market = {
     api.get(`/api/market/stock-score/${encodeURIComponent(symbol)}`),
   getPeers: (symbol: string) =>
     api.get(`/api/market/peers/${encodeURIComponent(symbol)}`),
+  summarizeNews: (title: string, url: string) =>
+    api.post("/api/market/summarize-news", { title, url }),
   screener: (sector: string | null, query: string) =>
     api.post("/api/market/screener", { sector, query }),
   getPortfolioReturns: (positions: { ticker: string; shares: number; purchase_date?: string | null; avg_price?: number | null }[]) =>
