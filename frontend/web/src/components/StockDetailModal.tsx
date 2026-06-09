@@ -4,7 +4,7 @@ import { useEffect, useState, useRef } from "react";
 import {
   X, TrendingUp, TrendingDown, Globe, Users, Building2,
   Target, BarChart3, Loader2, ChevronRight, Activity,
-  ArrowUpRight, ArrowDownRight, DollarSign, Percent,
+  ArrowUpRight, ArrowDownRight, DollarSign, Percent, ShieldCheck,
 } from "lucide-react";
 import { market as marketApi } from "@/lib/api";
 
@@ -63,6 +63,18 @@ interface StockData {
   }>;
   dividends?: Array<{ date: string; amount?: number | null }>;
   sources?: Record<string, string>;
+}
+
+interface ScoreTrendPoint { year: string; value?: number; debt?: number; equity?: number }
+interface ScoreMetric {
+  name: string; value: string; score: number | null;
+  label: string; trend: ScoreTrendPoint[]; chart_type: string; lower_is_better: boolean;
+}
+interface ScoreCategory { key: string; name: string; score: number; metrics: ScoreMetric[] }
+interface ScoreData {
+  overall_score: number; grade: string; signal: string;
+  verdict_short: string; verdict_long: string;
+  categories: ScoreCategory[];
 }
 
 // ─── TradingView Widget Loader ────────────────────────────────────────────────
@@ -290,11 +302,136 @@ function EpsSurpriseRow({ item }: { item: EpsSurprise }) {
   );
 }
 
+// ─── MetricCard (score card with mini SVG chart) ─────────────────────────────
+
+function MiniLineChart({ data, color }: { data: { year: string; value: number }[]; color: string }) {
+  if (data.length < 2) return null;
+  const W = 120, H = 36;
+  const vals = data.map((d) => d.value);
+  const min = Math.min(...vals);
+  const max = Math.max(...vals);
+  const range = max - min || 1;
+  const pts = data.map((d, i) => {
+    const x = (i / (data.length - 1)) * W;
+    const y = H - ((d.value - min) / range) * (H - 4) - 2;
+    return `${x},${y}`;
+  }).join(" ");
+  const last = data[data.length - 1];
+  const lastX = W;
+  const lastY = H - ((last.value - min) / range) * (H - 4) - 2;
+  return (
+    <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} className="overflow-visible">
+      <polyline fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" points={pts} />
+      <circle cx={lastX} cy={lastY} r="2.5" fill={color} />
+    </svg>
+  );
+}
+
+function MiniBarChart({ data, color }: { data: { year: string; value: number }[]; color: string }) {
+  if (!data.length) return null;
+  const W = 120, H = 36;
+  const vals = data.map((d) => d.value);
+  const max = Math.max(...vals.map(Math.abs), 0.01);
+  const bw = W / data.length - 3;
+  return (
+    <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`}>
+      {data.map((d, i) => {
+        const barH = Math.max((Math.abs(d.value) / max) * (H - 4), 2);
+        const x = i * (W / data.length) + 1;
+        const y = H - barH;
+        return (
+          <rect key={i} x={x} y={y} width={bw} height={barH}
+                rx="2" fill={d.value >= 0 ? color : "#ef4444"} opacity="0.85" />
+        );
+      })}
+    </svg>
+  );
+}
+
+function MiniStackedBar({ data }: { data: { year: string; debt: number; equity: number }[] }) {
+  if (!data.length) return null;
+  const W = 120, H = 36;
+  const maxTotal = Math.max(...data.map((d) => Math.abs(d.debt) + Math.abs(d.equity)), 0.01);
+  const bw = W / data.length - 3;
+  return (
+    <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`}>
+      {data.map((d, i) => {
+        const total = Math.abs(d.debt) + Math.abs(d.equity);
+        const totalH = Math.max((total / maxTotal) * (H - 4), 2);
+        const debtH = (Math.abs(d.debt) / total) * totalH;
+        const eqH   = totalH - debtH;
+        const x = i * (W / data.length) + 1;
+        return (
+          <g key={i}>
+            <rect x={x} y={H - totalH} width={bw} height={eqH}  rx="0" fill="#22c55e" opacity="0.8" />
+            <rect x={x} y={H - debtH}  width={bw} height={debtH} rx="0" fill="#ef4444" opacity="0.8" />
+          </g>
+        );
+      })}
+    </svg>
+  );
+}
+
+function ScoreBadge({ score }: { score: number | null }) {
+  if (score == null) return null;
+  const color = score >= 75 ? "#22c55e" : score >= 55 ? "#f59e0b" : "#ef4444";
+  return (
+    <span className="text-[10px] font-black px-1.5 py-0.5 rounded-md tabular-nums"
+          style={{ background: `${color}22`, color }}>
+      {score}/100
+    </span>
+  );
+}
+
+function MetricCard({ metric }: { metric: ScoreMetric }) {
+  const color = (metric.score ?? 50) >= 75 ? "#22c55e" : (metric.score ?? 50) >= 55 ? "#f59e0b" : "#ef4444";
+  const hasTrend = metric.trend.length >= 2;
+
+  const lineData  = metric.chart_type !== "stacked_bar"
+    ? (metric.trend as { year: string; value: number }[]).filter((d) => d.value != null)
+    : [];
+  const stackData = metric.chart_type === "stacked_bar"
+    ? (metric.trend as { year: string; debt: number; equity: number }[])
+    : [];
+
+  return (
+    <div className="rounded-xl p-3 flex flex-col gap-1.5"
+         style={{ background: "var(--raised)", border: "1px solid var(--border)" }}>
+      <div className="flex items-start justify-between gap-1">
+        <span className="text-[10px] font-semibold leading-tight" style={{ color: "var(--sub)" }}>
+          {metric.name}
+        </span>
+        <ScoreBadge score={metric.score} />
+      </div>
+      <div className="text-lg font-black leading-tight" style={{ color: "var(--text)" }}>
+        {metric.value}
+      </div>
+      {hasTrend && (
+        <div className="mt-1">
+          {metric.chart_type === "stacked_bar" && stackData.length >= 2 ? (
+            <MiniStackedBar data={stackData} />
+          ) : metric.chart_type === "bar" ? (
+            <MiniBarChart data={lineData} color={color} />
+          ) : (
+            <MiniLineChart data={lineData} color={color} />
+          )}
+          <div className="flex justify-between mt-0.5">
+            <span className="text-[8px]" style={{ color: "var(--dim)" }}>{lineData[0]?.year ?? stackData[0]?.year}</span>
+            <span className="text-[8px]" style={{ color: "var(--dim)" }}>{lineData[lineData.length-1]?.year ?? stackData[stackData.length-1]?.year}</span>
+          </div>
+        </div>
+      )}
+      <p className="text-[9px] leading-snug" style={{ color: "var(--dim)" }}>{metric.label}</p>
+    </div>
+  );
+}
+
 // ─── Tabs ─────────────────────────────────────────────────────────────────────
 
-type Tab = "chart" | "financials" | "analyst" | "company";
+type Tab = "verdict" | "chart" | "financials" | "analyst" | "company";
 
 const TABS: { key: Tab; label: string }[] = [
+  { key: "verdict",    label: "Veredicto" },
   { key: "chart",      label: "Gráfica" },
   { key: "financials", label: "Financieros" },
   { key: "analyst",    label: "Analistas" },
@@ -306,9 +443,11 @@ const TABS: { key: Tab; label: string }[] = [
 interface Props { ticker: string; onClose: () => void }
 
 export default function StockDetailModal({ ticker, onClose }: Props) {
-  const [tab, setTab] = useState<Tab>("chart");
+  const [tab, setTab] = useState<Tab>("verdict");
   const [data, setData] = useState<StockData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [score, setScore] = useState<ScoreData | null>(null);
+  const [loadingScore, setLoadingScore] = useState(true);
 
   const [tvTheme, setTvTheme] = useState<"dark" | "light">("dark");
   useEffect(() => {
@@ -329,6 +468,15 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
       .then((r) => setData(r.data))
       .catch(() => {})
       .finally(() => setLoading(false));
+  }, [ticker]);
+
+  useEffect(() => {
+    setLoadingScore(true);
+    setScore(null);
+    marketApi.getStockScore(ticker)
+      .then((r) => setScore(r.data))
+      .catch(() => {})
+      .finally(() => setLoadingScore(false));
   }, [ticker]);
 
   const profile = data?.profile;
@@ -454,6 +602,109 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
 
         {/* ── Content ── */}
         <div className="flex-1 overflow-y-auto scrollbar-thin">
+
+          {/* ── VEREDICTO ── */}
+          {tab === "verdict" && (
+            <div className="px-5 py-4 space-y-4">
+              {loadingScore ? (
+                <div className="flex flex-col items-center justify-center py-16 gap-3">
+                  <Loader2 className="w-7 h-7 animate-spin" style={{ color: "var(--accent-l)" }} />
+                  <p className="text-xs" style={{ color: "var(--muted)" }}>Analizando el negocio…</p>
+                </div>
+              ) : score ? (
+                <>
+                  {/* Score hero */}
+                  <div className="rounded-2xl p-5 flex gap-4 items-start"
+                       style={{ background: "var(--raised)", border: "1px solid var(--border)" }}>
+                    {/* Shield */}
+                    <div className="relative shrink-0 flex items-center justify-center w-20 h-20">
+                      <ShieldCheck className="w-20 h-20 absolute"
+                        style={{ color: score.overall_score >= 75 ? "#16a34a" : score.overall_score >= 55 ? "#f59e0b" : "#ef4444", opacity: 0.18 }} />
+                      <ShieldCheck className="w-20 h-20 absolute"
+                        style={{ color: score.overall_score >= 75 ? "#22c55e" : score.overall_score >= 55 ? "#f59e0b" : "#ef4444", strokeWidth: 1.2 }} />
+                      <div className="relative flex flex-col items-center">
+                        <span className="text-2xl font-black leading-none" style={{ color: "var(--text)" }}>
+                          {score.overall_score}
+                        </span>
+                        <span className="text-[9px] font-bold leading-none" style={{ color: "var(--muted)" }}>/ 100</span>
+                      </div>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1 flex-wrap">
+                        <span className="text-base font-black" style={{ color: "var(--text)" }}>
+                          Calidad del Negocio
+                        </span>
+                        <span className="text-xs font-bold px-2.5 py-0.5 rounded-full"
+                              style={{
+                                background: score.signal.includes("COMPRA") ? "rgba(34,197,94,0.15)" : score.signal.includes("VEND") ? "rgba(239,68,68,0.15)" : "rgba(245,158,11,0.15)",
+                                color: score.signal.includes("COMPRA") ? "#22c55e" : score.signal.includes("VEND") ? "#ef4444" : "#f59e0b",
+                              }}>
+                          {score.signal}
+                        </span>
+                      </div>
+                      <p className="text-xs font-semibold leading-snug mb-1" style={{ color: "var(--sub)" }}>
+                        {score.verdict_short}
+                      </p>
+                      <p className="text-[11px] leading-relaxed" style={{ color: "var(--muted)" }}>
+                        {score.verdict_long}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Category overview bar */}
+                  <div className="grid grid-cols-4 gap-1.5">
+                    {score.categories.map((cat) => (
+                      <div key={cat.key} className="rounded-xl p-2.5 text-center"
+                           style={{ background: "var(--raised)" }}>
+                        <div className="text-lg font-black leading-tight"
+                             style={{ color: cat.score >= 75 ? "#22c55e" : cat.score >= 55 ? "#f59e0b" : "#ef4444" }}>
+                          {cat.score}
+                        </div>
+                        <div className="text-[8px] font-semibold uppercase tracking-wide mt-0.5"
+                             style={{ color: "var(--dim)" }}>
+                          {cat.name}
+                        </div>
+                        {/* mini progress bar */}
+                        <div className="mt-1.5 h-1 rounded-full" style={{ background: "var(--border)" }}>
+                          <div className="h-1 rounded-full transition-all"
+                               style={{
+                                 width: `${cat.score}%`,
+                                 background: cat.score >= 75 ? "#22c55e" : cat.score >= 55 ? "#f59e0b" : "#ef4444",
+                               }} />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Metric cards */}
+                  {score.categories.map((cat) => (
+                    <div key={cat.key}>
+                      <p className="text-[10px] font-bold uppercase tracking-wider mb-2" style={{ color: "var(--dim)" }}>
+                        {cat.name}
+                        <span className="ml-2 font-black text-xs"
+                              style={{ color: cat.score >= 75 ? "#22c55e" : cat.score >= 55 ? "#f59e0b" : "#ef4444" }}>
+                          {cat.score}/100
+                        </span>
+                      </p>
+                      <div className="grid grid-cols-2 gap-2">
+                        {cat.metrics.map((m) => (
+                          <MetricCard key={m.name} metric={m} />
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+
+                  <p className="text-[9px] text-center pt-1" style={{ color: "var(--dim)" }}>
+                    Score calculado sobre datos SEC / Yahoo Finance · Análisis por IA · No es asesoramiento financiero
+                  </p>
+                </>
+              ) : (
+                <p className="text-xs text-center py-10" style={{ color: "var(--muted)" }}>
+                  No se pudo calcular el score
+                </p>
+              )}
+            </div>
+          )}
 
           {/* ── GRÁFICA — TradingView Advanced Chart ── */}
           {tab === "chart" && (

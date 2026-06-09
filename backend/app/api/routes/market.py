@@ -1797,3 +1797,440 @@ async def get_stock_detail(
     """Full stock detail: profile, financial statements, analyst data."""
     result = await asyncio.to_thread(_fetch_stock_detail, symbol.upper())
     return result
+
+
+# ── Stock Score / Veredicto ───────────────────────────────────────────────────
+
+def _score_val(v, tiers):
+    """Apply tier list [(threshold, score), ...] ascending. Returns last score if above all."""
+    if v is None:
+        return None
+    for threshold, score in tiers:
+        if v <= threshold:
+            return score
+    return tiers[-1][1]
+
+
+def _compute_stock_score(detail: dict) -> dict:
+    p = detail.get("profile", {})
+    fin = detail.get("financials", {})
+    analyst = detail.get("analyst", {})
+
+    # ── Valuation metrics ──────────────────────────────────────────────────────
+    pe = p.get("pe_ratio")
+    fpe = p.get("forward_pe")
+    ev_ebitda = p.get("ev_to_ebitda")
+    ps = p.get("ps_ratio")
+    pb = p.get("pb_ratio")
+
+    # P/E score (lower is better; negative = unprofitable)
+    if pe is not None and pe < 0:
+        pe_score = 20
+    else:
+        pe_score = _score_val(pe, [(10,95),(15,85),(20,75),(25,65),(30,55),(40,40),(50,28),(999,15)])
+    fpe_score = _score_val(fpe, [(10,95),(15,85),(20,75),(25,65),(30,55),(40,40),(50,28),(999,15)]) if fpe and fpe > 0 else pe_score
+    ev_score  = _score_val(ev_ebitda, [(8,95),(12,85),(16,75),(20,60),(25,45),(35,28),(999,15)])
+    ps_score  = _score_val(ps,  [(1,95),(2,85),(4,70),(8,55),(15,35),(999,20)])
+    pb_score  = _score_val(pb,  [(1,90),(2,85),(3,75),(5,60),(10,40),(999,25)])
+
+    val_scores = [s for s in [pe_score, fpe_score, ev_score, ps_score, pb_score] if s is not None]
+    val_score  = round(sum(val_scores) / len(val_scores)) if val_scores else 50
+
+    # Trend data for valuation (P/E over annual income periods)
+    pe_trend, fcf_multiple_trend = [], []
+    income_annual = fin.get("income", {}).get("annual", [])
+    cashflow_annual = fin.get("cashflow", {}).get("annual", [])
+    price = p.get("current_price") or 0
+    shares = p.get("shares_outstanding") or 0
+    mktcap = p.get("market_cap") or (price * shares)
+
+    for row in reversed(income_annual[-5:]):
+        period = str(row.get("period", ""))[:7]
+        eps_raw = row.get("Diluted EPS") or row.get("Basic EPS")
+        if eps_raw and price:
+            try:
+                eps_val = float(str(eps_raw).replace("$","").replace(",",""))
+                if eps_val > 0:
+                    pe_trend.append({"year": period, "value": round(price / eps_val, 1)})
+            except Exception:
+                pass
+
+    for row in reversed(cashflow_annual[-5:]):
+        period = str(row.get("period", ""))[:7]
+        fcf_raw = row.get("Free Cash Flow") or row.get("Capital Expenditures")
+        if fcf_raw and mktcap:
+            try:
+                fcf_val = float(str(fcf_raw).replace("$","").replace(",","").replace("B","e9").replace("M","e6").replace("T","e12"))
+                if fcf_val > 0:
+                    pe_trend.append({"year": period, "value": round(mktcap / fcf_val, 1)})
+            except Exception:
+                pass
+
+    # ── Growth metrics ─────────────────────────────────────────────────────────
+    rev_growth = p.get("revenue_growth")      # decimal e.g. 0.12
+    earn_growth = p.get("earnings_growth")
+
+    rev_score  = _score_val(rev_growth,  [(-0.1,10),(-0.05,20),(0,35),(0.05,50),(0.1,65),(0.15,75),(0.2,85),(0.3,92),(1,100)])
+    earn_score = _score_val(earn_growth, [(-0.1,10),(-0.05,20),(0,35),(0.05,50),(0.1,65),(0.15,75),(0.2,85),(0.3,92),(1,100)])
+
+    grow_scores = [s for s in [rev_score, earn_score] if s is not None]
+    grow_score  = round(sum(grow_scores) / len(grow_scores)) if grow_scores else 50
+
+    # Revenue trend bars from income annual
+    rev_trend, fcf_trend = [], []
+    for row in reversed(income_annual[-5:]):
+        period = str(row.get("period", ""))[:7]
+        raw = row.get("Total Revenue")
+        if raw:
+            try:
+                v = float(str(raw).replace("$","").replace(",","").replace("B","e9").replace("M","e6").replace("T","e12").replace("K","e3"))
+                rev_trend.append({"year": period, "value": round(v / 1e9, 2)})
+            except Exception:
+                pass
+    for row in reversed(cashflow_annual[-5:]):
+        period = str(row.get("period", ""))[:7]
+        raw = row.get("Free Cash Flow")
+        if raw:
+            try:
+                v = float(str(raw).replace("$","").replace(",","").replace("B","e9").replace("M","e6").replace("T","e12").replace("K","e3"))
+                fcf_trend.append({"year": period, "value": round(v / 1e9, 2)})
+            except Exception:
+                pass
+
+    # ── Quality metrics ────────────────────────────────────────────────────────
+    gm  = p.get("gross_margins")        # decimal
+    om  = p.get("operating_margins")
+    nm  = p.get("profit_margins")
+    roe = p.get("return_on_equity")
+    roa = p.get("return_on_assets")
+
+    gm_score  = _score_val(gm,  [(-1,10),(0,25),(0.1,40),(0.2,55),(0.3,65),(0.4,75),(0.5,85),(0.6,92),(1,100)])
+    om_score  = _score_val(om,  [(-1,10),(0,25),(0.05,45),(0.1,60),(0.15,70),(0.2,80),(0.25,90),(1,100)])
+    nm_score  = _score_val(nm,  [(-1,10),(0,25),(0.05,50),(0.1,65),(0.15,75),(0.2,85),(0.3,92),(1,100)])
+    roe_score = _score_val(roe, [(-1,10),(0,25),(0.05,40),(0.1,55),(0.15,65),(0.2,78),(0.25,88),(0.35,95),(1,100)])
+    roa_score = _score_val(roa, [(-1,10),(0,25),(0.03,40),(0.05,55),(0.08,65),(0.12,78),(0.18,90),(1,100)])
+
+    qual_scores = [s for s in [gm_score, om_score, nm_score, roe_score, roa_score] if s is not None]
+    qual_score  = round(sum(qual_scores) / len(qual_scores)) if qual_scores else 50
+
+    # Margin trend from income annual
+    margin_trend = []
+    for row in reversed(income_annual[-5:]):
+        period = str(row.get("period", ""))[:7]
+        try:
+            rev_raw = float(str(row.get("Total Revenue","0")).replace("$","").replace(",","").replace("B","e9").replace("M","e6").replace("T","e12").replace("K","e3"))
+            ni_raw  = float(str(row.get("Net Income","0")).replace("$","").replace(",","").replace("B","e9").replace("M","e6").replace("T","e12").replace("K","e3"))
+            if rev_raw > 0:
+                margin_trend.append({"year": period, "value": round(ni_raw / rev_raw * 100, 1)})
+        except Exception:
+            pass
+
+    # Shares dilution trend
+    dilution_trend = []
+    balance_annual = fin.get("balance", {}).get("annual", [])
+    for row in reversed(balance_annual[-5:]):
+        period = str(row.get("period", ""))[:7]
+        raw = row.get("Total Stockholder Equity") or row.get("Stockholders Equity")
+        if raw:
+            try:
+                v = float(str(raw).replace("$","").replace(",","").replace("B","e9").replace("M","e6").replace("T","e12").replace("K","e3"))
+                dilution_trend.append({"year": period, "value": round(v / 1e9, 2)})
+            except Exception:
+                pass
+
+    # ── Financial health metrics ───────────────────────────────────────────────
+    de   = p.get("debt_to_equity")
+    cr   = p.get("current_ratio")
+    fcf_val = p.get("free_cashflow")
+
+    de_score  = _score_val(de,  [(0,100),(20,95),(50,88),(100,75),(150,60),(200,45),(300,30),(999,15)]) if de is not None else None
+    cr_score  = _score_val(cr,  [(0.5,20),(0.8,35),(1.0,50),(1.3,65),(1.5,75),(2.0,85),(3.0,92),(99,100)])
+    fcf_score = 80 if fcf_val and fcf_val > 0 else (40 if fcf_val is not None else None)
+
+    health_scores = [s for s in [de_score, cr_score, fcf_score] if s is not None]
+    health_score  = round(sum(health_scores) / len(health_scores)) if health_scores else 50
+
+    # Debt vs equity bars
+    capital_trend = []
+    for row in reversed(balance_annual[-5:]):
+        period = str(row.get("period", ""))[:7]
+        try:
+            debt_raw   = row.get("Long Term Debt") or row.get("Total Debt") or "0"
+            equity_raw = row.get("Total Stockholder Equity") or row.get("Stockholders Equity") or "0"
+            debt_v   = float(str(debt_raw).replace("$","").replace(",","").replace("B","e9").replace("M","e6").replace("T","e12").replace("K","e3"))
+            equity_v = float(str(equity_raw).replace("$","").replace(",","").replace("B","e9").replace("M","e6").replace("T","e12").replace("K","e3"))
+            capital_trend.append({"year": period, "debt": round(debt_v/1e9,2), "equity": round(equity_v/1e9,2)})
+        except Exception:
+            pass
+
+    # ROE trend
+    roe_trend = []
+    for i, row in enumerate(reversed(income_annual[-5:])):
+        period = str(row.get("period", ""))[:7]
+        if i < len(balance_annual):
+            try:
+                ni_raw  = float(str(row.get("Net Income","0")).replace("$","").replace(",","").replace("B","e9").replace("M","e6").replace("T","e12").replace("K","e3"))
+                eq_raw  = float(str((list(reversed(balance_annual[-5:]))[i]).get("Total Stockholder Equity","1") or "1").replace("$","").replace(",","").replace("B","e9").replace("M","e6").replace("T","e12").replace("K","e3"))
+                if eq_raw > 0:
+                    roe_trend.append({"year": period, "value": round(ni_raw / eq_raw * 100, 1)})
+            except Exception:
+                pass
+
+    # ── Shares dilution score ──────────────────────────────────────────────────
+    shares_now  = p.get("shares_outstanding") or p.get("float_shares")
+    # Look for shares change in the trend
+    dilution_score = 70  # default neutral
+
+    # ── Overall score (weighted) ───────────────────────────────────────────────
+    weights = {"val": 0.25, "grow": 0.25, "qual": 0.30, "health": 0.20}
+    overall = round(
+        val_score   * weights["val"]   +
+        grow_score  * weights["grow"]  +
+        qual_score  * weights["qual"]  +
+        health_score * weights["health"]
+    )
+
+    # Grade
+    if overall >= 85:   grade, signal = "A+", "COMPRA FUERTE"
+    elif overall >= 75: grade, signal = "A",  "COMPRA"
+    elif overall >= 65: grade, signal = "B+", "COMPRA"
+    elif overall >= 55: grade, signal = "B",  "MANTENER"
+    elif overall >= 45: grade, signal = "C",  "MANTENER"
+    elif overall >= 35: grade, signal = "D",  "VENDER"
+    else:               grade, signal = "F",  "VENTA FUERTE"
+
+    # ── Claude AI verdict ─────────────────────────────────────────────────────
+    verdict_short = ""
+    verdict_long  = ""
+    try:
+        _ant_key = os.getenv("ANTHROPIC_API_KEY", "")
+        if _ant_key:
+            name = p.get("name", "Esta empresa")
+            sector = p.get("sector", "")
+            client_ant = anthropic.Anthropic(api_key=_ant_key)
+            prompt = (
+                f"Eres un analista financiero experto. Analiza '{name}' ({sector}) con estos datos:\n"
+                f"- Score general: {overall}/100 (Valoración:{val_score} Crecimiento:{grow_score} Calidad:{qual_score} Salud:{health_score})\n"
+                f"- P/E: {pe}, Forward P/E: {fpe}, EV/EBITDA: {ev_ebitda}\n"
+                f"- Margen bruto: {round((gm or 0)*100,1)}%, Margen operativo: {round((om or 0)*100,1)}%, Margen neto: {round((nm or 0)*100,1)}%\n"
+                f"- Crecimiento de ingresos: {round((rev_growth or 0)*100,1)}%, Crecimiento de ganancias: {round((earn_growth or 0)*100,1)}%\n"
+                f"- ROE: {round((roe or 0)*100,1)}%, ROA: {round((roa or 0)*100,1)}%\n"
+                f"- Deuda/Capital: {de}, Ratio corriente: {cr}\n"
+                f"- Recomendación: {signal}\n\n"
+                "Responde en español con exactamente DOS partes:\n"
+                "CORTO: Una sola oración de 15-20 palabras resumiendo la calidad del negocio (NO menciones el precio).\n"
+                "LARGO: Dos oraciones de análisis: primero los puntos fuertes, luego los riesgos o debilidades clave."
+            )
+            msg = client_ant.messages.create(
+                model="claude-haiku-4-5-20251001",
+                max_tokens=220,
+                messages=[{"role": "user", "content": prompt}],
+            )
+            text = msg.content[0].text.strip()
+            lines = [l.strip() for l in text.split("\n") if l.strip()]
+            for line in lines:
+                if line.upper().startswith("CORTO:"):
+                    verdict_short = line[6:].strip()
+                elif line.upper().startswith("LARGO:"):
+                    verdict_long = line[6:].strip()
+            if not verdict_short and lines:
+                verdict_short = lines[0]
+            if not verdict_long and len(lines) > 1:
+                verdict_long = " ".join(lines[1:])
+    except Exception:
+        pass
+
+    # Fallback text if Claude not available
+    if not verdict_short:
+        parts = []
+        if qual_score >= 75:  parts.append("márgenes sólidos")
+        if grow_score >= 70:  parts.append("crecimiento saludable")
+        if health_score >= 75: parts.append("balance robusto")
+        if val_score >= 75:   parts.append("valoración atractiva")
+        if not parts:         parts = ["métricas mixtas"]
+        verdict_short = f"{p.get('name','Empresa')} muestra {', '.join(parts)}."
+    if not verdict_long:
+        verdict_long = f"Score de calidad {qual_score}/100. Crecimiento {grow_score}/100. Salud financiera {health_score}/100. Valoración {val_score}/100."
+
+    return {
+        "overall_score": overall,
+        "grade": grade,
+        "signal": signal,
+        "verdict_short": verdict_short,
+        "verdict_long": verdict_long,
+        "categories": [
+            {
+                "key": "valuation",
+                "name": "Valoración",
+                "score": val_score,
+                "metrics": [
+                    {
+                        "name": "Múltiplo de Ganancias (P/E)",
+                        "value": f"{pe:.1f}x" if pe else "—",
+                        "score": pe_score,
+                        "label": _pe_label(pe),
+                        "trend": pe_trend,
+                        "chart_type": "line",
+                        "lower_is_better": True,
+                    },
+                    {
+                        "name": "Múltiplo EV/EBITDA",
+                        "value": f"{ev_ebitda:.1f}x" if ev_ebitda else "—",
+                        "score": ev_score,
+                        "label": _ev_label(ev_ebitda),
+                        "trend": fcf_trend,
+                        "chart_type": "line",
+                        "lower_is_better": True,
+                    },
+                ],
+            },
+            {
+                "key": "growth",
+                "name": "Crecimiento",
+                "score": grow_score,
+                "metrics": [
+                    {
+                        "name": "Crecimiento de Ingresos",
+                        "value": f"+{rev_growth*100:.1f}%" if rev_growth and rev_growth >= 0 else (f"{rev_growth*100:.1f}%" if rev_growth else "—"),
+                        "score": rev_score,
+                        "label": _growth_label(rev_growth),
+                        "trend": rev_trend,
+                        "chart_type": "bar",
+                        "lower_is_better": False,
+                    },
+                    {
+                        "name": "Flujo de Caja Libre",
+                        "value": f"${p.get('free_cashflow',0)/1e9:.1f}B" if p.get("free_cashflow") else "—",
+                        "score": fcf_score,
+                        "label": "FCF positivo y creciente" if (fcf_val or 0) > 0 else "FCF negativo o sin datos",
+                        "trend": fcf_trend,
+                        "chart_type": "bar",
+                        "lower_is_better": False,
+                    },
+                ],
+            },
+            {
+                "key": "quality",
+                "name": "Calidad del Negocio",
+                "score": qual_score,
+                "metrics": [
+                    {
+                        "name": "Tendencia de Márgenes",
+                        "value": f"{round((nm or 0)*100,1)}%" if nm is not None else "—",
+                        "score": nm_score,
+                        "label": _margin_label(nm),
+                        "trend": margin_trend,
+                        "chart_type": "line",
+                        "lower_is_better": False,
+                    },
+                    {
+                        "name": "Retorno sobre Capital (ROE)",
+                        "value": f"{round((roe or 0)*100,1)}%" if roe is not None else "—",
+                        "score": roe_score,
+                        "label": _roe_label(roe),
+                        "trend": roe_trend,
+                        "chart_type": "line",
+                        "lower_is_better": False,
+                    },
+                ],
+            },
+            {
+                "key": "health",
+                "name": "Salud Financiera",
+                "score": health_score,
+                "metrics": [
+                    {
+                        "name": "Estructura de Capital",
+                        "value": f"{de:.1f}x D/E" if de is not None else "—",
+                        "score": de_score,
+                        "label": _de_label(de),
+                        "trend": capital_trend,
+                        "chart_type": "stacked_bar",
+                        "lower_is_better": True,
+                    },
+                    {
+                        "name": "Dilución de Acciones",
+                        "value": f"{round((p.get('revenue_quarterly_growth') or 0)*100,1)}%" if p.get("shares_outstanding") else "—",
+                        "score": dilution_score,
+                        "label": "Recompras netas o dilución mínima",
+                        "trend": dilution_trend,
+                        "chart_type": "bar",
+                        "lower_is_better": False,
+                    },
+                ],
+            },
+        ],
+    }
+
+
+def _pe_label(v):
+    if v is None: return "Sin datos"
+    if v < 0:     return "Empresa no rentable"
+    if v < 10:    return "Valoración muy atractiva"
+    if v < 15:    return "Por debajo de 15x, atractivo"
+    if v < 20:    return "Valoración razonable"
+    if v < 25:    return "Ligeramente elevado"
+    if v < 35:    return "Prima de crecimiento"
+    return "Valoración exigente"
+
+
+def _ev_label(v):
+    if v is None: return "Sin datos"
+    if v < 8:     return "Muy atractivo"
+    if v < 12:    return "Por debajo de 12x, razonable"
+    if v < 16:    return "Valoración justa"
+    if v < 20:    return "Ligeramente por encima"
+    return "Múltiplo elevado"
+
+
+def _growth_label(v):
+    if v is None:  return "Sin datos"
+    if v >= 0.3:   return f"Crecimiento excepcional +{v*100:.0f}%"
+    if v >= 0.15:  return f"Crecimiento sólido +{v*100:.0f}%"
+    if v >= 0.05:  return f"Crecimiento moderado +{v*100:.0f}%"
+    if v >= 0:     return f"Crecimiento lento +{v*100:.1f}%"
+    return f"Ingresos en contracción {v*100:.1f}%"
+
+
+def _margin_label(v):
+    if v is None: return "Sin datos"
+    if v >= 0.25: return f"Márgenes excelentes {v*100:.1f}%"
+    if v >= 0.15: return f"Márgenes sólidos {v*100:.1f}%"
+    if v >= 0.05: return f"Márgenes aceptables {v*100:.1f}%"
+    if v >= 0:    return f"Márgenes ajustados {v*100:.1f}%"
+    return "Pérdidas netas"
+
+
+def _roe_label(v):
+    if v is None: return "Sin datos"
+    if v >= 0.25: return f"Retorno excepcional {v*100:.1f}%"
+    if v >= 0.15: return f"Por encima del 15%, eficiente"
+    if v >= 0.08: return f"Retorno moderado {v*100:.1f}%"
+    if v >= 0:    return f"Retorno bajo {v*100:.1f}%"
+    return "Capital destruido"
+
+
+def _de_label(v):
+    if v is None: return "Sin datos"
+    if v < 20:    return "Deuda mínima, muy sólido"
+    if v < 50:    return "Apalancamiento moderado"
+    if v < 100:   return "Deuda manejable"
+    if v < 200:   return "Apalancamiento elevado"
+    return "Deuda muy alta, riesgo"
+
+
+@router.get("/stock-score/{symbol}")
+async def get_stock_score(
+    symbol: str,
+    user_id: str = Depends(get_current_user_id),
+):
+    """AI quality score + verdict for a stock (0-100, 8 metrics, 4 categories)."""
+    sym = symbol.upper()
+    cache_key = f"score3:{sym}"
+    cached = cache_get(cache_key)
+    if cached:
+        return cached
+    detail = await asyncio.to_thread(_fetch_stock_detail, sym)
+    result = _compute_stock_score(detail)
+    cache_set(cache_key, result, ttl=3600)
+    return result

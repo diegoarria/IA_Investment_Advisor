@@ -157,6 +157,8 @@ export const market = {
     api.get("/api/market/quote-details", { params: { symbols: symbols.join(",") } }),
   getStockDetail: (symbol: string) =>
     api.get(`/api/market/stock-detail/${encodeURIComponent(symbol)}`),
+  getStockScore: (symbol: string) =>
+    api.get(`/api/market/stock-score/${encodeURIComponent(symbol)}`),
   screener: (sector: string | null, query: string) =>
     api.post("/api/market/screener", { sector, query }),
   getPortfolioReturns: (positions: { ticker: string; shares: number; purchase_date?: string | null; avg_price?: number | null }[]) =>
