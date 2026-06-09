@@ -136,7 +136,7 @@ export default function WatchlistScreen() {
       setSearching(true);
       try {
         const res = await marketApi.searchTickers(text.trim());
-        setSuggestions((res.data || []).slice(0, 6));
+        setSuggestions((res.data.results || []).slice(0, 6));
       } catch {}
       setSearching(false);
     }, 300);
