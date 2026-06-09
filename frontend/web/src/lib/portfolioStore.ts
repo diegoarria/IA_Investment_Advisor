@@ -16,7 +16,8 @@ interface PortfolioStore {
   positions: Position[];
   portfolioCurrency: string;
   syncStatus: SyncStatus;
-  lastSaved: string | null; // ISO timestamp
+  lastSaved: string | null;
+  pendingSync: boolean; // true = local changes not yet confirmed by server
 
   setCurrency: (currency: string) => void;
   addPosition: (p: Omit<Position, "id">) => void;
@@ -25,23 +26,28 @@ interface PortfolioStore {
   setPositions: (positions: Omit<Position, "id">[]) => void;
   clearPortfolio: () => void;
   loadFromServer: () => Promise<void>;
+  retrySync: () => void;
 }
 
 export const usePortfolioStore = create<PortfolioStore>()(
   persist(
     (set, get) => {
-      // Push al servidor y actualiza syncStatus visible en la UI
       const push = (positions: Position[], currency: string) => {
-        set({ syncStatus: "syncing" });
+        // Mark pending BEFORE the request so if the process exits mid-flight
+        // the flag is already persisted in localStorage.
+        set({ syncStatus: "syncing", pendingSync: true });
         import("./api").then(({ sync }) => {
           sync.pushPortfolio(positions, currency)
             .then(() => {
-              set({ syncStatus: "saved", lastSaved: new Date().toISOString() });
+              set({ syncStatus: "saved", lastSaved: new Date().toISOString(), pendingSync: false });
               setTimeout(() => {
                 if (get().syncStatus === "saved") set({ syncStatus: "idle" });
               }, 4000);
             })
-            .catch(() => set({ syncStatus: "error" }));
+            .catch(() => {
+              // pendingSync stays true — will be retried on next loadFromServer
+              set({ syncStatus: "error" });
+            });
         });
       };
 
@@ -50,6 +56,7 @@ export const usePortfolioStore = create<PortfolioStore>()(
         portfolioCurrency: "USD",
         syncStatus: "idle",
         lastSaved: null,
+        pendingSync: false,
 
         setCurrency: (currency) => {
           set({ portfolioCurrency: currency });
@@ -93,22 +100,37 @@ export const usePortfolioStore = create<PortfolioStore>()(
           push([], get().portfolioCurrency);
         },
 
+        retrySync: () => {
+          const { positions, portfolioCurrency } = get();
+          push(positions, portfolioCurrency);
+        },
+
         loadFromServer: async () => {
           try {
             const { sync } = await import("./api");
+            const { pendingSync, positions: localPositions, portfolioCurrency } = get();
+
+            // Local has unconfirmed changes → push them; server may have stale data.
+            // Never overwrite local with stale server state.
+            if (pendingSync) {
+              push(localPositions, portfolioCurrency);
+              return;
+            }
+
             const res = await sync.getPortfolio();
             const serverPositions: (Omit<Position, "id"> & { id?: string })[] =
               res.data.positions ?? [];
             const serverCurrency: string = res.data.currency ?? "USD";
+
             if (serverPositions.length > 0) {
               const positions = serverPositions.map((p, i) => ({
                 ...p,
                 id: p.id ?? `${p.ticker}-${i}`,
               }));
               set({ positions, portfolioCurrency: serverCurrency });
-            } else if (get().positions.length > 0) {
-              // Servidor vacío pero hay datos locales → subirlos
-              push(get().positions, get().portfolioCurrency);
+            } else if (localPositions.length > 0) {
+              // Server is empty but we have local data → upload
+              push(localPositions, portfolioCurrency);
             }
           } catch {}
         },
@@ -117,10 +139,11 @@ export const usePortfolioStore = create<PortfolioStore>()(
     {
       name: "portfolio-positions-web",
       storage: createJSONStorage(() => localStorage),
-      // Solo persistir posiciones y moneda — syncStatus y lastSaved son efímeros
       partialize: (state) => ({
         positions: state.positions,
         portfolioCurrency: state.portfolioCurrency,
+        pendingSync: state.pendingSync,
+        lastSaved: state.lastSaved,
       }),
     }
   )

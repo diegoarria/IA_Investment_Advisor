@@ -604,7 +604,7 @@ export default function PortfolioPage() {
   const {
     positions, addPosition, removePosition, updatePosition, setPositions,
     clearPortfolio, portfolioCurrency, setCurrency,
-    loadFromServer, syncStatus, lastSaved,
+    loadFromServer, syncStatus, lastSaved, pendingSync, retrySync,
   } = usePortfolioStore();
   const [sidebarOpen, setSidebarOpen]   = useState(false);
   const [activeTab, setActiveTab] = useState<"portfolio" | "herramientas">("portfolio");
@@ -686,6 +686,16 @@ export default function PortfolioPage() {
     if (isAuthenticated) loadFromServer();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthenticated]);
+
+  // Retry automático si hay cambios locales sin confirmar (syncStatus error o pendingSync)
+  useEffect(() => {
+    if (!isAuthenticated || !pendingSync) return;
+    if (syncStatus === "error" || syncStatus === "idle") {
+      const id = setTimeout(() => retrySync(), 5000);
+      return () => clearTimeout(id);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthenticated, syncStatus, pendingSync]);
 
   const fetchPrices = useCallback(async () => {
     if (!positions.length) return;
