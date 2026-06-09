@@ -13,6 +13,8 @@ import { usePortfolioStore } from "@/lib/portfolioStore";
 import AppSidebar from "@/components/AppSidebar";
 import PaywallModal from "@/components/PaywallModal";
 import WatchlistEarningsCalendar from "@/components/WatchlistEarningsCalendar";
+import AdvancedStockTable from "@/components/AdvancedStockTable";
+import type { AdvancedRow } from "@/components/AdvancedStockTable";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -319,6 +321,10 @@ export default function WatchlistPage() {
   const [secondsSince, setSecondsSince] = useState(0);
 
   const [toast, setToast] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<"basic" | "advanced">(() => {
+    if (typeof window === "undefined") return "basic";
+    return (localStorage.getItem("nuvos_watchlist_view") as "basic" | "advanced") ?? "basic";
+  });
 
   const searchRef = useRef<HTMLDivElement>(null);
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -490,6 +496,30 @@ export default function WatchlistPage() {
                 {lastUpdatedText}
               </span>
             )}
+            {/* View toggle */}
+            <div className="flex items-center rounded-lg border overflow-hidden"
+                 style={{ borderColor: "var(--border)" }}>
+              <button
+                onClick={() => { setViewMode("basic"); localStorage.setItem("nuvos_watchlist_view", "basic"); }}
+                className="px-2.5 py-1.5 text-[10px] font-bold transition-colors"
+                style={{
+                  background: viewMode === "basic" ? "var(--accent)" : "transparent",
+                  color: viewMode === "basic" ? "#fff" : "var(--muted)",
+                }}
+              >
+                Básico
+              </button>
+              <button
+                onClick={() => { setViewMode("advanced"); localStorage.setItem("nuvos_watchlist_view", "advanced"); }}
+                className="px-2.5 py-1.5 text-[10px] font-bold transition-colors"
+                style={{
+                  background: viewMode === "advanced" ? "var(--accent)" : "transparent",
+                  color: viewMode === "advanced" ? "#fff" : "var(--muted)",
+                }}
+              >
+                Avanzado
+              </button>
+            </div>
             <button
               onClick={handleRefresh}
               className="p-1.5 rounded-lg transition-colors"
@@ -616,6 +646,23 @@ export default function WatchlistPage() {
                 <SkeletonCard />
                 <SkeletonCard />
               </div>
+            ) : viewMode === "advanced" && items.length > 0 ? (
+              <AdvancedStockTable
+                mode="watchlist"
+                rows={items.map((i): AdvancedRow => ({
+                  ticker: i.ticker,
+                  name: i.name,
+                  logoUrl: i.logo_url,
+                  price: i.price,
+                  changePct: i.change_pct,
+                  currency: i.currency,
+                  marketState: i.market_state,
+                  extPrice: i.pre_market_price ?? i.post_market_price,
+                  extPct: i.pre_market_change_pct ?? i.post_market_change_pct,
+                  extLabel: i.pre_market_price ? "Pre" : i.post_market_price ? "Post" : null,
+                }))}
+                onRemove={handleRequestDelete}
+              />
             ) : items.length === 0 ? (
               /* Empty state */
               <div

@@ -11,6 +11,8 @@ import { market as marketApi } from "@/lib/api";
 import { useAuthStore, useSubscriptionStore, useWatchlistStore } from "@/lib/store";
 import { usePortfolioStore, type Position } from "@/lib/portfolioStore";
 import EarningsPanel from "@/components/EarningsPanel";
+import AdvancedStockTable from "@/components/AdvancedStockTable";
+import type { AdvancedRow } from "@/components/AdvancedStockTable";
 import WhatIfSimulator from "@/components/WhatIfSimulator";
 import MonthlyReport from "@/components/MonthlyReport";
 import WeeklyScreenerCard from "@/components/WeeklyScreenerCard";
@@ -499,6 +501,10 @@ export default function PortfolioPage() {
   type SortField = "return" | "invested" | "price";
   const [sortField, setSortField] = useState<SortField | null>(null);
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+  const [viewMode, setViewMode] = useState<"basic" | "advanced">(() => {
+    if (typeof window === "undefined") return "basic";
+    return (localStorage.getItem("nuvos_portfolio_view") as "basic" | "advanced") ?? "basic";
+  });
 
   const handleSort = (field: SortField) => {
     if (sortField === field) setSortDir((d) => d === "desc" ? "asc" : "desc");
@@ -924,6 +930,24 @@ export default function PortfolioPage() {
               <Cloud className="w-3 h-3" />
             </div>
           )}
+          {/* View toggle */}
+          <div className="flex items-center rounded-lg border overflow-hidden"
+               style={{ borderColor: "var(--border)" }}>
+            <button
+              onClick={() => { setViewMode("basic"); localStorage.setItem("nuvos_portfolio_view", "basic"); }}
+              className="px-2.5 py-1.5 text-[10px] font-bold transition-colors"
+              style={{ background: viewMode === "basic" ? "var(--accent)" : "transparent", color: viewMode === "basic" ? "#fff" : "var(--muted)" }}
+            >
+              Básico
+            </button>
+            <button
+              onClick={() => { setViewMode("advanced"); localStorage.setItem("nuvos_portfolio_view", "advanced"); }}
+              className="px-2.5 py-1.5 text-[10px] font-bold transition-colors"
+              style={{ background: viewMode === "advanced" ? "var(--accent)" : "transparent", color: viewMode === "advanced" ? "#fff" : "var(--muted)" }}
+            >
+              Avanzado
+            </button>
+          </div>
           <button onClick={fetchPrices} className="p-1.5 rounded-lg transition-colors"
                   style={{ color: "var(--muted)" }} title="Actualizar precios">
             <RefreshCw className="w-4 h-4" />
@@ -1492,7 +1516,36 @@ export default function PortfolioPage() {
                 })()}
               </div>
 
+              {/* Advanced table view */}
+              {viewMode === "advanced" && sortedPositions.length > 0 && (
+                <div className="mb-4">
+                  <AdvancedStockTable
+                    mode="portfolio"
+                    rows={sortedPositions.map((pos): AdvancedRow => {
+                      const pd = prices[pos.ticker];
+                      const cp = pd?.price ? pd.price * fxRate : null;
+                      const currentVal = cp ? pos.shares * cp : null;
+                      const investedVal = pos.avgPrice > 0 ? pos.shares * pos.avgPrice : null;
+                      const gainLossPct = currentVal !== null && investedVal !== null && investedVal > 0
+                        ? ((currentVal - investedVal) / investedVal) * 100 : null;
+                      return {
+                        ticker: pos.ticker,
+                        name: pd?.name ?? pos.ticker,
+                        price: cp,
+                        changePct: null,
+                        currency: portfolioCurrency,
+                        shares: pos.shares,
+                        avgCost: pos.avgPrice,
+                        positionValue: currentVal,
+                        gainLossPct,
+                      };
+                    })}
+                  />
+                </div>
+              )}
+
               {/* Sort chips */}
+              {viewMode === "basic" && (
               <div className="flex items-center gap-1.5 mb-3 flex-wrap">
                 <span className="text-[10px] font-semibold" style={{ color:"var(--dim)" }}>Ordenar:</span>
                 {([
@@ -1517,9 +1570,10 @@ export default function PortfolioPage() {
                   );
                 })}
               </div>
+              )}
 
               {/* Position cards */}
-              {sortedPositions.map((pos) => {
+              {viewMode === "basic" && sortedPositions.map((pos) => {
                 const pd = prices[pos.ticker];
                 const cpUSD = pd?.price;
                 // Convert USD market price → user's currency

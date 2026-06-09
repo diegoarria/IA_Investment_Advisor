@@ -1079,3 +1079,131 @@ async def get_portfolio_chart(
 ):
     data = await asyncio.to_thread(_compute_portfolio_chart, body.positions, body.period)
     return data
+
+
+_QUOTE_DETAILS_TTL = 120  # 2 min cache
+
+_YF_HEADERS_QUOTE = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+    "Accept": "application/json",
+    "Referer": "https://finance.yahoo.com/",
+}
+
+
+def _fetch_quote_details(tickers: list[str]) -> dict[str, dict]:
+    """Batch-fetch extended quote data via Yahoo Finance v7 quote API."""
+    if not tickers:
+        return {}
+
+    # Check cache first
+    missing = []
+    cached: dict[str, dict] = {}
+    for t in tickers:
+        hit = cache_get(f"qdetail:{t}")
+        if hit:
+            cached[t] = hit
+        else:
+            missing.append(t)
+
+    if not missing:
+        return cached
+
+    results: dict[str, dict] = dict(cached)
+
+    # Batch request via Yahoo Finance v7
+    import httpx
+    symbols_str = ",".join(t.replace(".", "-") for t in missing)
+    fields = (
+        "regularMarketPrice,regularMarketChangePercent,"
+        "regularMarketVolume,marketCap,trailingPE,forwardPE,"
+        "fiftyTwoWeekLow,fiftyTwoWeekHigh,"
+        "preMarketPrice,preMarketChangePercent,"
+        "postMarketPrice,postMarketChangePercent,"
+        "marketState,earningsTimestamp"
+    )
+
+    for domain in ("query1", "query2"):
+        try:
+            url = f"https://{domain}.finance.yahoo.com/v7/finance/quote"
+            r = httpx.get(
+                url,
+                params={"symbols": symbols_str, "fields": fields},
+                headers=_YF_HEADERS_QUOTE,
+                timeout=10,
+                follow_redirects=True,
+            )
+            if r.status_code != 200:
+                continue
+            quotes = r.json().get("quoteResponse", {}).get("result") or []
+
+            for q in quotes:
+                sym = q.get("symbol", "").replace("-", ".")
+                price = q.get("regularMarketPrice")
+                wk52lo = q.get("fiftyTwoWeekLow")
+
+                # % above 52-week low
+                w52_pct = None
+                if price and wk52lo and wk52lo > 0:
+                    w52_pct = round((price - wk52lo) / wk52lo * 100, 2)
+
+                # earnings date from timestamp
+                earnings_ts = q.get("earningsTimestamp")
+                earnings_date = None
+                if earnings_ts:
+                    try:
+                        from datetime import datetime, timezone
+                        earnings_date = datetime.fromtimestamp(
+                            earnings_ts, tz=timezone.utc
+                        ).strftime("%Y-%m-%d")
+                    except Exception:
+                        pass
+
+                # pre vs post
+                mstate = (q.get("marketState") or "").upper()
+                ext_price, ext_pct, ext_label = None, None, None
+                if mstate in ("PRE", "PREPRE"):
+                    ext_price = q.get("preMarketPrice")
+                    ext_pct   = q.get("preMarketChangePercent")
+                    ext_label = "Pre"
+                elif mstate in ("POST", "POSTPOST", "CLOSED"):
+                    ext_price = q.get("postMarketPrice")
+                    ext_pct   = q.get("postMarketChangePercent")
+                    ext_label = "Post"
+
+                entry = {
+                    "volume":        q.get("regularMarketVolume"),
+                    "market_cap":    q.get("marketCap"),
+                    "pe":            q.get("trailingPE") or q.get("forwardPE"),
+                    "week_52_low":   wk52lo,
+                    "week_52_high":  q.get("fiftyTwoWeekHigh"),
+                    "week_52_pct":   w52_pct,
+                    "earnings_date": earnings_date,
+                    "ext_price":     round(float(ext_price), 4) if ext_price else None,
+                    "ext_pct":       round(float(ext_pct), 2) if ext_pct else None,
+                    "ext_label":     ext_label,
+                }
+                results[sym] = entry
+                cache_set(f"qdetail:{sym}", entry, ttl=_QUOTE_DETAILS_TTL)
+
+            # Fill any still-missing with empty entry
+            for t in missing:
+                if t not in results:
+                    results[t] = {}
+            break
+        except Exception:
+            continue
+
+    return results
+
+
+@router.get("/quote-details")
+async def get_quote_details(
+    symbols: str = "",
+    user_id: str = Depends(get_current_user_id),
+):
+    """Extended quote data: volume, market cap, P/E, 52-week range, earnings date."""
+    tickers = [s.strip().upper() for s in symbols.split(",") if s.strip()][:30]
+    if not tickers:
+        return {}
+    data = await asyncio.to_thread(_fetch_quote_details, tickers)
+    return data

@@ -153,6 +153,8 @@ export const market = {
   alertContext: (ticker: string, change_pct: number) =>
     api.post("/api/market/screener/alert-context", { ticker, change_pct }),
   searchTickers: (q: string) => api.get("/api/market/search", { params: { q } }),
+  getQuoteDetails: (symbols: string[]) =>
+    api.get("/api/market/quote-details", { params: { symbols: symbols.join(",") } }),
   screener: (sector: string | null, query: string) =>
     api.post("/api/market/screener", { sector, query }),
   getPortfolioReturns: (positions: { ticker: string; shares: number; purchase_date?: string | null; avg_price?: number | null }[]) =>
