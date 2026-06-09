@@ -11,13 +11,15 @@ interface EarningsEntry { ticker: string; earnings_date: string | null; status: 
 
 interface Props {
   positions: Position[];
+  watchlistTickers?: string[];
   isPremium: boolean;
-  onUpgrade: () => void;
+  onUpgrade?: () => void;
 }
 
-const TOOL_COLOR = "#22c55e";
+const TOOL_COLOR    = "#22c55e";
+const WATCHLIST_CLR = "#60a5fa";
 
-export default function MobileEarningsPanel({ positions, isPremium, onUpgrade }: Props) {
+export default function MobileEarningsPanel({ positions, watchlistTickers = [], isPremium }: Props) {
   const { colors } = useTheme();
   const [calendar, setCalendar]   = useState<EarningsEntry[]>([]);
   const [loading, setLoading]     = useState(false);
@@ -25,7 +27,11 @@ export default function MobileEarningsPanel({ positions, isPremium, onUpgrade }:
   const [analysis, setAnalysis]   = useState<Record<string, string>>({});
   const [analyzing, setAnalyzing] = useState<string | null>(null);
 
-  const symbols = positions.map((p) => p.ticker);
+  const portfolioTickers = new Set(positions.map((p) => p.ticker));
+  const symbols = [...new Set([
+    ...positions.map((p) => p.ticker),
+    ...watchlistTickers,
+  ])].filter(Boolean);
 
   useEffect(() => {
     if (!isPremium || symbols.length === 0) return;
@@ -51,10 +57,10 @@ export default function MobileEarningsPanel({ positions, isPremium, onUpgrade }:
   };
 
   const relevant = calendar.filter((e) => e.earnings_date);
-  const s = styles();
+  const s = makeStyles(colors);
 
   return (
-    <View style={[s.card, { backgroundColor: colors.card }]}>
+    <View style={s.card}>
 
       {/* ── Hero ── */}
       <View style={[s.hero, { backgroundColor: TOOL_COLOR + "18" }]}>
@@ -67,8 +73,13 @@ export default function MobileEarningsPanel({ positions, isPremium, onUpgrade }:
               : <Ionicons name="calendar" size={28} color="white" />}
           </View>
         </View>
-        <Text style={[s.heroTitle, { color: colors.text }]}>Earnings de tu Portafolio</Text>
-        <Text style={[s.heroTagline, { color: TOOL_COLOR }]}>Análisis IA automático de resultados</Text>
+        <Text style={s.heroTitle}>Calendario de Earnings</Text>
+        <Text style={[s.heroTagline, { color: TOOL_COLOR }]}>Portafolio + Watchlist · Análisis IA</Text>
+        {symbols.length > 0 && (
+          <View style={s.countBadge}>
+            <Text style={s.countText}>{symbols.length} activos monitoreados</Text>
+          </View>
+        )}
       </View>
 
       {/* ── Content ── */}
@@ -84,14 +95,17 @@ export default function MobileEarningsPanel({ positions, isPremium, onUpgrade }:
           <View style={s.emptyWrap}>
             <Text style={{ fontSize: 28 }}>📅</Text>
             <Text style={[s.emptyText, { color: colors.textMuted }]}>
-              No hay earnings en los próximos 30 días.
+              No hay earnings en los próximos 30 días para tu portafolio ni watchlist.
             </Text>
           </View>
         )}
 
         {relevant.map((entry) => {
-          const isExpanded = expanded === entry.ticker;
-          const isUpcoming = entry.status === "upcoming";
+          const isExp       = expanded === entry.ticker;
+          const isUpcoming  = entry.status === "upcoming";
+          const inPortfolio = portfolioTickers.has(entry.ticker);
+          const badgeColor  = inPortfolio ? TOOL_COLOR : WATCHLIST_CLR;
+
           return (
             <View key={entry.ticker}>
               <TouchableOpacity
@@ -102,23 +116,34 @@ export default function MobileEarningsPanel({ positions, isPremium, onUpgrade }:
                 <View style={[s.tickerBox, {
                   backgroundColor: isUpcoming ? TOOL_COLOR + "18" : colors.bgRaised,
                 }]}>
-                  <Text style={[s.tickerText, { color: isUpcoming ? TOOL_COLOR : colors.textMuted }]}>
+                  <Text style={[s.tickerAbbr, { color: isUpcoming ? TOOL_COLOR : colors.textMuted }]}>
                     {entry.ticker.slice(0, 4)}
                   </Text>
                 </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={[s.tickerFull, { color: colors.text }]}>{entry.ticker}</Text>
+                <View style={{ flex: 1, gap: 2 }}>
+                  <View style={s.tickerRow}>
+                    <Text style={[s.tickerFull, { color: colors.text }]}>{entry.ticker}</Text>
+                    <View style={[s.badge, { backgroundColor: badgeColor + "18" }]}>
+                      <Ionicons
+                        name={inPortfolio ? "briefcase-outline" : "eye-outline"}
+                        size={9} color={badgeColor}
+                      />
+                      <Text style={[s.badgeText, { color: badgeColor }]}>
+                        {inPortfolio ? "Portafolio" : "Watchlist"}
+                      </Text>
+                    </View>
+                  </View>
                   <Text style={[s.earningsDate, { color: colors.textMuted }]}>
                     {isUpcoming ? "📅 " : "📊 "}{entry.earnings_date}
                   </Text>
                 </View>
                 <Ionicons
-                  name={isExpanded ? "chevron-up" : "chevron-down"}
+                  name={isExp ? "chevron-up" : "chevron-down"}
                   size={14} color={colors.textMuted}
                 />
               </TouchableOpacity>
 
-              {isExpanded && (
+              {isExp && (
                 <View style={[s.analysisBox, { backgroundColor: colors.bgRaised }]}>
                   {analyzing === entry.ticker ? (
                     <View style={s.analyzeRow}>
@@ -140,8 +165,13 @@ export default function MobileEarningsPanel({ positions, isPremium, onUpgrade }:
   );
 }
 
-const styles = () => StyleSheet.create({
-  card:       { borderRadius: 24, overflow: "hidden", marginBottom: 4, shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.18, shadowRadius: 12, elevation: 6 },
+const makeStyles = (colors: ReturnType<typeof useTheme>["colors"]) => StyleSheet.create({
+  card: {
+    borderRadius: 24, overflow: "hidden", marginBottom: 4,
+    backgroundColor: colors.card,
+    shadowColor: "#000", shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.18, shadowRadius: 12, elevation: 6,
+  },
 
   // Hero
   hero:       { paddingTop: 28, paddingBottom: 20, alignItems: "center", position: "relative", overflow: "hidden" },
@@ -149,8 +179,14 @@ const styles = () => StyleSheet.create({
   circle2:    { position: "absolute", width: 100, height: 100, borderRadius: 50, bottom: -25, left: -15 },
   iconOuter:  { width: 80, height: 80, borderRadius: 24, borderWidth: 2, alignItems: "center", justifyContent: "center", marginBottom: 12 },
   iconInner:  { width: 64, height: 64, borderRadius: 20, alignItems: "center", justifyContent: "center" },
-  heroTitle:  { fontSize: 20, fontWeight: "900", letterSpacing: -0.5, marginBottom: 4, textAlign: "center" },
+  heroTitle:  { fontSize: 20, fontWeight: "900", letterSpacing: -0.5, marginBottom: 4, textAlign: "center", color: colors.text },
   heroTagline:{ fontSize: 12, fontWeight: "700", textAlign: "center", letterSpacing: 0.2 },
+  countBadge: {
+    marginTop: 10,
+    backgroundColor: "rgba(0,168,94,0.1)", borderRadius: 20,
+    paddingHorizontal: 12, paddingVertical: 4,
+  },
+  countText: { fontSize: 11, color: TOOL_COLOR, fontWeight: "600" },
 
   // Content
   content:    { paddingHorizontal: 16, paddingBottom: 16 },
@@ -162,9 +198,12 @@ const styles = () => StyleSheet.create({
   // Earnings rows
   earningsRow:  { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 11, borderTopWidth: StyleSheet.hairlineWidth },
   tickerBox:    { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
-  tickerText:   { fontSize: 10, fontWeight: "800" },
+  tickerAbbr:   { fontSize: 10, fontWeight: "800" },
+  tickerRow:    { flexDirection: "row", alignItems: "center", gap: 6 },
   tickerFull:   { fontSize: 13, fontWeight: "700" },
-  earningsDate: { fontSize: 11, marginTop: 2 },
+  badge:        { flexDirection: "row", alignItems: "center", gap: 3, borderRadius: 8, paddingHorizontal: 5, paddingVertical: 2 },
+  badgeText:    { fontSize: 9, fontWeight: "700" },
+  earningsDate: { fontSize: 11 },
   analysisBox:  { borderRadius: 12, padding: 12, marginBottom: 8 },
   analyzeRow:   { flexDirection: "row", alignItems: "center", gap: 8 },
   analyzeText:  { fontSize: 12 },

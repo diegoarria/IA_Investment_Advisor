@@ -8,7 +8,7 @@ import Image from "next/image";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { market as marketApi } from "@/lib/api";
-import { useAuthStore, useSubscriptionStore } from "@/lib/store";
+import { useAuthStore, useSubscriptionStore, useWatchlistStore } from "@/lib/store";
 import { usePortfolioStore, type Position } from "@/lib/portfolioStore";
 import EarningsPanel from "@/components/EarningsPanel";
 import WhatIfSimulator from "@/components/WhatIfSimulator";
@@ -471,6 +471,7 @@ export default function PortfolioPage() {
   const { isAuthenticated } = useAuthStore();
   const sub = useSubscriptionStore();
   const isPremium = sub.tier === "premium";
+  const watchlistItems = useWatchlistStore((s) => s.items);
   const [paywallOpen, setPaywallOpen] = useState(false);
   const {
     positions, addPosition, removePosition, updatePosition, setPositions,
@@ -2041,6 +2042,7 @@ export default function PortfolioPage() {
                   shares: p.shares,
                   avg_cost: p.avgPrice,
                 }))}
+                watchlistTickers={watchlistItems.map((i) => i.ticker)}
                 isPremium={isPremium}
                 onUpgrade={() => setPaywallOpen(true)}
               />

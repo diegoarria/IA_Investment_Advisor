@@ -21,6 +21,7 @@ import MobileDecisionDiary from "../../src/components/MobileDecisionDiary";
 import PremiumToolCard from "../../src/components/PremiumToolCard";
 import { useAppStore, getAge, UserProfile, RISK_CONFIG } from "../../src/lib/profileStore";
 import { useSubscriptionStore, hasPremiumAccess } from "../../src/lib/subscriptionStore";
+import { useWatchlistStore } from "../../src/lib/watchlistStore";
 import PaywallModal from "../../src/components/PaywallModal";
 
 const FREE_POSITION_LIMIT = 10;
@@ -510,6 +511,7 @@ export default function PortfolioScreen() {
   const profile = useAppStore((s) => s.profile);
   const subStore = useSubscriptionStore();
   const isPremiumAccess = hasPremiumAccess(subStore);
+  const watchlistItems = useWatchlistStore((s) => s.items);
   const [paywallOpen, setPaywallOpen] = useState(false);
   const [activeSection, setActiveSection] = useState<"portafolio" | "herramientas">("portafolio");
   const age = profile?.birth_date ? getAge(profile.birth_date) : 0;
@@ -1100,6 +1102,7 @@ export default function PortfolioScreen() {
             {isPremiumAccess
               ? <MobileEarningsPanel
                   positions={positions.map((p) => ({ ticker: p.ticker, shares: p.shares, avg_cost: p.avgPrice }))}
+                  watchlistTickers={watchlistItems.map((i) => i.ticker)}
                   isPremium={true} onUpgrade={() => setPaywallOpen(true)} />
               : <PremiumToolCard
                   title="Análisis de Earnings"

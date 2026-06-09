@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { TrendingUp, TrendingDown, Calendar, ChevronDown, ChevronUp, Zap, Loader2 } from "lucide-react";
+import { TrendingUp, TrendingDown, Calendar, ChevronDown, ChevronUp, Zap, Loader2, Eye, Briefcase } from "lucide-react";
 import { earningsApi } from "@/lib/api";
 import PremiumToolLocked from "@/components/PremiumToolLocked";
 
@@ -19,18 +19,23 @@ interface Position {
 
 interface EarningsPanelProps {
   positions: Position[];
+  watchlistTickers?: string[];
   isPremium: boolean;
   onUpgrade: () => void;
 }
 
-export default function EarningsPanel({ positions, isPremium, onUpgrade }: EarningsPanelProps) {
+export default function EarningsPanel({ positions, watchlistTickers = [], isPremium, onUpgrade }: EarningsPanelProps) {
   const [calendar, setCalendar]   = useState<EarningsEntry[]>([]);
   const [loading, setLoading]     = useState(false);
   const [expanded, setExpanded]   = useState<string | null>(null);
   const [analysis, setAnalysis]   = useState<Record<string, string>>({});
   const [analyzing, setAnalyzing] = useState<string | null>(null);
 
-  const symbols = positions.map((p) => p.ticker).filter(Boolean);
+  const portfolioTickers = new Set(positions.map((p) => p.ticker));
+  const symbols = [...new Set([
+    ...positions.map((p) => p.ticker),
+    ...watchlistTickers,
+  ])].filter(Boolean);
 
   useEffect(() => {
     if (!isPremium || symbols.length === 0) return;
@@ -68,13 +73,13 @@ export default function EarningsPanel({ positions, isPremium, onUpgrade }: Earni
   if (!isPremium) {
     return (
       <PremiumToolLocked
-        title="Análisis de Earnings"
-        tagline="IA analiza resultados automáticamente"
-        description="Cuando una empresa de tu portafolio reporta resultados trimestrales, la IA los analiza al instante: EPS vs estimado, revenue, guidance e impacto exacto en tu posición."
+        title="Calendario de Earnings"
+        tagline="Portfolio + Watchlist con análisis IA"
+        description="Earnings de todas tus posiciones y tu watchlist en un solo lugar. Cuando una empresa reporta, la IA lo analiza al instante: EPS vs estimado, revenue, guidance e impacto en tu inversión."
         icon={Calendar}
         color="#22c55e"
         benefits={[
-          { icon: "📅", text: "Calendario de earnings de tus posiciones" },
+          { icon: "📅", text: "Earnings de portafolio y watchlist combinados" },
           { icon: "📊", text: "EPS real vs estimado con contexto profundo" },
           { icon: "💰", text: "Impacto calculado en tu inversión específica" },
           { icon: "⚡", text: "Análisis automático sin buscar nada tú" },
@@ -88,20 +93,28 @@ export default function EarningsPanel({ positions, isPremium, onUpgrade }: Earni
     <div className="rounded-xl border" style={{ borderColor: "var(--border)", background: "var(--card)" }}>
       <div className="flex items-center gap-2 p-4 border-b" style={{ borderColor: "var(--border)" }}>
         <Calendar className="w-4 h-4" style={{ color: "var(--accent-l)" }} />
-        <span className="font-semibold text-sm" style={{ color: "var(--text)" }}>Earnings de tu Portafolio</span>
+        <span className="font-semibold text-sm" style={{ color: "var(--text)" }}>Calendario de Earnings</span>
+        {symbols.length > 0 && (
+          <span className="text-[10px] px-1.5 py-0.5 rounded-full ml-1"
+                style={{ background: "var(--raised)", color: "var(--muted)" }}>
+            {symbols.length} activos
+          </span>
+        )}
         {loading && <Loader2 className="w-3.5 h-3.5 ml-auto animate-spin" style={{ color: "var(--muted)" }} />}
       </div>
 
       {!loading && relevant.length === 0 && (
         <p className="text-xs p-4" style={{ color: "var(--muted)" }}>
-          No hay earnings en los próximos 30 días para tus posiciones.
+          No hay earnings en los próximos 30 días para tu portafolio ni watchlist.
         </p>
       )}
 
       <div className="divide-y" style={{ borderColor: "var(--border)" }}>
         {relevant.map((entry) => {
-          const isExpanded = expanded === entry.ticker;
-          const isUpcoming = entry.status === "upcoming";
+          const isExpanded  = expanded === entry.ticker;
+          const isUpcoming  = entry.status === "upcoming";
+          const inPortfolio = portfolioTickers.has(entry.ticker);
+
           return (
             <div key={entry.ticker}>
               <button
@@ -114,7 +127,19 @@ export default function EarningsPanel({ positions, isPremium, onUpgrade }: Earni
                   {entry.ticker.slice(0, 4)}
                 </div>
                 <div className="flex-1">
-                  <p className="text-xs font-medium" style={{ color: "var(--text)" }}>{entry.ticker}</p>
+                  <div className="flex items-center gap-1.5">
+                    <p className="text-xs font-medium" style={{ color: "var(--text)" }}>{entry.ticker}</p>
+                    {inPortfolio
+                      ? <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold px-1.5 py-0.5 rounded-full"
+                              style={{ background: "rgba(0,168,94,0.12)", color: "var(--accent-l)" }}>
+                          <Briefcase className="w-2 h-2" />Portafolio
+                        </span>
+                      : <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold px-1.5 py-0.5 rounded-full"
+                              style={{ background: "rgba(59,130,246,0.12)", color: "#60a5fa" }}>
+                          <Eye className="w-2 h-2" />Watchlist
+                        </span>
+                    }
+                  </div>
                   <p className="text-[10px]" style={{ color: "var(--muted)" }}>
                     {isUpcoming ? "📅 Próximo: " : "📊 Reportó: "}
                     {entry.earnings_date}
