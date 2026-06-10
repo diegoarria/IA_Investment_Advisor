@@ -442,6 +442,8 @@ export const useThemeStore = create<ThemeState>()(
       },
       loadThemeFromServer: async () => {
         try {
+          // Never override a user-selected light theme — only apply server value if still on default dark
+          if (get().theme === "light") return;
           const res = await syncApi.getAll();
           const serverTheme: "dark" | "light" | undefined = res.data?.theme;
           if (serverTheme === "dark" || serverTheme === "light") {
