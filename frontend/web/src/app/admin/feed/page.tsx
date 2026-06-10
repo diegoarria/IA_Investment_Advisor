@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, X, Check, Archive, Trash2, Eye, EyeOff, Loader2, ChevronDown, ChevronUp, Mic } from "lucide-react";
+import { Plus, X, Check, Archive, Trash2, Eye, EyeOff, Loader2, ChevronDown, ChevronUp, Mic, Pencil } from "lucide-react";
 import { feedApi } from "@/lib/api";
 import { useAuthStore } from "@/lib/store";
 
@@ -65,6 +65,7 @@ export default function AdminFeedPage() {
   const [statusFilter, setStatus] = useState<"draft" | "published" | "archived">("draft");
   const [loading, setLoading]     = useState(true);
   const [formOpen, setFormOpen]   = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null); // null = create, string = edit
   const [form, setForm]           = useState({ ...EMPTY_FORM });
   const [saving, setSaving]           = useState(false);
   const [error, setError]             = useState<string | null>(null);
@@ -90,6 +91,24 @@ export default function AdminFeedPage() {
 
   useEffect(() => { if (userId === ADMIN_UID) fetchClips(); }, [statusFilter, userId]); // eslint-disable-line
 
+  const openEdit = (clip: Clip) => {
+    setEditingId(clip.id);
+    setForm({
+      title:              clip.title,
+      description:        clip.description,
+      video_url:          clip.video_url,
+      thumbnail_url:      clip.thumbnail_url,
+      speaker:            clip.speaker,
+      tags:               clip.tags,
+      language:           clip.language,
+      translated_caption: clip.translated_caption,
+      caption_en:         clip.caption_en || "",
+      duration_sec:       clip.duration_sec,
+    });
+    setError(null);
+    setFormOpen(true);
+  };
+
   const handleCreate = async () => {
     if (!form.title.trim() || !form.video_url.trim()) {
       setError("Título y URL del video son obligatorios");
@@ -98,12 +117,17 @@ export default function AdminFeedPage() {
     setSaving(true);
     setError(null);
     try {
-      await feedApi.adminCreate({ ...form });
+      if (editingId) {
+        await feedApi.adminUpdate(editingId, { ...form });
+      } else {
+        await feedApi.adminCreate({ ...form });
+      }
       setForm({ ...EMPTY_FORM });
+      setEditingId(null);
       setFormOpen(false);
       fetchClips();
-    } catch {
-      setError("No se pudo crear el clip");
+    } catch (e) {
+      apiError(e, editingId ? "No se pudo guardar" : "No se pudo crear el clip");
     } finally {
       setSaving(false);
     }
@@ -311,6 +335,13 @@ export default function AdminFeedPage() {
                     <Trash2 className="w-3 h-3" /> Eliminar
                   </button>
 
+                  {/* Edit */}
+                  <button onClick={() => openEdit(clip)}
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold"
+                          style={{ background: "rgba(59,130,246,0.15)", color: "#60a5fa" }}>
+                    <Pencil className="w-3 h-3" /> Editar
+                  </button>
+
                   {/* Generate audio */}
                   <button
                     onClick={() => handleGenerateAudio(clip.id)}
@@ -395,8 +426,10 @@ export default function AdminFeedPage() {
             <div className="h-1" style={{ background: "linear-gradient(90deg,#00a85e,#00d47e)" }} />
             <div className="p-5 space-y-4">
               <div className="flex items-center justify-between">
-                <p className="font-bold" style={{ color: "var(--text)" }}>Nuevo clip</p>
-                <button onClick={() => setFormOpen(false)}>
+                <p className="font-bold" style={{ color: "var(--text)" }}>
+                  {editingId ? "✏️ Editar clip" : "Nuevo clip"}
+                </p>
+                <button onClick={() => { setFormOpen(false); setEditingId(null); setForm({ ...EMPTY_FORM }); }}>
                   <X className="w-4 h-4" style={{ color: "var(--muted)" }} />
                 </button>
               </div>
@@ -547,7 +580,7 @@ export default function AdminFeedPage() {
               </div>
 
               <div className="flex gap-3 pt-1">
-                <button onClick={() => setFormOpen(false)}
+                <button onClick={() => { setFormOpen(false); setEditingId(null); setForm({ ...EMPTY_FORM }); }}
                         className="flex-1 py-2.5 rounded-xl text-sm font-semibold border"
                         style={{ borderColor: "var(--border)", color: "var(--muted)" }}>
                   Cancelar
@@ -555,7 +588,9 @@ export default function AdminFeedPage() {
                 <button onClick={handleCreate} disabled={saving}
                         className="flex-1 py-2.5 rounded-xl text-sm font-bold text-white disabled:opacity-60"
                         style={{ background: "linear-gradient(90deg,#00a85e,#00d47e)" }}>
-                  {saving ? <Loader2 className="w-4 h-4 animate-spin mx-auto" /> : "Guardar borrador"}
+                  {saving
+                    ? <Loader2 className="w-4 h-4 animate-spin mx-auto" />
+                    : editingId ? "Guardar cambios" : "Guardar borrador"}
                 </button>
               </div>
             </div>
