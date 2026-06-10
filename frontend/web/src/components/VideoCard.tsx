@@ -190,147 +190,85 @@ export default function VideoCard({
   const avatar = SPEAKER_AVATAR[clip.speaker] ?? "🎓";
   const fmtCount = (n: number) => n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n);
 
+  // TikTok-style: portrait frame + actions to the right
   return (
-    <div className="relative w-full h-full flex items-center justify-center"
-         style={{ background: "#000" }}>
-      {/* Video */}
-      <video
-        ref={videoRef}
-        src={clip.video_url}
-        poster={clip.thumbnail_url || undefined}
-        loop
-        playsInline
-        preload="metadata"
-        muted={isMuted}
-        onTimeUpdate={handleTimeUpdate}
-        onPlay={() => setPlaying(true)}
-        onPause={() => setPlaying(false)}
-        onClick={togglePlay}
-        className="w-full h-full object-cover cursor-pointer"
-        style={{ maxHeight: "100vh" }}
-      />
+    <div className="flex items-center gap-3" style={{ height: "100svh" }}>
 
-      {/* Play icon overlay (shows briefly when paused) */}
-      {!playing && isActive && (
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-          <div className="rounded-full flex items-center justify-center"
-               style={{ background: "rgba(0,0,0,0.4)", width: 72, height: 72 }}>
-            <Play className="w-9 h-9 text-white ml-1" fill="white" />
-          </div>
-        </div>
-      )}
+      {/* Portrait video frame — 9:16 */}
+      <div className="relative rounded-xl overflow-hidden shrink-0"
+           style={{
+             height: "min(100svh, calc(100vw * 9/16))",
+             width: "min(calc(100svh * 9/16), 100vw - 80px)",
+             maxHeight: "100svh",
+             background: "#000",
+           }}>
 
-      {/* Progress bar */}
-      <div className="absolute bottom-0 left-0 right-0 h-0.5"
-           style={{ background: "rgba(255,255,255,0.2)" }}>
-        <div className="h-full transition-all duration-200"
-             style={{ width: `${progress}%`, background: "var(--accent-l, #00d47e)" }} />
-      </div>
+        {/* Video */}
+        <video
+          ref={videoRef}
+          src={clip.video_url.includes(".m3u8") ? undefined : clip.video_url}
+          poster={clip.thumbnail_url || undefined}
+          loop
+          playsInline
+          preload="metadata"
+          muted={isMuted}
+          onTimeUpdate={handleTimeUpdate}
+          onPlay={() => setPlaying(true)}
+          onPause={() => setPlaying(false)}
+          onClick={togglePlay}
+          className="w-full h-full object-cover cursor-pointer"
+        />
 
-      {/* Bottom overlay: speaker + title + caption */}
-      <div className="absolute bottom-4 left-4 right-16 space-y-2">
-        {/* Speaker */}
-        <div className="flex items-center gap-2">
-          <span className="text-2xl">{avatar}</span>
-          <div>
-            <p className="text-white font-bold text-sm leading-tight">{clip.speaker}</p>
-            {clip.tags.length > 0 && (
-              <p className="text-xs" style={{ color: "rgba(255,255,255,0.6)" }}>
-                #{clip.tags[0]}
-              </p>
-            )}
-          </div>
-        </div>
-
-        {/* Title */}
-        <p className="text-white font-semibold text-sm leading-snug drop-shadow-lg">
-          {clip.title}
-        </p>
-
-        {/* Caption toggle */}
-        {clip.translated_caption && (
-          <button
-            onClick={() => setShowCaption((v) => !v)}
-            className="text-xs px-2 py-0.5 rounded-full"
-            style={{ background: "rgba(0,0,0,0.5)", color: "rgba(255,255,255,0.8)", border: "1px solid rgba(255,255,255,0.2)" }}>
-            {showCaption ? "Ocultar subtítulos" : "Ver subtítulos"}
-          </button>
-        )}
-
-        {showCaption && (
-          <div className="p-2 rounded-lg text-xs leading-relaxed"
-               style={{ background: "rgba(0,0,0,0.7)", color: "white", maxHeight: 120, overflowY: "auto" }}>
-            {clip.translated_caption}
+        {/* Play overlay */}
+        {!playing && isActive && (
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+            <div className="rounded-full flex items-center justify-center"
+                 style={{ background: "rgba(0,0,0,0.45)", width: 64, height: 64 }}>
+              <Play className="w-8 h-8 text-white ml-1" fill="white" />
+            </div>
           </div>
         )}
-      </div>
 
-      {/* Right actions */}
-      <div className="absolute right-3 bottom-10 flex flex-col items-center gap-5">
-        {/* Like */}
-        <button onClick={handleLike} className="flex flex-col items-center gap-1">
-          <div className="rounded-full p-2.5"
-               style={{ background: "rgba(0,0,0,0.4)" }}>
-            <Heart
-              className="w-6 h-6"
-              fill={liked ? "#ff2d55" : "none"}
-              style={{ color: liked ? "#ff2d55" : "white" }}
-            />
+        {/* Progress bar */}
+        <div className="absolute bottom-0 left-0 right-0 h-0.5"
+             style={{ background: "rgba(255,255,255,0.2)" }}>
+          <div className="h-full transition-all duration-200"
+               style={{ width: `${progress}%`, background: "#00d47e" }} />
+        </div>
+
+        {/* Bottom info overlay */}
+        <div className="absolute bottom-0 left-0 right-0 p-4 space-y-1.5"
+             style={{ background: "linear-gradient(to top, rgba(0,0,0,0.85) 0%, transparent 100%)" }}>
+          <div className="flex items-center gap-2">
+            <span className="text-xl">{avatar}</span>
+            <div>
+              <p className="text-white font-bold text-sm leading-tight">{clip.speaker}</p>
+              {clip.tags[0] && (
+                <p className="text-[11px]" style={{ color: "rgba(255,255,255,0.6)" }}>#{clip.tags[0]}</p>
+              )}
+            </div>
           </div>
-          <span className="text-white text-xs font-semibold">{fmtCount(likeCount)}</span>
-        </button>
+          <p className="text-white text-sm font-medium leading-snug">{clip.title}</p>
+          {clip.translated_caption && (
+            <button onClick={() => setShowCaption((v) => !v)}
+                    className="text-xs px-2 py-0.5 rounded-full"
+                    style={{ background: "rgba(0,0,0,0.5)", color: "rgba(255,255,255,0.75)",
+                             border: "1px solid rgba(255,255,255,0.2)" }}>
+              {showCaption ? "Ocultar subtítulos" : "CC · Subtítulos"}
+            </button>
+          )}
+          {showCaption && (
+            <div className="p-2 rounded-lg text-xs leading-relaxed"
+                 style={{ background: "rgba(0,0,0,0.75)", color: "white", maxHeight: 100, overflowY: "auto" }}>
+              {clip.translated_caption}
+            </div>
+          )}
+        </div>
 
-        {/* Comments */}
-        <button onClick={openComments} className="flex flex-col items-center gap-1">
-          <div className="rounded-full p-2.5"
-               style={{ background: "rgba(0,0,0,0.4)" }}>
-            <MessageCircle className="w-6 h-6 text-white" />
-          </div>
-          <span className="text-white text-xs font-semibold">{fmtCount(clip.comment_count)}</span>
-        </button>
-
-        {/* Save */}
-        <button onClick={handleSave} className="flex flex-col items-center gap-1">
-          <div className="rounded-full p-2.5"
-               style={{ background: "rgba(0,0,0,0.4)" }}>
-            <Bookmark
-              className="w-6 h-6"
-              fill={saved ? "#ffd700" : "none"}
-              style={{ color: saved ? "#ffd700" : "white" }}
-            />
-          </div>
-          <span className="text-white text-xs font-semibold">{saved ? "Guardado" : "Guardar"}</span>
-        </button>
-
-        {/* Share */}
-        <button onClick={handleShare} className="flex flex-col items-center gap-1">
-          <div className="rounded-full p-2.5"
-               style={{ background: "rgba(0,0,0,0.4)" }}>
-            <Share2 className="w-6 h-6 text-white" />
-          </div>
-          <span className="text-white text-xs font-semibold">{copied ? "¡Copiado!" : "Compartir"}</span>
-        </button>
-
-        {/* Mute */}
-        <button onClick={onMuteToggle} className="flex flex-col items-center gap-1">
-          <div className="rounded-full p-2.5"
-               style={{ background: "rgba(0,0,0,0.4)" }}>
-            {isMuted
-              ? <VolumeX className="w-6 h-6 text-white" />
-              : <Volume2 className="w-6 h-6 text-white" />}
-          </div>
-        </button>
-      </div>
-
-      {/* Comments drawer */}
-      {showComments && (
-        <div
-          className="absolute inset-x-0 bottom-0 rounded-t-2xl flex flex-col"
-          style={{
-            height: "60%",
-            background: "var(--card, #1a1a1a)",
-            border: "1px solid var(--border, #333)",
-          }}>
+        {/* Comments drawer — anchored inside video */}
+        {showComments && (
+          <div className="absolute inset-x-0 bottom-0 rounded-t-2xl flex flex-col"
+               style={{ height: "65%", background: "#111", border: "1px solid #333" }}>
           <div className="flex items-center justify-between px-4 py-3 border-b"
                style={{ borderColor: "var(--border, #333)" }}>
             <p className="font-bold text-sm" style={{ color: "var(--text, #fff)" }}>
@@ -376,7 +314,7 @@ export default function VideoCard({
           </div>
 
           <div className="flex items-center gap-2 px-4 py-3 border-t"
-               style={{ borderColor: "var(--border, #333)" }}>
+               style={{ borderColor: "#333" }}>
             <input
               type="text"
               placeholder="Escribe un comentario..."
@@ -384,22 +322,62 @@ export default function VideoCard({
               onChange={(e) => setCommentText(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && postComment()}
               className="flex-1 rounded-full px-3 py-1.5 text-sm outline-none"
-              style={{
-                background: "var(--raised, #2a2a2a)",
-                color: "var(--text, #fff)",
-                border: "1px solid var(--border, #333)",
-              }}
+              style={{ background: "#222", color: "#fff", border: "1px solid #333" }}
             />
-            <button
-              onClick={postComment}
-              disabled={!commentText.trim()}
-              className="px-3 py-1.5 rounded-full text-xs font-bold disabled:opacity-40"
-              style={{ background: "var(--accent-l, #00d47e)", color: "#000" }}>
+            <button onClick={postComment} disabled={!commentText.trim()}
+                    className="px-3 py-1.5 rounded-full text-xs font-bold disabled:opacity-40"
+                    style={{ background: "#00d47e", color: "#000" }}>
               Enviar
             </button>
           </div>
         </div>
       )}
+      </div>{/* end portrait frame */}
+
+      {/* Right actions column — outside the video, TikTok style */}
+      <div className="flex flex-col items-center gap-5 shrink-0">
+        <button onClick={handleLike} className="flex flex-col items-center gap-1">
+          <div className="w-11 h-11 rounded-full flex items-center justify-center"
+               style={{ background: "rgba(255,255,255,0.1)" }}>
+            <Heart className="w-6 h-6" fill={liked ? "#ff2d55" : "none"}
+                   style={{ color: liked ? "#ff2d55" : "white" }} />
+          </div>
+          <span className="text-white text-xs font-semibold">{fmtCount(likeCount)}</span>
+        </button>
+
+        <button onClick={openComments} className="flex flex-col items-center gap-1">
+          <div className="w-11 h-11 rounded-full flex items-center justify-center"
+               style={{ background: "rgba(255,255,255,0.1)" }}>
+            <MessageCircle className="w-6 h-6 text-white" />
+          </div>
+          <span className="text-white text-xs font-semibold">{fmtCount(clip.comment_count)}</span>
+        </button>
+
+        <button onClick={handleSave} className="flex flex-col items-center gap-1">
+          <div className="w-11 h-11 rounded-full flex items-center justify-center"
+               style={{ background: "rgba(255,255,255,0.1)" }}>
+            <Bookmark className="w-6 h-6" fill={saved ? "#ffd700" : "none"}
+                      style={{ color: saved ? "#ffd700" : "white" }} />
+          </div>
+          <span className="text-white text-xs font-semibold">{saved ? "Guardado" : "Guardar"}</span>
+        </button>
+
+        <button onClick={handleShare} className="flex flex-col items-center gap-1">
+          <div className="w-11 h-11 rounded-full flex items-center justify-center"
+               style={{ background: "rgba(255,255,255,0.1)" }}>
+            <Share2 className="w-6 h-6 text-white" />
+          </div>
+          <span className="text-white text-xs font-semibold">{copied ? "✓" : "Compartir"}</span>
+        </button>
+
+        <button onClick={onMuteToggle}>
+          <div className="w-11 h-11 rounded-full flex items-center justify-center"
+               style={{ background: "rgba(255,255,255,0.1)" }}>
+            {isMuted ? <VolumeX className="w-5 h-5 text-white" /> : <Volume2 className="w-5 h-5 text-white" />}
+          </div>
+        </button>
+      </div>
+
     </div>
   );
 }

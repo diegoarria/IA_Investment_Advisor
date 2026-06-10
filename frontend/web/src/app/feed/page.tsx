@@ -185,7 +185,7 @@ export default function FeedPage() {
               <div
                 key={clip.id}
                 ref={(el) => { itemRefs.current[i] = el; }}
-                className="relative w-full"
+                className="flex items-center justify-center"
                 style={{ height: "100svh", scrollSnapAlign: "start", scrollSnapStop: "always" }}>
                 <VideoCard
                   clip={clip}
