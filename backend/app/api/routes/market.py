@@ -75,41 +75,30 @@ def _is_market_open() -> bool:
 
 
 def _fetch_one_index(symbol: str) -> tuple[float | None, float | None]:
-    """Returns (price, prev_close). Uses 1-min intraday when market is open."""
+    """Returns (regularMarketPrice, chartPreviousClose) direct from Yahoo meta."""
     import httpx
     encoded = _yf_symbol(symbol).replace("^", "%5E")
-    market_open = _is_market_open()
 
-    # Real-time path: 1-min bars for today → last bar = current price
-    if market_open:
+    # Use meta fields: regularMarketPrice + chartPreviousClose are always correct
+    # regardless of market hours — no need to compute from bar closes.
+    # Try 2m intraday first (fresher during market hours), then 1d daily as fallback.
+    for interval, rng in (("2m", "1d"), ("1d", "5d")):
         for base in ("query1", "query2"):
             try:
-                url = f"https://{base}.finance.yahoo.com/v8/finance/chart/{encoded}?interval=1m&range=1d"
+                url = (
+                    f"https://{base}.finance.yahoo.com/v8/finance/chart/{encoded}"
+                    f"?interval={interval}&range={rng}"
+                )
                 r = httpx.get(url, headers=_YF_HEADERS, timeout=10, follow_redirects=True)
-                if r.status_code == 200:
-                    data   = r.json()["chart"]["result"][0]
-                    closes = [c for c in data["indicators"]["quote"][0]["close"] if c is not None]
-                    meta   = data.get("meta", {})
-                    prev   = meta.get("chartPreviousClose") or meta.get("previousClose")
-                    if closes:
-                        return closes[-1], float(prev) if prev else None
+                if r.status_code != 200:
+                    continue
+                meta = r.json()["chart"]["result"][0].get("meta", {})
+                price = meta.get("regularMarketPrice")
+                prev  = meta.get("chartPreviousClose") or meta.get("previousClose")
+                if price:
+                    return float(price), float(prev) if prev else None
             except Exception:
                 pass
-
-    # Closed/fallback path: daily bars (5-day window)
-    for base in ("query1", "query2"):
-        try:
-            url = f"https://{base}.finance.yahoo.com/v8/finance/chart/{encoded}?interval=1d&range=5d"
-            r = httpx.get(url, headers=_YF_HEADERS, timeout=10, follow_redirects=True)
-            if r.status_code == 200:
-                result = r.json()["chart"]["result"][0]
-                closes = [c for c in result["indicators"]["quote"][0]["close"] if c is not None]
-                if len(closes) >= 2:
-                    return closes[-1], closes[-2]
-                if len(closes) == 1:
-                    return closes[0], None
-        except Exception:
-            pass
 
     # Last resort: yfinance fast_info
     try:
