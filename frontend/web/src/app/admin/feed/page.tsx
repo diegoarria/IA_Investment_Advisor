@@ -102,25 +102,36 @@ export default function AdminFeedPage() {
     }
   };
 
+  const apiError = (e: unknown, fallback: string) => {
+    const msg =
+      (e as { response?: { data?: { detail?: string; message?: string } } })
+        ?.response?.data?.detail ||
+      (e as { response?: { data?: { detail?: string; message?: string } } })
+        ?.response?.data?.message ||
+      (e as { message?: string })?.message ||
+      fallback;
+    setError(msg);
+  };
+
   const handlePublish = async (id: string) => {
     try {
-      await feedApi.adminUpdate(id, { status: "published", published_at: new Date().toISOString() });
+      await feedApi.adminUpdate(id, { status: "published" });
       fetchClips();
-    } catch { setError("Error al publicar"); }
+    } catch (e) { apiError(e, "Error al publicar"); }
   };
 
   const handleArchive = async (id: string) => {
     try {
       await feedApi.adminUpdate(id, { status: "archived" });
       fetchClips();
-    } catch { setError("Error al archivar"); }
+    } catch (e) { apiError(e, "Error al archivar"); }
   };
 
   const handleUnpublish = async (id: string) => {
     try {
       await feedApi.adminUpdate(id, { status: "draft" });
       fetchClips();
-    } catch { setError("Error al despublicar"); }
+    } catch (e) { apiError(e, "Error al despublicar"); }
   };
 
   const handleDelete = async (id: string) => {
@@ -128,7 +139,7 @@ export default function AdminFeedPage() {
     try {
       await feedApi.adminDelete(id);
       fetchClips();
-    } catch { setError("Error al eliminar"); }
+    } catch (e) { apiError(e, "Error al eliminar"); }
   };
 
   const toggleTag = (t: string) =>
