@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect } from "react";
-import { useThemeStore } from "@/lib/store";
-import { useAuthStore } from "@/lib/store";
+import { useThemeStore, useAuthStore } from "@/lib/store";
+import MarketTickerBar from "@/components/MarketTickerBar";
+
+const TICKER_H = 30;
 
 export default function ThemeProvider({ children }: { children: React.ReactNode }) {
   const { theme, loadThemeFromServer } = useThemeStore();
@@ -12,12 +14,18 @@ export default function ThemeProvider({ children }: { children: React.ReactNode 
     document.documentElement.setAttribute("data-theme", theme);
   }, [theme]);
 
-  // Load server theme once on login — server is authoritative for cross-device sync
   useEffect(() => {
     if (isAuthenticated) {
       loadThemeFromServer();
     }
   }, [isAuthenticated]);
 
-  return <>{children}</>;
+  return (
+    <>
+      <MarketTickerBar />
+      <div style={{ paddingTop: isAuthenticated ? TICKER_H : 0 }}>
+        {children}
+      </div>
+    </>
+  );
 }
