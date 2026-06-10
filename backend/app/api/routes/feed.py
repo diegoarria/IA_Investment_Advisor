@@ -101,16 +101,16 @@ async def toggle_save(clip_id: str, user_id: str = Depends(get_current_user_id))
 @router.get("/clips/{clip_id}/comments")
 async def get_comments(clip_id: str, user_id: str = Depends(get_current_user_id)):
     db = get_supabase()
-    rows = (
+    all_rows = (
         db.table("clip_comments")
         .select("id,user_id,text,parent_id,created_at,user_profiles(name,avatar_url)")
         .eq("clip_id", clip_id)
-        .or_("is_deleted.is.null,is_deleted.is.false")
         .order("created_at")
         .limit(100)
         .execute()
         .data or []
     )
+    rows = [r for r in all_rows if not r.get("is_deleted")]
     top = [r for r in rows if not r.get("parent_id")]
     replies = {}
     for r in rows:
