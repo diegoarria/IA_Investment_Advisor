@@ -221,8 +221,8 @@ async def delete_clip(clip_id: str, user_id: str = Depends(get_current_user_id))
 @router.post("/admin/clips/{clip_id}/generate-audio")
 async def generate_clip_audio(clip_id: str, user_id: str = Depends(get_current_user_id)):
     _require_admin(user_id)
-    if not settings.openai_api_key:
-        raise HTTPException(400, "OPENAI_API_KEY no configurada en el servidor")
+    if not settings.elevenlabs_api_key:
+        raise HTTPException(400, "ELEVENLABS_API_KEY no configurada en el servidor")
 
     db = get_supabase()
     clip = db.table("clips").select("*").eq("id", clip_id).single().execute().data
@@ -258,16 +258,23 @@ Genera exactamente este JSON (sin nada más):
     if not pre_text or not post_text:
         raise HTTPException(500, "Textos generados vacíos")
 
-    # 2. Convert to audio via OpenAI TTS
+    # 2. Convert to audio via ElevenLabs TTS
     async def tts(text: str) -> bytes:
         async with httpx.AsyncClient(timeout=60) as client:
             res = await client.post(
-                "https://api.openai.com/v1/audio/speech",
-                headers={"Authorization": f"Bearer {settings.openai_api_key}"},
-                json={"model": "tts-1", "input": text, "voice": "nova", "response_format": "mp3"},
+                f"https://api.elevenlabs.io/v1/text-to-speech/{settings.elevenlabs_voice_id}",
+                headers={
+                    "xi-api-key": settings.elevenlabs_api_key,
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "text": text,
+                    "model_id": "eleven_multilingual_v2",
+                    "voice_settings": {"stability": 0.5, "similarity_boost": 0.75},
+                },
             )
             if res.status_code != 200:
-                raise HTTPException(502, f"OpenAI TTS error: {res.text[:200]}")
+                raise HTTPException(502, f"ElevenLabs TTS error: {res.text[:200]}")
             return res.content
 
     pre_audio_bytes  = await tts(pre_text)

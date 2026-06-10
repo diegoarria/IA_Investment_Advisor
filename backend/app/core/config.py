@@ -16,7 +16,8 @@ class Settings(BaseSettings):
     stripe_price_id_yearly: str = ""
     resend_api_key: str = ""
     redis_url: str = ""  # e.g. redis://localhost:6379 — optional, falls back to in-memory
-    openai_api_key: str = ""  # for TTS (OpenAI tts-1 model)
+    elevenlabs_api_key: str = ""   # for TTS
+    elevenlabs_voice_id: str = "pNInz6obpgDQGcFmaJgB"  # Adam — multilingual, good Spanish
 
     class Config:
         env_file = ".env"
