@@ -67,8 +67,9 @@ export default function VideoCard({
   const preAudioRef   = useRef<HTMLAudioElement>(null);
   const postAudioRef  = useRef<HTMLAudioElement>(null);
   const scrubBarRef   = useRef<HTMLDivElement>(null);
-  const [scrubbing, setScrubbing] = useState(false);
+  const [scrubbing, setScrubbing]       = useState(false);
   const [phase, setPhase]               = useState<"pre"|"video"|"post"|"idle">("idle");
+  const [audioRemaining, setAudioRemaining] = useState(0); // seconds left in pre/post audio
   const [playing, setPlaying]           = useState(false);
   const [progress, setProgress]         = useState(0);
   const [showCaption, setShowCaption]   = useState(false);
@@ -283,8 +284,24 @@ export default function VideoCard({
            }}>
 
         {/* Hidden pre/post audio elements */}
-        {clip.pre_audio_url  && <audio ref={preAudioRef}  src={clip.pre_audio_url}  preload="auto" onEnded={handlePreEnded} />}
-        {clip.post_audio_url && <audio ref={postAudioRef} src={clip.post_audio_url} preload="auto" onEnded={() => setPhase("idle")} />}
+        {clip.pre_audio_url && (
+          <audio ref={preAudioRef} src={clip.pre_audio_url} preload="auto"
+                 onEnded={handlePreEnded}
+                 onTimeUpdate={(e) => {
+                   const a = e.currentTarget;
+                   setAudioRemaining(Math.ceil(a.duration - a.currentTime));
+                 }}
+                 onLoadedMetadata={(e) => setAudioRemaining(Math.ceil(e.currentTarget.duration))} />
+        )}
+        {clip.post_audio_url && (
+          <audio ref={postAudioRef} src={clip.post_audio_url} preload="auto"
+                 onEnded={() => setPhase("idle")}
+                 onTimeUpdate={(e) => {
+                   const a = e.currentTarget;
+                   setAudioRemaining(Math.ceil(a.duration - a.currentTime));
+                 }}
+                 onLoadedMetadata={(e) => setAudioRemaining(Math.ceil(e.currentTarget.duration))} />
+        )}
 
         {/* Video */}
         <video
@@ -302,12 +319,18 @@ export default function VideoCard({
           className="w-full h-full object-cover cursor-pointer"
         />
 
-        {/* Phase badge: pre / post */}
+        {/* Phase badge: pre / post — with countdown */}
         {(phase === "pre" || phase === "post") && (
-          <div className="absolute top-3 left-1/2 -translate-x-1/2 z-10 flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold"
-               style={{ background: "rgba(139,92,246,0.85)", color: "white", backdropFilter: "blur(8px)" }}>
+          <div className="absolute top-3 left-1/2 -translate-x-1/2 z-10 flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold"
+               style={{ background: "rgba(139,92,246,0.9)", color: "white", backdropFilter: "blur(8px)" }}>
             <span className="animate-pulse">🎙️</span>
-            {phase === "pre" ? "Introducción" : "Análisis"}
+            <span>{phase === "pre" ? "Introducción" : "Análisis IA"}</span>
+            {audioRemaining > 0 && (
+              <span className="px-1.5 py-0.5 rounded-full text-[10px] font-semibold"
+                    style={{ background: "rgba(255,255,255,0.2)" }}>
+                {audioRemaining}s
+              </span>
+            )}
           </div>
         )}
 
