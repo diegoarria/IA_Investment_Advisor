@@ -54,6 +54,7 @@ export default function WatchlistEarningsCalendar({
 }: Props) {
   const [events, setEvents]       = useState<CalendarEvent[]>([]);
   const [loading, setLoading]     = useState(false);
+  const [loadError, setLoadError] = useState(false);
   const [viewDate, setViewDate]   = useState(() => new Date());
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
   const [analysis, setAnalysis]   = useState<Record<string, string>>({});
@@ -62,14 +63,19 @@ export default function WatchlistEarningsCalendar({
   const allTickers   = [...new Set([...watchlistTickers, ...portfolioTickers])].filter(Boolean);
   const portfolioSet = new Set(portfolioTickers);
 
-  useEffect(() => {
+  const loadEvents = () => {
     if (!isPremium || allTickers.length === 0) return;
     setLoading(true);
+    setLoadError(false);
     earningsApi
       .getCalendar(allTickers)
       .then((res) => setEvents(res.data.earnings || []))
-      .catch(() => {})
+      .catch(() => setLoadError(true))
       .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    loadEvents();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isPremium, allTickers.join(",")]);
 
@@ -155,6 +161,12 @@ export default function WatchlistEarningsCalendar({
             {MONTHS[month]} {year}
           </span>
           {loading && <Loader2 className="w-3.5 h-3.5 animate-spin" style={{ color: "var(--muted)" }} />}
+          {!loading && loadError && (
+            <button onClick={loadEvents} className="text-[10px] font-semibold px-2 py-0.5 rounded-full transition-opacity hover:opacity-70"
+                    style={{ background: "rgba(239,68,68,0.12)", color: "#f87171" }}>
+              Reintentar
+            </button>
+          )}
         </div>
 
         <button

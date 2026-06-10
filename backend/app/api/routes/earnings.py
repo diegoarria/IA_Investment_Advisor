@@ -1,4 +1,6 @@
 import asyncio
+import logging
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
 from fastapi import APIRouter, Depends
 import yfinance as yf
@@ -7,10 +9,13 @@ from app.api.routes.market import _get_user_profile
 from app.core.cache import cache_get, cache_set
 from app.services import ai_service
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter(prefix="/earnings", tags=["earnings"])
 
-_TTL_CALENDAR = 3600   # 1 hour
-_TTL_ANALYSIS = 1800   # 30 minutes
+_TTL_CALENDAR  = 3600   # 1 hour
+_TTL_ANALYSIS  = 1800   # 30 minutes
+_WINDOW_DAYS   = 180    # look forward 6 months
 
 
 def _as_date(d):
@@ -34,8 +39,8 @@ def _fetch_events_for_symbol(symbol: str) -> list[dict]:
         return cached
 
     today        = datetime.now().date()
-    window_start = today - timedelta(days=7)
-    window_end   = today + timedelta(days=90)
+    window_start = today - timedelta(days=14)
+    window_end   = today + timedelta(days=_WINDOW_DAYS)
     events: list[dict] = []
 
     try:
@@ -129,8 +134,8 @@ def _fetch_events_for_symbol(symbol: str) -> list[dict]:
                 "status":     "past" if pay_dt < today else "today" if pay_dt == today else "upcoming",
             })
 
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning("events fetch failed for %s: %s", symbol, e)
 
     if not events:
         events.append({"ticker": symbol, "event_date": None, "event_type": "earnings", "status": "unknown"})
@@ -140,10 +145,14 @@ def _fetch_events_for_symbol(symbol: str) -> list[dict]:
 
 
 def _fetch_earnings_calendar(symbols: list[str]) -> list[dict]:
-    """Return all calendar events for a list of symbols (earnings + dividends)."""
+    """Return all calendar events for a list of symbols (earnings + dividends), fetched concurrently."""
+    if not symbols:
+        return []
+    with ThreadPoolExecutor(max_workers=min(len(symbols), 10)) as pool:
+        results = list(pool.map(_fetch_events_for_symbol, symbols))
     all_events: list[dict] = []
-    for symbol in symbols:
-        all_events.extend(_fetch_events_for_symbol(symbol))
+    for evts in results:
+        all_events.extend(evts)
     return all_events
 
 
