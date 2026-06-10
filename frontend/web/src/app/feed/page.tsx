@@ -117,7 +117,7 @@ export default function FeedPage() {
   const clearFilters = () => { setSpeaker(null); setTag(null); };
 
   return (
-    <div className="flex h-screen overflow-hidden" style={{ background: "#000" }}>
+    <div className="flex h-screen overflow-hidden" style={{ background: "var(--bg)" }}>
       <AppSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
       {/* Feed container — snap scroll */}
@@ -132,11 +132,11 @@ export default function FeedPage() {
 
         {/* Filter bar (sticky top) */}
         <div className="sticky top-0 z-20 flex items-center gap-2 px-3 py-2"
-             style={{ background: "linear-gradient(to bottom, rgba(0,0,0,0.8) 0%, transparent 100%)" }}>
+             style={{ background: "linear-gradient(to bottom, rgba(var(--bg-rgb), 0.92) 0%, transparent 100%)" }}>
           <button onClick={() => setSidebarOpen(true)}
                   className="lg:hidden p-1.5 rounded-full"
-                  style={{ background: "rgba(255,255,255,0.1)" }}>
-            <span className="text-white text-xs">☰</span>
+                  style={{ background: "var(--raised)" }}>
+            <span style={{ color: "var(--text)", fontSize: "12px" }}>☰</span>
           </button>
 
           <div className="flex items-center gap-1.5 overflow-x-auto flex-1" style={{ scrollbarWidth: "none" }}>
@@ -144,8 +144,8 @@ export default function FeedPage() {
               onClick={() => setSort(sort === "recent" ? "trending" : "recent")}
               className="shrink-0 px-3 py-1 rounded-full text-xs font-semibold"
               style={{
-                background: sort === "trending" ? "var(--accent-l, #00d47e)" : "rgba(255,255,255,0.15)",
-                color: sort === "trending" ? "#000" : "white",
+                background: sort === "trending" ? "var(--accent-l)" : "var(--raised)",
+                color: sort === "trending" ? "#000" : "var(--text)",
               }}>
               {sort === "trending" ? "🔥 Trending" : "🕐 Reciente"}
             </button>
@@ -153,14 +153,14 @@ export default function FeedPage() {
             {(speaker || tag) && (
               <button onClick={clearFilters}
                       className="shrink-0 flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold"
-                      style={{ background: "rgba(255,100,100,0.3)", color: "white" }}>
+                      style={{ background: "rgba(244,63,94,0.15)", color: "var(--down)" }}>
                 <X className="w-3 h-3" /> {speaker || tag}
               </button>
             )}
 
             <button onClick={() => setFilterOpen(true)}
                     className="shrink-0 flex items-center gap-1.5 px-3 py-1 rounded-full text-xs"
-                    style={{ background: "rgba(255,255,255,0.15)", color: "white" }}>
+                    style={{ background: "var(--raised)", color: "var(--text)" }}>
               <Search className="w-3 h-3" /> Filtrar
             </button>
           </div>
@@ -168,12 +168,12 @@ export default function FeedPage() {
 
         {loading ? (
           <div className="h-screen flex items-center justify-center">
-            <Loader2 className="w-8 h-8 animate-spin text-white" />
+            <Loader2 className="w-8 h-8 animate-spin" style={{ color: "var(--accent)" }} />
           </div>
         ) : clips.length === 0 ? (
           <div className="h-screen flex flex-col items-center justify-center gap-3">
-            <p className="text-white text-lg font-bold">Sin contenido aún</p>
-            <p className="text-sm" style={{ color: "rgba(255,255,255,0.5)" }}>
+            <p className="text-lg font-bold" style={{ color: "var(--text)" }}>Sin contenido aún</p>
+            <p className="text-sm" style={{ color: "var(--sub)" }}>
               Pronto cargaremos clips educativos de los mejores inversores
             </p>
             {(speaker || tag) && (
@@ -206,13 +206,13 @@ export default function FeedPage() {
             {loadingMore && (
               <div className="flex items-center justify-center py-6"
                    style={{ height: "80px", scrollSnapAlign: "start" }}>
-                <Loader2 className="w-6 h-6 animate-spin text-white" />
+                <Loader2 className="w-6 h-6 animate-spin" style={{ color: "var(--accent)" }} />
               </div>
             )}
 
             {nextCursor === null && clips.length > 0 && (
               <div className="flex items-center justify-center py-6 text-sm"
-                   style={{ color: "rgba(255,255,255,0.4)", scrollSnapAlign: "start" }}>
+                   style={{ color: "var(--muted)", scrollSnapAlign: "start" }}>
                 Has visto todo el contenido disponible
               </div>
             )}

@@ -553,8 +553,8 @@ export default function VideoCard({
             className="absolute inset-x-0 bottom-0 rounded-t-2xl flex flex-col"
             style={{
               height: "50%",
-              background: "#111",
-              border: "1px solid #222",
+              background: "var(--card)",
+              border: "1px solid var(--border)",
               transform: drawerOpen ? "translateY(0)" : "translateY(100%)",
               transition: "transform 0.34s cubic-bezier(0.32, 0.72, 0, 1)",
               zIndex: 30,
@@ -563,14 +563,14 @@ export default function VideoCard({
             {/* Drag handle + header */}
             <div className="shrink-0">
               <div className="flex justify-center pt-2 pb-1">
-                <div className="w-8 h-1 rounded-full" style={{ background: "#3a3a3a" }} />
+                <div className="w-8 h-1 rounded-full" style={{ background: "var(--border-s)" }} />
               </div>
-              <div className="flex items-center justify-between px-4 py-2 border-b" style={{ borderColor: "#222" }}>
-                <p className="font-bold text-sm" style={{ color: "#fff" }}>
+              <div className="flex items-center justify-between px-4 py-2 border-b" style={{ borderColor: "var(--border)" }}>
+                <p className="font-bold text-sm" style={{ color: "var(--text)" }}>
                   Comentarios ({commentCount})
                 </p>
                 <button onClick={closeComments}>
-                  <ChevronDown className="w-5 h-5" style={{ color: "#666" }} />
+                  <ChevronDown className="w-5 h-5" style={{ color: "var(--muted)" }} />
                 </button>
               </div>
             </div>
@@ -578,7 +578,7 @@ export default function VideoCard({
             {/* Comment list */}
             <div className="flex-1 overflow-y-auto px-4 py-3 space-y-4">
               {comments.length === 0 ? (
-                <p className="text-center py-6 text-sm" style={{ color: "#555" }}>
+                <p className="text-center py-6 text-sm" style={{ color: "var(--muted)" }}>
                   Sé el primero en comentar
                 </p>
               ) : (
@@ -593,27 +593,27 @@ export default function VideoCard({
                                className="w-7 h-7 rounded-full shrink-0 object-cover" />
                         ) : (
                           <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0"
-                               style={{ background: "#00d47e", color: "#000" }}>
+                               style={{ background: "var(--accent)", color: "#000" }}>
                             {cName[0].toUpperCase()}
                           </div>
                         )}
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2">
-                            <p className="text-xs font-semibold" style={{ color: "#fff" }}>{cName}</p>
-                            <p className="text-[10px]" style={{ color: "#555" }}>
+                            <p className="text-xs font-semibold" style={{ color: "var(--text)" }}>{cName}</p>
+                            <p className="text-[10px]" style={{ color: "var(--muted)" }}>
                               {new Date(c.created_at).toLocaleDateString("es", { day: "numeric", month: "short" })}
                             </p>
                             {c.user_id === myUserId && (
                               <button onClick={() => deleteComment(c.id)} className="ml-auto p-1 rounded-full opacity-40 hover:opacity-100 transition-opacity">
-                                <Trash2 className="w-3 h-3" style={{ color: "#ef4444" }} />
+                                <Trash2 className="w-3 h-3" style={{ color: "var(--down)" }} />
                               </button>
                             )}
                           </div>
-                          <p className="text-xs leading-snug mt-0.5" style={{ color: "#ccc" }}>{c.text}</p>
+                          <p className="text-xs leading-snug mt-0.5" style={{ color: "var(--sub)" }}>{c.text}</p>
                           <button
                             onClick={() => setReplyingTo(replyingTo?.id === c.id ? null : { id: c.id, name: cName })}
                             className="text-[11px] font-semibold mt-1"
-                            style={{ color: replyingTo?.id === c.id ? "#00d47e" : "#555" }}>
+                            style={{ color: replyingTo?.id === c.id ? "var(--accent)" : "var(--muted)" }}>
                             Responder
                           </button>
                         </div>
@@ -621,7 +621,7 @@ export default function VideoCard({
 
                       {/* Replies thread */}
                       {c.replies && c.replies.length > 0 && (
-                        <div className="ml-9 space-y-2 border-l pl-3" style={{ borderColor: "#2a2a2a" }}>
+                        <div className="ml-9 space-y-2 border-l pl-3" style={{ borderColor: "var(--border)" }}>
                           {c.replies.map((r) => {
                             const rName = r.user_profiles?.name || "Usuario";
                             return (
@@ -631,23 +631,23 @@ export default function VideoCard({
                                        className="w-5 h-5 rounded-full shrink-0 object-cover" />
                                 ) : (
                                   <div className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0"
-                                       style={{ background: "#2a2a2a", color: "#888" }}>
+                                       style={{ background: "var(--raised)", color: "var(--sub)" }}>
                                     {rName[0].toUpperCase()}
                                   </div>
                                 )}
                                 <div className="flex-1 min-w-0">
                                   <div className="flex items-center gap-2">
-                                    <p className="text-[11px] font-semibold" style={{ color: "#ddd" }}>{rName}</p>
-                                    <p className="text-[10px]" style={{ color: "#555" }}>
+                                    <p className="text-[11px] font-semibold" style={{ color: "var(--text)" }}>{rName}</p>
+                                    <p className="text-[10px]" style={{ color: "var(--muted)" }}>
                                       {new Date(r.created_at).toLocaleDateString("es", { day: "numeric", month: "short" })}
                                     </p>
                                     {r.user_id === myUserId && (
                                       <button onClick={() => deleteComment(r.id, c.id)} className="ml-auto p-1 rounded-full opacity-40 hover:opacity-100 transition-opacity">
-                                        <Trash2 className="w-3 h-3" style={{ color: "#ef4444" }} />
+                                        <Trash2 className="w-3 h-3" style={{ color: "var(--down)" }} />
                                       </button>
                                     )}
                                   </div>
-                                  <p className="text-[11px] leading-snug mt-0.5" style={{ color: "#aaa" }}>{r.text}</p>
+                                  <p className="text-[11px] leading-snug mt-0.5" style={{ color: "var(--sub)" }}>{r.text}</p>
                                 </div>
                               </div>
                             );
@@ -666,13 +666,13 @@ export default function VideoCard({
                             onChange={(e) => setReplyText(e.target.value)}
                             onKeyDown={(e) => e.key === "Enter" && postComment(replyText, c.id)}
                             className="flex-1 rounded-full px-3 py-1.5 text-xs outline-none"
-                            style={{ background: "#1a1a1a", color: "#fff", border: "1px solid #333" }}
+                            style={{ background: "var(--raised)", color: "var(--text)", border: "1px solid var(--border)" }}
                           />
                           <button
                             onClick={() => postComment(replyText, c.id)}
                             disabled={!replyText.trim()}
                             className="px-2.5 py-1.5 rounded-full text-[11px] font-bold disabled:opacity-40"
-                            style={{ background: "#00d47e", color: "#000" }}>
+                            style={{ background: "var(--accent)", color: "#000" }}>
                             ↵
                           </button>
                         </div>
@@ -684,7 +684,7 @@ export default function VideoCard({
             </div>
 
             {/* Main comment input */}
-            <div className="shrink-0 flex items-center gap-2 px-4 py-3 border-t" style={{ borderColor: "#1e1e1e" }}>
+            <div className="shrink-0 flex items-center gap-2 px-4 py-3 border-t" style={{ borderColor: "var(--border)" }}>
               <input
                 type="text"
                 placeholder="Escribe un comentario..."
@@ -692,13 +692,13 @@ export default function VideoCard({
                 onChange={(e) => setCommentText(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && postComment()}
                 className="flex-1 rounded-full px-3 py-1.5 text-sm outline-none"
-                style={{ background: "#1a1a1a", color: "#fff", border: "1px solid #2a2a2a" }}
+                style={{ background: "var(--raised)", color: "var(--text)", border: "1px solid var(--border)" }}
               />
               <button
                 onClick={() => postComment()}
                 disabled={!commentText.trim()}
                 className="px-3 py-1.5 rounded-full text-xs font-bold disabled:opacity-40"
-                style={{ background: "#00d47e", color: "#000" }}>
+                style={{ background: "var(--accent)", color: "#000" }}>
                 Enviar
               </button>
             </div>
@@ -710,28 +710,28 @@ export default function VideoCard({
       <div className="flex flex-col items-center gap-5 shrink-0">
         <button onClick={handleLike} className="flex flex-col items-center gap-1">
           <div className="w-11 h-11 rounded-full flex items-center justify-center"
-               style={{ background: "rgba(255,255,255,0.1)" }}>
+               style={{ background: "var(--raised)" }}>
             <Heart className="w-6 h-6" fill={liked ? "#ff2d55" : "none"}
-                   style={{ color: liked ? "#ff2d55" : "white" }} />
+                   style={{ color: liked ? "#ff2d55" : "var(--text)" }} />
           </div>
-          <span className="text-white text-xs font-semibold">{fmtCount(likeCount)}</span>
+          <span className="text-xs font-semibold" style={{ color: "var(--sub)" }}>{fmtCount(likeCount)}</span>
         </button>
 
         <button onClick={openComments} className="flex flex-col items-center gap-1">
           <div className="w-11 h-11 rounded-full flex items-center justify-center"
-               style={{ background: "rgba(255,255,255,0.1)" }}>
-            <MessageCircle className="w-6 h-6 text-white" />
+               style={{ background: "var(--raised)" }}>
+            <MessageCircle className="w-6 h-6" style={{ color: "var(--text)" }} />
           </div>
-          <span className="text-white text-xs font-semibold">{fmtCount(commentCount)}</span>
+          <span className="text-xs font-semibold" style={{ color: "var(--sub)" }}>{fmtCount(commentCount)}</span>
         </button>
 
         <button onClick={handleSave} className="flex flex-col items-center gap-1">
           <div className="w-11 h-11 rounded-full flex items-center justify-center"
-               style={{ background: "rgba(255,255,255,0.1)" }}>
+               style={{ background: "var(--raised)" }}>
             <Bookmark className="w-6 h-6" fill={saved ? "#ffd700" : "none"}
-                      style={{ color: saved ? "#ffd700" : "white" }} />
+                      style={{ color: saved ? "#ffd700" : "var(--text)" }} />
           </div>
-          <span className="text-white text-xs font-semibold">{saved ? "Guardado" : "Guardar"}</span>
+          <span className="text-xs font-semibold" style={{ color: "var(--sub)" }}>{saved ? "Guardado" : "Guardar"}</span>
         </button>
 
         {/* Captions button + picker */}
@@ -740,10 +740,10 @@ export default function VideoCard({
             onClick={() => setShowCaptionPicker((v) => !v)}
             className="flex flex-col items-center gap-1">
             <div className="w-11 h-11 rounded-full flex items-center justify-center"
-                 style={{ background: captionLang !== "off" ? "rgba(0,212,126,0.25)" : "rgba(255,255,255,0.1)" }}>
-              <Subtitles className="w-5 h-5" style={{ color: captionLang !== "off" ? "#00d47e" : "white" }} />
+                 style={{ background: captionLang !== "off" ? "var(--accent-glow)" : "var(--raised)" }}>
+              <Subtitles className="w-5 h-5" style={{ color: captionLang !== "off" ? "var(--accent-l)" : "var(--text)" }} />
             </div>
-            <span className="text-white text-xs font-semibold">
+            <span className="text-xs font-semibold" style={{ color: "var(--sub)" }}>
               {captionLang === "off" ? "CC" : captionLang === "es" ? "ES" : "EN"}
             </span>
           </button>
@@ -751,14 +751,14 @@ export default function VideoCard({
           {/* Lang picker popup */}
           {showCaptionPicker && (
             <div className="absolute right-14 top-0 flex flex-col rounded-xl overflow-hidden z-30"
-                 style={{ background: "rgba(20,20,30,0.95)", border: "1px solid rgba(255,255,255,0.15)", minWidth: 90 }}>
+                 style={{ background: "var(--card)", border: "1px solid var(--border)", minWidth: 90 }}>
               {(["off", "es", "en"] as const).map((lang) => (
                 <button key={lang}
                         onClick={() => { setCaptionLang(lang); setShowCaptionPicker(false); }}
                         className="px-4 py-2.5 text-xs font-semibold text-left transition-all"
                         style={{
-                          color: captionLang === lang ? "#00d47e" : "white",
-                          background: captionLang === lang ? "rgba(0,212,126,0.1)" : "transparent",
+                          color: captionLang === lang ? "var(--accent)" : "var(--text)",
+                          background: captionLang === lang ? "var(--accent-pulse)" : "transparent",
                         }}>
                   {lang === "off" ? "Apagado" : lang === "es" ? "🇪🇸 Español" : "🇺🇸 English"}
                 </button>
@@ -769,16 +769,16 @@ export default function VideoCard({
 
         <button onClick={handleShare} className="flex flex-col items-center gap-1">
           <div className="w-11 h-11 rounded-full flex items-center justify-center"
-               style={{ background: "rgba(255,255,255,0.1)" }}>
-            <Share2 className="w-6 h-6 text-white" />
+               style={{ background: "var(--raised)" }}>
+            <Share2 className="w-6 h-6" style={{ color: "var(--text)" }} />
           </div>
-          <span className="text-white text-xs font-semibold">{copied ? "✓" : "Compartir"}</span>
+          <span className="text-xs font-semibold" style={{ color: "var(--sub)" }}>{copied ? "✓" : "Compartir"}</span>
         </button>
 
         <button onClick={onMuteToggle}>
           <div className="w-11 h-11 rounded-full flex items-center justify-center"
-               style={{ background: "rgba(255,255,255,0.1)" }}>
-            {isMuted ? <VolumeX className="w-5 h-5 text-white" /> : <Volume2 className="w-5 h-5 text-white" />}
+               style={{ background: "var(--raised)" }}>
+            {isMuted ? <VolumeX className="w-5 h-5" style={{ color: "var(--text)" }} /> : <Volume2 className="w-5 h-5" style={{ color: "var(--text)" }} />}
           </div>
         </button>
       </div>
