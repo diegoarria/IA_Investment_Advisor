@@ -22,9 +22,10 @@ _screenshot_sem = threading.Semaphore(10)
 
 router = APIRouter(prefix="/market", tags=["market"])
 
-_NEWS_CACHE_TTL   = 900   # 15 minutes
-_INDEX_CACHE_TTL  = 60    # seconds
-_SEARCH_CACHE_TTL = 300   # 5 minutes
+_NEWS_CACHE_TTL      = 900   # 15 minutes
+_INDEX_CACHE_TTL     = 60    # seconds (market closed)
+_INDEX_CACHE_TTL_RT  = 10    # seconds (market open — real-time)
+_SEARCH_CACHE_TTL    = 300   # 5 minutes
 
 # ── Optional enrichment API keys ─────────────────────────────────────────────
 _FINNHUB_KEY  = os.getenv("FINNHUB_API_KEY", "")
@@ -62,40 +63,55 @@ _YF_HEADERS = {
 }
 
 
+def _is_market_open() -> bool:
+    """True when US equities market is open (Mon–Fri 09:30–16:00 ET)."""
+    from zoneinfo import ZoneInfo
+    from datetime import datetime
+    now = datetime.now(ZoneInfo("America/New_York"))
+    if now.weekday() >= 5:
+        return False
+    mins = now.hour * 60 + now.minute
+    return 9 * 60 + 30 <= mins < 16 * 60
+
+
 def _fetch_one_index(symbol: str) -> tuple[float | None, float | None]:
-    """Returns (price, prev_close). Direct httpx call → yfinance fallback."""
+    """Returns (price, prev_close). Uses 1-min intraday when market is open."""
     import httpx
     encoded = _yf_symbol(symbol).replace("^", "%5E")
+    market_open = _is_market_open()
 
-    # Primary: direct Yahoo Finance chart API with browser headers
-    try:
-        url = f"https://query1.finance.yahoo.com/v8/finance/chart/{encoded}?interval=1d&range=5d"
-        r = httpx.get(url, headers=_YF_HEADERS, timeout=10, follow_redirects=True)
-        if r.status_code == 200:
-            result = r.json()["chart"]["result"][0]
-            closes = [c for c in result["indicators"]["quote"][0]["close"] if c is not None]
-            if len(closes) >= 2:
-                return closes[-1], closes[-2]
-            if len(closes) == 1:
-                return closes[0], None
-    except Exception:
-        pass
+    # Real-time path: 1-min bars for today → last bar = current price
+    if market_open:
+        for base in ("query1", "query2"):
+            try:
+                url = f"https://{base}.finance.yahoo.com/v8/finance/chart/{encoded}?interval=1m&range=1d"
+                r = httpx.get(url, headers=_YF_HEADERS, timeout=10, follow_redirects=True)
+                if r.status_code == 200:
+                    data   = r.json()["chart"]["result"][0]
+                    closes = [c for c in data["indicators"]["quote"][0]["close"] if c is not None]
+                    meta   = data.get("meta", {})
+                    prev   = meta.get("chartPreviousClose") or meta.get("previousClose")
+                    if closes:
+                        return closes[-1], float(prev) if prev else None
+            except Exception:
+                pass
 
-    # Fallback: try query2 domain
-    try:
-        url2 = f"https://query2.finance.yahoo.com/v8/finance/chart/{encoded}?interval=1d&range=5d"
-        r2 = httpx.get(url2, headers=_YF_HEADERS, timeout=10, follow_redirects=True)
-        if r2.status_code == 200:
-            result = r2.json()["chart"]["result"][0]
-            closes = [c for c in result["indicators"]["quote"][0]["close"] if c is not None]
-            if len(closes) >= 2:
-                return closes[-1], closes[-2]
-            if len(closes) == 1:
-                return closes[0], None
-    except Exception:
-        pass
+    # Closed/fallback path: daily bars (5-day window)
+    for base in ("query1", "query2"):
+        try:
+            url = f"https://{base}.finance.yahoo.com/v8/finance/chart/{encoded}?interval=1d&range=5d"
+            r = httpx.get(url, headers=_YF_HEADERS, timeout=10, follow_redirects=True)
+            if r.status_code == 200:
+                result = r.json()["chart"]["result"][0]
+                closes = [c for c in result["indicators"]["quote"][0]["close"] if c is not None]
+                if len(closes) >= 2:
+                    return closes[-1], closes[-2]
+                if len(closes) == 1:
+                    return closes[0], None
+        except Exception:
+            pass
 
-    # Last resort: yfinance
+    # Last resort: yfinance fast_info
     try:
         t = yf.Ticker(symbol)
         fi = t.fast_info
@@ -124,7 +140,8 @@ def _fetch_indices() -> list[dict]:
             entry["change"]     = round(price - prev, 2)
             entry["change_pct"] = round((price - prev) / prev * 100, 2)
         result.append(entry)
-    cache_set("market:indices", result, ttl=_INDEX_CACHE_TTL)
+    ttl = _INDEX_CACHE_TTL_RT if _is_market_open() else _INDEX_CACHE_TTL
+    cache_set("market:indices", result, ttl=ttl)
     return result
 
 

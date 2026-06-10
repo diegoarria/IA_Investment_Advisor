@@ -21,6 +21,22 @@ const ABBR: Record<string, string> = {
   "VIX":       "VIX",
 };
 
+function isMarketOpen(): boolean {
+  const now = new Date();
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/New_York",
+    weekday: "short",
+    hour: "numeric",
+    minute: "numeric",
+    hour12: false,
+  }).formatToParts(now);
+  const get = (t: string) => parts.find(p => p.type === t)?.value ?? "";
+  const day = get("weekday");
+  if (day === "Sat" || day === "Sun") return false;
+  const mins = parseInt(get("hour")) * 60 + parseInt(get("minute"));
+  return mins >= 9 * 60 + 30 && mins < 16 * 60;
+}
+
 function fmtPrice(p: number): string {
   if (p >= 10000) return p.toLocaleString("en-US", { maximumFractionDigits: 0 });
   if (p >= 1000)  return p.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -51,7 +67,7 @@ function NewsModal({ idx, onClose }: { idx: Idx; onClose: () => void }) {
   return (
     <div
       className="fixed inset-0 flex items-center justify-center p-4"
-      style={{ background: "rgba(0,0,0,0.6)", backdropFilter: "blur(2px)", zIndex: 200 }}
+      style={{ background: "rgba(0,0,0,0.6)", backdropFilter: "blur(2px)", zIndex: 1100 }}
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
       <div className="w-full max-w-md rounded-2xl overflow-hidden shadow-2xl"
@@ -138,6 +154,7 @@ function NewsModal({ idx, onClose }: { idx: Idx; onClose: () => void }) {
 export default function MarketTickerBar() {
   const [data, setData] = useState<Idx[]>([]);
   const [selected, setSelected] = useState<Idx | null>(null);
+  const [open, setOpen] = useState(false);
 
   useEffect(() => {
     const load = async () => {
@@ -148,9 +165,23 @@ export default function MarketTickerBar() {
         setData(res.data ?? []);
       } catch {}
     };
+
     load();
-    const t = setInterval(load, 60_000);
-    return () => clearInterval(t);
+
+    // Re-schedule dynamically: 10s when market open, 5min when closed
+    let timer: ReturnType<typeof setTimeout>;
+    const schedule = () => {
+      const marketOpen = isMarketOpen();
+      setOpen(marketOpen);
+      const delay = marketOpen ? 10_000 : 300_000;
+      timer = setTimeout(async () => {
+        await load();
+        schedule();
+      }, delay);
+    };
+    schedule();
+
+    return () => clearTimeout(timer);
   }, []);
 
   if (!data.length) return null;
@@ -164,7 +195,7 @@ export default function MarketTickerBar() {
           top: 0,
           left: 0,
           right: 0,
-          zIndex: 60,
+          zIndex: 1000,
           height: 30,
           display: "flex",
           alignItems: "center",
@@ -183,6 +214,20 @@ export default function MarketTickerBar() {
             gap: 0,
           }}
         >
+          {/* Market status indicator */}
+          <div style={{ display: "flex", alignItems: "center", gap: 5, paddingLeft: 12, paddingRight: 12, borderRight: "1px solid var(--border)", height: 30 }}>
+            <span style={{
+              width: 6, height: 6, borderRadius: "50%",
+              background: open ? "#22c55e" : "var(--muted)",
+              boxShadow: open ? "0 0 0 2px rgba(34,197,94,0.25)" : "none",
+              animation: open ? "pulse 2s infinite" : "none",
+              display: "inline-block",
+            }} />
+            <span style={{ fontSize: 9, fontWeight: 600, color: open ? "#22c55e" : "var(--dim)", whiteSpace: "nowrap" }}>
+              {open ? "LIVE" : "CLOSED"}
+            </span>
+          </div>
+
           {data.map((idx, i) => {
             const up  = idx.change_pct >= 0;
             const col = up ? "var(--up)" : "var(--down)";
