@@ -3,6 +3,7 @@
 import { useRef, useEffect, useState, useCallback } from "react";
 import { Heart, MessageCircle, Bookmark, Share2, Play, Volume2, VolumeX, ChevronDown, SkipForward, Subtitles } from "lucide-react";
 import { feedApi } from "@/lib/api";
+import { useProfileStore } from "@/lib/store";
 import Hls from "hls.js";
 
 interface Clip {
@@ -75,6 +76,7 @@ interface VideoCardProps {
 export default function VideoCard({
   clip, isActive, isMuted, onMuteToggle, onLikeChange, onSaveChange,
 }: VideoCardProps) {
+  const myProfile = useProfileStore((s) => s.profile);
   const videoRef      = useRef<HTMLVideoElement>(null);
   const preAudioRef   = useRef<HTMLAudioElement>(null);
   const postAudioRef  = useRef<HTMLAudioElement>(null);
@@ -231,12 +233,32 @@ export default function VideoCard({
   const postComment = async (text?: string, parentId?: string) => {
     const body = text ?? commentText;
     if (!body.trim()) return;
+    const optimistic: Comment = {
+      id: `opt-${Date.now()}`,
+      user_id: "",
+      text: body.trim(),
+      created_at: new Date().toISOString(),
+      user_profiles: { name: myProfile?.name || "Tú", avatar_url: myProfile?.avatar_url ?? undefined },
+      replies: [],
+    };
+    if (parentId) {
+      setComments((prev) => prev.map((c) => c.id === parentId ? { ...c, replies: [...(c.replies || []), optimistic] } : c));
+      setReplyText(""); setReplyingTo(null);
+    } else {
+      setComments((prev) => [...prev, optimistic]);
+      setCommentText("");
+    }
     try {
       await feedApi.postComment(clip.id, body.trim(), parentId);
-      if (parentId) { setReplyText(""); setReplyingTo(null); }
-      else setCommentText("");
-      loadComments();
-    } catch {}
+      loadComments(); // replace optimistic entry with real server data
+    } catch {
+      // rollback
+      if (parentId) {
+        setComments((prev) => prev.map((c) => c.id === parentId ? { ...c, replies: (c.replies || []).filter((r) => r.id !== optimistic.id) } : c));
+      } else {
+        setComments((prev) => prev.filter((c) => c.id !== optimistic.id));
+      }
+    }
   };
 
   const seekTo = useCallback((clientX: number) => {
