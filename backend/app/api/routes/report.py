@@ -1,4 +1,5 @@
 import asyncio
+import logging
 from datetime import datetime
 from fastapi import APIRouter, Depends
 import yfinance as yf
@@ -6,6 +7,8 @@ from app.api.deps import get_current_user_id
 from app.api.routes.market import _get_user_profile
 from app.core.cache import cache_get, cache_set
 from app.services import ai_service
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/report", tags=["report"])
 
@@ -82,9 +85,46 @@ async def generate_monthly_report(
     if cached:
         return cached
 
-    performance = await asyncio.to_thread(_compute_performance, portfolio)
-    profile     = _get_user_profile(user_id)
-    report      = await ai_service.generate_monthly_report(portfolio, performance, profile)
+    try:
+        performance = await asyncio.wait_for(
+            asyncio.to_thread(_compute_performance, portfolio),
+            timeout=30,
+        )
+    except Exception as e:
+        logger.error("_compute_performance failed: %s", e)
+        # Fallback: build minimal performance from what the frontend sent
+        total_val  = sum((p.get("value") or 0) for p in portfolio)
+        total_inv  = sum((p.get("shares", 0) or 0) * (p.get("avg_cost", 0) or 0) for p in portfolio)
+        ret_pct    = ((total_val - total_inv) / total_inv * 100) if total_inv else 0
+        performance = {
+            "total_value":      round(total_val, 2),
+            "total_invested":   round(total_inv, 2),
+            "unrealized_gain":  round(total_val - total_inv, 2),
+            "total_return_pct": round(ret_pct, 2),
+            "best_performer":   None,
+            "worst_performer":  None,
+            "positions":        [
+                {"ticker": p.get("ticker", ""), "name": p.get("name", ""),
+                 "shares": p.get("shares", 0), "value": p.get("value", 0),
+                 "gain_pct": 0, "weight_pct": 0}
+                for p in portfolio[:10]
+            ],
+        }
+
+    try:
+        profile = _get_user_profile(user_id)
+    except Exception as e:
+        logger.warning("_get_user_profile failed: %s", e)
+        profile = None
+
+    try:
+        report = await asyncio.wait_for(
+            ai_service.generate_monthly_report(portfolio, performance, profile),
+            timeout=60,
+        )
+    except Exception as e:
+        logger.error("generate_monthly_report failed: %s", e)
+        return {"error": f"No se pudo generar el análisis IA: {type(e).__name__}"}
 
     # Merge computed performance into report
     report["performance"] = {

@@ -64,10 +64,15 @@ export default function MonthlyReport({ positions, isPremium, onUpgrade }: Month
         value:         p.value || 0,
       }));
       const res = await reportApi.monthly(portfolio);
+      if (res.data?.error) {
+        alert(`Error: ${res.data.error}`);
+        return;
+      }
       setReport(res.data);
       setOpen(true);
-    } catch {
-      alert("No se pudo generar el reporte. Intenta de nuevo.");
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+      alert(msg ? `Error: ${msg}` : "No se pudo generar el reporte. Intenta de nuevo.");
     } finally {
       setLoading(false);
     }
