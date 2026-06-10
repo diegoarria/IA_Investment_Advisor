@@ -21,6 +21,10 @@ interface Clip {
   comment_count: number;
   liked: boolean;
   saved: boolean;
+  pre_audio_url?: string;
+  post_audio_url?: string;
+  pre_text?: string;
+  post_text?: string;
 }
 
 const SPEAKERS = [

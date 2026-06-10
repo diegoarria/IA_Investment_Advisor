@@ -24,7 +24,7 @@ async def get_clips(
     db = get_supabase()
     q = (
         db.table("clips")
-        .select("id,title,description,video_url,thumbnail_url,speaker,tags,language,translated_caption,duration_sec,view_count,like_count,comment_count,created_at")
+        .select("id,title,description,video_url,thumbnail_url,speaker,tags,language,translated_caption,duration_sec,view_count,like_count,comment_count,created_at,pre_audio_url,post_audio_url,pre_text,post_text")
         .eq("status", "published")
     )
     if speaker:
