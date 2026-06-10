@@ -137,6 +137,12 @@ async def get_comments(clip_id: str, user_id: str = Depends(get_current_user_id)
     return {"comments": top}
 
 
+def _sync_comment_count(db, clip_id: str) -> None:
+    """Recalculate and persist the exact non-deleted comment count for a clip."""
+    rows = db.table("clip_comments").select("id").eq("clip_id", clip_id).eq("is_deleted", False).execute().data or []
+    db.table("clips").update({"comment_count": len(rows)}).eq("id", clip_id).execute()
+
+
 @router.post("/clips/{clip_id}/comments")
 async def post_comment(clip_id: str, body: dict, user_id: str = Depends(get_current_user_id)):
     text = (body.get("text") or "").strip()
@@ -148,7 +154,7 @@ async def post_comment(clip_id: str, body: dict, user_id: str = Depends(get_curr
         "user_id": user_id, "clip_id": clip_id,
         "text": text, "parent_id": parent_id,
     }).execute().data[0]
-    db.rpc("increment_clip_comments", {"p_clip_id": clip_id}).execute()
+    _sync_comment_count(db, clip_id)
     return {"comment": row}
 
 
@@ -161,7 +167,7 @@ async def delete_comment(clip_id: str, comment_id: str, user_id: str = Depends(g
     if row["user_id"] != user_id:
         raise HTTPException(403, "Solo puedes eliminar tus propios comentarios")
     db.table("clip_comments").update({"is_deleted": True}).eq("id", comment_id).execute()
-    db.rpc("decrement_clip_comments", {"p_clip_id": clip_id}).execute()
+    _sync_comment_count(db, clip_id)
     return {"ok": True}
 
 

@@ -90,6 +90,7 @@ export default function VideoCard({
   const [showComments, setShowComments] = useState(false);
   const [drawerOpen, setDrawerOpen]     = useState(false);
   const [comments, setComments]         = useState<Comment[]>([]);
+  const [commentCount, setCommentCount] = useState(clip.comment_count);
   const [commentText, setCommentText]   = useState("");
   const [replyingTo, setReplyingTo]     = useState<{ id: string; name: string } | null>(null);
   const [replyText, setReplyText]       = useState("");
@@ -228,7 +229,11 @@ export default function VideoCard({
     try {
       const res = await feedApi.getComments(clip.id);
       const fetched: Comment[] = res.data?.comments;
-      if (Array.isArray(fetched)) setComments(fetched);
+      if (Array.isArray(fetched)) {
+        setComments(fetched);
+        const total = fetched.reduce((sum, c) => sum + 1 + (c.replies?.length || 0), 0);
+        setCommentCount(total);
+      }
     } catch (err) {
       console.error("[VideoCard] loadComments failed:", err);
     }
@@ -253,6 +258,7 @@ export default function VideoCard({
       setComments((prev) => [...prev, optimistic]);
       setCommentText("");
     }
+    setCommentCount((n) => n + 1);
     try {
       const res = await feedApi.postComment(clip.id, body.trim(), parentId);
       const realId: string | undefined = res.data?.comment?.id;
@@ -318,12 +324,12 @@ export default function VideoCard({
   }, [scrubbing, handleScrubMove, handleScrubEnd]);
 
   const deleteComment = async (commentId: string, parentId?: string) => {
-    // optimistic remove
     if (parentId) {
       setComments((prev) => prev.map((c) => c.id === parentId ? { ...c, replies: (c.replies || []).filter((r) => r.id !== commentId) } : c));
     } else {
       setComments((prev) => prev.filter((c) => c.id !== commentId));
     }
+    setCommentCount((n) => Math.max(0, n - 1));
     try {
       await feedApi.deleteComment(clip.id, commentId);
     } catch {
@@ -561,7 +567,7 @@ export default function VideoCard({
               </div>
               <div className="flex items-center justify-between px-4 py-2 border-b" style={{ borderColor: "#222" }}>
                 <p className="font-bold text-sm" style={{ color: "#fff" }}>
-                  Comentarios ({clip.comment_count})
+                  Comentarios ({commentCount})
                 </p>
                 <button onClick={closeComments}>
                   <ChevronDown className="w-5 h-5" style={{ color: "#666" }} />
@@ -716,7 +722,7 @@ export default function VideoCard({
                style={{ background: "rgba(255,255,255,0.1)" }}>
             <MessageCircle className="w-6 h-6 text-white" />
           </div>
-          <span className="text-white text-xs font-semibold">{fmtCount(clip.comment_count)}</span>
+          <span className="text-white text-xs font-semibold">{fmtCount(commentCount)}</span>
         </button>
 
         <button onClick={handleSave} className="flex flex-col items-center gap-1">
