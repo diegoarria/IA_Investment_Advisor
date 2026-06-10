@@ -291,6 +291,8 @@ export const feedApi = {
     api.get(`/api/feed/clips/${clipId}/comments`),
   postComment: (clipId: string, text: string, parentId?: string) =>
     api.post(`/api/feed/clips/${clipId}/comments`, { text, parent_id: parentId }),
+  deleteComment: (clipId: string, commentId: string) =>
+    api.delete(`/api/feed/clips/${clipId}/comments/${commentId}`),
 
   // Admin
   adminList: (status = "draft") =>

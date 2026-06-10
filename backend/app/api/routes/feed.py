@@ -136,6 +136,19 @@ async def post_comment(clip_id: str, body: dict, user_id: str = Depends(get_curr
     return {"comment": row}
 
 
+@router.delete("/clips/{clip_id}/comments/{comment_id}")
+async def delete_comment(clip_id: str, comment_id: str, user_id: str = Depends(get_current_user_id)):
+    db = get_supabase()
+    row = db.table("clip_comments").select("user_id").eq("id", comment_id).eq("clip_id", clip_id).single().execute().data
+    if not row:
+        raise HTTPException(404, "Comentario no encontrado")
+    if row["user_id"] != user_id:
+        raise HTTPException(403, "Solo puedes eliminar tus propios comentarios")
+    db.table("clip_comments").update({"is_deleted": True}).eq("id", comment_id).execute()
+    db.rpc("decrement_clip_comments", {"p_clip_id": clip_id}).execute()
+    return {"ok": True}
+
+
 @router.get("/liked")
 async def get_liked_clips(user_id: str = Depends(get_current_user_id)):
     db = get_supabase()

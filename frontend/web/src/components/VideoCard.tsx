@@ -1,9 +1,9 @@
 "use client";
 
 import { useRef, useEffect, useState, useCallback } from "react";
-import { Heart, MessageCircle, Bookmark, Share2, Play, Volume2, VolumeX, ChevronDown, SkipForward, Subtitles } from "lucide-react";
+import { Heart, MessageCircle, Bookmark, Share2, Play, Volume2, VolumeX, ChevronDown, SkipForward, Subtitles, Trash2 } from "lucide-react";
 import { feedApi } from "@/lib/api";
-import { useProfileStore } from "@/lib/store";
+import { useProfileStore, useAuthStore } from "@/lib/store";
 import Hls from "hls.js";
 
 interface Clip {
@@ -77,6 +77,7 @@ export default function VideoCard({
   clip, isActive, isMuted, onMuteToggle, onLikeChange, onSaveChange,
 }: VideoCardProps) {
   const myProfile = useProfileStore((s) => s.profile);
+  const myUserId  = useAuthStore((s) => s.userId);
   const videoRef      = useRef<HTMLVideoElement>(null);
   const preAudioRef   = useRef<HTMLAudioElement>(null);
   const postAudioRef  = useRef<HTMLAudioElement>(null);
@@ -301,6 +302,20 @@ export default function VideoCard({
       window.removeEventListener("touchend",  handleScrubEnd);
     };
   }, [scrubbing, handleScrubMove, handleScrubEnd]);
+
+  const deleteComment = async (commentId: string, parentId?: string) => {
+    // optimistic remove
+    if (parentId) {
+      setComments((prev) => prev.map((c) => c.id === parentId ? { ...c, replies: (c.replies || []).filter((r) => r.id !== commentId) } : c));
+    } else {
+      setComments((prev) => prev.filter((c) => c.id !== commentId));
+    }
+    try {
+      await feedApi.deleteComment(clip.id, commentId);
+    } catch {
+      loadComments(); // rollback on error
+    }
+  };
 
   const openComments = () => {
     setShowComments(true);
@@ -563,11 +578,16 @@ export default function VideoCard({
                           </div>
                         )}
                         <div className="flex-1 min-w-0">
-                          <div className="flex items-baseline gap-2">
+                          <div className="flex items-center gap-2">
                             <p className="text-xs font-semibold" style={{ color: "#fff" }}>{cName}</p>
                             <p className="text-[10px]" style={{ color: "#555" }}>
                               {new Date(c.created_at).toLocaleDateString("es", { day: "numeric", month: "short" })}
                             </p>
+                            {c.user_id === myUserId && (
+                              <button onClick={() => deleteComment(c.id)} className="ml-auto p-1 rounded-full opacity-40 hover:opacity-100 transition-opacity">
+                                <Trash2 className="w-3 h-3" style={{ color: "#ef4444" }} />
+                              </button>
+                            )}
                           </div>
                           <p className="text-xs leading-snug mt-0.5" style={{ color: "#ccc" }}>{c.text}</p>
                           <button
@@ -596,11 +616,16 @@ export default function VideoCard({
                                   </div>
                                 )}
                                 <div className="flex-1 min-w-0">
-                                  <div className="flex items-baseline gap-2">
+                                  <div className="flex items-center gap-2">
                                     <p className="text-[11px] font-semibold" style={{ color: "#ddd" }}>{rName}</p>
                                     <p className="text-[10px]" style={{ color: "#555" }}>
                                       {new Date(r.created_at).toLocaleDateString("es", { day: "numeric", month: "short" })}
                                     </p>
+                                    {r.user_id === myUserId && (
+                                      <button onClick={() => deleteComment(r.id, c.id)} className="ml-auto p-1 rounded-full opacity-40 hover:opacity-100 transition-opacity">
+                                        <Trash2 className="w-3 h-3" style={{ color: "#ef4444" }} />
+                                      </button>
+                                    )}
                                   </div>
                                   <p className="text-[11px] leading-snug mt-0.5" style={{ color: "#aaa" }}>{r.text}</p>
                                 </div>
