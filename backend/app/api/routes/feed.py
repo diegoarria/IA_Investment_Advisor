@@ -245,7 +245,11 @@ Genera exactamente este JSON (sin nada más):
   "post_text": "Reflexión de 2-3 oraciones (máx 70 palabras). La lección clave o insight aplicable. Termina con una pregunta reflexiva para el usuario. Tono educativo y motivador."
 }}"""
 
-    response = await _claude([{"role": "user", "content": prompt}], max_tokens=400)
+    response = await _claude(
+        model=settings.claude_model,
+        max_tokens=400,
+        messages=[{"role": "user", "content": prompt}],
+    )
     import json, re
     raw = response.content[0].text
     match = re.search(r'\{.*\}', raw, re.DOTALL)
