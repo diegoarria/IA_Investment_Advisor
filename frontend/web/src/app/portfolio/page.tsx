@@ -399,11 +399,12 @@ function fmtChartDate(s: string, full = false) {
 }
 
 function PortfolioHistoryChart({
-  history, color, currencySymbol,
+  history, color, currencySymbol, costBasis,
 }: {
   history: ChartPoint[];
   color: string;
   currencySymbol: string;
+  costBasis: number;
 }) {
   const [hovIdx, setHovIdx] = useState<number | null>(null);
 
@@ -412,19 +413,21 @@ function PortfolioHistoryChart({
   // ── Dimensions (viewBox H must equal SVG element height for Y-overlay) ──
   const W = 720, H = 240;
   const PT = 16, PB = 8, PL = 4;
-  const cW = W - PL;          // chart draw width inside viewBox
-  const cH = H - PT - PB;     // chart draw height
-  const Y_AXIS_W = 54;        // pixels reserved for Y labels (HTML overlay)
+  const cW = W - PL;
+  const cH = H - PT - PB;
+  const Y_AXIS_W = 54;
 
-  // ── Value range ──────────────────────────────────────────────────────────
+  // ── Value range — include cost basis so it's always visible ──────────────
   const vals   = history.map((h) => h.value);
   const startV = vals[0];
   const endV   = vals[vals.length - 1];
-  const minV   = Math.min(...vals);
-  const maxV   = Math.max(...vals);
+  const base   = costBasis > 0 ? costBasis : startV; // reference = what was invested
+  const allRef = [...vals, base];
+  const minV   = Math.min(...allRef);
+  const maxV   = Math.max(...allRef);
   const spread = maxV - minV || Math.abs(maxV) || 1;
-  const lo = minV - spread * 0.06;
-  const hi = maxV + spread * 0.12;
+  const lo = minV - spread * 0.08;
+  const hi = maxV + spread * 0.14;
   const range = hi - lo;
 
   const toX = (i: number) => PL + (i / (history.length - 1)) * cW;
@@ -437,7 +440,7 @@ function PortfolioHistoryChart({
   const ly    = toY(endV);
   const by    = PT + cH;
   const areaD = `${lineD}L${lx.toFixed(1)},${by}L${PL},${by}Z`;
-  const baseY = toY(startV);
+  const baseY = toY(base); // baseline = cost basis (what user invested)
 
   // ── Y-axis ticks (4) ─────────────────────────────────────────────────────
   const yTicks = Array.from({ length: 4 }, (_, i) => {
@@ -456,9 +459,10 @@ function PortfolioHistoryChart({
   const hovX  = hovIdx !== null ? toX(hovIdx) : null;
   const hovY  = hovIdx !== null ? toY(vals[hovIdx]) : null;
   const hovPt = hovIdx !== null ? history[hovIdx] : null;
-  const chgV  = hovV !== null ? hovV - startV : endV - startV;
-  const chgP  = startV ? (chgV / startV) * 100 : 0;
-  const isUp  = (hovV ?? endV) >= startV;
+  // Change is always relative to cost basis (what user actually invested)
+  const chgV  = hovV !== null ? hovV - base : endV - base;
+  const chgP  = base > 0 ? (chgV / base) * 100 : 0;
+  const isUp  = (hovV ?? endV) >= base;
   const hCol  = isUp ? "#22c55e" : "#ef4444";
 
   const fmtV = (v: number) => {
@@ -522,12 +526,15 @@ function PortfolioHistoryChart({
               {/* Portfolio value — large & prominent */}
               <p className="text-[15px] font-black leading-none mb-1"
                  style={{ color: "var(--text)" }}>
-                {fmtV(hovV)}
+                {fmtV(hovV!)}
               </p>
-              {/* Change from period start */}
+              {/* Gain / loss vs cost basis */}
               <p className="text-[10px] font-bold" style={{ color: hCol }}>
                 {isUp ? "+" : ""}{fmtV(chgV)}&nbsp;
                 ({isUp ? "+" : ""}{chgP.toFixed(2)}%)
+              </p>
+              <p className="text-[8.5px] mt-0.5" style={{ color: "var(--dim)" }}>
+                vs invertido
               </p>
               {/* Date */}
               <p className="text-[9px] mt-1" style={{ color: "var(--dim)" }}>
@@ -560,11 +567,17 @@ function PortfolioHistoryChart({
               stroke="currentColor" strokeWidth="0.55" strokeOpacity="0.08" />
           ))}
 
-          {/* Baseline (start of period) */}
+          {/* Baseline = cost basis (what user invested) */}
           <line
-            x1={PL} y1={baseY} x2={W} y2={baseY}
-            stroke={hCol} strokeWidth="0.8" strokeDasharray="5,4" strokeOpacity="0.35"
+            x1={PL} y1={baseY} x2={W - Y_AXIS_W} y2={baseY}
+            stroke={hCol} strokeWidth="0.9" strokeDasharray="5,4" strokeOpacity="0.45"
           />
+          <text
+            x={PL + 4} y={baseY - 3}
+            fontSize="7.5" fill={hCol} fillOpacity="0.75" fontWeight="600"
+          >
+            Invertido
+          </text>
 
           {/* Area gradient fill */}
           <path d={areaD} fill="url(#pfhg)" />
@@ -1609,7 +1622,7 @@ export default function PortfolioPage() {
                             Cargando datos históricos...
                           </div>
                         ) : chartData && chartData.history.length >= 2 ? (
-                          <PortfolioHistoryChart history={chartData.history} color={color} currencySymbol={currencySymbol} />
+                          <PortfolioHistoryChart history={chartData.history} color={color} currencySymbol={currencySymbol} costBasis={totals.invested} />
                         ) : !chartLoading ? (
                           <div className="h-[240px] flex items-center justify-center text-xs"
                                style={{ color: "var(--dim)" }}>
