@@ -229,8 +229,9 @@ export default function VideoCard({
       const res = await feedApi.getComments(clip.id);
       const fetched: Comment[] = res.data?.comments;
       if (Array.isArray(fetched)) setComments(fetched);
-      // if fetch fails or returns non-array, keep existing comments untouched
-    } catch {}
+    } catch (err) {
+      console.error("[VideoCard] loadComments failed:", err);
+    }
   };
 
   const postComment = async (text?: string, parentId?: string) => {

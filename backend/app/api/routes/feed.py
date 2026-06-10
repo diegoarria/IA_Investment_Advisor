@@ -103,7 +103,7 @@ async def get_comments(clip_id: str, user_id: str = Depends(get_current_user_id)
     db = get_supabase()
     all_rows = (
         db.table("clip_comments")
-        .select("id,user_id,text,parent_id,created_at,user_profiles(name,avatar_url)")
+        .select("id,user_id,text,parent_id,created_at,is_deleted")
         .eq("clip_id", clip_id)
         .order("created_at")
         .limit(100)
@@ -111,8 +111,24 @@ async def get_comments(clip_id: str, user_id: str = Depends(get_current_user_id)
         .data or []
     )
     rows = [r for r in all_rows if not r.get("is_deleted")]
+
+    # Fetch user profiles separately (no direct FK between clip_comments and user_profiles)
+    if rows:
+        user_ids = list({r["user_id"] for r in rows})
+        profiles = (
+            db.table("user_profiles")
+            .select("user_id,name,avatar_url")
+            .in_("user_id", user_ids)
+            .execute()
+            .data or []
+        )
+        profile_map = {p["user_id"]: p for p in profiles}
+        for r in rows:
+            p = profile_map.get(r["user_id"], {})
+            r["user_profiles"] = {"name": p.get("name") or "Usuario", "avatar_url": p.get("avatar_url")}
+
     top = [r for r in rows if not r.get("parent_id")]
-    replies = {}
+    replies: dict = {}
     for r in rows:
         if r.get("parent_id"):
             replies.setdefault(r["parent_id"], []).append(r)
