@@ -133,6 +133,34 @@ async def post_comment(clip_id: str, body: dict, user_id: str = Depends(get_curr
     return {"comment": row}
 
 
+@router.get("/liked")
+async def get_liked_clips(user_id: str = Depends(get_current_user_id)):
+    db = get_supabase()
+    likes = (
+        db.table("clip_likes")
+        .select("clip_id, created_at")
+        .eq("user_id", user_id)
+        .order("created_at", desc=True)
+        .limit(50)
+        .execute()
+        .data or []
+    )
+    if not likes:
+        return {"clips": []}
+    ids = [r["clip_id"] for r in likes]
+    clips = (
+        db.table("clips")
+        .select("id,title,thumbnail_url,speaker,duration_sec,view_count,like_count")
+        .eq("status", "published")
+        .in_("id", ids)
+        .execute()
+        .data or []
+    )
+    order = {r["clip_id"]: i for i, r in enumerate(likes)}
+    clips.sort(key=lambda c: order.get(c["id"], 999))
+    return {"clips": clips}
+
+
 # ── Admin endpoints ───────────────────────────────────────────────────────────
 
 def _require_admin(user_id: str):

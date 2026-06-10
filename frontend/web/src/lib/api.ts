@@ -280,6 +280,7 @@ export const watchlist = {
 export const feedApi = {
   getClips: (params: { cursor?: number; speaker?: string; tag?: string; sort?: string }) =>
     api.get("/api/feed/clips", { params }),
+  getLiked: () => api.get("/api/feed/liked"),
   like: (clipId: string) =>
     api.post(`/api/feed/clips/${clipId}/like`),
   save: (clipId: string) =>
