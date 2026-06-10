@@ -688,6 +688,7 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
   }, []);
 
   const [tab, setTab] = useState<Tab>("chart");
+  const [finPeriod, setFinPeriod] = useState<"annual" | "quarterly">("annual");
   const [data, setData] = useState<StockData | null>(null);
   const [loading, setLoading] = useState(true);
   const [dataError, setDataError] = useState(false);
@@ -1067,55 +1068,168 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
 
           {/* ── FINANCIEROS ── */}
           {tab === "financials" && (
-            <div className="px-5 py-4 space-y-6">
+            <div className="py-4 space-y-0">
               {loading ? (
                 <div className="flex justify-center py-12">
                   <Loader2 className="w-6 h-6 animate-spin" style={{ color: "var(--accent-l)" }} />
                 </div>
               ) : (() => {
-                const income   = (data?.financials?.income?.annual   ?? []).slice().reverse();
-                const balance  = (data?.financials?.balance?.annual  ?? []).slice().reverse();
-                const cashflow = (data?.financials?.cashflow?.annual ?? []).slice().reverse();
+                const src = finPeriod === "annual" ? "annual" : "quarterly";
+                const income   = (data?.financials?.income?.[src]   ?? []).slice().reverse();
+                const balance  = (data?.financials?.balance?.[src]  ?? []).slice().reverse();
+                const cashflow = (data?.financials?.cashflow?.[src] ?? []).slice().reverse();
+
                 if (!income.length && !balance.length && !cashflow.length) {
                   return <p className="text-xs text-center py-10" style={{ color: "var(--muted)" }}>Sin datos financieros</p>;
                 }
+
+                const fmtPeriodLabel = (p: string) => {
+                  if (finPeriod === "annual") return p.slice(0, 4);
+                  const m = parseInt(p.slice(5, 7), 10);
+                  const q = m <= 3 ? "Q1" : m <= 6 ? "Q2" : m <= 9 ? "Q3" : "Q4";
+                  return `${q} '${p.slice(2, 4)}`;
+                };
+
+                // Google Finance-style table: rows = metrics, cols = periods
+                const FinRow = ({ rows, field, label, isNeg = false }: {
+                  rows: Record<string, unknown>[]; field: string; label: string; isNeg?: boolean;
+                }) => {
+                  const vals = rows.map((r) => { const v = r[field]; return v != null ? Number(v) : null; });
+                  const nonNull = vals.filter((v): v is number => v != null);
+                  if (!nonNull.length) return null;
+                  const maxAbs = Math.max(...nonNull.map(Math.abs), 1);
+                  const lastVal = nonNull[nonNull.length - 1];
+                  const lastColor = isNeg ? (lastVal <= 0 ? "#ef4444" : "#22c55e") : (lastVal >= 0 ? "#22c55e" : "#ef4444");
+                  return (
+                    <div className="flex items-stretch border-b" style={{ borderColor: "var(--border)", minHeight: 64 }}>
+                      {/* Metric name */}
+                      <div className="shrink-0 flex items-center pr-3 pl-5" style={{ width: 148 }}>
+                        <span className="text-[11px] font-semibold leading-tight" style={{ color: "var(--sub)" }}>{label}</span>
+                      </div>
+                      {/* Period bars */}
+                      {vals.map((v, i) => {
+                        const pct = v != null ? Math.abs(v) / maxAbs : 0;
+                        const barH = Math.round(pct * 36);
+                        const isLast = i === vals.length - 1;
+                        const barColor = v == null ? "var(--border)" : isNeg ? (v <= 0 ? "#ef4444" : "#22c55e") : (v >= 0 ? "#22c55e" : "#ef4444");
+                        return (
+                          <div key={i} className="flex-1 flex flex-col items-center justify-end py-2 px-1 gap-1"
+                               style={{ background: isLast ? "rgba(0,168,94,0.04)" : "transparent" }}>
+                            {/* Bar */}
+                            <div style={{ height: 36, display: "flex", alignItems: "flex-end", justifyContent: "center", width: "100%" }}>
+                              <div style={{
+                                width: "70%", maxWidth: 32, height: barH || 2,
+                                background: barColor, borderRadius: "3px 3px 0 0",
+                                opacity: isLast ? 1 : 0.6,
+                              }} />
+                            </div>
+                            {/* Value */}
+                            <span className="tabular-nums leading-none" style={{
+                              fontSize: 10, fontWeight: isLast ? 700 : 400,
+                              color: isLast ? lastColor : "var(--muted)",
+                            }}>
+                              {v != null ? (Math.abs(v) < 1 && v !== 0 ? v.toFixed(2) : fmtBig(v)) : "—"}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                };
+
+                // Period header row
+                const periods = income.length ? income : balance.length ? balance : cashflow;
+                const PeriodHeader = ({ rows }: { rows: Record<string, unknown>[] }) => (
+                  <div className="flex items-center border-b sticky top-0 z-10"
+                       style={{ borderColor: "var(--border)", background: "var(--card)" }}>
+                    <div className="shrink-0 pl-5 pr-3" style={{ width: 148 }} />
+                    {rows.map((r, i) => (
+                      <div key={i} className="flex-1 text-center py-2">
+                        <span className="text-[10px] font-bold" style={{ color: i === rows.length - 1 ? "var(--accent-l)" : "var(--muted)" }}>
+                          {fmtPeriodLabel(String(r.period ?? ""))}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                );
+
+                // Section wrapper
+                const Section = ({ title, rows, metrics }: {
+                  title: string;
+                  rows: Record<string, unknown>[];
+                  metrics: Array<{ field: string; label: string; isNeg?: boolean }>;
+                }) => {
+                  if (!rows.length) return null;
+                  return (
+                    <div className="mb-6">
+                      {/* Section header */}
+                      <div className="flex items-center justify-between px-5 py-3"
+                           style={{ borderBottom: "1px solid var(--border)", background: "var(--raised)" }}>
+                        <span className="text-xs font-bold uppercase tracking-widest" style={{ color: "var(--accent-l)", opacity: 0.8 }}>
+                          {title}
+                        </span>
+                      </div>
+                      <PeriodHeader rows={rows} />
+                      {metrics.map((m) => (
+                        <FinRow key={m.field} rows={rows} field={m.field} label={m.label} isNeg={m.isNeg} />
+                      ))}
+                    </div>
+                  );
+                };
+
                 return (
                   <>
-                    {income.length > 0 && (
-                      <div>
-                        <p className="text-xs font-bold uppercase tracking-widest mb-3" style={{ color: "var(--accent-l)", opacity: 0.7 }}>Estado de Resultados</p>
-                        <div className="space-y-6">
-                          <FinancialBarChart data={income} field="Total Revenue" label="Ingresos Totales" />
-                          <FinancialBarChart data={income} field="Gross Profit" label="Utilidad Bruta" />
-                          <FinancialBarChart data={income} field="Net Income" label="Utilidad Neta" />
-                        </div>
-                      </div>
-                    )}
-                    {balance.length > 0 && (
-                      <div>
-                        <p className="text-xs font-bold uppercase tracking-widest mb-3" style={{ color: "var(--accent-l)", opacity: 0.7 }}>Balance General</p>
-                        <div className="space-y-6">
-                          <FinancialBarChart data={balance} field="Total Assets" label="Activos Totales" />
-                          <FinancialBarChart data={balance} field="Total Liabilities Net Minority Interest" label="Pasivos Totales" />
-                          <FinancialBarChart data={balance} field="Stockholders Equity" label="Patrimonio Neto" />
-                        </div>
-                      </div>
-                    )}
-                    {cashflow.length > 0 && (
-                      <div>
-                        <p className="text-xs font-bold uppercase tracking-widest mb-3" style={{ color: "var(--accent-l)", opacity: 0.7 }}>Flujo de Caja</p>
-                        <div className="space-y-6">
-                          <FinancialBarChart data={cashflow} field="Operating Cash Flow" label="Flujo Operativo" />
-                          <FinancialBarChart data={cashflow} field="Free Cash Flow" label="Flujo Libre" />
-                          <FinancialBarChart data={cashflow} field="Capital Expenditure" label="CapEx" />
-                        </div>
-                      </div>
-                    )}
-                    {data?.financials?.source && (
-                      <p className="text-[9px] text-center" style={{ color: "var(--dim)" }}>
-                        Datos · {data.financials.source === "fmp" ? "Financial Modeling Prep" : "Yahoo Finance"} · SEC EDGAR
-                      </p>
-                    )}
+                    {/* Annual / Quarterly toggle */}
+                    <div className="flex items-center gap-2 px-5 pb-4">
+                      {(["annual", "quarterly"] as const).map((p) => (
+                        <button key={p} onClick={() => setFinPeriod(p)}
+                                className="px-3 py-1.5 text-xs font-bold rounded-lg transition-colors"
+                                style={{
+                                  background: finPeriod === p ? "rgba(0,168,94,0.14)" : "var(--raised)",
+                                  color: finPeriod === p ? "var(--accent-l)" : "var(--muted)",
+                                  border: `1px solid ${finPeriod === p ? "rgba(0,168,94,0.3)" : "var(--border)"}`,
+                                }}>
+                          {p === "annual" ? "Anual" : "Trimestral"}
+                        </button>
+                      ))}
+                      <span className="ml-auto text-[9px]" style={{ color: "var(--dim)" }}>
+                        {data?.financials?.source === "fmp" ? "Financial Modeling Prep" : "Yahoo Finance"}
+                      </span>
+                    </div>
+
+                    <Section title="Estado de Resultados" rows={income} metrics={[
+                      { field: "Total Revenue",    label: "Ingresos" },
+                      { field: "Gross Profit",     label: "Utilidad Bruta" },
+                      { field: "Operating Income", label: "Utilidad Operativa" },
+                      { field: "EBITDA",           label: "EBITDA" },
+                      { field: "Net Income",       label: "Utilidad Neta" },
+                      { field: "Diluted EPS",      label: "EPS Diluido" },
+                      { field: "Research And Development", label: "I+D" },
+                      { field: "Selling General Administrative", label: "SG&A" },
+                      { field: "Interest Expense", label: "Gasto Intereses", isNeg: true },
+                    ]} />
+
+                    <Section title="Balance General" rows={balance} metrics={[
+                      { field: "Total Assets",     label: "Activos Totales" },
+                      { field: "Current Assets",   label: "Activos Corrientes" },
+                      { field: "Cash And Cash Equivalents", label: "Efectivo" },
+                      { field: "Goodwill And Other Intangible Assets", label: "Goodwill + Intangibles" },
+                      { field: "Total Liabilities Net Minority Interest", label: "Pasivos Totales" },
+                      { field: "Total Debt",       label: "Deuda Total", isNeg: true },
+                      { field: "Long Term Debt",   label: "Deuda L/P", isNeg: true },
+                      { field: "Stockholders Equity", label: "Patrimonio Neto" },
+                      { field: "Retained Earnings", label: "Ganancias Retenidas" },
+                    ]} />
+
+                    <Section title="Flujo de Caja" rows={cashflow} metrics={[
+                      { field: "Operating Cash Flow", label: "Flujo Operativo" },
+                      { field: "Capital Expenditure", label: "CapEx", isNeg: true },
+                      { field: "Free Cash Flow",      label: "Flujo Libre" },
+                      { field: "Dividends Paid",      label: "Dividendos", isNeg: true },
+                      { field: "Repurchase Of Capital Stock", label: "Recompra Acciones", isNeg: true },
+                      { field: "Issuance Of Debt",    label: "Emisión Deuda" },
+                      { field: "Repayment Of Debt",   label: "Pago Deuda", isNeg: true },
+                    ]} />
                   </>
                 );
               })()}
