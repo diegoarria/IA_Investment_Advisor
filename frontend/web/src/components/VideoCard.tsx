@@ -3,6 +3,7 @@
 import { useRef, useEffect, useState, useCallback } from "react";
 import { Heart, MessageCircle, Bookmark, Share2, Play, Volume2, VolumeX, ChevronDown } from "lucide-react";
 import { feedApi } from "@/lib/api";
+import Hls from "hls.js";
 
 interface Clip {
   id: string;
@@ -70,6 +71,26 @@ export default function VideoCard({
   const [saved, setSaved]             = useState(clip.saved);
   const [loadingLike, setLoadingLike] = useState(false);
   const [copied, setCopied]           = useState(false);
+
+  // HLS.js setup for .m3u8 streams (Chrome / Firefox)
+  useEffect(() => {
+    const v = videoRef.current;
+    if (!v) return;
+    const url = clip.video_url;
+    if (!url) return;
+
+    if (url.includes(".m3u8")) {
+      if (Hls.isSupported()) {
+        const hls = new Hls({ startLevel: -1, autoStartLoad: true });
+        hls.loadSource(url);
+        hls.attachMedia(v);
+        return () => hls.destroy();
+      }
+      // Safari supports HLS natively
+    } else {
+      v.src = url;
+    }
+  }, [clip.video_url]);
 
   // Autoplay / pause when active changes
   useEffect(() => {
