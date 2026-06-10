@@ -301,6 +301,8 @@ export const feedApi = {
     api.patch(`/api/feed/admin/clips/${clipId}`, updates),
   adminDelete: (clipId: string) =>
     api.delete(`/api/feed/admin/clips/${clipId}`),
+  generateAudio: (clipId: string) =>
+    api.post(`/api/feed/admin/clips/${clipId}/generate-audio`),
 };
 
 export default api;

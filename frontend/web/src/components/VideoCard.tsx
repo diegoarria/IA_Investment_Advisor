@@ -20,6 +20,10 @@ interface Clip {
   comment_count: number;
   liked: boolean;
   saved: boolean;
+  pre_audio_url?: string;
+  post_audio_url?: string;
+  pre_text?: string;
+  post_text?: string;
 }
 
 interface Comment {
@@ -60,17 +64,20 @@ export default function VideoCard({
   clip, isActive, isMuted, onMuteToggle, onLikeChange, onSaveChange,
 }: VideoCardProps) {
   const videoRef      = useRef<HTMLVideoElement>(null);
-  const [playing, setPlaying]         = useState(false);
-  const [progress, setProgress]       = useState(0);
-  const [showCaption, setShowCaption] = useState(false);
+  const preAudioRef   = useRef<HTMLAudioElement>(null);
+  const postAudioRef  = useRef<HTMLAudioElement>(null);
+  const [phase, setPhase]               = useState<"pre"|"video"|"post"|"idle">("idle");
+  const [playing, setPlaying]           = useState(false);
+  const [progress, setProgress]         = useState(0);
+  const [showCaption, setShowCaption]   = useState(false);
   const [showComments, setShowComments] = useState(false);
-  const [comments, setComments]       = useState<Comment[]>([]);
-  const [commentText, setCommentText] = useState("");
-  const [likeCount, setLikeCount]     = useState(clip.like_count);
-  const [liked, setLiked]             = useState(clip.liked);
-  const [saved, setSaved]             = useState(clip.saved);
-  const [loadingLike, setLoadingLike] = useState(false);
-  const [copied, setCopied]           = useState(false);
+  const [comments, setComments]         = useState<Comment[]>([]);
+  const [commentText, setCommentText]   = useState("");
+  const [likeCount, setLikeCount]       = useState(clip.like_count);
+  const [liked, setLiked]               = useState(clip.liked);
+  const [saved, setSaved]               = useState(clip.saved);
+  const [loadingLike, setLoadingLike]   = useState(false);
+  const [copied, setCopied]             = useState(false);
 
   // HLS.js setup for .m3u8 streams (Chrome / Firefox)
   useEffect(() => {
@@ -92,17 +99,46 @@ export default function VideoCard({
     }
   }, [clip.video_url]);
 
-  // Autoplay / pause when active changes
+  // Sequenced playback: pre-audio → video → post-audio
   useEffect(() => {
-    const v = videoRef.current;
+    const v    = videoRef.current;
+    const pre  = preAudioRef.current;
+    const post = postAudioRef.current;
     if (!v) return;
-    if (isActive) {
-      v.play().catch(() => {});
-    } else {
-      v.pause();
-      v.currentTime = 0;
+
+    if (!isActive) {
+      v.pause(); v.currentTime = 0;
+      if (pre)  { pre.pause();  pre.currentTime  = 0; }
+      if (post) { post.pause(); post.currentTime = 0; }
+      setPhase("idle");
+      return;
     }
-  }, [isActive]);
+
+    if (clip.pre_audio_url && pre) {
+      setPhase("pre");
+      pre.play().catch(() => { setPhase("video"); v.play().catch(() => {}); });
+    } else {
+      setPhase("video");
+      v.play().catch(() => {});
+    }
+  }, [isActive, clip.pre_audio_url]);
+
+  // When pre-audio ends → start video
+  const handlePreEnded = useCallback(() => {
+    setPhase("video");
+    videoRef.current?.play().catch(() => {});
+  }, []);
+
+  // When video ends → play post-audio if available
+  const handleVideoEnded = useCallback(() => {
+    const post = postAudioRef.current;
+    if (clip.post_audio_url && post) {
+      setPhase("post");
+      post.play().catch(() => setPhase("idle"));
+    } else {
+      setPhase("idle");
+    }
+  }, [clip.post_audio_url]);
 
   useEffect(() => {
     const v = videoRef.current;
@@ -203,24 +239,37 @@ export default function VideoCard({
              background: "#000",
            }}>
 
+        {/* Hidden pre/post audio elements */}
+        {clip.pre_audio_url  && <audio ref={preAudioRef}  src={clip.pre_audio_url}  preload="auto" onEnded={handlePreEnded} />}
+        {clip.post_audio_url && <audio ref={postAudioRef} src={clip.post_audio_url} preload="auto" onEnded={() => setPhase("idle")} />}
+
         {/* Video */}
         <video
           ref={videoRef}
           src={clip.video_url.includes(".m3u8") ? undefined : clip.video_url}
           poster={clip.thumbnail_url || undefined}
-          loop
           playsInline
           preload="metadata"
           muted={isMuted}
           onTimeUpdate={handleTimeUpdate}
           onPlay={() => setPlaying(true)}
           onPause={() => setPlaying(false)}
+          onEnded={handleVideoEnded}
           onClick={togglePlay}
           className="w-full h-full object-cover cursor-pointer"
         />
 
+        {/* Phase badge: pre / post */}
+        {(phase === "pre" || phase === "post") && (
+          <div className="absolute top-3 left-1/2 -translate-x-1/2 z-10 flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold"
+               style={{ background: "rgba(139,92,246,0.85)", color: "white", backdropFilter: "blur(8px)" }}>
+            <span className="animate-pulse">🎙️</span>
+            {phase === "pre" ? "Introducción" : "Análisis"}
+          </div>
+        )}
+
         {/* Play overlay */}
-        {!playing && isActive && (
+        {!playing && isActive && phase === "video" && (
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
             <div className="rounded-full flex items-center justify-center"
                  style={{ background: "rgba(0,0,0,0.45)", width: 64, height: 64 }}>

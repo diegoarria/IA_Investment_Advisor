@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, X, Check, Archive, Trash2, Eye, EyeOff, Loader2, ChevronDown, ChevronUp } from "lucide-react";
+import { Plus, X, Check, Archive, Trash2, Eye, EyeOff, Loader2, ChevronDown, ChevronUp, Mic } from "lucide-react";
 import { feedApi } from "@/lib/api";
 import { useAuthStore } from "@/lib/store";
 
@@ -37,6 +37,10 @@ interface Clip {
   like_count: number;
   comment_count: number;
   created_at: string;
+  pre_text: string;
+  post_text: string;
+  pre_audio_url: string;
+  post_audio_url: string;
 }
 
 const EMPTY_FORM = {
@@ -60,9 +64,10 @@ export default function AdminFeedPage() {
   const [loading, setLoading]     = useState(true);
   const [formOpen, setFormOpen]   = useState(false);
   const [form, setForm]           = useState({ ...EMPTY_FORM });
-  const [saving, setSaving]       = useState(false);
-  const [error, setError]         = useState<string | null>(null);
-  const [expandedId, setExpanded] = useState<string | null>(null);
+  const [saving, setSaving]           = useState(false);
+  const [error, setError]             = useState<string | null>(null);
+  const [expandedId, setExpanded]     = useState<string | null>(null);
+  const [generatingAudio, setGenAudio] = useState<string | null>(null); // clip id being processed
 
   // Auth guard — redirect non-admins immediately
   useEffect(() => {
@@ -140,6 +145,16 @@ export default function AdminFeedPage() {
       await feedApi.adminDelete(id);
       fetchClips();
     } catch (e) { apiError(e, "Error al eliminar"); }
+  };
+
+  const handleGenerateAudio = async (id: string) => {
+    setGenAudio(id);
+    setError(null);
+    try {
+      await feedApi.generateAudio(id);
+      fetchClips();
+    } catch (e) { apiError(e, "Error generando análisis de voz"); }
+    finally { setGenAudio(null); }
   };
 
   const toggleTag = (t: string) =>
@@ -294,6 +309,18 @@ export default function AdminFeedPage() {
                     <Trash2 className="w-3 h-3" /> Eliminar
                   </button>
 
+                  {/* Generate audio */}
+                  <button
+                    onClick={() => handleGenerateAudio(clip.id)}
+                    disabled={generatingAudio === clip.id}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold disabled:opacity-60"
+                    style={{ background: "rgba(139,92,246,0.15)", color: "#a78bfa" }}>
+                    {generatingAudio === clip.id
+                      ? <Loader2 className="w-3 h-3 animate-spin" />
+                      : <Mic className="w-3 h-3" />}
+                    {generatingAudio === clip.id ? "Generando..." : clip.pre_audio_url ? "Re-generar voz" : "Generar voz IA"}
+                  </button>
+
                   {/* Expand to see caption / URL */}
                   <button onClick={() => setExpanded(expandedId === clip.id ? null : clip.id)}
                           className="ml-auto flex items-center gap-1 text-xs"
@@ -304,7 +331,7 @@ export default function AdminFeedPage() {
                 </div>
 
                 {expandedId === clip.id && (
-                  <div className="px-4 pb-4 space-y-2 border-t" style={{ borderColor: "var(--border)" }}>
+                  <div className="px-4 pb-4 space-y-3 border-t" style={{ borderColor: "var(--border)" }}>
                     <div className="pt-3">
                       <p className="text-[10px] font-bold mb-1" style={{ color: "var(--muted)" }}>VIDEO URL</p>
                       <p className="text-xs break-all" style={{ color: "var(--sub)" }}>{clip.video_url}</p>
@@ -319,6 +346,34 @@ export default function AdminFeedPage() {
                       <div>
                         <p className="text-[10px] font-bold mb-1" style={{ color: "var(--muted)" }}>CAPTION EN ESPAÑOL</p>
                         <p className="text-xs leading-relaxed" style={{ color: "var(--sub)" }}>{clip.translated_caption}</p>
+                      </div>
+                    )}
+
+                    {/* AI voice analysis */}
+                    {(clip.pre_text || clip.post_text) && (
+                      <div className="rounded-xl p-3 space-y-3"
+                           style={{ background: "rgba(139,92,246,0.08)", border: "1px solid rgba(139,92,246,0.2)" }}>
+                        <p className="text-[10px] font-bold" style={{ color: "#a78bfa" }}>🎙️ ANÁLISIS IA EN VOZ</p>
+                        {clip.pre_text && (
+                          <div>
+                            <p className="text-[10px] font-semibold mb-1" style={{ color: "rgba(167,139,250,0.7)" }}>PRE-VIDEO</p>
+                            <p className="text-xs leading-relaxed" style={{ color: "var(--sub)" }}>{clip.pre_text}</p>
+                            {clip.pre_audio_url && (
+                              <audio controls src={clip.pre_audio_url} className="w-full mt-2 h-8"
+                                     style={{ filter: "invert(0.8) hue-rotate(240deg)" }} />
+                            )}
+                          </div>
+                        )}
+                        {clip.post_text && (
+                          <div>
+                            <p className="text-[10px] font-semibold mb-1" style={{ color: "rgba(167,139,250,0.7)" }}>POST-VIDEO</p>
+                            <p className="text-xs leading-relaxed" style={{ color: "var(--sub)" }}>{clip.post_text}</p>
+                            {clip.post_audio_url && (
+                              <audio controls src={clip.post_audio_url} className="w-full mt-2 h-8"
+                                     style={{ filter: "invert(0.8) hue-rotate(240deg)" }} />
+                            )}
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>

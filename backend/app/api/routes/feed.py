@@ -1,7 +1,10 @@
 import logging
+import httpx
 from fastapi import APIRouter, Depends, Query, HTTPException
 from app.api.deps import get_current_user_id
 from app.core.database import get_supabase
+from app.core.config import settings
+from app.services.ai_service import _claude
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/feed", tags=["feed"])
@@ -213,6 +216,93 @@ async def delete_clip(clip_id: str, user_id: str = Depends(get_current_user_id))
     db = get_supabase()
     db.table("clips").delete().eq("id", clip_id).execute()
     return {"ok": True}
+
+
+@router.post("/admin/clips/{clip_id}/generate-audio")
+async def generate_clip_audio(clip_id: str, user_id: str = Depends(get_current_user_id)):
+    _require_admin(user_id)
+    if not settings.openai_api_key:
+        raise HTTPException(400, "OPENAI_API_KEY no configurada en el servidor")
+
+    db = get_supabase()
+    clip = db.table("clips").select("*").eq("id", clip_id).single().execute().data
+    if not clip:
+        raise HTTPException(404, "Clip no encontrado")
+
+    # 1. Generate pre/post text with Claude
+    prompt = f"""Eres un narrador educativo de finanzas para Nuvos AI.
+Vas a crear dos fragmentos de narración en voz para un clip de video educativo.
+
+Clip: "{clip['title']}"
+Speaker: {clip['speaker']}
+Descripción: {clip.get('description') or 'Sin descripción'}
+Tags: {', '.join(clip.get('tags') or [])}
+Transcript/Caption: {clip.get('translated_caption') or 'No disponible'}
+
+Genera exactamente este JSON (sin nada más):
+{{
+  "pre_text": "Introducción de 2-3 oraciones (máx 70 palabras). Presenta al speaker y el tema del clip. Debe sonar natural en voz alta, como si fuera narrado antes de ver el video.",
+  "post_text": "Reflexión de 2-3 oraciones (máx 70 palabras). La lección clave o insight aplicable. Termina con una pregunta reflexiva para el usuario. Tono educativo y motivador."
+}}"""
+
+    response = await _claude([{"role": "user", "content": prompt}], max_tokens=400)
+    import json, re
+    raw = response.content[0].text
+    match = re.search(r'\{.*\}', raw, re.DOTALL)
+    if not match:
+        raise HTTPException(500, "Claude no retornó JSON válido")
+    texts = json.loads(match.group())
+    pre_text  = texts.get("pre_text", "").strip()
+    post_text = texts.get("post_text", "").strip()
+
+    if not pre_text or not post_text:
+        raise HTTPException(500, "Textos generados vacíos")
+
+    # 2. Convert to audio via OpenAI TTS
+    async def tts(text: str) -> bytes:
+        async with httpx.AsyncClient(timeout=60) as client:
+            res = await client.post(
+                "https://api.openai.com/v1/audio/speech",
+                headers={"Authorization": f"Bearer {settings.openai_api_key}"},
+                json={"model": "tts-1", "input": text, "voice": "nova", "response_format": "mp3"},
+            )
+            if res.status_code != 200:
+                raise HTTPException(502, f"OpenAI TTS error: {res.text[:200]}")
+            return res.content
+
+    pre_audio_bytes  = await tts(pre_text)
+    post_audio_bytes = await tts(post_text)
+
+    # 3. Upload to Supabase Storage
+    def upload_audio(filename: str, data: bytes) -> str:
+        try:
+            db.storage.from_("clip-audio").remove([filename])
+        except Exception:
+            pass
+        db.storage.from_("clip-audio").upload(
+            path=filename,
+            file=data,
+            file_options={"content-type": "audio/mpeg", "upsert": "true"},
+        )
+        return db.storage.from_("clip-audio").get_public_url(filename)
+
+    pre_audio_url  = upload_audio(f"{clip_id}_pre.mp3",  pre_audio_bytes)
+    post_audio_url = upload_audio(f"{clip_id}_post.mp3", post_audio_bytes)
+
+    # 4. Persist on clip record
+    db.table("clips").update({
+        "pre_text":       pre_text,
+        "post_text":      post_text,
+        "pre_audio_url":  pre_audio_url,
+        "post_audio_url": post_audio_url,
+    }).eq("id", clip_id).execute()
+
+    return {
+        "pre_text":       pre_text,
+        "post_text":      post_text,
+        "pre_audio_url":  pre_audio_url,
+        "post_audio_url": post_audio_url,
+    }
 
 
 @router.get("/admin/clips")
