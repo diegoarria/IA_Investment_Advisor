@@ -36,6 +36,17 @@ interface Comment {
   replies?: Comment[];
 }
 
+// Split caption text into ~7-word chunks for time-proportional display
+function getCaptionChunks(text: string): string[] {
+  const words = text.trim().split(/\s+/).filter(Boolean);
+  if (words.length === 0) return [];
+  const chunks: string[] = [];
+  for (let i = 0; i < words.length; i += 7) {
+    chunks.push(words.slice(i, i + 7).join(" "));
+  }
+  return chunks;
+}
+
 const SPEAKER_AVATAR: Record<string, string> = {
   "Warren Buffett":   "🧙",
   "Charlie Munger":   "📚",
@@ -434,28 +445,39 @@ export default function VideoCard({
         </div>
 
         {/* Bottom info overlay */}
-        <div className="absolute bottom-0 left-0 right-0 p-4 space-y-1.5"
-             style={{ background: "linear-gradient(to top, rgba(0,0,0,0.85) 0%, transparent 100%)" }}>
-          <div className="flex items-center gap-2">
-            <span className="text-xl">{avatar}</span>
-            <div>
-              <p className="text-white font-bold text-sm leading-tight">{clip.speaker}</p>
-              {clip.tags[0] && (
-                <p className="text-[11px]" style={{ color: "rgba(255,255,255,0.6)" }}>#{clip.tags[0]}</p>
+        {(() => {
+          const captionText = captionLang === "es"
+            ? (clip.translated_caption || "")
+            : (clip.caption_en || "");
+          const chunks = getCaptionChunks(captionText);
+          const chunkIndex = chunks.length > 0
+            ? Math.min(Math.floor((progress / 100) * chunks.length), chunks.length - 1)
+            : 0;
+          const currentCaption = chunks[chunkIndex] || "";
+
+          return (
+            <div className="absolute bottom-0 left-0 right-0 p-4 space-y-2"
+                 style={{ background: "linear-gradient(to top, rgba(0,0,0,0.85) 0%, transparent 100%)" }}>
+              {/* Synced caption — above speaker name, only during video playback */}
+              {captionLang !== "off" && phase === "video" && currentCaption && (
+                <div className="px-3 py-1.5 rounded-lg text-sm font-medium leading-snug text-center"
+                     style={{ background: "rgba(0,0,0,0.72)", color: "white" }}>
+                  {currentCaption}
+                </div>
               )}
+              <div className="flex items-center gap-2">
+                <span className="text-xl">{avatar}</span>
+                <div>
+                  <p className="text-white font-bold text-sm leading-tight">{clip.speaker}</p>
+                  {clip.tags[0] && (
+                    <p className="text-[11px]" style={{ color: "rgba(255,255,255,0.6)" }}>#{clip.tags[0]}</p>
+                  )}
+                </div>
+              </div>
+              <p className="text-white text-sm font-medium leading-snug">{clip.title}</p>
             </div>
-          </div>
-          <p className="text-white text-sm font-medium leading-snug">{clip.title}</p>
-          {/* Active caption display */}
-          {captionLang !== "off" && (
-            <div className="px-3 py-2 rounded-xl text-sm leading-relaxed text-center"
-                 style={{ background: "rgba(0,0,0,0.78)", color: "white", maxHeight: 90, overflowY: "auto" }}>
-              {captionLang === "es"
-                ? (clip.translated_caption || "Sin subtítulos en español")
-                : (clip.caption_en || "No English captions available")}
-            </div>
-          )}
-        </div>
+          );
+        })()}
 
         {/* Comments drawer — anchored inside video */}
         {showComments && (
