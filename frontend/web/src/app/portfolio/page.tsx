@@ -399,32 +399,54 @@ function fmtChartDate(s: string, full = false) {
 }
 
 function PortfolioHistoryChart({
-  history, color, currencySymbol, costBasis,
+  history, color, currencySymbol, costBasis, positions,
 }: {
   history: ChartPoint[];
   color: string;
   currencySymbol: string;
   costBasis: number;
+  positions: Array<{ purchaseDate?: string | null; shares: number; avgPrice: number }>;
 }) {
   const [hovIdx, setHovIdx] = useState<number | null>(null);
 
   if (history.length < 2) return null;
 
-  // ── Dimensions (viewBox H must equal SVG element height for Y-overlay) ──
+  // ── Dimensions ────────────────────────────────────────────────────────────
   const W = 720, H = 240;
   const PT = 16, PB = 8, PL = 4;
   const cW = W - PL;
   const cH = H - PT - PB;
   const Y_AXIS_W = 54;
 
-  // ── Value range — include cost basis so it's always visible ──────────────
+  // ── Cumulative investment curve ───────────────────────────────────────────
+  // Positions without a purchaseDate are treated as invested from the start
+  const noDateCost = positions
+    .filter(p => !p.purchaseDate && p.avgPrice > 0)
+    .reduce((s, p) => s + p.shares * p.avgPrice, 0);
+
+  const events = positions
+    .filter(p => p.purchaseDate && p.avgPrice > 0)
+    .map(p => ({ date: p.purchaseDate!, cost: p.shares * p.avgPrice }))
+    .sort((a, b) => a.date.localeCompare(b.date));
+
+  // For each chart point, compute how much had been invested up to that date
+  const investedCurve: number[] = history.map(h => {
+    const fromDated = events
+      .filter(e => e.date <= h.date)
+      .reduce((s, e) => s + e.cost, 0);
+    return noDateCost + fromDated;
+  });
+
+  // Fall back to flat costBasis if no per-position data is usable
+  const hasCurveData = investedCurve[investedCurve.length - 1] > 0;
+  const effectiveCurve = hasCurveData ? investedCurve : history.map(() => costBasis);
+
+  // ── Value range — include invested curve so it's always visible ───────────
   const vals   = history.map((h) => h.value);
-  const startV = vals[0];
   const endV   = vals[vals.length - 1];
-  const base   = costBasis > 0 ? costBasis : startV; // reference = what was invested
-  const allRef = [...vals, base];
-  const minV   = Math.min(...allRef);
-  const maxV   = Math.max(...allRef);
+  const allVals = [...vals, ...effectiveCurve.filter(v => v > 0)];
+  const minV   = Math.min(...allVals);
+  const maxV   = Math.max(...allVals);
   const spread = maxV - minV || Math.abs(maxV) || 1;
   const lo = minV - spread * 0.08;
   const hi = maxV + spread * 0.14;
@@ -434,13 +456,16 @@ function PortfolioHistoryChart({
   const toY = (v: number) => PT + ((hi - v) / range) * cH;
 
   // ── Paths ────────────────────────────────────────────────────────────────
-  const pts   = history.map((h, i) => `${toX(i).toFixed(1)},${toY(h.value).toFixed(1)}`);
-  const lineD = "M" + pts.join("L");
-  const lx    = toX(history.length - 1);
-  const ly    = toY(endV);
-  const by    = PT + cH;
-  const areaD = `${lineD}L${lx.toFixed(1)},${by}L${PL},${by}Z`;
-  const baseY = toY(base); // baseline = cost basis (what user invested)
+  const pts    = history.map((h, i) => `${toX(i).toFixed(1)},${toY(h.value).toFixed(1)}`);
+  const lineD  = "M" + pts.join("L");
+  const lx     = toX(history.length - 1);
+  const ly     = toY(endV);
+  const by     = PT + cH;
+  const areaD  = `${lineD}L${lx.toFixed(1)},${by}L${PL},${by}Z`;
+
+  // Investment curve path — step-function that rises at each purchase
+  const invPts = effectiveCurve.map((v, i) => `${toX(i).toFixed(1)},${toY(v).toFixed(1)}`);
+  const invD   = "M" + invPts.join("L");
 
   // ── Y-axis ticks (4) ─────────────────────────────────────────────────────
   const yTicks = Array.from({ length: 4 }, (_, i) => {
@@ -455,15 +480,17 @@ function PortfolioHistoryChart({
   );
 
   // ── Hover state ───────────────────────────────────────────────────────────
-  const hovV  = hovIdx !== null ? vals[hovIdx] : null;
-  const hovX  = hovIdx !== null ? toX(hovIdx) : null;
-  const hovY  = hovIdx !== null ? toY(vals[hovIdx]) : null;
-  const hovPt = hovIdx !== null ? history[hovIdx] : null;
-  // Change is always relative to cost basis (what user actually invested)
-  const chgV  = hovV !== null ? hovV - base : endV - base;
-  const chgP  = base > 0 ? (chgV / base) * 100 : 0;
-  const isUp  = (hovV ?? endV) >= base;
-  const hCol  = isUp ? "#22c55e" : "#ef4444";
+  const hovV   = hovIdx !== null ? vals[hovIdx] : null;
+  const hovX   = hovIdx !== null ? toX(hovIdx) : null;
+  const hovY   = hovIdx !== null ? toY(vals[hovIdx]) : null;
+  const hovPt  = hovIdx !== null ? history[hovIdx] : null;
+  // Compare portfolio value against how much was invested at that specific date
+  const hovInv = hovIdx !== null ? effectiveCurve[hovIdx] : effectiveCurve[effectiveCurve.length - 1];
+  const base   = hovInv > 0 ? hovInv : (costBasis > 0 ? costBasis : 1);
+  const chgV   = hovV !== null ? hovV - base : endV - base;
+  const chgP   = base > 0 ? (chgV / base) * 100 : 0;
+  const isUp   = (hovV ?? endV) >= base;
+  const hCol   = isUp ? "#22c55e" : "#ef4444";
 
   const fmtV = (v: number) => {
     const abs = Math.abs(v);
@@ -486,13 +513,12 @@ function PortfolioHistoryChart({
     setHovIdx(Math.round(ratio * (history.length - 1)));
   };
 
-  // Tooltip: follow cursor, flip side near right edge
   const ttPct  = hovX !== null ? (hovX / W) * 100 : 50;
   const ttFlip = ttPct > 58;
 
   return (
     <div className="relative w-full select-none">
-      {/* ── Y-axis labels (HTML overlay — not distorted by SVG scaling) ── */}
+      {/* ── Y-axis labels (HTML overlay) ── */}
       <div className="absolute right-0 top-0 pointer-events-none"
            style={{ width: Y_AXIS_W, height: H }}>
         {yTicks.map((t, i) => (
@@ -506,7 +532,7 @@ function PortfolioHistoryChart({
         ))}
       </div>
 
-      {/* ── Chart area: SVG + tooltip ── */}
+      {/* ── Chart area ── */}
       <div className="relative" style={{ marginRight: Y_AXIS_W }}>
 
         {/* Tooltip */}
@@ -523,20 +549,17 @@ function PortfolioHistoryChart({
                    border: `1px solid ${hCol}25`,
                    boxShadow: "0 8px 32px rgba(0,0,0,0.20)",
                  }}>
-              {/* Portfolio value — large & prominent */}
               <p className="text-[15px] font-black leading-none mb-1"
                  style={{ color: "var(--text)" }}>
                 {fmtV(hovV!)}
               </p>
-              {/* Gain / loss vs cost basis */}
               <p className="text-[10px] font-bold" style={{ color: hCol }}>
                 {isUp ? "+" : ""}{fmtV(chgV)}&nbsp;
                 ({isUp ? "+" : ""}{chgP.toFixed(2)}%)
               </p>
               <p className="text-[8.5px] mt-0.5" style={{ color: "var(--dim)" }}>
-                vs invertido
+                vs {fmtV(hovInv)} invertido
               </p>
-              {/* Date */}
               <p className="text-[9px] mt-1" style={{ color: "var(--dim)" }}>
                 {fmtChartDate(hovPt.date, true)}
               </p>
@@ -544,7 +567,7 @@ function PortfolioHistoryChart({
           </div>
         )}
 
-        {/* SVG — H must equal element height (240px) for Y overlay alignment */}
+        {/* SVG */}
         <svg
           viewBox={`0 0 ${W} ${H}`}
           preserveAspectRatio="none"
@@ -567,22 +590,15 @@ function PortfolioHistoryChart({
               stroke="currentColor" strokeWidth="0.55" strokeOpacity="0.08" />
           ))}
 
-          {/* Baseline = cost basis (what user invested) */}
-          <line
-            x1={PL} y1={baseY} x2={W - Y_AXIS_W} y2={baseY}
-            stroke={hCol} strokeWidth="0.9" strokeDasharray="5,4" strokeOpacity="0.45"
-          />
-          <text
-            x={PL + 4} y={baseY - 3}
-            fontSize="7.5" fill={hCol} fillOpacity="0.75" fontWeight="600"
-          >
-            Invertido
-          </text>
+          {/* Investment curve — step function rising at each purchase date */}
+          <path d={invD} fill="none" stroke="#f59e0b"
+            strokeWidth="1.4" strokeDasharray="5,3" strokeOpacity="0.65"
+            strokeLinejoin="round" />
 
           {/* Area gradient fill */}
           <path d={areaD} fill="url(#pfhg)" />
 
-          {/* Main line */}
+          {/* Main portfolio line */}
           <path d={lineD} fill="none" stroke={color} strokeWidth="2.2"
             strokeLinejoin="round" strokeLinecap="round" />
 
@@ -597,10 +613,8 @@ function PortfolioHistoryChart({
           {/* Crosshair + cursor dot */}
           {hovIdx !== null && hovX !== null && hovY !== null && (
             <>
-              <line
-                x1={hovX} y1={PT} x2={hovX} y2={PT + cH}
-                stroke={hCol} strokeWidth="1.2" strokeOpacity="0.45"
-              />
+              <line x1={hovX} y1={PT} x2={hovX} y2={PT + cH}
+                stroke={hCol} strokeWidth="1.2" strokeOpacity="0.45" />
               <circle cx={hovX} cy={hovY} r="7.5" fill={hCol} fillOpacity="0.13" />
               <circle cx={hovX} cy={hovY} r="3.2" fill={hCol} />
               <circle cx={hovX} cy={hovY} r="5.8" fill="none"
@@ -1622,7 +1636,7 @@ export default function PortfolioPage() {
                             Cargando datos históricos...
                           </div>
                         ) : chartData && chartData.history.length >= 2 ? (
-                          <PortfolioHistoryChart history={chartData.history} color={color} currencySymbol={currencySymbol} costBasis={totals.invested} />
+                          <PortfolioHistoryChart history={chartData.history} color={color} currencySymbol={currencySymbol} costBasis={totals.invested} positions={positions} />
                         ) : !chartLoading ? (
                           <div className="h-[240px] flex items-center justify-center text-xs"
                                style={{ color: "var(--dim)" }}>
