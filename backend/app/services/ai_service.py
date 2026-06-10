@@ -1061,57 +1061,53 @@ async def generate_monthly_report(
     profile: UserProfile | None = None,
 ) -> dict:
     system_prompt = build_system_prompt(profile)
-    portfolio_str = json.dumps(portfolio, ensure_ascii=False)
-    perf_str      = json.dumps(performance, ensure_ascii=False)
-
-    mentor = profile.mentor if profile else "tu asesor"
+    mentor = profile.mentor if profile else "asesor general"
     risk   = profile.risk_tolerance if profile else "moderado"
 
-    prompt = f"""Genera el reporte mensual de portafolio para este usuario.
+    # Send only what Claude needs: trimmed positions + key metrics
+    tickers_summary = ", ".join(
+        f'{p.get("ticker","?")}({p.get("shares",0):.0f}sh @${p.get("avg_cost",0):.2f})'
+        for p in portfolio[:15]
+    )
+    perf_summary = (
+        f'Valor total: ${performance["total_value"]:,.0f} | '
+        f'Invertido: ${performance["total_invested"]:,.0f} | '
+        f'Retorno: {performance["total_return_pct"]:+.2f}% | '
+        f'Ganancia no realizada: ${performance["unrealized_gain"]:,.0f}'
+    )
+    best  = performance.get("best_performer") or {}
+    worst = performance.get("worst_performer") or {}
+    best_str  = f'{best.get("ticker","—")} {best.get("gain_pct",0):+.1f}%'  if best.get("ticker")  else "—"
+    worst_str = f'{worst.get("ticker","—")} {worst.get("gain_pct",0):+.1f}%' if worst.get("ticker") else "—"
 
-Perfil: riesgo {risk}, mentor: {mentor}
-Portafolio actual: {portfolio_str}
-Performance del mes: {perf_str}
+    prompt = f"""Genera el reporte mensual de portafolio. Responde SOLO con JSON válido, sin texto fuera del JSON.
 
-Responde SOLO con JSON válido:
+Perfil: riesgo={risk}, mentor={mentor}
+Posiciones: {tickers_summary}
+Performance: {perf_summary}
+Mejor posición: {best_str} | Peor: {worst_str}
+
+JSON esperado:
 {{
-  "month": "Junio 2026",
-  "executive_summary": "2-3 oraciones del mes en términos simples",
+  "executive_summary": "2-3 oraciones sobre el mes en términos simples",
   "performance": {{
-    "total_return_pct": 0.0,
-    "vs_sp500": "+X% / -X% vs S&P 500",
-    "best_performer": {{"ticker": "X", "gain_pct": 0.0}},
-    "worst_performer": {{"ticker": "X", "loss_pct": 0.0}}
+    "vs_sp500": "ej: +1.2% por encima del S&P 500 este mes"
   }},
   "metrics": {{
     "sharpe_ratio": 0.0,
     "volatility_pct": 0.0,
-    "max_drawdown_pct": 0.0,
-    "total_value": 0.0,
-    "cash_invested": 0.0,
-    "unrealized_gain": 0.0
+    "max_drawdown_pct": 0.0
   }},
-  "sector_breakdown": [
-    {{"sector": "Tech", "pct": 0, "color": "#3b82f6"}}
-  ],
-  "top_positions": [
-    {{"ticker": "X", "name": "X", "shares": 0, "value": 0, "gain_pct": 0, "weight_pct": 0}}
-  ],
-  "risk_assessment": "Evaluación del riesgo actual del portafolio en 2 oraciones",
-  "mentor_note": "Nota personal del mentor de 3-4 oraciones: qué hizo bien el usuario, qué cambiaría, qué oportunidades ve para el próximo mes",
-  "action_items": [
-    "Acción concreta sugerida 1",
-    "Acción concreta sugerida 2",
-    "Acción concreta sugerida 3"
-  ],
-  "learning_insight": "Un insight conductual: qué reveló el comportamiento del usuario este mes sobre su perfil real como inversor"
-}}
-
-Calcula los valores usando los datos del portafolio. Sin texto fuera del JSON."""
+  "sector_breakdown": [{{"sector": "Technology", "pct": 40, "color": "#3b82f6"}}],
+  "risk_assessment": "Evaluación breve del riesgo actual (2 oraciones)",
+  "mentor_note": "Nota del mentor: qué hizo bien, qué mejorar, oportunidades próximo mes (3-4 oraciones)",
+  "action_items": ["Acción 1", "Acción 2", "Acción 3"],
+  "learning_insight": "Insight conductual sobre el perfil real del inversor este mes"
+}}"""
 
     response = await _claude(
         model=settings.claude_model,
-        max_tokens=1200,
+        max_tokens=2000,
         system=[{"type": "text", "text": system_prompt, "cache_control": {"type": "ephemeral"}}],
         messages=[{"role": "user", "content": prompt}],
     )
@@ -1122,7 +1118,10 @@ Calcula los valores usando los datos del portafolio. Sin texto fuera del JSON.""
         import re
         m = re.search(r"\{.*\}", raw, re.DOTALL)
         if m:
-            return json.loads(m.group())
+            try:
+                return json.loads(m.group())
+            except Exception:
+                pass
         return {"executive_summary": raw}
 
 
