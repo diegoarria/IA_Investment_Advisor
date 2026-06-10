@@ -176,9 +176,14 @@ async def get_all(user_id: str = Depends(get_current_user_id)):
     paper_res = db.table("user_paper_trading") \
         .select("cash, positions, trades, free_trade_month, free_trade_count") \
         .eq("user_id", user_id).execute()
-    profile_res = db.table("user_profiles") \
-        .select("maturity_score, maturity_history, trial_started_at, subscription_tier, nav_order, theme") \
-        .eq("user_id", user_id).execute()
+    try:
+        profile_res = db.table("user_profiles") \
+            .select("maturity_score, maturity_history, trial_started_at, subscription_tier, nav_order, theme") \
+            .eq("user_id", user_id).execute()
+    except Exception:
+        profile_res = db.table("user_profiles") \
+            .select("maturity_score, maturity_history, trial_started_at, subscription_tier, nav_order") \
+            .eq("user_id", user_id).execute()
     watchlist_res = db.table("watchlist") \
         .select("ticker, name, added_at") \
         .eq("user_id", user_id) \
