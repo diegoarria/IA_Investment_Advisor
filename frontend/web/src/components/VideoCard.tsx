@@ -32,7 +32,7 @@ interface Comment {
   user_id: string;
   text: string;
   created_at: string;
-  user_profiles?: { name: string };
+  user_profiles?: { name: string; avatar_url?: string };
   replies?: Comment[];
 }
 
@@ -85,8 +85,11 @@ export default function VideoCard({
   const [playing, setPlaying]           = useState(false);
   const [progress, setProgress]         = useState(0);
   const [showComments, setShowComments] = useState(false);
+  const [drawerOpen, setDrawerOpen]     = useState(false);
   const [comments, setComments]         = useState<Comment[]>([]);
   const [commentText, setCommentText]   = useState("");
+  const [replyingTo, setReplyingTo]     = useState<{ id: string; name: string } | null>(null);
+  const [replyText, setReplyText]       = useState("");
   const [likeCount, setLikeCount]       = useState(clip.like_count);
   const [liked, setLiked]               = useState(clip.liked);
   const [saved, setSaved]               = useState(clip.saved);
@@ -225,11 +228,13 @@ export default function VideoCard({
     } catch {}
   };
 
-  const postComment = async () => {
-    if (!commentText.trim()) return;
+  const postComment = async (text?: string, parentId?: string) => {
+    const body = text ?? commentText;
+    if (!body.trim()) return;
     try {
-      await feedApi.postComment(clip.id, commentText.trim());
-      setCommentText("");
+      await feedApi.postComment(clip.id, body.trim(), parentId);
+      if (parentId) { setReplyText(""); setReplyingTo(null); }
+      else setCommentText("");
       loadComments();
     } catch {}
   };
@@ -278,6 +283,12 @@ export default function VideoCard({
   const openComments = () => {
     setShowComments(true);
     loadComments();
+    setTimeout(() => setDrawerOpen(true), 20);
+  };
+
+  const closeComments = () => {
+    setDrawerOpen(false);
+    setTimeout(() => { setShowComments(false); setReplyingTo(null); setReplyText(""); }, 340);
   };
 
   const avatar = SPEAKER_AVATAR[clip.speaker] ?? "🎓";
@@ -479,73 +490,153 @@ export default function VideoCard({
           );
         })()}
 
-        {/* Comments drawer — anchored inside video */}
+        {/* Comments drawer — slide-up from bottom, 50% height */}
         {showComments && (
-          <div className="absolute inset-x-0 bottom-0 rounded-t-2xl flex flex-col"
-               style={{ height: "65%", background: "#111", border: "1px solid #333" }}>
-          <div className="flex items-center justify-between px-4 py-3 border-b"
-               style={{ borderColor: "var(--border, #333)" }}>
-            <p className="font-bold text-sm" style={{ color: "var(--text, #fff)" }}>
-              Comentarios ({clip.comment_count})
-            </p>
-            <button onClick={() => setShowComments(false)}>
-              <ChevronDown className="w-5 h-5" style={{ color: "var(--muted, #888)" }} />
-            </button>
-          </div>
+          <div
+            className="absolute inset-x-0 bottom-0 rounded-t-2xl flex flex-col"
+            style={{
+              height: "50%",
+              background: "#111",
+              border: "1px solid #222",
+              transform: drawerOpen ? "translateY(0)" : "translateY(100%)",
+              transition: "transform 0.34s cubic-bezier(0.32, 0.72, 0, 1)",
+              zIndex: 30,
+            }}>
 
-          <div className="flex-1 overflow-y-auto px-4 py-2 space-y-3">
-            {comments.length === 0 ? (
-              <p className="text-center py-6 text-sm" style={{ color: "var(--muted, #888)" }}>
-                Sé el primero en comentar
-              </p>
-            ) : (
-              comments.map((c) => (
-                <div key={c.id} className="space-y-1">
-                  <div className="flex items-start gap-2">
-                    <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0"
-                         style={{ background: "var(--accent-l, #00d47e)", color: "#000" }}>
-                      {(c.user_profiles?.name || "?")[0].toUpperCase()}
-                    </div>
-                    <div>
-                      <p className="text-xs font-semibold" style={{ color: "var(--text, #fff)" }}>
-                        {c.user_profiles?.name || "Usuario"}
-                      </p>
-                      <p className="text-xs" style={{ color: "var(--sub, #aaa)" }}>{c.text}</p>
-                    </div>
-                  </div>
-                  {c.replies?.map((r) => (
-                    <div key={r.id} className="flex items-start gap-2 ml-9">
-                      <div className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0"
-                           style={{ background: "var(--raised, #2a2a2a)", color: "var(--muted, #888)" }}>
-                        {(r.user_profiles?.name || "?")[0].toUpperCase()}
+            {/* Drag handle + header */}
+            <div className="shrink-0">
+              <div className="flex justify-center pt-2 pb-1">
+                <div className="w-8 h-1 rounded-full" style={{ background: "#3a3a3a" }} />
+              </div>
+              <div className="flex items-center justify-between px-4 py-2 border-b" style={{ borderColor: "#222" }}>
+                <p className="font-bold text-sm" style={{ color: "#fff" }}>
+                  Comentarios ({clip.comment_count})
+                </p>
+                <button onClick={closeComments}>
+                  <ChevronDown className="w-5 h-5" style={{ color: "#666" }} />
+                </button>
+              </div>
+            </div>
+
+            {/* Comment list */}
+            <div className="flex-1 overflow-y-auto px-4 py-3 space-y-4">
+              {comments.length === 0 ? (
+                <p className="text-center py-6 text-sm" style={{ color: "#555" }}>
+                  Sé el primero en comentar
+                </p>
+              ) : (
+                comments.map((c) => {
+                  const cName = c.user_profiles?.name || "Usuario";
+                  return (
+                    <div key={c.id} className="space-y-2">
+                      {/* Top-level comment */}
+                      <div className="flex items-start gap-2.5">
+                        {c.user_profiles?.avatar_url ? (
+                          <img src={c.user_profiles.avatar_url} alt={cName}
+                               className="w-7 h-7 rounded-full shrink-0 object-cover" />
+                        ) : (
+                          <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0"
+                               style={{ background: "#00d47e", color: "#000" }}>
+                            {cName[0].toUpperCase()}
+                          </div>
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-baseline gap-2">
+                            <p className="text-xs font-semibold" style={{ color: "#fff" }}>{cName}</p>
+                            <p className="text-[10px]" style={{ color: "#555" }}>
+                              {new Date(c.created_at).toLocaleDateString("es", { day: "numeric", month: "short" })}
+                            </p>
+                          </div>
+                          <p className="text-xs leading-snug mt-0.5" style={{ color: "#ccc" }}>{c.text}</p>
+                          <button
+                            onClick={() => setReplyingTo(replyingTo?.id === c.id ? null : { id: c.id, name: cName })}
+                            className="text-[11px] font-semibold mt-1"
+                            style={{ color: replyingTo?.id === c.id ? "#00d47e" : "#555" }}>
+                            Responder
+                          </button>
+                        </div>
                       </div>
-                      <p className="text-xs" style={{ color: "var(--sub, #aaa)" }}>{r.text}</p>
-                    </div>
-                  ))}
-                </div>
-              ))
-            )}
-          </div>
 
-          <div className="flex items-center gap-2 px-4 py-3 border-t"
-               style={{ borderColor: "#333" }}>
-            <input
-              type="text"
-              placeholder="Escribe un comentario..."
-              value={commentText}
-              onChange={(e) => setCommentText(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && postComment()}
-              className="flex-1 rounded-full px-3 py-1.5 text-sm outline-none"
-              style={{ background: "#222", color: "#fff", border: "1px solid #333" }}
-            />
-            <button onClick={postComment} disabled={!commentText.trim()}
-                    className="px-3 py-1.5 rounded-full text-xs font-bold disabled:opacity-40"
-                    style={{ background: "#00d47e", color: "#000" }}>
-              Enviar
-            </button>
+                      {/* Replies thread */}
+                      {c.replies && c.replies.length > 0 && (
+                        <div className="ml-9 space-y-2 border-l pl-3" style={{ borderColor: "#2a2a2a" }}>
+                          {c.replies.map((r) => {
+                            const rName = r.user_profiles?.name || "Usuario";
+                            return (
+                              <div key={r.id} className="flex items-start gap-2">
+                                {r.user_profiles?.avatar_url ? (
+                                  <img src={r.user_profiles.avatar_url} alt={rName}
+                                       className="w-5 h-5 rounded-full shrink-0 object-cover" />
+                                ) : (
+                                  <div className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0"
+                                       style={{ background: "#2a2a2a", color: "#888" }}>
+                                    {rName[0].toUpperCase()}
+                                  </div>
+                                )}
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-baseline gap-2">
+                                    <p className="text-[11px] font-semibold" style={{ color: "#ddd" }}>{rName}</p>
+                                    <p className="text-[10px]" style={{ color: "#555" }}>
+                                      {new Date(r.created_at).toLocaleDateString("es", { day: "numeric", month: "short" })}
+                                    </p>
+                                  </div>
+                                  <p className="text-[11px] leading-snug mt-0.5" style={{ color: "#aaa" }}>{r.text}</p>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+
+                      {/* Inline reply input */}
+                      {replyingTo?.id === c.id && (
+                        <div className="ml-9 flex items-center gap-2">
+                          <input
+                            autoFocus
+                            type="text"
+                            placeholder={`Responder a ${replyingTo.name}…`}
+                            value={replyText}
+                            onChange={(e) => setReplyText(e.target.value)}
+                            onKeyDown={(e) => e.key === "Enter" && postComment(replyText, c.id)}
+                            className="flex-1 rounded-full px-3 py-1.5 text-xs outline-none"
+                            style={{ background: "#1a1a1a", color: "#fff", border: "1px solid #333" }}
+                          />
+                          <button
+                            onClick={() => postComment(replyText, c.id)}
+                            disabled={!replyText.trim()}
+                            className="px-2.5 py-1.5 rounded-full text-[11px] font-bold disabled:opacity-40"
+                            style={{ background: "#00d47e", color: "#000" }}>
+                            ↵
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            {/* Main comment input */}
+            <div className="shrink-0 flex items-center gap-2 px-4 py-3 border-t" style={{ borderColor: "#1e1e1e" }}>
+              <input
+                type="text"
+                placeholder="Escribe un comentario..."
+                value={commentText}
+                onChange={(e) => setCommentText(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && postComment()}
+                className="flex-1 rounded-full px-3 py-1.5 text-sm outline-none"
+                style={{ background: "#1a1a1a", color: "#fff", border: "1px solid #2a2a2a" }}
+              />
+              <button
+                onClick={() => postComment()}
+                disabled={!commentText.trim()}
+                className="px-3 py-1.5 rounded-full text-xs font-bold disabled:opacity-40"
+                style={{ background: "#00d47e", color: "#000" }}>
+                Enviar
+              </button>
+            </div>
           </div>
-        </div>
-      )}
+        )}
       </div>{/* end portrait frame */}
 
       {/* Right actions column — outside the video, TikTok style */}

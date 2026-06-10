@@ -103,7 +103,7 @@ async def get_comments(clip_id: str, user_id: str = Depends(get_current_user_id)
     db = get_supabase()
     rows = (
         db.table("clip_comments")
-        .select("id,user_id,text,parent_id,created_at,user_profiles(name)")
+        .select("id,user_id,text,parent_id,created_at,user_profiles(name,avatar_url)")
         .eq("clip_id", clip_id)
         .eq("is_deleted", False)
         .order("created_at")
