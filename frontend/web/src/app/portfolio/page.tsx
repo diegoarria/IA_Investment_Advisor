@@ -435,153 +435,201 @@ function PortfolioHistoryChart({
   color: string;
   currencySymbol: string;
 }) {
-  const [hovered, setHovered] = useState<number | null>(null);
+  const [hovIdx, setHovIdx] = useState<number | null>(null);
 
   if (history.length < 2) return null;
 
-  const W = 600, H = 195, PB = 28, PAD = 3;
-  const chartH = H - PB - PAD;
+  // ── Dimensions (viewBox H must equal SVG element height for Y-overlay) ──
+  const W = 720, H = 240;
+  const PT = 16, PB = 8, PL = 4;
+  const cW = W - PL;          // chart draw width inside viewBox
+  const cH = H - PT - PB;     // chart draw height
+  const Y_AXIS_W = 54;        // pixels reserved for Y labels (HTML overlay)
 
-  // Plot dollar value on Y-axis
-  const vals = history.map((h) => h.value);
-  const minV = Math.min(...vals);
-  const maxV = Math.max(...vals);
+  // ── Value range ──────────────────────────────────────────────────────────
+  const vals   = history.map((h) => h.value);
+  const startV = vals[0];
+  const endV   = vals[vals.length - 1];
+  const minV   = Math.min(...vals);
+  const maxV   = Math.max(...vals);
   const spread = maxV - minV || Math.abs(maxV) || 1;
-  const lo = minV - spread * 0.1;
+  const lo = minV - spread * 0.06;
   const hi = maxV + spread * 0.12;
   const range = hi - lo;
 
-  const toX = (i: number) => PAD + (i / (history.length - 1)) * (W - PAD * 2);
-  const toY = (v: number) => PAD + ((hi - v) / range) * chartH;
+  const toX = (i: number) => PL + (i / (history.length - 1)) * cW;
+  const toY = (v: number) => PT + ((hi - v) / range) * cH;
 
-  const pts = history.map((h, i) => `${toX(i).toFixed(1)},${toY(h.value).toFixed(1)}`);
-  const linePath = "M" + pts.join("L");
-  const lastX = toX(history.length - 1);
-  const lastY = toY(vals[vals.length - 1]);
-  const bottomY = PAD + chartH;
-  const areaPath = `${linePath}L${lastX.toFixed(1)},${bottomY}L${PAD},${bottomY}Z`;
+  // ── Paths ────────────────────────────────────────────────────────────────
+  const pts   = history.map((h, i) => `${toX(i).toFixed(1)},${toY(h.value).toFixed(1)}`);
+  const lineD = "M" + pts.join("L");
+  const lx    = toX(history.length - 1);
+  const ly    = toY(endV);
+  const by    = PT + cH;
+  const areaD = `${lineD}L${lx.toFixed(1)},${by}L${PL},${by}Z`;
+  const baseY = toY(startV);
 
-  // Baseline = portfolio's starting value (cost entry)
-  const baselineY = toY(history[0].value);
+  // ── Y-axis ticks (4) ─────────────────────────────────────────────────────
+  const yTicks = Array.from({ length: 4 }, (_, i) => {
+    const frac = i / 3;
+    const v = hi - range * frac;
+    return { v, y: PT + frac * cH };
+  });
 
-  // 3 subtle horizontal gridlines
-  const gridYs = [0.2, 0.5, 0.8].map((t) => PAD + t * chartH);
-
-  const hPt    = hovered !== null ? history[hovered] : null;
-  const hX     = hovered !== null ? toX(hovered) : null;
-  const hY     = hovered !== null ? toY(vals[hovered]) : null;
-  const hUp    = hPt ? hPt.pct >= 0 : true;
-  const hColor = hPt ? (hUp ? "#22c55e" : "#ef4444") : color;
-
-  const handleMouseMove = (e: React.MouseEvent<SVGSVGElement>) => {
-    const rect = e.currentTarget.getBoundingClientRect();
-    const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left - PAD) / (rect.width - PAD * 2)));
-    setHovered(Math.round(ratio * (history.length - 1)));
-  };
-
-  const fmtVal = (v: number) => {
-    if (v >= 1e6) return `${currencySymbol}${(v / 1e6).toFixed(1)}M`;
-    if (v >= 1e3) return `${currencySymbol}${(v / 1e3).toFixed(0)}K`;
-    return `${currencySymbol}${v.toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
-  };
-
-  const N_LABELS = 5;
-  const labelIdxs = Array.from({ length: N_LABELS }, (_, i) =>
-    Math.round((i * (history.length - 1)) / (N_LABELS - 1))
+  // ── X-axis labels (5) ─────────────────────────────────────────────────────
+  const xIdxs = Array.from({ length: 5 }, (_, i) =>
+    Math.round((i * (history.length - 1)) / 4)
   );
 
-  const tooltipLeft = hX !== null
-    ? Math.max(5, Math.min(88, (hX / W) * 100))
-    : 50;
+  // ── Hover state ───────────────────────────────────────────────────────────
+  const hovV  = hovIdx !== null ? vals[hovIdx] : null;
+  const hovX  = hovIdx !== null ? toX(hovIdx) : null;
+  const hovY  = hovIdx !== null ? toY(vals[hovIdx]) : null;
+  const hovPt = hovIdx !== null ? history[hovIdx] : null;
+  const chgV  = hovV !== null ? hovV - startV : endV - startV;
+  const chgP  = startV ? (chgV / startV) * 100 : 0;
+  const isUp  = (hovV ?? endV) >= startV;
+  const hCol  = isUp ? "#22c55e" : "#ef4444";
+
+  const fmtV = (v: number) => {
+    const abs = Math.abs(v);
+    const sign = v < 0 ? "-" : "";
+    if (abs >= 1e6) return `${sign}${currencySymbol}${(abs / 1e6).toFixed(2)}M`;
+    if (abs >= 1e3) return `${sign}${currencySymbol}${(abs / 1e3).toFixed(1)}K`;
+    return `${sign}${currencySymbol}${abs.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+  };
+
+  const fmtY = (v: number) => {
+    const abs = Math.abs(v);
+    if (abs >= 1e6) return `${(v / 1e6).toFixed(1)}M`;
+    if (abs >= 1e3) return `${Math.round(v / 1e3)}K`;
+    return Math.round(v).toString();
+  };
+
+  const handleMM = (e: React.MouseEvent<SVGSVGElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+    setHovIdx(Math.round(ratio * (history.length - 1)));
+  };
+
+  // Tooltip: follow cursor, flip side near right edge
+  const ttPct  = hovX !== null ? (hovX / W) * 100 : 50;
+  const ttFlip = ttPct > 58;
 
   return (
-    <div className="relative select-none">
-      {/* Floating tooltip */}
-      {hPt !== null && hX !== null && (
-        <div
-          className="absolute pointer-events-none z-10"
-          style={{ left: `${tooltipLeft}%`, top: 4, transform: "translateX(-50%)" }}
-        >
-          <div
-            className="px-3 py-2 rounded-xl text-[11px] font-bold whitespace-nowrap"
-            style={{
-              background: "var(--card)",
-              border: `1px solid ${hColor}30`,
-              boxShadow: `0 4px 20px rgba(0,0,0,0.25)`,
-            }}
-          >
-            <div className="flex items-center gap-2.5">
-              <span style={{ color: hColor }}>
-                {hUp ? "+" : ""}{hPt.pct.toFixed(2)}%
-              </span>
-              <span style={{ color: "var(--text)" }}>{fmtVal(hPt.value)}</span>
-            </div>
-            <div className="text-[10px] font-normal mt-0.5" style={{ color: "var(--muted)" }}>
-              {fmtChartDate(hPt.date, true)}
+    <div className="relative w-full select-none">
+      {/* ── Y-axis labels (HTML overlay — not distorted by SVG scaling) ── */}
+      <div className="absolute right-0 top-0 pointer-events-none"
+           style={{ width: Y_AXIS_W, height: H }}>
+        {yTicks.map((t, i) => (
+          <div key={i} className="absolute"
+               style={{ right: 4, top: t.y, transform: "translateY(-50%)" }}>
+            <span className="text-[9px] font-medium tabular-nums"
+                  style={{ color: "var(--dim)" }}>
+              {fmtY(t.v)}
+            </span>
+          </div>
+        ))}
+      </div>
+
+      {/* ── Chart area: SVG + tooltip ── */}
+      <div className="relative" style={{ marginRight: Y_AXIS_W }}>
+
+        {/* Tooltip */}
+        {hovPt && hovV !== null && (
+          <div className="absolute z-20 pointer-events-none"
+               style={{
+                 left: `${ttPct}%`,
+                 top: 6,
+                 transform: ttFlip ? "translateX(-100%) translateX(-10px)" : "translateX(10px)",
+               }}>
+            <div className="rounded-2xl px-3 py-2.5 text-left whitespace-nowrap"
+                 style={{
+                   background: "var(--card)",
+                   border: `1px solid ${hCol}25`,
+                   boxShadow: "0 8px 32px rgba(0,0,0,0.20)",
+                 }}>
+              {/* Portfolio value — large & prominent */}
+              <p className="text-[15px] font-black leading-none mb-1"
+                 style={{ color: "var(--text)" }}>
+                {fmtV(hovV)}
+              </p>
+              {/* Change from period start */}
+              <p className="text-[10px] font-bold" style={{ color: hCol }}>
+                {isUp ? "+" : ""}{fmtV(chgV)}&nbsp;
+                ({isUp ? "+" : ""}{chgP.toFixed(2)}%)
+              </p>
+              {/* Date */}
+              <p className="text-[9px] mt-1" style={{ color: "var(--dim)" }}>
+                {fmtChartDate(hovPt.date, true)}
+              </p>
             </div>
           </div>
-        </div>
-      )}
-
-      <svg
-        viewBox={`0 0 ${W} ${H}`}
-        preserveAspectRatio="none"
-        className="w-full"
-        style={{ height: 195, display: "block", cursor: "crosshair" }}
-        onMouseMove={handleMouseMove}
-        onMouseLeave={() => setHovered(null)}
-      >
-        <defs>
-          <linearGradient id="pfhg" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%"  stopColor={color} stopOpacity="0.26" />
-            <stop offset="75%" stopColor={color} stopOpacity="0.05" />
-            <stop offset="100%" stopColor={color} stopOpacity="0.01" />
-          </linearGradient>
-        </defs>
-
-        {/* Subtle horizontal gridlines */}
-        {gridYs.map((y, i) => (
-          <line key={i} x1={0} y1={y} x2={W} y2={y}
-            stroke="currentColor" strokeWidth="0.6" strokeOpacity="0.07"
-            style={{ color: "var(--text)" }} />
-        ))}
-
-        {/* Baseline — where portfolio started */}
-        <line
-          x1={0} y1={baselineY} x2={W} y2={baselineY}
-          stroke={color} strokeWidth="0.9" strokeDasharray="5,4" strokeOpacity="0.35"
-        />
-
-        {/* Area fill */}
-        <path d={areaPath} fill="url(#pfhg)" />
-
-        {/* Value line */}
-        <path d={linePath} fill="none" stroke={color} strokeWidth="2.2"
-          strokeLinejoin="round" strokeLinecap="round" />
-
-        {/* End dot */}
-        {hovered === null && (
-          <>
-            <circle cx={lastX} cy={lastY} r="6"  fill={color} fillOpacity="0.2" />
-            <circle cx={lastX} cy={lastY} r="2.8" fill={color} />
-          </>
         )}
 
-        {/* Crosshair + hover dot */}
-        {hovered !== null && hX !== null && hY !== null && (
-          <>
-            <line x1={hX} y1={PAD} x2={hX} y2={PAD + chartH}
-              stroke={hColor} strokeWidth="1.5" strokeDasharray="3,3" strokeOpacity="0.6" />
-            <circle cx={hX} cy={hY} r="7"   fill={hColor} fillOpacity="0.15" />
-            <circle cx={hX} cy={hY} r="3.5" fill={hColor} />
-            <circle cx={hX} cy={hY} r="5.5" fill="none" stroke={hColor} strokeWidth="1" strokeOpacity="0.4" />
-          </>
-        )}
-      </svg>
+        {/* SVG — H must equal element height (240px) for Y overlay alignment */}
+        <svg
+          viewBox={`0 0 ${W} ${H}`}
+          preserveAspectRatio="none"
+          style={{ width: "100%", height: H, display: "block", cursor: "crosshair" }}
+          onMouseMove={handleMM}
+          onMouseLeave={() => setHovIdx(null)}
+        >
+          <defs>
+            <linearGradient id="pfhg" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%"   stopColor={color} stopOpacity="0.20" />
+              <stop offset="65%"  stopColor={color} stopOpacity="0.04" />
+              <stop offset="100%" stopColor={color} stopOpacity="0"    />
+            </linearGradient>
+          </defs>
 
-      {/* X-axis date labels */}
-      <div className="flex justify-between mt-1.5">
-        {labelIdxs.map((idx) => (
+          {/* Y gridlines */}
+          {yTicks.map((t, i) => (
+            <line key={i}
+              x1={PL} y1={t.y} x2={W} y2={t.y}
+              stroke="currentColor" strokeWidth="0.55" strokeOpacity="0.08" />
+          ))}
+
+          {/* Baseline (start of period) */}
+          <line
+            x1={PL} y1={baseY} x2={W} y2={baseY}
+            stroke={hCol} strokeWidth="0.8" strokeDasharray="5,4" strokeOpacity="0.35"
+          />
+
+          {/* Area gradient fill */}
+          <path d={areaD} fill="url(#pfhg)" />
+
+          {/* Main line */}
+          <path d={lineD} fill="none" stroke={color} strokeWidth="2.2"
+            strokeLinejoin="round" strokeLinecap="round" />
+
+          {/* End dot (idle) */}
+          {hovIdx === null && (
+            <>
+              <circle cx={lx} cy={ly} r="6"   fill={color} fillOpacity="0.18" />
+              <circle cx={lx} cy={ly} r="2.8" fill={color} />
+            </>
+          )}
+
+          {/* Crosshair + cursor dot */}
+          {hovIdx !== null && hovX !== null && hovY !== null && (
+            <>
+              <line
+                x1={hovX} y1={PT} x2={hovX} y2={PT + cH}
+                stroke={hCol} strokeWidth="1.2" strokeOpacity="0.45"
+              />
+              <circle cx={hovX} cy={hovY} r="7.5" fill={hCol} fillOpacity="0.13" />
+              <circle cx={hovX} cy={hovY} r="3.2" fill={hCol} />
+              <circle cx={hovX} cy={hovY} r="5.8" fill="none"
+                stroke={hCol} strokeWidth="1.3" strokeOpacity="0.5" />
+            </>
+          )}
+        </svg>
+      </div>
+
+      {/* ── X-axis date labels ── */}
+      <div className="flex justify-between mt-1.5" style={{ marginRight: Y_AXIS_W }}>
+        {xIdxs.map((idx) => (
           <span key={idx} className="text-[9px] font-medium" style={{ color: "var(--dim)" }}>
             {fmtChartDate(history[idx].date)}
           </span>
@@ -1585,7 +1633,7 @@ export default function PortfolioPage() {
                       {/* Gráfica histórica */}
                       <div className="px-3 pb-1">
                         {chartLoading ? (
-                          <div className="h-[110px] flex items-center justify-center gap-2 text-xs"
+                          <div className="h-[240px] flex items-center justify-center gap-2 text-xs"
                                style={{ color: "var(--muted)" }}>
                             <RefreshCw className="w-3.5 h-3.5 animate-spin" />
                             Cargando datos históricos...
@@ -1593,7 +1641,7 @@ export default function PortfolioPage() {
                         ) : chartData && chartData.history.length >= 2 ? (
                           <PortfolioHistoryChart history={chartData.history} color={color} currencySymbol={currencySymbol} />
                         ) : !chartLoading ? (
-                          <div className="h-[110px] flex items-center justify-center text-xs"
+                          <div className="h-[240px] flex items-center justify-center text-xs"
                                style={{ color: "var(--dim)" }}>
                             Sin datos históricos para este período
                           </div>
