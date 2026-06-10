@@ -29,160 +29,171 @@ import {
 
 // ─── Sector taxonomy ────────────────────────────────────────────────────────
 const TICKER_SECTOR: Record<string, string> = {
-  // Semiconductores
-  NVDA:"Semiconductores",AMD:"Semiconductores",INTC:"Semiconductores",
-  QCOM:"Semiconductores",AVGO:"Semiconductores",MU:"Semiconductores",
-  TSM:"Semiconductores",AMAT:"Semiconductores",LRCX:"Semiconductores",
-  KLAC:"Semiconductores",TXN:"Semiconductores",ADI:"Semiconductores",
-  MCHP:"Semiconductores",ON:"Semiconductores",SWKS:"Semiconductores",
-  SMCI:"Semiconductores",MRVL:"Semiconductores",ARM:"Semiconductores",
-  WOLF:"Semiconductores",MPWR:"Semiconductores",SOXX:"Semiconductores",
-  SMH:"Semiconductores",
+  // ── Tecnología (Technology) ────────────────────────────────────────────────
+  // Semiconductors
+  NVDA:"Tecnología",AMD:"Tecnología",INTC:"Tecnología",
+  QCOM:"Tecnología",AVGO:"Tecnología",MU:"Tecnología",
+  TSM:"Tecnología",AMAT:"Tecnología",LRCX:"Tecnología",
+  KLAC:"Tecnología",TXN:"Tecnología",ADI:"Tecnología",
+  MCHP:"Tecnología",ON:"Tecnología",SWKS:"Tecnología",
+  SMCI:"Tecnología",MRVL:"Tecnología",ARM:"Tecnología",
+  WOLF:"Tecnología",MPWR:"Tecnología",SOXX:"Tecnología",SMH:"Tecnología",
+  // Software – Infrastructure & Application
+  MSFT:"Tecnología",CRM:"Tecnología",ADBE:"Tecnología",ORCL:"Tecnología",
+  NOW:"Tecnología",INTU:"Tecnología",CDNS:"Tecnología",SNPS:"Tecnología",
+  ANSS:"Tecnología",WDAY:"Tecnología",DDOG:"Tecnología",TEAM:"Tecnología",
+  HUBS:"Tecnología",VEEV:"Tecnología",NET:"Tecnología",ZS:"Tecnología",
+  OKTA:"Tecnología",PANW:"Tecnología",FTNT:"Tecnología",MDB:"Tecnología",
+  SNOW:"Tecnología",GTLB:"Tecnología",ESTC:"Tecnología",SMAR:"Tecnología",
+  SPLK:"Tecnología",DOCN:"Tecnología",
+  // Consumer Electronics & AI platforms
+  AAPL:"Tecnología",
+  PLTR:"Tecnología",AI:"Tecnología",BBAI:"Tecnología",SOUN:"Tecnología",
+  SHOP:"Tecnología",VGT:"Tecnología",
+  // Solar (classified under Technology per Yahoo Finance)
+  ENPH:"Tecnología",SEDG:"Tecnología",FSLR:"Tecnología",
 
-  // Software
-  MSFT:"Software",CRM:"Software",ADBE:"Software",ORCL:"Software",
-  NOW:"Software",INTU:"Software",CDNS:"Software",SNPS:"Software",
-  ANSS:"Software",WDAY:"Software",DDOG:"Software",TEAM:"Software",
-  HUBS:"Software",VEEV:"Software",NET:"Software",ZS:"Software",
-  OKTA:"Software",PANW:"Software",FTNT:"Software",MDB:"Software",
-  SNOW:"Software",GTLB:"Software",ESTC:"Software",SMAR:"Software",
-  SPLK:"Software",DOCN:"Software",
+  // ── Comunicaciones (Communication Services) ────────────────────────────────
+  // Internet Content & Information
+  GOOGL:"Comunicaciones",GOOG:"Comunicaciones",
+  META:"Comunicaciones",SNAP:"Comunicaciones",PINS:"Comunicaciones",
+  RBLX:"Comunicaciones",SPOT:"Comunicaciones",
+  // Entertainment
+  NFLX:"Comunicaciones",DIS:"Comunicaciones",
+  WBD:"Comunicaciones",PARA:"Comunicaciones",FOX:"Comunicaciones",FOXA:"Comunicaciones",
+  // Telecom Services
+  T:"Comunicaciones",VZ:"Comunicaciones",TMUS:"Comunicaciones",
+  CMCSA:"Comunicaciones",CHTR:"Comunicaciones",
 
-  // Tecnología (plataformas, ecosistemas consumer)
-  AAPL:"Tecnología",GOOGL:"Tecnología",GOOG:"Tecnología",
-  META:"Tecnología",AMZN:"Tecnología",SPOT:"Tecnología",
-  SNAP:"Tecnología",PINS:"Tecnología",RBLX:"Tecnología",
-  TWTR:"Tecnología",VGT:"Tecnología",
-
-  // Inteligencia Artificial
-  PLTR:"Inteligencia Artificial",AI:"Inteligencia Artificial",
-  BBAI:"Inteligencia Artificial",SOUN:"Inteligencia Artificial",
-
-  // Fintech
-  PYPL:"Fintech",SQ:"Fintech",HOOD:"Fintech",SOFI:"Fintech",
-  AFRM:"Fintech",UPST:"Fintech",NERDW:"Fintech",
-
-  // eCommerce
-  SHOP:"eCommerce",MELI:"eCommerce",SE:"eCommerce",
-  BABA:"eCommerce",JD:"eCommerce",EBAY:"eCommerce",
-  ETSY:"eCommerce",W:"eCommerce",CHWY:"eCommerce",
-  CPNG:"eCommerce",
-
-  // Consumo Discrecional
-  TSLA:"Consumo Discrecional",NFLX:"Consumo Discrecional",
-  NKE:"Consumo Discrecional",SBUX:"Consumo Discrecional",
-  MCD:"Consumo Discrecional",HD:"Consumo Discrecional",
-  LOW:"Consumo Discrecional",TGT:"Consumo Discrecional",
+  // ── Consumo Discrecional (Consumer Discretionary) ─────────────────────────
+  // Internet Retail
+  AMZN:"Consumo Discrecional",
+  MELI:"Consumo Discrecional",SE:"Consumo Discrecional",
+  BABA:"Consumo Discrecional",JD:"Consumo Discrecional",
+  EBAY:"Consumo Discrecional",ETSY:"Consumo Discrecional",
+  W:"Consumo Discrecional",CHWY:"Consumo Discrecional",CPNG:"Consumo Discrecional",
+  // Auto Manufacturers
+  TSLA:"Consumo Discrecional",
+  F:"Consumo Discrecional",GM:"Consumo Discrecional",
+  RIVN:"Consumo Discrecional",LCID:"Consumo Discrecional",NIO:"Consumo Discrecional",
+  // Restaurants
+  MCD:"Consumo Discrecional",SBUX:"Consumo Discrecional",
+  CMG:"Consumo Discrecional",YUM:"Consumo Discrecional",
+  // Home Improvement Retail
+  HD:"Consumo Discrecional",LOW:"Consumo Discrecional",
+  // Specialty & Apparel Retail
+  NKE:"Consumo Discrecional",TGT:"Consumo Discrecional",
   TJX:"Consumo Discrecional",ROST:"Consumo Discrecional",
-  ABNB:"Consumo Discrecional",BKNG:"Consumo Discrecional",
-  YUM:"Consumo Discrecional",CMG:"Consumo Discrecional",
-  DKNG:"Consumo Discrecional",DIS:"Consumo Discrecional",
+  // Travel & Leisure
+  ABNB:"Consumo Discrecional",BKNG:"Consumo Discrecional",EXPE:"Consumo Discrecional",
+  // Gambling & Casinos
   LVS:"Consumo Discrecional",MGM:"Consumo Discrecional",
-  WYNN:"Consumo Discrecional",EXPE:"Consumo Discrecional",
-  PTON:"Consumo Discrecional",UBER:"Consumo Discrecional",
-  LYFT:"Consumo Discrecional",F:"Consumo Discrecional",
-  GM:"Consumo Discrecional",RIVN:"Consumo Discrecional",
-  LCID:"Consumo Discrecional",NIO:"Consumo Discrecional",
+  WYNN:"Consumo Discrecional",DKNG:"Consumo Discrecional",
+  // Other
+  PTON:"Consumo Discrecional",
+  UBER:"Consumo Discrecional",LYFT:"Consumo Discrecional",
 
-  // Consumo Básico
+  // ── Consumo Básico (Consumer Staples) ─────────────────────────────────────
   WMT:"Consumo Básico",KO:"Consumo Básico",PG:"Consumo Básico",
   COST:"Consumo Básico",PEP:"Consumo Básico",MDLZ:"Consumo Básico",
   CLX:"Consumo Básico",KHC:"Consumo Básico",GIS:"Consumo Básico",
   HSY:"Consumo Básico",CL:"Consumo Básico",KMB:"Consumo Básico",
   EL:"Consumo Básico",K:"Consumo Básico",CHD:"Consumo Básico",
   TSN:"Consumo Básico",HRL:"Consumo Básico",
+  PM:"Consumo Básico",MO:"Consumo Básico",
 
-  // Salud (aseguradoras médicas + hospitales)
+  // ── Salud (Healthcare) ─────────────────────────────────────────────────────
+  // Healthcare Plans & Hospitals
   UNH:"Salud",HCA:"Salud",CNC:"Salud",CVS:"Salud",
   CI:"Salud",HUM:"Salud",MOH:"Salud",ELV:"Salud",
+  // Drug Manufacturers
+  JNJ:"Salud",PFE:"Salud",ABBV:"Salud",
+  MRK:"Salud",LLY:"Salud",BMY:"Salud",
+  AZN:"Salud",GSK:"Salud",SNY:"Salud",
+  NVO:"Salud",RHHBY:"Salud",
+  // Biotechnology
+  AMGN:"Salud",GILD:"Salud",REGN:"Salud",
+  VRTX:"Salud",BIIB:"Salud",MRNA:"Salud",
+  BNTX:"Salud",ILMN:"Salud",IONS:"Salud",
+  ALNY:"Salud",SGEN:"Salud",BEAM:"Salud",
+  // Medical Devices
+  ABT:"Salud",MDT:"Salud",ISRG:"Salud",
 
-  // Farmacéutica
-  JNJ:"Farmacéutica",PFE:"Farmacéutica",ABBV:"Farmacéutica",
-  MRK:"Farmacéutica",LLY:"Farmacéutica",BMY:"Farmacéutica",
-  AZN:"Farmacéutica",GSK:"Farmacéutica",SNY:"Farmacéutica",
-  NVO:"Farmacéutica",RHHBY:"Farmacéutica",
-
-  // Biotecnología
-  AMGN:"Biotecnología",GILD:"Biotecnología",REGN:"Biotecnología",
-  VRTX:"Biotecnología",BIIB:"Biotecnología",MRNA:"Biotecnología",
-  BNTX:"Biotecnología",ILMN:"Biotecnología",IONS:"Biotecnología",
-  ALNY:"Biotecnología",SGEN:"Biotecnología",BEAM:"Biotecnología",
-
-  // Financiero (bancos de inversión, gestoras, pagos)
+  // ── Financiero (Financials) ────────────────────────────────────────────────
+  // Capital Markets & Asset Management
   GS:"Financiero",MS:"Financiero",BX:"Financiero",
   KKR:"Financiero",APO:"Financiero",SCHW:"Financiero",
+  BLK:"Financiero",SPGI:"Financiero",ICE:"Financiero",IBKR:"Financiero",
+  // Credit Services
   V:"Financiero",MA:"Financiero",AXP:"Financiero",
-  IBKR:"Financiero",
+  // Fintech & Credit
+  PYPL:"Financiero",SQ:"Financiero",HOOD:"Financiero",
+  SOFI:"Financiero",AFRM:"Financiero",UPST:"Financiero",NERDW:"Financiero",
+  // Banks – Diversified & Regional
+  JPM:"Financiero",BAC:"Financiero",WFC:"Financiero",
+  C:"Financiero",USB:"Financiero",PNC:"Financiero",
+  TFC:"Financiero",FITB:"Financiero",HBAN:"Financiero",
+  // Insurance
+  BRK:"Financiero","BRK-B":"Financiero",PRU:"Financiero",MET:"Financiero",
+  AFL:"Financiero",TRV:"Financiero",AIG:"Financiero",
+  CB:"Financiero",ALL:"Financiero",PGR:"Financiero",UNM:"Financiero",
+  // Crypto / Blockchain (Capital Markets per Yahoo Finance)
+  COIN:"Financiero",MSTR:"Financiero",MARA:"Financiero",
+  RIOT:"Financiero",HUT:"Financiero",CLSK:"Financiero",
 
-  // Bancario
-  JPM:"Bancario",BAC:"Bancario",WFC:"Bancario",
-  C:"Bancario",USB:"Bancario",PNC:"Bancario",
-  TFC:"Bancario",FITB:"Bancario",HBAN:"Bancario",
-
-  // Seguros
-  BRK:"Seguros",PRU:"Seguros",MET:"Seguros",AFL:"Seguros",
-  TRV:"Seguros",AIG:"Seguros",CB:"Seguros",ALL:"Seguros",
-  PGR:"Seguros",UNM:"Seguros",
-
-  // Energía
+  // ── Energía (Energy) ──────────────────────────────────────────────────────
   XOM:"Energía",CVX:"Energía",COP:"Energía",OXY:"Energía",
   SLB:"Energía",HAL:"Energía",EOG:"Energía",PXD:"Energía",
   DVN:"Energía",PSX:"Energía",VLO:"Energía",MPC:"Energía",
   HES:"Energía",BKR:"Energía",MRO:"Energía",
 
-  // Energía Renovable
-  ENPH:"Energía Renovable",SEDG:"Energía Renovable",FSLR:"Energía Renovable",
-  RUN:"Energía Renovable",PLUG:"Energía Renovable",BE:"Energía Renovable",
-  NEE:"Energía Renovable",ITRI:"Energía Renovable",
-
-  // Industriales
+  // ── Industriales (Industrials) ─────────────────────────────────────────────
+  // Machinery
   CAT:"Industriales",DE:"Industriales",GE:"Industriales",
   HON:"Industriales",EMR:"Industriales",ETN:"Industriales",
   ITW:"Industriales",PH:"Industriales",ROK:"Industriales",
   XYL:"Industriales",AME:"Industriales",MMM:"Industriales",
   CARR:"Industriales",OTIS:"Industriales",
+  // Aerospace & Defense
+  LMT:"Industriales",RTX:"Industriales",NOC:"Industriales",
+  GD:"Industriales",BA:"Industriales",TDG:"Industriales",
+  HEI:"Industriales",AXON:"Industriales",RKLB:"Industriales",SPCE:"Industriales",
+  // Logistics & Transport
+  UPS:"Industriales",FDX:"Industriales",CHRW:"Industriales",
+  EXPD:"Industriales",GXO:"Industriales",XPO:"Industriales",
+  ODFL:"Industriales",SAIA:"Industriales",JBHT:"Industriales",
+  LSTR:"Industriales",WERN:"Industriales",
+  // Railroads
+  UNP:"Industriales",CSX:"Industriales",
 
-  // Aeroespacial & Defensa
-  LMT:"Aeroespacial",RTX:"Aeroespacial",NOC:"Aeroespacial",
-  GD:"Aeroespacial",BA:"Aeroespacial",TDG:"Aeroespacial",
-  HEI:"Aeroespacial",AXON:"Aeroespacial",RKLB:"Aeroespacial",
-  SPCE:"Aeroespacial",
-
-  // Logística & Transporte
-  UPS:"Logística",FDX:"Logística",CHRW:"Logística",
-  EXPD:"Logística",GXO:"Logística",XPO:"Logística",
-  ODFL:"Logística",SAIA:"Logística",JBHT:"Logística",
-  LSTR:"Logística",WERN:"Logística",
-
-  // Materiales
+  // ── Materiales (Materials) ────────────────────────────────────────────────
   LIN:"Materiales",APD:"Materiales",DOW:"Materiales",
   NEM:"Materiales",FCX:"Materiales",AA:"Materiales",
   CLF:"Materiales",NUE:"Materiales",MLM:"Materiales",
   VMC:"Materiales",ALB:"Materiales",SQM:"Materiales",
-  MP:"Materiales",ECL:"Materiales",PPG:"Materiales",
+  MP:"Materiales",ECL:"Materiales",PPG:"Materiales",SHW:"Materiales",
 
-  // Telecomunicaciones
-  T:"Telecomunicaciones",VZ:"Telecomunicaciones",TMUS:"Telecomunicaciones",
-  CMCSA:"Telecomunicaciones",CHTR:"Telecomunicaciones",
+  // ── Bienes Raíces (Real Estate) ────────────────────────────────────────────
+  AMT:"Bienes Raíces",CCI:"Bienes Raíces",PLD:"Bienes Raíces",
+  EQR:"Bienes Raíces",VTR:"Bienes Raíces",SPG:"Bienes Raíces",
+  MAA:"Bienes Raíces",PSA:"Bienes Raíces",INVH:"Bienes Raíces",
+  VICI:"Bienes Raíces",VNQ:"Bienes Raíces",EQIX:"Bienes Raíces",
 
-  // Medios & Entretenimiento
-  WBD:"Medios",PARA:"Medios",FOX:"Medios",FOXA:"Medios",
+  // ── Servicios Públicos (Utilities) ────────────────────────────────────────
+  NEE:"Servicios Públicos",DUK:"Servicios Públicos",
+  SO:"Servicios Públicos",AEP:"Servicios Públicos",
+  D:"Servicios Públicos",EXC:"Servicios Públicos",
+  XEL:"Servicios Públicos",PCG:"Servicios Públicos",
+  // Renewable utilities
+  RUN:"Servicios Públicos",PLUG:"Servicios Públicos",
+  BE:"Servicios Públicos",ITRI:"Servicios Públicos",
 
-  // Real Estate
-  AMT:"Real Estate",CCI:"Real Estate",PLD:"Real Estate",
-  EQR:"Real Estate",VTR:"Real Estate",SPG:"Real Estate",
-  MAA:"Real Estate",PSA:"Real Estate",INVH:"Real Estate",
-  VICI:"Real Estate",VNQ:"Real Estate",
-
-  // Cripto / Blockchain
-  COIN:"Cripto",MSTR:"Cripto",MARA:"Cripto",
-  RIOT:"Cripto",HUT:"Cripto",CLSK:"Cripto",
-
-  // ETF
+  // ── ETF ───────────────────────────────────────────────────────────────────
   SPY:"ETF",QQQ:"ETF",VTI:"ETF",IVV:"ETF",VOO:"ETF",
   IWM:"ETF",GLD:"ETF",SLV:"ETF",USO:"ETF",TLT:"ETF",
   HYG:"ETF",LQD:"ETF",EEM:"ETF",EFA:"ETF",IEF:"ETF",
   DIA:"ETF",ARKK:"ETF",TQQQ:"ETF",SQQQ:"ETF",
+  XLK:"ETF",XLF:"ETF",XLV:"ETF",XLE:"ETF",
 };
 
 const TICKER_RISK_OVERRIDE: Record<string, number> = {
@@ -219,59 +230,33 @@ const TICKER_RISK_OVERRIDE: Record<string, number> = {
 };
 
 const SECTOR_RISK_BASE: Record<string, number> = {
-  ETF:22,
-  "Consumo Básico":20,
-  "Real Estate":40,
-  Seguros:40,
-  "Farmacéutica":38,
-  Salud:32,
-  Telecomunicaciones:35,
-  Logística:44,
-  Bancario:48,
-  Industriales:48,
-  Aeroespacial:52,
-  Financiero:52,
-  Materiales:54,
-  Medios:55,
-  Energía:58,
-  "Consumo Discrecional":55,
-  eCommerce:62,
-  Software:65,
-  "Energía Renovable":68,
-  Tecnología:70,
-  Fintech:74,
-  Biotecnología:72,
-  "Inteligencia Artificial":82,
-  Semiconductores:78,
-  Cripto:92,
+  ETF: 22,
+  "Consumo Básico": 20,
+  "Servicios Públicos": 28,
+  "Bienes Raíces": 40,
+  Salud: 42,
+  Comunicaciones: 52,
+  Financiero: 52,
+  Energía: 55,
+  Industriales: 46,
+  Materiales: 52,
+  "Consumo Discrecional": 58,
+  Tecnología: 68,
 };
 
 // Color por sector para la barra de diagnóstico
 const SECTOR_COLOR: Record<string, string> = {
-  Semiconductores:"#8b5cf6",
-  Software:"#3b82f6",
-  Tecnología:"#06b6d4",
-  "Inteligencia Artificial":"#a855f7",
-  Fintech:"#10b981",
-  eCommerce:"#f59e0b",
+  Tecnología:"#8b5cf6",
+  Comunicaciones:"#06b6d4",
   "Consumo Discrecional":"#f97316",
   "Consumo Básico":"#eab308",
   Salud:"#ec4899",
-  "Farmacéutica":"#f43f5e",
-  Biotecnología:"#c026d3",
   Financiero:"#475569",
-  Bancario:"#64748b",
-  Seguros:"#6b7280",
   Energía:"#ef4444",
-  "Energía Renovable":"#22c55e",
-  Industriales:"#78716c",
-  Aeroespacial:"#0ea5e9",
-  Logística:"#84cc16",
+  Industriales:"#0ea5e9",
   Materiales:"#d97706",
-  Telecomunicaciones:"#7c3aed",
-  Medios:"#db2777",
-  "Real Estate":"#14b8a6",
-  Cripto:"#f59e0b",
+  "Bienes Raíces":"#14b8a6",
+  "Servicios Públicos":"#22c55e",
   ETF:"#94a3b8",
 };
 
@@ -294,71 +279,56 @@ const STRESS_SCENARIOS: Array<{
     desc:"Colapso del sistema financiero global",
     default:-42,
     drawdowns:{
-      Semiconductores:-55, Software:-48, Tecnología:-52, "Inteligencia Artificial":-52,
-      Fintech:-55, eCommerce:-50,
-      "Consumo Discrecional":-42, "Consumo Básico":-20,
-      Salud:-18, "Farmacéutica":-22, Biotecnología:-30,
-      Bancario:-80, Financiero:-68, Seguros:-55,
-      Energía:-55, "Energía Renovable":-60,
-      Industriales:-42, Aeroespacial:-40, Logística:-40, Materiales:-55,
-      Telecomunicaciones:-32, Medios:-42, "Real Estate":-65,
-      Cripto:-55, ETF:-38,
+      Tecnología:-52, Comunicaciones:-40,
+      "Consumo Discrecional":-45, "Consumo Básico":-20,
+      Salud:-22, Financiero:-65, Energía:-55,
+      Industriales:-40, Materiales:-55,
+      "Bienes Raíces":-65, "Servicios Públicos":-20,
+      ETF:-38,
     }},
   { id:"covid", name:"COVID-19", icon:"🦠", color:"#f97316", year:"Feb-Mar 2020",
     desc:"Crash de 33 días, caída brusca y rápida",
     default:-34,
     drawdowns:{
-      Semiconductores:-35, Software:-28, Tecnología:-32, "Inteligencia Artificial":-30,
-      Fintech:-38, eCommerce:18,
+      Tecnología:-30, Comunicaciones:-25,
       "Consumo Discrecional":-50, "Consumo Básico":-12,
-      Salud:-10, "Farmacéutica":-15, Biotecnología:15,
-      Bancario:-48, Financiero:-42, Seguros:-38,
-      Energía:-65, "Energía Renovable":-38,
-      Industriales:-40, Aeroespacial:-55, Logística:-32, Materiales:-40,
-      Telecomunicaciones:-22, Medios:-45, "Real Estate":-40,
-      Cripto:-50, ETF:-34,
+      Salud:-5, Financiero:-42, Energía:-65,
+      Industriales:-42, Materiales:-40,
+      "Bienes Raíces":-40, "Servicios Públicos":-20,
+      ETF:-34,
     }},
   { id:"tech2022", name:"Tech Crash '22", icon:"📉", color:"#f59e0b", year:"2022",
     desc:"Alza de tasas aplasta valuaciones tech",
     default:-20,
     drawdowns:{
-      Semiconductores:-62, Software:-58, Tecnología:-52, "Inteligencia Artificial":-60,
-      Fintech:-70, eCommerce:-55,
+      Tecnología:-58, Comunicaciones:-52,
       "Consumo Discrecional":-18, "Consumo Básico":-10,
-      Salud:-8, "Farmacéutica":-10, Biotecnología:-32,
-      Bancario:-18, Financiero:-22, Seguros:-12,
-      Energía:45, "Energía Renovable":-35,
-      Industriales:-12, Aeroespacial:-8, Logística:-20, Materiales:-20,
-      Telecomunicaciones:-28, Medios:-40, "Real Estate":-25,
-      Cripto:-75, ETF:-18,
+      Salud:-15, Financiero:-25, Energía:45,
+      Industriales:-12, Materiales:-20,
+      "Bienes Raíces":-28, "Servicios Públicos":-15,
+      ETF:-18,
     }},
   { id:"fed", name:"Fed +1%", icon:"🏛️", color:"#6366f1", year:"Escenario",
     desc:"Subida sorpresiva de 100pb en tasas",
     default:-12,
     drawdowns:{
-      Semiconductores:-22, Software:-25, Tecnología:-20, "Inteligencia Artificial":-28,
-      Fintech:-28, eCommerce:-22,
+      Tecnología:-22, Comunicaciones:-18,
       "Consumo Discrecional":-12, "Consumo Básico":-8,
-      Salud:-5, "Farmacéutica":-8, Biotecnología:-15,
-      Bancario:8, Financiero:5, Seguros:3,
-      Energía:-8, "Energía Renovable":-20,
-      Industriales:-10, Aeroespacial:-8, Logística:-10, Materiales:-12,
-      Telecomunicaciones:-15, Medios:-10, "Real Estate":-20,
-      Cripto:-35, ETF:-12,
+      Salud:-8, Financiero:3, Energía:-8,
+      Industriales:-10, Materiales:-12,
+      "Bienes Raíces":-22, "Servicios Públicos":-18,
+      ETF:-12,
     }},
   { id:"bull", name:"Bull Market", icon:"🚀", color:"#22c55e", year:"Escenario",
     desc:"Año de recuperación y euforia inversora",
     default:22,
     drawdowns:{
-      Semiconductores:55, Software:40, Tecnología:38, "Inteligencia Artificial":60,
-      Fintech:42, eCommerce:38,
-      "Consumo Discrecional":25, "Consumo Básico":12,
-      Salud:18, "Farmacéutica":20, Biotecnología:32,
-      Bancario:25, Financiero:28, Seguros:18,
-      Energía:22, "Energía Renovable":40,
-      Industriales:22, Aeroespacial:28, Logística:20, Materiales:25,
-      Telecomunicaciones:15, Medios:20, "Real Estate":25,
-      Cripto:80, ETF:25,
+      Tecnología:50, Comunicaciones:35,
+      "Consumo Discrecional":28, "Consumo Básico":12,
+      Salud:22, Financiero:30, Energía:22,
+      Industriales:22, Materiales:25,
+      "Bienes Raíces":25, "Servicios Públicos":15,
+      ETF:25,
     }},
 ];
 

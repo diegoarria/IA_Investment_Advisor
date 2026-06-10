@@ -9,56 +9,201 @@ from app.core.cache import cache_get, cache_set
 router = APIRouter(prefix="/market/screener", tags=["screener"])
 
 UNIVERSE = [
-    # Technology
-    {"ticker": "AAPL",  "name": "Apple",           "sector": "Tech"},
-    {"ticker": "MSFT",  "name": "Microsoft",        "sector": "Tech"},
-    {"ticker": "NVDA",  "name": "NVIDIA",           "sector": "Tech"},
-    {"ticker": "GOOGL", "name": "Alphabet",         "sector": "Tech"},
-    {"ticker": "META",  "name": "Meta",             "sector": "Tech"},
-    {"ticker": "AMZN",  "name": "Amazon",           "sector": "Tech"},
-    {"ticker": "TSLA",  "name": "Tesla",            "sector": "Tech"},
-    {"ticker": "AMD",   "name": "AMD",              "sector": "Tech"},
-    {"ticker": "CRM",   "name": "Salesforce",       "sector": "Tech"},
-    {"ticker": "ADBE",  "name": "Adobe",            "sector": "Tech"},
-    {"ticker": "ORCL",  "name": "Oracle",           "sector": "Tech"},
-    {"ticker": "PLTR",  "name": "Palantir",         "sector": "Tech"},
-    {"ticker": "NFLX",  "name": "Netflix",          "sector": "Tech"},
-    {"ticker": "UBER",  "name": "Uber",             "sector": "Tech"},
-    {"ticker": "SHOP",  "name": "Shopify",          "sector": "Tech"},
-    # Finance
-    {"ticker": "JPM",   "name": "JPMorgan",         "sector": "Finance"},
-    {"ticker": "GS",    "name": "Goldman Sachs",    "sector": "Finance"},
-    {"ticker": "V",     "name": "Visa",             "sector": "Finance"},
-    {"ticker": "MA",    "name": "Mastercard",       "sector": "Finance"},
-    {"ticker": "BAC",   "name": "Bank of America",  "sector": "Finance"},
-    {"ticker": "MS",    "name": "Morgan Stanley",   "sector": "Finance"},
-    {"ticker": "BRK-B", "name": "Berkshire",        "sector": "Finance"},
-    {"ticker": "PYPL",  "name": "PayPal",           "sector": "Finance"},
-    # Healthcare
-    {"ticker": "LLY",   "name": "Eli Lilly",        "sector": "Salud"},
-    {"ticker": "NVO",   "name": "Novo Nordisk",     "sector": "Salud"},
-    {"ticker": "JNJ",   "name": "J&J",              "sector": "Salud"},
-    {"ticker": "ABBV",  "name": "AbbVie",           "sector": "Salud"},
-    {"ticker": "UNH",   "name": "UnitedHealth",     "sector": "Salud"},
-    {"ticker": "PFE",   "name": "Pfizer",           "sector": "Salud"},
-    # Consumer
-    {"ticker": "WMT",   "name": "Walmart",          "sector": "Consumo"},
-    {"ticker": "MCD",   "name": "McDonald's",       "sector": "Consumo"},
-    {"ticker": "KO",    "name": "Coca-Cola",        "sector": "Consumo"},
-    {"ticker": "PEP",   "name": "PepsiCo",          "sector": "Consumo"},
-    {"ticker": "COST",  "name": "Costco",           "sector": "Consumo"},
-    {"ticker": "NKE",   "name": "Nike",             "sector": "Consumo"},
-    {"ticker": "DIS",   "name": "Disney",           "sector": "Consumo"},
-    # Energy
-    {"ticker": "XOM",   "name": "ExxonMobil",       "sector": "Energía"},
-    {"ticker": "CVX",   "name": "Chevron",          "sector": "Energía"},
-    {"ticker": "COP",   "name": "ConocoPhillips",   "sector": "Energía"},
-    # ETFs
-    {"ticker": "SPY",   "name": "S&P 500 ETF",      "sector": "ETF"},
-    {"ticker": "QQQ",   "name": "Nasdaq 100 ETF",   "sector": "ETF"},
-    {"ticker": "VTI",   "name": "Total Market ETF", "sector": "ETF"},
-    {"ticker": "GLD",   "name": "Gold ETF",         "sector": "ETF"},
-    {"ticker": "ARKK",  "name": "ARK Innovation",   "sector": "ETF"},
+    # ── Technology ─────────────────────────────────────────────────────────────
+    # Consumer Electronics
+    {"ticker": "AAPL",  "name": "Apple",              "sector": "Technology",             "industry": "Consumer Electronics"},
+    # Software – Infrastructure
+    {"ticker": "MSFT",  "name": "Microsoft",          "sector": "Technology",             "industry": "Software - Infrastructure"},
+    {"ticker": "ORCL",  "name": "Oracle",             "sector": "Technology",             "industry": "Software - Infrastructure"},
+    {"ticker": "PANW",  "name": "Palo Alto Networks", "sector": "Technology",             "industry": "Software - Infrastructure"},
+    {"ticker": "NET",   "name": "Cloudflare",         "sector": "Technology",             "industry": "Software - Infrastructure"},
+    # Software – Application
+    {"ticker": "CRM",   "name": "Salesforce",         "sector": "Technology",             "industry": "Software - Application"},
+    {"ticker": "ADBE",  "name": "Adobe",              "sector": "Technology",             "industry": "Software - Application"},
+    {"ticker": "SHOP",  "name": "Shopify",            "sector": "Technology",             "industry": "Software - Application"},
+    {"ticker": "NOW",   "name": "ServiceNow",         "sector": "Technology",             "industry": "Software - Application"},
+    {"ticker": "INTU",  "name": "Intuit",             "sector": "Technology",             "industry": "Software - Application"},
+    {"ticker": "SNOW",  "name": "Snowflake",          "sector": "Technology",             "industry": "Software - Application"},
+    {"ticker": "PLTR",  "name": "Palantir",           "sector": "Technology",             "industry": "Software - Application"},
+    {"ticker": "DDOG",  "name": "Datadog",            "sector": "Technology",             "industry": "Software - Application"},
+    # Semiconductors
+    {"ticker": "NVDA",  "name": "NVIDIA",             "sector": "Technology",             "industry": "Semiconductors"},
+    {"ticker": "AMD",   "name": "AMD",                "sector": "Technology",             "industry": "Semiconductors"},
+    {"ticker": "AVGO",  "name": "Broadcom",           "sector": "Technology",             "industry": "Semiconductors"},
+    {"ticker": "QCOM",  "name": "Qualcomm",           "sector": "Technology",             "industry": "Semiconductors"},
+    {"ticker": "TSM",   "name": "TSMC",               "sector": "Technology",             "industry": "Semiconductors"},
+    {"ticker": "TXN",   "name": "Texas Instruments",  "sector": "Technology",             "industry": "Semiconductors"},
+    {"ticker": "INTC",  "name": "Intel",              "sector": "Technology",             "industry": "Semiconductors"},
+    {"ticker": "AMAT",  "name": "Applied Materials",  "sector": "Technology",             "industry": "Semiconductor Equipment & Materials"},
+    {"ticker": "ARM",   "name": "Arm Holdings",       "sector": "Technology",             "industry": "Semiconductors"},
+    # Communication Equipment
+    {"ticker": "CSCO",  "name": "Cisco",              "sector": "Technology",             "industry": "Communication Equipment"},
+    # Solar
+    {"ticker": "ENPH",  "name": "Enphase Energy",     "sector": "Technology",             "industry": "Solar"},
+    {"ticker": "FSLR",  "name": "First Solar",        "sector": "Technology",             "industry": "Solar"},
+
+    # ── Communication Services ─────────────────────────────────────────────────
+    # Internet Content & Information
+    {"ticker": "GOOGL", "name": "Alphabet",           "sector": "Communication Services", "industry": "Internet Content & Information"},
+    {"ticker": "META",  "name": "Meta Platforms",     "sector": "Communication Services", "industry": "Internet Content & Information"},
+    {"ticker": "SNAP",  "name": "Snap",               "sector": "Communication Services", "industry": "Internet Content & Information"},
+    {"ticker": "PINS",  "name": "Pinterest",          "sector": "Communication Services", "industry": "Internet Content & Information"},
+    # Entertainment
+    {"ticker": "NFLX",  "name": "Netflix",            "sector": "Communication Services", "industry": "Entertainment"},
+    {"ticker": "DIS",   "name": "Walt Disney",        "sector": "Communication Services", "industry": "Entertainment"},
+    {"ticker": "RBLX",  "name": "Roblox",             "sector": "Communication Services", "industry": "Electronic Gaming & Multimedia"},
+    {"ticker": "SPOT",  "name": "Spotify",            "sector": "Communication Services", "industry": "Entertainment"},
+    # Telecom Services
+    {"ticker": "VZ",    "name": "Verizon",            "sector": "Communication Services", "industry": "Telecom Services"},
+    {"ticker": "T",     "name": "AT&T",               "sector": "Communication Services", "industry": "Telecom Services"},
+    {"ticker": "TMUS",  "name": "T-Mobile",           "sector": "Communication Services", "industry": "Telecom Services"},
+    {"ticker": "CMCSA", "name": "Comcast",            "sector": "Communication Services", "industry": "Telecom Services"},
+
+    # ── Consumer Discretionary ─────────────────────────────────────────────────
+    # Internet Retail
+    {"ticker": "AMZN",  "name": "Amazon",             "sector": "Consumer Discretionary", "industry": "Internet Retail"},
+    {"ticker": "MELI",  "name": "MercadoLibre",       "sector": "Consumer Discretionary", "industry": "Internet Retail"},
+    {"ticker": "BABA",  "name": "Alibaba",            "sector": "Consumer Discretionary", "industry": "Internet Retail"},
+    {"ticker": "EBAY",  "name": "eBay",               "sector": "Consumer Discretionary", "industry": "Internet Retail"},
+    # Auto Manufacturers
+    {"ticker": "TSLA",  "name": "Tesla",              "sector": "Consumer Discretionary", "industry": "Auto Manufacturers"},
+    {"ticker": "GM",    "name": "General Motors",     "sector": "Consumer Discretionary", "industry": "Auto Manufacturers"},
+    {"ticker": "F",     "name": "Ford",               "sector": "Consumer Discretionary", "industry": "Auto Manufacturers"},
+    {"ticker": "RIVN",  "name": "Rivian",             "sector": "Consumer Discretionary", "industry": "Auto Manufacturers"},
+    # Restaurants
+    {"ticker": "MCD",   "name": "McDonald's",         "sector": "Consumer Discretionary", "industry": "Restaurants"},
+    {"ticker": "SBUX",  "name": "Starbucks",          "sector": "Consumer Discretionary", "industry": "Restaurants"},
+    {"ticker": "CMG",   "name": "Chipotle",           "sector": "Consumer Discretionary", "industry": "Restaurants"},
+    # Home Improvement Retail
+    {"ticker": "HD",    "name": "Home Depot",         "sector": "Consumer Discretionary", "industry": "Home Improvement Retail"},
+    {"ticker": "LOW",   "name": "Lowe's",             "sector": "Consumer Discretionary", "industry": "Home Improvement Retail"},
+    # Travel Services
+    {"ticker": "BKNG",  "name": "Booking Holdings",  "sector": "Consumer Discretionary", "industry": "Travel Services"},
+    {"ticker": "ABNB",  "name": "Airbnb",             "sector": "Consumer Discretionary", "industry": "Travel Services"},
+    # Apparel / Footwear
+    {"ticker": "NKE",   "name": "Nike",               "sector": "Consumer Discretionary", "industry": "Footwear & Accessories"},
+    # Specialty Retail
+    {"ticker": "TJX",   "name": "TJX Companies",      "sector": "Consumer Discretionary", "industry": "Apparel Retail"},
+    {"ticker": "UBER",  "name": "Uber",               "sector": "Consumer Discretionary", "industry": "Specialty Retail"},
+
+    # ── Consumer Staples ────────────────────────────────────────────────────────
+    {"ticker": "WMT",   "name": "Walmart",            "sector": "Consumer Staples",        "industry": "Discount Stores"},
+    {"ticker": "COST",  "name": "Costco",             "sector": "Consumer Staples",        "industry": "Discount Stores"},
+    {"ticker": "TGT",   "name": "Target",             "sector": "Consumer Staples",        "industry": "Discount Stores"},
+    {"ticker": "KO",    "name": "Coca-Cola",          "sector": "Consumer Staples",        "industry": "Beverages - Non-Alcoholic"},
+    {"ticker": "PEP",   "name": "PepsiCo",            "sector": "Consumer Staples",        "industry": "Beverages - Non-Alcoholic"},
+    {"ticker": "PG",    "name": "Procter & Gamble",   "sector": "Consumer Staples",        "industry": "Household & Personal Products"},
+    {"ticker": "MDLZ",  "name": "Mondelez",           "sector": "Consumer Staples",        "industry": "Packaged Foods"},
+    {"ticker": "GIS",   "name": "General Mills",      "sector": "Consumer Staples",        "industry": "Packaged Foods"},
+    {"ticker": "PM",    "name": "Philip Morris",      "sector": "Consumer Staples",        "industry": "Tobacco"},
+    {"ticker": "MO",    "name": "Altria",             "sector": "Consumer Staples",        "industry": "Tobacco"},
+
+    # ── Healthcare ─────────────────────────────────────────────────────────────
+    # Drug Manufacturers – General
+    {"ticker": "LLY",   "name": "Eli Lilly",          "sector": "Healthcare",              "industry": "Drug Manufacturers - General"},
+    {"ticker": "JNJ",   "name": "Johnson & Johnson",  "sector": "Healthcare",              "industry": "Drug Manufacturers - General"},
+    {"ticker": "ABBV",  "name": "AbbVie",             "sector": "Healthcare",              "industry": "Drug Manufacturers - General"},
+    {"ticker": "MRK",   "name": "Merck",              "sector": "Healthcare",              "industry": "Drug Manufacturers - General"},
+    {"ticker": "PFE",   "name": "Pfizer",             "sector": "Healthcare",              "industry": "Drug Manufacturers - General"},
+    {"ticker": "NVO",   "name": "Novo Nordisk",       "sector": "Healthcare",              "industry": "Drug Manufacturers - General"},
+    {"ticker": "AZN",   "name": "AstraZeneca",        "sector": "Healthcare",              "industry": "Drug Manufacturers - General"},
+    {"ticker": "BMY",   "name": "Bristol-Myers Squibb","sector": "Healthcare",             "industry": "Drug Manufacturers - General"},
+    # Biotechnology
+    {"ticker": "AMGN",  "name": "Amgen",              "sector": "Healthcare",              "industry": "Biotechnology"},
+    {"ticker": "GILD",  "name": "Gilead Sciences",    "sector": "Healthcare",              "industry": "Biotechnology"},
+    {"ticker": "REGN",  "name": "Regeneron",          "sector": "Healthcare",              "industry": "Biotechnology"},
+    {"ticker": "VRTX",  "name": "Vertex Pharma",      "sector": "Healthcare",              "industry": "Biotechnology"},
+    {"ticker": "MRNA",  "name": "Moderna",            "sector": "Healthcare",              "industry": "Biotechnology"},
+    # Healthcare Plans
+    {"ticker": "UNH",   "name": "UnitedHealth",       "sector": "Healthcare",              "industry": "Healthcare Plans"},
+    {"ticker": "CVS",   "name": "CVS Health",         "sector": "Healthcare",              "industry": "Healthcare Plans"},
+    {"ticker": "CI",    "name": "Cigna",              "sector": "Healthcare",              "industry": "Healthcare Plans"},
+    # Medical Devices
+    {"ticker": "ABT",   "name": "Abbott Labs",        "sector": "Healthcare",              "industry": "Medical Devices"},
+    {"ticker": "MDT",   "name": "Medtronic",          "sector": "Healthcare",              "industry": "Medical Devices"},
+    {"ticker": "ISRG",  "name": "Intuitive Surgical", "sector": "Healthcare",              "industry": "Medical Instruments & Supplies"},
+
+    # ── Financials ─────────────────────────────────────────────────────────────
+    # Banks – Diversified
+    {"ticker": "JPM",   "name": "JPMorgan Chase",     "sector": "Financials",              "industry": "Banks - Diversified"},
+    {"ticker": "BAC",   "name": "Bank of America",    "sector": "Financials",              "industry": "Banks - Diversified"},
+    {"ticker": "WFC",   "name": "Wells Fargo",        "sector": "Financials",              "industry": "Banks - Diversified"},
+    {"ticker": "C",     "name": "Citigroup",          "sector": "Financials",              "industry": "Banks - Diversified"},
+    # Capital Markets
+    {"ticker": "GS",    "name": "Goldman Sachs",      "sector": "Financials",              "industry": "Capital Markets"},
+    {"ticker": "MS",    "name": "Morgan Stanley",     "sector": "Financials",              "industry": "Capital Markets"},
+    {"ticker": "BX",    "name": "Blackstone",         "sector": "Financials",              "industry": "Asset Management - Global"},
+    {"ticker": "BLK",   "name": "BlackRock",          "sector": "Financials",              "industry": "Asset Management - Global"},
+    {"ticker": "SCHW",  "name": "Charles Schwab",     "sector": "Financials",              "industry": "Capital Markets"},
+    {"ticker": "SPGI",  "name": "S&P Global",         "sector": "Financials",              "industry": "Financial Data & Stock Exchanges"},
+    # Credit Services
+    {"ticker": "V",     "name": "Visa",               "sector": "Financials",              "industry": "Credit Services"},
+    {"ticker": "MA",    "name": "Mastercard",         "sector": "Financials",              "industry": "Credit Services"},
+    {"ticker": "AXP",   "name": "American Express",   "sector": "Financials",              "industry": "Credit Services"},
+    {"ticker": "PYPL",  "name": "PayPal",             "sector": "Financials",              "industry": "Credit Services"},
+    # Insurance
+    {"ticker": "BRK-B", "name": "Berkshire Hathaway", "sector": "Financials",              "industry": "Insurance - Diversified"},
+    {"ticker": "PGR",   "name": "Progressive",        "sector": "Financials",              "industry": "Insurance - Property & Casualty"},
+    {"ticker": "CB",    "name": "Chubb",              "sector": "Financials",              "industry": "Insurance - Property & Casualty"},
+    # Crypto / Blockchain
+    {"ticker": "COIN",  "name": "Coinbase",           "sector": "Financials",              "industry": "Capital Markets"},
+
+    # ── Energy ─────────────────────────────────────────────────────────────────
+    {"ticker": "XOM",   "name": "ExxonMobil",         "sector": "Energy",                  "industry": "Oil & Gas Integrated"},
+    {"ticker": "CVX",   "name": "Chevron",            "sector": "Energy",                  "industry": "Oil & Gas Integrated"},
+    {"ticker": "COP",   "name": "ConocoPhillips",     "sector": "Energy",                  "industry": "Oil & Gas E&P"},
+    {"ticker": "OXY",   "name": "Occidental",         "sector": "Energy",                  "industry": "Oil & Gas E&P"},
+    {"ticker": "SLB",   "name": "Schlumberger",       "sector": "Energy",                  "industry": "Oil & Gas Equipment & Services"},
+    {"ticker": "EOG",   "name": "EOG Resources",      "sector": "Energy",                  "industry": "Oil & Gas E&P"},
+    {"ticker": "PSX",   "name": "Phillips 66",        "sector": "Energy",                  "industry": "Oil & Gas Refining & Marketing"},
+
+    # ── Industrials ─────────────────────────────────────────────────────────────
+    {"ticker": "GE",    "name": "GE Aerospace",       "sector": "Industrials",             "industry": "Aerospace & Defense"},
+    {"ticker": "BA",    "name": "Boeing",             "sector": "Industrials",             "industry": "Aerospace & Defense"},
+    {"ticker": "LMT",   "name": "Lockheed Martin",    "sector": "Industrials",             "industry": "Aerospace & Defense"},
+    {"ticker": "RTX",   "name": "RTX Corp",           "sector": "Industrials",             "industry": "Aerospace & Defense"},
+    {"ticker": "NOC",   "name": "Northrop Grumman",   "sector": "Industrials",             "industry": "Aerospace & Defense"},
+    {"ticker": "CAT",   "name": "Caterpillar",        "sector": "Industrials",             "industry": "Farm & Heavy Construction Machinery"},
+    {"ticker": "DE",    "name": "Deere & Co",         "sector": "Industrials",             "industry": "Farm & Heavy Construction Machinery"},
+    {"ticker": "HON",   "name": "Honeywell",          "sector": "Industrials",             "industry": "Specialty Industrial Machinery"},
+    {"ticker": "UNP",   "name": "Union Pacific",      "sector": "Industrials",             "industry": "Railroads"},
+    {"ticker": "UPS",   "name": "UPS",                "sector": "Industrials",             "industry": "Integrated Freight & Logistics"},
+    {"ticker": "FDX",   "name": "FedEx",              "sector": "Industrials",             "industry": "Integrated Freight & Logistics"},
+    {"ticker": "ODFL",  "name": "Old Dominion",       "sector": "Industrials",             "industry": "Trucking"},
+
+    # ── Materials ────────────────────────────────────────────────────────────────
+    {"ticker": "LIN",   "name": "Linde",              "sector": "Materials",               "industry": "Specialty Chemicals"},
+    {"ticker": "SHW",   "name": "Sherwin-Williams",   "sector": "Materials",               "industry": "Specialty Chemicals"},
+    {"ticker": "NEM",   "name": "Newmont",            "sector": "Materials",               "industry": "Gold"},
+    {"ticker": "FCX",   "name": "Freeport-McMoRan",  "sector": "Materials",               "industry": "Copper"},
+    {"ticker": "ALB",   "name": "Albemarle",          "sector": "Materials",               "industry": "Specialty Chemicals"},
+    {"ticker": "NUE",   "name": "Nucor",              "sector": "Materials",               "industry": "Steel"},
+
+    # ── Real Estate ──────────────────────────────────────────────────────────────
+    {"ticker": "AMT",   "name": "American Tower",     "sector": "Real Estate",             "industry": "REIT - Specialty"},
+    {"ticker": "PLD",   "name": "Prologis",           "sector": "Real Estate",             "industry": "REIT - Industrial"},
+    {"ticker": "EQIX",  "name": "Equinix",            "sector": "Real Estate",             "industry": "REIT - Specialty"},
+    {"ticker": "O",     "name": "Realty Income",      "sector": "Real Estate",             "industry": "REIT - Retail"},
+    {"ticker": "SPG",   "name": "Simon Property",     "sector": "Real Estate",             "industry": "REIT - Retail"},
+    {"ticker": "VICI",  "name": "VICI Properties",    "sector": "Real Estate",             "industry": "REIT - Specialty"},
+
+    # ── Utilities ────────────────────────────────────────────────────────────────
+    {"ticker": "NEE",   "name": "NextEra Energy",     "sector": "Utilities",               "industry": "Utilities - Regulated Electric"},
+    {"ticker": "DUK",   "name": "Duke Energy",        "sector": "Utilities",               "industry": "Utilities - Regulated Electric"},
+    {"ticker": "SO",    "name": "Southern Co",        "sector": "Utilities",               "industry": "Utilities - Regulated Electric"},
+    {"ticker": "AEP",   "name": "AEP",                "sector": "Utilities",               "industry": "Utilities - Regulated Electric"},
+
+    # ── ETFs ─────────────────────────────────────────────────────────────────────
+    {"ticker": "SPY",   "name": "S&P 500 ETF",        "sector": "ETF",                     "industry": "ETF"},
+    {"ticker": "QQQ",   "name": "Nasdaq 100 ETF",     "sector": "ETF",                     "industry": "ETF"},
+    {"ticker": "VTI",   "name": "Total Market ETF",   "sector": "ETF",                     "industry": "ETF"},
+    {"ticker": "GLD",   "name": "Gold ETF",           "sector": "ETF",                     "industry": "ETF"},
+    {"ticker": "ARKK",  "name": "ARK Innovation ETF", "sector": "ETF",                     "industry": "ETF"},
+    {"ticker": "IWM",   "name": "Russell 2000 ETF",   "sector": "ETF",                     "industry": "ETF"},
+    {"ticker": "XLK",   "name": "Tech Sector ETF",    "sector": "ETF",                     "industry": "ETF"},
+    {"ticker": "XLF",   "name": "Financial ETF",      "sector": "ETF",                     "industry": "ETF"},
+    {"ticker": "XLV",   "name": "Healthcare ETF",     "sector": "ETF",                     "industry": "ETF"},
+    {"ticker": "XLE",   "name": "Energy ETF",         "sector": "ETF",                     "industry": "ETF"},
 ]
 
 _TTL = 4 * 3600  # 4 hours
@@ -102,6 +247,7 @@ def _fetch_one(entry: dict) -> dict:
             "ticker":    ticker,
             "name":      entry["name"],
             "sector":    entry["sector"],
+            "industry":  entry.get("industry", ""),
             "price":     round(price, 2) if price else None,
             "change_pct": chg_pct,
             "market_cap": mkt_cap,
@@ -116,7 +262,7 @@ def _fetch_one(entry: dict) -> dict:
         cache_set(f"screener:{ticker}", data, ttl=_TTL)
         return data
     except Exception:
-        return {**entry, "price": None, "score": 0}
+        return {**entry, "industry": entry.get("industry", ""), "price": None, "score": 0}
 
 
 def _fetch_batch(entries: list[dict]) -> list[dict]:
