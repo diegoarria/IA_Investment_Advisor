@@ -319,18 +319,37 @@ export default function VideoCard({
           className="w-full h-full object-cover cursor-pointer"
         />
 
-        {/* Phase badge: pre / post — with countdown */}
+        {/* Phase badge: pre / post — with countdown + skip */}
         {(phase === "pre" || phase === "post") && (
-          <div className="absolute top-3 left-1/2 -translate-x-1/2 z-10 flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold"
-               style={{ background: "rgba(139,92,246,0.9)", color: "white", backdropFilter: "blur(8px)" }}>
-            <span className="animate-pulse">🎙️</span>
-            <span>{phase === "pre" ? "Introducción" : "Análisis IA"}</span>
-            {audioRemaining > 0 && (
-              <span className="px-1.5 py-0.5 rounded-full text-[10px] font-semibold"
-                    style={{ background: "rgba(255,255,255,0.2)" }}>
-                {audioRemaining}s
-              </span>
-            )}
+          <div className="absolute top-3 left-1/2 -translate-x-1/2 z-10 flex items-center gap-2">
+            {/* Label + timer */}
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold"
+                 style={{ background: "rgba(139,92,246,0.9)", color: "white", backdropFilter: "blur(8px)" }}>
+              <span className="animate-pulse">🎙️</span>
+              <span>{phase === "pre" ? "Introducción" : "Análisis IA"}</span>
+              {audioRemaining > 0 && (
+                <span className="px-1.5 py-0.5 rounded-full text-[10px] font-semibold"
+                      style={{ background: "rgba(255,255,255,0.2)" }}>
+                  {audioRemaining}s
+                </span>
+              )}
+            </div>
+            {/* Skip button — always visible */}
+            <button
+              onClick={() => {
+                if (phase === "pre") {
+                  preAudioRef.current?.pause();
+                  setPhase("video");
+                  videoRef.current?.play().catch(() => {});
+                } else {
+                  postAudioRef.current?.pause();
+                  setPhase("idle");
+                }
+              }}
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-full text-xs font-bold"
+              style={{ background: "rgba(0,0,0,0.55)", color: "white", border: "1px solid rgba(255,255,255,0.25)", backdropFilter: "blur(8px)" }}>
+              Saltar ›
+            </button>
           </div>
         )}
 
