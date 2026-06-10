@@ -8,9 +8,8 @@ import Image from "next/image";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { market as marketApi } from "@/lib/api";
-import { useAuthStore, useSubscriptionStore, useWatchlistStore } from "@/lib/store";
+import { useAuthStore, useSubscriptionStore } from "@/lib/store";
 import { usePortfolioStore, type Position } from "@/lib/portfolioStore";
-import EarningsPanel from "@/components/EarningsPanel";
 import AdvancedStockTable from "@/components/AdvancedStockTable";
 import type { AdvancedRow } from "@/components/AdvancedStockTable";
 import StockDetailModal from "@/components/StockDetailModal";
@@ -643,7 +642,6 @@ export default function PortfolioPage() {
   const { isAuthenticated } = useAuthStore();
   const sub = useSubscriptionStore();
   const isPremium = sub.tier === "premium";
-  const watchlistItems = useWatchlistStore((s) => s.items);
   const [paywallOpen, setPaywallOpen] = useState(false);
   const {
     positions, addPosition, removePosition, updatePosition, setPositions,
@@ -2272,17 +2270,6 @@ export default function PortfolioPage() {
                     onUnlock={() => setPaywallOpen(true)}
                   />
               }
-
-              <EarningsPanel
-                positions={positions.map((p) => ({
-                  ticker: p.ticker,
-                  shares: p.shares,
-                  avg_cost: p.avgPrice,
-                }))}
-                watchlistTickers={watchlistItems.map((i) => i.ticker)}
-                isPremium={isPremium}
-                onUpgrade={() => setPaywallOpen(true)}
-              />
 
               <WhatIfSimulator
                 positions={positions.map((p) => ({

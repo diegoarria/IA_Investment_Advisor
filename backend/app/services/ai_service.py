@@ -846,61 +846,125 @@ async def generate_weekly_picks(
     risk = profile.risk_tolerance if profile else "moderado"
     mentor = profile.mentor if profile else None
     existing = existing_tickers or []
+    quiz = (profile.quiz_answers if profile else {}) or {}
 
-    mentor_line = f"Mentor seleccionado: {mentor}." if mentor else ""
-    existing_line = f"Ya tiene en portafolio: {', '.join(existing)}. NO sugerir estas." if existing else ""
+    # Translate quiz answers into readable investment context
+    HORIZON_MAP = {
+        "A": "corto plazo (<2 años) — estabilidad ante todo, evitar volatilidad",
+        "B": "mediano plazo (3–5 años) — balance crecimiento/estabilidad",
+        "C": "largo plazo (10+ años) — puede aguantar volatilidad, maximizar retorno compuesto",
+        "D": "muy largo plazo sin urgencia — máxima paciencia, enfoque en compounders",
+    }
+    KNOWLEDGE_MAP = {
+        "A": "principiante — prefiere negocios simples y fáciles de entender",
+        "B": "básico — comprende conceptos generales de inversión",
+        "C": "intermedio — puede leer estados financieros y evaluar múltiplos",
+        "D": "avanzado — análisis financiero profundo, valoración, métricas complejas",
+    }
+    ENGAGEMENT_MAP = {
+        "A": "pasivo — prefiere negocios que no requieran seguimiento constante",
+        "B": "mensual — invierte con calma, no necesita ver precio cada día",
+        "C": "semanal — sigue el mercado activamente",
+        "D": "diario — monitoreo activo, cómodo con más movimiento",
+    }
+
+    horizon_ctx   = HORIZON_MAP.get(str(quiz.get("q2", "")), "mediano/largo plazo")
+    knowledge_ctx = KNOWLEDGE_MAP.get(str(quiz.get("q3", "")), "nivel intermedio")
+    engage_ctx    = ENGAGEMENT_MAP.get(str(quiz.get("q5", "")), "revisión periódica")
+
+    # Mentor → preferred business characteristics
+    MENTOR_BIZ: dict[str, str] = {
+        "warren_buffett":   "negocios con ventaja competitiva duradera (moat económico), marcas icónicas, alta rentabilidad sobre capital, modelo de negocio simple, flujo de caja predecible y consistente",
+        "ray_dalio":        "diversificación entre activos con baja correlación (All-Weather): defensivas, commodities, utilities, bonos y algo de crecimiento — protección ante cualquier entorno macro",
+        "michael_burry":    "empresas subvaloradas ignoradas por el mercado: activos tangibles reales, deuda manejable, precio muy por debajo del valor intrínseco, negocios que el consenso descarta",
+        "bill_ackman":      "negocios con marca dominante o posición monopolística, flujo de caja muy predecible, catalizador específico que hará que el mercado reconozca el valor en 12–18 meses",
+        "peter_lynch":      "empresas que cualquiera puede entender de su vida cotidiana — productos que usas, servicios que conoces — con crecimiento comprobable y PEG atractivo (ten-baggers accesibles)",
+    }
+    mentor_key = (mentor or "").lower().replace(" ", "_").replace("-", "_")
+    mentor_biz = MENTOR_BIZ.get(
+        mentor_key,
+        "empresas con fundamentos sólidos, ventaja competitiva clara y crecimiento sostenible"
+    )
+
+    mentor_line   = f"Mentor: {mentor}." if mentor else ""
+    existing_line = f"Ya posee: {', '.join(existing)}. NO incluir." if existing else ""
 
     data_str = json.dumps(candidates[:30], ensure_ascii=False)
 
-    prompt = f"""Eres el asesor semanal personalizado. Hoy es lunes. Analiza estas acciones y selecciona exactamente 5 oportunidades de la semana.
+    prompt = f"""Eres el asesor de inversión personalizado. Selecciona exactamente 5 SUGERENCIAS de exploración para esta semana (no son recomendaciones de compra — son ideas para que el usuario investigue más).
 
-Perfil del usuario: riesgo {risk}. {mentor_line} {existing_line}
+═══ PERFIL DEL USUARIO ═══
+• Riesgo: {risk}
+• Horizonte: {horizon_ctx}
+• Conocimiento: {knowledge_ctx}
+• Seguimiento: {engage_ctx}
+• {mentor_line} {existing_line}
 
-Candidatos (JSON):
+═══ TIPO DE NEGOCIO QUE BUSCA ═══
+Según su perfil e inspiración de inversión, este usuario se inclina hacia:
+{mentor_biz}
+
+Selecciona empresas que REALMENTE encajen con esta descripción de negocio. Explica en cada pick por qué ese negocio específico es del tipo que busca.
+
+═══ REGLAS ═══
+- Exactamente 5 sugerencias
+- Máximo 2 del mismo sector
+- No sugerir tickers que ya posee
+- Alineación con riesgo y horizonte
+- El campo "why" debe explicar por qué ESE negocio encaja con el tipo buscado, no solo por qué está barato
+
+═══ CANDIDATOS ═══
 {data_str}
 
-Reglas de selección:
-- Máximo 2 del mismo sector
-- Deben alinearse con el perfil de riesgo
-- Priorizar acciones con momentum positivo + fundamentos sólidos
-- Si el mentor es Buffett: priorizar calidad y valor. Si es Dalio: priorizar diversificación. Si es Ackman: concentración en alta convicción.
-
-Responde SOLO con JSON válido en este formato exacto:
+Responde SOLO con JSON válido:
 {{
-  "week_theme": "Tema de la semana en una frase (ej: 'Defensivas ante incertidumbre macro')",
+  "week_theme": "Tema de la semana en una frase breve",
+  "business_profile": "En 1-2 oraciones: qué tipo de negocios se priorizaron esta semana y por qué encajan con el perfil del usuario",
   "picks": [
     {{
       "ticker": "AAPL",
       "name": "Apple",
-      "sector": "Tech",
+      "sector": "Technology",
       "price": 185.50,
       "change_pct": 1.2,
       "score": 78,
-      "why": "Razón específica de 1-2 oraciones por qué encaja esta semana con el perfil del usuario",
-      "catalyst": "Catalizador concreto esta semana o próximas semanas",
-      "risk": "Principal riesgo en 10 palabras"
+      "why": "Por qué este negocio encaja con lo que busca este usuario (1-2 oraciones, enfocado en el tipo de negocio)",
+      "catalyst": "Catalizador concreto a explorar en próximas semanas",
+      "risk": "Principal riesgo en 10 palabras máximo"
     }}
   ],
-  "mentor_note": "Nota del mentor de 2-3 oraciones sobre el enfoque de esta semana"
+  "mentor_note": "Perspectiva del mentor sobre estas sugerencias — 2 oraciones",
+  "disclaimer": "Estas son sugerencias educativas basadas en tu perfil. No son asesoramiento financiero ni recomendaciones de compra. Siempre haz tu propia investigación antes de invertir."
 }}
 
 Sin texto fuera del JSON."""
 
     response = await _claude(
         model=settings.claude_model,
-        max_tokens=1200,
+        max_tokens=1400,
         system=[{"type": "text", "text": system_prompt, "cache_control": {"type": "ephemeral"}}],
         messages=[{"role": "user", "content": prompt}],
     )
     raw = response.content[0].text.strip()
     try:
-        return json.loads(raw)
+        result = json.loads(raw)
     except Exception:
         import re
         m = re.search(r"\{.*\}", raw, re.DOTALL)
-        if m:
-            return json.loads(m.group())
-        return {"week_theme": "Picks de la semana", "picks": candidates[:5], "mentor_note": raw}
+        result = json.loads(m.group()) if m else {
+            "week_theme": "Sugerencias de la semana",
+            "picks": candidates[:5],
+            "mentor_note": raw,
+        }
+
+    # Always guarantee disclaimer
+    if "disclaimer" not in result:
+        result["disclaimer"] = (
+            "Estas son sugerencias educativas basadas en tu perfil. "
+            "No son asesoramiento financiero ni recomendaciones de compra. "
+            "Siempre haz tu propia investigación antes de invertir."
+        )
+    return result
 
 
 # ──────────────────────────────────────────────────────────────

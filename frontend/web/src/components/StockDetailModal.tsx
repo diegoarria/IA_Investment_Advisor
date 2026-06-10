@@ -1091,10 +1091,15 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
                 };
 
                 // Google Finance-style table: rows = metrics, cols = periods
-                const FinRow = ({ rows, field, label, isNeg = false }: {
-                  rows: Record<string, unknown>[]; field: string; label: string; isNeg?: boolean;
+                const FinRow = ({ rows, field, label, isNeg = false, zeroAsDash = false }: {
+                  rows: Record<string, unknown>[]; field: string; label: string; isNeg?: boolean; zeroAsDash?: boolean;
                 }) => {
-                  const vals = rows.map((r) => { const v = r[field]; return v != null ? Number(v) : null; });
+                  const vals = rows.map((r) => {
+                    const v = r[field];
+                    if (v == null) return null;
+                    const n = Number(v);
+                    return (zeroAsDash && n === 0) ? null : n;
+                  });
                   const nonNull = vals.filter((v): v is number => v != null);
                   if (!nonNull.length) return null;
                   const maxAbs = Math.max(...nonNull.map(Math.abs), 1);
@@ -1157,7 +1162,7 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
                 const Section = ({ title, rows, metrics }: {
                   title: string;
                   rows: Record<string, unknown>[];
-                  metrics: Array<{ field: string; label: string; isNeg?: boolean }>;
+                  metrics: Array<{ field: string; label: string; isNeg?: boolean; zeroAsDash?: boolean }>;
                 }) => {
                   if (!rows.length) return null;
                   return (
@@ -1171,7 +1176,7 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
                       </div>
                       <PeriodHeader rows={rows} />
                       {metrics.map((m) => (
-                        <FinRow key={m.field} rows={rows} field={m.field} label={m.label} isNeg={m.isNeg} />
+                        <FinRow key={m.field} rows={rows} field={m.field} label={m.label} isNeg={m.isNeg} zeroAsDash={m.zeroAsDash} />
                       ))}
                     </div>
                   );
@@ -1199,8 +1204,8 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
 
                     <Section title="Estado de Resultados" rows={income} metrics={[
                       { field: "Total Revenue",    label: "Ingresos" },
-                      { field: "Gross Profit",     label: "Utilidad Bruta" },
-                      { field: "Operating Income", label: "Utilidad Operativa" },
+                      { field: "Gross Profit",     label: "Utilidad Bruta",     zeroAsDash: true },
+                      { field: "Operating Income", label: "Utilidad Operativa", zeroAsDash: true },
                       { field: "EBITDA",           label: "EBITDA" },
                       { field: "Net Income",       label: "Utilidad Neta" },
                       { field: "Diluted EPS",      label: "EPS Diluido" },

@@ -1450,22 +1450,43 @@ def _df_to_periods(df, rows: list[str], limit: int = 5) -> list[dict]:
     """Convert a yfinance financial DataFrame to a list of period dicts."""
     if df is None or df.empty:
         return []
+    # Pre-build normalized (no-space, no-underscore, lowercase) index map
+    # This handles both "Gross Profit" and "GrossProfit" (yfinance version differences)
+    idx_norm: dict[str, object] = {
+        str(i).lower().replace(" ", "").replace("_", ""): i for i in df.index
+    }
     results = []
     for col in df.columns:
         try:
             period = str(col.date()) if hasattr(col, "date") else str(col)[:10]
         except Exception:
             period = str(col)[:10]
-        entry = {"period": period}
+        entry: dict[str, object] = {"period": period}
         for row in rows:
             val = None
+            row_norm = row.lower().replace(" ", "").replace("_", "")
             if row in df.index:
                 val = _fmt_number(df.loc[row, col])
+            elif row_norm in idx_norm:
+                val = _fmt_number(df.loc[idx_norm[row_norm], col])
             else:
-                matches = [i for i in df.index if row.lower() in str(i).lower()]
+                matches = [i for i in df.index if row.lower() in str(i).lower()
+                           or row_norm in str(i).lower().replace(" ", "").replace("_", "")]
                 if matches:
                     val = _fmt_number(df.loc[matches[0], col])
             entry[row] = val
+        # Derive Gross Profit = Revenue − COGS if not found directly
+        if entry.get("Gross Profit") is None:
+            rev = entry.get("Total Revenue")
+            cogs_key = next(
+                (i for i in df.index if "cost" in str(i).lower()
+                 and any(w in str(i).lower() for w in ("revenue", "goods", "sales"))),
+                None,
+            )
+            if cogs_key is not None and rev is not None:
+                cogs = _fmt_number(df.loc[cogs_key, col])
+                if cogs is not None:
+                    entry["Gross Profit"] = round(float(rev) - float(cogs), 4)
         results.append(entry)
     return results[:limit]
 
@@ -1483,14 +1504,20 @@ def _fmp_income(symbol: str) -> list[dict]:
         data = r.json() if r.status_code == 200 else []
         result = []
         for d in data:
+            revenue  = _fmt_number(d.get("revenue"))
+            cost_rev = _fmt_number(d.get("costOfRevenue"))
+            gross    = _fmt_number(d.get("grossProfit"))
+            # Derive gross profit from revenue − COGS when FMP returns missing/zero
+            if not gross and revenue is not None and cost_rev is not None and cost_rev != 0:
+                gross = round(float(revenue) - float(cost_rev), 4)
             result.append({
-                "period":        d.get("date", "")[:7],
-                "Total Revenue": _fmt_number(d.get("revenue")),
-                "Gross Profit":  _fmt_number(d.get("grossProfit")),
+                "period":           d.get("date", "")[:7],
+                "Total Revenue":    revenue,
+                "Gross Profit":     gross,
                 "Operating Income": _fmt_number(d.get("operatingIncome")),
-                "EBITDA":        _fmt_number(d.get("ebitda")),
-                "Net Income":    _fmt_number(d.get("netIncome")),
-                "Diluted EPS":   _fmt_number(d.get("epsdiluted")),
+                "EBITDA":           _fmt_number(d.get("ebitda")),
+                "Net Income":       _fmt_number(d.get("netIncome")),
+                "Diluted EPS":      _fmt_number(d.get("epsdiluted")),
             })
         return result
     except Exception:
@@ -1727,19 +1754,28 @@ def _parse_qs_income(qs: dict, quarterly: bool = False, n: int = 5) -> list[dict
     rows = (qs.get(key) or {}).get(sub, [])
     result = []
     for row in rows[:n]:
-        period = ((row.get("endDate") or {}).get("fmt") or "")[:7]
+        period   = ((row.get("endDate") or {}).get("fmt") or "")[:7]
+        rev      = _qs_raw(row, "totalRevenue")
+        cost_rev = _qs_raw(row, "costOfRevenue")
+        gross    = _qs_raw(row, "grossProfit")
+        # Derive gross profit from revenue − COGS when quoteSummary has missing value
+        if not gross and rev is not None and cost_rev is not None:
+            try:
+                gross = float(rev) - float(cost_rev)
+            except (TypeError, ValueError):
+                pass
         result.append({
             "period":                       period,
-            "Total Revenue":                _qs_raw(row, "totalRevenue"),
-            "Gross Profit":                 _qs_raw(row, "grossProfit"),
-            "Operating Income":             _qs_raw(row, "operatingIncome") or _qs_raw(row, "ebit"),
-            "EBITDA":                       _qs_raw(row, "ebitda"),
-            "Net Income":                   _qs_raw(row, "netIncome"),
-            "Diluted EPS":                  _qs_raw(row, "dilutedEps"),
-            "Research And Development":     _qs_raw(row, "researchDevelopment"),
-            "Selling General Administrative": _qs_raw(row, "sellingGeneralAdministrative"),
-            "Interest Expense":             _qs_raw(row, "interestExpense"),
-            "Tax Provision":                _qs_raw(row, "incomeTaxExpense"),
+            "Total Revenue":                _fmt_number(rev),
+            "Gross Profit":                 _fmt_number(gross),
+            "Operating Income":             _fmt_number(_qs_raw(row, "operatingIncome") or _qs_raw(row, "ebit")),
+            "EBITDA":                       _fmt_number(_qs_raw(row, "ebitda")),
+            "Net Income":                   _fmt_number(_qs_raw(row, "netIncome")),
+            "Diluted EPS":                  _fmt_number(_qs_raw(row, "dilutedEps")),
+            "Research And Development":     _fmt_number(_qs_raw(row, "researchDevelopment")),
+            "Selling General Administrative": _fmt_number(_qs_raw(row, "sellingGeneralAdministrative")),
+            "Interest Expense":             _fmt_number(_qs_raw(row, "interestExpense")),
+            "Tax Provision":                _fmt_number(_qs_raw(row, "incomeTaxExpense")),
         })
     return result
 
