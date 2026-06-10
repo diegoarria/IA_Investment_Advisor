@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Image from "next/image";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { chat as chatApi, notifications as notifApi, market as marketApi } from "@/lib/api";
+import { chat as chatApi, notifications as notifApi } from "@/lib/api";
 import {
   useAuthStore, useProfileStore, useChatStore, useNotificationStore,
   useThemeStore, useSubscriptionStore, msgsRemaining, FREE_MSG_LIMIT,
@@ -16,10 +16,9 @@ import AppSidebar from "@/components/AppSidebar";
 import PaywallModal from "@/components/PaywallModal";
 import TutorialModal from "@/components/TutorialModal";
 import { useTutorialStore } from "@/lib/store";
-import type { IndexData, IndexNewsItem } from "@/lib/types";
 import {
   Send, TrendingUp, Bell, LogOut, Menu, X,
-  ChevronRight, Sun, Moon, Square, Pencil, ImagePlus,
+  ChevronRight, Sun, Moon, Square, Pencil, ImagePlus, Plus,
 } from "lucide-react";
 
 const SUGGESTIONS_DEFAULT = [
@@ -138,164 +137,12 @@ function TypingDots() {
   );
 }
 
-function IndexChip({ d }: { d: IndexData }) {
-  const up = d.change_pct >= 0;
-  const [open, setOpen] = useState(false);
-  const [news, setNews] = useState<IndexNewsItem[] | null>(null);
-  const [loadingNews, setLoadingNews] = useState(false);
-
-  const handleClick = async () => {
-    setOpen(true);
-    if (!news && !loadingNews) {
-      setLoadingNews(true);
-      try {
-        const res = await marketApi.getIndexNews(d.symbol);
-        setNews((res.data as IndexNewsItem[]).slice(0, 3));
-      } catch {
-        setNews([]);
-      } finally {
-        setLoadingNews(false);
-      }
-    }
-  };
-
-  const formatAge = (ts: number) => {
-    const h = Math.floor((Date.now() / 1000 - ts) / 3600);
-    if (h < 1) return "Ahora";
-    if (h === 1) return "Hace 1h";
-    if (h < 24) return `Hace ${h}h`;
-    const days = Math.floor(h / 24);
-    return days === 1 ? "Ayer" : `Hace ${days}d`;
-  };
-
-  return (
-    <>
-      <button
-        onClick={handleClick}
-        className="flex items-center gap-2 px-3 py-1.5 rounded-lg border transition-colors shrink-0 hover:bg-white/5"
-        style={{ borderColor: "var(--border)", background: "var(--card)" }}
-      >
-        <span className="text-[11px] font-bold" style={{ color: "var(--muted)" }}>{d.name}</span>
-        {d.price !== null ? (
-          <>
-            <span className="text-[12px] font-bold" style={{ color: "var(--text)" }}>
-              {d.price.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-            </span>
-            <span className="text-[10px] font-semibold" style={{ color: up ? "var(--up)" : "var(--down)" }}>
-              {up ? "▲" : "▼"}{Math.abs(d.change_pct).toFixed(2)}%
-            </span>
-          </>
-        ) : (
-          <span className="text-[12px]" style={{ color: "var(--dim)" }}>—</span>
-        )}
-      </button>
-
-      {open && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4"
-          style={{ background: "rgba(0,0,0,0.6)", backdropFilter: "blur(2px)" }}
-          onClick={(e) => { if (e.target === e.currentTarget) setOpen(false); }}
-        >
-          <div className="w-full max-w-md rounded-2xl overflow-hidden shadow-2xl"
-               style={{ background: "var(--card)", border: "1px solid var(--border)" }}>
-
-            {/* Header */}
-            <div className="flex items-center justify-between px-5 py-4 border-b"
-                 style={{ borderColor: "var(--border)" }}>
-              <div>
-                <p className="text-sm font-bold" style={{ color: "var(--text)" }}>
-                  Noticias — {d.name}
-                </p>
-                {d.price !== null && (
-                  <p className="text-xs mt-0.5 flex items-center gap-2">
-                    <span style={{ color: "var(--muted)" }}>
-                      {d.price.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    </span>
-                    <span className="font-semibold" style={{ color: up ? "var(--up)" : "var(--down)" }}>
-                      {up ? "▲" : "▼"} {Math.abs(d.change_pct).toFixed(2)}%
-                    </span>
-                  </p>
-                )}
-              </div>
-              <button onClick={() => setOpen(false)}
-                      className="p-1.5 rounded-lg hover:bg-white/5 transition-colors"
-                      style={{ color: "var(--muted)" }}>
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            {/* News items */}
-            {loadingNews ? (
-              <div className="p-4 space-y-4">
-                {Array.from({ length: 3 }).map((_, i) => (
-                  <div key={i} className="flex gap-3">
-                    <div className="flex-1 space-y-2">
-                      <div className="h-4 w-full rounded-md animate-pulse" style={{ background: "var(--raised)" }} />
-                      <div className="h-4 w-4/5 rounded-md animate-pulse" style={{ background: "var(--raised)" }} />
-                      <div className="h-3 w-1/3 rounded-md animate-pulse" style={{ background: "var(--raised)" }} />
-                    </div>
-                    <div className="w-20 h-16 rounded-xl animate-pulse shrink-0" style={{ background: "var(--raised)" }} />
-                  </div>
-                ))}
-              </div>
-            ) : news && news.length > 0 ? (
-              news.map((item, i) => (
-                <div
-                  key={item.uuid || i}
-                  className="flex gap-4 px-5 py-4"
-                  style={{ borderTop: i > 0 ? "1px solid var(--border)" : "none" }}
-                >
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-start gap-2 mb-2">
-                      <span className="text-xs font-bold shrink-0 mt-px" style={{ color: "var(--accent-l)" }}>
-                        {i + 1}.
-                      </span>
-                      <p className="text-sm font-semibold leading-snug" style={{ color: "var(--text)" }}>
-                        {item.title}
-                      </p>
-                    </div>
-                    <p className="text-xs mb-3" style={{ color: "var(--dim)" }}>
-                      {item.publisher} · {formatAge(item.timestamp)}
-                    </p>
-                    <a
-                      href={item.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 text-xs font-medium px-3 py-1.5 rounded-lg border transition-colors hover:bg-white/5"
-                      style={{ color: "var(--accent-l)", borderColor: "var(--border)" }}
-                    >
-                      Leer artículo <ChevronRight className="w-3 h-3" />
-                    </a>
-                  </div>
-                  {item.thumbnail && (
-                    <img
-                      src={item.thumbnail}
-                      alt=""
-                      className="w-24 h-18 object-cover rounded-xl shrink-0"
-                      style={{ height: "72px" }}
-                      onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
-                    />
-                  )}
-                </div>
-              ))
-            ) : (
-              <div className="p-8 text-center">
-                <p className="text-sm" style={{ color: "var(--dim)" }}>Sin noticias disponibles</p>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-    </>
-  );
-}
-
 export default function ChatPage() {
   const router = useRouter();
   const { hasSeenTutorial, openTutorial } = useTutorialStore();
   const { isAuthenticated, clearAuth } = useAuthStore();
   const { profile, updateMaturity, updateBehavioralRisk } = useProfileStore();
-  const { messages, isStreaming, addMessage, appendToLastAssistant, setStreaming, startAssistantMessage, removeLastMessage, setMessages, sessions, createSession } = useChatStore();
+  const { messages, isStreaming, addMessage, appendToLastAssistant, setStreaming, startAssistantMessage, removeLastMessage, setMessages, sessions, createSession, clearMessages } = useChatStore();
   const { notifications, setNotifications, markRead } = useNotificationStore();
   const { theme, toggleTheme } = useThemeStore();
   const subStore = useSubscriptionStore();
@@ -307,7 +154,6 @@ export default function ChatPage() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const [paywallOpen, setPaywallOpen] = useState(false);
-  const [indices, setIndices] = useState<IndexData[]>([]);
   const [lastAssessment, setLastAssessment] = useState<BScoreData | null>(null);
   const [pendingImages, setPendingImages] = useState<Array<{ data: string; type: string; preview: string }>>([]);
   const [isDragging, setIsDragging] = useState(false);
@@ -396,10 +242,6 @@ export default function ChatPage() {
 
     notifApi.getAll()
       .then((res) => setNotifications(res.data.notifications, res.data.unread_count))
-      .catch(() => {});
-
-    marketApi.getIndices()
-      .then((res) => setIndices(res.data))
       .catch(() => {});
 
     subStore.fetchStatus().catch(() => {});
@@ -506,9 +348,17 @@ export default function ChatPage() {
           </button>
         </div>
 
-        {/* Market ticker */}
-        <div className="hidden md:flex flex-1 mx-6 gap-2 overflow-x-auto scrollbar-thin">
-          {indices.map((d) => <IndexChip key={d.symbol} d={d} />)}
+        {/* Chat title + new chat */}
+        <div className="flex items-center gap-3">
+          <span className="font-bold text-sm" style={{ color: "var(--text)" }}>Chat</span>
+          <button
+            onClick={() => { clearMessages(); router.push("/chat"); }}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-semibold transition-colors hover:bg-white/5"
+            style={{ color: "var(--muted)", borderColor: "var(--border)" }}
+          >
+            <Plus className="w-3.5 h-3.5" />
+            Nuevo chat
+          </button>
         </div>
 
         <div className="flex items-center gap-1">
