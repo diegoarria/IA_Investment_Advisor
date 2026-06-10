@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useEffect, useState, useCallback } from "react";
-import { Heart, MessageCircle, Bookmark, Share2, Play, Volume2, VolumeX, ChevronDown } from "lucide-react";
+import { Heart, MessageCircle, Bookmark, Share2, Play, Volume2, VolumeX, ChevronDown, SkipForward } from "lucide-react";
 import { feedApi } from "@/lib/api";
 import Hls from "hls.js";
 
@@ -273,6 +273,12 @@ export default function VideoCard({
   // TikTok-style: portrait frame + actions to the right
   return (
     <div className="flex items-center gap-3" style={{ height: "100svh" }}>
+      <style>{`
+        @keyframes soundbar {
+          from { transform: scaleY(0.3); opacity: 0.5; }
+          to   { transform: scaleY(1);   opacity: 1; }
+        }
+      `}</style>
 
       {/* Portrait video frame — 9:16 */}
       <div className="relative rounded-xl overflow-hidden shrink-0"
@@ -319,22 +325,48 @@ export default function VideoCard({
           className="w-full h-full object-cover cursor-pointer"
         />
 
-        {/* Phase badge: pre / post — with countdown + skip */}
+        {/* Phase badge: pre / post */}
         {(phase === "pre" || phase === "post") && (
-          <div className="absolute top-3 left-1/2 -translate-x-1/2 z-10 flex items-center gap-2">
-            {/* Label + timer */}
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold"
-                 style={{ background: "rgba(139,92,246,0.9)", color: "white", backdropFilter: "blur(8px)" }}>
-              <span className="animate-pulse">🎙️</span>
-              <span>{phase === "pre" ? "Introducción" : "Análisis IA"}</span>
-              {audioRemaining > 0 && (
-                <span className="px-1.5 py-0.5 rounded-full text-[10px] font-semibold"
-                      style={{ background: "rgba(255,255,255,0.2)" }}>
-                  {audioRemaining}s
-                </span>
-              )}
+          <>
+            {/* Top badge — label + animated bars + progress */}
+            <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10"
+                 style={{ minWidth: 160 }}>
+              <div className="flex flex-col items-center gap-1.5 px-4 py-2 rounded-2xl"
+                   style={{ background: "rgba(10,10,20,0.72)", backdropFilter: "blur(12px)", border: "1px solid rgba(139,92,246,0.4)" }}>
+                {/* Top row: waveform + label + timer */}
+                <div className="flex items-center gap-2">
+                  {/* Animated sound bars */}
+                  <div className="flex items-end gap-[2px]" style={{ height: 14 }}>
+                    {[0.4, 0.8, 0.55, 1, 0.65].map((h, i) => (
+                      <div key={i}
+                           className="rounded-full"
+                           style={{
+                             width: 2.5,
+                             height: `${h * 100}%`,
+                             background: "#a78bfa",
+                             animation: `soundbar 0.8s ease-in-out ${i * 0.12}s infinite alternate`,
+                           }} />
+                    ))}
+                  </div>
+                  <span className="text-xs font-bold tracking-wide" style={{ color: "#e2d9ff" }}>
+                    {phase === "pre" ? "Introducción IA" : "Análisis IA"}
+                  </span>
+                  {audioRemaining > 0 && (
+                    <span className="text-[10px] font-semibold tabular-nums" style={{ color: "rgba(167,139,250,0.8)" }}>
+                      {audioRemaining}s
+                    </span>
+                  )}
+                </div>
+                {/* Thin progress bar */}
+                {audioRemaining > 0 && (
+                  <div className="w-full rounded-full overflow-hidden" style={{ height: 2, background: "rgba(255,255,255,0.12)" }}>
+                    <div className="h-full rounded-full" style={{ background: "#a78bfa", transition: "width 1s linear" }} />
+                  </div>
+                )}
+              </div>
             </div>
-            {/* Skip button — always visible */}
+
+            {/* Skip button — bottom right, YouTube style */}
             <button
               onClick={() => {
                 if (phase === "pre") {
@@ -346,11 +378,21 @@ export default function VideoCard({
                   setPhase("idle");
                 }
               }}
-              className="flex items-center gap-1 px-2.5 py-1.5 rounded-full text-xs font-bold"
-              style={{ background: "rgba(0,0,0,0.55)", color: "white", border: "1px solid rgba(255,255,255,0.25)", backdropFilter: "blur(8px)" }}>
-              Saltar ›
+              className="absolute z-10 flex items-center gap-1.5 px-3 py-2 text-xs font-bold transition-all hover:bg-white hover:text-black active:scale-95"
+              style={{
+                bottom: 28,
+                right: 12,
+                background: "rgba(20,20,30,0.75)",
+                color: "white",
+                border: "1px solid rgba(255,255,255,0.3)",
+                backdropFilter: "blur(10px)",
+                borderRadius: 4,
+                letterSpacing: "0.03em",
+              }}>
+              Saltar
+              <SkipForward className="w-3.5 h-3.5" />
             </button>
-          </div>
+          </>
         )}
 
         {/* Play overlay */}
