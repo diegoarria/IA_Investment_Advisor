@@ -234,9 +234,10 @@ export default function VideoCard({
   const postComment = async (text?: string, parentId?: string) => {
     const body = text ?? commentText;
     if (!body.trim()) return;
+    const tempId = `opt-${Date.now()}`;
     const optimistic: Comment = {
-      id: `opt-${Date.now()}`,
-      user_id: "",
+      id: tempId,
+      user_id: myUserId || "",
       text: body.trim(),
       created_at: new Date().toISOString(),
       user_profiles: { name: myProfile?.name || "Tú", avatar_url: myProfile?.avatar_url ?? undefined },
@@ -250,14 +251,24 @@ export default function VideoCard({
       setCommentText("");
     }
     try {
-      await feedApi.postComment(clip.id, body.trim(), parentId);
-      loadComments(); // replace optimistic entry with real server data
+      const res = await feedApi.postComment(clip.id, body.trim(), parentId);
+      const realId: string | undefined = res.data?.comment?.id;
+      if (realId) {
+        // swap temp id with real server id — no full refetch, existing comments untouched
+        if (parentId) {
+          setComments((prev) => prev.map((c) => c.id === parentId
+            ? { ...c, replies: (c.replies || []).map((r) => r.id === tempId ? { ...r, id: realId, user_id: myUserId || "" } : r) }
+            : c));
+        } else {
+          setComments((prev) => prev.map((c) => c.id === tempId ? { ...c, id: realId, user_id: myUserId || "" } : c));
+        }
+      }
     } catch {
-      // rollback
+      // rollback only the optimistic entry
       if (parentId) {
-        setComments((prev) => prev.map((c) => c.id === parentId ? { ...c, replies: (c.replies || []).filter((r) => r.id !== optimistic.id) } : c));
+        setComments((prev) => prev.map((c) => c.id === parentId ? { ...c, replies: (c.replies || []).filter((r) => r.id !== tempId) } : c));
       } else {
-        setComments((prev) => prev.filter((c) => c.id !== optimistic.id));
+        setComments((prev) => prev.filter((c) => c.id !== tempId));
       }
     }
   };
