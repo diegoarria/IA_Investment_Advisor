@@ -387,3 +387,8 @@ body {
   background: rgba(0,185,109,0.25);
   color: var(--text);
 }
+
+/* ─── Hide ticker bar when stock detail modal is open ────────────────── */
+html[data-stock-modal] .market-ticker-bar {
+  display: none !important;
+}

@@ -189,7 +189,7 @@ export default function MarketTickerBar() {
   return (
     <>
       <div
-        className="scrollbar-none"
+        className="scrollbar-none market-ticker-bar"
         style={{
           position: "fixed",
           top: 0,

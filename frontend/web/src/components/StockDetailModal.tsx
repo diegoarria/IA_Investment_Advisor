@@ -5,7 +5,6 @@ import {
   X, TrendingUp, TrendingDown, Globe, Users, Building2,
   BarChart3, Loader2, ChevronRight, Activity,
   ArrowUpRight, ArrowDownRight, DollarSign, Percent, ShieldCheck,
-  ExternalLink,
 } from "lucide-react";
 import { market as marketApi } from "@/lib/api";
 
@@ -79,7 +78,6 @@ interface ScoreData {
 }
 
 interface Peer { ticker: string; name: string; price: number | null; change_pct: number | null }
-interface NewsItem { title: string; publisher: string; timestamp: number; url: string }
 
 // ─── Formatters ───────────────────────────────────────────────────────────────
 
@@ -655,14 +653,13 @@ function FinancialBarChart({ data, field, label, color = "#22c55e" }: {
 
 // ─── Tabs ─────────────────────────────────────────────────────────────────────
 
-type Tab = "verdict" | "chart" | "financials" | "analyst" | "noticias" | "company";
+type Tab = "verdict" | "chart" | "financials" | "analyst" | "company";
 
 const TABS: { key: Tab; label: string }[] = [
   { key: "verdict",    label: "Veredicto" },
   { key: "chart",      label: "Gráfica" },
   { key: "financials", label: "Financieros" },
   { key: "analyst",    label: "Analistas" },
-  { key: "noticias",   label: "Noticias" },
   { key: "company",    label: "Empresa" },
 ];
 
@@ -671,6 +668,11 @@ const TABS: { key: Tab; label: string }[] = [
 interface Props { ticker: string; onClose: () => void }
 
 export default function StockDetailModal({ ticker, onClose }: Props) {
+  useEffect(() => {
+    document.documentElement.setAttribute("data-stock-modal", "1");
+    return () => document.documentElement.removeAttribute("data-stock-modal");
+  }, []);
+
   const [tab, setTab] = useState<Tab>("chart");
   const [data, setData] = useState<StockData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -684,17 +686,6 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
 
   const [peers, setPeers] = useState<Peer[]>([]);
   const [loadingPeers, setLoadingPeers] = useState(false);
-  const [news, setNews] = useState<NewsItem[]>([]);
-  const [loadingNews, setLoadingNews] = useState(false);
-
-  useEffect(() => {
-    setLoadingNews(true);
-    setNews([]);
-    marketApi.getNews([ticker])
-      .then((r) => setNews((r.data ?? []).slice(0, 8)))
-      .catch(() => setNews([]))
-      .finally(() => setLoadingNews(false));
-  }, [ticker]);
 
   useEffect(() => {
     setLoadingPeers(true);
@@ -1287,42 +1278,6 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
                   </>
                 );
               })()}
-            </div>
-          )}
-
-          {/* ── NOTICIAS ── */}
-          {tab === "noticias" && (
-            <div className="py-2">
-              {loadingNews ? (
-                <div className="flex justify-center py-12">
-                  <Loader2 className="w-6 h-6 animate-spin" style={{ color: "var(--accent-l)" }} />
-                </div>
-              ) : news.length === 0 ? (
-                <p className="text-xs text-center py-10" style={{ color: "var(--muted)" }}>Sin noticias recientes</p>
-              ) : (
-                news.map((item, i) => {
-                  const diff = Math.floor(Date.now() / 1000) - item.timestamp;
-                  const ago = diff < 3600 ? `${Math.floor(diff / 60)}m`
-                    : diff < 86400 ? `${Math.floor(diff / 3600)}h`
-                    : `${Math.floor(diff / 86400)}d`;
-                  return (
-                    <a key={i} href={item.url} target="_blank" rel="noopener noreferrer"
-                       className="flex items-start gap-3 px-5 py-4 hover:bg-white/5 transition-colors border-b"
-                       style={{ borderColor: "var(--border)" }}>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1.5">
-                          <span className="text-[10px] font-bold" style={{ color: "var(--accent-l)" }}>{item.publisher}</span>
-                          <span className="text-[10px]" style={{ color: "var(--dim)" }}>· {ago}</span>
-                        </div>
-                        <p className="text-sm font-semibold leading-snug" style={{ color: "var(--text)" }}>
-                          {item.title}
-                        </p>
-                      </div>
-                      <ExternalLink className="w-3.5 h-3.5 shrink-0 mt-1" style={{ color: "var(--muted)" }} />
-                    </a>
-                  );
-                })
-              )}
             </div>
           )}
 
