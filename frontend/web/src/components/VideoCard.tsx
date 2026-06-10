@@ -66,6 +66,8 @@ export default function VideoCard({
   const videoRef      = useRef<HTMLVideoElement>(null);
   const preAudioRef   = useRef<HTMLAudioElement>(null);
   const postAudioRef  = useRef<HTMLAudioElement>(null);
+  const scrubBarRef   = useRef<HTMLDivElement>(null);
+  const [scrubbing, setScrubbing] = useState(false);
   const [phase, setPhase]               = useState<"pre"|"video"|"post"|"idle">("idle");
   const [playing, setPlaying]           = useState(false);
   const [progress, setProgress]         = useState(0);
@@ -218,6 +220,47 @@ export default function VideoCard({
     } catch {}
   };
 
+  const seekTo = useCallback((clientX: number) => {
+    const bar = scrubBarRef.current;
+    const v   = videoRef.current;
+    if (!bar || !v || !v.duration) return;
+    const { left, width } = bar.getBoundingClientRect();
+    const pct = Math.max(0, Math.min(1, (clientX - left) / width));
+    v.currentTime = pct * v.duration;
+    setProgress(pct * 100);
+    if (phase !== "video") { setPhase("video"); v.play().catch(() => {}); }
+  }, [phase]);
+
+  const handleScrubStart = (e: React.MouseEvent | React.TouchEvent) => {
+    if (phase !== "video") return;
+    setScrubbing(true);
+    const x = "touches" in e ? e.touches[0].clientX : e.clientX;
+    seekTo(x);
+  };
+
+  const handleScrubMove = useCallback((e: MouseEvent | TouchEvent) => {
+    if (!scrubbing) return;
+    const x = "touches" in e ? (e as TouchEvent).touches[0].clientX : (e as MouseEvent).clientX;
+    seekTo(x);
+  }, [scrubbing, seekTo]);
+
+  const handleScrubEnd = useCallback(() => setScrubbing(false), []);
+
+  useEffect(() => {
+    if (scrubbing) {
+      window.addEventListener("mousemove", handleScrubMove);
+      window.addEventListener("mouseup",   handleScrubEnd);
+      window.addEventListener("touchmove", handleScrubMove);
+      window.addEventListener("touchend",  handleScrubEnd);
+    }
+    return () => {
+      window.removeEventListener("mousemove", handleScrubMove);
+      window.removeEventListener("mouseup",   handleScrubEnd);
+      window.removeEventListener("touchmove", handleScrubMove);
+      window.removeEventListener("touchend",  handleScrubEnd);
+    };
+  }, [scrubbing, handleScrubMove, handleScrubEnd]);
+
   const openComments = () => {
     setShowComments(true);
     loadComments();
@@ -278,11 +321,30 @@ export default function VideoCard({
           </div>
         )}
 
-        {/* Progress bar */}
-        <div className="absolute bottom-0 left-0 right-0 h-0.5"
-             style={{ background: "rgba(255,255,255,0.2)" }}>
-          <div className="h-full transition-all duration-200"
-               style={{ width: `${progress}%`, background: "#00d47e" }} />
+        {/* Scrubber — tall hit area, thin visible bar, draggable knob */}
+        <div
+          ref={scrubBarRef}
+          onMouseDown={handleScrubStart}
+          onTouchStart={handleScrubStart}
+          className="absolute left-0 right-0 flex items-center cursor-pointer select-none"
+          style={{ bottom: 0, height: 20, zIndex: 20 }}>
+          {/* Track */}
+          <div className="w-full relative" style={{ height: scrubbing ? 4 : 2, background: "rgba(255,255,255,0.25)", transition: "height 0.15s" }}>
+            {/* Fill */}
+            <div className="absolute left-0 top-0 h-full"
+                 style={{ width: `${progress}%`, background: "#00d47e", transition: scrubbing ? "none" : "width 0.2s" }} />
+            {/* Knob */}
+            <div className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 rounded-full transition-all"
+                 style={{
+                   left: `${progress}%`,
+                   width:  scrubbing ? 14 : 8,
+                   height: scrubbing ? 14 : 8,
+                   background: "#fff",
+                   boxShadow: "0 0 4px rgba(0,0,0,0.5)",
+                   opacity: scrubbing ? 1 : 0.85,
+                   transition: "width 0.15s, height 0.15s",
+                 }} />
+          </div>
         </div>
 
         {/* Bottom info overlay */}
