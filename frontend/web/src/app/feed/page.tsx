@@ -15,6 +15,7 @@ interface Clip {
   speaker: string;
   tags: string[];
   translated_caption: string;
+  caption_en?: string;
   duration_sec: number;
   view_count: number;
   like_count: number;

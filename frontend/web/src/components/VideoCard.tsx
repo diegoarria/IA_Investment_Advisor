@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useEffect, useState, useCallback } from "react";
-import { Heart, MessageCircle, Bookmark, Share2, Play, Volume2, VolumeX, ChevronDown, SkipForward } from "lucide-react";
+import { Heart, MessageCircle, Bookmark, Share2, Play, Volume2, VolumeX, ChevronDown, SkipForward, Subtitles } from "lucide-react";
 import { feedApi } from "@/lib/api";
 import Hls from "hls.js";
 
@@ -14,6 +14,7 @@ interface Clip {
   speaker: string;
   tags: string[];
   translated_caption: string;
+  caption_en?: string;
   duration_sec: number;
   view_count: number;
   like_count: number;
@@ -72,7 +73,6 @@ export default function VideoCard({
   const [audioRemaining, setAudioRemaining] = useState(0); // seconds left in pre/post audio
   const [playing, setPlaying]           = useState(false);
   const [progress, setProgress]         = useState(0);
-  const [showCaption, setShowCaption]   = useState(false);
   const [showComments, setShowComments] = useState(false);
   const [comments, setComments]         = useState<Comment[]>([]);
   const [commentText, setCommentText]   = useState("");
@@ -81,6 +81,8 @@ export default function VideoCard({
   const [saved, setSaved]               = useState(clip.saved);
   const [loadingLike, setLoadingLike]   = useState(false);
   const [copied, setCopied]             = useState(false);
+  const [captionLang, setCaptionLang]   = useState<"off"|"es"|"en">("off");
+  const [showCaptionPicker, setShowCaptionPicker] = useState(false);
 
   // HLS.js setup for .m3u8 streams (Chrome / Firefox)
   useEffect(() => {
@@ -444,18 +446,13 @@ export default function VideoCard({
             </div>
           </div>
           <p className="text-white text-sm font-medium leading-snug">{clip.title}</p>
-          {clip.translated_caption && (
-            <button onClick={() => setShowCaption((v) => !v)}
-                    className="text-xs px-2 py-0.5 rounded-full"
-                    style={{ background: "rgba(0,0,0,0.5)", color: "rgba(255,255,255,0.75)",
-                             border: "1px solid rgba(255,255,255,0.2)" }}>
-              {showCaption ? "Ocultar subtítulos" : "CC · Subtítulos"}
-            </button>
-          )}
-          {showCaption && (
-            <div className="p-2 rounded-lg text-xs leading-relaxed"
-                 style={{ background: "rgba(0,0,0,0.75)", color: "white", maxHeight: 100, overflowY: "auto" }}>
-              {clip.translated_caption}
+          {/* Active caption display */}
+          {captionLang !== "off" && (
+            <div className="px-3 py-2 rounded-xl text-sm leading-relaxed text-center"
+                 style={{ background: "rgba(0,0,0,0.78)", color: "white", maxHeight: 90, overflowY: "auto" }}>
+              {captionLang === "es"
+                ? (clip.translated_caption || "Sin subtítulos en español")
+                : (clip.caption_en || "No English captions available")}
             </div>
           )}
         </div>
@@ -556,6 +553,39 @@ export default function VideoCard({
           </div>
           <span className="text-white text-xs font-semibold">{saved ? "Guardado" : "Guardar"}</span>
         </button>
+
+        {/* Captions button + picker */}
+        <div className="relative flex flex-col items-center gap-1">
+          <button
+            onClick={() => setShowCaptionPicker((v) => !v)}
+            className="flex flex-col items-center gap-1">
+            <div className="w-11 h-11 rounded-full flex items-center justify-center"
+                 style={{ background: captionLang !== "off" ? "rgba(0,212,126,0.25)" : "rgba(255,255,255,0.1)" }}>
+              <Subtitles className="w-5 h-5" style={{ color: captionLang !== "off" ? "#00d47e" : "white" }} />
+            </div>
+            <span className="text-white text-xs font-semibold">
+              {captionLang === "off" ? "CC" : captionLang === "es" ? "ES" : "EN"}
+            </span>
+          </button>
+
+          {/* Lang picker popup */}
+          {showCaptionPicker && (
+            <div className="absolute right-14 top-0 flex flex-col rounded-xl overflow-hidden z-30"
+                 style={{ background: "rgba(20,20,30,0.95)", border: "1px solid rgba(255,255,255,0.15)", minWidth: 90 }}>
+              {(["off", "es", "en"] as const).map((lang) => (
+                <button key={lang}
+                        onClick={() => { setCaptionLang(lang); setShowCaptionPicker(false); }}
+                        className="px-4 py-2.5 text-xs font-semibold text-left transition-all"
+                        style={{
+                          color: captionLang === lang ? "#00d47e" : "white",
+                          background: captionLang === lang ? "rgba(0,212,126,0.1)" : "transparent",
+                        }}>
+                  {lang === "off" ? "Apagado" : lang === "es" ? "🇪🇸 Español" : "🇺🇸 English"}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
 
         <button onClick={handleShare} className="flex flex-col items-center gap-1">
           <div className="w-11 h-11 rounded-full flex items-center justify-center"

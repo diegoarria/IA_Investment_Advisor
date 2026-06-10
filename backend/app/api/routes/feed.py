@@ -24,7 +24,7 @@ async def get_clips(
     db = get_supabase()
     q = (
         db.table("clips")
-        .select("id,title,description,video_url,thumbnail_url,speaker,tags,language,translated_caption,duration_sec,view_count,like_count,comment_count,created_at,pre_audio_url,post_audio_url,pre_text,post_text")
+        .select("id,title,description,video_url,thumbnail_url,speaker,tags,language,translated_caption,caption_en,duration_sec,view_count,like_count,comment_count,created_at,pre_audio_url,post_audio_url,pre_text,post_text")
         .eq("status", "published")
     )
     if speaker:
@@ -190,6 +190,7 @@ async def create_clip(body: dict, user_id: str = Depends(get_current_user_id)):
         "tags":               body.get("tags", []),
         "language":           body.get("language", "es"),
         "translated_caption": body.get("translated_caption", ""),
+        "caption_en":         body.get("caption_en", ""),
         "duration_sec":       body.get("duration_sec", 0),
         "status":             "draft",
         "created_by":         user_id,
@@ -201,7 +202,7 @@ async def create_clip(body: dict, user_id: str = Depends(get_current_user_id)):
 async def update_clip(clip_id: str, body: dict, user_id: str = Depends(get_current_user_id)):
     _require_admin(user_id)
     allowed = {"title", "description", "video_url", "thumbnail_url", "speaker",
-               "tags", "language", "translated_caption", "duration_sec", "status"}
+               "tags", "language", "translated_caption", "caption_en", "duration_sec", "status"}
     updates = {k: v for k, v in body.items() if k in allowed}
     if not updates:
         raise HTTPException(400, "Nada que actualizar")

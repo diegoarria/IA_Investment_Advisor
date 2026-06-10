@@ -41,6 +41,7 @@ interface Clip {
   post_text: string;
   pre_audio_url: string;
   post_audio_url: string;
+  caption_en: string;
 }
 
 const EMPTY_FORM = {
@@ -52,6 +53,7 @@ const EMPTY_FORM = {
   tags: [] as string[],
   language: "es",
   translated_caption: "",
+  caption_en: "",
   duration_sec: 0,
 };
 
@@ -514,16 +516,31 @@ export default function AdminFeedPage() {
                 />
               </div>
 
-              {/* Caption */}
+              {/* Caption ES */}
               <div>
                 <label className="text-[10px] font-bold block mb-1" style={{ color: "var(--muted)" }}>
-                  CAPTION EN ESPAÑOL (subtítulos o transcripción traducida)
+                  🇪🇸 SUBTÍTULOS EN ESPAÑOL
                 </label>
                 <textarea
-                  rows={4}
-                  placeholder="Pega la transcripción o subtítulos en español..."
+                  rows={3}
+                  placeholder="Transcripción traducida al español..."
                   value={form.translated_caption}
                   onChange={(e) => setForm((f) => ({ ...f, translated_caption: e.target.value }))}
+                  className="w-full rounded-lg border px-3 py-2 text-sm resize-none"
+                  style={{ background: "var(--raised)", borderColor: "var(--border)", color: "var(--text)" }}
+                />
+              </div>
+
+              {/* Caption EN */}
+              <div>
+                <label className="text-[10px] font-bold block mb-1" style={{ color: "var(--muted)" }}>
+                  🇺🇸 SUBTÍTULOS EN INGLÉS (original)
+                </label>
+                <textarea
+                  rows={3}
+                  placeholder="Original English transcript..."
+                  value={form.caption_en}
+                  onChange={(e) => setForm((f) => ({ ...f, caption_en: e.target.value }))}
                   className="w-full rounded-lg border px-3 py-2 text-sm resize-none"
                   style={{ background: "var(--raised)", borderColor: "var(--border)", color: "var(--text)" }}
                 />
