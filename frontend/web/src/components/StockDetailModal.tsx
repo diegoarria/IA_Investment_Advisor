@@ -4,7 +4,7 @@ import { useEffect, useState, useRef } from "react";
 import {
   X, TrendingUp, TrendingDown, Globe, Users, Building2,
   BarChart3, Loader2, ChevronRight, Activity,
-  ArrowUpRight, ArrowDownRight, DollarSign, Percent, ShieldCheck,
+  ArrowUpRight, ArrowDownRight, DollarSign, Percent,
 } from "lucide-react";
 import { market as marketApi } from "@/lib/api";
 
@@ -130,24 +130,34 @@ function recLabel(r?: string) {
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
-function Avatar({ ticker }: { ticker: string }) {
+function Avatar({ ticker, glowColor }: { ticker: string; glowColor?: string }) {
   const clean = ticker.replace(".", "-");
   const [failed, setFailed] = useState(false);
+  const ring = glowColor ?? "var(--accent-l)";
   if (!failed) {
     return (
       // eslint-disable-next-line @next/next/no-img-element
       <img
         src={`https://financialmodelingprep.com/image-stock/${clean}.png`}
         alt={ticker}
-        className="w-10 h-10 rounded-full object-contain p-1 shrink-0"
-        style={{ background: "var(--raised)", border: "1px solid var(--border)" }}
+        className="w-14 h-14 rounded-full object-contain p-1 shrink-0"
+        style={{
+          background: "var(--raised)",
+          border: `2px solid ${ring}`,
+          boxShadow: `0 0 12px ${ring}44`,
+        }}
         onError={() => setFailed(true)}
       />
     );
   }
   return (
-    <div className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-black shrink-0"
-         style={{ background: "rgba(0,168,94,0.14)", color: "var(--accent-l)" }}>
+    <div className="w-14 h-14 rounded-full flex items-center justify-center text-base font-black shrink-0"
+         style={{
+           background: "rgba(0,168,94,0.14)",
+           color: "var(--accent-l)",
+           border: `2px solid ${ring}`,
+           boxShadow: `0 0 12px ${ring}44`,
+         }}>
       {ticker.slice(0, 2)}
     </div>
   );
@@ -157,11 +167,11 @@ function StatCard({ label, value, color }: {
   label: string; value: string; color?: string;
 }) {
   return (
-    <div className="rounded-xl p-3 flex flex-col gap-0.5" style={{ background: "var(--raised)" }}>
+    <div className="rounded-xl p-3 flex flex-col gap-0.5" style={{ background: "var(--raised)", border: "1px solid var(--border)" }}>
       <span className="text-[9px] font-semibold uppercase tracking-wide" style={{ color: "var(--dim)" }}>
         {label}
       </span>
-      <span className="text-sm font-black leading-tight" style={{ color: color ?? "var(--text)" }}>
+      <span className="text-xl font-black leading-tight" style={{ color: color ?? "var(--text)" }}>
         {value}
       </span>
     </div>
@@ -321,14 +331,14 @@ function MetricCard({ metric }: { metric: ScoreMetric }) {
 
   return (
     <div className="rounded-xl p-3 flex flex-col gap-1.5"
-         style={{ background: "var(--raised)", border: "1px solid var(--border)" }}>
+         style={{ background: "var(--raised)", border: "1px solid var(--border)", borderLeft: `2px solid ${color}` }}>
       <div className="flex items-start justify-between gap-1">
         <span className="text-[10px] font-semibold leading-tight" style={{ color: "var(--sub)" }}>
           {metric.name}
         </span>
         <ScoreBadge score={metric.score} />
       </div>
-      <div className="text-lg font-black leading-tight" style={{ color: "var(--text)" }}>
+      <div className="text-xl font-black leading-tight" style={{ color: "var(--text)" }}>
         {metric.value}
       </div>
       {hasTrend && (
@@ -629,8 +639,8 @@ function FinancialBarChart({ data, field, label, color = "#22c55e" }: {
   return (
     <div>
       <div className="flex items-baseline justify-between mb-1.5">
-        <span className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: "var(--dim)" }}>{label}</span>
-        <span className="text-sm font-black" style={{ color: lastVal >= 0 ? "var(--text)" : "#ef4444" }}>{fmtBig(lastVal)}</span>
+        <span className="text-xs font-bold uppercase tracking-widest" style={{ color: "var(--accent-l)", opacity: 0.7 }}>{label}</span>
+        <span className="text-sm font-black" style={{ color: lastVal >= 0 ? "#22c55e" : "#ef4444" }}>{fmtBig(lastVal)}</span>
       </div>
       <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto", display: "block" }}>
         {values.map((v, i) => {
@@ -639,9 +649,13 @@ function FinancialBarChart({ data, field, label, color = "#22c55e" }: {
           const x = i * gap + (gap - bw) / 2;
           const y = chartH - barH;
           const barColor = v >= 0 ? color : "#ef4444";
+          const isLast = i === values.length - 1;
           return (
             <g key={i}>
-              <rect x={x} y={y} width={bw} height={barH} rx="2.5" fill={barColor} opacity="0.85" />
+              <rect x={x} y={y} width={bw} height={barH} rx="4" fill={barColor} opacity={isLast ? 1 : 0.7} />
+              <text x={x + bw / 2} y={Math.max(y - 2, 8)} fontSize="8" fill={isLast ? barColor : "var(--muted)"} textAnchor="middle" fontWeight={isLast ? "bold" : "normal"}>
+                {fmtBig(v)}
+              </text>
               <text x={x + bw / 2} y={H - 2} fontSize="8" fill="var(--muted)" textAnchor="middle">{periods[i]}</text>
             </g>
           );
@@ -759,72 +773,93 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
         style={{
           width: "min(740px, 100vw)",
           background: "var(--card)",
-          borderLeft: "1px solid var(--border)",
+          borderLeft: `3px solid ${recColor(profile?.recommendation)}`,
           boxShadow: "-12px 0 60px rgba(0,0,0,0.5)",
         }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* ── Header ── */}
-        <div className="flex items-center gap-3 px-5 py-3 border-b shrink-0"
-             style={{ borderColor: "var(--border)" }}>
-          <Avatar ticker={ticker} />
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-base font-black" style={{ color: "var(--text)" }}>{ticker}</span>
-              {profile?.exchange && (
-                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded"
-                      style={{ background: "var(--raised)", color: "var(--muted)" }}>
-                  {profile.exchange}
-                </span>
-              )}
-              {profile?.sector && (
-                <span className="text-[9px] font-bold px-2 py-0.5 rounded-full"
-                      style={{ background: "rgba(0,168,94,0.12)", color: "var(--accent-l)" }}>
-                  {profile.sector}
-                </span>
-              )}
-              {profile?.recommendation && (
-                <span className="text-[9px] font-bold px-2 py-0.5 rounded-full"
-                      style={{ background: `${recColor(profile.recommendation)}18`, color: recColor(profile.recommendation) }}>
-                  {recLabel(profile.recommendation)}
-                </span>
-              )}
-            </div>
-            <p className="text-xs truncate mt-0.5" style={{ color: "var(--muted)" }}>
-              {profile?.name ?? ticker}
-            </p>
-          </div>
-          <div className="text-right shrink-0">
-            {profile?.current_price != null ? (
-              <>
-                <p className="text-xl font-black leading-tight" style={{ color: "var(--text)" }}>
-                  ${profile.current_price.toFixed(2)}
-                </p>
-                {pricePct != null && (
-                  <p className="text-xs font-bold flex items-center gap-1 justify-end" style={{ color: priceColor }}>
-                    {isUp ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
-                    {priceChange != null && `${priceChange >= 0 ? "+" : ""}${priceChange.toFixed(2)} `}
-                    ({fmtPct(pricePct)})
-                  </p>
+        <div className="px-5 pt-4 pb-3 border-b shrink-0" style={{ borderColor: "var(--border)" }}>
+          <div className="flex items-center gap-3">
+            <Avatar ticker={ticker} glowColor={recColor(profile?.recommendation)} />
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-lg font-black" style={{ color: "var(--text)" }}>{ticker}</span>
+                {profile?.exchange && (
+                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded"
+                        style={{ background: "var(--raised)", color: "var(--muted)" }}>
+                    {profile.exchange}
+                  </span>
                 )}
-              </>
-            ) : loading ? (
-              <Loader2 className="w-5 h-5 animate-spin" style={{ color: "var(--muted)" }} />
-            ) : dataError ? (
-              <p className="text-xs font-bold" style={{ color: "#ef4444" }}>Sin datos</p>
-            ) : null}
+                {profile?.sector && (
+                  <span className="text-[9px] font-bold px-2 py-0.5 rounded-full"
+                        style={{ background: "rgba(0,168,94,0.12)", color: "var(--accent-l)" }}>
+                    {profile.sector}
+                  </span>
+                )}
+                {profile?.recommendation && (
+                  <span className="text-[9px] font-bold px-2 py-0.5 rounded-full"
+                        style={{ background: `${recColor(profile.recommendation)}18`, color: recColor(profile.recommendation) }}>
+                    {recLabel(profile.recommendation)}
+                  </span>
+                )}
+              </div>
+              <p className="text-xs truncate mt-0.5" style={{ color: "var(--muted)" }}>
+                {profile?.name ?? ticker}
+              </p>
+            </div>
+            <div className="text-right shrink-0">
+              {profile?.current_price != null ? (
+                <>
+                  <p className="text-2xl font-black leading-tight" style={{ color: "var(--text)" }}>
+                    ${profile.current_price.toFixed(2)}
+                  </p>
+                  {pricePct != null && priceChange != null && (
+                    <p className="text-sm font-bold flex items-center gap-1 justify-end" style={{ color: priceColor }}>
+                      {isUp ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
+                      {priceChange >= 0 ? "+" : ""}{priceChange.toFixed(2)} ({fmtPct(pricePct)})
+                    </p>
+                  )}
+                </>
+              ) : loading ? (
+                <Loader2 className="w-5 h-5 animate-spin" style={{ color: "var(--muted)" }} />
+              ) : dataError ? (
+                <p className="text-xs font-bold" style={{ color: "#ef4444" }}>Sin datos</p>
+              ) : null}
+            </div>
+            <button onClick={onClose}
+                    className="p-1.5 rounded-lg hover:bg-white/10 transition-colors shrink-0"
+                    style={{ color: "var(--muted)" }}>
+              <X className="w-5 h-5" />
+            </button>
           </div>
-          <button onClick={onClose}
-                  className="p-1.5 rounded-lg hover:bg-white/10 transition-colors shrink-0"
-                  style={{ color: "var(--muted)" }}>
-            <X className="w-5 h-5" />
-          </button>
+
+          {/* 52-week range bar */}
+          {profile?.week_52_low != null && profile?.week_52_high != null && profile?.current_price != null && (() => {
+            const low52 = profile.week_52_low!;
+            const high52 = profile.week_52_high!;
+            const cur = profile.current_price!;
+            const pct = Math.max(0, Math.min(100, ((cur - low52) / (high52 - low52)) * 100));
+            return (
+              <div className="mt-3 px-1">
+                <div className="flex justify-between mb-1">
+                  <span className="text-[9px] font-semibold" style={{ color: "var(--dim)" }}>52s Mín ${low52.toFixed(0)}</span>
+                  <span className="text-[9px] font-semibold" style={{ color: "var(--dim)" }}>52s Máx ${high52.toFixed(0)}</span>
+                </div>
+                <div className="relative h-1.5 rounded-full" style={{ background: "var(--border)" }}>
+                  <div className="h-1.5 rounded-full" style={{ width: `${pct}%`, background: `linear-gradient(90deg, #22c55e, ${recColor(profile.recommendation)})` }} />
+                  <div className="absolute top-1/2 -translate-y-1/2 w-3 h-3 rounded-full border-2 border-white"
+                       style={{ left: `calc(${pct}% - 6px)`, background: recColor(profile.recommendation) }} />
+                </div>
+              </div>
+            );
+          })()}
         </div>
 
         {/* ── Quick stats strip ── */}
         {profile && (
-          <div className="flex items-center gap-4 px-5 py-2 border-b text-[10px] overflow-x-auto shrink-0"
-               style={{ borderColor: "var(--border)", background: "var(--raised)" }}>
+          <div className="flex items-center gap-2 px-4 py-2.5 border-b overflow-x-auto shrink-0"
+               style={{ borderColor: "var(--border)", background: "var(--bg)" }}>
             {[
               { label: "Cap.", value: fmtBig(profile.market_cap) },
               { label: "P/E", value: fmtNum(profile.pe_ratio) },
@@ -832,28 +867,29 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
               { label: "Beta", value: fmtNum(profile.beta) },
               { label: "EPS", value: profile.eps != null ? `$${profile.eps.toFixed(2)}` : "—" },
               { label: "Div.", value: profile.dividend_yield ? `${profile.dividend_yield.toFixed(2)}%` : "—" },
-              { label: "52s Alt", value: profile.week_52_high ? `$${profile.week_52_high.toFixed(0)}` : "—" },
-              { label: "52s Mín", value: profile.week_52_low ? `$${profile.week_52_low.toFixed(0)}` : "—" },
               { label: "Vol.", value: fmtK(profile.volume) },
+              { label: "Marg.%", value: profile.profit_margins != null ? `${profile.profit_margins.toFixed(1)}%` : "—" },
             ].map(({ label, value }) => (
-              <div key={label} className="flex flex-col items-center shrink-0">
-                <span style={{ color: "var(--dim)" }}>{label}</span>
-                <span className="font-bold" style={{ color: "var(--text)" }}>{value}</span>
+              <div key={label} className="flex flex-col items-center shrink-0 px-2.5 py-1"
+                   style={{ border: "1px solid var(--border)", borderRadius: 8, background: "var(--raised)" }}>
+                <span className="text-[9px] font-semibold uppercase" style={{ color: "var(--dim)" }}>{label}</span>
+                <span className="text-[11px] font-black leading-tight" style={{ color: "var(--text)" }}>{value}</span>
               </div>
             ))}
           </div>
         )}
 
         {/* ── Tab bar ── */}
-        <div className="flex border-b shrink-0" style={{ borderColor: "var(--border)" }}>
+        <div className="flex gap-1 px-3 py-2 border-b shrink-0" style={{ borderColor: "var(--border)", background: "var(--bg)" }}>
           {TABS.map(({ key, label }) => (
             <button
               key={key}
               onClick={() => setTab(key)}
-              className="flex-1 py-2.5 text-xs font-bold transition-colors"
+              className="flex-1 py-1.5 text-xs font-bold transition-all rounded-lg"
               style={{
                 color: tab === key ? "var(--accent-l)" : "var(--muted)",
-                borderBottom: tab === key ? "2px solid var(--accent-l)" : "2px solid transparent",
+                background: tab === key ? "rgba(0,168,94,0.12)" : "transparent",
+                border: "none",
               }}
             >
               {label}
@@ -877,19 +913,32 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
                   {/* Score hero */}
                   <div className="rounded-2xl p-5 flex gap-4 items-start"
                        style={{ background: "var(--raised)", border: "1px solid var(--border)" }}>
-                    {/* Shield */}
-                    <div className="relative shrink-0 flex items-center justify-center w-20 h-20">
-                      <ShieldCheck className="w-20 h-20 absolute"
-                        style={{ color: score.overall_score >= 75 ? "#16a34a" : score.overall_score >= 55 ? "#f59e0b" : "#ef4444", opacity: 0.18 }} />
-                      <ShieldCheck className="w-20 h-20 absolute"
-                        style={{ color: score.overall_score >= 75 ? "#22c55e" : score.overall_score >= 55 ? "#f59e0b" : "#ef4444", strokeWidth: 1.2 }} />
-                      <div className="relative flex flex-col items-center">
-                        <span className="text-2xl font-black leading-none" style={{ color: "var(--text)" }}>
-                          {score.overall_score}
-                        </span>
-                        <span className="text-[9px] font-bold leading-none" style={{ color: "var(--muted)" }}>/ 100</span>
-                      </div>
-                    </div>
+                    {/* Circular progress ring */}
+                    {(() => {
+                      const sc = score.overall_score;
+                      const ringColor = sc >= 75 ? "#22c55e" : sc >= 55 ? "#f59e0b" : "#ef4444";
+                      const R = 34, cx = 40, cy = 40;
+                      const circ = 2 * Math.PI * R;
+                      const dash = (sc / 100) * circ;
+                      return (
+                        <div className="relative shrink-0 flex items-center justify-center" style={{ width: 80, height: 80 }}>
+                          <svg width="80" height="80" viewBox="0 0 80 80">
+                            <circle cx={cx} cy={cy} r={R} fill="none" stroke="var(--border)" strokeWidth="6" />
+                            <circle cx={cx} cy={cy} r={R} fill="none" stroke={ringColor} strokeWidth="6"
+                              strokeLinecap="round"
+                              strokeDasharray={`${dash} ${circ}`}
+                              strokeDashoffset={circ * 0.25}
+                              transform={`rotate(-90 ${cx} ${cy})`}
+                              style={{ transition: "stroke-dasharray 0.5s ease" }}
+                            />
+                          </svg>
+                          <div className="absolute flex flex-col items-center justify-center">
+                            <span className="text-xl font-black leading-none" style={{ color: "var(--text)" }}>{sc}</span>
+                            <span className="text-[8px] font-bold" style={{ color: "var(--muted)" }}>/100</span>
+                          </div>
+                        </div>
+                      );
+                    })()}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1 flex-wrap">
                         <span className="text-base font-black" style={{ color: "var(--text)" }}>
@@ -903,47 +952,75 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
                           {score.signal}
                         </span>
                       </div>
-                      <p className="text-xs font-semibold leading-snug mb-1" style={{ color: "var(--sub)" }}>
+                      <p className="text-xs font-semibold leading-snug mb-2" style={{ color: "var(--sub)" }}>
                         {score.verdict_short}
                       </p>
-                      <p className="text-[11px] leading-relaxed" style={{ color: "var(--muted)" }}>
-                        {score.verdict_long}
-                      </p>
+                      {/* Parse verdict_long for **CORTO:** and **LARGO:** markers */}
+                      {(() => {
+                        const text = score.verdict_long;
+                        const cortoIdx = text.indexOf("**CORTO:**");
+                        const largoIdx = text.indexOf("**LARGO:**");
+                        if (cortoIdx === -1 && largoIdx === -1) {
+                          return <p className="text-[11px] leading-relaxed" style={{ color: "var(--muted)" }}>{text}</p>;
+                        }
+                        const parts: React.ReactNode[] = [];
+                        let cursor = 0;
+                        const markers = [
+                          { marker: "**CORTO:**", label: "CORTO", color: "#f59e0b", idx: cortoIdx },
+                          { marker: "**LARGO:**", label: "LARGO", color: "#22c55e", idx: largoIdx },
+                        ].filter((m) => m.idx !== -1).sort((a, b) => a.idx - b.idx);
+                        markers.forEach(({ marker, label, color, idx }) => {
+                          if (idx > cursor) {
+                            parts.push(<span key={`pre-${idx}`} className="text-[11px] leading-relaxed" style={{ color: "var(--muted)" }}>{text.slice(cursor, idx)}</span>);
+                          }
+                          parts.push(
+                            <span key={label} className="font-black text-[11px]" style={{ color }}> {label}: </span>
+                          );
+                          cursor = idx + marker.length;
+                        });
+                        if (cursor < text.length) {
+                          parts.push(<span key="tail" className="text-[11px] leading-relaxed" style={{ color: "var(--muted)" }}>{text.slice(cursor)}</span>);
+                        }
+                        return <p className="text-[11px] leading-relaxed">{parts}</p>;
+                      })()}
                     </div>
                   </div>
 
                   {/* Category overview bar */}
                   <div className="grid grid-cols-4 gap-1.5">
-                    {score.categories.map((cat) => (
-                      <div key={cat.key} className="rounded-xl p-2.5 text-center"
-                           style={{ background: "var(--raised)" }}>
-                        <div className="text-lg font-black leading-tight"
-                             style={{ color: cat.score >= 75 ? "#22c55e" : cat.score >= 55 ? "#f59e0b" : "#ef4444" }}>
-                          {cat.score}
+                    {score.categories.map((cat) => {
+                      const catColor = cat.score >= 75 ? "#22c55e" : cat.score >= 55 ? "#f59e0b" : "#ef4444";
+                      return (
+                        <div key={cat.key} className="rounded-xl p-3 text-center"
+                             style={{
+                               background: `linear-gradient(135deg, ${catColor}14, transparent)`,
+                               border: `1px solid ${catColor}30`,
+                             }}>
+                          <div className="text-2xl font-black leading-tight" style={{ color: catColor }}>
+                            {cat.score}
+                          </div>
+                          <div className="text-[8px] font-semibold uppercase tracking-wide mt-0.5"
+                               style={{ color: "var(--dim)" }}>
+                            {cat.name}
+                          </div>
+                          {/* mini progress bar */}
+                          <div className="mt-1.5 h-1 rounded-full" style={{ background: "var(--border)" }}>
+                            <div className="h-1 rounded-full transition-all"
+                                 style={{ width: `${cat.score}%`, background: catColor }} />
+                          </div>
                         </div>
-                        <div className="text-[8px] font-semibold uppercase tracking-wide mt-0.5"
-                             style={{ color: "var(--dim)" }}>
-                          {cat.name}
-                        </div>
-                        {/* mini progress bar */}
-                        <div className="mt-1.5 h-1 rounded-full" style={{ background: "var(--border)" }}>
-                          <div className="h-1 rounded-full transition-all"
-                               style={{
-                                 width: `${cat.score}%`,
-                                 background: cat.score >= 75 ? "#22c55e" : cat.score >= 55 ? "#f59e0b" : "#ef4444",
-                               }} />
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
 
                   {/* Metric cards */}
                   {score.categories.map((cat) => (
-                    <div key={cat.key}>
-                      <p className="text-[10px] font-bold uppercase tracking-wider mb-2" style={{ color: "var(--dim)" }}>
+                    <div key={cat.key} className="pt-2">
+                      <p className="text-xs font-bold uppercase tracking-widest mb-3"
+                         style={{ color: "var(--accent-l)", opacity: 0.7 }}>
                         {cat.name}
-                        <span className="ml-2 font-black text-xs"
-                              style={{ color: cat.score >= 75 ? "#22c55e" : cat.score >= 55 ? "#f59e0b" : "#ef4444" }}>
+                        <span className="ml-2 font-black"
+                              style={{ color: cat.score >= 75 ? "#22c55e" : cat.score >= 55 ? "#f59e0b" : "#ef4444", opacity: 1 }}>
                           {cat.score}/100
                         </span>
                       </p>
@@ -1006,8 +1083,8 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
                   <>
                     {income.length > 0 && (
                       <div>
-                        <p className="text-[10px] font-bold uppercase tracking-wider mb-3" style={{ color: "var(--dim)" }}>Estado de Resultados</p>
-                        <div className="space-y-5">
+                        <p className="text-xs font-bold uppercase tracking-widest mb-3" style={{ color: "var(--accent-l)", opacity: 0.7 }}>Estado de Resultados</p>
+                        <div className="space-y-6">
                           <FinancialBarChart data={income} field="Total Revenue" label="Ingresos Totales" />
                           <FinancialBarChart data={income} field="Gross Profit" label="Utilidad Bruta" />
                           <FinancialBarChart data={income} field="Net Income" label="Utilidad Neta" />
@@ -1016,8 +1093,8 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
                     )}
                     {balance.length > 0 && (
                       <div>
-                        <p className="text-[10px] font-bold uppercase tracking-wider mb-3" style={{ color: "var(--dim)" }}>Balance General</p>
-                        <div className="space-y-5">
+                        <p className="text-xs font-bold uppercase tracking-widest mb-3" style={{ color: "var(--accent-l)", opacity: 0.7 }}>Balance General</p>
+                        <div className="space-y-6">
                           <FinancialBarChart data={balance} field="Total Assets" label="Activos Totales" />
                           <FinancialBarChart data={balance} field="Total Liabilities Net Minority Interest" label="Pasivos Totales" />
                           <FinancialBarChart data={balance} field="Stockholders Equity" label="Patrimonio Neto" />
@@ -1026,8 +1103,8 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
                     )}
                     {cashflow.length > 0 && (
                       <div>
-                        <p className="text-[10px] font-bold uppercase tracking-wider mb-3" style={{ color: "var(--dim)" }}>Flujo de Caja</p>
-                        <div className="space-y-5">
+                        <p className="text-xs font-bold uppercase tracking-widest mb-3" style={{ color: "var(--accent-l)", opacity: 0.7 }}>Flujo de Caja</p>
+                        <div className="space-y-6">
                           <FinancialBarChart data={cashflow} field="Operating Cash Flow" label="Flujo Operativo" />
                           <FinancialBarChart data={cashflow} field="Free Cash Flow" label="Flujo Libre" />
                           <FinancialBarChart data={cashflow} field="Capital Expenditure" label="CapEx" />
@@ -1292,8 +1369,8 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
                 <>
                   {/* Valoración */}
                   <div>
-                    <p className="text-[10px] font-bold uppercase tracking-wider mb-2" style={{ color: "var(--dim)" }}>Valoración</p>
-                    <div className="grid grid-cols-3 gap-1.5">
+                    <p className="text-xs font-bold uppercase tracking-widest mb-2" style={{ color: "var(--accent-l)", opacity: 0.7 }}>Valoración</p>
+                    <div className="grid grid-cols-3 gap-2">
                       <StatCard label="Cap. Mkt"   value={fmtBig(profile.market_cap)} />
                       <StatCard label="EV"          value={fmtBig(profile.enterprise_value)} />
                       <StatCard label="P/E (TTM)"   value={fmtNum(profile.pe_ratio)} />
@@ -1308,10 +1385,10 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
 
                   {/* Rentabilidad */}
                   <div>
-                    <p className="text-[10px] font-bold uppercase tracking-wider mb-2" style={{ color: "var(--dim)" }}>
+                    <p className="text-xs font-bold uppercase tracking-widest mb-2" style={{ color: "var(--accent-l)", opacity: 0.7 }}>
                       Rentabilidad &amp; Márgenes
                     </p>
-                    <div className="grid grid-cols-3 gap-1.5">
+                    <div className="grid grid-cols-3 gap-2">
                       <StatCard label="Margen Bruto"  value={profile.gross_margins != null ? `${profile.gross_margins.toFixed(1)}%` : "—"} />
                       <StatCard label="Margen Op."    value={profile.operating_margins != null ? `${profile.operating_margins.toFixed(1)}%` : "—"} />
                       <StatCard label="Margen Neto"   value={profile.profit_margins != null ? `${profile.profit_margins.toFixed(1)}%` : "—"} />
@@ -1326,10 +1403,10 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
 
                   {/* Balance */}
                   <div>
-                    <p className="text-[10px] font-bold uppercase tracking-wider mb-2" style={{ color: "var(--dim)" }}>
+                    <p className="text-xs font-bold uppercase tracking-widest mb-2" style={{ color: "var(--accent-l)", opacity: 0.7 }}>
                       Balance &amp; Liquidez
                     </p>
-                    <div className="grid grid-cols-3 gap-1.5">
+                    <div className="grid grid-cols-3 gap-2">
                       <StatCard label="Deuda/Capital"   value={fmtNum(profile.debt_to_equity)} />
                       <StatCard label="Ratio Corriente"  value={fmtNum(profile.current_ratio)} />
                       <StatCard label="Ratio Rápido"     value={fmtNum(profile.quick_ratio)} />
@@ -1341,10 +1418,10 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
 
                   {/* Precio & Volumen */}
                   <div>
-                    <p className="text-[10px] font-bold uppercase tracking-wider mb-2" style={{ color: "var(--dim)" }}>
+                    <p className="text-xs font-bold uppercase tracking-widest mb-2" style={{ color: "var(--accent-l)", opacity: 0.7 }}>
                       Precio &amp; Volumen
                     </p>
-                    <div className="grid grid-cols-3 gap-1.5">
+                    <div className="grid grid-cols-3 gap-2">
                       <StatCard label="SMA 50"      value={profile.sma_50 ? `$${profile.sma_50.toFixed(2)}` : "—"} />
                       <StatCard label="SMA 200"     value={profile.sma_200 ? `$${profile.sma_200.toFixed(2)}` : "—"} />
                       <StatCard label="Beta"        value={fmtNum(profile.beta)} />
@@ -1357,7 +1434,7 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
                   {/* Dividends */}
                   {(data?.dividends?.length ?? 0) > 0 && (
                     <div>
-                      <p className="text-[10px] font-bold uppercase tracking-wider mb-2" style={{ color: "var(--dim)" }}>
+                      <p className="text-xs font-bold uppercase tracking-widest mb-2" style={{ color: "var(--accent-l)", opacity: 0.7 }}>
                         <Percent className="w-3 h-3 inline mr-1" />
                         Historial de Dividendos
                         {profile.dividend_yield != null && profile.dividend_yield > 0 && (
@@ -1393,7 +1470,7 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
                   {/* Institutional holders */}
                   {(data?.holders?.institutional?.length ?? 0) > 0 && (
                     <div>
-                      <p className="text-[10px] font-bold uppercase tracking-wider mb-2" style={{ color: "var(--dim)" }}>
+                      <p className="text-xs font-bold uppercase tracking-widest mb-2" style={{ color: "var(--accent-l)", opacity: 0.7 }}>
                         <Building2 className="w-3 h-3 inline mr-1" />
                         Tenedores Institucionales
                       </p>
@@ -1428,9 +1505,9 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
                   {/* Insider transactions */}
                   {(data?.insiders?.length ?? 0) > 0 && (
                     <div>
-                      <p className="text-[10px] font-bold uppercase tracking-wider mb-2" style={{ color: "var(--dim)" }}>
+                      <p className="text-xs font-bold uppercase tracking-widest mb-2" style={{ color: "var(--accent-l)", opacity: 0.7 }}>
                         Transacciones de Insiders
-                        <span className="ml-1 font-normal" style={{ color: "var(--muted)" }}>— directivos y directores</span>
+                        <span className="ml-1 font-normal text-[10px]" style={{ color: "var(--muted)", opacity: 1 }}>— directivos y directores</span>
                       </p>
                       <div className="space-y-1.5">
                         {data!.insiders!.slice(0, 10).map((ins, i) => {
@@ -1513,7 +1590,7 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
                   {/* Competitors */}
                   {(loadingPeers || peers.length > 0) && (
                     <div>
-                      <p className="text-[10px] font-bold uppercase tracking-wider mb-2" style={{ color: "var(--dim)" }}>
+                      <p className="text-xs font-bold uppercase tracking-widest mb-2" style={{ color: "var(--accent-l)", opacity: 0.7 }}>
                         Empresas Similares
                       </p>
                       {loadingPeers ? (
