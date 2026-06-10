@@ -4,7 +4,7 @@ import { useState, useRef } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import {
   BookOpen, PieChart, BarChart2, Bell, User, GraduationCap, Trophy,
-  MessageSquare, ChevronRight, Plus, X, HeadphonesIcon, GripVertical, Eye,
+  MessageSquare, ChevronRight, Plus, X, HeadphonesIcon, GripVertical, Eye, Play,
 } from "lucide-react";
 import {
   useProfileStore, useNotificationStore, useSubscriptionStore,
@@ -17,6 +17,7 @@ const NAV = [
   { href: "/chat",          icon: BookOpen,       label: "Chat" },
   { href: "/portfolio",     icon: PieChart,       label: "Portafolio" },
   { href: "/watchlist",     icon: Eye,            label: "Watchlist" },
+  { href: "/feed",          icon: Play,           label: "Videos" },
   { href: "/paper",         icon: BarChart2,      label: "Simulador" },
   { href: "/learn",         icon: GraduationCap,  label: "Aprendizaje" },
   { href: "/arena",         icon: Trophy,         label: "Play" },

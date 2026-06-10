@@ -277,4 +277,29 @@ export const watchlist = {
   remove: (ticker: string) => api.delete(`/api/watchlist/${encodeURIComponent(ticker)}`),
 };
 
+export const feedApi = {
+  getClips: (params: { cursor?: number; speaker?: string; tag?: string; sort?: string }) =>
+    api.get("/api/feed/clips", { params }),
+  like: (clipId: string) =>
+    api.post(`/api/feed/clips/${clipId}/like`),
+  save: (clipId: string) =>
+    api.post(`/api/feed/clips/${clipId}/save`),
+  view: (clipId: string, watchedPct: number) =>
+    api.post(`/api/feed/clips/${clipId}/view`, { watched_pct: watchedPct }),
+  getComments: (clipId: string) =>
+    api.get(`/api/feed/clips/${clipId}/comments`),
+  postComment: (clipId: string, text: string, parentId?: string) =>
+    api.post(`/api/feed/clips/${clipId}/comments`, { text, parent_id: parentId }),
+
+  // Admin
+  adminList: (status = "draft") =>
+    api.get("/api/feed/admin/clips", { params: { status } }),
+  adminCreate: (clip: Record<string, unknown>) =>
+    api.post("/api/feed/admin/clips", clip),
+  adminUpdate: (clipId: string, updates: Record<string, unknown>) =>
+    api.patch(`/api/feed/admin/clips/${clipId}`, updates),
+  adminDelete: (clipId: string) =>
+    api.delete(`/api/feed/admin/clips/${clipId}`),
+};
+
 export default api;
