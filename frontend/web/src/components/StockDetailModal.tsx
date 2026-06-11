@@ -689,6 +689,7 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
 
   const [tab, setTab] = useState<Tab>("chart");
   const [finPeriod, setFinPeriod] = useState<"annual" | "quarterly">("annual");
+  const [finSection, setFinSection] = useState<"income" | "balance" | "cashflow">("income");
   const [data, setData] = useState<StockData | null>(null);
   const [loading, setLoading] = useState(true);
   const [dataError, setDataError] = useState(false);
@@ -1182,10 +1183,16 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
                   );
                 };
 
+                const FIN_TABS: { key: "income" | "balance" | "cashflow"; label: string }[] = [
+                  { key: "income",   label: "Est. Resultados" },
+                  { key: "balance",  label: "Balance General" },
+                  { key: "cashflow", label: "Flujo de Caja"   },
+                ];
+
                 return (
                   <>
                     {/* Annual / Quarterly toggle */}
-                    <div className="flex items-center gap-2 px-5 pb-4">
+                    <div className="flex items-center gap-2 px-5 pb-3">
                       {(["annual", "quarterly"] as const).map((p) => (
                         <button key={p} onClick={() => setFinPeriod(p)}
                                 className="px-3 py-1.5 text-xs font-bold rounded-lg transition-colors"
@@ -1202,39 +1209,62 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
                       </span>
                     </div>
 
-                    <Section title="Estado de Resultados" rows={income} metrics={[
-                      { field: "Total Revenue",    label: "Ingresos" },
-                      { field: "Gross Profit",     label: "Utilidad Bruta",     zeroAsDash: true },
-                      { field: "Operating Income", label: "Utilidad Operativa", zeroAsDash: true },
-                      { field: "EBITDA",           label: "EBITDA" },
-                      { field: "Net Income",       label: "Utilidad Neta" },
-                      { field: "Diluted EPS",      label: "EPS Diluido" },
-                      { field: "Research And Development", label: "I+D" },
-                      { field: "Selling General Administrative", label: "SG&A" },
-                      { field: "Interest Expense", label: "Gasto Intereses", isNeg: true },
-                    ]} />
+                    {/* Section sub-tabs */}
+                    <div className="flex border-b mx-5 mb-1" style={{ borderColor: "var(--border)" }}>
+                      {FIN_TABS.map(({ key, label }) => (
+                        <button
+                          key={key}
+                          onClick={() => setFinSection(key)}
+                          className="px-3 py-2.5 text-[11px] font-bold transition-colors relative"
+                          style={{ color: finSection === key ? "var(--accent-l)" : "var(--muted)" }}>
+                          {label}
+                          {finSection === key && (
+                            <span className="absolute bottom-0 left-0 right-0 h-[2px] rounded-t-full"
+                                  style={{ background: "var(--accent-l)" }} />
+                          )}
+                        </button>
+                      ))}
+                    </div>
 
-                    <Section title="Balance General" rows={balance} metrics={[
-                      { field: "Total Assets",     label: "Activos Totales" },
-                      { field: "Current Assets",   label: "Activos Corrientes" },
-                      { field: "Cash And Cash Equivalents", label: "Efectivo" },
-                      { field: "Goodwill And Other Intangible Assets", label: "Goodwill + Intangibles" },
-                      { field: "Total Liabilities Net Minority Interest", label: "Pasivos Totales" },
-                      { field: "Total Debt",       label: "Deuda Total", isNeg: true },
-                      { field: "Long Term Debt",   label: "Deuda L/P", isNeg: true },
-                      { field: "Stockholders Equity", label: "Patrimonio Neto" },
-                      { field: "Retained Earnings", label: "Ganancias Retenidas" },
-                    ]} />
+                    {finSection === "income" && (
+                      <Section title="Estado de Resultados" rows={income} metrics={[
+                        { field: "Total Revenue",    label: "Ingresos" },
+                        { field: "Gross Profit",     label: "Utilidad Bruta",     zeroAsDash: true },
+                        { field: "Operating Income", label: "Utilidad Operativa", zeroAsDash: true },
+                        { field: "EBITDA",           label: "EBITDA" },
+                        { field: "Net Income",       label: "Utilidad Neta" },
+                        { field: "Diluted EPS",      label: "EPS Diluido" },
+                        { field: "Research And Development", label: "I+D" },
+                        { field: "Selling General Administrative", label: "SG&A" },
+                        { field: "Interest Expense", label: "Gasto Intereses", isNeg: true },
+                      ]} />
+                    )}
 
-                    <Section title="Flujo de Caja" rows={cashflow} metrics={[
-                      { field: "Operating Cash Flow", label: "Flujo Operativo" },
-                      { field: "Capital Expenditure", label: "CapEx", isNeg: true },
-                      { field: "Free Cash Flow",      label: "Flujo Libre" },
-                      { field: "Dividends Paid",      label: "Dividendos", isNeg: true },
-                      { field: "Repurchase Of Capital Stock", label: "Recompra Acciones", isNeg: true },
-                      { field: "Issuance Of Debt",    label: "Emisión Deuda" },
-                      { field: "Repayment Of Debt",   label: "Pago Deuda", isNeg: true },
-                    ]} />
+                    {finSection === "balance" && (
+                      <Section title="Balance General" rows={balance} metrics={[
+                        { field: "Total Assets",     label: "Activos Totales" },
+                        { field: "Current Assets",   label: "Activos Corrientes" },
+                        { field: "Cash And Cash Equivalents", label: "Efectivo" },
+                        { field: "Goodwill And Other Intangible Assets", label: "Goodwill + Intangibles" },
+                        { field: "Total Liabilities Net Minority Interest", label: "Pasivos Totales" },
+                        { field: "Total Debt",       label: "Deuda Total", isNeg: true },
+                        { field: "Long Term Debt",   label: "Deuda L/P", isNeg: true },
+                        { field: "Stockholders Equity", label: "Patrimonio Neto" },
+                        { field: "Retained Earnings", label: "Ganancias Retenidas" },
+                      ]} />
+                    )}
+
+                    {finSection === "cashflow" && (
+                      <Section title="Flujo de Caja" rows={cashflow} metrics={[
+                        { field: "Operating Cash Flow", label: "Flujo Operativo" },
+                        { field: "Capital Expenditure", label: "CapEx", isNeg: true },
+                        { field: "Free Cash Flow",      label: "Flujo Libre" },
+                        { field: "Dividends Paid",      label: "Dividendos", isNeg: true },
+                        { field: "Repurchase Of Capital Stock", label: "Recompra Acciones", isNeg: true },
+                        { field: "Issuance Of Debt",    label: "Emisión Deuda" },
+                        { field: "Repayment Of Debt",   label: "Pago Deuda", isNeg: true },
+                      ]} />
+                    )}
                   </>
                 );
               })()}
