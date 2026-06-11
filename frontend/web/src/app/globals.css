@@ -202,9 +202,9 @@ body {
 
 /* ─── Navigation active state ────────────────────────────────────────── */
 .nav-item {
-  display: flex; align-items: center; gap: 10px;
-  padding: 9px 12px; border-radius: 12px;
-  font-size: 0.875rem; font-weight: 500;
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 10px; border-radius: 9px;
+  font-size: 0.8125rem; font-weight: 500;
   color: var(--muted);
   transition: background 0.15s, color 0.15s;
   cursor: pointer; width: 100%; text-align: left; border: none;

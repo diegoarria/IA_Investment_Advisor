@@ -292,10 +292,10 @@ export default function AppSidebar({ open, onClose }: Props) {
                   }}
                 >
                   <GripVertical
-                    className="w-3 h-3 shrink-0 opacity-0 group-hover:opacity-40 cursor-grab active:cursor-grabbing transition-opacity"
+                    className="w-2.5 h-2.5 shrink-0 opacity-0 group-hover:opacity-40 cursor-grab active:cursor-grabbing transition-opacity"
                     style={{ color: "var(--muted)" }}
                   />
-                  <Icon className="w-4 h-4 shrink-0" />
+                  <Icon className="w-3.5 h-3.5 shrink-0" />
                   <span>{label}</span>
                   {badge && (
                     <span className="ml-auto badge-green" style={{ fontSize: "10px" }}>{unreadCount}</span>
