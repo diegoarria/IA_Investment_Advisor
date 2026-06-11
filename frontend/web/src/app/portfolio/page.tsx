@@ -1598,11 +1598,10 @@ export default function PortfolioPage() {
                             return sum + p.shares * cp;
                           }, 0);
                           return (
-                            <div className="space-y-2">
+                            <div className="divide-y" style={{ borderColor: "var(--border)" }}>
                               {bEntries.map(([ticker, pct]) => {
                                 const pos = sortedPositions.find((p) => p.ticker === ticker);
                                 const isPos = pct >= 0;
-                                const barW = maxAbs > 0 ? Math.round((Math.abs(pct) / maxAbs) * 100) : 0;
                                 const currentPriceRaw = prices[ticker]?.price ?? pos?.avgPrice ?? 0;
                                 const currentPriceFx = currentPriceRaw * fxRate;
                                 const costPriceFx = (pos?.avgPrice ?? 0) * fxRate;
@@ -1613,60 +1612,44 @@ export default function PortfolioPage() {
                                 const companyName = prices[ticker]?.name || pos?.name || "";
                                 const logoSrc = `https://financialmodelingprep.com/image-stock/${ticker.replace(".", "-")}.png`;
                                 return (
-                                  <div key={ticker} className="rounded-xl p-2.5"
-                                       style={{ background: "var(--raised)", border: `1px solid ${isPos ? "#22c55e" : "#ef4444"}22` }}>
-                                    {/* Top row: logo + ticker/name + return badge */}
-                                    <div className="flex items-center gap-2 mb-1.5">
-                                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                                      <img src={logoSrc} alt={ticker}
-                                           className="w-6 h-6 rounded-full object-contain shrink-0"
-                                           style={{ background: "var(--card)", border: "1px solid var(--border)" }}
-                                           onError={(e) => { e.currentTarget.style.display = "none"; }} />
-                                      <div className="flex-1 min-w-0 flex items-baseline gap-1.5">
-                                        <span className="text-[13px] font-black shrink-0" style={{ color: "var(--text)" }}>{ticker}</span>
+                                  <div key={ticker} className="flex items-center gap-3 px-4 py-3.5">
+                                    {/* Logo */}
+                                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                                    <img src={logoSrc} alt={ticker}
+                                         className="w-9 h-9 rounded-xl object-contain shrink-0"
+                                         style={{ background: "var(--raised)", border: "1px solid var(--border)" }}
+                                         onError={(e) => { e.currentTarget.style.display = "none"; }} />
+
+                                    {/* Ticker + name + secondary info */}
+                                    <div className="flex-1 min-w-0">
+                                      <div className="flex items-center gap-1.5">
+                                        <span className="text-sm font-bold" style={{ color: "var(--text)" }}>{ticker}</span>
                                         {companyName && (
-                                          <span className="text-[10px] truncate" style={{ color: "var(--muted)" }}>{companyName}</span>
+                                          <span className="text-[11px] truncate" style={{ color: "var(--muted)" }}>{companyName}</span>
                                         )}
                                       </div>
-                                      <span className="text-[12px] font-black px-2.5 py-0.5 rounded-full shrink-0"
-                                            style={{ background: `${isPos ? "#22c55e" : "#ef4444"}18`, color: isPos ? "#22c55e" : "#ef4444" }}>
-                                        {isPos ? "+" : ""}{pct.toFixed(2)}%
-                                      </span>
-                                    </div>
-                                    {/* Progress bar */}
-                                    <div className="h-0.5 rounded-full overflow-hidden mb-2" style={{ background: "var(--border)" }}>
-                                      <div className="h-full rounded-full transition-all duration-500"
-                                           style={{ width: `${barW}%`, background: `linear-gradient(90deg,${isPos ? "#22c55e" : "#ef4444"},${isPos ? "#16a34a" : "#dc2626"})` }} />
-                                    </div>
-                                    {/* Stats row */}
-                                    <div className="flex items-center">
-                                      <div className="flex-1 text-center">
-                                        <p className="text-[8px] font-bold uppercase tracking-wide mb-0.5" style={{ color: "var(--dim)" }}>Precio</p>
-                                        <p className="text-[11px] font-black tabular-nums" style={{ color: "var(--text)" }}>
-                                          {currencySymbol}{currentPriceFx.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                        </p>
-                                      </div>
-                                      <div className="w-px h-7 rounded-full" style={{ background: "var(--border)" }} />
-                                      <div className="flex-1 text-center">
-                                        <p className="text-[8px] font-bold uppercase tracking-wide mb-0.5" style={{ color: "var(--dim)" }}>Valor</p>
-                                        <p className="text-[11px] font-black tabular-nums" style={{ color: "var(--text)" }}>
-                                          {currencySymbol}{currentValue.toLocaleString("en-US", { maximumFractionDigits: 0 })}
-                                        </p>
-                                      </div>
-                                      <div className="w-px h-7 rounded-full" style={{ background: "var(--border)" }} />
-                                      <div className="flex-1 text-center">
-                                        <p className="text-[8px] font-bold uppercase tracking-wide mb-0.5" style={{ color: "var(--dim)" }}>G/P</p>
-                                        <p className="text-[11px] font-black tabular-nums" style={{ color: pnl >= 0 ? "#22c55e" : "#ef4444" }}>
-                                          {pnl >= 0 ? "+" : ""}{currencySymbol}{Math.abs(pnl).toLocaleString("en-US", { maximumFractionDigits: 0 })}
-                                        </p>
-                                      </div>
-                                      <div className="w-px h-7 rounded-full" style={{ background: "var(--border)" }} />
-                                      <div className="flex-1 text-center">
-                                        <p className="text-[8px] font-bold uppercase tracking-wide mb-0.5" style={{ color: "var(--dim)" }}>Asign.</p>
-                                        <p className="text-[11px] font-black tabular-nums" style={{ color: "var(--sub)" }}>
+                                      <div className="flex items-center gap-3 mt-0.5">
+                                        <span className="text-[10px] tabular-nums" style={{ color: "var(--dim)" }}>
+                                          {shares % 1 === 0 ? shares : shares.toFixed(4)} acc · {currencySymbol}{currentPriceFx.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                        </span>
+                                        <span className="text-[10px]" style={{ color: "var(--dim)" }}>
                                           {allocPct.toFixed(1)}%
-                                        </p>
+                                        </span>
                                       </div>
+                                    </div>
+
+                                    {/* Value + Return */}
+                                    <div className="text-right shrink-0">
+                                      <p className="text-sm font-bold tabular-nums" style={{ color: "var(--text)" }}>
+                                        {currencySymbol}{currentValue.toLocaleString("en-US", { maximumFractionDigits: 0 })}
+                                      </p>
+                                      <p className="text-[12px] font-bold tabular-nums"
+                                         style={{ color: isPos ? "#22c55e" : "#ef4444" }}>
+                                        {isPos ? "+" : ""}{pct.toFixed(2)}%
+                                        <span className="text-[10px] font-normal ml-1" style={{ color: isPos ? "#22c55e99" : "#ef444499" }}>
+                                          ({pnl >= 0 ? "+" : ""}{currencySymbol}{Math.abs(pnl).toLocaleString("en-US", { maximumFractionDigits: 0 })})
+                                        </span>
+                                      </p>
                                     </div>
                                   </div>
                                 );
