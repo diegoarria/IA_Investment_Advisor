@@ -1924,8 +1924,7 @@ def _parse_qs_cashflow(qs: dict, quarterly: bool = False, n: int = 5) -> list[di
             # Operating
             "Net Income":                       _qs_raw(row, "netIncome"),
             "Depreciation And Amortization":    _qs_raw(row, "depreciation"),
-            "Stock Based Compensation":         _qs_raw(row, "issuanceOfStock"),
-            "Change In Working Capital":        _qs_raw(row, "changeToAccountReceivables"),
+            "Change In Working Capital":        _qs_raw(row, "changeToNetWorkingCapital") or _qs_raw(row, "changeToAccountReceivables"),
             "Accounts Receivables Change":      _qs_raw(row, "changeToAccountReceivables"),
             "Inventory Change":                 _qs_raw(row, "changeToInventory"),
             "Other Working Capital":            _qs_raw(row, "changeToOperatingActivities"),
@@ -2218,31 +2217,25 @@ def _fetch_stock_detail(symbol: str) -> dict:
             balance_quarterly = _parse_qs_balance(_qs, quarterly=True, n=6)
             cf_quarterly      = _parse_qs_cashflow(_qs, quarterly=True, n=6)
     else:
+        # Income: yfinance DataFrame row names are stable here
         try:
             income_annual     = _df_to_periods(t.income_stmt, IS_ROWS, 5)
             income_quarterly  = _df_to_periods(t.quarterly_income_stmt, IS_ROWS, 6)
         except Exception:
             income_annual = income_quarterly = []
-        try:
-            balance_annual    = _df_to_periods(t.balance_sheet, BS_ROWS, 5)
-            balance_quarterly = _df_to_periods(t.quarterly_balance_sheet, BS_ROWS, 6)
-        except Exception:
-            balance_annual = balance_quarterly = []
-        try:
-            cashflow_annual   = _df_to_periods(t.cash_flow, CF_ROWS, 5)
-            cf_quarterly      = _df_to_periods(t.quarterly_cash_flow, CF_ROWS, 6)
-        except Exception:
-            cashflow_annual = cf_quarterly = []
 
-        # Fallback: yfinance DataFrame calls failed — use quoteSummary directly
-        if not income_annual and not balance_annual and not cashflow_annual:
-            _qs = _qs or _yf_quote_summary(symbol)
-            income_annual     = _parse_qs_income(_qs, quarterly=False, n=5)
-            income_quarterly  = _parse_qs_income(_qs, quarterly=True,  n=6)
-            balance_annual    = _parse_qs_balance(_qs, quarterly=False, n=5)
-            balance_quarterly = _parse_qs_balance(_qs, quarterly=True,  n=6)
-            cashflow_annual   = _parse_qs_cashflow(_qs, quarterly=False, n=5)
-            cf_quarterly      = _parse_qs_cashflow(_qs, quarterly=True,  n=6)
+        # Balance & cashflow: yfinance DataFrame row names change across versions
+        # and frequently don't match BS_ROWS/CF_ROWS → use quoteSummary (stable schema)
+        _qs = _qs or _yf_quote_summary(symbol)
+        balance_annual    = _parse_qs_balance(_qs, quarterly=False, n=5)
+        balance_quarterly = _parse_qs_balance(_qs, quarterly=True,  n=6)
+        cashflow_annual   = _parse_qs_cashflow(_qs, quarterly=False, n=5)
+        cf_quarterly      = _parse_qs_cashflow(_qs, quarterly=True,  n=6)
+
+        # Fallback income to quoteSummary if yfinance DataFrame also failed
+        if not income_annual:
+            income_annual    = _parse_qs_income(_qs, quarterly=False, n=5)
+            income_quarterly = _parse_qs_income(_qs, quarterly=True,  n=6)
 
     financials = {
         "income":   {"annual": income_annual,   "quarterly": income_quarterly},
