@@ -1307,19 +1307,118 @@ async def get_portfolio_chart(
 
 _QUOTE_DETAILS_TTL = 120  # 2 min cache
 
-_YF_HEADERS_QUOTE = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-    "Accept": "application/json",
-    "Referer": "https://finance.yahoo.com/",
-}
+
+def _fetch_quote_light(symbol: str) -> dict | None:
+    """Per-ticker quoteSummary with only market-data modules — works from cloud IPs."""
+    modules = "price,summaryDetail,calendarEvents"
+    crumb = _get_yf_crumb()
+    params: dict[str, str] = {"modules": modules, "corsDomain": "finance.yahoo.com"}
+    if crumb:
+        params["crumb"] = crumb
+    for host in ("query2", "query1"):
+        try:
+            r = _YF_SESSION.get(
+                f"https://{host}.finance.yahoo.com/v10/finance/quoteSummary/{symbol.replace('.', '-')}",
+                params=params,
+                timeout=10,
+            )
+            if r.status_code == 200:
+                data = r.json().get("quoteSummary", {}).get("result", [])
+                if data:
+                    return data[0]
+            elif r.status_code in (401, 403):
+                global _yf_crumb
+                _yf_crumb = None
+        except Exception:
+            pass
+    return None
+
+
+def _parse_quote_light(qs: dict) -> dict:
+    """Extract quote detail fields from a lightweight quoteSummary result."""
+    def _r(obj, key):
+        v = (obj or {}).get(key)
+        return v.get("raw") if isinstance(v, dict) else v
+
+    price_m   = qs.get("price") or {}
+    summary_m = qs.get("summaryDetail") or {}
+    cal_m     = qs.get("calendarEvents") or {}
+
+    reg_price = _r(price_m, "regularMarketPrice")
+    chg_abs   = _r(price_m, "regularMarketChange")
+    # quoteSummary returns change percent as decimal fraction (e.g. -0.0028 = -0.28%)
+    chg_frac  = _r(price_m, "regularMarketChangePercent")
+    volume    = _r(price_m, "regularMarketVolume")
+    mkt_cap   = _r(price_m, "marketCap")
+    mstate    = (price_m.get("marketState") or "").upper()
+
+    wk52hi = _r(summary_m, "fiftyTwoWeekHigh")
+    wk52lo = _r(summary_m, "fiftyTwoWeekLow")
+    w52_pct = None
+    if reg_price and wk52lo and float(wk52lo) > 0:
+        w52_pct = round((float(reg_price) - float(wk52lo)) / float(wk52lo) * 100, 2)
+
+    pe = _r(summary_m, "trailingPE") or _r(summary_m, "forwardPE")
+
+    # Earnings date from calendarEvents
+    earnings_date = None
+    earnings_list = (cal_m.get("earnings") or {}).get("earningsDate") or []
+    if earnings_list:
+        ed = earnings_list[0]
+        if isinstance(ed, dict):
+            earnings_date = ed.get("fmt")
+        elif isinstance(ed, (int, float)):
+            try:
+                from datetime import datetime, timezone
+                earnings_date = datetime.fromtimestamp(float(ed), tz=timezone.utc).strftime("%Y-%m-%d")
+            except Exception:
+                pass
+
+    # Pre/post-market
+    ext_price, ext_pct_frac, ext_label = None, None, None
+    if mstate in ("PRE", "PREPRE"):
+        ext_price    = _r(price_m, "preMarketPrice")
+        ext_pct_frac = _r(price_m, "preMarketChangePercent")
+        ext_label    = "Pre"
+    elif mstate in ("POST", "POSTPOST", "CLOSED"):
+        ext_price    = _r(price_m, "postMarketPrice")
+        ext_pct_frac = _r(price_m, "postMarketChangePercent")
+        ext_label    = "Post"
+
+    ext_price_f = round(float(ext_price), 4) if ext_price else None
+    ext_change  = round(float(ext_price_f) - float(reg_price), 4) if (ext_price_f and reg_price) else None
+
+    return {
+        "price":       round(float(reg_price), 4) if reg_price else None,
+        "change":      round(float(chg_abs), 4) if chg_abs is not None else None,
+        "changePct":   round(float(chg_frac) * 100, 2) if chg_frac is not None else None,
+        "volume":      volume,
+        "marketCap":   mkt_cap,
+        "pe":          pe,
+        "week52Low":   wk52lo,
+        "week52High":  wk52hi,
+        "week52Pct":   w52_pct,
+        "earningsDate": earnings_date,
+        "extPrice":    ext_price_f,
+        "extPct":      round(float(ext_pct_frac) * 100, 2) if ext_pct_frac else None,
+        "extChange":   ext_change,
+        "extLabel":    ext_label,
+        "marketState": mstate,
+        "companyName": price_m.get("shortName") or price_m.get("longName"),
+        "currency":    price_m.get("currency") or "USD",
+    }
 
 
 def _fetch_quote_details(tickers: list[str]) -> dict[str, dict]:
-    """Batch-fetch extended quote data via Yahoo Finance v7 quote API."""
+    """Batch-fetch extended quote data using quoteSummary v10 (works from cloud IPs).
+
+    Yahoo Finance v7 /quote is blocked from datacenter IPs (Railway, AWS, etc.).
+    quoteSummary v10 with crumb auth is the same API used for financial statements
+    and is reliably accessible from server environments.
+    """
     if not tickers:
         return {}
 
-    # Check cache first (v2 — camelCase keys)
     missing = []
     cached: dict[str, dict] = {}
     for t in tickers:
@@ -1334,104 +1433,21 @@ def _fetch_quote_details(tickers: list[str]) -> dict[str, dict]:
 
     results: dict[str, dict] = dict(cached)
 
-    # Batch request via Yahoo Finance v7
-    import httpx
-    symbols_str = ",".join(t.replace(".", "-") for t in missing)
-    fields = (
-        "regularMarketPrice,regularMarketChange,regularMarketChangePercent,"
-        "regularMarketVolume,marketCap,trailingPE,forwardPE,"
-        "fiftyTwoWeekLow,fiftyTwoWeekHigh,"
-        "preMarketPrice,preMarketChangePercent,"
-        "postMarketPrice,postMarketChangePercent,"
-        "marketState,earningsTimestamp,"
-        "shortName,longName,currency"
-    )
-
-    for domain in ("query1", "query2"):
-        try:
-            url = f"https://{domain}.finance.yahoo.com/v7/finance/quote"
-            r = httpx.get(
-                url,
-                params={"symbols": symbols_str, "fields": fields},
-                headers=_YF_HEADERS_QUOTE,
-                timeout=10,
-                follow_redirects=True,
-            )
-            if r.status_code != 200:
-                continue
-            quotes = r.json().get("quoteResponse", {}).get("result") or []
-
-            for q in quotes:
-                sym = q.get("symbol", "").replace("-", ".")
-                price = q.get("regularMarketPrice")
-                wk52lo = q.get("fiftyTwoWeekLow")
-
-                # % above 52-week low
-                w52_pct = None
-                if price and wk52lo and wk52lo > 0:
-                    w52_pct = round((price - wk52lo) / wk52lo * 100, 2)
-
-                # earnings date from timestamp
-                earnings_ts = q.get("earningsTimestamp")
-                earnings_date = None
-                if earnings_ts:
-                    try:
-                        from datetime import datetime, timezone
-                        earnings_date = datetime.fromtimestamp(
-                            earnings_ts, tz=timezone.utc
-                        ).strftime("%Y-%m-%d")
-                    except Exception:
-                        pass
-
-                # pre vs post
-                mstate = (q.get("marketState") or "").upper()
-                ext_price, ext_pct, ext_label = None, None, None
-                if mstate in ("PRE", "PREPRE"):
-                    ext_price = q.get("preMarketPrice")
-                    ext_pct   = q.get("preMarketChangePercent")
-                    ext_label = "Pre"
-                elif mstate in ("POST", "POSTPOST", "CLOSED"):
-                    ext_price = q.get("postMarketPrice")
-                    ext_pct   = q.get("postMarketChangePercent")
-                    ext_label = "Post"
-
-                chg_pct  = q.get("regularMarketChangePercent")
-                chg_abs  = q.get("regularMarketChange")
-                reg_price = q.get("regularMarketPrice")
-                ext_price_f = round(float(ext_price), 4) if ext_price else None
-                ext_change  = round(float(ext_price_f) - float(reg_price), 4) \
-                              if (ext_price_f and reg_price) else None
-                entry = {
-                    # real-time price + change (overrides potentially stale watchlist data)
-                    "price":        round(float(reg_price), 4) if reg_price else None,
-                    "change":       round(float(chg_abs), 4) if chg_abs is not None else None,
-                    "changePct":    round(float(chg_pct), 2) if chg_pct is not None else None,
-                    # enriched columns — camelCase to match AdvancedRow / StockData interfaces
-                    "volume":       q.get("regularMarketVolume"),
-                    "marketCap":    q.get("marketCap"),
-                    "pe":           q.get("trailingPE") or q.get("forwardPE"),
-                    "week52Low":    wk52lo,
-                    "week52High":   q.get("fiftyTwoWeekHigh"),
-                    "week52Pct":    w52_pct,
-                    "earningsDate": earnings_date,
-                    "extPrice":     ext_price_f,
-                    "extPct":       round(float(ext_pct), 2) if ext_pct else None,
-                    "extChange":    ext_change,
-                    "extLabel":     ext_label,
-                    "marketState":  mstate,
-                    "companyName":  q.get("shortName") or q.get("longName"),
-                    "currency":     q.get("currency", "USD"),
-                }
-                results[sym] = entry
-                cache_set(f"qdetailv2:{sym}", entry, ttl=_QUOTE_DETAILS_TTL)
-
-            # Fill any still-missing with empty entry
-            for t in missing:
-                if t not in results:
-                    results[t] = {}
-            break
-        except Exception:
-            continue
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+    with ThreadPoolExecutor(max_workers=min(len(missing), 10)) as pool:
+        futures = {pool.submit(_fetch_quote_light, t): t for t in missing}
+        for fut in as_completed(futures):
+            sym = futures[fut]
+            try:
+                qs = fut.result()
+                if qs:
+                    entry = _parse_quote_light(qs)
+                    results[sym] = entry
+                    cache_set(f"qdetailv2:{sym}", entry, ttl=_QUOTE_DETAILS_TTL)
+                else:
+                    results[sym] = {}
+            except Exception:
+                results[sym] = {}
 
     return results
 

@@ -8,8 +8,8 @@
 //   GET /api/market/search?q=apple
 //     → ticker search results
 //
-// The backend proxies Yahoo Finance v7 (primary) with Finnhub analyst data
-// as enrichment. TTL cache: 120s for quote-details.
+// The backend uses Yahoo Finance quoteSummary v10 (crumb-auth, works from Railway)
+// for quote details. TTL cache: 120s for quote-details.
 
 import type { StockData } from "@/lib/types/stock";
 
