@@ -8,7 +8,8 @@ import Image from "next/image";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { market as marketApi } from "@/lib/api";
-import { useAuthStore, useSubscriptionStore } from "@/lib/store";
+import { useAuthStore, useSubscriptionStore, useProfileStore } from "@/lib/store";
+import { getUserLevel, isAtLeast } from "@/lib/userLevel";
 import { usePortfolioStore, type Position } from "@/lib/portfolioStore";
 import AdvancedStockTable from "@/components/AdvancedStockTable";
 import type { AdvancedRow } from "@/components/AdvancedStockTable";
@@ -641,6 +642,8 @@ function PortfolioHistoryChart({
 export default function PortfolioPage() {
   const router = useRouter();
   const { isAuthenticated } = useAuthStore();
+  const { profile } = useProfileStore();
+  const userLevel = getUserLevel(profile);
   const sub = useSubscriptionStore();
   const isPremium = sub.tier === "premium";
   const [paywallOpen, setPaywallOpen] = useState(false);
@@ -1143,18 +1146,26 @@ export default function PortfolioPage() {
         <main className="flex-1 overflow-y-auto scrollbar-thin p-4 w-full">
           <GuidedSteps currentPage="portfolio" />
 
-          {/* Tab switcher */}
+          {/* Tab switcher — Herramientas only for basico+ */}
           <div className="flex p-1 rounded-xl gap-1 mb-5" style={{ background: "var(--raised)" }}>
             <button onClick={() => setActiveTab("portfolio")}
                     className="flex-1 py-2 rounded-lg text-sm font-semibold transition-all"
                     style={{ background: activeTab === "portfolio" ? "var(--card)" : "transparent", color: activeTab === "portfolio" ? "var(--text)" : "var(--muted)" }}>
               Mi Portafolio
             </button>
-            <button onClick={() => setActiveTab("herramientas")}
-                    className="flex-1 py-2 rounded-lg text-sm font-semibold transition-all flex items-center justify-center gap-1.5"
-                    style={{ background: activeTab === "herramientas" ? "var(--card)" : "transparent", color: activeTab === "herramientas" ? "var(--accent-l)" : "var(--muted)" }}>
-              ⭐ Herramientas
-            </button>
+            {isAtLeast(userLevel, "basico") ? (
+              <button onClick={() => setActiveTab("herramientas")}
+                      className="flex-1 py-2 rounded-lg text-sm font-semibold transition-all flex items-center justify-center gap-1.5"
+                      style={{ background: activeTab === "herramientas" ? "var(--card)" : "transparent", color: activeTab === "herramientas" ? "var(--accent-l)" : "var(--muted)" }}>
+                ⭐ Herramientas
+              </button>
+            ) : (
+              <div className="flex-1 py-2 rounded-lg text-sm font-semibold flex items-center justify-center gap-1.5 opacity-35"
+                   style={{ color: "var(--dim)" }}
+                   title="Disponible en nivel Básico">
+                🔒 Herramientas
+              </div>
+            )}
           </div>
 
           {activeTab === "portfolio" && <div className="space-y-5">
@@ -1582,25 +1593,88 @@ export default function PortfolioPage() {
                             {breakdownSort === "desc" ? "▲ Verde → Rojo" : "▼ Rojo → Verde"}
                           </button>
                         </div>
-                        <div className="space-y-2">
-                          {bEntries.map(([ticker, pct]) => {
-                            const isPos = pct >= 0;
-                            const barW  = maxAbs > 0 ? Math.round((Math.abs(pct) / maxAbs) * 100) : 0;
-                            return (
-                              <div key={ticker} className="flex items-center gap-2">
-                                <span className="text-[11px] font-extrabold shrink-0 w-12" style={{ color: "var(--text)" }}>{ticker}</span>
-                                <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ background: "var(--raised)" }}>
-                                  <div className="h-full rounded-full"
-                                       style={{ width: `${barW}%`, background: isPos ? "#22c55e" : "#ef4444", transition: "width 0.5s ease" }} />
-                                </div>
-                                <span className="text-[11px] font-bold shrink-0 w-16 text-right"
-                                      style={{ color: isPos ? "#22c55e" : "#ef4444" }}>
-                                  {isPos ? "+" : ""}{pct.toFixed(2)}%
-                                </span>
-                              </div>
-                            );
-                          })}
-                        </div>
+                        {(() => {
+                          const totalPortfolioVal = sortedPositions.reduce((sum, p) => {
+                            const cp = (prices[p.ticker]?.price ?? p.avgPrice) * fxRate;
+                            return sum + p.shares * cp;
+                          }, 0);
+                          return (
+                            <div className="space-y-2">
+                              {bEntries.map(([ticker, pct]) => {
+                                const pos = sortedPositions.find((p) => p.ticker === ticker);
+                                const isPos = pct >= 0;
+                                const barW = maxAbs > 0 ? Math.round((Math.abs(pct) / maxAbs) * 100) : 0;
+                                const currentPriceRaw = prices[ticker]?.price ?? pos?.avgPrice ?? 0;
+                                const currentPriceFx = currentPriceRaw * fxRate;
+                                const costPriceFx = (pos?.avgPrice ?? 0) * fxRate;
+                                const shares = pos?.shares ?? 0;
+                                const currentValue = shares * currentPriceFx;
+                                const pnl = shares * (currentPriceFx - costPriceFx);
+                                const allocPct = totalPortfolioVal > 0 ? (currentValue / totalPortfolioVal) * 100 : 0;
+                                const companyName = prices[ticker]?.name || pos?.name || "";
+                                const logoSrc = `https://financialmodelingprep.com/image-stock/${ticker.replace(".", "-")}.png`;
+                                return (
+                                  <div key={ticker} className="rounded-xl p-2.5"
+                                       style={{ background: "var(--raised)", border: `1px solid ${isPos ? "#22c55e" : "#ef4444"}22` }}>
+                                    {/* Top row: logo + ticker/name + return badge */}
+                                    <div className="flex items-center gap-2 mb-1.5">
+                                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                                      <img src={logoSrc} alt={ticker}
+                                           className="w-6 h-6 rounded-full object-contain shrink-0"
+                                           style={{ background: "var(--card)", border: "1px solid var(--border)" }}
+                                           onError={(e) => { e.currentTarget.style.display = "none"; }} />
+                                      <div className="flex-1 min-w-0 flex items-baseline gap-1.5">
+                                        <span className="text-[13px] font-black shrink-0" style={{ color: "var(--text)" }}>{ticker}</span>
+                                        {companyName && (
+                                          <span className="text-[10px] truncate" style={{ color: "var(--muted)" }}>{companyName}</span>
+                                        )}
+                                      </div>
+                                      <span className="text-[12px] font-black px-2.5 py-0.5 rounded-full shrink-0"
+                                            style={{ background: `${isPos ? "#22c55e" : "#ef4444"}18`, color: isPos ? "#22c55e" : "#ef4444" }}>
+                                        {isPos ? "+" : ""}{pct.toFixed(2)}%
+                                      </span>
+                                    </div>
+                                    {/* Progress bar */}
+                                    <div className="h-0.5 rounded-full overflow-hidden mb-2" style={{ background: "var(--border)" }}>
+                                      <div className="h-full rounded-full transition-all duration-500"
+                                           style={{ width: `${barW}%`, background: `linear-gradient(90deg,${isPos ? "#22c55e" : "#ef4444"},${isPos ? "#16a34a" : "#dc2626"})` }} />
+                                    </div>
+                                    {/* Stats row */}
+                                    <div className="flex items-center">
+                                      <div className="flex-1 text-center">
+                                        <p className="text-[8px] font-bold uppercase tracking-wide mb-0.5" style={{ color: "var(--dim)" }}>Precio</p>
+                                        <p className="text-[11px] font-black tabular-nums" style={{ color: "var(--text)" }}>
+                                          {currencySymbol}{currentPriceFx.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                        </p>
+                                      </div>
+                                      <div className="w-px h-7 rounded-full" style={{ background: "var(--border)" }} />
+                                      <div className="flex-1 text-center">
+                                        <p className="text-[8px] font-bold uppercase tracking-wide mb-0.5" style={{ color: "var(--dim)" }}>Valor</p>
+                                        <p className="text-[11px] font-black tabular-nums" style={{ color: "var(--text)" }}>
+                                          {currencySymbol}{currentValue.toLocaleString("en-US", { maximumFractionDigits: 0 })}
+                                        </p>
+                                      </div>
+                                      <div className="w-px h-7 rounded-full" style={{ background: "var(--border)" }} />
+                                      <div className="flex-1 text-center">
+                                        <p className="text-[8px] font-bold uppercase tracking-wide mb-0.5" style={{ color: "var(--dim)" }}>G/P</p>
+                                        <p className="text-[11px] font-black tabular-nums" style={{ color: pnl >= 0 ? "#22c55e" : "#ef4444" }}>
+                                          {pnl >= 0 ? "+" : ""}{currencySymbol}{Math.abs(pnl).toLocaleString("en-US", { maximumFractionDigits: 0 })}
+                                        </p>
+                                      </div>
+                                      <div className="w-px h-7 rounded-full" style={{ background: "var(--border)" }} />
+                                      <div className="flex-1 text-center">
+                                        <p className="text-[8px] font-bold uppercase tracking-wide mb-0.5" style={{ color: "var(--dim)" }}>Asign.</p>
+                                        <p className="text-[11px] font-black tabular-nums" style={{ color: "var(--sub)" }}>
+                                          {allocPct.toFixed(1)}%
+                                        </p>
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          );
+                        })()}
                       </div>
                     )}
 
@@ -1618,6 +1692,7 @@ export default function PortfolioPage() {
                 <div className="mb-4">
                   <AdvancedStockTable
                     mode="portfolio"
+                    userLevel={userLevel}
                     onRowClick={setSelectedStock}
                     onRemove={(ticker) => {
                       const pos = sortedPositions.find((p) => p.ticker === ticker);

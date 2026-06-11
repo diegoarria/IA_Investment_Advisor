@@ -4,7 +4,7 @@ import { useState, useRef } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import {
   BookOpen, PieChart, BarChart2, Bell, User, GraduationCap, Trophy,
-  MessageSquare, ChevronRight, Plus, X, HeadphonesIcon, GripVertical, Eye, Play, ArrowRight,
+  MessageSquare, ChevronRight, Plus, X, HeadphonesIcon, GripVertical, Eye, Play, ArrowRight, Lock,
 } from "lucide-react";
 
 const COACHING_URL = "https://calendly.com/diego-arria19/sesion-1-1-con-diego-nuvos-ai"; // ← actualiza con tu link real
@@ -13,19 +13,20 @@ import {
   useChatStore, msgsRemaining, FREE_MSG_LIMIT,
   behavioralRiskColor, behavioralRiskLabel,
 } from "@/lib/store";
+import { getUserLevel, isAtLeast, LEVEL_LABEL, LEVEL_COLOR, LEVEL_EMOJI, type UserLevel } from "@/lib/userLevel";
 import PaywallModal from "@/components/PaywallModal";
 
-const NAV = [
-  { href: "/chat",          icon: BookOpen,       label: "Chat" },
-  { href: "/portfolio",     icon: PieChart,       label: "Portafolio" },
-  { href: "/watchlist",     icon: Eye,            label: "Watchlist" },
-  { href: "/feed",          icon: Play,           label: "Videos" },
-  { href: "/paper",         icon: BarChart2,      label: "Simulador" },
-  { href: "/learn",         icon: GraduationCap,  label: "Aprendizaje" },
-  { href: "/arena",         icon: Trophy,         label: "Play" },
-  { href: "/notifications", icon: Bell,           label: "Notificaciones" },
-  { href: "/support",       icon: HeadphonesIcon, label: "Soporte" },
-  { href: "/profile",       icon: User,           label: "Perfil" },
+const NAV: Array<{ href: string; icon: React.ComponentType<{ className?: string; style?: React.CSSProperties }>; label: string; minLevel: UserLevel }> = [
+  { href: "/chat",          icon: BookOpen,       label: "Chat",           minLevel: "principiante" },
+  { href: "/portfolio",     icon: PieChart,       label: "Portafolio",     minLevel: "principiante" },
+  { href: "/watchlist",     icon: Eye,            label: "Watchlist",      minLevel: "basico" },
+  { href: "/feed",          icon: Play,           label: "Videos",         minLevel: "principiante" },
+  { href: "/paper",         icon: BarChart2,      label: "Simulador",      minLevel: "basico" },
+  { href: "/learn",         icon: GraduationCap,  label: "Aprendizaje",    minLevel: "principiante" },
+  { href: "/arena",         icon: Trophy,         label: "Play",           minLevel: "intermedio" },
+  { href: "/notifications", icon: Bell,           label: "Notificaciones", minLevel: "principiante" },
+  { href: "/support",       icon: HeadphonesIcon, label: "Soporte",        minLevel: "principiante" },
+  { href: "/profile",       icon: User,           label: "Perfil",         minLevel: "principiante" },
 ];
 
 const RISK_SEGMENTS = [
@@ -115,6 +116,7 @@ export default function AppSidebar({ open, onClose }: Props) {
   const dragItem = useRef<string | null>(null);
 
   const orderedNav = navOrder.map((href) => NAV.find((n) => n.href === href)!).filter(Boolean);
+  const userLevel  = getUserLevel(profile);
   const isPremium      = subStore.tier === "premium";
   const isTrialPremium = subStore.isTrialPremium;
   const trialDaysLeft  = subStore.trialDaysLeft;
@@ -182,19 +184,25 @@ export default function AppSidebar({ open, onClose }: Props) {
                     : profile.name.charAt(0).toUpperCase()
                   }
                 </div>
-                <div className="flex-1 min-w-0 flex items-center gap-1.5 flex-wrap">
-                  <div className="text-[11px] font-bold truncate" style={{ color: "var(--text)" }}>{profile.name}</div>
-                  {isPremium ? (
-                    <span className="text-[8px] font-black px-1 py-px rounded-full"
-                          style={{ background: "rgba(245,158,11,0.15)", color: "#f59e0b" }}>
-                      ✦ Premium
+                <div className="flex-1 min-w-0">
+                  <div className="text-[11px] font-bold truncate mb-0.5" style={{ color: "var(--text)" }}>{profile.name}</div>
+                  <div className="flex items-center gap-1 flex-wrap">
+                    <span className="text-[8px] font-bold px-1.5 py-px rounded-full"
+                          style={{ background: `${LEVEL_COLOR[userLevel]}18`, color: LEVEL_COLOR[userLevel], border: `1px solid ${LEVEL_COLOR[userLevel]}35` }}>
+                      {LEVEL_EMOJI[userLevel]} {LEVEL_LABEL[userLevel]}
                     </span>
-                  ) : (
-                    <span className="text-[8px] font-semibold px-1 py-px rounded-full"
-                          style={{ background: "var(--raised)", color: "var(--dim)" }}>
-                      Free
-                    </span>
-                  )}
+                    {isPremium ? (
+                      <span className="text-[8px] font-black px-1 py-px rounded-full"
+                            style={{ background: "rgba(245,158,11,0.15)", color: "#f59e0b" }}>
+                        ✦ Premium
+                      </span>
+                    ) : (
+                      <span className="text-[8px] font-semibold px-1 py-px rounded-full"
+                            style={{ background: "var(--raised)", color: "var(--dim)" }}>
+                        Free
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
 
@@ -272,21 +280,22 @@ export default function AppSidebar({ open, onClose }: Props) {
         {/* Scrollable area: nav + chat history */}
         <div className="flex-1 overflow-y-auto scrollbar-thin">
           <nav className="px-2 py-1 space-y-0.5">
-            {orderedNav.map(({ href, icon: Icon, label }) => {
-              const active = pathname === href;
-              const badge = href === "/notifications" && unreadCount > 0;
+            {orderedNav.map(({ href, icon: Icon, label, minLevel }) => {
+              const active  = pathname === href;
+              const badge   = href === "/notifications" && unreadCount > 0;
+              const locked  = !isAtLeast(userLevel, minLevel);
               return (
                 <button
                   key={href}
-                  draggable
-                  onDragStart={() => handleDragStart(href)}
-                  onDragOver={(e) => handleDragOver(e, href)}
-                  onDrop={(e) => handleDrop(e, href)}
+                  draggable={!locked}
+                  onDragStart={() => !locked && handleDragStart(href)}
+                  onDragOver={(e) => !locked && handleDragOver(e, href)}
+                  onDrop={(e) => !locked && handleDrop(e, href)}
                   onDragEnd={handleDragEnd}
-                  onClick={() => navigate(href)}
+                  onClick={() => locked ? navigate("/profile") : navigate(href)}
                   className={`nav-item ${active ? "active" : ""} group transition-opacity`}
                   style={{
-                    opacity: dragging === href ? 0.35 : 1,
+                    opacity: locked ? 0.4 : dragging === href ? 0.35 : 1,
                     borderTop: dragOver === href ? "2px solid var(--accent)" : undefined,
                   }}
                 >
@@ -294,11 +303,17 @@ export default function AppSidebar({ open, onClose }: Props) {
                     className="w-2.5 h-2.5 shrink-0 opacity-0 group-hover:opacity-40 cursor-grab active:cursor-grabbing transition-opacity"
                     style={{ color: "var(--muted)" }}
                   />
-                  <Icon className="w-3.5 h-3.5 shrink-0" />
-                  <span>{label}</span>
-                  {badge && (
+                  <Icon className="w-3.5 h-3.5 shrink-0" style={{ color: locked ? "var(--dim)" : undefined }} />
+                  <span style={{ color: locked ? "var(--dim)" : undefined }}>{label}</span>
+                  {locked ? (
+                    <span className="ml-auto flex items-center gap-0.5 text-[8px] font-bold"
+                          style={{ color: "var(--dim)" }}>
+                      <Lock className="w-2.5 h-2.5" />
+                      {LEVEL_LABEL[minLevel]}
+                    </span>
+                  ) : badge ? (
                     <span className="ml-auto badge-green" style={{ fontSize: "10px" }}>{unreadCount}</span>
-                  )}
+                  ) : null}
                 </button>
               );
             })}

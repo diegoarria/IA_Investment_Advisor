@@ -8,7 +8,8 @@ import {
   TrendingUp, TrendingDown, Lock, Plus,
 } from "lucide-react";
 import { watchlist as watchlistApi, market as marketApi } from "@/lib/api";
-import { useAuthStore, useSubscriptionStore } from "@/lib/store";
+import { useAuthStore, useSubscriptionStore, useProfileStore } from "@/lib/store";
+import { getUserLevel } from "@/lib/userLevel";
 import { usePortfolioStore } from "@/lib/portfolioStore";
 import AppSidebar from "@/components/AppSidebar";
 import PaywallModal from "@/components/PaywallModal";
@@ -296,6 +297,8 @@ function SkeletonCard() {
 export default function WatchlistPage() {
   const router = useRouter();
   const { isAuthenticated, clearAuth } = useAuthStore();
+  const { profile } = useProfileStore();
+  const userLevel = getUserLevel(profile);
   const { tier } = useSubscriptionStore();
   const isPremium = tier === "premium";
   const { positions } = usePortfolioStore();
@@ -647,6 +650,7 @@ export default function WatchlistPage() {
             ) : viewMode === "advanced" && items.length > 0 ? (
               <AdvancedStockTable
                 mode="watchlist"
+                userLevel={userLevel}
                 rows={items.map((i): AdvancedRow => ({
                   ticker: i.ticker,
                   name: i.name,

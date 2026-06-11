@@ -106,7 +106,7 @@ export default function GuidedSteps({ currentPage }: { currentPage: PageKey }) {
     setDismissed(localStorage.getItem(DISMISSED_KEY) === "1");
   }, [currentPage]);
 
-  if (level !== "basico") return null;
+  if (level !== "basico" && level !== "principiante") return null;
   if (dismissed) return null;
 
   const guide = GUIDE[currentPage];

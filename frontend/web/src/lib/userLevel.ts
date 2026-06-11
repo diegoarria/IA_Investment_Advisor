@@ -1,14 +1,22 @@
+import { useProfileStore } from "./store";
 import type { UserProfile } from "./types";
 
-export type UserLevel = "basico" | "intermedio" | "avanzado";
+export type UserLevel = "principiante" | "basico" | "intermedio" | "avanzado";
 
 // Maps quiz q3 answer → level
 // q3: A=Principiante, B=Básico, C=Intermedio, D=Avanzado
 const Q3_MAP: Record<string, UserLevel> = {
-  A: "basico",
+  A: "principiante",
   B: "basico",
   C: "intermedio",
   D: "avanzado",
+};
+
+const LEVEL_ORDER: Record<UserLevel, number> = {
+  principiante: 0,
+  basico:       1,
+  intermedio:   2,
+  avanzado:     3,
 };
 
 export function getUserLevel(profile: UserProfile | null): UserLevel {
@@ -17,22 +25,36 @@ export function getUserLevel(profile: UserProfile | null): UserLevel {
   return Q3_MAP[q3 ?? ""] ?? "intermedio";
 }
 
+/** Returns true if `level` is at least as advanced as `min`. */
+export function isAtLeast(level: UserLevel, min: UserLevel): boolean {
+  return LEVEL_ORDER[level] >= LEVEL_ORDER[min];
+}
+
+/** React hook — reads user level from the profile store. */
+export function useUserLevel(): UserLevel {
+  const { profile } = useProfileStore();
+  return getUserLevel(profile);
+}
+
 export const LEVEL_LABEL: Record<UserLevel, string> = {
-  basico:     "Básico",
-  intermedio: "Intermedio",
-  avanzado:   "Avanzado",
+  principiante: "Principiante",
+  basico:       "Básico",
+  intermedio:   "Intermedio",
+  avanzado:     "Avanzado",
 };
 
 export const LEVEL_COLOR: Record<UserLevel, string> = {
-  basico:     "#3b82f6",
-  intermedio: "#f59e0b",
-  avanzado:   "#8b5cf6",
+  principiante: "#22d3ee",
+  basico:       "#3b82f6",
+  intermedio:   "#f59e0b",
+  avanzado:     "#8b5cf6",
 };
 
 export const LEVEL_EMOJI: Record<UserLevel, string> = {
-  basico:     "🌱",
-  intermedio: "📈",
-  avanzado:   "⚡",
+  principiante: "🌱",
+  basico:       "📖",
+  intermedio:   "📈",
+  avanzado:     "⚡",
 };
 
 // Tooltip text shown to basic users on complex financial terms

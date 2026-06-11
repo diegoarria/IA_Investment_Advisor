@@ -37,12 +37,15 @@ export interface AdvancedRow {
   gainLossPct?: number | null;
 }
 
+import { isAtLeast, type UserLevel } from "@/lib/userLevel";
+
 type SortKey = keyof AdvancedRow;
 type Mode = "watchlist" | "portfolio";
 
 interface Props {
   rows: AdvancedRow[];
   mode: Mode;
+  userLevel?: UserLevel;
   onRemove?: (ticker: string) => void;
   onRowClick?: (ticker: string) => void;
 }
@@ -161,7 +164,14 @@ function DeleteBtn({ ticker, onRemove }: { ticker: string; onRemove: (t: string)
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
-export default function AdvancedStockTable({ rows, mode, onRemove, onRowClick }: Props) {
+export default function AdvancedStockTable({ rows, mode, userLevel = "avanzado", onRemove, onRowClick }: Props) {
+  // Column visibility based on user level
+  const showVol      = isAtLeast(userLevel, "intermedio");
+  const showCap      = isAtLeast(userLevel, "intermedio");
+  const showPE       = isAtLeast(userLevel, "intermedio");
+  const showEarnings = isAtLeast(userLevel, "intermedio");
+  const showAH       = isAtLeast(userLevel, "basico");
+  const show52W      = isAtLeast(userLevel, "basico");
   const [details, setDetails]               = useState<Record<string, Partial<AdvancedRow>>>({});
   const [loadingDetails, setLoadingDetails] = useState(false);
   const [livePrices, setLivePrices]         = useState<Record<string, { price: number; ts: number }>>({});
@@ -253,20 +263,20 @@ export default function AdvancedStockTable({ rows, mode, onRemove, onRowClick }:
 
       {/* Table */}
       <div className="w-full overflow-hidden">
-        <table className="w-full border-collapse" style={{ tableLayout: "fixed" }}>
+        <table className="w-full border-collapse" style={{ tableLayout: isAtLeast(userLevel, "intermedio") ? "fixed" : "auto" }}>
           <colgroup>
-            <col style={{ width: "22%" }} />
-            <col style={{ width: "10%" }} />
-            <col style={{ width: "9%" }} />
-            <col style={{ width: "9%" }} />
-            <col style={{ width: "11%" }} />
-            <col style={{ width: "9%" }} />
-            <col style={{ width: "7%" }} />
-            <col style={{ width: "9%" }} />
-            <col style={{ width: "14%" }} />
+            <col style={{ width: isAtLeast(userLevel, "intermedio") ? "22%" : showAH ? "30%" : "50%" }} />
+            <col style={{ width: isAtLeast(userLevel, "intermedio") ? "10%" : showAH ? "14%" : "24%" }} />
+            <col style={{ width: isAtLeast(userLevel, "intermedio") ? "9%"  : showAH ? "11%" : "26%" }} />
+            {showVol      && <col style={{ width: "9%"  }} />}
+            {showAH       && <col style={{ width: isAtLeast(userLevel, "intermedio") ? "11%" : "21%" }} />}
+            {showCap      && <col style={{ width: "9%"  }} />}
+            {showPE       && <col style={{ width: "7%"  }} />}
+            {showEarnings && <col style={{ width: "9%"  }} />}
+            {show52W      && <col style={{ width: isAtLeast(userLevel, "intermedio") ? "14%" : "24%" }} />}
             {mode === "portfolio" && <col style={{ width: "10%" }} />}
-            {mode === "portfolio" && <col style={{ width: "9%" }} />}
-            {onRemove && <col style={{ width: "5%" }} />}
+            {mode === "portfolio" && <col style={{ width: "9%"  }} />}
+            {onRemove     && <col style={{ width: "5%"  }} />}
           </colgroup>
 
           <thead>
@@ -277,12 +287,12 @@ export default function AdvancedStockTable({ rows, mode, onRemove, onRowClick }:
               </th>
               <Th label="Precio"   sortKey="price"        {...colProps} />
               <Th label="Var %"    sortKey="changePct"    {...colProps} />
-              <Th label="Vol"      sortKey="volume"       {...colProps} />
-              <Th label="AH"       sortKey="extPct"       {...colProps} />
-              <Th label="Cap"      sortKey="marketCap"    {...colProps} />
-              <Th label="P/E"      sortKey="pe"           {...colProps} />
-              <Th label="Earnings" sortKey="earningsDate" {...colProps} />
-              <Th label="52W"      sortKey="week52High"   {...colProps} />
+              {showVol      && <Th label="Vol"      sortKey="volume"       {...colProps} />}
+              {showAH       && <Th label="AH"       sortKey="extPct"       {...colProps} />}
+              {showCap      && <Th label="Cap"      sortKey="marketCap"    {...colProps} />}
+              {showPE       && <Th label="P/E"      sortKey="pe"           {...colProps} />}
+              {showEarnings && <Th label="Earnings" sortKey="earningsDate" {...colProps} />}
+              {show52W      && <Th label="52W"      sortKey="week52High"   {...colProps} />}
               {mode === "portfolio" && (
                 <>
                   <Th label="Valor" sortKey="positionValue" {...colProps} />
@@ -353,71 +363,83 @@ export default function AdvancedStockTable({ rows, mode, onRemove, onRowClick }:
                   </td>
 
                   {/* Volume */}
-                  <td className="px-3 py-2.5 text-right overflow-hidden">
-                    {loadingDetails && row.volume == null ? (
-                      <Loader2 className="w-4 h-4 animate-spin ml-auto" style={{ color: "var(--muted)" }} />
-                    ) : (
-                      <span className="text-sm font-bold tabular-nums" style={{ color: "var(--sub)" }}>
-                        {fmtVolume(row.volume)}
-                      </span>
-                    )}
-                  </td>
+                  {showVol && (
+                    <td className="px-3 py-2.5 text-right overflow-hidden">
+                      {loadingDetails && row.volume == null ? (
+                        <Loader2 className="w-4 h-4 animate-spin ml-auto" style={{ color: "var(--muted)" }} />
+                      ) : (
+                        <span className="text-sm font-bold tabular-nums" style={{ color: "var(--sub)" }}>
+                          {fmtVolume(row.volume)}
+                        </span>
+                      )}
+                    </td>
+                  )}
 
                   {/* AH — price + % stacked */}
-                  <td className="px-3 py-2.5 text-right overflow-hidden">
-                    {hasAH ? (
-                      <div>
-                        <p className="text-[13px] font-bold tabular-nums leading-none" style={{ color: "var(--text)" }}>
-                          {fmtPrice(row.extPrice, currency)}
-                        </p>
-                        {row.extPct != null && (
-                          <p className="text-xs font-bold tabular-nums leading-none mt-1"
-                             style={{ color: row.extPct >= 0 ? "#22c55e" : "#ef4444" }}>
-                            {fmtPct(row.extPct)}
+                  {showAH && (
+                    <td className="px-3 py-2.5 text-right overflow-hidden">
+                      {hasAH ? (
+                        <div>
+                          <p className="text-[13px] font-bold tabular-nums leading-none" style={{ color: "var(--text)" }}>
+                            {fmtPrice(row.extPrice, currency)}
                           </p>
-                        )}
-                      </div>
-                    ) : (
-                      <span className="text-sm" style={{ color: "var(--dim)" }}>—</span>
-                    )}
-                  </td>
+                          {row.extPct != null && (
+                            <p className="text-xs font-bold tabular-nums leading-none mt-1"
+                               style={{ color: row.extPct >= 0 ? "#22c55e" : "#ef4444" }}>
+                              {fmtPct(row.extPct)}
+                            </p>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="text-sm" style={{ color: "var(--dim)" }}>—</span>
+                      )}
+                    </td>
+                  )}
 
                   {/* Market Cap */}
-                  <td className="px-3 py-2.5 text-right overflow-hidden">
-                    <span className="text-sm font-bold tabular-nums" style={{ color: "var(--sub)" }}>
-                      {fmtMarketCap(row.marketCap)}
-                    </span>
-                  </td>
+                  {showCap && (
+                    <td className="px-3 py-2.5 text-right overflow-hidden">
+                      <span className="text-sm font-bold tabular-nums" style={{ color: "var(--sub)" }}>
+                        {fmtMarketCap(row.marketCap)}
+                      </span>
+                    </td>
+                  )}
 
                   {/* P/E */}
-                  <td className="px-3 py-2.5 text-right overflow-hidden">
-                    <span className="text-sm font-bold tabular-nums" style={{ color: "var(--sub)" }}>
-                      {row.pe != null ? row.pe.toFixed(1) : "—"}
-                    </span>
-                  </td>
+                  {showPE && (
+                    <td className="px-3 py-2.5 text-right overflow-hidden">
+                      <span className="text-sm font-bold tabular-nums" style={{ color: "var(--sub)" }}>
+                        {row.pe != null ? row.pe.toFixed(1) : "—"}
+                      </span>
+                    </td>
+                  )}
 
                   {/* Earnings Date */}
-                  <td className="px-3 py-2.5 text-right overflow-hidden">
-                    <span className="text-[13px] font-bold" style={{ color: "var(--sub)" }}>
-                      {fmtEarningsDate(row.earningsDate)}
-                    </span>
-                  </td>
+                  {showEarnings && (
+                    <td className="px-3 py-2.5 text-right overflow-hidden">
+                      <span className="text-[13px] font-bold" style={{ color: "var(--sub)" }}>
+                        {fmtEarningsDate(row.earningsDate)}
+                      </span>
+                    </td>
+                  )}
 
                   {/* 52W range — stacked low / high */}
-                  <td className="px-3 py-2.5 text-right overflow-hidden">
-                    {row.week52Low != null && row.week52High != null ? (
-                      <div>
-                        <p className="text-xs font-bold tabular-nums leading-none" style={{ color: "#ef4444" }}>
-                          ↓{fmtPrice(row.week52Low, currency)}
-                        </p>
-                        <p className="text-xs font-bold tabular-nums leading-none mt-1" style={{ color: "#22c55e" }}>
-                          ↑{fmtPrice(row.week52High, currency)}
-                        </p>
-                      </div>
-                    ) : (
-                      <span className="text-sm" style={{ color: "var(--dim)" }}>—</span>
-                    )}
-                  </td>
+                  {show52W && (
+                    <td className="px-3 py-2.5 text-right overflow-hidden">
+                      {row.week52Low != null && row.week52High != null ? (
+                        <div>
+                          <p className="text-xs font-bold tabular-nums leading-none" style={{ color: "#ef4444" }}>
+                            ↓{fmtPrice(row.week52Low, currency)}
+                          </p>
+                          <p className="text-xs font-bold tabular-nums leading-none mt-1" style={{ color: "#22c55e" }}>
+                            ↑{fmtPrice(row.week52High, currency)}
+                          </p>
+                        </div>
+                      ) : (
+                        <span className="text-sm" style={{ color: "var(--dim)" }}>—</span>
+                      )}
+                    </td>
+                  )}
 
                   {/* Portfolio: Valor + G/P */}
                   {mode === "portfolio" && (

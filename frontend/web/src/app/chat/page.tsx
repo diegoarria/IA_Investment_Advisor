@@ -30,6 +30,33 @@ const SUGGESTIONS_DEFAULT = [
   "¿Cómo construyo un portafolio diversificado?",
 ];
 
+const SUGGESTIONS_BY_LEVEL: Record<string, string[]> = {
+  principiante: [
+    "¿Qué es una acción y cómo funciona?",
+    "¿Cómo empiezo a invertir con poco dinero?",
+    "¿Qué diferencia hay entre ahorrar e invertir?",
+    "¿Es seguro invertir en bolsa? ¿Puedo perder todo?",
+  ],
+  basico: [
+    "¿Cómo analizo si una empresa es buena inversión?",
+    "Explícame qué es un ETF y por qué es popular",
+    "¿Cómo construyo un portafolio diversificado?",
+    "¿Qué es el interés compuesto y por qué importa tanto?",
+  ],
+  intermedio: [
+    "¿Cómo identifico acciones subvaloradas con P/E y PEG?",
+    "Analiza AAPL — ¿tiene buen precio hoy?",
+    "¿Qué sectores están liderando el mercado este año?",
+    "Explícame cómo leer un estado de resultados",
+  ],
+  avanzado: [
+    "Analiza el flujo de caja libre de MSFT vs GOOG",
+    "¿Cómo construyo una estrategia de cobertura con opciones?",
+    "¿Qué indicadores macro afectan más el mercado hoy?",
+    "Compara NVDA vs AMD en valoración fundamental y momentum",
+  ],
+};
+
 const SUGGESTIONS_BY_OBJECTIVE: Record<string, string[]> = {
   protect: [
     "¿Cuáles son las inversiones más seguras para preservar capital?",
@@ -474,10 +501,11 @@ export default function ChatPage() {
                 </h2>
                 {(() => {
                   const obj = profile?.quiz_answers?.objective as string | undefined;
+                  const level = getUserLevel(profile);
                   const greeting = obj ? OBJECTIVE_GREETING[obj] : null;
                   const suggestions = obj && SUGGESTIONS_BY_OBJECTIVE[obj]
                     ? SUGGESTIONS_BY_OBJECTIVE[obj]
-                    : SUGGESTIONS_DEFAULT;
+                    : (SUGGESTIONS_BY_LEVEL[level] ?? SUGGESTIONS_DEFAULT);
                   return (
                     <>
                       {greeting && !mentor ? (
