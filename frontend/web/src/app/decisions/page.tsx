@@ -5,7 +5,8 @@ import { BookOpen, Loader2, TrendingUp, TrendingDown, AlertTriangle, CheckCircle
 import AppSidebar from "@/components/AppSidebar";
 import PaywallModal from "@/components/PaywallModal";
 import { decisionsApi } from "@/lib/api";
-import { useSubscriptionStore } from "@/lib/store";
+import { useSubscriptionStore, useProfileStore } from "@/lib/store";
+import { getUserLevel, isAtLeast } from "@/lib/userLevel";
 
 interface Decision {
   id?: string;
@@ -76,8 +77,10 @@ const SEVERITY_COLOR: Record<string, string> = {
 };
 
 export default function DecisionsPage() {
-  const sub       = useSubscriptionStore();
-  const isPremium = sub.tier === "premium";
+  const sub        = useSubscriptionStore();
+  const isPremium  = sub.tier === "premium";
+  const { profile } = useProfileStore();
+  const userLevel  = getUserLevel(profile);
 
   const [tab, setTab]               = useState<"diary" | "biases">("diary");
   const [decisions, setDecisions]   = useState<Decision[]>([]);
@@ -126,6 +129,43 @@ export default function DecisionsPage() {
     action === "buy" ? <TrendingUp className="w-3.5 h-3.5" style={{ color: "#22c55e" }} />
     : action === "sell" ? <TrendingDown className="w-3.5 h-3.5" style={{ color: "#ef4444" }} />
     : <CheckCircle className="w-3.5 h-3.5" style={{ color: "var(--muted)" }} />;
+
+  if (!isAtLeast(userLevel, "intermedio")) {
+    return (
+      <div className="flex h-screen" style={{ background: "var(--bg)" }}>
+        <AppSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+        <main className="flex-1 overflow-y-auto p-6 flex items-center justify-center">
+          <div className="max-w-sm text-center">
+            <div className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4"
+                 style={{ background: "rgba(0,168,94,0.08)", border: "1px solid rgba(0,168,94,0.2)" }}>
+              <BookOpen className="w-8 h-8" style={{ color: "var(--accent-l)" }} />
+            </div>
+            <h2 className="font-bold text-lg mb-2" style={{ color: "var(--text)" }}>Diario de Decisiones</h2>
+            <p className="text-sm mb-4 leading-relaxed" style={{ color: "var(--muted)" }}>
+              Esta sección se desbloquea cuando alcances el nivel <strong style={{ color: "var(--text)" }}>Intermedio</strong>.
+              Registrar y analizar sesgos conductuales requiere haber tomado decisiones de inversión con contexto — sigue aprendiendo en el chat y el portafolio.
+            </p>
+            <div className="rounded-xl border p-4 text-left space-y-2"
+                 style={{ background: "var(--raised)", borderColor: "var(--border)" }}>
+              <p className="text-xs font-bold uppercase tracking-wide mb-3" style={{ color: "var(--muted)" }}>
+                Mientras tanto, enfócate en:
+              </p>
+              {[
+                "Agrega tus primeras posiciones al portafolio",
+                "Explora el feed de noticias de tus acciones",
+                "Practica con paper trading sin riesgo",
+              ].map((tip) => (
+                <div key={tip} className="flex items-start gap-2">
+                  <div className="w-1.5 h-1.5 rounded-full mt-1.5 shrink-0" style={{ background: "var(--accent-l)" }} />
+                  <span className="text-xs" style={{ color: "var(--sub)" }}>{tip}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </main>
+      </div>
+    );
+  }
 
   if (!isPremium) {
     return (

@@ -32,10 +32,10 @@ const SUGGESTIONS_DEFAULT = [
 
 const SUGGESTIONS_BY_LEVEL: Record<string, string[]> = {
   principiante: [
-    "¿Qué es una acción y cómo funciona?",
-    "¿Cómo empiezo a invertir con poco dinero?",
-    "¿Qué diferencia hay entre ahorrar e invertir?",
-    "¿Es seguro invertir en bolsa? ¿Puedo perder todo?",
+    "Tengo $500 y nunca he invertido, ¿por dónde empiezo?",
+    "¿Es seguro invertir ahora con la inflación tan alta?",
+    "¿Puedo perder todo mi dinero si invierto en bolsa?",
+    "¿Cuánto tiempo tarda en crecer una inversión de verdad?",
   ],
   basico: [
     "¿Cómo analizo si una empresa es buena inversión?",
@@ -254,7 +254,23 @@ export default function ChatPage() {
     }
 
     const a = (key: string) => qa ? String(qa[key] ?? "") : "";
-    return `[PERFIL DEL USUARIO]\nNombre: ${profile.name}\nPerfil de riesgo: ${profile.risk_tolerance}\n\nRespuestas del cuestionario:\n- Comportamiento ante caídas: ${q1Labels[a("q1")] ?? "no disponible"}\n- Horizonte: ${q2Labels[a("q2")] ?? "no disponible"}\n- Conocimiento: ${q3Labels[a("q3")] ?? "no disponible"}\n- Tolerancia al riesgo: ${q4Labels[a("q4")] ?? "no disponible"}\n- Estilo de gestión: ${q5Labels[a("q5")] ?? "no disponible"}${portfolioBlock}\n\nInstrucciones: Llama siempre a este usuario por su nombre (${profile.name.split(" ")[0]}). Adapta el nivel al conocimiento declarado. Responde en español.`;
+
+    const GOAL_LABELS: Record<string, string> = {
+      emergency_fund: "Fondo de emergencia",
+      big_purchase:   "Compra importante (casa, auto, proyecto)",
+      retirement:     "Retiro / pensión a largo plazo",
+      independence:   "Independencia financiera",
+    };
+    const AMOUNT_LABELS: Record<string, string> = {
+      lt500:  "menos de $500",
+      "500_2k": "$500–$2,000",
+      "2k_10k": "$2,000–$10,000",
+      gt10k:  "más de $10,000",
+    };
+    const goalLine   = profile.investment_goal   ? `\nMeta financiera: ${GOAL_LABELS[profile.investment_goal]   ?? profile.investment_goal}`   : "";
+    const amountLine = profile.investment_amount ? `\nCapital disponible: ${AMOUNT_LABELS[profile.investment_amount] ?? profile.investment_amount}` : "";
+
+    return `[PERFIL DEL USUARIO]\nNombre: ${profile.name}\nPerfil de riesgo: ${profile.risk_tolerance}${goalLine}${amountLine}\n\nRespuestas del cuestionario:\n- Comportamiento ante caídas: ${q1Labels[a("q1")] ?? "no disponible"}\n- Horizonte: ${q2Labels[a("q2")] ?? "no disponible"}\n- Conocimiento: ${q3Labels[a("q3")] ?? "no disponible"}\n- Tolerancia al riesgo: ${q4Labels[a("q4")] ?? "no disponible"}\n- Estilo de gestión: ${q5Labels[a("q5")] ?? "no disponible"}${portfolioBlock}\n\nInstrucciones: Llama siempre a este usuario por su nombre (${profile.name.split(" ")[0]}). Adapta el nivel al conocimiento declarado. Si el usuario es principiante (conocimiento: A), usa lenguaje simple, evita términos técnicos sin explicarlos y enfócate en sus miedos y metas concretas. Responde en español.`;
   };
 
   useEffect(() => {

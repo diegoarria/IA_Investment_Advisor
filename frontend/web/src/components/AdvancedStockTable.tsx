@@ -1,12 +1,13 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, type ReactNode } from "react";
 import { ChevronUp, ChevronDown, ChevronsUpDown, Loader2, Wifi, WifiOff, Trash2 } from "lucide-react";
 import { market as marketApi } from "@/lib/api";
 import { finnhubWS } from "@/lib/services/websocketService";
 import {
   fmtPrice, fmtPct, fmtVolume, fmtMarketCap, fmtEarningsDate, changeColor,
 } from "@/lib/types/stock";
+import FinancialTip from "@/components/FinancialTip";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -83,11 +84,12 @@ function Avatar({ ticker, logoUrl }: { ticker: string; logoUrl?: string | null }
 // ─── Sort header cell ─────────────────────────────────────────────────────────
 
 function Th({
-  label, sortKey, current, dir, onClick, align = "right",
+  label, sortKey, current, dir, onClick, align = "right", tip,
 }: {
   label: string; sortKey: SortKey;
   current: SortKey | null; dir: "asc" | "desc";
   onClick: (k: SortKey) => void; align?: "left" | "right";
+  tip?: ReactNode;
 }) {
   const active = current === sortKey;
   return (
@@ -101,7 +103,7 @@ function Th({
       }}
     >
       <span className="inline-flex items-center gap-0.5 justify-end">
-        {label}
+        {tip ?? label}
         {active
           ? dir === "asc" ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />
           : <ChevronsUpDown className="w-3 h-3 opacity-30" />}
@@ -288,11 +290,11 @@ export default function AdvancedStockTable({ rows, mode, userLevel = "avanzado",
               <Th label="Precio"   sortKey="price"        {...colProps} />
               <Th label="Var %"    sortKey="changePct"    {...colProps} />
               {showVol      && <Th label="Vol"      sortKey="volume"       {...colProps} />}
-              {showAH       && <Th label="AH"       sortKey="extPct"       {...colProps} />}
-              {showCap      && <Th label="Cap"      sortKey="marketCap"    {...colProps} />}
-              {showPE       && <Th label="P/E"      sortKey="pe"           {...colProps} />}
+              {showAH       && <Th label="AH"       sortKey="extPct"       {...colProps} tip={<FinancialTip term="AH" userLevel={userLevel}>AH</FinancialTip>} />}
+              {showCap      && <Th label="Cap"      sortKey="marketCap"    {...colProps} tip={<FinancialTip term="Market Cap" userLevel={userLevel}>Cap</FinancialTip>} />}
+              {showPE       && <Th label="P/E"      sortKey="pe"           {...colProps} tip={<FinancialTip term="P/E" userLevel={userLevel}>P/E</FinancialTip>} />}
               {showEarnings && <Th label="Earnings" sortKey="earningsDate" {...colProps} />}
-              {show52W      && <Th label="52W"      sortKey="week52High"   {...colProps} />}
+              {show52W      && <Th label="52W"      sortKey="week52High"   {...colProps} tip={<FinancialTip term="52W High" userLevel={userLevel}>52W</FinancialTip>} />}
               {mode === "portfolio" && (
                 <>
                   <Th label="Valor" sortKey="positionValue" {...colProps} />

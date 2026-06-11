@@ -144,6 +144,8 @@ type FormState = {
   birth_date: string;
   monthly_income: string;
   monthly_contribution: string;
+  investment_amount: string;
+  investment_goal: string;
   q1: QuizAnswer | "";
   q2: QuizAnswer | "";
   q3: QuizAnswer | "";
@@ -169,6 +171,7 @@ export default function OnboardingPage() {
 
   const [form, setForm] = useState<FormState>({
     name: "", birth_date: "", monthly_income: "", monthly_contribution: "",
+    investment_amount: "", investment_goal: "",
     q1: "", q2: "", q3: "", q4: "", q5: "", mentor: "",
   });
 
@@ -289,7 +292,69 @@ export default function OnboardingPage() {
         </div>
       ),
     },
-    // 2-6 — Quiz (5 preguntas)
+    // 2 — Meta e inversión inicial
+    {
+      title: "Dos últimas preguntas clave",
+      subtitle: "OBJETIVOS",
+      valid: () => !!form.investment_amount && !!form.investment_goal,
+      content: (
+        <div className="space-y-5">
+          <div>
+            <label className="block text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: "var(--muted)" }}>
+              ¿Cuánto tienes disponible para empezar a invertir?
+            </label>
+            <div className="grid grid-cols-2 gap-2">
+              {[
+                { value: "lt500",    label: "Menos de $500" },
+                { value: "500_2k",   label: "$500 – $2,000" },
+                { value: "2k_10k",   label: "$2,000 – $10,000" },
+                { value: "gt10k",    label: "Más de $10,000" },
+              ].map((opt) => {
+                const active = form.investment_amount === opt.value;
+                return (
+                  <button key={opt.value} onClick={() => setForm((f) => ({ ...f, investment_amount: opt.value }))}
+                          className="p-3 rounded-xl border-2 text-sm font-semibold text-left transition-all"
+                          style={{
+                            borderColor: active ? "var(--accent)" : "var(--border)",
+                            background:  active ? "rgba(0,168,94,0.10)" : "var(--raised)",
+                            color: active ? "var(--accent-l)" : "var(--sub)",
+                          }}>
+                    {opt.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: "var(--muted)" }}>
+              ¿Cuál es tu meta financiera principal?
+            </label>
+            <div className="space-y-2">
+              {[
+                { value: "emergency_fund", label: "Fondo de emergencia", desc: "Proteger y hacer crecer mis ahorros de seguridad" },
+                { value: "big_purchase",   label: "Compra importante",   desc: "Ahorrar para casa, auto, viaje o proyecto específico" },
+                { value: "retirement",     label: "Retiro / pensión",    desc: "Construir patrimonio para el largo plazo" },
+                { value: "independence",   label: "Independencia financiera", desc: "Vivir de mis inversiones sin depender de un salario" },
+              ].map((opt) => {
+                const active = form.investment_goal === opt.value;
+                return (
+                  <button key={opt.value} onClick={() => setForm((f) => ({ ...f, investment_goal: opt.value }))}
+                          className="w-full text-left p-3 rounded-xl border-2 transition-all"
+                          style={{
+                            borderColor: active ? "var(--accent)" : "var(--border)",
+                            background:  active ? "rgba(0,168,94,0.10)" : "var(--raised)",
+                          }}>
+                    <p className="text-sm font-semibold" style={{ color: active ? "var(--accent-l)" : "var(--text)" }}>{opt.label}</p>
+                    <p className="text-xs mt-0.5" style={{ color: "var(--muted)" }}>{opt.desc}</p>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      ),
+    },
+    // 3-7 — Quiz (5 preguntas)
     ...quizSteps,
     // 7 — Reveal
     {
@@ -591,12 +656,18 @@ export default function OnboardingPage() {
         birth_date:           form.birth_date,
         monthly_income:       form.monthly_income,
         monthly_contribution: form.monthly_contribution,
+        investment_amount:    form.investment_amount,
+        investment_goal:      form.investment_goal,
         risk_tolerance:       calculated,
         quiz_answers:         qa,
         mentor:               !form.mentor || form.mentor === "none" ? null : form.mentor,
       };
       const res = await profileApi.create(payload);
       setProfile(res.data);
+      // Trigger first-steps flow for principiante on next page visit
+      if (qa.q3 === "A") {
+        localStorage.setItem("nuvos_first_steps_active", "1");
+      }
       setSuccess(true);
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;

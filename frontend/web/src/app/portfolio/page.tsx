@@ -20,6 +20,7 @@ import WeeklyScreenerCard from "@/components/WeeklyScreenerCard";
 import PremiumToolLockedWeb from "@/components/PremiumToolLocked";
 import PaywallModal from "@/components/PaywallModal";
 import GuidedSteps from "@/components/GuidedSteps";
+import FirstStepsFlow from "@/components/FirstStepsFlow";
 import {
   PieChart, Menu, X, Upload, Plus, Trash2,
   BarChart, Calculator, Shield, Sparkles, RefreshCw, AlertTriangle, FileText, Pencil, Eye,
@@ -1628,14 +1629,17 @@ export default function PortfolioPage() {
                                           <span className="text-[11px] truncate" style={{ color: "var(--muted)" }}>{companyName}</span>
                                         )}
                                       </div>
-                                      <div className="flex items-center gap-3 mt-0.5">
-                                        <span className="text-[10px] font-bold tabular-nums" style={{ color: "var(--text)" }}>
-                                          {shares % 1 === 0 ? shares : shares.toFixed(4)} acc · {currencySymbol}{currentPriceFx.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                        </span>
-                                        <span className="text-[10px] font-bold" style={{ color: "var(--text)" }}>
-                                          {allocPct.toFixed(1)}%
-                                        </span>
-                                      </div>
+                                      {/* Secondary row — hidden for principiante */}
+                                      {isAtLeast(userLevel, "basico") && (
+                                        <div className="flex items-center gap-3 mt-0.5">
+                                          <span className="text-[10px] font-bold tabular-nums" style={{ color: "var(--text)" }}>
+                                            {shares % 1 === 0 ? shares : shares.toFixed(4)} acc · {currencySymbol}{currentPriceFx.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                          </span>
+                                          <span className="text-[10px] font-bold" style={{ color: "var(--text)" }}>
+                                            {allocPct.toFixed(1)}%
+                                          </span>
+                                        </div>
+                                      )}
                                     </div>
 
                                     {/* Value + Return */}
@@ -1646,9 +1650,12 @@ export default function PortfolioPage() {
                                       <p className="text-[12px] font-bold tabular-nums"
                                          style={{ color: isPos ? "#22c55e" : "#ef4444" }}>
                                         {isPos ? "+" : ""}{pct.toFixed(2)}%
-                                        <span className="text-[10px] font-normal ml-1" style={{ color: isPos ? "#22c55e99" : "#ef444499" }}>
-                                          ({pnl >= 0 ? "+" : ""}{currencySymbol}{Math.abs(pnl).toLocaleString("en-US", { maximumFractionDigits: 0 })})
-                                        </span>
+                                        {/* P&L amount — hidden for principiante */}
+                                        {isAtLeast(userLevel, "basico") && (
+                                          <span className="text-[10px] font-normal ml-1" style={{ color: isPos ? "#22c55e99" : "#ef444499" }}>
+                                            ({pnl >= 0 ? "+" : ""}{currencySymbol}{Math.abs(pnl).toLocaleString("en-US", { maximumFractionDigits: 0 })})
+                                          </span>
+                                        )}
                                       </p>
                                     </div>
                                   </div>
@@ -2325,6 +2332,11 @@ export default function PortfolioPage() {
         </div>
       )}
       <PaywallModal visible={paywallOpen} onClose={() => setPaywallOpen(false)} />
+
+      {/* First Steps guided flow — principiante only, post-onboarding */}
+      {userLevel === "principiante" && (
+        <FirstStepsFlow onOpenAddPosition={() => setShowForm(true)} />
+      )}
 
       {/* Edit position modal */}
       {editingPos && (

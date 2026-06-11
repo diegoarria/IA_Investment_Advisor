@@ -20,6 +20,8 @@ export interface UserProfile {
   mentor?: string | null;
   avatar_url?: string | null;
   investment_experience?: string | null;
+  investment_amount?: string | null;
+  investment_goal?: string | null;
   created_at: string;
   updated_at: string;
 }
