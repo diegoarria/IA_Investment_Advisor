@@ -347,7 +347,7 @@ export default function AdvancedStockTable({ rows, mode, onRemove, onRowClick }:
 
                   {/* Change % */}
                   <td className="px-3 py-2.5 text-right overflow-hidden">
-                    <span className="text-sm font-semibold tabular-nums" style={{ color: priceColor }}>
+                    <span className="text-sm font-bold tabular-nums" style={{ color: priceColor }}>
                       {fmtPct(row.changePct)}
                     </span>
                   </td>
@@ -357,7 +357,7 @@ export default function AdvancedStockTable({ rows, mode, onRemove, onRowClick }:
                     {loadingDetails && row.volume == null ? (
                       <Loader2 className="w-4 h-4 animate-spin ml-auto" style={{ color: "var(--muted)" }} />
                     ) : (
-                      <span className="text-sm tabular-nums" style={{ color: "var(--sub)" }}>
+                      <span className="text-sm font-bold tabular-nums" style={{ color: "var(--sub)" }}>
                         {fmtVolume(row.volume)}
                       </span>
                     )}
@@ -367,11 +367,11 @@ export default function AdvancedStockTable({ rows, mode, onRemove, onRowClick }:
                   <td className="px-3 py-2.5 text-right overflow-hidden">
                     {hasAH ? (
                       <div>
-                        <p className="text-[13px] font-semibold tabular-nums leading-none" style={{ color: "var(--text)" }}>
+                        <p className="text-[13px] font-bold tabular-nums leading-none" style={{ color: "var(--text)" }}>
                           {fmtPrice(row.extPrice, currency)}
                         </p>
                         {row.extPct != null && (
-                          <p className="text-xs tabular-nums leading-none mt-1"
+                          <p className="text-xs font-bold tabular-nums leading-none mt-1"
                              style={{ color: row.extPct >= 0 ? "#22c55e" : "#ef4444" }}>
                             {fmtPct(row.extPct)}
                           </p>
@@ -384,21 +384,21 @@ export default function AdvancedStockTable({ rows, mode, onRemove, onRowClick }:
 
                   {/* Market Cap */}
                   <td className="px-3 py-2.5 text-right overflow-hidden">
-                    <span className="text-sm tabular-nums" style={{ color: "var(--sub)" }}>
+                    <span className="text-sm font-bold tabular-nums" style={{ color: "var(--sub)" }}>
                       {fmtMarketCap(row.marketCap)}
                     </span>
                   </td>
 
                   {/* P/E */}
                   <td className="px-3 py-2.5 text-right overflow-hidden">
-                    <span className="text-sm tabular-nums" style={{ color: "var(--sub)" }}>
+                    <span className="text-sm font-bold tabular-nums" style={{ color: "var(--sub)" }}>
                       {row.pe != null ? row.pe.toFixed(1) : "—"}
                     </span>
                   </td>
 
                   {/* Earnings Date */}
                   <td className="px-3 py-2.5 text-right overflow-hidden">
-                    <span className="text-[13px]" style={{ color: "var(--sub)" }}>
+                    <span className="text-[13px] font-bold" style={{ color: "var(--sub)" }}>
                       {fmtEarningsDate(row.earningsDate)}
                     </span>
                   </td>
@@ -407,10 +407,10 @@ export default function AdvancedStockTable({ rows, mode, onRemove, onRowClick }:
                   <td className="px-3 py-2.5 text-right overflow-hidden">
                     {row.week52Low != null && row.week52High != null ? (
                       <div>
-                        <p className="text-xs tabular-nums leading-none" style={{ color: "#ef4444" }}>
+                        <p className="text-xs font-bold tabular-nums leading-none" style={{ color: "#ef4444" }}>
                           ↓{fmtPrice(row.week52Low, currency)}
                         </p>
-                        <p className="text-xs tabular-nums leading-none mt-1" style={{ color: "#22c55e" }}>
+                        <p className="text-xs font-bold tabular-nums leading-none mt-1" style={{ color: "#22c55e" }}>
                           ↑{fmtPrice(row.week52High, currency)}
                         </p>
                       </div>
