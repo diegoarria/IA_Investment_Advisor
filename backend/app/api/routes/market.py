@@ -1319,11 +1319,11 @@ def _fetch_quote_details(tickers: list[str]) -> dict[str, dict]:
     if not tickers:
         return {}
 
-    # Check cache first
+    # Check cache first (v2 — camelCase keys)
     missing = []
     cached: dict[str, dict] = {}
     for t in tickers:
-        hit = cache_get(f"qdetail:{t}")
+        hit = cache_get(f"qdetailv2:{t}")
         if hit:
             cached[t] = hit
         else:
@@ -1394,20 +1394,26 @@ def _fetch_quote_details(tickers: list[str]) -> dict[str, dict]:
                     ext_pct   = q.get("postMarketChangePercent")
                     ext_label = "Post"
 
+                chg_pct = q.get("regularMarketChangePercent")
                 entry = {
-                    "volume":        q.get("regularMarketVolume"),
-                    "market_cap":    q.get("marketCap"),
-                    "pe":            q.get("trailingPE") or q.get("forwardPE"),
-                    "week_52_low":   wk52lo,
-                    "week_52_high":  q.get("fiftyTwoWeekHigh"),
-                    "week_52_pct":   w52_pct,
-                    "earnings_date": earnings_date,
-                    "ext_price":     round(float(ext_price), 4) if ext_price else None,
-                    "ext_pct":       round(float(ext_pct), 2) if ext_pct else None,
-                    "ext_label":     ext_label,
+                    # real-time price + change (overrides potentially stale watchlist data)
+                    "price":        round(float(q["regularMarketPrice"]), 4) if q.get("regularMarketPrice") else None,
+                    "changePct":    round(float(chg_pct), 2) if chg_pct is not None else None,
+                    # enriched columns — camelCase to match AdvancedRow interface
+                    "volume":       q.get("regularMarketVolume"),
+                    "marketCap":    q.get("marketCap"),
+                    "pe":           q.get("trailingPE") or q.get("forwardPE"),
+                    "week52Low":    wk52lo,
+                    "week52High":   q.get("fiftyTwoWeekHigh"),
+                    "week52Pct":    w52_pct,
+                    "earningsDate": earnings_date,
+                    "extPrice":     round(float(ext_price), 4) if ext_price else None,
+                    "extPct":       round(float(ext_pct), 2) if ext_pct else None,
+                    "extLabel":     ext_label,
+                    "marketState":  mstate,
                 }
                 results[sym] = entry
-                cache_set(f"qdetail:{sym}", entry, ttl=_QUOTE_DETAILS_TTL)
+                cache_set(f"qdetailv2:{sym}", entry, ttl=_QUOTE_DETAILS_TTL)
 
             # Fill any still-missing with empty entry
             for t in missing:

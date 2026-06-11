@@ -13,12 +13,14 @@ export interface AdvancedRow {
   price: number | null;
   changePct: number | null;
   currency?: string;
-  marketState?: string;
-  // enriched from /market/quote-details
+  marketState?: string | null;
+  // enriched from /market/quote-details (real-time)
   volume?: number | null;
   marketCap?: number | null;
   pe?: number | null;
   week52Pct?: number | null;
+  week52Low?: number | null;
+  week52High?: number | null;
   earningsDate?: string | null;
   extPrice?: number | null;
   extPct?: number | null;
@@ -152,29 +154,45 @@ function Th({
 
 export default function AdvancedStockTable({ rows, mode, onRemove, onRowClick }: Props) {
   const [details, setDetails] = useState<Record<string, {
+    price?: number | null; changePct?: number | null;
     volume?: number | null; marketCap?: number | null; pe?: number | null;
-    week52Pct?: number | null; earningsDate?: string | null;
+    week52Pct?: number | null; week52Low?: number | null; week52High?: number | null;
+    earningsDate?: string | null;
     extPrice?: number | null; extPct?: number | null; extLabel?: string | null;
-  }>>({});
+    marketState?: string | null;
+  }>>({})
   const [loadingDetails, setLoadingDetails] = useState(false);
   const [sortKey, setSortKey] = useState<SortKey | null>(null);
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const fetchedRef = useRef<string>("");
 
   const tickers = rows.map((r) => r.ticker);
+  const tickerKey = tickers.join(",");
 
-  useEffect(() => {
-    const key = tickers.join(",");
-    if (!key || key === fetchedRef.current) return;
-    fetchedRef.current = key;
-    setLoadingDetails(true);
+  const fetchDetails = (isInitial = false) => {
+    if (!tickerKey) return;
+    if (isInitial) setLoadingDetails(true);
     marketApi
       .getQuoteDetails(tickers)
       .then((res) => setDetails(res.data || {}))
       .catch(() => {})
-      .finally(() => setLoadingDetails(false));
+      .finally(() => { if (isInitial) setLoadingDetails(false); });
+  };
+
+  // Initial fetch + re-fetch when tickers change
+  useEffect(() => {
+    fetchedRef.current = tickerKey;
+    fetchDetails(true);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tickers.join(",")]);
+  }, [tickerKey]);
+
+  // Auto-refresh every 60 s to keep prices/volume live
+  useEffect(() => {
+    if (!tickerKey) return;
+    const interval = setInterval(() => fetchDetails(false), 60_000);
+    return () => clearInterval(interval);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tickerKey]);
 
   // Merge enriched data
   const enriched: AdvancedRow[] = rows.map((r) => ({
