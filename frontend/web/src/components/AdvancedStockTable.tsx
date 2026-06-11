@@ -313,16 +313,9 @@ export default function AdvancedStockTable({ rows, mode, onRemove, onRowClick }:
                   {/* After Hours Price */}
                   <td className="px-2 py-1.5 text-right">
                     {row.extPrice ? (
-                      <div>
-                        <span className="text-[10px] font-semibold tabular-nums" style={{ color: "var(--text)" }}>
-                          {fmtPrice(row.extPrice, currency)}
-                        </span>
-                        {row.extLabel && (
-                          <span className="block text-[8px]" style={{ color: "var(--muted)" }}>
-                            {row.extLabel}
-                          </span>
-                        )}
-                      </div>
+                      <span className="text-[10px] font-semibold tabular-nums" style={{ color: "var(--text)" }}>
+                        {fmtPrice(row.extPrice, currency)}
+                      </span>
                     ) : (
                       <span className="text-[11px]" style={{ color: "var(--dim)" }}>—</span>
                     )}
