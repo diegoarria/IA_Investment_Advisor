@@ -480,7 +480,6 @@ export default function WatchlistPage() {
               <div className="relative">
                 <Image src="/logo.png" alt="Nuvos AI" width={30} height={30} className="rounded-xl object-cover" />
                 <div
-                  className="absolute -inset-0.5 rounded-xl blur-sm opacity-40"
                   style={{ background: "var(--grad-green)" }}
                 />
               </div>

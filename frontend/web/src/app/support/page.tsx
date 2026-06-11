@@ -93,7 +93,6 @@ export default function SupportPage() {
           <button onClick={() => router.push("/chat")} className="flex items-center gap-2.5">
             <div className="relative">
               <Image src="/logo.png" alt="Nuvos AI" width={30} height={30} className="rounded-xl object-cover" />
-              <div className="absolute -inset-0.5 rounded-xl blur-sm opacity-40" style={{ background: "var(--grad-green)" }} />
             </div>
             <span className="font-bold text-sm" style={{ color: "var(--text)" }}>Nuvos AI</span>
           </button>

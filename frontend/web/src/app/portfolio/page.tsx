@@ -23,7 +23,7 @@ import GuidedSteps from "@/components/GuidedSteps";
 import {
   PieChart, Menu, X, Upload, Plus, Trash2,
   BarChart, Calculator, Shield, Sparkles, RefreshCw, AlertTriangle, FileText, Pencil, Eye,
-  Cloud, CloudOff, Check,
+  Cloud, CloudOff, Check, BarChart2, TrendingDown, GraduationCap, CheckSquare,
 } from "lucide-react";
 
 // ─── Stress Test data ──────────────────────────────────────────────────────
@@ -1080,7 +1080,6 @@ export default function PortfolioPage() {
           <button onClick={() => router.push("/chat")} className="flex items-center gap-2.5">
             <div className="relative">
               <Image src="/logo.png" alt="Nuvos AI" width={30} height={30} className="rounded-xl object-cover" />
-              <div className="absolute -inset-0.5 rounded-xl blur-sm opacity-40" style={{ background: "var(--grad-green)" }} />
             </div>
             <span className="font-bold text-sm" style={{ color: "var(--text)" }}>Nuvos AI</span>
           </button>
@@ -1157,7 +1156,7 @@ export default function PortfolioPage() {
               <button onClick={() => setActiveTab("herramientas")}
                       className="flex-1 py-2 rounded-lg text-sm font-semibold transition-all flex items-center justify-center gap-1.5"
                       style={{ background: activeTab === "herramientas" ? "var(--card)" : "transparent", color: activeTab === "herramientas" ? "var(--accent-l)" : "var(--muted)" }}>
-                ⭐ Herramientas
+                Herramientas
               </button>
             ) : (
               <div className="flex-1 py-2 rounded-lg text-sm font-semibold flex items-center justify-center gap-1.5 opacity-35"
@@ -2253,10 +2252,10 @@ export default function PortfolioPage() {
                     icon={FileText}
                     color="#3b82f6"
                     benefits={[
-                      { icon: "📊", text: "Rendimiento real vs S&P 500 y benchmarks" },
-                      { icon: "📉", text: "Sharpe ratio, volatilidad y drawdown máximo" },
-                      { icon: "🎓", text: "Nota personalizada de tu mentor cada mes" },
-                      { icon: "✅", text: "3 acciones concretas para el mes siguiente" },
+                      { icon: BarChart2,     text: "Rendimiento real vs S&P 500 y benchmarks" },
+                      { icon: TrendingDown,  text: "Sharpe ratio, volatilidad y drawdown máximo" },
+                      { icon: GraduationCap, text: "Nota personalizada de tu mentor cada mes" },
+                      { icon: CheckSquare,   text: "3 acciones concretas para el mes siguiente" },
                     ]}
                     onUnlock={() => setPaywallOpen(true)}
                   />

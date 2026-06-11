@@ -43,18 +43,20 @@ export const LEVEL_LABEL: Record<UserLevel, string> = {
   avanzado:     "Avanzado",
 };
 
+// Single accent color for all levels — clean, on-brand
 export const LEVEL_COLOR: Record<UserLevel, string> = {
-  principiante: "#22d3ee",
-  basico:       "#3b82f6",
-  intermedio:   "#f59e0b",
-  avanzado:     "#8b5cf6",
+  principiante: "#6b7280",
+  basico:       "#6b7280",
+  intermedio:   "#00a85e",
+  avanzado:     "#00a85e",
 };
 
+// Kept for backwards compat — all empty, use icons instead
 export const LEVEL_EMOJI: Record<UserLevel, string> = {
-  principiante: "🌱",
-  basico:       "📖",
-  intermedio:   "📈",
-  avanzado:     "⚡",
+  principiante: "",
+  basico:       "",
+  intermedio:   "",
+  avanzado:     "",
 };
 
 // Tooltip text shown to basic users on complex financial terms

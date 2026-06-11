@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { BookOpen, Loader2, TrendingUp, TrendingDown, CheckCircle, RefreshCw, Plus, X, AlertTriangle, Brain } from "lucide-react";
+import { BookOpen, Loader2, TrendingUp, TrendingDown, CheckCircle, RefreshCw, Plus, X, AlertTriangle, Brain, BookMarked, BarChart2, Target } from "lucide-react";
 import PremiumToolLocked from "@/components/PremiumToolLocked";
 import { decisionsApi } from "@/lib/api";
 
@@ -134,10 +134,10 @@ export default function DiarioDecisionesCard({ isPremium, onUpgrade }: Props) {
         icon={Brain}
         color="#a78bfa"
         benefits={[
-          { icon: "📔", text: "Diario de cada decisión de compra/venta" },
-          { icon: "🧠", text: "Detección de FOMO, pánico y otros sesgos" },
-          { icon: "📊", text: "Score de calidad como inversor sobre 100" },
-          { icon: "🎯", text: "Reto semanal personalizado de tu mentor" },
+          { icon: BookMarked, text: "Diario de cada decisión de compra/venta" },
+          { icon: Brain,      text: "Detección de FOMO, pánico y otros sesgos" },
+          { icon: BarChart2,  text: "Score de calidad como inversor sobre 100" },
+          { icon: Target,     text: "Reto semanal personalizado de tu mentor" },
         ]}
         onUnlock={onUpgrade}
       />

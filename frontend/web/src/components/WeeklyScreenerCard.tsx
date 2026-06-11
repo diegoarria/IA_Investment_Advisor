@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { Search, TrendingUp, TrendingDown, Loader2, RefreshCw, ChevronDown, ChevronUp, Zap, AlertTriangle, Info } from "lucide-react";
+import { Search, TrendingUp, TrendingDown, Loader2, RefreshCw, ChevronDown, ChevronUp, Zap, AlertTriangle, Info, Target, Ban, BookOpen } from "lucide-react";
 import PremiumToolLocked from "@/components/PremiumToolLocked";
 import { screenerApi } from "@/lib/api";
 
@@ -57,10 +57,10 @@ export default function WeeklyScreenerCard({ isPremium, onUpgrade, tickers = [] 
         icon={Search}
         color="#8b5cf6"
         benefits={[
-          { icon: "🎯", text: "Tipo de negocio adaptado a tu mentor y perfil" },
-          { icon: "⚡", text: "Catalizador concreto y riesgo por cada idea" },
-          { icon: "🚫", text: "Nunca sugiere lo que ya tienes" },
-          { icon: "📚", text: "Sugerencias educativas para investigar más" },
+          { icon: Target,   text: "Tipo de negocio adaptado a tu mentor y perfil" },
+          { icon: Zap,      text: "Catalizador concreto y riesgo por cada idea" },
+          { icon: Ban,      text: "Nunca sugiere lo que ya tienes" },
+          { icon: BookOpen, text: "Sugerencias educativas para investigar más" },
         ]}
         onUnlock={onUpgrade}
       />

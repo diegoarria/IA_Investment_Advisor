@@ -8,7 +8,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { chat as chatApi } from "@/lib/api";
 import { useAuthStore, useLearnStore, useProfileStore } from "@/lib/store";
-import { getUserLevel, LEVEL_COLOR, LEVEL_LABEL, LEVEL_EMOJI, type UserLevel } from "@/lib/userLevel";
+import { getUserLevel, LEVEL_COLOR, LEVEL_LABEL, type UserLevel } from "@/lib/userLevel";
 
 const CATEGORY_LEVEL: Record<string, UserLevel> = {
   basics:      "basico",
@@ -21,7 +21,7 @@ const CATEGORY_LEVEL: Record<string, UserLevel> = {
   analysis:    "avanzado",
   ratios:      "avanzado",
 };
-import { Search, Menu, X, Trophy } from "lucide-react";
+import { Search, Menu, X, Trophy, Calendar } from "lucide-react";
 import GuidedSteps from "@/components/GuidedSteps";
 
 const CATEGORIES = [
@@ -311,7 +311,6 @@ export default function LearnPage() {
           <button onClick={() => router.push("/chat")} className="flex items-center gap-2.5">
             <div className="relative">
               <Image src="/logo.png" alt="Nuvos AI" width={30} height={30} className="rounded-xl object-cover" />
-              <div className="absolute -inset-0.5 rounded-xl blur-sm opacity-40" style={{ background: "var(--grad-green)" }} />
             </div>
             <span className="font-bold text-sm" style={{ color: "var(--text)" }}>Nuvos AI</span>
           </button>
@@ -320,7 +319,7 @@ export default function LearnPage() {
           <span className="font-semibold text-sm" style={{ color: "var(--sub)", fontFamily: "var(--font-body)" }}>Aprendizaje</span>
           <span className="text-[9px] font-bold px-2 py-0.5 rounded-full"
                 style={{ background: `${LEVEL_COLOR[userLevel]}15`, color: LEVEL_COLOR[userLevel] }}>
-            {LEVEL_EMOJI[userLevel]} {LEVEL_LABEL[userLevel]}
+            {LEVEL_LABEL[userLevel]}
           </span>
         </div>
         <div className="w-8" />
@@ -439,7 +438,7 @@ export default function LearnPage() {
                       </span>
                       <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full"
                             style={{ background: `${tc}15`, color: tc }}>
-                        {LEVEL_EMOJI[topicLevel]} {LEVEL_LABEL[topicLevel]}
+                        {LEVEL_LABEL[topicLevel]}
                       </span>
                     </div>
                   </button>
@@ -472,9 +471,9 @@ export default function LearnPage() {
             <a href="https://calendly.com/diego-arria19/sesion-1-1-con-diego-nuvos-ai" target="_blank" rel="noopener noreferrer"
                className="flex items-center gap-4 rounded-2xl p-4 hover:opacity-90 transition-opacity"
                style={{ background: "var(--card)", border: "1px solid rgba(0,168,94,0.3)" }}>
-              <div className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0 text-xl"
+              <div className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0"
                    style={{ background: "rgba(0,168,94,0.12)" }}>
-                📅
+                <Calendar className="w-5 h-5" style={{ color: "var(--accent-l)" }} />
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-bold leading-tight" style={{ color: "var(--text)" }}>

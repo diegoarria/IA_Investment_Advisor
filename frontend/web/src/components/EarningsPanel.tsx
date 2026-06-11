@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { TrendingUp, TrendingDown, Calendar, ChevronDown, ChevronUp, Zap, Loader2, Eye, Briefcase } from "lucide-react";
+import { TrendingUp, TrendingDown, Calendar, ChevronDown, ChevronUp, Zap, Loader2, Eye, Briefcase, BarChart2, DollarSign } from "lucide-react";
 import { earningsApi } from "@/lib/api";
 import PremiumToolLocked from "@/components/PremiumToolLocked";
 
@@ -79,10 +79,10 @@ export default function EarningsPanel({ positions, watchlistTickers = [], isPrem
         icon={Calendar}
         color="#22c55e"
         benefits={[
-          { icon: "📅", text: "Earnings de portafolio y watchlist combinados" },
-          { icon: "📊", text: "EPS real vs estimado con contexto profundo" },
-          { icon: "💰", text: "Impacto calculado en tu inversión específica" },
-          { icon: "⚡", text: "Análisis automático sin buscar nada tú" },
+          { icon: Calendar,   text: "Earnings de portafolio y watchlist combinados" },
+          { icon: BarChart2,  text: "EPS real vs estimado con contexto profundo" },
+          { icon: DollarSign, text: "Impacto calculado en tu inversión específica" },
+          { icon: Zap,        text: "Análisis automático sin buscar nada tú" },
         ]}
         onUnlock={onUpgrade}
       />
@@ -141,7 +141,7 @@ export default function EarningsPanel({ positions, watchlistTickers = [], isPrem
                     }
                   </div>
                   <p className="text-[10px]" style={{ color: "var(--muted)" }}>
-                    {isUpcoming ? "📅 Próximo: " : "📊 Reportó: "}
+                    {isUpcoming ? "Próximo: " : "Reportó: "}
                     {entry.earnings_date}
                   </p>
                 </div>

@@ -3,7 +3,7 @@
 import { LucideIcon, Lock, Zap } from "lucide-react";
 
 interface Benefit {
-  icon: string;
+  icon: LucideIcon;
   text: string;
 }
 
@@ -56,14 +56,17 @@ export default function PremiumToolLocked({
 
         {/* Benefits grid */}
         <div className="w-full grid grid-cols-2 gap-2 mb-5">
-          {benefits.map((b) => (
-            <div key={b.text}
-                 className="flex items-start gap-2.5 p-3 rounded-xl text-left"
-                 style={{ background: color + "0A", border: `1px solid ${color}20` }}>
-              <span className="text-base shrink-0">{b.icon}</span>
-              <span className="text-xs leading-snug" style={{ color: "var(--sub)" }}>{b.text}</span>
-            </div>
-          ))}
+          {benefits.map((b) => {
+            const BIcon = b.icon;
+            return (
+              <div key={b.text}
+                   className="flex items-start gap-2.5 p-3 rounded-xl text-left"
+                   style={{ background: color + "0A", border: `1px solid ${color}20` }}>
+                <BIcon className="w-4 h-4 shrink-0 mt-0.5" style={{ color }} />
+                <span className="text-xs leading-snug" style={{ color: "var(--sub)" }}>{b.text}</span>
+              </div>
+            );
+          })}
         </div>
 
         {/* CTA */}

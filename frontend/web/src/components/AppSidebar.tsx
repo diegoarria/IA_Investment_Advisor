@@ -13,7 +13,7 @@ import {
   useChatStore, msgsRemaining, FREE_MSG_LIMIT,
   behavioralRiskColor, behavioralRiskLabel,
 } from "@/lib/store";
-import { getUserLevel, isAtLeast, LEVEL_LABEL, LEVEL_COLOR, LEVEL_EMOJI, type UserLevel } from "@/lib/userLevel";
+import { getUserLevel, isAtLeast, LEVEL_LABEL, LEVEL_COLOR, type UserLevel } from "@/lib/userLevel";
 import PaywallModal from "@/components/PaywallModal";
 
 const NAV: Array<{ href: string; icon: React.ComponentType<{ className?: string; style?: React.CSSProperties }>; label: string; minLevel: UserLevel }> = [
@@ -221,18 +221,18 @@ export default function AppSidebar({ open, onClose }: Props) {
                 <div className="flex-1 min-w-0">
                   <div className="text-[11px] font-bold truncate mb-0.5" style={{ color: "var(--text)" }}>{profile.name}</div>
                   <div className="flex items-center gap-1 flex-wrap">
-                    <span className="text-[8px] font-bold px-1.5 py-px rounded-full"
-                          style={{ background: `${LEVEL_COLOR[userLevel]}18`, color: LEVEL_COLOR[userLevel], border: `1px solid ${LEVEL_COLOR[userLevel]}35` }}>
-                      {LEVEL_EMOJI[userLevel]} {LEVEL_LABEL[userLevel]}
+                    <span className="text-[8px] font-semibold px-1.5 py-px rounded"
+                          style={{ background: "var(--raised)", color: LEVEL_COLOR[userLevel], border: `1px solid var(--border)` }}>
+                      {LEVEL_LABEL[userLevel]}
                     </span>
                     {isPremium ? (
-                      <span className="text-[8px] font-black px-1 py-px rounded-full"
-                            style={{ background: "rgba(245,158,11,0.15)", color: "#f59e0b" }}>
-                        ✦ Premium
+                      <span className="text-[8px] font-semibold px-1.5 py-px rounded"
+                            style={{ background: "var(--raised)", color: "var(--accent-l)", border: "1px solid var(--border)" }}>
+                        Premium
                       </span>
                     ) : (
-                      <span className="text-[8px] font-semibold px-1 py-px rounded-full"
-                            style={{ background: "var(--raised)", color: "var(--dim)" }}>
+                      <span className="text-[8px] font-semibold px-1.5 py-px rounded"
+                            style={{ background: "var(--raised)", color: "var(--dim)", border: "1px solid var(--border)" }}>
                         Free
                       </span>
                     )}
@@ -268,8 +268,8 @@ export default function AppSidebar({ open, onClose }: Props) {
           <div className="px-3 pb-2 shrink-0">
             <div className="rounded-xl p-3" style={{ background: "rgba(0,168,94,0.08)", border: "1px solid rgba(0,212,126,0.2)" }}>
               <div className="flex items-center justify-between mb-1.5">
-                <span className="text-[10px] font-bold uppercase tracking-wide" style={{ color: "var(--accent-l)" }}>
-                  ✦ Premium Gratis
+                <span className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: "var(--accent-l)" }}>
+                  Premium Gratis
                 </span>
                 <span className="text-[10px] font-semibold" style={{ color: "var(--muted)" }}>
                   {trialDaysLeft}d restantes
@@ -306,7 +306,7 @@ export default function AppSidebar({ open, onClose }: Props) {
               </div>
             </button>
             <button onClick={() => setPaywallOpen(true)} className="btn-primary w-full text-xs py-2">
-              ⭐ Activar Premium
+              Activar Premium
             </button>
           </div>
         )}
@@ -404,13 +404,16 @@ export default function AppSidebar({ open, onClose }: Props) {
         <div className="px-3 py-3 shrink-0 space-y-1.5">
           <a href={COACHING_URL} target="_blank" rel="noopener noreferrer"
              className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl transition-all hover:opacity-90 cursor-pointer"
-             style={{ background: "rgba(0,168,94,0.1)", border: "1px solid rgba(0,168,94,0.25)" }}>
-            <span className="text-base shrink-0">📅</span>
+             style={{ background: "var(--raised)", border: "1px solid var(--border)" }}>
+            <div className="w-6 h-6 rounded flex items-center justify-center shrink-0"
+                 style={{ background: "rgba(0,168,94,0.12)" }}>
+              <ChevronRight className="w-3.5 h-3.5" style={{ color: "var(--accent-l)" }} />
+            </div>
             <div className="flex-1 min-w-0">
-              <p className="text-[11px] font-bold leading-tight" style={{ color: "var(--accent-l)" }}>Sesión 1:1 con Diego</p>
+              <p className="text-[11px] font-semibold leading-tight" style={{ color: "var(--text)" }}>Sesión 1:1 con Diego</p>
               <p className="text-[10px] leading-tight" style={{ color: "var(--dim)" }}>Guía personalizada · 60 min</p>
             </div>
-            <ArrowRight className="w-3 h-3 shrink-0" style={{ color: "var(--accent-l)" }} />
+            <ArrowRight className="w-3 h-3 shrink-0" style={{ color: "var(--muted)" }} />
           </a>
           <button onClick={() => navigate("/onboarding")}
                   className="w-full text-[10px] text-center py-1.5 rounded-lg hover:bg-white/5 transition-colors"

@@ -21,7 +21,7 @@ import {
   Send, TrendingUp, Bell, LogOut, Menu, X,
   ChevronRight, Sun, Moon, Square, Pencil, ImagePlus, Plus,
 } from "lucide-react";
-import { getUserLevel, LEVEL_LABEL, LEVEL_COLOR, LEVEL_EMOJI } from "@/lib/userLevel";
+import { getUserLevel, LEVEL_LABEL, LEVEL_COLOR } from "@/lib/userLevel";
 
 const SUGGESTIONS_DEFAULT = [
   "¿Cómo analizo si una empresa es buena inversión?",
@@ -370,8 +370,6 @@ export default function ChatPage() {
             <div className="relative">
               <Image src="/logo.png" alt="Nuvos AI" width={30} height={30}
                      className="rounded-xl object-cover" />
-              <div className="absolute -inset-0.5 rounded-xl blur-sm opacity-40"
-                   style={{ background: "var(--grad-green)" }} />
             </div>
             <span className="font-bold text-sm" style={{ color: "var(--text)" }}>Nuvos AI</span>
           </button>
@@ -383,9 +381,9 @@ export default function ChatPage() {
           {(() => {
             const level = getUserLevel(profile);
             return (
-              <span className="flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full"
-                    style={{ background: `${LEVEL_COLOR[level]}18`, color: LEVEL_COLOR[level], border: `1px solid ${LEVEL_COLOR[level]}40` }}>
-                {LEVEL_EMOJI[level]} {LEVEL_LABEL[level]}
+              <span className="text-[10px] font-semibold px-2 py-0.5 rounded"
+                    style={{ background: "var(--raised)", color: LEVEL_COLOR[level], border: "1px solid var(--border)" }}>
+                {LEVEL_LABEL[level]}
               </span>
             );
           })()}
@@ -477,22 +475,18 @@ export default function ChatPage() {
             {messages.length === 0 && (
               <div className="h-full flex flex-col items-center justify-center text-center px-6 animate-fade-in">
                 {mentor ? (
-                  <div className="relative mb-5 animate-float">
-                    <div className="w-24 h-24 rounded-3xl flex items-center justify-center text-5xl"
-                         style={{ background: mentor.color + "18", border: `2px solid ${mentor.color}30` }}>
+                  <div className="mb-5">
+                    <div className="w-16 h-16 rounded-2xl flex items-center justify-center text-4xl"
+                         style={{ background: "var(--raised)", border: "1px solid var(--border)" }}>
                       {mentor.emoji}
                     </div>
-                    <div className="absolute -inset-2 rounded-3xl blur-xl opacity-25"
-                         style={{ background: mentor.color }} />
                   </div>
                 ) : (
-                  <div className="relative mb-5 animate-float">
-                    <div className="w-20 h-20 rounded-3xl flex items-center justify-center"
-                         style={{ background: "var(--accent-glow)", border: "2px solid rgba(0,185,109,0.2)" }}>
-                      <TrendingUp className="w-9 h-9" style={{ color: "var(--accent-l)" }} />
+                  <div className="mb-5">
+                    <div className="w-16 h-16 rounded-2xl flex items-center justify-center"
+                         style={{ background: "var(--raised)", border: "1px solid var(--border)" }}>
+                      <TrendingUp className="w-7 h-7" style={{ color: "var(--accent-l)" }} />
                     </div>
-                    <div className="absolute -inset-2 rounded-3xl blur-xl opacity-20"
-                         style={{ background: "var(--accent)" }} />
                   </div>
                 )}
                 <h2 className="text-2xl font-black mb-1.5 tracking-tight"
@@ -532,11 +526,10 @@ export default function ChatPage() {
                         </>
                       )}
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 w-full max-w-lg">
-                        {suggestions.map((s, i) => (
+                        {suggestions.map((s) => (
                           <button key={s} onClick={() => sendMessage(s)}
-                                  className={`text-left p-3.5 rounded-2xl text-xs transition-all border hover:border-[var(--accent-l)] hover:-translate-y-0.5 animate-fade-in-up stagger-${i+1} group`}
-                                  style={{ background: "var(--card)", borderColor: "var(--border)", color: "var(--sub)" }}>
-                            <span className="block text-[10px] font-bold mb-1 group-hover:text-[var(--accent-l)] transition-colors" style={{ color: "var(--accent)" }}>✦</span>
+                                  className="text-left p-3 rounded-xl text-xs transition-all border hover:border-[var(--accent-l)]"
+                                  style={{ background: "var(--raised)", borderColor: "var(--border)", color: "var(--sub)" }}>
                             {s}
                           </button>
                         ))}

@@ -116,7 +116,6 @@ export default function ArenaPage() {
           <button onClick={() => router.push("/chat")} className="flex items-center gap-2.5">
             <div className="relative">
               <Image src="/logo.png" alt="Nuvos AI" width={30} height={30} className="rounded-xl object-cover" />
-              <div className="absolute -inset-0.5 rounded-xl blur-sm opacity-40" style={{ background: "var(--grad-green)" }} />
             </div>
             <span className="font-bold text-sm" style={{ color: "var(--text)" }}>Nuvos AI</span>
           </button>
@@ -251,7 +250,7 @@ export default function ArenaPage() {
                   </div>
                   <span className="text-[10px] font-bold px-2 py-0.5 rounded-full"
                         style={{ background: "rgba(0,168,94,0.15)", color: "var(--accent-l)" }}>
-                    {isPremium ? "Premium activo" : "⭐ Premium"}
+                    {isPremium ? "Premium activo" : "Premium"}
                   </span>
                 </button>
 
@@ -260,7 +259,7 @@ export default function ArenaPage() {
 
             {/* Scoreboard — Rachas */}
             <div>
-              <p className="text-[10px] font-bold uppercase tracking-widest mb-2 ml-0.5" style={{ color: "var(--dim)" }}>🏆 Rachas</p>
+              <p className="text-[10px] font-bold uppercase tracking-widest mb-2 ml-0.5" style={{ color: "var(--dim)" }}>Rachas</p>
               <div className="rounded-2xl border overflow-hidden" style={{ background: "var(--card)", borderColor: "var(--border)" }}>
                 {hallOfFame.length === 0 ? (
                   <div className="flex flex-col items-center py-8 gap-2">

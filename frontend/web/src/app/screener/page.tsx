@@ -184,7 +184,7 @@ export default function ScreenerPage() {
                         {/* Catalyst + Risk */}
                         <div className="grid grid-cols-2 gap-2">
                           <div className="p-2 rounded-lg" style={{ background: "rgba(34,197,94,0.06)", border: "1px solid rgba(34,197,94,0.15)" }}>
-                            <p className="text-[10px] font-bold mb-0.5" style={{ color: "#22c55e" }}>⚡ Catalizador</p>
+                            <p className="text-[10px] font-bold mb-0.5" style={{ color: "#22c55e" }}>Catalizador</p>
                             <p className="text-[10px]" style={{ color: "var(--sub)" }}>{pick.catalyst}</p>
                           </div>
                           <div className="p-2 rounded-lg" style={{ background: "rgba(239,68,68,0.06)", border: "1px solid rgba(239,68,68,0.15)" }}>
@@ -202,7 +202,7 @@ export default function ScreenerPage() {
               {weekly.mentor_note && (
                 <div className="p-4 rounded-xl border"
                      style={{ borderColor: "rgba(0,168,94,0.3)", background: "rgba(0,168,94,0.06)" }}>
-                  <p className="text-[10px] font-bold mb-1.5" style={{ color: "var(--accent-l)" }}>🎓 NOTA DE TU MENTOR</p>
+                  <p className="text-[10px] font-bold mb-1.5" style={{ color: "var(--accent-l)" }}>NOTA DE TU MENTOR</p>
                   <p className="text-xs leading-relaxed" style={{ color: "var(--sub)" }}>{weekly.mentor_note}</p>
                 </div>
               )}

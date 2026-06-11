@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { Zap, TrendingUp, TrendingDown, Minus, Loader2, ChevronDown } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
+import { Zap, TrendingUp, TrendingDown, Minus, Loader2, ChevronDown, RefreshCw, DollarSign, Globe, Brain, Edit2 } from "lucide-react";
 import PremiumToolLocked from "@/components/PremiumToolLocked";
 import { simulateApi } from "@/lib/api";
 
@@ -20,11 +21,11 @@ interface WhatIfSimulatorProps {
   onUpgrade: () => void;
 }
 
-const SCENARIO_TYPES = [
-  { id: "swap",        label: "Cambiar posición",     icon: "🔄", desc: "Vender X y comprar Y con ese dinero" },
-  { id: "add_monthly", label: "Aporte mensual",        icon: "💰", desc: "Invertir $X/mes durante N años" },
-  { id: "macro",       label: "Evento macroeconómico", icon: "🌍", desc: "Simular un evento global sobre tu portafolio" },
-  { id: "custom",      label: "Escenario libre",       icon: "✏️",  desc: "Describe cualquier hipótesis" },
+const SCENARIO_TYPES: Array<{ id: string; label: string; icon: LucideIcon; desc: string }> = [
+  { id: "swap",        label: "Cambiar posición",     icon: RefreshCw,  desc: "Vender X y comprar Y con ese dinero" },
+  { id: "add_monthly", label: "Aporte mensual",        icon: DollarSign, desc: "Invertir $X/mes durante N años" },
+  { id: "macro",       label: "Evento macroeconómico", icon: Globe,      desc: "Simular un evento global sobre tu portafolio" },
+  { id: "custom",      label: "Escenario libre",       icon: Edit2,      desc: "Describe cualquier hipótesis" },
 ];
 
 const MACRO_EVENTS = [
@@ -92,9 +93,9 @@ export default function WhatIfSimulator({ positions, isPremium, onUpgrade }: Wha
     return "var(--muted)";
   };
   const recLabel = (r?: string) => ({
-    proceder:             "✅ Proceder",
-    proceder_con_cautela: "⚠️ Proceder con cautela",
-    no_recomendado:       "❌ No recomendado",
+    proceder:             "Proceder",
+    proceder_con_cautela: "Proceder con cautela",
+    no_recomendado:       "No recomendado",
     mantener_actual:      "🔵 Mantener portafolio actual",
   }[r ?? ""] ?? r ?? "");
 
@@ -107,10 +108,10 @@ export default function WhatIfSimulator({ positions, isPremium, onUpgrade }: Wha
         icon={Zap}
         color="#f59e0b"
         benefits={[
-          { icon: "🔄", text: "¿Qué pasa si vendo X y compro Y?" },
-          { icon: "💰", text: "Proyección de aportes mensuales a N años" },
-          { icon: "🌍", text: "Impacto de eventos macro en tu portafolio" },
-          { icon: "🧠", text: "Veredicto de tu mentor en cada escenario" },
+          { icon: RefreshCw,  text: "¿Qué pasa si vendo X y compro Y?" },
+          { icon: DollarSign, text: "Proyección de aportes mensuales a N años" },
+          { icon: Globe,      text: "Impacto de eventos macro en tu portafolio" },
+          { icon: Brain,      text: "Veredicto de tu mentor en cada escenario" },
         ]}
         onUnlock={onUpgrade}
       />
@@ -127,18 +128,21 @@ export default function WhatIfSimulator({ positions, isPremium, onUpgrade }: Wha
       <div className="p-4 space-y-4">
         {/* Scenario type selector */}
         <div className="grid grid-cols-2 gap-2">
-          {SCENARIO_TYPES.map((s) => (
-            <button key={s.id} onClick={() => { setScenarioType(s.id); setParams({}); setResult(null); }}
-                    className="p-2.5 rounded-lg border text-left transition-all"
-                    style={{
-                      borderColor: scenarioType === s.id ? "var(--accent)" : "var(--border)",
-                      background:  scenarioType === s.id ? "rgba(0,168,94,0.08)" : "var(--raised)",
-                    }}>
-              <span className="text-base">{s.icon}</span>
-              <p className="text-[11px] font-semibold mt-0.5" style={{ color: "var(--text)" }}>{s.label}</p>
-              <p className="text-[10px]" style={{ color: "var(--muted)" }}>{s.desc}</p>
-            </button>
-          ))}
+          {SCENARIO_TYPES.map((s) => {
+            const SIcon = s.icon;
+            return (
+              <button key={s.id} onClick={() => { setScenarioType(s.id); setParams({}); setResult(null); }}
+                      className="p-2.5 rounded-lg border text-left transition-all"
+                      style={{
+                        borderColor: scenarioType === s.id ? "var(--accent)" : "var(--border)",
+                        background:  scenarioType === s.id ? "rgba(0,168,94,0.08)" : "var(--raised)",
+                      }}>
+                <SIcon className="w-4 h-4 mb-0.5" style={{ color: "var(--accent-l)" }} />
+                <p className="text-[11px] font-semibold mt-0.5" style={{ color: "var(--text)" }}>{s.label}</p>
+                <p className="text-[10px]" style={{ color: "var(--muted)" }}>{s.desc}</p>
+              </button>
+            );
+          })}
         </div>
 
         {/* Scenario params */}
@@ -232,7 +236,7 @@ export default function WhatIfSimulator({ positions, isPremium, onUpgrade }: Wha
             <span className="flex items-center justify-center gap-2">
               <Loader2 className="w-4 h-4 animate-spin" /> Simulando...
             </span>
-          ) : "⚡ Simular escenario"}
+          ) : "Simular escenario"}
         </button>
 
         {/* Result */}
@@ -286,7 +290,7 @@ export default function WhatIfSimulator({ positions, isPremium, onUpgrade }: Wha
             {/* Mentor verdict */}
             {result.mentor_verdict && (
               <div className="p-3 rounded-lg" style={{ background: "rgba(0,168,94,0.06)", border: "1px solid rgba(0,168,94,0.2)" }}>
-                <p className="text-[10px] font-bold mb-1" style={{ color: "var(--accent-l)" }}>🧠 Veredicto del mentor</p>
+                <p className="text-[10px] font-bold mb-1" style={{ color: "var(--accent-l)" }}>Veredicto del mentor</p>
                 <p className="text-xs leading-relaxed" style={{ color: "var(--sub)" }}>{result.mentor_verdict}</p>
               </div>
             )}

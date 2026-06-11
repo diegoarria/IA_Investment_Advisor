@@ -188,7 +188,7 @@ export default function DecisionsPage() {
                         background: tab === t ? "var(--card)" : "transparent",
                         color:      tab === t ? "var(--text)" : "var(--muted)",
                       }}>
-                {t === "diary" ? "📔 Diario" : "🧠 Análisis de sesgos"}
+                {t === "diary" ? "Diario" : "Análisis de sesgos"}
               </button>
             ))}
           </div>
@@ -338,7 +338,7 @@ export default function DecisionsPage() {
                   {biases.mentor_assessment && (
                     <div className="p-4 rounded-xl border"
                          style={{ borderColor: "rgba(0,168,94,0.3)", background: "rgba(0,168,94,0.06)" }}>
-                      <p className="text-[10px] font-bold mb-1.5" style={{ color: "var(--accent-l)" }}>🎓 EVALUACIÓN DE TU MENTOR</p>
+                      <p className="text-[10px] font-bold mb-1.5" style={{ color: "var(--accent-l)" }}>EVALUACIÓN DE TU MENTOR</p>
                       <p className="text-xs leading-relaxed" style={{ color: "var(--sub)" }}>{biases.mentor_assessment}</p>
                     </div>
                   )}
@@ -347,7 +347,7 @@ export default function DecisionsPage() {
                   {biases.next_challenge && (
                     <div className="p-4 rounded-xl border"
                          style={{ borderColor: "rgba(139,92,246,0.3)", background: "rgba(139,92,246,0.06)" }}>
-                      <p className="text-[10px] font-bold mb-1.5" style={{ color: "#a78bfa" }}>🎯 RETO DE LA SEMANA</p>
+                      <p className="text-[10px] font-bold mb-1.5" style={{ color: "#a78bfa" }}>RETO DE LA SEMANA</p>
                       <p className="text-xs leading-relaxed" style={{ color: "var(--sub)" }}>{biases.next_challenge}</p>
                     </div>
                   )}

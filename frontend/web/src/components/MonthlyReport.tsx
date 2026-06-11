@@ -114,7 +114,7 @@ export default function MonthlyReport({ positions, isPremium, onUpgrade }: Month
             <div className="flex items-center justify-between p-5 border-b" style={{ borderColor: "var(--border)" }}>
               <div>
                 <h2 className="font-bold text-base" style={{ color: "var(--text)" }}>
-                  📊 Reporte de Portafolio — {report.month}
+                  Reporte de Portafolio — {report.month}
                 </h2>
                 <p className="text-[11px] mt-0.5" style={{ color: "var(--muted)" }}>
                   Generado el {new Date(report.generated_at || "").toLocaleDateString("es-MX", { day: "numeric", month: "long", year: "numeric" })}

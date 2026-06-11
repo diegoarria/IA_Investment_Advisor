@@ -1,9 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import type { LucideIcon } from "lucide-react";
 import {
   ChevronLeft, ChevronRight, Calendar, Loader2,
   Zap, Briefcase, Eye, Lock,
+  BarChart2, Scissors, DollarSign,
 } from "lucide-react";
 import { earningsApi } from "@/lib/api";
 
@@ -40,10 +42,10 @@ function toDateStr(year: number, month: number, day: number) {
   return `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 }
 
-const EVENT_META: Record<EventType, { icon: string; label: string; bg: string; color: string; bgPortfolio: string; colorPortfolio: string }> = {
-  earnings:    { icon: "📊", label: "Resultados",  bg: "rgba(59,130,246,0.22)",   color: "#60a5fa", bgPortfolio: "rgba(0,168,94,0.22)",  colorPortfolio: "var(--accent-l)" },
-  ex_dividend: { icon: "✂️",  label: "Ex-Dividendo", bg: "rgba(245,158,11,0.22)", color: "#f59e0b", bgPortfolio: "rgba(245,158,11,0.28)", colorPortfolio: "#f59e0b" },
-  dividend:    { icon: "💰",  label: "Dividendo",    bg: "rgba(168,85,247,0.22)",  color: "#a855f7", bgPortfolio: "rgba(168,85,247,0.28)", colorPortfolio: "#a855f7" },
+const EVENT_META: Record<EventType, { icon: LucideIcon; label: string; bg: string; color: string; bgPortfolio: string; colorPortfolio: string }> = {
+  earnings:    { icon: BarChart2,   label: "Resultados",   bg: "rgba(59,130,246,0.22)",   color: "#60a5fa", bgPortfolio: "rgba(0,168,94,0.22)",  colorPortfolio: "var(--accent-l)" },
+  ex_dividend: { icon: Scissors,    label: "Ex-Dividendo", bg: "rgba(245,158,11,0.22)",   color: "#f59e0b", bgPortfolio: "rgba(245,158,11,0.28)", colorPortfolio: "#f59e0b" },
+  dividend:    { icon: DollarSign,  label: "Dividendo",    bg: "rgba(168,85,247,0.22)",   color: "#a855f7", bgPortfolio: "rgba(168,85,247,0.28)", colorPortfolio: "#a855f7" },
 };
 
 export default function WatchlistEarningsCalendar({
@@ -135,7 +137,7 @@ export default function WatchlistEarningsCalendar({
           </p>
         </div>
         <button onClick={onUpgrade} className="btn-primary text-xs px-4 py-2">
-          ⭐ Activar Premium
+          Activar Premium
         </button>
       </div>
     );
@@ -246,7 +248,7 @@ export default function WatchlistEarningsCalendar({
                         whiteSpace: "nowrap",
                       }}
                     >
-                      {meta.icon} {e.ticker}
+                      <meta.icon className="w-2.5 h-2.5 inline-block mr-0.5" /> {e.ticker}
                     </span>
                   );
                 })}
@@ -279,7 +281,7 @@ export default function WatchlistEarningsCalendar({
               return (
                 <div key={`${entry.ticker}-${entry.event_type}-${ei}`} className="px-4 py-2.5">
                   <div className="flex items-center gap-2 mb-1.5">
-                    <span className="text-base">{meta.icon}</span>
+                    <meta.icon className="w-4 h-4" style={{ color: isPortfolio ? meta.colorPortfolio : meta.color }} />
                     <span className="text-xs font-black" style={{ color: "var(--text)" }}>
                       {entry.ticker}
                     </span>
@@ -303,7 +305,7 @@ export default function WatchlistEarningsCalendar({
                     {/* Status */}
                     <span className="ml-auto text-[9px]"
                           style={{ color: entry.status === "upcoming" || entry.status === "today" ? "var(--accent-l)" : "var(--muted)" }}>
-                      {entry.status === "today" ? "🔴 Hoy" : entry.status === "upcoming" ? "📅 Próximo" : "✓ Completado"}
+                      {entry.status === "today" ? "Hoy" : entry.status === "upcoming" ? "Próximo" : "Completado"}
                     </span>
                   </div>
 
@@ -312,10 +314,10 @@ export default function WatchlistEarningsCalendar({
                     <div className="text-[10px] mb-1.5 flex gap-3 flex-wrap"
                          style={{ color: "var(--sub)" }}>
                       {entry.event_type === "ex_dividend" && (
-                        <span>✂️ Para recibir el dividendo debes poseer acciones <strong>antes</strong> de esta fecha</span>
+                        <span>Para recibir el dividendo debes poseer acciones <strong>antes</strong> de esta fecha</span>
                       )}
                       {entry.event_type === "dividend" && (
-                        <span>💰 Fecha de pago del dividendo</span>
+                        <span>Fecha de pago del dividendo</span>
                       )}
                       {entry.dividend_amount != null && (
                         <span className="font-semibold" style={{ color: "#f59e0b" }}>
@@ -383,15 +385,15 @@ export default function WatchlistEarningsCalendar({
       <div className="flex items-center gap-3 px-4 py-2.5 border-t flex-wrap"
            style={{ borderColor: "var(--border)" }}>
         <div className="flex items-center gap-1">
-          <span className="text-[9px]">📊</span>
+          <BarChart2 className="w-2.5 h-2.5" style={{ color: "#60a5fa" }} />
           <span className="text-[10px]" style={{ color: "var(--muted)" }}>Resultados</span>
         </div>
         <div className="flex items-center gap-1">
-          <span className="text-[9px]">✂️</span>
+          <Scissors className="w-2.5 h-2.5" style={{ color: "#f59e0b" }} />
           <span className="text-[10px]" style={{ color: "var(--muted)" }}>Ex-Dividendo</span>
         </div>
         <div className="flex items-center gap-1">
-          <span className="text-[9px]">💰</span>
+          <DollarSign className="w-2.5 h-2.5" style={{ color: "#a855f7" }} />
           <span className="text-[10px]" style={{ color: "var(--muted)" }}>Pago Dividendo</span>
         </div>
         {allTickers.length > 0 && (
