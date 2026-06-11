@@ -5,7 +5,7 @@ import { ChevronUp, ChevronDown, ChevronsUpDown, Loader2, Wifi, WifiOff } from "
 import { market as marketApi } from "@/lib/api";
 import { finnhubWS } from "@/lib/services/websocketService";
 import {
-  fmtPrice, fmtChange, fmtPct, fmtVolume, fmtMarketCap, fmtEarningsDate, changeColor,
+  fmtPrice, fmtPct, fmtVolume, fmtMarketCap, fmtEarningsDate, changeColor,
 } from "@/lib/types/stock";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -223,11 +223,9 @@ export default function AdvancedStockTable({ rows, mode, onRemove, onRowClick }:
                 Símbolo
               </th>
               <Th label="Precio"   sortKey="price"        {...colProps} />
-              <Th label="Var $"    sortKey="change"       {...colProps} />
               <Th label="Var %"    sortKey="changePct"    {...colProps} />
               <Th label="Volumen"  sortKey="volume"       {...colProps} />
               <Th label="AH"       sortKey="extPrice"     {...colProps} />
-              <Th label="AH $"     sortKey="extChange"    {...colProps} />
               <Th label="AH %"     sortKey="extPct"       {...colProps} />
               <Th label="Cap"      sortKey="marketCap"    {...colProps} />
               <Th label="P/E"      sortKey="pe"           {...colProps} />
@@ -253,7 +251,6 @@ export default function AdvancedStockTable({ rows, mode, onRemove, onRowClick }:
               const priceColor = changeColor(row.changePct);
               const glUp       = (row.gainLossPct ?? 0) >= 0;
               const isLive     = !!livePrices[row.ticker];
-              const extColor   = row.extLabel === "Pre" ? "#f59e0b" : "#818cf8";
 
               return (
                 <tr
@@ -295,13 +292,6 @@ export default function AdvancedStockTable({ rows, mode, onRemove, onRowClick }:
                     )}
                   </td>
 
-                  {/* Change $ */}
-                  <td className="px-2 py-1.5 text-right">
-                    <span className="text-[11px] tabular-nums" style={{ color: priceColor }}>
-                      {fmtChange(row.change, currency)}
-                    </span>
-                  </td>
-
                   {/* Change % */}
                   <td className="px-2 py-1.5 text-right">
                     <span className="text-[11px] font-semibold tabular-nums" style={{ color: priceColor }}>
@@ -324,7 +314,7 @@ export default function AdvancedStockTable({ rows, mode, onRemove, onRowClick }:
                   <td className="px-2 py-1.5 text-right">
                     {row.extPrice ? (
                       <div>
-                        <span className="text-[10px] font-semibold tabular-nums" style={{ color: extColor }}>
+                        <span className="text-[10px] font-semibold tabular-nums" style={{ color: "var(--text)" }}>
                           {fmtPrice(row.extPrice, currency)}
                         </span>
                         {row.extLabel && (
@@ -338,20 +328,16 @@ export default function AdvancedStockTable({ rows, mode, onRemove, onRowClick }:
                     )}
                   </td>
 
-                  {/* After Hours Change $ */}
-                  <td className="px-2 py-1.5 text-right">
-                    <span className="text-[11px] tabular-nums"
-                          style={{ color: row.extChange != null ? extColor : "var(--dim)" }}>
-                      {row.extChange != null ? fmtChange(row.extChange, currency) : "—"}
-                    </span>
-                  </td>
-
                   {/* After Hours Change % */}
                   <td className="px-2 py-1.5 text-right">
-                    <span className="text-[11px] tabular-nums"
-                          style={{ color: row.extPct != null ? extColor : "var(--dim)" }}>
-                      {row.extPct != null ? fmtPct(row.extPct) : "—"}
-                    </span>
+                    {row.extPct != null ? (
+                      <span className="text-[11px] font-semibold tabular-nums"
+                            style={{ color: row.extPct >= 0 ? "#22c55e" : "#ef4444" }}>
+                        {fmtPct(row.extPct)}
+                      </span>
+                    ) : (
+                      <span className="text-[11px]" style={{ color: "var(--dim)" }}>—</span>
+                    )}
                   </td>
 
                   {/* Market Cap */}
