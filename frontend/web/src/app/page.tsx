@@ -53,6 +53,8 @@ export default function Home() {
     profileApi.get()
       .then((res) => {
         clearTimeout(fallback);
+        const storedToken = localStorage.getItem("access_token") ?? "";
+        setAuth(storedToken, res.data.user_id);
         setProfile(res.data);
         router.push("/chat");
       })
