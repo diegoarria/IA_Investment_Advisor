@@ -1573,10 +1573,13 @@ def _fmp_balance(symbol: str) -> list[dict]:
                 "Total Non Current Liabilities":      _fmt_number(d.get("totalNonCurrentLiabilities")),
                 "Total Liabilities Net Minority Interest": _fmt_number(d.get("totalLiabilities")),
                 # ── Equity ───────────────────────────────────────────
-                "Common Stock":                       _fmt_number(d.get("commonStock")),
-                "Retained Earnings":                  _fmt_number(d.get("retainedEarnings")),
-                "Other Stockholder Equity":           _fmt_number(d.get("othertotalStockholdersEquity")),
-                "Stockholders Equity":                _fmt_number(d.get("totalStockholdersEquity")),
+                "Preferred Stock":                        _fmt_number(d.get("preferredStock")),
+                "Common Stock":                           _fmt_number(d.get("commonStock")),
+                "Additional Paid In Capital":             _fmt_number(d.get("additionalPaidInCapital")),
+                "Retained Earnings":                      _fmt_number(d.get("retainedEarnings")),
+                "Accumulated Other Comprehensive Income": _fmt_number(d.get("accumulatedOtherComprehensiveIncomeLoss")),
+                "Other Stockholder Equity":               _fmt_number(d.get("othertotalStockholdersEquity")),
+                "Stockholders Equity":                    _fmt_number(d.get("totalStockholdersEquity")),
                 # ── Summary ──────────────────────────────────────────
                 "Total Debt":                         _fmt_number(d.get("totalDebt")),
                 "Net Debt":                           _fmt_number(d.get("netDebt")),
@@ -1628,6 +1631,7 @@ def _fmp_cashflow(symbol: str) -> list[dict]:
                 "Financing Cash Flow":                _fmt_number(d.get("netCashUsedProvidedByFinancingActivities")),
                 # ── Summary ──────────────────────────────────────────
                 "Free Cash Flow":                     _fmt_number(d.get("freeCashFlow")),
+                "Effect Of Forex Changes On Cash":    _fmt_number(d.get("effectOfForexChangesOnCash")),
                 "Net Change In Cash":                 _fmt_number(d.get("netChangeInCash")),
                 "Cash At Beginning Of Period":        _fmt_number(d.get("cashAtBeginningOfPeriod")),
                 "Cash At End Of Period":              _fmt_number(d.get("cashAtEndOfPeriod")),
@@ -1890,8 +1894,11 @@ def _parse_qs_balance(qs: dict, quarterly: bool = False, n: int = 5) -> list[dic
             "Other Non Current Liabilities":               _qs_raw(row, "otherLiab"),
             "Total Liabilities Net Minority Interest":     _qs_raw(row, "totalLiab"),
             # Equity
+            "Preferred Stock":                             _qs_raw(row, "preferredStock"),
             "Common Stock":                                _qs_raw(row, "commonStock"),
+            "Additional Paid In Capital":                  _qs_raw(row, "additionalPaidInCapital"),
             "Retained Earnings":                           _qs_raw(row, "retainedEarnings"),
+            "Accumulated Other Comprehensive Income":      _qs_raw(row, "otherStockholderEquity"),
             "Stockholders Equity":                         _qs_raw(row, "totalStockholderEquity"),
             "Minority Interest":                           _qs_raw(row, "minorityInterest"),
             # Summary
@@ -1940,6 +1947,7 @@ def _parse_qs_cashflow(qs: dict, quarterly: bool = False, n: int = 5) -> list[di
             "Financing Cash Flow":              _qs_raw(row, "totalCashFromFinancingActivities"),
             # Summary
             "Free Cash Flow":                   fcf,
+            "Effect Of Forex Changes On Cash":  _qs_raw(row, "effectOfExchangeRate"),
             "Net Change In Cash":               _qs_raw(row, "changeInCash"),
         })
     return result

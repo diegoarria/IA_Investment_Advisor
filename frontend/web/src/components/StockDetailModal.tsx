@@ -617,53 +617,7 @@ function ForecastChart({ prices, current, targetLow, targetMean, targetHigh }: {
   );
 }
 
-// ─── Financial bar chart ──────────────────────────────────────────────────────
 
-function FinancialBarChart({ data, field, label, color = "#22c55e" }: {
-  data: Record<string, unknown>[];
-  field: string;
-  label: string;
-  color?: string;
-}) {
-  const values = data.map((d) => { const v = d[field]; return v != null ? Number(v) : null; });
-  const periods = data.map((d) => String(d.period ?? "").slice(0, 4));
-  const nonNull = values.filter((v): v is number => v != null);
-  if (!nonNull.length) return null;
-  const lastVal = nonNull[nonNull.length - 1];
-  const W = 560, H = 90, PB = 18;
-  const chartH = H - PB;
-  const maxAbs = Math.max(...nonNull.map(Math.abs), 1);
-  const n = values.length;
-  const gap = W / n;
-  const bw = gap * 0.62;
-  return (
-    <div>
-      <div className="flex items-baseline justify-between mb-1.5">
-        <span className="text-xs font-bold uppercase tracking-widest" style={{ color: "var(--accent-l)", opacity: 0.7 }}>{label}</span>
-        <span className="text-sm font-black" style={{ color: lastVal >= 0 ? "#22c55e" : "#ef4444" }}>{fmtBig(lastVal)}</span>
-      </div>
-      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto", display: "block" }}>
-        {values.map((v, i) => {
-          if (v == null) return null;
-          const barH = Math.max((Math.abs(v) / maxAbs) * chartH * 0.88, 2);
-          const x = i * gap + (gap - bw) / 2;
-          const y = chartH - barH;
-          const barColor = v >= 0 ? color : "#ef4444";
-          const isLast = i === values.length - 1;
-          return (
-            <g key={i}>
-              <rect x={x} y={y} width={bw} height={barH} rx="4" fill={barColor} opacity={isLast ? 1 : 0.7} />
-              <text x={x + bw / 2} y={Math.max(y - 2, 8)} fontSize="8" fill={isLast ? barColor : "var(--muted)"} textAnchor="middle" fontWeight={isLast ? "bold" : "normal"}>
-                {fmtBig(v)}
-              </text>
-              <text x={x + bw / 2} y={H - 2} fontSize="8" fill="var(--muted)" textAnchor="middle">{periods[i]}</text>
-            </g>
-          );
-        })}
-      </svg>
-    </div>
-  );
-}
 
 // ─── Tabs ─────────────────────────────────────────────────────────────────────
 
@@ -1294,11 +1248,14 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
                           ])}
                           <SubHdr title="Patrimonio" />
                           {Rows([
-                            { field: "Common Stock",          label: "Capital Social" },
-                            { field: "Retained Earnings",     label: "Utilidades Retenidas" },
-                            { field: "Other Stockholder Equity", label: "Otras Reservas" },
-                            { field: "Stockholders Equity",   label: "PATRIMONIO NETO" },
-                            { field: "Minority Interest",     label: "Interés Minoritario" },
+                            { field: "Preferred Stock",                       label: "Acciones Preferentes" },
+                            { field: "Common Stock",                          label: "Capital Social" },
+                            { field: "Additional Paid In Capital",            label: "Capital Adicional" },
+                            { field: "Retained Earnings",                     label: "Utilidades Retenidas" },
+                            { field: "Accumulated Other Comprehensive Income", label: "Otras Util. Integrales" },
+                            { field: "Other Stockholder Equity",              label: "Otras Reservas" },
+                            { field: "Stockholders Equity",                   label: "PATRIMONIO NETO" },
+                            { field: "Minority Interest",                     label: "Interés Minoritario" },
                           ])}
                           <SubHdr title="Indicadores Clave" />
                           {Rows([
@@ -1358,10 +1315,11 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
                           ])}
                           <SubHdr title="Resumen" />
                           {Rows([
-                            { field: "Free Cash Flow",             label: "Flujo Libre (FCF)" },
-                            { field: "Net Change In Cash",         label: "Cambio Neto Efectivo" },
-                            { field: "Cash At Beginning Of Period", label: "Efectivo Inicial" },
-                            { field: "Cash At End Of Period",      label: "Efectivo Final" },
+                            { field: "Free Cash Flow",                label: "Flujo Libre (FCF)" },
+                            { field: "Effect Of Forex Changes On Cash", label: "Efecto Tipo de Cambio" },
+                            { field: "Net Change In Cash",            label: "Cambio Neto Efectivo" },
+                            { field: "Cash At Beginning Of Period",   label: "Efectivo Inicial" },
+                            { field: "Cash At End Of Period",         label: "Efectivo Final" },
                           ])}
                         </div>
                       );
