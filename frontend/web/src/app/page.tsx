@@ -47,9 +47,17 @@ export default function Home() {
     const hasRefresh = !!localStorage.getItem("refresh_token");
     if (!hasAccess && !hasRefresh) { setChecking(false); return; }
 
+    // Safety: if the profile request hangs for >4s, go to chat optimistically
+    const fallback = setTimeout(() => router.push("/chat"), 4000);
+
     profileApi.get()
-      .then((res) => { setProfile(res.data); router.push("/chat"); })
+      .then((res) => {
+        clearTimeout(fallback);
+        setProfile(res.data);
+        router.push("/chat");
+      })
       .catch((err) => {
+        clearTimeout(fallback);
         const status = (err as { response?: { status?: number } })?.response?.status;
         if (status === 401 || status === 403) {
           // Both tokens genuinely failed — interceptor already tried refresh
