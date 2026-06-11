@@ -9,7 +9,7 @@ import { market as marketApi, paperApi } from "@/lib/api";
 import { useAuthStore, useSubscriptionStore } from "@/lib/store";
 import { usePaperStore, PAPER_INITIAL_CASH } from "@/lib/paperStore";
 import PaywallModal from "@/components/PaywallModal";
-import { Search, Menu, X, RefreshCw, Loader2, TrendingUp, TrendingDown, Plus, RotateCcw, Clock, Wallet, Sparkles, Lock } from "lucide-react";
+import { Search, Menu, X, RefreshCw, Loader2, TrendingUp, TrendingDown, Plus, RotateCcw, Clock, Wallet, Sparkles, Lock, ArrowUpRight, ArrowDownRight } from "lucide-react";
 
 interface PaperAnalysis {
   verdict: "practice_more" | "promising" | "ready";
@@ -337,60 +337,170 @@ export default function PaperPage() {
           </div>
 
           {/* ── Posiciones ── */}
-          {positions.length > 0 && (
-            <div className="space-y-2">
-              <div className="flex items-center justify-between px-1">
-                <span className="text-xs font-bold uppercase tracking-widest" style={{ color: "var(--muted)" }}>
-                  Posiciones · {positions.length}
-                </span>
-                {loadingPrices && <Loader2 className="w-3.5 h-3.5 animate-spin" style={{ color: "var(--muted)" }} />}
-              </div>
-              {positions.map((pos) => {
-                const cur    = posPrices[pos.ticker]?.price ?? pos.avgPrice;
-                const pnl    = (cur - pos.avgPrice) * pos.shares;
-                const pnlPct = ((cur - pos.avgPrice) / pos.avgPrice) * 100;
-                const up     = pnl >= 0;
-                const col    = up ? "#22c55e" : "#ef4444";
-                return (
-                  <div key={pos.ticker} className="rounded-2xl border overflow-hidden"
-                       style={{ background: "var(--card)", borderColor: "var(--border)" }}>
-                    <div className="h-0.5" style={{ background: col }} />
-                    <div className="flex items-center justify-between px-4 py-3">
-                      <div className="flex items-center gap-2.5 flex-1 min-w-0">
-                        <StockAvatar ticker={pos.ticker} size="sm" />
-                        <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-0.5">
-                          <span className="font-black text-base" style={{ color: "var(--text)" }}>{pos.ticker}</span>
-                          {pos.name && pos.name !== pos.ticker && (
-                            <span className="text-[10px] font-semibold truncate max-w-[120px]" style={{ color: "var(--accent-l)" }}>{pos.name}</span>
-                          )}
+          {positions.length > 0 && (() => {
+            const totalPositionValue = positions.reduce((acc, p) => acc + p.shares * (posPrices[p.ticker]?.price ?? p.avgPrice), 0);
+            const totalPositionPnl   = positions.reduce((acc, p) => {
+              const cur = posPrices[p.ticker]?.price ?? p.avgPrice;
+              return acc + (cur - p.avgPrice) * p.shares;
+            }, 0);
+            const totalInvested = positions.reduce((acc, p) => acc + p.shares * p.avgPrice, 0);
+            const totalPnlPct   = totalInvested > 0 ? (totalPositionPnl / totalInvested) * 100 : 0;
+            return (
+              <div className="rounded-2xl border overflow-hidden" style={{ background: "var(--card)", borderColor: "var(--border)" }}>
+                {/* Header */}
+                <div className="flex items-center justify-between px-4 py-3 border-b" style={{ borderColor: "var(--border)" }}>
+                  <div className="flex items-center gap-2">
+                    <TrendingUp className="w-3.5 h-3.5" style={{ color: "var(--accent-l)" }} />
+                    <span className="text-sm font-bold" style={{ color: "var(--text)" }}>Posiciones abiertas</span>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full"
+                          style={{ background: "var(--raised)", color: "var(--muted)" }}>
+                      {positions.length}
+                    </span>
+                  </div>
+                  {loadingPrices
+                    ? <Loader2 className="w-3.5 h-3.5 animate-spin" style={{ color: "var(--muted)" }} />
+                    : <button onClick={loadPrices} className="p-1.5 rounded-lg hover:bg-white/5 transition-colors" style={{ color: "var(--muted)" }}>
+                        <RefreshCw className="w-3 h-3" />
+                      </button>
+                  }
+                </div>
+
+                {/* Column headers */}
+                <div className="grid px-4 py-2 text-[10px] font-bold uppercase tracking-widest border-b"
+                     style={{
+                       gridTemplateColumns: "1fr 80px 80px 88px 96px 44px",
+                       color: "var(--muted)",
+                       borderColor: "var(--border)",
+                       background: "var(--raised)",
+                     }}>
+                  <span>Ticker</span>
+                  <span className="text-right">Acciones</span>
+                  <span className="text-right">Compra</span>
+                  <span className="text-right">Actual</span>
+                  <span className="text-right">P&amp;L</span>
+                  <span />
+                </div>
+
+                {/* Rows */}
+                {positions.map((pos) => {
+                  const cur    = posPrices[pos.ticker]?.price ?? pos.avgPrice;
+                  const pnl    = (cur - pos.avgPrice) * pos.shares;
+                  const pnlPct = ((cur - pos.avgPrice) / pos.avgPrice) * 100;
+                  const up     = pnl >= 0;
+                  const col    = up ? "#22c55e" : "#ef4444";
+                  const posVal = cur * pos.shares;
+                  const barW   = Math.min(Math.abs(pnlPct) * 4, 100);
+                  return (
+                    <div key={pos.ticker} className="border-b last:border-b-0 group hover:bg-white/[0.02] transition-colors"
+                         style={{ borderColor: "var(--border)" }}>
+                      {/* Left accent bar */}
+                      <div className="grid items-center px-4 py-3 gap-1"
+                           style={{ gridTemplateColumns: "1fr 80px 80px 88px 96px 44px" }}>
+
+                        {/* Ticker + name */}
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <div className="shrink-0">
+                            <StockAvatar ticker={pos.ticker} size="sm" />
+                          </div>
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-black text-sm" style={{ color: "var(--text)" }}>{pos.ticker}</span>
+                              <div className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: col, boxShadow: `0 0 4px ${col}80` }} />
+                            </div>
+                            {pos.name && pos.name !== pos.ticker && (
+                              <span className="text-[10px] block truncate" style={{ color: "var(--muted)" }}>{pos.name}</span>
+                            )}
+                          </div>
                         </div>
-                        <span className="text-xs" style={{ color: "var(--muted)" }}>
-                          {pos.shares} acc · avg ${pos.avgPrice.toFixed(2)} · actual ${cur.toFixed(2)}
-                        </span>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-3 shrink-0">
+
+                        {/* Shares */}
                         <div className="text-right">
-                          <div className="font-black text-base" style={{ color: col }}>
+                          <span className="text-sm font-bold" style={{ color: "var(--text)" }}>{pos.shares}</span>
+                          <div className="text-[10px]" style={{ color: "var(--muted)" }}>acc</div>
+                        </div>
+
+                        {/* Avg cost */}
+                        <div className="text-right">
+                          <span className="text-sm font-semibold" style={{ color: "var(--sub)" }}>
+                            ${pos.avgPrice.toFixed(2)}
+                          </span>
+                          <div className="text-[10px]" style={{ color: "var(--muted)" }}>prom.</div>
+                        </div>
+
+                        {/* Current price */}
+                        <div className="text-right">
+                          <span className="text-sm font-black" style={{ color: "var(--text)" }}>
+                            ${cur.toFixed(2)}
+                          </span>
+                          <div className="text-[10px] font-semibold" style={{ color: col }}>
+                            {fmtMoney(posVal)}
+                          </div>
+                        </div>
+
+                        {/* P&L */}
+                        <div className="text-right">
+                          <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs font-black"
+                               style={{ background: `${col}18`, color: col }}>
+                            {up ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
                             {up ? "+" : ""}{pnlPct.toFixed(2)}%
                           </div>
-                          <div className="text-xs font-semibold" style={{ color: col }}>
+                          <div className="text-[11px] font-bold mt-0.5" style={{ color: col }}>
                             {up ? "+" : ""}{fmtMoney(pnl)}
                           </div>
+                          {/* Mini P&L bar */}
+                          <div className="mt-1 h-0.5 rounded-full overflow-hidden" style={{ background: "var(--raised)" }}>
+                            <div className="h-full rounded-full transition-all"
+                                 style={{ width: `${barW}%`, background: col, opacity: 0.7 }} />
+                          </div>
                         </div>
-                        <button onClick={() => { setSellModal({ ticker: pos.ticker, shares: pos.shares, price: cur }); setSellQty(""); }}
-                                className="px-3 py-1.5 rounded-xl text-xs font-bold transition-all hover:opacity-80"
-                                style={{ background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.25)", color: "#ef4444" }}>
-                          Vender
-                        </button>
+
+                        {/* Sell button */}
+                        <div className="flex justify-end">
+                          <button
+                            onClick={() => { setSellModal({ ticker: pos.ticker, shares: pos.shares, price: cur }); setSellQty(""); }}
+                            className="w-8 h-8 rounded-xl flex items-center justify-center text-[10px] font-black transition-all hover:opacity-80 active:scale-95"
+                            title={`Vender ${pos.ticker}`}
+                            style={{ background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.2)", color: "#ef4444" }}>
+                            V
+                          </button>
+                        </div>
                       </div>
                     </div>
+                  );
+                })}
+
+                {/* Totals footer */}
+                <div className="grid items-center px-4 py-3 border-t"
+                     style={{
+                       gridTemplateColumns: "1fr 80px 80px 88px 96px 44px",
+                       borderColor: "var(--border)",
+                       background: "var(--raised)",
+                     }}>
+                  <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: "var(--muted)" }}>Total posiciones</span>
+                  <span />
+                  <span />
+                  <div className="text-right">
+                    <span className="text-sm font-black" style={{ color: "var(--text)" }}>{fmtMoney(totalPositionValue)}</span>
                   </div>
-                );
-              })}
-            </div>
-          )}
+                  <div className="text-right">
+                    <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs font-black"
+                         style={{
+                           background: `${totalPositionPnl >= 0 ? "#22c55e" : "#ef4444"}18`,
+                           color: totalPositionPnl >= 0 ? "#22c55e" : "#ef4444",
+                         }}>
+                      {totalPositionPnl >= 0 ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
+                      {totalPnlPct >= 0 ? "+" : ""}{totalPnlPct.toFixed(2)}%
+                    </div>
+                    <div className="text-[11px] font-bold mt-0.5"
+                         style={{ color: totalPositionPnl >= 0 ? "#22c55e" : "#ef4444" }}>
+                      {totalPositionPnl >= 0 ? "+" : ""}{fmtMoney(totalPositionPnl)}
+                    </div>
+                  </div>
+                  <span />
+                </div>
+              </div>
+            );
+          })()}
 
           {positions.length === 0 && trades.length === 0 && (
             <div className="rounded-2xl border p-10 flex flex-col items-center gap-3"
@@ -409,49 +519,80 @@ export default function PaperPage() {
           {/* ── Historial de operaciones ── */}
           {trades.length > 0 && (
             <div className="rounded-2xl border overflow-hidden" style={{ background: "var(--card)", borderColor: "var(--border)" }}>
+              {/* Header */}
               <div className="flex items-center gap-2 px-4 py-3 border-b" style={{ borderColor: "var(--border)" }}>
                 <Clock className="w-3.5 h-3.5" style={{ color: "var(--muted)" }} />
-                <span className="text-sm font-bold" style={{ color: "var(--text)" }}>Historial</span>
+                <span className="text-sm font-bold" style={{ color: "var(--text)" }}>Historial de operaciones</span>
                 <span className="ml-auto text-[10px] font-bold px-2 py-0.5 rounded-full"
                       style={{ background: "var(--raised)", color: "var(--muted)" }}>
                   {trades.length}
                 </span>
               </div>
-              {trades.slice(0, 20).map((t) => {
-                const isBuy = t.type === "buy";
+
+              {/* Column headers */}
+              <div className="grid px-4 py-2 text-[10px] font-bold uppercase tracking-widest border-b"
+                   style={{
+                     gridTemplateColumns: "64px 1fr 1fr 80px",
+                     color: "var(--muted)",
+                     borderColor: "var(--border)",
+                     background: "var(--raised)",
+                   }}>
+                <span>Tipo</span>
+                <span>Activo</span>
+                <span>Detalle</span>
+                <span className="text-right">Monto</span>
+              </div>
+
+              {trades.slice(0, 30).map((t, idx) => {
+                const isBuy     = t.type === "buy";
                 const isDeposit = t.type !== "buy" && t.type !== "sell";
-                const badgeColor = isBuy ? "#22c55e" : isDeposit ? "#3b82f6" : "#ef4444";
-                const badgeLabel = isBuy ? "COMPRA" : isDeposit ? "DEPÓSITO" : "VENTA";
+                const col   = isBuy ? "#22c55e" : isDeposit ? "#3b82f6" : "#ef4444";
+                const label = isBuy ? "Compra" : isDeposit ? "Recarga" : "Venta";
+                const Icon  = isBuy ? ArrowUpRight : isDeposit ? Plus : ArrowDownRight;
+                const dt    = new Date(t.timestamp);
+                const dateStr = dt.toLocaleDateString("es-ES", { day: "2-digit", month: "short" });
+                const timeStr = dt.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" });
                 return (
-                  <div key={t.id} className="flex items-center gap-3 px-4 py-3 border-t"
-                       style={{ borderColor: "var(--border)" }}>
-                    <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0 text-[10px] font-black"
-                         style={{ background: `${badgeColor}15`, color: badgeColor }}>
-                      {isBuy ? "C" : isDeposit ? "$" : "V"}
+                  <div key={t.id}
+                       className="grid items-center px-4 py-3 border-b last:border-b-0 hover:bg-white/[0.02] transition-colors"
+                       style={{
+                         gridTemplateColumns: "64px 1fr 1fr 80px",
+                         borderColor: "var(--border)",
+                         background: idx % 2 === 0 ? "transparent" : "rgba(255,255,255,0.01)",
+                       }}>
+                    {/* Type badge */}
+                    <div>
+                      <div className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold"
+                           style={{ background: `${col}15`, color: col }}>
+                        <Icon className="w-2.5 h-2.5" />
+                        {label}
+                      </div>
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs font-bold" style={{ color: "var(--text)" }}>
-                          {t.ticker !== "CASH" ? t.ticker : "Recarga"}
-                        </span>
-                        <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full"
-                              style={{ background: `${badgeColor}15`, color: badgeColor }}>
-                          {badgeLabel}
-                        </span>
+
+                    {/* Ticker */}
+                    <div className="min-w-0">
+                      <div className="font-bold text-xs" style={{ color: "var(--text)" }}>
+                        {t.ticker !== "CASH" ? t.ticker : "Efectivo"}
                       </div>
-                      {t.shares > 0 && (
-                        <div className="text-[10px] mt-0.5" style={{ color: "var(--muted)" }}>
-                          {t.shares} acc @ ${t.price.toFixed(2)}
-                        </div>
-                      )}
+                      <div className="text-[10px]" style={{ color: "var(--muted)" }}>
+                        {dateStr} · {timeStr}
+                      </div>
                     </div>
-                    <div className="text-right shrink-0">
-                      <div className="text-sm font-bold" style={{ color: isBuy ? "#ef4444" : "#22c55e" }}>
-                        {isBuy ? "-" : "+"}{fmtMoney(t.total)}
-                      </div>
-                      <div className="text-[10px] mt-0.5" style={{ color: "var(--dim)" }}>
-                        {new Date(t.timestamp).toLocaleDateString("es")}
-                      </div>
+
+                    {/* Detail */}
+                    <div className="text-[11px]" style={{ color: "var(--sub)" }}>
+                      {t.shares > 0
+                        ? <><span className="font-semibold">{t.shares}</span> acc @ <span className="font-semibold">${t.price.toFixed(2)}</span></>
+                        : <span style={{ color: "var(--muted)" }}>—</span>
+                      }
+                    </div>
+
+                    {/* Amount */}
+                    <div className="text-right">
+                      <span className="text-sm font-black"
+                            style={{ color: isBuy ? "#ef4444" : "#22c55e" }}>
+                        {isBuy ? "−" : "+"}{fmtMoney(t.total)}
+                      </span>
                     </div>
                   </div>
                 );
