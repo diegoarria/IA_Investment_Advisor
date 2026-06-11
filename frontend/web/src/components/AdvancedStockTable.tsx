@@ -63,14 +63,14 @@ function Avatar({ ticker, logoUrl }: { ticker: string; logoUrl?: string | null }
       // eslint-disable-next-line @next/next/no-img-element
       <img
         src={active} alt={ticker}
-        className="w-5 h-5 rounded-full object-contain p-0.5 shrink-0"
+        className="w-7 h-7 rounded-full object-contain p-0.5 shrink-0"
         style={{ background: "var(--raised)", border: "1px solid var(--border)" }}
         onError={() => setFailed((p) => new Set([...p, active]))}
       />
     );
   }
   return (
-    <div className="w-5 h-5 rounded-full flex items-center justify-center text-[7px] font-black shrink-0"
+    <div className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-black shrink-0"
          style={{ background: "rgba(0,168,94,0.14)", color: "var(--accent-l)" }}>
       {ticker.slice(0, 2)}
     </div>
@@ -90,7 +90,7 @@ function Th({
   return (
     <th
       onClick={() => onClick(sortKey)}
-      className="px-1.5 py-1.5 text-[8px] font-bold uppercase tracking-wide cursor-pointer select-none whitespace-nowrap"
+      className="px-3 py-2.5 text-xs font-bold uppercase tracking-wide cursor-pointer select-none whitespace-nowrap"
       style={{
         color: active ? "var(--accent-l)" : "var(--muted)",
         textAlign: align,
@@ -100,8 +100,8 @@ function Th({
       <span className="inline-flex items-center gap-0.5 justify-end">
         {label}
         {active
-          ? dir === "asc" ? <ChevronUp className="w-2 h-2" /> : <ChevronDown className="w-2 h-2" />
-          : <ChevronsUpDown className="w-2 h-2 opacity-30" />}
+          ? dir === "asc" ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />
+          : <ChevronsUpDown className="w-3 h-3 opacity-30" />}
       </span>
     </th>
   );
@@ -112,7 +112,7 @@ function Th({
 function LiveDot({ live }: { live: boolean }) {
   return (
     <span
-      className="inline-block w-1 h-1 rounded-full ml-0.5 shrink-0"
+      className="inline-block w-1.5 h-1.5 rounded-full ml-0.5 shrink-0"
       style={{ background: live ? "#22c55e" : "var(--dim)" }}
       title={live ? "WebSocket" : "Polling"}
     />
@@ -141,11 +141,11 @@ function DeleteBtn({ ticker, onRemove }: { ticker: string; onRemove: (t: string)
   return (
     <button
       onClick={handleClick}
-      className="flex items-center justify-center rounded transition-all"
+      className="flex items-center justify-center rounded-lg transition-all mx-auto"
       style={{
-        width: confirming ? "auto" : "20px",
-        height: "20px",
-        padding: confirming ? "0 5px" : "0",
+        width: confirming ? "auto" : "28px",
+        height: "28px",
+        padding: confirming ? "0 8px" : "0",
         background: confirming ? "rgba(239,68,68,0.12)" : "transparent",
         color: confirming ? "#ef4444" : "var(--dim)",
         border: confirming ? "1px solid rgba(239,68,68,0.3)" : "1px solid transparent",
@@ -153,8 +153,8 @@ function DeleteBtn({ ticker, onRemove }: { ticker: string; onRemove: (t: string)
       title={confirming ? "Toca para confirmar" : "Eliminar"}
     >
       {confirming
-        ? <span className="text-[8px] font-black whitespace-nowrap">¿OK?</span>
-        : <Trash2 className="w-3 h-3 opacity-50 hover:opacity-100 transition-opacity" />}
+        ? <span className="text-xs font-black whitespace-nowrap">¿OK?</span>
+        : <Trash2 className="w-4 h-4 opacity-50 hover:opacity-100 transition-opacity" />}
     </button>
   );
 }
@@ -239,51 +239,39 @@ export default function AdvancedStockTable({ rows, mode, onRemove, onRowClick }:
          style={{ background: "var(--card)", borderColor: "var(--border)" }}>
 
       {/* Status bar */}
-      <div className="flex items-center justify-between px-3 py-1 border-b"
+      <div className="flex items-center justify-between px-4 py-1.5 border-b"
            style={{ borderColor: "var(--border)", background: "var(--raised)" }}>
-        <span className="text-[8px] font-semibold flex items-center gap-1" style={{ color: "var(--muted)" }}>
+        <span className="text-xs font-semibold flex items-center gap-1.5" style={{ color: "var(--muted)" }}>
           {wsConnected
-            ? <><Wifi className="w-2.5 h-2.5" style={{ color: "#22c55e" }} /> Tiempo real</>
-            : <><WifiOff className="w-2.5 h-2.5" /> Polling 15s</>}
+            ? <><Wifi className="w-3.5 h-3.5" style={{ color: "#22c55e" }} /> Tiempo real</>
+            : <><WifiOff className="w-3.5 h-3.5" /> Polling 15s</>}
         </span>
-        <span className="text-[8px]" style={{ color: "var(--dim)" }}>
+        <span className="text-xs" style={{ color: "var(--dim)" }}>
           {sorted.length} {sorted.length === 1 ? "acción" : "acciones"}
         </span>
       </div>
 
-      {/* Table — no horizontal scroll wrapper */}
+      {/* Table */}
       <div className="w-full overflow-hidden">
         <table className="w-full border-collapse" style={{ tableLayout: "fixed" }}>
           <colgroup>
-            {/* Symbol */}
             <col style={{ width: "22%" }} />
-            {/* Precio */}
             <col style={{ width: "10%" }} />
-            {/* Var % */}
             <col style={{ width: "9%" }} />
-            {/* Volumen */}
             <col style={{ width: "9%" }} />
-            {/* AH (combined price+%) */}
             <col style={{ width: "11%" }} />
-            {/* Cap */}
             <col style={{ width: "9%" }} />
-            {/* P/E */}
             <col style={{ width: "7%" }} />
-            {/* Earnings */}
             <col style={{ width: "9%" }} />
-            {/* 52W range */}
             <col style={{ width: "14%" }} />
-            {/* Portfolio: Valor */}
             {mode === "portfolio" && <col style={{ width: "10%" }} />}
-            {/* Portfolio: G/P */}
             {mode === "portfolio" && <col style={{ width: "9%" }} />}
-            {/* Remove */}
             {onRemove && <col style={{ width: "5%" }} />}
           </colgroup>
 
           <thead>
             <tr style={{ background: "var(--raised)" }}>
-              <th className="px-2 py-1.5 text-left text-[8px] font-bold uppercase tracking-wide whitespace-nowrap"
+              <th className="px-3 py-2.5 text-left text-xs font-bold uppercase tracking-wide whitespace-nowrap"
                   style={{ color: "var(--muted)", borderBottom: "1px solid var(--border)" }}>
                 Símbolo
               </th>
@@ -302,7 +290,7 @@ export default function AdvancedStockTable({ rows, mode, onRemove, onRowClick }:
                 </>
               )}
               {onRemove && (
-                <th className="px-1.5 py-1.5 text-[8px]"
+                <th className="px-3 py-2.5"
                     style={{ borderBottom: "1px solid var(--border)" }} />
               )}
             </tr>
@@ -315,17 +303,7 @@ export default function AdvancedStockTable({ rows, mode, onRemove, onRowClick }:
               const priceColor = changeColor(row.changePct);
               const glUp       = (row.gainLossPct ?? 0) >= 0;
               const isLive     = !!livePrices[row.ticker];
-
-              // 52W range string: "164–260"
-              const w52 =
-                row.week52Low != null && row.week52High != null
-                  ? `${fmtPrice(row.week52Low, currency)}–${fmtPrice(row.week52High, currency)}`
-                  : row.week52Low != null ? `≥${fmtPrice(row.week52Low, currency)}`
-                  : row.week52High != null ? `≤${fmtPrice(row.week52High, currency)}`
-                  : "—";
-
-              // AH: show price + % on two mini-lines
-              const hasAH = row.extPrice != null;
+              const hasAH      = row.extPrice != null;
 
               return (
                 <tr
@@ -335,21 +313,21 @@ export default function AdvancedStockTable({ rows, mode, onRemove, onRowClick }:
                   style={{
                     cursor: onRowClick ? "pointer" : "default",
                     borderBottom: idx < sorted.length - 1 ? "1px solid var(--border)" : "none",
-                    borderLeft: `2px solid ${isUp ? "rgba(34,197,94,0.35)" : "rgba(239,68,68,0.35)"}`,
+                    borderLeft: `3px solid ${isUp ? "rgba(34,197,94,0.4)" : "rgba(239,68,68,0.4)"}`,
                   }}
                 >
                   {/* Symbol + Name */}
-                  <td className="px-2 py-1.5 overflow-hidden">
-                    <div className="flex items-center gap-1.5 min-w-0">
+                  <td className="px-3 py-2.5 overflow-hidden">
+                    <div className="flex items-center gap-2 min-w-0">
                       <Avatar ticker={row.ticker} logoUrl={row.logoUrl} />
                       <div className="min-w-0 overflow-hidden">
-                        <div className="flex items-center gap-0.5">
-                          <p className="text-[11px] font-bold leading-none truncate" style={{ color: "var(--text)" }}>
+                        <div className="flex items-center gap-1">
+                          <p className="text-[15px] font-bold leading-none truncate" style={{ color: "var(--text)" }}>
                             {row.ticker}
                           </p>
                           <LiveDot live={isLive} />
                         </div>
-                        <p className="text-[8px] truncate mt-0.5" style={{ color: "var(--muted)" }}>
+                        <p className="text-[11px] truncate mt-0.5" style={{ color: "var(--muted)" }}>
                           {row.companyName ?? row.name}
                         </p>
                       </div>
@@ -357,100 +335,100 @@ export default function AdvancedStockTable({ rows, mode, onRemove, onRowClick }:
                   </td>
 
                   {/* Price */}
-                  <td className="px-1.5 py-1.5 text-right overflow-hidden">
+                  <td className="px-3 py-2.5 text-right overflow-hidden">
                     {loadingDetails && row.price == null ? (
-                      <Loader2 className="w-2.5 h-2.5 animate-spin ml-auto" style={{ color: "var(--muted)" }} />
+                      <Loader2 className="w-4 h-4 animate-spin ml-auto" style={{ color: "var(--muted)" }} />
                     ) : (
-                      <span className="text-[10px] font-bold tabular-nums" style={{ color: "var(--text)" }}>
+                      <span className="text-sm font-bold tabular-nums" style={{ color: "var(--text)" }}>
                         {fmtPrice(row.price, currency)}
                       </span>
                     )}
                   </td>
 
                   {/* Change % */}
-                  <td className="px-1.5 py-1.5 text-right overflow-hidden">
-                    <span className="text-[10px] font-semibold tabular-nums" style={{ color: priceColor }}>
+                  <td className="px-3 py-2.5 text-right overflow-hidden">
+                    <span className="text-sm font-semibold tabular-nums" style={{ color: priceColor }}>
                       {fmtPct(row.changePct)}
                     </span>
                   </td>
 
                   {/* Volume */}
-                  <td className="px-1.5 py-1.5 text-right overflow-hidden">
+                  <td className="px-3 py-2.5 text-right overflow-hidden">
                     {loadingDetails && row.volume == null ? (
-                      <Loader2 className="w-2.5 h-2.5 animate-spin ml-auto" style={{ color: "var(--muted)" }} />
+                      <Loader2 className="w-4 h-4 animate-spin ml-auto" style={{ color: "var(--muted)" }} />
                     ) : (
-                      <span className="text-[10px] tabular-nums" style={{ color: "var(--sub)" }}>
+                      <span className="text-sm tabular-nums" style={{ color: "var(--sub)" }}>
                         {fmtVolume(row.volume)}
                       </span>
                     )}
                   </td>
 
                   {/* AH — price + % stacked */}
-                  <td className="px-1.5 py-1.5 text-right overflow-hidden">
+                  <td className="px-3 py-2.5 text-right overflow-hidden">
                     {hasAH ? (
                       <div>
-                        <p className="text-[9px] font-semibold tabular-nums leading-none" style={{ color: "var(--text)" }}>
+                        <p className="text-[13px] font-semibold tabular-nums leading-none" style={{ color: "var(--text)" }}>
                           {fmtPrice(row.extPrice, currency)}
                         </p>
                         {row.extPct != null && (
-                          <p className="text-[8px] tabular-nums leading-none mt-0.5"
+                          <p className="text-xs tabular-nums leading-none mt-1"
                              style={{ color: row.extPct >= 0 ? "#22c55e" : "#ef4444" }}>
                             {fmtPct(row.extPct)}
                           </p>
                         )}
                       </div>
                     ) : (
-                      <span className="text-[10px]" style={{ color: "var(--dim)" }}>—</span>
+                      <span className="text-sm" style={{ color: "var(--dim)" }}>—</span>
                     )}
                   </td>
 
                   {/* Market Cap */}
-                  <td className="px-1.5 py-1.5 text-right overflow-hidden">
-                    <span className="text-[10px] tabular-nums" style={{ color: "var(--sub)" }}>
+                  <td className="px-3 py-2.5 text-right overflow-hidden">
+                    <span className="text-sm tabular-nums" style={{ color: "var(--sub)" }}>
                       {fmtMarketCap(row.marketCap)}
                     </span>
                   </td>
 
                   {/* P/E */}
-                  <td className="px-1.5 py-1.5 text-right overflow-hidden">
-                    <span className="text-[10px] tabular-nums" style={{ color: "var(--sub)" }}>
+                  <td className="px-3 py-2.5 text-right overflow-hidden">
+                    <span className="text-sm tabular-nums" style={{ color: "var(--sub)" }}>
                       {row.pe != null ? row.pe.toFixed(1) : "—"}
                     </span>
                   </td>
 
                   {/* Earnings Date */}
-                  <td className="px-1.5 py-1.5 text-right overflow-hidden">
-                    <span className="text-[9px]" style={{ color: "var(--sub)" }}>
+                  <td className="px-3 py-2.5 text-right overflow-hidden">
+                    <span className="text-[13px]" style={{ color: "var(--sub)" }}>
                       {fmtEarningsDate(row.earningsDate)}
                     </span>
                   </td>
 
-                  {/* 52W range combined */}
-                  <td className="px-1.5 py-1.5 text-right overflow-hidden">
+                  {/* 52W range — stacked low / high */}
+                  <td className="px-3 py-2.5 text-right overflow-hidden">
                     {row.week52Low != null && row.week52High != null ? (
                       <div>
-                        <p className="text-[8px] tabular-nums leading-none" style={{ color: "#ef4444" }}>
+                        <p className="text-xs tabular-nums leading-none" style={{ color: "#ef4444" }}>
                           ↓{fmtPrice(row.week52Low, currency)}
                         </p>
-                        <p className="text-[8px] tabular-nums leading-none mt-0.5" style={{ color: "#22c55e" }}>
+                        <p className="text-xs tabular-nums leading-none mt-1" style={{ color: "#22c55e" }}>
                           ↑{fmtPrice(row.week52High, currency)}
                         </p>
                       </div>
                     ) : (
-                      <span className="text-[10px]" style={{ color: "var(--dim)" }}>—</span>
+                      <span className="text-sm" style={{ color: "var(--dim)" }}>—</span>
                     )}
                   </td>
 
                   {/* Portfolio: Valor + G/P */}
                   {mode === "portfolio" && (
                     <>
-                      <td className="px-1.5 py-1.5 text-right overflow-hidden">
-                        <span className="text-[10px] font-bold tabular-nums" style={{ color: "var(--text)" }}>
+                      <td className="px-3 py-2.5 text-right overflow-hidden">
+                        <span className="text-sm font-bold tabular-nums" style={{ color: "var(--text)" }}>
                           {fmtPrice(row.positionValue, currency)}
                         </span>
                       </td>
-                      <td className="px-1.5 py-1.5 text-right overflow-hidden">
-                        <span className="text-[10px] font-bold tabular-nums"
+                      <td className="px-3 py-2.5 text-right overflow-hidden">
+                        <span className="text-sm font-bold tabular-nums"
                               style={{ color: glUp ? "#22c55e" : "#ef4444" }}>
                           {fmtPct(row.gainLossPct)}
                         </span>
@@ -460,7 +438,7 @@ export default function AdvancedStockTable({ rows, mode, onRemove, onRowClick }:
 
                   {/* Remove */}
                   {onRemove && (
-                    <td className="px-1.5 py-1.5 text-center overflow-hidden">
+                    <td className="px-2 py-2.5 text-center overflow-hidden">
                       <DeleteBtn ticker={row.ticker} onRemove={onRemove} />
                     </td>
                   )}
@@ -472,7 +450,7 @@ export default function AdvancedStockTable({ rows, mode, onRemove, onRowClick }:
       </div>
 
       {sorted.length === 0 && (
-        <p className="text-[11px] text-center py-6" style={{ color: "var(--muted)" }}>
+        <p className="text-sm text-center py-8" style={{ color: "var(--muted)" }}>
           Sin datos
         </p>
       )}
