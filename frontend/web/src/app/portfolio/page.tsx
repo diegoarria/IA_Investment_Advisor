@@ -1359,327 +1359,237 @@ export default function PortfolioPage() {
             </div>
           ) : positions.length > 0 ? (
             <section>
-              {/* Totals card */}
+              {/* ── Unified Performance Card ── */}
               {(() => {
-                const sp = periodReturns["since_purchase"];
-                const histPct = sp?.pct;
-                const histAmt = sp?.amount;
-                const histDate = sp?.date;
-                const spyPct = sp?.spy_pct;
-                const up = histPct !== undefined ? histPct >= 0 : totals.diff >= 0;
+                const sp   = periodReturns["since_purchase"];
+                const r    = periodReturns[selectedPeriod];
+                const displayPct = r?.pct !== undefined ? r.pct : chartData?.period_pct;
+                const displayAmt = r?.amount !== undefined ? r.amount : chartData?.period_amount;
+                const up   = displayPct !== undefined ? displayPct >= 0 : totals.diff >= 0;
                 const color = up ? "#22c55e" : "#ef4444";
+                const periodLabel = PERIODS.find((p) => p.key === selectedPeriod)?.label ?? "";
+                const breakdown = r?.breakdown;
+                const bEntries = breakdown
+                  ? Object.entries(breakdown).sort((a, b) =>
+                      breakdownSort === "desc" ? b[1] - a[1] : a[1] - b[1])
+                  : [];
+                const maxAbs = bEntries.length > 0
+                  ? Math.max(...bEntries.map(([, p]) => Math.abs(p))) : 1;
+                // Hero always shows since_purchase as the "total return" anchor
+                const heroUp = sp ? sp.pct >= 0 : totals.diff >= 0;
+                const heroColor = heroUp ? "#22c55e" : "#ef4444";
+
                 return (
-                  <div className="rounded-2xl mb-4 relative overflow-hidden"
-                       style={{
-                         background: "var(--card)",
-                         border: `1px solid ${color}30`,
-                         boxShadow: `0 0 40px ${color}08`,
-                       }}>
-                    {/* Top accent line */}
-                    <div className="h-0.5" style={{ background: color }} />
-                    <div className="p-5">
-                    {loadingPrices ? (
-                      <div className="flex items-center gap-2" style={{ color:"var(--muted)" }}>
-                        <RefreshCw className="w-4 h-4 animate-spin" />
-                        <span className="text-sm">Actualizando precios...</span>
-                      </div>
-                    ) : (
-                      <>
-                        <div className="flex items-center justify-between mb-2">
-                          <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color:"var(--muted)" }}>Valor actual del portafolio</p>
-                          {portfolioCurrency !== "USD" && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background:"var(--raised)", color:"var(--muted)" }}>{portfolioCurrency}</span>}
-                        </div>
+                  <div className="rounded-2xl overflow-hidden mb-4"
+                       style={{ background: "var(--card)", border: `1px solid ${heroColor}28`, boxShadow: `0 0 48px ${heroColor}07` }}>
 
-                        {/* Valor + rendimiento total */}
-                        <div className="flex items-end justify-between gap-2 mb-3">
-                          <p className="text-4xl font-black leading-none tracking-tight" style={{ color:"var(--text)" }}>
-                            {currencySymbol}{totals.current.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})}
-                          </p>
-                          {histPct !== undefined ? (
-                            <div className="flex flex-col items-end gap-1">
-                              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-black"
-                                   style={{ background:`${color}18`, color }}>
-                                {up ? "▲" : "▼"} {up?"+":""}{histPct.toFixed(2)}%
-                              </div>
-                              {histAmt !== undefined && (
-                                <p className="text-xs font-bold" style={{ color }}>
-                                  {up?"+":""}{currencySymbol}{Math.abs(histAmt).toLocaleString("en-US",{minimumFractionDigits:2})}
-                                </p>
-                              )}
-                            </div>
-                          ) : (
-                            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-black"
-                                 style={{ background: (totals.diff>=0?"rgba(34,197,94,0.15)":"rgba(239,68,68,0.15)"), color: totals.diff>=0?"#22c55e":"#ef4444" }}>
-                              {totals.diff>=0?"▲":"▼"} {totals.pct>=0?"+":""}{totals.pct.toFixed(2)}%
-                            </div>
-                          )}
-                        </div>
+                    {/* ── Accent stripe ── */}
+                    <div className="h-[3px]" style={{ background: `linear-gradient(90deg,${heroColor},${heroColor}30)` }} />
 
-                        {/* Invertido + fecha + vs S&P 500 */}
-                        <div className="flex items-center justify-between pt-3 border-t"
-                             style={{ borderColor:"var(--border)" }}>
-                          <span className="text-xs" style={{ color:"var(--muted)" }}>
-                            Total Invertido <span className="font-semibold" style={{ color:"var(--sub)" }}>{currencySymbol}{totals.invested.toLocaleString("en-US",{minimumFractionDigits:2})}</span>
-                            {histDate && <span style={{ color:"var(--dim)" }}> · desde {histDate}</span>}
-                          </span>
-                          {spyPct !== undefined && histPct !== undefined && (
-                            <div className="flex items-center gap-1.5">
-                              <span className="text-[10px]" style={{ color:"var(--muted)" }}>vs S&P 500</span>
-                              <span className="text-[11px] font-bold" style={{ color: spyPct>=0?"#22c55e":"#ef4444" }}>
-                                {spyPct>=0?"+":""}{spyPct.toFixed(2)}%
-                              </span>
-                              {(() => {
-                                const diff = histPct - spyPct;
-                                const beats = diff >= 0;
-                                return (
-                                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full"
-                                        style={{ background: beats?"rgba(34,197,94,0.12)":"rgba(239,68,68,0.12)", color: beats?"#22c55e":"#ef4444" }}>
-                                    {beats?"▲":"▼"} {Math.abs(diff).toFixed(2)}%
-                                  </span>
-                                );
-                              })()}
-                            </div>
-                          )}
-                        </div>
-                      </>
-                    )}
-                    </div>
-                  </div>
-                );
-              })()}
-
-              {/* ── Rendimiento histórico del portafolio ── */}
-              <div className="mb-4">
-                <p className="text-[10px] font-extrabold uppercase tracking-wider mb-2"
-                   style={{ color: "var(--dim)" }}>
-                  Rendimiento histórico · Yahoo Finance
-                </p>
-
-                {/* Grid de períodos estándar — todos visibles de un vistazo */}
-                <div className="grid grid-cols-5 gap-1.5 mb-2">
-                  {PERIODS.filter(({ key }) => key !== "since_purchase").map(({ key, label }) => {
-                    const ret = periodReturns[key];
-                    const isSel = selectedPeriod === key;
-                    const isUp = ret ? ret.pct >= 0 : null;
-                    const valColor = isUp === null ? "var(--dim)" : isUp ? "#22c55e" : "#ef4444";
-                    return (
-                      <button
-                        key={key}
-                        onClick={() => setSelectedPeriod(key)}
-                        className="flex flex-col items-center py-2.5 rounded-xl transition-all"
-                        style={{
-                          background: isSel
-                            ? (isUp === null ? "rgba(0,168,94,0.10)" : isUp ? "rgba(34,197,94,0.13)" : "rgba(239,68,68,0.13)")
-                            : "var(--raised)",
-                          border: `1px solid ${isSel
-                            ? (isUp === null ? "rgba(0,168,94,0.35)" : isUp ? "rgba(34,197,94,0.4)" : "rgba(239,68,68,0.4)")
-                            : "transparent"}`,
-                        }}>
-                        <span className="text-[10px] font-semibold mb-0.5"
-                              style={{ color: isSel ? "var(--sub)" : "var(--muted)" }}>
-                          {label}
-                        </span>
-                        {loadingReturns ? (
-                          <span className="text-[10px]" style={{ color: "var(--dim)" }}>···</span>
-                        ) : ret ? (
-                          <span className="text-[11px] font-black" style={{ color: valColor }}>
-                            {isUp ? "+" : ""}{ret.pct.toFixed(2)}%
-                          </span>
-                        ) : (
-                          <span className="text-[10px]" style={{ color: "var(--dim)" }}>—</span>
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-
-                {/* "Desde compra" — siempre visible si hay datos */}
-                {(() => {
-                  const r = periodReturns["since_purchase"];
-                  const up = r ? r.pct >= 0 : true;
-                  const isSel = selectedPeriod === "since_purchase";
-                  const avgUp = r?.avg_pct !== undefined ? r.avg_pct >= 0 : up;
-                  return (
-                    <button
-                      onClick={() => setSelectedPeriod("since_purchase")}
-                      className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl mb-2 transition-all"
-                      style={{
-                        background: isSel ? (up ? "rgba(34,197,94,0.10)" : "rgba(239,68,68,0.10)") : "var(--raised)",
-                        border: `1px solid ${isSel ? (up ? "rgba(34,197,94,0.35)" : "rgba(239,68,68,0.35)") : "var(--border)"}`,
-                      }}>
-                      <div className="flex items-center gap-2">
-                        <span className="text-[10px] font-bold uppercase tracking-wide"
-                              style={{ color: "var(--muted)" }}>Desde compra</span>
-                        {r?.date && (
-                          <span className="text-[9px]" style={{ color: "var(--dim)" }}>· {r.date}</span>
-                        )}
-                      </div>
-                      {r ? (
-                        <div className="flex items-center gap-3">
-                          {r.avg_pct !== undefined && (
-                            <div className="flex flex-col items-end">
-                              <span className="text-[9px] font-semibold" style={{ color: "var(--dim)" }}>promedio</span>
-                              <span className="text-xs font-black" style={{ color: avgUp ? "#22c55e" : "#ef4444" }}>
-                                {avgUp ? "+" : ""}{r.avg_pct.toFixed(2)}%
-                              </span>
-                            </div>
-                          )}
-                          <div className="flex flex-col items-end">
-                            <span className="text-[9px] font-semibold" style={{ color: "var(--dim)" }}>portafolio</span>
-                            <span className="text-sm font-black" style={{ color: up ? "#22c55e" : "#ef4444" }}>
-                              {up ? "+" : ""}{r.pct.toFixed(2)}%
-                            </span>
-                          </div>
+                    {/* ── HERO: value + since-purchase return ── */}
+                    <div className="px-5 pt-5 pb-4">
+                      {loadingPrices ? (
+                        <div className="flex items-center gap-2" style={{ color: "var(--muted)" }}>
+                          <RefreshCw className="w-4 h-4 animate-spin" />
+                          <span className="text-sm">Actualizando precios...</span>
                         </div>
                       ) : (
-                        <span className="text-[10px]" style={{ color: "var(--dim)" }}>
-                          {loadingReturns ? "···" : "Agrega precio de compra"}
-                        </span>
-                      )}
-                    </button>
-                  );
-                })()}
-
-                {/* Tarjeta principal: gráfica + stats + breakdown */}
-                {(() => {
-                  const r = periodReturns[selectedPeriod];
-                  // Prefer returns pct (cost-adjusted, exact) over chart period_pct
-                  const displayPct   = r?.pct !== undefined ? r.pct : chartData?.period_pct;
-                  const displayAmt   = r?.amount !== undefined ? r.amount : chartData?.period_amount;
-                  const up           = displayPct !== undefined ? displayPct >= 0 : true;
-                  const color        = up ? "#22c55e" : "#ef4444";
-                  const periodLabel  = PERIODS.find((p) => p.key === selectedPeriod)?.label ?? "";
-                  const breakdown    = r?.breakdown;
-                  const bEntries     = breakdown
-                    ? Object.entries(breakdown).sort((a, b) =>
-                        breakdownSort === "desc" ? b[1] - a[1] : a[1] - b[1]
-                      )
-                    : [];
-                  const maxAbs = bEntries.length > 0
-                    ? Math.max(...bEntries.map(([, p]) => Math.abs(p))) : 1;
-
-                  return (
-                    <div className="rounded-2xl border overflow-hidden"
-                         style={{ borderColor: `${color}30`, background: "var(--card)" }}>
-                      {/* Franja de color */}
-                      <div className="h-0.5"
-                           style={{ background: `linear-gradient(90deg,${color},${color}66)` }} />
-
-                      {/* Header stats */}
-                      <div className="px-4 pt-4 pb-1">
-                        <div className="flex items-start justify-between">
-                          <div>
-                            <p className="text-[10px] font-bold uppercase tracking-wider"
-                               style={{ color: "var(--muted)" }}>
-                              Rendimiento · {periodLabel}
-                            </p>
-                            {r?.date && (
-                              <p className="text-[10px] mt-0.5" style={{ color: "var(--dim)" }}>
-                                desde {r.date}
+                        <>
+                          <div className="flex items-start justify-between gap-3 mb-3">
+                            <div>
+                              <p className="text-[10px] font-bold uppercase tracking-widest mb-1.5" style={{ color: "var(--dim)" }}>
+                                Portafolio{portfolioCurrency !== "USD" && <span className="ml-1.5 px-1.5 py-0.5 rounded-full text-[9px]" style={{ background: "var(--raised)", color: "var(--muted)" }}>{portfolioCurrency}</span>}
                               </p>
-                            )}
+                              <p className="text-[2.4rem] font-black tracking-tight leading-none" style={{ color: "var(--text)" }}>
+                                {currencySymbol}{totals.current.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              </p>
+                            </div>
+                            <div className="flex flex-col items-end gap-1 pt-1">
+                              {sp ? (
+                                <>
+                                  <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-black"
+                                       style={{ background: `${heroColor}18`, color: heroColor }}>
+                                    {heroUp ? "▲" : "▼"} {heroUp ? "+" : ""}{sp.pct.toFixed(2)}%
+                                  </div>
+                                  {sp.amount !== undefined && (
+                                    <p className="text-xs font-bold" style={{ color: heroColor }}>
+                                      {heroUp ? "+" : ""}{currencySymbol}{Math.abs(sp.amount).toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                                    </p>
+                                  )}
+                                </>
+                              ) : (
+                                <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-black"
+                                     style={{ background: `${heroColor}18`, color: heroColor }}>
+                                  {totals.diff >= 0 ? "▲" : "▼"} {totals.pct >= 0 ? "+" : ""}{totals.pct.toFixed(2)}%
+                                </div>
+                              )}
+                            </div>
                           </div>
-                          <div className="text-right">
-                            {displayPct !== undefined ? (
-                              <>
-                                <p className="text-2xl font-black leading-none" style={{ color }}>
-                                  {up ? "+" : ""}{displayPct.toFixed(2)}%
-                                </p>
-                                {displayAmt !== undefined && (
-                                  <p className="text-sm font-bold mt-0.5" style={{ color }}>
-                                    {up ? "+" : ""}{currencySymbol}
-                                    {Math.abs(displayAmt).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                  </p>
-                                )}
-                              </>
-                            ) : chartLoading ? (
-                              <span className="text-sm" style={{ color: "var(--muted)" }}>···</span>
-                            ) : null}
-                          </div>
-                        </div>
-                        {/* S&P 500 comparison */}
-                        {r?.spy_pct !== undefined && displayPct !== undefined && (
-                          <div className="flex items-center gap-2 mt-2 pt-2 border-t"
-                               style={{ borderColor: "var(--border)" }}>
-                            <span className="text-[10px] font-semibold" style={{ color: "var(--muted)" }}>
-                              vs S&P 500
-                            </span>
-                            <span className="text-[11px] font-bold"
-                                  style={{ color: r.spy_pct >= 0 ? "#22c55e" : "#ef4444" }}>
-                              {r.spy_pct >= 0 ? "+" : ""}{r.spy_pct.toFixed(2)}%
-                            </span>
-                            {(() => {
-                              const diff = displayPct - r.spy_pct;
+
+                          {/* Invested + date row */}
+                          <div className="flex items-center justify-between">
+                            <p className="text-xs" style={{ color: "var(--muted)" }}>
+                              Invertido{" "}
+                              <span className="font-semibold" style={{ color: "var(--sub)" }}>
+                                {currencySymbol}{totals.invested.toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                              </span>
+                              {sp?.date && <span style={{ color: "var(--dim)" }}> · desde {sp.date}</span>}
+                            </p>
+                            {sp?.spy_pct !== undefined && sp?.pct !== undefined && (() => {
+                              const diff = sp.pct - sp.spy_pct;
                               const beats = diff >= 0;
                               return (
-                                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full"
-                                      style={{
-                                        background: beats ? "rgba(34,197,94,0.12)" : "rgba(239,68,68,0.12)",
-                                        color: beats ? "#22c55e" : "#ef4444",
-                                      }}>
-                                  {beats ? "▲" : "▼"} {Math.abs(diff).toFixed(2)}% {beats ? "mejor" : "peor"}
-                                </span>
+                                <div className="flex items-center gap-1.5">
+                                  <span className="text-[10px]" style={{ color: "var(--dim)" }}>vs S&P 500</span>
+                                  <span className="text-[11px] font-bold" style={{ color: sp.spy_pct >= 0 ? "#22c55e" : "#ef4444" }}>
+                                    {sp.spy_pct >= 0 ? "+" : ""}{sp.spy_pct.toFixed(2)}%
+                                  </span>
+                                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full"
+                                        style={{ background: beats ? "rgba(34,197,94,0.12)" : "rgba(239,68,68,0.12)", color: beats ? "#22c55e" : "#ef4444" }}>
+                                    {beats ? "▲" : "▼"} {Math.abs(diff).toFixed(2)}%
+                                  </span>
+                                </div>
                               );
                             })()}
                           </div>
-                        )}
-                      </div>
+                        </>
+                      )}
+                    </div>
 
-                      {/* Gráfica histórica */}
-                      <div className="px-3 pb-1">
-                        {chartLoading ? (
-                          <div className="h-[240px] flex items-center justify-center gap-2 text-xs"
-                               style={{ color: "var(--muted)" }}>
-                            <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                            Cargando datos históricos...
-                          </div>
-                        ) : chartData && chartData.history.length >= 2 ? (
-                          <PortfolioHistoryChart history={chartData.history} color={color} currencySymbol={currencySymbol} costBasis={totals.invested} positions={positions} />
-                        ) : !chartLoading ? (
-                          <div className="h-[240px] flex items-center justify-center text-xs"
-                               style={{ color: "var(--dim)" }}>
-                            Sin datos históricos para este período
-                          </div>
-                        ) : null}
-                      </div>
-
-                      {/* Fuente */}
-                      <div className="px-4 pb-3">
-                        <p className="text-[9px]" style={{ color: "var(--dim)" }}>
-                          Yahoo Finance · precios ajustados por splits y dividendos
-                        </p>
-                      </div>
-
-                      {/* Breakdown por posición */}
-                      {bEntries.length > 0 && (
-                        <div className="px-4 pb-4 pt-2 border-t space-y-2"
-                             style={{ borderColor: "var(--border)" }}>
-                          <div className="flex items-center justify-between mb-2">
-                            <p className="text-[9px] font-bold uppercase tracking-widest"
-                               style={{ color: "var(--dim)" }}>
-                              Rendimiento por posición · {periodLabel}
-                            </p>
-                            <button
-                              onClick={() => setBreakdownSort(s => s === "desc" ? "asc" : "desc")}
-                              className="flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-bold transition-all"
-                              style={{ background: "var(--raised)", color: "var(--muted)" }}>
-                              {breakdownSort === "desc" ? "▲ Verde → Rojo" : "▼ Rojo → Verde"}
+                    {/* ── PERIOD TABS ── */}
+                    <div className="border-t px-4 py-3" style={{ borderColor: "var(--border)" }}>
+                      <div className="flex gap-1 overflow-x-auto scrollbar-none">
+                        {PERIODS.map(({ key, label }) => {
+                          const ret  = periodReturns[key];
+                          const isSel = selectedPeriod === key;
+                          const isUp  = ret ? ret.pct >= 0 : null;
+                          const tc    = isUp === null ? "#22c55e" : isUp ? "#22c55e" : "#ef4444";
+                          return (
+                            <button key={key} onClick={() => setSelectedPeriod(key)}
+                                    className="flex-none flex flex-col items-center gap-0.5 px-2.5 py-1.5 rounded-xl transition-all"
+                                    style={{
+                                      background: isSel ? `${tc}14` : "transparent",
+                                      border: `1.5px solid ${isSel ? `${tc}55` : "transparent"}`,
+                                    }}>
+                              <span className="text-[10px] font-bold whitespace-nowrap leading-tight"
+                                    style={{ color: isSel ? tc : "var(--muted)" }}>
+                                {key === "since_purchase" ? "Compra" : label}
+                              </span>
+                              {loadingReturns ? (
+                                <span className="text-[9px]" style={{ color: "var(--dim)" }}>···</span>
+                              ) : ret ? (
+                                <span className="text-[10px] font-black leading-tight" style={{ color: tc }}>
+                                  {ret.pct >= 0 ? "+" : ""}{ret.pct.toFixed(1)}%
+                                </span>
+                              ) : (
+                                <span className="text-[9px]" style={{ color: "var(--dim)" }}>—</span>
+                              )}
                             </button>
-                          </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* ── KPI ROW for selected period ── */}
+                    <div className="border-t px-4 pb-4 pt-3" style={{ borderColor: "var(--border)" }}>
+                      <div className="grid grid-cols-3 gap-2">
+
+                        {/* Rendimiento % */}
+                        <div className="rounded-xl p-3" style={{ background: "var(--raised)" }}>
+                          <p className="text-[9px] font-bold uppercase tracking-wider mb-1.5" style={{ color: "var(--dim)" }}>Rendimiento</p>
+                          {displayPct !== undefined ? (
+                            <p className="text-base font-black leading-none" style={{ color }}>
+                              {up ? "+" : ""}{displayPct.toFixed(2)}%
+                            </p>
+                          ) : chartLoading ? (
+                            <p className="text-xs font-bold" style={{ color: "var(--dim)" }}>···</p>
+                          ) : (
+                            <p className="text-base font-black leading-none" style={{ color: "var(--dim)" }}>—</p>
+                          )}
+                          {r?.date && <p className="text-[9px] mt-1" style={{ color: "var(--dim)" }}>desde {r.date}</p>}
+                        </div>
+
+                        {/* Ganancia $ */}
+                        <div className="rounded-xl p-3" style={{ background: "var(--raised)" }}>
+                          <p className="text-[9px] font-bold uppercase tracking-wider mb-1.5" style={{ color: "var(--dim)" }}>Ganancia</p>
+                          {displayAmt !== undefined ? (
+                            <p className="text-base font-black leading-none" style={{ color }}>
+                              {up ? "+" : ""}{currencySymbol}{Math.abs(displayAmt).toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                            </p>
+                          ) : (
+                            <p className="text-base font-black leading-none" style={{ color: "var(--dim)" }}>—</p>
+                          )}
+                        </div>
+
+                        {/* vs S&P 500 */}
+                        <div className="rounded-xl p-3" style={{ background: "var(--raised)" }}>
+                          <p className="text-[9px] font-bold uppercase tracking-wider mb-1.5" style={{ color: "var(--dim)" }}>vs S&P 500</p>
+                          {r?.spy_pct !== undefined && displayPct !== undefined ? (
+                            <>
+                              <p className="text-base font-black leading-none" style={{ color: r.spy_pct >= 0 ? "#22c55e" : "#ef4444" }}>
+                                {r.spy_pct >= 0 ? "+" : ""}{r.spy_pct.toFixed(2)}%
+                              </p>
+                              {(() => {
+                                const diff = displayPct - r.spy_pct;
+                                const beats = diff >= 0;
+                                return (
+                                  <p className="text-[9px] font-bold mt-1" style={{ color: beats ? "#22c55e" : "#ef4444" }}>
+                                    {beats ? "▲" : "▼"} {Math.abs(diff).toFixed(2)}% {beats ? "mejor" : "peor"}
+                                  </p>
+                                );
+                              })()}
+                            </>
+                          ) : (
+                            <p className="text-base font-black leading-none" style={{ color: "var(--dim)" }}>—</p>
+                          )}
+                        </div>
+
+                      </div>
+                    </div>
+
+                    {/* ── CHART ── */}
+                    <div className="border-t px-3 pb-1" style={{ borderColor: "var(--border)" }}>
+                      {chartLoading ? (
+                        <div className="h-[220px] flex items-center justify-center gap-2 text-xs"
+                             style={{ color: "var(--muted)" }}>
+                          <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                          Cargando datos históricos...
+                        </div>
+                      ) : chartData && chartData.history.length >= 2 ? (
+                        <div className="pt-3">
+                          <PortfolioHistoryChart history={chartData.history} color={color} currencySymbol={currencySymbol} costBasis={totals.invested} positions={positions} />
+                        </div>
+                      ) : !chartLoading ? (
+                        <div className="h-[160px] flex items-center justify-center text-xs"
+                             style={{ color: "var(--dim)" }}>
+                          Sin datos históricos para este período
+                        </div>
+                      ) : null}
+                    </div>
+
+                    {/* ── POSITION BREAKDOWN ── */}
+                    {bEntries.length > 0 && (
+                      <div className="border-t px-4 pt-3 pb-4" style={{ borderColor: "var(--border)" }}>
+                        <div className="flex items-center justify-between mb-3">
+                          <p className="text-[9px] font-bold uppercase tracking-widest" style={{ color: "var(--dim)" }}>
+                            Posiciones · {periodLabel}
+                          </p>
+                          <button onClick={() => setBreakdownSort(s => s === "desc" ? "asc" : "desc")}
+                                  className="flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-bold"
+                                  style={{ background: "var(--raised)", color: "var(--muted)" }}>
+                            {breakdownSort === "desc" ? "▲ Verde → Rojo" : "▼ Rojo → Verde"}
+                          </button>
+                        </div>
+                        <div className="space-y-2">
                           {bEntries.map(([ticker, pct]) => {
                             const isPos = pct >= 0;
                             const barW  = maxAbs > 0 ? Math.round((Math.abs(pct) / maxAbs) * 100) : 0;
                             return (
                               <div key={ticker} className="flex items-center gap-2">
-                                <span className="text-[11px] font-extrabold shrink-0 w-12"
-                                      style={{ color: "var(--text)" }}>
-                                  {ticker}
-                                </span>
-                                <div className="flex-1 h-1.5 rounded-full overflow-hidden"
-                                     style={{ background: "var(--raised)" }}>
+                                <span className="text-[11px] font-extrabold shrink-0 w-12" style={{ color: "var(--text)" }}>{ticker}</span>
+                                <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ background: "var(--raised)" }}>
                                   <div className="h-full rounded-full"
-                                       style={{ width: `${barW}%`, background: isPos ? "#22c55e" : "#ef4444",
-                                                transition: "width 0.5s ease" }} />
+                                       style={{ width: `${barW}%`, background: isPos ? "#22c55e" : "#ef4444", transition: "width 0.5s ease" }} />
                                 </div>
                                 <span className="text-[11px] font-bold shrink-0 w-16 text-right"
                                       style={{ color: isPos ? "#22c55e" : "#ef4444" }}>
@@ -1689,11 +1599,17 @@ export default function PortfolioPage() {
                             );
                           })}
                         </div>
-                      )}
+                      </div>
+                    )}
+
+                    {/* ── FOOTER ── */}
+                    <div className="border-t px-4 py-2" style={{ borderColor: "var(--border)" }}>
+                      <p className="text-[9px]" style={{ color: "var(--dim)" }}>Yahoo Finance · precios ajustados por splits y dividendos</p>
                     </div>
-                  );
-                })()}
-              </div>
+
+                  </div>
+                );
+              })()}
 
               {/* Advanced table view */}
               {viewMode === "advanced" && sortedPositions.length > 0 && (
