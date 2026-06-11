@@ -289,6 +289,17 @@ export default function PaywallModal({ visible, onClose, reason }: PaywallModalP
               </span>
             ))}
           </div>
+          <div className="mt-3 pt-3 border-t" style={{ borderColor: "rgba(0,168,94,0.1)" }}>
+            <a href="https://calendly.com/nuvosai" target="_blank" rel="noopener noreferrer"
+               className="flex items-center justify-center gap-2 py-2 rounded-xl hover:opacity-80 transition-opacity"
+               style={{ background: "rgba(0,168,94,0.06)" }}>
+              <span className="text-sm">📅</span>
+              <span className="text-xs font-semibold" style={{ color: "var(--accent-l)" }}>
+                ¿Prefieres una guía 1:1 con Diego?
+              </span>
+              <ArrowRight className="w-3 h-3" style={{ color: "var(--accent-l)" }} />
+            </a>
+          </div>
         </div>
       </div>
     </div>

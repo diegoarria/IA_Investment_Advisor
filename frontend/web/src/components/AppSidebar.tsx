@@ -4,8 +4,10 @@ import { useState, useRef } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import {
   BookOpen, PieChart, BarChart2, Bell, User, GraduationCap, Trophy,
-  MessageSquare, ChevronRight, Plus, X, HeadphonesIcon, GripVertical, Eye, Play,
+  MessageSquare, ChevronRight, Plus, X, HeadphonesIcon, GripVertical, Eye, Play, ArrowRight,
 } from "lucide-react";
+
+const COACHING_URL = "https://calendly.com/nuvosai"; // ← actualiza con tu link real
 import {
   useProfileStore, useNotificationStore, useSubscriptionStore,
   useChatStore, msgsRemaining, FREE_MSG_LIMIT,
@@ -352,10 +354,20 @@ export default function AppSidebar({ open, onClose }: Props) {
           </div>
         </div>
 
-        {/* Bottom: update profile */}
-        <div className="px-3 py-2 shrink-0">
+        {/* Bottom: 1:1 coaching CTA */}
+        <div className="px-3 py-3 shrink-0 space-y-1.5">
+          <a href={COACHING_URL} target="_blank" rel="noopener noreferrer"
+             className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl transition-all hover:opacity-90 cursor-pointer"
+             style={{ background: "rgba(0,168,94,0.1)", border: "1px solid rgba(0,168,94,0.25)" }}>
+            <span className="text-base shrink-0">📅</span>
+            <div className="flex-1 min-w-0">
+              <p className="text-[11px] font-bold leading-tight" style={{ color: "var(--accent-l)" }}>Sesión 1:1 con Diego</p>
+              <p className="text-[10px] leading-tight" style={{ color: "var(--dim)" }}>Guía personalizada · 60 min</p>
+            </div>
+            <ArrowRight className="w-3 h-3 shrink-0" style={{ color: "var(--accent-l)" }} />
+          </a>
           <button onClick={() => navigate("/onboarding")}
-                  className="w-full text-xs text-center py-2 rounded-lg hover:bg-white/5 transition-colors"
+                  className="w-full text-[10px] text-center py-1.5 rounded-lg hover:bg-white/5 transition-colors"
                   style={{ color: "var(--dim)" }}>
             Actualizar perfil
           </button>
