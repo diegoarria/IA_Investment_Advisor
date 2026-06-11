@@ -23,7 +23,7 @@ export default function ThemeProvider({ children }: { children: React.ReactNode 
   return (
     <>
       <MarketTickerBar />
-      <div style={{ paddingTop: isAuthenticated ? TICKER_H : 0 }}>
+      <div style={{ paddingTop: isAuthenticated ? TICKER_H : 0, height: "100vh", overflow: "hidden" }}>
         {children}
       </div>
     </>
