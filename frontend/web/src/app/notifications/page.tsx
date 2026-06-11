@@ -247,7 +247,7 @@ export default function NotificationsPage() {
             {positions.length > 0 && (
               <div className="rounded-2xl border overflow-hidden" style={{ background: "var(--card)", borderColor: "var(--border)" }}>
                 {/* Header */}
-                <div className="flex items-center justify-between px-4 py-3 border-b" style={{ borderColor: "var(--border)" }}>
+                <div className="flex items-center justify-between px-4 py-2 border-b" style={{ borderColor: "var(--border)" }}>
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-bold" style={{ color: "var(--text)" }}>Hoy en tu portafolio</span>
                     {portPricesLoading && <Loader2 className="w-3 h-3 animate-spin" style={{ color: "var(--muted)" }} />}
@@ -279,29 +279,29 @@ export default function NotificationsPage() {
                     const px  = d?.price ?? null;
                     const up  = pct !== null && pct >= 0;
                     return (
-                      <div key={pos.ticker} className="flex items-center justify-between px-4 py-3">
-                        <div className="flex items-center gap-2.5">
+                      <div key={pos.ticker} className="flex items-center justify-between px-4 py-1.5">
+                        <div className="flex items-center gap-2">
                           <StockAvatar ticker={pos.ticker} size="sm" />
-                          <div>
-                            <span className="font-bold text-sm" style={{ color: "var(--text)" }}>{pos.ticker}</span>
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-bold text-xs" style={{ color: "var(--text)" }}>{pos.ticker}</span>
                             {pos.name && pos.name !== pos.ticker && (
-                              <p className="text-[10px] mt-0.5" style={{ color: "var(--dim)" }}>{pos.name}</p>
+                              <span className="text-[10px]" style={{ color: "var(--dim)" }}>{pos.name}</span>
                             )}
                           </div>
                         </div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-1.5">
                           {px !== null && (
-                            <span className="text-sm font-semibold tabular-nums" style={{ color: "var(--sub)" }}>
+                            <span className="text-xs font-semibold tabular-nums" style={{ color: "var(--sub)" }}>
                               ${px.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                             </span>
                           )}
                           {pct !== null ? (
-                            <span className="text-xs font-bold px-2 py-0.5 rounded-full min-w-[58px] text-center tabular-nums"
+                            <span className="text-[11px] font-bold px-1.5 py-0.5 rounded-full min-w-[52px] text-center tabular-nums"
                                   style={{ background: up ? "rgba(34,197,94,0.12)" : "rgba(239,68,68,0.12)", color: up ? "var(--up)" : "var(--down)" }}>
                               {up ? "+" : ""}{pct.toFixed(2)}%
                             </span>
                           ) : (
-                            <span className="text-xs min-w-[58px] text-center" style={{ color: "var(--dim)" }}>—</span>
+                            <span className="text-[11px] min-w-[52px] text-center" style={{ color: "var(--dim)" }}>—</span>
                           )}
                         </div>
                       </div>
