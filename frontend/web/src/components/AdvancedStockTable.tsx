@@ -380,11 +380,8 @@ export default function AdvancedStockTable({ rows, mode, userLevel = "avanzado",
                     <td className="px-3 py-2.5 text-right overflow-hidden">
                       {hasAH ? (
                         <div>
-                          <p className="text-[13px] font-bold tabular-nums leading-none" style={{ color: "var(--text)" }}>
-                            {fmtPrice(row.extPrice, currency)}
-                          </p>
                           {row.extPct != null && (
-                            <p className="text-xs font-bold tabular-nums leading-none mt-1"
+                            <p className="text-[13px] font-bold tabular-nums leading-none"
                                style={{ color: row.extPct >= 0 ? "#22c55e" : "#ef4444" }}>
                               {fmtPct(row.extPct)}
                             </p>
