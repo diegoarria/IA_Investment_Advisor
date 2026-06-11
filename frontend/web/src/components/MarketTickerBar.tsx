@@ -191,12 +191,8 @@ export default function MarketTickerBar() {
       <div
         className="scrollbar-none market-ticker-bar"
         style={{
-          position: "fixed",
-          top: 0,
-          left: 0,
-          right: 0,
-          zIndex: 1000,
           height: 30,
+          width: "100%",
           display: "flex",
           alignItems: "center",
           overflowX: "auto",
