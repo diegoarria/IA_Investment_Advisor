@@ -415,11 +415,6 @@ export default function AppSidebar({ open, onClose }: Props) {
             </div>
             <ArrowRight className="w-3 h-3 shrink-0" style={{ color: "var(--muted)" }} />
           </a>
-          <button onClick={() => navigate("/onboarding")}
-                  className="w-full text-[10px] text-center py-1.5 rounded-lg hover:bg-white/5 transition-colors"
-                  style={{ color: "var(--dim)" }}>
-            Actualizar perfil
-          </button>
 
         </div>
       </aside>
