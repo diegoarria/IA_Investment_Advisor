@@ -167,7 +167,7 @@ export default function AppSidebar({ open, onClose }: Props) {
 
   return (
     <>
-      <aside className={`${open ? "flex" : "hidden"} lg:flex w-64 flex-col absolute lg:relative z-20 h-full sidebar-gradient`}>
+      <aside className={`${open ? "flex" : "hidden"} lg:flex w-64 flex-col absolute lg:relative z-20 h-full sidebar-gradient`} style={{ zoom: 1.15 }}>
 
         {/* Profile widget */}
         {profile && (
