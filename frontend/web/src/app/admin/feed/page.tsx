@@ -13,6 +13,7 @@ const SPEAKERS = [
   "Warren Buffett", "Charlie Munger", "Ray Dalio", "Benjamin Graham",
   "Peter Lynch", "Morgan Housel", "Howard Marks", "Seth Klarman",
   "Bill Ackman", "Michael Burry", "Grant Cardone", "Robert Kiyosaki", "Nassim Taleb",
+  "Tim Cook", "Donald Trump",
 ];
 
 const TAG_OPTIONS = [
