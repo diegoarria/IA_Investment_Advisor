@@ -16,6 +16,7 @@ import WatchlistEarningsCalendar from "@/components/WatchlistEarningsCalendar";
 import AdvancedStockTable from "@/components/AdvancedStockTable";
 import type { AdvancedRow } from "@/components/AdvancedStockTable";
 import StockDetailModal from "@/components/StockDetailModal";
+import GuidedSteps from "@/components/GuidedSteps";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -540,6 +541,7 @@ export default function WatchlistPage() {
           <AppSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
           <main className="flex-1 overflow-y-auto scrollbar-thin p-4 max-w-2xl mx-auto w-full">
+            <GuidedSteps currentPage="watchlist" />
 
             {/* ── Search bar ── */}
             <div ref={searchRef} className="relative mb-4">

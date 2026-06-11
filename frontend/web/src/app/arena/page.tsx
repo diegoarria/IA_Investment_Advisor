@@ -13,6 +13,7 @@ import {
 } from "@/lib/store";
 import PaywallModal from "@/components/PaywallModal";
 import { Menu, X, Sun, Moon, Clock, Loader2, Lock, Flame, Brain } from "lucide-react";
+import GuidedSteps from "@/components/GuidedSteps";
 
 type Difficulty = "principiante" | "intermedio" | "dificil" | "imposible";
 
@@ -134,6 +135,7 @@ export default function ArenaPage() {
 
         {/* Main */}
         <main className="flex-1 overflow-y-auto scrollbar-thin p-4">
+          <GuidedSteps currentPage="arena" />
           <div className="max-w-2xl mx-auto space-y-4 pb-8">
 
             {/* Streak card */}

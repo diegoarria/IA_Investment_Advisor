@@ -22,6 +22,7 @@ const CATEGORY_LEVEL: Record<string, UserLevel> = {
   ratios:      "avanzado",
 };
 import { Search, Menu, X, Trophy } from "lucide-react";
+import GuidedSteps from "@/components/GuidedSteps";
 
 const CATEGORIES = [
   { id: "all",         emoji: "🗂️",  title: "Todo" },
@@ -331,6 +332,7 @@ export default function LearnPage() {
 
         {/* Main */}
         <main className="flex-1 flex flex-col overflow-hidden">
+          <GuidedSteps currentPage="learn" />
           {/* Streak banner */}
           <div className="px-4 pt-3 pb-1 shrink-0">
             <div className="flex items-center justify-between rounded-xl border px-3 py-2.5 cursor-pointer hover:opacity-80 transition-opacity"

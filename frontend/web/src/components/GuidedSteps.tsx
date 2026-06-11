@@ -1,153 +1,208 @@
 "use client";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { ChevronRight, CheckCircle2, X } from "lucide-react";
+import { ChevronRight, X, BookOpen, MessageSquare, PieChart, Eye, Bell, Gamepad2, User } from "lucide-react";
 import { getUserLevel } from "@/lib/userLevel";
 import { useProfileStore } from "@/lib/store";
 
-const STEPS = [
-  {
-    id: "chat",
-    emoji: "💬",
-    title: "Habla con tu mentor IA",
-    desc: "Pregúntale cualquier duda sobre inversiones — te responde en tu nivel, sin tecnicismos.",
-    cta: "Ir al Chat",
-    href: "/chat",
-    hint: "Prueba: \"¿Qué es una acción y cómo gano dinero con ella?\"",
-  },
-  {
-    id: "learn",
-    emoji: "📚",
-    title: "Aprende tu primer concepto",
-    desc: "Elige un tema básico y la IA te lo explica en menos de 30 segundos con ejemplos reales.",
-    cta: "Ir a Aprendizaje",
-    href: "/learn",
-    hint: "Recomendado: Capitalización de Mercado o CETES",
-  },
-  {
-    id: "portfolio",
-    emoji: "📊",
-    title: "Agrega tu primera posición",
-    desc: "Importa una captura de pantalla de tu broker o añade una acción manualmente para hacer seguimiento.",
-    cta: "Ir a Portafolio",
-    href: "/portfolio",
-    hint: "Puedes usar una posición real o de práctica para empezar.",
-  },
-  {
-    id: "simulator",
-    emoji: "🎮",
-    title: "Practica sin arriesgar dinero real",
-    desc: "En el Simulador tomas decisiones en escenarios históricos reales y ves qué habría pasado.",
-    cta: "Ir a Play",
-    href: "/arena",
-    hint: "No necesitas dinero real — es 100% educativo.",
-  },
-];
+type PageKey = "chat" | "learn" | "portfolio" | "watchlist" | "notifications" | "arena" | "profile";
 
-const STORAGE_KEY = "nuvos_guided_step";
+const GUIDE: Record<PageKey, {
+  icon: React.ReactNode;
+  title: string;
+  what: string;
+  todo: string;
+  tip: string;
+  nextPage: string | null;
+  nextLabel: string | null;
+}> = {
+  chat: {
+    icon: <MessageSquare className="w-5 h-5" />,
+    title: "Tu mentor de inversiones",
+    what: "Este chat con IA te explica cualquier concepto financiero en español y a tu nivel. Puedes preguntarle sobre empresas, cómo empezar, o qué hacer con tu dinero.",
+    todo: "Escribe tu primera pregunta. Sugerencia: \"¿Por dónde empiezo a invertir con $500 dólares?\"",
+    tip: "No hay preguntas tontas aquí. Cuanto más le cuentes sobre tus metas, mejor te guiará.",
+    nextPage: "/learn",
+    nextLabel: "Siguiente: Aprendizaje →",
+  },
+  learn: {
+    icon: <BookOpen className="w-5 h-5" />,
+    title: "Tu biblioteca financiera",
+    what: "Aquí aprendes los conceptos clave de inversión en 30 segundos cada uno. La IA te los explica con ejemplos reales y sin tecnicismos.",
+    todo: "Toca cualquier tema con la etiqueta \"Para ti\". Recomendados: Capitalización de Mercado, CETES o Diversificación.",
+    tip: "No necesitas aprenderlo todo hoy. Con 2–3 temas por día, en un mes sabrás más que la mayoría.",
+    nextPage: "/portfolio",
+    nextLabel: "Siguiente: Portafolio →",
+  },
+  portfolio: {
+    icon: <PieChart className="w-5 h-5" />,
+    title: "El centro de mando de tus inversiones",
+    what: "Aquí registras tus acciones y la app calcula en tiempo real cuánto ganaste o perdiste, y cómo te va contra el mercado (S&P 500).",
+    todo: "Toca el botón \"+\" para agregar una posición, o importa una captura de pantalla de tu broker — la IA detecta todo automáticamente.",
+    tip: "Si no tienes acciones todavía, agrega Apple (AAPL) con precio de compra de $1 para ver cómo funciona la pantalla.",
+    nextPage: "/watchlist",
+    nextLabel: "Siguiente: Watchlist →",
+  },
+  watchlist: {
+    icon: <Eye className="w-5 h-5" />,
+    title: "Tu lista de seguimiento",
+    what: "Aquí guardas empresas que te interesan pero aún no compraste. La app te avisa si suben, bajan o tienen noticias importantes.",
+    todo: "Busca 2–3 empresas que conozcas (Apple, Tesla, FEMSA) y agrégalas con el botón \"+\". Luego observa cómo se mueven.",
+    tip: "Seguir empresas sin dinero real durante 3–6 meses es la mejor forma de desarrollar tu criterio de inversión.",
+    nextPage: "/notifications",
+    nextLabel: "Siguiente: Notificaciones →",
+  },
+  notifications: {
+    icon: <Bell className="w-5 h-5" />,
+    title: "Tus alertas personalizadas",
+    what: "La app te avisa cuando tus posiciones se mueven significativamente, hay noticias relevantes para tus acciones, o el mercado hace algo importante.",
+    todo: "Revisa las alertas que ya tienes. Si tienes posiciones en portafolio, deberías ver movimientos aquí. Activa las notificaciones push si no lo has hecho.",
+    tip: "No es ruido genérico — cada alerta está filtrada a lo que tienes tú en tu portafolio y watchlist.",
+    nextPage: "/arena",
+    nextLabel: "Siguiente: Play →",
+  },
+  arena: {
+    icon: <Gamepad2 className="w-5 h-5" />,
+    title: "El simulador de decisiones reales",
+    what: "Aquí practicas tomar decisiones de inversión en escenarios históricos reales — sin arriesgar dinero. Después ves exactamente qué habría pasado.",
+    todo: "Toca \"Simulador\" y responde el escenario. No hay respuesta incorrecta — el objetivo es aprender qué habría hecho el mercado.",
+    tip: "Los mejores inversores practican antes de usar dinero real. Buffett decía: la educación es la mejor inversión.",
+    nextPage: "/profile",
+    nextLabel: "Último paso: Mi Perfil →",
+  },
+  profile: {
+    icon: <User className="w-5 h-5" />,
+    title: "Tu perfil de inversor",
+    what: "Aquí la app aprende sobre ti: cuánto riesgo toleras, tu horizonte de tiempo y qué tan activo quieres ser. Eso personaliza todo lo demás.",
+    todo: "Revisa tu nivel de conocimiento abajo y ajústalo. Conforme aprendas más, actualízalo para que la app se adapte contigo.",
+    tip: "Tu perfil no es permanente. Evoluciona a medida que tú evolucionas como inversor.",
+    nextPage: null,
+    nextLabel: null,
+  },
+};
 
-export default function GuidedSteps({ currentPage }: { currentPage?: string }) {
+const PAGE_ORDER: PageKey[] = ["chat", "learn", "portfolio", "watchlist", "notifications", "arena", "profile"];
+const VISITED_KEY = "nuvos_visited_pages";
+const DISMISSED_KEY = "nuvos_guide_dismissed";
+
+export default function GuidedSteps({ currentPage }: { currentPage: PageKey }) {
   const { profile } = useProfileStore();
   const router = useRouter();
   const level = getUserLevel(profile);
-  const [step, setStep] = useState(0);
+  const [visited, setVisited] = useState<Set<PageKey>>(new Set());
   const [dismissed, setDismissed] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
 
   useEffect(() => {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) setStep(Math.min(parseInt(saved), STEPS.length));
-  }, []);
+    const raw = localStorage.getItem(VISITED_KEY);
+    const saved: PageKey[] = raw ? JSON.parse(raw) : [];
+    const set = new Set<PageKey>(saved);
+    // Mark current page as visited
+    if (!set.has(currentPage)) {
+      set.add(currentPage);
+      localStorage.setItem(VISITED_KEY, JSON.stringify(Array.from(set)));
+    }
+    setVisited(set);
+    setDismissed(localStorage.getItem(DISMISSED_KEY) === "1");
+  }, [currentPage]);
 
-  const advanceStep = () => {
-    const next = Math.min(step + 1, STEPS.length);
-    setStep(next);
-    localStorage.setItem(STORAGE_KEY, String(next));
-  };
-
-  const markDoneAndGo = (href: string) => {
-    advanceStep();
-    router.push(href);
-  };
-
-  // Only show for principiante (A) or básico (B)
   if (level !== "basico") return null;
   if (dismissed) return null;
-  if (step >= STEPS.length) return null;
 
-  // Skip step if we're already on that page
-  const current = STEPS[step];
-  const skipThisStep = currentPage && current.href.includes(currentPage);
-  const displayStep = skipThisStep ? Math.min(step + 1, STEPS.length - 1) : step;
-  if (displayStep >= STEPS.length) return null;
+  const guide = GUIDE[currentPage];
+  const doneCount = PAGE_ORDER.filter((p) => visited.has(p)).length;
+  const totalSteps = PAGE_ORDER.length;
+  const isLast = !guide.nextPage;
 
-  const s = STEPS[displayStep];
+  const handleDismiss = () => {
+    localStorage.setItem(DISMISSED_KEY, "1");
+    setDismissed(true);
+  };
 
   return (
-    <div className="mx-4 mt-3 mb-1 rounded-2xl border overflow-hidden shrink-0"
+    <div className="mx-4 mt-3 mb-2 rounded-2xl border overflow-hidden shrink-0"
          style={{ background: "var(--card)", borderColor: "rgba(0,168,94,0.3)" }}>
-      {/* Accent + progress */}
-      <div className="h-[3px] rounded-full" style={{ background: "linear-gradient(90deg,#00a85e,#00d47e)" }} />
-      <div className="px-4 py-3">
-        {/* Header */}
-        <div className="flex items-start justify-between gap-2 mb-2">
-          <div className="flex items-center gap-2">
-            <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: "var(--accent-l)" }}>
-              Guía rápida · Paso {displayStep + 1} de {STEPS.length}
-            </span>
+      <div className="h-[3px]" style={{ background: "linear-gradient(90deg,#00a85e,#00d47e,#3ecf8e)" }} />
+
+      {/* Header — always visible */}
+      <div className="px-4 py-2.5 flex items-center justify-between gap-2"
+           style={{ borderBottom: collapsed ? "none" : "1px solid var(--border)" }}>
+        <div className="flex items-center gap-2.5">
+          <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0"
+               style={{ background: "rgba(0,168,94,0.12)", color: "var(--accent-l)" }}>
+            {guide.icon}
           </div>
-          <button onClick={() => setDismissed(true)} className="shrink-0" style={{ color: "var(--dim)" }}>
+          <div>
+            <p className="text-[11px] font-black leading-tight" style={{ color: "var(--accent-l)" }}>
+              Guía paso a paso
+            </p>
+            <p className="text-[10px] leading-tight" style={{ color: "var(--dim)" }}>
+              {doneCount}/{totalSteps} pantallas exploradas
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center gap-1">
+          {/* Progress dots */}
+          <div className="flex gap-1 mr-1">
+            {PAGE_ORDER.map((p) => (
+              <div key={p} className="w-1.5 h-1.5 rounded-full transition-all"
+                   style={{ background: visited.has(p) ? "var(--accent-l)" : p === currentPage ? "var(--accent-l)" : "var(--border)" }} />
+            ))}
+          </div>
+          <button onClick={() => setCollapsed(!collapsed)}
+                  className="text-[10px] font-bold px-2 py-1 rounded-lg transition-colors hover:bg-white/5"
+                  style={{ color: "var(--muted)" }}>
+            {collapsed ? "Ver" : "Minimizar"}
+          </button>
+          <button onClick={handleDismiss} style={{ color: "var(--dim)" }}>
             <X className="w-3.5 h-3.5" />
-          </button>
-        </div>
-
-        {/* Step progress dots */}
-        <div className="flex gap-1.5 mb-3">
-          {STEPS.map((_, i) => (
-            <div key={i} className="h-1 flex-1 rounded-full transition-all"
-                 style={{ background: i <= displayStep ? "var(--accent-l)" : "var(--border)" }} />
-          ))}
-        </div>
-
-        {/* Current step */}
-        <div className="flex items-start gap-3">
-          <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 text-xl"
-               style={{ background: "rgba(0,168,94,0.1)" }}>
-            {s.emoji}
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="font-bold text-sm leading-tight" style={{ color: "var(--text)" }}>{s.title}</p>
-            <p className="text-xs mt-0.5 leading-snug" style={{ color: "var(--muted)" }}>{s.desc}</p>
-            {s.hint && (
-              <p className="text-[10px] mt-1.5 italic" style={{ color: "var(--dim)" }}>💡 {s.hint}</p>
-            )}
-          </div>
-        </div>
-
-        {/* Actions */}
-        <div className="flex items-center gap-2 mt-3">
-          <button onClick={() => markDoneAndGo(s.href)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-white transition-opacity hover:opacity-90"
-                  style={{ background: "var(--accent-l)" }}>
-            {s.cta} <ChevronRight className="w-3.5 h-3.5" />
-          </button>
-          <button onClick={advanceStep}
-                  className="flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-xl transition-colors hover:bg-white/5"
-                  style={{ color: "var(--muted)", border: "1px solid var(--border)" }}>
-            <CheckCircle2 className="w-3.5 h-3.5" />
-            Ya lo hice
           </button>
         </div>
       </div>
 
-      {/* Completed steps */}
-      {displayStep > 0 && (
-        <div className="px-4 pb-3 flex flex-wrap gap-2">
-          {STEPS.slice(0, displayStep).map((done) => (
-            <span key={done.id} className="flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full"
-                  style={{ background: "rgba(0,168,94,0.1)", color: "var(--accent-l)" }}>
-              ✓ {done.title}
-            </span>
-          ))}
+      {/* Body */}
+      {!collapsed && (
+        <div className="px-4 py-3 space-y-3">
+          {/* Page title */}
+          <div>
+            <p className="font-black text-sm leading-tight" style={{ color: "var(--text)" }}>
+              {guide.title}
+            </p>
+            <p className="text-xs mt-1 leading-relaxed" style={{ color: "var(--muted)" }}>
+              {guide.what}
+            </p>
+          </div>
+
+          {/* What to do now */}
+          <div className="rounded-xl p-3" style={{ background: "rgba(0,168,94,0.07)", border: "1px solid rgba(0,168,94,0.2)" }}>
+            <p className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: "var(--accent-l)" }}>
+              Haz esto ahora
+            </p>
+            <p className="text-xs leading-snug" style={{ color: "var(--sub)" }}>
+              {guide.todo}
+            </p>
+          </div>
+
+          {/* Tip */}
+          <p className="text-[10px] leading-snug italic" style={{ color: "var(--dim)" }}>
+            💡 {guide.tip}
+          </p>
+
+          {/* Next step CTA */}
+          {guide.nextPage && (
+            <button onClick={() => router.push(guide.nextPage!)}
+                    className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-bold text-white transition-opacity hover:opacity-90"
+                    style={{ background: "linear-gradient(135deg,#00a85e,#00d47e)" }}>
+              {guide.nextLabel} <ChevronRight className="w-3.5 h-3.5" />
+            </button>
+          )}
+          {isLast && doneCount >= totalSteps - 1 && (
+            <div className="rounded-xl p-3 text-center"
+                 style={{ background: "rgba(0,168,94,0.08)", border: "1px solid rgba(0,168,94,0.25)" }}>
+              <p className="text-sm font-black mb-0.5" style={{ color: "var(--accent-l)" }}>🎉 ¡Ya conoces toda la app!</p>
+              <p className="text-xs" style={{ color: "var(--muted)" }}>Ya puedes explorar por tu cuenta. La guía seguirá aquí si la necesitas.</p>
+            </div>
+          )}
         </div>
       )}
     </div>

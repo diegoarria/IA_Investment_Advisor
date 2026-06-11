@@ -11,6 +11,7 @@ import { useAuthStore, useNotificationStore, useThemeStore, useWatchlistStore, u
 import { usePortfolioStore, type Position } from "@/lib/portfolioStore";
 import PaywallModal from "@/components/PaywallModal";
 import { Bell, Menu, X, Sun, Moon, Newspaper, Bookmark, RefreshCw, Loader2 } from "lucide-react";
+import GuidedSteps from "@/components/GuidedSteps";
 
 const TYPE_ICONS: Record<string, string> = {
   market_move:           "📉",
@@ -232,6 +233,7 @@ export default function NotificationsPage() {
 
         {/* Main */}
         <main className="flex-1 overflow-y-auto scrollbar-thin p-4">
+          <GuidedSteps currentPage="notifications" />
           <div className="max-w-2xl mx-auto space-y-4 pb-8">
 
             {/* Mark all read */}
