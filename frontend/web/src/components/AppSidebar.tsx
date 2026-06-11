@@ -4,7 +4,7 @@ import { useState, useRef } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import {
   BookOpen, PieChart, BarChart2, Bell, User, GraduationCap, Trophy,
-  MessageSquare, ChevronRight, Plus, X, HeadphonesIcon, GripVertical, Eye, Play, ArrowRight, Lock,
+  MessageSquare, ChevronLeft, ChevronRight, Plus, X, HeadphonesIcon, GripVertical, Eye, Play, ArrowRight, Lock,
 } from "lucide-react";
 
 const COACHING_URL = "https://calendly.com/diego-arria19/sesion-1-1-con-diego-nuvos-ai"; // ← actualiza con tu link real
@@ -96,6 +96,16 @@ export default function AppSidebar({ open, onClose }: Props) {
   const { sessions, currentId, createSession, loadSession, deleteSession } = useChatStore();
   const [historyOpen, setHistoryOpen] = useState(true);
   const [paywallOpen, setPaywallOpen] = useState(false);
+  const [desktopCollapsed, setDesktopCollapsed] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return localStorage.getItem("nuvos_sidebar_collapsed") === "1";
+  });
+
+  const toggleDesktop = () => {
+    const next = !desktopCollapsed;
+    setDesktopCollapsed(next);
+    localStorage.setItem("nuvos_sidebar_collapsed", next ? "1" : "0");
+  };
 
   const [navOrder, setNavOrder] = useState<string[]>(() => {
     if (typeof window === "undefined") return NAV.map((n) => n.href);
@@ -169,7 +179,19 @@ export default function AppSidebar({ open, onClose }: Props) {
 
   return (
     <>
-      <aside className={`${open ? "flex" : "hidden"} lg:flex w-64 flex-col absolute lg:relative z-20 h-full sidebar-gradient`} style={{ zoom: 1.15 }}>
+      {/* Desktop floating tab — shown only when sidebar is collapsed on lg+ */}
+      {desktopCollapsed && (
+        <button
+          onClick={toggleDesktop}
+          className="hidden lg:flex fixed left-0 top-1/2 -translate-y-1/2 z-30 flex-col items-center justify-center w-5 h-16 rounded-r-xl transition-all hover:w-6"
+          style={{ background: "var(--card)", border: "1px solid var(--border)", borderLeft: "none", boxShadow: "2px 0 8px rgba(0,0,0,0.15)" }}
+          title="Abrir sidebar"
+        >
+          <ChevronRight className="w-3 h-3" style={{ color: "var(--muted)" }} />
+        </button>
+      )}
+
+      <aside className={`${open ? "flex" : "hidden"} ${desktopCollapsed ? "lg:hidden" : "lg:flex"} w-64 flex-col absolute lg:relative z-20 h-full sidebar-gradient`} style={{ zoom: 1.15 }}>
 
         {/* Profile widget */}
         {profile && (
@@ -382,6 +404,16 @@ export default function AppSidebar({ open, onClose }: Props) {
                   className="w-full text-[10px] text-center py-1.5 rounded-lg hover:bg-white/5 transition-colors"
                   style={{ color: "var(--dim)" }}>
             Actualizar perfil
+          </button>
+
+          {/* Desktop collapse toggle */}
+          <button
+            onClick={toggleDesktop}
+            className="hidden lg:flex w-full items-center justify-center gap-1.5 py-1.5 rounded-lg hover:bg-white/5 transition-colors"
+            style={{ color: "var(--dim)" }}
+          >
+            <ChevronLeft className="w-3.5 h-3.5" />
+            <span className="text-[10px]">Cerrar sidebar</span>
           </button>
         </div>
       </aside>
