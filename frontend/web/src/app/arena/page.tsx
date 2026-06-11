@@ -57,7 +57,9 @@ export default function ArenaPage() {
   const [milestonesOpen, setMilestonesOpen] = useState(false);
 
   // Simulator
+  const [simIntroOpen, setSimIntroOpen] = useState(false);
   const [simOpen, setSimOpen] = useState(false);
+  const [decisionsIntroOpen, setDecisionsIntroOpen] = useState(false);
   const [scenario, setScenario] = useState<Scenario | null>(null);
   const [simLoading, setSimLoading] = useState(false);
   const [simChoice, setSimChoice] = useState<string | null>(null);
@@ -211,7 +213,7 @@ export default function ArenaPage() {
               <p className="text-[10px] font-bold uppercase tracking-widest mb-2 ml-0.5" style={{ color: "var(--dim)" }}>Juegos</p>
               <div className="grid grid-cols-1 gap-3">
                 {/* Simulator */}
-                <button onClick={openSimulator} className="rounded-2xl border-2 p-4 text-center hover:opacity-90 transition-opacity"
+                <button onClick={() => setSimIntroOpen(true)} className="rounded-2xl border-2 p-4 text-center hover:opacity-90 transition-opacity"
                         style={{ background: "var(--card)", borderColor: "rgba(139,92,246,0.4)" }}>
                   <div className="w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3"
                        style={{ background: "rgba(139,92,246,0.15)" }}>
@@ -234,7 +236,7 @@ export default function ArenaPage() {
                 </button>
 
                 {/* Decision Diary */}
-                <button onClick={() => router.push("/decisions")}
+                <button onClick={() => setDecisionsIntroOpen(true)}
                         className="rounded-2xl border-2 p-4 text-center hover:opacity-90 transition-opacity"
                         style={{ background: "var(--card)", borderColor: "rgba(0,168,94,0.4)" }}>
                   <div className="w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3"
@@ -285,6 +287,99 @@ export default function ArenaPage() {
           </div>
         </main>
       </div>
+
+      {/* Simulator Intro Modal */}
+      {simIntroOpen && (
+        <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center"
+             style={{ background: "rgba(0,0,0,0.7)" }}>
+          <div className="w-full max-w-lg flex flex-col rounded-t-3xl md:rounded-3xl border"
+               style={{ background: "var(--bg)", borderColor: "var(--border)" }}>
+            <div className="flex items-center justify-between p-5 border-b" style={{ borderColor: "var(--border)" }}>
+              <button onClick={() => setSimIntroOpen(false)} style={{ color: "var(--muted)" }}><X className="w-5 h-5" /></button>
+              <span className="font-bold text-sm" style={{ color: "var(--text)" }}>⏳ Simulador</span>
+              <div className="w-5" />
+            </div>
+            <div className="p-5 space-y-4">
+              <div className="rounded-2xl p-4 border" style={{ background: "rgba(139,92,246,0.06)", borderColor: "rgba(139,92,246,0.3)" }}>
+                <p className="font-black text-base mb-2" style={{ color: "var(--text)" }}>Viaja en el tiempo como inversor</p>
+                <p className="text-sm leading-relaxed" style={{ color: "var(--sub)" }}>
+                  Te presentamos un evento real de la historia financiera. Tú decides qué habrías hecho en ese momento, sin saber el desenlace. Después te mostramos qué pasó de verdad y cuánto habrías ganado (o perdido).
+                </p>
+              </div>
+              <div className="rounded-2xl p-4 border" style={{ background: "var(--card)", borderColor: "var(--border)" }}>
+                <p className="text-[10px] font-bold uppercase tracking-wider mb-3" style={{ color: "var(--muted)" }}>Ejemplo</p>
+                <p className="text-[10px] font-bold tracking-wider mb-1" style={{ color: "#8b5cf6" }}>MARZO 2020</p>
+                <p className="font-bold text-sm mb-1" style={{ color: "var(--text)" }}>El mercado cae 30% por COVID-19</p>
+                <p className="text-xs mb-3" style={{ color: "var(--sub)" }}>Apple (AAPL) acaba de caer de $80 a $57. Los hospitales se saturan, la economía se paraliza. No hay vacuna a la vista.</p>
+                <p className="text-xs font-semibold mb-2" style={{ color: "var(--text)" }}>¿Qué harías?</p>
+                <div className="space-y-1.5">
+                  {[["A", "Compro más — la caída es una oportunidad"], ["B", "Espero a que el mercado se estabilice"], ["C", "Vendo todo para proteger mi capital"]].map(([k, v]) => (
+                    <div key={k} className="flex items-center gap-2.5 rounded-xl border px-3 py-2"
+                         style={{ borderColor: k === "A" ? "rgba(34,197,94,0.5)" : "var(--border)", background: k === "A" ? "rgba(34,197,94,0.07)" : "transparent" }}>
+                      <div className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black shrink-0"
+                           style={{ background: k === "A" ? "#22c55e" : "var(--border)", color: k === "A" ? "white" : "var(--sub)" }}>{k}</div>
+                      <span className="text-xs" style={{ color: "var(--sub)" }}>{v}</span>
+                      {k === "A" && <span className="ml-auto text-[10px] font-bold" style={{ color: "#22c55e" }}>+178%</span>}
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <button onClick={() => { setSimIntroOpen(false); openSimulator(); }}
+                      className="w-full py-3.5 rounded-2xl font-bold text-sm transition-opacity hover:opacity-90"
+                      style={{ background: "#8b5cf6", color: "white" }}>
+                Comenzar simulación
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Decisions Intro Modal */}
+      {decisionsIntroOpen && (
+        <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center"
+             style={{ background: "rgba(0,0,0,0.7)" }}>
+          <div className="w-full max-w-lg flex flex-col rounded-t-3xl md:rounded-3xl border"
+               style={{ background: "var(--bg)", borderColor: "var(--border)" }}>
+            <div className="flex items-center justify-between p-5 border-b" style={{ borderColor: "var(--border)" }}>
+              <button onClick={() => setDecisionsIntroOpen(false)} style={{ color: "var(--muted)" }}><X className="w-5 h-5" /></button>
+              <span className="font-bold text-sm" style={{ color: "var(--text)" }}>Diario de Decisiones</span>
+              <div className="w-5" />
+            </div>
+            <div className="p-5 space-y-4">
+              <div className="rounded-2xl p-4 border" style={{ background: "rgba(0,168,94,0.06)", borderColor: "rgba(0,168,94,0.3)" }}>
+                <p className="font-black text-base mb-2" style={{ color: "var(--text)" }}>Descubre tus sesgos como inversor</p>
+                <p className="text-sm leading-relaxed" style={{ color: "var(--sub)" }}>
+                  Registra cada decisión de inversión antes de ejecutarla: por qué entras, cuándo planeas salir y qué esperas que pase. Con el tiempo, la IA analiza tus patrones y te muestra en qué sesgos caes repetidamente.
+                </p>
+              </div>
+              <div className="rounded-2xl p-4 border" style={{ background: "var(--card)", borderColor: "var(--border)" }}>
+                <p className="text-[10px] font-bold uppercase tracking-wider mb-3" style={{ color: "var(--muted)" }}>Ejemplo de registro</p>
+                <div className="space-y-2">
+                  {[
+                    ["Activo", "NVDA — Nvidia Corp."],
+                    ["Acción", "Compra a $890"],
+                    ["Razón", "Ciclo de IA en expansión, demanda de GPUs récord"],
+                    ["Objetivo", "Vendo si llega a $1,100 o baja de $820"],
+                  ].map(([label, value]) => (
+                    <div key={label} className="flex gap-2 text-xs">
+                      <span className="w-16 shrink-0 font-bold" style={{ color: "var(--muted)" }}>{label}</span>
+                      <span style={{ color: "var(--sub)" }}>{value}</span>
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-3 pt-3 border-t text-xs" style={{ borderColor: "var(--border)", color: "var(--dim)" }}>
+                  Sesgo detectado tras 3 meses: <span className="font-semibold" style={{ color: "#f59e0b" }}>Sesgo de confirmación</span> — vendes ganadoras demasiado rápido.
+                </div>
+              </div>
+              <button onClick={() => { setDecisionsIntroOpen(false); router.push("/decisions"); }}
+                      className="w-full py-3.5 rounded-2xl font-bold text-sm transition-opacity hover:opacity-90"
+                      style={{ background: "var(--accent-l)", color: "white" }}>
+                Abrir mi diario
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Simulator Modal */}
       {simOpen && (
