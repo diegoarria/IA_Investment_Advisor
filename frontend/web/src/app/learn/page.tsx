@@ -431,7 +431,7 @@ export default function LearnPage() {
 
           {/* ── Sesión 1:1 CTA ── */}
           <div className="px-4 pb-6 pt-2">
-            <a href="https://calendly.com/nuvosai" target="_blank" rel="noopener noreferrer"
+            <a href="https://calendly.com/diego-arria19/sesion-1-1-con-diego-nuvos-ai" target="_blank" rel="noopener noreferrer"
                className="flex items-center gap-4 rounded-2xl p-4 hover:opacity-90 transition-opacity"
                style={{ background: "var(--card)", border: "1px solid rgba(0,168,94,0.3)" }}>
               <div className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0 text-xl"

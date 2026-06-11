@@ -290,7 +290,7 @@ export default function PaywallModal({ visible, onClose, reason }: PaywallModalP
             ))}
           </div>
           <div className="mt-3 pt-3 border-t" style={{ borderColor: "rgba(0,168,94,0.1)" }}>
-            <a href="https://calendly.com/nuvosai" target="_blank" rel="noopener noreferrer"
+            <a href="https://calendly.com/diego-arria19/sesion-1-1-con-diego-nuvos-ai" target="_blank" rel="noopener noreferrer"
                className="flex items-center justify-center gap-2 py-2 rounded-xl hover:opacity-80 transition-opacity"
                style={{ background: "rgba(0,168,94,0.06)" }}>
               <span className="text-sm">📅</span>

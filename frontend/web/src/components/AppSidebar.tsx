@@ -7,7 +7,7 @@ import {
   MessageSquare, ChevronRight, Plus, X, HeadphonesIcon, GripVertical, Eye, Play, ArrowRight,
 } from "lucide-react";
 
-const COACHING_URL = "https://calendly.com/nuvosai"; // ← actualiza con tu link real
+const COACHING_URL = "https://calendly.com/diego-arria19/sesion-1-1-con-diego-nuvos-ai"; // ← actualiza con tu link real
 import {
   useProfileStore, useNotificationStore, useSubscriptionStore,
   useChatStore, msgsRemaining, FREE_MSG_LIMIT,
