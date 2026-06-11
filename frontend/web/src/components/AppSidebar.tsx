@@ -55,28 +55,25 @@ function RiskBar({ level, behavioralScore }: { level: string; behavioralScore: n
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-1">
-        <div className="text-[10px] font-semibold" style={{ color }}>{label}</div>
+      <div className="flex items-center justify-between mb-0.5">
+        <div className="text-[8px] font-semibold" style={{ color }}>{label}</div>
         <div className="flex items-center gap-1">
           {hasBehavioral && (
-            <span className="text-[9px]" style={{ color: "var(--dim)" }} title="Perfil declarado">
+            <span className="text-[7px]" style={{ color: "var(--dim)" }} title="Perfil declarado">
               {RISK_LABEL[level] ?? level}
             </span>
           )}
-          <div className="text-[11px] font-black" style={{ color }}>{displayPct}</div>
+          <div className="text-[9px] font-black" style={{ color }}>{displayPct}</div>
         </div>
       </div>
-      {/* Bar: static baseline (faded) + behavioral overlay */}
-      <div className="relative h-1.5 rounded-full overflow-hidden" style={{ background: "var(--border)" }}>
-        {/* Static onboarding baseline */}
+      <div className="relative h-1 rounded-full overflow-hidden" style={{ background: "var(--border)" }}>
         <div className="absolute inset-y-0 left-0 rounded-full opacity-25 transition-all duration-700"
              style={{ width: `${staticPct}%`, background: seg?.color ?? "var(--accent)" }} />
-        {/* Live behavioral score */}
         <div className="absolute inset-y-0 left-0 rounded-full transition-all duration-700"
              style={{ width: `${displayPct}%`, background: color }} />
       </div>
       {hasBehavioral && (
-        <div className="text-[9px] mt-1" style={{ color: "var(--dim)" }}>
+        <div className="text-[6px] mt-0.5" style={{ color: "var(--dim)" }}>
           Riesgo conductual en tiempo real
         </div>
       )}
@@ -174,26 +171,26 @@ export default function AppSidebar({ open, onClose }: Props) {
 
         {/* Profile widget */}
         {profile && (
-          <div className="px-3 pb-3 pt-2 shrink-0">
-            <div className="rounded-2xl p-3 card-accent">
+          <div className="px-2 pb-1.5 pt-1.5 shrink-0">
+            <div className="rounded-xl p-2 card-accent">
               {/* Avatar + name */}
-              <div className="flex items-center gap-2.5 mb-3">
-                <div className="w-9 h-9 rounded-full overflow-hidden shrink-0 flex items-center justify-center text-sm font-black text-white"
+              <div className="flex items-center gap-1.5 mb-1.5">
+                <div className="w-6 h-6 rounded-full overflow-hidden shrink-0 flex items-center justify-center text-[10px] font-black text-white"
                      style={{ background: "var(--grad-green)" }}>
                   {profile.avatar_url
                     ? <img src={profile.avatar_url} alt="avatar" className="w-full h-full object-cover" />
                     : profile.name.charAt(0).toUpperCase()
                   }
                 </div>
-                <div className="flex-1 min-w-0">
-                  <div className="text-xs font-bold truncate" style={{ color: "var(--text)" }}>{profile.name}</div>
+                <div className="flex-1 min-w-0 flex items-center gap-1.5 flex-wrap">
+                  <div className="text-[11px] font-bold truncate" style={{ color: "var(--text)" }}>{profile.name}</div>
                   {isPremium ? (
-                    <span className="text-[9px] font-black px-1.5 py-0.5 rounded-full"
+                    <span className="text-[8px] font-black px-1 py-px rounded-full"
                           style={{ background: "rgba(245,158,11,0.15)", color: "#f59e0b" }}>
                       ✦ Premium
                     </span>
                   ) : (
-                    <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full"
+                    <span className="text-[8px] font-semibold px-1 py-px rounded-full"
                           style={{ background: "var(--raised)", color: "var(--dim)" }}>
                       Free
                     </span>
@@ -202,7 +199,7 @@ export default function AppSidebar({ open, onClose }: Props) {
               </div>
 
               {/* Stats: edad, ingresos, aportación */}
-              <div className="grid grid-cols-3 gap-0.5 mb-1.5">
+              <div className="grid grid-cols-3 gap-0.5 mb-1">
                 {[
                   { label: "Edad", value: (() => { if (!profile.birth_date) return "—"; const sep = profile.birth_date.includes("/") ? "/" : "-"; const p = profile.birth_date.split(sep).map(Number); const [y, m, d] = sep === "-" ? p : [p[2], p[1], p[0]]; const t = new Date(); let a = t.getFullYear() - y; if (t.getMonth() + 1 < m || (t.getMonth() + 1 === m && t.getDate() < d)) a--; return String(Math.max(0, a)); })(), sub: "años" },
                   { label: "Ingresos", value: `$${Number(profile.monthly_income).toLocaleString()}`, sub: "/mes" },
@@ -210,11 +207,11 @@ export default function AppSidebar({ open, onClose }: Props) {
                 ].map(({ label, value, sub }) => (
                   <div key={label} className="rounded px-1 py-0.5 text-center"
                        style={{ background: "var(--bg)" }}>
-                    <div className="text-[7px] font-semibold uppercase tracking-wide"
+                    <div className="text-[6px] font-semibold uppercase tracking-wide"
                          style={{ color: "var(--dim)" }}>{label}</div>
-                    <div className="text-[9px] font-black leading-tight"
+                    <div className="text-[8px] font-black leading-tight"
                          style={{ color: "var(--text)" }}>{value}</div>
-                    <div className="text-[7px]" style={{ color: "var(--muted)" }}>{sub}</div>
+                    <div className="text-[6px]" style={{ color: "var(--muted)" }}>{sub}</div>
                   </div>
                 ))}
               </div>
