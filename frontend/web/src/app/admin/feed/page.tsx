@@ -13,7 +13,11 @@ const SPEAKERS = [
   "Warren Buffett", "Charlie Munger", "Ray Dalio", "Benjamin Graham",
   "Peter Lynch", "Morgan Housel", "Howard Marks", "Seth Klarman",
   "Bill Ackman", "Michael Burry", "Grant Cardone", "Robert Kiyosaki", "Nassim Taleb",
-  "Tim Cook", "Donald Trump",
+  "Tim Cook", "Donald Trump", "Elon Musk", "Jeff Bezos", "Mark Zuckerberg", "Ray Kroc",
+  "Steve Jobs", "Arturo Elías Ayub", "Rodrigo Herrera", "Marcos Galperin", "Jensen Huang", "Bill Gates",
+  "Jack Ma", "Brian Tracy", "Daniel Ek", "Travis Kalanick", "Dale Carnegie", "Howard Schultz",
+  "Sam Walton", "Brian Chesky", "Peter Thiel", "Reid Hoffman", "Alex Hormozi", "Jim Collins", 
+  "Simon Sinek", "Arnold Schwarzenegger", "Sam Altman", "Reed Hastings"
 ];
 
 const TAG_OPTIONS = [
