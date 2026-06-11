@@ -202,19 +202,19 @@ export default function AppSidebar({ open, onClose }: Props) {
               </div>
 
               {/* Stats: edad, ingresos, aportación */}
-              <div className="grid grid-cols-3 gap-1 mb-2">
+              <div className="grid grid-cols-3 gap-0.5 mb-1.5">
                 {[
                   { label: "Edad", value: (() => { if (!profile.birth_date) return "—"; const sep = profile.birth_date.includes("/") ? "/" : "-"; const p = profile.birth_date.split(sep).map(Number); const [y, m, d] = sep === "-" ? p : [p[2], p[1], p[0]]; const t = new Date(); let a = t.getFullYear() - y; if (t.getMonth() + 1 < m || (t.getMonth() + 1 === m && t.getDate() < d)) a--; return String(Math.max(0, a)); })(), sub: "años" },
                   { label: "Ingresos", value: `$${Number(profile.monthly_income).toLocaleString()}`, sub: "/mes" },
                   { label: "Inversión", value: `$${Number(profile.monthly_contribution).toLocaleString()}`, sub: "/mes" },
                 ].map(({ label, value, sub }) => (
-                  <div key={label} className="rounded-lg p-1.5 text-center"
+                  <div key={label} className="rounded px-1 py-0.5 text-center"
                        style={{ background: "var(--bg)" }}>
-                    <div className="text-[8px] font-semibold uppercase tracking-wide"
+                    <div className="text-[7px] font-semibold uppercase tracking-wide"
                          style={{ color: "var(--dim)" }}>{label}</div>
-                    <div className="text-[10px] font-black leading-tight"
+                    <div className="text-[9px] font-black leading-tight"
                          style={{ color: "var(--text)" }}>{value}</div>
-                    <div className="text-[8px]" style={{ color: "var(--muted)" }}>{sub}</div>
+                    <div className="text-[7px]" style={{ color: "var(--muted)" }}>{sub}</div>
                   </div>
                 ))}
               </div>
