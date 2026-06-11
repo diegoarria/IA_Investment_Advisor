@@ -175,7 +175,7 @@ export default function AppSidebar({ open, onClose }: Props) {
             <div className="rounded-xl p-2 card-accent">
               {/* Avatar + name */}
               <div className="flex items-center gap-1.5 mb-1.5">
-                <div className="w-14 h-14 rounded-full overflow-hidden shrink-0 flex items-center justify-center text-xl font-black text-white"
+                <div className="w-10 h-10 rounded-full overflow-hidden shrink-0 flex items-center justify-center text-base font-black text-white"
                      style={{ background: "var(--grad-green)" }}>
                   {profile.avatar_url
                     ? <img src={profile.avatar_url} alt="avatar" className="w-full h-full object-cover" />
