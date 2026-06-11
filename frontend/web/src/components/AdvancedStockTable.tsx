@@ -327,7 +327,7 @@ export default function AdvancedStockTable({ rows, mode, onRemove, onRowClick }:
                           </p>
                           <LiveDot live={isLive} />
                         </div>
-                        <p className="text-[11px] truncate mt-0.5" style={{ color: "var(--muted)" }}>
+                        <p className="text-[13px] truncate mt-0.5" style={{ color: "var(--muted)" }}>
                           {row.companyName ?? row.name}
                         </p>
                       </div>
