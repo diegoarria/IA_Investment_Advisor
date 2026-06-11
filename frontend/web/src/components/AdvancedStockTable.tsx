@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { ChevronUp, ChevronDown, ChevronsUpDown, Loader2, Wifi, WifiOff } from "lucide-react";
+import { ChevronUp, ChevronDown, Loader2, Wifi, WifiOff, Trash2 } from "lucide-react";
 import { market as marketApi } from "@/lib/api";
 import { finnhubWS } from "@/lib/services/websocketService";
 import {
@@ -47,6 +47,25 @@ interface Props {
   onRowClick?: (ticker: string) => void;
 }
 
+// ─── Sort options ─────────────────────────────────────────────────────────────
+
+const SORT_WATCHLIST: { key: SortKey; label: string }[] = [
+  { key: "ticker",       label: "Ticker"   },
+  { key: "price",        label: "Precio"   },
+  { key: "changePct",    label: "Var %"    },
+  { key: "marketCap",    label: "Cap"      },
+  { key: "pe",           label: "P/E"      },
+  { key: "earningsDate", label: "Earnings" },
+];
+
+const SORT_PORTFOLIO: { key: SortKey; label: string }[] = [
+  { key: "ticker",       label: "Ticker"  },
+  { key: "gainLossPct",  label: "G/P %"   },
+  { key: "positionValue",label: "Valor"   },
+  { key: "price",        label: "Precio"  },
+  { key: "changePct",    label: "Var %"   },
+];
+
 // ─── Avatar ───────────────────────────────────────────────────────────────────
 
 function Avatar({ ticker, logoUrl }: { ticker: string; logoUrl?: string | null }) {
@@ -63,73 +82,283 @@ function Avatar({ ticker, logoUrl }: { ticker: string; logoUrl?: string | null }
       // eslint-disable-next-line @next/next/no-img-element
       <img
         src={active} alt={ticker}
-        className="w-5 h-5 rounded-full object-contain p-0.5 shrink-0"
+        className="w-8 h-8 rounded-xl object-contain p-1 shrink-0"
         style={{ background: "var(--raised)", border: "1px solid var(--border)" }}
         onError={() => setFailed((p) => new Set([...p, active]))}
       />
     );
   }
   return (
-    <div className="w-5 h-5 rounded-full flex items-center justify-center text-[8px] font-black shrink-0"
+    <div className="w-8 h-8 rounded-xl flex items-center justify-center text-[10px] font-black shrink-0"
          style={{ background: "rgba(0,168,94,0.14)", color: "var(--accent-l)" }}>
       {ticker.slice(0, 2)}
     </div>
   );
 }
 
-// ─── Sort header cell ─────────────────────────────────────────────────────────
+// ─── Market state badge ───────────────────────────────────────────────────────
 
-function Th({
-  label, sortKey, current, dir, onClick, align = "right",
-}: {
-  label: string; sortKey: SortKey;
-  current: SortKey | null; dir: "asc" | "desc";
-  onClick: (k: SortKey) => void; align?: "left" | "right";
-}) {
-  const active = current === sortKey;
+function MarketBadge({ state }: { state: string | null | undefined }) {
+  if (!state || state === "REGULAR") return null;
+  const label = state === "PRE" ? "Pre-market" : state === "POST" ? "Post-market" : "Cerrado";
   return (
-    <th
-      onClick={() => onClick(sortKey)}
-      className="px-2 py-2 text-[9px] font-bold uppercase tracking-wide cursor-pointer select-none whitespace-nowrap"
-      style={{
-        color: active ? "var(--accent-l)" : "var(--muted)",
-        textAlign: align,
-        borderBottom: "1px solid var(--border)",
-      }}
-    >
-      <span className="inline-flex items-center gap-0.5 justify-end">
-        {label}
-        {active
-          ? dir === "asc" ? <ChevronUp className="w-2 h-2" /> : <ChevronDown className="w-2 h-2" />
-          : <ChevronsUpDown className="w-2 h-2 opacity-30" />}
-      </span>
-    </th>
+    <span className="text-[8px] font-bold px-1.5 py-0.5 rounded-md"
+          style={{ background: "rgba(251,191,36,0.1)", color: "#fbbf24" }}>
+      {label}
+    </span>
   );
 }
 
-// ─── Live dot ─────────────────────────────────────────────────────────────────
+// ─── Stat cell ────────────────────────────────────────────────────────────────
 
-function LiveDot({ live }: { live: boolean }) {
+function StatCell({
+  label, value, loading, color,
+}: {
+  label: string; value: string; loading?: boolean; color?: string;
+}) {
   return (
-    <span
-      className="inline-block w-1 h-1 rounded-full ml-0.5 shrink-0"
-      style={{ background: live ? "#22c55e" : "var(--dim)" }}
-      title={live ? "WebSocket" : "Polling"}
-    />
+    <div className="flex flex-col gap-0.5">
+      <p className="text-[8px] font-bold uppercase tracking-wider leading-none"
+         style={{ color: "var(--dim)" }}>
+        {label}
+      </p>
+      {loading ? (
+        <Loader2 className="w-2.5 h-2.5 animate-spin" style={{ color: "var(--dim)" }} />
+      ) : (
+        <p className="text-[11px] font-semibold tabular-nums leading-none"
+           style={{ color: color ?? "var(--sub)" }}>
+          {value}
+        </p>
+      )}
+    </div>
+  );
+}
+
+// ─── Single stock card ────────────────────────────────────────────────────────
+
+function StockCard({
+  row, mode, onRemove, onRowClick, isLive, loadingDetails,
+}: {
+  row: AdvancedRow;
+  mode: Mode;
+  onRemove?: (t: string) => void;
+  onRowClick?: (t: string) => void;
+  isLive: boolean;
+  loadingDetails: boolean;
+}) {
+  const [confirming, setConfirming] = useState(false);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const currency   = row.currency ?? "USD";
+  const priceColor = changeColor(row.changePct);
+  const glUp       = (row.gainLossPct ?? 0) >= 0;
+  const glColor    = glUp ? "#22c55e" : "#ef4444";
+  const loading    = loadingDetails && row.price == null;
+
+  const w52Pct =
+    row.week52High != null &&
+    row.week52Low  != null &&
+    row.price      != null &&
+    row.week52High > row.week52Low
+      ? Math.max(0, Math.min(100,
+          ((row.price - row.week52Low) / (row.week52High - row.week52Low)) * 100,
+        ))
+      : null;
+
+  const handleDelete = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (confirming) {
+      if (timerRef.current) clearTimeout(timerRef.current);
+      onRemove?.(row.ticker);
+    } else {
+      setConfirming(true);
+      timerRef.current = setTimeout(() => setConfirming(false), 3000);
+    }
+  };
+
+  useEffect(() => () => { if (timerRef.current) clearTimeout(timerRef.current); }, []);
+
+  return (
+    <div
+      className="transition-colors hover:bg-white/[0.02]"
+      style={{ borderBottom: "1px solid var(--border)" }}
+    >
+      {/* ── Row 1: Identity + Price + Delete ── */}
+      <div
+        className="flex items-start justify-between gap-3 px-3 pt-3 pb-2"
+        style={{ cursor: onRowClick ? "pointer" : "default" }}
+        onClick={() => onRowClick?.(row.ticker)}
+      >
+        {/* Left: logo + ticker + name */}
+        <div className="flex items-center gap-2.5 min-w-0">
+          <Avatar ticker={row.ticker} logoUrl={row.logoUrl} />
+          <div className="min-w-0">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="text-[14px] font-black leading-none" style={{ color: "var(--text)" }}>
+                {row.ticker}
+              </span>
+              {isLive && (
+                <span className="inline-block w-1.5 h-1.5 rounded-full shrink-0"
+                      style={{ background: "#22c55e" }} title="Tiempo real" />
+              )}
+              <MarketBadge state={row.marketState} />
+            </div>
+            <p className="text-[10px] mt-0.5 truncate max-w-[180px]" style={{ color: "var(--muted)" }}>
+              {row.companyName ?? row.name}
+            </p>
+          </div>
+        </div>
+
+        {/* Right: price + delete */}
+        <div className="flex items-start gap-2 shrink-0">
+          <div className="text-right">
+            {loading ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin ml-auto" style={{ color: "var(--muted)" }} />
+            ) : (
+              <>
+                <p className="text-[14px] font-black tabular-nums leading-none" style={{ color: "var(--text)" }}>
+                  {fmtPrice(row.price, currency)}
+                </p>
+                <p className="text-[11px] font-bold tabular-nums mt-0.5" style={{ color: priceColor }}>
+                  {fmtPct(row.changePct)}
+                </p>
+              </>
+            )}
+          </div>
+
+          {onRemove && (
+            <button
+              onClick={handleDelete}
+              className="rounded-lg flex items-center justify-center transition-all mt-0.5"
+              style={{
+                minWidth: confirming ? "auto" : "26px",
+                height: "26px",
+                padding: confirming ? "0 8px" : "0",
+                background: confirming ? "rgba(239,68,68,0.12)" : "rgba(0,0,0,0.0)",
+                color: confirming ? "#ef4444" : "var(--dim)",
+                border: confirming ? "1px solid rgba(239,68,68,0.35)" : "1px solid transparent",
+              }}
+              title={confirming ? "Toca para confirmar" : "Eliminar"}
+            >
+              {confirming
+                ? <span className="text-[9px] font-black whitespace-nowrap">¿Eliminar?</span>
+                : <Trash2 className="w-3.5 h-3.5" />}
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* ── Row 2: Stats grid (4 cols) ── */}
+      <div className="grid grid-cols-4 gap-x-3 gap-y-2 px-3 pb-2.5">
+        <StatCell
+          label="Volumen"
+          value={fmtVolume(row.volume)}
+          loading={loadingDetails && row.volume == null}
+        />
+        <StatCell
+          label="Mkt Cap"
+          value={fmtMarketCap(row.marketCap)}
+          loading={loadingDetails && row.marketCap == null}
+        />
+        <StatCell
+          label="P/E"
+          value={row.pe != null ? row.pe.toFixed(1) : "—"}
+          loading={loadingDetails && row.pe == null}
+        />
+        <StatCell
+          label="Earnings"
+          value={fmtEarningsDate(row.earningsDate)}
+          loading={loadingDetails && row.earningsDate == null}
+        />
+      </div>
+
+      {/* ── Row 3: 52-week bar ── */}
+      {(row.week52Low != null || row.week52High != null) && (
+        <div className="px-3 pb-2.5 flex items-center gap-2">
+          <span className="text-[9px] tabular-nums font-semibold shrink-0" style={{ color: "#ef4444" }}>
+            {row.week52Low != null ? fmtPrice(row.week52Low, currency) : "—"}
+          </span>
+          <div className="flex-1 h-[5px] rounded-full relative overflow-visible"
+               style={{ background: "var(--border)" }}>
+            <div
+              className="absolute inset-y-0 left-0 rounded-full"
+              style={{
+                width: w52Pct != null ? `${w52Pct}%` : "0%",
+                background: "linear-gradient(90deg, rgba(239,68,68,0.5), var(--accent-l))",
+              }}
+            />
+            {w52Pct != null && (
+              <div
+                className="absolute w-2.5 h-2.5 rounded-full -translate-x-1/2 -translate-y-[2.5px]"
+                style={{ left: `${w52Pct}%`, background: "var(--accent-l)", border: "2px solid var(--card)" }}
+              />
+            )}
+          </div>
+          <span className="text-[9px] tabular-nums font-semibold shrink-0" style={{ color: "#22c55e" }}>
+            {row.week52High != null ? fmtPrice(row.week52High, currency) : "—"}
+          </span>
+          <span className="text-[8px] font-bold shrink-0" style={{ color: "var(--dim)" }}>52W</span>
+        </div>
+      )}
+
+      {/* ── Row 4: After-hours (only if present) ── */}
+      {row.extPrice != null && (
+        <div className="px-3 pb-2.5 flex items-center gap-2">
+          <span className="text-[8px] font-bold uppercase px-1.5 py-0.5 rounded-md"
+                style={{ background: "rgba(251,191,36,0.1)", color: "#fbbf24" }}>
+            {row.extLabel ?? "AH"}
+          </span>
+          <span className="text-[12px] tabular-nums font-semibold" style={{ color: "var(--text)" }}>
+            {fmtPrice(row.extPrice, currency)}
+          </span>
+          {row.extPct != null && (
+            <span className="text-[11px] font-bold tabular-nums"
+                  style={{ color: row.extPct >= 0 ? "#22c55e" : "#ef4444" }}>
+              {fmtPct(row.extPct)}
+            </span>
+          )}
+        </div>
+      )}
+
+      {/* ── Row 5: Portfolio position (only in portfolio mode) ── */}
+      {mode === "portfolio" && (
+        <div className="grid grid-cols-4 gap-x-3 px-3 py-2.5"
+             style={{ borderTop: "1px solid var(--border)", background: "rgba(0,0,0,0.02)" }}>
+          <StatCell
+            label="Acciones"
+            value={row.shares != null ? row.shares.toLocaleString("en-US") : "—"}
+          />
+          <StatCell
+            label="P. Compra"
+            value={fmtPrice(row.avgCost, currency)}
+          />
+          <StatCell
+            label="Valor hoy"
+            value={fmtPrice(row.positionValue, currency)}
+            color="var(--text)"
+          />
+          <StatCell
+            label="G/P"
+            value={row.gainLossPct != null ? fmtPct(row.gainLossPct) : "—"}
+            color={glColor}
+          />
+        </div>
+      )}
+    </div>
   );
 }
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export default function AdvancedStockTable({ rows, mode, onRemove, onRowClick }: Props) {
-  const [details, setDetails] = useState<Record<string, Partial<AdvancedRow>>>({});
+  const [details, setDetails]             = useState<Record<string, Partial<AdvancedRow>>>({});
   const [loadingDetails, setLoadingDetails] = useState(false);
-  const [livePrices, setLivePrices] = useState<Record<string, { price: number; ts: number }>>({});
-  const [wsConnected, setWsConnected] = useState(false);
-  const [sortKey, setSortKey] = useState<SortKey | null>(null);
-  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+  const [livePrices, setLivePrices]       = useState<Record<string, { price: number; ts: number }>>({});
+  const [wsConnected, setWsConnected]     = useState(false);
+  const [sortKey, setSortKey]             = useState<SortKey | null>(null);
+  const [sortDir, setSortDir]             = useState<"asc" | "desc">("desc");
 
-  const tickers = rows.map((r) => r.ticker);
+  const tickers  = rows.map((r) => r.ticker);
   const tickerKey = tickers.join(",");
   const fetchedRef = useRef<string>("");
 
@@ -166,16 +395,11 @@ export default function AdvancedStockTable({ rows, mode, onRemove, onRowClick }:
   }, [tickerKey]);
 
   const enriched: AdvancedRow[] = rows.map((r) => {
-    const d = details[r.ticker] ?? {};
+    const d    = details[r.ticker] ?? {};
     const live = livePrices[r.ticker];
     const price = live?.price ?? (d.price as number | null) ?? r.price;
-    return {
-      ...r,
-      ...d,
-      price,
-      change: (d.change as number | null) ?? r.change ?? null,
-      changePct: (d.changePct as number | null) ?? r.changePct,
-    };
+    return { ...r, ...d, price, change: (d.change as number | null) ?? r.change ?? null,
+             changePct: (d.changePct as number | null) ?? r.changePct };
   });
 
   const sorted = [...enriched].sort((a, b) => {
@@ -194,218 +418,72 @@ export default function AdvancedStockTable({ rows, mode, onRemove, onRowClick }:
     else { setSortKey(k); setSortDir("desc"); }
   };
 
-  const colProps = { current: sortKey, dir: sortDir, onClick: handleSort };
+  const sortOptions = mode === "portfolio" ? SORT_PORTFOLIO : SORT_WATCHLIST;
 
   return (
-    <div className="rounded-xl border overflow-hidden"
+    <div className="rounded-2xl border overflow-hidden"
          style={{ background: "var(--card)", borderColor: "var(--border)" }}>
 
-      {/* Status bar */}
-      <div className="flex items-center justify-between px-3 py-1 border-b"
+      {/* ── Header bar ── */}
+      <div className="flex items-center justify-between px-3 py-2 border-b"
            style={{ borderColor: "var(--border)", background: "var(--raised)" }}>
-        <span className="text-[9px] font-semibold flex items-center gap-1" style={{ color: "var(--muted)" }}>
-          {wsConnected
-            ? <><Wifi className="w-2.5 h-2.5" style={{ color: "#22c55e" }} /> Tiempo real</>
-            : <><WifiOff className="w-2.5 h-2.5" /> Polling 15s</>}
-        </span>
+        <div className="flex items-center gap-1.5">
+          <span className="text-[9px] font-bold flex items-center gap-1" style={{ color: "var(--muted)" }}>
+            {wsConnected
+              ? <><Wifi className="w-2.5 h-2.5" style={{ color: "#22c55e" }} /> Tiempo real</>
+              : <><WifiOff className="w-2.5 h-2.5" /> Polling 15s</>}
+          </span>
+        </div>
         <span className="text-[9px]" style={{ color: "var(--dim)" }}>
           {sorted.length} {sorted.length === 1 ? "acción" : "acciones"}
         </span>
       </div>
 
-      {/* Scroll wrapper */}
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[960px] border-collapse">
-          <thead>
-            <tr style={{ background: "var(--raised)" }}>
-              <th className="px-2 py-2 text-left text-[9px] font-bold uppercase tracking-wide whitespace-nowrap"
-                  style={{ color: "var(--muted)", borderBottom: "1px solid var(--border)" }}>
-                Símbolo
-              </th>
-              <Th label="Precio"   sortKey="price"        {...colProps} />
-              <Th label="Var %"    sortKey="changePct"    {...colProps} />
-              <Th label="Volumen"  sortKey="volume"       {...colProps} />
-              <Th label="AH"       sortKey="extPrice"     {...colProps} />
-              <Th label="AH %"     sortKey="extPct"       {...colProps} />
-              <Th label="Cap"      sortKey="marketCap"    {...colProps} />
-              <Th label="P/E"      sortKey="pe"           {...colProps} />
-              <Th label="Earnings" sortKey="earningsDate" {...colProps} />
-              <Th label="52W ↑"    sortKey="week52High"   {...colProps} />
-              <Th label="52W ↓"    sortKey="week52Low"    {...colProps} />
-              {mode === "portfolio" && (
-                <>
-                  <Th label="Valor" sortKey="positionValue" {...colProps} />
-                  <Th label="G/P %" sortKey="gainLossPct"   {...colProps} />
-                </>
+      {/* ── Sort chips ── */}
+      <div className="flex items-center gap-1.5 px-3 py-2 border-b flex-wrap"
+           style={{ borderColor: "var(--border)", background: "var(--raised)" }}>
+        <span className="text-[8px] font-bold uppercase tracking-wider shrink-0"
+              style={{ color: "var(--dim)" }}>
+          Ordenar
+        </span>
+        {sortOptions.map(({ key, label }) => {
+          const active = sortKey === key;
+          return (
+            <button
+              key={key}
+              onClick={() => handleSort(key)}
+              className="flex items-center gap-0.5 px-2 py-0.5 rounded-lg text-[9px] font-bold transition-all"
+              style={{
+                background: active ? "var(--accent-l)" : "var(--border)",
+                color: active ? "white" : "var(--muted)",
+              }}
+            >
+              {label}
+              {active && (
+                sortDir === "asc"
+                  ? <ChevronUp className="w-2 h-2" />
+                  : <ChevronDown className="w-2 h-2" />
               )}
-              {onRemove && (
-                <th className="px-2 py-2 text-[9px]"
-                    style={{ borderBottom: "1px solid var(--border)" }} />
-              )}
-            </tr>
-          </thead>
-          <tbody>
-            {sorted.map((row, idx) => {
-              const currency   = row.currency ?? "USD";
-              const isUp       = (row.changePct ?? 0) >= 0;
-              const priceColor = changeColor(row.changePct);
-              const glUp       = (row.gainLossPct ?? 0) >= 0;
-              const isLive     = !!livePrices[row.ticker];
-
-              return (
-                <tr
-                  key={row.ticker}
-                  className="transition-colors hover:bg-white/[0.025]"
-                  onClick={() => onRowClick?.(row.ticker)}
-                  style={{
-                    cursor: onRowClick ? "pointer" : "default",
-                    borderBottom: idx < sorted.length - 1 ? "1px solid var(--border)" : "none",
-                    borderLeft: `2px solid ${isUp ? "rgba(34,197,94,0.35)" : "rgba(239,68,68,0.35)"}`,
-                  }}
-                >
-                  {/* Symbol + Name */}
-                  <td className="px-2 py-1.5">
-                    <div className="flex items-center gap-1.5">
-                      <Avatar ticker={row.ticker} logoUrl={row.logoUrl} />
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-0.5">
-                          <p className="text-[11px] font-bold leading-none" style={{ color: "var(--text)" }}>
-                            {row.ticker}
-                          </p>
-                          <LiveDot live={isLive} />
-                        </div>
-                        <p className="text-[9px] truncate max-w-[80px] mt-0.5" style={{ color: "var(--muted)" }}>
-                          {row.companyName ?? row.name}
-                        </p>
-                      </div>
-                    </div>
-                  </td>
-
-                  {/* Price */}
-                  <td className="px-2 py-1.5 text-right">
-                    {loadingDetails && row.price == null ? (
-                      <Loader2 className="w-2.5 h-2.5 animate-spin ml-auto" style={{ color: "var(--muted)" }} />
-                    ) : (
-                      <span className="text-[11px] font-bold tabular-nums" style={{ color: "var(--text)" }}>
-                        {fmtPrice(row.price, currency)}
-                      </span>
-                    )}
-                  </td>
-
-                  {/* Change % */}
-                  <td className="px-2 py-1.5 text-right">
-                    <span className="text-[11px] font-semibold tabular-nums" style={{ color: priceColor }}>
-                      {fmtPct(row.changePct)}
-                    </span>
-                  </td>
-
-                  {/* Volume */}
-                  <td className="px-2 py-1.5 text-right">
-                    {loadingDetails && row.volume == null ? (
-                      <Loader2 className="w-2.5 h-2.5 animate-spin ml-auto" style={{ color: "var(--muted)" }} />
-                    ) : (
-                      <span className="text-[11px] tabular-nums" style={{ color: "var(--sub)" }}>
-                        {fmtVolume(row.volume)}
-                      </span>
-                    )}
-                  </td>
-
-                  {/* After Hours Price */}
-                  <td className="px-2 py-1.5 text-right">
-                    {row.extPrice ? (
-                      <span className="text-[10px] font-semibold tabular-nums" style={{ color: "var(--text)" }}>
-                        {fmtPrice(row.extPrice, currency)}
-                      </span>
-                    ) : (
-                      <span className="text-[11px]" style={{ color: "var(--dim)" }}>—</span>
-                    )}
-                  </td>
-
-                  {/* After Hours Change % */}
-                  <td className="px-2 py-1.5 text-right">
-                    {row.extPct != null ? (
-                      <span className="text-[11px] font-semibold tabular-nums"
-                            style={{ color: row.extPct >= 0 ? "#22c55e" : "#ef4444" }}>
-                        {fmtPct(row.extPct)}
-                      </span>
-                    ) : (
-                      <span className="text-[11px]" style={{ color: "var(--dim)" }}>—</span>
-                    )}
-                  </td>
-
-                  {/* Market Cap */}
-                  <td className="px-2 py-1.5 text-right">
-                    <span className="text-[11px] tabular-nums" style={{ color: "var(--sub)" }}>
-                      {fmtMarketCap(row.marketCap)}
-                    </span>
-                  </td>
-
-                  {/* P/E */}
-                  <td className="px-2 py-1.5 text-right">
-                    <span className="text-[11px] tabular-nums" style={{ color: "var(--sub)" }}>
-                      {row.pe != null ? row.pe.toFixed(1) : "—"}
-                    </span>
-                  </td>
-
-                  {/* Earnings Date */}
-                  <td className="px-2 py-1.5 text-right">
-                    <span className="text-[10px]" style={{ color: "var(--sub)" }}>
-                      {fmtEarningsDate(row.earningsDate)}
-                    </span>
-                  </td>
-
-                  {/* 52W High */}
-                  <td className="px-2 py-1.5 text-right">
-                    <span className="text-[11px] tabular-nums" style={{ color: "#22c55e" }}>
-                      {row.week52High != null ? fmtPrice(row.week52High, currency) : "—"}
-                    </span>
-                  </td>
-
-                  {/* 52W Low */}
-                  <td className="px-2 py-1.5 text-right">
-                    <span className="text-[11px] tabular-nums" style={{ color: "#ef4444" }}>
-                      {row.week52Low != null ? fmtPrice(row.week52Low, currency) : "—"}
-                    </span>
-                  </td>
-
-                  {/* Portfolio: Valor + G/P */}
-                  {mode === "portfolio" && (
-                    <>
-                      <td className="px-2 py-1.5 text-right">
-                        <span className="text-[11px] font-bold tabular-nums" style={{ color: "var(--text)" }}>
-                          {fmtPrice(row.positionValue, currency)}
-                        </span>
-                      </td>
-                      <td className="px-2 py-1.5 text-right">
-                        <span className="text-[11px] font-bold tabular-nums"
-                              style={{ color: glUp ? "#22c55e" : "#ef4444" }}>
-                          {fmtPct(row.gainLossPct)}
-                        </span>
-                      </td>
-                    </>
-                  )}
-
-                  {/* Remove */}
-                  {onRemove && (
-                    <td className="px-2 py-1.5 text-right">
-                      <button
-                        onClick={(e) => { e.stopPropagation(); onRemove(row.ticker); }}
-                        className="w-4 h-4 rounded flex items-center justify-center opacity-25 hover:opacity-80 transition-opacity text-[11px]"
-                        style={{ color: "var(--muted)" }}
-                      >
-                        ×
-                      </button>
-                    </td>
-                  )}
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+            </button>
+          );
+        })}
       </div>
 
-      {sorted.length === 0 && (
-        <p className="text-[11px] text-center py-6" style={{ color: "var(--muted)" }}>
+      {/* ── Stock cards ── */}
+      {sorted.length > 0 ? (
+        sorted.map((row) => (
+          <StockCard
+            key={row.ticker}
+            row={row}
+            mode={mode}
+            onRemove={onRemove}
+            onRowClick={onRowClick}
+            isLive={!!livePrices[row.ticker]}
+            loadingDetails={loadingDetails}
+          />
+        ))
+      ) : (
+        <p className="text-[11px] text-center py-8" style={{ color: "var(--muted)" }}>
           Sin datos
         </p>
       )}

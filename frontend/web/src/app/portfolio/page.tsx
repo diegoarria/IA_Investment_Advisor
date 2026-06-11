@@ -1619,6 +1619,10 @@ export default function PortfolioPage() {
                   <AdvancedStockTable
                     mode="portfolio"
                     onRowClick={setSelectedStock}
+                    onRemove={(ticker) => {
+                      const pos = sortedPositions.find((p) => p.ticker === ticker);
+                      if (pos) removePosition(pos.id);
+                    }}
                     rows={sortedPositions.map((pos): AdvancedRow => {
                       const pd = prices[pos.ticker];
                       const cp = pd?.price ? pd.price * fxRate : null;
