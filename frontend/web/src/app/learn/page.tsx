@@ -300,7 +300,7 @@ export default function LearnPage() {
             <span className="font-bold text-sm" style={{ color: "var(--text)" }}>Nuvos AI</span>
           </button>
         </div>
-        <span className="font-semibold text-sm" style={{ color: "var(--sub)" }}>Aprendizaje</span>
+        <span className="font-semibold text-sm" style={{ color: "var(--sub)", fontFamily: "var(--font-body)" }}>Aprendizaje</span>
         <div className="w-8" />
       </div>
 

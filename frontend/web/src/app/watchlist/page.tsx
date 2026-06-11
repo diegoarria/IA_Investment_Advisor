@@ -484,7 +484,7 @@ export default function WatchlistPage() {
             </button>
           </div>
 
-          <span className="font-semibold text-sm" style={{ color: "var(--sub)" }}>Watchlist</span>
+          <span className="font-semibold text-sm" style={{ color: "var(--sub)", fontFamily: "var(--font-body)" }}>Watchlist</span>
 
           <div className="flex items-center gap-2">
             {lastUpdatedText && (

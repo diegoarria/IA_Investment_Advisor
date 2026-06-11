@@ -118,7 +118,7 @@ export default function ArenaPage() {
             <span className="font-bold text-sm" style={{ color: "var(--text)" }}>Nuvos AI</span>
           </button>
         </div>
-        <span className="font-semibold text-sm" style={{ color: "var(--sub)" }}>Play</span>
+        <span className="font-semibold text-sm" style={{ color: "var(--sub)", fontFamily: "var(--font-body)" }}>Play</span>
         <div className="flex items-center gap-1">
           <button onClick={toggleTheme} className="p-2 rounded-lg hover:bg-white/5" style={{ color: "var(--muted)" }}>
             {theme === "dark" ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}

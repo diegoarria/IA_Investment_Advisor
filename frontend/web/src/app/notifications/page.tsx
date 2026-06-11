@@ -215,7 +215,7 @@ export default function NotificationsPage() {
             <span className="font-bold text-sm" style={{ color: "var(--text)" }}>Nuvos AI</span>
           </button>
         </div>
-        <span className="font-semibold text-sm" style={{ color: "var(--sub)" }}>Notificaciones</span>
+        <span className="font-semibold text-sm" style={{ color: "var(--sub)", fontFamily: "var(--font-body)" }}>Notificaciones</span>
         <div className="flex items-center gap-1">
           <button onClick={handleRefresh} disabled={refreshing} className="p-2 rounded-lg hover:bg-white/5" style={{ color: "var(--muted)" }}>
             <RefreshCw className={`w-4 h-4 ${refreshing ? "animate-spin" : ""}`} />
