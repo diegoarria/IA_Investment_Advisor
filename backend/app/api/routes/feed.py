@@ -313,7 +313,7 @@ Genera exactamente este JSON (sin nada más):
                     "voice_settings": {
                         "stability": 0.5,
                         "similarity_boost": 0.75,
-                        "speed": 1.25,
+                        "speed": 1.2,
                     },
                 },
             )
