@@ -1,8 +1,12 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
-import { ChevronUp, ChevronDown, ChevronsUpDown, Loader2 } from "lucide-react";
+import { useState, useEffect, useRef, useCallback } from "react";
+import { ChevronUp, ChevronDown, ChevronsUpDown, Loader2, Wifi, WifiOff } from "lucide-react";
 import { market as marketApi } from "@/lib/api";
+import { finnhubWS } from "@/lib/services/websocketService";
+import {
+  fmtPrice, fmtChange, fmtPct, fmtVolume, fmtMarketCap, fmtEarningsDate, changeColor,
+} from "@/lib/types/stock";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -11,6 +15,7 @@ export interface AdvancedRow {
   name: string;
   logoUrl?: string | null;
   price: number | null;
+  change?: number | null;       // $ amount
   changePct: number | null;
   currency?: string;
   marketState?: string | null;
@@ -23,8 +28,10 @@ export interface AdvancedRow {
   week52High?: number | null;
   earningsDate?: string | null;
   extPrice?: number | null;
+  extChange?: number | null;    // $ amount vs regular close
   extPct?: number | null;
   extLabel?: string | null;
+  companyName?: string | null;
   // portfolio-only
   shares?: number | null;
   avgCost?: number | null;
@@ -42,49 +49,6 @@ interface Props {
   onRowClick?: (ticker: string) => void;
 }
 
-// ─── Formatters ───────────────────────────────────────────────────────────────
-
-function fmtPrice(v: number | null | undefined, currency = "USD") {
-  if (v == null) return "—";
-  const sym = currency === "EUR" ? "€" : currency === "GBP" ? "£" : "$";
-  return `${sym}${v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-}
-
-function fmtPct(v: number | null | undefined, sign = true) {
-  if (v == null) return "—";
-  return `${sign && v >= 0 ? "+" : ""}${v.toFixed(2)}%`;
-}
-
-function fmtVol(v: number | null | undefined) {
-  if (v == null) return "—";
-  if (v >= 1e9) return `${(v / 1e9).toFixed(2)}B`;
-  if (v >= 1e6) return `${(v / 1e6).toFixed(1)}M`;
-  if (v >= 1e3) return `${(v / 1e3).toFixed(0)}K`;
-  return String(v);
-}
-
-function fmtCap(v: number | null | undefined) {
-  if (v == null) return "—";
-  if (v >= 1e12) return `$${(v / 1e12).toFixed(2)}T`;
-  if (v >= 1e9)  return `$${(v / 1e9).toFixed(1)}B`;
-  if (v >= 1e6)  return `$${(v / 1e6).toFixed(0)}M`;
-  return `$${v}`;
-}
-
-function fmtPE(v: number | null | undefined) {
-  if (v == null) return "—";
-  return v.toFixed(2);
-}
-
-function fmtDate(d: string | null | undefined) {
-  if (!d) return "—";
-  try {
-    return new Date(d + "T12:00:00").toLocaleDateString("es", { month: "short", day: "numeric" });
-  } catch {
-    return d;
-  }
-}
-
 // ─── Avatar ───────────────────────────────────────────────────────────────────
 
 function Avatar({ ticker, logoUrl }: { ticker: string; logoUrl?: string | null }) {
@@ -100,8 +64,7 @@ function Avatar({ ticker, logoUrl }: { ticker: string; logoUrl?: string | null }
     return (
       // eslint-disable-next-line @next/next/no-img-element
       <img
-        src={active}
-        alt={ticker}
+        src={active} alt={ticker}
         className="w-7 h-7 rounded-full object-contain p-0.5 shrink-0"
         style={{ background: "var(--raised)", border: "1px solid var(--border)" }}
         onError={() => setFailed((p) => new Set([...p, active]))}
@@ -138,69 +101,101 @@ function Th({
     >
       <span className="inline-flex items-center gap-1 justify-end">
         {label}
-        {active ? (
-          dir === "asc"
-            ? <ChevronUp className="w-2.5 h-2.5" />
-            : <ChevronDown className="w-2.5 h-2.5" />
-        ) : (
-          <ChevronsUpDown className="w-2.5 h-2.5 opacity-30" />
-        )}
+        {active
+          ? dir === "asc" ? <ChevronUp className="w-2.5 h-2.5" /> : <ChevronDown className="w-2.5 h-2.5" />
+          : <ChevronsUpDown className="w-2.5 h-2.5 opacity-30" />}
       </span>
     </th>
+  );
+}
+
+// ─── Live dot indicator ───────────────────────────────────────────────────────
+
+function LiveDot({ live }: { live: boolean }) {
+  return (
+    <span
+      className="inline-block w-1.5 h-1.5 rounded-full ml-1 shrink-0"
+      style={{ background: live ? "#22c55e" : "var(--dim)" }}
+      title={live ? "Tiempo real (WebSocket)" : "Polling"}
+    />
   );
 }
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export default function AdvancedStockTable({ rows, mode, onRemove, onRowClick }: Props) {
-  const [details, setDetails] = useState<Record<string, {
-    price?: number | null; changePct?: number | null;
-    volume?: number | null; marketCap?: number | null; pe?: number | null;
-    week52Pct?: number | null; week52Low?: number | null; week52High?: number | null;
-    earningsDate?: string | null;
-    extPrice?: number | null; extPct?: number | null; extLabel?: string | null;
-    marketState?: string | null;
-  }>>({})
+  // Enriched data from /quote-details (price, change, volume, cap, pe, 52W, earnings, ext)
+  const [details, setDetails] = useState<Record<string, Partial<AdvancedRow>>>({});
   const [loadingDetails, setLoadingDetails] = useState(false);
+  // WebSocket live prices: ticker → { price, change, changePct }
+  const [livePrices, setLivePrices] = useState<Record<string, { price: number; ts: number }>>({});
+  const [wsConnected, setWsConnected] = useState(false);
+
   const [sortKey, setSortKey] = useState<SortKey | null>(null);
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
-  const fetchedRef = useRef<string>("");
 
   const tickers = rows.map((r) => r.ticker);
   const tickerKey = tickers.join(",");
+  const fetchedRef = useRef<string>("");
 
-  const fetchDetails = (isInitial = false) => {
+  // ── REST enrichment ─────────────────────────────────────────────────────────
+
+  const fetchDetails = useCallback((isInitial = false) => {
     if (!tickerKey) return;
     if (isInitial) setLoadingDetails(true);
     marketApi
       .getQuoteDetails(tickers)
-      .then((res) => setDetails(res.data || {}))
+      .then((res) => setDetails(res.data as Record<string, Partial<AdvancedRow>> || {}))
       .catch(() => {})
       .finally(() => { if (isInitial) setLoadingDetails(false); });
-  };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tickerKey]);
 
-  // Initial fetch + re-fetch when tickers change
   useEffect(() => {
     fetchedRef.current = tickerKey;
     fetchDetails(true);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tickerKey]);
+  }, [fetchDetails]);
 
-  // Auto-refresh every 60 s to keep prices/volume live
+  // Re-fetch every 15 s for near-real-time enriched data
   useEffect(() => {
     if (!tickerKey) return;
-    const interval = setInterval(() => fetchDetails(false), 60_000);
+    const interval = setInterval(() => fetchDetails(false), 15_000);
     return () => clearInterval(interval);
+  }, [fetchDetails, tickerKey]);
+
+  // ── Finnhub WebSocket price overlay ─────────────────────────────────────────
+
+  useEffect(() => {
+    if (!tickers.length) return;
+
+    const unsub = finnhubWS.subscribe(tickers, (symbol, price, ts) => {
+      setLivePrices((prev) => ({ ...prev, [symbol]: { price, ts } }));
+      setWsConnected(true);
+    });
+
+    return unsub;
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tickerKey]);
 
-  // Merge enriched data
-  const enriched: AdvancedRow[] = rows.map((r) => ({
-    ...r,
-    ...(details[r.ticker] ?? {}),
-  }));
+  // ── Merge: enriched REST data + WebSocket live price overlay ────────────────
 
-  // Sort
+  const enriched: AdvancedRow[] = rows.map((r) => {
+    const d = details[r.ticker] ?? {};
+    const live = livePrices[r.ticker];
+    // WebSocket price overrides REST price when available
+    const price = live?.price ?? (d.price as number | null) ?? r.price;
+    return {
+      ...r,
+      ...d,
+      price,
+      // Preserve change$ from REST (WS doesn't send daily change)
+      change: (d.change as number | null) ?? r.change ?? null,
+      changePct: (d.changePct as number | null) ?? r.changePct,
+    };
+  });
+
+  // ── Sorting ─────────────────────────────────────────────────────────────────
+
   const sorted = [...enriched].sort((a, b) => {
     if (!sortKey) return 0;
     const va = a[sortKey] as number | string | null | undefined;
@@ -223,9 +218,22 @@ export default function AdvancedStockTable({ rows, mode, onRemove, onRowClick }:
     <div className="rounded-2xl border overflow-hidden"
          style={{ background: "var(--card)", borderColor: "var(--border)" }}>
 
+      {/* Status bar */}
+      <div className="flex items-center justify-between px-4 py-1.5 border-b"
+           style={{ borderColor: "var(--border)", background: "var(--raised)" }}>
+        <span className="text-[10px] font-semibold flex items-center gap-1.5" style={{ color: "var(--muted)" }}>
+          {wsConnected
+            ? <><Wifi className="w-3 h-3" style={{ color: "#22c55e" }} /> Tiempo real (WebSocket)</>
+            : <><WifiOff className="w-3 h-3" /> Polling 15s</>}
+        </span>
+        <span className="text-[10px]" style={{ color: "var(--dim)" }}>
+          {sorted.length} acciones
+        </span>
+      </div>
+
       {/* Scroll wrapper */}
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[820px] border-collapse text-sm">
+        <table className="w-full min-w-[1100px] border-collapse text-sm">
           <thead>
             <tr style={{ background: "var(--raised)" }}>
               <th className="px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-wide whitespace-nowrap"
@@ -233,18 +241,21 @@ export default function AdvancedStockTable({ rows, mode, onRemove, onRowClick }:
                 Símbolo
               </th>
               <Th label="Precio"    sortKey="price"        {...colProps} />
+              <Th label="Var $"     sortKey="change"       {...colProps} />
               <Th label="Var %"     sortKey="changePct"    {...colProps} />
               <Th label="Volumen"   sortKey="volume"       {...colProps} />
-              <Th label="Ext."      sortKey="extPrice"     {...colProps} />
-              <Th label="Ext. %"    sortKey="extPct"       {...colProps} />
+              <Th label="AH Precio" sortKey="extPrice"     {...colProps} />
+              <Th label="AH $"      sortKey="extChange"    {...colProps} />
+              <Th label="AH %"      sortKey="extPct"       {...colProps} />
               <Th label="Cap. Mkt"  sortKey="marketCap"    {...colProps} />
               <Th label="P/E"       sortKey="pe"           {...colProps} />
               <Th label="Earnings"  sortKey="earningsDate" {...colProps} />
-              <Th label="Var 52s ↑" sortKey="week52Pct"    {...colProps} />
+              <Th label="52W Máx"   sortKey="week52High"   {...colProps} />
+              <Th label="52W Mín"   sortKey="week52Low"    {...colProps} />
               {mode === "portfolio" && (
                 <>
-                  <Th label="Valor"   sortKey="positionValue" {...colProps} />
-                  <Th label="G/P %"   sortKey="gainLossPct"   {...colProps} />
+                  <Th label="Valor" sortKey="positionValue" {...colProps} />
+                  <Th label="G/P %" sortKey="gainLossPct"   {...colProps} />
                 </>
               )}
               {onRemove && (
@@ -255,10 +266,13 @@ export default function AdvancedStockTable({ rows, mode, onRemove, onRowClick }:
           </thead>
           <tbody>
             {sorted.map((row, idx) => {
-              const isUp = (row.changePct ?? 0) >= 0;
-              const priceColor = isUp ? "#22c55e" : "#ef4444";
-              const extUp = (row.extPct ?? 0) >= 0;
-              const glUp = (row.gainLossPct ?? 0) >= 0;
+              const currency    = row.currency ?? "USD";
+              const isUp        = (row.changePct ?? 0) >= 0;
+              const priceColor  = changeColor(row.changePct);
+              const extUp       = (row.extPct ?? 0) >= 0;
+              const glUp        = (row.gainLossPct ?? 0) >= 0;
+              const isLive      = !!livePrices[row.ticker];
+              const extColor    = row.extLabel === "Pre" ? "#f59e0b" : "#818cf8";
 
               return (
                 <tr
@@ -271,14 +285,19 @@ export default function AdvancedStockTable({ rows, mode, onRemove, onRowClick }:
                     borderLeft: `3px solid ${isUp ? "rgba(34,197,94,0.4)" : "rgba(239,68,68,0.4)"}`,
                   }}
                 >
-                  {/* Symbol */}
+                  {/* Symbol + Name */}
                   <td className="px-3 py-2.5">
                     <div className="flex items-center gap-2">
                       <Avatar ticker={row.ticker} logoUrl={row.logoUrl} />
                       <div className="min-w-0">
-                        <p className="text-xs font-black" style={{ color: "var(--text)" }}>{row.ticker}</p>
+                        <div className="flex items-center gap-1">
+                          <p className="text-xs font-black" style={{ color: "var(--text)" }}>
+                            {row.ticker}
+                          </p>
+                          <LiveDot live={isLive} />
+                        </div>
                         <p className="text-[10px] truncate max-w-[90px]" style={{ color: "var(--muted)" }}>
-                          {row.name}
+                          {row.companyName ?? row.name}
                         </p>
                       </div>
                     </div>
@@ -286,12 +305,23 @@ export default function AdvancedStockTable({ rows, mode, onRemove, onRowClick }:
 
                   {/* Price */}
                   <td className="px-3 py-2.5 text-right">
-                    <span className="text-xs font-bold tabular-nums" style={{ color: "var(--text)" }}>
-                      {fmtPrice(row.price, row.currency)}
+                    {loadingDetails && row.price == null ? (
+                      <Loader2 className="w-3 h-3 animate-spin ml-auto" style={{ color: "var(--muted)" }} />
+                    ) : (
+                      <span className="text-xs font-bold tabular-nums" style={{ color: "var(--text)" }}>
+                        {fmtPrice(row.price, currency)}
+                      </span>
+                    )}
+                  </td>
+
+                  {/* Change $ */}
+                  <td className="px-3 py-2.5 text-right">
+                    <span className="text-xs font-semibold tabular-nums" style={{ color: priceColor }}>
+                      {fmtChange(row.change, currency)}
                     </span>
                   </td>
 
-                  {/* Chg% */}
+                  {/* Change % */}
                   <td className="px-3 py-2.5 text-right">
                     <span className="text-xs font-bold tabular-nums" style={{ color: priceColor }}>
                       {fmtPct(row.changePct)}
@@ -300,22 +330,21 @@ export default function AdvancedStockTable({ rows, mode, onRemove, onRowClick }:
 
                   {/* Volume */}
                   <td className="px-3 py-2.5 text-right">
-                    {loadingDetails && !row.volume ? (
+                    {loadingDetails && row.volume == null ? (
                       <Loader2 className="w-3 h-3 animate-spin ml-auto" style={{ color: "var(--muted)" }} />
                     ) : (
                       <span className="text-xs tabular-nums" style={{ color: "var(--sub)" }}>
-                        {fmtVol(row.volume)}
+                        {fmtVolume(row.volume)}
                       </span>
                     )}
                   </td>
 
-                  {/* Ext. price */}
+                  {/* After Hours Price */}
                   <td className="px-3 py-2.5 text-right">
                     {row.extPrice ? (
                       <div>
-                        <span className="text-[10px] font-semibold tabular-nums"
-                              style={{ color: row.extLabel === "Pre" ? "#f59e0b" : "#818cf8" }}>
-                          {fmtPrice(row.extPrice, row.currency)}
+                        <span className="text-[10px] font-semibold tabular-nums" style={{ color: extColor }}>
+                          {fmtPrice(row.extPrice, currency)}
                         </span>
                         {row.extLabel && (
                           <span className="block text-[8px]" style={{ color: "var(--muted)" }}>
@@ -328,10 +357,18 @@ export default function AdvancedStockTable({ rows, mode, onRemove, onRowClick }:
                     )}
                   </td>
 
-                  {/* Ext. % */}
+                  {/* After Hours Change $ */}
+                  <td className="px-3 py-2.5 text-right">
+                    <span className="text-xs tabular-nums"
+                          style={{ color: row.extChange != null ? (extUp ? extColor : extColor) : "var(--dim)" }}>
+                      {row.extChange != null ? fmtChange(row.extChange, currency) : "—"}
+                    </span>
+                  </td>
+
+                  {/* After Hours Change % */}
                   <td className="px-3 py-2.5 text-right">
                     <span className="text-xs font-semibold tabular-nums"
-                          style={{ color: row.extPct != null ? (extUp ? "#f59e0b" : "#818cf8") : "var(--dim)" }}>
+                          style={{ color: row.extPct != null ? extColor : "var(--dim)" }}>
                       {row.extPct != null ? fmtPct(row.extPct) : "—"}
                     </span>
                   </td>
@@ -339,42 +376,44 @@ export default function AdvancedStockTable({ rows, mode, onRemove, onRowClick }:
                   {/* Market Cap */}
                   <td className="px-3 py-2.5 text-right">
                     <span className="text-xs tabular-nums" style={{ color: "var(--sub)" }}>
-                      {fmtCap(row.marketCap)}
+                      {fmtMarketCap(row.marketCap)}
                     </span>
                   </td>
 
                   {/* P/E */}
                   <td className="px-3 py-2.5 text-right">
                     <span className="text-xs tabular-nums" style={{ color: "var(--sub)" }}>
-                      {fmtPE(row.pe)}
+                      {row.pe != null ? row.pe.toFixed(2) : "—"}
                     </span>
                   </td>
 
                   {/* Earnings Date */}
                   <td className="px-3 py-2.5 text-right">
                     <span className="text-xs" style={{ color: "var(--sub)" }}>
-                      {fmtDate(row.earningsDate)}
+                      {fmtEarningsDate(row.earningsDate)}
                     </span>
                   </td>
 
-                  {/* 52w % */}
+                  {/* 52W High */}
                   <td className="px-3 py-2.5 text-right">
-                    {row.week52Pct != null ? (
-                      <span className="text-xs font-semibold tabular-nums"
-                            style={{ color: row.week52Pct >= 0 ? "#22c55e" : "#ef4444" }}>
-                        +{row.week52Pct.toFixed(1)}%
-                      </span>
-                    ) : (
-                      <span className="text-xs" style={{ color: "var(--dim)" }}>—</span>
-                    )}
+                    <span className="text-xs tabular-nums" style={{ color: "#22c55e" }}>
+                      {row.week52High != null ? fmtPrice(row.week52High, currency) : "—"}
+                    </span>
                   </td>
 
-                  {/* Portfolio-only: Valor + G/P */}
+                  {/* 52W Low */}
+                  <td className="px-3 py-2.5 text-right">
+                    <span className="text-xs tabular-nums" style={{ color: "#ef4444" }}>
+                      {row.week52Low != null ? fmtPrice(row.week52Low, currency) : "—"}
+                    </span>
+                  </td>
+
+                  {/* Portfolio: Valor + G/P */}
                   {mode === "portfolio" && (
                     <>
                       <td className="px-3 py-2.5 text-right">
                         <span className="text-xs font-bold tabular-nums" style={{ color: "var(--text)" }}>
-                          {fmtPrice(row.positionValue, row.currency)}
+                          {fmtPrice(row.positionValue, currency)}
                         </span>
                       </td>
                       <td className="px-3 py-2.5 text-right">
@@ -386,11 +425,11 @@ export default function AdvancedStockTable({ rows, mode, onRemove, onRowClick }:
                     </>
                   )}
 
-                  {/* Remove button */}
+                  {/* Remove */}
                   {onRemove && (
                     <td className="px-2 py-2.5 text-right">
                       <button
-                        onClick={() => onRemove(row.ticker)}
+                        onClick={(e) => { e.stopPropagation(); onRemove(row.ticker); }}
                         className="w-5 h-5 rounded flex items-center justify-center opacity-30 hover:opacity-100 transition-opacity"
                         style={{ color: "var(--muted)" }}
                       >

@@ -1338,12 +1338,13 @@ def _fetch_quote_details(tickers: list[str]) -> dict[str, dict]:
     import httpx
     symbols_str = ",".join(t.replace(".", "-") for t in missing)
     fields = (
-        "regularMarketPrice,regularMarketChangePercent,"
+        "regularMarketPrice,regularMarketChange,regularMarketChangePercent,"
         "regularMarketVolume,marketCap,trailingPE,forwardPE,"
         "fiftyTwoWeekLow,fiftyTwoWeekHigh,"
         "preMarketPrice,preMarketChangePercent,"
         "postMarketPrice,postMarketChangePercent,"
-        "marketState,earningsTimestamp"
+        "marketState,earningsTimestamp,"
+        "shortName,longName,currency"
     )
 
     for domain in ("query1", "query2"):
@@ -1394,12 +1395,18 @@ def _fetch_quote_details(tickers: list[str]) -> dict[str, dict]:
                     ext_pct   = q.get("postMarketChangePercent")
                     ext_label = "Post"
 
-                chg_pct = q.get("regularMarketChangePercent")
+                chg_pct  = q.get("regularMarketChangePercent")
+                chg_abs  = q.get("regularMarketChange")
+                reg_price = q.get("regularMarketPrice")
+                ext_price_f = round(float(ext_price), 4) if ext_price else None
+                ext_change  = round(float(ext_price_f) - float(reg_price), 4) \
+                              if (ext_price_f and reg_price) else None
                 entry = {
                     # real-time price + change (overrides potentially stale watchlist data)
-                    "price":        round(float(q["regularMarketPrice"]), 4) if q.get("regularMarketPrice") else None,
+                    "price":        round(float(reg_price), 4) if reg_price else None,
+                    "change":       round(float(chg_abs), 4) if chg_abs is not None else None,
                     "changePct":    round(float(chg_pct), 2) if chg_pct is not None else None,
-                    # enriched columns — camelCase to match AdvancedRow interface
+                    # enriched columns — camelCase to match AdvancedRow / StockData interfaces
                     "volume":       q.get("regularMarketVolume"),
                     "marketCap":    q.get("marketCap"),
                     "pe":           q.get("trailingPE") or q.get("forwardPE"),
@@ -1407,10 +1414,13 @@ def _fetch_quote_details(tickers: list[str]) -> dict[str, dict]:
                     "week52High":   q.get("fiftyTwoWeekHigh"),
                     "week52Pct":    w52_pct,
                     "earningsDate": earnings_date,
-                    "extPrice":     round(float(ext_price), 4) if ext_price else None,
+                    "extPrice":     ext_price_f,
                     "extPct":       round(float(ext_pct), 2) if ext_pct else None,
+                    "extChange":    ext_change,
                     "extLabel":     ext_label,
                     "marketState":  mstate,
+                    "companyName":  q.get("shortName") or q.get("longName"),
+                    "currency":     q.get("currency", "USD"),
                 }
                 results[sym] = entry
                 cache_set(f"qdetailv2:{sym}", entry, ttl=_QUOTE_DETAILS_TTL)
@@ -1437,6 +1447,15 @@ async def get_quote_details(
         return {}
     data = await asyncio.to_thread(_fetch_quote_details, tickers)
     return data
+
+
+@router.get("/ws-token")
+async def get_ws_token(user_id: str = Depends(get_current_user_id)):
+    """Returns the Finnhub WebSocket token so the frontend can connect without
+    exposing the key in client-side env vars."""
+    if not _FINNHUB_KEY:
+        return {"token": None}
+    return {"token": _FINNHUB_KEY}
 
 
 # ─── Stock Detail ──────────────────────────────────────────────────────────────
