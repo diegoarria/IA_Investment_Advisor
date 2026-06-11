@@ -200,7 +200,7 @@ export default function AdminFeedPage() {
   };
 
   return (
-    <div className="min-h-screen p-6" style={{ background: "var(--bg)", color: "var(--text)" }}>
+    <div className="h-full overflow-y-auto scrollbar-thin p-6" style={{ background: "var(--bg)", color: "var(--text)" }}>
       <div className="max-w-4xl mx-auto space-y-6">
 
         {/* Header */}
