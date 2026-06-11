@@ -1534,14 +1534,53 @@ def _fmp_balance(symbol: str) -> list[dict]:
         data = r.json() if r.status_code == 200 else []
         result = []
         for d in data:
+            ca = d.get("totalCurrentAssets")
+            cl = d.get("totalCurrentLiabilities")
+            wc = round(float(ca) - float(cl), 4) if (ca is not None and cl is not None) else None
             result.append({
-                "period":        d.get("date", "")[:7],
-                "Total Assets":  _fmt_number(d.get("totalAssets")),
-                "Current Assets":_fmt_number(d.get("totalCurrentAssets")),
-                "Cash And Cash Equivalents": _fmt_number(d.get("cashAndCashEquivalents")),
-                "Total Debt":    _fmt_number(d.get("totalDebt")),
+                "period": d.get("date", "")[:7],
+                # ── Current Assets ──────────────────────────────────
+                "Cash And Cash Equivalents":          _fmt_number(d.get("cashAndCashEquivalents")),
+                "Short Term Investments":             _fmt_number(d.get("shortTermInvestments")),
+                "Cash And Short Term Investments":    _fmt_number(d.get("cashAndShortTermInvestments")),
+                "Net Receivables":                    _fmt_number(d.get("netReceivables")),
+                "Inventory":                          _fmt_number(d.get("inventory")),
+                "Other Current Assets":               _fmt_number(d.get("otherCurrentAssets")),
+                "Current Assets":                     _fmt_number(ca),
+                # ── Non-Current Assets ───────────────────────────────
+                "Net PPE":                            _fmt_number(d.get("propertyPlantEquipmentNet")),
+                "Goodwill":                           _fmt_number(d.get("goodwill")),
+                "Intangible Assets":                  _fmt_number(d.get("intangibleAssets")),
+                "Goodwill And Other Intangible Assets": _fmt_number(d.get("goodwillAndIntangibleAssets")),
+                "Long Term Investments":              _fmt_number(d.get("longTermInvestments")),
+                "Tax Assets":                         _fmt_number(d.get("taxAssets")),
+                "Other Non Current Assets":           _fmt_number(d.get("otherNonCurrentAssets")),
+                "Total Non Current Assets":           _fmt_number(d.get("totalNonCurrentAssets")),
+                "Total Assets":                       _fmt_number(d.get("totalAssets")),
+                # ── Current Liabilities ──────────────────────────────
+                "Accounts Payable":                   _fmt_number(d.get("accountPayables")),
+                "Short Term Debt":                    _fmt_number(d.get("shortTermDebt")),
+                "Tax Payables":                       _fmt_number(d.get("taxPayables")),
+                "Deferred Revenue":                   _fmt_number(d.get("deferredRevenue")),
+                "Other Current Liabilities":          _fmt_number(d.get("otherCurrentLiabilities")),
+                "Current Liabilities":                _fmt_number(cl),
+                # ── Non-Current Liabilities ──────────────────────────
+                "Long Term Debt":                     _fmt_number(d.get("longTermDebt")),
+                "Capital Lease Obligations":          _fmt_number(d.get("capitalLeaseObligations")),
+                "Deferred Tax Liabilities":           _fmt_number(d.get("deferredTaxLiabilitiesNonCurrent")),
+                "Minority Interest":                  _fmt_number(d.get("minorityInterest")),
+                "Other Non Current Liabilities":      _fmt_number(d.get("otherNonCurrentLiabilities")),
+                "Total Non Current Liabilities":      _fmt_number(d.get("totalNonCurrentLiabilities")),
                 "Total Liabilities Net Minority Interest": _fmt_number(d.get("totalLiabilities")),
-                "Stockholders Equity": _fmt_number(d.get("totalStockholdersEquity")),
+                # ── Equity ───────────────────────────────────────────
+                "Common Stock":                       _fmt_number(d.get("commonStock")),
+                "Retained Earnings":                  _fmt_number(d.get("retainedEarnings")),
+                "Other Stockholder Equity":           _fmt_number(d.get("othertotalStockholdersEquity")),
+                "Stockholders Equity":                _fmt_number(d.get("totalStockholdersEquity")),
+                # ── Summary ──────────────────────────────────────────
+                "Total Debt":                         _fmt_number(d.get("totalDebt")),
+                "Net Debt":                           _fmt_number(d.get("netDebt")),
+                "Working Capital":                    _fmt_number(wc),
             })
         return result
     except Exception:
@@ -1559,11 +1598,39 @@ def _fmp_cashflow(symbol: str) -> list[dict]:
         result = []
         for d in data:
             result.append({
-                "period":        d.get("date", "")[:7],
-                "Operating Cash Flow": _fmt_number(d.get("operatingCashFlow")),
-                "Capital Expenditure": _fmt_number(d.get("capitalExpenditure")),
-                "Free Cash Flow":      _fmt_number(d.get("freeCashFlow")),
-                "Dividends Paid":      _fmt_number(d.get("dividendsPaid")),
+                "period": d.get("date", "")[:7],
+                # ── Operating Activities ─────────────────────────────
+                "Net Income":                         _fmt_number(d.get("netIncome")),
+                "Depreciation And Amortization":      _fmt_number(d.get("depreciationAndAmortization")),
+                "Stock Based Compensation":           _fmt_number(d.get("stockBasedCompensation")),
+                "Deferred Income Tax":                _fmt_number(d.get("deferredIncomeTax")),
+                "Change In Working Capital":          _fmt_number(d.get("changeInWorkingCapital")),
+                "Accounts Receivables Change":        _fmt_number(d.get("accountsReceivables")),
+                "Inventory Change":                   _fmt_number(d.get("inventory")),
+                "Accounts Payables Change":           _fmt_number(d.get("accountsPayables")),
+                "Other Working Capital":              _fmt_number(d.get("otherWorkingCapital")),
+                "Other Non Cash Items":               _fmt_number(d.get("otherNonCashItems")),
+                "Operating Cash Flow":                _fmt_number(d.get("operatingCashFlow")),
+                # ── Investing Activities ─────────────────────────────
+                "Capital Expenditure":                _fmt_number(d.get("capitalExpenditure")),
+                "Acquisitions Net":                   _fmt_number(d.get("acquisitionsNet")),
+                "Purchases Of Investments":           _fmt_number(d.get("purchasesOfInvestments")),
+                "Sales Maturities Of Investments":    _fmt_number(d.get("salesMaturitiesOfInvestments")),
+                "Other Investing Activities":         _fmt_number(d.get("otherInvestingActivites")),
+                "Investing Cash Flow":                _fmt_number(d.get("netCashUsedForInvestingActivites")),
+                # ── Financing Activities ─────────────────────────────
+                "Issuance Of Common Stock":           _fmt_number(d.get("commonStockIssued")),
+                "Repurchase Of Capital Stock":        _fmt_number(d.get("commonStockRepurchased")),
+                "Issuance Of Debt":                   _fmt_number(d.get("debtIssuance") or d.get("longTermDebtIssuance")),
+                "Repayment Of Debt":                  _fmt_number(d.get("debtRepayment")),
+                "Dividends Paid":                     _fmt_number(d.get("dividendsPaid")),
+                "Other Financing Activities":         _fmt_number(d.get("otherFinancingActivites")),
+                "Financing Cash Flow":                _fmt_number(d.get("netCashUsedProvidedByFinancingActivities")),
+                # ── Summary ──────────────────────────────────────────
+                "Free Cash Flow":                     _fmt_number(d.get("freeCashFlow")),
+                "Net Change In Cash":                 _fmt_number(d.get("netChangeInCash")),
+                "Cash At Beginning Of Period":        _fmt_number(d.get("cashAtBeginningOfPeriod")),
+                "Cash At End Of Period":              _fmt_number(d.get("cashAtEndOfPeriod")),
             })
         return result
     except Exception:
@@ -1790,18 +1857,47 @@ def _parse_qs_balance(qs: dict, quarterly: bool = False, n: int = 5) -> list[dic
         long_debt  = _qs_raw(row, "longTermDebt") or 0
         short_debt = _qs_raw(row, "shortTermDebt") or _qs_raw(row, "currentDebt") or 0
         total_debt = _qs_raw(row, "totalDebt") or ((long_debt + short_debt) if (long_debt or short_debt) else None)
+        ca = _qs_raw(row, "totalCurrentAssets")
+        cl = _qs_raw(row, "totalCurrentLiabilities")
+        wc = round(float(ca) - float(cl), 4) if (ca is not None and cl is not None) else None
         result.append({
-            "period":                                    period,
-            "Total Assets":                              _qs_raw(row, "totalAssets"),
-            "Current Assets":                            _qs_raw(row, "totalCurrentAssets"),
-            "Cash And Cash Equivalents":                 _qs_raw(row, "cash"),
-            "Total Debt":                                total_debt,
-            "Long Term Debt":                            _qs_raw(row, "longTermDebt"),
-            "Current Debt":                              short_debt or None,
-            "Total Liabilities Net Minority Interest":   _qs_raw(row, "totalLiab"),
-            "Stockholders Equity":                       _qs_raw(row, "totalStockholderEquity"),
-            "Retained Earnings":                         _qs_raw(row, "retainedEarnings"),
-            "Goodwill And Other Intangible Assets":      _qs_raw(row, "goodWill"),
+            "period":                                      period,
+            # Current Assets
+            "Cash And Cash Equivalents":                   _qs_raw(row, "cash"),
+            "Short Term Investments":                      _qs_raw(row, "shortTermInvestments"),
+            "Net Receivables":                             _qs_raw(row, "netReceivables"),
+            "Inventory":                                   _qs_raw(row, "inventory"),
+            "Other Current Assets":                        _qs_raw(row, "otherCurrentAssets"),
+            "Current Assets":                              ca,
+            # Non-Current Assets
+            "Net PPE":                                     _qs_raw(row, "propertyPlantEquipment"),
+            "Goodwill":                                    _qs_raw(row, "goodWill"),
+            "Intangible Assets":                           _qs_raw(row, "intangibleAssets"),
+            "Goodwill And Other Intangible Assets":        _qs_raw(row, "goodWill"),
+            "Long Term Investments":                       _qs_raw(row, "longTermInvestments"),
+            "Other Non Current Assets":                    _qs_raw(row, "otherAssets"),
+            "Total Non Current Assets":                    _qs_raw(row, "totalNonCurrentAssets"),
+            "Total Assets":                                _qs_raw(row, "totalAssets"),
+            # Current Liabilities
+            "Accounts Payable":                            _qs_raw(row, "accountsPayable"),
+            "Short Term Debt":                             short_debt or None,
+            "Deferred Revenue":                            _qs_raw(row, "deferredRevenue"),
+            "Other Current Liabilities":                   _qs_raw(row, "otherCurrentLiab"),
+            "Current Liabilities":                         cl,
+            # Non-Current Liabilities
+            "Long Term Debt":                              long_debt or None,
+            "Deferred Tax Liabilities":                    _qs_raw(row, "deferredLongTermLiab"),
+            "Other Non Current Liabilities":               _qs_raw(row, "otherLiab"),
+            "Total Liabilities Net Minority Interest":     _qs_raw(row, "totalLiab"),
+            # Equity
+            "Common Stock":                                _qs_raw(row, "commonStock"),
+            "Retained Earnings":                           _qs_raw(row, "retainedEarnings"),
+            "Stockholders Equity":                         _qs_raw(row, "totalStockholderEquity"),
+            "Minority Interest":                           _qs_raw(row, "minorityInterest"),
+            # Summary
+            "Total Debt":                                  total_debt,
+            "Net Debt":                                    _qs_raw(row, "netDebt"),
+            "Working Capital":                             wc,
         })
     return result
 
@@ -1815,14 +1911,36 @@ def _parse_qs_cashflow(qs: dict, quarterly: bool = False, n: int = 5) -> list[di
         period = ((row.get("endDate") or {}).get("fmt") or "")[:7]
         op_cf  = _qs_raw(row, "totalCashFromOperatingActivities")
         capex  = _qs_raw(row, "capitalExpenditures")
-        fcf    = (op_cf + capex) if (op_cf is not None and capex is not None) else None
+        fcf    = round(float(op_cf) + float(capex), 4) if (op_cf is not None and capex is not None) else None
         result.append({
-            "period":                   period,
-            "Operating Cash Flow":      op_cf,
-            "Capital Expenditure":      capex,
-            "Free Cash Flow":           fcf,
-            "Dividends Paid":           _qs_raw(row, "dividendsPaid"),
-            "Repurchase Of Capital Stock": _qs_raw(row, "repurchaseOfStock"),
+            "period":                           period,
+            # Operating
+            "Net Income":                       _qs_raw(row, "netIncome"),
+            "Depreciation And Amortization":    _qs_raw(row, "depreciation"),
+            "Stock Based Compensation":         _qs_raw(row, "issuanceOfStock"),
+            "Change In Working Capital":        _qs_raw(row, "changeToAccountReceivables"),
+            "Accounts Receivables Change":      _qs_raw(row, "changeToAccountReceivables"),
+            "Inventory Change":                 _qs_raw(row, "changeToInventory"),
+            "Other Working Capital":            _qs_raw(row, "changeToOperatingActivities"),
+            "Other Non Cash Items":             _qs_raw(row, "otherCashflowsFromOperatingActivities"),
+            "Operating Cash Flow":              op_cf,
+            # Investing
+            "Capital Expenditure":              capex,
+            "Acquisitions Net":                 _qs_raw(row, "acquisitions"),
+            "Purchases Of Investments":         _qs_raw(row, "investments"),
+            "Other Investing Activities":       _qs_raw(row, "otherCashflowsFromInvestingActivities"),
+            "Investing Cash Flow":              _qs_raw(row, "totalCashflowsFromInvestingActivities"),
+            # Financing
+            "Issuance Of Common Stock":         _qs_raw(row, "issuanceOfStock"),
+            "Repurchase Of Capital Stock":      _qs_raw(row, "repurchaseOfStock"),
+            "Issuance Of Debt":                 _qs_raw(row, "longTermDebtIssuance"),
+            "Repayment Of Debt":                _qs_raw(row, "longTermDebtPayments"),
+            "Dividends Paid":                   _qs_raw(row, "dividendsPaid"),
+            "Other Financing Activities":       _qs_raw(row, "otherCashflowsFromFinancingActivities"),
+            "Financing Cash Flow":              _qs_raw(row, "totalCashFromFinancingActivities"),
+            # Summary
+            "Free Cash Flow":                   fcf,
+            "Net Change In Cash":               _qs_raw(row, "changeInCash"),
         })
     return result
 
@@ -2005,16 +2123,72 @@ def _fetch_stock_detail(symbol: str) -> dict:
         "Interest Expense", "Tax Provision",
     ]
     BS_ROWS = [
-        "Total Assets", "Current Assets", "Cash And Cash Equivalents",
-        "Total Debt", "Long Term Debt", "Current Debt",
-        "Total Liabilities Net Minority Interest",
-        "Stockholders Equity", "Retained Earnings",
+        # Current Assets
+        "Cash And Cash Equivalents", "Cash Cash Equivalents And Short Term Investments",
+        "Other Short Term Investments", "Short Term Investments",
+        "Net Receivables", "Receivables", "Accounts Receivable",
+        "Inventory", "Other Current Assets", "Prepaid Assets",
+        "Current Assets",
+        # Non-Current Assets
+        "Net PPE", "Gross PPE", "Net Property Plant And Equipment",
+        "Goodwill", "Intangible Assets", "Other Intangible Assets",
         "Goodwill And Other Intangible Assets",
+        "Long Term Investments", "Investments And Advances",
+        "Other Non Current Assets", "Total Non Current Assets",
+        "Total Assets",
+        # Current Liabilities
+        "Accounts Payable", "Payables And Accrued Expenses",
+        "Short Term Debt", "Current Debt", "Current Debt And Capital Lease Obligation",
+        "Short Long Term Debt",
+        "Current Deferred Revenue", "Deferred Revenue",
+        "Tax Payables", "Other Current Liabilities", "Current Liabilities",
+        # Non-Current Liabilities
+        "Long Term Debt", "Long Term Debt And Capital Lease Obligation",
+        "Non Current Deferred Taxes Liabilities",
+        "Other Non Current Liabilities",
+        "Total Non Current Liabilities Net Minority Interest",
+        "Total Liabilities Net Minority Interest",
+        # Equity
+        "Common Stock", "Additional Paid In Capital",
+        "Retained Earnings",
+        "Accumulated Other Comprehensive Income",
+        "Stockholders Equity", "Common Stock Equity",
+        "Minority Interest",
+        # Summary
+        "Total Debt", "Net Debt",
     ]
     CF_ROWS = [
-        "Operating Cash Flow", "Capital Expenditure",
-        "Free Cash Flow", "Dividends Paid",
-        "Repurchase Of Capital Stock", "Issuance Of Debt", "Repayment Of Debt",
+        # Operating
+        "Net Income From Continuing Operations", "Net Income",
+        "Depreciation And Amortization", "Depreciation Amortization Depletion",
+        "Stock Based Compensation",
+        "Deferred Tax", "Deferred Income Tax",
+        "Change In Working Capital", "Changes In Working Capital",
+        "Change In Receivables", "Changes In Account Receivables",
+        "Change In Inventory",
+        "Change In Payables And Accrued Expense", "Change In Payable",
+        "Other Working Capital Changes",
+        "Other Non Cash Items",
+        "Operating Cash Flow", "Cash Flow From Continuing Operating Activities",
+        # Investing
+        "Capital Expenditure", "Purchase Of Ppe",
+        "Net Business Purchase And Sale", "Purchase Of Business",
+        "Net Investment Purchase And Sale", "Purchases Of Investments",
+        "Net Other Investing Changes",
+        "Investing Cash Flow", "Cash Flow From Continuing Investing Activities",
+        # Financing
+        "Common Stock Issuance", "Issuance Of Capital Stock",
+        "Common Stock Payments", "Repurchase Of Capital Stock",
+        "Long Term Debt Issuance", "Issuance Of Debt",
+        "Long Term Debt Payments", "Repayment Of Debt",
+        "Common Dividends", "Cash Dividends Paid", "Dividends Paid",
+        "Other Financing Cash Flows",
+        "Financing Cash Flow", "Cash Flow From Continuing Financing Activities",
+        # Summary
+        "Free Cash Flow",
+        "Changes In Cash", "Net Change In Cash",
+        "Beginning Cash Position",
+        "End Cash Position",
     ]
 
     # Prefer FMP (10 years) over yfinance (4 years) when key is available
