@@ -540,7 +540,7 @@ export default function WatchlistPage() {
         <div className="flex flex-1 overflow-hidden relative">
           <AppSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
-          <main className="flex-1 overflow-y-auto scrollbar-thin p-4 max-w-2xl mx-auto w-full">
+          <main className="flex-1 overflow-y-auto scrollbar-thin p-4 w-full">
             <GuidedSteps currentPage="watchlist" />
 
             {/* ── Search bar ── */}

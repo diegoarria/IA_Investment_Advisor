@@ -1140,7 +1140,7 @@ export default function PortfolioPage() {
         <AppSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
         {/* Main */}
-        <main className="flex-1 overflow-y-auto scrollbar-thin p-4 max-w-3xl mx-auto w-full">
+        <main className="flex-1 overflow-y-auto scrollbar-thin p-4 w-full">
           <GuidedSteps currentPage="portfolio" />
 
           {/* Tab switcher */}
