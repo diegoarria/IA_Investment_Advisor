@@ -63,7 +63,7 @@ function RiskBar({ level, behavioralScore }: { level: string; behavioralScore: n
               {RISK_LABEL[level] ?? level}
             </span>
           )}
-          <div className="text-[9px] font-black" style={{ color }}>{displayPct}</div>
+          <div className="text-[13px] font-black" style={{ color }}>{displayPct}</div>
         </div>
       </div>
       <div className="relative h-1 rounded-full overflow-hidden" style={{ background: "var(--border)" }}>
@@ -209,7 +209,7 @@ export default function AppSidebar({ open, onClose }: Props) {
                        style={{ background: "var(--bg)" }}>
                     <div className="text-[6px] font-semibold uppercase tracking-wide"
                          style={{ color: "var(--dim)" }}>{label}</div>
-                    <div className="text-[8px] font-black leading-tight"
+                    <div className="text-[13px] font-black leading-tight"
                          style={{ color: "var(--text)" }}>{value}</div>
                     <div className="text-[6px]" style={{ color: "var(--muted)" }}>{sub}</div>
                   </div>
