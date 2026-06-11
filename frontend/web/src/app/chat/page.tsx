@@ -15,6 +15,7 @@ import { usePortfolioStore } from "@/lib/portfolioStore";
 import AppSidebar from "@/components/AppSidebar";
 import PaywallModal from "@/components/PaywallModal";
 import TutorialModal from "@/components/TutorialModal";
+import GuidedSteps from "@/components/GuidedSteps";
 import { useTutorialStore } from "@/lib/store";
 import {
   Send, TrendingUp, Bell, LogOut, Menu, X,
@@ -444,6 +445,7 @@ export default function ChatPage() {
 
         {/* Chat area */}
         <main className="flex-1 flex flex-col overflow-hidden">
+          <GuidedSteps currentPage="chat" />
           <div className="flex-1 overflow-y-auto scrollbar-thin p-4 space-y-4">
             {messages.length === 0 && (
               <div className="h-full flex flex-col items-center justify-center text-center px-6 animate-fade-in">

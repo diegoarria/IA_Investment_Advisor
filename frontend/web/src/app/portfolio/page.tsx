@@ -18,6 +18,7 @@ import MonthlyReport from "@/components/MonthlyReport";
 import WeeklyScreenerCard from "@/components/WeeklyScreenerCard";
 import PremiumToolLockedWeb from "@/components/PremiumToolLocked";
 import PaywallModal from "@/components/PaywallModal";
+import GuidedSteps from "@/components/GuidedSteps";
 import {
   PieChart, Menu, X, Upload, Plus, Trash2,
   BarChart, Calculator, Shield, Sparkles, RefreshCw, AlertTriangle, FileText, Pencil, Eye,
@@ -1140,6 +1141,7 @@ export default function PortfolioPage() {
 
         {/* Main */}
         <main className="flex-1 overflow-y-auto scrollbar-thin p-4 max-w-3xl mx-auto w-full">
+          <GuidedSteps currentPage="portfolio" />
 
           {/* Tab switcher */}
           <div className="flex p-1 rounded-xl gap-1 mb-5" style={{ background: "var(--raised)" }}>
@@ -2195,7 +2197,6 @@ export default function PortfolioPage() {
               <WeeklyScreenerCard isPremium={isPremium} onUpgrade={() => setPaywallOpen(true)} tickers={positions.map(p => p.ticker)} />
             </div>
           )}
-
 
         </main>
       </div>

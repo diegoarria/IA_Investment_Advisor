@@ -15,6 +15,14 @@ import {
   User, LogOut, Menu, X, Sun, Moon, ChevronDown, ChevronUp, Star, BarChart,
   Loader2, Copy, Check, Gift, Users, Share2,
 } from "lucide-react";
+import { getUserLevel, LEVEL_COLOR, LEVEL_LABEL, LEVEL_EMOJI } from "@/lib/userLevel";
+
+const LEVEL_OPTIONS = [
+  { key: "A", label: "Principiante", emoji: "🌱", desc: "Nunca he invertido" },
+  { key: "B", label: "Básico",       emoji: "📚", desc: "Conozco lo básico" },
+  { key: "C", label: "Intermedio",   emoji: "📈", desc: "Leo estados financieros" },
+  { key: "D", label: "Avanzado",     emoji: "⚡", desc: "Análisis profundo" },
+];
 
 const RISK_LABEL: Record<string, string> = {
   conservative:           "Inversionista Conservador",
@@ -177,6 +185,18 @@ export default function ProfilePage() {
       clearAuth();
       router.push("/");
     }
+  };
+
+  const [savingLevel, setSavingLevel] = useState(false);
+  const handleLevelChange = async (q3Key: string) => {
+    if (!profile) return;
+    setSavingLevel(true);
+    try {
+      const updated = { ...profile, quiz_answers: { ...profile.quiz_answers, q3: q3Key } };
+      await profileApi.update({ quiz_answers: updated.quiz_answers });
+      setProfile(updated);
+    } catch {}
+    setSavingLevel(false);
   };
 
   const handleDeleteAccount = async () => {
@@ -556,6 +576,57 @@ export default function ProfilePage() {
                     </button>
                   </div>
                 )}
+
+                {/* ── Nivel de conocimiento ── */}
+                {(() => {
+                  const currentLevel = getUserLevel(profile);
+                  const currentQ3 = profile.quiz_answers?.q3 as string | undefined;
+                  return (
+                    <div>
+                      <p className="text-[10px] font-bold uppercase tracking-widest mb-2 ml-0.5" style={{ color: "var(--dim)" }}>
+                        Nivel de conocimiento
+                      </p>
+                      <div className="rounded-2xl border overflow-hidden" style={{ background: "var(--card)", borderColor: "var(--border)" }}>
+                        <div className="px-4 pt-4 pb-3">
+                          <div className="flex items-center gap-2 mb-3">
+                            <span className="text-2xl">{LEVEL_EMOJI[currentLevel]}</span>
+                            <div>
+                              <p className="font-bold text-sm" style={{ color: "var(--text)" }}>{LEVEL_LABEL[currentLevel]}</p>
+                              <p className="text-xs" style={{ color: "var(--muted)" }}>
+                                {currentLevel === "basico" ? "La app te guía paso a paso" : currentLevel === "intermedio" ? "Contenido equilibrado" : "Análisis avanzado desbloqueado"}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="grid grid-cols-2 gap-2">
+                            {LEVEL_OPTIONS.map(({ key, label, emoji, desc }) => {
+                              const isActive = currentQ3 === key || (!currentQ3 && key === "C");
+                              const lc = LEVEL_COLOR[key === "A" || key === "B" ? "basico" : key === "C" ? "intermedio" : "avanzado"];
+                              return (
+                                <button key={key}
+                                        onClick={() => handleLevelChange(key)}
+                                        disabled={savingLevel}
+                                        className="flex items-start gap-2.5 p-3 rounded-xl border-2 text-left transition-all hover:opacity-90 disabled:opacity-50"
+                                        style={{
+                                          borderColor: isActive ? lc : "var(--border)",
+                                          background: isActive ? `${lc}12` : "var(--raised)",
+                                        }}>
+                                  <span className="text-lg shrink-0 mt-0.5">{emoji}</span>
+                                  <div className="min-w-0">
+                                    <p className="text-xs font-bold leading-tight" style={{ color: isActive ? lc : "var(--text)" }}>{label}</p>
+                                    <p className="text-[10px] leading-tight mt-0.5" style={{ color: "var(--dim)" }}>{desc}</p>
+                                  </div>
+                                </button>
+                              );
+                            })}
+                          </div>
+                          {savingLevel && (
+                            <p className="text-[10px] mt-2 text-center" style={{ color: "var(--muted)" }}>Guardando...</p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
 
                 {/* Perfil psicológico */}
                 {profile.quiz_answers && (
