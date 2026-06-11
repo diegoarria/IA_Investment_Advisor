@@ -21,6 +21,10 @@ const LEVEL_ORDER: Record<UserLevel, number> = {
 
 export function getUserLevel(profile: UserProfile | null): UserLevel {
   if (!profile) return "intermedio";
+  // knowledge_level is the direct field set during onboarding (replaces q3)
+  const kl = profile.knowledge_level as string | undefined;
+  if (kl && Q3_MAP[kl]) return Q3_MAP[kl];
+  // Fall back to quiz answer q3 for profiles created before the knowledge_level field
   const q3 = profile.quiz_answers?.q3 as string | undefined;
   return Q3_MAP[q3 ?? ""] ?? "intermedio";
 }

@@ -1,23 +1,20 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { profile as profileApi } from "@/lib/api";
-import { useProfileStore, useAuthStore, useSubscriptionStore } from "@/lib/store";
-import { MENTORS } from "@/lib/mentorData";
-import PaywallModal from "@/components/PaywallModal";
+import { useProfileStore, useAuthStore } from "@/lib/store";
 import { ChevronRight, ChevronLeft } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type QuizAnswer = "A" | "B" | "C" | "D";
 type RiskTolerance = "conservative" | "moderate" | "aggressive";
-interface QuizAnswers { q1: QuizAnswer; q2: QuizAnswer; q3: QuizAnswer; q4: QuizAnswer; q5: QuizAnswer }
 
 // ─── Quiz data (identical to mobile) ─────────────────────────────────────────
 
-const QUIZ: { key: keyof QuizAnswers; num: string; category: string; question: string; options: Record<QuizAnswer, string> }[] = [
+const QUIZ: { key: string; num: string; category: string; question: string; options: Record<QuizAnswer, string> }[] = [
   {
     key: "q1", num: "01", category: "MENTALIDAD",
     question: "Tu portafolio cae 35% en 3 meses por una crisis del mercado. ¿Qué haces?",
@@ -70,12 +67,9 @@ const QUIZ: { key: keyof QuizAnswers; num: string; category: string; question: s
   },
 ];
 
-const QUIZ_LABELS: Record<keyof QuizAnswers, Record<QuizAnswer, string>> = {
+const QUIZ_LABELS: Record<string, Record<QuizAnswer, string>> = {
   q1: { A: "Vende ante caídas", B: "Espera pasivamente", C: "Analiza y mantiene", D: "Compra las caídas" },
-  q2: { A: "< 2 años", B: "3–5 años", C: "10+ años", D: "Largo plazo, sin prisa" },
-  q3: { A: "Principiante", B: "Básico", C: "Intermedio", D: "Avanzado" },
   q4: { A: "$5K seguro", B: "$15K / riesgo $5K", C: "$40K / riesgo $20K", D: "$120K / riesgo total" },
-  q5: { A: "Automático / pasivo", B: "Revisión mensual", C: "Revisión semanal", D: "Gestión diaria" },
 };
 
 const RISK_CONFIG: Record<RiskTolerance, { label: string; emoji: string; color: string; pct: number; desc: string }> = {
@@ -93,15 +87,10 @@ const RISK_CONFIG: Record<RiskTolerance, { label: string; emoji: string; color: 
   },
 };
 
-const RECOMMENDED_MENTOR: Record<RiskTolerance, string> = {
-  conservative: "Warren Buffett",
-  moderate: "Ray Dalio",
-  aggressive: "Michael Burry",
-};
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function calculateRisk(answers: Partial<Record<keyof QuizAnswers, QuizAnswer | "">>): RiskTolerance {
+function calculateRisk(answers: Record<string, string>): RiskTolerance {
   const scoreMap: Record<QuizAnswer, number> = { A: 1, B: 2, C: 3, D: 4 };
   const scores = (Object.values(answers) as string[])
     .filter((v): v is QuizAnswer => ["A", "B", "C", "D"].includes(v))
@@ -144,54 +133,49 @@ type FormState = {
   birth_date: string;
   monthly_income: string;
   monthly_contribution: string;
-  investment_amount: string;
-  investment_goal: string;
+  investment_amount: string;   // exact $ available now
+  investment_goal_amount: string; // exact $ target goal
+  investment_goal: string;        // goal type key
+  knowledge_level: QuizAnswer | "";
   q1: QuizAnswer | "";
-  q2: QuizAnswer | "";
-  q3: QuizAnswer | "";
   q4: QuizAnswer | "";
-  q5: QuizAnswer | "";
-  mentor: string;
 };
 
 export default function OnboardingPage() {
   const router = useRouter();
   const { setProfile } = useProfileStore();
   const { isAuthenticated, clearAuth } = useAuthStore();
-  const { tier } = useSubscriptionStore();
-  const isPremium = tier === "premium";
 
   const [step, setStep]     = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError]   = useState("");
   const [success, setSuccess] = useState(false);
-  const [paywallOpen, setPaywallOpen] = useState(false);
   const [acceptedTerms, setAcceptedTerms]           = useState(false);
   const [acceptedDisclaimer, setAcceptedDisclaimer] = useState(false);
 
   const [form, setForm] = useState<FormState>({
     name: "", birth_date: "", monthly_income: "", monthly_contribution: "",
-    investment_amount: "", investment_goal: "",
-    q1: "", q2: "", q3: "", q4: "", q5: "", mentor: "",
+    investment_amount: "", investment_goal_amount: "", investment_goal: "",
+    knowledge_level: "", q1: "", q4: "",
   });
 
   useEffect(() => { if (!isAuthenticated) router.push("/"); }, [isAuthenticated]);
   if (!isAuthenticated) return null;
 
-  const quizAnswers = { q1: form.q1, q2: form.q2, q3: form.q3, q4: form.q4, q5: form.q5 };
+  const quizAnswers = { q1: form.q1, q4: form.q4 };
   const calculated  = calculateRisk(quizAnswers);
   const riskCfg     = RISK_CONFIG[calculated];
   const currentAge  = getAge(form.birth_date);
   const firstName   = form.name.trim().split(" ")[0];
 
-  const quizSteps = QUIZ.map((q) => ({
+  const quizSteps = QUIZ.filter((q) => q.key === "q1" || q.key === "q4").map((q) => ({
     title: q.question,
     subtitle: q.category,
-    valid: () => !!form[q.key],
+    valid: () => !!form[q.key as "q1" | "q4"],
     content: (
       <div className="space-y-2">
         {(["A", "B", "C", "D"] as QuizAnswer[]).map((letter) => {
-          const active = form[q.key] === letter;
+          const active = form[q.key as "q1" | "q4"] === letter;
           return (
             <button key={letter} onClick={() => setForm((f) => ({ ...f, [q.key]: letter }))}
                     className="w-full text-left p-4 rounded-xl border-2 transition-all flex items-start gap-3"
@@ -292,28 +276,74 @@ export default function OnboardingPage() {
         </div>
       ),
     },
-    // 2 — Meta e inversión inicial
+    // 2 — Meta financiera con montos exactos
     {
-      title: "Dos últimas preguntas clave",
+      title: "Tu meta financiera",
       subtitle: "OBJETIVOS",
-      valid: () => !!form.investment_amount && !!form.investment_goal,
+      valid: () => {
+        const amt = parseFloat(form.investment_amount);
+        const goal = parseFloat(form.investment_goal_amount);
+        return amt > 0 && goal > 0 && !!form.investment_goal && !!form.knowledge_level;
+      },
       content: (
         <div className="space-y-5">
+          {/* Capital disponible */}
           <div>
-            <label className="block text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: "var(--muted)" }}>
-              ¿Cuánto tienes disponible para empezar a invertir?
+            <label className="block text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: "var(--muted)" }}>
+              ¿Cuánto tienes disponible para invertir hoy?
+            </label>
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-bold" style={{ color: "var(--muted)" }}>$</span>
+              <input
+                type="number"
+                min={0}
+                value={form.investment_amount}
+                onChange={(e) => setForm((f) => ({ ...f, investment_amount: e.target.value }))}
+                className="w-full rounded-xl border px-4 py-3 pl-7 text-sm outline-none"
+                placeholder="5,000"
+                style={{ background: "var(--raised)", borderColor: "var(--border)", color: "var(--text)" }}
+              />
+            </div>
+          </div>
+
+          {/* Meta en dinero */}
+          <div>
+            <label className="block text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: "var(--muted)" }}>
+              ¿A cuánto quieres llegar?
+            </label>
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-bold" style={{ color: "var(--muted)" }}>$</span>
+              <input
+                type="number"
+                min={0}
+                value={form.investment_goal_amount}
+                onChange={(e) => setForm((f) => ({ ...f, investment_goal_amount: e.target.value }))}
+                className="w-full rounded-xl border px-4 py-3 pl-7 text-sm outline-none"
+                placeholder="50,000"
+                style={{ background: "var(--raised)", borderColor: "var(--border)", color: "var(--text)" }}
+              />
+            </div>
+            <p className="text-[10px] mt-1.5" style={{ color: "var(--dim)" }}>
+              La app mostrará tu progreso hacia esta meta en tiempo real.
+            </p>
+          </div>
+
+          {/* Tipo de meta */}
+          <div>
+            <label className="block text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: "var(--muted)" }}>
+              ¿Para qué es esta meta?
             </label>
             <div className="grid grid-cols-2 gap-2">
               {[
-                { value: "lt500",    label: "Menos de $500" },
-                { value: "500_2k",   label: "$500 – $2,000" },
-                { value: "2k_10k",   label: "$2,000 – $10,000" },
-                { value: "gt10k",    label: "Más de $10,000" },
+                { value: "emergency_fund", label: "Fondo de emergencia" },
+                { value: "big_purchase",   label: "Compra importante" },
+                { value: "retirement",     label: "Retiro / pensión" },
+                { value: "independence",   label: "Independencia financiera" },
               ].map((opt) => {
-                const active = form.investment_amount === opt.value;
+                const active = form.investment_goal === opt.value;
                 return (
-                  <button key={opt.value} onClick={() => setForm((f) => ({ ...f, investment_amount: opt.value }))}
-                          className="p-3 rounded-xl border-2 text-sm font-semibold text-left transition-all"
+                  <button key={opt.value} onClick={() => setForm((f) => ({ ...f, investment_goal: opt.value }))}
+                          className="p-2.5 rounded-xl border-2 text-xs font-semibold text-left transition-all"
                           style={{
                             borderColor: active ? "var(--accent)" : "var(--border)",
                             background:  active ? "rgba(0,168,94,0.10)" : "var(--raised)",
@@ -325,27 +355,34 @@ export default function OnboardingPage() {
               })}
             </div>
           </div>
+
+          {/* Nivel de conocimiento */}
           <div>
-            <label className="block text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: "var(--muted)" }}>
-              ¿Cuál es tu meta financiera principal?
+            <label className="block text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: "var(--muted)" }}>
+              ¿Cómo describes tu experiencia con inversiones?
             </label>
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               {[
-                { value: "emergency_fund", label: "Fondo de emergencia", desc: "Proteger y hacer crecer mis ahorros de seguridad" },
-                { value: "big_purchase",   label: "Compra importante",   desc: "Ahorrar para casa, auto, viaje o proyecto específico" },
-                { value: "retirement",     label: "Retiro / pensión",    desc: "Construir patrimonio para el largo plazo" },
-                { value: "independence",   label: "Independencia financiera", desc: "Vivir de mis inversiones sin depender de un salario" },
+                { value: "A", label: "Sin experiencia — empiezo de cero" },
+                { value: "B", label: "Conozco lo básico (CETES, fondos indexados)" },
+                { value: "C", label: "Tengo experiencia (ETFs, acciones)" },
+                { value: "D", label: "Avanzado — análisis, derivados, ciclos" },
               ].map((opt) => {
-                const active = form.investment_goal === opt.value;
+                const active = form.knowledge_level === opt.value;
                 return (
-                  <button key={opt.value} onClick={() => setForm((f) => ({ ...f, investment_goal: opt.value }))}
-                          className="w-full text-left p-3 rounded-xl border-2 transition-all"
+                  <button key={opt.value} onClick={() => setForm((f) => ({ ...f, knowledge_level: opt.value as QuizAnswer }))}
+                          className="w-full text-left px-3 py-2.5 rounded-xl border-2 transition-all flex items-center gap-2.5"
                           style={{
                             borderColor: active ? "var(--accent)" : "var(--border)",
                             background:  active ? "rgba(0,168,94,0.10)" : "var(--raised)",
                           }}>
-                    <p className="text-sm font-semibold" style={{ color: active ? "var(--accent-l)" : "var(--text)" }}>{opt.label}</p>
-                    <p className="text-xs mt-0.5" style={{ color: "var(--muted)" }}>{opt.desc}</p>
+                    <span className="w-6 h-6 rounded-md flex items-center justify-center text-[11px] font-black shrink-0"
+                          style={{ background: active ? "var(--accent)" : "var(--border)", color: active ? "#fff" : "var(--muted)" }}>
+                      {opt.value}
+                    </span>
+                    <span className="text-xs leading-snug" style={{ color: active ? "var(--text)" : "var(--sub)" }}>
+                      {opt.label}
+                    </span>
                   </button>
                 );
               })}
@@ -382,8 +419,8 @@ export default function OnboardingPage() {
             <div className="px-4 py-2 border-b" style={{ borderColor: "var(--border)" }}>
               <p className="text-xs font-bold uppercase tracking-wider" style={{ color: "var(--muted)" }}>Resumen de tus respuestas</p>
             </div>
-            {QUIZ.map((q) => {
-              const answer = form[q.key] as QuizAnswer;
+            {QUIZ.filter((q) => q.key === "q1" || q.key === "q4").map((q) => {
+              const answer = form[q.key as "q1" | "q4"] as QuizAnswer;
               return (
                 <div key={q.key} className="flex items-center justify-between px-4 py-2.5 border-b last:border-0"
                      style={{ borderColor: "var(--border)" }}>
@@ -507,73 +544,6 @@ export default function OnboardingPage() {
         );
       })(),
     },
-    // 9 — Mentor
-    {
-      title: "¿Con qué estilo quieres que te asesore?",
-      subtitle: "La IA adoptará el marco de pensamiento de tu mentor. Puedes cambiarlo después.",
-      valid: () => true,
-      content: (
-        <div className="space-y-2">
-          {MENTORS.map((m) => {
-            const active  = form.mentor === m.id;
-            const isRec   = RECOMMENDED_MENTOR[calculated] === m.id;
-            const locked  = !isPremium;
-            return (
-              <button key={m.id}
-                      onClick={() => { if (locked) { setPaywallOpen(true); return; } setForm((f) => ({ ...f, mentor: m.id })); }}
-                      className="w-full text-left p-3 rounded-xl border-2 transition-all relative"
-                      style={{
-                        borderColor: active ? m.color : "var(--border)",
-                        background:  active ? m.color + "15" : "var(--raised)",
-                        opacity: locked ? 0.65 : 1,
-                      }}>
-                {isRec && (
-                  <span className="absolute top-2 right-2 text-[9px] font-black px-1.5 py-0.5 rounded-full text-white"
-                        style={{ background: m.color }}>⭐ RECOMENDADO</span>
-                )}
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl overflow-hidden shrink-0 relative">
-                    <Image src={`/mentors/${m.id.toLowerCase().replace(" ", "_")}.jpg`} alt={m.name}
-                           fill className="object-cover"
-                           onError={() => {}} />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="text-sm font-bold" style={{ color: active ? m.color : "var(--text)" }}>{m.name}</div>
-                    <div className="text-xs" style={{ color: "var(--muted)" }}>{m.title}</div>
-                    <div className="flex flex-wrap gap-1 mt-1">
-                      {m.principles.slice(0, 2).map((p) => (
-                        <span key={p} className="text-[9px] px-1.5 py-0.5 rounded-full"
-                              style={{ background: m.color + "20", color: m.color }}>{p}</span>
-                      ))}
-                    </div>
-                  </div>
-                  {locked && (
-                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full shrink-0"
-                          style={{ background: "rgba(245,183,58,0.15)", color: "#f5b73a" }}>⭐ Premium</span>
-                  )}
-                </div>
-              </button>
-            );
-          })}
-          {/* Sin mentor */}
-          <button onClick={() => setForm((f) => ({ ...f, mentor: "none" }))}
-                  className="w-full text-left p-3 rounded-xl border-2 transition-all"
-                  style={{
-                    borderColor: form.mentor === "none" ? "#6b7280" : "var(--border)",
-                    background:  form.mentor === "none" ? "rgba(107,114,128,0.1)" : "var(--raised)",
-                  }}>
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl flex items-center justify-center text-2xl shrink-0"
-                   style={{ background: "var(--border)" }}>🤖</div>
-              <div>
-                <div className="text-sm font-bold" style={{ color: "var(--text)" }}>Sin mentor específico</div>
-                <div className="text-xs" style={{ color: "var(--muted)" }}>La IA responderá de forma neutral</div>
-              </div>
-            </div>
-          </button>
-        </div>
-      ),
-    },
     {
       subtitle: "AVISO LEGAL",
       title: "Antes de empezar",
@@ -650,22 +620,22 @@ export default function OnboardingPage() {
     if (!isLastStep) { setStep(step + 1); return; }
     setLoading(true); setError("");
     try {
-      const qa = quizAnswers as QuizAnswers;
       const payload = {
-        name:                 form.name.trim(),
-        birth_date:           form.birth_date,
-        monthly_income:       form.monthly_income,
-        monthly_contribution: form.monthly_contribution,
-        investment_amount:    form.investment_amount,
-        investment_goal:      form.investment_goal,
-        risk_tolerance:       calculated,
-        quiz_answers:         qa,
-        mentor:               !form.mentor || form.mentor === "none" ? null : form.mentor,
+        name:                    form.name.trim(),
+        birth_date:              form.birth_date,
+        monthly_income:          form.monthly_income,
+        monthly_contribution:    form.monthly_contribution,
+        investment_amount:       form.investment_amount,
+        investment_goal:         form.investment_goal,
+        investment_goal_amount:  form.investment_goal_amount,
+        knowledge_level:         form.knowledge_level,
+        risk_tolerance:          calculated,
+        quiz_answers:            quizAnswers,
       };
       const res = await profileApi.create(payload);
       setProfile(res.data);
       // Trigger first-steps flow for principiante on next page visit
-      if (qa.q3 === "A") {
+      if (form.knowledge_level === "A") {
         localStorage.setItem("nuvos_first_steps_active", "1");
       }
       setSuccess(true);
@@ -697,15 +667,6 @@ export default function OnboardingPage() {
                 <div className="text-sm font-semibold" style={{ color: riskCfg.color }}>{riskCfg.label}</div>
               </div>
             </div>
-            {form.mentor && form.mentor !== "none" && (
-              <div className="flex items-center gap-3 pt-3 border-t" style={{ borderColor: "var(--border)" }}>
-                <span className="text-xl">🧠</span>
-                <div>
-                  <div className="text-[10px] font-bold uppercase tracking-wider" style={{ color: "var(--muted)" }}>Tu mentor</div>
-                  <div className="text-sm font-semibold" style={{ color: "var(--text)" }}>{form.mentor}</div>
-                </div>
-              </div>
-            )}
           </div>
           <button onClick={() => router.push("/chat")}
                   className="w-full py-4 rounded-2xl text-white font-bold text-base"
@@ -776,7 +737,6 @@ export default function OnboardingPage() {
         </p>
       </div>
 
-      <PaywallModal visible={paywallOpen} onClose={() => setPaywallOpen(false)} />
     </div>
   );
 }

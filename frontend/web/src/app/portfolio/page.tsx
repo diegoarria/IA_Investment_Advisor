@@ -1360,6 +1360,77 @@ export default function PortfolioPage() {
             )}
           </section>
 
+          {/* ── Goal progress widget ── */}
+          {(() => {
+            const goalAmt = parseFloat(profile?.investment_goal_amount ?? "0");
+            if (!goalAmt || goalAmt <= 0) return null;
+            const progressPct = Math.min((totals.current / goalAmt) * 100, 100);
+            const remaining = Math.max(goalAmt - totals.current, 0);
+            const GOAL_LABELS: Record<string, string> = {
+              emergency_fund: "Fondo de emergencia",
+              big_purchase:   "Compra importante",
+              retirement:     "Retiro / pensión",
+              independence:   "Independencia financiera",
+            };
+            const goalLabel = GOAL_LABELS[profile?.investment_goal ?? ""] ?? "Mi meta";
+            const reached = progressPct >= 100;
+            return (
+              <div className="rounded-2xl border p-4 mb-4"
+                   style={{ background: "var(--card)", borderColor: reached ? "rgba(34,197,94,0.35)" : "var(--border)" }}>
+                <div className="flex items-center justify-between mb-3">
+                  <div>
+                    <p className="text-[10px] font-bold uppercase tracking-widest mb-0.5"
+                       style={{ color: "var(--accent-l)" }}>META FINANCIERA</p>
+                    <p className="text-sm font-bold" style={{ color: "var(--text)" }}>{goalLabel}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-xl font-black leading-none"
+                       style={{ color: reached ? "#22c55e" : "var(--text)" }}>
+                      {progressPct.toFixed(1)}%
+                    </p>
+                    <p className="text-[10px] mt-0.5" style={{ color: "var(--muted)" }}>
+                      {reached ? "¡Alcanzada!" : "completado"}
+                    </p>
+                  </div>
+                </div>
+                <div className="h-2.5 rounded-full overflow-hidden mb-2.5"
+                     style={{ background: "var(--border)" }}>
+                  <div className="h-full rounded-full transition-all duration-500"
+                       style={{ width: `${progressPct}%`, background: reached ? "#22c55e" : "var(--accent-l)" }} />
+                </div>
+                <div className="flex items-center justify-between text-[11px]">
+                  <span style={{ color: "var(--muted)" }}>
+                    <span className="font-semibold" style={{ color: "var(--sub)" }}>
+                      {currencySymbol}{totals.current.toLocaleString("en-US", { maximumFractionDigits: 0 })}
+                    </span>
+                    {" "}acumulados
+                  </span>
+                  {reached ? (
+                    <span className="font-bold" style={{ color: "#22c55e" }}>Meta alcanzada</span>
+                  ) : (
+                    <span style={{ color: "var(--muted)" }}>
+                      Faltan{" "}
+                      <span className="font-semibold" style={{ color: "var(--sub)" }}>
+                        {currencySymbol}{remaining.toLocaleString("en-US", { maximumFractionDigits: 0 })}
+                      </span>
+                    </span>
+                  )}
+                </div>
+                <div className="mt-2 pt-2 border-t flex items-center justify-between"
+                     style={{ borderColor: "var(--border)" }}>
+                  <span className="text-[10px]" style={{ color: "var(--dim)" }}>
+                    Meta: {currencySymbol}{goalAmt.toLocaleString("en-US", { maximumFractionDigits: 0 })}
+                  </span>
+                  {!reached && (
+                    <span className="text-[10px]" style={{ color: "var(--dim)" }}>
+                      Aportando {currencySymbol}{Number(profile?.monthly_contribution || 0).toLocaleString("en-US")}/mes
+                    </span>
+                  )}
+                </div>
+              </div>
+            );
+          })()}
+
           {/* ── Positions ── */}
           {positions.length === 0 && !screenshotPreview ? (
             <div className="rounded-2xl border p-10 flex flex-col items-center gap-3"
