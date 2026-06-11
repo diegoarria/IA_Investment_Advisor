@@ -193,6 +193,18 @@ export default function AppSidebar({ open, onClose }: Props) {
 
       <aside className={`${open ? "flex" : "hidden"} ${desktopCollapsed ? "lg:hidden" : "lg:flex"} w-64 flex-col absolute lg:relative z-20 h-full sidebar-gradient`} style={{ zoom: 1.15 }}>
 
+        {/* Desktop collapse button — top right of sidebar */}
+        <div className="hidden lg:flex justify-end px-2 pt-1.5 shrink-0">
+          <button
+            onClick={toggleDesktop}
+            className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-white/5 transition-colors"
+            style={{ color: "var(--dim)" }}
+            title="Cerrar sidebar"
+          >
+            <ChevronLeft className="w-4 h-4" />
+          </button>
+        </div>
+
         {/* Profile widget */}
         {profile && (
           <div className="px-2 pb-1.5 pt-1.5 shrink-0">
@@ -406,15 +418,6 @@ export default function AppSidebar({ open, onClose }: Props) {
             Actualizar perfil
           </button>
 
-          {/* Desktop collapse toggle */}
-          <button
-            onClick={toggleDesktop}
-            className="hidden lg:flex w-full items-center justify-center gap-1.5 py-1.5 rounded-lg hover:bg-white/5 transition-colors"
-            style={{ color: "var(--dim)" }}
-          >
-            <ChevronLeft className="w-3.5 h-3.5" />
-            <span className="text-[10px]">Cerrar sidebar</span>
-          </button>
         </div>
       </aside>
 
