@@ -15,11 +15,10 @@ export interface AdvancedRow {
   name: string;
   logoUrl?: string | null;
   price: number | null;
-  change?: number | null;       // $ amount
+  change?: number | null;
   changePct: number | null;
   currency?: string;
   marketState?: string | null;
-  // enriched from /market/quote-details (real-time)
   volume?: number | null;
   marketCap?: number | null;
   pe?: number | null;
@@ -28,11 +27,10 @@ export interface AdvancedRow {
   week52High?: number | null;
   earningsDate?: string | null;
   extPrice?: number | null;
-  extChange?: number | null;    // $ amount vs regular close
+  extChange?: number | null;
   extPct?: number | null;
   extLabel?: string | null;
   companyName?: string | null;
-  // portfolio-only
   shares?: number | null;
   avgCost?: number | null;
   positionValue?: number | null;
@@ -65,14 +63,14 @@ function Avatar({ ticker, logoUrl }: { ticker: string; logoUrl?: string | null }
       // eslint-disable-next-line @next/next/no-img-element
       <img
         src={active} alt={ticker}
-        className="w-7 h-7 rounded-full object-contain p-0.5 shrink-0"
+        className="w-5 h-5 rounded-full object-contain p-0.5 shrink-0"
         style={{ background: "var(--raised)", border: "1px solid var(--border)" }}
         onError={() => setFailed((p) => new Set([...p, active]))}
       />
     );
   }
   return (
-    <div className="w-7 h-7 rounded-full flex items-center justify-center text-[9px] font-black shrink-0"
+    <div className="w-5 h-5 rounded-full flex items-center justify-center text-[8px] font-black shrink-0"
          style={{ background: "rgba(0,168,94,0.14)", color: "var(--accent-l)" }}>
       {ticker.slice(0, 2)}
     </div>
@@ -92,31 +90,31 @@ function Th({
   return (
     <th
       onClick={() => onClick(sortKey)}
-      className="px-3 py-2.5 text-[10px] font-bold uppercase tracking-wide cursor-pointer select-none whitespace-nowrap"
+      className="px-2 py-2 text-[9px] font-bold uppercase tracking-wide cursor-pointer select-none whitespace-nowrap"
       style={{
         color: active ? "var(--accent-l)" : "var(--muted)",
         textAlign: align,
         borderBottom: "1px solid var(--border)",
       }}
     >
-      <span className="inline-flex items-center gap-1 justify-end">
+      <span className="inline-flex items-center gap-0.5 justify-end">
         {label}
         {active
-          ? dir === "asc" ? <ChevronUp className="w-2.5 h-2.5" /> : <ChevronDown className="w-2.5 h-2.5" />
-          : <ChevronsUpDown className="w-2.5 h-2.5 opacity-30" />}
+          ? dir === "asc" ? <ChevronUp className="w-2 h-2" /> : <ChevronDown className="w-2 h-2" />
+          : <ChevronsUpDown className="w-2 h-2 opacity-30" />}
       </span>
     </th>
   );
 }
 
-// ─── Live dot indicator ───────────────────────────────────────────────────────
+// ─── Live dot ─────────────────────────────────────────────────────────────────
 
 function LiveDot({ live }: { live: boolean }) {
   return (
     <span
-      className="inline-block w-1.5 h-1.5 rounded-full ml-1 shrink-0"
+      className="inline-block w-1 h-1 rounded-full ml-0.5 shrink-0"
       style={{ background: live ? "#22c55e" : "var(--dim)" }}
-      title={live ? "Tiempo real (WebSocket)" : "Polling"}
+      title={live ? "WebSocket" : "Polling"}
     />
   );
 }
@@ -124,21 +122,16 @@ function LiveDot({ live }: { live: boolean }) {
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export default function AdvancedStockTable({ rows, mode, onRemove, onRowClick }: Props) {
-  // Enriched data from /quote-details (price, change, volume, cap, pe, 52W, earnings, ext)
   const [details, setDetails] = useState<Record<string, Partial<AdvancedRow>>>({});
   const [loadingDetails, setLoadingDetails] = useState(false);
-  // WebSocket live prices: ticker → { price, change, changePct }
   const [livePrices, setLivePrices] = useState<Record<string, { price: number; ts: number }>>({});
   const [wsConnected, setWsConnected] = useState(false);
-
   const [sortKey, setSortKey] = useState<SortKey | null>(null);
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
 
   const tickers = rows.map((r) => r.ticker);
   const tickerKey = tickers.join(",");
   const fetchedRef = useRef<string>("");
-
-  // ── REST enrichment ─────────────────────────────────────────────────────────
 
   const fetchDetails = useCallback((isInitial = false) => {
     if (!tickerKey) return;
@@ -156,45 +149,34 @@ export default function AdvancedStockTable({ rows, mode, onRemove, onRowClick }:
     fetchDetails(true);
   }, [fetchDetails]);
 
-  // Re-fetch every 15 s for near-real-time enriched data
   useEffect(() => {
     if (!tickerKey) return;
     const interval = setInterval(() => fetchDetails(false), 15_000);
     return () => clearInterval(interval);
   }, [fetchDetails, tickerKey]);
 
-  // ── Finnhub WebSocket price overlay ─────────────────────────────────────────
-
   useEffect(() => {
     if (!tickers.length) return;
-
     const unsub = finnhubWS.subscribe(tickers, (symbol, price, ts) => {
       setLivePrices((prev) => ({ ...prev, [symbol]: { price, ts } }));
       setWsConnected(true);
     });
-
     return unsub;
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tickerKey]);
 
-  // ── Merge: enriched REST data + WebSocket live price overlay ────────────────
-
   const enriched: AdvancedRow[] = rows.map((r) => {
     const d = details[r.ticker] ?? {};
     const live = livePrices[r.ticker];
-    // WebSocket price overrides REST price when available
     const price = live?.price ?? (d.price as number | null) ?? r.price;
     return {
       ...r,
       ...d,
       price,
-      // Preserve change$ from REST (WS doesn't send daily change)
       change: (d.change as number | null) ?? r.change ?? null,
       changePct: (d.changePct as number | null) ?? r.changePct,
     };
   });
-
-  // ── Sorting ─────────────────────────────────────────────────────────────────
 
   const sorted = [...enriched].sort((a, b) => {
     if (!sortKey) return 0;
@@ -215,43 +197,43 @@ export default function AdvancedStockTable({ rows, mode, onRemove, onRowClick }:
   const colProps = { current: sortKey, dir: sortDir, onClick: handleSort };
 
   return (
-    <div className="rounded-2xl border overflow-hidden"
+    <div className="rounded-xl border overflow-hidden"
          style={{ background: "var(--card)", borderColor: "var(--border)" }}>
 
       {/* Status bar */}
-      <div className="flex items-center justify-between px-4 py-1.5 border-b"
+      <div className="flex items-center justify-between px-3 py-1 border-b"
            style={{ borderColor: "var(--border)", background: "var(--raised)" }}>
-        <span className="text-[10px] font-semibold flex items-center gap-1.5" style={{ color: "var(--muted)" }}>
+        <span className="text-[9px] font-semibold flex items-center gap-1" style={{ color: "var(--muted)" }}>
           {wsConnected
-            ? <><Wifi className="w-3 h-3" style={{ color: "#22c55e" }} /> Tiempo real (WebSocket)</>
-            : <><WifiOff className="w-3 h-3" /> Polling 15s</>}
+            ? <><Wifi className="w-2.5 h-2.5" style={{ color: "#22c55e" }} /> Tiempo real</>
+            : <><WifiOff className="w-2.5 h-2.5" /> Polling 15s</>}
         </span>
-        <span className="text-[10px]" style={{ color: "var(--dim)" }}>
-          {sorted.length} acciones
+        <span className="text-[9px]" style={{ color: "var(--dim)" }}>
+          {sorted.length} {sorted.length === 1 ? "acción" : "acciones"}
         </span>
       </div>
 
       {/* Scroll wrapper */}
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[1100px] border-collapse text-sm">
+        <table className="w-full min-w-[960px] border-collapse">
           <thead>
             <tr style={{ background: "var(--raised)" }}>
-              <th className="px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-wide whitespace-nowrap"
+              <th className="px-2 py-2 text-left text-[9px] font-bold uppercase tracking-wide whitespace-nowrap"
                   style={{ color: "var(--muted)", borderBottom: "1px solid var(--border)" }}>
                 Símbolo
               </th>
-              <Th label="Precio"    sortKey="price"        {...colProps} />
-              <Th label="Var $"     sortKey="change"       {...colProps} />
-              <Th label="Var %"     sortKey="changePct"    {...colProps} />
-              <Th label="Volumen"   sortKey="volume"       {...colProps} />
-              <Th label="AH Precio" sortKey="extPrice"     {...colProps} />
-              <Th label="AH $"      sortKey="extChange"    {...colProps} />
-              <Th label="AH %"      sortKey="extPct"       {...colProps} />
-              <Th label="Cap. Mkt"  sortKey="marketCap"    {...colProps} />
-              <Th label="P/E"       sortKey="pe"           {...colProps} />
-              <Th label="Earnings"  sortKey="earningsDate" {...colProps} />
-              <Th label="52W Máx"   sortKey="week52High"   {...colProps} />
-              <Th label="52W Mín"   sortKey="week52Low"    {...colProps} />
+              <Th label="Precio"   sortKey="price"        {...colProps} />
+              <Th label="Var $"    sortKey="change"       {...colProps} />
+              <Th label="Var %"    sortKey="changePct"    {...colProps} />
+              <Th label="Volumen"  sortKey="volume"       {...colProps} />
+              <Th label="AH"       sortKey="extPrice"     {...colProps} />
+              <Th label="AH $"     sortKey="extChange"    {...colProps} />
+              <Th label="AH %"     sortKey="extPct"       {...colProps} />
+              <Th label="Cap"      sortKey="marketCap"    {...colProps} />
+              <Th label="P/E"      sortKey="pe"           {...colProps} />
+              <Th label="Earnings" sortKey="earningsDate" {...colProps} />
+              <Th label="52W ↑"    sortKey="week52High"   {...colProps} />
+              <Th label="52W ↓"    sortKey="week52Low"    {...colProps} />
               {mode === "portfolio" && (
                 <>
                   <Th label="Valor" sortKey="positionValue" {...colProps} />
@@ -259,20 +241,19 @@ export default function AdvancedStockTable({ rows, mode, onRemove, onRowClick }:
                 </>
               )}
               {onRemove && (
-                <th className="px-2 py-2.5 text-[10px]"
+                <th className="px-2 py-2 text-[9px]"
                     style={{ borderBottom: "1px solid var(--border)" }} />
               )}
             </tr>
           </thead>
           <tbody>
             {sorted.map((row, idx) => {
-              const currency    = row.currency ?? "USD";
-              const isUp        = (row.changePct ?? 0) >= 0;
-              const priceColor  = changeColor(row.changePct);
-              const extUp       = (row.extPct ?? 0) >= 0;
-              const glUp        = (row.gainLossPct ?? 0) >= 0;
-              const isLive      = !!livePrices[row.ticker];
-              const extColor    = row.extLabel === "Pre" ? "#f59e0b" : "#818cf8";
+              const currency   = row.currency ?? "USD";
+              const isUp       = (row.changePct ?? 0) >= 0;
+              const priceColor = changeColor(row.changePct);
+              const glUp       = (row.gainLossPct ?? 0) >= 0;
+              const isLive     = !!livePrices[row.ticker];
+              const extColor   = row.extLabel === "Pre" ? "#f59e0b" : "#818cf8";
 
               return (
                 <tr
@@ -282,21 +263,21 @@ export default function AdvancedStockTable({ rows, mode, onRemove, onRowClick }:
                   style={{
                     cursor: onRowClick ? "pointer" : "default",
                     borderBottom: idx < sorted.length - 1 ? "1px solid var(--border)" : "none",
-                    borderLeft: `3px solid ${isUp ? "rgba(34,197,94,0.4)" : "rgba(239,68,68,0.4)"}`,
+                    borderLeft: `2px solid ${isUp ? "rgba(34,197,94,0.35)" : "rgba(239,68,68,0.35)"}`,
                   }}
                 >
                   {/* Symbol + Name */}
-                  <td className="px-3 py-2.5">
-                    <div className="flex items-center gap-2">
+                  <td className="px-2 py-1.5">
+                    <div className="flex items-center gap-1.5">
                       <Avatar ticker={row.ticker} logoUrl={row.logoUrl} />
                       <div className="min-w-0">
-                        <div className="flex items-center gap-1">
-                          <p className="text-xs font-black" style={{ color: "var(--text)" }}>
+                        <div className="flex items-center gap-0.5">
+                          <p className="text-[11px] font-bold leading-none" style={{ color: "var(--text)" }}>
                             {row.ticker}
                           </p>
                           <LiveDot live={isLive} />
                         </div>
-                        <p className="text-[10px] truncate max-w-[90px]" style={{ color: "var(--muted)" }}>
+                        <p className="text-[9px] truncate max-w-[80px] mt-0.5" style={{ color: "var(--muted)" }}>
                           {row.companyName ?? row.name}
                         </p>
                       </div>
@@ -304,43 +285,43 @@ export default function AdvancedStockTable({ rows, mode, onRemove, onRowClick }:
                   </td>
 
                   {/* Price */}
-                  <td className="px-3 py-2.5 text-right">
+                  <td className="px-2 py-1.5 text-right">
                     {loadingDetails && row.price == null ? (
-                      <Loader2 className="w-3 h-3 animate-spin ml-auto" style={{ color: "var(--muted)" }} />
+                      <Loader2 className="w-2.5 h-2.5 animate-spin ml-auto" style={{ color: "var(--muted)" }} />
                     ) : (
-                      <span className="text-xs font-bold tabular-nums" style={{ color: "var(--text)" }}>
+                      <span className="text-[11px] font-bold tabular-nums" style={{ color: "var(--text)" }}>
                         {fmtPrice(row.price, currency)}
                       </span>
                     )}
                   </td>
 
                   {/* Change $ */}
-                  <td className="px-3 py-2.5 text-right">
-                    <span className="text-xs font-semibold tabular-nums" style={{ color: priceColor }}>
+                  <td className="px-2 py-1.5 text-right">
+                    <span className="text-[11px] tabular-nums" style={{ color: priceColor }}>
                       {fmtChange(row.change, currency)}
                     </span>
                   </td>
 
                   {/* Change % */}
-                  <td className="px-3 py-2.5 text-right">
-                    <span className="text-xs font-bold tabular-nums" style={{ color: priceColor }}>
+                  <td className="px-2 py-1.5 text-right">
+                    <span className="text-[11px] font-semibold tabular-nums" style={{ color: priceColor }}>
                       {fmtPct(row.changePct)}
                     </span>
                   </td>
 
                   {/* Volume */}
-                  <td className="px-3 py-2.5 text-right">
+                  <td className="px-2 py-1.5 text-right">
                     {loadingDetails && row.volume == null ? (
-                      <Loader2 className="w-3 h-3 animate-spin ml-auto" style={{ color: "var(--muted)" }} />
+                      <Loader2 className="w-2.5 h-2.5 animate-spin ml-auto" style={{ color: "var(--muted)" }} />
                     ) : (
-                      <span className="text-xs tabular-nums" style={{ color: "var(--sub)" }}>
+                      <span className="text-[11px] tabular-nums" style={{ color: "var(--sub)" }}>
                         {fmtVolume(row.volume)}
                       </span>
                     )}
                   </td>
 
                   {/* After Hours Price */}
-                  <td className="px-3 py-2.5 text-right">
+                  <td className="px-2 py-1.5 text-right">
                     {row.extPrice ? (
                       <div>
                         <span className="text-[10px] font-semibold tabular-nums" style={{ color: extColor }}>
@@ -353,57 +334,57 @@ export default function AdvancedStockTable({ rows, mode, onRemove, onRowClick }:
                         )}
                       </div>
                     ) : (
-                      <span className="text-xs" style={{ color: "var(--dim)" }}>—</span>
+                      <span className="text-[11px]" style={{ color: "var(--dim)" }}>—</span>
                     )}
                   </td>
 
                   {/* After Hours Change $ */}
-                  <td className="px-3 py-2.5 text-right">
-                    <span className="text-xs tabular-nums"
-                          style={{ color: row.extChange != null ? (extUp ? extColor : extColor) : "var(--dim)" }}>
+                  <td className="px-2 py-1.5 text-right">
+                    <span className="text-[11px] tabular-nums"
+                          style={{ color: row.extChange != null ? extColor : "var(--dim)" }}>
                       {row.extChange != null ? fmtChange(row.extChange, currency) : "—"}
                     </span>
                   </td>
 
                   {/* After Hours Change % */}
-                  <td className="px-3 py-2.5 text-right">
-                    <span className="text-xs font-semibold tabular-nums"
+                  <td className="px-2 py-1.5 text-right">
+                    <span className="text-[11px] tabular-nums"
                           style={{ color: row.extPct != null ? extColor : "var(--dim)" }}>
                       {row.extPct != null ? fmtPct(row.extPct) : "—"}
                     </span>
                   </td>
 
                   {/* Market Cap */}
-                  <td className="px-3 py-2.5 text-right">
-                    <span className="text-xs tabular-nums" style={{ color: "var(--sub)" }}>
+                  <td className="px-2 py-1.5 text-right">
+                    <span className="text-[11px] tabular-nums" style={{ color: "var(--sub)" }}>
                       {fmtMarketCap(row.marketCap)}
                     </span>
                   </td>
 
                   {/* P/E */}
-                  <td className="px-3 py-2.5 text-right">
-                    <span className="text-xs tabular-nums" style={{ color: "var(--sub)" }}>
-                      {row.pe != null ? row.pe.toFixed(2) : "—"}
+                  <td className="px-2 py-1.5 text-right">
+                    <span className="text-[11px] tabular-nums" style={{ color: "var(--sub)" }}>
+                      {row.pe != null ? row.pe.toFixed(1) : "—"}
                     </span>
                   </td>
 
                   {/* Earnings Date */}
-                  <td className="px-3 py-2.5 text-right">
-                    <span className="text-xs" style={{ color: "var(--sub)" }}>
+                  <td className="px-2 py-1.5 text-right">
+                    <span className="text-[10px]" style={{ color: "var(--sub)" }}>
                       {fmtEarningsDate(row.earningsDate)}
                     </span>
                   </td>
 
                   {/* 52W High */}
-                  <td className="px-3 py-2.5 text-right">
-                    <span className="text-xs tabular-nums" style={{ color: "#22c55e" }}>
+                  <td className="px-2 py-1.5 text-right">
+                    <span className="text-[11px] tabular-nums" style={{ color: "#22c55e" }}>
                       {row.week52High != null ? fmtPrice(row.week52High, currency) : "—"}
                     </span>
                   </td>
 
                   {/* 52W Low */}
-                  <td className="px-3 py-2.5 text-right">
-                    <span className="text-xs tabular-nums" style={{ color: "#ef4444" }}>
+                  <td className="px-2 py-1.5 text-right">
+                    <span className="text-[11px] tabular-nums" style={{ color: "#ef4444" }}>
                       {row.week52Low != null ? fmtPrice(row.week52Low, currency) : "—"}
                     </span>
                   </td>
@@ -411,13 +392,13 @@ export default function AdvancedStockTable({ rows, mode, onRemove, onRowClick }:
                   {/* Portfolio: Valor + G/P */}
                   {mode === "portfolio" && (
                     <>
-                      <td className="px-3 py-2.5 text-right">
-                        <span className="text-xs font-bold tabular-nums" style={{ color: "var(--text)" }}>
+                      <td className="px-2 py-1.5 text-right">
+                        <span className="text-[11px] font-bold tabular-nums" style={{ color: "var(--text)" }}>
                           {fmtPrice(row.positionValue, currency)}
                         </span>
                       </td>
-                      <td className="px-3 py-2.5 text-right">
-                        <span className="text-xs font-bold tabular-nums"
+                      <td className="px-2 py-1.5 text-right">
+                        <span className="text-[11px] font-bold tabular-nums"
                               style={{ color: glUp ? "#22c55e" : "#ef4444" }}>
                           {fmtPct(row.gainLossPct)}
                         </span>
@@ -427,10 +408,10 @@ export default function AdvancedStockTable({ rows, mode, onRemove, onRowClick }:
 
                   {/* Remove */}
                   {onRemove && (
-                    <td className="px-2 py-2.5 text-right">
+                    <td className="px-2 py-1.5 text-right">
                       <button
                         onClick={(e) => { e.stopPropagation(); onRemove(row.ticker); }}
-                        className="w-5 h-5 rounded flex items-center justify-center opacity-30 hover:opacity-100 transition-opacity"
+                        className="w-4 h-4 rounded flex items-center justify-center opacity-25 hover:opacity-80 transition-opacity text-[11px]"
                         style={{ color: "var(--muted)" }}
                       >
                         ×
@@ -445,7 +426,7 @@ export default function AdvancedStockTable({ rows, mode, onRemove, onRowClick }:
       </div>
 
       {sorted.length === 0 && (
-        <p className="text-xs text-center py-8" style={{ color: "var(--muted)" }}>
+        <p className="text-[11px] text-center py-6" style={{ color: "var(--muted)" }}>
           Sin datos
         </p>
       )}

@@ -114,14 +114,14 @@ function StockAvatar({ ticker, logoUrl }: { ticker: string; logoUrl: string | nu
       <img
         src={activeSrc}
         alt={ticker}
-        className="w-10 h-10 rounded-full object-contain p-1.5 shrink-0"
+        className="w-7 h-7 rounded-full object-contain p-1 shrink-0"
         style={{ background: "var(--raised)", border: "1px solid var(--border)" }}
         onError={() => setFailed((prev) => new Set([...prev, activeSrc]))}
       />
     );
   }
   return (
-    <div className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-black shrink-0"
+    <div className="w-7 h-7 rounded-full flex items-center justify-center text-[9px] font-black shrink-0"
          style={{ background: "rgba(0,168,94,0.14)", color: "var(--accent-l)" }}>
       {initials}
     </div>
@@ -153,12 +153,12 @@ function StockCard({ item, confirmDelete, onRequestDelete, onConfirmDelete, onCa
 
   return (
     <div
-      className="rounded-2xl p-4 flex items-start gap-3 relative overflow-hidden cursor-pointer"
+      className="rounded-xl p-3 flex items-center gap-2.5 relative overflow-hidden cursor-pointer"
       onClick={() => onSelect(item.ticker)}
       style={{
         background: "var(--card)",
         border: "1px solid var(--border)",
-        borderLeft: `3px solid ${borderColor}`,
+        borderLeft: `2px solid ${borderColor}`,
       }}
     >
       {/* Avatar */}
@@ -166,58 +166,57 @@ function StockCard({ item, confirmDelete, onRequestDelete, onConfirmDelete, onCa
 
       {/* Info */}
       <div className="flex-1 min-w-0">
-        <div className="flex items-start justify-between gap-2">
+        <div className="flex items-center justify-between gap-2">
           {/* Left: ticker + name + badge */}
           <div className="min-w-0">
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="font-black text-sm" style={{ color: "var(--text)" }}>
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="font-black text-[12px]" style={{ color: "var(--text)" }}>
                 {item.ticker}
               </span>
               <MarketStateBadge state={item.market_state} />
             </div>
-            <p className="text-[11px] truncate mt-0.5" style={{ color: "var(--muted)" }}>
+            <p className="text-[10px] truncate mt-0.5" style={{ color: "var(--muted)" }}>
               {item.name}
             </p>
           </div>
 
           {/* Right: prices */}
           <div className="text-right shrink-0">
-            {/* Main display price */}
             {showPreMkt ? (
               <>
-                <p className="text-base font-black leading-tight" style={{ color: "#f59e0b" }}>
+                <p className="text-[13px] font-black leading-tight" style={{ color: "#f59e0b" }}>
                   {fmtPrice(item.pre_market_price, item.currency)}
                 </p>
-                <p className="text-[11px] font-bold" style={{ color: "#f59e0b" }}>
+                <p className="text-[10px] font-bold" style={{ color: "#f59e0b" }}>
                   {fmtPct(item.pre_market_change_pct)}
                 </p>
-                <p className="text-[10px] mt-0.5" style={{ color: "var(--muted)" }}>
-                  Regular {fmtPrice(item.price, item.currency)}
+                <p className="text-[9px]" style={{ color: "var(--muted)" }}>
+                  Reg. {fmtPrice(item.price, item.currency)}
                 </p>
               </>
             ) : showPostMkt ? (
               <>
-                <p className="text-base font-black leading-tight" style={{ color: "#818cf8" }}>
+                <p className="text-[13px] font-black leading-tight" style={{ color: "#818cf8" }}>
                   {fmtPrice(item.post_market_price, item.currency)}
                 </p>
-                <p className="text-[11px] font-bold" style={{ color: "#818cf8" }}>
+                <p className="text-[10px] font-bold" style={{ color: "#818cf8" }}>
                   {fmtPct(item.post_market_change_pct)}
                 </p>
-                <p className="text-[10px] mt-0.5" style={{ color: "var(--muted)" }}>
+                <p className="text-[9px]" style={{ color: "var(--muted)" }}>
                   Cierre {fmtPrice(item.price, item.currency)}
                 </p>
               </>
             ) : (
               <>
-                <p className="text-base font-black leading-tight" style={{ color: "var(--text)" }}>
+                <p className="text-[13px] font-black leading-tight" style={{ color: "var(--text)" }}>
                   {fmtPrice(item.price, item.currency)}
                 </p>
-                <div className="flex items-center justify-end gap-1 mt-0.5">
+                <div className="flex items-center justify-end gap-0.5 mt-0.5">
                   {isUp
-                    ? <TrendingUp className="w-3 h-3" style={{ color: priceColor }} />
-                    : <TrendingDown className="w-3 h-3" style={{ color: priceColor }} />
+                    ? <TrendingUp className="w-2.5 h-2.5" style={{ color: priceColor }} />
+                    : <TrendingDown className="w-2.5 h-2.5" style={{ color: priceColor }} />
                   }
-                  <span className="text-[11px] font-bold" style={{ color: priceColor }}>
+                  <span className="text-[10px] font-bold" style={{ color: priceColor }}>
                     {fmtPct(item.change_pct)}
                   </span>
                 </div>
@@ -228,12 +227,12 @@ function StockCard({ item, confirmDelete, onRequestDelete, onConfirmDelete, onCa
 
         {/* Regular change row (shown when pre/post active) */}
         {(showPreMkt || showPostMkt) && (
-          <div className="flex items-center gap-1 mt-1">
+          <div className="flex items-center gap-0.5 mt-0.5">
             {isUp
-              ? <TrendingUp className="w-3 h-3" style={{ color: priceColor }} />
-              : <TrendingDown className="w-3 h-3" style={{ color: priceColor }} />
+              ? <TrendingUp className="w-2.5 h-2.5" style={{ color: priceColor }} />
+              : <TrendingDown className="w-2.5 h-2.5" style={{ color: priceColor }} />
             }
-            <span className="text-[10px] font-semibold" style={{ color: priceColor }}>
+            <span className="text-[9px] font-semibold" style={{ color: priceColor }}>
               {fmtPct(item.change_pct)} vs cierre anterior
             </span>
           </div>
@@ -241,37 +240,30 @@ function StockCard({ item, confirmDelete, onRequestDelete, onConfirmDelete, onCa
       </div>
 
       {/* Delete button */}
-      <div className="shrink-0 ml-1" onClick={(e) => e.stopPropagation()}>
+      <div className="shrink-0" onClick={(e) => e.stopPropagation()}>
         {isConfirming ? (
-          <div className="flex flex-col items-end gap-1">
-            <span className="text-[10px] font-semibold" style={{ color: "var(--muted)" }}>
-              ¿Seguro?
-            </span>
+          <div className="flex flex-col items-end gap-0.5">
+            <span className="text-[9px] font-semibold" style={{ color: "var(--muted)" }}>¿Seguro?</span>
             <div className="flex gap-1">
               <button
                 onClick={() => onConfirmDelete(item.ticker)}
-                className="px-2 py-0.5 rounded-lg text-[10px] font-bold"
+                className="px-1.5 py-0.5 rounded text-[9px] font-bold"
                 style={{ background: "rgba(239,68,68,0.12)", color: "#ef4444" }}
-              >
-                Sí
-              </button>
+              >Sí</button>
               <button
                 onClick={onCancelDelete}
-                className="px-2 py-0.5 rounded-lg text-[10px] font-bold"
+                className="px-1.5 py-0.5 rounded text-[9px] font-bold"
                 style={{ background: "var(--raised)", color: "var(--muted)" }}
-              >
-                No
-              </button>
+              >No</button>
             </div>
           </div>
         ) : (
           <button
             onClick={() => onRequestDelete(item.ticker)}
-            className="w-7 h-7 rounded-lg flex items-center justify-center transition-colors"
-            style={{ color: "var(--dim)" }}
-            title={`Eliminar ${item.ticker}`}
+            className="w-6 h-6 rounded flex items-center justify-center opacity-30 hover:opacity-80 transition-opacity"
+            style={{ color: "var(--muted)" }}
           >
-            <X className="w-4 h-4" />
+            <X className="w-3.5 h-3.5" />
           </button>
         )}
       </div>
@@ -283,16 +275,16 @@ function StockCard({ item, confirmDelete, onRequestDelete, onConfirmDelete, onCa
 
 function SkeletonCard() {
   return (
-    <div className="rounded-2xl p-4 flex items-start gap-3 animate-pulse"
+    <div className="rounded-xl p-3 flex items-center gap-2.5 animate-pulse"
          style={{ background: "var(--card)", border: "1px solid var(--border)" }}>
-      <div className="w-10 h-10 rounded-full shrink-0" style={{ background: "var(--raised)" }} />
-      <div className="flex-1 space-y-2">
-        <div className="h-3.5 rounded-lg w-24" style={{ background: "var(--raised)" }} />
-        <div className="h-2.5 rounded-lg w-40" style={{ background: "var(--raised)" }} />
+      <div className="w-7 h-7 rounded-full shrink-0" style={{ background: "var(--raised)" }} />
+      <div className="flex-1 space-y-1.5">
+        <div className="h-3 rounded w-20" style={{ background: "var(--raised)" }} />
+        <div className="h-2 rounded w-32" style={{ background: "var(--raised)" }} />
       </div>
-      <div className="space-y-2 text-right">
-        <div className="h-4 rounded-lg w-20" style={{ background: "var(--raised)" }} />
-        <div className="h-2.5 rounded-lg w-14 ml-auto" style={{ background: "var(--raised)" }} />
+      <div className="space-y-1.5 text-right">
+        <div className="h-3.5 rounded w-16" style={{ background: "var(--raised)" }} />
+        <div className="h-2 rounded w-12 ml-auto" style={{ background: "var(--raised)" }} />
       </div>
     </div>
   );
@@ -584,14 +576,14 @@ export default function WatchlistPage() {
                     <button
                       key={r.ticker}
                       onClick={() => handleAddTicker(r.ticker, r.name)}
-                      className="w-full flex items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-[var(--raised)]"
+                      className="w-full flex items-center gap-2.5 px-3 py-2 text-left transition-colors hover:bg-[var(--raised)]"
                     >
                       <StockAvatar ticker={r.ticker} logoUrl={null} />
                       <div className="min-w-0 flex-1">
-                        <p className="text-sm font-bold" style={{ color: "var(--text)" }}>{r.ticker}</p>
-                        <p className="text-[11px] truncate" style={{ color: "var(--muted)" }}>{r.name}</p>
+                        <p className="text-[12px] font-bold" style={{ color: "var(--text)" }}>{r.ticker}</p>
+                        <p className="text-[10px] truncate" style={{ color: "var(--muted)" }}>{r.name}</p>
                       </div>
-                      <Plus className="w-4 h-4 shrink-0" style={{ color: "var(--accent-l)" }} />
+                      <Plus className="w-3.5 h-3.5 shrink-0" style={{ color: "var(--accent-l)" }} />
                     </button>
                   ))}
                 </div>
@@ -688,7 +680,7 @@ export default function WatchlistPage() {
                 </p>
               </div>
             ) : (
-              <div className="space-y-3">
+              <div className="space-y-1.5">
                 {items.map((item) => (
                   <StockCard
                     key={item.ticker}
