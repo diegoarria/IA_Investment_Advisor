@@ -457,7 +457,7 @@ export default function WatchlistPage() {
 
   return (
     <>
-      <div className="h-screen flex flex-col overflow-hidden" style={{ background: "var(--bg)" }}>
+      <div className="h-full flex flex-col overflow-hidden" style={{ background: "var(--bg)" }}>
 
         {/* ── Topbar ── */}
         <div

@@ -102,7 +102,7 @@ export default function ArenaPage() {
 
 
   return (
-    <div className="h-screen flex flex-col overflow-hidden" style={{ background: "var(--bg)" }}>
+    <div className="h-full flex flex-col overflow-hidden" style={{ background: "var(--bg)" }}>
       {/* Top bar */}
       <div className="font-ui border-b flex items-center justify-between px-4 py-2 shrink-0"
            style={{ borderColor: "var(--border)", background: "var(--card)" }}>

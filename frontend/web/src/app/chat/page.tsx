@@ -327,7 +327,7 @@ export default function ChatPage() {
   const unreadNotifCount = notifications.filter((n) => !n.read).length;
 
   return (
-    <div className="h-screen flex flex-col overflow-hidden" style={{ background: "var(--bg)" }}>
+    <div className="h-full flex flex-col overflow-hidden" style={{ background: "var(--bg)" }}>
       {/* Top bar */}
       <div className="font-ui flex items-center justify-between px-4 py-2.5 shrink-0"
            style={{ borderBottom: "1px solid var(--border)", background: "var(--card)" }}>
