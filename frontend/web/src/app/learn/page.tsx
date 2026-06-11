@@ -7,7 +7,20 @@ import Image from "next/image";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { chat as chatApi } from "@/lib/api";
-import { useAuthStore, useLearnStore } from "@/lib/store";
+import { useAuthStore, useLearnStore, useProfileStore } from "@/lib/store";
+import { getUserLevel, LEVEL_COLOR, LEVEL_LABEL, LEVEL_EMOJI, type UserLevel } from "@/lib/userLevel";
+
+const CATEGORY_LEVEL: Record<string, UserLevel> = {
+  basics:      "basico",
+  psychology:  "basico",
+  mexico:      "basico",
+  instruments: "intermedio",
+  companies:   "intermedio",
+  markets:     "intermedio",
+  strategies:  "intermedio",
+  analysis:    "avanzado",
+  ratios:      "avanzado",
+};
 import { Search, Menu, X, Trophy } from "lucide-react";
 
 const CATEGORIES = [
@@ -230,6 +243,8 @@ export default function LearnPage() {
   const router = useRouter();
   const { isAuthenticated } = useAuthStore();
   const { streak, completedToday, markTopicCompleted, initStreak } = useLearnStore();
+  const { profile } = useProfileStore();
+  const userLevel = getUserLevel(profile);
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const [search, setSearch] = useState("");
@@ -300,7 +315,13 @@ export default function LearnPage() {
             <span className="font-bold text-sm" style={{ color: "var(--text)" }}>Nuvos AI</span>
           </button>
         </div>
-        <span className="font-semibold text-sm" style={{ color: "var(--sub)", fontFamily: "var(--font-body)" }}>Aprendizaje</span>
+        <div className="flex flex-col items-center gap-0.5">
+          <span className="font-semibold text-sm" style={{ color: "var(--sub)", fontFamily: "var(--font-body)" }}>Aprendizaje</span>
+          <span className="text-[9px] font-bold px-2 py-0.5 rounded-full"
+                style={{ background: `${LEVEL_COLOR[userLevel]}15`, color: LEVEL_COLOR[userLevel] }}>
+            {LEVEL_EMOJI[userLevel]} {LEVEL_LABEL[userLevel]}
+          </span>
+        </div>
         <div className="w-8" />
       </div>
 
@@ -382,11 +403,20 @@ export default function LearnPage() {
               {filtered.map((topic) => {
                 const catLabel = CATEGORIES.find((c) => c.id === topic.category)?.title ?? "";
                 const logoUrl = COMPANY_LOGOS[topic.id];
+                const topicLevel = CATEGORY_LEVEL[topic.category] ?? "intermedio";
+                const isMyLevel = topicLevel === userLevel;
+                const tc = LEVEL_COLOR[topicLevel];
                 return (
                   <button key={topic.id}
                           onClick={() => openTopic(topic.title, topic.prompt, topic.emoji)}
-                          className="text-left p-3 rounded-2xl border transition-all hover:border-[#00d47e]/40 hover:bg-[#00d47e]/5"
-                          style={{ background: "var(--card)", borderColor: "var(--border)" }}>
+                          className="text-left p-3 rounded-2xl border transition-all hover:border-[#00d47e]/40 hover:bg-[#00d47e]/5 relative"
+                          style={{ background: "var(--card)", borderColor: isMyLevel ? `${tc}40` : "var(--border)" }}>
+                    {isMyLevel && (
+                      <div className="absolute top-2 right-2 text-[9px] font-bold px-1.5 py-0.5 rounded-full"
+                           style={{ background: `${tc}20`, color: tc }}>
+                        Para ti
+                      </div>
+                    )}
                     {logoUrl ? (
                       <img src={logoUrl} alt={topic.title}
                            className="w-9 h-9 rounded-xl object-contain mb-2"
@@ -400,10 +430,16 @@ export default function LearnPage() {
                     <p className="text-xs font-bold leading-tight mb-1" style={{ color: "var(--text)" }}>
                       {topic.title}
                     </p>
-                    <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded"
-                          style={{ background: "var(--border)", color: "var(--muted)" }}>
-                      {catLabel}
-                    </span>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded"
+                            style={{ background: "var(--border)", color: "var(--muted)" }}>
+                        {catLabel}
+                      </span>
+                      <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full"
+                            style={{ background: `${tc}15`, color: tc }}>
+                        {LEVEL_EMOJI[topicLevel]} {LEVEL_LABEL[topicLevel]}
+                      </span>
+                    </div>
                   </button>
                 );
               })}

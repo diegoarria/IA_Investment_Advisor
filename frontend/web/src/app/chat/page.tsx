@@ -20,6 +20,7 @@ import {
   Send, TrendingUp, Bell, LogOut, Menu, X,
   ChevronRight, Sun, Moon, Square, Pencil, ImagePlus, Plus,
 } from "lucide-react";
+import { getUserLevel, LEVEL_LABEL, LEVEL_COLOR, LEVEL_EMOJI } from "@/lib/userLevel";
 
 const SUGGESTIONS_DEFAULT = [
   "¿Cómo analizo si una empresa es buena inversión?",
@@ -351,6 +352,15 @@ export default function ChatPage() {
         {/* Chat title + new chat */}
         <div className="flex items-center gap-3">
           <span className="font-bold text-sm" style={{ color: "var(--text)", fontFamily: "var(--font-body)" }}>Chat</span>
+          {(() => {
+            const level = getUserLevel(profile);
+            return (
+              <span className="flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full"
+                    style={{ background: `${LEVEL_COLOR[level]}18`, color: LEVEL_COLOR[level], border: `1px solid ${LEVEL_COLOR[level]}40` }}>
+                {LEVEL_EMOJI[level]} {LEVEL_LABEL[level]}
+              </span>
+            );
+          })()}
           <button
             onClick={() => { clearMessages(); router.push("/chat"); }}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-semibold transition-colors hover:bg-white/5"

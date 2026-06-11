@@ -19,6 +19,7 @@ export interface UserProfile {
   quiz_answers: Record<string, unknown>;
   mentor?: string | null;
   avatar_url?: string | null;
+  investment_experience?: string | null;
   created_at: string;
   updated_at: string;
 }
