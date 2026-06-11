@@ -1629,10 +1629,10 @@ export default function PortfolioPage() {
                                         )}
                                       </div>
                                       <div className="flex items-center gap-3 mt-0.5">
-                                        <span className="text-[10px] tabular-nums" style={{ color: "var(--dim)" }}>
+                                        <span className="text-[10px] font-bold tabular-nums" style={{ color: "var(--text)" }}>
                                           {shares % 1 === 0 ? shares : shares.toFixed(4)} acc · {currencySymbol}{currentPriceFx.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                         </span>
-                                        <span className="text-[10px]" style={{ color: "var(--dim)" }}>
+                                        <span className="text-[10px] font-bold" style={{ color: "var(--text)" }}>
                                           {allocPct.toFixed(1)}%
                                         </span>
                                       </div>
