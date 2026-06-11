@@ -9,7 +9,7 @@ import { market as marketApi, paperApi } from "@/lib/api";
 import { useAuthStore, useSubscriptionStore } from "@/lib/store";
 import { usePaperStore, PAPER_INITIAL_CASH } from "@/lib/paperStore";
 import PaywallModal from "@/components/PaywallModal";
-import { Search, Menu, X, RefreshCw, Loader2, TrendingUp, TrendingDown, Plus, RotateCcw, Clock, Wallet, Sparkles, Lock, ArrowUpRight, ArrowDownRight } from "lucide-react";
+import { Search, Menu, X, RefreshCw, Loader2, TrendingUp, TrendingDown, Plus, RotateCcw, Clock, Wallet, Sparkles, Lock, ArrowUpRight, ArrowDownRight, ChevronDown, ChevronUp } from "lucide-react";
 
 interface PaperAnalysis {
   verdict: "practice_more" | "promising" | "ready";
@@ -44,6 +44,7 @@ export default function PaperPage() {
   const [analysisLoading, setAnalysisLoading] = useState(false);
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
   const [query, setQuery]             = useState("");
   const [suggestions, setSuggestions] = useState<SearchResult[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -519,84 +520,72 @@ export default function PaperPage() {
           {/* ── Historial de operaciones ── */}
           {trades.length > 0 && (
             <div className="rounded-2xl border overflow-hidden" style={{ background: "var(--card)", borderColor: "var(--border)" }}>
-              {/* Header */}
-              <div className="flex items-center gap-2 px-4 py-3 border-b" style={{ borderColor: "var(--border)" }}>
+              {/* Header — clickable toggle */}
+              <button
+                className="w-full flex items-center gap-2 px-4 py-3 transition-colors hover:bg-white/[0.03]"
+                style={{ borderBottom: historyOpen ? "1px solid var(--border)" : "none" }}
+                onClick={() => setHistoryOpen(o => !o)}
+              >
                 <Clock className="w-3.5 h-3.5" style={{ color: "var(--muted)" }} />
                 <span className="text-sm font-bold" style={{ color: "var(--text)" }}>Historial de operaciones</span>
-                <span className="ml-auto text-[10px] font-bold px-2 py-0.5 rounded-full"
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full"
                       style={{ background: "var(--raised)", color: "var(--muted)" }}>
                   {trades.length}
                 </span>
-              </div>
+                <span className="ml-auto flex items-center gap-1 text-[11px] font-semibold" style={{ color: "var(--accent-l)" }}>
+                  {historyOpen ? "Ver menos" : "Ver más"}
+                  {historyOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                </span>
+              </button>
 
-              {/* Column headers */}
-              <div className="grid px-4 py-2 text-[10px] font-bold uppercase tracking-widest border-b"
-                   style={{
-                     gridTemplateColumns: "64px 1fr 1fr 80px",
-                     color: "var(--muted)",
-                     borderColor: "var(--border)",
-                     background: "var(--raised)",
-                   }}>
-                <span>Tipo</span>
-                <span>Activo</span>
-                <span>Detalle</span>
-                <span className="text-right">Monto</span>
-              </div>
-
-              {trades.slice(0, 30).map((t, idx) => {
-                const isBuy     = t.type === "buy";
-                const isDeposit = t.type !== "buy" && t.type !== "sell";
-                const col   = isBuy ? "#22c55e" : isDeposit ? "#3b82f6" : "#ef4444";
-                const label = isBuy ? "Compra" : isDeposit ? "Recarga" : "Venta";
-                const Icon  = isBuy ? ArrowUpRight : isDeposit ? Plus : ArrowDownRight;
-                const dt    = new Date(t.timestamp);
-                const dateStr = dt.toLocaleDateString("es-ES", { day: "2-digit", month: "short" });
-                const timeStr = dt.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" });
-                return (
-                  <div key={t.id}
-                       className="grid items-center px-4 py-3 border-b last:border-b-0 hover:bg-white/[0.02] transition-colors"
-                       style={{
-                         gridTemplateColumns: "64px 1fr 1fr 80px",
-                         borderColor: "var(--border)",
-                         background: idx % 2 === 0 ? "transparent" : "rgba(255,255,255,0.01)",
-                       }}>
-                    {/* Type badge */}
-                    <div>
-                      <div className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold"
-                           style={{ background: `${col}15`, color: col }}>
-                        <Icon className="w-2.5 h-2.5" />
-                        {label}
-                      </div>
-                    </div>
-
-                    {/* Ticker */}
-                    <div className="min-w-0">
-                      <div className="font-bold text-xs" style={{ color: "var(--text)" }}>
-                        {t.ticker !== "CASH" ? t.ticker : "Efectivo"}
-                      </div>
-                      <div className="text-[10px]" style={{ color: "var(--muted)" }}>
-                        {dateStr} · {timeStr}
-                      </div>
-                    </div>
-
-                    {/* Detail */}
-                    <div className="text-[11px]" style={{ color: "var(--sub)" }}>
-                      {t.shares > 0
-                        ? <><span className="font-semibold">{t.shares}</span> acc @ <span className="font-semibold">${t.price.toFixed(2)}</span></>
-                        : <span style={{ color: "var(--muted)" }}>—</span>
-                      }
-                    </div>
-
-                    {/* Amount */}
-                    <div className="text-right">
-                      <span className="text-sm font-black"
-                            style={{ color: isBuy ? "#ef4444" : "#22c55e" }}>
-                        {isBuy ? "−" : "+"}{fmtMoney(t.total)}
-                      </span>
-                    </div>
+              {historyOpen && (
+                <div>
+                  {/* Column headers */}
+                  <div className="grid px-4 py-2 text-[10px] font-bold uppercase tracking-widest border-b"
+                       style={{ gridTemplateColumns: "64px 1fr 1fr 80px", color: "var(--muted)", borderColor: "var(--border)", background: "var(--raised)" }}>
+                    <span>Tipo</span>
+                    <span>Activo</span>
+                    <span>Detalle</span>
+                    <span className="text-right">Monto</span>
                   </div>
-                );
-              })}
+                  {trades.slice(0, 30).map((t, idx) => {
+                    const isBuy     = t.type === "buy";
+                    const isDeposit = t.type !== "buy" && t.type !== "sell";
+                    const col       = isBuy ? "#22c55e" : isDeposit ? "#3b82f6" : "#ef4444";
+                    const label     = isBuy ? "Compra" : isDeposit ? "Recarga" : "Venta";
+                    const Icon      = isBuy ? ArrowUpRight : isDeposit ? Plus : ArrowDownRight;
+                    const dt        = new Date(t.timestamp);
+                    const dateStr   = dt.toLocaleDateString("es-ES", { day: "2-digit", month: "short" });
+                    const timeStr   = dt.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" });
+                    const detail    = t.shares > 0 ? `${t.shares} acc @ $${t.price.toFixed(2)}` : "—";
+                    return (
+                      <div key={t.id}
+                           className="grid items-center px-4 py-3 border-b last:border-b-0 hover:bg-white/[0.02] transition-colors"
+                           style={{ gridTemplateColumns: "64px 1fr 1fr 80px", borderColor: "var(--border)", background: idx % 2 === 0 ? "transparent" : "rgba(255,255,255,0.01)" }}>
+                        <div>
+                          <div className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold"
+                               style={{ background: `${col}15`, color: col }}>
+                            <Icon className="w-2.5 h-2.5" />
+                            {label}
+                          </div>
+                        </div>
+                        <div className="min-w-0">
+                          <div className="font-bold text-xs" style={{ color: "var(--text)" }}>
+                            {t.ticker !== "CASH" ? t.ticker : "Efectivo"}
+                          </div>
+                          <div className="text-[10px]" style={{ color: "var(--muted)" }}>{dateStr} · {timeStr}</div>
+                        </div>
+                        <div className="text-[11px]" style={{ color: "var(--sub)" }}>{detail}</div>
+                        <div className="text-right">
+                          <span className="text-sm font-black" style={{ color: isBuy ? "#ef4444" : "#22c55e" }}>
+                            {isBuy ? "−" : "+"}{fmtMoney(t.total)}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           )}
 
