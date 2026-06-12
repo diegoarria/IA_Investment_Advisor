@@ -560,6 +560,9 @@ export default function PortfolioScreen() {
     else { setSortField(field); setSortDir("desc"); }
   };
 
+  // Currency picker
+  const [showCurrencyPicker, setShowCurrencyPicker] = useState(false);
+
   // Edit position
   const [editingPos, setEditingPos] = useState<{ id: string; shares: string; avgPrice: string; purchaseDate: string } | null>(null);
   const [revealedPrices, setRevealedPrices] = useState<Set<string>>(new Set());
@@ -1311,11 +1314,13 @@ export default function PortfolioScreen() {
                     <>
                       <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
                         <Text style={[s.totalsLabel, { color: colors.textMuted }]}>Valor actual del portafolio</Text>
-                        {portfolioCurrency !== "USD" && (
-                          <View style={{ backgroundColor: colors.bgRaised, borderRadius: 8, paddingHorizontal: 6, paddingVertical: 2 }}>
-                            <Text style={{ fontSize: 10, fontWeight: "700", color: colors.textMuted }}>{portfolioCurrency}</Text>
-                          </View>
-                        )}
+                        <TouchableOpacity
+                          onPress={() => setShowCurrencyPicker(true)}
+                          style={{ flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: colors.bgRaised, borderRadius: 10, paddingHorizontal: 8, paddingVertical: 4, borderWidth: 1, borderColor: colors.border }}
+                          activeOpacity={0.7}>
+                          <Text style={{ fontSize: 11, fontWeight: "800", color: colors.text }}>{portfolioCurrency}</Text>
+                          <Ionicons name="chevron-down" size={10} color={colors.textDim} />
+                        </TouchableOpacity>
                       </View>
                       <View style={{ flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 12 }}>
                         <Text style={[s.totalsValue, { color: colors.text }]}>
@@ -2341,14 +2346,78 @@ export default function PortfolioScreen() {
                   if (!editingPos) return;
                   const shares = parseFloat(editingPos.shares);
                   const avgPrice = parseFloat(editingPos.avgPrice);
-                  if (!isNaN(shares) && shares > 0) {
-                    updatePosition(editingPos.id, { shares, avgPrice: isNaN(avgPrice) ? 0 : avgPrice, purchaseDate: editingPos.purchaseDate || undefined });
-                  }
-                  setEditingPos(null);
+                  if (isNaN(shares) || shares <= 0) return;
+                  Alert.alert(
+                    "¿Guardar cambios?",
+                    `${shares} acciones · precio promedio $${isNaN(avgPrice) ? "0" : avgPrice}`,
+                    [
+                      { text: "Cancelar", style: "cancel" },
+                      {
+                        text: "Guardar", style: "default",
+                        onPress: () => {
+                          updatePosition(editingPos.id, { shares, avgPrice: isNaN(avgPrice) ? 0 : avgPrice, purchaseDate: editingPos.purchaseDate || undefined });
+                          setEditingPos(null);
+                        },
+                      },
+                    ]
+                  );
                 }}>
                 <Text style={{ color: "white", fontWeight: "800", fontSize: 14 }}>Guardar cambios</Text>
               </TouchableOpacity>
             </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── Currency picker (standalone) ── */}
+      <Modal visible={showCurrencyPicker} transparent animationType="slide" onRequestClose={() => setShowCurrencyPicker(false)}>
+        <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "flex-end" }}>
+          <View style={{ backgroundColor: colors.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingBottom: 36 }}>
+            <View style={{ width: 36, height: 4, borderRadius: 2, backgroundColor: colors.border, alignSelf: "center", marginBottom: 16 }} />
+            <Text style={{ color: colors.text, fontWeight: "800", fontSize: 16, marginBottom: 4 }}>Moneda del portafolio</Text>
+            <Text style={{ color: colors.textMuted, fontSize: 12, marginBottom: 20 }}>
+              Los precios de mercado se convierten automáticamente en tiempo real.
+            </Text>
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 20 }}>
+              {([
+                { code: "USD", flag: "🇺🇸", name: "Dólar" },
+                { code: "MXN", flag: "🇲🇽", name: "Peso MX" },
+                { code: "EUR", flag: "🇪🇺", name: "Euro" },
+                { code: "GBP", flag: "🇬🇧", name: "Libra" },
+                { code: "CAD", flag: "🇨🇦", name: "CAD" },
+                { code: "ARS", flag: "🇦🇷", name: "Peso AR" },
+                { code: "BRL", flag: "🇧🇷", name: "Real" },
+                { code: "COP", flag: "🇨🇴", name: "Peso CO" },
+                { code: "CLP", flag: "🇨🇱", name: "Peso CL" },
+                { code: "PEN", flag: "🇵🇪", name: "Sol" },
+                { code: "JPY", flag: "🇯🇵", name: "Yen" },
+                { code: "AUD", flag: "🇦🇺", name: "AUD" },
+              ] as { code: string; flag: string; name: string }[]).map(({ code, flag, name }) => {
+                const active = portfolioCurrency === code;
+                return (
+                  <TouchableOpacity
+                    key={code}
+                    onPress={() => { setCurrency(code); setShowCurrencyPicker(false); }}
+                    style={{
+                      width: "22%", alignItems: "center", paddingVertical: 10, paddingHorizontal: 4,
+                      borderRadius: 14, borderWidth: 1.5,
+                      borderColor: active ? "#00a85e" : colors.border,
+                      backgroundColor: active ? "rgba(0,168,94,0.12)" : colors.bgRaised,
+                    }}
+                    activeOpacity={0.75}>
+                    <Text style={{ fontSize: 20, marginBottom: 2 }}>{flag}</Text>
+                    <Text style={{ fontSize: 11, fontWeight: "800", color: active ? "#00d47e" : colors.text }}>{code}</Text>
+                    <Text style={{ fontSize: 9, color: colors.textMuted, textAlign: "center" }}>{name}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+            <TouchableOpacity
+              onPress={() => setShowCurrencyPicker(false)}
+              style={{ borderWidth: 1, borderColor: colors.border, borderRadius: 14, paddingVertical: 13, alignItems: "center" }}
+              activeOpacity={0.7}>
+              <Text style={{ color: colors.textSub, fontWeight: "700", fontSize: 14 }}>Cerrar</Text>
+            </TouchableOpacity>
           </View>
         </View>
       </Modal>

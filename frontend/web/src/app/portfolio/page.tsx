@@ -685,8 +685,12 @@ export default function PortfolioPage() {
     else { setSortField(field); setSortDir("desc"); }
   };
 
+  // Currency picker
+  const [showCurrencyPicker, setShowCurrencyPicker] = useState(false);
+
   // Edit position modal
   const [editingPos, setEditingPos] = useState<{ id: string; shares: string; avgPrice: string; purchaseDate: string } | null>(null);
+  const [editConfirm, setEditConfirm] = useState(false);
   const [revealedPrices, setRevealedPrices] = useState<Set<string>>(new Set());
 
   // Manual form
@@ -1533,7 +1537,14 @@ export default function PortfolioPage() {
                           <div className="flex items-start justify-between gap-3 mb-3">
                             <div>
                               <p className="text-[10px] font-bold uppercase tracking-widest mb-1.5" style={{ color: "var(--dim)" }}>
-                                Portafolio{portfolioCurrency !== "USD" && <span className="ml-1.5 px-1.5 py-0.5 rounded-full text-[9px]" style={{ background: "var(--raised)", color: "var(--muted)" }}>{portfolioCurrency}</span>}
+                                <span className="flex items-center gap-1.5">
+                                Portafolio
+                                <button onClick={() => setShowCurrencyPicker(true)}
+                                        className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[9px] font-bold border transition-colors hover:border-[var(--accent)]"
+                                        style={{ background: "var(--raised)", borderColor: "var(--border)", color: "var(--sub)" }}>
+                                  {portfolioCurrency} ▾
+                                </button>
+                              </span>
                               </p>
                               <p className="text-[2.4rem] font-black tracking-tight leading-none" style={{ color: "var(--text)" }}>
                                 {currencySymbol}{totals.current.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
@@ -1901,7 +1912,7 @@ export default function PortfolioPage() {
                           </div>
                         )}
                         <button
-                          onClick={() => setEditingPos({ id: pos.id, shares: String(pos.shares), avgPrice: String(pos.avgPrice), purchaseDate: pos.purchaseDate ?? new Date().toISOString().split("T")[0] })}
+                          onClick={() => { setEditConfirm(false); setEditingPos({ id: pos.id, shares: String(pos.shares), avgPrice: String(pos.avgPrice), purchaseDate: pos.purchaseDate ?? new Date().toISOString().split("T")[0] }); }}
                           style={{ color:"var(--muted)" }}>
                           <Pencil className="w-3 h-3" />
                         </button>
@@ -2455,6 +2466,58 @@ export default function PortfolioPage() {
         <FirstStepsFlow onOpenAddPosition={() => setShowForm(true)} />
       )}
 
+      {/* ── Currency picker modal ── */}
+      {showCurrencyPicker && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
+             style={{ background: "rgba(0,0,0,0.7)", backdropFilter: "blur(4px)" }}>
+          <div className="w-full max-w-sm rounded-3xl p-6" style={{ background: "var(--card)", border: "1px solid var(--border)" }}>
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <p className="font-extrabold text-base" style={{ color: "var(--text)" }}>Moneda del portafolio</p>
+                <p className="text-xs mt-0.5" style={{ color: "var(--muted)" }}>Los precios de mercado se convierten en tiempo real</p>
+              </div>
+              <button onClick={() => setShowCurrencyPicker(false)} style={{ color: "var(--muted)" }}>✕</button>
+            </div>
+            <div className="grid grid-cols-3 gap-2 mb-5">
+              {([
+                { code: "USD", flag: "🇺🇸", name: "Dólar" },
+                { code: "MXN", flag: "🇲🇽", name: "Peso MX" },
+                { code: "EUR", flag: "🇪🇺", name: "Euro" },
+                { code: "GBP", flag: "🇬🇧", name: "Libra" },
+                { code: "CAD", flag: "🇨🇦", name: "CAD" },
+                { code: "ARS", flag: "🇦🇷", name: "Peso AR" },
+                { code: "BRL", flag: "🇧🇷", name: "Real" },
+                { code: "COP", flag: "🇨🇴", name: "Peso CO" },
+                { code: "CLP", flag: "🇨🇱", name: "Peso CL" },
+                { code: "PEN", flag: "🇵🇪", name: "Sol" },
+                { code: "JPY", flag: "🇯🇵", name: "Yen" },
+                { code: "AUD", flag: "🇦🇺", name: "AUD" },
+              ] as { code: string; flag: string; name: string }[]).map(({ code, flag, name }) => {
+                const active = portfolioCurrency === code;
+                return (
+                  <button key={code}
+                          onClick={() => { setCurrency(code); setShowCurrencyPicker(false); }}
+                          className="flex flex-col items-center py-2.5 px-1 rounded-2xl border transition-all text-center hover:opacity-90"
+                          style={{
+                            borderColor: active ? "var(--accent)" : "var(--border)",
+                            background: active ? "rgba(0,168,94,0.12)" : "var(--raised)",
+                          }}>
+                    <span className="text-lg leading-none mb-0.5">{flag}</span>
+                    <span className="text-[10px] font-bold" style={{ color: active ? "var(--accent-l)" : "var(--text)" }}>{code}</span>
+                    <span className="text-[9px]" style={{ color: "var(--dim)" }}>{name}</span>
+                  </button>
+                );
+              })}
+            </div>
+            <button onClick={() => setShowCurrencyPicker(false)}
+                    className="w-full py-2.5 rounded-xl border text-sm font-semibold"
+                    style={{ borderColor: "var(--border)", color: "var(--muted)" }}>
+              Cerrar
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Edit position modal */}
       {editingPos && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
@@ -2465,7 +2528,7 @@ export default function PortfolioPage() {
             <div className="p-5">
               <div className="flex items-center justify-between mb-4">
                 <p className="font-bold text-sm" style={{ color:"var(--text)" }}>Editar posición</p>
-                <button onClick={() => setEditingPos(null)} style={{ color:"var(--muted)" }}>
+                <button onClick={() => { setEditingPos(null); setEditConfirm(false); }} style={{ color:"var(--muted)" }}>
                   <X className="w-4 h-4" />
                 </button>
               </div>
@@ -2501,23 +2564,47 @@ export default function PortfolioPage() {
                     style={{ background:"var(--raised)", borderColor:"var(--border)", color:"var(--text)" }}
                   />
                 </div>
-                <button
-                  onClick={() => {
-                    const shares = parseFloat(editingPos.shares);
-                    const avgPrice = parseFloat(editingPos.avgPrice);
-                    if (!isNaN(shares) && shares > 0) {
-                      updatePosition(editingPos.id, {
-                        shares,
-                        avgPrice: isNaN(avgPrice) ? 0 : avgPrice,
-                        purchaseDate: editingPos.purchaseDate,
-                      });
-                    }
-                    setEditingPos(null);
-                  }}
-                  className="w-full py-2.5 rounded-xl text-sm font-bold text-white"
-                  style={{ background: "linear-gradient(90deg,#00a85e,#00d47e)" }}>
-                  Guardar cambios
-                </button>
+                {!editConfirm ? (
+                  <button
+                    onClick={() => {
+                      const shares = parseFloat(editingPos.shares);
+                      if (!isNaN(shares) && shares > 0) setEditConfirm(true);
+                    }}
+                    className="w-full py-2.5 rounded-xl text-sm font-bold text-white"
+                    style={{ background: "linear-gradient(90deg,#00a85e,#00d47e)" }}>
+                    Guardar cambios
+                  </button>
+                ) : (
+                  <div className="rounded-xl border p-3 space-y-2" style={{ borderColor: "var(--border)", background: "var(--raised)" }}>
+                    <p className="text-xs font-bold text-center" style={{ color: "var(--text)" }}>¿Confirmar cambios?</p>
+                    <p className="text-[10px] text-center" style={{ color: "var(--muted)" }}>
+                      {editingPos.shares} acciones · precio promedio ${editingPos.avgPrice}
+                    </p>
+                    <div className="flex gap-2">
+                      <button onClick={() => setEditConfirm(false)}
+                              className="flex-1 py-2 rounded-lg text-xs font-semibold border"
+                              style={{ borderColor: "var(--border)", color: "var(--muted)" }}>
+                        Cancelar
+                      </button>
+                      <button
+                        onClick={() => {
+                          const shares = parseFloat(editingPos.shares);
+                          const avgPrice = parseFloat(editingPos.avgPrice);
+                          updatePosition(editingPos.id, {
+                            shares,
+                            avgPrice: isNaN(avgPrice) ? 0 : avgPrice,
+                            purchaseDate: editingPos.purchaseDate,
+                          });
+                          setEditingPos(null);
+                          setEditConfirm(false);
+                        }}
+                        className="flex-[2] py-2 rounded-lg text-xs font-bold text-white"
+                        style={{ background: "linear-gradient(90deg,#00a85e,#00d47e)" }}>
+                        Guardar
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>
