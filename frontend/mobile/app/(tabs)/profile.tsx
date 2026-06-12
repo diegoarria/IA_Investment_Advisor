@@ -125,6 +125,7 @@ export default function ProfileScreen() {
   const maturityHistory = useAppStore((state) => state.maturityHistory);
   const logout = useAppStore((state) => state.logout);
 
+  const setProfile = useAppStore((s) => s.setProfile);
   const setAvatarUri = useAppStore((s) => s.setAvatarUri);
 
   const [scorecardOpen, setScorecardOpen] = useState(false);
@@ -243,6 +244,18 @@ export default function ProfileScreen() {
         },
       },
     ]);
+  };
+
+  const [savingLevel, setSavingLevel] = useState(false);
+  const handleLevelChange = async (q3Key: string) => {
+    if (!profile) return;
+    setSavingLevel(true);
+    try {
+      const updated = { ...profile, quiz_answers: { ...profile.quiz_answers, q3: q3Key as import("../../src/lib/profileStore").QuizAnswer } };
+      await profileApi.update({ quiz_answers: updated.quiz_answers });
+      setProfile(updated);
+    } catch {}
+    setSavingLevel(false);
   };
 
   const handleDeleteAccount = () => {
@@ -623,6 +636,39 @@ export default function ProfileScreen() {
 
         {/* ── CARTA DEL MENTOR ── */}
         {mentor && <MentorLetterCard mentor={mentor} colors={colors} />}
+
+        {/* ── NIVEL DE CONOCIMIENTO ── */}
+        <Text style={[s.sectionLabel, { color: colors.textDim }]}>Nivel de conocimiento</Text>
+        <View style={[s.levelCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          {[
+            { key: "A", label: "Principiante", emoji: "🌱", desc: "Nunca he invertido",           color: "#3b82f6" },
+            { key: "B", label: "Básico",       emoji: "📚", desc: "Conozco lo básico",            color: "#22c55e" },
+            { key: "C", label: "Intermedio",   emoji: "📈", desc: "Leo estados financieros",       color: "#f59e0b" },
+            { key: "D", label: "Avanzado",     emoji: "⚡", desc: "Análisis profundo",            color: "#ef4444" },
+          ].map((opt, i) => {
+            const isActive = profile.quiz_answers?.q3 === opt.key;
+            return (
+              <TouchableOpacity
+                key={opt.key}
+                style={[
+                  s.levelOption,
+                  { borderColor: isActive ? opt.color : colors.border, backgroundColor: isActive ? opt.color + "12" : colors.bgRaised },
+                  i % 2 === 0 && { marginRight: 6 },
+                ]}
+                onPress={() => handleLevelChange(opt.key)}
+                disabled={savingLevel}
+                activeOpacity={0.75}
+              >
+                <Text style={{ fontSize: 20, marginBottom: 4 }}>{opt.emoji}</Text>
+                <Text style={[s.levelOptLabel, { color: isActive ? opt.color : colors.text }]}>{opt.label}</Text>
+                <Text style={[s.levelOptDesc, { color: colors.textMuted }]}>{opt.desc}</Text>
+              </TouchableOpacity>
+            );
+          })}
+          {savingLevel && (
+            <Text style={[s.levelSaving, { color: colors.textMuted }]}>Guardando…</Text>
+          )}
+        </View>
 
         {/* ── PERFIL PSICOLÓGICO ── */}
         <Text style={[s.sectionLabel, { color: colors.textDim }]}>Perfil psicológico</Text>
@@ -1053,5 +1099,17 @@ function makeStyles(c: Colors) {
     referralShareBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, borderWidth: 1, borderRadius: 14, paddingVertical: 12 },
     referralShareText: { fontSize: 13, fontWeight: "700" },
     referralNote: { fontSize: 10, textAlign: "center", lineHeight: 15 },
+
+    levelCard: {
+      borderWidth: 1, borderRadius: 18, padding: 14,
+      flexDirection: "row", flexWrap: "wrap", gap: 0,
+    },
+    levelOption: {
+      width: "48%", borderWidth: 1.5, borderRadius: 14, padding: 12,
+      marginBottom: 8, alignItems: "flex-start",
+    },
+    levelOptLabel: { fontSize: 13, fontWeight: "700", marginBottom: 2 },
+    levelOptDesc:  { fontSize: 11, lineHeight: 15 },
+    levelSaving:   { width: "100%", textAlign: "center", fontSize: 11, paddingTop: 4 },
   });
 }

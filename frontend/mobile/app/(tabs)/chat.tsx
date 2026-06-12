@@ -11,6 +11,7 @@ import Markdown from "react-native-markdown-display";
 import { chatApi, marketApi } from "../../src/lib/api";
 import { useTheme, Colors } from "../../src/lib/ThemeContext";
 import { useAppStore, RISK_CONFIG, getAge } from "../../src/lib/profileStore";
+import { getUserLevel } from "../../src/lib/userLevel";
 import { useChatStore, Message, BehavioralDiagnosis } from "../../src/lib/chatStore";
 import { usePortfolioStore } from "../../src/lib/portfolioStore";
 import { useSubscriptionStore, msgsRemaining, resetMinutes, FREE_MSG_LIMIT, hasPremiumAccess } from "../../src/lib/subscriptionStore";
@@ -64,12 +65,66 @@ const MENTOR_PHOTOS: Record<string, number> = {
   "Bill Ackman":    require("../../assets/images/mentors/bill_ackman.jpg"),
 };
 
-const SUGGESTIONS = [
+const SUGGESTIONS_DEFAULT = [
   "¿Cómo analizo si una empresa es buena inversión?",
   "Explícame qué es un ETF",
   "¿Qué hace NVIDIA para ganar dinero?",
   "¿Cómo construyo un portafolio diversificado?",
 ];
+
+const SUGGESTIONS_BY_LEVEL: Record<string, string[]> = {
+  principiante: [
+    "Tengo $500 y nunca he invertido, ¿por dónde empiezo?",
+    "¿Es seguro invertir ahora con la inflación tan alta?",
+    "¿Puedo perder todo mi dinero si invierto en bolsa?",
+    "¿Cuánto tiempo tarda en crecer una inversión de verdad?",
+  ],
+  basico: [
+    "¿Cómo analizo si una empresa es buena inversión?",
+    "Explícame qué es un ETF y por qué es popular",
+    "¿Cómo construyo un portafolio diversificado?",
+    "¿Qué es el interés compuesto y por qué importa tanto?",
+  ],
+  intermedio: [
+    "¿Cómo identifico acciones subvaloradas con P/E y PEG?",
+    "Analiza AAPL — ¿tiene buen precio hoy?",
+    "¿Qué sectores están liderando el mercado este año?",
+    "Explícame cómo leer un estado de resultados",
+  ],
+  avanzado: [
+    "Analiza el flujo de caja libre de MSFT vs GOOG",
+    "¿Cómo construyo una estrategia de cobertura con opciones?",
+    "¿Qué indicadores macro afectan más el mercado hoy?",
+    "Compara NVDA vs AMD en valoración fundamental y momentum",
+  ],
+};
+
+const SUGGESTIONS_BY_OBJECTIVE: Record<string, string[]> = {
+  protect: [
+    "¿Cuáles son las inversiones más seguras para preservar capital?",
+    "¿Cómo protejo mis ahorros de la inflación?",
+    "Explícame qué son los bonos y cómo funcionan",
+    "¿Qué es un fondo indexado y por qué es bajo riesgo?",
+  ],
+  grow: [
+    "¿Cómo construyo un portafolio diversificado a largo plazo?",
+    "¿Qué diferencia hay entre acciones de crecimiento y valor?",
+    "¿Cada cuánto debería revisar mis inversiones?",
+    "¿Qué es el interés compuesto y por qué importa tanto?",
+  ],
+  maximize: [
+    "¿Cómo identifico acciones con alto potencial de retorno?",
+    "¿Qué sectores están creciendo más este año?",
+    "¿Cómo evalúo el riesgo antes de hacer una inversión agresiva?",
+    "Analiza NVDA — ¿sigue siendo buena oportunidad?",
+  ],
+};
+
+const OBJECTIVE_GREETING: Record<string, string> = {
+  protect:  "Veo que priorizas proteger tu capital. Buena base para empezar. ¿Por dónde quieres comenzar?",
+  grow:     "Tu objetivo es hacer crecer tu dinero a largo plazo. Es el enfoque más sólido. ¿Qué tienes en mente?",
+  maximize: "Buscas maximizar retorno. El riesgo es parte del juego — te enseño a manejarlo bien. ¿Empezamos?",
+};
 
 export default function ChatScreen() {
   const insets = useSafeAreaInsets();
@@ -557,14 +612,31 @@ Instrucciones críticas:
                   ))}
                 </View>
               )}
-              <View style={styles.suggestions}>
-                {SUGGESTIONS.map((s) => (
-                  <TouchableOpacity key={s} style={[styles.suggestion, { borderColor: colors.border }]} onPress={() => sendMessage(s)}>
-                    <Text style={[styles.suggestionBullet, { color: colors.accent }]}>✦</Text>
-                    <Text style={[styles.suggestionText, { color: colors.textSub }]}>{s}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
+              {(() => {
+                const obj = profile?.quiz_answers?.objective as string | undefined;
+                const level = getUserLevel(profile);
+                const greeting = obj ? OBJECTIVE_GREETING[obj] : null;
+                const suggestions = obj && SUGGESTIONS_BY_OBJECTIVE[obj]
+                  ? SUGGESTIONS_BY_OBJECTIVE[obj]
+                  : (SUGGESTIONS_BY_LEVEL[level] ?? SUGGESTIONS_DEFAULT);
+                return (
+                  <>
+                    {greeting && !mentor && (
+                      <Text style={[styles.emptySubtitle, { marginBottom: 24, marginTop: -8 }]}>
+                        {greeting}
+                      </Text>
+                    )}
+                    <View style={styles.suggestions}>
+                      {suggestions.map((s) => (
+                        <TouchableOpacity key={s} style={[styles.suggestion, { borderColor: colors.border }]} onPress={() => sendMessage(s)}>
+                          <Text style={[styles.suggestionBullet, { color: colors.accent }]}>✦</Text>
+                          <Text style={[styles.suggestionText, { color: colors.textSub }]}>{s}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  </>
+                );
+              })()}
             </ScrollView>
           ) : (
             <FlatList

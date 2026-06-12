@@ -1709,11 +1709,6 @@ export default function PortfolioPage() {
                           <p className="text-[9px] font-bold uppercase tracking-widest" style={{ color: "var(--dim)" }}>
                             Posiciones · {periodLabel}
                           </p>
-                          <button onClick={() => setBreakdownSort(s => s === "desc" ? "asc" : "desc")}
-                                  className="flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-bold"
-                                  style={{ background: "var(--raised)", color: "var(--muted)" }}>
-                            {breakdownSort === "desc" ? "▲ Verde → Rojo" : "▼ Rojo → Verde"}
-                          </button>
                         </div>
                         {(() => {
                           const totalPortfolioVal = sortedPositions.reduce((sum, p) => {

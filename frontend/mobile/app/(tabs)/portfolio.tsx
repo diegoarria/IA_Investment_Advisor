@@ -13,15 +13,12 @@ import * as ImagePicker from "expo-image-picker";
 import { marketApi } from "../../src/lib/api";
 import { useTheme, Colors } from "../../src/lib/ThemeContext";
 import { usePortfolioStore, Position } from "../../src/lib/portfolioStore";
-import MobileEarningsPanel from "../../src/components/MobileEarningsPanel";
 import MobileWhatIf from "../../src/components/MobileWhatIf";
 import MobileMonthlyReport from "../../src/components/MobileMonthlyReport";
 import MobileWeeklyScreener from "../../src/components/MobileWeeklyScreener";
-import MobileDecisionDiary from "../../src/components/MobileDecisionDiary";
 import PremiumToolCard from "../../src/components/PremiumToolCard";
 import { useAppStore, getAge, UserProfile, RISK_CONFIG } from "../../src/lib/profileStore";
 import { useSubscriptionStore, hasPremiumAccess } from "../../src/lib/subscriptionStore";
-import { useWatchlistStore } from "../../src/lib/watchlistStore";
 import PaywallModal from "../../src/components/PaywallModal";
 
 const FREE_POSITION_LIMIT = 10;
@@ -511,7 +508,6 @@ export default function PortfolioScreen() {
   const profile = useAppStore((s) => s.profile);
   const subStore = useSubscriptionStore();
   const isPremiumAccess = hasPremiumAccess(subStore);
-  const watchlistItems = useWatchlistStore((s) => s.items);
   const [paywallOpen, setPaywallOpen] = useState(false);
   const [activeSection, setActiveSection] = useState<"portafolio" | "herramientas">("portafolio");
   const age = profile?.birth_date ? getAge(profile.birth_date) : 0;
@@ -582,7 +578,7 @@ export default function PortfolioScreen() {
   const [selectedPeriod, setSelectedPeriod] = useState<PeriodKey>("1y");
   const [periodReturns, setPeriodReturns] = useState<Record<string, PeriodReturn>>({});
   const [loadingReturns, setLoadingReturns] = useState(false);
-  const [breakdownSort, setBreakdownSort] = useState<"desc" | "asc">("desc");
+  const breakdownSort = "desc" as const;
 
   // Chart state
   type ChartData = { history: ChartPoint[]; period_pct: number; period_amount: number };
@@ -1036,7 +1032,7 @@ export default function PortfolioScreen() {
             onPress={() => setActiveSection("herramientas")}
           >
             <Text style={[s.subTabText, { color: activeSection === "herramientas" ? colors.accent : colors.textMuted }]}>
-              ⭐ Herramientas
+              Herramientas
             </Text>
           </TouchableOpacity>
         </View>
@@ -1098,28 +1094,6 @@ export default function PortfolioScreen() {
                 />
             }
 
-            {/* ── ANÁLISIS DE EARNINGS ── */}
-            {isPremiumAccess
-              ? <MobileEarningsPanel
-                  positions={positions.map((p) => ({ ticker: p.ticker, shares: p.shares, avg_cost: p.avgPrice }))}
-                  watchlistTickers={watchlistItems.map((i) => i.ticker)}
-                  isPremium={true} onUpgrade={() => setPaywallOpen(true)} />
-              : <PremiumToolCard
-                  title="Análisis de Earnings"
-                  tagline="IA analiza resultados automáticamente"
-                  description="Cuando una empresa de tu portafolio reporta resultados, la IA los analiza al instante: EPS vs estimado, revenue, guidance e impacto exacto en tu posición."
-                  icon="calendar-outline"
-                  color="#22c55e"
-                  benefits={[
-                    { icon: "📅", text: "Calendario de earnings de tus posiciones" },
-                    { icon: "📈", text: "EPS real vs estimado con contexto profundo" },
-                    { icon: "💵", text: "Impacto calculado en tu inversión específica" },
-                    { icon: "🔔", text: "Análisis automático sin buscar nada tú" },
-                  ]}
-                  onUnlock={() => setPaywallOpen(true)}
-                />
-            }
-
             {/* ── SCREENER SEMANAL ── */}
             {isPremiumAccess
               ? <MobileWeeklyScreener isPremium={true} onUpgrade={() => setPaywallOpen(true)} existingTickers={positions.map(p => p.ticker)} />
@@ -1139,8 +1113,6 @@ export default function PortfolioScreen() {
                 />
             }
 
-            {/* ── DIARIO DE SESGOS ── */}
-            <MobileDecisionDiary isPremium={isPremiumAccess} onUpgrade={() => setPaywallOpen(true)} />
           </View>
         )}
 
@@ -1580,14 +1552,6 @@ export default function PortfolioScreen() {
                           <Text style={{ fontSize: 9, fontWeight: "800", color: colors.textDim, textTransform: "uppercase", letterSpacing: 1 }}>
                             Rendimiento por posición · {periodLabel}
                           </Text>
-                          <TouchableOpacity
-                            onPress={() => setBreakdownSort(s => s === "desc" ? "asc" : "desc")}
-                            style={{ backgroundColor: colors.bgRaised, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 }}
-                            activeOpacity={0.7}>
-                            <Text style={{ fontSize: 10, fontWeight: "800", color: colors.textMuted }}>
-                              {breakdownSort === "desc" ? "▲ Verde → Rojo" : "▼ Rojo → Verde"}
-                            </Text>
-                          </TouchableOpacity>
                         </View>
                         {bEntries.map(([ticker, pct]) => {
                           const isPos = pct >= 0;
