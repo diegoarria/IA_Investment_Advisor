@@ -148,14 +148,11 @@ function StockAvatar({ ticker, logoUrl }: { ticker: string; logoUrl: string | nu
 
 interface StockCardProps {
   item: WatchlistItem;
-  confirmDelete: string | null;
-  onRequestDelete: (ticker: string) => void;
-  onConfirmDelete: (ticker: string) => void;
-  onCancelDelete: () => void;
+  onDelete: (ticker: string) => void;
   onSelect: (ticker: string) => void;
 }
 
-function StockCard({ item, confirmDelete, onRequestDelete, onConfirmDelete, onCancelDelete, onSelect }: StockCardProps) {
+function StockCard({ item, onDelete, onSelect }: StockCardProps) {
   const isUp = item.change_pct >= 0;
   const borderColor = isUp ? "rgba(34,197,94,0.5)" : "rgba(239,68,68,0.5)";
   const priceColor = isUp ? "#22c55e" : "#ef4444";
@@ -164,8 +161,6 @@ function StockCard({ item, confirmDelete, onRequestDelete, onConfirmDelete, onCa
   const showPreMkt = item.pre_market_price !== null && (state === "PRE" || state === "PREPRE");
   const showPostMkt = item.post_market_price !== null &&
     (state === "POST" || state === "POSTPOST" || state === "CLOSED");
-
-  const isConfirming = confirmDelete === item.ticker;
 
   return (
     <div
@@ -257,31 +252,13 @@ function StockCard({ item, confirmDelete, onRequestDelete, onConfirmDelete, onCa
 
       {/* Delete button */}
       <div className="shrink-0" onClick={(e) => e.stopPropagation()}>
-        {isConfirming ? (
-          <div className="flex flex-col items-end gap-0.5">
-            <span className="text-[9px] font-semibold" style={{ color: "var(--muted)" }}>¿Seguro?</span>
-            <div className="flex gap-1">
-              <button
-                onClick={() => onConfirmDelete(item.ticker)}
-                className="px-1.5 py-0.5 rounded text-[9px] font-bold"
-                style={{ background: "rgba(239,68,68,0.12)", color: "#ef4444" }}
-              >Sí</button>
-              <button
-                onClick={onCancelDelete}
-                className="px-1.5 py-0.5 rounded text-[9px] font-bold"
-                style={{ background: "var(--raised)", color: "var(--muted)" }}
-              >No</button>
-            </div>
-          </div>
-        ) : (
-          <button
-            onClick={() => onRequestDelete(item.ticker)}
-            className="w-6 h-6 rounded flex items-center justify-center opacity-30 hover:opacity-80 transition-opacity"
-            style={{ color: "var(--muted)" }}
-          >
-            <X className="w-3.5 h-3.5" />
-          </button>
-        )}
+        <button
+          onClick={() => onDelete(item.ticker)}
+          className="w-6 h-6 rounded flex items-center justify-center opacity-30 hover:opacity-80 transition-opacity"
+          style={{ color: "var(--muted)" }}
+        >
+          <X className="w-3.5 h-3.5" />
+        </button>
       </div>
     </div>
   );
@@ -327,7 +304,6 @@ export default function WatchlistPage() {
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
 
-  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [paywallOpen, setPaywallOpen] = useState(false);
   const [selectedStock, setSelectedStock] = useState<string | null>(null);
 
@@ -445,7 +421,7 @@ export default function WatchlistPage() {
       const status = (err as { response?: { status?: number } })?.response?.status;
       if (status === 409) {
         showToast(`${ticker} ya está en tu watchlist`);
-      } else if (status === 403) {
+      } else if (status === 403 && !isPremium) {
         setPaywallOpen(true);
       } else {
         showToast("Error al agregar el ticker");
@@ -454,11 +430,7 @@ export default function WatchlistPage() {
   };
 
   // ── Delete ─────────────────────────────────────────────────────────────
-  const handleRequestDelete = (ticker: string) => setConfirmDelete(ticker);
-  const handleCancelDelete = () => setConfirmDelete(null);
-
   const handleConfirmDelete = async (ticker: string) => {
-    setConfirmDelete(null);
     try {
       await watchlistApi.remove(ticker);
       setItems((prev) => {
@@ -683,7 +655,7 @@ export default function WatchlistPage() {
                   extPct: i.pre_market_change_pct ?? i.post_market_change_pct,
                   extLabel: i.pre_market_price ? "Pre" : i.post_market_price ? "Post" : null,
                 }))}
-                onRemove={handleRequestDelete}
+                onRemove={handleConfirmDelete}
                 onRowClick={setSelectedStock}
               />
             ) : items.length === 0 ? (
@@ -711,10 +683,7 @@ export default function WatchlistPage() {
                   <StockCard
                     key={item.ticker}
                     item={item}
-                    confirmDelete={confirmDelete}
-                    onRequestDelete={handleRequestDelete}
-                    onConfirmDelete={handleConfirmDelete}
-                    onCancelDelete={handleCancelDelete}
+                    onDelete={handleConfirmDelete}
                     onSelect={setSelectedStock}
                   />
                 ))}
