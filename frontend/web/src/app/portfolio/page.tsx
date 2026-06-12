@@ -791,7 +791,6 @@ export default function PortfolioPage() {
   const [selectedPeriod, setSelectedPeriod] = useState<PeriodKey>("since_purchase");
   const [periodReturns, setPeriodReturns] = useState<Record<string, PeriodReturn>>({});
   const [loadingReturns, setLoadingReturns] = useState(false);
-  const [breakdownSort, setBreakdownSort] = useState<"desc" | "asc">("desc");
 
   // Chart state
   type ChartData = { history: ChartPoint[]; period_pct: number; period_amount: number };
@@ -1506,14 +1505,6 @@ export default function PortfolioPage() {
                 const displayAmt = r?.amount !== undefined ? r.amount : chartData?.period_amount;
                 const up   = displayPct !== undefined ? displayPct >= 0 : totals.diff >= 0;
                 const color = up ? "#22c55e" : "#ef4444";
-                const periodLabel = PERIODS.find((p) => p.key === selectedPeriod)?.label ?? "";
-                const breakdown = r?.breakdown;
-                const bEntries = breakdown
-                  ? Object.entries(breakdown).sort((a, b) =>
-                      breakdownSort === "desc" ? b[1] - a[1] : a[1] - b[1])
-                  : [];
-                const maxAbs = bEntries.length > 0
-                  ? Math.max(...bEntries.map(([, p]) => Math.abs(p))) : 1;
                 // Hero always shows since_purchase as the "total return" anchor
                 const heroUp = sp ? sp.pct >= 0 : totals.diff >= 0;
                 const heroColor = heroUp ? "#22c55e" : "#ef4444";
@@ -1713,87 +1704,6 @@ export default function PortfolioPage() {
                       ) : null}
                     </div>
 
-                    {/* ── POSITION BREAKDOWN ── */}
-                    {bEntries.length > 0 && (
-                      <div className="border-t px-4 pt-3 pb-4" style={{ borderColor: "var(--border)" }}>
-                        <div className="flex items-center justify-between mb-3">
-                          <p className="text-[9px] font-bold uppercase tracking-widest" style={{ color: "var(--dim)" }}>
-                            Posiciones · {periodLabel}
-                          </p>
-                        </div>
-                        {(() => {
-                          const totalPortfolioVal = sortedPositions.reduce((sum, p) => {
-                            const cp = (prices[p.ticker]?.price ?? p.avgPrice) * fxRate;
-                            return sum + p.shares * cp;
-                          }, 0);
-                          return (
-                            <div className="divide-y" style={{ borderColor: "var(--border)" }}>
-                              {bEntries.map(([ticker, pct]) => {
-                                const pos = sortedPositions.find((p) => p.ticker === ticker);
-                                const isPos = pct >= 0;
-                                const currentPriceRaw = prices[ticker]?.price ?? pos?.avgPrice ?? 0;
-                                const currentPriceFx = currentPriceRaw * fxRate;
-                                const costPriceFx = (pos?.avgPrice ?? 0) * fxRate;
-                                const shares = pos?.shares ?? 0;
-                                const currentValue = shares * currentPriceFx;
-                                const pnl = shares * (currentPriceFx - costPriceFx);
-                                const allocPct = totalPortfolioVal > 0 ? (currentValue / totalPortfolioVal) * 100 : 0;
-                                const companyName = prices[ticker]?.name || pos?.name || "";
-                                const logoSrc = `https://financialmodelingprep.com/image-stock/${ticker.replace(".", "-")}.png`;
-                                return (
-                                  <div key={ticker} className="flex items-center gap-3 px-4 py-3.5">
-                                    {/* Logo */}
-                                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                                    <img src={logoSrc} alt={ticker}
-                                         className="w-9 h-9 rounded-xl object-contain shrink-0"
-                                         style={{ background: "var(--raised)", border: "1px solid var(--border)" }}
-                                         onError={(e) => { e.currentTarget.style.display = "none"; }} />
-
-                                    {/* Ticker + name + secondary info */}
-                                    <div className="flex-1 min-w-0">
-                                      <div className="flex items-center gap-1.5">
-                                        <span className="text-sm font-bold" style={{ color: "var(--text)" }}>{ticker}</span>
-                                        {companyName && (
-                                          <span className="text-[11px] truncate" style={{ color: "var(--muted)" }}>{companyName}</span>
-                                        )}
-                                      </div>
-                                      {/* Secondary row — hidden for principiante */}
-                                      {isAtLeast(userLevel, "basico") && (
-                                        <div className="flex items-center gap-3 mt-0.5">
-                                          <span className="text-[10px] font-bold tabular-nums" style={{ color: "var(--text)" }}>
-                                            {shares % 1 === 0 ? shares : shares.toFixed(4)} acc · {currencySymbol}{currentPriceFx.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                          </span>
-                                          <span className="text-[10px] font-bold" style={{ color: "var(--text)" }}>
-                                            {allocPct.toFixed(1)}%
-                                          </span>
-                                        </div>
-                                      )}
-                                    </div>
-
-                                    {/* Value + Return */}
-                                    <div className="text-right shrink-0">
-                                      <p className="text-sm font-bold tabular-nums" style={{ color: "var(--text)" }}>
-                                        {currencySymbol}{currentValue.toLocaleString("en-US", { maximumFractionDigits: 0 })}
-                                      </p>
-                                      <p className="text-[12px] font-bold tabular-nums"
-                                         style={{ color: isPos ? "#22c55e" : "#ef4444" }}>
-                                        {isPos ? "+" : ""}{pct.toFixed(2)}%
-                                        {/* P&L amount — hidden for principiante */}
-                                        {isAtLeast(userLevel, "basico") && (
-                                          <span className="text-[10px] font-normal ml-1" style={{ color: isPos ? "#22c55e99" : "#ef444499" }}>
-                                            ({pnl >= 0 ? "+" : ""}{currencySymbol}{Math.abs(pnl).toLocaleString("en-US", { maximumFractionDigits: 0 })})
-                                          </span>
-                                        )}
-                                      </p>
-                                    </div>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          );
-                        })()}
-                      </div>
-                    )}
 
                     {/* ── FOOTER ── */}
                     <div className="border-t px-4 py-2" style={{ borderColor: "var(--border)" }}>

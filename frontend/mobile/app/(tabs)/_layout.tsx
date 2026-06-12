@@ -10,6 +10,7 @@ import { router } from "expo-router";
 import { useTheme } from "../../src/lib/ThemeContext";
 import { useAppStore } from "../../src/lib/profileStore";
 import { useNavOrderStore, getTop5TabPaths, pathToRoute, ALL_NAV_ITEMS } from "../../src/lib/navOrderStore";
+import { useSubscriptionStore } from "../../src/lib/subscriptionStore";
 import { getUserLevel, isAtLeast } from "../../src/lib/userLevel";
 import { useWatchlistStore } from "../../src/lib/watchlistStore";
 import MarketTicker from "../../src/components/MarketTicker";
@@ -147,6 +148,10 @@ function MobileHeader({ title }: { title: string }) {
   const { colors, isDark, toggle } = useTheme();
   const openSidebar = useAppStore((s) => s.openSidebar);
   const profile = useAppStore((s) => s.profile);
+  const subStore = useSubscriptionStore();
+  const isPremium = subStore.tier === "premium";
+  const isTrialPremium = subStore.isTrialPremium;
+  const trialDaysLeft = subStore.trialDaysLeftServer;
   const riskColor = profile?.risk_tolerance === "conservative"
     ? "#3b82f6"
     : profile?.risk_tolerance === "aggressive"
@@ -159,6 +164,20 @@ function MobileHeader({ title }: { title: string }) {
       headerStyles.wrapper,
       { backgroundColor: colors.bg, paddingTop: insets.top, borderBottomColor: colors.border },
     ]}>
+      {/* Premium / Trial strip — shown for trial and free users */}
+      {isPremium && isTrialPremium ? (
+        <View style={{ height: 24, backgroundColor: "rgba(0,212,126,0.08)", borderBottomWidth: 0.5, borderBottomColor: "rgba(0,212,126,0.25)", flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6 }}>
+          <Text style={{ color: "#00d47e", fontSize: 10, fontWeight: "700" }}>✦ Premium Gratis</Text>
+          <Text style={{ color: "#00d47e", fontSize: 10 }}>·</Text>
+          <Text style={{ color: "#00d47e", fontSize: 10, fontWeight: "600" }}>{trialDaysLeft}d restantes</Text>
+        </View>
+      ) : !isPremium ? (
+        <View style={{ height: 24, backgroundColor: "rgba(245,158,11,0.06)", borderBottomWidth: 0.5, borderBottomColor: "rgba(245,158,11,0.2)", flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4 }}>
+          <Text style={{ color: "#f59e0b", fontSize: 10, fontWeight: "700" }}>Activar Premium</Text>
+          <Text style={{ color: "#f59e0b", fontSize: 10 }}>→</Text>
+        </View>
+      ) : null}
+
       <View style={headerStyles.row}>
         {/* Custom hamburger */}
         <TouchableOpacity onPress={openSidebar} style={headerStyles.menuBtn} activeOpacity={0.7}>

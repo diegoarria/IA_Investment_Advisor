@@ -23,8 +23,8 @@ export default function ThemeProvider({ children }: { children: React.ReactNode 
   return (
     <>
       <MarketTickerBar />
-      {/* height:100vh + paddingTop:30px = content area of 100vh-30px (border-box is global) */}
-      <div style={{ paddingTop: TICKER_H, height: "100vh", overflow: "hidden" }}>
+      {/* paddingBottom leaves space for the fixed ticker bar at the bottom */}
+      <div style={{ paddingBottom: TICKER_H, height: "100vh", overflow: "hidden" }}>
         {children}
       </div>
     </>

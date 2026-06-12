@@ -11,7 +11,6 @@ const COACHING_URL = "https://calendly.com/diego-arria19/sesion-1-1-con-diego-nu
 import {
   useProfileStore, useNotificationStore, useSubscriptionStore,
   useChatStore, msgsRemaining, FREE_MSG_LIMIT,
-  behavioralRiskColor, behavioralRiskLabel,
 } from "@/lib/store";
 import { getUserLevel, isAtLeast, LEVEL_LABEL, LEVEL_COLOR, type UserLevel } from "@/lib/userLevel";
 import PaywallModal from "@/components/PaywallModal";
@@ -29,59 +28,6 @@ const NAV: Array<{ href: string; icon: React.ComponentType<{ className?: string;
   { href: "/profile",       icon: User,           label: "Perfil",         minLevel: "principiante" },
 ];
 
-const RISK_SEGMENTS = [
-  { key: "conservative",           color: "#00d47e", pct: 8  },
-  { key: "conservative_moderate",  color: "#3ecf8e", pct: 18 },
-  { key: "moderate",               color: "#8bd44e", pct: 30 },
-  { key: "moderate_growth",        color: "#c5d43c", pct: 42 },
-  { key: "growth",                 color: "#f5c842", pct: 55 },
-  { key: "aggressive",             color: "#f5973a", pct: 68 },
-  { key: "aggressive_speculative", color: "#f5613a", pct: 82 },
-  { key: "speculative",            color: "#ff2d3b", pct: 100 },
-];
-
-const RISK_LABEL: Record<string, string> = {
-  conservative: "Conservador", conservative_moderate: "Cons-Moderado",
-  moderate: "Moderado", moderate_growth: "Mod-Growth", growth: "Growth",
-  aggressive: "Agresivo", aggressive_speculative: "Agr-Especulativo", speculative: "Especulativo",
-};
-
-function RiskBar({ level, behavioralScore }: { level: string; behavioralScore: number | null }) {
-  const seg = RISK_SEGMENTS.find((s) => s.key === level);
-  const hasBehavioral = behavioralScore !== null;
-  const displayPct   = hasBehavioral ? behavioralScore : (seg?.pct ?? 50);
-  const color        = hasBehavioral ? behavioralRiskColor(behavioralScore!) : (seg?.color ?? "var(--accent)");
-  const label        = hasBehavioral ? behavioralRiskLabel(behavioralScore!) : (RISK_LABEL[level] ?? level);
-  const staticPct    = seg?.pct ?? 50;
-
-  return (
-    <div>
-      <div className="flex items-center justify-between mb-0.5">
-        <div className="text-[8px] font-semibold" style={{ color }}>{label}</div>
-        <div className="flex items-center gap-1">
-          {hasBehavioral && (
-            <span className="text-[7px]" style={{ color: "var(--dim)" }} title="Perfil declarado">
-              {RISK_LABEL[level] ?? level}
-            </span>
-          )}
-          <div className="text-[13px] font-black" style={{ color }}>{displayPct}</div>
-        </div>
-      </div>
-      <div className="relative h-1 rounded-full overflow-hidden" style={{ background: "var(--border)" }}>
-        <div className="absolute inset-y-0 left-0 rounded-full opacity-25 transition-all duration-700"
-             style={{ width: `${staticPct}%`, background: seg?.color ?? "var(--accent)" }} />
-        <div className="absolute inset-y-0 left-0 rounded-full transition-all duration-700"
-             style={{ width: `${displayPct}%`, background: color }} />
-      </div>
-      {hasBehavioral && (
-        <div className="text-[6px] mt-0.5" style={{ color: "var(--dim)" }}>
-          Riesgo conductual en tiempo real
-        </div>
-      )}
-    </div>
-  );
-}
-
 interface Props {
   open: boolean;
   onClose: () => void;
@@ -90,7 +36,7 @@ interface Props {
 export default function AppSidebar({ open, onClose }: Props) {
   const router = useRouter();
   const pathname = usePathname();
-  const { profile, behavioralRiskScore } = useProfileStore();
+  const { profile } = useProfileStore();
   const { notifications } = useNotificationStore();
   const subStore = useSubscriptionStore();
   const { sessions, currentId, createSession, loadSession, deleteSession } = useChatStore();
@@ -205,12 +151,53 @@ export default function AppSidebar({ open, onClose }: Props) {
           </button>
         </div>
 
-        {/* Profile widget */}
+        {/* Premium / Trial header strip — always visible at top */}
+        {isPremium && isTrialPremium ? (
+          <div className="px-3 pb-2 pt-1 shrink-0">
+            <div className="rounded-xl px-3 py-2" style={{ background: "rgba(0,168,94,0.08)", border: "1px solid rgba(0,212,126,0.2)" }}>
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-[10px] font-bold uppercase tracking-wide" style={{ color: "var(--accent-l)" }}>
+                  ✦ Premium Gratis
+                </span>
+                <span className="text-[10px] font-semibold" style={{ color: "var(--muted)" }}>
+                  {trialDaysLeft}d restantes
+                </span>
+              </div>
+              <div className="h-1 rounded-full overflow-hidden mb-1.5" style={{ background: "var(--border)" }}>
+                <div className="h-full rounded-full transition-all"
+                     style={{ width: `${Math.round((trialDaysLeft / 90) * 100)}%`, background: "var(--grad-green)" }} />
+              </div>
+              <button onClick={() => setPaywallOpen(true)}
+                      className="w-full text-[9px] font-semibold transition-colors hover:opacity-80"
+                      style={{ color: "var(--accent-l)" }}>
+                Suscribirse para no perder acceso →
+              </button>
+            </div>
+          </div>
+        ) : !isPremium ? (
+          <div className="px-3 pb-2 pt-1 shrink-0">
+            <button onClick={() => setPaywallOpen(true)}
+                    className="w-full rounded-xl px-3 py-2 text-left transition-all hover:border-[var(--accent-l)]"
+                    style={{ background: "var(--raised)", border: "1px solid var(--border)" }}>
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-[9px] font-semibold uppercase tracking-wide" style={{ color: "var(--muted)" }}>Mensajes hoy · {remaining}/{FREE_MSG_LIMIT}</span>
+                <span className="text-[9px] font-bold" style={{ color: remaining < 5 ? "var(--down)" : "var(--accent-l)" }}>
+                  Activar Premium →
+                </span>
+              </div>
+              <div className="h-1 rounded-full overflow-hidden" style={{ background: "var(--border)" }}>
+                <div className="h-full rounded-full transition-all"
+                     style={{ width: `${Math.round(((FREE_MSG_LIMIT - remaining) / FREE_MSG_LIMIT) * 100)}%`, background: remaining < 5 ? "var(--down)" : "var(--grad-green)" }} />
+              </div>
+            </button>
+          </div>
+        ) : null}
+
+        {/* Profile widget — compact: avatar + name + badges only */}
         {profile && (
-          <div className="px-2 pb-1.5 pt-1.5 shrink-0">
+          <div className="px-2 pb-1.5 shrink-0">
             <div className="rounded-xl p-2 card-accent">
-              {/* Avatar + name */}
-              <div className="flex items-center gap-1.5 mb-1.5">
+              <div className="flex items-center gap-1.5">
                 <div className="w-10 h-10 rounded-full overflow-hidden shrink-0 flex items-center justify-center text-base font-black text-white"
                      style={{ background: "var(--grad-green)" }}>
                   {profile.avatar_url
@@ -239,75 +226,7 @@ export default function AppSidebar({ open, onClose }: Props) {
                   </div>
                 </div>
               </div>
-
-              {/* Stats: edad, ingresos, aportación */}
-              <div className="grid grid-cols-3 gap-0.5 mb-1">
-                {[
-                  { label: "Edad", value: (() => { if (!profile.birth_date) return "—"; const sep = profile.birth_date.includes("/") ? "/" : "-"; const p = profile.birth_date.split(sep).map(Number); const [y, m, d] = sep === "-" ? p : [p[2], p[1], p[0]]; const t = new Date(); let a = t.getFullYear() - y; if (t.getMonth() + 1 < m || (t.getMonth() + 1 === m && t.getDate() < d)) a--; return String(Math.max(0, a)); })(), sub: "años" },
-                  { label: "Ingresos", value: `$${Number(profile.monthly_income).toLocaleString()}`, sub: "/mes" },
-                  { label: "Inversión", value: `$${Number(profile.monthly_contribution).toLocaleString()}`, sub: "/mes" },
-                ].map(({ label, value, sub }) => (
-                  <div key={label} className="rounded px-1 py-0.5 text-center"
-                       style={{ background: "var(--bg)" }}>
-                    <div className="text-[6px] font-semibold uppercase tracking-wide"
-                         style={{ color: "var(--dim)" }}>{label}</div>
-                    <div className="text-[13px] font-black leading-tight"
-                         style={{ color: "var(--text)" }}>{value}</div>
-                    <div className="text-[6px]" style={{ color: "var(--muted)" }}>{sub}</div>
-                  </div>
-                ))}
-              </div>
-
-              <RiskBar level={profile.risk_tolerance} behavioralScore={behavioralRiskScore} />
             </div>
-          </div>
-        )}
-
-        {/* Trial banner — shown when user is on 90-day promo */}
-        {isPremium && isTrialPremium && (
-          <div className="px-3 pb-2 shrink-0">
-            <div className="rounded-xl p-3" style={{ background: "rgba(0,168,94,0.08)", border: "1px solid rgba(0,212,126,0.2)" }}>
-              <div className="flex items-center justify-between mb-1.5">
-                <span className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: "var(--accent-l)" }}>
-                  Premium Gratis
-                </span>
-                <span className="text-[10px] font-semibold" style={{ color: "var(--muted)" }}>
-                  {trialDaysLeft}d restantes
-                </span>
-              </div>
-              <div className="h-1 rounded-full overflow-hidden mb-2" style={{ background: "var(--border)" }}>
-                <div className="h-full rounded-full transition-all"
-                     style={{ width: `${Math.round((trialDaysLeft / 90) * 100)}%`, background: "var(--grad-green)" }} />
-              </div>
-              <button onClick={() => setPaywallOpen(true)}
-                      className="w-full text-[10px] font-semibold py-1 rounded-lg transition-colors hover:opacity-80"
-                      style={{ color: "var(--accent-l)" }}>
-                Suscribirse para no perder acceso →
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Premium CTA — shown only for truly free users (no trial) */}
-        {!isPremium && (
-          <div className="px-3 pb-2 space-y-2 shrink-0">
-            <button onClick={() => setPaywallOpen(true)}
-                    className="w-full rounded-xl p-2.5 text-left transition-all hover:border-[var(--accent-l)]"
-                    style={{ background: "var(--raised)", border: "1px solid var(--border)" }}>
-              <div className="flex items-center justify-between mb-1.5">
-                <span className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: "var(--muted)" }}>Mensajes hoy</span>
-                <span className="text-[10px] font-bold" style={{ color: remaining < 5 ? "var(--down)" : "var(--accent-l)" }}>
-                  {remaining}/{FREE_MSG_LIMIT}
-                </span>
-              </div>
-              <div className="h-1 rounded-full overflow-hidden" style={{ background: "var(--border)" }}>
-                <div className="h-full rounded-full transition-all"
-                     style={{ width: `${Math.round(((FREE_MSG_LIMIT - remaining) / FREE_MSG_LIMIT) * 100)}%`, background: remaining < 5 ? "var(--down)" : "var(--grad-green)" }} />
-              </div>
-            </button>
-            <button onClick={() => setPaywallOpen(true)} className="btn-primary w-full text-xs py-2">
-              Activar Premium
-            </button>
           </div>
         )}
 

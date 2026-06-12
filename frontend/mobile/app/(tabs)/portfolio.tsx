@@ -581,7 +581,6 @@ export default function PortfolioScreen() {
   const [selectedPeriod, setSelectedPeriod] = useState<PeriodKey>("1y");
   const [periodReturns, setPeriodReturns] = useState<Record<string, PeriodReturn>>({});
   const [loadingReturns, setLoadingReturns] = useState(false);
-  const breakdownSort = "desc" as const;
 
   // Chart state
   type ChartData = { history: ChartPoint[]; period_pct: number; period_amount: number };
@@ -1471,12 +1470,6 @@ export default function PortfolioScreen() {
                 const up = displayPct !== undefined ? displayPct >= 0 : true;
                 const color = up ? "#22c55e" : "#ef4444";
                 const periodLabel = PERIODS.find((p) => p.key === selectedPeriod)?.label ?? "";
-                const bEntries = r?.breakdown
-                  ? Object.entries(r.breakdown).sort((a, b) =>
-                      breakdownSort === "desc" ? b[1] - a[1] : a[1] - b[1]
-                    )
-                  : [];
-                const maxAbs = bEntries.length > 0 ? Math.max(...bEntries.map(([, p]) => Math.abs(p))) : 1;
                 return (
                   <View style={{ borderRadius: 16, overflow: "hidden", borderWidth: 1, borderColor: `${color}30`, backgroundColor: colors.card }}>
                     {/* Franja de color */}
@@ -1551,30 +1544,6 @@ export default function PortfolioScreen() {
                     </Text>
 
                     {/* Breakdown por posición */}
-                    {bEntries.length > 0 && (
-                      <View style={{ paddingHorizontal: 14, paddingBottom: 12, borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 10 }}>
-                        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-                          <Text style={{ fontSize: 9, fontWeight: "800", color: colors.textDim, textTransform: "uppercase", letterSpacing: 1 }}>
-                            Rendimiento por posición · {periodLabel}
-                          </Text>
-                        </View>
-                        {bEntries.map(([ticker, pct]) => {
-                          const isPos = pct >= 0;
-                          const barW = maxAbs > 0 ? Math.round((Math.abs(pct) / maxAbs) * 100) : 0;
-                          return (
-                            <View key={ticker} style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 6 }}>
-                              <Text style={{ fontSize: 11, fontWeight: "800", color: colors.text, width: 46 }}>{ticker}</Text>
-                              <View style={{ flex: 1, height: 5, borderRadius: 3, backgroundColor: colors.bgRaised, overflow: "hidden" }}>
-                                <View style={{ width: `${barW}%`, height: "100%", borderRadius: 3, backgroundColor: isPos ? "#22c55e" : "#ef4444" }} />
-                              </View>
-                              <Text style={{ fontSize: 11, fontWeight: "700", color: isPos ? "#22c55e" : "#ef4444", width: 52, textAlign: "right" }}>
-                                {isPos ? "+" : ""}{pct.toFixed(2)}%
-                              </Text>
-                            </View>
-                          );
-                        })}
-                      </View>
-                    )}
                   </View>
                 );
               })()}

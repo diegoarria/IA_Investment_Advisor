@@ -16,8 +16,6 @@ import { getMentorInfo } from "../../src/lib/mentorData";
 import InvestorScorecard from "../../src/components/InvestorScorecard";
 import ProgressModal from "../../src/components/ProgressModal";
 import TutorialModal from "../../src/components/TutorialModal";
-import { useSubscriptionStore, msgsRemaining, FREE_MSG_LIMIT } from "../../src/lib/subscriptionStore";
-import PaywallModal from "../../src/components/PaywallModal";
 import { insightsApi, mentorLetterApi, profileApi, authApi, referralApi } from "../../src/lib/api";
 
 const MENTOR_PHOTOS: Record<string, number> = {
@@ -185,12 +183,6 @@ export default function ProfileScreen() {
     ]);
   };
 
-  const subStore       = useSubscriptionStore();
-  const isPremium      = subStore.tier === "premium";
-  const isTrialPremium = subStore.isTrialPremium;
-  const trialDaysLeft  = subStore.trialDaysLeftServer;
-  const remaining      = msgsRemaining(subStore);
-  const [paywallOpen, setPaywallOpen] = useState(false);
   const [riskExpanded, setRiskExpanded] = useState(false);
   const [referralCode, setReferralCode] = useState<string | null>(null);
   const [referralStats, setReferralStats] = useState<{ referred_count: number; pending_reward: string } | null>(null);
@@ -227,9 +219,6 @@ export default function ProfileScreen() {
   const maturity = maturityLabel(maturityScore);
   const knowledge = knowledgeFromMaturity(maturityScore);
   const quizKeys = ["q1", "q2", "q3", "q4", "q5"] as const;
-
-  const msgUsed = isPremium ? 0 : FREE_MSG_LIMIT - (remaining === Infinity ? FREE_MSG_LIMIT : remaining);
-  const msgPct = Math.min(msgUsed / FREE_MSG_LIMIT, 1);
 
   const handleLogout = () => {
     Alert.alert("Cerrar sesión", "¿Seguro que quieres cerrar sesión?", [
@@ -700,74 +689,6 @@ export default function ProfileScreen() {
           })}
         </View>
 
-        {/* ── SUSCRIPCIÓN ── */}
-        <Text style={[s.sectionLabel, { color: colors.textDim }]}>Suscripción</Text>
-        {isPremium ? (
-          <View style={[s.subCard, { backgroundColor: colors.card, borderColor: isTrialPremium ? "rgba(0,212,126,0.3)" : "#f59e0b50" }]}>
-            <View style={[s.subAccent, { backgroundColor: isTrialPremium ? "#00d47e" : "#f59e0b" }]} />
-            <View style={s.subRow}>
-              <View style={[s.subIconBox, { backgroundColor: isTrialPremium ? "rgba(0,212,126,0.12)" : "#f59e0b18" }]}>
-                <Ionicons name={isTrialPremium ? "gift-outline" : "star"} size={22} color={isTrialPremium ? "#00d47e" : "#f59e0b"} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={[s.subTitle, { color: colors.text }]}>
-                  {isTrialPremium ? "Premium Gratis · 90 días" : "Nuvos AI Premium"}
-                </Text>
-                <Text style={[s.subDesc, { color: colors.textMuted }]}>
-                  {isTrialPremium ? `${trialDaysLeft} días restantes · Acceso completo` : "Acceso completo · Mensajes ilimitados"}
-                </Text>
-              </View>
-              <View style={[s.subActivePill, { backgroundColor: "#22c55e18", borderColor: "#22c55e40" }]}>
-                <View style={[s.subActiveDot, { backgroundColor: "#22c55e" }]} />
-                <Text style={[s.subActiveTxt, { color: "#22c55e" }]}>Activo</Text>
-              </View>
-            </View>
-            {isTrialPremium && (
-              <View style={{ paddingHorizontal: 14, paddingBottom: 12, gap: 6 }}>
-                <View style={[s.msgTrack, { backgroundColor: colors.border }]}>
-                  <View style={[s.msgFill, {
-                    width: `${Math.round((trialDaysLeft / 90) * 100)}%` as any,
-                    backgroundColor: "#00d47e",
-                  }]} />
-                </View>
-                <TouchableOpacity onPress={() => setPaywallOpen(true)}>
-                  <Text style={{ fontSize: 11, color: "#00d47e", fontWeight: "600", textAlign: "center" }}>
-                    Suscribirse para no perder acceso →
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            )}
-          </View>
-        ) : (
-          <View style={[s.subCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <View style={s.subRow}>
-              <View style={[s.subIconBox, { backgroundColor: colors.accentGlow ?? colors.border }]}>
-                <Ionicons name="person-outline" size={20} color={colors.accentLight} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={[s.subTitle, { color: colors.text }]}>Plan Gratis</Text>
-                <Text style={[s.subDesc, { color: colors.textMuted }]}>
-                  {remaining === Infinity ? FREE_MSG_LIMIT : remaining}/{FREE_MSG_LIMIT} mensajes hoy
-                </Text>
-              </View>
-            </View>
-            <View style={[s.msgTrack, { backgroundColor: colors.border }]}>
-              <View style={[s.msgFill, {
-                width: `${Math.round(msgPct * 100)}%` as any,
-                backgroundColor: msgPct > 0.8 ? "#ef4444" : "#22c55e",
-              }]} />
-            </View>
-            <TouchableOpacity style={s.upgradeBtn} onPress={() => setPaywallOpen(true)}>
-              <Ionicons name="star" size={15} color="white" />
-              <View style={{ alignItems: "center" }}>
-                <Text style={s.upgradeBtnText}>Activar Premium — $10.33/mes</Text>
-                <Text style={{ color: "rgba(255,255,255,0.75)", fontSize: 10, fontWeight: "600" }}>
-                  Plan anual · Más popular ✦ $125.99/año
-                </Text>
-              </View>
-            </TouchableOpacity>
-          </View>
-        )}
 
         {/* ── REFERIDOS ── */}
         <Text style={[s.sectionLabel, { color: colors.textDim }]}>Programa de referidos</Text>
@@ -880,7 +801,6 @@ export default function ProfileScreen() {
 
       </ScrollView>
 
-      <PaywallModal visible={paywallOpen} onClose={() => setPaywallOpen(false)} />
       <ProgressModal visible={progressOpen} onClose={() => setProgressOpen(false)} />
       <TutorialModal visible={tutorialFromProfile} onClose={() => setTutorialFromProfile(false)} />
     </SafeAreaView>
@@ -908,7 +828,7 @@ function makeStyles(c: Colors) {
       backgroundColor: c.card,
       shadowColor: "#000", shadowOpacity: 0.1, shadowRadius: 14, shadowOffset: { width: 0, height: 4 },
     },
-    heroBand: { height: 80 },
+    heroBand: { height: 48 },
     heroAvatarWrap: { alignItems: "center", marginTop: -42 },
     heroAvatarRing: { width: 88, height: 88, borderRadius: 44, borderWidth: 4, alignItems: "center", justifyContent: "center" },
     heroAvatar: { width: 76, height: 76, borderRadius: 38, alignItems: "center", justifyContent: "center" },
