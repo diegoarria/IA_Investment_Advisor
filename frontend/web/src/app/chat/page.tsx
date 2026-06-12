@@ -171,7 +171,7 @@ export default function ChatPage() {
   const { hasSeenTutorial, openTutorial } = useTutorialStore();
   const { isAuthenticated, clearAuth } = useAuthStore();
   const { profile, updateMaturity, updateBehavioralRisk } = useProfileStore();
-  const { messages, isStreaming, addMessage, appendToLastAssistant, setStreaming, startAssistantMessage, removeLastMessage, setMessages, sessions, createSession, clearMessages } = useChatStore();
+  const { messages, isStreaming, addMessage, appendToLastAssistant, setStreaming, startAssistantMessage, removeLastMessage, setMessages, sessions, currentId, createSession, clearMessages } = useChatStore();
   const { notifications, setNotifications, markRead } = useNotificationStore();
   const { theme, toggleTheme } = useThemeStore();
   const subStore = useSubscriptionStore();
@@ -261,16 +261,24 @@ export default function ChatPage() {
       retirement:     "Retiro / pensión a largo plazo",
       independence:   "Independencia financiera",
     };
-    const AMOUNT_LABELS: Record<string, string> = {
-      lt500:  "menos de $500",
-      "500_2k": "$500–$2,000",
-      "2k_10k": "$2,000–$10,000",
-      gt10k:  "más de $10,000",
-    };
-    const goalLine   = profile.investment_goal   ? `\nMeta financiera: ${GOAL_LABELS[profile.investment_goal]   ?? profile.investment_goal}`   : "";
-    const amountLine = profile.investment_amount ? `\nCapital disponible: ${AMOUNT_LABELS[profile.investment_amount] ?? profile.investment_amount}` : "";
+    const goalLine   = profile.investment_goal ? `\nMeta financiera: ${GOAL_LABELS[profile.investment_goal] ?? profile.investment_goal}` : "";
+    const amountLine = profile.investment_amount
+      ? `\nCapital disponible: $${Number(profile.investment_amount).toLocaleString("en-US")}`
+      : "";
+    const goalAmtLine = profile.investment_goal_amount
+      ? `\nMeta financiera ($): $${Number(profile.investment_goal_amount).toLocaleString("en-US")}`
+      : "";
 
-    return `[PERFIL DEL USUARIO]\nNombre: ${profile.name}\nPerfil de riesgo: ${profile.risk_tolerance}${goalLine}${amountLine}\n\nRespuestas del cuestionario:\n- Comportamiento ante caídas: ${q1Labels[a("q1")] ?? "no disponible"}\n- Horizonte: ${q2Labels[a("q2")] ?? "no disponible"}\n- Conocimiento: ${q3Labels[a("q3")] ?? "no disponible"}\n- Tolerancia al riesgo: ${q4Labels[a("q4")] ?? "no disponible"}\n- Estilo de gestión: ${q5Labels[a("q5")] ?? "no disponible"}${portfolioBlock}\n\nInstrucciones: Llama siempre a este usuario por su nombre (${profile.name.split(" ")[0]}). Adapta el nivel al conocimiento declarado. Si el usuario es principiante (conocimiento: A), usa lenguaje simple, evita términos técnicos sin explicarlos y enfócate en sus miedos y metas concretas. Responde en español.`;
+    // Include context from most recent previous session
+    const prevSession = sessions.find(s => s.id !== currentId && s.messages.length > 0);
+    const prevMsgs = prevSession?.messages.slice(-6) ?? [];
+    const memoryBlock = prevMsgs.length > 0 && messages.length === 0
+      ? "\n\n[CONTEXTO DE CONVERSACIÓN ANTERIOR - Para continuidad, el usuario ya habló contigo]\n" +
+        prevMsgs.map(m => `${m.role === "user" ? "Usuario" : "Mentor"}: ${m.content.slice(0, 200)}`).join("\n") +
+        "\n(Retoma el hilo de forma natural si es relevante)"
+      : "";
+
+    return `[PERFIL DEL USUARIO]\nNombre: ${profile.name}\nPerfil de riesgo: ${profile.risk_tolerance}${goalLine}${amountLine}${goalAmtLine}\n\nRespuestas del cuestionario:\n- Comportamiento ante caídas: ${q1Labels[a("q1")] ?? "no disponible"}\n- Horizonte: ${q2Labels[a("q2")] ?? "no disponible"}\n- Conocimiento: ${q3Labels[a("q3")] ?? "no disponible"}\n- Tolerancia al riesgo: ${q4Labels[a("q4")] ?? "no disponible"}\n- Estilo de gestión: ${q5Labels[a("q5")] ?? "no disponible"}${portfolioBlock}\n\nInstrucciones: Llama siempre a este usuario por su nombre (${profile.name.split(" ")[0]}). Adapta el nivel al conocimiento declarado. Si el usuario es principiante (conocimiento: A), usa lenguaje simple, evita términos técnicos sin explicarlos y enfócate en sus miedos y metas concretas. Responde en español.${memoryBlock}`;
   };
 
   useEffect(() => {

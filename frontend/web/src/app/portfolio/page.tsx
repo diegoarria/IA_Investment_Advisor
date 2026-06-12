@@ -24,7 +24,7 @@ import FirstStepsFlow from "@/components/FirstStepsFlow";
 import {
   PieChart, Menu, X, Upload, Plus, Trash2,
   BarChart, Calculator, Shield, Sparkles, RefreshCw, AlertTriangle, FileText, Pencil, Eye,
-  Cloud, CloudOff, Check, BarChart2, TrendingDown, GraduationCap, CheckSquare,
+  Cloud, CloudOff, Check, BarChart2, TrendingDown, GraduationCap, CheckSquare, Bell,
 } from "lucide-react";
 
 // ─── Stress Test data ──────────────────────────────────────────────────────
@@ -726,6 +726,18 @@ export default function PortfolioPage() {
     return pv*f + (pmt>0 && r>0 ? pmt*(f-1)/r : pmt*n);
   };
 
+  const [daysSinceVisit, setDaysSinceVisit] = useState<number | null>(null);
+
+  useEffect(() => {
+    const STORAGE_KEY = "nuvos_last_portfolio_visit";
+    const last = localStorage.getItem(STORAGE_KEY);
+    if (last) {
+      const days = Math.floor((Date.now() - parseInt(last)) / 86400000);
+      if (days >= 3) setDaysSinceVisit(days);
+    }
+    localStorage.setItem(STORAGE_KEY, String(Date.now()));
+  }, []);
+
   useEffect(() => { if (!isAuthenticated) router.push("/"); }, [isAuthenticated]);
 
   // Cargar portafolio del servidor al montar — garantiza sincronía entre dispositivos
@@ -1360,6 +1372,28 @@ export default function PortfolioPage() {
             )}
           </section>
 
+          {/* ── Retention banner ── */}
+          {daysSinceVisit !== null && daysSinceVisit >= 3 && (
+            <div className="rounded-2xl border p-4 mb-4 flex items-start gap-3"
+                 style={{ background: "rgba(0,168,94,0.06)", borderColor: "rgba(0,168,94,0.25)" }}>
+              <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0"
+                   style={{ background: "rgba(0,168,94,0.15)" }}>
+                <Bell className="w-4 h-4" style={{ color: "var(--accent-l)" }} />
+              </div>
+              <div className="flex-1">
+                <p className="text-sm font-bold" style={{ color: "var(--text)" }}>
+                  Bienvenido de vuelta — {daysSinceVisit} días sin revisar
+                </p>
+                <p className="text-xs mt-0.5" style={{ color: "var(--muted)" }}>
+                  Tu portafolio sigue trabajando. Aquí va el resumen de hoy.
+                </p>
+              </div>
+              <button onClick={() => setDaysSinceVisit(null)} className="p-1 shrink-0">
+                <X className="w-3.5 h-3.5" style={{ color: "var(--dim)" }} />
+              </button>
+            </div>
+          )}
+
           {/* ── Goal progress widget ── */}
           {(() => {
             const goalAmt = parseFloat(profile?.investment_goal_amount ?? "0");
@@ -1416,16 +1450,33 @@ export default function PortfolioPage() {
                     </span>
                   )}
                 </div>
-                <div className="mt-2 pt-2 border-t flex items-center justify-between"
-                     style={{ borderColor: "var(--border)" }}>
-                  <span className="text-[10px]" style={{ color: "var(--dim)" }}>
-                    Meta: {currencySymbol}{goalAmt.toLocaleString("en-US", { maximumFractionDigits: 0 })}
-                  </span>
-                  {!reached && (
+                <div className="mt-2 pt-2 border-t" style={{ borderColor: "var(--border)" }}>
+                  <div className="flex items-center justify-between">
                     <span className="text-[10px]" style={{ color: "var(--dim)" }}>
-                      Aportando {currencySymbol}{Number(profile?.monthly_contribution || 0).toLocaleString("en-US")}/mes
+                      Meta: {currencySymbol}{goalAmt.toLocaleString("en-US", { maximumFractionDigits: 0 })}
                     </span>
-                  )}
+                  </div>
+                  {(() => {
+                    const annualRate = (profile?.risk_tolerance ?? "").startsWith("conservative") ? 0.07
+                                     : (profile?.risk_tolerance ?? "").startsWith("aggressive") ? 0.12 : 0.10;
+                    const rateLabel = (profile?.risk_tolerance ?? "").startsWith("conservative") ? "7%"
+                                    : (profile?.risk_tolerance ?? "").startsWith("aggressive") ? "12%" : "10%";
+                    const r = annualRate / 12;
+                    const monthsToGoalPure = totals.current > 0 && goalAmt > totals.current
+                      ? Math.log(goalAmt / totals.current) / Math.log(1 + r) : null;
+                    if (monthsToGoalPure === null || reached) return null;
+                    const yearsToGoal = monthsToGoalPure / 12;
+                    const timeLabel = yearsToGoal < 1
+                      ? `${Math.ceil(monthsToGoalPure)} meses`
+                      : yearsToGoal < 1.83
+                      ? "~1 año y medio"
+                      : `~${Math.round(yearsToGoal)} años`;
+                    return (
+                      <p className="text-[10px] mt-1" style={{ color: "var(--dim)" }}>
+                        A tasa del {rateLabel}/año (histórico), llegas en {timeLabel}
+                      </p>
+                    );
+                  })()}
                 </div>
               </div>
             );

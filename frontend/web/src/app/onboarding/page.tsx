@@ -102,38 +102,11 @@ function calculateRisk(answers: Record<string, string>): RiskTolerance {
   return "aggressive";
 }
 
-function getAge(birthDate: string): number {
-  const parts = birthDate.split("/");
-  if (parts.length !== 3) return 0;
-  const [day, month, year] = parts.map(Number);
-  if (!day || !month || !year || year < 1900) return 0;
-  const today = new Date();
-  let age = today.getFullYear() - year;
-  const m = today.getMonth() + 1 - month;
-  if (m < 0 || (m === 0 && today.getDate() < day)) age--;
-  return Math.max(0, age);
-}
-
-function formatBirthDate(text: string): string {
-  const digits = text.replace(/\D/g, "").slice(0, 8);
-  if (digits.length <= 2) return digits;
-  if (digits.length <= 4) return `${digits.slice(0, 2)}/${digits.slice(2)}`;
-  return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`;
-}
-
-function isValidDate(d: string): boolean {
-  const age = getAge(d);
-  return d.length === 10 && age >= 10 && age <= 100;
-}
-
 // ─── Component ────────────────────────────────────────────────────────────────
 
 type FormState = {
   name: string;
-  birth_date: string;
-  monthly_income: string;
-  monthly_contribution: string;
-  investment_amount: string;   // exact $ available now
+  investment_amount: string;      // exact $ available now
   investment_goal_amount: string; // exact $ target goal
   investment_goal: string;        // goal type key
   knowledge_level: QuizAnswer | "";
@@ -154,7 +127,7 @@ export default function OnboardingPage() {
   const [acceptedDisclaimer, setAcceptedDisclaimer] = useState(false);
 
   const [form, setForm] = useState<FormState>({
-    name: "", birth_date: "", monthly_income: "", monthly_contribution: "",
+    name: "",
     investment_amount: "", investment_goal_amount: "", investment_goal: "",
     knowledge_level: "", q1: "", q4: "",
   });
@@ -165,7 +138,6 @@ export default function OnboardingPage() {
   const quizAnswers = { q1: form.q1, q4: form.q4 };
   const calculated  = calculateRisk(quizAnswers);
   const riskCfg     = RISK_CONFIG[calculated];
-  const currentAge  = getAge(form.birth_date);
   const firstName   = form.name.trim().split(" ")[0];
 
   const quizSteps = QUIZ.filter((q) => q.key === "q1" || q.key === "q4").map((q) => ({
@@ -222,61 +194,7 @@ export default function OnboardingPage() {
         </div>
       ),
     },
-    // 1 — Situación financiera
-    {
-      title: `Hola, ${firstName || "!"}  Tu situación financiera`,
-      subtitle: "Esta info ayuda a la IA a darte recomendaciones precisas",
-      valid: () => isValidDate(form.birth_date) && !!form.monthly_income && !!form.monthly_contribution,
-      content: (
-        <div className="space-y-4">
-          <div>
-            <label className="block text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: "var(--muted)" }}>
-              Fecha de nacimiento
-            </label>
-            <input
-              value={form.birth_date}
-              onChange={(e) => setForm((f) => ({ ...f, birth_date: formatBirthDate(e.target.value) }))}
-              className="w-full rounded-xl border px-4 py-3 text-sm outline-none"
-              placeholder="DD/MM/AAAA"
-              maxLength={10}
-              style={{ background: "var(--raised)", borderColor: "var(--border)", color: "var(--text)" }}
-            />
-            {form.birth_date.length === 10 && (
-              <p className="text-xs mt-1.5" style={{ color: isValidDate(form.birth_date) ? "var(--accent-l)" : "var(--down)" }}>
-                {isValidDate(form.birth_date) ? `Tienes ${currentAge} años` : "Fecha inválida"}
-              </p>
-            )}
-          </div>
-          <div>
-            <label className="block text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: "var(--muted)" }}>
-              Ingresos mensuales (USD)
-            </label>
-            <input
-              type="number"
-              value={form.monthly_income}
-              onChange={(e) => setForm((f) => ({ ...f, monthly_income: e.target.value }))}
-              className="w-full rounded-xl border px-4 py-3 text-sm outline-none"
-              placeholder="3000"
-              style={{ background: "var(--raised)", borderColor: "var(--border)", color: "var(--text)" }}
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: "var(--muted)" }}>
-              Aportación mensual planificada (USD)
-            </label>
-            <input
-              type="number"
-              value={form.monthly_contribution}
-              onChange={(e) => setForm((f) => ({ ...f, monthly_contribution: e.target.value }))}
-              className="w-full rounded-xl border px-4 py-3 text-sm outline-none"
-              placeholder="300"
-              style={{ background: "var(--raised)", borderColor: "var(--border)", color: "var(--text)" }}
-            />
-          </div>
-        </div>
-      ),
-    },
-    // 2 — Meta financiera con montos exactos
+    // 1 — Meta financiera con montos exactos
     {
       title: "Tu meta financiera",
       subtitle: "OBJETIVOS",
@@ -391,9 +309,9 @@ export default function OnboardingPage() {
         </div>
       ),
     },
-    // 3-7 — Quiz (5 preguntas)
+    // 2-3 — Quiz (2 preguntas)
     ...quizSteps,
-    // 7 — Reveal
+    // 4 — Reveal
     {
       title: `Tu perfil, ${firstName || "!"}`,
       subtitle: "Analizamos tus respuestas para determinar tu perfil de inversionista real",
@@ -443,10 +361,9 @@ export default function OnboardingPage() {
               <p className="text-xs font-bold uppercase tracking-wider" style={{ color: "var(--muted)" }}>Datos financieros</p>
             </div>
             {[
-              { label: "Nombre",     value: form.name },
-              { label: "Edad",       value: `${currentAge} años` },
-              { label: "Ingresos",   value: `$${Number(form.monthly_income).toLocaleString()} / mes` },
-              { label: "Aportación", value: `$${Number(form.monthly_contribution).toLocaleString()} / mes` },
+              { label: "Nombre",          value: form.name },
+              { label: "Capital inicial", value: `$${Number(form.investment_amount).toLocaleString()}` },
+              { label: "Meta",            value: `$${Number(form.investment_goal_amount).toLocaleString()}` },
             ].map((f) => (
               <div key={f.label} className="flex items-center justify-between px-4 py-2.5 border-b last:border-0"
                    style={{ borderColor: "var(--border)" }}>
@@ -458,50 +375,69 @@ export default function OnboardingPage() {
         </div>
       ),
     },
-    // 8 — ROI demo
+    // 5 — ROI demo (lump-sum compound growth)
     {
       subtitle: "TU PROYECCIÓN",
-      title: `Así crece $${(Number(form.monthly_contribution) || 300).toLocaleString()} / mes`,
+      title: `Tu meta: $${Number(form.investment_goal_amount || 0).toLocaleString()}`,
       valid: () => true,
       content: (() => {
-        const pmt = Math.max(Number(form.monthly_contribution) || 300, 1);
+        const pv = Math.max(parseFloat(form.investment_amount) || 1000, 1);
+        const goalAmt = Math.max(parseFloat(form.investment_goal_amount) || pv * 3, pv + 1);
         const annualRate = calculated === "conservative" ? 0.07 : calculated === "moderate" ? 0.10 : 0.12;
         const rateLabel  = calculated === "conservative" ? "7%" : calculated === "moderate" ? "10%" : "12%";
         const r = annualRate / 12;
-        const proj = [12, 60, 120].map((months) => {
-          const fv = Math.round(pmt * ((Math.pow(1 + r, months) - 1) / r) * (1 + r));
-          return { years: months / 12, fv, invested: Math.round(pmt * months) };
-        });
-        const maxFV = proj[2].fv;
+        const proj = [12, 60, 120].map((months) => ({
+          years: months / 12,
+          fv: Math.round(pv * Math.pow(1 + r, months)),
+        }));
+        const maxFV = Math.max(proj[2].fv, goalAmt);
+        const monthsToGoal = Math.log(goalAmt / pv) / Math.log(1 + r);
+        const yearsToGoal = monthsToGoal / 12;
+        const timeLabel = yearsToGoal < 1
+          ? `${Math.ceil(monthsToGoal)} meses`
+          : yearsToGoal < 1.83
+          ? "~1 año y medio"
+          : `~${Math.round(yearsToGoal)} años`;
         return (
           <div className="space-y-5">
             {/* Projection bars */}
             <div className="rounded-xl border p-4 space-y-4" style={{ background: "var(--raised)", borderColor: "var(--border)" }}>
               <div className="flex items-center justify-between">
-                <p className="text-xs font-bold uppercase tracking-wider" style={{ color: "var(--muted)" }}>Proyección ilustrativa</p>
+                <p className="text-xs font-bold" style={{ color: "var(--muted)" }}>
+                  Capital inicial: ${pv.toLocaleString()} → Meta: ${goalAmt.toLocaleString()}
+                </p>
                 <span className="text-[10px] px-2 py-0.5 rounded-full font-bold"
                       style={{ background: riskCfg.color + "20", color: riskCfg.color }}>~{rateLabel}/año</span>
               </div>
-              {proj.map(({ years, fv, invested }) => (
-                <div key={years}>
-                  <div className="flex justify-between text-xs mb-1.5">
-                    <span style={{ color: "var(--sub)" }}>{years} año{years !== 1 ? "s" : ""}</span>
-                    <span className="font-extrabold" style={{ color: "var(--text)" }}>${fv.toLocaleString()}</span>
+              {proj.map(({ years, fv }) => {
+                const barPct = Math.min((fv / maxFV) * 100, 100);
+                const goalPct = Math.min((goalAmt / maxFV) * 100, 100);
+                return (
+                  <div key={years}>
+                    <div className="flex justify-between text-xs mb-1.5">
+                      <span style={{ color: "var(--sub)" }}>{years} año{years !== 1 ? "s" : ""}</span>
+                      <span className="font-extrabold" style={{ color: fv >= goalAmt ? "#22c55e" : "var(--text)" }}>
+                        ${fv.toLocaleString()}
+                      </span>
+                    </div>
+                    <div className="relative h-2.5 rounded-full overflow-hidden" style={{ background: "var(--border)" }}>
+                      {/* Goal marker */}
+                      <div className="absolute inset-y-0 w-0.5 z-10"
+                           style={{ left: `${goalPct}%`, background: "#22c55e", opacity: 0.8 }} />
+                      <div className="absolute inset-y-0 left-0 rounded-full"
+                           style={{ width: `${barPct}%`, background: fv >= goalAmt ? "#22c55e" : riskCfg.color }} />
+                    </div>
                   </div>
-                  <div className="relative h-2.5 rounded-full overflow-hidden" style={{ background: "var(--border)" }}>
-                    <div className="absolute inset-y-0 left-0 rounded-full opacity-35"
-                         style={{ width: `${(invested / maxFV) * 100}%`, background: riskCfg.color }} />
-                    <div className="absolute inset-y-0 left-0 rounded-full"
-                         style={{ width: `${(fv / maxFV) * 100}%`, background: riskCfg.color }} />
-                  </div>
-                  <div className="flex gap-3 mt-1">
-                    <span className="text-[10px]" style={{ color: "var(--dim)" }}>Aportado: ${invested.toLocaleString()}</span>
-                    <span className="text-[10px] font-semibold" style={{ color: riskCfg.color }}>
-                      +${(fv - invested).toLocaleString()} rendimiento
-                    </span>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
+              {/* Goal time highlight */}
+              <div className="rounded-xl px-3 py-2.5 flex items-center gap-2"
+                   style={{ background: "rgba(34,197,94,0.08)", border: "1px solid rgba(34,197,94,0.25)" }}>
+                <span className="text-lg">🎯</span>
+                <p className="text-xs font-semibold" style={{ color: "#22c55e" }}>
+                  A tasa del {rateLabel}/año, alcanzas tu meta en {timeLabel}
+                </p>
+              </div>
               <p className="text-[10px] italic" style={{ color: "var(--dim)" }}>
                 * Ilustrativo. Basado en promedios históricos del mercado. No garantiza rendimientos futuros.
               </p>
@@ -621,16 +557,13 @@ export default function OnboardingPage() {
     setLoading(true); setError("");
     try {
       const payload = {
-        name:                    form.name.trim(),
-        birth_date:              form.birth_date,
-        monthly_income:          form.monthly_income,
-        monthly_contribution:    form.monthly_contribution,
-        investment_amount:       form.investment_amount,
-        investment_goal:         form.investment_goal,
-        investment_goal_amount:  form.investment_goal_amount,
-        knowledge_level:         form.knowledge_level,
-        risk_tolerance:          calculated,
-        quiz_answers:            quizAnswers,
+        name:                   form.name.trim(),
+        investment_amount:      form.investment_amount,
+        investment_goal:        form.investment_goal,
+        investment_goal_amount: form.investment_goal_amount,
+        knowledge_level:        form.knowledge_level,
+        risk_tolerance:         calculated,
+        quiz_answers:           quizAnswers,
       };
       const res = await profileApi.create(payload);
       setProfile(res.data);
