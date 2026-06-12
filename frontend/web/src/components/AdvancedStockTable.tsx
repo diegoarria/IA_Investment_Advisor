@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback, type ReactNode } from "react";
-import { ChevronUp, ChevronDown, ChevronsUpDown, Loader2, Wifi, WifiOff, Trash2 } from "lucide-react";
+import { ChevronUp, ChevronDown, ChevronsUpDown, Loader2, Wifi, WifiOff, Trash2, Pencil } from "lucide-react";
 import { market as marketApi } from "@/lib/api";
 import { finnhubWS } from "@/lib/services/websocketService";
 import {
@@ -48,6 +48,7 @@ interface Props {
   mode: Mode;
   userLevel?: UserLevel;
   onRemove?: (ticker: string) => void;
+  onEdit?: (ticker: string) => void;
   onRowClick?: (ticker: string) => void;
 }
 
@@ -166,7 +167,7 @@ function DeleteBtn({ ticker, onRemove }: { ticker: string; onRemove: (t: string)
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
-export default function AdvancedStockTable({ rows, mode, userLevel = "avanzado", onRemove, onRowClick }: Props) {
+export default function AdvancedStockTable({ rows, mode, userLevel = "avanzado", onRemove, onEdit, onRowClick }: Props) {
   // Column visibility based on user level
   const showVol      = isAtLeast(userLevel, "intermedio");
   const showCap      = isAtLeast(userLevel, "intermedio");
@@ -278,6 +279,7 @@ export default function AdvancedStockTable({ rows, mode, userLevel = "avanzado",
             {show52W      && <col style={{ width: isAtLeast(userLevel, "intermedio") ? "14%" : "24%" }} />}
             {mode === "portfolio" && <col style={{ width: "10%" }} />}
             {mode === "portfolio" && <col style={{ width: "9%"  }} />}
+            {onEdit       && <col style={{ width: "5%"  }} />}
             {onRemove     && <col style={{ width: "5%"  }} />}
           </colgroup>
 
@@ -300,6 +302,10 @@ export default function AdvancedStockTable({ rows, mode, userLevel = "avanzado",
                   <Th label="Valor" sortKey="positionValue" {...colProps} />
                   <Th label="G/P %" sortKey="gainLossPct"   {...colProps} />
                 </>
+              )}
+              {onEdit && (
+                <th className="px-3 py-2.5"
+                    style={{ borderBottom: "1px solid var(--border)" }} />
               )}
               {onRemove && (
                 <th className="px-3 py-2.5"
@@ -455,6 +461,22 @@ export default function AdvancedStockTable({ rows, mode, userLevel = "avanzado",
                         </span>
                       </td>
                     </>
+                  )}
+
+                  {/* Edit */}
+                  {onEdit && (
+                    <td className="px-2 py-2.5 text-center overflow-hidden">
+                      <button
+                        onClick={(e) => { e.stopPropagation(); onEdit(row.ticker); }}
+                        className="flex items-center justify-center rounded-lg transition-all mx-auto"
+                        style={{ width: "28px", height: "28px", color: "var(--dim)", border: "1px solid transparent" }}
+                        title="Editar posición"
+                        onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.color = "var(--accent-l)"; (e.currentTarget as HTMLElement).style.borderColor = "rgba(0,168,94,0.3)"; }}
+                        onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.color = "var(--dim)"; (e.currentTarget as HTMLElement).style.borderColor = "transparent"; }}
+                      >
+                        <Pencil className="w-3.5 h-3.5 opacity-50 hover:opacity-100 transition-opacity" />
+                      </button>
+                    </td>
                   )}
 
                   {/* Remove */}

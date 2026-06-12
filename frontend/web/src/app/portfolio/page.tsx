@@ -1723,6 +1723,10 @@ export default function PortfolioPage() {
                     mode="portfolio"
                     userLevel={userLevel}
                     onRowClick={setSelectedStock}
+                    onEdit={(ticker) => {
+                      const pos = sortedPositions.find((p) => p.ticker === ticker);
+                      if (pos) { setEditConfirm(false); setEditingPos({ id: pos.id, shares: String(pos.shares), avgPrice: String(pos.avgPrice), purchaseDate: pos.purchaseDate ?? new Date().toISOString().split("T")[0] }); }
+                    }}
                     onRemove={(ticker) => {
                       const pos = sortedPositions.find((p) => p.ticker === ticker);
                       if (pos) removePosition(pos.id);
