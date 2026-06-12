@@ -1,6 +1,7 @@
 "use client";
 
 import AppSidebar from "@/components/AppSidebar";
+import MarketTickerBar from "@/components/MarketTickerBar";
 import StockAvatar from "@/components/StockAvatar";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
@@ -179,6 +180,7 @@ export default function PaperPage() {
           <RefreshCw className={`w-4 h-4 ${loadingPrices ? "animate-spin" : ""}`} />
         </button>
       </div>
+      <MarketTickerBar />
 
       <div className="flex flex-1 overflow-hidden relative">
         <AppSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />

@@ -13,6 +13,7 @@ import {
 import { getMentorInfo } from "@/lib/mentorData";
 import { usePortfolioStore } from "@/lib/portfolioStore";
 import AppSidebar from "@/components/AppSidebar";
+import MarketTickerBar from "@/components/MarketTickerBar";
 import PaywallModal from "@/components/PaywallModal";
 import TutorialModal from "@/components/TutorialModal";
 import GuidedSteps from "@/components/GuidedSteps";
@@ -456,6 +457,7 @@ export default function ChatPage() {
           </button>
         </div>
       </div>
+      <MarketTickerBar />
 
       <div className="flex flex-1 overflow-hidden relative">
         {/* Sidebar */}

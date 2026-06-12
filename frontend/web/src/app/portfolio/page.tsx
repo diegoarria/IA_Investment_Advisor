@@ -21,6 +21,7 @@ import PremiumToolLockedWeb from "@/components/PremiumToolLocked";
 import PaywallModal from "@/components/PaywallModal";
 import GuidedSteps from "@/components/GuidedSteps";
 import FirstStepsFlow from "@/components/FirstStepsFlow";
+import MarketTickerBar from "@/components/MarketTickerBar";
 import {
   PieChart, Menu, X, Upload, Plus, Trash2,
   BarChart, Calculator, Shield, Sparkles, RefreshCw, AlertTriangle, FileText, Pencil, Eye,
@@ -1152,6 +1153,7 @@ export default function PortfolioPage() {
           </button>
         </div>
       </div>
+      <MarketTickerBar />
 
       <div className="flex flex-1 overflow-hidden relative">
         {/* Sidebar */}

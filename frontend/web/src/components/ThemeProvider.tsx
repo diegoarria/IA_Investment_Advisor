@@ -2,9 +2,6 @@
 
 import { useEffect } from "react";
 import { useThemeStore, useAuthStore } from "@/lib/store";
-import MarketTickerBar from "@/components/MarketTickerBar";
-
-const TICKER_H = 30;
 
 export default function ThemeProvider({ children }: { children: React.ReactNode }) {
   const { theme, loadThemeFromServer } = useThemeStore();
@@ -21,12 +18,8 @@ export default function ThemeProvider({ children }: { children: React.ReactNode 
   }, [isAuthenticated]);
 
   return (
-    <>
-      <MarketTickerBar />
-      {/* paddingBottom leaves space for the fixed ticker bar at the bottom */}
-      <div style={{ paddingBottom: TICKER_H, height: "100vh", overflow: "hidden" }}>
-        {children}
-      </div>
-    </>
+    <div style={{ height: "100vh", overflow: "hidden" }}>
+      {children}
+    </div>
   );
 }

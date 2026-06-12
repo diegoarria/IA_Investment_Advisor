@@ -1,6 +1,7 @@
 "use client";
 
 import AppSidebar from "@/components/AppSidebar";
+import MarketTickerBar from "@/components/MarketTickerBar";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
@@ -127,6 +128,7 @@ export default function ArenaPage() {
           </button>
         </div>
       </div>
+      <MarketTickerBar />
 
       <div className="flex flex-1 overflow-hidden relative">
         {/* Sidebar */}

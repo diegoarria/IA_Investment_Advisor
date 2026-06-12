@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import AppSidebar from "@/components/AppSidebar";
+import MarketTickerBar from "@/components/MarketTickerBar";
 import { useAuthStore, useThemeStore } from "@/lib/store";
 import { support as supportApi } from "@/lib/api";
 import { Menu, X, Sun, Moon, Send, Loader2, ChevronDown, ChevronUp, TicketCheck } from "lucide-react";
@@ -102,6 +103,7 @@ export default function SupportPage() {
           {theme === "dark" ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
         </button>
       </div>
+      <MarketTickerBar />
 
       <div className="flex flex-1 overflow-hidden relative">
         <AppSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />

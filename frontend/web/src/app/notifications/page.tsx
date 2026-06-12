@@ -1,6 +1,7 @@
 "use client";
 
 import AppSidebar from "@/components/AppSidebar";
+import MarketTickerBar from "@/components/MarketTickerBar";
 import StockAvatar from "@/components/StockAvatar";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -225,6 +226,7 @@ export default function NotificationsPage() {
           </button>
         </div>
       </div>
+      <MarketTickerBar />
 
       <div className="flex flex-1 overflow-hidden relative">
         {/* Sidebar */}

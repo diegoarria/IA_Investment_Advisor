@@ -12,6 +12,7 @@ import { useAuthStore, useSubscriptionStore, useProfileStore } from "@/lib/store
 import { getUserLevel } from "@/lib/userLevel";
 import { usePortfolioStore } from "@/lib/portfolioStore";
 import AppSidebar from "@/components/AppSidebar";
+import MarketTickerBar from "@/components/MarketTickerBar";
 import PaywallModal from "@/components/PaywallModal";
 import WatchlistEarningsCalendar from "@/components/WatchlistEarningsCalendar";
 import AdvancedStockTable from "@/components/AdvancedStockTable";
@@ -537,6 +538,7 @@ export default function WatchlistPage() {
             </button>
           </div>
         </div>
+        <MarketTickerBar />
 
         {/* ── Body ── */}
         <div className="flex flex-1 overflow-hidden relative">
