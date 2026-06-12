@@ -1642,14 +1642,20 @@ export default function PortfolioScreen() {
                         )}
                       </View>
                     </TouchableOpacity>
-                    <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
                       <TouchableOpacity
                         onPress={() => setEditingPos({ id: pos.id, shares: String(pos.shares), avgPrice: String(pos.avgPrice), purchaseDate: pos.purchaseDate ?? new Date().toISOString().split("T")[0] })}
-                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                        <Ionicons name="pencil-outline" size={16} color={colors.textMuted} />
+                        style={{ flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.bgRaised }}
+                        activeOpacity={0.7}>
+                        <Ionicons name="pencil-outline" size={13} color={colors.textSub} />
+                        <Text style={{ fontSize: 11, fontWeight: "700", color: colors.textSub }}>Editar</Text>
                       </TouchableOpacity>
-                      <TouchableOpacity onPress={() => removePosition(pos.id)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                        <Text style={{ color: colors.textDim, fontSize: 20 }}>×</Text>
+                      <TouchableOpacity
+                        onPress={() => removePosition(pos.id)}
+                        style={{ paddingHorizontal: 8, paddingVertical: 6, borderRadius: 10, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.bgRaised }}
+                        hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
+                        activeOpacity={0.7}>
+                        <Ionicons name="trash-outline" size={13} color="#ef444480" />
                       </TouchableOpacity>
                     </View>
                   </View>

@@ -1913,10 +1913,14 @@ export default function PortfolioPage() {
                         )}
                         <button
                           onClick={() => { setEditConfirm(false); setEditingPos({ id: pos.id, shares: String(pos.shares), avgPrice: String(pos.avgPrice), purchaseDate: pos.purchaseDate ?? new Date().toISOString().split("T")[0] }); }}
-                          style={{ color:"var(--muted)" }}>
+                          className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold border transition-colors hover:border-[var(--accent)] hover:text-[var(--accent-l)]"
+                          style={{ borderColor: "var(--border)", color: "var(--sub)", background: "var(--raised)" }}>
                           <Pencil className="w-3 h-3" />
+                          Editar
                         </button>
-                        <button onClick={() => removePosition(pos.id)} style={{ color:"var(--dim)" }}>
+                        <button onClick={() => removePosition(pos.id)}
+                                className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold border transition-colors hover:border-red-500/40 hover:text-red-400"
+                                style={{ borderColor: "var(--border)", color: "var(--dim)", background: "var(--raised)" }}>
                           <Trash2 className="w-3 h-3" />
                         </button>
                       </div>
