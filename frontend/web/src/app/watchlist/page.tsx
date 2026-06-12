@@ -45,6 +45,19 @@ interface SearchResult {
 }
 
 const FREE_LIMIT = 30;
+const CACHE_KEY = "nuvos_watchlist_cache";
+
+function readCache(): WatchlistItem[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = localStorage.getItem(CACHE_KEY);
+    return raw ? (JSON.parse(raw) as WatchlistItem[]) : [];
+  } catch { return []; }
+}
+
+function writeCache(items: WatchlistItem[]) {
+  try { localStorage.setItem(CACHE_KEY, JSON.stringify(items)); } catch {}
+}
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -305,8 +318,8 @@ export default function WatchlistPage() {
   const { positions } = usePortfolioStore();
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [items, setItems] = useState<WatchlistItem[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [items, setItems] = useState<WatchlistItem[]>(() => readCache());
+  const [loading, setLoading] = useState(() => readCache().length === 0);
   const [refreshing, setRefreshing] = useState(false);
 
   const [searchQ, setSearchQ] = useState("");
@@ -340,11 +353,13 @@ export default function WatchlistPage() {
     if (isRefresh) setRefreshing(true);
     try {
       const res = await watchlistApi.get();
-      setItems(res.data as WatchlistItem[]);
+      const data = res.data as WatchlistItem[];
+      setItems(data);
+      writeCache(data);
       setLastRefreshed(new Date());
       setSecondsSince(0);
     } catch {
-      // silent
+      // On failure keep whatever items are already shown — never reset to empty
     } finally {
       if (isRefresh) setRefreshing(false);
       setLoading(false);
@@ -446,7 +461,11 @@ export default function WatchlistPage() {
     setConfirmDelete(null);
     try {
       await watchlistApi.remove(ticker);
-      setItems((prev) => prev.filter((i) => i.ticker !== ticker));
+      setItems((prev) => {
+        const updated = prev.filter((i) => i.ticker !== ticker);
+        writeCache(updated);
+        return updated;
+      });
     } catch {
       showToast("Error al eliminar");
     }
