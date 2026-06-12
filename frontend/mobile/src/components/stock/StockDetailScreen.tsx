@@ -24,10 +24,10 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import Svg, { Rect, G, Text as SvgText } from "react-native-svg";
+import Svg, { Circle, Rect, G, Text as SvgText } from "react-native-svg";
 import { useRouter } from "expo-router";
 import { useTheme } from "../../lib/ThemeContext";
-import { useStockDetail, type FinancialPeriod } from "../../hooks/useStockDetail";
+import { useStockDetail, useStockScore, type FinancialPeriod } from "../../hooks/useStockDetail";
 import StockHeader from "./StockHeader";
 import StockChart from "../StockChart";
 import StockNews from "./StockNews";
@@ -64,6 +64,130 @@ function consensusLabel(rec?: string | null): { label: string; color: string } {
   if (r.includes("sell")) return { label: "Vender",   color: "#ef4444" };
   return { label: "Neutral", color: "#f59e0b" };
 }
+
+// ─── Verdict ──────────────────────────────────────────────────────────────────
+
+const SIGNAL_COLOR: Record<string, string> = {
+  "COMPRA FUERTE": "#00d47e",
+  "COMPRA":        "#22c55e",
+  "MANTENER":      "#f59e0b",
+  "VENDER":        "#f97316",
+  "VENTA FUERTE":  "#ef4444",
+};
+
+function ScoreRing({ score, color }: { score: number; color: string }) {
+  const R = 36, STROKE = 7, SIZE = (R + STROKE) * 2;
+  const circ = 2 * Math.PI * R;
+  const dash = (score / 100) * circ;
+  return (
+    <Svg width={SIZE} height={SIZE}>
+      <Circle cx={SIZE / 2} cy={SIZE / 2} r={R} stroke="#1f2937" strokeWidth={STROKE} fill="none" />
+      <Circle
+        cx={SIZE / 2} cy={SIZE / 2} r={R}
+        stroke={color} strokeWidth={STROKE} fill="none"
+        strokeDasharray={`${dash} ${circ}`}
+        strokeLinecap="round"
+        transform={`rotate(-90, ${SIZE / 2}, ${SIZE / 2})`}
+      />
+    </Svg>
+  );
+}
+
+function VerdictSection({ ticker }: { ticker: string }) {
+  const { colors } = useTheme();
+  const { data, loading } = useStockScore(ticker);
+  const [expanded, setExpanded] = useState(false);
+
+  if (loading) {
+    return (
+      <View style={vd.loadRow}>
+        <ActivityIndicator size="small" color={colors.accentLight} />
+        <Text style={[vd.loadText, { color: colors.textMuted }]}>Calculando veredicto IA…</Text>
+      </View>
+    );
+  }
+  if (!data) return null;
+
+  const sigColor = SIGNAL_COLOR[data.signal] ?? "#f59e0b";
+
+  return (
+    <View style={{ paddingHorizontal: 16, paddingVertical: 12 }}>
+      {/* Score ring + signal */}
+      <View style={vd.topRow}>
+        <View style={vd.ringWrap}>
+          <ScoreRing score={data.overall_score} color={sigColor} />
+          <View style={StyleSheet.absoluteFill} pointerEvents="none">
+            <View style={vd.ringLabel}>
+              <Text style={[vd.scoreNum, { color: sigColor }]}>{data.overall_score}</Text>
+              <Text style={[vd.gradeTxt, { color: colors.textMuted }]}>{data.grade}</Text>
+            </View>
+          </View>
+        </View>
+
+        <View style={{ flex: 1, gap: 8 }}>
+          <View style={[vd.signalBadge, { backgroundColor: sigColor + "18", borderColor: sigColor + "44" }]}>
+            <Text style={[vd.signalText, { color: sigColor }]}>{data.signal}</Text>
+          </View>
+          <Text style={[vd.shortVerdict, { color: colors.textSub }]} numberOfLines={expanded ? undefined : 3}>
+            {data.verdict_short}
+          </Text>
+        </View>
+      </View>
+
+      {/* Category bars */}
+      <View style={[vd.cats, { borderTopColor: colors.border }]}>
+        {data.categories.map((cat) => {
+          const c = cat.score >= 70 ? "#22c55e" : cat.score >= 50 ? "#f59e0b" : "#ef4444";
+          return (
+            <View key={cat.key} style={vd.catRow}>
+              <Text style={[vd.catName, { color: colors.textMuted }]}>{cat.name}</Text>
+              <View style={[vd.catTrack, { backgroundColor: colors.bgRaised }]}>
+                <View style={[vd.catFill, { width: `${cat.score}%` as any, backgroundColor: c }]} />
+              </View>
+              <Text style={[vd.catScore, { color: c }]}>{cat.score}</Text>
+            </View>
+          );
+        })}
+      </View>
+
+      {/* Long verdict expandable */}
+      {data.verdict_long ? (
+        <View style={[vd.longBox, { backgroundColor: colors.bgRaised, borderColor: colors.border }]}>
+          <Text style={[vd.longText, { color: colors.textSub }]} numberOfLines={expanded ? undefined : 4}>
+            {data.verdict_long}
+          </Text>
+          <TouchableOpacity onPress={() => setExpanded((v) => !v)} style={{ marginTop: 6 }}>
+            <Text style={[vd.expandBtn, { color: colors.accentLight }]}>
+              {expanded ? "Ver menos" : "Ver análisis completo"}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+const vd = StyleSheet.create({
+  loadRow:      { flexDirection: "row", alignItems: "center", gap: 10, padding: 16 },
+  loadText:     { fontSize: 13 },
+  topRow:       { flexDirection: "row", gap: 14, alignItems: "flex-start", marginBottom: 16 },
+  ringWrap:     { width: 86, height: 86, alignItems: "center", justifyContent: "center" },
+  ringLabel:    { flex: 1, alignItems: "center", justifyContent: "center" },
+  scoreNum:     { fontSize: 22, fontFamily: "DMSans_800ExtraBold", lineHeight: 26 },
+  gradeTxt:     { fontSize: 11, fontFamily: "DMSans_600SemiBold" },
+  signalBadge:  { alignSelf: "flex-start", paddingHorizontal: 12, paddingVertical: 5, borderRadius: 20, borderWidth: 1 },
+  signalText:   { fontSize: 13, fontFamily: "DMSans_800ExtraBold", letterSpacing: 0.3 },
+  shortVerdict: { fontSize: 13, fontFamily: "DMSans_400Regular", lineHeight: 19 },
+  cats:         { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 12, gap: 8 },
+  catRow:       { flexDirection: "row", alignItems: "center", gap: 8 },
+  catName:      { fontSize: 11, fontFamily: "DMSans_500Medium", width: 90 },
+  catTrack:     { flex: 1, height: 6, borderRadius: 3, overflow: "hidden" },
+  catFill:      { height: 6, borderRadius: 3 },
+  catScore:     { fontSize: 12, fontFamily: "DMSans_700Bold", width: 26, textAlign: "right" },
+  longBox:      { marginTop: 14, padding: 12, borderRadius: 12, borderWidth: 1 },
+  longText:     { fontSize: 13, fontFamily: "DMSans_400Regular", lineHeight: 20 },
+  expandBtn:    { fontSize: 12, fontFamily: "DMSans_600SemiBold" },
+});
 
 // ─── Section Header ───────────────────────────────────────────────────────────
 
@@ -479,6 +603,12 @@ export default function StockDetailScreen({ ticker }: { ticker: string }) {
           </View>
         ) : (
           <>
+            {/* 0 — Veredicto IA */}
+            <SectionHeader title="Veredicto IA" colors={colors} />
+            <VerdictSection ticker={ticker} />
+
+            <Divider color={colors.bgRaised} />
+
             {/* 1 — Métricas Clave */}
             <SectionHeader title="Métricas Clave" colors={colors} />
             <KeyMetrics profile={data?.profile} />

@@ -105,12 +105,21 @@ export default function AuthScreen() {
             });
           if (d.maturity) {
             const local = useAppStore.getState().maturityScore;
-            if (d.maturity.score > local)
+            if (d.maturity.score >= local)
               useAppStore.setState({ maturityScore: d.maturity.score, maturityHistory: d.maturity.history });
           }
           if (d.trial?.trial_started_at)
             useSubscriptionStore.setState({ trialStartDate: d.trial.trial_started_at });
+          // avatar_url also returned by sync/all as a convenience
+          if (d.avatar_url && !useAppStore.getState().profile?.avatarUri) {
+            useAppStore.setState((s) => ({
+              profile: s.profile ? { ...s.profile, avatarUri: d.avatar_url } : s.profile,
+            }));
+          }
         }
+
+        // Restore chat history from server in background
+        useChatStore.getState().restoreFromServer().catch(() => {});
 
         router.replace("/(tabs)/chat");
       } catch {
@@ -148,7 +157,7 @@ export default function AuthScreen() {
       ]);
 
       if (profileRes.status === "fulfilled") {
-        const p = profileRes.value.data as UserProfile;
+        const p = profileRes.value.data as UserProfile & { avatar_url?: string };
         setProfile({
           name: p.name,
           birth_date: p.birth_date,
@@ -157,6 +166,7 @@ export default function AuthScreen() {
           risk_tolerance: p.risk_tolerance as UserProfile["risk_tolerance"],
           quiz_answers: p.quiz_answers as UserProfile["quiz_answers"],
           mentor: p.mentor ?? null,
+          avatarUri: p.avatar_url ?? useAppStore.getState().profile?.avatarUri ?? null,
         });
       }
 
@@ -174,12 +184,15 @@ export default function AuthScreen() {
           });
         if (d.maturity) {
           const local = useAppStore.getState().maturityScore;
-          if (d.maturity.score > local)
+          if (d.maturity.score >= local)
             useAppStore.setState({ maturityScore: d.maturity.score, maturityHistory: d.maturity.history });
         }
         if (d.trial?.trial_started_at)
           useSubscriptionStore.setState({ trialStartDate: d.trial.trial_started_at });
       }
+
+      // Restore chat history from server (always — server is source of truth)
+      useChatStore.getState().restoreFromServer().catch(() => {});
 
       router.replace(profileRes.status === "fulfilled" ? "/(tabs)/chat" : "/onboarding");
     } catch {

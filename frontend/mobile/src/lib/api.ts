@@ -152,6 +152,8 @@ export const marketApi = {
     api.post("/api/market/screener/alert-context", { ticker, change_pct }),
   getNews: (symbols: string[]) =>
     api.get("/api/market/news", { params: { symbols: symbols.join(",") } }),
+  summarizeNews: (title: string, url: string) =>
+    api.post("/api/market/summarize-news", { title, url }),
   getPortfolioReturns: (positions: { ticker: string; shares: number; purchase_date?: string | null; avg_price?: number | null }[]) =>
     api.post("/api/market/portfolio-returns", { positions }),
   getPortfolioChart: (positions: { ticker: string; shares: number; purchase_date?: string | null; avg_price?: number | null }[], period: string) =>
@@ -246,6 +248,18 @@ export const earningsApi = {
 export const screenerWeeklyApi = {
   getWeekly: (existingTickers: string[] = []) =>
     api.get("/api/market/screener/weekly", { params: { tickers: existingTickers.join(",") } }),
+};
+
+export const feedApi = {
+  getClips: (params: { cursor?: number; speaker?: string; tag?: string; sort?: string }) =>
+    api.get("/api/feed/clips", { params }),
+  likeClip:    (clipId: string) => api.post(`/api/feed/clips/${clipId}/like`),
+  saveClip:    (clipId: string) => api.post(`/api/feed/clips/${clipId}/save`),
+  viewClip:    (clipId: string, watchedPct: number) =>
+    api.post(`/api/feed/clips/${clipId}/view`, { watched_pct: watchedPct }),
+  getComments: (clipId: string) => api.get(`/api/feed/clips/${clipId}/comments`),
+  postComment: (clipId: string, text: string, parentId?: string) =>
+    api.post(`/api/feed/clips/${clipId}/comments`, { text, parent_id: parentId }),
 };
 
 export const simulateApi = {

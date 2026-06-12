@@ -4,6 +4,7 @@ import {
   StyleSheet, ActivityIndicator, ScrollView, Alert,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { router } from "expo-router";
 import { useTheme } from "../../src/lib/ThemeContext";
 import { useWatchlistStore } from "../../src/lib/watchlistStore";
 import { useSubscriptionStore, hasPremiumAccess } from "../../src/lib/subscriptionStore";
@@ -285,9 +286,11 @@ export default function WatchlistScreen() {
               const showPost = (ms === "POST" || ms === "POSTPOST") && p?.post_market_price;
 
               return (
-                <View
+                <TouchableOpacity
                   key={item.ticker}
                   style={[s.itemRow, { borderTopColor: colors.border }]}
+                  onPress={() => router.push(`/stock/${item.ticker}` as any)}
+                  activeOpacity={0.7}
                 >
                   {/* Color bar */}
                   <View style={[s.colorBar, { backgroundColor: col }]} />
@@ -342,7 +345,7 @@ export default function WatchlistScreen() {
                       <Ionicons name="close-outline" size={18} color={colors.textDim} />
                     </TouchableOpacity>
                   </View>
-                </View>
+                </TouchableOpacity>
               );
             })}
           </View>

@@ -9,7 +9,8 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { useTheme } from "../../src/lib/ThemeContext";
 import { useAppStore } from "../../src/lib/profileStore";
-import { useNavOrderStore, getTop5TabPaths, pathToRoute } from "../../src/lib/navOrderStore";
+import { useNavOrderStore, getTop5TabPaths, pathToRoute, ALL_NAV_ITEMS } from "../../src/lib/navOrderStore";
+import { getUserLevel, isAtLeast } from "../../src/lib/userLevel";
 import { useWatchlistStore } from "../../src/lib/watchlistStore";
 import MarketTicker from "../../src/components/MarketTicker";
 
@@ -22,10 +23,12 @@ const TAB_CONFIG: Record<string, { icon: IoniconName; iconFilled: IoniconName; l
   portfolio:     { icon: "pie-chart-outline",     iconFilled: "pie-chart",     label: "Portafolio" },
   watchlist:     { icon: "eye-outline",           iconFilled: "eye",           label: "Watchlist" },
   arena:         { icon: "trophy-outline",        iconFilled: "trophy",        label: "Play" },
-  learn:         { icon: "school-outline",        iconFilled: "school",        label: "Aprender" },
+  learn:         { icon: "school-outline",        iconFilled: "school",        label: "Aprendizaje" },
   paper:         { icon: "bar-chart-outline",     iconFilled: "bar-chart",     label: "Simulador" },
   profile:       { icon: "person-outline",        iconFilled: "person",        label: "Perfil" },
-  notifications: { icon: "notifications-outline", iconFilled: "notifications", label: "Alertas" },
+  notifications: { icon: "notifications-outline", iconFilled: "notifications", label: "Notificaciones" },
+  videos:        { icon: "play-circle-outline",   iconFilled: "play-circle",   label: "Videos" },
+  support:       { icon: "headset-outline",       iconFilled: "headset",       label: "Soporte" },
 };
 
 // ─── Custom Tab Bar ───────────────────────────────────────────────────────────
@@ -34,6 +37,8 @@ function CustomTabBar({ state, descriptors: _d, navigation }: BottomTabBarProps)
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const navOrder = useNavOrderStore((s) => s.order);
+  const profile = useAppStore((s) => s.profile);
+  const userLevel = getUserLevel(profile);
 
   const top5RouteNames = getTop5TabPaths(navOrder).map(pathToRoute);
   const visibleRoutes = top5RouteNames
@@ -55,17 +60,23 @@ function CustomTabBar({ state, descriptors: _d, navigation }: BottomTabBarProps)
         const cfg = TAB_CONFIG[route.name];
         if (!cfg) return null;
 
+        const navItem = ALL_NAV_ITEMS.find((i) => i.path === `/${route.name}`);
+        const locked = navItem ? !isAtLeast(userLevel, navItem.minLevel) : false;
+
         return (
           <Pressable
             key={route.key}
-            style={tabStyles.tab}
-            onPress={() => { if (!focused) navigation.navigate(route.name); }}
+            style={[tabStyles.tab, locked && { opacity: 0.45 }]}
+            onPress={() => {
+              if (locked) { navigation.navigate("profile"); return; }
+              if (!focused) navigation.navigate(route.name);
+            }}
             android_ripple={{ color: colors.accentGlow, borderless: true, radius: 28 }}
           >
             {/* Top glow line */}
             <View style={[
               tabStyles.topLine,
-              focused && {
+              focused && !locked && {
                 backgroundColor: colors.accentLight,
                 shadowColor: colors.accentLight,
                 shadowOpacity: 0.8,
@@ -77,20 +88,20 @@ function CustomTabBar({ state, descriptors: _d, navigation }: BottomTabBarProps)
             {/* Icon container */}
             <View style={[
               tabStyles.iconBox,
-              focused && { backgroundColor: colors.accentGlow },
+              focused && !locked && { backgroundColor: colors.accentGlow },
             ]}>
               <Ionicons
-                name={focused ? cfg.iconFilled : cfg.icon}
+                name={locked ? "lock-closed-outline" : (focused ? cfg.iconFilled : cfg.icon)}
                 size={21}
-                color={focused ? colors.accentLight : colors.textDim}
+                color={focused && !locked ? colors.accentLight : colors.textDim}
               />
             </View>
 
             {/* Label */}
             <Text style={[
               tabStyles.label,
-              { color: focused ? colors.accentLight : colors.textDim },
-              focused && tabStyles.labelActive,
+              { color: focused && !locked ? colors.accentLight : colors.textDim },
+              focused && !locked && tabStyles.labelActive,
             ]}>
               {cfg.label}
             </Text>
@@ -123,17 +134,17 @@ const tabStyles = StyleSheet.create({
     alignItems: "center", justifyContent: "center",
   },
   label: {
-    fontSize: 10, fontWeight: "500", letterSpacing: 0.1,
+    fontSize: 10, fontFamily: "DMSans_500Medium", letterSpacing: 0.1,
   },
   labelActive: {
-    fontWeight: "700",
+    fontFamily: "DMSans_700Bold",
   },
 });
 
 // ─── Mobile Header ────────────────────────────────────────────────────────────
 
 function MobileHeader({ title }: { title: string }) {
-  const { colors } = useTheme();
+  const { colors, isDark, toggle } = useTheme();
   const openSidebar = useAppStore((s) => s.openSidebar);
   const profile = useAppStore((s) => s.profile);
   const riskColor = profile?.risk_tolerance === "conservative"
@@ -167,6 +178,11 @@ function MobileHeader({ title }: { title: string }) {
           activeOpacity={0.7}
         >
           <Ionicons name="notifications-outline" size={22} color={colors.textSub} />
+        </TouchableOpacity>
+
+        {/* Theme toggle */}
+        <TouchableOpacity style={headerStyles.bellBtn} onPress={toggle} activeOpacity={0.7}>
+          <Ionicons name={isDark ? "sunny-outline" : "moon-outline"} size={20} color={colors.textSub} />
         </TouchableOpacity>
 
         {/* Avatar / Profile */}
@@ -212,14 +228,14 @@ const headerStyles = StyleSheet.create({
   },
   title: {
     flex: 1, textAlign: "center",
-    fontSize: 16, fontWeight: "700", letterSpacing: -0.3,
+    fontSize: 16, fontFamily: "DMSans_700Bold", letterSpacing: -0.3,
   },
   bellBtn: { padding: 6 },
   avatar: {
     width: 34, height: 34, borderRadius: 17, borderWidth: 1.5,
     alignItems: "center", justifyContent: "center",
   },
-  avatarText: { fontSize: 14, fontWeight: "800" },
+  avatarText: { fontSize: 14, fontFamily: "DMSans_800ExtraBold" },
   avatarImg: { width: 36, height: 36, borderRadius: 18 },
 });
 
@@ -250,9 +266,10 @@ export default function TabsLayout() {
       <Tabs.Screen name="learn"     options={{ title: "Aprender",      header: () => <MobileHeader title="Aprendizaje" /> }} />
       <Tabs.Screen name="paper"     options={{ title: "Simulador",     header: () => <MobileHeader title="Simulador" /> }} />
       <Tabs.Screen name="profile"   options={{ title: "Perfil",        header: () => <MobileHeader title="Mi Perfil" /> }} />
-      <Tabs.Screen name="notifications" options={{ title: "Alertas",   header: () => <MobileHeader title="Notificaciones" /> }} />
+      <Tabs.Screen name="notifications" options={{ title: "Notificaciones", header: () => <MobileHeader title="Notificaciones" /> }} />
+      <Tabs.Screen name="videos"    options={{ title: "Videos",   header: () => <MobileHeader title="Videos" /> }} />
       <Tabs.Screen name="explore"   options={{ href: null }} />
-      <Tabs.Screen name="support"   options={{ href: null, title: "Soporte", header: () => <MobileHeader title="Soporte" /> }} />
+      <Tabs.Screen name="support"   options={{ title: "Soporte",  header: () => <MobileHeader title="Soporte" /> }} />
     </Tabs>
   );
 }

@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import {
   View, Text, TouchableOpacity, Animated, Dimensions,
-  StyleSheet, Pressable, Platform, ScrollView, Image,
+  StyleSheet, Pressable, Platform, ScrollView, Image, Linking,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import * as SecureStore from "expo-secure-store";
@@ -13,6 +13,7 @@ import { useChatStore } from "../lib/chatStore";
 import { useTheme } from "../lib/ThemeContext";
 import MarketTicker from "./MarketTicker";
 import { ALL_NAV_ITEMS, useNavOrderStore, getTop5TabPaths } from "../lib/navOrderStore";
+import { getUserLevel, useUserLevel, isAtLeast, LEVEL_LABEL, LEVEL_COLOR } from "../lib/userLevel";
 
 const SIDEBAR_WIDTH = Math.min(Dimensions.get("window").width * 0.78, 300);
 const WEB_EXPANDED = 260;
@@ -51,10 +52,13 @@ function ProfileCard({ colors }: { colors: ReturnType<typeof useTheme>["colors"]
   if (!profile) return null;
 
   const seg = RISK_SEGMENTS.find((s) => s.key === profile.risk_tolerance);
+  const level = getUserLevel(profile);
+  const levelColor = LEVEL_COLOR[level];
+  const isPremium = (profile as any).subscription_tier === "premium";
 
   return (
     <View style={[styles.profileCard, { backgroundColor: colors.bg, borderColor: colors.border }]}>
-      {/* Avatar + name + "Perfil activo" */}
+      {/* Avatar + name + level badges */}
       <View style={styles.profileHeader}>
         <View style={styles.avatar}>
           {profile.avatarUri ? (
@@ -67,7 +71,16 @@ function ProfileCard({ colors }: { colors: ReturnType<typeof useTheme>["colors"]
           <Text style={[styles.profileName, { color: colors.text }]} numberOfLines={1}>
             {profile.name}
           </Text>
-          <Text style={[styles.profileSub, { color: colors.textMuted }]}>Perfil activo</Text>
+          <View style={styles.profileBadgesRow}>
+            <View style={[styles.levelBadge, { borderColor: levelColor + "55", backgroundColor: levelColor + "18" }]}>
+              <Text style={[styles.levelBadgeText, { color: levelColor }]}>{LEVEL_LABEL[level]}</Text>
+            </View>
+            <View style={[styles.subBadge, { borderColor: colors.border }]}>
+              <Text style={[styles.subBadgeText, { color: isPremium ? "#00d47e" : colors.textDim }]}>
+                {isPremium ? "Premium" : "Free"}
+              </Text>
+            </View>
+          </View>
         </View>
       </View>
 
@@ -115,6 +128,7 @@ function NavItems({
   collapsed?: boolean;
 }) {
   const { order, setOrder } = useNavOrderStore();
+  const userLevel = useUserLevel();
   const [editMode, setEditMode] = useState(false);
   const [liftedPath, setLiftedPath] = useState<string | null>(null);
 
@@ -137,14 +151,16 @@ function NavItems({
       <>
         {items.map((item) => {
           const isActive = pathname.includes(item.path.replace("/", ""));
+          const locked = !isAtLeast(userLevel, item.minLevel);
           return (
             <TouchableOpacity
               key={item.path}
               style={[
                 styles.navItemCollapsed,
                 isActive && { backgroundColor: "rgba(34,197,94,0.1)", borderRadius: 12 },
+                locked && { opacity: 0.4 },
               ]}
-              onPress={() => onPress(item.path)}
+              onPress={() => locked ? onPress("/profile") : onPress(item.path)}
             >
               <Ionicons name={item.icon as IoniconName} size={20} color={isActive ? "#22c55e" : colors.textSub} />
             </TouchableOpacity>
@@ -181,35 +197,51 @@ function NavItems({
         const isActive = pathname.includes(item.path.replace("/", ""));
         const isLifted = liftedPath === item.path;
         const isInTab = top5Paths.has(item.path);
+        const locked = !isAtLeast(userLevel, item.minLevel);
         return (
           <View
             key={item.path}
-            style={[styles.navItemRow, isLifted && styles.navItemLifted]}
+            style={[
+              styles.navItemRow,
+              isLifted && styles.navItemLifted,
+              locked && { opacity: 0.45 },
+            ]}
           >
             <TouchableOpacity
               style={[
                 styles.navItem,
                 { flex: 1, borderRadius: 12 },
-                isActive && { backgroundColor: "rgba(34,197,94,0.1)" },
+                isActive && !locked && { backgroundColor: "rgba(34,197,94,0.1)" },
                 isLifted && { backgroundColor: "rgba(34,197,94,0.08)" },
               ]}
               onPress={() => {
                 if (editMode) { setLiftedPath(null); return; }
+                if (locked) { onPress("/profile"); return; }
                 onPress(item.path);
               }}
               onLongPress={() => {
+                if (locked) return;
                 setEditMode(true);
                 setLiftedPath(item.path);
               }}
               delayLongPress={400}
             >
-              <Ionicons name={item.icon as IoniconName} size={20} color={isActive ? "#22c55e" : colors.textSub} />
-              <Text style={[styles.navLabel, { color: isActive ? "#22c55e" : colors.textSub }]}>
+              <Ionicons
+                name={locked ? "lock-closed-outline" : item.icon as IoniconName}
+                size={20}
+                color={isActive && !locked ? "#22c55e" : colors.textSub}
+              />
+              <Text style={[styles.navLabel, { color: isActive && !locked ? "#22c55e" : colors.textSub }]}>
                 {item.label}
               </Text>
-              {isActive && !editMode && <View style={styles.activeDot} />}
-              {/* Tab badge: shown always for tab-capable items, dimmed when not in top 5 */}
-              {!editMode && item.tabCapable && (
+              {locked && !editMode && (
+                <Text style={[styles.lockLevelText, { color: colors.textDim }]}>
+                  Requiere {LEVEL_LABEL[item.minLevel]}
+                </Text>
+              )}
+              {isActive && !editMode && !locked && <View style={styles.activeDot} />}
+              {/* Tab badge: shown for unlocked tab-capable items */}
+              {!editMode && !locked && item.tabCapable && (
                 <View style={[
                   styles.tabBadge,
                   { borderColor: isInTab ? "#22c55e44" : colors.border },
@@ -219,7 +251,7 @@ function NavItems({
                   </Text>
                 </View>
               )}
-              {editMode && (
+              {editMode && !locked && (
                 <Ionicons
                   name="reorder-two-outline"
                   size={18}
@@ -228,7 +260,7 @@ function NavItems({
               )}
             </TouchableOpacity>
 
-            {editMode && (
+            {editMode && !locked && (
               <View style={styles.arrowGroup}>
                 <TouchableOpacity
                   onPress={() => moveItem(index, -1)}
@@ -356,7 +388,7 @@ function useLogout() {
 // ─── Web: collapsible sidebar ─────────────────────────────────────────────────
 
 function WebSidebar() {
-  const { colors, isDark, toggle } = useTheme();
+  const { colors } = useTheme();
   const pathname = usePathname();
   const handleLogout = useLogout();
   const [collapsed, setCollapsed] = useState(false);
@@ -415,31 +447,28 @@ function WebSidebar() {
       <View style={[styles.footer, { borderTopColor: colors.border, paddingBottom: 16 }]}>
         {collapsed ? (
           <>
-            <TouchableOpacity
-              style={styles.navItemCollapsed}
-              onPress={() => router.push("/profile/edit" as any)}
-            >
-              <Ionicons name="create-outline" size={20} color={colors.textSub} />
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.navItemCollapsed} onPress={toggle}>
-              <Ionicons name={isDark ? "sunny-outline" : "moon-outline"} size={20} color={colors.textSub} />
-            </TouchableOpacity>
             <TouchableOpacity style={styles.navItemCollapsed} onPress={handleLogout}>
               <Ionicons name="log-out-outline" size={20} color="#ef4444" />
             </TouchableOpacity>
           </>
         ) : (
           <>
-            <TouchableOpacity style={styles.navItem} onPress={() => router.push("/profile/edit" as any)}>
-              <Ionicons name="create-outline" size={20} color={colors.textSub} />
-              <Text style={[styles.navLabel, { color: colors.textSub }]}>Editar perfil</Text>
+            {/* 1:1 coaching CTA */}
+            <TouchableOpacity
+              style={[styles.coachingBtn, { backgroundColor: "rgba(0,168,94,0.08)", borderColor: "rgba(0,212,126,0.25)" }]}
+              onPress={() => Linking.openURL("https://calendly.com/diego-arria19/sesion-1-1-con-diego-nuvos-ai")}
+              activeOpacity={0.75}
+            >
+              <View style={[styles.coachingIcon, { backgroundColor: "rgba(0,212,126,0.15)" }]}>
+                <Ionicons name="calendar-outline" size={16} color="#00d47e" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.coachingTitle, { color: colors.text }]}>Sesión 1:1 con Diego</Text>
+                <Text style={[styles.coachingSub, { color: colors.textMuted }]}>Guía personalizada · 60 min</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={14} color={colors.textDim} />
             </TouchableOpacity>
-            <TouchableOpacity style={styles.navItem} onPress={toggle}>
-              <Ionicons name={isDark ? "sunny-outline" : "moon-outline"} size={20} color={colors.textSub} />
-              <Text style={[styles.navLabel, { color: colors.textSub }]}>
-                {isDark ? "Modo claro" : "Modo oscuro"}
-              </Text>
-            </TouchableOpacity>
+
             <TouchableOpacity style={styles.navItem} onPress={handleLogout}>
               <Ionicons name="log-out-outline" size={20} color="#ef4444" />
               <Text style={[styles.navLabel, { color: "#ef4444" }]}>Cerrar sesión</Text>
@@ -454,7 +483,7 @@ function WebSidebar() {
 // ─── Mobile: sliding overlay sidebar ─────────────────────────────────────────
 
 function MobileSidebar() {
-  const { colors, isDark, toggle } = useTheme();
+  const { colors } = useTheme();
   const { sidebarOpen, closeSidebar } = useAppStore();
   const insets = useSafeAreaInsets();
   const pathname = usePathname();
@@ -528,19 +557,22 @@ function MobileSidebar() {
         </ScrollView>
 
         <View style={[styles.footer, { borderTopColor: colors.border, paddingBottom: insets.bottom + 12 }]}>
+          {/* 1:1 coaching CTA */}
           <TouchableOpacity
-            style={styles.navItem}
-            onPress={() => { closeSidebar(); router.push("/profile/edit" as any); }}
+            style={[styles.coachingBtn, { backgroundColor: "rgba(0,168,94,0.08)", borderColor: "rgba(0,212,126,0.25)" }]}
+            onPress={() => { closeSidebar(); Linking.openURL("https://calendly.com/diego-arria19/sesion-1-1-con-diego-nuvos-ai"); }}
+            activeOpacity={0.75}
           >
-            <Ionicons name="create-outline" size={20} color={colors.textSub} />
-            <Text style={[styles.navLabel, { color: colors.textSub }]}>Editar perfil</Text>
+            <View style={[styles.coachingIcon, { backgroundColor: "rgba(0,212,126,0.15)" }]}>
+              <Ionicons name="calendar-outline" size={16} color="#00d47e" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.coachingTitle, { color: colors.text }]}>Sesión 1:1 con Diego</Text>
+              <Text style={[styles.coachingSub, { color: colors.textMuted }]}>Guía personalizada · 60 min</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={14} color={colors.textDim} />
           </TouchableOpacity>
-          <TouchableOpacity style={styles.navItem} onPress={toggle}>
-            <Ionicons name={isDark ? "sunny-outline" : "moon-outline"} size={20} color={colors.textSub} />
-            <Text style={[styles.navLabel, { color: colors.textSub }]}>
-              {isDark ? "Modo claro" : "Modo oscuro"}
-            </Text>
-          </TouchableOpacity>
+
           <TouchableOpacity style={styles.navItem} onPress={() => { closeSidebar(); handleLogout(); }}>
             <Ionicons name="log-out-outline" size={20} color="#ef4444" />
             <Text style={[styles.navLabel, { color: "#ef4444" }]}>Cerrar sesión</Text>
@@ -587,8 +619,8 @@ const styles = StyleSheet.create({
   logoBox: {
     width: 40, height: 40, borderRadius: 10, flexShrink: 0,
   },
-  appName: { fontSize: 15, fontWeight: "700" },
-  appSub: { fontSize: 12 },
+  appName: { fontSize: 15, fontFamily: "DMSans_700Bold" },
+  appSub: { fontSize: 12, fontFamily: "DMSans_400Regular" },
   // Collapse / close buttons
   collapseBtn: {
     width: 28, height: 28, borderRadius: 8, borderWidth: 1,
@@ -609,20 +641,26 @@ const styles = StyleSheet.create({
     alignItems: "center", justifyContent: "center",
     backgroundColor: "#00a85e",
   },
-  avatarText: { color: "white", fontSize: 14, fontWeight: "900" },
+  avatarText: { color: "white", fontSize: 14, fontFamily: "DMSans_800ExtraBold" },
   avatarImg: { width: 36, height: 36, borderRadius: 18 },
-  profileName: { fontSize: 12, fontWeight: "700", marginBottom: 1 },
-  profileSub: { fontSize: 10 },
+  profileName: { fontSize: 12, fontFamily: "DMSans_700Bold", marginBottom: 2 },
+  profileSub: { fontSize: 10, fontFamily: "DMSans_400Regular" },
+  profileBadgesRow: { flexDirection: "row", alignItems: "center", gap: 4, flexWrap: "wrap" },
+  levelBadge: { borderWidth: 1, borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1 },
+  levelBadgeText: { fontSize: 8, fontFamily: "DMSans_700Bold", letterSpacing: 0.3 },
+  subBadge: { borderWidth: 1, borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1 },
+  subBadgeText: { fontSize: 8, fontFamily: "DMSans_500Medium", letterSpacing: 0.2 },
+  lockLevelText: { fontSize: 9, fontFamily: "DMSans_400Regular" },
   // Stats grid: 3 equal columns with individual boxes
   statsGrid: { flexDirection: "row", gap: 6, marginBottom: 12 },
   statBox: { flex: 1, borderRadius: 12, padding: 8, alignItems: "center" },
-  statLabel: { fontSize: 9, fontWeight: "600", textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 2 },
-  statValue: { fontSize: 11, fontWeight: "900", lineHeight: 13 },
-  statSub: { fontSize: 9, marginTop: 2 },
+  statLabel: { fontSize: 9, fontFamily: "DMSans_600SemiBold", textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 2 },
+  statValue: { fontSize: 11, fontFamily: "DMSans_800ExtraBold", lineHeight: 13 },
+  statSub: { fontSize: 9, fontFamily: "DMSans_400Regular", marginTop: 2 },
   // Risk bar
   riskRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 4 },
-  riskLabel: { fontSize: 10, fontWeight: "600" },
-  riskPct: { fontSize: 11, fontWeight: "900" },
+  riskLabel: { fontSize: 10, fontFamily: "DMSans_600SemiBold" },
+  riskPct: { fontSize: 11, fontFamily: "DMSans_800ExtraBold" },
   riskBarTrack: { height: 6, borderRadius: 3, overflow: "hidden" },
   riskBarFill: { height: "100%", borderRadius: 3 },
   // Nav
@@ -634,31 +672,40 @@ const styles = StyleSheet.create({
     alignItems: "center", justifyContent: "center",
     marginVertical: 2, alignSelf: "center",
   },
-  navLabel: { fontSize: 15, fontWeight: "500", flex: 1 },
+  navLabel: { fontSize: 13, fontFamily: "DMSans_500Medium", flex: 1 },
   activeDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: "#22c55e" },
   footer: { paddingHorizontal: 12, borderTopWidth: 1 },
+  coachingBtn: {
+    flexDirection: "row", alignItems: "center", gap: 10,
+    marginHorizontal: 4, marginBottom: 4, marginTop: 8,
+    paddingHorizontal: 12, paddingVertical: 10,
+    borderRadius: 14, borderWidth: 1,
+  },
+  coachingIcon: { width: 32, height: 32, borderRadius: 10, alignItems: "center", justifyContent: "center" },
+  coachingTitle: { fontSize: 12, fontFamily: "DMSans_700Bold" },
+  coachingSub:   { fontSize: 10, fontFamily: "DMSans_400Regular", marginTop: 1 },
   // Recent chats
   recentSection: { paddingHorizontal: 12, paddingTop: 8, paddingBottom: 4 },
   recentHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 4 },
   recentHeaderLeft: { flexDirection: "row", alignItems: "center", gap: 5, flex: 1 },
-  recentTitle: { fontSize: 11, fontWeight: "600", textTransform: "uppercase", letterSpacing: 0.5, flex: 1 },
+  recentTitle: { fontSize: 11, fontFamily: "DMSans_600SemiBold", textTransform: "uppercase", letterSpacing: 0.5, flex: 1 },
   newChatBadge: { width: 22, height: 22, borderRadius: 6, borderWidth: 1, alignItems: "center", justifyContent: "center" },
-  recentEmpty: { fontSize: 12, paddingVertical: 8, paddingLeft: 4 },
+  recentEmpty: { fontSize: 12, fontFamily: "DMSans_400Regular", paddingVertical: 8, paddingLeft: 4 },
   recentItem: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 8, paddingVertical: 9 },
-  recentItemText: { fontSize: 13, flex: 1 },
+  recentItemText: { fontSize: 13, fontFamily: "DMSans_400Regular", flex: 1 },
   // Reorder mode
   editModeToggle: {
     flexDirection: "row", alignItems: "center", gap: 5,
     paddingHorizontal: 10, paddingVertical: 5, marginBottom: 4,
     borderRadius: 8, borderWidth: 1, alignSelf: "flex-start",
   },
-  editModeText: { fontSize: 11, fontWeight: "600" },
-  tabHintText: { fontSize: 10, paddingHorizontal: 10, marginBottom: 6, fontStyle: "italic" },
+  editModeText: { fontSize: 11, fontFamily: "DMSans_600SemiBold" },
+  tabHintText: { fontSize: 10, fontFamily: "DMSans_400Regular", paddingHorizontal: 10, marginBottom: 6, fontStyle: "italic" },
   tabBadge: {
     borderWidth: 1, borderRadius: 4,
     paddingHorizontal: 5, paddingVertical: 1, marginLeft: 2,
   },
-  tabBadgeText: { fontSize: 8, fontWeight: "800", letterSpacing: 0.5 },
+  tabBadgeText: { fontSize: 8, fontFamily: "DMSans_800ExtraBold", letterSpacing: 0.5 },
   navItemRow: { flexDirection: "row", alignItems: "center" },
   navItemLifted: {
     elevation: 4, shadowColor: "#000",

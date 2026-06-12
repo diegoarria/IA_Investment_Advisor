@@ -222,13 +222,12 @@ export const useProfileStore = create<ProfileState>()(
       updateMaturity: (signals) => {
         const delta = computeMaturityDelta(signals);
         if (delta === 0) return;
-        const current = get().maturityScore;
-        const newScore = Math.min(100, Math.max(0, current + delta));
+        const { maturityScore, maturityHistory } = get();
+        const newScore = Math.min(100, Math.max(0, maturityScore + delta));
         const event: MaturityEvent = { timestamp: Date.now(), delta, signals, newScore };
-        set((s) => ({
-          maturityScore: newScore,
-          maturityHistory: [...s.maturityHistory.slice(-99), event],
-        }));
+        const newHistory = [...maturityHistory.slice(-99), event];
+        set({ maturityScore: newScore, maturityHistory: newHistory });
+        syncApi.pushMaturity(newScore, newHistory).catch(() => {});
       },
       updateBehavioralRisk: (incoming: number, conf: string) => {
         const alpha = conf === "high" ? 0.35 : conf === "medium" ? 0.2 : 0.08;

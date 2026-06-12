@@ -149,8 +149,6 @@ export const useChatStore = create<ChatStore>()(
       clearAll: () => set({ sessions: [], currentId: null, behavioralTimeline: [] }),
 
       restoreFromServer: async () => {
-        // Only restore if no local sessions exist (new device or fresh install)
-        if (get().sessions.length > 0) return;
         try {
           const { chatApi } = await import("./api");
           const res = await chatApi.getHistory();
@@ -161,17 +159,22 @@ export const useChatStore = create<ChatStore>()(
             })
           );
           if (messages.length === 0) return;
-          const id = makeId();
+          // Keep any local sessions that have messages not yet saved to the server,
+          // but always create/update the "server" session with the authoritative history.
+          const serverId = "server-history";
+          const existing = get().sessions;
+          const serverSession = {
+            id: serverId,
+            title: makeTitle(messages),
+            messages,
+            createdAt: existing.find((s) => s.id === serverId)?.createdAt ?? Date.now(),
+            updatedAt: Date.now(),
+            diagnosis: null,
+          };
+          const otherSessions = existing.filter((s) => s.id !== serverId);
           set({
-            sessions: [{
-              id,
-              title: makeTitle(messages),
-              messages,
-              createdAt: Date.now(),
-              updatedAt: Date.now(),
-              diagnosis: null,
-            }],
-            currentId: id,
+            sessions: [serverSession, ...otherSessions],
+            currentId: get().currentId ?? serverId,
           });
         } catch {}
       },

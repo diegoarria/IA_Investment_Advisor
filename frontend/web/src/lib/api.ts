@@ -215,6 +215,8 @@ export const sync = {
     api.post("/api/sync/portfolio", { positions, currency: currency ?? "USD" }),
   getAll: () => api.get("/api/sync/all"),
   pushTheme: (theme: "dark" | "light") => api.post("/api/sync/theme", { theme }),
+  pushMaturity: (score: number, history: unknown[]) =>
+    api.post("/api/sync/maturity", { score, history }),
 };
 
 export const notifications = {

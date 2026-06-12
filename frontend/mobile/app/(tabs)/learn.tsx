@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect } from "react";
 import {
   View, Text, TextInput, TouchableOpacity, ScrollView, FlatList,
   Modal, StyleSheet, SafeAreaView, ActivityIndicator,
-  Image,
+  Image, Linking,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import Markdown from "react-native-markdown-display";
@@ -365,23 +365,47 @@ export default function LearnScreen() {
           ) : null
         }
         ListFooterComponent={
-          search.trim().length >= 1 ? (
+          <View>
+            {search.trim().length >= 1 && (
+              <TouchableOpacity
+                onPress={() => handleCustomSearch()}
+                activeOpacity={0.75}
+                style={[s.aiCard, { borderColor: colors.accentLight, backgroundColor: colors.accentLight + "08" }]}
+              >
+                <View style={[s.topicIconBox, { backgroundColor: colors.accentLight + "20" }]}>
+                  <Ionicons name="search-outline" size={20} color={colors.accentLight} />
+                </View>
+                <Text style={[s.topicTitle, { color: colors.accentLight }]} numberOfLines={2}>
+                  "{search.trim()}"
+                </Text>
+                <Text style={[s.topicCat, { color: colors.accentLight + "99" }]}>
+                  Explicar con IA →
+                </Text>
+              </TouchableOpacity>
+            )}
+
+            {/* Sesión 1:1 con Diego */}
             <TouchableOpacity
-              onPress={() => handleCustomSearch()}
+              style={[s.coachingCard, { backgroundColor: colors.card, borderColor: "rgba(0,212,126,0.3)" }]}
+              onPress={() => Linking.openURL("https://calendly.com/diego-arria19/sesion-1-1-con-diego-nuvos-ai")}
               activeOpacity={0.75}
-              style={[s.aiCard, { borderColor: colors.accentLight, backgroundColor: colors.accentLight + "08" }]}
             >
-              <View style={[s.topicIconBox, { backgroundColor: colors.accentLight + "20" }]}>
-                <Ionicons name="search-outline" size={20} color={colors.accentLight} />
+              <View style={[s.coachingIconBox, { backgroundColor: "rgba(0,212,126,0.12)" }]}>
+                <Ionicons name="calendar-outline" size={22} color="#00d47e" />
               </View>
-              <Text style={[s.topicTitle, { color: colors.accentLight }]} numberOfLines={2}>
-                "{search.trim()}"
-              </Text>
-              <Text style={[s.topicCat, { color: colors.accentLight + "99" }]}>
-                Explicar con IA →
-              </Text>
+              <View style={{ flex: 1 }}>
+                <Text style={[s.coachingCardTitle, { color: colors.text }]}>
+                  ¿Prefieres aprender con alguien?
+                </Text>
+                <Text style={[s.coachingCardSub, { color: colors.textMuted }]}>
+                  Agenda una sesión 1:1 con Diego — te guía por la app y te ayuda a crear tu plan de inversión.
+                </Text>
+              </View>
+              <View style={[s.coachingReservarBtn, { backgroundColor: "#00a85e" }]}>
+                <Text style={s.coachingReservarText}>Reservar →</Text>
+              </View>
             </TouchableOpacity>
-          ) : null
+          </View>
         }
         renderItem={({ item }) => (
           <TouchableOpacity
@@ -530,6 +554,24 @@ function makeStyles(c: Colors) {
       borderRadius: 16, borderWidth: 1.5, borderStyle: "dashed",
       padding: 14, marginHorizontal: 16, marginBottom: 16, minHeight: 105,
     },
+
+    // 1:1 coaching CTA
+    coachingCard: {
+      flexDirection: "row", alignItems: "center", gap: 12,
+      borderRadius: 18, borderWidth: 1.5,
+      padding: 14, marginHorizontal: 12, marginBottom: 24, marginTop: 4,
+    },
+    coachingIconBox: {
+      width: 44, height: 44, borderRadius: 14,
+      alignItems: "center", justifyContent: "center", flexShrink: 0,
+    },
+    coachingCardTitle:  { fontSize: 13, fontWeight: "700", marginBottom: 3 },
+    coachingCardSub:    { fontSize: 11, lineHeight: 16 },
+    coachingReservarBtn: {
+      paddingHorizontal: 12, paddingVertical: 7,
+      borderRadius: 20, flexShrink: 0,
+    },
+    coachingReservarText: { fontSize: 12, fontWeight: "800", color: "white" },
 
     // Empty
     emptyState: { alignItems: "center", paddingTop: 60, paddingHorizontal: 32 },

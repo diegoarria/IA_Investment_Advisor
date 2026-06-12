@@ -1,3 +1,4 @@
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { Stack, usePathname } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { View, Platform, Modal, Text, TouchableOpacity, StyleSheet, Alert } from "react-native";
@@ -203,8 +204,10 @@ export default function RootLayout() {
   }, [fontsLoaded]);
 
   return (
-    <ThemeProvider>
-      <AppStack />
-    </ThemeProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <ThemeProvider>
+        <AppStack />
+      </ThemeProvider>
+    </GestureHandlerRootView>
   );
 }

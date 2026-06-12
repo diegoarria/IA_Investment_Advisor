@@ -55,17 +55,23 @@ async def get_portfolio(user_id: str = Depends(get_current_user_id)):
 
 @router.post("/paper")
 async def sync_paper(body: dict, user_id: str = Depends(get_current_user_id)):
-    """Upsert full paper trading state."""
+    """Upsert full paper trading state.
+    freeTradeMonth/Count are only updated when explicitly included in the body,
+    so web-only pushes (which omit them) don't clear mobile-specific state.
+    """
     db = get_supabase()
-    db.table("user_paper_trading").upsert({
-        "user_id":          user_id,
-        "cash":             body.get("cash", 10000),
-        "positions":        body.get("positions", []),
-        "trades":           body.get("trades", []),
-        "free_trade_month": body.get("freeTradeMonth"),
-        "free_trade_count": body.get("freeTradeCount", 0),
-        "updated_at":       _NOW(),
-    }, on_conflict="user_id").execute()
+    update_data: dict = {
+        "user_id":   user_id,
+        "cash":      body.get("cash", 10000),
+        "positions": body.get("positions", []),
+        "trades":    body.get("trades", []),
+        "updated_at": _NOW(),
+    }
+    if "freeTradeMonth" in body:
+        update_data["free_trade_month"] = body["freeTradeMonth"]
+    if "freeTradeCount" in body:
+        update_data["free_trade_count"] = body["freeTradeCount"]
+    db.table("user_paper_trading").upsert(update_data, on_conflict="user_id").execute()
     return {"ok": True}
 
 
@@ -178,7 +184,7 @@ async def get_all(user_id: str = Depends(get_current_user_id)):
         .eq("user_id", user_id).execute()
     try:
         profile_res = db.table("user_profiles") \
-            .select("maturity_score, maturity_history, trial_started_at, subscription_tier, nav_order, theme") \
+            .select("maturity_score, maturity_history, trial_started_at, subscription_tier, nav_order, theme, avatar_url") \
             .eq("user_id", user_id).execute()
     except Exception:
         profile_res = db.table("user_profiles") \
@@ -227,9 +233,10 @@ async def get_all(user_id: str = Depends(get_current_user_id)):
             "trial_active":     trial_active,
             "tier":             profile_row.get("subscription_tier", "free"),
         },
-        "watchlist": watchlist_res.data if watchlist_res.data else [],
-        "nav_order":  profile_row.get("nav_order"),
-        "theme":      profile_row.get("theme", "dark"),
+        "watchlist":   watchlist_res.data if watchlist_res.data else [],
+        "nav_order":   profile_row.get("nav_order"),
+        "theme":       profile_row.get("theme", "dark"),
+        "avatar_url":  profile_row.get("avatar_url"),
     }
 
 

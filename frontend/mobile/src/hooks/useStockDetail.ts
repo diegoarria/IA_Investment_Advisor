@@ -102,6 +102,51 @@ export interface StockDetail {
 
 // ─── Hook ─────────────────────────────────────────────────────────────────────
 
+// ─── Stock Score ──────────────────────────────────────────────────────────────
+
+export interface CategoryScore {
+  key: string;
+  name: string;
+  score: number;
+}
+
+export interface StockScore {
+  overall_score: number;
+  grade: string;
+  signal: string;
+  verdict_short: string;
+  verdict_long: string;
+  categories: CategoryScore[];
+}
+
+export function useStockScore(ticker: string) {
+  const [data, setData]       = useState<StockScore | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError]     = useState(false);
+
+  const load = useCallback(async () => {
+    if (!ticker) return;
+    setLoading(true);
+    setError(false);
+    try {
+      const res = await marketApi.getStockScore(ticker);
+      if (res.data?.overall_score != null) {
+        setData(res.data as StockScore);
+      } else {
+        setError(true);
+      }
+    } catch {
+      setError(true);
+    } finally {
+      setLoading(false);
+    }
+  }, [ticker]);
+
+  useEffect(() => { load(); }, [load]);
+
+  return { data, loading, error };
+}
+
 export function useStockDetail(ticker: string) {
   const [data, setData]       = useState<StockDetail | null>(null);
   const [loading, setLoading] = useState(true);

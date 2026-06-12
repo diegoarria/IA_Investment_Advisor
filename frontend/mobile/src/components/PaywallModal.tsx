@@ -251,6 +251,19 @@ export default function PaywallModal({ visible, onClose, reason }: Props) {
                 </View>
               ))}
             </View>
+
+            {/* 1:1 coaching link */}
+            <TouchableOpacity
+              style={[s.coachingRow, { borderTopColor: "rgba(0,212,126,0.12)" }]}
+              onPress={() => Linking.openURL("https://calendly.com/diego-arria19/sesion-1-1-con-diego-nuvos-ai")}
+              activeOpacity={0.7}
+            >
+              <Text style={s.coachingEmoji}>📅</Text>
+              <Text style={[s.coachingText, { color: colors.textMuted }]}>
+                ¿Prefieres una guía 1:1 con Diego?
+              </Text>
+              <Ionicons name="chevron-forward" size={13} color={colors.textDim} />
+            </TouchableOpacity>
           </View>
 
         </View>
@@ -426,4 +439,11 @@ const s = StyleSheet.create({
   },
   trustItem: { flexDirection: "row", alignItems: "center", gap: 3 },
   trustText: { fontSize: 10 },
+  coachingRow: {
+    flexDirection: "row", alignItems: "center", gap: 8,
+    paddingTop: 12, marginTop: 8,
+    borderTopWidth: StyleSheet.hairlineWidth,
+  },
+  coachingEmoji: { fontSize: 14 },
+  coachingText:  { flex: 1, fontSize: 12, fontWeight: "500" },
 });

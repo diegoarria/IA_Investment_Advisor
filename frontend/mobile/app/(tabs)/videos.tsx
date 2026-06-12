@@ -1,0 +1,1019 @@
+import React, { useState, useEffect, useRef, useCallback } from "react";
+import {
+  View, Text, FlatList, TouchableOpacity, StyleSheet, TextInput,
+  ActivityIndicator, Dimensions, ScrollView, Modal, Share, KeyboardAvoidingView, Platform,
+  PanResponder, Animated,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { Ionicons } from "@expo/vector-icons";
+import { Video, ResizeMode, Audio } from "expo-av";
+import { useFocusEffect } from "expo-router";
+import { feedApi } from "../../src/lib/api";
+import { useTheme, Colors } from "../../src/lib/ThemeContext";
+
+const { width: W, height: H } = Dimensions.get("window");
+
+const SPEAKERS = [
+  "Todos", "Warren Buffett", "Charlie Munger", "Ray Dalio",
+  "Peter Lynch", "Morgan Housel", "Benjamin Graham",
+  "Howard Marks", "Bill Ackman", "Michael Burry", "Nassim Taleb",
+];
+
+const TAGS = [
+  "Todos", "value investing", "macro", "mindset", "riesgo",
+  "psicología", "deuda", "diversificación", "largo plazo", "crisis", "análisis",
+];
+
+interface Clip {
+  id: string;
+  title: string;
+  description: string;
+  video_url: string;
+  thumbnail_url: string;
+  speaker: string;
+  tags: string[];
+  translated_caption: string;
+  duration_sec: number;
+  view_count: number;
+  like_count: number;
+  liked: boolean;
+  saved: boolean;
+  pre_audio_url?: string;
+  post_audio_url?: string;
+  pre_text?: string;
+  post_text?: string;
+}
+
+function formatDuration(sec: number) {
+  const m = Math.floor(sec / 60);
+  const s = sec % 60;
+  return `${m}:${String(s).padStart(2, "0")}`;
+}
+
+function formatCount(n: number) {
+  if (n >= 1000) return `${(n / 1000).toFixed(1)}k`;
+  return String(n);
+}
+
+// ── Single clip card ──────────────────────────────────────────────────────────
+function ClipCard({
+  clip,
+  isActive,
+  colors,
+  onLike,
+  onSave,
+  cardHeight,
+}: {
+  clip: Clip;
+  isActive: boolean;
+  colors: Colors;
+  onLike: (id: string) => void;
+  onSave: (id: string) => void;
+  cardHeight: number;
+}) {
+  const videoRef = useRef<Video>(null);
+  const [captionOpen, setCaptionOpen] = useState(false);
+  const [commentsOpen, setCommentsOpen] = useState(false);
+  const [comments, setComments] = useState<{ id: string; text: string; created_at: string }[]>([]);
+  const [commentText, setCommentText] = useState("");
+  const [commentsLoading, setCommentsLoading] = useState(false);
+  const [isMuted, setIsMuted] = useState(false);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [tapIcon, setTapIcon] = useState<"play" | "pause" | null>(null);
+  const tapTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+  // Pre/post AI audio
+  const [phase, setPhase] = useState<"pre" | "video" | "post" | "idle">("idle");
+  const [audioRemaining, setAudioRemaining] = useState(0);
+  const preSound  = useRef<Audio.Sound | null>(null);
+  const postSound = useRef<Audio.Sound | null>(null);
+  const activeRef = useRef(false);
+
+  // Animated sound bars (5 bars, staggered)
+  const barScales = useRef([0, 1, 2, 3, 4].map(() => new Animated.Value(0.3))).current;
+
+  // Animate bars during pre/post phase
+  useEffect(() => {
+    if (phase !== "pre" && phase !== "post") {
+      barScales.forEach((s) => { s.stopAnimation(); s.setValue(0.3); });
+      return;
+    }
+    const loops = barScales.map((scale, i) =>
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(scale, { toValue: 1,   duration: 300 + i * 60, useNativeDriver: true }),
+          Animated.timing(scale, { toValue: 0.2, duration: 300 + i * 60, useNativeDriver: true }),
+        ])
+      )
+    );
+    const starts = loops.map((loop, i) => {
+      const id = setTimeout(() => loop.start(), i * 110);
+      return id;
+    });
+    return () => {
+      starts.forEach(clearTimeout);
+      loops.forEach((l) => l.stop());
+    };
+  }, [phase]);
+
+  // Cleanup sounds on unmount
+  useEffect(() => {
+    return () => {
+      preSound.current?.unloadAsync().catch(() => {});
+      postSound.current?.unloadAsync().catch(() => {});
+      clearTimeout(tapTimer.current);
+    };
+  }, []);
+
+  const skipAudio = () => {
+    if (phase === "pre") {
+      preSound.current?.stopAsync().catch(() => {});
+      preSound.current?.unloadAsync().catch(() => {});
+      preSound.current = null;
+      setPhase("video");
+      setAudioRemaining(0);
+      setIsPlaying(true);
+    } else if (phase === "post") {
+      postSound.current?.stopAsync().catch(() => {});
+      postSound.current?.unloadAsync().catch(() => {});
+      postSound.current = null;
+      setPhase("video");
+      setAudioRemaining(0);
+      setProgress(0);
+      setIsPlaying(true);
+      videoRef.current?.setPositionAsync(0).catch(() => {});
+    }
+  };
+
+  const togglePlay = () => {
+    if (phase !== "video") return;
+    const willPlay = !isPlaying;
+    setIsPlaying(willPlay);
+    setTapIcon(willPlay ? "play" : "pause");
+    clearTimeout(tapTimer.current);
+    tapTimer.current = setTimeout(() => setTapIcon(null), 700);
+  };
+
+  // Progress bar — use refs inside PanResponder to avoid stale closures
+  const [progress, setProgress] = useState(0);
+  const [isSeeking, setIsSeeking] = useState(false);
+  const durationRef = useRef(0);
+  const barWidthRef = useRef(0);
+
+  const doSeek = useCallback((locationX: number) => {
+    if (barWidthRef.current <= 0 || !videoRef.current || durationRef.current <= 0) return;
+    const ratio = Math.max(0, Math.min(1, locationX / barWidthRef.current));
+    setProgress(ratio);
+    videoRef.current.setPositionAsync(ratio * durationRef.current).catch(() => {});
+  }, []);
+
+  const progressPan = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: () => true,
+      onPanResponderGrant: (e) => { setIsSeeking(true);  doSeek(e.nativeEvent.locationX); },
+      onPanResponderMove: (e) =>  { doSeek(e.nativeEvent.locationX); },
+      onPanResponderRelease:   () => setIsSeeking(false),
+      onPanResponderTerminate: () => setIsSeeking(false),
+    })
+  ).current;
+
+  useEffect(() => {
+    activeRef.current = isActive;
+
+    if (!isActive) {
+      preSound.current?.stopAsync().catch(() => {});
+      preSound.current?.unloadAsync().catch(() => {});
+      preSound.current = null;
+      postSound.current?.stopAsync().catch(() => {});
+      postSound.current?.unloadAsync().catch(() => {});
+      postSound.current = null;
+      setIsPlaying(false);
+      setPhase("idle");
+      setAudioRemaining(0);
+      setTapIcon(null);
+      return;
+    }
+
+    if (!clip.pre_audio_url) {
+      setPhase("video");
+      setIsPlaying(true);
+      return;
+    }
+
+    setPhase("pre");
+    let cancelled = false;
+    (async () => {
+      try {
+        if (preSound.current) {
+          await preSound.current.stopAsync().catch(() => {});
+          await preSound.current.unloadAsync().catch(() => {});
+          preSound.current = null;
+        }
+        if (cancelled || !activeRef.current) return;
+
+        const { sound } = await Audio.Sound.createAsync(
+          { uri: clip.pre_audio_url! },
+          { shouldPlay: true, progressUpdateIntervalMillis: 1000 }
+        );
+        if (cancelled || !activeRef.current) { sound.unloadAsync(); return; }
+
+        preSound.current = sound;
+        sound.setOnPlaybackStatusUpdate((s) => {
+          if (!s.isLoaded || !activeRef.current) return;
+          if (s.durationMillis) {
+            const rem = Math.ceil((s.durationMillis - s.positionMillis) / 1000);
+            setAudioRemaining((prev) => (prev !== rem ? rem : prev));
+          }
+          if (s.didJustFinish) {
+            setPhase("video");
+            setAudioRemaining(0);
+            setIsPlaying(true);
+          }
+        });
+      } catch {
+        if (cancelled || !activeRef.current) return;
+        setPhase("video");
+        setIsPlaying(true);
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [isActive]);
+
+  const openComments = async () => {
+    setCommentsOpen(true);
+    if (comments.length > 0) return;
+    setCommentsLoading(true);
+    try {
+      const res = await feedApi.getComments(clip.id);
+      setComments(res.data.comments ?? []);
+    } catch {}
+    setCommentsLoading(false);
+  };
+
+  const postComment = async () => {
+    const text = commentText.trim();
+    if (!text) return;
+    setCommentText("");
+    const tempId = String(Date.now());
+    setComments((prev) => [...prev, { id: tempId, text, created_at: new Date().toISOString() }]);
+    feedApi.postComment(clip.id, text).catch(() => {});
+  };
+
+  const handleShare = async () => {
+    try {
+      await Share.share({ message: `${clip.title} — ${clip.speaker} | Nuvos AI` });
+    } catch {}
+  };
+
+  return (
+    <View style={[styles.card, { width: W, height: cardHeight }]}>
+      {/* Video */}
+      <Video
+        ref={videoRef}
+        source={{ uri: clip.video_url }}
+        style={StyleSheet.absoluteFill}
+        resizeMode={ResizeMode.COVER}
+        isLooping={!clip.post_audio_url}
+        shouldPlay={isPlaying && phase === "video"}
+        isMuted={isMuted}
+        useNativeControls={false}
+        onPlaybackStatusUpdate={(status) => {
+          if (!status.isLoaded) return;
+          if (status.durationMillis) durationRef.current = status.durationMillis;
+          if (!isSeeking && status.durationMillis) {
+            setProgress(status.positionMillis / status.durationMillis);
+          }
+          if (status.didJustFinish && clip.post_audio_url) {
+            setPhase("post");
+            setIsPlaying(false);
+            setProgress(0);
+            (async () => {
+              try {
+                if (postSound.current) {
+                  await postSound.current.stopAsync().catch(() => {});
+                  await postSound.current.unloadAsync().catch(() => {});
+                  postSound.current = null;
+                }
+                if (!activeRef.current) return;
+
+                const { sound } = await Audio.Sound.createAsync(
+                  { uri: clip.post_audio_url! },
+                  { shouldPlay: true, progressUpdateIntervalMillis: 1000 }
+                );
+                if (!activeRef.current) { sound.unloadAsync(); return; }
+
+                postSound.current = sound;
+                sound.setOnPlaybackStatusUpdate((s) => {
+                  if (!s.isLoaded || !activeRef.current) return;
+                  if (s.durationMillis) {
+                    const rem = Math.ceil((s.durationMillis - s.positionMillis) / 1000);
+                    setAudioRemaining((prev) => (prev !== rem ? rem : prev));
+                  }
+                  if (s.didJustFinish) {
+                    setPhase("video");
+                    setAudioRemaining(0);
+                    setProgress(0);
+                    setIsPlaying(true);
+                    videoRef.current?.setPositionAsync(0).catch(() => {});
+                  }
+                });
+              } catch {
+                if (!activeRef.current) return;
+                setPhase("video");
+                setProgress(0);
+                setIsPlaying(true);
+                videoRef.current?.setPositionAsync(0).catch(() => {});
+              }
+            })();
+          }
+        }}
+      />
+
+      {/* Tap-to-toggle-play zone */}
+      <TouchableOpacity
+        style={StyleSheet.absoluteFill}
+        activeOpacity={1}
+        onPress={togglePlay}
+      />
+
+      {/* Tap flash icon */}
+      {tapIcon !== null && (
+        <View style={pStyles.tapFlashWrap} pointerEvents="none">
+          <View style={pStyles.tapFlashCircle}>
+            <Ionicons
+              name={tapIcon === "play" ? "play" : "pause"}
+              size={40}
+              color="white"
+            />
+          </View>
+        </View>
+      )}
+
+      {/* Mute toggle */}
+      <TouchableOpacity style={styles.muteBtn} onPress={() => setIsMuted((m) => !m)}>
+        <Ionicons name={isMuted ? "volume-mute" : "volume-high"} size={18} color="white" />
+      </TouchableOpacity>
+
+      {/* AI pre/post audio badge */}
+      {(phase === "pre" || phase === "post") && (
+        <View style={phStyles.badge} pointerEvents="none">
+          <View style={phStyles.bars}>
+            {barScales.map((scale, i) => (
+              <Animated.View
+                key={i}
+                style={[phStyles.bar, { transform: [{ scaleY: scale }] }]}
+              />
+            ))}
+          </View>
+          <Text style={phStyles.label}>
+            {phase === "pre" ? "Introducción IA" : "Análisis IA"}
+          </Text>
+          {audioRemaining > 0 && (
+            <Text style={phStyles.timer}>{audioRemaining}s</Text>
+          )}
+        </View>
+      )}
+
+      {/* Skip AI audio button */}
+      {(phase === "pre" || phase === "post") && (
+        <TouchableOpacity style={phStyles.skipBtn} onPress={skipAudio} activeOpacity={0.8}>
+          <Text style={phStyles.skipText}>Saltar</Text>
+          <Ionicons name="play-skip-forward" size={13} color="white" />
+        </TouchableOpacity>
+      )}
+
+      {/* Dark overlay at bottom */}
+      <View style={styles.overlay} />
+
+      {/* Speaker badge */}
+      <View style={styles.speakerBadge}>
+        <Text style={styles.speakerText}>{clip.speaker}</Text>
+      </View>
+
+      {/* Duration */}
+      <View style={styles.durationBadge}>
+        <Text style={styles.durationText}>{formatDuration(clip.duration_sec)}</Text>
+      </View>
+
+      {/* Bottom info */}
+      <View style={styles.bottomInfo}>
+        <Text style={styles.clipTitle} numberOfLines={2}>{clip.title}</Text>
+        {clip.tags.length > 0 && (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 6 }}>
+            {clip.tags.map((tag) => (
+              <View key={tag} style={styles.tag}>
+                <Text style={styles.tagText}>#{tag}</Text>
+              </View>
+            ))}
+          </ScrollView>
+        )}
+
+        {/* Caption toggle */}
+        <TouchableOpacity
+          style={styles.captionBtn}
+          onPress={() => setCaptionOpen(true)}
+        >
+          <Ionicons name="text-outline" size={14} color="rgba(255,255,255,0.8)" />
+          <Text style={styles.captionBtnText}>Ver transcripción</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Right actions */}
+      <View style={styles.actions}>
+        <TouchableOpacity style={styles.actionBtn} onPress={() => onLike(clip.id)}>
+          <Ionicons
+            name={clip.liked ? "heart" : "heart-outline"}
+            size={28}
+            color={clip.liked ? "#ef4444" : "white"}
+          />
+          <Text style={styles.actionLabel}>{formatCount(clip.like_count)}</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.actionBtn} onPress={openComments}>
+          <Ionicons name="chatbubble-outline" size={24} color="white" />
+          <Text style={styles.actionLabel}>Comentar</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.actionBtn} onPress={() => onSave(clip.id)}>
+          <Ionicons
+            name={clip.saved ? "bookmark" : "bookmark-outline"}
+            size={26}
+            color={clip.saved ? "#f59e0b" : "white"}
+          />
+          <Text style={styles.actionLabel}>{clip.saved ? "Guardado" : "Guardar"}</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.actionBtn} onPress={handleShare}>
+          <Ionicons name="share-social-outline" size={26} color="white" />
+          <Text style={styles.actionLabel}>Compartir</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.actionBtn}>
+          <Ionicons name="eye-outline" size={22} color="rgba(255,255,255,0.7)" />
+          <Text style={styles.actionLabel}>{formatCount(clip.view_count)}</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Progress bar */}
+      <View
+        style={pStyles.bar}
+        onLayout={(e) => { barWidthRef.current = e.nativeEvent.layout.width; }}
+        {...progressPan.panHandlers}
+      >
+        <View style={pStyles.times}>
+          <Text style={pStyles.time}>
+            {formatDuration(Math.floor((progress * durationRef.current) / 1000))}
+          </Text>
+          <Text style={pStyles.time}>{formatDuration(clip.duration_sec)}</Text>
+        </View>
+        <View style={pStyles.track}>
+          <View style={[pStyles.fill, { width: `${(progress * 100).toFixed(2)}%` as any }]}>
+            <View style={[pStyles.thumb, isSeeking && pStyles.thumbActive]} />
+          </View>
+        </View>
+      </View>
+
+      {/* Caption modal */}
+      <Modal visible={captionOpen} transparent animationType="slide" onRequestClose={() => setCaptionOpen(false)}>
+        <TouchableOpacity style={styles.captionOverlay} activeOpacity={1} onPress={() => setCaptionOpen(false)}>
+          <View style={[styles.captionSheet, { backgroundColor: colors.card }]}>
+            <View style={[styles.captionHandle, { backgroundColor: colors.border }]} />
+            <Text style={[styles.captionTitle, { color: colors.text }]}>{clip.title}</Text>
+            <Text style={[styles.captionSpeaker, { color: colors.accentLight }]}>{clip.speaker}</Text>
+            <ScrollView style={{ marginTop: 12 }} showsVerticalScrollIndicator={false}>
+              <Text style={[styles.captionBody, { color: colors.textSub }]}>
+                {clip.translated_caption || clip.description}
+              </Text>
+            </ScrollView>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* Comments modal */}
+      <Modal visible={commentsOpen} transparent animationType="slide" onRequestClose={() => setCommentsOpen(false)}>
+        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1, justifyContent: "flex-end" }}>
+          <View style={[styles.captionSheet, { backgroundColor: colors.card, maxHeight: "75%" }]}>
+            <View style={[styles.captionHandle, { backgroundColor: colors.border }]} />
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+              <Text style={[styles.captionTitle, { color: colors.text }]}>Comentarios</Text>
+              <TouchableOpacity onPress={() => setCommentsOpen(false)}>
+                <Ionicons name="close" size={22} color={colors.textMuted} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
+              {commentsLoading ? (
+                <ActivityIndicator color={colors.accentLight} style={{ marginTop: 24 }} />
+              ) : comments.length === 0 ? (
+                <View style={{ alignItems: "center", paddingVertical: 32 }}>
+                  <Ionicons name="chatbubbles-outline" size={32} color={colors.textDim} />
+                  <Text style={[styles.captionBody, { color: colors.textMuted, marginTop: 8 }]}>
+                    Sé el primero en comentar
+                  </Text>
+                </View>
+              ) : (
+                comments.map((c) => (
+                  <View key={c.id} style={{ marginBottom: 14 }}>
+                    <Text style={[{ color: colors.text, fontSize: 13, lineHeight: 18 }]}>{c.text}</Text>
+                    <Text style={[{ color: colors.textDim, fontSize: 11, marginTop: 3 }]}>
+                      {new Date(c.created_at).toLocaleDateString("es", { day: "numeric", month: "short" })}
+                    </Text>
+                  </View>
+                ))
+              )}
+            </ScrollView>
+
+            {/* Comment input */}
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginTop: 12, borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 12 }}>
+              <TextInput
+                style={[styles.commentInput, { backgroundColor: colors.bg, color: colors.text, borderColor: colors.border }]}
+                placeholder="Escribe un comentario..."
+                placeholderTextColor={colors.textDim}
+                value={commentText}
+                onChangeText={setCommentText}
+                multiline
+                maxLength={300}
+              />
+              <TouchableOpacity onPress={postComment} disabled={!commentText.trim()}>
+                <Ionicons name="send" size={22} color={commentText.trim() ? colors.accentLight : colors.textDim} />
+              </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+    </View>
+  );
+}
+
+// ── Main Screen ───────────────────────────────────────────────────────────────
+
+export default function VideosScreen() {
+  const { colors } = useTheme();
+
+  const [clips, setClips]             = useState<Clip[]>([]);
+  const [loading, setLoading]         = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [nextCursor, setNextCursor]   = useState<number | null>(0);
+  const [activeIndex, setActiveIndex] = useState(0);
+
+  const [filterOpen, setFilterOpen]   = useState(false);
+  const [speaker, setSpeaker]         = useState<string | null>(null);
+  const [tag, setTag]                 = useState<string | null>(null);
+  const [sort, setSort]               = useState<"recent" | "trending">("recent");
+
+  const flatRef = useRef<FlatList>(null);
+  const [cardHeight, setCardHeight] = useState(H);
+
+  const loadClips = useCallback(async (reset = false) => {
+    const cursor = reset ? 0 : (nextCursor ?? 0);
+    if (!reset && nextCursor === null) return;
+    reset ? setLoading(true) : setLoadingMore(true);
+    try {
+      const res = await feedApi.getClips({
+        cursor,
+        speaker: speaker ?? undefined,
+        tag: tag ?? undefined,
+        sort,
+      });
+      const newClips: Clip[] = res.data.clips ?? [];
+      setClips((prev) => reset ? newClips : [...prev, ...newClips]);
+      setNextCursor(res.data.next_cursor ?? null);
+      if (reset) setActiveIndex(0);
+    } catch {}
+    setLoading(false);
+    setLoadingMore(false);
+  }, [speaker, tag, sort, nextCursor]);
+
+  useEffect(() => { loadClips(true); }, [speaker, tag, sort]); // eslint-disable-line
+
+  // iOS: allow audio even when silent switch is on
+  useEffect(() => {
+    Audio.setAudioModeAsync({ playsInSilentModeIOS: true, staysActiveInBackground: false }).catch(() => {});
+  }, []);
+
+  // Pause everything when screen loses focus
+  useFocusEffect(useCallback(() => {
+    return () => setActiveIndex(-1);
+  }, []));
+
+  const handleLike = async (id: string) => {
+    setClips((prev) => prev.map((c) =>
+      c.id === id
+        ? { ...c, liked: !c.liked, like_count: c.liked ? c.like_count - 1 : c.like_count + 1 }
+        : c
+    ));
+    feedApi.likeClip(id).catch(() => {});
+  };
+
+  const handleSave = async (id: string) => {
+    setClips((prev) => prev.map((c) => c.id === id ? { ...c, saved: !c.saved } : c));
+    feedApi.saveClip(id).catch(() => {});
+  };
+
+  const onViewableItemsChanged = useRef(({ viewableItems }: any) => {
+    if (viewableItems.length > 0) {
+      const idx = viewableItems[0].index ?? 0;
+      setActiveIndex(idx);
+      // Load more when near end
+      setClips((prev) => {
+        if (idx >= prev.length - 3) {
+          setNextCursor((cur) => {
+            if (cur !== null) loadClips(false);
+            return cur;
+          });
+        }
+        return prev;
+      });
+    }
+  }).current;
+
+  if (loading) {
+    return (
+      <SafeAreaView style={[styles.container, { backgroundColor: "#000" }]} edges={["top"]}>
+        <View style={styles.center}>
+          <ActivityIndicator size="large" color="#00d47e" />
+          <Text style={{ color: "white", marginTop: 12, fontSize: 14 }}>Cargando videos...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (clips.length === 0) {
+    return (
+      <SafeAreaView style={[styles.container, { backgroundColor: "#000" }]} edges={["top"]}>
+        <View style={styles.center}>
+          <Ionicons name="videocam-off-outline" size={48} color="rgba(255,255,255,0.4)" />
+          <Text style={{ color: "rgba(255,255,255,0.6)", marginTop: 12, fontSize: 15 }}>
+            No hay videos disponibles
+          </Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  return (
+    <View style={[styles.container, { backgroundColor: "#000" }]}>
+      {/* Filter button */}
+      <TouchableOpacity
+        style={styles.filterBtn}
+        onPress={() => setFilterOpen(true)}
+      >
+        <Ionicons name="options-outline" size={20} color="white" />
+        {(speaker || tag) && <View style={styles.filterDot} />}
+      </TouchableOpacity>
+
+      {/* Active filters chips */}
+      {(speaker || tag || sort !== "recent") && (
+        <View style={styles.activeFilters}>
+          {speaker && (
+            <TouchableOpacity style={styles.filterChip} onPress={() => setSpeaker(null)}>
+              <Text style={styles.filterChipText}>{speaker} ✕</Text>
+            </TouchableOpacity>
+          )}
+          {tag && (
+            <TouchableOpacity style={styles.filterChip} onPress={() => setTag(null)}>
+              <Text style={styles.filterChipText}>#{tag} ✕</Text>
+            </TouchableOpacity>
+          )}
+          {sort === "trending" && (
+            <TouchableOpacity style={styles.filterChip} onPress={() => setSort("recent")}>
+              <Text style={styles.filterChipText}>🔥 Trending ✕</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      )}
+
+      <FlatList
+        ref={flatRef}
+        data={clips}
+        keyExtractor={(c) => c.id}
+        pagingEnabled
+        showsVerticalScrollIndicator={false}
+        decelerationRate="fast"
+        onLayout={(e) => setCardHeight(e.nativeEvent.layout.height)}
+        getItemLayout={(_, index) => ({ length: cardHeight, offset: cardHeight * index, index })}
+        onViewableItemsChanged={onViewableItemsChanged}
+        viewabilityConfig={{ itemVisiblePercentThreshold: 50 }}
+        renderItem={({ item, index }) => (
+          <ClipCard
+            clip={item}
+            isActive={index === activeIndex}
+            colors={colors}
+            onLike={handleLike}
+            onSave={handleSave}
+            cardHeight={cardHeight}
+          />
+        )}
+        ListFooterComponent={loadingMore ? (
+          <View style={[styles.center, { height: cardHeight, backgroundColor: "#000" }]}>
+            <ActivityIndicator size="small" color="#00d47e" />
+          </View>
+        ) : null}
+      />
+
+      {/* Filter Modal */}
+      <Modal visible={filterOpen} transparent animationType="slide" onRequestClose={() => setFilterOpen(false)}>
+        <TouchableOpacity style={styles.filterOverlay} activeOpacity={1} onPress={() => setFilterOpen(false)}>
+          <View style={[styles.filterSheet, { backgroundColor: colors.card }]}>
+            <View style={[styles.captionHandle, { backgroundColor: colors.border }]} />
+
+            <Text style={[styles.filterSectionTitle, { color: colors.text }]}>Ordenar</Text>
+            <View style={{ flexDirection: "row", gap: 8, marginBottom: 16 }}>
+              {(["recent", "trending"] as const).map((s) => (
+                <TouchableOpacity
+                  key={s}
+                  style={[styles.filterOption, sort === s && { backgroundColor: "#00d47e22", borderColor: "#00d47e" }, { borderColor: colors.border }]}
+                  onPress={() => { setSort(s); }}
+                >
+                  <Text style={[styles.filterOptionText, { color: sort === s ? "#00d47e" : colors.textSub }]}>
+                    {s === "recent" ? "⏰ Recientes" : "🔥 Trending"}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <Text style={[styles.filterSectionTitle, { color: colors.text }]}>Inversor</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 16 }}>
+              {SPEAKERS.map((sp) => {
+                const active = sp === "Todos" ? !speaker : speaker === sp;
+                return (
+                  <TouchableOpacity
+                    key={sp}
+                    style={[styles.filterOption, active && { backgroundColor: "#00d47e22", borderColor: "#00d47e" }, { borderColor: colors.border, marginRight: 8 }]}
+                    onPress={() => setSpeaker(sp === "Todos" ? null : sp)}
+                  >
+                    <Text style={[styles.filterOptionText, { color: active ? "#00d47e" : colors.textSub }]}>{sp}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+
+            <Text style={[styles.filterSectionTitle, { color: colors.text }]}>Tema</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 24 }}>
+              {TAGS.map((t) => {
+                const active = t === "Todos" ? !tag : tag === t;
+                return (
+                  <TouchableOpacity
+                    key={t}
+                    style={[styles.filterOption, active && { backgroundColor: "#00d47e22", borderColor: "#00d47e" }, { borderColor: colors.border, marginRight: 8 }]}
+                    onPress={() => setTag(t === "Todos" ? null : t)}
+                  >
+                    <Text style={[styles.filterOptionText, { color: active ? "#00d47e" : colors.textSub }]}>#{t}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+
+            <TouchableOpacity
+              style={[styles.applyBtn, { backgroundColor: "#00d47e" }]}
+              onPress={() => setFilterOpen(false)}
+            >
+              <Text style={{ color: "white", fontWeight: "700", fontSize: 15 }}>Aplicar filtros</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1 },
+  center: { flex: 1, alignItems: "center", justifyContent: "center" },
+
+  card: { position: "relative", backgroundColor: "#000" },
+  overlay: {
+    position: "absolute", bottom: 0, left: 0, right: 0, height: 280,
+  },
+
+  speakerBadge: {
+    position: "absolute", top: 16, left: 16,
+    backgroundColor: "rgba(0,0,0,0.55)",
+    paddingHorizontal: 10, paddingVertical: 5,
+    borderRadius: 20,
+  },
+  speakerText: { color: "white", fontSize: 12, fontWeight: "700" },
+
+  durationBadge: {
+    position: "absolute", top: 16, right: 16,
+    backgroundColor: "rgba(0,0,0,0.55)",
+    paddingHorizontal: 8, paddingVertical: 4,
+    borderRadius: 10,
+  },
+  durationText: { color: "white", fontSize: 11, fontWeight: "600" },
+
+  bottomInfo: {
+    position: "absolute", bottom: 24, left: 16, right: 80,
+  },
+  clipTitle: {
+    color: "white", fontSize: 15, fontWeight: "700",
+    textShadowColor: "rgba(0,0,0,0.8)", textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 4,
+  },
+
+  tag: {
+    backgroundColor: "rgba(255,255,255,0.18)",
+    borderRadius: 12, paddingHorizontal: 10, paddingVertical: 4, marginRight: 6,
+  },
+  tagText: { color: "rgba(255,255,255,0.85)", fontSize: 11, fontWeight: "600" },
+
+  captionBtn: {
+    flexDirection: "row", alignItems: "center", gap: 5,
+    marginTop: 10, alignSelf: "flex-start",
+    backgroundColor: "rgba(255,255,255,0.12)", borderRadius: 12,
+    paddingHorizontal: 10, paddingVertical: 5,
+  },
+  captionBtnText: { color: "rgba(255,255,255,0.8)", fontSize: 12 },
+
+  actions: {
+    position: "absolute", right: 12, bottom: 80,
+    alignItems: "center", gap: 20,
+  },
+  actionBtn: { alignItems: "center", gap: 3 },
+  actionLabel: {
+    color: "white", fontSize: 11, fontWeight: "600",
+    textShadowColor: "rgba(0,0,0,0.8)", textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 3,
+  },
+
+  filterBtn: {
+    position: "absolute", top: 56, right: 16, zIndex: 10,
+    backgroundColor: "rgba(0,0,0,0.5)", borderRadius: 20,
+    padding: 10,
+  },
+  filterDot: {
+    position: "absolute", top: 6, right: 6,
+    width: 8, height: 8, borderRadius: 4, backgroundColor: "#00d47e",
+  },
+  activeFilters: {
+    position: "absolute", top: 56, left: 16, zIndex: 10,
+    flexDirection: "row", gap: 6,
+  },
+  filterChip: {
+    backgroundColor: "rgba(0,212,126,0.25)", borderRadius: 16,
+    paddingHorizontal: 10, paddingVertical: 5,
+    borderWidth: 1, borderColor: "#00d47e50",
+  },
+  filterChipText: { color: "#00d47e", fontSize: 11, fontWeight: "700" },
+
+  filterOverlay: { flex: 1, justifyContent: "flex-end" },
+  filterSheet: {
+    borderTopLeftRadius: 24, borderTopRightRadius: 24,
+    padding: 20, paddingBottom: 40,
+  },
+  filterSectionTitle: {
+    fontSize: 13, fontWeight: "700", letterSpacing: 0.3,
+    textTransform: "uppercase", marginBottom: 10,
+  },
+  filterOption: {
+    borderWidth: 1, borderRadius: 12,
+    paddingHorizontal: 14, paddingVertical: 8,
+  },
+  filterOptionText: { fontSize: 13, fontWeight: "600" },
+  applyBtn: {
+    borderRadius: 14, paddingVertical: 15,
+    alignItems: "center",
+  },
+
+  captionOverlay: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.5)" },
+  captionSheet: {
+    borderTopLeftRadius: 24, borderTopRightRadius: 24,
+    padding: 20, paddingBottom: 40, maxHeight: H * 0.65,
+  },
+  captionHandle: { width: 36, height: 4, borderRadius: 2, alignSelf: "center", marginBottom: 16 },
+  captionTitle: { fontSize: 16, fontWeight: "800" },
+  captionSpeaker: { fontSize: 13, fontWeight: "600", marginTop: 4 },
+  captionBody: { fontSize: 14, lineHeight: 22 },
+  muteBtn: {
+    position: "absolute", top: 56, left: 16,
+    backgroundColor: "rgba(0,0,0,0.5)", borderRadius: 20, padding: 8,
+  },
+  commentInput: {
+    flex: 1, borderRadius: 20, paddingHorizontal: 14,
+    paddingVertical: 8, fontSize: 14, borderWidth: StyleSheet.hairlineWidth,
+  },
+});
+
+const pStyles = StyleSheet.create({
+  bar: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    paddingHorizontal: 16,
+    paddingBottom: 12,
+    paddingTop: 20,
+  },
+  times: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 6,
+  },
+  time: {
+    color: "rgba(255,255,255,0.65)",
+    fontSize: 10,
+    fontWeight: "600" as const,
+  },
+  track: {
+    height: 3,
+    backgroundColor: "rgba(255,255,255,0.25)",
+    borderRadius: 2,
+  },
+  fill: {
+    height: 3,
+    backgroundColor: "white",
+    borderRadius: 2,
+    alignItems: "flex-end",
+    justifyContent: "center",
+  },
+  thumb: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: "white",
+    marginRight: -6,
+    shadowColor: "#000",
+    shadowOpacity: 0.4,
+    shadowRadius: 3,
+    shadowOffset: { width: 0, height: 1 },
+  },
+  thumbActive: {
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    marginRight: -8,
+  },
+  tapFlashWrap: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  tapFlashCircle: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: "rgba(0,0,0,0.45)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+});
+
+const phStyles = StyleSheet.create({
+  badge: {
+    position: "absolute",
+    top: 20,
+    alignSelf: "center",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 9,
+    borderRadius: 20,
+    backgroundColor: "rgba(10,10,20,0.72)",
+    borderWidth: 1,
+    borderColor: "rgba(139,92,246,0.45)",
+  },
+  bars: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 2,
+    height: 16,
+  },
+  bar: {
+    width: 3,
+    height: 14,
+    borderRadius: 2,
+    backgroundColor: "#a78bfa",
+  },
+  label: {
+    color: "#e2d9ff",
+    fontSize: 12,
+    fontWeight: "700" as const,
+    letterSpacing: 0.3,
+  },
+  timer: {
+    color: "rgba(167,139,250,0.85)",
+    fontSize: 11,
+    fontWeight: "600" as const,
+  },
+  skipBtn: {
+    position: "absolute",
+    bottom: 36,
+    right: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 4,
+    backgroundColor: "rgba(20,20,30,0.75)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.3)",
+  },
+  skipText: {
+    color: "white",
+    fontSize: 12,
+    fontWeight: "700" as const,
+    letterSpacing: 0.3,
+  },
+});

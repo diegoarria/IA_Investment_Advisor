@@ -62,6 +62,14 @@ export default function NotificationsScreen() {
   const [newsLoading, setNewsLoading] = useState(false);
   const [newsError, setNewsError]   = useState(false);
 
+  // News tabs: portfolio vs general market
+  const [newsTab, setNewsTab] = useState<"portfolio" | "general">("portfolio");
+
+  // General market news
+  const [generalNews, setGeneralNews]           = useState<NewsItem[]>([]);
+  const [generalNewsLoading, setGeneralNewsLoading] = useState(false);
+  const [generalNewsShown, setGeneralNewsShown] = useState(10);
+
   // News filter + pagination
   const [newsFilter, setNewsFilter] = useState<string | null>(null);
   const [newsShown, setNewsShown]   = useState(10);
@@ -83,6 +91,29 @@ export default function NotificationsScreen() {
   // Alert context modal
   const [alertModal, setAlertModal]     = useState<{ ticker: string; change_pct: number } | null>(null);
   const [alertInsight, setAlertInsight] = useState<string | null>(null);
+
+  // AI news summary modal
+  const [newsModal, setNewsModal]         = useState<NewsItem | null>(null);
+  const [newsSummary, setNewsSummary]     = useState<string | null>(null);
+  const [newsSummaryLoading, setNewsSummaryLoading] = useState(false);
+
+  const openNewsSummary = (item: NewsItem) => {
+    setNewsModal(item);
+    setNewsSummary(null);
+    setNewsSummaryLoading(false);
+  };
+
+  const handleRequestSummary = async () => {
+    if (!newsModal) return;
+    setNewsSummaryLoading(true);
+    try {
+      const res = await marketApi.summarizeNews(newsModal.title, newsModal.url);
+      setNewsSummary(res.data.summary ?? null);
+    } catch {
+      setNewsSummary("No se pudo generar el resumen. Toca el enlace para leer la nota completa.");
+    }
+    setNewsSummaryLoading(false);
+  };
   const [alertLoading, setAlertLoading] = useState(false);
 
   const markdownStyles = useMemo(() => ({
@@ -129,6 +160,16 @@ export default function NotificationsScreen() {
     setNewsLoading(false);
   }, [positions.length]);
 
+  const loadGeneralNews = useCallback(async () => {
+    setGeneralNewsLoading(true);
+    try {
+      // Fetch news for major indices as general market news
+      const res = await marketApi.getNews(["SPY", "QQQ", "DIA", "AAPL", "MSFT", "NVDA", "AMZN", "META"]);
+      setGeneralNews(res.data ?? []);
+    } catch {}
+    setGeneralNewsLoading(false);
+  }, []);
+
   const loadWatchlistWithChange = useCallback(async () => {
     if (watchlist.length === 0) return;
     setPricesLoading(true);
@@ -158,10 +199,10 @@ export default function NotificationsScreen() {
   useFocusEffect(useCallback(() => {
     loadPortfolioNews();
     loadPortfolioPrices();
-    // Auto-refresh portfolio prices every 30 seconds
+    loadGeneralNews();
     const interval = setInterval(() => loadPortfolioPrices(), 30_000);
     return () => clearInterval(interval);
-  }, [loadPortfolioNews, loadPortfolioPrices]));
+  }, [loadPortfolioNews, loadPortfolioPrices, loadGeneralNews]));
 
   const handleMarkRead = async (id: string) => {
     await notificationsApi.markRead(id);
@@ -351,7 +392,7 @@ export default function NotificationsScreen() {
             <TouchableOpacity
               key={item.uuid}
               style={[styles.newsRow, { borderTopColor: colors.border }]}
-              onPress={() => Linking.openURL(item.url).catch(() => {})}
+              onPress={() => openNewsSummary(item)}
               activeOpacity={0.75}
             >
               {item.thumbnail ? (
@@ -390,15 +431,96 @@ export default function NotificationsScreen() {
       );
     };
 
+    const visibleGeneral = generalNews.slice(0, generalNewsShown);
+
     return (
       <View style={[styles.section, { backgroundColor: colors.card, borderColor: colors.border }]}>
-        {/* Header */}
-        <View style={[styles.sectionHeader, { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border }]}>
-          <Ionicons name="newspaper-outline" size={14} color={colors.accentLight} />
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>Noticias del portafolio</Text>
-          <Text style={[styles.sectionSubtitle, { color: colors.textDim }]}>últimos 7 días</Text>
+        {/* Header with tabs */}
+        <View style={[styles.sectionHeader, { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border, flexDirection: "column", alignItems: "flex-start", gap: 10 }]}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+            <Ionicons name="newspaper-outline" size={14} color={colors.accentLight} />
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>Noticias</Text>
+            <Text style={[styles.sectionSubtitle, { color: colors.textDim }]}>últimos 7 días</Text>
+          </View>
+          {/* Tab selector */}
+          <View style={[styles.newsTabs, { backgroundColor: colors.bg }]}>
+            {([
+              { key: "portfolio" as const, label: "📊 Mi portafolio" },
+              { key: "general"   as const, label: "🌍 Mercado" },
+            ]).map(({ key, label }) => (
+              <TouchableOpacity
+                key={key}
+                style={[styles.newsTabBtn, newsTab === key && { backgroundColor: colors.card, borderColor: colors.accentLight + "60" }]}
+                onPress={() => setNewsTab(key)}
+              >
+                <Text style={[styles.newsTabText, { color: newsTab === key ? colors.accentLight : colors.textMuted }]}>{label}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
         </View>
 
+        {/* General market news body */}
+        {newsTab === "general" && (
+          <View>
+            {generalNewsLoading ? (
+              <View style={styles.newsEmptyState}>
+                <ActivityIndicator color={colors.accentLight} />
+                <Text style={[styles.newsEmptyText, { color: colors.textDim }]}>Cargando noticias del mercado…</Text>
+              </View>
+            ) : visibleGeneral.length === 0 ? (
+              <TouchableOpacity style={styles.newsEmptyState} onPress={loadGeneralNews} activeOpacity={0.7}>
+                <Ionicons name="globe-outline" size={28} color={colors.textDim} />
+                <Text style={[styles.newsEmptyText, { color: colors.textMuted }]}>Sin noticias. Toca para recargar.</Text>
+              </TouchableOpacity>
+            ) : (
+              <>
+                {visibleGeneral.map((item) => (
+                  <TouchableOpacity
+                    key={item.uuid}
+                    style={[styles.newsRow, { borderTopColor: colors.border }]}
+                    onPress={() => openNewsSummary(item)}
+                    activeOpacity={0.75}
+                  >
+                    {item.thumbnail ? (
+                      <Image source={{ uri: item.thumbnail }} style={styles.newsThumbnail} />
+                    ) : (
+                      <View style={[styles.newsThumbnail, { backgroundColor: colors.border, alignItems: "center", justifyContent: "center" }]}>
+                        <Ionicons name="newspaper-outline" size={18} color={colors.textDim} />
+                      </View>
+                    )}
+                    <View style={{ flex: 1 }}>
+                      <View style={styles.newsTickerRow}>
+                        <View style={[styles.newsTickerBadge, { backgroundColor: colors.accentGlow }]}>
+                          <Text style={[styles.newsTickerText, { color: colors.accentLight }]}>{item.symbol}</Text>
+                        </View>
+                        <Text style={[styles.newsDate, { color: colors.textDim }]}>
+                          {new Date(item.timestamp * 1000).toLocaleDateString("es", { day: "numeric", month: "short" })}
+                        </Text>
+                      </View>
+                      <Text style={[styles.newsTitle, { color: colors.text }]} numberOfLines={2}>{item.title}</Text>
+                      <Text style={[styles.newsPublisher, { color: colors.textMuted }]}>{item.publisher}</Text>
+                    </View>
+                  </TouchableOpacity>
+                ))}
+                {visibleGeneral.length < generalNews.length && (
+                  <TouchableOpacity
+                    style={[styles.newsShowMore, { borderTopColor: colors.border }]}
+                    onPress={() => setGeneralNewsShown((n) => n + 10)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[styles.newsShowMoreText, { color: colors.accentLight }]}>
+                      Ver {Math.min(10, generalNews.length - visibleGeneral.length)} noticias más
+                    </Text>
+                  </TouchableOpacity>
+                )}
+              </>
+            )}
+          </View>
+        )}
+
+        {/* Portfolio news body */}
+        {newsTab === "portfolio" && (
+        <View>
         {/* Ticker filter chips */}
         {positions.length > 0 && !newsLoading && news.length > 0 && (
           <ScrollView
@@ -435,6 +557,8 @@ export default function NotificationsScreen() {
         )}
 
         {body()}
+        </View>
+        )}
       </View>
     );
   };
@@ -529,6 +653,82 @@ export default function NotificationsScreen() {
         onClose={() => setPaywallOpen(false)}
         reason="Las noticias ilimitadas son exclusivas de Premium"
       />
+
+      {/* AI News summary modal */}
+      <Modal visible={!!newsModal} transparent animationType="slide" onRequestClose={() => { setNewsModal(null); setNewsSummary(null); }}>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <View style={styles.modalHandle} />
+            <View style={styles.modalHeader}>
+              <Text style={[styles.modalTitle, { color: colors.text }]} numberOfLines={2}>
+                {newsModal?.title}
+              </Text>
+              <TouchableOpacity onPress={() => { setNewsModal(null); setNewsSummary(null); }}>
+                <Ionicons name="close" size={22} color={colors.textMuted} />
+              </TouchableOpacity>
+            </View>
+            <Text style={{ color: colors.textDim, fontSize: 11, marginBottom: 14 }}>
+              {newsModal?.publisher} · {newsModal ? new Date(newsModal.timestamp * 1000).toLocaleDateString("es", { day: "numeric", month: "long" }) : ""}
+            </Text>
+
+            {/* State 1: Initial choice */}
+            {!newsSummary && !newsSummaryLoading && (
+              <View style={styles.newsChoiceRow}>
+                <TouchableOpacity
+                  style={[styles.newsChoiceCard, { borderColor: colors.border, backgroundColor: colors.bg }]}
+                  activeOpacity={0.75}
+                  onPress={() => { setNewsModal(null); Linking.openURL(newsModal?.url ?? "").catch(() => {}); }}
+                >
+                  <Text style={styles.newsChoiceEmoji}>🌐</Text>
+                  <Text style={[styles.newsChoiceTitle, { color: colors.text }]}>Ver noticia completa</Text>
+                  <Text style={[styles.newsChoiceSub, { color: colors.textMuted }]}>Abre el artículo original</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.newsChoiceCard, { borderColor: colors.accentLight + "55", backgroundColor: colors.accentGlow }]}
+                  activeOpacity={0.75}
+                  onPress={handleRequestSummary}
+                >
+                  <Text style={styles.newsChoiceEmoji}>✦</Text>
+                  <Text style={[styles.newsChoiceTitle, { color: colors.accentLight }]}>Resumen de IA</Text>
+                  <Text style={[styles.newsChoiceSub, { color: colors.textMuted }]}>4–8 líneas con lo esencial</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {/* State 2: Loading */}
+            {newsSummaryLoading && (
+              <View style={{ alignItems: "center", paddingVertical: 36 }}>
+                <ActivityIndicator color={colors.accentLight} size="large" />
+                <Text style={{ color: colors.textMuted, marginTop: 14, fontSize: 13 }}>Leyendo el artículo…</Text>
+              </View>
+            )}
+
+            {/* State 3: Summary */}
+            {!!newsSummary && !newsSummaryLoading && (
+              <>
+                <ScrollView style={{ maxHeight: 280 }}>
+                  <Markdown style={markdownStyles}>{newsSummary}</Markdown>
+                </ScrollView>
+                <View style={[styles.newsSummaryActions, { borderTopColor: colors.border }]}>
+                  <TouchableOpacity
+                    style={[styles.newsSummaryBtn, { borderColor: colors.border }]}
+                    onPress={() => { setNewsModal(null); setNewsSummary(null); Linking.openURL(newsModal?.url ?? "").catch(() => {}); }}
+                  >
+                    <Ionicons name="open-outline" size={14} color={colors.textSub} />
+                    <Text style={[styles.newsSummaryBtnText, { color: colors.textSub }]}>Ver artículo completo</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.newsSummaryBtn, { borderColor: colors.accentLight + "55", backgroundColor: colors.accentGlow }]}
+                    onPress={() => { setNewsModal(null); setNewsSummary(null); }}
+                  >
+                    <Text style={[styles.newsSummaryBtnText, { color: colors.accentLight }]}>Cerrar</Text>
+                  </TouchableOpacity>
+                </View>
+              </>
+            )}
+          </View>
+        </View>
+      </Modal>
 
       {/* Alert context modal */}
       <Modal visible={!!alertModal} transparent animationType="slide" onRequestClose={() => setAlertModal(null)}>
@@ -645,6 +845,37 @@ function makeStyles(c: Colors) {
       alignItems: "center",
     },
     newsShowMoreText: { fontSize: 12, fontWeight: "600" },
+
+    newsChoiceRow: {
+      flexDirection: "row", gap: 10, marginBottom: 8,
+    },
+    newsChoiceCard: {
+      flex: 1, borderWidth: 1, borderRadius: 12,
+      padding: 14, alignItems: "center", gap: 6,
+    },
+    newsChoiceEmoji: { fontSize: 22 },
+    newsChoiceTitle: { fontSize: 13, fontWeight: "700", textAlign: "center" },
+    newsChoiceSub: { fontSize: 11, textAlign: "center", lineHeight: 15 },
+
+    newsSummaryActions: {
+      flexDirection: "row", gap: 8, marginTop: 14,
+      paddingTop: 12, borderTopWidth: StyleSheet.hairlineWidth,
+    },
+    newsSummaryBtn: {
+      flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center",
+      gap: 5, borderWidth: 1, borderRadius: 10, paddingVertical: 10,
+    },
+    newsSummaryBtnText: { fontSize: 12, fontWeight: "600" },
+
+    // News tabs
+    newsTabs: {
+      flexDirection: "row", borderRadius: 10, padding: 3, gap: 4, alignSelf: "stretch",
+    },
+    newsTabBtn: {
+      flex: 1, borderRadius: 8, paddingVertical: 7, alignItems: "center",
+      borderWidth: 1, borderColor: "transparent",
+    },
+    newsTabText: { fontSize: 12, fontWeight: "700" },
 
     // Watchlist
     watchRow: {

@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useCallback, useEffect } from "react";
 import StockAvatar from "../../src/components/StockAvatar";
-import { useFocusEffect } from "expo-router";
+import { useFocusEffect, router } from "expo-router";
 import {
   View, Text, TouchableOpacity, TextInput, ScrollView,
   StyleSheet, ActivityIndicator, SafeAreaView, Alert,
@@ -1660,7 +1660,11 @@ export default function PortfolioScreen() {
                   <View style={s.posCard}>
                   {/* Header: ticker + edit + remove */}
                   <View style={s.posHeader}>
-                    <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                    <TouchableOpacity
+                      style={{ flexDirection: "row", alignItems: "center", gap: 10 }}
+                      onPress={() => router.push(`/stock/${pos.ticker}` as any)}
+                      activeOpacity={0.7}
+                    >
                       <StockAvatar ticker={pos.ticker} size={36} />
                       <View>
                         <Text style={[s.posTicker, { color: colors.text }]}>{pos.ticker}</Text>
@@ -1668,7 +1672,7 @@ export default function PortfolioScreen() {
                           <Text style={[s.posName, { color: colors.textMuted }]}>{pd?.name || pos.name}</Text>
                         )}
                       </View>
-                    </View>
+                    </TouchableOpacity>
                     <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
                       <TouchableOpacity
                         onPress={() => setEditingPos({ id: pos.id, shares: String(pos.shares), avgPrice: String(pos.avgPrice), purchaseDate: pos.purchaseDate ?? new Date().toISOString().split("T")[0] })}

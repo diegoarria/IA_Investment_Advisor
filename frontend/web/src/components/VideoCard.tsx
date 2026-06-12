@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useEffect, useState, useCallback } from "react";
-import { Heart, MessageCircle, Bookmark, Share2, Play, Volume2, VolumeX, ChevronDown, SkipForward, Subtitles, Trash2 } from "lucide-react";
+import { Heart, MessageCircle, Bookmark, Share2, Play, Pause, Volume2, VolumeX, ChevronDown, SkipForward, Subtitles, Trash2 } from "lucide-react";
 import { feedApi } from "@/lib/api";
 import { useProfileStore, useAuthStore } from "@/lib/store";
 import Hls from "hls.js";
@@ -101,6 +101,8 @@ export default function VideoCard({
   const [copied, setCopied]             = useState(false);
   const [captionLang, setCaptionLang]   = useState<"off"|"es"|"en">("off");
   const [showCaptionPicker, setShowCaptionPicker] = useState(false);
+  const [tapIcon, setTapIcon]           = useState<"play"|"pause"|null>(null);
+  const tapTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   // HLS.js setup for .m3u8 streams (Chrome / Firefox)
   useEffect(() => {
@@ -182,8 +184,12 @@ export default function VideoCard({
   const togglePlay = () => {
     const v = videoRef.current;
     if (!v) return;
-    if (v.paused) { v.play(); setPlaying(true); }
+    const willPlay = v.paused;
+    if (willPlay) { v.play(); setPlaying(true); }
     else          { v.pause(); setPlaying(false); }
+    setTapIcon(willPlay ? "play" : "pause");
+    clearTimeout(tapTimer.current);
+    tapTimer.current = setTimeout(() => setTapIcon(null), 700);
   };
 
   const handleLike = async () => {
@@ -359,6 +365,11 @@ export default function VideoCard({
           from { transform: scaleY(0.3); opacity: 0.5; }
           to   { transform: scaleY(1);   opacity: 1; }
         }
+        @keyframes tapFlash {
+          0%   { transform: scale(0.7); opacity: 1; }
+          60%  { transform: scale(1.1); opacity: 0.9; }
+          100% { transform: scale(1.3); opacity: 0; }
+        }
       `}</style>
 
       {/* Portrait video frame — 9:16 */}
@@ -402,9 +413,36 @@ export default function VideoCard({
           onPlay={() => setPlaying(true)}
           onPause={() => setPlaying(false)}
           onEnded={handleVideoEnded}
-          onClick={togglePlay}
-          className="w-full h-full object-cover cursor-pointer"
+          className="w-full h-full object-cover"
         />
+
+        {/* Transparent tap zone — sits above video, below all interactive overlays */}
+        <div
+          onClick={togglePlay}
+          className="absolute inset-0 cursor-pointer"
+          style={{ zIndex: 1 }}
+        />
+
+        {/* Tap flash icon */}
+        {tapIcon && (
+          <div
+            className="absolute inset-0 flex items-center justify-center pointer-events-none"
+            style={{ zIndex: 6 }}
+          >
+            <div
+              className="rounded-full flex items-center justify-center"
+              style={{
+                background: "rgba(0,0,0,0.45)",
+                width: 72, height: 72,
+                animation: "tapFlash 0.65s ease-out forwards",
+              }}
+            >
+              {tapIcon === "play"
+                ? <Play  className="w-9 h-9 text-white ml-1" fill="white" />
+                : <Pause className="w-9 h-9 text-white" fill="white" />}
+            </div>
+          </div>
+        )}
 
         {/* Phase badge: pre / post */}
         {(phase === "pre" || phase === "post") && (

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import {
   View,
   Text,
@@ -6,6 +6,7 @@ import {
   StyleSheet,
   Dimensions,
   ActivityIndicator,
+  PanResponder,
 } from "react-native";
 import Svg, {
   Path,
@@ -14,23 +15,10 @@ import Svg, {
   Stop,
   Line,
   Circle,
-  ClipPath,
-  Rect,
   G,
 } from "react-native-svg";
-import { GestureDetector, Gesture } from "react-native-gesture-handler";
-import Animated, {
-  useSharedValue,
-  useAnimatedProps,
-  withTiming,
-  Easing,
-  runOnJS,
-} from "react-native-reanimated";
 import { marketApi } from "../lib/api";
 import { useTheme } from "../lib/ThemeContext";
-
-// ─── Animated SVG ─────────────────────────────────────────────────────────────
-const AnimatedRect = Animated.createAnimatedComponent(Rect);
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const { width: SCREEN_W } = Dimensions.get("window");
@@ -101,18 +89,26 @@ function fmtPrice(p: number): string {
 export default function StockChart({ ticker }: { ticker: string }) {
   const { colors } = useTheme();
 
-  const [period, setPeriod]   = useState<PeriodKey>("1y");
-  const [prices, setPrices]   = useState<number[]>([]);
+  const [period, setPeriod]         = useState<PeriodKey>("1y");
+  const [prices, setPrices]         = useState<number[]>([]);
   const [timestamps, setTimestamps] = useState<string[]>([]);
   const [livePrice, setLivePrice]   = useState<number | null>(null);
   const [changePct, setChangePct]   = useState<number>(0);
-  const [name, setName]       = useState<string>("");
-  const [loading, setLoading] = useState(true);
-  const [error, setError]     = useState(false);
+  const [name, setName]             = useState<string>("");
+  const [loading, setLoading]       = useState(true);
+  const [error, setError]           = useState(false);
 
   const [tooltip, setTooltip] = useState<{
     price: number; ts: string; x: number; y: number;
   } | null>(null);
+
+  // keep latest prices/timestamps in a ref so PanResponder callbacks don't stale-close
+  const pricesRef     = useRef(prices);
+  const timestampsRef = useRef(timestamps);
+  const minPRef       = useRef(0);
+  const maxPRef       = useRef(1);
+  useEffect(() => { pricesRef.current = prices; }, [prices]);
+  useEffect(() => { timestampsRef.current = timestamps; }, [timestamps]);
 
   // ── Fetch chart data ──
   const load = useCallback(
@@ -147,52 +143,40 @@ export default function StockChart({ ticker }: { ticker: string }) {
   const maxP = useMemo(() => (prices.length ? Math.max(...prices) : 1), [prices]);
   const { linePath, areaPath } = useMemo(() => buildPaths(prices, minP, maxP), [prices, minP, maxP]);
 
+  useEffect(() => { minPRef.current = minP; }, [minP]);
+  useEffect(() => { maxPRef.current = maxP; }, [maxP]);
+
   const openPrice  = prices[0] ?? 0;
   const lastPrice  = livePrice ?? prices[prices.length - 1] ?? 0;
   const isPositive = (tooltip?.price ?? lastPrice) >= openPrice;
   const lineColor  = isPositive ? "#22c55e" : "#ef4444";
 
-  // ── Line-draw animation ──
-  const clipW = useSharedValue(0);
-
-  useEffect(() => {
-    if (prices.length < 2 || loading) return;
-    clipW.value = 0;
-    clipW.value = withTiming(CHART_W + 20, {
-      duration: 700,
-      easing: Easing.out(Easing.cubic),
+  // ── Pan gesture via PanResponder (no native deps) ──
+  const updateTooltipFromX = useCallback((rawX: number) => {
+    const ps = pricesRef.current;
+    const ts = timestampsRef.current;
+    if (ps.length < 2) return;
+    const x    = Math.max(0, Math.min(rawX, CHART_W));
+    const idx  = Math.round((x / CHART_W) * (ps.length - 1));
+    const safe = Math.max(0, Math.min(idx, ps.length - 1));
+    setTooltip({
+      price: ps[safe],
+      ts:    ts[safe] ?? "",
+      x,
+      y: toY(ps[safe], minPRef.current, maxPRef.current),
     });
-  }, [prices, loading]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);
 
-  const animatedClipProps = useAnimatedProps(() => ({
-    width: clipW.value,
-  }));
-
-  // ── Pan gesture (crosshair tooltip) ──
-  const updateTooltip = useCallback(
-    (rawX: number) => {
-      if (prices.length < 2) return;
-      const x    = Math.max(0, Math.min(rawX, CHART_W));
-      const idx  = Math.round((x / CHART_W) * (prices.length - 1));
-      const safe = Math.max(0, Math.min(idx, prices.length - 1));
-      setTooltip({
-        price: prices[safe],
-        ts:    timestamps[safe] ?? "",
-        x,
-        y:     toY(prices[safe], minP, maxP),
-      });
-    },
-    [prices, timestamps, minP, maxP],
-  );
-
-  const clearTooltip = useCallback(() => setTooltip(null), []);
-
-  const gesture = Gesture.Pan()
-    .minDistance(0)
-    .onBegin((e)  => runOnJS(updateTooltip)(e.x))
-    .onUpdate((e) => runOnJS(updateTooltip)(e.x))
-    .onEnd(()     => runOnJS(clearTooltip)())
-    .onFinalize(() => runOnJS(clearTooltip)());
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder:  () => true,
+      onPanResponderGrant:  (e) => updateTooltipFromX(e.nativeEvent.locationX),
+      onPanResponderMove:   (e) => updateTooltipFromX(e.nativeEvent.locationX),
+      onPanResponderRelease: () => setTooltip(null),
+      onPanResponderTerminate: () => setTooltip(null),
+    }),
+  ).current;
 
   // ── Display values ──
   const displayPrice  = tooltip?.price ?? lastPrice;
@@ -264,65 +248,55 @@ export default function StockChart({ ticker }: { ticker: string }) {
             )}
           </View>
         ) : (
-          <GestureDetector gesture={gesture}>
-            <Animated.View>
-              <Svg width={CHART_W} height={CHART_H}>
-                <Defs>
-                  <LinearGradient id={`grad_${safeId}`} x1="0" y1="0" x2="0" y2="1">
-                    <Stop offset="0%"   stopColor={lineColor} stopOpacity="0.28" />
-                    <Stop offset="100%" stopColor={lineColor} stopOpacity="0.00" />
-                  </LinearGradient>
-                  <ClipPath id={`clip_${safeId}`}>
-                    <AnimatedRect
-                      animatedProps={animatedClipProps}
-                      x="0"
-                      y="-10"
-                      height={CHART_H + 20}
-                    />
-                  </ClipPath>
-                </Defs>
+          <View {...panResponder.panHandlers}>
+            <Svg width={CHART_W} height={CHART_H}>
+              <Defs>
+                <LinearGradient id={`grad_${safeId}`} x1="0" y1="0" x2="0" y2="1">
+                  <Stop offset="0%"   stopColor={lineColor} stopOpacity="0.28" />
+                  <Stop offset="100%" stopColor={lineColor} stopOpacity="0.00" />
+                </LinearGradient>
+              </Defs>
 
-                <G clipPath={`url(#clip_${safeId})`}>
-                  <Path d={areaPath} fill={`url(#grad_${safeId})`} />
-                  <Path
-                    d={linePath}
-                    stroke={lineColor}
-                    strokeWidth={1.8}
-                    fill="none"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </G>
-
-                {tooltip && (
-                  <>
-                    <Line
-                      x1={tooltip.x} y1={0}
-                      x2={tooltip.x} y2={CHART_H}
-                      stroke={colors.textMuted}
-                      strokeWidth={1}
-                      strokeDasharray="4 3"
-                      opacity={0.5}
-                    />
-                    <Circle cx={tooltip.x} cy={tooltip.y} r={9}   fill={lineColor} opacity={0.2} />
-                    <Circle cx={tooltip.x} cy={tooltip.y} r={4.5} fill={lineColor} />
-                  </>
-                )}
-              </Svg>
+              <G>
+                <Path d={areaPath} fill={`url(#grad_${safeId})`} />
+                <Path
+                  d={linePath}
+                  stroke={lineColor}
+                  strokeWidth={1.8}
+                  fill="none"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </G>
 
               {tooltip && (
-                <View
-                  style={[
-                    s.tooltipCard,
-                    { backgroundColor: "#1c2128", left: tooltipBoxLeft, top: tooltipBoxTop },
-                  ]}
-                >
-                  <Text style={s.tooltipPrice}>{fmtPrice(tooltip.price)}</Text>
-                  <Text style={s.tooltipDate}>{fmtDate(tooltip.ts, period)}</Text>
-                </View>
+                <>
+                  <Line
+                    x1={tooltip.x} y1={0}
+                    x2={tooltip.x} y2={CHART_H}
+                    stroke={colors.textMuted}
+                    strokeWidth={1}
+                    strokeDasharray="4 3"
+                    opacity={0.5}
+                  />
+                  <Circle cx={tooltip.x} cy={tooltip.y} r={9}   fill={lineColor} opacity={0.2} />
+                  <Circle cx={tooltip.x} cy={tooltip.y} r={4.5} fill={lineColor} />
+                </>
               )}
-            </Animated.View>
-          </GestureDetector>
+            </Svg>
+
+            {tooltip && (
+              <View
+                style={[
+                  s.tooltipCard,
+                  { backgroundColor: "#1c2128", left: tooltipBoxLeft, top: tooltipBoxTop },
+                ]}
+              >
+                <Text style={s.tooltipPrice}>{fmtPrice(tooltip.price)}</Text>
+                <Text style={s.tooltipDate}>{fmtDate(tooltip.ts, period)}</Text>
+              </View>
+            )}
+          </View>
         )}
       </View>
 

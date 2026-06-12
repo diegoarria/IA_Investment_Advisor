@@ -63,6 +63,10 @@ export default function PaperPage() {
   useEffect(() => { if (!isAuthenticated) router.push("/"); }, [isAuthenticated]);
 
   useEffect(() => {
+    if (isAuthenticated) usePaperStore.getState().restoreFromServer().catch(() => {});
+  }, [isAuthenticated]);
+
+  useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (searchWrapperRef.current && !searchWrapperRef.current.contains(e.target as Node)) {
         setShowSuggestions(false);
