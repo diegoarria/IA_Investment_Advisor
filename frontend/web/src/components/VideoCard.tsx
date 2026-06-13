@@ -131,11 +131,15 @@ export default function VideoCard({
           if (data.fatal) { hls.destroy(); hlsRef.current = null; }
         });
       } else if (v.canPlayType("application/vnd.apple.mpegurl")) {
-        // Safari native HLS — just set src, browser handles buffering
+        // Safari native HLS — set src then call load() to initialize the HLS parser.
+        // With preload="none" this does NOT download any data; it just prepares the
+        // element so play() doesn't race with a concurrent internal load() call later.
         v.src = url;
+        v.load();
       }
     } else {
       v.src = url;
+      v.load(); // same pre-init for regular mp4 — no download with preload="none"
     }
 
     return () => {
@@ -155,26 +159,26 @@ export default function VideoCard({
     else hls.stopLoad();
   }, [isActive]);
 
-  // Safari blocks autoplay for unmuted media without a direct user gesture.
-  // For native HLS (Safari) with preload="none", the element stays at readyState=0
-  // (HAVE_NOTHING) until load() is called. Calling play() without load() can
-  // silently fail or return an AbortError. Always call load() first in that case.
+  // safePlay — always sets muted before play() to avoid two Safari failure modes:
+  //
+  // 1. NotAllowedError: the source cleanup (v.removeAttribute+v.load) resets the
+  //    muted JS property to match the absent HTML muted attribute (React bug: muted
+  //    prop doesn't write the HTML attribute, only the JS property). If muted is
+  //    false when play() is called, Safari's autoplay policy blocks it.
+  //
+  // 2. AbortError from load()+play() race: previously we called v.load() HERE right
+  //    before play(), which races with the browser's own internal load triggered by
+  //    play(). That race causes an AbortError that, combined with problem #1, meant
+  //    the retry also failed silently. Removed: v.load() is now called in the source
+  //    effect (when src is first set) so it's fully settled before play() is called.
   const safePlay = useCallback(async (el: HTMLVideoElement) => {
-    // Trigger fetch for Safari native HLS / plain mp4 when nothing has loaded yet
-    if (!hlsRef.current && el.readyState === 0 && el.src) {
-      el.load();
-    }
+    el.muted = true; // always enforce — muted JS prop may have been reset by v.load()
     try {
       await el.play();
-    } catch (err) {
-      if ((err as Error)?.name === "AbortError") {
-        // load() interrupted a pending play() — retry once after a microtask
-        el.play().catch(() => {});
-        setPlaying(true);
-        return;
-      }
-      // Blocked by autoplay policy: mute and retry
-      el.muted = true;
+    } catch {
+      // Any error (shouldn't happen now that muted is always true and no load() race)
+      // — wait one frame so any pending internal load can settle, then retry once.
+      await new Promise((r) => setTimeout(r, 50));
       el.play().catch(() => {});
     }
     setPlaying(true);
@@ -435,14 +439,19 @@ export default function VideoCard({
         }
       `}</style>
 
-      {/* Portrait video frame — 9:16 aspect ratio, fills available height */}
+      {/* Portrait video frame — 9:16 aspect ratio, fills available height.
+          transform:translateZ(0) on the container forces a GPU compositor layer
+          so Safari doesn't black-out the overflow-hidden clip region for offscreen
+          videos when they first scroll into view. */}
       <div className="relative rounded-xl overflow-hidden shrink-0"
            style={{
              height: "100%",
              aspectRatio: "9/16",
              maxWidth: "calc(100% - 64px)",
              background: "#000",
-           }}>
+             transform: "translateZ(0)",
+             WebkitTransform: "translateZ(0)",
+           } as React.CSSProperties}>
 
         {/* Hidden pre/post audio elements — only load when this card is active */}
         {clip.pre_audio_url && (
