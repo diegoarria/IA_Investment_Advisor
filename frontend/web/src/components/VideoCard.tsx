@@ -82,6 +82,8 @@ export default function VideoCard({
   const preAudioRef   = useRef<HTMLAudioElement>(null);
   const postAudioRef  = useRef<HTMLAudioElement>(null);
   const scrubBarRef   = useRef<HTMLDivElement>(null);
+  const hlsRef        = useRef<Hls | null>(null);
+  const viewTrackedRef = useRef(false);
   const [scrubbing, setScrubbing]       = useState(false);
   const [phase, setPhase]               = useState<"pre"|"video"|"post"|"idle">("idle");
   const [audioRemaining, setAudioRemaining] = useState(0); // seconds left in pre/post audio
@@ -104,28 +106,53 @@ export default function VideoCard({
   const [tapIcon, setTapIcon]           = useState<"play"|"pause"|null>(null);
   const tapTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
-  // HLS.js setup for .m3u8 streams (Chrome / Firefox)
+  // Video source setup — handles HLS.js (Chrome/Firefox) and Safari native HLS
   useEffect(() => {
     const v = videoRef.current;
     if (!v) return;
     const url = clip.video_url;
     if (!url) return;
 
+    viewTrackedRef.current = false; // reset on clip change
+
     if (url.includes(".m3u8")) {
       if (Hls.isSupported()) {
-        const hls = new Hls({ startLevel: -1, autoStartLoad: true });
+        const hls = new Hls({
+          startLevel: -1,
+          autoStartLoad: false,   // only load when this card is active
+          maxBufferLength: 30,
+          maxMaxBufferLength: 60,
+        });
         hls.loadSource(url);
         hls.attachMedia(v);
+        hlsRef.current = hls;
         hls.on(Hls.Events.ERROR, (_event, data) => {
-          if (data.fatal) hls.destroy(); // clean up on fatal — prevents leaked state
+          if (data.fatal) { hls.destroy(); hlsRef.current = null; }
         });
-        return () => hls.destroy();
+      } else if (v.canPlayType("application/vnd.apple.mpegurl")) {
+        // Safari native HLS — just set src, browser handles buffering
+        v.src = url;
       }
-      // Safari supports HLS natively
     } else {
       v.src = url;
     }
+
+    return () => {
+      hlsRef.current?.destroy();
+      hlsRef.current = null;
+      v.pause();
+      v.removeAttribute("src");
+      v.load(); // release memory held by the previous source
+    };
   }, [clip.video_url]);
+
+  // Start/stop HLS segment loading based on whether this card is active
+  useEffect(() => {
+    const hls = hlsRef.current;
+    if (!hls) return;
+    if (isActive) hls.startLoad(-1);
+    else hls.stopLoad();
+  }, [isActive]);
 
   // Sequenced playback: pre-audio → video → post-audio
   useEffect(() => {
@@ -177,10 +204,12 @@ export default function VideoCard({
   const handleTimeUpdate = useCallback(() => {
     const v = videoRef.current;
     if (!v || !v.duration) return;
-    setProgress((v.currentTime / v.duration) * 100);
-    // Track view at 15%
-    if (v.currentTime / v.duration >= 0.15) {
-      feedApi.view(clip.id, Math.round((v.currentTime / v.duration) * 100)).catch(() => {});
+    const ratio = v.currentTime / v.duration;
+    setProgress(ratio * 100);
+    // Track view only once per clip (at 15%) — avoid 30+ API calls/second
+    if (!viewTrackedRef.current && ratio >= 0.15) {
+      viewTrackedRef.current = true;
+      feedApi.view(clip.id, Math.round(ratio * 100)).catch(() => {});
     }
   }, [clip.id]);
 
@@ -391,9 +420,9 @@ export default function VideoCard({
              background: "#000",
            }}>
 
-        {/* Hidden pre/post audio elements */}
+        {/* Hidden pre/post audio elements — only load when this card is active */}
         {clip.pre_audio_url && (
-          <audio ref={preAudioRef} src={clip.pre_audio_url} preload="auto"
+          <audio ref={preAudioRef} src={isActive ? clip.pre_audio_url : undefined} preload="none"
                  onEnded={handlePreEnded}
                  onTimeUpdate={(e) => {
                    const a = e.currentTarget;
@@ -402,7 +431,7 @@ export default function VideoCard({
                  onLoadedMetadata={(e) => setAudioRemaining(Math.ceil(e.currentTarget.duration))} />
         )}
         {clip.post_audio_url && (
-          <audio ref={postAudioRef} src={clip.post_audio_url} preload="auto"
+          <audio ref={postAudioRef} src={isActive ? clip.post_audio_url : undefined} preload="none"
                  onEnded={() => setPhase("idle")}
                  onTimeUpdate={(e) => {
                    const a = e.currentTarget;
@@ -411,13 +440,12 @@ export default function VideoCard({
                  onLoadedMetadata={(e) => setAudioRemaining(Math.ceil(e.currentTarget.duration))} />
         )}
 
-        {/* Video */}
+        {/* Video — preload="none" on all cards; src/loading controlled by effects above */}
         <video
           ref={videoRef}
-          src={clip.video_url.includes(".m3u8") ? undefined : clip.video_url}
           poster={clip.thumbnail_url || undefined}
           playsInline
-          preload="metadata"
+          preload="none"
           muted={isMuted}
           onTimeUpdate={handleTimeUpdate}
           onPlay={() => setPlaying(true)}
