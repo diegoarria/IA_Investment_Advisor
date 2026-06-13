@@ -330,12 +330,15 @@ export default function WatchlistPage() {
     try {
       const res = await watchlistApi.get();
       const data = res.data as WatchlistItem[];
+      // Guard: if server returns empty but cache has items, treat as a transient
+      // backend failure — keep showing cached items, don't overwrite with []
+      if (data.length === 0 && readCache().length > 0) return;
       setItems(data);
       writeCache(data);
       setLastRefreshed(new Date());
       setSecondsSince(0);
     } catch {
-      // On failure keep whatever items are already shown — never reset to empty
+      // On network/server error keep whatever items are already shown
     } finally {
       if (isRefresh) setRefreshing(false);
       setLoading(false);

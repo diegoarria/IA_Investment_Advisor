@@ -186,7 +186,11 @@ def _get_user_tier(user_id: str) -> str:
 def _get_watchlist(user_id: str) -> list[dict]:
     db = get_supabase()
     res = db.table("watchlist").select("*").eq("user_id", user_id).order("added_at").execute()
-    return res.data or []
+    if res.data is None:
+        # None means the DB query itself failed — raise so the endpoint returns 500
+        # rather than silently returning [] which the frontend would treat as "empty list"
+        raise RuntimeError("Watchlist DB query returned None — possible Supabase connectivity issue")
+    return res.data
 
 
 def _enrich_logos_background(items_without_logo: list[dict]) -> None:
@@ -222,7 +226,10 @@ async def get_watchlist(user_id: str = Depends(get_current_user_id)):
         return []
 
     tickers = [item["ticker"] for item in items]
-    prices = await asyncio.to_thread(_fetch_prices_batch, tickers)
+    try:
+        prices = await asyncio.to_thread(_fetch_prices_batch, tickers)
+    except Exception:
+        prices = {}  # price fetch failed — return items with null prices, not a 500
 
     result = []
     missing_logos = []
