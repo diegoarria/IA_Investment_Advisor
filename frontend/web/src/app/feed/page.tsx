@@ -81,7 +81,6 @@ export default function FeedPage() {
   const [spinning, setSpinning]     = useState(false);
 
   const containerRef = useRef<HTMLDivElement>(null);
-  const itemRefs     = useRef<(HTMLDivElement | null)[]>([]);
   const seenIdsRef   = useRef<Set<string>>(new Set());
 
   const loadClips = useCallback(async (reset = false) => {
@@ -119,23 +118,17 @@ export default function FeedPage() {
     setRefreshKey((k) => k + 1);
   };
 
-  // IntersectionObserver: detect which card is active
+  // Scroll-based active index — IntersectionObserver with overflow:scroll root is broken in Safari
   useEffect(() => {
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            const idx = itemRefs.current.findIndex((el) => el === entry.target);
-            if (idx !== -1) setActiveIndex(idx);
-          }
-        });
-      },
-      { root: containerRef.current, threshold: 0.7 },
-    );
-
-    itemRefs.current.forEach((el) => { if (el) observer.observe(el); });
-    return () => observer.disconnect();
-  }, [clips]);
+    const container = containerRef.current;
+    if (!container) return;
+    const onScroll = () => {
+      const idx = Math.round(container.scrollTop / container.clientHeight);
+      setActiveIndex(Math.min(idx, clips.length - 1));
+    };
+    container.addEventListener("scroll", onScroll, { passive: true });
+    return () => container.removeEventListener("scroll", onScroll);
+  }, [clips.length]);
 
   // Load more when near end
   useEffect(() => {
@@ -250,7 +243,6 @@ export default function FeedPage() {
             {clips.map((clip, i) => (
               <ClipErrorBoundary key={clip.id}>
                 <div
-                  ref={(el) => { itemRefs.current[i] = el; }}
                   className="flex items-center justify-center"
                   style={{ height: "100svh", scrollSnapAlign: "start", scrollSnapStop: "always" }}>
                   <VideoCard
