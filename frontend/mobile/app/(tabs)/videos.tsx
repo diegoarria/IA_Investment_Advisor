@@ -614,8 +614,22 @@ function ClipCard({
 
       {/* Comments modal */}
       <Modal visible={commentsOpen} transparent animationType="slide" onRequestClose={() => { setCommentsOpen(false); setReplyingTo(null); setReplyText(""); }}>
-        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1, justifyContent: "flex-end" }}>
-          <View style={[styles.captionSheet, { backgroundColor: colors.card, maxHeight: "80%" }]}>
+        <TouchableOpacity
+          style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.45)" }}
+          activeOpacity={1}
+          onPress={() => { setCommentsOpen(false); setReplyingTo(null); setReplyText(""); }}
+        />
+        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ position: "absolute", left: 0, right: 0, bottom: 0 }}>
+          <View style={{
+            height: H * 0.62,
+            backgroundColor: colors.card,
+            borderTopLeftRadius: 24,
+            borderTopRightRadius: 24,
+            paddingTop: 10,
+            paddingHorizontal: 20,
+            paddingBottom: 24,
+            flexDirection: "column",
+          }}>
             {/* Handle */}
             <View style={[styles.captionHandle, { backgroundColor: colors.border }]} />
 
@@ -630,7 +644,7 @@ function ClipCard({
             </View>
 
             {/* List */}
-            <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+            <ScrollView style={{ flex: 1, flexShrink: 1 }} contentContainerStyle={{ paddingBottom: 8 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
               {commentsLoading ? (
                 <ActivityIndicator color={colors.accentLight} style={{ marginTop: 24 }} />
               ) : comments.length === 0 ? (
