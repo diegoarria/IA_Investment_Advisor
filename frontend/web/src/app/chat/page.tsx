@@ -188,8 +188,16 @@ export default function ChatPage() {
   const [pendingImages, setPendingImages] = useState<Array<{ data: string; type: string; preview: string }>>([]);
   const [isDragging, setIsDragging] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const isAtBottom = useRef(true);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleScrollContainer = () => {
+    const el = scrollContainerRef.current;
+    if (!el) return;
+    isAtBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+  };
 
   const isPremium = subStore.tier === "premium";
   const remaining = msgsRemaining(subStore);
@@ -303,7 +311,9 @@ export default function ChatPage() {
   }, [isAuthenticated]);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (isAtBottom.current) {
+      bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
   }, [messages]);
 
   const sendMessage = async (text?: string) => {
@@ -317,6 +327,7 @@ export default function ChatPage() {
     setPendingImages([]);
     setLastAssessment(null);
     cancelRef.current.cancelled = false;
+    isAtBottom.current = true;
     subStore.incrementMsgCount();
     const n = imagesToSend.length;
     const saveMsg = msg || (n === 1 ? "📷 Imagen enviada" : `📷 ${n} imágenes enviadas`);
@@ -497,7 +508,7 @@ export default function ChatPage() {
         {/* Chat area */}
         <main className="flex-1 flex flex-col overflow-hidden">
           <GuidedSteps currentPage="chat" />
-          <div className="flex-1 overflow-y-auto scrollbar-thin p-4 space-y-4">
+          <div ref={scrollContainerRef} onScroll={handleScrollContainer} className="flex-1 overflow-y-auto scrollbar-thin p-4 space-y-4">
             {messages.length === 0 && (
               <div className="h-full flex flex-col items-center justify-center text-center px-6 animate-fade-in">
                 {mentor ? (

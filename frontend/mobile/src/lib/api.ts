@@ -304,4 +304,9 @@ export const decisionsApi = {
   getBiases: () => api.get("/api/decisions/biases"),
 };
 
+export const portfolioLeaderboardApi = {
+  get: (period: "ytd" | "1m" | "1w") =>
+    api.get("/api/leaderboard", { params: { period } }),
+};
+
 export default api;

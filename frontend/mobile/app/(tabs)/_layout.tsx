@@ -162,7 +162,7 @@ function MobileHeader({ title }: { title: string }) {
   return (
     <View style={[
       headerStyles.wrapper,
-      { backgroundColor: colors.bg, paddingTop: insets.top, borderBottomColor: colors.border },
+      { backgroundColor: colors.card, paddingTop: insets.top, borderBottomColor: colors.border },
     ]}>
       {/* Premium / Trial strip — shown for trial and free users */}
       {isPremium && isTrialPremium ? (
@@ -178,7 +178,7 @@ function MobileHeader({ title }: { title: string }) {
         </View>
       ) : null}
 
-      <View style={headerStyles.row}>
+      <View style={[headerStyles.row, { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border }]}>
         {/* Custom hamburger */}
         <TouchableOpacity onPress={openSidebar} style={headerStyles.menuBtn} activeOpacity={0.7}>
           <View style={[headerStyles.menuLine, { backgroundColor: colors.textSub }]} />

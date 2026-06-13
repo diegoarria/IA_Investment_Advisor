@@ -330,7 +330,7 @@ export default function AppSidebar({ open, onClose }: Props) {
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-[11px] font-semibold leading-tight" style={{ color: "var(--text)" }}>Sesión 1:1 con Diego</p>
-              <p className="text-[10px] leading-tight" style={{ color: "var(--dim)" }}>Guía personalizada · 60 min</p>
+              <p className="text-[10px] leading-tight" style={{ color: "var(--dim)" }}>Guía personalizada · 45 min</p>
             </div>
             <ArrowRight className="w-3 h-3 shrink-0" style={{ color: "var(--muted)" }} />
           </a>

@@ -183,6 +183,7 @@ export default function ChatScreen() {
   const listRef = useRef<FlatList>(null);
   const cancelRef = useRef({ cancelled: false });
   const inputRef = useRef<TextInput>(null);
+  const isAtBottom = useRef(true);
 
   // On first load: restore history from server if no local sessions, then ensure active session
   useEffect(() => {
@@ -347,10 +348,12 @@ Instrucciones críticas:
     cancelRef.current.cancelled = false;
 
     const saveMsg = msg || (imagesToSend.length === 1 ? "📷 Captura enviada" : `📷 ${imagesToSend.length} capturas enviadas`);
+    isAtBottom.current = true;
     const userMsg: Message = {
       role: "user",
       content: msg,
       images: imagesToSend.length > 0 ? imagesToSend.map((i) => ({ uri: i.uri })) : undefined,
+      timestamp: Date.now(),
     };
     const newMessages = [...messages, userMsg];
     setMessages(newMessages);
@@ -380,7 +383,7 @@ Instrucciones críticas:
         historyForApi as Array<{ role: string; content: string }>,
         (chunk) => {
           full += chunk;
-          setMessages([...withAssistant.slice(0, -1), { role: "assistant", content: full }]);
+          setMessages([...withAssistant.slice(0, -1), { role: "assistant", content: full, timestamp: Date.now() }]);
         },
         () => { setStreaming(false); chatApi.saveMessage("assistant", full).catch(() => {}); },
         (a) => {
@@ -413,68 +416,59 @@ Instrucciones críticas:
   };
 
   const renderMessage = ({ item, index }: { item: Message; index: number }) => {
-    const isLastAssistant = item.role === "assistant" && index === messages.length - 1;
+    const isUser = item.role === "user";
+    const isLastAssistant = !isUser && index === messages.length - 1;
     const showChart = isLastAssistant && !streaming && !!lastTicker;
-    return (
-      <View style={[styles.messageContainer, item.role === "user" ? styles.userContainer : styles.assistantContainer]}>
-        {item.role === "assistant" && (
-          <View style={[
-            styles.avatar,
-            {
-              backgroundColor: mentor ? mentor.color + "22" : colors.accentGlow,
-              borderColor: mentor ? mentor.color + "30" : "rgba(0,185,109,0.2)",
-            },
-          ]}>
-            {mentorPhoto ? (
-              <Image source={mentorPhoto} style={styles.avatarPhoto} />
-            ) : mentor ? (
-              <Text style={{ fontSize: 12 }}>{mentor.emoji}</Text>
-            ) : (
-              <Ionicons name="trending-up" size={14} color={colors.accentLight} />
+    const timeStr = item.timestamp
+      ? new Date(item.timestamp).toLocaleTimeString("es", { hour: "2-digit", minute: "2-digit" })
+      : "";
+
+    if (isUser) {
+      return (
+        <View style={styles.userRow}>
+          <View style={styles.userBubble}>
+            <View style={styles.userTail} />
+            {item.images && item.images.length > 0 && (
+              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 4, marginBottom: item.content ? 6 : 0 }}>
+                {item.images.map((img, idx) => (
+                  <Image key={idx} source={{ uri: img.uri }}
+                    style={{ width: 120, height: 100, borderRadius: 10, resizeMode: "cover" }} />
+                ))}
+              </View>
+            )}
+            {!!item.content && <Text style={styles.userText}>{item.content}</Text>}
+            {!!timeStr && (
+              <View style={styles.timeRowUser}>
+                <Text style={styles.timeUser}>{timeStr}</Text>
+                <Ionicons name="checkmark-done-outline" size={12} color="rgba(255,255,255,0.7)" />
+              </View>
             )}
           </View>
-        )}
-        <View style={item.role === "user" ? { maxWidth: "80%" } : { flex: 1 }}>
-          <View style={[styles.bubble, item.role === "user" ? styles.userBubble : styles.assistantBubble]}>
-            {item.role === "user" ? (
-              <>
-                {item.images && item.images.length > 0 && (
-                  <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 4, marginBottom: item.content ? 6 : 0 }}>
-                    {item.images.map((img, idx) => (
-                      <Image
-                        key={idx}
-                        source={{ uri: img.uri }}
-                        style={{ width: 120, height: 100, borderRadius: 10, resizeMode: "cover" }}
-                      />
-                    ))}
-                  </View>
-                )}
-                {!!item.content && <Text style={styles.userText}>{item.content}</Text>}
-              </>
-            ) : (
-              <>
-                <Markdown style={markdownStyles} rules={markdownRules}>{item.content || ""}</Markdown>
-                {streaming && isLastAssistant && item.content === "" && (
-                  <TypingIndicator color={colors.accentLight} />
-                )}
-              </>
-            )}
-          </View>
-          {item.role === "user" && (
-            <TouchableOpacity
-              style={styles.editBtn}
-              onPress={() => handleEditMessage(index, item.content)}
-            >
-              <Ionicons name="pencil" size={15} color={colors.textSub} />
-            </TouchableOpacity>
-          )}
-          {item.role === "assistant" && item.content !== "" && !(streaming && isLastAssistant) && (
-            <Text style={styles.aiDisclaimer}>
-              Análisis educativo · No constituye asesoría financiera · Los datos pueden ser inexactos
-            </Text>
-          )}
-          {showChart && <StockChart ticker={lastTicker!} />}
+          <TouchableOpacity style={styles.editBtn} onPress={() => handleEditMessage(index, item.content)}>
+            <Ionicons name="pencil" size={14} color={colors.textSub} />
+          </TouchableOpacity>
         </View>
+      );
+    }
+
+    return (
+      <View style={styles.aiRow}>
+        <Text style={styles.senderName}>{mentor?.name ?? "Nuvos AI"}</Text>
+        <View style={styles.aiBubble}>
+          <Markdown style={markdownStyles} rules={markdownRules}>{item.content || ""}</Markdown>
+          {streaming && isLastAssistant && item.content === "" && (
+            <TypingIndicator color={colors.accentLight} />
+          )}
+          {!!timeStr && item.content !== "" && (
+            <Text style={styles.timeAI}>{timeStr}</Text>
+          )}
+        </View>
+        {item.content !== "" && !(streaming && isLastAssistant) && (
+          <Text style={styles.aiDisclaimer}>
+            Análisis educativo · No constituye asesoría financiera · Los datos pueden ser inexactos
+          </Text>
+        )}
+        {showChart && <StockChart ticker={lastTicker!} />}
       </View>
     );
   };
@@ -595,8 +589,19 @@ Instrucciones críticas:
               keyExtractor={(_, i) => i.toString()}
               renderItem={renderMessage}
               contentContainerStyle={styles.list}
-              onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: true })}
+              onContentSizeChange={() => {
+                if (isAtBottom.current) listRef.current?.scrollToEnd({ animated: false });
+              }}
+              onScroll={({ nativeEvent: e }) => {
+                isAtBottom.current =
+                  e.contentOffset.y + e.layoutMeasurement.height >= e.contentSize.height - 80;
+              }}
+              scrollEventThrottle={100}
               keyboardShouldPersistTaps="handled"
+              removeClippedSubviews
+              initialNumToRender={12}
+              maxToRenderPerBatch={6}
+              windowSize={8}
               style={styles.flex}
             />
           )}
@@ -753,18 +758,28 @@ function makeStyles(c: Colors) {
     suggestionText: { color: c.textSub, fontSize: 13, lineHeight: 19 },
 
     // Message list
-    list: { paddingHorizontal: 14, paddingVertical: 16, paddingBottom: 8 },
-    messageContainer: { flexDirection: "row", marginBottom: 10, alignItems: "flex-end" },
-    userContainer: { justifyContent: "flex-end" },
-    assistantContainer: { justifyContent: "flex-start" },
+    list: { paddingHorizontal: 12, paddingVertical: 12, paddingBottom: 8 },
 
-    // Avatars
-    avatar: {
-      width: 32, height: 32, borderRadius: 14,
-      alignItems: "center", justifyContent: "center", marginRight: 8,
-      overflow: "hidden", borderWidth: 1,
+    // User message row
+    userRow: {
+      flexDirection: "row" as const,
+      justifyContent: "flex-end" as const,
+      alignItems: "flex-end" as const,
+      marginBottom: 8,
+      gap: 4,
     },
-    avatarPhoto: { width: 32, height: 32, borderRadius: 14 },
+
+    // AI message row
+    aiRow: {
+      marginBottom: 10,
+    },
+
+    // Sender name
+    senderName: {
+      fontSize: 11, fontWeight: "600" as const, color: c.accentLight,
+      marginBottom: 3, marginLeft: 2, letterSpacing: 0.1,
+      fontFamily: "Inter_400Regular",
+    },
     mentorAvatar: { width: 96, height: 96, borderRadius: 24, marginBottom: 14 },
     mentorAvatarEmoji: {
       width: 96, height: 96, borderRadius: 24,
@@ -776,26 +791,48 @@ function makeStyles(c: Colors) {
     },
     principlePillText: { fontSize: 11, fontWeight: "600", letterSpacing: 0.2 },
 
-    // Bubbles — mirror web: .bubble-user (20/4 tail) and .bubble-ai (20/4 tail)
-    bubble: { maxWidth: "80%", minWidth: 0, flexShrink: 1, borderRadius: 20, paddingHorizontal: 14, paddingVertical: 12 },
+    // User bubble (WhatsApp style — right, green, tail)
     userBubble: {
-      backgroundColor: c.accentLight,   // bright end of web's grad-green
-      borderBottomRightRadius: 4,        // tail point (web: 4px)
-      shadowColor: c.accentLight,
+      maxWidth: "78%" as const,
+      backgroundColor: c.accent,
+      borderRadius: 18,
+      borderBottomRightRadius: 4,
+      paddingHorizontal: 13,
+      paddingVertical: 9,
+      shadowColor: c.accent,
       shadowOpacity: 0.25,
-      shadowRadius: 16,
-      shadowOffset: { width: 0, height: 4 },
+      shadowRadius: 8,
+      shadowOffset: { width: 0, height: 2 },
+      elevation: 3,
     },
-    assistantBubble: {
+    userTail: {
+      position: "absolute" as const, bottom: 0, right: -8,
+      width: 10, height: 10,
+      backgroundColor: c.accent,
+      borderBottomLeftRadius: 8,
+    },
+    // AI bubble (full-width card, clean)
+    aiBubble: {
       backgroundColor: c.card,
-      borderWidth: 1, borderColor: c.border,
-      borderBottomLeftRadius: 4,         // tail point (web: 4px)
+      borderRadius: 16,
+      borderTopLeftRadius: 4,
+      paddingHorizontal: 14,
+      paddingVertical: 12,
+      borderWidth: 1,
+      borderColor: c.border,
       shadowColor: "#000",
-      shadowOpacity: 0.4,
+      shadowOpacity: 0.05,
       shadowRadius: 3,
       shadowOffset: { width: 0, height: 1 },
+      elevation: 1,
     },
-    userText: { color: "white", fontSize: 14, lineHeight: 22, flexWrap: "wrap", fontWeight: "500", fontFamily: "Inter_400Regular" },
+    timeRowUser: {
+      flexDirection: "row" as const, justifyContent: "flex-end" as const,
+      alignItems: "center" as const, gap: 3, marginTop: 5,
+    },
+    timeUser: { fontSize: 10, color: "rgba(255,255,255,0.75)", fontFamily: "Inter_400Regular" },
+    timeAI: { fontSize: 10, color: c.textDim, fontFamily: "Inter_400Regular", textAlign: "right" as const, marginTop: 6 },
+    userText: { color: "white", fontSize: 15, lineHeight: 22, flexWrap: "wrap" as const, fontFamily: "Inter_400Regular" },
 
     // Input area — mirrors web: input-premium (radius 12) + send rounded-2xl (14)
     inputContainer: {

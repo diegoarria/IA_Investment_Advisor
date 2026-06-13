@@ -309,4 +309,9 @@ export const feedApi = {
     api.post(`/api/feed/admin/clips/${clipId}/generate-audio`),
 };
 
+export const portfolioLeaderboardApi = {
+  get: (period: "ytd" | "1m" | "1w") =>
+    api.get("/api/leaderboard", { params: { period } }),
+};
+
 export default api;

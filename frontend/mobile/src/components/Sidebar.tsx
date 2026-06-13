@@ -464,7 +464,7 @@ function WebSidebar() {
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={[styles.coachingTitle, { color: colors.text }]}>Sesión 1:1 con Diego</Text>
-                <Text style={[styles.coachingSub, { color: colors.textMuted }]}>Guía personalizada · 60 min</Text>
+                <Text style={[styles.coachingSub, { color: colors.textMuted }]}>Guía personalizada · 45 min</Text>
               </View>
               <Ionicons name="chevron-forward" size={14} color={colors.textDim} />
             </TouchableOpacity>
@@ -568,7 +568,7 @@ function MobileSidebar() {
             </View>
             <View style={{ flex: 1 }}>
               <Text style={[styles.coachingTitle, { color: colors.text }]}>Sesión 1:1 con Diego</Text>
-              <Text style={[styles.coachingSub, { color: colors.textMuted }]}>Guía personalizada · 60 min</Text>
+              <Text style={[styles.coachingSub, { color: colors.textMuted }]}>Guía personalizada · 45 min</Text>
             </View>
             <Ionicons name="chevron-forward" size={14} color={colors.textDim} />
           </TouchableOpacity>

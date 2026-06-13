@@ -23,6 +23,7 @@ export interface Message {
   role: "user" | "assistant";
   content: string;
   images?: Array<{ uri: string }>;
+  timestamp?: number;
 }
 
 export interface BehavioralDiagnosis {
