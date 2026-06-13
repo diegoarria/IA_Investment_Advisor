@@ -2,14 +2,16 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   View, Text, FlatList, TouchableOpacity, StyleSheet, TextInput,
   ActivityIndicator, Dimensions, ScrollView, Modal, Share, KeyboardAvoidingView, Platform,
-  PanResponder, Animated,
+  PanResponder, Animated, Image,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { Video, ResizeMode, Audio } from "expo-av";
 import { useFocusEffect } from "expo-router";
+import * as SecureStore from "expo-secure-store";
 import { feedApi } from "../../src/lib/api";
 import { useTheme, Colors } from "../../src/lib/ThemeContext";
+import { useAppStore } from "../../src/lib/profileStore";
 
 const { width: W, height: H } = Dimensions.get("window");
 
@@ -37,6 +39,7 @@ interface Clip {
   duration_sec: number;
   view_count: number;
   like_count: number;
+  comment_count: number;
   liked: boolean;
   saved: boolean;
   pre_audio_url?: string;
@@ -47,9 +50,11 @@ interface Clip {
 
 interface Comment {
   id: string;
+  user_id: string;
   text: string;
   created_at: string;
   user_profiles?: { name: string; avatar_url?: string };
+  replies?: Comment[];
 }
 
 function getCaptionChunks(text: string): string[] {
@@ -90,12 +95,21 @@ function ClipCard({
   cardHeight: number;
 }) {
   const videoRef = useRef<Video>(null);
+  const myProfile = useAppStore((s) => s.profile);
+  const [myUserId, setMyUserId] = useState<string | null>(null);
   const [captionLang, setCaptionLang] = useState<"off" | "es" | "en">("off");
   const [showCaptionPicker, setShowCaptionPicker] = useState(false);
   const [commentsOpen, setCommentsOpen] = useState(false);
   const [comments, setComments] = useState<Comment[]>([]);
+  const [commentCount, setCommentCount] = useState(clip.comment_count ?? 0);
   const [commentText, setCommentText] = useState("");
+  const [replyingTo, setReplyingTo] = useState<{ id: string; name: string } | null>(null);
+  const [replyText, setReplyText] = useState("");
   const [commentsLoading, setCommentsLoading] = useState(false);
+
+  useEffect(() => {
+    SecureStore.getItemAsync("user_id").then((id) => setMyUserId(id ?? null)).catch(() => {});
+  }, []);
   const [isMuted, setIsMuted] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [tapIcon, setTapIcon] = useState<"play" | "pause" | null>(null);
@@ -260,24 +274,86 @@ function ClipCard({
     return () => { cancelled = true; };
   }, [isActive]);
 
-  const openComments = async () => {
-    setCommentsOpen(true);
-    if (comments.length > 0) return;
+  const loadComments = async () => {
     setCommentsLoading(true);
     try {
       const res = await feedApi.getComments(clip.id);
-      setComments(res.data.comments ?? []);
+      const fetched: Comment[] = res.data?.comments ?? [];
+      setComments(fetched);
+      const total = fetched.reduce((sum, c) => sum + 1 + (c.replies?.length ?? 0), 0);
+      setCommentCount(total);
     } catch {}
     setCommentsLoading(false);
   };
 
-  const postComment = async () => {
-    const text = commentText.trim();
-    if (!text) return;
-    setCommentText("");
-    const tempId = String(Date.now());
-    setComments((prev) => [...prev, { id: tempId, text, created_at: new Date().toISOString() }]);
-    feedApi.postComment(clip.id, text).catch(() => {});
+  const openComments = () => {
+    setCommentsOpen(true);
+    loadComments();
+  };
+
+  const postComment = async (text?: string, parentId?: string) => {
+    const body = (text ?? commentText).trim();
+    if (!body) return;
+    const tempId = `opt-${Date.now()}`;
+    const optimistic: Comment = {
+      id: tempId,
+      user_id: myUserId ?? "",
+      text: body,
+      created_at: new Date().toISOString(),
+      user_profiles: { name: myProfile?.name ?? "Tú" },
+      replies: [],
+    };
+    if (parentId) {
+      setComments((prev) => prev.map((c) =>
+        c.id === parentId ? { ...c, replies: [...(c.replies ?? []), optimistic] } : c
+      ));
+      setReplyText("");
+      setReplyingTo(null);
+    } else {
+      setComments((prev) => [...prev, optimistic]);
+      setCommentText("");
+    }
+    setCommentCount((n) => n + 1);
+    try {
+      const res = await feedApi.postComment(clip.id, body, parentId);
+      const realId: string | undefined = res.data?.comment?.id;
+      if (realId) {
+        if (parentId) {
+          setComments((prev) => prev.map((c) =>
+            c.id === parentId
+              ? { ...c, replies: (c.replies ?? []).map((r) => r.id === tempId ? { ...r, id: realId, user_id: myUserId ?? "" } : r) }
+              : c
+          ));
+        } else {
+          setComments((prev) => prev.map((c) => c.id === tempId ? { ...c, id: realId, user_id: myUserId ?? "" } : c));
+        }
+      }
+    } catch {
+      if (parentId) {
+        setComments((prev) => prev.map((c) =>
+          c.id === parentId ? { ...c, replies: (c.replies ?? []).filter((r) => r.id !== tempId) } : c
+        ));
+      } else {
+        setComments((prev) => prev.filter((c) => c.id !== tempId));
+      }
+      setCommentCount((n) => Math.max(0, n - 1));
+    }
+  };
+
+  const deleteComment = async (commentId: string, parentId?: string) => {
+    if (parentId) {
+      setComments((prev) => prev.map((c) =>
+        c.id === parentId ? { ...c, replies: (c.replies ?? []).filter((r) => r.id !== commentId) } : c
+      ));
+    } else {
+      setComments((prev) => prev.filter((c) => c.id !== commentId));
+    }
+    setCommentCount((n) => Math.max(0, n - 1));
+    try {
+      await feedApi.deleteComment(clip.id, commentId);
+    } catch {
+      loadComments();
+    }
   };
 
   const handleShare = async () => {
@@ -460,7 +536,7 @@ function ClipCard({
 
         <TouchableOpacity style={styles.actionBtn} onPress={openComments}>
           <Ionicons name="chatbubble-outline" size={24} color="white" />
-          <Text style={styles.actionLabel}>Comentar</Text>
+          <Text style={styles.actionLabel}>{formatCount(commentCount)}</Text>
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.actionBtn} onPress={() => onSave(clip.id)}>
@@ -537,69 +613,145 @@ function ClipCard({
       </View>
 
       {/* Comments modal */}
-      <Modal visible={commentsOpen} transparent animationType="slide" onRequestClose={() => setCommentsOpen(false)}>
+      <Modal visible={commentsOpen} transparent animationType="slide" onRequestClose={() => { setCommentsOpen(false); setReplyingTo(null); setReplyText(""); }}>
         <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1, justifyContent: "flex-end" }}>
-          <View style={[styles.captionSheet, { backgroundColor: colors.card, maxHeight: "75%" }]}>
+          <View style={[styles.captionSheet, { backgroundColor: colors.card, maxHeight: "80%" }]}>
+            {/* Handle */}
             <View style={[styles.captionHandle, { backgroundColor: colors.border }]} />
-            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-              <Text style={[styles.captionTitle, { color: colors.text }]}>Comentarios</Text>
-              <TouchableOpacity onPress={() => setCommentsOpen(false)}>
+
+            {/* Header */}
+            <View style={cmtStyles.header}>
+              <Text style={[cmtStyles.headerTitle, { color: colors.text }]}>
+                Comentarios ({commentCount})
+              </Text>
+              <TouchableOpacity onPress={() => { setCommentsOpen(false); setReplyingTo(null); setReplyText(""); }}>
                 <Ionicons name="close" size={22} color={colors.textMuted} />
               </TouchableOpacity>
             </View>
 
-            <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
+            {/* List */}
+            <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
               {commentsLoading ? (
                 <ActivityIndicator color={colors.accentLight} style={{ marginTop: 24 }} />
               ) : comments.length === 0 ? (
                 <View style={{ alignItems: "center", paddingVertical: 32 }}>
                   <Ionicons name="chatbubbles-outline" size={32} color={colors.textDim} />
-                  <Text style={[styles.captionBody, { color: colors.textMuted, marginTop: 8 }]}>
+                  <Text style={[cmtStyles.body, { color: colors.textMuted, marginTop: 8 }]}>
                     Sé el primero en comentar
                   </Text>
                 </View>
               ) : (
                 comments.map((c) => {
-                  const cName = c.user_profiles?.name || "Usuario";
+                  const cName = c.user_profiles?.name ?? "Usuario";
+                  const isMyComment = c.user_id === myUserId;
                   return (
-                    <View key={c.id} style={cmtStyles.row}>
-                      {c.user_profiles?.avatar_url ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <View style={[cmtStyles.avatar, { backgroundColor: colors.accent }]}>
-                          <Text style={cmtStyles.avatarLetter}>{cName[0].toUpperCase()}</Text>
+                    <View key={c.id} style={{ marginBottom: 16 }}>
+                      {/* Top-level comment */}
+                      <View style={cmtStyles.row}>
+                        {c.user_profiles?.avatar_url ? (
+                          <Image source={{ uri: c.user_profiles.avatar_url }} style={cmtStyles.avatarImg} />
+                        ) : (
+                          <View style={[cmtStyles.avatar, { backgroundColor: colors.accent }]}>
+                            <Text style={cmtStyles.avatarLetter}>{cName[0].toUpperCase()}</Text>
+                          </View>
+                        )}
+                        <View style={{ flex: 1 }}>
+                          <View style={cmtStyles.nameRow}>
+                            <Text style={[cmtStyles.name, { color: colors.text }]}>{cName}</Text>
+                            <Text style={[cmtStyles.date, { color: colors.textDim }]}>
+                              {new Date(c.created_at).toLocaleDateString("es", { day: "numeric", month: "short" })}
+                            </Text>
+                            {isMyComment && (
+                              <TouchableOpacity onPress={() => deleteComment(c.id)} style={cmtStyles.deleteBtn}>
+                                <Ionicons name="trash-outline" size={13} color={colors.textDim} />
+                              </TouchableOpacity>
+                            )}
+                          </View>
+                          <Text style={[cmtStyles.body, { color: colors.textSub }]}>{c.text}</Text>
+                          <TouchableOpacity
+                            onPress={() => setReplyingTo(replyingTo?.id === c.id ? null : { id: c.id, name: cName })}
+                            style={{ marginTop: 4 }}
+                          >
+                            <Text style={[cmtStyles.replyBtn, { color: replyingTo?.id === c.id ? colors.accentLight : colors.textMuted }]}>
+                              Responder
+                            </Text>
+                          </TouchableOpacity>
                         </View>
-                      ) : (
-                        <View style={[cmtStyles.avatar, { backgroundColor: colors.accent }]}>
-                          <Text style={cmtStyles.avatarLetter}>{cName[0].toUpperCase()}</Text>
+                      </View>
+
+                      {/* Replies thread */}
+                      {(c.replies ?? []).length > 0 && (
+                        <View style={[cmtStyles.repliesThread, { borderLeftColor: colors.border }]}>
+                          {(c.replies ?? []).map((r) => {
+                            const rName = r.user_profiles?.name ?? "Usuario";
+                            const isMyReply = r.user_id === myUserId;
+                            return (
+                              <View key={r.id} style={cmtStyles.row}>
+                                {r.user_profiles?.avatar_url ? (
+                                  <Image source={{ uri: r.user_profiles.avatar_url }} style={cmtStyles.avatarImgSm} />
+                                ) : (
+                                  <View style={[cmtStyles.avatarSm, { backgroundColor: colors.accent }]}>
+                                    <Text style={cmtStyles.avatarLetterSm}>{rName[0].toUpperCase()}</Text>
+                                  </View>
+                                )}
+                                <View style={{ flex: 1 }}>
+                                  <View style={cmtStyles.nameRow}>
+                                    <Text style={[cmtStyles.nameSm, { color: colors.text }]}>{rName}</Text>
+                                    <Text style={[cmtStyles.date, { color: colors.textDim }]}>
+                                      {new Date(r.created_at).toLocaleDateString("es", { day: "numeric", month: "short" })}
+                                    </Text>
+                                    {isMyReply && (
+                                      <TouchableOpacity onPress={() => deleteComment(r.id, c.id)} style={cmtStyles.deleteBtn}>
+                                        <Ionicons name="trash-outline" size={12} color={colors.textDim} />
+                                      </TouchableOpacity>
+                                    )}
+                                  </View>
+                                  <Text style={[cmtStyles.bodySm, { color: colors.textSub }]}>{r.text}</Text>
+                                </View>
+                              </View>
+                            );
+                          })}
                         </View>
                       )}
-                      <View style={{ flex: 1 }}>
-                        <View style={cmtStyles.nameRow}>
-                          <Text style={[cmtStyles.name, { color: colors.text }]}>{cName}</Text>
-                          <Text style={[cmtStyles.date, { color: colors.textDim }]}>
-                            {new Date(c.created_at).toLocaleDateString("es", { day: "numeric", month: "short" })}
-                          </Text>
+
+                      {/* Inline reply input */}
+                      {replyingTo?.id === c.id && (
+                        <View style={[cmtStyles.replyInput, { backgroundColor: colors.bg, borderColor: colors.border }]}>
+                          <TextInput
+                            autoFocus
+                            style={[cmtStyles.replyTextField, { color: colors.text }]}
+                            placeholder={`Responder a ${replyingTo.name}…`}
+                            placeholderTextColor={colors.textDim}
+                            value={replyText}
+                            onChangeText={setReplyText}
+                            onSubmitEditing={() => postComment(replyText, c.id)}
+                            returnKeyType="send"
+                            maxLength={300}
+                          />
+                          <TouchableOpacity onPress={() => postComment(replyText, c.id)} disabled={!replyText.trim()}>
+                            <Ionicons name="send" size={18} color={replyText.trim() ? colors.accentLight : colors.textDim} />
+                          </TouchableOpacity>
                         </View>
-                        <Text style={[cmtStyles.body, { color: colors.textSub }]}>{c.text}</Text>
-                      </View>
+                      )}
                     </View>
                   );
                 })
               )}
             </ScrollView>
 
-            {/* Comment input */}
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginTop: 12, borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 12 }}>
+            {/* Main comment input */}
+            <View style={[cmtStyles.inputRow, { borderTopColor: colors.border }]}>
               <TextInput
                 style={[styles.commentInput, { backgroundColor: colors.bg, color: colors.text, borderColor: colors.border }]}
                 placeholder="Escribe un comentario..."
                 placeholderTextColor={colors.textDim}
                 value={commentText}
                 onChangeText={setCommentText}
-                multiline
+                onSubmitEditing={() => postComment()}
+                returnKeyType="send"
                 maxLength={300}
               />
-              <TouchableOpacity onPress={postComment} disabled={!commentText.trim()}>
+              <TouchableOpacity onPress={() => postComment()} disabled={!commentText.trim()}>
                 <Ionicons name="send" size={22} color={commentText.trim() ? colors.accentLight : colors.textDim} />
               </TouchableOpacity>
             </View>
@@ -1148,18 +1300,54 @@ const ccStyles = StyleSheet.create({
   },
 });
 
-// Comment rows with avatars
+// Comment rows — full web parity
 const cmtStyles = StyleSheet.create({
+  // Modal header
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 14,
+  },
+  headerTitle: {
+    fontSize: 15,
+    fontWeight: "800" as const,
+  },
+
+  // Comment row
   row: {
     flexDirection: "row",
     alignItems: "flex-start",
     gap: 10,
-    marginBottom: 16,
   },
+
+  // Avatar — image
+  avatarImg: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    flexShrink: 0,
+  },
+  avatarImgSm: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    flexShrink: 0,
+  },
+
+  // Avatar — initial letter
   avatar: {
     width: 30,
     height: 30,
     borderRadius: 15,
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+  },
+  avatarSm: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
     alignItems: "center",
     justifyContent: "center",
     flexShrink: 0,
@@ -1169,21 +1357,89 @@ const cmtStyles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "700" as const,
   },
+  avatarLetterSm: {
+    color: "white",
+    fontSize: 9,
+    fontWeight: "700" as const,
+  },
+
+  // Name row
   nameRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    gap: 6,
     marginBottom: 3,
+    flexWrap: "wrap" as const,
   },
   name: {
     fontSize: 12,
     fontWeight: "700" as const,
   },
+  nameSm: {
+    fontSize: 11,
+    fontWeight: "700" as const,
+  },
   date: {
     fontSize: 10,
   },
+
+  // Comment text
   body: {
     fontSize: 13,
-    lineHeight: 18,
+    lineHeight: 19,
+  },
+  bodySm: {
+    fontSize: 12,
+    lineHeight: 17,
+  },
+
+  // Delete button
+  deleteBtn: {
+    marginLeft: "auto" as any,
+    padding: 3,
+    opacity: 0.5,
+  },
+
+  // Reply button label
+  replyBtn: {
+    fontSize: 11,
+    fontWeight: "600" as const,
+    marginTop: 4,
+  },
+
+  // Replies indented thread
+  repliesThread: {
+    marginLeft: 40,
+    marginTop: 8,
+    paddingLeft: 12,
+    borderLeftWidth: 1,
+    gap: 12,
+  },
+
+  // Inline reply input
+  replyInput: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginLeft: 40,
+    marginTop: 8,
+    borderRadius: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  replyTextField: {
+    flex: 1,
+    fontSize: 13,
+  },
+
+  // Main input row at bottom
+  inputRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    marginTop: 12,
+    borderTopWidth: 1,
+    paddingTop: 12,
   },
 });
