@@ -621,10 +621,11 @@ function ForecastChart({ prices, current, targetLow, targetMean, targetHigh }: {
 
 // ─── Tabs ─────────────────────────────────────────────────────────────────────
 
-type Tab = "verdict" | "financials" | "analyst" | "company";
+type Tab = "verdict" | "chart" | "financials" | "analyst" | "company";
 
 const TABS: { key: Tab; label: string }[] = [
   { key: "verdict",    label: "Veredicto" },
+  { key: "chart",      label: "Gráfica" },
   { key: "financials", label: "Financieros" },
   { key: "analyst",    label: "Analistas" },
   { key: "company",    label: "Empresa" },
@@ -640,7 +641,7 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
     return () => document.documentElement.removeAttribute("data-stock-modal");
   }, []);
 
-  const [tab, setTab] = useState<Tab>("verdict");
+  const [tab, setTab] = useState<Tab>("chart");
   const [finPeriod, setFinPeriod] = useState<"annual" | "quarterly">("annual");
   const [finSection, setFinSection] = useState<"income" | "balance" | "cashflow">("income");
   const [data, setData] = useState<StockData | null>(null);
@@ -838,24 +839,6 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
           })()}
         </div>
 
-        {/* ── Chart — always visible ── */}
-        <div className="shrink-0 border-b" style={{ borderColor: "var(--border)" }}>
-          {chartError && !loadingChart ? (
-            <div className="flex items-center justify-center py-8 gap-2 text-center">
-              <p className="text-xs" style={{ color: "var(--muted)" }}>Gráfica no disponible</p>
-            </div>
-          ) : (
-            <GoogleFinanceChart
-              prices={chartData?.prices ?? []}
-              timestamps={chartData?.timestamps ?? []}
-              changePct={chartData?.change_pct ?? 0}
-              loading={loadingChart}
-              period={period}
-              onPeriodChange={setPeriod}
-            />
-          )}
-        </div>
-
         {/* ── Quick stats grid ── */}
         <div className="px-4 py-3 border-b shrink-0" style={{ borderColor: "var(--border)", background: "var(--bg)" }}>
           {loading ? (
@@ -1049,6 +1032,27 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
                 </p>
               )}
             </div>
+          )}
+
+          {/* ── GRÁFICA ── */}
+          {tab === "chart" && (
+            chartError && !loadingChart ? (
+              <div className="flex flex-col items-center justify-center py-20 gap-2 px-6 text-center">
+                <p className="text-sm font-bold" style={{ color: "#ef4444" }}>No se pudieron cargar los datos</p>
+                <p className="text-xs" style={{ color: "var(--muted)" }}>
+                  Intenta con otro período o vuelve a intentarlo más tarde
+                </p>
+              </div>
+            ) : (
+              <GoogleFinanceChart
+                prices={chartData?.prices ?? []}
+                timestamps={chartData?.timestamps ?? []}
+                changePct={chartData?.change_pct ?? 0}
+                loading={loadingChart}
+                period={period}
+                onPeriodChange={setPeriod}
+              />
+            )
           )}
 
           {/* ── FINANCIEROS ── */}
