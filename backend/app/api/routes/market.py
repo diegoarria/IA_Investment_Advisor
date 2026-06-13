@@ -2555,7 +2555,7 @@ async def get_stock_detail(
     result = await asyncio.to_thread(_fetch_stock_detail, symbol.upper())
     if include_score:
         sym = symbol.upper()
-        score_cache_key = f"score3:{sym}"
+        score_cache_key = f"score4:{sym}"
         cached_score = cache_get(score_cache_key)
         if cached_score:
             return {**result, "score": cached_score}
@@ -2680,8 +2680,11 @@ def _compute_stock_score(detail: dict) -> dict:
                 pass
 
     # ── Growth metrics ─────────────────────────────────────────────────────────
-    rev_growth = p.get("revenue_growth")      # decimal e.g. 0.12
-    earn_growth = p.get("earnings_growth")
+    # Profile stores these as percentages (×100 from yfinance decimal) — convert back to decimal
+    _raw_rg  = p.get("revenue_growth")
+    _raw_eg  = p.get("earnings_growth")
+    rev_growth  = _raw_rg  / 100 if _raw_rg  is not None else None
+    earn_growth = _raw_eg  / 100 if _raw_eg  is not None else None
 
     rev_score  = _score_val(rev_growth,  [(-0.1,10),(-0.05,20),(0,35),(0.05,50),(0.1,65),(0.15,75),(0.2,85),(0.3,92),(1,100)])
     earn_score = _score_val(earn_growth, [(-0.1,10),(-0.05,20),(0,35),(0.05,50),(0.1,65),(0.15,75),(0.2,85),(0.3,92),(1,100)])
@@ -2711,11 +2714,17 @@ def _compute_stock_score(detail: dict) -> dict:
                 pass
 
     # ── Quality metrics ────────────────────────────────────────────────────────
-    gm  = p.get("gross_margins")        # decimal
-    om  = p.get("operating_margins")
-    nm  = p.get("profit_margins")
-    roe = p.get("return_on_equity")
-    roa = p.get("return_on_assets")
+    # Profile stores these as percentages (×100 from yfinance decimal) — convert back to decimal
+    _raw_gm  = p.get("gross_margins")
+    _raw_om  = p.get("operating_margins")
+    _raw_nm  = p.get("profit_margins")
+    _raw_roe = p.get("return_on_equity")
+    _raw_roa = p.get("return_on_assets")
+    gm  = _raw_gm  / 100 if _raw_gm  is not None else None
+    om  = _raw_om  / 100 if _raw_om  is not None else None
+    nm  = _raw_nm  / 100 if _raw_nm  is not None else None
+    roe = _raw_roe / 100 if _raw_roe is not None else None
+    roa = _raw_roa / 100 if _raw_roa is not None else None
 
     gm_score  = _score_val(gm,  [(-1,10),(0,25),(0.1,40),(0.2,55),(0.3,65),(0.4,75),(0.5,85),(0.6,92),(1,100)])
     om_score  = _score_val(om,  [(-1,10),(0,25),(0.05,45),(0.1,60),(0.15,70),(0.2,80),(0.25,90),(1,100)])
@@ -3039,7 +3048,7 @@ async def get_stock_score(
 ):
     """AI quality score + verdict for a stock (0-100, 8 metrics, 4 categories)."""
     sym = symbol.upper()
-    cache_key = f"score3:{sym}"
+    cache_key = f"score4:{sym}"
     cached = cache_get(cache_key)
     if cached:
         return cached
