@@ -564,6 +564,9 @@ export default function PortfolioScreen() {
   // Currency picker
   const [showCurrencyPicker, setShowCurrencyPicker] = useState(false);
 
+  // Sector drill-down
+  const [selectedSector, setSelectedSector] = useState<string | null>(null);
+
   // Edit position
   const [editingPos, setEditingPos] = useState<{ id: string; shares: string; avgPrice: string; purchaseDate: string } | null>(null);
   const [revealedPrices, setRevealedPrices] = useState<Set<string>>(new Set());
@@ -1847,20 +1850,96 @@ export default function PortfolioScreen() {
                 <Text style={[s.diagBarLabel, { color: colors.textDim }]}>Especulativo</Text>
               </View>
 
-              {/* Sector breakdown chips */}
+              {/* Sector breakdown chips — toca uno para ver las posiciones */}
               {Object.keys(diagnosis.sectorPcts).length > 0 && (
-                <View style={s.diagSectors}>
-                  {Object.entries(diagnosis.sectorPcts)
-                    .sort((a, b) => b[1] - a[1])
-                    .map(([sector, pct]) => {
-                      const col = SECTOR_COLOR[sector] ?? "#94a3b8";
-                      return (
-                        <View key={sector} style={[s.diagSectorChip, { backgroundColor: `${col}18`, borderColor: `${col}40` }]}>
-                          <Text style={[s.diagSectorText, { color: col, fontWeight: "700" }]}>{sector} {pct}%</Text>
+                <>
+                  <View style={s.diagSectors}>
+                    {Object.entries(diagnosis.sectorPcts)
+                      .sort((a, b) => b[1] - a[1])
+                      .map(([sector, pct]) => {
+                        const col = SECTOR_COLOR[sector] ?? "#94a3b8";
+                        const isSelected = selectedSector === sector;
+                        return (
+                          <TouchableOpacity
+                            key={sector}
+                            onPress={() => setSelectedSector(isSelected ? null : sector)}
+                            style={[
+                              s.diagSectorChip,
+                              {
+                                backgroundColor: isSelected ? col : `${col}18`,
+                                borderColor: isSelected ? col : `${col}40`,
+                              },
+                            ]}
+                            activeOpacity={0.7}
+                          >
+                            <Text style={[s.diagSectorText, { color: isSelected ? "#fff" : col }]}>
+                              {sector} {pct}%
+                            </Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                  </View>
+
+                  {/* Drill-down: posiciones del sector seleccionado */}
+                  {selectedSector && (() => {
+                    const col = SECTOR_COLOR[selectedSector] ?? "#94a3b8";
+                    const sectorPositions = positions.filter(
+                      (p) => (TICKER_SECTOR[p.ticker] ?? "Otro") === selectedSector
+                    );
+                    const sectorTotal = sectorPositions.reduce((sum, p) => {
+                      const price = (prices[p.ticker]?.price ?? p.avgPrice) * fxRate;
+                      return sum + p.shares * price;
+                    }, 0);
+                    return (
+                      <View style={[s.sectorDrillBox, { backgroundColor: `${col}0e`, borderColor: `${col}40` }]}>
+                        <View style={s.sectorDrillHeader}>
+                          <Text style={[s.sectorDrillTitle, { color: col }]}>
+                            Posiciones · {selectedSector}
+                          </Text>
+                          <TouchableOpacity onPress={() => setSelectedSector(null)} activeOpacity={0.7}>
+                            <Text style={[s.sectorDrillClose, { color: colors.textDim }]}>Cerrar ✕</Text>
+                          </TouchableOpacity>
                         </View>
-                      );
-                    })}
-                </View>
+                        {sectorPositions.map((pos) => {
+                          const price = (prices[pos.ticker]?.price ?? pos.avgPrice) * fxRate;
+                          const val = pos.shares * price;
+                          const pctOfSector = sectorTotal > 0 ? Math.round((val / sectorTotal) * 100) : 0;
+                          return (
+                            <View key={pos.id} style={[s.sectorDrillRow, { backgroundColor: colors.bg }]}>
+                              <View style={s.sectorDrillLeft}>
+                                <Text style={[s.sectorDrillTicker, { color: col }]}>{pos.ticker}</Text>
+                                {pos.name && (
+                                  <Text style={[s.sectorDrillName, { color: colors.textSub }]} numberOfLines={1}>
+                                    {pos.name}
+                                  </Text>
+                                )}
+                              </View>
+                              <View style={s.sectorDrillRight}>
+                                <Text style={[s.sectorDrillShares, { color: colors.textDim }]}>
+                                  {pos.shares} acc.
+                                </Text>
+                                <Text style={[s.sectorDrillVal, { color: colors.text }]}>
+                                  {currencySymbol}{val.toLocaleString("en-US", { maximumFractionDigits: 0 })}
+                                </Text>
+                                <Text style={[s.sectorDrillPct, { color: col }]}>
+                                  {pctOfSector}%
+                                </Text>
+                              </View>
+                            </View>
+                          );
+                        })}
+                        <View style={[s.sectorDrillFooter, { borderTopColor: `${col}30` }]}>
+                          <Text style={[s.sectorDrillFooterLabel, { color: colors.textDim }]}>
+                            Total sector:{" "}
+                            <Text style={{ color: col }}>
+                              {currencySymbol}{sectorTotal.toLocaleString("en-US", { maximumFractionDigits: 0 })}
+                            </Text>
+                          </Text>
+                        </View>
+                      </View>
+                    );
+                  })()}
+                </>
               )}
 
               {/* Feedback lines */}
@@ -2678,7 +2757,22 @@ function makeStyles(c: Colors) {
     diagBarLabel: { fontSize: 10, letterSpacing: 0.1 },
     diagSectors: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: 12 },
     diagSectorChip: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4 },
-    diagSectorText: { fontSize: 11, fontWeight: "600" },
+    diagSectorText: { fontSize: 11, fontWeight: "700" },
+    // Sector drill-down
+    sectorDrillBox: { borderWidth: 1, borderRadius: 12, padding: 12, marginBottom: 12 },
+    sectorDrillHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 10 },
+    sectorDrillTitle: { fontSize: 12, fontWeight: "800" },
+    sectorDrillClose: { fontSize: 11, fontWeight: "600" },
+    sectorDrillRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, marginBottom: 4 },
+    sectorDrillLeft: { flex: 1, minWidth: 0, marginRight: 8 },
+    sectorDrillTicker: { fontSize: 13, fontWeight: "800" },
+    sectorDrillName: { fontSize: 11, marginTop: 1 },
+    sectorDrillRight: { flexDirection: "row", alignItems: "center", gap: 10, flexShrink: 0 },
+    sectorDrillShares: { fontSize: 11 },
+    sectorDrillVal: { fontSize: 12, fontWeight: "700" },
+    sectorDrillPct: { fontSize: 11, fontWeight: "700", width: 30, textAlign: "right" },
+    sectorDrillFooter: { borderTopWidth: 1, paddingTop: 8, marginTop: 4, alignItems: "flex-end" },
+    sectorDrillFooterLabel: { fontSize: 12, fontWeight: "700" },
     diagFeedback: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 12, gap: 8 },
     diagFeedbackRow: { flexDirection: "row", gap: 8, alignItems: "flex-start" },
     diagFeedbackText: { flex: 1, fontSize: 13, lineHeight: 19 },
