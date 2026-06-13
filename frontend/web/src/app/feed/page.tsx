@@ -22,7 +22,7 @@ class ClipErrorBoundary extends React.Component<
       return (
         <div
           className="flex items-center justify-center"
-          style={{ height: "100svh", scrollSnapAlign: "start", scrollSnapStop: "always" }}
+          style={{ height: "100%", scrollSnapAlign: "start", scrollSnapStop: "always" }}
         >
           <p className="text-sm" style={{ color: "var(--muted)" }}>Video no disponible</p>
         </div>
@@ -118,16 +118,29 @@ export default function FeedPage() {
     setRefreshKey((k) => k + 1);
   };
 
-  // Scroll-based active index — IntersectionObserver with overflow:scroll root is broken in Safari
+  // Active index from scroll position.
+  // Uses scrollend (Safari 17.5+) + debounced scroll fallback to handle Safari's
+  // snap animation — the scroll event can fire with intermediate scrollTop values
+  // during the snap, so we debounce to always read the final resting position.
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
-    const onScroll = () => {
+    const update = () => {
       const idx = Math.round(container.scrollTop / container.clientHeight);
-      setActiveIndex(Math.min(idx, clips.length - 1));
+      setActiveIndex(Math.min(Math.max(0, idx), clips.length - 1));
     };
+    let debounceId: ReturnType<typeof setTimeout>;
+    const onScroll = () => {
+      clearTimeout(debounceId);
+      debounceId = setTimeout(update, 120);
+    };
+    container.addEventListener("scrollend", update, { passive: true });
     container.addEventListener("scroll", onScroll, { passive: true });
-    return () => container.removeEventListener("scroll", onScroll);
+    return () => {
+      clearTimeout(debounceId);
+      container.removeEventListener("scrollend", update);
+      container.removeEventListener("scroll", onScroll);
+    };
   }, [clips.length]);
 
   // Load more when near end
@@ -158,18 +171,11 @@ export default function FeedPage() {
     <div className="flex h-screen overflow-hidden" style={{ background: "var(--bg)" }}>
       <AppSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
-      {/* Feed container — snap scroll */}
-      <div
-        ref={containerRef}
-        className="flex-1 overflow-y-scroll"
-        style={{
-          scrollSnapType: "y mandatory",
-          WebkitOverflowScrolling: "touch",
-          scrollbarWidth: "none",
-        }}>
+      {/* Right side: filter bar (outside scroll container) + scroll container */}
+      <div className="flex-1 flex flex-col overflow-hidden relative">
 
-        {/* Filter bar (sticky top) */}
-        <div className="sticky top-0 z-20 flex items-center gap-2 px-3 py-2"
+        {/* Filter bar — OUTSIDE the scroll container so it never shifts snap points */}
+        <div className="shrink-0 z-20 flex items-center gap-2 px-3 py-2"
              style={{ background: "linear-gradient(to bottom, rgba(var(--bg-rgb), 0.92) 0%, transparent 100%)" }}>
           <button onClick={() => setSidebarOpen(true)}
                   className="lg:hidden p-1.5 rounded-full"
@@ -220,58 +226,66 @@ export default function FeedPage() {
           </div>
         </div>
 
-        {loading ? (
-          <div className="h-screen flex items-center justify-center">
-            <Loader2 className="w-8 h-8 animate-spin" style={{ color: "var(--accent)" }} />
-          </div>
-        ) : clips.length === 0 ? (
-          <div className="h-screen flex flex-col items-center justify-center gap-3">
-            <p className="text-lg font-bold" style={{ color: "var(--text)" }}>Sin contenido aún</p>
-            <p className="text-sm" style={{ color: "var(--sub)" }}>
-              Pronto cargaremos clips educativos de los mejores inversores
-            </p>
-            {(speaker || tag) && (
-              <button onClick={clearFilters}
-                      className="px-4 py-2 rounded-xl text-sm font-semibold"
-                      style={{ background: "var(--accent-l, #00d47e)", color: "#000" }}>
-                Limpiar filtros
-              </button>
-            )}
-          </div>
-        ) : (
-          <>
-            {clips.map((clip, i) => (
-              <ClipErrorBoundary key={clip.id}>
-                <div
-                  className="flex items-center justify-center"
-                  style={{ height: "100svh", scrollSnapAlign: "start", scrollSnapStop: "always" }}>
-                  <VideoCard
-                    clip={clip}
-                    isActive={activeIndex === i}
-                    isMuted={isMuted}
-                    onMuteToggle={() => setIsMuted((m) => !m)}
-                    onLikeChange={handleLikeChange}
-                    onSaveChange={handleSaveChange}
-                  />
+        {/* Scroll container — below filter bar, takes remaining height.
+            Cards use height:100% so snap math is exact (no svh offset). */}
+        <div
+          ref={containerRef}
+          className="flex-1 overflow-y-scroll"
+          style={{ scrollSnapType: "y mandatory", scrollbarWidth: "none" }}>
+
+          {loading ? (
+            <div className="h-full flex items-center justify-center">
+              <Loader2 className="w-8 h-8 animate-spin" style={{ color: "var(--accent)" }} />
+            </div>
+          ) : clips.length === 0 ? (
+            <div className="h-full flex flex-col items-center justify-center gap-3">
+              <p className="text-lg font-bold" style={{ color: "var(--text)" }}>Sin contenido aún</p>
+              <p className="text-sm" style={{ color: "var(--sub)" }}>
+                Pronto cargaremos clips educativos de los mejores inversores
+              </p>
+              {(speaker || tag) && (
+                <button onClick={clearFilters}
+                        className="px-4 py-2 rounded-xl text-sm font-semibold"
+                        style={{ background: "var(--accent-l, #00d47e)", color: "#000" }}>
+                  Limpiar filtros
+                </button>
+              )}
+            </div>
+          ) : (
+            <>
+              {clips.map((clip, i) => (
+                <ClipErrorBoundary key={clip.id}>
+                  <div
+                    className="flex items-center justify-center"
+                    style={{ height: "100%", scrollSnapAlign: "start", scrollSnapStop: "always" }}>
+                    <VideoCard
+                      clip={clip}
+                      isActive={activeIndex === i}
+                      isMuted={isMuted}
+                      onMuteToggle={() => setIsMuted((m) => !m)}
+                      onLikeChange={handleLikeChange}
+                      onSaveChange={handleSaveChange}
+                    />
+                  </div>
+                </ClipErrorBoundary>
+              ))}
+
+              {loadingMore && (
+                <div className="flex items-center justify-center py-6"
+                     style={{ height: "80px", scrollSnapAlign: "start" }}>
+                  <Loader2 className="w-6 h-6 animate-spin" style={{ color: "var(--accent)" }} />
                 </div>
-              </ClipErrorBoundary>
-            ))}
+              )}
 
-            {loadingMore && (
-              <div className="flex items-center justify-center py-6"
-                   style={{ height: "80px", scrollSnapAlign: "start" }}>
-                <Loader2 className="w-6 h-6 animate-spin" style={{ color: "var(--accent)" }} />
-              </div>
-            )}
-
-            {nextCursor === null && clips.length > 0 && (
-              <div className="flex items-center justify-center py-6 text-sm"
-                   style={{ color: "var(--muted)", scrollSnapAlign: "start" }}>
-                Has visto todo el contenido disponible
-              </div>
-            )}
-          </>
-        )}
+              {nextCursor === null && clips.length > 0 && (
+                <div className="flex items-center justify-center py-6 text-sm"
+                     style={{ color: "var(--muted)", scrollSnapAlign: "start" }}>
+                  Has visto todo el contenido disponible
+                </div>
+              )}
+            </>
+          )}
+        </div>
       </div>
 
       {/* Filter drawer */}

@@ -155,12 +155,25 @@ export default function VideoCard({
     else hls.stopLoad();
   }, [isActive]);
 
-  // Safari blocks autoplay for unmuted media without a direct user gesture (scroll doesn't count).
-  // safePlay: try playing as-is, then mute and retry if blocked.
+  // Safari blocks autoplay for unmuted media without a direct user gesture.
+  // For native HLS (Safari) with preload="none", the element stays at readyState=0
+  // (HAVE_NOTHING) until load() is called. Calling play() without load() can
+  // silently fail or return an AbortError. Always call load() first in that case.
   const safePlay = useCallback(async (el: HTMLVideoElement) => {
+    // Trigger fetch for Safari native HLS / plain mp4 when nothing has loaded yet
+    if (!hlsRef.current && el.readyState === 0 && el.src) {
+      el.load();
+    }
     try {
       await el.play();
-    } catch {
+    } catch (err) {
+      if ((err as Error)?.name === "AbortError") {
+        // load() interrupted a pending play() — retry once after a microtask
+        el.play().catch(() => {});
+        setPlaying(true);
+        return;
+      }
+      // Blocked by autoplay policy: mute and retry
       el.muted = true;
       el.play().catch(() => {});
     }
@@ -409,7 +422,7 @@ export default function VideoCard({
 
   // TikTok-style: portrait frame + actions to the right
   return (
-    <div className="flex items-center gap-3" style={{ height: "100svh" }}>
+    <div className="flex items-center gap-3" style={{ height: "100%" }}>
       <style>{`
         @keyframes soundbar {
           from { transform: scaleY(0.3); opacity: 0.5; }
@@ -422,12 +435,12 @@ export default function VideoCard({
         }
       `}</style>
 
-      {/* Portrait video frame — 9:16 */}
+      {/* Portrait video frame — 9:16 aspect ratio, fills available height */}
       <div className="relative rounded-xl overflow-hidden shrink-0"
            style={{
-             height: "min(100svh, calc(100vw * 9/16))",
-             width: "min(calc(100svh * 9/16), 100vw - 80px)",
-             maxHeight: "100svh",
+             height: "100%",
+             aspectRatio: "9/16",
+             maxWidth: "calc(100% - 64px)",
              background: "#000",
            }}>
 
@@ -451,7 +464,9 @@ export default function VideoCard({
                  onLoadedMetadata={(e) => setAudioRemaining(Math.ceil(e.currentTarget.duration))} />
         )}
 
-        {/* Video — preload="none" on all cards; src/loading controlled by effects above */}
+        {/* Video — preload="none" on all cards; src/loading controlled by effects above.
+            transform:translateZ(0) forces a GPU compositing layer so Safari doesn't
+            render offscreen videos as black when they first enter the viewport. */}
         <video
           ref={videoRef}
           playsInline
@@ -464,6 +479,7 @@ export default function VideoCard({
           onEnded={handleVideoEnded}
           onError={() => {}}
           className="w-full h-full object-cover"
+          style={{ transform: "translateZ(0)", WebkitTransform: "translateZ(0)" } as React.CSSProperties}
         />
 
         {/* Thumbnail overlay — hides the black buffering screen until first frame is ready */}
