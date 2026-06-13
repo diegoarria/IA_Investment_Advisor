@@ -621,11 +621,10 @@ function ForecastChart({ prices, current, targetLow, targetMean, targetHigh }: {
 
 // ─── Tabs ─────────────────────────────────────────────────────────────────────
 
-type Tab = "verdict" | "chart" | "financials" | "analyst" | "company";
+type Tab = "verdict" | "financials" | "analyst" | "company";
 
 const TABS: { key: Tab; label: string }[] = [
   { key: "verdict",    label: "Veredicto" },
-  { key: "chart",      label: "Gráfica" },
   { key: "financials", label: "Financieros" },
   { key: "analyst",    label: "Analistas" },
   { key: "company",    label: "Empresa" },
@@ -641,7 +640,7 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
     return () => document.documentElement.removeAttribute("data-stock-modal");
   }, []);
 
-  const [tab, setTab] = useState<Tab>("chart");
+  const [tab, setTab] = useState<Tab>("verdict");
   const [finPeriod, setFinPeriod] = useState<"annual" | "quarterly">("annual");
   const [finSection, setFinSection] = useState<"income" | "balance" | "cashflow">("income");
   const [data, setData] = useState<StockData | null>(null);
@@ -658,41 +657,37 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
   const [loadingPeers, setLoadingPeers] = useState(false);
 
   useEffect(() => {
+    const fn = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("keydown", fn);
+    return () => document.removeEventListener("keydown", fn);
+  }, [onClose]);
+
+  // Fetch detail + score in one call (eliminates double yfinance hit on cache miss)
+  useEffect(() => {
+    setLoading(true);
+    setLoadingScore(true);
+    setData(null);
+    setScore(null);
+    setDataError(false);
+    marketApi.getStockDetail(ticker, true)
+      .then((r) => {
+        const d = r.data;
+        if (d?.profile) {
+          setData(d);
+          if (d.score?.overall_score != null) setScore(d.score);
+        } else setDataError(true);
+      })
+      .catch(() => setDataError(true))
+      .finally(() => { setLoading(false); setLoadingScore(false); });
+
+    // Peers load in background — non-blocking
     setLoadingPeers(true);
     setPeers([]);
     marketApi.getPeers(ticker)
       .then((r) => setPeers(r.data ?? []))
       .catch(() => setPeers([]))
       .finally(() => setLoadingPeers(false));
-  }, [ticker]);
-
-  useEffect(() => {
-    const fn = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
-    document.addEventListener("keydown", fn);
-    return () => document.removeEventListener("keydown", fn);
-  }, [onClose]);
-
-  useEffect(() => {
-    setLoading(true);
-    setData(null);
-    setDataError(false);
-    marketApi.getStockDetail(ticker)
-      .then((r) => {
-        if (r.data?.profile) setData(r.data);
-        else setDataError(true);
-      })
-      .catch(() => setDataError(true))
-      .finally(() => setLoading(false));
-  }, [ticker]);
-
-  useEffect(() => {
-    setLoadingScore(true);
-    setScore(null);
-    marketApi.getStockScore(ticker)
-      .then((r) => { if (r.data?.overall_score != null) setScore(r.data); })
-      .catch(() => {})
-      .finally(() => setLoadingScore(false));
-  }, [ticker]);
+  }, [ticker]); // eslint-disable-line
 
   useEffect(() => {
     setLoadingChart(true);
@@ -706,7 +701,7 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
       })
       .catch(() => setChartError(true))
       .finally(() => setLoadingChart(false));
-  }, [ticker, period]);
+  }, [ticker, period]); // eslint-disable-line
 
   const profile = data?.profile;
   const analyst = data?.analyst;
@@ -736,11 +731,12 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
       >
         {/* ── Header ── */}
         <div className="px-5 pt-4 pb-3 border-b shrink-0" style={{ borderColor: "var(--border)" }}>
-          <div className="flex items-center gap-3">
+          {/* Top row: avatar + name/ticker + close */}
+          <div className="flex items-start gap-3 mb-3">
             <Avatar ticker={ticker} glowColor={recColor(profile?.recommendation)} />
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-lg font-black" style={{ color: "var(--text)" }}>{ticker}</span>
+                <span className="text-base font-black" style={{ color: "var(--text)" }}>{ticker}</span>
                 {profile?.exchange && (
                   <span className="text-[9px] font-bold px-1.5 py-0.5 rounded"
                         style={{ background: "var(--raised)", color: "var(--muted)" }}>
@@ -753,41 +749,71 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
                     {profile.sector}
                   </span>
                 )}
-                {profile?.recommendation && (
-                  <span className="text-[9px] font-bold px-2 py-0.5 rounded-full"
-                        style={{ background: `${recColor(profile.recommendation)}18`, color: recColor(profile.recommendation) }}>
-                    {recLabel(profile.recommendation)}
-                  </span>
-                )}
               </div>
-              <p className="text-xs truncate mt-0.5" style={{ color: "var(--muted)" }}>
+              <p className="text-xs truncate" style={{ color: "var(--muted)" }}>
                 {profile?.name ?? ticker}
               </p>
             </div>
-            <div className="text-right shrink-0">
-              {profile?.current_price != null ? (
-                <>
-                  <p className="text-2xl font-black leading-tight" style={{ color: "var(--text)" }}>
-                    ${profile.current_price.toFixed(2)}
-                  </p>
-                  {pricePct != null && priceChange != null && (
-                    <p className="text-sm font-bold flex items-center gap-1 justify-end" style={{ color: priceColor }}>
-                      {isUp ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
-                      {priceChange >= 0 ? "+" : ""}{priceChange.toFixed(2)} ({fmtPct(pricePct)})
-                    </p>
-                  )}
-                </>
-              ) : loading ? (
-                <Loader2 className="w-5 h-5 animate-spin" style={{ color: "var(--muted)" }} />
-              ) : dataError ? (
-                <p className="text-xs font-bold" style={{ color: "#ef4444" }}>Sin datos</p>
-              ) : null}
-            </div>
             <button onClick={onClose}
-                    className="p-1.5 rounded-lg hover:bg-white/10 transition-colors shrink-0"
+                    className="p-1.5 rounded-lg hover:bg-white/10 transition-colors shrink-0 mt-0.5"
                     style={{ color: "var(--muted)" }}>
               <X className="w-5 h-5" />
             </button>
+          </div>
+
+          {/* Price row */}
+          <div className="flex items-end gap-3">
+            <div className="flex-1">
+              {loading ? (
+                <div className="space-y-2">
+                  <div className="animate-pulse h-9 w-36 rounded-lg" style={{ background: "var(--raised)" }} />
+                  <div className="animate-pulse h-4 w-28 rounded" style={{ background: "var(--raised)" }} />
+                </div>
+              ) : profile?.current_price != null ? (
+                <>
+                  <p className="text-4xl font-black leading-none" style={{ color: "var(--text)" }}>
+                    ${profile.current_price < 1 ? profile.current_price.toFixed(4) : profile.current_price.toFixed(2)}
+                  </p>
+                  {pricePct != null && priceChange != null && (
+                    <p className="text-sm font-bold flex items-center gap-1 mt-1" style={{ color: priceColor }}>
+                      {isUp ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
+                      {priceChange >= 0 ? "+" : ""}{priceChange.toFixed(2)} ({fmtPct(pricePct)}) hoy
+                    </p>
+                  )}
+                </>
+              ) : dataError ? (
+                <p className="text-sm font-bold" style={{ color: "#ef4444" }}>Sin datos</p>
+              ) : null}
+            </div>
+            {/* AI signal badge */}
+            <div className="shrink-0 mb-1">
+              {loadingScore ? (
+                <div className="animate-pulse h-8 w-24 rounded-full" style={{ background: "var(--raised)" }} />
+              ) : score ? (
+                <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full"
+                     style={{
+                       background: score.signal.includes("COMPRA") ? "rgba(34,197,94,0.15)" : score.signal.includes("VEND") ? "rgba(239,68,68,0.15)" : "rgba(245,158,11,0.15)",
+                       border: `1px solid ${score.signal.includes("COMPRA") ? "rgba(34,197,94,0.3)" : score.signal.includes("VEND") ? "rgba(239,68,68,0.3)" : "rgba(245,158,11,0.3)"}`,
+                     }}>
+                  <span className="text-lg font-black leading-none"
+                        style={{ color: score.signal.includes("COMPRA") ? "#22c55e" : score.signal.includes("VEND") ? "#ef4444" : "#f59e0b" }}>
+                    {score.overall_score}
+                  </span>
+                  <div>
+                    <p className="text-[8px] font-black leading-none"
+                       style={{ color: score.signal.includes("COMPRA") ? "#22c55e" : score.signal.includes("VEND") ? "#ef4444" : "#f59e0b" }}>
+                      {score.signal}
+                    </p>
+                    <p className="text-[8px] leading-none mt-0.5" style={{ color: "var(--dim)" }}>AI Score</p>
+                  </div>
+                </div>
+              ) : profile?.recommendation ? (
+                <span className="text-xs font-bold px-3 py-1.5 rounded-full"
+                      style={{ background: `${recColor(profile.recommendation)}18`, color: recColor(profile.recommendation), border: `1px solid ${recColor(profile.recommendation)}30` }}>
+                  {recLabel(profile.recommendation)}
+                </span>
+              ) : null}
+            </div>
           </div>
 
           {/* 52-week range bar */}
@@ -812,28 +838,53 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
           })()}
         </div>
 
-        {/* ── Quick stats strip ── */}
-        {profile && (
-          <div className="flex items-center gap-2 px-4 py-2.5 border-b overflow-x-auto shrink-0"
-               style={{ borderColor: "var(--border)", background: "var(--bg)" }}>
-            {[
-              { label: "Cap.", value: fmtBig(profile.market_cap) },
-              { label: "P/E", value: fmtNum(profile.pe_ratio) },
-              { label: "Fwd P/E", value: fmtNum(profile.forward_pe) },
-              { label: "Beta", value: fmtNum(profile.beta) },
-              { label: "EPS", value: profile.eps != null ? `$${profile.eps.toFixed(2)}` : "—" },
-              { label: "Div.", value: profile.dividend_yield ? `${profile.dividend_yield.toFixed(2)}%` : "—" },
-              { label: "Vol.", value: fmtK(profile.volume) },
-              { label: "Marg.%", value: profile.profit_margins != null ? `${profile.profit_margins.toFixed(1)}%` : "—" },
-            ].map(({ label, value }) => (
-              <div key={label} className="flex flex-col items-center shrink-0 px-2.5 py-1"
-                   style={{ border: "1px solid var(--border)", borderRadius: 8, background: "var(--raised)" }}>
-                <span className="text-[9px] font-semibold uppercase" style={{ color: "var(--dim)" }}>{label}</span>
-                <span className="text-[11px] font-black leading-tight" style={{ color: "var(--text)" }}>{value}</span>
-              </div>
-            ))}
-          </div>
-        )}
+        {/* ── Chart — always visible ── */}
+        <div className="shrink-0 border-b" style={{ borderColor: "var(--border)" }}>
+          {chartError && !loadingChart ? (
+            <div className="flex items-center justify-center py-8 gap-2 text-center">
+              <p className="text-xs" style={{ color: "var(--muted)" }}>Gráfica no disponible</p>
+            </div>
+          ) : (
+            <GoogleFinanceChart
+              prices={chartData?.prices ?? []}
+              timestamps={chartData?.timestamps ?? []}
+              changePct={chartData?.change_pct ?? 0}
+              loading={loadingChart}
+              period={period}
+              onPeriodChange={setPeriod}
+            />
+          )}
+        </div>
+
+        {/* ── Quick stats grid ── */}
+        <div className="px-4 py-3 border-b shrink-0" style={{ borderColor: "var(--border)", background: "var(--bg)" }}>
+          {loading ? (
+            <div className="grid grid-cols-4 gap-2">
+              {Array.from({ length: 8 }).map((_, i) => (
+                <div key={i} className="animate-pulse rounded-lg h-10" style={{ background: "var(--raised)" }} />
+              ))}
+            </div>
+          ) : profile ? (
+            <div className="grid grid-cols-4 gap-2">
+              {[
+                { label: "Cap.", value: fmtBig(profile.market_cap) },
+                { label: "P/E", value: fmtNum(profile.pe_ratio) },
+                { label: "Fwd P/E", value: fmtNum(profile.forward_pe) },
+                { label: "Beta", value: fmtNum(profile.beta) },
+                { label: "EPS", value: profile.eps != null ? `$${profile.eps.toFixed(2)}` : "—" },
+                { label: "Div.", value: profile.dividend_yield ? `${profile.dividend_yield.toFixed(2)}%` : "—" },
+                { label: "Vol.", value: fmtK(profile.volume) },
+                { label: "Margen", value: profile.profit_margins != null ? `${profile.profit_margins.toFixed(1)}%` : "—" },
+              ].map(({ label, value }) => (
+                <div key={label} className="flex flex-col items-center py-2 px-1 rounded-lg"
+                     style={{ background: "var(--raised)", border: "1px solid var(--border)" }}>
+                  <span className="text-[8px] font-semibold uppercase tracking-wide" style={{ color: "var(--dim)" }}>{label}</span>
+                  <span className="text-xs font-black leading-tight mt-0.5" style={{ color: "var(--text)" }}>{value}</span>
+                </div>
+              ))}
+            </div>
+          ) : null}
+        </div>
 
         {/* ── Tab bar ── */}
         <div className="flex gap-1 px-3 py-2 border-b shrink-0" style={{ borderColor: "var(--border)", background: "var(--bg)" }}>
@@ -998,27 +1049,6 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
                 </p>
               )}
             </div>
-          )}
-
-          {/* ── GRÁFICA — Google Finance style ── */}
-          {tab === "chart" && (
-            chartError && !loadingChart ? (
-              <div className="flex flex-col items-center justify-center py-20 gap-2 px-6 text-center">
-                <p className="text-sm font-bold" style={{ color: "#ef4444" }}>No se pudieron cargar los datos</p>
-                <p className="text-xs" style={{ color: "var(--muted)" }}>
-                  Intenta con otro período o vuelve a intentarlo más tarde
-                </p>
-              </div>
-            ) : (
-              <GoogleFinanceChart
-                prices={chartData?.prices ?? []}
-                timestamps={chartData?.timestamps ?? []}
-                changePct={chartData?.change_pct ?? 0}
-                loading={loadingChart}
-                period={period}
-                onPeriodChange={setPeriod}
-              />
-            )
           )}
 
           {/* ── FINANCIEROS ── */}

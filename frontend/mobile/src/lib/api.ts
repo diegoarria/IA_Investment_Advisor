@@ -158,8 +158,10 @@ export const marketApi = {
     api.post("/api/market/portfolio-returns", { positions }),
   getPortfolioChart: (positions: { ticker: string; shares: number; purchase_date?: string | null; avg_price?: number | null }[], period: string) =>
     api.post("/api/market/portfolio-chart", { positions, period }),
-  getStockDetail: (symbol: string) =>
-    api.get(`/api/market/stock-detail/${encodeURIComponent(symbol)}`),
+  getStockDetail: (symbol: string, includeScore = false) =>
+    api.get(`/api/market/stock-detail/${encodeURIComponent(symbol)}`, {
+      params: includeScore ? { include_score: true } : undefined,
+    }),
   getStockScore: (symbol: string) =>
     api.get(`/api/market/stock-score/${encodeURIComponent(symbol)}`),
   getPeers: (symbol: string) =>

@@ -155,8 +155,10 @@ export const market = {
   searchTickers: (q: string) => api.get("/api/market/search", { params: { q } }),
   getQuoteDetails: (symbols: string[]) =>
     api.get("/api/market/quote-details", { params: { symbols: symbols.join(",") } }),
-  getStockDetail: (symbol: string) =>
-    api.get(`/api/market/stock-detail/${encodeURIComponent(symbol)}`),
+  getStockDetail: (symbol: string, includeScore = false) =>
+    api.get(`/api/market/stock-detail/${encodeURIComponent(symbol)}`, {
+      params: includeScore ? { include_score: true } : undefined,
+    }),
   getStockScore: (symbol: string) =>
     api.get(`/api/market/stock-score/${encodeURIComponent(symbol)}`),
   getPeers: (symbol: string) =>

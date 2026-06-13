@@ -2548,10 +2548,20 @@ def _fetch_stock_detail(symbol: str) -> dict:
 @router.get("/stock-detail/{symbol}")
 async def get_stock_detail(
     symbol: str,
+    include_score: bool = Query(False),
     user_id: str = Depends(get_current_user_id),
 ):
     """Full stock detail: profile, financial statements, analyst data."""
     result = await asyncio.to_thread(_fetch_stock_detail, symbol.upper())
+    if include_score:
+        sym = symbol.upper()
+        score_cache_key = f"score3:{sym}"
+        cached_score = cache_get(score_cache_key)
+        if cached_score:
+            return {**result, "score": cached_score}
+        score_data = _compute_stock_score(result)
+        cache_set(score_cache_key, score_data, ttl=3600)
+        return {**result, "score": score_data}
     return result
 
 

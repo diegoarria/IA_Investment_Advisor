@@ -98,6 +98,7 @@ export interface StockDetail {
   profile:    StockProfile;
   financials: Financials;
   analyst:    Analyst;
+  score?:     StockScore;
 }
 
 // ─── Hook ─────────────────────────────────────────────────────────────────────
@@ -117,6 +118,34 @@ export interface StockScore {
   verdict_short: string;
   verdict_long: string;
   categories: CategoryScore[];
+}
+
+export function useStockDetail(ticker: string) {
+  const [data, setData]       = useState<StockDetail | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError]     = useState(false);
+
+  const load = useCallback(async () => {
+    if (!ticker) return;
+    setLoading(true);
+    setError(false);
+    try {
+      const res = await marketApi.getStockDetail(ticker, true);
+      if (res.data?.profile) {
+        setData(res.data as StockDetail);
+      } else {
+        setError(true);
+      }
+    } catch {
+      setError(true);
+    } finally {
+      setLoading(false);
+    }
+  }, [ticker]);
+
+  useEffect(() => { load(); }, [load]);
+
+  return { data, loading, error, refetch: load };
 }
 
 export function useStockScore(ticker: string) {
@@ -145,32 +174,4 @@ export function useStockScore(ticker: string) {
   useEffect(() => { load(); }, [load]);
 
   return { data, loading, error };
-}
-
-export function useStockDetail(ticker: string) {
-  const [data, setData]       = useState<StockDetail | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError]     = useState(false);
-
-  const load = useCallback(async () => {
-    if (!ticker) return;
-    setLoading(true);
-    setError(false);
-    try {
-      const res = await marketApi.getStockDetail(ticker);
-      if (res.data?.profile) {
-        setData(res.data as StockDetail);
-      } else {
-        setError(true);
-      }
-    } catch {
-      setError(true);
-    } finally {
-      setLoading(false);
-    }
-  }, [ticker]);
-
-  useEffect(() => { load(); }, [load]);
-
-  return { data, loading, error, refetch: load };
 }
