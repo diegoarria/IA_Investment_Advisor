@@ -1,10 +1,11 @@
-import React, { useState, useMemo, useCallback, useEffect } from "react";
+import React, { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import StockAvatar from "../../src/components/StockAvatar";
 import { useFocusEffect, router } from "expo-router";
 import {
   View, Text, TouchableOpacity, TextInput, ScrollView,
   StyleSheet, ActivityIndicator, SafeAreaView, Alert,
   RefreshControl, Image, Modal, useWindowDimensions,
+  AppState, AppStateStatus,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import Svg, { Path, Defs, RadialGradient as SvgRadial, Stop, Rect as SvgRect, G, LinearGradient, Circle } from "react-native-svg";
@@ -633,9 +634,32 @@ export default function PortfolioScreen() {
     if (positions.length > 0) fetchPrices(true);
   }, [positions.length]);
 
-  // Cargar portafolio del servidor al montar — garantiza sync entre dispositivos
+  // Cargar portafolio del servidor al montar Y cada vez que el tab recibe foco.
+  // Esto garantiza que los cambios hechos en web (u otro dispositivo) siempre
+  // aparezcan en mobile sin reiniciar la app.
+  const lastSyncRef = useRef<number>(0);
+  useFocusEffect(useCallback(() => {
+    const now = Date.now();
+    // Throttle: no más de una sincronización cada 30 s para no saturar el servidor
+    if (now - lastSyncRef.current > 30_000) {
+      lastSyncRef.current = now;
+      loadFromServer();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []));
+
+  // Sincronizar también cuando el app vuelve al frente desde background
   useEffect(() => {
-    loadFromServer();
+    const sub = AppState.addEventListener("change", (state: AppStateStatus) => {
+      if (state === "active") {
+        const now = Date.now();
+        if (now - lastSyncRef.current > 30_000) {
+          lastSyncRef.current = now;
+          loadFromServer();
+        }
+      }
+    });
+    return () => sub.remove();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
