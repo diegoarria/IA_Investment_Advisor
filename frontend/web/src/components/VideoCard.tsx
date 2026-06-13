@@ -154,6 +154,18 @@ export default function VideoCard({
     else hls.stopLoad();
   }, [isActive]);
 
+  // Safari blocks autoplay for unmuted media without a direct user gesture (scroll doesn't count).
+  // safePlay: try playing as-is, then mute and retry if blocked.
+  const safePlay = useCallback(async (el: HTMLVideoElement) => {
+    try {
+      await el.play();
+    } catch {
+      el.muted = true;
+      el.play().catch(() => {});
+    }
+    setPlaying(true);
+  }, []);
+
   // Sequenced playback: pre-audio → video → post-audio
   useEffect(() => {
     const v    = videoRef.current;
@@ -169,20 +181,24 @@ export default function VideoCard({
       return;
     }
 
+    const startVideo = () => { setPhase("video"); safePlay(v); };
+
     if (clip.pre_audio_url && pre) {
+      // Pre-buffer video now so skip feels instant — v.load() triggers
+      // browser buffering without starting playback (works for mp4 + Safari HLS)
+      if (!hlsRef.current) v.load();
       setPhase("pre");
-      pre.play().catch(() => { setPhase("video"); v.play().catch(() => {}); });
+      pre.play().catch(startVideo); // if audio blocked (Safari scroll), go straight to video
     } else {
-      setPhase("video");
-      v.play().catch(() => {});
+      startVideo();
     }
-  }, [isActive, clip.pre_audio_url]);
+  }, [isActive, clip.pre_audio_url, safePlay]);
 
   // When pre-audio ends → start video
   const handlePreEnded = useCallback(() => {
     setPhase("video");
-    videoRef.current?.play().catch(() => {});
-  }, []);
+    if (videoRef.current) safePlay(videoRef.current);
+  }, [safePlay]);
 
   // When video ends → play post-audio if available
   const handleVideoEnded = useCallback(() => {
@@ -216,17 +232,13 @@ export default function VideoCard({
   const togglePlay = () => {
     const v = videoRef.current;
     if (!v) return;
-    const willPlay = v.paused;
-    if (willPlay) {
-      // play() returns a Promise that rejects with AbortError when interrupted
-      // (e.g. user scrolls away mid-play) — must catch to prevent unhandled rejection
-      v.play().catch(() => { setPlaying(false); });
-      setPlaying(true);
+    if (v.paused) {
+      safePlay(v);
     } else {
       v.pause();
       setPlaying(false);
     }
-    setTapIcon(willPlay ? "play" : "pause");
+    setTapIcon(v.paused ? "play" : "pause");
     clearTimeout(tapTimer.current);
     tapTimer.current = setTimeout(() => setTapIcon(null), 700);
   };
@@ -335,7 +347,7 @@ export default function VideoCard({
     const pct = Math.max(0, Math.min(1, (clientX - left) / width));
     v.currentTime = pct * v.duration;
     setProgress(pct * 100);
-    if (phase !== "video") { setPhase("video"); v.play().catch(() => {}); }
+    if (phase !== "video") { setPhase("video"); safePlay(v); }
   }, [phase]);
 
   const handleScrubStart = (e: React.MouseEvent | React.TouchEvent) => {
@@ -530,7 +542,7 @@ export default function VideoCard({
                 if (phase === "pre") {
                   preAudioRef.current?.pause();
                   setPhase("video");
-                  videoRef.current?.play().catch(() => {});
+                  if (videoRef.current) safePlay(videoRef.current);
                 } else {
                   postAudioRef.current?.pause();
                   setPhase("idle");
