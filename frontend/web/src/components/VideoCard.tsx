@@ -116,6 +116,9 @@ export default function VideoCard({
         const hls = new Hls({ startLevel: -1, autoStartLoad: true });
         hls.loadSource(url);
         hls.attachMedia(v);
+        hls.on(Hls.Events.ERROR, (_event, data) => {
+          if (data.fatal) hls.destroy(); // clean up on fatal — prevents leaked state
+        });
         return () => hls.destroy();
       }
       // Safari supports HLS natively
@@ -185,8 +188,15 @@ export default function VideoCard({
     const v = videoRef.current;
     if (!v) return;
     const willPlay = v.paused;
-    if (willPlay) { v.play(); setPlaying(true); }
-    else          { v.pause(); setPlaying(false); }
+    if (willPlay) {
+      // play() returns a Promise that rejects with AbortError when interrupted
+      // (e.g. user scrolls away mid-play) — must catch to prevent unhandled rejection
+      v.play().catch(() => { setPlaying(false); });
+      setPlaying(true);
+    } else {
+      v.pause();
+      setPlaying(false);
+    }
     setTapIcon(willPlay ? "play" : "pause");
     clearTimeout(tapTimer.current);
     tapTimer.current = setTimeout(() => setTapIcon(null), 700);
@@ -413,6 +423,7 @@ export default function VideoCard({
           onPlay={() => setPlaying(true)}
           onPause={() => setPlaying(false)}
           onEnded={handleVideoEnded}
+          onError={() => {}} // swallow media load errors — prevents unhandled rejection
           className="w-full h-full object-cover"
         />
 

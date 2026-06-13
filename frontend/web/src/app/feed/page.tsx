@@ -1,10 +1,36 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
+import React from "react";
 import { Loader2, Search, X } from "lucide-react";
 import AppSidebar from "@/components/AppSidebar";
 import VideoCard from "@/components/VideoCard";
 import { feedApi } from "@/lib/api";
+
+// Isolates each video so a single broken clip can't crash the whole feed
+class ClipErrorBoundary extends React.Component<
+  { children: React.ReactNode },
+  { hasError: boolean }
+> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props);
+    this.state = { hasError: false };
+  }
+  static getDerivedStateFromError() { return { hasError: true }; }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div
+          className="flex items-center justify-center"
+          style={{ height: "100svh", scrollSnapAlign: "start", scrollSnapStop: "always" }}
+        >
+          <p className="text-sm" style={{ color: "var(--muted)" }}>Video no disponible</p>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 interface Clip {
   id: string;
@@ -187,20 +213,21 @@ export default function FeedPage() {
         ) : (
           <>
             {clips.map((clip, i) => (
-              <div
-                key={clip.id}
-                ref={(el) => { itemRefs.current[i] = el; }}
-                className="flex items-center justify-center"
-                style={{ height: "100svh", scrollSnapAlign: "start", scrollSnapStop: "always" }}>
-                <VideoCard
-                  clip={clip}
-                  isActive={activeIndex === i}
-                  isMuted={isMuted}
-                  onMuteToggle={() => setIsMuted((m) => !m)}
-                  onLikeChange={handleLikeChange}
-                  onSaveChange={handleSaveChange}
-                />
-              </div>
+              <ClipErrorBoundary key={clip.id}>
+                <div
+                  ref={(el) => { itemRefs.current[i] = el; }}
+                  className="flex items-center justify-center"
+                  style={{ height: "100svh", scrollSnapAlign: "start", scrollSnapStop: "always" }}>
+                  <VideoCard
+                    clip={clip}
+                    isActive={activeIndex === i}
+                    isMuted={isMuted}
+                    onMuteToggle={() => setIsMuted((m) => !m)}
+                    onLikeChange={handleLikeChange}
+                    onSaveChange={handleSaveChange}
+                  />
+                </div>
+              </ClipErrorBoundary>
             ))}
 
             {loadingMore && (
