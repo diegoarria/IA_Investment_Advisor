@@ -1,4 +1,5 @@
 import logging
+import random as _random
 import httpx
 from fastapi import APIRouter, Depends, Query, HTTPException
 from app.api.deps import get_current_user_id
@@ -18,7 +19,7 @@ async def get_clips(
     limit: int = Query(10, ge=1, le=20),
     speaker: str | None = Query(None),
     tag: str | None = Query(None),
-    sort: str = Query("recent", pattern="^(recent|trending)$"),
+    sort: str = Query("recent", pattern="^(recent|trending|random)$"),
     user_id: str = Depends(get_current_user_id),
 ):
     db = get_supabase()
@@ -31,12 +32,17 @@ async def get_clips(
         q = q.ilike("speaker", f"%{speaker}%")
     if tag:
         q = q.contains("tags", [tag])
-    if sort == "trending":
+    if sort == "random":
+        all_clips = q.execute().data or []
+        _random.shuffle(all_clips)
+        clips = all_clips[:limit]
+        # Attach liked/saved below, then return early without pagination cursor
+    elif sort == "trending":
         q = q.order("like_count", desc=True)
+        clips = q.range(cursor, cursor + limit - 1).execute().data or []
     else:
         q = q.order("created_at", desc=True)
-
-    clips = q.range(cursor, cursor + limit - 1).execute().data or []
+        clips = q.range(cursor, cursor + limit - 1).execute().data or []
 
     # Attach per-user liked/saved state in one batch query
     if clips:
@@ -53,7 +59,8 @@ async def get_clips(
             c["liked"] = c["id"] in liked
             c["saved"] = c["id"] in saved
 
-    return {"clips": clips, "next_cursor": cursor + len(clips) if len(clips) == limit else None}
+    next_cursor = None if sort == "random" else (cursor + len(clips) if len(clips) == limit else None)
+    return {"clips": clips, "next_cursor": next_cursor}
 
 
 @router.post("/clips/{clip_id}/view")

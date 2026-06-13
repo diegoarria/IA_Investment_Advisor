@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from "react";
 import React from "react";
-import { Loader2, Search, X } from "lucide-react";
+import { Loader2, Search, X, Shuffle } from "lucide-react";
 import AppSidebar from "@/components/AppSidebar";
 import VideoCard from "@/components/VideoCard";
 import { feedApi } from "@/lib/api";
@@ -76,10 +76,13 @@ export default function FeedPage() {
   const [filterOpen, setFilterOpen] = useState(false);
   const [speaker, setSpeaker]       = useState<string | null>(null);
   const [tag, setTag]               = useState<string | null>(null);
-  const [sort, setSort]             = useState<"recent" | "trending">("recent");
+  const [sort, setSort]             = useState<"recent" | "trending" | "random">("recent");
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [spinning, setSpinning]     = useState(false);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const itemRefs     = useRef<(HTMLDivElement | null)[]>([]);
+  const seenIdsRef   = useRef<Set<string>>(new Set());
 
   const loadClips = useCallback(async (reset = false) => {
     const cursor = reset ? 0 : (nextCursor ?? 0);
@@ -87,8 +90,15 @@ export default function FeedPage() {
     reset ? setLoading(true) : setLoadingMore(true);
     try {
       const res = await feedApi.getClips({ cursor, speaker: speaker ?? undefined, tag: tag ?? undefined, sort });
-      const newClips: Clip[] = res.data.clips || [];
-      setClips((prev) => reset ? newClips : [...prev, ...newClips]);
+      let newClips: Clip[] = res.data.clips || [];
+      // Filter clips already seen; if all seen (full cycle), reset history
+      let unseen = newClips.filter((c) => !seenIdsRef.current.has(c.id));
+      if (unseen.length === 0 && newClips.length > 0) {
+        seenIdsRef.current.clear();
+        unseen = newClips;
+      }
+      unseen.forEach((c) => seenIdsRef.current.add(c.id));
+      setClips((prev) => reset ? unseen : [...prev, ...unseen]);
       setNextCursor(res.data.next_cursor ?? null);
       if (reset) setActiveIndex(0);
     } catch {
@@ -96,10 +106,18 @@ export default function FeedPage() {
     } finally {
       setLoading(false);
       setLoadingMore(false);
+      setSpinning(false);
     }
-  }, [speaker, tag, sort, nextCursor]);
+  }, [speaker, tag, sort, nextCursor]); // eslint-disable-line
 
-  useEffect(() => { loadClips(true); }, [speaker, tag, sort]); // eslint-disable-line
+  useEffect(() => { loadClips(true); }, [speaker, tag, sort, refreshKey]); // eslint-disable-line
+
+  const handleShuffle = () => {
+    containerRef.current?.scrollTo({ top: 0, behavior: "instant" });
+    setSpinning(true);
+    setSort("random");
+    setRefreshKey((k) => k + 1);
+  };
 
   // IntersectionObserver: detect which card is active
   useEffect(() => {
@@ -135,12 +153,13 @@ export default function FeedPage() {
   };
 
   const applyFilter = (newSpeaker: string | null, newTag: string | null) => {
+    seenIdsRef.current.clear();
     setSpeaker(newSpeaker);
     setTag(newTag);
     setFilterOpen(false);
   };
 
-  const clearFilters = () => { setSpeaker(null); setTag(null); };
+  const clearFilters = () => { seenIdsRef.current.clear(); setSpeaker(null); setTag(null); };
 
   return (
     <div className="flex h-screen overflow-hidden" style={{ background: "var(--bg)" }}>
@@ -167,13 +186,29 @@ export default function FeedPage() {
 
           <div className="flex items-center gap-1.5 overflow-x-auto flex-1" style={{ scrollbarWidth: "none" }}>
             <button
-              onClick={() => setSort(sort === "recent" ? "trending" : "recent")}
+              onClick={() => { setSort(sort === "recent" ? "trending" : "recent"); setRefreshKey((k) => k + 1); }}
               className="shrink-0 px-3 py-1 rounded-full text-xs font-semibold"
               style={{
                 background: sort === "trending" ? "var(--accent-l)" : "var(--raised)",
                 color: sort === "trending" ? "#000" : "var(--text)",
               }}>
               {sort === "trending" ? "🔥 Trending" : "🕐 Reciente"}
+            </button>
+
+            <button
+              onClick={handleShuffle}
+              title="Mostrar videos aleatorios"
+              className="shrink-0 flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold transition-all active:scale-95"
+              style={{
+                background: sort === "random" ? "rgba(139,92,246,0.18)" : "var(--raised)",
+                color: sort === "random" ? "#a78bfa" : "var(--text)",
+                border: sort === "random" ? "1px solid rgba(139,92,246,0.4)" : "1px solid transparent",
+              }}>
+              <Shuffle
+                className="w-3 h-3"
+                style={{ animation: spinning ? "spin 0.5s linear" : "none" }}
+              />
+              Aleatorio
             </button>
 
             {(speaker || tag) && (

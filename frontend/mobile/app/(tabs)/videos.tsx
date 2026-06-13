@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   View, Text, FlatList, TouchableOpacity, StyleSheet, TextInput,
   ActivityIndicator, Dimensions, ScrollView, Modal, Share, KeyboardAvoidingView, Platform,
-  PanResponder, Animated, Image,
+  PanResponder, Animated, Image, RefreshControl,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -790,12 +790,15 @@ export default function VideosScreen() {
   const [filterOpen, setFilterOpen]   = useState(false);
   const [speaker, setSpeaker]         = useState<string | null>(null);
   const [tag, setTag]                 = useState<string | null>(null);
-  const [sort, setSort]               = useState<"recent" | "trending">("recent");
+  const [sort, setSort]               = useState<"recent" | "trending" | "random">("recent");
+  const [refreshing, setRefreshing]   = useState(false);
 
   const flatRef = useRef<FlatList>(null);
   const [cardHeight, setCardHeight] = useState(H);
 
-  const loadClips = useCallback(async (reset = false) => {
+  const seenIdsRef = useRef<Set<string>>(new Set());
+
+  const loadClips = useCallback(async (reset = false, overrideSort?: "recent" | "trending" | "random") => {
     const cursor = reset ? 0 : (nextCursor ?? 0);
     if (!reset && nextCursor === null) return;
     reset ? setLoading(true) : setLoadingMore(true);
@@ -804,18 +807,33 @@ export default function VideosScreen() {
         cursor,
         speaker: speaker ?? undefined,
         tag: tag ?? undefined,
-        sort,
+        sort: overrideSort ?? sort,
       });
-      const newClips: Clip[] = res.data.clips ?? [];
-      setClips((prev) => reset ? newClips : [...prev, ...newClips]);
+      let newClips: Clip[] = res.data.clips ?? [];
+      // Filter already-seen clips; if all seen (full cycle), reset history
+      let unseen = newClips.filter((c) => !seenIdsRef.current.has(c.id));
+      if (unseen.length === 0 && newClips.length > 0) {
+        seenIdsRef.current.clear();
+        unseen = newClips;
+      }
+      unseen.forEach((c) => seenIdsRef.current.add(c.id));
+      setClips((prev) => reset ? unseen : [...prev, ...unseen]);
       setNextCursor(res.data.next_cursor ?? null);
       if (reset) setActiveIndex(0);
     } catch {}
     setLoading(false);
     setLoadingMore(false);
+    setRefreshing(false);
   }, [speaker, tag, sort, nextCursor]);
 
   useEffect(() => { loadClips(true); }, [speaker, tag, sort]); // eslint-disable-line
+
+  const handlePullRefresh = useCallback(() => {
+    setRefreshing(true);
+    setSort("random");
+    setNextCursor(0);
+    loadClips(true, "random");
+  }, [loadClips]);
 
   // iOS: allow audio even when silent switch is on
   useEffect(() => {
@@ -902,18 +920,23 @@ export default function VideosScreen() {
       {(speaker || tag || sort !== "recent") && (
         <View style={styles.activeFilters}>
           {speaker && (
-            <TouchableOpacity style={styles.filterChip} onPress={() => setSpeaker(null)}>
+            <TouchableOpacity style={styles.filterChip} onPress={() => { seenIdsRef.current.clear(); setSpeaker(null); }}>
               <Text style={styles.filterChipText}>{speaker} ✕</Text>
             </TouchableOpacity>
           )}
           {tag && (
-            <TouchableOpacity style={styles.filterChip} onPress={() => setTag(null)}>
+            <TouchableOpacity style={styles.filterChip} onPress={() => { seenIdsRef.current.clear(); setTag(null); }}>
               <Text style={styles.filterChipText}>#{tag} ✕</Text>
             </TouchableOpacity>
           )}
           {sort === "trending" && (
             <TouchableOpacity style={styles.filterChip} onPress={() => setSort("recent")}>
               <Text style={styles.filterChipText}>🔥 Trending ✕</Text>
+            </TouchableOpacity>
+          )}
+          {sort === "random" && (
+            <TouchableOpacity style={[styles.filterChip, { backgroundColor: "rgba(139,92,246,0.18)", borderColor: "rgba(139,92,246,0.4)" }]} onPress={() => setSort("recent")}>
+              <Text style={[styles.filterChipText, { color: "#a78bfa" }]}>🔀 Aleatorio ✕</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -930,6 +953,16 @@ export default function VideosScreen() {
         getItemLayout={(_, index) => ({ length: cardHeight, offset: cardHeight * index, index })}
         onViewableItemsChanged={onViewableItemsChanged}
         viewabilityConfig={{ itemVisiblePercentThreshold: 50 }}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={handlePullRefresh}
+            tintColor="#a78bfa"
+            colors={["#a78bfa"]}
+            title="Cargando aleatorio..."
+            titleColor="#a78bfa"
+          />
+        }
         renderItem={({ item, index }) => (
           <ClipCard
             clip={item}
@@ -976,7 +1009,7 @@ export default function VideosScreen() {
                   <TouchableOpacity
                     key={sp}
                     style={[styles.filterOption, active && { backgroundColor: "#00d47e22", borderColor: "#00d47e" }, { borderColor: colors.border, marginRight: 8 }]}
-                    onPress={() => setSpeaker(sp === "Todos" ? null : sp)}
+                    onPress={() => { seenIdsRef.current.clear(); setSpeaker(sp === "Todos" ? null : sp); }}
                   >
                     <Text style={[styles.filterOptionText, { color: active ? "#00d47e" : colors.textSub }]}>{sp}</Text>
                   </TouchableOpacity>
@@ -992,7 +1025,7 @@ export default function VideosScreen() {
                   <TouchableOpacity
                     key={t}
                     style={[styles.filterOption, active && { backgroundColor: "#00d47e22", borderColor: "#00d47e" }, { borderColor: colors.border, marginRight: 8 }]}
-                    onPress={() => setTag(t === "Todos" ? null : t)}
+                    onPress={() => { seenIdsRef.current.clear(); setTag(t === "Todos" ? null : t); }}
                   >
                     <Text style={[styles.filterOptionText, { color: active ? "#00d47e" : colors.textSub }]}>#{t}</Text>
                   </TouchableOpacity>
