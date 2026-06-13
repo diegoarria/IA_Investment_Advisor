@@ -6,11 +6,20 @@ import {
   Alert, ScrollView, KeyboardAvoidingView, Platform,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { marketApi } from "../../src/lib/api";
+import { marketApi, paperApi } from "../../src/lib/api";
 import { useTheme, Colors } from "../../src/lib/ThemeContext";
 import { usePaperStore, PAPER_INITIAL_CASH, FREE_PAPER_INITIAL_CASH, FREE_PAPER_MONTHLY_TRADES, TOP_UP_PLANS } from "../../src/lib/paperStore";
 import { useSubscriptionStore, hasPremiumAccess, isTrialActive, trialDaysLeft } from "../../src/lib/subscriptionStore";
 import PaywallModal from "../../src/components/PaywallModal";
+
+interface PaperAnalysis {
+  verdict: "practice_more" | "promising" | "ready";
+  headline: string;
+  feedback: string;
+  positives: string[];
+  improvements: string[];
+  disclaimer: string;
+}
 
 interface TickerInfo {
   ticker: string;
@@ -137,6 +146,30 @@ export default function PaperScreen() {
 
   // History expand
   const [historyOpen, setHistoryOpen] = useState(false);
+
+  // AI analysis
+  const [analysis, setAnalysis] = useState<PaperAnalysis | null>(null);
+  const [analysisLoading, setAnalysisLoading] = useState(false);
+
+  const runAnalysis = async () => {
+    setAnalysisLoading(true);
+    try {
+      const res = await paperApi.analyze(
+        positions, trades, totalReturnPct, cash, totalValue,
+      );
+      setAnalysis(res.data as PaperAnalysis);
+    } catch {
+      setAnalysis({
+        verdict: "promising",
+        headline: "Error al generar análisis",
+        feedback: "No se pudo conectar con la IA. Intenta de nuevo.",
+        positives: [],
+        improvements: [],
+        disclaimer: "",
+      });
+    }
+    setAnalysisLoading(false);
+  };
 
   const loadPosPrices = useCallback(async () => {
     if (positions.length === 0) return;
@@ -493,6 +526,147 @@ export default function PaperScreen() {
                   )}
                 </>
               )}
+              {/* ── AI Analysis card ── */}
+              <View style={[s.analysisCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                {/* Header */}
+                <View style={s.analysisHeader}>
+                  <View style={s.analysisIcon}>
+                    <Ionicons name="sparkles" size={15} color="#a855f7" />
+                  </View>
+                  <Text style={[s.analysisTitle, { color: colors.text }]}>Análisis IA de tu simulación</Text>
+                  {!isPremiumAccess && (
+                    <View style={s.premiumBadge}>
+                      <Text style={s.premiumBadgeText}>Premium</Text>
+                    </View>
+                  )}
+                </View>
+
+                {!isPremiumAccess ? (
+                  /* Locked */
+                  <View style={s.lockedBody}>
+                    <View style={[s.lockIcon, { borderColor: "rgba(168,85,247,0.2)", backgroundColor: "rgba(168,85,247,0.08)" }]}>
+                      <Ionicons name="lock-closed" size={22} color="#a855f7" />
+                    </View>
+                    <Text style={[s.lockTitle, { color: colors.text }]}>
+                      La IA evalúa si estás listo para invertir de verdad
+                    </Text>
+                    <Text style={[s.lockSub, { color: colors.textMuted }]}>
+                      Recibe feedback personalizado sobre tu estrategia, diversificación y comportamiento. Solo Premium.
+                    </Text>
+                    <TouchableOpacity style={s.unlockBtn} onPress={() => setPaywallOpen(true)}>
+                      <Text style={s.unlockBtnText}>Activar Premium</Text>
+                    </TouchableOpacity>
+                  </View>
+                ) : analysis ? (
+                  /* Results */
+                  <View style={s.analysisBody}>
+                    {/* Verdict badge */}
+                    <View style={s.verdictRow}>
+                      <Text style={{ fontSize: 32 }}>
+                        {analysis.verdict === "ready" ? "🏆" : analysis.verdict === "promising" ? "📈" : "📚"}
+                      </Text>
+                      <View style={{ flex: 1 }}>
+                        <Text style={[s.verdictHeadline, {
+                          color: analysis.verdict === "ready" ? "#22c55e"
+                               : analysis.verdict === "promising" ? "#f59e0b"
+                               : colors.text,
+                        }]}>
+                          {analysis.headline}
+                        </Text>
+                        <View style={[s.verdictBadge, {
+                          backgroundColor: analysis.verdict === "ready" ? "rgba(34,197,94,0.12)"
+                                         : analysis.verdict === "promising" ? "rgba(245,158,11,0.12)"
+                                         : "rgba(99,102,241,0.12)",
+                        }]}>
+                          <Text style={[s.verdictBadgeText, {
+                            color: analysis.verdict === "ready" ? "#22c55e"
+                                 : analysis.verdict === "promising" ? "#f59e0b"
+                                 : "#818cf8",
+                          }]}>
+                            {analysis.verdict === "ready" ? "✓ Listo para invertir con responsabilidad"
+                           : analysis.verdict === "promising" ? "↗ Vas por buen camino"
+                           : "↺ Sigue practicando un poco más"}
+                          </Text>
+                        </View>
+                      </View>
+                    </View>
+
+                    {/* Main feedback */}
+                    <Text style={[s.analysisFeedback, { color: colors.textSub }]}>{analysis.feedback}</Text>
+
+                    {/* Positives */}
+                    {analysis.positives.length > 0 && (
+                      <View style={s.analysisSection}>
+                        <Text style={[s.analysisSectionLabel, { color: "#22c55e" }]}>LO QUE HACES BIEN</Text>
+                        {analysis.positives.map((p, i) => (
+                          <View key={i} style={s.analysisItem}>
+                            <Text style={{ color: "#22c55e", fontSize: 12, marginTop: 1 }}>✓</Text>
+                            <Text style={[s.analysisItemText, { color: colors.textSub }]}>{p}</Text>
+                          </View>
+                        ))}
+                      </View>
+                    )}
+
+                    {/* Improvements */}
+                    {analysis.improvements.length > 0 && (
+                      <View style={s.analysisSection}>
+                        <Text style={[s.analysisSectionLabel, { color: "#f59e0b" }]}>ÁREAS A MEJORAR</Text>
+                        {analysis.improvements.map((imp, i) => (
+                          <View key={i} style={s.analysisItem}>
+                            <Text style={{ color: "#f59e0b", fontSize: 12, marginTop: 1 }}>→</Text>
+                            <Text style={[s.analysisItemText, { color: colors.textSub }]}>{imp}</Text>
+                          </View>
+                        ))}
+                      </View>
+                    )}
+
+                    {/* Disclaimer */}
+                    {!!analysis.disclaimer && (
+                      <View style={[s.disclaimer, { backgroundColor: colors.bgRaised, borderColor: colors.border }]}>
+                        <Text style={[s.disclaimerText, { color: colors.textDim }]}>⚠️ {analysis.disclaimer}</Text>
+                      </View>
+                    )}
+
+                    {/* Re-analyze */}
+                    <TouchableOpacity
+                      style={[s.reanalyzeBtn, { borderColor: "rgba(168,85,247,0.3)", backgroundColor: "rgba(168,85,247,0.06)" }]}
+                      onPress={() => setAnalysis(null)}
+                    >
+                      <Text style={[s.reanalyzeBtnText, { color: "#a855f7" }]}>Volver a analizar</Text>
+                    </TouchableOpacity>
+                  </View>
+                ) : (
+                  /* CTA */
+                  <View style={s.analysisBody}>
+                    <Text style={[s.analysisCta, { color: colors.textMuted }]}>
+                      La IA analiza tu estrategia, diversificación y comportamiento para decirte si estás listo para invertir dinero real en acciones individuales — siempre con responsabilidad e investigación previa.
+                    </Text>
+                    <TouchableOpacity
+                      style={[s.analyzeBtn, (analysisLoading || trades.length === 0) && { opacity: 0.5 }]}
+                      onPress={runAnalysis}
+                      disabled={analysisLoading || trades.length === 0}
+                    >
+                      {analysisLoading ? (
+                        <>
+                          <ActivityIndicator color="white" size="small" />
+                          <Text style={s.analyzeBtnText}>Analizando tu simulación…</Text>
+                        </>
+                      ) : (
+                        <>
+                          <Ionicons name="sparkles" size={16} color="white" />
+                          <Text style={s.analyzeBtnText}>Analizar mi portafolio con IA</Text>
+                        </>
+                      )}
+                    </TouchableOpacity>
+                    {trades.length === 0 && (
+                      <Text style={[s.analysisCta, { color: colors.textDim, textAlign: "center", fontSize: 10, marginTop: 0 }]}>
+                        Realiza al menos una operación para desbloquear el análisis
+                      </Text>
+                    )}
+                  </View>
+                )}
+              </View>
+
         </ScrollView>
       </KeyboardAvoidingView>
 
@@ -668,5 +842,57 @@ function makeStyles(c: Colors) {
     suggestionRow: { paddingHorizontal: 14, paddingVertical: 11 },
     suggestionTicker: { fontSize: 13, fontWeight: "700", color: "#00d47e" },
     suggestionName: { fontSize: 11, marginTop: 1 },
+
+    // AI Analysis card
+    analysisCard: { borderRadius: 20, borderWidth: 1, overflow: "hidden" },
+    analysisHeader: {
+      flexDirection: "row", alignItems: "center", gap: 8,
+      paddingHorizontal: 16, paddingVertical: 14,
+      borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: c.border,
+    },
+    analysisIcon: {
+      width: 28, height: 28, borderRadius: 8, alignItems: "center", justifyContent: "center",
+      backgroundColor: "rgba(168,85,247,0.12)",
+    },
+    analysisTitle: { fontSize: 14, fontWeight: "700", flex: 1 },
+    premiumBadge: { backgroundColor: "rgba(168,85,247,0.12)", borderRadius: 20, paddingHorizontal: 8, paddingVertical: 3 },
+    premiumBadgeText: { fontSize: 9, fontWeight: "800", color: "#a855f7" },
+
+    // Locked state
+    lockedBody: { alignItems: "center", paddingHorizontal: 24, paddingVertical: 28, gap: 10 },
+    lockIcon: {
+      width: 52, height: 52, borderRadius: 16, alignItems: "center", justifyContent: "center",
+      borderWidth: 1, marginBottom: 4,
+    },
+    lockTitle: { fontSize: 14, fontWeight: "700", textAlign: "center", lineHeight: 20 },
+    lockSub: { fontSize: 12, textAlign: "center", lineHeight: 18 },
+    unlockBtn: {
+      paddingHorizontal: 20, paddingVertical: 12, borderRadius: 14, marginTop: 4,
+      backgroundColor: "#a855f7",
+    },
+    unlockBtnText: { color: "white", fontWeight: "700", fontSize: 13 },
+
+    // Results + CTA body
+    analysisBody: { padding: 16, gap: 14 },
+    verdictRow: { flexDirection: "row", alignItems: "flex-start", gap: 12 },
+    verdictHeadline: { fontSize: 16, fontWeight: "900", lineHeight: 20, marginBottom: 5 },
+    verdictBadge: { alignSelf: "flex-start", borderRadius: 20, paddingHorizontal: 9, paddingVertical: 3 },
+    verdictBadgeText: { fontSize: 10, fontWeight: "700" },
+    analysisFeedback: { fontSize: 13, lineHeight: 20 },
+    analysisSection: { gap: 6 },
+    analysisSectionLabel: { fontSize: 9, fontWeight: "800", letterSpacing: 0.8 },
+    analysisItem: { flexDirection: "row", gap: 8, alignItems: "flex-start" },
+    analysisItemText: { fontSize: 12, lineHeight: 18, flex: 1 },
+    disclaimer: { borderRadius: 12, borderWidth: 1, padding: 12 },
+    disclaimerText: { fontSize: 11, lineHeight: 17 },
+    reanalyzeBtn: { borderWidth: 1, borderRadius: 14, paddingVertical: 12, alignItems: "center" },
+    reanalyzeBtnText: { fontSize: 12, fontWeight: "600" },
+    analysisCta: { fontSize: 12, lineHeight: 19 },
+    analyzeBtn: {
+      flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
+      paddingVertical: 14, borderRadius: 14,
+      backgroundColor: "#a855f7",
+    },
+    analyzeBtnText: { color: "white", fontWeight: "700", fontSize: 14 },
   });
 }

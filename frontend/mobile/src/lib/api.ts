@@ -230,6 +230,18 @@ export const referralApi = {
   applyCode: (code: string) => api.post("/api/referral/apply", { code }),
 };
 
+export const paperApi = {
+  analyze: (
+    positions: unknown[], trades: unknown[],
+    totalReturnPct: number, cash: number, portfolioValue: number,
+  ) => api.post("/api/paper/analyze", {
+    positions, trades,
+    total_return_pct: totalReturnPct,
+    cash,
+    portfolio_value: portfolioValue,
+  }),
+};
+
 export const supportApi = {
   chat:         (message: string, history: { role: string; content: string }[]) =>
     api.post("/api/support/chat", { message, history }, { responseType: "text" }),
