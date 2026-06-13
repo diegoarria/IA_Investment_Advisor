@@ -33,6 +33,7 @@ interface Clip {
   speaker: string;
   tags: string[];
   translated_caption: string;
+  caption_en?: string;
   duration_sec: number;
   view_count: number;
   like_count: number;
@@ -42,6 +43,23 @@ interface Clip {
   post_audio_url?: string;
   pre_text?: string;
   post_text?: string;
+}
+
+interface Comment {
+  id: string;
+  text: string;
+  created_at: string;
+  user_profiles?: { name: string; avatar_url?: string };
+}
+
+function getCaptionChunks(text: string): string[] {
+  const words = text.trim().split(/\s+/).filter(Boolean);
+  if (words.length === 0) return [];
+  const chunks: string[] = [];
+  for (let i = 0; i < words.length; i += 7) {
+    chunks.push(words.slice(i, i + 7).join(" "));
+  }
+  return chunks;
 }
 
 function formatDuration(sec: number) {
@@ -72,9 +90,10 @@ function ClipCard({
   cardHeight: number;
 }) {
   const videoRef = useRef<Video>(null);
-  const [captionOpen, setCaptionOpen] = useState(false);
+  const [captionLang, setCaptionLang] = useState<"off" | "es" | "en">("off");
+  const [showCaptionPicker, setShowCaptionPicker] = useState(false);
   const [commentsOpen, setCommentsOpen] = useState(false);
-  const [comments, setComments] = useState<{ id: string; text: string; created_at: string }[]>([]);
+  const [comments, setComments] = useState<Comment[]>([]);
   const [commentText, setCommentText] = useState("");
   const [commentsLoading, setCommentsLoading] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
@@ -397,6 +416,23 @@ function ClipCard({
         <Text style={styles.durationText}>{formatDuration(clip.duration_sec)}</Text>
       </View>
 
+      {/* Synchronized caption overlay */}
+      {captionLang !== "off" && phase === "video" && (() => {
+        const captionText = captionLang === "es"
+          ? (clip.translated_caption || "")
+          : (clip.caption_en || "");
+        const chunks = getCaptionChunks(captionText);
+        const chunkIndex = chunks.length > 0
+          ? Math.min(Math.floor(progress * chunks.length), chunks.length - 1)
+          : 0;
+        const currentCaption = chunks[chunkIndex] || "";
+        return currentCaption ? (
+          <View pointerEvents="none" style={capStyles.wrap}>
+            <Text style={capStyles.text}>{currentCaption}</Text>
+          </View>
+        ) : null;
+      })()}
+
       {/* Bottom info */}
       <View style={styles.bottomInfo}>
         <Text style={styles.clipTitle} numberOfLines={2}>{clip.title}</Text>
@@ -409,15 +445,6 @@ function ClipCard({
             ))}
           </ScrollView>
         )}
-
-        {/* Caption toggle */}
-        <TouchableOpacity
-          style={styles.captionBtn}
-          onPress={() => setCaptionOpen(true)}
-        >
-          <Ionicons name="text-outline" size={14} color="rgba(255,255,255,0.8)" />
-          <Text style={styles.captionBtnText}>Ver transcripción</Text>
-        </TouchableOpacity>
       </View>
 
       {/* Right actions */}
@@ -450,11 +477,45 @@ function ClipCard({
           <Text style={styles.actionLabel}>Compartir</Text>
         </TouchableOpacity>
 
+        {/* CC captions button */}
+        <TouchableOpacity
+          style={styles.actionBtn}
+          onPress={() => setShowCaptionPicker((v) => !v)}
+        >
+          <View style={[ccStyles.ccBadge, captionLang !== "off" && ccStyles.ccBadgeActive]}>
+            <Ionicons
+              name="text-outline"
+              size={18}
+              color={captionLang !== "off" ? "#a78bfa" : "white"}
+            />
+          </View>
+          <Text style={styles.actionLabel}>
+            {captionLang === "off" ? "CC" : captionLang === "es" ? "ES" : "EN"}
+          </Text>
+        </TouchableOpacity>
+
         <TouchableOpacity style={styles.actionBtn}>
           <Ionicons name="eye-outline" size={22} color="rgba(255,255,255,0.7)" />
           <Text style={styles.actionLabel}>{formatCount(clip.view_count)}</Text>
         </TouchableOpacity>
       </View>
+
+      {/* CC lang picker */}
+      {showCaptionPicker && (
+        <View style={ccStyles.picker}>
+          {(["off", "es", "en"] as const).map((lang) => (
+            <TouchableOpacity
+              key={lang}
+              style={[ccStyles.pickerOption, captionLang === lang && ccStyles.pickerOptionActive]}
+              onPress={() => { setCaptionLang(lang); setShowCaptionPicker(false); }}
+            >
+              <Text style={[ccStyles.pickerText, captionLang === lang && { color: "#a78bfa" }]}>
+                {lang === "off" ? "Apagado" : lang === "es" ? "🇪🇸 Español" : "🇺🇸 English"}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
 
       {/* Progress bar */}
       <View
@@ -474,22 +535,6 @@ function ClipCard({
           </View>
         </View>
       </View>
-
-      {/* Caption modal */}
-      <Modal visible={captionOpen} transparent animationType="slide" onRequestClose={() => setCaptionOpen(false)}>
-        <TouchableOpacity style={styles.captionOverlay} activeOpacity={1} onPress={() => setCaptionOpen(false)}>
-          <View style={[styles.captionSheet, { backgroundColor: colors.card }]}>
-            <View style={[styles.captionHandle, { backgroundColor: colors.border }]} />
-            <Text style={[styles.captionTitle, { color: colors.text }]}>{clip.title}</Text>
-            <Text style={[styles.captionSpeaker, { color: colors.accentLight }]}>{clip.speaker}</Text>
-            <ScrollView style={{ marginTop: 12 }} showsVerticalScrollIndicator={false}>
-              <Text style={[styles.captionBody, { color: colors.textSub }]}>
-                {clip.translated_caption || clip.description}
-              </Text>
-            </ScrollView>
-          </View>
-        </TouchableOpacity>
-      </Modal>
 
       {/* Comments modal */}
       <Modal visible={commentsOpen} transparent animationType="slide" onRequestClose={() => setCommentsOpen(false)}>
@@ -514,14 +559,32 @@ function ClipCard({
                   </Text>
                 </View>
               ) : (
-                comments.map((c) => (
-                  <View key={c.id} style={{ marginBottom: 14 }}>
-                    <Text style={[{ color: colors.text, fontSize: 13, lineHeight: 18 }]}>{c.text}</Text>
-                    <Text style={[{ color: colors.textDim, fontSize: 11, marginTop: 3 }]}>
-                      {new Date(c.created_at).toLocaleDateString("es", { day: "numeric", month: "short" })}
-                    </Text>
-                  </View>
-                ))
+                comments.map((c) => {
+                  const cName = c.user_profiles?.name || "Usuario";
+                  return (
+                    <View key={c.id} style={cmtStyles.row}>
+                      {c.user_profiles?.avatar_url ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <View style={[cmtStyles.avatar, { backgroundColor: colors.accent }]}>
+                          <Text style={cmtStyles.avatarLetter}>{cName[0].toUpperCase()}</Text>
+                        </View>
+                      ) : (
+                        <View style={[cmtStyles.avatar, { backgroundColor: colors.accent }]}>
+                          <Text style={cmtStyles.avatarLetter}>{cName[0].toUpperCase()}</Text>
+                        </View>
+                      )}
+                      <View style={{ flex: 1 }}>
+                        <View style={cmtStyles.nameRow}>
+                          <Text style={[cmtStyles.name, { color: colors.text }]}>{cName}</Text>
+                          <Text style={[cmtStyles.date, { color: colors.textDim }]}>
+                            {new Date(c.created_at).toLocaleDateString("es", { day: "numeric", month: "short" })}
+                          </Text>
+                        </View>
+                        <Text style={[cmtStyles.body, { color: colors.textSub }]}>{c.text}</Text>
+                      </View>
+                    </View>
+                  );
+                })
               )}
             </ScrollView>
 
@@ -599,12 +662,17 @@ export default function VideosScreen() {
   }, []));
 
   const handleLike = async (id: string) => {
-    setClips((prev) => prev.map((c) =>
+    const prev = clips.find((c) => c.id === id);
+    if (!prev) return;
+    setClips((cs) => cs.map((c) =>
       c.id === id
         ? { ...c, liked: !c.liked, like_count: c.liked ? c.like_count - 1 : c.like_count + 1 }
         : c
     ));
-    feedApi.likeClip(id).catch(() => {});
+    feedApi.likeClip(id).catch(() => {
+      // rollback on error
+      setClips((cs) => cs.map((c) => c.id === id ? { ...c, liked: prev.liked, like_count: prev.like_count } : c));
+    });
   };
 
   const handleSave = async (id: string) => {
@@ -1015,5 +1083,107 @@ const phStyles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "700" as const,
     letterSpacing: 0.3,
+  },
+});
+
+// Synchronized caption overlay
+const capStyles = StyleSheet.create({
+  wrap: {
+    position: "absolute",
+    bottom: 90,
+    left: 16,
+    right: 16,
+    alignItems: "center",
+  },
+  text: {
+    color: "white",
+    fontSize: 14,
+    fontWeight: "600" as const,
+    textAlign: "center",
+    backgroundColor: "rgba(0,0,0,0.72)",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 10,
+    overflow: "hidden",
+  },
+});
+
+// CC button + lang picker
+const ccStyles = StyleSheet.create({
+  ccBadge: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(255,255,255,0.15)",
+  },
+  ccBadgeActive: {
+    backgroundColor: "rgba(139,92,246,0.25)",
+    borderWidth: 1,
+    borderColor: "rgba(139,92,246,0.5)",
+  },
+  picker: {
+    position: "absolute",
+    right: 70,
+    bottom: 240,
+    backgroundColor: "rgba(15,15,25,0.92)",
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "rgba(139,92,246,0.3)",
+    overflow: "hidden",
+    minWidth: 130,
+  },
+  pickerOption: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  pickerOptionActive: {
+    backgroundColor: "rgba(139,92,246,0.15)",
+  },
+  pickerText: {
+    color: "rgba(255,255,255,0.85)",
+    fontSize: 13,
+    fontWeight: "600" as const,
+  },
+});
+
+// Comment rows with avatars
+const cmtStyles = StyleSheet.create({
+  row: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+    marginBottom: 16,
+  },
+  avatar: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+  },
+  avatarLetter: {
+    color: "white",
+    fontSize: 12,
+    fontWeight: "700" as const,
+  },
+  nameRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 3,
+  },
+  name: {
+    fontSize: 12,
+    fontWeight: "700" as const,
+  },
+  date: {
+    fontSize: 10,
+  },
+  body: {
+    fontSize: 13,
+    lineHeight: 18,
   },
 });
