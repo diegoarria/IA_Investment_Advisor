@@ -7,10 +7,18 @@ import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "../lib/ThemeContext";
 import { earningsApi } from "../lib/api";
 
-interface EarningsEntry {
+type EventType = "earnings" | "ex_dividend" | "dividend";
+
+interface CalendarEvent {
   ticker: string;
-  earnings_date: string | null;
-  status: "upcoming" | "past" | "unknown";
+  event_date: string | null;
+  event_type: EventType;
+  status: "upcoming" | "today" | "past" | "unknown";
+  eps_estimate?: number | null;
+  eps_range?: string | null;
+  revenue_estimate?: string | null;
+  dividend_amount?: number | null;
+  dividend_yield?: number | null;
 }
 
 interface Props {
@@ -26,6 +34,12 @@ const MONTHS = [
   "Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre",
 ];
 
+const EVENT_META: Record<EventType, { icon: string; label: string; bg: string; color: string; bgPortfolio: string; colorPortfolio: string }> = {
+  earnings:    { icon: "bar-chart-outline",  label: "Resultados",   bg: "rgba(59,130,246,0.22)",  color: "#60a5fa", bgPortfolio: "rgba(0,168,94,0.22)",  colorPortfolio: "#00d47e" },
+  ex_dividend: { icon: "cut-outline",        label: "Ex-Dividendo", bg: "rgba(245,158,11,0.22)",  color: "#f59e0b", bgPortfolio: "rgba(245,158,11,0.28)", colorPortfolio: "#f59e0b" },
+  dividend:    { icon: "cash-outline",       label: "Dividendo",    bg: "rgba(168,85,247,0.22)",  color: "#a855f7", bgPortfolio: "rgba(168,85,247,0.28)", colorPortfolio: "#a855f7" },
+};
+
 function toDateStr(year: number, month: number, day: number) {
   return `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 }
@@ -37,7 +51,7 @@ export default function MobileEarningsCalendar({
   onUpgrade,
 }: Props) {
   const { colors } = useTheme();
-  const [calendar, setCalendar]     = useState<EarningsEntry[]>([]);
+  const [events, setEvents]         = useState<CalendarEvent[]>([]);
   const [loading, setLoading]       = useState(false);
   const [viewDate, setViewDate]     = useState(() => new Date());
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
@@ -52,16 +66,17 @@ export default function MobileEarningsCalendar({
     setLoading(true);
     earningsApi
       .getCalendar(allTickers)
-      .then((res) => setCalendar(res.data.earnings || []))
+      .then((res) => setEvents(res.data.earnings || []))
       .catch(() => {})
       .finally(() => setLoading(false));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isPremium, allTickers.join(",")]);
 
-  const earningsMap: Record<string, EarningsEntry[]> = {};
-  for (const e of calendar) {
-    if (e.earnings_date) {
-      (earningsMap[e.earnings_date] ??= []).push(e);
+  // date → events map
+  const eventMap: Record<string, CalendarEvent[]> = {};
+  for (const e of events) {
+    if (e.event_date) {
+      (eventMap[e.event_date] ??= []).push(e);
     }
   }
 
@@ -94,8 +109,7 @@ export default function MobileEarningsCalendar({
     }
   };
 
-  const selectedEntries = selectedDay ? (earningsMap[selectedDay] ?? []) : [];
-
+  const selectedEntries = selectedDay ? (eventMap[selectedDay] ?? []) : [];
   const s = makeStyles(colors);
 
   // ── Locked ──────────────────────────────────────────────────────────────────
@@ -105,9 +119,9 @@ export default function MobileEarningsCalendar({
         <View style={[s.lockIcon, { backgroundColor: "rgba(0,168,94,0.10)" }]}>
           <Ionicons name="lock-closed-outline" size={22} color={colors.accentLight} />
         </View>
-        <Text style={[s.lockTitle, { color: colors.text }]}>Calendario de Earnings</Text>
+        <Text style={[s.lockTitle, { color: colors.text }]}>Calendario de Eventos</Text>
         <Text style={[s.lockSub, { color: colors.textMuted }]}>
-          Fechas de earnings de tu watchlist en un calendario visual con análisis IA.
+          Ve las fechas de earnings, dividendos y ex-dividendos de tu watchlist con análisis IA.
         </Text>
         <TouchableOpacity style={s.lockBtn} onPress={onUpgrade}>
           <Text style={s.lockBtnText}>⭐ Activar Premium</Text>
@@ -166,9 +180,14 @@ export default function MobileEarningsCalendar({
               }
               const dateStr  = toDateStr(year, month, day);
               const isToday  = dateStr === todayStr;
-              const entries  = earningsMap[dateStr] ?? [];
+              const dayEvents = eventMap[dateStr] ?? [];
               const isSel    = selectedDay === dateStr;
-              const hasEvent = entries.length > 0;
+              const hasEvent = dayEvents.length > 0;
+
+              // Pick dominant color for the dot (priority: earnings > ex_div > div)
+              const dominantEvent = dayEvents.find(e => e.event_type === "earnings")
+                ?? dayEvents.find(e => e.event_type === "ex_dividend")
+                ?? dayEvents[0];
 
               return (
                 <TouchableOpacity
@@ -195,29 +214,30 @@ export default function MobileEarningsCalendar({
                     </Text>
                   </View>
 
-                  {/* Ticker badges */}
-                  {entries.slice(0, 2).map((e) => (
-                    <View
-                      key={e.ticker}
-                      style={[s.tickerBadge, {
-                        backgroundColor: portfolioSet.has(e.ticker)
-                          ? "rgba(0,168,94,0.22)"
-                          : "rgba(59,130,246,0.22)",
-                      }]}
-                    >
-                      <Text style={[s.tickerBadgeText, {
-                        color: portfolioSet.has(e.ticker) ? colors.accentLight : "#60a5fa",
-                      }]} numberOfLines={1}>
-                        {e.ticker}
-                      </Text>
-                    </View>
-                  ))}
-                  {entries.length > 2 && (
+                  {/* Event badges — show up to 2, each with its own color */}
+                  {dayEvents.slice(0, 2).map((e, idx) => {
+                    const meta = EVENT_META[e.event_type];
+                    const isPortfolio = portfolioSet.has(e.ticker);
+                    const bg = isPortfolio ? meta.bgPortfolio : meta.bg;
+                    const col = isPortfolio ? meta.colorPortfolio : meta.color;
+                    return (
+                      <View key={`${e.ticker}-${idx}`} style={[s.tickerBadge, { backgroundColor: bg }]}>
+                        <Text style={[s.tickerBadgeText, { color: col }]} numberOfLines={1}>
+                          {e.ticker}
+                        </Text>
+                      </View>
+                    );
+                  })}
+                  {dayEvents.length > 2 && (
                     <View style={[s.tickerBadge, { backgroundColor: colors.bgRaised }]}>
                       <Text style={[s.tickerBadgeText, { color: colors.textMuted }]}>
-                        +{entries.length - 2}
+                        +{dayEvents.length - 2}
                       </Text>
                     </View>
+                  )}
+                  {/* Small color dot for dominant event type */}
+                  {hasEvent && !dayEvents.slice(0, 2).length && dominantEvent && (
+                    <View style={[s.eventDot, { backgroundColor: EVENT_META[dominantEvent.event_type].color }]} />
                   )}
                 </TouchableOpacity>
               );
@@ -230,70 +250,139 @@ export default function MobileEarningsCalendar({
       {selectedDay && selectedEntries.length > 0 && (
         <View style={[s.detailWrap, { borderTopColor: colors.border }]}>
           <Text style={[s.detailTitle, { color: colors.text }]}>
-            Earnings · {new Date(selectedDay + "T12:00:00").toLocaleDateString("es", {
+            {new Date(selectedDay + "T12:00:00").toLocaleDateString("es", {
               weekday: "long", month: "long", day: "numeric",
             })}
           </Text>
-          {selectedEntries.map((entry, idx) => (
-            <View
-              key={entry.ticker}
-              style={[s.detailRow, idx > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border }]}
-            >
-              <View style={s.detailHeader}>
-                <Text style={[s.detailTicker, { color: colors.text }]}>{entry.ticker}</Text>
-                {portfolioSet.has(entry.ticker) ? (
-                  <View style={[s.badge, { backgroundColor: "rgba(0,168,94,0.12)" }]}>
-                    <Ionicons name="briefcase-outline" size={8} color={colors.accentLight} />
-                    <Text style={[s.badgeText, { color: colors.accentLight }]}>Portafolio</Text>
-                  </View>
-                ) : (
-                  <View style={[s.badge, { backgroundColor: "rgba(59,130,246,0.12)" }]}>
-                    <Ionicons name="eye-outline" size={8} color="#60a5fa" />
-                    <Text style={[s.badgeText, { color: "#60a5fa" }]}>Watchlist</Text>
-                  </View>
-                )}
-                <Text style={[s.statusText, { color: entry.status === "upcoming" ? colors.accentLight : colors.textMuted }]}>
-                  {entry.status === "upcoming" ? "📅 Próximo" : "📊 Reportó"}
-                </Text>
-              </View>
+          {selectedEntries.map((entry, idx) => {
+            const meta = EVENT_META[entry.event_type];
+            const isPortfolio = portfolioSet.has(entry.ticker);
+            const accentColor = isPortfolio ? meta.colorPortfolio : meta.color;
+            return (
+              <View
+                key={`${entry.ticker}-${entry.event_type}`}
+                style={[
+                  s.detailRow,
+                  idx > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: "rgba(255,255,255,0.06)" },
+                ]}
+              >
+                {/* Event type stripe */}
+                <View style={[s.eventStripe, { backgroundColor: accentColor }]} />
 
-              {analysis[entry.ticker] ? (
-                <View style={[s.analysisBox, { backgroundColor: colors.bgRaised }]}>
-                  <Text style={[s.analysisText, { color: colors.textSub }]}>
-                    {analysis[entry.ticker]}
-                  </Text>
+                <View style={{ flex: 1 }}>
+                  {/* Header */}
+                  <View style={s.detailHeader}>
+                    <Text style={[s.detailTicker, { color: colors.text }]}>{entry.ticker}</Text>
+
+                    {/* Event type badge */}
+                    <View style={[s.eventTypeBadge, { backgroundColor: isPortfolio ? meta.bgPortfolio : meta.bg }]}>
+                      <Ionicons name={meta.icon as any} size={9} color={accentColor} />
+                      <Text style={[s.eventTypeText, { color: accentColor }]}>{meta.label}</Text>
+                    </View>
+
+                    {/* Portfolio / Watchlist badge */}
+                    {isPortfolio ? (
+                      <View style={[s.badge, { backgroundColor: "rgba(0,168,94,0.12)" }]}>
+                        <Ionicons name="briefcase-outline" size={8} color={colors.accentLight} />
+                        <Text style={[s.badgeText, { color: colors.accentLight }]}>Portafolio</Text>
+                      </View>
+                    ) : (
+                      <View style={[s.badge, { backgroundColor: "rgba(59,130,246,0.12)" }]}>
+                        <Ionicons name="eye-outline" size={8} color="#60a5fa" />
+                        <Text style={[s.badgeText, { color: "#60a5fa" }]}>Watchlist</Text>
+                      </View>
+                    )}
+
+                    <Text style={[s.statusText, { color: entry.status === "upcoming" || entry.status === "today" ? accentColor : colors.textMuted }]}>
+                      {entry.status === "upcoming" ? "📅 Próximo" : entry.status === "today" ? "🔔 Hoy" : "✅ Reportó"}
+                    </Text>
+                  </View>
+
+                  {/* Event-specific data */}
+                  {entry.event_type === "earnings" && (entry.eps_estimate || entry.eps_range || entry.revenue_estimate) && (
+                    <View style={s.metaRow}>
+                      {entry.eps_estimate != null && (
+                        <View style={[s.metaChip, { backgroundColor: colors.bgRaised }]}>
+                          <Text style={[s.metaChipLabel, { color: colors.textDim }]}>EPS est.</Text>
+                          <Text style={[s.metaChipVal, { color: colors.text }]}>${entry.eps_estimate}</Text>
+                        </View>
+                      )}
+                      {entry.eps_range && (
+                        <View style={[s.metaChip, { backgroundColor: colors.bgRaised }]}>
+                          <Text style={[s.metaChipLabel, { color: colors.textDim }]}>Rango</Text>
+                          <Text style={[s.metaChipVal, { color: colors.text }]}>{entry.eps_range}</Text>
+                        </View>
+                      )}
+                      {entry.revenue_estimate && (
+                        <View style={[s.metaChip, { backgroundColor: colors.bgRaised }]}>
+                          <Text style={[s.metaChipLabel, { color: colors.textDim }]}>Rev. est.</Text>
+                          <Text style={[s.metaChipVal, { color: colors.text }]}>{entry.revenue_estimate}</Text>
+                        </View>
+                      )}
+                    </View>
+                  )}
+
+                  {(entry.event_type === "ex_dividend" || entry.event_type === "dividend") && (entry.dividend_amount != null || entry.dividend_yield != null) && (
+                    <View style={s.metaRow}>
+                      {entry.dividend_amount != null && (
+                        <View style={[s.metaChip, { backgroundColor: colors.bgRaised }]}>
+                          <Text style={[s.metaChipLabel, { color: colors.textDim }]}>Dividendo</Text>
+                          <Text style={[s.metaChipVal, { color: colors.text }]}>${entry.dividend_amount?.toFixed(4)}</Text>
+                        </View>
+                      )}
+                      {entry.dividend_yield != null && (
+                        <View style={[s.metaChip, { backgroundColor: colors.bgRaised }]}>
+                          <Text style={[s.metaChipLabel, { color: colors.textDim }]}>Yield</Text>
+                          <Text style={[s.metaChipVal, { color: "#a855f7" }]}>{entry.dividend_yield?.toFixed(2)}%</Text>
+                        </View>
+                      )}
+                    </View>
+                  )}
+
+                  {/* AI analysis — only for earnings */}
+                  {entry.event_type === "earnings" && (
+                    analysis[entry.ticker] ? (
+                      <View style={[s.analysisBox, { backgroundColor: colors.bgRaised }]}>
+                        <Text style={[s.analysisText, { color: colors.textSub }]}>
+                          {analysis[entry.ticker]}
+                        </Text>
+                      </View>
+                    ) : analyzing === entry.ticker ? (
+                      <View style={s.analyzingRow}>
+                        <ActivityIndicator size="small" color={colors.accentLight} />
+                        <Text style={[s.analyzingText, { color: colors.textMuted }]}>Analizando con IA...</Text>
+                      </View>
+                    ) : (
+                      <TouchableOpacity
+                        onPress={() => handleAnalyze(entry.ticker)}
+                        style={s.aiBtn}
+                        activeOpacity={0.7}
+                      >
+                        <Ionicons name="flash-outline" size={12} color={colors.accentLight} />
+                        <Text style={[s.aiBtnText, { color: colors.accentLight }]}>Análisis IA</Text>
+                      </TouchableOpacity>
+                    )
+                  )}
                 </View>
-              ) : analyzing === entry.ticker ? (
-                <View style={s.analyzingRow}>
-                  <ActivityIndicator size="small" color={colors.accentLight} />
-                  <Text style={[s.analyzingText, { color: colors.textMuted }]}>
-                    Analizando con IA...
-                  </Text>
-                </View>
-              ) : (
-                <TouchableOpacity
-                  onPress={() => handleAnalyze(entry.ticker)}
-                  style={s.aiBtn}
-                  activeOpacity={0.7}
-                >
-                  <Ionicons name="flash-outline" size={12} color={colors.accentLight} />
-                  <Text style={[s.aiBtnText, { color: colors.accentLight }]}>Análisis IA</Text>
-                </TouchableOpacity>
-              )}
-            </View>
-          ))}
+              </View>
+            );
+          })}
         </View>
       )}
 
       {/* ── Legend ── */}
       <View style={[s.legend, { borderTopColor: colors.border }]}>
         <View style={s.legendItem}>
-          <View style={[s.legendDot, { backgroundColor: colors.accentLight }]} />
-          <Text style={[s.legendText, { color: colors.textMuted }]}>Portafolio</Text>
+          <View style={[s.legendDot, { backgroundColor: "#60a5fa" }]} />
+          <Text style={[s.legendText, { color: colors.textMuted }]}>Resultados</Text>
         </View>
         <View style={s.legendItem}>
-          <View style={[s.legendDot, { backgroundColor: "#60a5fa" }]} />
-          <Text style={[s.legendText, { color: colors.textMuted }]}>Watchlist</Text>
+          <View style={[s.legendDot, { backgroundColor: "#f59e0b" }]} />
+          <Text style={[s.legendText, { color: colors.textMuted }]}>Ex-Dividendo</Text>
+        </View>
+        <View style={s.legendItem}>
+          <View style={[s.legendDot, { backgroundColor: "#a855f7" }]} />
+          <Text style={[s.legendText, { color: colors.textMuted }]}>Dividendo</Text>
         </View>
         {allTickers.length > 0 && (
           <Text style={[s.legendCount, { color: colors.textDim }]}>
@@ -358,7 +447,7 @@ function makeStyles(_colors: unknown) {
       borderBottomWidth: StyleSheet.hairlineWidth,
     },
     cell: {
-      flex: 1, minHeight: 60,
+      flex: 1, minHeight: 62,
       padding: 3,
       borderRightWidth: StyleSheet.hairlineWidth,
       alignItems: "center",
@@ -376,40 +465,74 @@ function makeStyles(_colors: unknown) {
       marginTop: 1,
       maxWidth: "100%",
     },
-    tickerBadgeText: { fontSize: 6, fontWeight: "900" },
+    tickerBadgeText: { fontSize: 8, fontWeight: "800" },
+    eventDot: { width: 5, height: 5, borderRadius: 2.5, marginTop: 2 },
 
     detailWrap: {
       borderTopWidth: StyleSheet.hairlineWidth,
-      padding: 14,
-      gap: 8,
+      padding: 12,
+      gap: 0,
     },
-    detailTitle: { fontSize: 12, fontWeight: "800", marginBottom: 4 },
-    detailRow: { paddingTop: 8, gap: 6 },
-    detailHeader: { flexDirection: "row", alignItems: "center", gap: 6 },
-    detailTicker: { fontSize: 13, fontWeight: "900" },
+    detailTitle: {
+      fontSize: 12, fontWeight: "800",
+      marginBottom: 10,
+      textTransform: "capitalize",
+    },
+    detailRow: {
+      flexDirection: "row",
+      gap: 10,
+      paddingVertical: 10,
+    },
+    eventStripe: {
+      width: 3, borderRadius: 2, alignSelf: "stretch", flexShrink: 0,
+    },
+    detailHeader: {
+      flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 5, marginBottom: 6,
+    },
+    detailTicker: { fontSize: 14, fontWeight: "900", letterSpacing: -0.3 },
+    eventTypeBadge: {
+      flexDirection: "row", alignItems: "center", gap: 3,
+      borderRadius: 5, paddingHorizontal: 6, paddingVertical: 2,
+    },
+    eventTypeText: { fontSize: 9, fontWeight: "800" },
     badge: {
       flexDirection: "row", alignItems: "center", gap: 3,
-      paddingHorizontal: 7, paddingVertical: 3, borderRadius: 20,
+      borderRadius: 5, paddingHorizontal: 6, paddingVertical: 2,
     },
     badgeText: { fontSize: 9, fontWeight: "700" },
-    statusText: { fontSize: 9, marginLeft: "auto" as never },
-    analysisBox: {
-      padding: 10, borderRadius: 10,
+    statusText: { fontSize: 10, fontWeight: "700", marginLeft: "auto" },
+
+    metaRow: { flexDirection: "row", gap: 6, flexWrap: "wrap", marginBottom: 8 },
+    metaChip: {
+      borderRadius: 8, paddingHorizontal: 8, paddingVertical: 5,
+      alignItems: "center",
     },
-    analysisText: { fontSize: 11, lineHeight: 17 },
-    analyzingRow: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 4 },
-    analyzingText: { fontSize: 11 },
-    aiBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingVertical: 2 },
+    metaChipLabel: { fontSize: 8, fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 2 },
+    metaChipVal: { fontSize: 12, fontWeight: "800" },
+
+    analysisBox: {
+      borderRadius: 10, padding: 10, marginTop: 4,
+    },
+    analysisText: { fontSize: 12, lineHeight: 18 },
+    analyzingRow: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 8 },
+    analyzingText: { fontSize: 12 },
+    aiBtn: {
+      flexDirection: "row", alignItems: "center", gap: 5,
+      borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6,
+      alignSelf: "flex-start", marginTop: 6,
+      backgroundColor: "rgba(0,168,94,0.10)",
+    },
     aiBtnText: { fontSize: 11, fontWeight: "700" },
 
     legend: {
-      flexDirection: "row", alignItems: "center",
-      gap: 14, paddingHorizontal: 14, paddingVertical: 10,
+      flexDirection: "row", alignItems: "center", gap: 12,
       borderTopWidth: StyleSheet.hairlineWidth,
+      paddingHorizontal: 12, paddingVertical: 9,
+      flexWrap: "wrap",
     },
     legendItem: { flexDirection: "row", alignItems: "center", gap: 5 },
-    legendDot: { width: 7, height: 7, borderRadius: 4 },
-    legendText: { fontSize: 10 },
-    legendCount: { fontSize: 10, marginLeft: "auto" as never },
+    legendDot: { width: 7, height: 7, borderRadius: 3.5 },
+    legendText: { fontSize: 10, fontWeight: "600" },
+    legendCount: { fontSize: 10, marginLeft: "auto" },
   });
 }

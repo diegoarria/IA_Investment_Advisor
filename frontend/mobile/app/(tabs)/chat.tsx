@@ -490,56 +490,6 @@ Instrucciones críticas:
       keyboardVerticalOffset={headerHeight}
     >
     <SafeAreaView style={styles.flex} edges={["left", "right"]}>
-      {/* Behavioral investor bar — mobile only */}
-      {riskCfg && Platform.OS !== "web" && (() => {
-        const score    = diagnosis?.score ?? pct;
-        const barColor = score < 36 ? "#3b82f6" : score < 56 ? "#f59e0b" : score < 76 ? "#f97316" : "#ef4444";
-        const barLabel = score < 36 ? "Conservador" : score < 56 ? "Moderado" : score < 76 ? "Moderado-Alto" : "Agresivo";
-        const confLabel: Record<string, string> = { low: "aprendiendo…", medium: "diagnóstico parcial", high: "diagnóstico sólido" };
-        return (
-          <View style={[styles.profileBanner, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
-            {/* Header row */}
-            <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
-                <Ionicons name="pulse-outline" size={13} color={barColor} />
-                <Text style={[styles.profileType, { color: barColor, marginBottom: 0, fontSize: 13 }]}>
-                  {barLabel}
-                </Text>
-                {diagnosis && (
-                  <View style={[styles.signalChip, { backgroundColor: barColor + "18", borderColor: barColor + "40" }]}>
-                    <Text style={[styles.signalText, { color: barColor }]}>{confLabel[diagnosis.confidence]}</Text>
-                  </View>
-                )}
-              </View>
-              {profile?.name && (
-                <Text style={{ color: colors.textMuted, fontSize: 11 }}>{profile.name.split(" ")[0]}</Text>
-              )}
-            </View>
-
-            {/* Dynamic bar — fills from 0 to 100 based on behavioral score */}
-            <View style={[styles.barTrack, { backgroundColor: colors.border }]}>
-              <View style={[styles.barFill, { flex: score, backgroundColor: barColor }]} />
-              {score < 100 && <View style={{ flex: 100 - score }} />}
-            </View>
-            <View style={styles.barLabels}>
-              <Text style={[styles.barLabelText, { color: colors.textDim }]}>Pasivo</Text>
-              <Text style={[styles.barLabelText, { color: colors.textDim }]}>Especulativo</Text>
-            </View>
-
-            {/* Live signal chips */}
-            {diagnosis?.signals && diagnosis.signals.length > 0 && (
-              <View style={[styles.signalsRow, { marginTop: 6 }]}>
-                {diagnosis.signals.map((sig) => (
-                  <View key={sig} style={[styles.signalChip, { backgroundColor: colors.bg, borderColor: colors.border }]}>
-                    <Text style={[styles.signalText, { color: colors.textDim }]}>{sig.replace(/_/g, " ")}</Text>
-                  </View>
-                ))}
-              </View>
-            )}
-          </View>
-        );
-      })()}
-
       {/* Top bar */}
       <View style={[styles.topBar, { borderBottomColor: colors.border }]}>
         {mentor ? (

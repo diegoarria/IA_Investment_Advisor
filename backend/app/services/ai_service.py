@@ -1199,37 +1199,33 @@ Sin texto fuera del JSON."""
 
 
 async def summarize_news_article(title: str, content: str) -> str:
-    """Summarize a financial news article in 4-8 sentences in Spanish."""
+    """Summarize a financial news article with structured, emoji-enhanced output in Spanish."""
     has_content = bool(content and len(content) > 80)
-
-    if has_content:
-        source_block = f"Fragmento del artículo:\n{content[:3000]}"
-        instruction = (
-            "Basándote en el fragmento anterior, extrae la idea central y resume "
-            "esta noticia en 4-6 oraciones en español para un inversor de largo plazo."
-        )
-    else:
-        source_block = ""
-        instruction = (
-            "No se pudo obtener el cuerpo del artículo. Usa tu conocimiento sobre "
-            "este titular para explicar la idea central y el contexto relevante en "
-            "4-6 oraciones en español para un inversor de largo plazo."
-        )
+    source_block = f"Fragmento del artículo:\n{content[:3000]}" if has_content else ""
 
     prompt = f"""Titular: {title}
 {chr(10) + source_block + chr(10) if source_block else ""}
-{instruction}
+Eres el analista financiero de Nuvos AI. Resume esta noticia para un inversor de largo plazo en español.
 
-Estructura esperada:
-• Qué ocurrió o qué significa este titular
-• Por qué importa para los mercados, la empresa o el sector
-• Contexto relevante que ayude al inversor a entenderlo mejor
+Usa EXACTAMENTE este formato — no lo cambies:
 
-Sin frases introductorias como "Este artículo..." o "La noticia indica...". Directo al punto. Tono claro y educativo."""
+📌 **¿Qué pasó?**
+[1-2 oraciones. Explica el hecho central de forma directa y concisa.]
+
+📈 **¿Por qué importa para los mercados?**
+[1-2 oraciones. Impacto en la acción, sector o mercado en general.]
+
+🧠 **Contexto clave**
+[1-2 oraciones. Dato histórico, tendencia o comparativa que ayude a entender la magnitud.]
+
+⚠️ **Riesgo / oportunidad**
+[1 oración. ¿Qué debería tener en mente el inversor de largo plazo?]
+
+Reglas: Sin frases como "Este artículo..." o "La noticia indica...". Sin introducciones. Tono directo, claro y educativo. Si no hay contenido disponible, usa tu conocimiento sobre el titular."""
 
     response = await _claude(
         model=settings.claude_model,
-        max_tokens=420,
+        max_tokens=520,
         messages=[{"role": "user", "content": prompt}],
     )
     return response.content[0].text.strip()

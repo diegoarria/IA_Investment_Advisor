@@ -398,11 +398,11 @@ export default function LearnScreen() {
                   ¿Prefieres aprender con alguien?
                 </Text>
                 <Text style={[s.coachingCardSub, { color: colors.textMuted }]}>
-                  Agenda una sesión 1:1 con Diego — te guía por la app y te ayuda a crear tu plan de inversión.
+                  45 min contigo y Diego — te guía por la app y crea tu plan de inversión personalizado.
                 </Text>
               </View>
               <View style={[s.coachingReservarBtn, { backgroundColor: "#00a85e" }]}>
-                <Text style={s.coachingReservarText}>Reservar →</Text>
+                <Text style={s.coachingReservarText}>45 min →</Text>
               </View>
             </TouchableOpacity>
           </View>

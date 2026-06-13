@@ -20,6 +20,7 @@ import MobileWeeklyScreener from "../../src/components/MobileWeeklyScreener";
 import PremiumToolCard from "../../src/components/PremiumToolCard";
 import { useAppStore, getAge, UserProfile, RISK_CONFIG } from "../../src/lib/profileStore";
 import { useSubscriptionStore, hasPremiumAccess } from "../../src/lib/subscriptionStore";
+import Markdown from "react-native-markdown-display";
 import PaywallModal from "../../src/components/PaywallModal";
 
 const FREE_POSITION_LIMIT = 10;
@@ -1047,23 +1048,37 @@ export default function PortfolioScreen() {
       >
 
         {/* ── TAB SWITCHER ── */}
-        <View style={[s.subTabBar, { backgroundColor: colors.bgRaised }]}>
-          <TouchableOpacity
-            style={[s.subTab, activeSection === "portafolio" && { backgroundColor: colors.card }]}
-            onPress={() => setActiveSection("portafolio")}
-          >
-            <Text style={[s.subTabText, { color: activeSection === "portafolio" ? colors.text : colors.textMuted }]}>
-              Mi Portafolio
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[s.subTab, activeSection === "herramientas" && { backgroundColor: colors.card }]}
-            onPress={() => setActiveSection("herramientas")}
-          >
-            <Text style={[s.subTabText, { color: activeSection === "herramientas" ? colors.accent : colors.textMuted }]}>
-              Herramientas
-            </Text>
-          </TouchableOpacity>
+        <View style={[s.subTabBar, { backgroundColor: colors.bg }]}>
+          <View style={[s.subTabInner, { backgroundColor: colors.bgRaised }]}>
+            <TouchableOpacity
+              style={[s.subTab, activeSection === "portafolio" && [s.subTabActive, { backgroundColor: colors.card }]]}
+              onPress={() => setActiveSection("portafolio")}
+              activeOpacity={0.75}
+            >
+              <Ionicons
+                name="briefcase-outline"
+                size={14}
+                color={activeSection === "portafolio" ? colors.accent : colors.textMuted}
+              />
+              <Text style={[s.subTabText, { color: activeSection === "portafolio" ? colors.text : colors.textMuted }]}>
+                Mi Portafolio
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[s.subTab, activeSection === "herramientas" && [s.subTabActive, { backgroundColor: colors.card }]]}
+              onPress={() => setActiveSection("herramientas")}
+              activeOpacity={0.75}
+            >
+              <Ionicons
+                name="sparkles-outline"
+                size={14}
+                color={activeSection === "herramientas" ? colors.accent : colors.textMuted}
+              />
+              <Text style={[s.subTabText, { color: activeSection === "herramientas" ? colors.accent : colors.textMuted }]}>
+                Herramientas
+              </Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
         {activeSection === "herramientas" && (
@@ -2183,10 +2198,25 @@ export default function PortfolioScreen() {
           );
         })()}
 
-        {/* Resultado texto (con posiciones) */}
+        {/* Resultado texto (con posiciones) — renderizado con Markdown */}
         {analysis !== "" && (
           <View style={[s.resultCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <Text style={[s.resultText, { color: colors.textSub }]}>{analysis}</Text>
+            <Markdown
+              style={{
+                body:       { color: colors.textSub, fontSize: 13, lineHeight: 20 },
+                heading1:   { color: colors.text, fontWeight: "800", fontSize: 15, marginBottom: 6 },
+                heading2:   { color: colors.text, fontWeight: "700", fontSize: 14, marginBottom: 4 },
+                heading3:   { color: colors.text, fontWeight: "700", fontSize: 13, marginBottom: 4 },
+                strong:     { color: colors.text, fontWeight: "700" },
+                bullet_list:{ marginLeft: 4 },
+                list_item:  { color: colors.textSub, fontSize: 13, lineHeight: 20 },
+                paragraph:  { marginBottom: 8 },
+                fence:      { backgroundColor: colors.bgRaised, borderRadius: 8, padding: 10, fontSize: 12 },
+                code_inline:{ backgroundColor: colors.bgRaised, borderRadius: 4, paddingHorizontal: 4, fontSize: 12 },
+              }}
+            >
+              {analysis}
+            </Markdown>
             <View style={s.disclaimer}>
               <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
                 <Ionicons name="warning-outline" size={13} color="#ca8a04" />
@@ -2577,13 +2607,19 @@ function makeStyles(c: Colors) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: c.bg },
     subTabBar: {
-      flexDirection: "row", borderBottomWidth: StyleSheet.hairlineWidth, backgroundColor: c.card,
+      paddingHorizontal: 16, paddingVertical: 10,
+    },
+    subTabInner: {
+      flexDirection: "row", borderRadius: 14, padding: 3,
     },
     subTab: {
       flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center",
-      gap: 6, paddingVertical: 13, borderBottomWidth: 2, borderBottomColor: "transparent",
+      gap: 6, paddingVertical: 11, paddingHorizontal: 8, borderRadius: 11,
     },
-    subTabText: { fontSize: 13, fontWeight: "600", letterSpacing: 0.1 },
+    subTabActive: {
+      shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.08, shadowRadius: 3, elevation: 2,
+    },
+    subTabText: { fontSize: 13, fontWeight: "700", letterSpacing: -0.1 },
     premiumToolCard: { borderRadius: 18, borderWidth: 1, padding: 16 },
     premiumToolHeader: { flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 10 },
     premiumToolIcon: { width: 44, height: 44, borderRadius: 13, alignItems: "center", justifyContent: "center" },
@@ -2659,8 +2695,8 @@ function makeStyles(c: Colors) {
       shadowColor: "#000", shadowOffset: { width: 0, height: 4 },
       shadowOpacity: 0.1, shadowRadius: 10, elevation: 4,
     },
-    totalsLabel: { fontSize: 10, fontWeight: "700", letterSpacing: 1, textTransform: "uppercase", marginBottom: 6 },
-    totalsValue: { fontSize: 36, fontWeight: "900", marginBottom: 6, letterSpacing: -1.5 },
+    totalsLabel: { fontSize: 10, fontWeight: "600", letterSpacing: 0.6, textTransform: "uppercase", marginBottom: 6 },
+    totalsValue: { fontSize: 28, fontWeight: "700", marginBottom: 6, letterSpacing: -0.8 },
     totalsRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
     totalsInvested: { fontSize: 12, letterSpacing: 0.1 },
     totalsDiff: { fontSize: 15, fontWeight: "900" },

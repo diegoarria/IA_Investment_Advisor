@@ -482,12 +482,12 @@ export default function LearnPage() {
                   ¿Prefieres aprender con alguien?
                 </p>
                 <p className="text-xs mt-0.5 leading-snug" style={{ color: "var(--muted)" }}>
-                  Agenda una sesión 1:1 con Diego — te guía por la app y te ayuda a crear tu plan de inversión.
+                  Agenda una sesión 1:1 con Diego — 45 min para guiarte por la app y crear tu plan de inversión.
                 </p>
               </div>
               <div className="shrink-0 px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap"
                    style={{ background: "rgba(0,168,94,0.12)", color: "var(--accent-l)" }}>
-                Reservar →
+                45 min →
               </div>
             </a>
           </div>
