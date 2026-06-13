@@ -104,6 +104,7 @@ export default function VideoCard({
   const [captionLang, setCaptionLang]   = useState<"off"|"es"|"en">("off");
   const [showCaptionPicker, setShowCaptionPicker] = useState(false);
   const [tapIcon, setTapIcon]           = useState<"play"|"pause"|null>(null);
+  const [showThumb, setShowThumb]       = useState(true); // covers black screen while video buffers
   const tapTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   // Video source setup — handles HLS.js (Chrome/Firefox) and Safari native HLS
@@ -178,15 +179,13 @@ export default function VideoCard({
       if (pre)  { pre.pause();  pre.currentTime  = 0; }
       if (post) { post.pause(); post.currentTime = 0; }
       setPhase("idle");
+      setShowThumb(true); // re-show thumbnail so next activation has no black flash
       return;
     }
 
     const startVideo = () => { setPhase("video"); safePlay(v); };
 
     if (clip.pre_audio_url && pre) {
-      // Pre-buffer video now so skip feels instant — v.load() triggers
-      // browser buffering without starting playback (works for mp4 + Safari HLS)
-      if (!hlsRef.current) v.load();
       setPhase("pre");
       pre.play().catch(startVideo); // if audio blocked (Safari scroll), go straight to video
     } else {
@@ -455,17 +454,27 @@ export default function VideoCard({
         {/* Video — preload="none" on all cards; src/loading controlled by effects above */}
         <video
           ref={videoRef}
-          poster={clip.thumbnail_url || undefined}
           playsInline
           preload="none"
           muted={isMuted}
           onTimeUpdate={handleTimeUpdate}
+          onCanPlay={() => setShowThumb(false)}
           onPlay={() => setPlaying(true)}
           onPause={() => setPlaying(false)}
           onEnded={handleVideoEnded}
-          onError={() => {}} // swallow media load errors — prevents unhandled rejection
+          onError={() => {}}
           className="w-full h-full object-cover"
         />
+
+        {/* Thumbnail overlay — hides the black buffering screen until first frame is ready */}
+        {showThumb && clip.thumbnail_url && (
+          <img
+            src={clip.thumbnail_url}
+            alt=""
+            className="absolute inset-0 w-full h-full object-cover pointer-events-none"
+            style={{ zIndex: 2 }}
+          />
+        )}
 
         {/* Transparent tap zone — sits above video, below all interactive overlays */}
         <div
