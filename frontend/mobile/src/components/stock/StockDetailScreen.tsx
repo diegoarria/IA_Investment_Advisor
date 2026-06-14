@@ -75,28 +75,9 @@ const SIGNAL_COLOR: Record<string, string> = {
   "VENTA FUERTE":  "#ef4444",
 };
 
-function ScoreRing({ score, color }: { score: number; color: string }) {
-  const R = 36, STROKE = 7, SIZE = (R + STROKE) * 2;
-  const circ = 2 * Math.PI * R;
-  const dash = (score / 100) * circ;
-  return (
-    <Svg width={SIZE} height={SIZE}>
-      <Circle cx={SIZE / 2} cy={SIZE / 2} r={R} stroke="#1f2937" strokeWidth={STROKE} fill="none" />
-      <Circle
-        cx={SIZE / 2} cy={SIZE / 2} r={R}
-        stroke={color} strokeWidth={STROKE} fill="none"
-        strokeDasharray={`${dash} ${circ}`}
-        strokeLinecap="round"
-        transform={`rotate(-90, ${SIZE / 2}, ${SIZE / 2})`}
-      />
-    </Svg>
-  );
-}
-
 function VerdictSection({ ticker }: { ticker: string }) {
   const { colors } = useTheme();
   const { data, loading } = useStockScore(ticker);
-  const [expanded, setExpanded] = useState(false);
 
   if (loading) {
     return (
@@ -110,59 +91,117 @@ function VerdictSection({ ticker }: { ticker: string }) {
 
   const sigColor = SIGNAL_COLOR[data.signal] ?? "#f59e0b";
 
+  // Parse CORTO/LARGO from verdict_long
+  const text = data.verdict_long ?? "";
+  const cortoIdx = text.indexOf("**CORTO:**");
+  const largoIdx = text.indexOf("**LARGO:**");
+  let preText = "", cortoText = "", largoText = "";
+  if (cortoIdx !== -1 || largoIdx !== -1) {
+    const rawMarkers = [
+      cortoIdx !== -1 ? { key: "corto", idx: cortoIdx, marker: "**CORTO:**" } : null,
+      largoIdx !== -1 ? { key: "largo", idx: largoIdx, marker: "**LARGO:**" } : null,
+    ].filter(Boolean) as { key: string; idx: number; marker: string }[];
+    const markers = rawMarkers.sort((a, b) => a.idx - b.idx);
+    preText = text.slice(0, markers[0].idx).trim();
+    markers.forEach((m, i) => {
+      const start = m.idx + m.marker.length;
+      const end = i < markers.length - 1 ? markers[i + 1].idx : text.length;
+      const content = text.slice(start, end).trim();
+      if (m.key === "corto") cortoText = content;
+      else largoText = content;
+    });
+  } else { preText = text; }
+
+  // Ring geometry
+  const R = 48, STROKE = 10, SIZE = (R + STROKE) * 2;
+  const circ = 2 * Math.PI * R;
+  const dash = (data.overall_score / 100) * circ;
+
   return (
-    <View style={{ paddingHorizontal: 16, paddingVertical: 12 }}>
-      {/* Score ring + signal */}
-      <View style={vd.topRow}>
-        <View style={vd.ringWrap}>
-          <ScoreRing score={data.overall_score} color={sigColor} />
-          <View style={StyleSheet.absoluteFill} pointerEvents="none">
-            <View style={vd.ringLabel}>
-              <Text style={[vd.scoreNum, { color: sigColor }]}>{data.overall_score}</Text>
-              <Text style={[vd.gradeTxt, { color: colors.textMuted }]}>{data.grade}</Text>
+    <View style={{ paddingHorizontal: 16, paddingVertical: 12, gap: 12 }}>
+
+      {/* ── Score Hero Card ── */}
+      <View style={[vd.heroCard, { backgroundColor: sigColor + "14", borderColor: sigColor + "30" }]}>
+        <View style={[vd.deco1, { backgroundColor: sigColor + "10" }]} />
+        <View style={[vd.deco2, { backgroundColor: sigColor + "08" }]} />
+        <View style={vd.heroRow}>
+          {/* Big ring */}
+          <View style={{ width: SIZE, height: SIZE, alignItems: "center", justifyContent: "center" }}>
+            <Svg width={SIZE} height={SIZE} style={StyleSheet.absoluteFill}>
+              <Circle cx={SIZE / 2} cy={SIZE / 2} r={R} stroke={sigColor + "25"} strokeWidth={STROKE} fill="none" />
+              <Circle
+                cx={SIZE / 2} cy={SIZE / 2} r={R}
+                stroke={sigColor} strokeWidth={STROKE} fill="none"
+                strokeDasharray={`${dash} ${circ}`}
+                strokeLinecap="round"
+                transform={`rotate(-90, ${SIZE / 2}, ${SIZE / 2})`}
+              />
+            </Svg>
+            <View style={vd.ringCenter}>
+              <Text style={[vd.scoreNum, { color: colors.text }]}>{data.overall_score}</Text>
+              <Text style={[vd.scoreDenom, { color: colors.textMuted }]}>/ 100</Text>
             </View>
           </View>
-        </View>
 
-        <View style={{ flex: 1, gap: 8 }}>
-          <View style={[vd.signalBadge, { backgroundColor: sigColor + "18", borderColor: sigColor + "44" }]}>
-            <Text style={[vd.signalText, { color: sigColor }]}>{data.signal}</Text>
+          <View style={{ flex: 1, gap: 8 }}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+              {data.grade ? (
+                <Text style={[vd.gradeText, { color: sigColor }]}>{data.grade}</Text>
+              ) : null}
+              <View style={[vd.signalBadge, { backgroundColor: sigColor + "18", borderColor: sigColor + "44" }]}>
+                <Text style={[vd.signalText, { color: sigColor }]}>{data.signal}</Text>
+              </View>
+            </View>
+            <Text style={[vd.shortVerdict, { color: colors.textSub }]} numberOfLines={4}>
+              {data.verdict_short}
+            </Text>
           </View>
-          <Text style={[vd.shortVerdict, { color: colors.textSub }]} numberOfLines={expanded ? undefined : 3}>
-            {data.verdict_short}
-          </Text>
         </View>
       </View>
 
-      {/* Category bars */}
-      <View style={[vd.cats, { borderTopColor: colors.border }]}>
+      {/* ── CORTO / LARGO outlook ── */}
+      {(cortoText || largoText) ? (
+        <View style={vd.outlookRow}>
+          {cortoText ? (
+            <View style={[vd.outlookCard, { flex: 1, backgroundColor: "rgba(245,158,11,0.06)", borderColor: "rgba(245,158,11,0.2)" }]}>
+              <View style={vd.outlookHeader}>
+                <View style={[vd.outlookDot, { backgroundColor: "#f59e0b" }]} />
+                <Text style={[vd.outlookLabel, { color: "#f59e0b" }]}>Corto plazo</Text>
+              </View>
+              <Text style={[vd.outlookText, { color: colors.textSub }]}>{cortoText}</Text>
+            </View>
+          ) : null}
+          {largoText ? (
+            <View style={[vd.outlookCard, { flex: 1, backgroundColor: "rgba(34,197,94,0.06)", borderColor: "rgba(34,197,94,0.2)" }]}>
+              <View style={vd.outlookHeader}>
+                <View style={[vd.outlookDot, { backgroundColor: "#22c55e" }]} />
+                <Text style={[vd.outlookLabel, { color: "#22c55e" }]}>Largo plazo</Text>
+              </View>
+              <Text style={[vd.outlookText, { color: colors.textSub }]}>{largoText}</Text>
+            </View>
+          ) : null}
+        </View>
+      ) : preText ? (
+        <Text style={[vd.outlookText, { color: colors.textSub }]}>{preText}</Text>
+      ) : null}
+
+      {/* ── Category grid ── */}
+      <View style={vd.catGrid}>
         {data.categories.map((cat) => {
-          const c = cat.score >= 70 ? "#22c55e" : cat.score >= 50 ? "#f59e0b" : "#ef4444";
+          const c = cat.score >= 75 ? "#22c55e" : cat.score >= 55 ? "#f59e0b" : "#ef4444";
           return (
-            <View key={cat.key} style={vd.catRow}>
-              <Text style={[vd.catName, { color: colors.textMuted }]}>{cat.name}</Text>
-              <View style={[vd.catTrack, { backgroundColor: colors.bgRaised }]}>
+            <View key={cat.key} style={[vd.catTile, { backgroundColor: colors.bgRaised, borderColor: c + "30" }]}>
+              <View style={vd.catTileTop}>
+                <Text style={[vd.catName, { color: colors.textMuted }]} numberOfLines={1}>{cat.name}</Text>
+                <Text style={[vd.catScore, { color: c }]}>{cat.score}</Text>
+              </View>
+              <View style={[vd.catTrack, { backgroundColor: colors.border }]}>
                 <View style={[vd.catFill, { width: `${cat.score}%` as any, backgroundColor: c }]} />
               </View>
-              <Text style={[vd.catScore, { color: c }]}>{cat.score}</Text>
             </View>
           );
         })}
       </View>
-
-      {/* Long verdict expandable */}
-      {data.verdict_long ? (
-        <View style={[vd.longBox, { backgroundColor: colors.bgRaised, borderColor: colors.border }]}>
-          <Text style={[vd.longText, { color: colors.textSub }]} numberOfLines={expanded ? undefined : 4}>
-            {data.verdict_long}
-          </Text>
-          <TouchableOpacity onPress={() => setExpanded((v) => !v)} style={{ marginTop: 6 }}>
-            <Text style={[vd.expandBtn, { color: colors.accentLight }]}>
-              {expanded ? "Ver menos" : "Ver análisis completo"}
-            </Text>
-          </TouchableOpacity>
-        </View>
-      ) : null}
     </View>
   );
 }
@@ -170,23 +209,33 @@ function VerdictSection({ ticker }: { ticker: string }) {
 const vd = StyleSheet.create({
   loadRow:      { flexDirection: "row", alignItems: "center", gap: 10, padding: 16 },
   loadText:     { fontSize: 13 },
-  topRow:       { flexDirection: "row", gap: 14, alignItems: "flex-start", marginBottom: 16 },
-  ringWrap:     { width: 86, height: 86, alignItems: "center", justifyContent: "center" },
-  ringLabel:    { flex: 1, alignItems: "center", justifyContent: "center" },
-  scoreNum:     { fontSize: 22, fontFamily: "DMSans_800ExtraBold", lineHeight: 26 },
-  gradeTxt:     { fontSize: 11, fontFamily: "DMSans_600SemiBold" },
+  // Hero card
+  heroCard:     { borderRadius: 20, borderWidth: 1, overflow: "hidden", padding: 16 },
+  deco1:        { position: "absolute", top: -24, right: -20, width: 120, height: 120, borderRadius: 60 },
+  deco2:        { position: "absolute", bottom: -28, left: -16, width: 80, height: 80, borderRadius: 40 },
+  heroRow:      { flexDirection: "row", gap: 14, alignItems: "center" },
+  ringCenter:   { position: "absolute", alignItems: "center", justifyContent: "center" },
+  scoreNum:     { fontSize: 30, fontFamily: "DMSans_800ExtraBold", lineHeight: 34 },
+  scoreDenom:   { fontSize: 10, fontFamily: "DMSans_600SemiBold", marginTop: 2 },
+  gradeText:    { fontSize: 44, fontFamily: "DMSans_800ExtraBold", lineHeight: 48 },
   signalBadge:  { alignSelf: "flex-start", paddingHorizontal: 12, paddingVertical: 5, borderRadius: 20, borderWidth: 1 },
-  signalText:   { fontSize: 13, fontFamily: "DMSans_800ExtraBold", letterSpacing: 0.3 },
+  signalText:   { fontSize: 12, fontFamily: "DMSans_800ExtraBold", letterSpacing: 0.5 },
   shortVerdict: { fontSize: 13, fontFamily: "DMSans_400Regular", lineHeight: 19 },
-  cats:         { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 12, gap: 8 },
-  catRow:       { flexDirection: "row", alignItems: "center", gap: 8 },
-  catName:      { fontSize: 11, fontFamily: "DMSans_500Medium", width: 90 },
-  catTrack:     { flex: 1, height: 6, borderRadius: 3, overflow: "hidden" },
-  catFill:      { height: 6, borderRadius: 3 },
-  catScore:     { fontSize: 12, fontFamily: "DMSans_700Bold", width: 26, textAlign: "right" },
-  longBox:      { marginTop: 14, padding: 12, borderRadius: 12, borderWidth: 1 },
-  longText:     { fontSize: 13, fontFamily: "DMSans_400Regular", lineHeight: 20 },
-  expandBtn:    { fontSize: 12, fontFamily: "DMSans_600SemiBold" },
+  // Outlook cards
+  outlookRow:   { flexDirection: "row", gap: 8 },
+  outlookCard:  { borderRadius: 16, borderWidth: 1, padding: 12 },
+  outlookHeader:{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 6 },
+  outlookDot:   { width: 6, height: 6, borderRadius: 3 },
+  outlookLabel: { fontSize: 9, fontFamily: "DMSans_800ExtraBold", letterSpacing: 1, textTransform: "uppercase" },
+  outlookText:  { fontSize: 12, fontFamily: "DMSans_400Regular", lineHeight: 17 },
+  // Category grid
+  catGrid:      { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  catTile:      { width: "47%", borderRadius: 14, borderWidth: 1, padding: 10 },
+  catTileTop:   { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 6 },
+  catName:      { fontSize: 9, fontFamily: "DMSans_600SemiBold", textTransform: "uppercase", letterSpacing: 0.5, flex: 1 },
+  catScore:     { fontSize: 14, fontFamily: "DMSans_800ExtraBold" },
+  catTrack:     { height: 4, borderRadius: 2, overflow: "hidden" },
+  catFill:      { height: 4, borderRadius: 2 },
 });
 
 // ─── Section Header ───────────────────────────────────────────────────────────

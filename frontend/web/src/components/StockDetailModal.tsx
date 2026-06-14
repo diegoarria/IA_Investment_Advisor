@@ -834,36 +834,6 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
           })()}
         </div>
 
-        {/* ── Quick stats grid ── */}
-        <div className="px-4 py-3 border-b shrink-0" style={{ borderColor: "var(--border)", background: "var(--bg)" }}>
-          {loading ? (
-            <div className="grid grid-cols-4 gap-2">
-              {Array.from({ length: 8 }).map((_, i) => (
-                <div key={i} className="animate-pulse rounded-lg h-10" style={{ background: "var(--raised)" }} />
-              ))}
-            </div>
-          ) : profile ? (
-            <div className="grid grid-cols-4 gap-2">
-              {[
-                { label: "Cap.", value: fmtBig(profile.market_cap) },
-                { label: "P/E", value: fmtNum(profile.pe_ratio) },
-                { label: "Fwd P/E", value: fmtNum(profile.forward_pe) },
-                { label: "Beta", value: fmtNum(profile.beta) },
-                { label: "EPS", value: profile.eps != null ? `$${profile.eps.toFixed(2)}` : "—" },
-                { label: "Div.", value: profile.dividend_yield ? `${profile.dividend_yield.toFixed(2)}%` : "—" },
-                { label: "Vol.", value: fmtK(profile.volume) },
-                { label: "Margen", value: profile.profit_margins != null ? `${profile.profit_margins.toFixed(1)}%` : "—" },
-              ].map(({ label, value }) => (
-                <div key={label} className="flex flex-col items-center py-2 px-1 rounded-lg"
-                     style={{ background: "var(--raised)", border: "1px solid var(--border)" }}>
-                  <span className="text-[8px] font-semibold uppercase tracking-wide" style={{ color: "var(--dim)" }}>{label}</span>
-                  <span className="text-xs font-black leading-tight mt-0.5" style={{ color: "var(--text)" }}>{value}</span>
-                </div>
-              ))}
-            </div>
-          ) : null}
-        </div>
-
         {/* ── Tab bar ── */}
         <div className="flex gap-1 px-3 py-2 border-b shrink-0" style={{ borderColor: "var(--border)", background: "var(--bg)" }}>
           {TABS.map(({ key, label }) => (
@@ -896,103 +866,121 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
                 </div>
               ) : score ? (
                 <>
-                  {/* Score hero */}
-                  <div className="rounded-2xl p-5 flex gap-4 items-start"
-                       style={{ background: "var(--raised)", border: "1px solid var(--border)" }}>
-                    {/* Circular progress ring */}
-                    {(() => {
-                      const sc = score.overall_score;
-                      const ringColor = sc >= 75 ? "#22c55e" : sc >= 55 ? "#f59e0b" : "#ef4444";
-                      const R = 34, cx = 40, cy = 40;
-                      const circ = 2 * Math.PI * R;
-                      const dash = (sc / 100) * circ;
-                      return (
-                        <div className="relative shrink-0 flex items-center justify-center" style={{ width: 80, height: 80 }}>
-                          <svg width="80" height="80" viewBox="0 0 80 80">
-                            <circle cx={cx} cy={cy} r={R} fill="none" stroke="var(--border)" strokeWidth="6" />
-                            <circle cx={cx} cy={cy} r={R} fill="none" stroke={ringColor} strokeWidth="6"
-                              strokeLinecap="round"
-                              strokeDasharray={`${dash} ${circ}`}
-                              strokeDashoffset={circ * 0.25}
-                              transform={`rotate(-90 ${cx} ${cy})`}
-                              style={{ transition: "stroke-dasharray 0.5s ease" }}
-                            />
-                          </svg>
-                          <div className="absolute flex flex-col items-center justify-center">
-                            <span className="text-xl font-black leading-none" style={{ color: "var(--text)" }}>{sc}</span>
-                            <span className="text-[8px] font-bold" style={{ color: "var(--muted)" }}>/100</span>
+                  {/* ── Score Hero ── */}
+                  {(() => {
+                    const sc = score.overall_score;
+                    const scoreColor = sc >= 75 ? "#22c55e" : sc >= 55 ? "#f59e0b" : "#ef4444";
+                    const signalColor = score.signal.includes("COMPRA") ? "#22c55e" : score.signal.includes("VEND") ? "#ef4444" : "#f59e0b";
+                    const R = 48, CX = 60, CY = 60;
+                    const circ = 2 * Math.PI * R;
+                    const dash = (sc / 100) * circ;
+                    return (
+                      <div className="rounded-3xl overflow-hidden relative"
+                           style={{ background: `linear-gradient(135deg, ${scoreColor}14 0%, var(--raised) 60%)`,
+                                    border: `1px solid ${scoreColor}25` }}>
+                        <div className="absolute -top-8 -right-6 w-44 h-44 rounded-full pointer-events-none"
+                             style={{ background: scoreColor + "0C" }} />
+                        <div className="absolute -bottom-10 -left-4 w-32 h-32 rounded-full pointer-events-none"
+                             style={{ background: scoreColor + "08" }} />
+                        <div className="relative z-10 flex items-center gap-5 p-5">
+                          <div className="relative shrink-0" style={{ width: 120, height: 120 }}>
+                            <svg width="120" height="120" viewBox="0 0 120 120">
+                              <circle cx={CX} cy={CY} r={R} fill="none" stroke={scoreColor + "22"} strokeWidth="10" />
+                              <circle cx={CX} cy={CY} r={R} fill="none" stroke={scoreColor} strokeWidth="10"
+                                strokeLinecap="round"
+                                strokeDasharray={`${dash} ${circ}`}
+                                strokeDashoffset={circ * 0.25}
+                                transform={`rotate(-90 ${CX} ${CY})`}
+                                style={{ transition: "stroke-dasharray 0.6s" }}
+                              />
+                            </svg>
+                            <div className="absolute inset-0 flex flex-col items-center justify-center">
+                              <span className="text-4xl font-black leading-none" style={{ color: "var(--text)" }}>{sc}</span>
+                              <span className="text-[10px] font-semibold mt-0.5" style={{ color: "var(--muted)" }}>/ 100</span>
+                            </div>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2.5 mb-2 flex-wrap">
+                              {score.grade && (
+                                <span className="text-5xl font-black leading-none" style={{ color: scoreColor }}>{score.grade}</span>
+                              )}
+                              <span className="text-xs font-black px-3 py-1.5 rounded-full tracking-wider"
+                                    style={{ background: signalColor + "1A", color: signalColor, border: `1px solid ${signalColor}40` }}>
+                                {score.signal}
+                              </span>
+                            </div>
+                            <p className="text-sm font-semibold leading-snug" style={{ color: "var(--sub)" }}>
+                              {score.verdict_short}
+                            </p>
                           </div>
                         </div>
-                      );
-                    })()}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1 flex-wrap">
-                        <span className="text-base font-black" style={{ color: "var(--text)" }}>
-                          Calidad del Negocio
-                        </span>
-                        <span className="text-xs font-bold px-2.5 py-0.5 rounded-full"
-                              style={{
-                                background: score.signal.includes("COMPRA") ? "rgba(34,197,94,0.15)" : score.signal.includes("VEND") ? "rgba(239,68,68,0.15)" : "rgba(245,158,11,0.15)",
-                                color: score.signal.includes("COMPRA") ? "#22c55e" : score.signal.includes("VEND") ? "#ef4444" : "#f59e0b",
-                              }}>
-                          {score.signal}
-                        </span>
                       </div>
-                      <p className="text-xs font-semibold leading-snug mb-2" style={{ color: "var(--sub)" }}>
-                        {score.verdict_short}
-                      </p>
-                      {/* Parse verdict_long for **CORTO:** and **LARGO:** markers */}
-                      {(() => {
-                        const text = score.verdict_long;
-                        const cortoIdx = text.indexOf("**CORTO:**");
-                        const largoIdx = text.indexOf("**LARGO:**");
-                        if (cortoIdx === -1 && largoIdx === -1) {
-                          return <p className="text-[11px] leading-relaxed" style={{ color: "var(--muted)" }}>{text}</p>;
-                        }
-                        const parts: React.ReactNode[] = [];
-                        let cursor = 0;
-                        const markers = [
-                          { marker: "**CORTO:**", label: "CORTO", color: "#f59e0b", idx: cortoIdx },
-                          { marker: "**LARGO:**", label: "LARGO", color: "#22c55e", idx: largoIdx },
-                        ].filter((m) => m.idx !== -1).sort((a, b) => a.idx - b.idx);
-                        markers.forEach(({ marker, label, color, idx }) => {
-                          if (idx > cursor) {
-                            parts.push(<span key={`pre-${idx}`} className="text-[11px] leading-relaxed" style={{ color: "var(--muted)" }}>{text.slice(cursor, idx)}</span>);
-                          }
-                          parts.push(
-                            <span key={label} className="font-black text-[11px]" style={{ color }}> {label}: </span>
-                          );
-                          cursor = idx + marker.length;
-                        });
-                        if (cursor < text.length) {
-                          parts.push(<span key="tail" className="text-[11px] leading-relaxed" style={{ color: "var(--muted)" }}>{text.slice(cursor)}</span>);
-                        }
-                        return <p className="text-[11px] leading-relaxed">{parts}</p>;
-                      })()}
-                    </div>
-                  </div>
+                    );
+                  })()}
 
-                  {/* Category overview bar */}
-                  <div className="grid grid-cols-4 gap-1.5">
+                  {/* ── CORTO / LARGO outlook ── */}
+                  {(() => {
+                    const text = score.verdict_long;
+                    const cortoIdx = text.indexOf("**CORTO:**");
+                    const largoIdx = text.indexOf("**LARGO:**");
+                    let preText = "", cortoText = "", largoText = "";
+                    if (cortoIdx !== -1 || largoIdx !== -1) {
+                      const markers = [
+                        cortoIdx !== -1 ? { key: "corto", idx: cortoIdx, marker: "**CORTO:**" } : null,
+                        largoIdx !== -1 ? { key: "largo", idx: largoIdx, marker: "**LARGO:**" } : null,
+                      ].filter(Boolean).sort((a, b) => a!.idx - b!.idx) as { key: string; idx: number; marker: string }[];
+                      preText = text.slice(0, markers[0].idx).trim();
+                      markers.forEach((m, i) => {
+                        const start = m.idx + m.marker.length;
+                        const end = i < markers.length - 1 ? markers[i + 1].idx : text.length;
+                        const content = text.slice(start, end).trim();
+                        if (m.key === "corto") cortoText = content;
+                        else largoText = content;
+                      });
+                    } else { preText = text; }
+                    return (
+                      <div className={`grid gap-3 ${cortoText && largoText ? "grid-cols-2" : "grid-cols-1"}`}>
+                        {preText && !cortoText && !largoText && (
+                          <p className="text-[12px] leading-relaxed" style={{ color: "var(--sub)" }}>{preText}</p>
+                        )}
+                        {cortoText && (
+                          <div className="rounded-2xl p-4"
+                               style={{ background: "rgba(245,158,11,0.06)", border: "1px solid rgba(245,158,11,0.2)" }}>
+                            <div className="flex items-center gap-2 mb-2">
+                              <div className="w-2 h-2 rounded-full shrink-0" style={{ background: "#f59e0b" }} />
+                              <span className="text-[10px] font-black uppercase tracking-widest" style={{ color: "#f59e0b" }}>Corto plazo</span>
+                            </div>
+                            <p className="text-[12px] leading-relaxed" style={{ color: "var(--sub)" }}>{cortoText}</p>
+                          </div>
+                        )}
+                        {largoText && (
+                          <div className="rounded-2xl p-4"
+                               style={{ background: "rgba(34,197,94,0.06)", border: "1px solid rgba(34,197,94,0.2)" }}>
+                            <div className="flex items-center gap-2 mb-2">
+                              <div className="w-2 h-2 rounded-full shrink-0" style={{ background: "#22c55e" }} />
+                              <span className="text-[10px] font-black uppercase tracking-widest" style={{ color: "#22c55e" }}>Largo plazo</span>
+                            </div>
+                            <p className="text-[12px] leading-relaxed" style={{ color: "var(--sub)" }}>{largoText}</p>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
+
+                  {/* ── Category grid ── */}
+                  <div className="grid grid-cols-4 gap-2">
                     {score.categories.map((cat) => {
                       const catColor = cat.score >= 75 ? "#22c55e" : cat.score >= 55 ? "#f59e0b" : "#ef4444";
                       return (
-                        <div key={cat.key} className="rounded-xl p-3 text-center"
-                             style={{
-                               background: `linear-gradient(135deg, ${catColor}14, transparent)`,
-                               border: `1px solid ${catColor}30`,
-                             }}>
-                          <div className="text-2xl font-black leading-tight" style={{ color: catColor }}>
-                            {cat.score}
+                        <div key={cat.key} className="rounded-2xl p-3 flex flex-col gap-2"
+                             style={{ background: "var(--raised)", border: `1px solid ${catColor}30` }}>
+                          <div className="flex items-center justify-between gap-1">
+                            <span className="text-[9px] font-bold uppercase tracking-wide leading-tight"
+                                  style={{ color: "var(--muted)" }}>{cat.name}</span>
+                            <span className="text-sm font-black shrink-0" style={{ color: catColor }}>{cat.score}</span>
                           </div>
-                          <div className="text-[8px] font-semibold uppercase tracking-wide mt-0.5"
-                               style={{ color: "var(--dim)" }}>
-                            {cat.name}
-                          </div>
-                          {/* mini progress bar */}
-                          <div className="mt-1.5 h-1 rounded-full" style={{ background: "var(--border)" }}>
-                            <div className="h-1 rounded-full transition-all"
-                                 style={{ width: `${cat.score}%`, background: catColor }} />
+                          <div className="h-1.5 rounded-full" style={{ background: "var(--border)" }}>
+                            <div className="h-1.5 rounded-full" style={{ width: `${cat.score}%`, background: catColor }} />
                           </div>
                         </div>
                       );
@@ -1076,8 +1064,8 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
                 };
 
                 // Google Finance-style table: rows = metrics, cols = periods
-                const FinRow = ({ rows, field, label, isNeg = false, zeroAsDash = false }: {
-                  rows: Record<string, unknown>[]; field: string; label: string; isNeg?: boolean; zeroAsDash?: boolean;
+                const FinRow = ({ rows, field, label, isNeg = false, zeroAsDash = false, showGrowth = false }: {
+                  rows: Record<string, unknown>[]; field: string; label: string; isNeg?: boolean; zeroAsDash?: boolean; showGrowth?: boolean;
                 }) => {
                   const vals = rows.map((r) => {
                     const v = r[field];
@@ -1090,8 +1078,12 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
                   const maxAbs = Math.max(...nonNull.map(Math.abs), 1);
                   const lastVal = nonNull[nonNull.length - 1];
                   const lastColor = isNeg ? (lastVal <= 0 ? "#ef4444" : "#22c55e") : (lastVal >= 0 ? "#22c55e" : "#ef4444");
+                  const growths = showGrowth ? vals.map((v, i) => {
+                    if (i === 0 || v == null || vals[i - 1] == null || vals[i - 1] === 0) return null;
+                    return ((v - vals[i - 1]!) / Math.abs(vals[i - 1]!)) * 100;
+                  }) : null;
                   return (
-                    <div className="flex items-stretch border-b" style={{ borderColor: "var(--border)", minHeight: 64 }}>
+                    <div className="flex items-stretch border-b" style={{ borderColor: "var(--border)", minHeight: showGrowth ? 78 : 64 }}>
                       {/* Metric name */}
                       <div className="shrink-0 flex items-center pr-3 pl-5" style={{ width: 148 }}>
                         <span className="text-[11px] font-semibold leading-tight" style={{ color: "var(--sub)" }}>{label}</span>
@@ -1102,8 +1094,9 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
                         const barH = Math.round(pct * 36);
                         const isLast = i === vals.length - 1;
                         const barColor = v == null ? "var(--border)" : isNeg ? (v <= 0 ? "#ef4444" : "#22c55e") : (v >= 0 ? "#22c55e" : "#ef4444");
+                        const growth = growths?.[i] ?? null;
                         return (
-                          <div key={i} className="flex-1 flex flex-col items-center justify-end py-2 px-1 gap-1"
+                          <div key={i} className="flex-1 flex flex-col items-center justify-end py-2 px-1 gap-0.5"
                                style={{ background: isLast ? "rgba(0,168,94,0.04)" : "transparent" }}>
                             {/* Bar */}
                             <div style={{ height: 36, display: "flex", alignItems: "flex-end", justifyContent: "center", width: "100%" }}>
@@ -1120,6 +1113,17 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
                             }}>
                               {v != null ? (Math.abs(v) < 1 && v !== 0 ? v.toFixed(2) : fmtBig(v)) : "—"}
                             </span>
+                            {/* YoY growth badge */}
+                            {showGrowth && (
+                              growth != null ? (
+                                <span className="text-[9px] font-black leading-none tabular-nums"
+                                      style={{ color: growth >= 0 ? "#22c55e" : "#ef4444" }}>
+                                  {growth >= 0 ? "▲" : "▼"}{Math.abs(growth).toFixed(1)}%
+                                </span>
+                              ) : (
+                                <span className="text-[9px] leading-none select-none" style={{ color: "transparent" }}>—</span>
+                              )
+                            )}
                           </div>
                         );
                       })}
@@ -1146,7 +1150,7 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
                 const Section = ({ title, rows, metrics }: {
                   title: string;
                   rows: Record<string, unknown>[];
-                  metrics: Array<{ field: string; label: string; isNeg?: boolean; zeroAsDash?: boolean }>;
+                  metrics: Array<{ field: string; label: string; isNeg?: boolean; zeroAsDash?: boolean; showGrowth?: boolean }>;
                 }) => {
                   if (!rows.length) return null;
                   return (
@@ -1160,7 +1164,7 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
                       </div>
                       <PeriodHeader rows={rows} />
                       {metrics.map((m) => (
-                        <FinRow key={m.field} rows={rows} field={m.field} label={m.label} isNeg={m.isNeg} zeroAsDash={m.zeroAsDash} />
+                        <FinRow key={m.field} rows={rows} field={m.field} label={m.label} isNeg={m.isNeg} zeroAsDash={m.zeroAsDash} showGrowth={m.showGrowth} />
                       ))}
                     </div>
                   );
@@ -1211,11 +1215,11 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
 
                     {finSection === "income" && (
                       <Section title="Estado de Resultados" rows={income} metrics={[
-                        { field: "Total Revenue",    label: "Ingresos" },
-                        { field: "Gross Profit",     label: "Utilidad Bruta",     zeroAsDash: true },
-                        { field: "Operating Income", label: "Utilidad Operativa", zeroAsDash: true },
+                        { field: "Total Revenue",    label: "Ingresos",           showGrowth: true },
+                        { field: "Gross Profit",     label: "Utilidad Bruta",     zeroAsDash: true, showGrowth: true },
+                        { field: "Operating Income", label: "Utilidad Operativa", zeroAsDash: true, showGrowth: true },
                         { field: "EBITDA",           label: "EBITDA" },
-                        { field: "Net Income",       label: "Utilidad Neta" },
+                        { field: "Net Income",       label: "Utilidad Neta",      showGrowth: true },
                         { field: "Diluted EPS",      label: "EPS Diluido" },
                         { field: "Research And Development", label: "I+D" },
                         { field: "Selling General Administrative", label: "SG&A" },
