@@ -1064,8 +1064,8 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
                 };
 
                 // Google Finance-style table: rows = metrics, cols = periods
-                const FinRow = ({ rows, field, label, isNeg = false, zeroAsDash = false, showGrowth = false }: {
-                  rows: Record<string, unknown>[]; field: string; label: string; isNeg?: boolean; zeroAsDash?: boolean; showGrowth?: boolean;
+                const FinRow = ({ rows, field, label, isNeg = false, zeroAsDash = false, showGrowth = false, showGrowthBadges = false }: {
+                  rows: Record<string, unknown>[]; field: string; label: string; isNeg?: boolean; zeroAsDash?: boolean; showGrowth?: boolean; showGrowthBadges?: boolean;
                 }) => {
                   const vals = rows.map((r) => {
                     const v = r[field];
@@ -1078,27 +1078,26 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
                   const maxAbs = Math.max(...nonNull.map(Math.abs), 1);
                   const lastVal = nonNull[nonNull.length - 1];
                   const lastColor = isNeg ? (lastVal <= 0 ? "#ef4444" : "#22c55e") : (lastVal >= 0 ? "#22c55e" : "#ef4444");
+                  // growths[i] = growth of period i vs period i-1
                   const growths = showGrowth ? vals.map((v, i) => {
                     if (i === 0 || v == null || vals[i - 1] == null || vals[i - 1] === 0) return null;
                     return ((v - vals[i - 1]!) / Math.abs(vals[i - 1]!)) * 100;
                   }) : null;
                   return (
-                    <div className="flex items-stretch border-b" style={{ borderColor: "var(--border)", minHeight: showGrowth ? 78 : 64 }}>
+                    <div className="flex items-stretch border-b" style={{ borderColor: "var(--border)", minHeight: 64 }}>
                       {/* Metric name */}
                       <div className="shrink-0 flex items-center pr-3 pl-5" style={{ width: 148 }}>
                         <span className="text-[11px] font-semibold leading-tight" style={{ color: "var(--sub)" }}>{label}</span>
                       </div>
-                      {/* Period bars */}
-                      {vals.map((v, i) => {
+                      {/* Period cols interleaved with growth badges */}
+                      {vals.flatMap((v, i) => {
                         const pct = v != null ? Math.abs(v) / maxAbs : 0;
                         const barH = Math.round(pct * 36);
                         const isLast = i === vals.length - 1;
                         const barColor = v == null ? "var(--border)" : isNeg ? (v <= 0 ? "#ef4444" : "#22c55e") : (v >= 0 ? "#22c55e" : "#ef4444");
-                        const growth = growths?.[i] ?? null;
-                        return (
-                          <div key={i} className="flex-1 flex flex-col items-center justify-end py-2 px-1 gap-0.5"
+                        const col = (
+                          <div key={`col-${i}`} className="flex-1 flex flex-col items-center justify-end py-2 px-1 gap-0.5"
                                style={{ background: isLast ? "rgba(0,168,94,0.04)" : "transparent" }}>
-                            {/* Bar */}
                             <div style={{ height: 36, display: "flex", alignItems: "flex-end", justifyContent: "center", width: "100%" }}>
                               <div style={{
                                 width: "70%", maxWidth: 32, height: barH || 2,
@@ -1106,51 +1105,58 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
                                 opacity: isLast ? 1 : 0.6,
                               }} />
                             </div>
-                            {/* Value */}
                             <span className="tabular-nums leading-none" style={{
                               fontSize: 10, fontWeight: isLast ? 700 : 400,
                               color: isLast ? lastColor : "var(--muted)",
                             }}>
                               {v != null ? (Math.abs(v) < 1 && v !== 0 ? v.toFixed(2) : fmtBig(v)) : "—"}
                             </span>
-                            {/* YoY growth badge */}
-                            {showGrowth && (
-                              growth != null ? (
-                                <span className="text-[9px] font-black leading-none tabular-nums"
-                                      style={{ color: growth >= 0 ? "#22c55e" : "#ef4444" }}>
-                                  {growth >= 0 ? "▲" : "▼"}{Math.abs(growth).toFixed(1)}%
-                                </span>
-                              ) : (
-                                <span className="text-[9px] leading-none select-none" style={{ color: "transparent" }}>—</span>
-                              )
+                          </div>
+                        );
+                        if (!showGrowthBadges || isLast) return [col];
+                        // Growth badge between col i and col i+1 → shows growth[i+1]
+                        const growth = growths?.[i + 1] ?? null;
+                        const badge = (
+                          <div key={`g-${i}`} className="flex items-center justify-center shrink-0" style={{ width: 34 }}>
+                            {showGrowth && growth != null && (
+                              <span className="text-[9px] font-black tabular-nums leading-none text-center"
+                                    style={{ color: growth >= 0 ? "#22c55e" : "#ef4444" }}>
+                                {growth >= 0 ? "+" : ""}{growth.toFixed(1)}%
+                              </span>
                             )}
                           </div>
                         );
+                        return [col, badge];
                       })}
                     </div>
                   );
                 };
 
                 // Period header row
-                const PeriodHeader = ({ rows }: { rows: Record<string, unknown>[] }) => (
+                const PeriodHeader = ({ rows, showGrowthBadges = false }: { rows: Record<string, unknown>[]; showGrowthBadges?: boolean }) => (
                   <div className="flex items-center border-b sticky top-0 z-10"
                        style={{ borderColor: "var(--border)", background: "var(--card)" }}>
                     <div className="shrink-0 pl-5 pr-3" style={{ width: 148 }} />
-                    {rows.map((r, i) => (
-                      <div key={i} className="flex-1 text-center py-2">
-                        <span className="text-[10px] font-bold" style={{ color: i === rows.length - 1 ? "var(--accent-l)" : "var(--muted)" }}>
-                          {fmtPeriodLabel(String(r.period ?? ""))}
-                        </span>
-                      </div>
-                    ))}
+                    {rows.flatMap((r, i) => {
+                      const header = (
+                        <div key={i} className="flex-1 text-center py-2">
+                          <span className="text-[10px] font-bold" style={{ color: i === rows.length - 1 ? "var(--accent-l)" : "var(--muted)" }}>
+                            {fmtPeriodLabel(String(r.period ?? ""))}
+                          </span>
+                        </div>
+                      );
+                      if (!showGrowthBadges || i === rows.length - 1) return [header];
+                      return [header, <div key={`sp-${i}`} className="shrink-0" style={{ width: 34 }} />];
+                    })}
                   </div>
                 );
 
                 // Section wrapper
-                const Section = ({ title, rows, metrics }: {
+                const Section = ({ title, rows, metrics, showGrowthBadges = false }: {
                   title: string;
                   rows: Record<string, unknown>[];
                   metrics: Array<{ field: string; label: string; isNeg?: boolean; zeroAsDash?: boolean; showGrowth?: boolean }>;
+                  showGrowthBadges?: boolean;
                 }) => {
                   if (!rows.length) return null;
                   return (
@@ -1162,9 +1168,9 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
                           {title}
                         </span>
                       </div>
-                      <PeriodHeader rows={rows} />
+                      <PeriodHeader rows={rows} showGrowthBadges={showGrowthBadges} />
                       {metrics.map((m) => (
-                        <FinRow key={m.field} rows={rows} field={m.field} label={m.label} isNeg={m.isNeg} zeroAsDash={m.zeroAsDash} showGrowth={m.showGrowth} />
+                        <FinRow key={m.field} rows={rows} field={m.field} label={m.label} isNeg={m.isNeg} zeroAsDash={m.zeroAsDash} showGrowth={m.showGrowth} showGrowthBadges={showGrowthBadges} />
                       ))}
                     </div>
                   );
@@ -1214,11 +1220,11 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
                     </div>
 
                     {finSection === "income" && (
-                      <Section title="Estado de Resultados" rows={income} metrics={[
+                      <Section title="Estado de Resultados" rows={income} showGrowthBadges metrics={[
                         { field: "Total Revenue",    label: "Ingresos",           showGrowth: true },
                         { field: "Gross Profit",     label: "Utilidad Bruta",     zeroAsDash: true, showGrowth: true },
                         { field: "Operating Income", label: "Utilidad Operativa", zeroAsDash: true, showGrowth: true },
-                        { field: "EBITDA",           label: "EBITDA" },
+                        { field: "EBITDA",           label: "EBITDA",             showGrowth: true },
                         { field: "Net Income",       label: "Utilidad Neta",      showGrowth: true },
                         { field: "Diluted EPS",      label: "EPS Diluido" },
                         { field: "Research And Development", label: "I+D" },

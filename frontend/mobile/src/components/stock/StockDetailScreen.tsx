@@ -32,6 +32,8 @@ import StockHeader from "./StockHeader";
 import StockChart from "../StockChart";
 import StockNews from "./StockNews";
 import StockCompetitors from "./StockCompetitors";
+import StockFinancials from "./StockFinancials";
+import StockAnalysts from "./StockAnalysts";
 
 const { width: SCREEN_W } = Dimensions.get("window");
 
@@ -602,6 +604,18 @@ function Divider({ color }: { color: string }) {
   return <View style={{ height: 8, backgroundColor: color }} />;
 }
 
+// ─── Tabs ─────────────────────────────────────────────────────────────────────
+
+const TABS = [
+  { id: "veredicto",   label: "Veredicto" },
+  { id: "grafica",     label: "Gráfica" },
+  { id: "financieros", label: "Financieros" },
+  { id: "analistas",   label: "Analistas" },
+  { id: "empresa",     label: "Empresa" },
+] as const;
+
+type TabId = typeof TABS[number]["id"];
+
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 export default function StockDetailScreen({ ticker }: { ticker: string }) {
@@ -609,6 +623,92 @@ export default function StockDetailScreen({ ticker }: { ticker: string }) {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { data, loading, error, refetch } = useStockDetail(ticker);
+  const [activeTab, setActiveTab] = useState<TabId>("veredicto");
+
+  function renderContent() {
+    if (activeTab === "grafica") {
+      return (
+        <View style={[s.chartCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <StockChart ticker={ticker} />
+        </View>
+      );
+    }
+
+    if (loading && !data) {
+      return (
+        <View style={s.centered}>
+          <ActivityIndicator color={colors.accentLight} />
+          <Text style={{ color: colors.textMuted, fontSize: 13, marginTop: 8 }}>
+            Cargando análisis…
+          </Text>
+        </View>
+      );
+    }
+
+    if (error) {
+      return (
+        <View style={s.centered}>
+          <Text style={{ color: colors.textMuted, fontSize: 14 }}>
+            No se pudieron cargar los datos
+          </Text>
+          <TouchableOpacity
+            onPress={refetch}
+            style={[s.retryBtn, { backgroundColor: colors.accentGlow, borderColor: colors.accentLight }]}
+          >
+            <Text style={{ color: colors.accentLight, fontSize: 13, fontWeight: "700" }}>
+              Reintentar
+            </Text>
+          </TouchableOpacity>
+        </View>
+      );
+    }
+
+    if (activeTab === "veredicto") {
+      return <VerdictSection ticker={ticker} />;
+    }
+
+    if (activeTab === "financieros") {
+      if (!data?.financials) {
+        return (
+          <View style={s.centered}>
+            <Text style={{ color: colors.textMuted, fontSize: 13 }}>Sin datos financieros</Text>
+          </View>
+        );
+      }
+      return <StockFinancials financials={data.financials} />;
+    }
+
+    if (activeTab === "analistas") {
+      if (!data?.analyst) {
+        return (
+          <View style={s.centered}>
+            <Text style={{ color: colors.textMuted, fontSize: 13 }}>Sin datos de analistas</Text>
+          </View>
+        );
+      }
+      return <StockAnalysts analyst={data.analyst} currentPrice={data?.profile?.current_price} />;
+    }
+
+    if (activeTab === "empresa") {
+      return (
+        <>
+          <SectionHeader title="Métricas Clave" colors={colors} />
+          <KeyMetrics profile={data?.profile} />
+          <Divider color={colors.bgRaised} />
+          <SectionHeader title={`Acerca de ${data?.profile?.name ?? ticker}`} colors={colors} />
+          <AboutSection profile={data?.profile} />
+          <Divider color={colors.bgRaised} />
+          <SectionHeader title="Noticias" colors={colors} />
+          <StockNews ticker={ticker} />
+          <Divider color={colors.bgRaised} />
+          <SectionHeader title="Empresas Similares" colors={colors} />
+          <StockCompetitors ticker={ticker} />
+        </>
+      );
+    }
+
+    return null;
+  }
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg, paddingTop: insets.top }}>
@@ -619,80 +719,37 @@ export default function StockDetailScreen({ ticker }: { ticker: string }) {
         onBack={() => router.back()}
       />
 
+      {/* ── Tab Bar ── */}
       <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={[tb.barWrap, { borderBottomColor: colors.border }]}
+        contentContainerStyle={tb.bar}
+      >
+        {TABS.map((tab) => {
+          const active = activeTab === tab.id;
+          return (
+            <TouchableOpacity
+              key={tab.id}
+              onPress={() => setActiveTab(tab.id)}
+              style={[tb.tab, active && { borderBottomColor: colors.accentLight }]}
+            >
+              <Text style={[tb.label, { color: active ? colors.accentLight : colors.textMuted }]}>
+                {tab.label}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </ScrollView>
+
+      {/* ── Tab Content ── */}
+      <ScrollView
+        key={activeTab}
         style={{ flex: 1 }}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 48 }}
       >
-        {/* ── Gráfica ── */}
-        <View style={[s.chartCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <StockChart ticker={ticker} />
-        </View>
-
-        {loading && !data ? (
-          <View style={s.centered}>
-            <ActivityIndicator color={colors.accentLight} />
-            <Text style={{ color: colors.textMuted, fontSize: 13, marginTop: 8 }}>
-              Cargando análisis…
-            </Text>
-          </View>
-        ) : error ? (
-          <View style={s.centered}>
-            <Text style={{ color: colors.textMuted, fontSize: 14 }}>
-              No se pudieron cargar los datos
-            </Text>
-            <TouchableOpacity
-              onPress={refetch}
-              style={[s.retryBtn, { backgroundColor: colors.accentGlow, borderColor: colors.accentLight }]}
-            >
-              <Text style={{ color: colors.accentLight, fontSize: 13, fontWeight: "700" }}>
-                Reintentar
-              </Text>
-            </TouchableOpacity>
-          </View>
-        ) : (
-          <>
-            {/* 0 — Veredicto IA */}
-            <SectionHeader title="Veredicto IA" colors={colors} />
-            <VerdictSection ticker={ticker} />
-
-            <Divider color={colors.bgRaised} />
-
-            {/* 1 — Métricas Clave */}
-            <SectionHeader title="Métricas Clave" colors={colors} />
-            <KeyMetrics profile={data?.profile} />
-
-            <Divider color={colors.bgRaised} />
-
-            {/* 2 — Acerca de */}
-            <SectionHeader title={`Acerca de ${data?.profile?.name ?? ticker}`} colors={colors} />
-            <AboutSection profile={data?.profile} />
-
-            <Divider color={colors.bgRaised} />
-
-            {/* 3 — Financiero */}
-            <SectionHeader title="Financiero" colors={colors} />
-            <FinancialSection financials={data?.financials} />
-
-            <Divider color={colors.bgRaised} />
-
-            {/* 4 — Analistas */}
-            <SectionHeader title="Opinión de Analistas" colors={colors} />
-            <AnalystSection analyst={data?.analyst} currentPrice={data?.profile?.current_price} />
-
-            <Divider color={colors.bgRaised} />
-
-            {/* 5 — Noticias */}
-            <SectionHeader title="Noticias" colors={colors} />
-            <StockNews ticker={ticker} />
-
-            <Divider color={colors.bgRaised} />
-
-            {/* 6 — Empresas Similares */}
-            <SectionHeader title="Empresas Similares" colors={colors} />
-            <StockCompetitors ticker={ticker} />
-          </>
-        )}
+        {renderContent()}
       </ScrollView>
     </View>
   );
@@ -718,5 +775,26 @@ const s = StyleSheet.create({
     borderRadius: 20,
     borderWidth: 1,
     marginTop: 4,
+  },
+});
+
+const tb = StyleSheet.create({
+  barWrap: {
+    flexGrow: 0,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  bar: {
+    flexDirection: "row",
+    paddingHorizontal: 4,
+  },
+  tab: {
+    paddingHorizontal: 14,
+    paddingVertical: 11,
+    borderBottomWidth: 2,
+    borderBottomColor: "transparent",
+  },
+  label: {
+    fontSize: 13,
+    fontFamily: "DMSans_600SemiBold",
   },
 });
