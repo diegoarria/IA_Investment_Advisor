@@ -1,7 +1,10 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { Search, TrendingUp, TrendingDown, Loader2, RefreshCw, ChevronDown, ChevronUp, Zap, AlertTriangle, Info, Target, Ban, BookOpen } from "lucide-react";
+import {
+  Search, TrendingUp, TrendingDown, Loader2, RefreshCw,
+  ChevronDown, ChevronUp, Zap, AlertTriangle, Info, Target, Ban, BookOpen, X, Sparkles,
+} from "lucide-react";
 import PremiumToolLocked from "@/components/PremiumToolLocked";
 import { screenerApi } from "@/lib/api";
 
@@ -31,10 +34,13 @@ interface Props {
   tickers?: string[];
 }
 
+const TOOL_COLOR = "#8b5cf6";
+
 export default function WeeklyScreenerCard({ isPremium, onUpgrade, tickers = [] }: Props) {
-  const [data, setData]         = useState<WeeklyData | null>(null);
-  const [loading, setLoading]   = useState(false);
-  const [expanded, setExpanded] = useState<string | null>(null);
+  const [open, setOpen]          = useState(false);
+  const [data, setData]          = useState<WeeklyData | null>(null);
+  const [loading, setLoading]    = useState(false);
+  const [expanded, setExpanded]  = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!isPremium) return;
@@ -44,18 +50,23 @@ export default function WeeklyScreenerCard({ isPremium, onUpgrade, tickers = [] 
       setData(res.data);
     } catch {
     } finally { setLoading(false); }
-  }, [isPremium, tickers.join(",")]);
+  }, [isPremium, tickers.join(",")]); // eslint-disable-line
 
   useEffect(() => { load(); }, [load]);
+
+  const handleOpen = () => {
+    if (!isPremium) { onUpgrade(); return; }
+    setOpen(true);
+  };
 
   if (!isPremium) {
     return (
       <PremiumToolLocked
         title="Screener Semanal"
         tagline="5 sugerencias personalizadas según tu perfil"
-        description="La IA analiza el mercado y sugiere 5 ideas que encajan con el tipo de negocio que buscas, tu mentor y tu perfil de riesgo. Son sugerencias para explorar, no recomendaciones de compra."
+        description="La IA analiza el mercado y sugiere 5 ideas que encajan con el tipo de negocio que buscas, tu mentor y tu perfil de riesgo."
         icon={Search}
-        color="#8b5cf6"
+        color={TOOL_COLOR}
         benefits={[
           { icon: Target,   text: "Tipo de negocio adaptado a tu mentor y perfil" },
           { icon: Zap,      text: "Catalizador concreto y riesgo por cada idea" },
@@ -68,131 +79,209 @@ export default function WeeklyScreenerCard({ isPremium, onUpgrade, tickers = [] 
   }
 
   return (
-    <div className="rounded-xl border overflow-hidden" style={{ borderColor: "var(--border)", background: "var(--card)" }}>
-
-      {/* Header */}
-      <div className="flex items-start gap-2 p-4 border-b" style={{ borderColor: "var(--border)" }}>
-        <Search className="w-4 h-4 mt-0.5 shrink-0" style={{ color: "var(--accent-l)" }} />
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="font-semibold text-sm" style={{ color: "var(--text)" }}>Screener Semanal</span>
-            {data?.week_theme && (
-              <span className="text-[10px] px-2 py-0.5 rounded-full"
-                    style={{ background: "rgba(139,92,246,0.12)", color: "#a78bfa" }}>
-                {data.week_theme}
-              </span>
-            )}
+    <>
+      {/* ── Tool Card ── */}
+      <div
+        onClick={handleOpen}
+        className="rounded-3xl overflow-hidden cursor-pointer transition-transform hover:scale-[1.01] active:scale-[0.99]"
+        style={{ background: "var(--card)", boxShadow: "0 4px 24px rgba(0,0,0,0.12)" }}
+      >
+        {/* Hero */}
+        <div className="relative flex flex-col items-center pt-9 pb-7 overflow-hidden"
+             style={{ background: TOOL_COLOR + "18" }}>
+          <div className="absolute -top-14 -right-10 w-44 h-44 rounded-full pointer-events-none"
+               style={{ background: TOOL_COLOR + "15" }} />
+          <div className="absolute -bottom-8 -left-5 w-28 h-28 rounded-full pointer-events-none"
+               style={{ background: TOOL_COLOR + "0A" }} />
+          <div className="relative z-10 w-[88px] h-[88px] rounded-[28px] border-2 flex items-center justify-center"
+               style={{ background: TOOL_COLOR + "25", borderColor: TOOL_COLOR + "40" }}>
+            <div className="w-[72px] h-[72px] rounded-[22px] flex items-center justify-center"
+                 style={{ background: TOOL_COLOR }}>
+              <Search className="w-8 h-8 text-white" />
+            </div>
           </div>
-          {data?.business_profile && (
-            <p className="text-[11px] mt-1 leading-snug" style={{ color: "var(--muted)" }}>
-              {data.business_profile}
-            </p>
-          )}
         </div>
-        <button onClick={load} disabled={loading} className="p-1 rounded-lg hover:bg-white/5 shrink-0">
-          <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} style={{ color: "var(--muted)" }} />
-        </button>
+
+        {/* Content */}
+        <div className="p-6 pt-5">
+          <h3 className="text-[22px] font-black tracking-tight text-center mb-1"
+              style={{ color: "var(--text)" }}>
+            Screener Semanal
+          </h3>
+          <p className="text-[13px] font-bold text-center mb-5 tracking-wide" style={{ color: TOOL_COLOR }}>
+            5 sugerencias personalizadas según tu perfil
+          </p>
+
+          <div className="rounded-2xl border overflow-hidden mb-5" style={{ borderColor: "var(--border)" }}>
+            {[
+              { emoji: "🎯", text: "Adaptado a tu mentor y perfil de riesgo" },
+              { emoji: "⚡", text: "Catalizador concreto y riesgo por cada idea" },
+              { emoji: "📚", text: "Sugerencias educativas para investigar más" },
+            ].map((f, i, arr) => (
+              <div key={f.text}
+                   className="flex items-center gap-3 px-3.5 py-3"
+                   style={{ borderBottom: i < arr.length - 1 ? "1px solid var(--border)" : "none" }}>
+                <div className="w-[34px] h-[34px] rounded-[10px] flex items-center justify-center shrink-0 text-[17px]"
+                     style={{ background: TOOL_COLOR + "12" }}>
+                  {f.emoji}
+                </div>
+                <span className="text-[13px] leading-snug font-medium" style={{ color: "var(--sub)" }}>
+                  {f.text}
+                </span>
+              </div>
+            ))}
+          </div>
+
+          <button
+            onClick={(e) => { e.stopPropagation(); handleOpen(); }}
+            className="relative w-full flex items-center justify-center gap-2 py-4 rounded-2xl font-extrabold text-[15px] text-white overflow-hidden tracking-wide transition-opacity hover:opacity-90"
+            style={{ background: TOOL_COLOR }}
+          >
+            <div className="absolute inset-0 top-0 h-1/2 pointer-events-none"
+                 style={{ background: "rgba(255,255,255,0.12)" }} />
+            <Sparkles className="w-4 h-4" />
+            Ver Sugerencias
+          </button>
+        </div>
       </div>
 
-      {/* Loading */}
-      {loading && (
-        <div className="flex items-center gap-2 p-4">
-          <Loader2 className="w-4 h-4 animate-spin" style={{ color: "var(--accent-l)" }} />
-          <span className="text-xs" style={{ color: "var(--muted)" }}>Analizando el mercado según tu perfil...</span>
-        </div>
-      )}
+      {/* ── Modal ── */}
+      {open && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4"
+             style={{ background: "rgba(0,0,0,0.75)", backdropFilter: "blur(4px)" }}
+             onClick={() => setOpen(false)}>
+          <div className="w-full sm:max-w-lg rounded-t-3xl sm:rounded-3xl overflow-hidden max-h-[90vh] flex flex-col"
+               style={{ background: "var(--card)" }}
+               onClick={(e) => e.stopPropagation()}>
 
-      {/* Picks */}
-      {!loading && data?.picks && (
-        <div className="divide-y" style={{ borderColor: "var(--border)" }}>
-          {data.picks.slice(0, 5).map((pick, i) => {
-            const isOpen = expanded === pick.ticker;
-            const up = (pick.change_pct ?? 0) >= 0;
-            return (
-              <div key={pick.ticker}>
-                {/* Row */}
-                <button
-                  className="w-full flex items-center gap-3 px-3 py-3 text-left hover:bg-white/[0.02] transition-colors"
-                  onClick={() => setExpanded(isOpen ? null : pick.ticker)}
-                >
-                  <span className="text-xs font-black w-4 text-center shrink-0" style={{ color: "var(--dim)" }}>{i + 1}</span>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="font-bold text-sm" style={{ color: "var(--text)" }}>{pick.ticker}</span>
-                      <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: "var(--raised)", color: "var(--muted)" }}>{pick.sector}</span>
-                    </div>
-                    <p className={`text-[11px] mt-0.5 leading-snug ${isOpen ? "" : "truncate"}`} style={{ color: "var(--sub)" }}>
-                      {pick.why}
-                    </p>
-                  </div>
-                  <div className="text-right shrink-0 flex flex-col items-end gap-0.5">
-                    <p className="text-sm font-bold" style={{ color: "var(--text)" }}>
-                      {pick.price != null ? `$${pick.price.toFixed(2)}` : "—"}
-                    </p>
-                    <p className="text-[10px] flex items-center gap-0.5" style={{ color: up ? "#22c55e" : "#ef4444" }}>
-                      {up ? <TrendingUp className="w-2.5 h-2.5" /> : <TrendingDown className="w-2.5 h-2.5" />}
-                      {up ? "+" : ""}{pick.change_pct?.toFixed(1) ?? 0}%
-                    </p>
-                  </div>
-                  <span className="shrink-0 ml-1" style={{ color: "var(--dim)" }}>
-                    {isOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-                  </span>
-                </button>
-
-                {/* Expanded detail */}
-                {isOpen && (
-                  <div className="px-4 pb-3 space-y-2" style={{ borderTop: "1px solid var(--border)", background: "var(--raised)" }}>
-                    {pick.catalyst && (
-                      <div className="flex items-start gap-2 pt-2">
-                        <Zap className="w-3 h-3 mt-0.5 shrink-0" style={{ color: "#f59e0b" }} />
-                        <div>
-                          <span className="text-[9px] font-bold uppercase tracking-wider" style={{ color: "#f59e0b" }}>Catalizador</span>
-                          <p className="text-[11px] leading-snug mt-0.5" style={{ color: "var(--sub)" }}>{pick.catalyst}</p>
-                        </div>
-                      </div>
-                    )}
-                    {pick.risk && (
-                      <div className="flex items-start gap-2">
-                        <AlertTriangle className="w-3 h-3 mt-0.5 shrink-0" style={{ color: "#ef4444" }} />
-                        <div>
-                          <span className="text-[9px] font-bold uppercase tracking-wider" style={{ color: "#ef4444" }}>Riesgo principal</span>
-                          <p className="text-[11px] leading-snug mt-0.5" style={{ color: "var(--sub)" }}>{pick.risk}</p>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
+            {/* Header */}
+            <div className="flex items-center justify-between px-5 py-4 border-b shrink-0"
+                 style={{ borderColor: "var(--border)" }}>
+              <div className="flex items-center gap-2 flex-1 min-w-0">
+                <Search className="w-4 h-4 shrink-0" style={{ color: TOOL_COLOR }} />
+                <span className="font-bold text-sm truncate" style={{ color: "var(--text)" }}>
+                  Screener Semanal
+                  {data?.week_theme && (
+                    <span className="ml-2 text-[10px] px-2 py-0.5 rounded-full font-semibold"
+                          style={{ background: TOOL_COLOR + "20", color: TOOL_COLOR }}>
+                      {data.week_theme}
+                    </span>
+                  )}
+                </span>
               </div>
-            );
-          })}
-        </div>
-      )}
+              <div className="flex items-center gap-2">
+                <button onClick={load} disabled={loading} className="p-1.5 rounded-xl hover:bg-white/5 transition-colors">
+                  <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} style={{ color: "var(--muted)" }} />
+                </button>
+                <button onClick={() => setOpen(false)} className="p-1.5 rounded-xl hover:bg-white/5 transition-colors"
+                        style={{ color: "var(--muted)" }}>
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
 
-      {/* Mentor note */}
-      {!loading && data?.mentor_note && (
-        <div className="px-4 py-3 border-t" style={{ borderColor: "var(--border)", background: "rgba(139,92,246,0.04)" }}>
-          <p className="text-[11px] leading-relaxed italic" style={{ color: "var(--muted)" }}>
-            "{data.mentor_note}"
-          </p>
-        </div>
-      )}
+            <div className="overflow-y-auto flex-1">
+              {loading && (
+                <div className="flex items-center gap-2 p-5">
+                  <Loader2 className="w-4 h-4 animate-spin" style={{ color: TOOL_COLOR }} />
+                  <span className="text-xs" style={{ color: "var(--muted)" }}>Analizando el mercado según tu perfil...</span>
+                </div>
+              )}
 
-      {/* Disclaimer */}
-      {!loading && data && (
-        <div className="flex items-start gap-2 px-4 py-3 border-t" style={{ borderColor: "var(--border)" }}>
-          <Info className="w-3 h-3 mt-0.5 shrink-0" style={{ color: "var(--dim)" }} />
-          <p className="text-[10px] leading-relaxed" style={{ color: "var(--dim)" }}>
-            {data.disclaimer ?? "Estas son sugerencias educativas basadas en tu perfil. No son asesoramiento financiero ni recomendaciones de compra. Siempre investiga antes de invertir."}
-          </p>
-        </div>
-      )}
+              {!loading && data?.business_profile && (
+                <div className="px-5 py-3 border-b" style={{ borderColor: "var(--border)" }}>
+                  <p className="text-[11px] leading-snug" style={{ color: "var(--muted)" }}>{data.business_profile}</p>
+                </div>
+              )}
 
-      {/* Empty state */}
-      {!loading && !data && (
-        <div className="p-4">
-          <span className="text-xs" style={{ color: "var(--muted)" }}>No hay sugerencias disponibles aún.</span>
+              {!loading && data?.picks && (
+                <div className="divide-y" style={{ borderColor: "var(--border)" }}>
+                  {data.picks.slice(0, 5).map((pick, i) => {
+                    const isOpen = expanded === pick.ticker;
+                    const up = (pick.change_pct ?? 0) >= 0;
+                    return (
+                      <div key={pick.ticker}>
+                        <button
+                          className="w-full flex items-center gap-3 px-4 py-3.5 text-left hover:bg-white/[0.02] transition-colors"
+                          onClick={() => setExpanded(isOpen ? null : pick.ticker)}
+                        >
+                          <span className="text-xs font-black w-4 text-center shrink-0" style={{ color: "var(--dim)" }}>{i + 1}</span>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <span className="font-bold text-sm" style={{ color: "var(--text)" }}>{pick.ticker}</span>
+                              <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: "var(--raised)", color: "var(--muted)" }}>{pick.sector}</span>
+                            </div>
+                            <p className={`text-[11px] mt-0.5 leading-snug ${isOpen ? "" : "truncate"}`} style={{ color: "var(--sub)" }}>
+                              {pick.why}
+                            </p>
+                          </div>
+                          <div className="text-right shrink-0 flex flex-col items-end gap-0.5">
+                            <p className="text-sm font-bold" style={{ color: "var(--text)" }}>
+                              {pick.price != null ? `$${pick.price.toFixed(2)}` : "—"}
+                            </p>
+                            <p className="text-[10px] flex items-center gap-0.5" style={{ color: up ? "#22c55e" : "#ef4444" }}>
+                              {up ? <TrendingUp className="w-2.5 h-2.5" /> : <TrendingDown className="w-2.5 h-2.5" />}
+                              {up ? "+" : ""}{pick.change_pct?.toFixed(1) ?? 0}%
+                            </p>
+                          </div>
+                          <span className="shrink-0 ml-1" style={{ color: "var(--dim)" }}>
+                            {isOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                          </span>
+                        </button>
+                        {isOpen && (
+                          <div className="px-4 pb-3 space-y-2" style={{ borderTop: "1px solid var(--border)", background: "var(--raised)" }}>
+                            {pick.catalyst && (
+                              <div className="flex items-start gap-2 pt-2">
+                                <Zap className="w-3 h-3 mt-0.5 shrink-0" style={{ color: "#f59e0b" }} />
+                                <div>
+                                  <span className="text-[9px] font-bold uppercase tracking-wider" style={{ color: "#f59e0b" }}>Catalizador</span>
+                                  <p className="text-[11px] leading-snug mt-0.5" style={{ color: "var(--sub)" }}>{pick.catalyst}</p>
+                                </div>
+                              </div>
+                            )}
+                            {pick.risk && (
+                              <div className="flex items-start gap-2">
+                                <AlertTriangle className="w-3 h-3 mt-0.5 shrink-0" style={{ color: "#ef4444" }} />
+                                <div>
+                                  <span className="text-[9px] font-bold uppercase tracking-wider" style={{ color: "#ef4444" }}>Riesgo principal</span>
+                                  <p className="text-[11px] leading-snug mt-0.5" style={{ color: "var(--sub)" }}>{pick.risk}</p>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {!loading && data?.mentor_note && (
+                <div className="px-5 py-3 border-t" style={{ borderColor: "var(--border)", background: TOOL_COLOR + "06" }}>
+                  <p className="text-[11px] leading-relaxed italic" style={{ color: "var(--muted)" }}>
+                    &ldquo;{data.mentor_note}&rdquo;
+                  </p>
+                </div>
+              )}
+
+              {!loading && data && (
+                <div className="flex items-start gap-2 px-5 py-3 border-t" style={{ borderColor: "var(--border)" }}>
+                  <Info className="w-3 h-3 mt-0.5 shrink-0" style={{ color: "var(--dim)" }} />
+                  <p className="text-[10px] leading-relaxed" style={{ color: "var(--dim)" }}>
+                    {data.disclaimer ?? "Estas son sugerencias educativas basadas en tu perfil. No son asesoramiento financiero ni recomendaciones de compra. Siempre investiga antes de invertir."}
+                  </p>
+                </div>
+              )}
+
+              {!loading && !data && (
+                <div className="p-5">
+                  <span className="text-xs" style={{ color: "var(--muted)" }}>No hay sugerencias disponibles aún.</span>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       )}
-    </div>
+    </>
   );
 }

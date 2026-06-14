@@ -1,9 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { FileText, Download, Loader2, TrendingUp, TrendingDown, X } from "lucide-react";
+import { FileText, Download, Loader2, TrendingUp, TrendingDown, X, Sparkles } from "lucide-react";
 import { reportApi } from "@/lib/api";
-import PremiumToolLocked from "@/components/PremiumToolLocked";
 
 interface Position {
   ticker: string;
@@ -85,23 +84,80 @@ export default function MonthlyReport({ positions, isPremium, onUpgrade }: Month
   const returnPct = report?.performance?.total_return_pct ?? 0;
   const isPositive = returnPct >= 0;
 
+  const TOOL_COLOR = "#3b82f6";
+
   return (
     <>
-      {/* Trigger button */}
-      <button
+      {/* ── Tool Card ── */}
+      <div
         onClick={handleGenerate}
-        disabled={loading}
-        className="flex items-center gap-2 px-3 py-2 rounded-lg border text-xs font-medium transition-all disabled:opacity-60"
-        style={{ borderColor: "var(--border)", background: "var(--raised)", color: "var(--sub)" }}>
-        {loading
-          ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
-          : <FileText className="w-3.5 h-3.5" style={{ color: "var(--accent-l)" }} />}
-        {loading ? "Generando reporte..." : "Reporte mensual"}
-        {!isPremium && (
-          <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full"
-                style={{ background: "rgba(0,168,94,0.15)", color: "var(--accent-l)" }}>PREMIUM</span>
-        )}
-      </button>
+        className="rounded-3xl overflow-hidden cursor-pointer transition-transform hover:scale-[1.01] active:scale-[0.99]"
+        style={{ background: "var(--card)", boxShadow: "0 4px 24px rgba(0,0,0,0.12)", opacity: loading ? 0.8 : 1 }}
+      >
+        {/* Hero */}
+        <div className="relative flex flex-col items-center pt-9 pb-7 overflow-hidden"
+             style={{ background: TOOL_COLOR + "18" }}>
+          <div className="absolute -top-14 -right-10 w-44 h-44 rounded-full pointer-events-none"
+               style={{ background: TOOL_COLOR + "15" }} />
+          <div className="absolute -bottom-8 -left-5 w-28 h-28 rounded-full pointer-events-none"
+               style={{ background: TOOL_COLOR + "0A" }} />
+          <div className="relative z-10 w-[88px] h-[88px] rounded-[28px] border-2 flex items-center justify-center"
+               style={{ background: TOOL_COLOR + "25", borderColor: TOOL_COLOR + "40" }}>
+            <div className="w-[72px] h-[72px] rounded-[22px] flex items-center justify-center"
+                 style={{ background: TOOL_COLOR }}>
+              {loading
+                ? <Loader2 className="w-7 h-7 text-white animate-spin" />
+                : <FileText className="w-7 h-7 text-white" />}
+            </div>
+          </div>
+        </div>
+
+        {/* Content */}
+        <div className="p-6 pt-5">
+          <h3 className="text-[22px] font-black tracking-tight text-center mb-1"
+              style={{ color: "var(--text)" }}>
+            Reporte Mensual
+          </h3>
+          <p className="text-[13px] font-bold text-center mb-5 tracking-wide" style={{ color: TOOL_COLOR }}>
+            Tu portafolio analizado con IA cada mes
+          </p>
+
+          {/* Feature list */}
+          <div className="rounded-2xl border overflow-hidden mb-5" style={{ borderColor: "var(--border)" }}>
+            {[
+              { emoji: "📊", text: "Rendimiento real vs S&P 500 y benchmarks" },
+              { emoji: "📉", text: "Sharpe ratio, volatilidad y drawdown" },
+              { emoji: "✅", text: "3 acciones concretas para el mes siguiente" },
+            ].map((f, i, arr) => (
+              <div key={f.text}
+                   className="flex items-center gap-3 px-3.5 py-3"
+                   style={{ borderBottom: i < arr.length - 1 ? "1px solid var(--border)" : "none" }}>
+                <div className="w-[34px] h-[34px] rounded-[10px] flex items-center justify-center shrink-0 text-[17px]"
+                     style={{ background: TOOL_COLOR + "12" }}>
+                  {f.emoji}
+                </div>
+                <span className="text-[13px] leading-snug font-medium" style={{ color: "var(--sub)" }}>
+                  {f.text}
+                </span>
+              </div>
+            ))}
+          </div>
+
+          {/* CTA */}
+          <button
+            onClick={(e) => { e.stopPropagation(); handleGenerate(); }}
+            disabled={loading}
+            className="relative w-full flex items-center justify-center gap-2 py-4 rounded-2xl font-extrabold text-[15px] text-white overflow-hidden tracking-wide transition-opacity hover:opacity-90 disabled:opacity-70"
+            style={{ background: TOOL_COLOR }}
+          >
+            <div className="absolute inset-0 top-0 h-1/2 pointer-events-none"
+                 style={{ background: "rgba(255,255,255,0.12)" }} />
+            {loading
+              ? <><Loader2 className="w-4 h-4 animate-spin" />Generando...</>
+              : <><Sparkles className="w-4 h-4" />Generar Reporte</>}
+          </button>
+        </div>
+      </div>
 
       {/* Modal */}
       {open && report && (
