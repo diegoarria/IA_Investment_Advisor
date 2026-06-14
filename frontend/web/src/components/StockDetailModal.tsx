@@ -405,7 +405,7 @@ function GoogleFinanceChart({ prices, timestamps, changePct, loading, period, on
   const isUp = changePct >= 0;
   const lineColor = isUp ? "#1a9641" : "#d7191c";
 
-  const W = 640, H = 224, PL = 8, PR = 56, PT = 10, PB = 26;
+  const W = 640, H = 320, PL = 8, PR = 56, PT = 10, PB = 26;
   const cW = W - PL - PR, cH = H - PT - PB;
 
   const handleMM = (e: React.MouseEvent<SVGSVGElement>) => {
@@ -1084,29 +1084,29 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
                     return ((v - vals[i - 1]!) / Math.abs(vals[i - 1]!)) * 100;
                   }) : null;
                   return (
-                    <div className="flex items-stretch border-b" style={{ borderColor: "var(--border)", minHeight: 64 }}>
+                    <div className="flex items-stretch border-b" style={{ borderColor: "var(--border)", minHeight: 80 }}>
                       {/* Metric name */}
-                      <div className="shrink-0 flex items-center pr-3 pl-5" style={{ width: 148 }}>
-                        <span className="text-[11px] font-semibold leading-tight" style={{ color: "var(--sub)" }}>{label}</span>
+                      <div className="shrink-0 flex items-center pr-3 pl-5" style={{ width: 160 }}>
+                        <span className="text-[13px] font-semibold leading-tight" style={{ color: "var(--sub)" }}>{label}</span>
                       </div>
                       {/* Period cols interleaved with growth badges */}
                       {vals.flatMap((v, i) => {
                         const pct = v != null ? Math.abs(v) / maxAbs : 0;
-                        const barH = Math.round(pct * 36);
+                        const barH = Math.round(pct * 44);
                         const isLast = i === vals.length - 1;
                         const barColor = v == null ? "var(--border)" : isNeg ? (v <= 0 ? "#ef4444" : "#22c55e") : (v >= 0 ? "#22c55e" : "#ef4444");
                         const col = (
                           <div key={`col-${i}`} className="flex-1 flex flex-col items-center justify-end py-2 px-1 gap-0.5"
                                style={{ background: isLast ? "rgba(0,168,94,0.04)" : "transparent" }}>
-                            <div style={{ height: 36, display: "flex", alignItems: "flex-end", justifyContent: "center", width: "100%" }}>
+                            <div style={{ height: 44, display: "flex", alignItems: "flex-end", justifyContent: "center", width: "100%" }}>
                               <div style={{
-                                width: "70%", maxWidth: 32, height: barH || 2,
+                                width: "70%", maxWidth: 38, height: barH || 2,
                                 background: barColor, borderRadius: "3px 3px 0 0",
                                 opacity: isLast ? 1 : 0.6,
                               }} />
                             </div>
                             <span className="tabular-nums leading-none" style={{
-                              fontSize: 10, fontWeight: isLast ? 700 : 400,
+                              fontSize: 12, fontWeight: isLast ? 700 : 400,
                               color: isLast ? lastColor : "var(--muted)",
                             }}>
                               {v != null ? (Math.abs(v) < 1 && v !== 0 ? v.toFixed(2) : fmtBig(v)) : "—"}
@@ -1117,9 +1117,9 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
                         // Growth badge between col i and col i+1 → shows growth[i+1]
                         const growth = growths?.[i + 1] ?? null;
                         const badge = (
-                          <div key={`g-${i}`} className="flex items-center justify-center shrink-0" style={{ width: 34 }}>
+                          <div key={`g-${i}`} className="flex items-center justify-center shrink-0" style={{ width: 38 }}>
                             {showGrowth && growth != null && (
-                              <span className="text-[9px] font-black tabular-nums leading-none text-center"
+                              <span className="text-[11px] font-black tabular-nums leading-none text-center"
                                     style={{ color: growth >= 0 ? "#22c55e" : "#ef4444" }}>
                                 {growth >= 0 ? "+" : ""}{growth.toFixed(1)}%
                               </span>
@@ -1136,17 +1136,17 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
                 const PeriodHeader = ({ rows, showGrowthBadges = false }: { rows: Record<string, unknown>[]; showGrowthBadges?: boolean }) => (
                   <div className="flex items-center border-b sticky top-0 z-10"
                        style={{ borderColor: "var(--border)", background: "var(--card)" }}>
-                    <div className="shrink-0 pl-5 pr-3" style={{ width: 148 }} />
+                    <div className="shrink-0 pl-5 pr-3" style={{ width: 160 }} />
                     {rows.flatMap((r, i) => {
                       const header = (
-                        <div key={i} className="flex-1 text-center py-2">
-                          <span className="text-[10px] font-bold" style={{ color: i === rows.length - 1 ? "var(--accent-l)" : "var(--muted)" }}>
+                        <div key={i} className="flex-1 text-center py-2.5">
+                          <span className="text-[12px] font-bold" style={{ color: i === rows.length - 1 ? "var(--accent-l)" : "var(--muted)" }}>
                             {fmtPeriodLabel(String(r.period ?? ""))}
                           </span>
                         </div>
                       );
                       if (!showGrowthBadges || i === rows.length - 1) return [header];
-                      return [header, <div key={`sp-${i}`} className="shrink-0" style={{ width: 34 }} />];
+                      return [header, <div key={`sp-${i}`} className="shrink-0" style={{ width: 38 }} />];
                     })}
                   </div>
                 );
