@@ -24,7 +24,7 @@ import { useTheme } from "../lib/ThemeContext";
 const { width: SCREEN_W } = Dimensions.get("window");
 const H_PAD   = 16;
 const CHART_W = SCREEN_W - H_PAD * 2;
-const CHART_H = 160;
+const CHART_H = 240;
 const PAD_T   = 10;
 const PAD_B   = 6;
 const DRAW_H  = CHART_H - PAD_T - PAD_B;

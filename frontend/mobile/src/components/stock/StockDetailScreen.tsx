@@ -628,7 +628,7 @@ export default function StockDetailScreen({ ticker }: { ticker: string }) {
   function renderContent() {
     if (activeTab === "grafica") {
       return (
-        <View style={[s.chartCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        <View style={{ marginHorizontal: 12, marginTop: 12 }}>
           <StockChart ticker={ticker} />
         </View>
       );

@@ -13,9 +13,9 @@ import type { Financials, FinancialPeriod } from "../../hooks/useStockDetail";
 
 const { width: SCREEN_W } = Dimensions.get("window");
 const CHART_OUTER_PAD = 16;
-const CHART_W = SCREEN_W - CHART_OUTER_PAD * 2 - 32; // inner content width
-const CHART_H = 120;
-const BAR_LABEL_H = 18;
+const CHART_W = SCREEN_W - CHART_OUTER_PAD * 2; // full card inner width
+const CHART_H = 180;
+const BAR_LABEL_H = 20;
 const DRAWABLE_H = CHART_H - BAR_LABEL_H;
 
 // ─── Formatters ───────────────────────────────────────────────────────────────
@@ -155,13 +155,13 @@ const mr = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingVertical: 10,
+    paddingVertical: 12,
     borderTopWidth: StyleSheet.hairlineWidth,
   },
-  label:  { fontSize: 13, fontWeight: "500" },
-  right:  { flexDirection: "row", alignItems: "center", gap: 8 },
-  value:  { fontSize: 13, fontWeight: "700" },
-  growth: { fontSize: 11, fontWeight: "600" },
+  label:  { fontSize: 15, fontWeight: "500" },
+  right:  { flexDirection: "row", alignItems: "center", gap: 10 },
+  value:  { fontSize: 15, fontWeight: "700" },
+  growth: { fontSize: 13, fontWeight: "600" },
 });
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -191,14 +191,16 @@ function IncomeTab({ annual }: { annual: FinancialPeriod[] }) {
   const opIncome  = useMemo(() => periodsToBarData(annual, "Operating Income"), [annual]);
 
   return (
-    <View style={{ paddingHorizontal: 16 }}>
-      <Text style={[tt.chartLabel, { color: colors.textMuted }]}>Ingresos Totales</Text>
+    <View>
+      <Text style={[tt.chartLabel, { color: colors.textMuted, paddingHorizontal: 16 }]}>Ingresos Totales</Text>
       <BarChart data={revenue} positiveColor={colors.accentLight} muted={colors.textMuted} />
-      <Text style={[tt.legend, { color: colors.textMuted }]}>▲▼ % = variación vs año anterior</Text>
-      <MetricRow label="Ingresos Totales" data={revenue}   colors={colors} />
-      <MetricRow label="Ganancia Bruta"   data={gross}     colors={colors} />
-      <MetricRow label="Ing. Operativo"   data={opIncome}  colors={colors} />
-      <MetricRow label="Ganancia Neta"    data={netIncome} colors={colors} />
+      <View style={{ paddingHorizontal: 16 }}>
+        <Text style={[tt.legend, { color: colors.textMuted }]}>▲▼ % = variación vs año anterior</Text>
+        <MetricRow label="Ingresos Totales" data={revenue}   colors={colors} />
+        <MetricRow label="Ganancia Bruta"   data={gross}     colors={colors} />
+        <MetricRow label="Ing. Operativo"   data={opIncome}  colors={colors} />
+        <MetricRow label="Ganancia Neta"    data={netIncome} colors={colors} />
+      </View>
     </View>
   );
 }
@@ -212,14 +214,16 @@ function BalanceTab({ annual }: { annual: FinancialPeriod[] }) {
   const debt        = useMemo(() => periodsToBarData(annual, "Total Debt"), [annual]);
 
   return (
-    <View style={{ paddingHorizontal: 16 }}>
-      <Text style={[tt.chartLabel, { color: colors.textMuted }]}>Activos Totales</Text>
+    <View>
+      <Text style={[tt.chartLabel, { color: colors.textMuted, paddingHorizontal: 16 }]}>Activos Totales</Text>
       <BarChart data={assets} positiveColor={colors.accentLight} muted={colors.textMuted} />
-      <Text style={[tt.legend, { color: colors.textMuted }]}>▲▼ % = variación vs año anterior</Text>
-      <MetricRow label="Activos Totales"   data={assets}      colors={colors} />
-      <MetricRow label="Pasivos Totales"   data={liabilities} colors={colors} />
-      <MetricRow label="Patrimonio Neto"   data={equity}      colors={colors} />
-      <MetricRow label="Deuda Total"       data={debt}        colors={colors} />
+      <View style={{ paddingHorizontal: 16 }}>
+        <Text style={[tt.legend, { color: colors.textMuted }]}>▲▼ % = variación vs año anterior</Text>
+        <MetricRow label="Activos Totales"   data={assets}      colors={colors} />
+        <MetricRow label="Pasivos Totales"   data={liabilities} colors={colors} />
+        <MetricRow label="Patrimonio Neto"   data={equity}      colors={colors} />
+        <MetricRow label="Deuda Total"       data={debt}        colors={colors} />
+      </View>
     </View>
   );
 }
@@ -232,24 +236,27 @@ function CashFlowTab({ annual }: { annual: FinancialPeriod[] }) {
   const capex = useMemo(() => periodsToBarData(annual, "Capital Expenditure"), [annual]);
 
   return (
-    <View style={{ paddingHorizontal: 16 }}>
-      <Text style={[tt.chartLabel, { color: colors.textMuted }]}>Flujo Operativo</Text>
+    <View>
+      <Text style={[tt.chartLabel, { color: colors.textMuted, paddingHorizontal: 16 }]}>Flujo Operativo</Text>
       <BarChart data={opCF} positiveColor={colors.accentLight} muted={colors.textMuted} />
-      <MetricRow label="Flujo Operativo"   data={opCF}  colors={colors} />
-      <MetricRow label="Flujo de Caja Libre" data={fcf} colors={colors} />
-      <MetricRow label="CapEx"             data={capex} colors={colors} />
+      <View style={{ paddingHorizontal: 16 }}>
+        <Text style={[tt.legend, { color: colors.textMuted }]}>▲▼ % = variación vs año anterior</Text>
+        <MetricRow label="Flujo Operativo"     data={opCF}  colors={colors} />
+        <MetricRow label="Flujo de Caja Libre" data={fcf}   colors={colors} />
+        <MetricRow label="CapEx"               data={capex} colors={colors} />
+      </View>
     </View>
   );
 }
 
 const tt = StyleSheet.create({
   chartLabel: {
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: "700",
     letterSpacing: 0.8,
     textTransform: "uppercase",
-    marginTop: 4,
-    marginBottom: 8,
+    marginTop: 8,
+    marginBottom: 10,
   },
   legend: {
     fontSize: 9,
