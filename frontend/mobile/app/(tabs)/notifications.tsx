@@ -62,14 +62,6 @@ export default function NotificationsScreen() {
   const [newsLoading, setNewsLoading] = useState(false);
   const [newsError, setNewsError]   = useState(false);
 
-  // News tabs: portfolio vs general market
-  const [newsTab, setNewsTab] = useState<"portfolio" | "general">("portfolio");
-
-  // General market news
-  const [generalNews, setGeneralNews]           = useState<NewsItem[]>([]);
-  const [generalNewsLoading, setGeneralNewsLoading] = useState(false);
-  const [generalNewsShown, setGeneralNewsShown] = useState(10);
-
   // News filter + pagination
   const [newsFilter, setNewsFilter] = useState<string | null>(null);
   const [newsShown, setNewsShown]   = useState(10);
@@ -160,16 +152,6 @@ export default function NotificationsScreen() {
     setNewsLoading(false);
   }, [positions.length]);
 
-  const loadGeneralNews = useCallback(async () => {
-    setGeneralNewsLoading(true);
-    try {
-      // Fetch news for major indices as general market news
-      const res = await marketApi.getNews(["SPY", "QQQ", "DIA", "AAPL", "MSFT", "NVDA", "AMZN", "META"]);
-      setGeneralNews(res.data ?? []);
-    } catch {}
-    setGeneralNewsLoading(false);
-  }, []);
-
   const loadWatchlistWithChange = useCallback(async () => {
     if (watchlist.length === 0) return;
     setPricesLoading(true);
@@ -199,10 +181,9 @@ export default function NotificationsScreen() {
   useFocusEffect(useCallback(() => {
     loadPortfolioNews();
     loadPortfolioPrices();
-    loadGeneralNews();
     const interval = setInterval(() => loadPortfolioPrices(), 30_000);
     return () => clearInterval(interval);
-  }, [loadPortfolioNews, loadPortfolioPrices, loadGeneralNews]));
+  }, [loadPortfolioNews, loadPortfolioPrices]));
 
   const handleMarkRead = async (id: string) => {
     await notificationsApi.markRead(id);
@@ -431,96 +412,15 @@ export default function NotificationsScreen() {
       );
     };
 
-    const visibleGeneral = generalNews.slice(0, generalNewsShown);
-
     return (
       <View style={[styles.section, { backgroundColor: colors.card, borderColor: colors.border }]}>
-        {/* Header with tabs */}
-        <View style={[styles.sectionHeader, { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border, flexDirection: "column", alignItems: "flex-start", gap: 10 }]}>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-            <Ionicons name="newspaper-outline" size={14} color={colors.accentLight} />
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>Noticias</Text>
-            <Text style={[styles.sectionSubtitle, { color: colors.textDim }]}>últimos 7 días</Text>
-          </View>
-          {/* Tab selector */}
-          <View style={[styles.newsTabs, { backgroundColor: colors.bg }]}>
-            {([
-              { key: "portfolio" as const, label: "📊 Mi portafolio" },
-              { key: "general"   as const, label: "🌍 Mercado" },
-            ]).map(({ key, label }) => (
-              <TouchableOpacity
-                key={key}
-                style={[styles.newsTabBtn, newsTab === key && { backgroundColor: colors.card, borderColor: colors.accentLight + "60" }]}
-                onPress={() => setNewsTab(key)}
-              >
-                <Text style={[styles.newsTabText, { color: newsTab === key ? colors.accentLight : colors.textMuted }]}>{label}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
+        {/* Header */}
+        <View style={[styles.sectionHeader, { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border }]}>
+          <Ionicons name="newspaper-outline" size={14} color={colors.accentLight} />
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>Noticias de tu portafolio</Text>
+          <Text style={[styles.sectionSubtitle, { color: colors.textDim }]}>últimos 7 días</Text>
         </View>
 
-        {/* General market news body */}
-        {newsTab === "general" && (
-          <View>
-            {generalNewsLoading ? (
-              <View style={styles.newsEmptyState}>
-                <ActivityIndicator color={colors.accentLight} />
-                <Text style={[styles.newsEmptyText, { color: colors.textDim }]}>Cargando noticias del mercado…</Text>
-              </View>
-            ) : visibleGeneral.length === 0 ? (
-              <TouchableOpacity style={styles.newsEmptyState} onPress={loadGeneralNews} activeOpacity={0.7}>
-                <Ionicons name="globe-outline" size={28} color={colors.textDim} />
-                <Text style={[styles.newsEmptyText, { color: colors.textMuted }]}>Sin noticias. Toca para recargar.</Text>
-              </TouchableOpacity>
-            ) : (
-              <>
-                {visibleGeneral.map((item) => (
-                  <TouchableOpacity
-                    key={item.uuid}
-                    style={[styles.newsRow, { borderTopColor: colors.border }]}
-                    onPress={() => openNewsSummary(item)}
-                    activeOpacity={0.75}
-                  >
-                    {item.thumbnail ? (
-                      <Image source={{ uri: item.thumbnail }} style={styles.newsThumbnail} />
-                    ) : (
-                      <View style={[styles.newsThumbnail, { backgroundColor: colors.border, alignItems: "center", justifyContent: "center" }]}>
-                        <Ionicons name="newspaper-outline" size={18} color={colors.textDim} />
-                      </View>
-                    )}
-                    <View style={{ flex: 1 }}>
-                      <View style={styles.newsTickerRow}>
-                        <View style={[styles.newsTickerBadge, { backgroundColor: colors.accentGlow }]}>
-                          <Text style={[styles.newsTickerText, { color: colors.accentLight }]}>{item.symbol}</Text>
-                        </View>
-                        <Text style={[styles.newsDate, { color: colors.textDim }]}>
-                          {new Date(item.timestamp * 1000).toLocaleDateString("es", { day: "numeric", month: "short" })}
-                        </Text>
-                      </View>
-                      <Text style={[styles.newsTitle, { color: colors.text }]} numberOfLines={2}>{item.title}</Text>
-                      <Text style={[styles.newsPublisher, { color: colors.textMuted }]}>{item.publisher}</Text>
-                    </View>
-                  </TouchableOpacity>
-                ))}
-                {visibleGeneral.length < generalNews.length && (
-                  <TouchableOpacity
-                    style={[styles.newsShowMore, { borderTopColor: colors.border }]}
-                    onPress={() => setGeneralNewsShown((n) => n + 10)}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={[styles.newsShowMoreText, { color: colors.accentLight }]}>
-                      Ver {Math.min(10, generalNews.length - visibleGeneral.length)} noticias más
-                    </Text>
-                  </TouchableOpacity>
-                )}
-              </>
-            )}
-          </View>
-        )}
-
-        {/* Portfolio news body */}
-        {newsTab === "portfolio" && (
-        <View>
         {/* Ticker filter chips */}
         {positions.length > 0 && !newsLoading && news.length > 0 && (
           <ScrollView
@@ -557,8 +457,6 @@ export default function NotificationsScreen() {
         )}
 
         {body()}
-        </View>
-        )}
       </View>
     );
   };

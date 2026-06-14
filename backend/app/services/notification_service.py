@@ -1,8 +1,8 @@
 from datetime import datetime
 from app.core.database import get_supabase
-from app.services.market_service import get_market_summary, detect_significant_moves, get_upcoming_earnings
+from app.services.market_service import get_market_summary, get_upcoming_earnings
 from app.services import ai_service
-from app.services.push_service import send_market_alert, send_streak_danger
+from app.services.push_service import send_streak_danger
 from app.models.user import UserProfile
 
 
@@ -50,8 +50,6 @@ async def mark_notification_read(notification_id: str):
 async def scan_and_notify_all_users():
     db = get_supabase()
 
-    market = get_market_summary()
-    moves = detect_significant_moves(threshold_pct=3.0)
     earnings = get_upcoming_earnings()
 
     users_result = db.table("user_profiles").select("user_id, risk_tolerance, investment_experience, weak_areas, interaction_count, push_token").execute()
@@ -61,37 +59,32 @@ async def scan_and_notify_all_users():
 
         profile_result = db.table("user_profiles").select("*").eq("user_id", user_id).single().execute()
         profile = None
-        is_premium = False
         if profile_result.data:
             try:
                 profile = UserProfile(**profile_result.data)
-                is_premium = profile.subscription_tier == "premium"
             except Exception:
                 pass
 
-        # Premium: specific holdings alerts via check_portfolio_alerts (called separately)
-        # Free: general market moves only, threshold higher (5% vs 3%)
-        alert_threshold = 3 if is_premium else 5
-        moves_filtered = [m for m in moves if abs(m.get("change_pct", 0)) >= alert_threshold]
+        # Get user's portfolio positions to filter alerts
+        portfolio_tickers: list[str] = []
+        try:
+            port_result = db.table("user_portfolio").select("positions").eq("user_id", user_id).maybe_single().execute()
+            if port_result.data:
+                raw = port_result.data.get("positions") or {}
+                if isinstance(raw, dict):
+                    portfolio_tickers = [p["ticker"] for p in raw.get("positions", []) if p.get("ticker")]
+                elif isinstance(raw, list):
+                    portfolio_tickers = [p["ticker"] for p in raw if p.get("ticker")]
+        except Exception:
+            pass
 
-        push_token = user_data.get("push_token")
-        for move in moves_filtered[:2]:
-            direction = "subió" if move["direction"] == "up" else "cayó"
-            event_desc = f"{move['symbol']} {direction} {abs(move['change_pct'])}% hoy"
-            message = await ai_service.generate_notification_insight(
-                "market_move", event_desc, profile
-            )
-            await create_notification(
-                user_id=user_id,
-                notification_type="market_move",
-                title=f"📉 {move['symbol']} {direction} {abs(move['change_pct'])}%",
-                message=message,
-                data=move
-            )
-            if push_token:
-                await send_market_alert(push_token, move["symbol"], move["change_pct"])
+        # Market move alerts: only for stocks the user actually holds
+        if portfolio_tickers:
+            await check_portfolio_alerts(user_id, portfolio_tickers, profile)
 
-        for event in earnings[:1]:
+        # Earnings alerts: only for stocks in user's portfolio
+        user_earnings = [e for e in earnings if e.get("symbol") in portfolio_tickers]
+        for event in user_earnings[:1]:
             days = event["days_until"]
             timing = "hoy" if days == 0 else f"en {days} días"
             event_desc = f"{event['symbol']} reporta resultados {timing}"
