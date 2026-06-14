@@ -52,16 +52,25 @@ export interface StockProfile {
 
 export interface FinancialPeriod {
   period: string;
+  // Income statement
   "Total Revenue"?:                          number | null;
+  "Cost Of Revenue"?:                        number | null;
   "Gross Profit"?:                           number | null;
+  "Gross Margin %"?:                         number | null;
+  "Operating Expenses"?:                     number | null;
   "Operating Income"?:                       number | null;
+  "Operating Margin %"?:                     number | null;
   "EBITDA"?:                                 number | null;
   "Net Income"?:                             number | null;
+  "Net Margin %"?:                           number | null;
+  "Diluted EPS"?:                            number | null;
+  // Balance sheet
   "Total Assets"?:                           number | null;
   "Current Assets"?:                         number | null;
   "Total Liabilities Net Minority Interest"?: number | null;
   "Stockholders Equity"?:                    number | null;
   "Total Debt"?:                             number | null;
+  // Cash flow
   "Operating Cash Flow"?:                    number | null;
   "Free Cash Flow"?:                         number | null;
   "Capital Expenditure"?:                    number | null;

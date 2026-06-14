@@ -3,7 +3,7 @@
 import { useState, useRef } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import {
-  BookOpen, PieChart, BarChart2, Bell, User, GraduationCap, Trophy,
+  BookOpen, PieChart, BarChart2, Bell, User, GraduationCap,
   MessageSquare, ChevronLeft, ChevronRight, Plus, X, HeadphonesIcon, GripVertical, Eye, Play, ArrowRight, Lock,
 } from "lucide-react";
 
@@ -22,7 +22,6 @@ const NAV: Array<{ href: string; icon: React.ComponentType<{ className?: string;
   { href: "/feed",          icon: Play,           label: "Videos",         minLevel: "principiante" },
   { href: "/paper",         icon: BarChart2,      label: "Simulador",      minLevel: "basico" },
   { href: "/learn",         icon: GraduationCap,  label: "Aprendizaje",    minLevel: "principiante" },
-  { href: "/arena",         icon: Trophy,         label: "Play",           minLevel: "intermedio" },
   { href: "/notifications", icon: Bell,           label: "Notificaciones", minLevel: "principiante" },
   { href: "/support",       icon: HeadphonesIcon, label: "Soporte",        minLevel: "principiante" },
   { href: "/profile",       icon: User,           label: "Perfil",         minLevel: "principiante" },

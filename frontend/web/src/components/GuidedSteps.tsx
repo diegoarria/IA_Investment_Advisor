@@ -1,11 +1,11 @@
 "use client";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { ChevronRight, X, BookOpen, MessageSquare, PieChart, Eye, Bell, Gamepad2, User } from "lucide-react";
+import { ChevronRight, X, BookOpen, MessageSquare, PieChart, Eye, Bell, User } from "lucide-react";
 import { getUserLevel } from "@/lib/userLevel";
 import { useProfileStore } from "@/lib/store";
 
-type PageKey = "chat" | "learn" | "portfolio" | "watchlist" | "notifications" | "arena" | "profile";
+type PageKey = "chat" | "learn" | "portfolio" | "watchlist" | "notifications" | "profile";
 
 const GUIDE: Record<PageKey, {
   icon: React.ReactNode;
@@ -58,15 +58,6 @@ const GUIDE: Record<PageKey, {
     what: "La app te avisa cuando tus posiciones se mueven significativamente, hay noticias relevantes para tus acciones, o el mercado hace algo importante.",
     todo: "Revisa las alertas que ya tienes. Si tienes posiciones en portafolio, deberías ver movimientos aquí. Activa las notificaciones push si no lo has hecho.",
     tip: "No es ruido genérico — cada alerta está filtrada a lo que tienes tú en tu portafolio y watchlist.",
-    nextPage: "/arena",
-    nextLabel: "Siguiente: Play →",
-  },
-  arena: {
-    icon: <Gamepad2 className="w-5 h-5" />,
-    title: "El simulador de decisiones reales",
-    what: "Aquí practicas tomar decisiones de inversión en escenarios históricos reales — sin arriesgar dinero. Después ves exactamente qué habría pasado.",
-    todo: "Toca \"Simulador\" y responde el escenario. No hay respuesta incorrecta — el objetivo es aprender qué habría hecho el mercado.",
-    tip: "Los mejores inversores practican antes de usar dinero real. Buffett decía: la educación es la mejor inversión.",
     nextPage: "/profile",
     nextLabel: "Último paso: Mi Perfil →",
   },
@@ -81,7 +72,7 @@ const GUIDE: Record<PageKey, {
   },
 };
 
-const PAGE_ORDER: PageKey[] = ["chat", "learn", "portfolio", "watchlist", "notifications", "arena", "profile"];
+const PAGE_ORDER: PageKey[] = ["chat", "learn", "portfolio", "watchlist", "notifications", "profile"];
 const VISITED_KEY = "nuvos_visited_pages";
 const DISMISSED_KEY = "nuvos_guide_dismissed";
 

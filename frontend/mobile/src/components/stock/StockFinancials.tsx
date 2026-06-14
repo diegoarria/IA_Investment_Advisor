@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import {
   View,
   Text,
@@ -6,9 +6,11 @@ import {
   ScrollView,
   StyleSheet,
   Dimensions,
+  ActivityIndicator,
 } from "react-native";
 import Svg, { Rect, G, Text as SvgText, Line } from "react-native-svg";
 import { useTheme } from "../../lib/ThemeContext";
+import { marketApi } from "../../lib/api";
 import type { Financials, FinancialPeriod } from "../../hooks/useStockDetail";
 
 const { width: SCREEN_W } = Dimensions.get("window");
@@ -163,6 +165,37 @@ const mr = StyleSheet.create({
   value:  { fontSize: 15, fontWeight: "700" },
   growth: { fontSize: 13, fontWeight: "600" },
 });
+
+// ─── Margin Row (shows % with pp delta) ──────────────────────────────────────
+
+function MarginRow({ annual, field, label, colors }: {
+  annual: FinancialPeriod[];
+  field: keyof FinancialPeriod;
+  label: string;
+  colors: ReturnType<typeof useTheme>["colors"];
+}) {
+  const last5 = annual.slice(-5);
+  const latest = last5[last5.length - 1]?.[field] as number | null | undefined;
+  const prev   = last5[last5.length - 2]?.[field] as number | null | undefined;
+  if (latest == null) return null;
+  const delta = prev != null ? latest - prev : null;
+  const isUp  = (delta ?? 0) >= 0;
+  return (
+    <View style={[mr.row, { borderTopColor: colors.border, paddingLeft: 12, backgroundColor: "rgba(0,0,0,0.018)" }]}>
+      <Text style={[mr.label, { color: colors.textMuted, fontSize: 13, fontStyle: "italic" }]}>{label}</Text>
+      <View style={mr.right}>
+        <Text style={[mr.value, { color: latest >= 0 ? colors.up : colors.down, fontSize: 14 }]}>
+          {latest.toFixed(1)}%
+        </Text>
+        {delta != null && (
+          <Text style={[mr.growth, { color: isUp ? colors.up : colors.down, fontSize: 12 }]}>
+            {isUp ? "▲" : "▼"} {Math.abs(delta).toFixed(1)}pp
+          </Text>
+        )}
+      </View>
+    </View>
+  );
+}
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 

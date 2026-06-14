@@ -22,7 +22,7 @@ const CATEGORY_LEVEL: Record<string, UserLevel> = {
   analysis:    "avanzado",
   ratios:      "avanzado",
 };
-import { Search, Menu, X, Trophy, Calendar } from "lucide-react";
+import { Search, Menu, X, Calendar } from "lucide-react";
 import GuidedSteps from "@/components/GuidedSteps";
 
 const CATEGORIES = [
@@ -336,9 +336,8 @@ export default function LearnPage() {
           <GuidedSteps currentPage="learn" />
           {/* Streak banner */}
           <div className="px-4 pt-3 pb-1 shrink-0">
-            <div className="flex items-center justify-between rounded-xl border px-3 py-2.5 cursor-pointer hover:opacity-80 transition-opacity"
-                 style={{ background: "var(--card)", borderColor: completedToday ? "rgba(34,197,94,0.4)" : "var(--border)" }}
-                 onClick={() => router.push("/arena")}>
+            <div className="flex items-center rounded-xl border px-3 py-2.5"
+                 style={{ background: "var(--card)", borderColor: completedToday ? "rgba(34,197,94,0.4)" : "var(--border)" }}>
               <div className="flex items-center gap-2">
                 <span className="text-xl">{completedToday ? "🔥" : "🌑"}</span>
                 <div>
@@ -349,10 +348,6 @@ export default function LearnPage() {
                     {completedToday ? "¡Racha activa hoy!" : "Lee un tema para mantener tu racha"}
                   </p>
                 </div>
-              </div>
-              <div className="flex items-center gap-1 text-xs font-semibold" style={{ color: "var(--accent-l)" }}>
-                <Trophy className="w-3.5 h-3.5" />
-                Play
               </div>
             </div>
           </div>

@@ -1551,14 +1551,25 @@ def _fmp_income(symbol: str) -> list[dict]:
             # Derive gross profit from revenue − COGS when FMP returns missing/zero
             if not gross and revenue is not None and cost_rev is not None and cost_rev != 0:
                 gross = round(float(revenue) - float(cost_rev), 4)
+                op_income = _fmt_number(d.get("operatingIncome"))
+            net_income = _fmt_number(d.get("netIncome"))
+            # Derive margin %
+            gross_margin  = round(float(gross) / float(revenue) * 100, 2) if gross and revenue else None
+            op_margin     = round(float(op_income) / float(revenue) * 100, 2) if op_income and revenue else None
+            net_margin    = round(float(net_income) / float(revenue) * 100, 2) if net_income and revenue else None
             result.append({
-                "period":           d.get("date", "")[:7],
-                "Total Revenue":    revenue,
-                "Gross Profit":     gross,
-                "Operating Income": _fmt_number(d.get("operatingIncome")),
-                "EBITDA":           _fmt_number(d.get("ebitda")),
-                "Net Income":       _fmt_number(d.get("netIncome")),
-                "Diluted EPS":      _fmt_number(d.get("epsdiluted")),
+                "period":              d.get("date", "")[:7],
+                "Total Revenue":       revenue,
+                "Cost Of Revenue":     cost_rev,
+                "Gross Profit":        gross,
+                "Gross Margin %":      gross_margin,
+                "Operating Expenses":  _fmt_number(d.get("totalOperatingExpenses") or d.get("operatingExpenses")),
+                "Operating Income":    op_income,
+                "Operating Margin %":  op_margin,
+                "EBITDA":              _fmt_number(d.get("ebitda")),
+                "Net Income":          net_income,
+                "Net Margin %":        net_margin,
+                "Diluted EPS":         _fmt_number(d.get("epsdiluted")),
             })
         return result
     except Exception:
@@ -1876,18 +1887,41 @@ def _parse_qs_income(qs: dict, quarterly: bool = False, n: int = 5) -> list[dict
                 gross = float(rev) - float(cost_rev)
             except (TypeError, ValueError):
                 pass
+        op_income_raw = _qs_raw(row, "operatingIncome") or _qs_raw(row, "ebit")
+        net_income_raw = _qs_raw(row, "netIncome")
+        op_income  = _fmt_number(op_income_raw)
+        net_income = _fmt_number(net_income_raw)
+        gross_fmt  = _fmt_number(gross)
+        rev_fmt    = _fmt_number(rev)
+        try:
+            gross_margin = round(float(gross) / float(rev) * 100, 2) if gross and rev else None
+        except Exception:
+            gross_margin = None
+        try:
+            op_margin = round(float(op_income_raw) / float(rev) * 100, 2) if op_income_raw and rev else None
+        except Exception:
+            op_margin = None
+        try:
+            net_margin = round(float(net_income_raw) / float(rev) * 100, 2) if net_income_raw and rev else None
+        except Exception:
+            net_margin = None
         result.append({
-            "period":                       period,
-            "Total Revenue":                _fmt_number(rev),
-            "Gross Profit":                 _fmt_number(gross),
-            "Operating Income":             _fmt_number(_qs_raw(row, "operatingIncome") or _qs_raw(row, "ebit")),
-            "EBITDA":                       _fmt_number(_qs_raw(row, "ebitda")),
-            "Net Income":                   _fmt_number(_qs_raw(row, "netIncome")),
-            "Diluted EPS":                  _fmt_number(_qs_raw(row, "dilutedEps")),
-            "Research And Development":     _fmt_number(_qs_raw(row, "researchDevelopment")),
+            "period":                         period,
+            "Total Revenue":                  rev_fmt,
+            "Cost Of Revenue":                _fmt_number(cost_rev),
+            "Gross Profit":                   gross_fmt,
+            "Gross Margin %":                 gross_margin,
+            "Operating Expenses":             _fmt_number(_qs_raw(row, "totalOperatingExpenses") or _qs_raw(row, "operatingExpenses")),
+            "Operating Income":               op_income,
+            "Operating Margin %":             op_margin,
+            "EBITDA":                         _fmt_number(_qs_raw(row, "ebitda")),
+            "Net Income":                     net_income,
+            "Net Margin %":                   net_margin,
+            "Diluted EPS":                    _fmt_number(_qs_raw(row, "dilutedEps")),
+            "Research And Development":       _fmt_number(_qs_raw(row, "researchDevelopment")),
             "Selling General Administrative": _fmt_number(_qs_raw(row, "sellingGeneralAdministrative")),
-            "Interest Expense":             _fmt_number(_qs_raw(row, "interestExpense")),
-            "Tax Provision":                _fmt_number(_qs_raw(row, "incomeTaxExpense")),
+            "Interest Expense":               _fmt_number(_qs_raw(row, "interestExpense")),
+            "Tax Provision":                  _fmt_number(_qs_raw(row, "incomeTaxExpense")),
         })
     return result
 
@@ -2165,8 +2199,9 @@ def _fetch_stock_detail(symbol: str) -> dict:
 
     # ── Financial Statements ─────────────────────────────────────────────────
     IS_ROWS = [
-        "Total Revenue", "Gross Profit", "Operating Income",
-        "EBITDA", "Net Income", "Diluted EPS",
+        "Total Revenue", "Cost Of Revenue", "Gross Profit", "Gross Margin %",
+        "Operating Expenses", "Operating Income", "Operating Margin %",
+        "EBITDA", "Net Income", "Net Margin %", "Diluted EPS",
         "Research And Development", "Selling General Administrative",
         "Interest Expense", "Tax Provision",
     ]
@@ -3055,4 +3090,78 @@ async def get_stock_score(
     detail = await asyncio.to_thread(_fetch_stock_detail, sym)
     result = _compute_stock_score(detail)
     cache_set(cache_key, result, ttl=3600)
+    return result
+
+
+@router.get("/stock-income-analysis/{symbol}")
+async def get_stock_income_analysis(
+    symbol: str,
+    user_id: str = Depends(get_current_user_id),
+):
+    """AI-generated analysis of a stock's income statement trends (cached 12h)."""
+    sym = symbol.upper()
+    cache_key = f"income_ai:{sym}"
+    cached = cache_get(cache_key)
+    if cached:
+        return cached
+
+    detail = await asyncio.to_thread(_fetch_stock_detail, sym)
+    income_rows = detail.get("financials", {}).get("income", {}).get("annual", [])
+    name = detail.get("profile", {}).get("name", sym)
+
+    if not income_rows:
+        return {"analysis": ""}
+
+    def _fmt(v):
+        if v is None:
+            return "N/A"
+        try:
+            n = float(v)
+            if abs(n) >= 1e12: return f"${n/1e12:.1f}T"
+            if abs(n) >= 1e9:  return f"${n/1e9:.1f}B"
+            if abs(n) >= 1e6:  return f"${n/1e6:.1f}M"
+            return f"${n:,.0f}"
+        except Exception:
+            return str(v)
+
+    def _pct(v):
+        try:
+            return f"{float(v):.1f}%" if v is not None else "N/A"
+        except Exception:
+            return "N/A"
+
+    rows_text = []
+    for r in income_rows[-5:]:
+        period = str(r.get("period", ""))[:4]
+        rows_text.append(
+            f"{period}: Ingresos={_fmt(r.get('Total Revenue'))} | "
+            f"Utilidad Bruta={_fmt(r.get('Gross Profit'))} ({_pct(r.get('Gross Margin %'))}) | "
+            f"EBITDA={_fmt(r.get('EBITDA'))} | "
+            f"Utilidad Neta={_fmt(r.get('Net Income'))} ({_pct(r.get('Net Margin %'))})"
+        )
+
+    prompt = (
+        f"Eres un analista financiero experto. Analiza el Estado de Resultados de {name} ({sym}):\n\n"
+        + "\n".join(rows_text)
+        + "\n\nEscribe un análisis en español de 3-4 oraciones para inversionistas. Cubre: "
+        "1) Tendencia de ingresos, 2) Evolución de márgenes, 3) Una señal positiva y un riesgo. "
+        "Sé concreto con cifras. No uses bullet points."
+    )
+
+    analysis = ""
+    try:
+        _ant_key = os.getenv("ANTHROPIC_API_KEY", "")
+        if _ant_key:
+            client_ant = anthropic.Anthropic(api_key=_ant_key)
+            msg = client_ant.messages.create(
+                model="claude-haiku-4-5-20251001",
+                max_tokens=320,
+                messages=[{"role": "user", "content": prompt}],
+            )
+            analysis = msg.content[0].text.strip()
+    except Exception:
+        pass
+
+    result = {"analysis": analysis}
+    cache_set(cache_key, result, ttl=43200)
     return result

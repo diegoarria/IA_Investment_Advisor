@@ -23,7 +23,6 @@ export const ALL_NAV_ITEMS: NavItem[] = [
   { icon: "book-outline",          iconFilled: "book",          label: "Chat",          path: "/chat",          tabCapable: true,  minLevel: "principiante" },
   { icon: "pie-chart-outline",     iconFilled: "pie-chart",     label: "Portafolio",    path: "/portfolio",     tabCapable: true,  minLevel: "principiante" },
   { icon: "eye-outline",           iconFilled: "eye",           label: "Watchlist",     path: "/watchlist",     tabCapable: true,  minLevel: "basico" },
-  { icon: "trophy-outline",        iconFilled: "trophy",        label: "Play",          path: "/arena",         tabCapable: true,  minLevel: "intermedio" },
   { icon: "school-outline",        iconFilled: "school",        label: "Aprendizaje",   path: "/learn",         tabCapable: true,  minLevel: "principiante" },
   { icon: "bar-chart-outline",     iconFilled: "bar-chart",     label: "Simulador",     path: "/paper",         tabCapable: true,  minLevel: "basico" },
   { icon: "person-outline",        iconFilled: "person",        label: "Perfil",        path: "/profile",       tabCapable: true,  minLevel: "principiante" },

@@ -14,11 +14,11 @@ const ACTIONS = [
     route: "/(tabs)/portfolio" as const,
   },
   {
-    icon:  "time-outline" as const,
+    icon:  "school-outline" as const,
     color: "#8b5cf6",
-    title: "Prueba el Simulador",
-    desc:  "Toma decisiones en crisis históricas reales",
-    route: "/(tabs)/arena" as const,
+    title: "Aprende invirtiendo",
+    desc:  "Explora temas financieros y construye tu criterio",
+    route: "/(tabs)/learn" as const,
   },
   {
     icon:  "chatbubble-ellipses-outline" as const,

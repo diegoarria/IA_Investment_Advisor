@@ -43,14 +43,6 @@ const STEPS = [
     tip: "💡 El simulador usa precios reales del mercado en tiempo real.",
   },
   {
-    emoji: "🏋️",
-    color: "#f59e0b",
-    title: "Play",
-    subtitle: "Aprende jugando",
-    desc: "Dos juegos: el Simulador te pone en escenarios históricos reales y el Debate te hace defender tus tesis de inversión contra la IA. Mantén rachas para desbloquear recompensas.",
-    tip: "💡 Las rachas diarias te llevan al Hall of Fame y desbloquean contenido exclusivo.",
-  },
-  {
     emoji: "📚",
     color: "#06b6d4",
     title: "Aprendizaje",

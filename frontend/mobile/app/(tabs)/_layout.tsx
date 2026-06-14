@@ -23,7 +23,6 @@ const TAB_CONFIG: Record<string, { icon: IoniconName; iconFilled: IoniconName; l
   chat:          { icon: "book-outline",          iconFilled: "book",          label: "Chat" },
   portfolio:     { icon: "pie-chart-outline",     iconFilled: "pie-chart",     label: "Portafolio" },
   watchlist:     { icon: "eye-outline",           iconFilled: "eye",           label: "Watchlist" },
-  arena:         { icon: "trophy-outline",        iconFilled: "trophy",        label: "Play" },
   learn:         { icon: "school-outline",        iconFilled: "school",        label: "Aprendizaje" },
   paper:         { icon: "bar-chart-outline",     iconFilled: "bar-chart",     label: "Simulador" },
   profile:       { icon: "person-outline",        iconFilled: "person",        label: "Perfil" },
@@ -281,7 +280,6 @@ export default function TabsLayout() {
       <Tabs.Screen name="chat"      options={{ title: "Chat",          header: () => <MobileHeader title="Nuvos AI" /> }} />
       <Tabs.Screen name="portfolio" options={{ title: "Portafolios",   header: () => <MobileHeader title="Mi Portafolio" /> }} />
       <Tabs.Screen name="watchlist" options={{ title: "Watchlist",     header: () => <MobileHeader title="Watchlist" /> }} />
-      <Tabs.Screen name="arena"     options={{ title: "Play",          header: () => <MobileHeader title="🏆 Play" /> }} />
       <Tabs.Screen name="learn"     options={{ title: "Aprender",      header: () => <MobileHeader title="Aprendizaje" /> }} />
       <Tabs.Screen name="paper"     options={{ title: "Simulador",     header: () => <MobileHeader title="Simulador" /> }} />
       <Tabs.Screen name="profile"   options={{ title: "Perfil",        header: () => <MobileHeader title="Mi Perfil" /> }} />
