@@ -716,18 +716,13 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-stretch justify-end"
-      style={{ background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)" }}
+      className="fixed inset-0 z-50 flex items-stretch"
+      style={{ background: "var(--card)" }}
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
       <div
-        className="flex flex-col h-full overflow-hidden"
-        style={{
-          width: "min(740px, 100vw)",
-          background: "var(--card)",
-          borderLeft: `3px solid ${recColor(profile?.recommendation)}`,
-          boxShadow: "-12px 0 60px rgba(0,0,0,0.5)",
-        }}
+        className="flex flex-col w-full h-full overflow-hidden"
+        style={{ background: "var(--card)" }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* ── Header ── */}
@@ -889,6 +884,7 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
 
         {/* ── Content ── */}
         <div className="flex-1 overflow-y-auto scrollbar-thin">
+          <div className="max-w-3xl mx-auto w-full">
 
           {/* ── VEREDICTO ── */}
           {tab === "verdict" && (
@@ -1882,6 +1878,7 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
               )}
             </div>
           )}
+          </div>{/* end max-w-3xl */}
         </div>
       </div>
     </div>
