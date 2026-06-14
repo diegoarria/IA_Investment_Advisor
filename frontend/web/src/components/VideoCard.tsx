@@ -107,70 +107,36 @@ export default function VideoCard({
   const [showThumb, setShowThumb]       = useState(true); // covers black screen while video buffers
   const tapTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
-  // ─── DEBUG LOGGING ───────────────────────────────────────────────────────────
-  const log = (tag: string, ...args: unknown[]) => {
-    const id = clip.id.slice(0, 8);
-    console.log(`[VIDEO ${id}][${tag}]`, ...args);
-  };
-  const logVideoState = (label: string, v: HTMLVideoElement) => {
-    const RS = ["HAVE_NOTHING","HAVE_METADATA","HAVE_CURRENT_DATA","HAVE_FUTURE_DATA","HAVE_ENOUGH_DATA"];
-    const NS = ["EMPTY","IDLE","LOADING","NO_SOURCE"];
-    log(label, {
-      readyState:   `${v.readyState} (${RS[v.readyState] ?? "?"})`,
-      networkState: `${v.networkState} (${NS[v.networkState] ?? "?"})`,
-      currentSrc:   v.currentSrc || "(empty)",
-      src:          v.src || "(no .src attr)",
-      paused:       v.paused,
-      muted:        v.muted,
-      error:        v.error ? `code=${v.error.code} msg=${v.error.message}` : null,
-    });
-  };
-  // ─────────────────────────────────────────────────────────────────────────────
-
   // Video source setup — only runs when this card is active.
-  // Root cause of black screen bug: hls.loadSource() always fetches the manifest
-  // immediately, even with autoStartLoad:false. Calling stopLoad() right after
-  // (for inactive cards) aborts the manifest fetch. When the card later becomes
-  // active and startLoad(-1) is called, HLS has no manifest and never fetches
-  // segments → video waits forever → black screen. Fix: don't create HLS until active.
+  // hls.loadSource() always fetches the manifest immediately even with autoStartLoad:false.
+  // Creating HLS only on activation avoids the prior bug where stopLoad() on mount
+  // aborted the manifest for inactive cards, leaving startLoad(-1) with nothing to load.
   useEffect(() => {
     const v = videoRef.current;
     if (!v || !isActive || !clip.video_url) return;
 
     const url = clip.video_url;
     viewTrackedRef.current = false;
-    log("SOURCE-EFFECT", "active — setting up source, url=", url);
 
     if (url.includes(".m3u8")) {
       if (Hls.isSupported()) {
-        log("SOURCE-EFFECT", "path=HLS.js");
         const hls = new Hls({ startLevel: -1, maxBufferLength: 30, maxMaxBufferLength: 60 });
-        hls.on(Hls.Events.MANIFEST_LOADING, () => log("HLS", "MANIFEST_LOADING"));
-        hls.on(Hls.Events.MANIFEST_PARSED,  (_e, d) => log("HLS", "MANIFEST_PARSED ✅ levels=", d.levels?.length));
-        hls.on(Hls.Events.FRAG_LOADING,     (_e, d) => log("HLS", "FRAG_LOADING sn=", d.frag?.sn));
-        hls.on(Hls.Events.FRAG_LOADED,      (_e, d) => log("HLS", "FRAG_LOADED ✅ sn=", d.frag?.sn));
-        hls.on(Hls.Events.BUFFER_APPENDED,  () => log("HLS", "BUFFER_APPENDED"));
         hls.on(Hls.Events.ERROR, (_event, data) => {
-          log("HLS", `❌ ERROR fatal=${data.fatal} type=${data.type} details=${data.details}`);
           if (data.fatal) { hls.destroy(); hlsRef.current = null; }
         });
         hls.loadSource(url);
         hls.attachMedia(v);
         hlsRef.current = hls;
-        log("SOURCE-EFFECT", "HLS created and loading");
       } else if (v.canPlayType("application/vnd.apple.mpegurl")) {
-        log("SOURCE-EFFECT", "path=Safari native HLS");
         v.src = url;
         v.load();
       }
     } else {
-      log("SOURCE-EFFECT", "path=plain video");
       v.src = url;
       v.load();
     }
 
     return () => {
-      log("SOURCE-EFFECT", "🧹 CLEANUP");
       hlsRef.current?.destroy();
       hlsRef.current = null;
       v.pause();
@@ -181,32 +147,21 @@ export default function VideoCard({
 
   const safePlay = useCallback(async (el: HTMLVideoElement) => {
     el.muted = true;
-    log("SAFEPLAY", "▶️ calling play()");
-    logVideoState("before-play()", el);
     try {
       await el.play();
-      log("SAFEPLAY", "✅ play() resolved");
-    } catch (err) {
-      log("SAFEPLAY", "❌ play() rejected:", (err as Error)?.name, (err as Error)?.message);
-      logVideoState("after-play-error", el);
+    } catch {
       await new Promise((r) => setTimeout(r, 50));
-      log("SAFEPLAY", "🔁 retrying play() after 50ms");
-      logVideoState("before-retry-play()", el);
-      el.play().catch((err2) => {
-        log("SAFEPLAY", "❌ retry also rejected:", (err2 as Error)?.name, (err2 as Error)?.message);
-        logVideoState("after-retry-error", el);
-      });
+      el.play().catch(() => {});
     }
     setPlaying(true);
-  }, []); // eslint-disable-line
+  }, []);
 
   // Sequenced playback: pre-audio → video → post-audio
   useEffect(() => {
     const v    = videoRef.current;
     const pre  = preAudioRef.current;
     const post = postAudioRef.current;
-    log("PLAY-EFFECT", `isActive=${isActive} pre_audio=${!!clip.pre_audio_url} pre_ref=${!!pre}`);
-    if (!v) { log("PLAY-EFFECT", "⚠️ videoRef is null, cannot play"); return; }
+    if (!v) return;
 
     if (!isActive) {
       v.pause(); v.currentTime = 0;
@@ -217,20 +172,11 @@ export default function VideoCard({
       return;
     }
 
-    const startVideo = () => {
-      log("PLAY-EFFECT", "startVideo() called");
-      logVideoState("before-startVideo", v);
-      setPhase("video");
-      safePlay(v);
-    };
+    const startVideo = () => { setPhase("video"); safePlay(v); };
 
     if (clip.pre_audio_url && pre) {
-      log("PLAY-EFFECT", "starting pre-audio");
       setPhase("pre");
-      pre.play().catch((err) => {
-        log("PLAY-EFFECT", "pre-audio play() failed, going straight to video:", (err as Error)?.message);
-        startVideo();
-      });
+      pre.play().catch(startVideo);
     } else {
       startVideo();
     }
