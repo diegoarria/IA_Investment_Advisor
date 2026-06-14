@@ -1167,6 +1167,11 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
                         <span className="text-xs font-bold uppercase tracking-widest" style={{ color: "var(--accent-l)", opacity: 0.8 }}>
                           {title}
                         </span>
+                        {showGrowthBadges && (
+                          <span className="text-[9px]" style={{ color: "var(--dim)" }}>
+                            % entre columnas = crecimiento vs año anterior
+                          </span>
+                        )}
                       </div>
                       <PeriodHeader rows={rows} showGrowthBadges={showGrowthBadges} />
                       {metrics.map((m) => (

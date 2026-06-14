@@ -194,6 +194,7 @@ function IncomeTab({ annual }: { annual: FinancialPeriod[] }) {
     <View style={{ paddingHorizontal: 16 }}>
       <Text style={[tt.chartLabel, { color: colors.textMuted }]}>Ingresos Totales</Text>
       <BarChart data={revenue} positiveColor={colors.accentLight} muted={colors.textMuted} />
+      <Text style={[tt.legend, { color: colors.textMuted }]}>▲▼ % = variación vs año anterior</Text>
       <MetricRow label="Ingresos Totales" data={revenue}   colors={colors} />
       <MetricRow label="Ganancia Bruta"   data={gross}     colors={colors} />
       <MetricRow label="Ing. Operativo"   data={opIncome}  colors={colors} />
@@ -214,6 +215,7 @@ function BalanceTab({ annual }: { annual: FinancialPeriod[] }) {
     <View style={{ paddingHorizontal: 16 }}>
       <Text style={[tt.chartLabel, { color: colors.textMuted }]}>Activos Totales</Text>
       <BarChart data={assets} positiveColor={colors.accentLight} muted={colors.textMuted} />
+      <Text style={[tt.legend, { color: colors.textMuted }]}>▲▼ % = variación vs año anterior</Text>
       <MetricRow label="Activos Totales"   data={assets}      colors={colors} />
       <MetricRow label="Pasivos Totales"   data={liabilities} colors={colors} />
       <MetricRow label="Patrimonio Neto"   data={equity}      colors={colors} />
@@ -248,6 +250,12 @@ const tt = StyleSheet.create({
     textTransform: "uppercase",
     marginTop: 4,
     marginBottom: 8,
+  },
+  legend: {
+    fontSize: 9,
+    fontWeight: "500",
+    marginBottom: 4,
+    opacity: 0.7,
   },
 });
 
