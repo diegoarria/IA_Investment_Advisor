@@ -675,7 +675,7 @@ export default function StockDetailScreen({ ticker }: { ticker: string }) {
           </View>
         );
       }
-      return <StockFinancials financials={data.financials} />;
+      return <StockFinancials financials={data.financials} ticker={ticker} />;
     }
 
     if (activeTab === "analistas") {

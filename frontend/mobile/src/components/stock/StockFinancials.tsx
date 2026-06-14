@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -215,13 +215,29 @@ function periodsToBarData(
 
 // ─── Tab Content ─────────────────────────────────────────────────────────────
 
-function IncomeTab({ annual }: { annual: FinancialPeriod[] }) {
+function IncomeTab({ annual, ticker }: { annual: FinancialPeriod[]; ticker?: string }) {
   const { colors } = useTheme();
+  const [aiAnalysis, setAiAnalysis] = useState("");
+  const [aiLoading, setAiLoading]   = useState(false);
+  const aiLoaded = useRef(false);
 
-  const revenue   = useMemo(() => periodsToBarData(annual, "Total Revenue"), [annual]);
-  const netIncome = useMemo(() => periodsToBarData(annual, "Net Income"), [annual]);
-  const gross     = useMemo(() => periodsToBarData(annual, "Gross Profit"), [annual]);
-  const opIncome  = useMemo(() => periodsToBarData(annual, "Operating Income"), [annual]);
+  useEffect(() => {
+    if (!ticker || aiLoaded.current) return;
+    aiLoaded.current = true;
+    setAiLoading(true);
+    marketApi.getIncomeAnalysis(ticker)
+      .then((r) => setAiAnalysis(r.data?.analysis ?? ""))
+      .catch(() => {})
+      .finally(() => setAiLoading(false));
+  }, [ticker]);
+
+  const revenue   = useMemo(() => periodsToBarData(annual, "Total Revenue"),        [annual]);
+  const costRev   = useMemo(() => periodsToBarData(annual, "Cost Of Revenue"),       [annual]);
+  const gross     = useMemo(() => periodsToBarData(annual, "Gross Profit"),          [annual]);
+  const opEx      = useMemo(() => periodsToBarData(annual, "Operating Expenses"),    [annual]);
+  const opIncome  = useMemo(() => periodsToBarData(annual, "Operating Income"),      [annual]);
+  const ebitda    = useMemo(() => periodsToBarData(annual, "EBITDA"),                [annual]);
+  const netIncome = useMemo(() => periodsToBarData(annual, "Net Income"),            [annual]);
 
   return (
     <View>
@@ -229,14 +245,47 @@ function IncomeTab({ annual }: { annual: FinancialPeriod[] }) {
       <BarChart data={revenue} positiveColor={colors.accentLight} muted={colors.textMuted} />
       <View style={{ paddingHorizontal: 16 }}>
         <Text style={[tt.legend, { color: colors.textMuted }]}>▲▼ % = variación vs año anterior</Text>
-        <MetricRow label="Ingresos Totales" data={revenue}   colors={colors} />
-        <MetricRow label="Ganancia Bruta"   data={gross}     colors={colors} />
-        <MetricRow label="Ing. Operativo"   data={opIncome}  colors={colors} />
-        <MetricRow label="Ganancia Neta"    data={netIncome} colors={colors} />
+        <MetricRow label="Ingresos"            data={revenue}   colors={colors} />
+        <MetricRow label="Costo de Ventas"     data={costRev}   colors={colors} />
+        <MetricRow label="Utilidad Bruta"      data={gross}     colors={colors} />
+        <MarginRow annual={annual} field="Gross Margin %"      label="% Margen Bruto"     colors={colors} />
+        <MetricRow label="Gastos Operativos"   data={opEx}      colors={colors} />
+        <MetricRow label="Utilidad Operativa"  data={opIncome}  colors={colors} />
+        <MarginRow annual={annual} field="Operating Margin %"  label="% Margen Operativo" colors={colors} />
+        <MetricRow label="EBITDA"              data={ebitda}    colors={colors} />
+        <MetricRow label="Utilidad Neta"       data={netIncome} colors={colors} />
+        <MarginRow annual={annual} field="Net Margin %"        label="% Margen Neto"      colors={colors} />
       </View>
+
+      {/* AI Analysis */}
+      <View style={[ais.card, { borderColor: colors.border, backgroundColor: colors.bgRaised }]}>
+        <View style={ais.header}>
+          <Text style={[ais.sparkle, { color: colors.accentLight }]}>✦</Text>
+          <Text style={[ais.title, { color: colors.accentLight }]}>Análisis IA</Text>
+        </View>
+        {aiLoading ? (
+          <ActivityIndicator size="small" color={colors.accentLight} style={{ marginTop: 4 }} />
+        ) : aiAnalysis ? (
+          <Text style={[ais.body, { color: colors.textMuted }]}>{aiAnalysis}</Text>
+        ) : (
+          <Text style={[ais.empty, { color: colors.textMuted }]}>
+            {ticker ? "Sin análisis disponible" : ""}
+          </Text>
+        )}
+      </View>
+      <View style={{ height: 16 }} />
     </View>
   );
 }
+
+const ais = StyleSheet.create({
+  card:    { marginHorizontal: 16, marginTop: 16, borderRadius: 16, borderWidth: 1, padding: 14 },
+  header:  { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 8 },
+  sparkle: { fontSize: 12, fontWeight: "800" },
+  title:   { fontSize: 11, fontWeight: "800", letterSpacing: 0.8, textTransform: "uppercase" },
+  body:    { fontSize: 13, lineHeight: 20 },
+  empty:   { fontSize: 12, opacity: 0.5 },
+});
 
 function BalanceTab({ annual }: { annual: FinancialPeriod[] }) {
   const { colors } = useTheme();
@@ -309,7 +358,7 @@ const SUB_TABS: { key: SubTab; label: string }[] = [
   { key: "cashflow", label: "Flujo de Caja" },
 ];
 
-export default function StockFinancials({ financials }: { financials: Financials }) {
+export default function StockFinancials({ financials, ticker }: { financials: Financials; ticker?: string }) {
   const { colors } = useTheme();
   const [subTab, setSubTab] = useState<SubTab>("income");
 
@@ -357,7 +406,7 @@ export default function StockFinancials({ financials }: { financials: Financials
         </View>
       ) : (
         <View style={[s.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          {subTab === "income"   && <IncomeTab   annual={incomeAnnual} />}
+          {subTab === "income"   && <IncomeTab   annual={incomeAnnual} ticker={ticker} />}
           {subTab === "balance"  && <BalanceTab  annual={balanceAnnual} />}
           {subTab === "cashflow" && <CashFlowTab annual={cashflowAnnual} />}
           <View style={{ height: 8 }} />
