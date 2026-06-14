@@ -107,108 +107,202 @@ export default function VideoCard({
   const [showThumb, setShowThumb]       = useState(true); // covers black screen while video buffers
   const tapTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
+  // ─── DEBUG LOGGING ───────────────────────────────────────────────────────────
+  const log = (tag: string, ...args: unknown[]) => {
+    const id = clip.id.slice(0, 8);
+    console.log(`[VIDEO ${id}][${tag}]`, ...args);
+  };
+  const logVideoState = (label: string, v: HTMLVideoElement) => {
+    const RS = ["HAVE_NOTHING","HAVE_METADATA","HAVE_CURRENT_DATA","HAVE_FUTURE_DATA","HAVE_ENOUGH_DATA"];
+    const NS = ["EMPTY","IDLE","LOADING","NO_SOURCE"];
+    log(label, {
+      readyState:   `${v.readyState} (${RS[v.readyState] ?? "?"})`,
+      networkState: `${v.networkState} (${NS[v.networkState] ?? "?"})`,
+      currentSrc:   v.currentSrc || "(empty)",
+      src:          v.src || "(no .src attr)",
+      paused:       v.paused,
+      muted:        v.muted,
+      error:        v.error ? `code=${v.error.code} msg=${v.error.message}` : null,
+    });
+  };
+  // ─────────────────────────────────────────────────────────────────────────────
+
   // Video source setup — handles HLS.js (Chrome/Firefox) and Safari native HLS
   useEffect(() => {
     const v = videoRef.current;
     if (!v) return;
     const url = clip.video_url;
-    if (!url) return;
+    log("SOURCE-EFFECT", "url=", url ?? "(none)", "Hls.isSupported=", Hls.isSupported());
+    if (!url) { log("SOURCE-EFFECT", "❌ no url, returning"); return; }
 
-    viewTrackedRef.current = false; // reset on clip change
+    viewTrackedRef.current = false;
+
+    // Attach native video events so we can see every state transition
+    const onLoadStart    = () => { log("VIDEO-EVENT", "loadstart");    logVideoState("loadstart", v); };
+    const onLoadedMeta   = () => { log("VIDEO-EVENT", "loadedmetadata"); logVideoState("loadedmetadata", v); };
+    const onCanPlay      = () => { log("VIDEO-EVENT", "canplay");      logVideoState("canplay", v); };
+    const onCanPlayThrough = () => { log("VIDEO-EVENT", "canplaythrough"); logVideoState("canplaythrough", v); };
+    const onPlaying      = () => { log("VIDEO-EVENT", "playing ✅");   logVideoState("playing", v); };
+    const onWaiting      = () => { log("VIDEO-EVENT", "waiting ⏳");   logVideoState("waiting", v); };
+    const onStalled      = () => { log("VIDEO-EVENT", "stalled ⚠️");   logVideoState("stalled", v); };
+    const onAbort        = () => { log("VIDEO-EVENT", "abort ⚠️");     logVideoState("abort", v); };
+    const onEmptied      = () => { log("VIDEO-EVENT", "emptied");      logVideoState("emptied", v); };
+    const onSuspend      = () => { log("VIDEO-EVENT", "suspend");      logVideoState("suspend", v); };
+    const onError        = () => {
+      const e = v.error;
+      log("VIDEO-EVENT", "❌ error", e ? `code=${e.code} msg=${e.message}` : "unknown");
+      logVideoState("error", v);
+    };
+
+    v.addEventListener("loadstart",      onLoadStart);
+    v.addEventListener("loadedmetadata", onLoadedMeta);
+    v.addEventListener("canplay",        onCanPlay);
+    v.addEventListener("canplaythrough", onCanPlayThrough);
+    v.addEventListener("playing",        onPlaying);
+    v.addEventListener("waiting",        onWaiting);
+    v.addEventListener("stalled",        onStalled);
+    v.addEventListener("abort",          onAbort);
+    v.addEventListener("emptied",        onEmptied);
+    v.addEventListener("suspend",        onSuspend);
+    v.addEventListener("error",          onError);
 
     if (url.includes(".m3u8")) {
       if (Hls.isSupported()) {
+        log("SOURCE-EFFECT", "path=HLS.js");
         const hls = new Hls({
           startLevel: -1,
-          autoStartLoad: false,   // only load when this card is active
+          autoStartLoad: false,
           maxBufferLength: 30,
           maxMaxBufferLength: 60,
+          debug: false,
+        });
+        hls.on(Hls.Events.MANIFEST_LOADING,  () => log("HLS", "MANIFEST_LOADING"));
+        hls.on(Hls.Events.MANIFEST_PARSED,   (_e, d) => log("HLS", "MANIFEST_PARSED ✅ levels=", d.levels?.length));
+        hls.on(Hls.Events.LEVEL_LOADED,      () => log("HLS", "LEVEL_LOADED"));
+        hls.on(Hls.Events.FRAG_LOADING,      (_e, d) => log("HLS", "FRAG_LOADING sn=", d.frag?.sn));
+        hls.on(Hls.Events.FRAG_LOADED,       (_e, d) => log("HLS", "FRAG_LOADED ✅ sn=", d.frag?.sn));
+        hls.on(Hls.Events.BUFFER_APPENDED,   () => log("HLS", "BUFFER_APPENDED"));
+        hls.on(Hls.Events.ERROR, (_event, data) => {
+          log("HLS", `❌ ERROR fatal=${data.fatal} type=${data.type} details=${data.details}`, data.response ?? "");
+          logVideoState("after-hls-error", v);
+          if (data.fatal) {
+            log("HLS", "💀 FATAL — destroying HLS instance, video will go black");
+            hls.destroy();
+            hlsRef.current = null;
+          }
         });
         hls.loadSource(url);
         hls.attachMedia(v);
         hlsRef.current = hls;
-        hls.on(Hls.Events.ERROR, (_event, data) => {
-          if (data.fatal) { hls.destroy(); hlsRef.current = null; }
-        });
+        log("SOURCE-EFFECT", "HLS instance created and attached");
       } else if (v.canPlayType("application/vnd.apple.mpegurl")) {
-        // Safari native HLS — set src then call load() to initialize the HLS parser.
-        // With preload="none" this does NOT download any data; it just prepares the
-        // element so play() doesn't race with a concurrent internal load() call later.
+        log("SOURCE-EFFECT", "path=Safari native HLS");
         v.src = url;
         v.load();
+        logVideoState("after-native-load()", v);
       }
     } else {
+      log("SOURCE-EFFECT", "path=plain MP4/video");
       v.src = url;
-      v.load(); // same pre-init for regular mp4 — no download with preload="none"
+      v.load();
+      logVideoState("after-plain-load()", v);
     }
 
     return () => {
+      log("SOURCE-EFFECT", "🧹 CLEANUP — destroying HLS + clearing src");
+      logVideoState("before-cleanup", v);
+      v.removeEventListener("loadstart",      onLoadStart);
+      v.removeEventListener("loadedmetadata", onLoadedMeta);
+      v.removeEventListener("canplay",        onCanPlay);
+      v.removeEventListener("canplaythrough", onCanPlayThrough);
+      v.removeEventListener("playing",        onPlaying);
+      v.removeEventListener("waiting",        onWaiting);
+      v.removeEventListener("stalled",        onStalled);
+      v.removeEventListener("abort",          onAbort);
+      v.removeEventListener("emptied",        onEmptied);
+      v.removeEventListener("suspend",        onSuspend);
+      v.removeEventListener("error",          onError);
       hlsRef.current?.destroy();
       hlsRef.current = null;
       v.pause();
       v.removeAttribute("src");
-      v.load(); // release memory held by the previous source
+      v.load();
     };
-  }, [clip.video_url]);
+  }, [clip.video_url]); // eslint-disable-line
 
   // Start/stop HLS segment loading based on whether this card is active
   useEffect(() => {
     const hls = hlsRef.current;
-    if (!hls) return;
-    if (isActive) hls.startLoad(-1);
-    else hls.stopLoad();
-  }, [isActive]);
+    log("ISACTIVE-HLS-EFFECT", `isActive=${isActive} hlsRef=${hls ? "EXISTS" : "NULL"}`);
+    if (!hls) {
+      if (isActive) log("ISACTIVE-HLS-EFFECT", "⚠️ isActive=true but hlsRef is NULL — startLoad will NOT be called");
+      return;
+    }
+    if (isActive) {
+      log("ISACTIVE-HLS-EFFECT", "▶️ calling hls.startLoad(-1)");
+      hls.startLoad(-1);
+    } else {
+      log("ISACTIVE-HLS-EFFECT", "⏸ calling hls.stopLoad()");
+      hls.stopLoad();
+    }
+  }, [isActive]); // eslint-disable-line
 
-  // safePlay — always sets muted before play() to avoid two Safari failure modes:
-  //
-  // 1. NotAllowedError: the source cleanup (v.removeAttribute+v.load) resets the
-  //    muted JS property to match the absent HTML muted attribute (React bug: muted
-  //    prop doesn't write the HTML attribute, only the JS property). If muted is
-  //    false when play() is called, Safari's autoplay policy blocks it.
-  //
-  // 2. AbortError from load()+play() race: previously we called v.load() HERE right
-  //    before play(), which races with the browser's own internal load triggered by
-  //    play(). That race causes an AbortError that, combined with problem #1, meant
-  //    the retry also failed silently. Removed: v.load() is now called in the source
-  //    effect (when src is first set) so it's fully settled before play() is called.
   const safePlay = useCallback(async (el: HTMLVideoElement) => {
-    el.muted = true; // always enforce — muted JS prop may have been reset by v.load()
+    el.muted = true;
+    log("SAFEPLAY", "▶️ calling play()");
+    logVideoState("before-play()", el);
     try {
       await el.play();
-    } catch {
-      // Any error (shouldn't happen now that muted is always true and no load() race)
-      // — wait one frame so any pending internal load can settle, then retry once.
+      log("SAFEPLAY", "✅ play() resolved");
+    } catch (err) {
+      log("SAFEPLAY", "❌ play() rejected:", (err as Error)?.name, (err as Error)?.message);
+      logVideoState("after-play-error", el);
       await new Promise((r) => setTimeout(r, 50));
-      el.play().catch(() => {});
+      log("SAFEPLAY", "🔁 retrying play() after 50ms");
+      logVideoState("before-retry-play()", el);
+      el.play().catch((err2) => {
+        log("SAFEPLAY", "❌ retry also rejected:", (err2 as Error)?.name, (err2 as Error)?.message);
+        logVideoState("after-retry-error", el);
+      });
     }
     setPlaying(true);
-  }, []);
+  }, []); // eslint-disable-line
 
   // Sequenced playback: pre-audio → video → post-audio
   useEffect(() => {
     const v    = videoRef.current;
     const pre  = preAudioRef.current;
     const post = postAudioRef.current;
-    if (!v) return;
+    log("PLAY-EFFECT", `isActive=${isActive} pre_audio=${!!clip.pre_audio_url} pre_ref=${!!pre}`);
+    if (!v) { log("PLAY-EFFECT", "⚠️ videoRef is null, cannot play"); return; }
 
     if (!isActive) {
       v.pause(); v.currentTime = 0;
       if (pre)  { pre.pause();  pre.currentTime  = 0; }
       if (post) { post.pause(); post.currentTime = 0; }
       setPhase("idle");
-      setShowThumb(true); // re-show thumbnail so next activation has no black flash
+      setShowThumb(true);
       return;
     }
 
-    const startVideo = () => { setPhase("video"); safePlay(v); };
+    const startVideo = () => {
+      log("PLAY-EFFECT", "startVideo() called");
+      logVideoState("before-startVideo", v);
+      setPhase("video");
+      safePlay(v);
+    };
 
     if (clip.pre_audio_url && pre) {
+      log("PLAY-EFFECT", "starting pre-audio");
       setPhase("pre");
-      pre.play().catch(startVideo); // if audio blocked (Safari scroll), go straight to video
+      pre.play().catch((err) => {
+        log("PLAY-EFFECT", "pre-audio play() failed, going straight to video:", (err as Error)?.message);
+        startVideo();
+      });
     } else {
       startVideo();
     }
-  }, [isActive, clip.pre_audio_url, safePlay]);
+  }, [isActive, clip.pre_audio_url, safePlay]); // eslint-disable-line
 
   // When pre-audio ends → start video
   const handlePreEnded = useCallback(() => {
