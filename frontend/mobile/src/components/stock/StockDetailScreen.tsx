@@ -25,10 +25,10 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, { Circle, Rect, G, Text as SvgText } from "react-native-svg";
+import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useTheme } from "../../lib/ThemeContext";
-import { useStockDetail, useStockScore, type FinancialPeriod } from "../../hooks/useStockDetail";
-import StockHeader from "./StockHeader";
+import { useStockDetail, useStockScore, useRichFinancials, type FinancialPeriod } from "../../hooks/useStockDetail";
 import StockChart from "../StockChart";
 import StockNews from "./StockNews";
 import StockCompetitors from "./StockCompetitors";
@@ -624,6 +624,7 @@ export default function StockDetailScreen({ ticker }: { ticker: string }) {
   const insets = useSafeAreaInsets();
   const { data, loading, error, refetch } = useStockDetail(ticker);
   const [activeTab, setActiveTab] = useState<TabId>("veredicto");
+  const { data: richFin } = useRichFinancials(ticker, activeTab === "financieros");
 
   function renderContent() {
     if (activeTab === "grafica") {
@@ -675,7 +676,7 @@ export default function StockDetailScreen({ ticker }: { ticker: string }) {
           </View>
         );
       }
-      return <StockFinancials financials={data.financials} ticker={ticker} />;
+      return <StockFinancials financials={data.financials} richFin={richFin ?? undefined} ticker={ticker} />;
     }
 
     if (activeTab === "analistas") {
@@ -712,12 +713,27 @@ export default function StockDetailScreen({ ticker }: { ticker: string }) {
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg, paddingTop: insets.top }}>
-      <StockHeader
-        ticker={ticker}
-        profile={data?.profile}
-        loading={loading}
-        onBack={() => router.back()}
-      />
+      {/* ── Minimal top bar ── */}
+      <View style={[tb.topBar, { borderBottomColor: colors.border }]}>
+        <TouchableOpacity onPress={() => router.back()} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
+          <Ionicons name="chevron-back" size={24} color={colors.text} />
+        </TouchableOpacity>
+        <View style={{ flex: 1, marginLeft: 8 }}>
+          <Text style={[tb.topTicker, { color: colors.text }]}>{ticker}</Text>
+          {data?.profile?.name && (
+            <Text style={[tb.topName, { color: colors.textMuted }]} numberOfLines={1}>
+              {data.profile.name}
+            </Text>
+          )}
+        </View>
+        {data?.profile?.current_price != null && (
+          <Text style={[tb.topPrice, { color: colors.text }]}>
+            ${data.profile.current_price >= 1000
+              ? data.profile.current_price.toLocaleString("en-US", { maximumFractionDigits: 0 })
+              : data.profile.current_price.toFixed(2)}
+          </Text>
+        )}
+      </View>
 
       {/* ── Tab Bar ── */}
       <ScrollView
@@ -779,6 +795,29 @@ const s = StyleSheet.create({
 });
 
 const tb = StyleSheet.create({
+  topBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    gap: 4,
+  },
+  topTicker: {
+    fontSize: 16,
+    fontWeight: "800",
+    letterSpacing: -0.3,
+  },
+  topName: {
+    fontSize: 11,
+    fontWeight: "500",
+    marginTop: 1,
+  },
+  topPrice: {
+    fontSize: 16,
+    fontWeight: "700",
+    letterSpacing: -0.3,
+  },
   barWrap: {
     flexGrow: 0,
     borderBottomWidth: StyleSheet.hairlineWidth,

@@ -11,14 +11,14 @@ import {
 import Svg, { Rect, G, Text as SvgText, Line } from "react-native-svg";
 import { useTheme } from "../../lib/ThemeContext";
 import { marketApi } from "../../lib/api";
-import type { Financials, FinancialPeriod } from "../../hooks/useStockDetail";
+import type { Financials, FinancialPeriod, RichFinancials } from "../../hooks/useStockDetail";
 
 const { width: SCREEN_W } = Dimensions.get("window");
-const CHART_OUTER_PAD = 16;
-const CHART_W = SCREEN_W - CHART_OUTER_PAD * 2; // full card inner width
-const CHART_H = 180;
-const BAR_LABEL_H = 20;
-const DRAWABLE_H = CHART_H - BAR_LABEL_H;
+const PAD = 16;
+const CHART_W = SCREEN_W - PAD * 2;
+const CHART_H = 160;
+const LABEL_H = 18;
+const DRAW_H  = CHART_H - LABEL_H;
 
 // ─── Formatters ───────────────────────────────────────────────────────────────
 
@@ -28,33 +28,39 @@ function fmtBig(n: number | null | undefined): string {
   if (abs >= 1e12) return `$${(n / 1e12).toFixed(1)}T`;
   if (abs >= 1e9)  return `$${(n / 1e9).toFixed(1)}B`;
   if (abs >= 1e6)  return `$${(n / 1e6).toFixed(1)}M`;
+  if (abs >= 1e3)  return `$${(n / 1e3).toFixed(0)}K`;
   return `$${n.toFixed(0)}`;
 }
 
+function fmtPct(n: number | null | undefined): string {
+  if (n == null) return "—";
+  return `${n.toFixed(1)}%`;
+}
+
 function yearLabel(period: string): string {
-  return period.slice(0, 4).slice(-2); // "2024-09" → "'24"
+  const y = period.slice(0, 4);
+  return `'${y.slice(2)}`;
 }
 
-// ─── Bar Chart ────────────────────────────────────────────────────────────────
-
-interface BarDatum {
-  label: string;
-  value: number | null | undefined;
+function yoyChange(curr: number | null | undefined, prev: number | null | undefined): number | null {
+  if (curr == null || prev == null || prev === 0) return null;
+  return ((curr - prev) / Math.abs(prev)) * 100;
 }
 
-function BarChart({ data, positiveColor, muted }: {
-  data: BarDatum[];
-  positiveColor: string;
+// ─── Mini Bar Chart ───────────────────────────────────────────────────────────
+
+function MiniBarChart({ periods, field, accent, muted }: {
+  periods: FinancialPeriod[];
+  field: keyof FinancialPeriod;
+  accent: string;
   muted: string;
 }) {
-  const valid = data.filter((d) => d.value != null && d.value !== 0);
-  if (valid.length < 2) {
-    return (
-      <View style={{ height: CHART_H, alignItems: "center", justifyContent: "center" }}>
-        <Text style={{ color: muted, fontSize: 12 }}>Sin datos</Text>
-      </View>
-    );
-  }
+  const data = periods.slice(-5).map((p) => ({
+    label: yearLabel(p.period),
+    value: p[field] as number | null | undefined,
+  }));
+  const valid = data.filter((d) => d.value != null);
+  if (valid.length < 2) return null;
 
   const maxAbs = Math.max(...valid.map((d) => Math.abs(d.value!)));
   const n = data.length;
@@ -63,56 +69,21 @@ function BarChart({ data, positiveColor, muted }: {
 
   return (
     <Svg width={CHART_W} height={CHART_H}>
-      {/* Baseline */}
-      <Line
-        x1={0} y1={DRAWABLE_H}
-        x2={CHART_W} y2={DRAWABLE_H}
-        stroke={muted}
-        strokeWidth={0.5}
-        opacity={0.4}
-      />
-
+      <Line x1={0} y1={DRAW_H} x2={CHART_W} y2={DRAW_H} stroke={muted} strokeWidth={0.5} opacity={0.4} />
       {data.map((d, i) => {
         const x = i * (barW + gap);
         const val = d.value ?? 0;
-        const barH = maxAbs > 0 ? (Math.abs(val) / maxAbs) * (DRAWABLE_H - 4) : 0;
-        const y = DRAWABLE_H - barH;
-        const color = val < 0 ? "#ef4444" : positiveColor;
-
+        const barH = maxAbs > 0 ? (Math.abs(val) / maxAbs) * (DRAW_H - 4) : 0;
+        const y = DRAW_H - barH;
+        const color = val < 0 ? "#ef4444" : accent;
         return (
           <G key={i}>
-            {barH > 0 && (
-              <Rect
-                x={x}
-                y={y}
-                width={barW}
-                height={barH}
-                rx={4}
-                fill={color}
-                opacity={0.9}
-              />
-            )}
-            {/* Year label */}
-            <SvgText
-              x={x + barW / 2}
-              y={CHART_H - 3}
-              textAnchor="middle"
-              fontSize={10}
-              fill={muted}
-              fontWeight="600"
-            >
+            {barH > 0 && <Rect x={x} y={y} width={barW} height={barH} rx={3} fill={color} opacity={0.85} />}
+            <SvgText x={x + barW / 2} y={CHART_H - 2} textAnchor="middle" fontSize={9} fill={muted} fontWeight="600">
               {d.label}
             </SvgText>
-            {/* Value label above bar */}
-            {barH > 12 && (
-              <SvgText
-                x={x + barW / 2}
-                y={y - 3}
-                textAnchor="middle"
-                fontSize={8.5}
-                fill={color}
-                fontWeight="700"
-              >
+            {barH > 14 && (
+              <SvgText x={x + barW / 2} y={y - 3} textAnchor="middle" fontSize={8} fill={color} fontWeight="700">
                 {fmtBig(val)}
               </SvgText>
             )}
@@ -125,232 +96,180 @@ function BarChart({ data, positiveColor, muted }: {
 
 // ─── Metric Row ───────────────────────────────────────────────────────────────
 
-function MetricRow({ label, data, colors }: {
+function MetricRow({
+  label, periods, field, isMargin = false, indent = false, colors,
+}: {
   label: string;
-  data: BarDatum[];
-  colors: ReturnType<typeof useTheme>["colors"];
-}) {
-  const latest = data[data.length - 1]?.value;
-  const prev   = data[data.length - 2]?.value;
-  const growth = latest != null && prev != null && prev !== 0
-    ? ((latest - prev) / Math.abs(prev)) * 100
-    : null;
-  const isUp   = (growth ?? 0) >= 0;
-
-  return (
-    <View style={[mr.row, { borderTopColor: colors.border }]}>
-      <Text style={[mr.label, { color: colors.textMuted }]}>{label}</Text>
-      <View style={mr.right}>
-        <Text style={[mr.value, { color: colors.text }]}>{fmtBig(latest)}</Text>
-        {growth != null && (
-          <Text style={[mr.growth, { color: isUp ? colors.up : colors.down }]}>
-            {isUp ? "▲" : "▼"} {Math.abs(growth).toFixed(1)}%
-          </Text>
-        )}
-      </View>
-    </View>
-  );
-}
-
-const mr = StyleSheet.create({
-  row: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingVertical: 12,
-    borderTopWidth: StyleSheet.hairlineWidth,
-  },
-  label:  { fontSize: 15, fontWeight: "500" },
-  right:  { flexDirection: "row", alignItems: "center", gap: 10 },
-  value:  { fontSize: 15, fontWeight: "700" },
-  growth: { fontSize: 13, fontWeight: "600" },
-});
-
-// ─── Margin Row (shows % with pp delta) ──────────────────────────────────────
-
-function MarginRow({ annual, field, label, colors }: {
-  annual: FinancialPeriod[];
+  periods: FinancialPeriod[];
   field: keyof FinancialPeriod;
-  label: string;
+  isMargin?: boolean;
+  indent?: boolean;
   colors: ReturnType<typeof useTheme>["colors"];
 }) {
-  const last5 = annual.slice(-5);
+  const last5 = periods.slice(-5);
   const latest = last5[last5.length - 1]?.[field] as number | null | undefined;
   const prev   = last5[last5.length - 2]?.[field] as number | null | undefined;
-  if (latest == null) return null;
-  const delta = prev != null ? latest - prev : null;
-  const isUp  = (delta ?? 0) >= 0;
+  if (latest == null && !isMargin) return null;
+
+  const change = isMargin
+    ? (latest != null && prev != null ? latest - prev : null)
+    : yoyChange(latest, prev);
+  const isUp = (change ?? 0) >= 0;
+  const changeColor = isUp ? colors.up : colors.down;
+
   return (
-    <View style={[mr.row, { borderTopColor: colors.border, paddingLeft: 12, backgroundColor: "rgba(0,0,0,0.018)" }]}>
-      <Text style={[mr.label, { color: colors.textMuted, fontSize: 13, fontStyle: "italic" }]}>{label}</Text>
-      <View style={mr.right}>
-        <Text style={[mr.value, { color: latest >= 0 ? colors.up : colors.down, fontSize: 14 }]}>
-          {latest.toFixed(1)}%
+    <View style={[
+      mrow.row,
+      { borderTopColor: colors.border },
+      indent && { paddingLeft: 20, backgroundColor: "rgba(0,0,0,0.015)" },
+    ]}>
+      <Text style={[mrow.label, { color: indent ? colors.textMuted : colors.text, fontSize: indent ? 12 : 13 }]}>
+        {label}
+      </Text>
+      <View style={mrow.right}>
+        <Text style={[mrow.value, { color: indent ? (latest != null && latest >= 0 ? colors.up : colors.down) : colors.text, fontSize: indent ? 12 : 13 }]}>
+          {latest == null ? "—" : isMargin ? fmtPct(latest) : fmtBig(latest)}
         </Text>
-        {delta != null && (
-          <Text style={[mr.growth, { color: isUp ? colors.up : colors.down, fontSize: 12 }]}>
-            {isUp ? "▲" : "▼"} {Math.abs(delta).toFixed(1)}pp
-          </Text>
+        {change != null && (
+          <View style={[mrow.pill, { backgroundColor: changeColor + "18" }]}>
+            <Text style={[mrow.pillText, { color: changeColor }]}>
+              {isUp ? "▲" : "▼"} {Math.abs(change).toFixed(1)}{isMargin ? "pp" : "%"}
+            </Text>
+          </View>
         )}
       </View>
     </View>
   );
 }
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
+const mrow = StyleSheet.create({
+  row:      { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: 10, borderTopWidth: StyleSheet.hairlineWidth },
+  label:    { flex: 1, fontWeight: "500" },
+  right:    { flexDirection: "row", alignItems: "center", gap: 6 },
+  value:    { fontWeight: "700" },
+  pill:     { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
+  pillText: { fontSize: 10, fontWeight: "700" },
+});
 
-function periodsToBarData(
-  periods: FinancialPeriod[],
-  key: keyof FinancialPeriod,
-): BarDatum[] {
-  return [...periods]
-    .slice(-5)
-    .reverse() // oldest → newest (left → right)
-    .reverse()
-    .map((p) => ({
-      label: yearLabel(p.period),
-      value: p[key] as number | null | undefined,
-    }));
+// ─── Section Header ───────────────────────────────────────────────────────────
+
+function SectionLabel({ title, colors }: { title: string; colors: ReturnType<typeof useTheme>["colors"] }) {
+  return (
+    <Text style={[sl.text, { color: colors.textMuted }]}>{title}</Text>
+  );
 }
+const sl = StyleSheet.create({
+  text: { fontSize: 10, fontWeight: "700", letterSpacing: 0.8, textTransform: "uppercase", paddingHorizontal: PAD, paddingTop: 14, paddingBottom: 6 },
+});
 
-// ─── Tab Content ─────────────────────────────────────────────────────────────
+// ─── AI Analysis ──────────────────────────────────────────────────────────────
 
-function IncomeTab({ annual, ticker }: { annual: FinancialPeriod[]; ticker?: string }) {
-  const { colors } = useTheme();
-  const [aiAnalysis, setAiAnalysis] = useState("");
-  const [aiLoading, setAiLoading]   = useState(false);
-  const aiLoaded = useRef(false);
+function AIAnalysis({ ticker, colors }: { ticker: string; colors: ReturnType<typeof useTheme>["colors"] }) {
+  const [text, setText] = useState("");
+  const [loading, setLoading] = useState(false);
+  const loaded = useRef(false);
 
   useEffect(() => {
-    if (!ticker || aiLoaded.current) return;
-    aiLoaded.current = true;
-    setAiLoading(true);
+    if (loaded.current) return;
+    loaded.current = true;
+    setLoading(true);
     marketApi.getIncomeAnalysis(ticker)
-      .then((r) => setAiAnalysis(r.data?.analysis ?? ""))
+      .then((r) => setText(r.data?.analysis ?? ""))
       .catch(() => {})
-      .finally(() => setAiLoading(false));
+      .finally(() => setLoading(false));
   }, [ticker]);
 
-  const revenue   = useMemo(() => periodsToBarData(annual, "Total Revenue"),        [annual]);
-  const costRev   = useMemo(() => periodsToBarData(annual, "Cost Of Revenue"),       [annual]);
-  const gross     = useMemo(() => periodsToBarData(annual, "Gross Profit"),          [annual]);
-  const opEx      = useMemo(() => periodsToBarData(annual, "Operating Expenses"),    [annual]);
-  const opIncome  = useMemo(() => periodsToBarData(annual, "Operating Income"),      [annual]);
-  const ebitda    = useMemo(() => periodsToBarData(annual, "EBITDA"),                [annual]);
-  const netIncome = useMemo(() => periodsToBarData(annual, "Net Income"),            [annual]);
+  return (
+    <View style={[ai.card, { borderColor: colors.border, backgroundColor: colors.bgRaised }]}>
+      <View style={ai.header}>
+        <Text style={[ai.sparkle, { color: colors.accentLight }]}>✦</Text>
+        <Text style={[ai.title, { color: colors.accentLight }]}>Análisis IA</Text>
+      </View>
+      {loading
+        ? <ActivityIndicator size="small" color={colors.accentLight} style={{ marginTop: 4 }} />
+        : text
+          ? <Text style={[ai.body, { color: colors.textMuted }]}>{text}</Text>
+          : <Text style={[ai.body, { color: colors.textMuted, opacity: 0.5 }]}>Sin análisis disponible</Text>
+      }
+    </View>
+  );
+}
+const ai = StyleSheet.create({
+  card:    { marginHorizontal: PAD, marginTop: 16, borderRadius: 14, borderWidth: 1, padding: 14 },
+  header:  { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 8 },
+  sparkle: { fontSize: 11, fontWeight: "800" },
+  title:   { fontSize: 10, fontWeight: "800", letterSpacing: 0.8, textTransform: "uppercase" },
+  body:    { fontSize: 13, lineHeight: 20 },
+});
 
+// ─── Tab content ──────────────────────────────────────────────────────────────
+
+function IncomeTab({ periods, ticker, colors }: { periods: FinancialPeriod[]; ticker?: string; colors: ReturnType<typeof useTheme>["colors"] }) {
   return (
     <View>
-      <Text style={[tt.chartLabel, { color: colors.textMuted, paddingHorizontal: 16 }]}>Ingresos Totales</Text>
-      <BarChart data={revenue} positiveColor={colors.accentLight} muted={colors.textMuted} />
-      <View style={{ paddingHorizontal: 16 }}>
-        <Text style={[tt.legend, { color: colors.textMuted }]}>▲▼ % = variación vs año anterior</Text>
-        <MetricRow label="Ingresos"            data={revenue}   colors={colors} />
-        <MetricRow label="Costo de Ventas"     data={costRev}   colors={colors} />
-        <MetricRow label="Utilidad Bruta"      data={gross}     colors={colors} />
-        <MarginRow annual={annual} field="Gross Margin %"      label="% Margen Bruto"     colors={colors} />
-        <MetricRow label="Gastos Operativos"   data={opEx}      colors={colors} />
-        <MetricRow label="Utilidad Operativa"  data={opIncome}  colors={colors} />
-        <MarginRow annual={annual} field="Operating Margin %"  label="% Margen Operativo" colors={colors} />
-        <MetricRow label="EBITDA"              data={ebitda}    colors={colors} />
-        <MetricRow label="Utilidad Neta"       data={netIncome} colors={colors} />
-        <MarginRow annual={annual} field="Net Margin %"        label="% Margen Neto"      colors={colors} />
+      <SectionLabel title="Ingresos Totales" colors={colors} />
+      <View style={{ paddingHorizontal: PAD }}>
+        <MiniBarChart periods={periods} field="Total Revenue" accent={colors.accentLight} muted={colors.textMuted} />
       </View>
+      <View style={{ paddingHorizontal: PAD, paddingTop: 4 }}>
+        <MetricRow label="Ingresos Totales"    periods={periods} field="Total Revenue"       colors={colors} />
+        <MetricRow label="Costo de Ventas"     periods={periods} field="Cost Of Revenue"      colors={colors} />
+        <MetricRow label="Utilidad Bruta"      periods={periods} field="Gross Profit"         colors={colors} />
+        <MetricRow label="  Margen Bruto"      periods={periods} field="Gross Margin %"       isMargin indent colors={colors} />
+        <MetricRow label="Gastos Operativos"   periods={periods} field="Operating Expenses"   colors={colors} />
+        <MetricRow label="Utilidad Operativa"  periods={periods} field="Operating Income"     colors={colors} />
+        <MetricRow label="  Margen Operativo"  periods={periods} field="Operating Margin %"   isMargin indent colors={colors} />
+        <MetricRow label="EBITDA"              periods={periods} field="EBITDA"               colors={colors} />
+        <MetricRow label="Utilidad Neta"       periods={periods} field="Net Income"           colors={colors} />
+        <MetricRow label="  Margen Neto"       periods={periods} field="Net Margin %"         isMargin indent colors={colors} />
+        <MetricRow label="EPS Diluido"         periods={periods} field="Diluted EPS"          colors={colors} />
+      </View>
+      {ticker && <AIAnalysis ticker={ticker} colors={colors} />}
+      <View style={{ height: 16 }} />
+    </View>
+  );
+}
 
-      {/* AI Analysis */}
-      <View style={[ais.card, { borderColor: colors.border, backgroundColor: colors.bgRaised }]}>
-        <View style={ais.header}>
-          <Text style={[ais.sparkle, { color: colors.accentLight }]}>✦</Text>
-          <Text style={[ais.title, { color: colors.accentLight }]}>Análisis IA</Text>
-        </View>
-        {aiLoading ? (
-          <ActivityIndicator size="small" color={colors.accentLight} style={{ marginTop: 4 }} />
-        ) : aiAnalysis ? (
-          <Text style={[ais.body, { color: colors.textMuted }]}>{aiAnalysis}</Text>
-        ) : (
-          <Text style={[ais.empty, { color: colors.textMuted }]}>
-            {ticker ? "Sin análisis disponible" : ""}
-          </Text>
-        )}
+function BalanceTab({ periods, colors }: { periods: FinancialPeriod[]; colors: ReturnType<typeof useTheme>["colors"] }) {
+  return (
+    <View>
+      <SectionLabel title="Activos Totales" colors={colors} />
+      <View style={{ paddingHorizontal: PAD }}>
+        <MiniBarChart periods={periods} field="Total Assets" accent={colors.accentLight} muted={colors.textMuted} />
+      </View>
+      <View style={{ paddingHorizontal: PAD, paddingTop: 4 }}>
+        <MetricRow label="Activos Totales"    periods={periods} field="Total Assets"                           colors={colors} />
+        <MetricRow label="Activos Corrientes" periods={periods} field="Current Assets"                         colors={colors} />
+        <MetricRow label="Pasivos Totales"    periods={periods} field="Total Liabilities Net Minority Interest" colors={colors} />
+        <MetricRow label="Patrimonio Neto"    periods={periods} field="Stockholders Equity"                    colors={colors} />
+        <MetricRow label="Deuda Total"        periods={periods} field="Total Debt"                             colors={colors} />
       </View>
       <View style={{ height: 16 }} />
     </View>
   );
 }
 
-const ais = StyleSheet.create({
-  card:    { marginHorizontal: 16, marginTop: 16, borderRadius: 16, borderWidth: 1, padding: 14 },
-  header:  { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 8 },
-  sparkle: { fontSize: 12, fontWeight: "800" },
-  title:   { fontSize: 11, fontWeight: "800", letterSpacing: 0.8, textTransform: "uppercase" },
-  body:    { fontSize: 13, lineHeight: 20 },
-  empty:   { fontSize: 12, opacity: 0.5 },
-});
-
-function BalanceTab({ annual }: { annual: FinancialPeriod[] }) {
-  const { colors } = useTheme();
-
-  const assets      = useMemo(() => periodsToBarData(annual, "Total Assets"), [annual]);
-  const liabilities = useMemo(() => periodsToBarData(annual, "Total Liabilities Net Minority Interest"), [annual]);
-  const equity      = useMemo(() => periodsToBarData(annual, "Stockholders Equity"), [annual]);
-  const debt        = useMemo(() => periodsToBarData(annual, "Total Debt"), [annual]);
-
+function CashFlowTab({ periods, colors }: { periods: FinancialPeriod[]; colors: ReturnType<typeof useTheme>["colors"] }) {
   return (
     <View>
-      <Text style={[tt.chartLabel, { color: colors.textMuted, paddingHorizontal: 16 }]}>Activos Totales</Text>
-      <BarChart data={assets} positiveColor={colors.accentLight} muted={colors.textMuted} />
-      <View style={{ paddingHorizontal: 16 }}>
-        <Text style={[tt.legend, { color: colors.textMuted }]}>▲▼ % = variación vs año anterior</Text>
-        <MetricRow label="Activos Totales"   data={assets}      colors={colors} />
-        <MetricRow label="Pasivos Totales"   data={liabilities} colors={colors} />
-        <MetricRow label="Patrimonio Neto"   data={equity}      colors={colors} />
-        <MetricRow label="Deuda Total"       data={debt}        colors={colors} />
+      <SectionLabel title="Flujo Operativo" colors={colors} />
+      <View style={{ paddingHorizontal: PAD }}>
+        <MiniBarChart periods={periods} field="Operating Cash Flow" accent={colors.accentLight} muted={colors.textMuted} />
       </View>
+      <View style={{ paddingHorizontal: PAD, paddingTop: 4 }}>
+        <MetricRow label="Flujo Operativo"     periods={periods} field="Operating Cash Flow" colors={colors} />
+        <MetricRow label="Flujo de Caja Libre" periods={periods} field="Free Cash Flow"      colors={colors} />
+        <MetricRow label="CapEx"               periods={periods} field="Capital Expenditure" colors={colors} />
+      </View>
+      <View style={{ height: 16 }} />
     </View>
   );
 }
 
-function CashFlowTab({ annual }: { annual: FinancialPeriod[] }) {
-  const { colors } = useTheme();
-
-  const opCF  = useMemo(() => periodsToBarData(annual, "Operating Cash Flow"), [annual]);
-  const fcf   = useMemo(() => periodsToBarData(annual, "Free Cash Flow"), [annual]);
-  const capex = useMemo(() => periodsToBarData(annual, "Capital Expenditure"), [annual]);
-
-  return (
-    <View>
-      <Text style={[tt.chartLabel, { color: colors.textMuted, paddingHorizontal: 16 }]}>Flujo Operativo</Text>
-      <BarChart data={opCF} positiveColor={colors.accentLight} muted={colors.textMuted} />
-      <View style={{ paddingHorizontal: 16 }}>
-        <Text style={[tt.legend, { color: colors.textMuted }]}>▲▼ % = variación vs año anterior</Text>
-        <MetricRow label="Flujo Operativo"     data={opCF}  colors={colors} />
-        <MetricRow label="Flujo de Caja Libre" data={fcf}   colors={colors} />
-        <MetricRow label="CapEx"               data={capex} colors={colors} />
-      </View>
-    </View>
-  );
-}
-
-const tt = StyleSheet.create({
-  chartLabel: {
-    fontSize: 11,
-    fontWeight: "700",
-    letterSpacing: 0.8,
-    textTransform: "uppercase",
-    marginTop: 8,
-    marginBottom: 10,
-  },
-  legend: {
-    fontSize: 9,
-    fontWeight: "500",
-    marginBottom: 4,
-    opacity: 0.7,
-  },
-});
-
-// ─── Main Component ───────────────────────────────────────────────────────────
+// ─── Main ─────────────────────────────────────────────────────────────────────
 
 type SubTab = "income" | "balance" | "cashflow";
+type Period = "annual" | "quarterly";
 
 const SUB_TABS: { key: SubTab; label: string }[] = [
   { key: "income",   label: "Est. Resultados" },
@@ -358,23 +277,81 @@ const SUB_TABS: { key: SubTab; label: string }[] = [
   { key: "cashflow", label: "Flujo de Caja" },
 ];
 
-export default function StockFinancials({ financials, ticker }: { financials: Financials; ticker?: string }) {
+function providerLabel(p?: string): string {
+  if (p === "fiscal_ai") return "Fiscal.ai";
+  if (p === "fmp")       return "Financial Modeling Prep";
+  return "Yahoo Finance";
+}
+
+interface Props {
+  financials: Financials;
+  richFin?: RichFinancials;
+  ticker?: string;
+}
+
+export default function StockFinancials({ financials, richFin, ticker }: Props) {
   const { colors } = useTheme();
-  const [subTab, setSubTab] = useState<SubTab>("income");
+  const [subTab, setSubTab]   = useState<SubTab>("income");
+  const [period, setPeriod]   = useState<Period>("annual");
 
-  const incomeAnnual   = financials.income?.annual   ?? [];
-  const balanceAnnual  = financials.balance?.annual  ?? [];
-  const cashflowAnnual = financials.cashflow?.annual ?? [];
+  // Prefer rich fiscal.ai data; fall back to basic stock-detail data
+  const income = useMemo(() => {
+    const rich = richFin?.incomeStatement?.[period] ?? [];
+    const basic = financials.income?.annual ?? [];
+    return rich.length > 0 ? rich : basic;
+  }, [richFin, financials, period]);
 
-  const hasData = incomeAnnual.length > 0 || balanceAnnual.length > 0 || cashflowAnnual.length > 0;
+  const balance = useMemo(() => {
+    const rich = richFin?.balanceSheet?.[period] ?? [];
+    const basic = financials.balance?.annual ?? [];
+    return rich.length > 0 ? rich : basic;
+  }, [richFin, financials, period]);
+
+  const cashflow = useMemo(() => {
+    const rich = richFin?.cashFlow?.[period] ?? [];
+    const basic = financials.cashflow?.annual ?? [];
+    return rich.length > 0 ? rich : basic;
+  }, [richFin, financials, period]);
+
+  const hasData = income.length > 0 || balance.length > 0 || cashflow.length > 0;
+
+  if (!hasData) {
+    return (
+      <View style={{ alignItems: "center", paddingVertical: 48 }}>
+        <Text style={{ color: colors.textMuted, fontSize: 13 }}>Sin estados financieros</Text>
+      </View>
+    );
+  }
 
   return (
-    <View style={{ paddingVertical: 12 }}>
-      {/* Sub-tab bar */}
+    <View style={{ paddingTop: 12 }}>
+      {/* ── Controls row ── */}
+      <View style={s.controls}>
+        {/* Annual / Quarterly */}
+        <View style={[s.toggle, { backgroundColor: colors.bgRaised, borderColor: colors.border }]}>
+          {(["annual", "quarterly"] as Period[]).map((p) => (
+            <TouchableOpacity
+              key={p}
+              onPress={() => setPeriod(p)}
+              style={[s.toggleBtn, period === p && { backgroundColor: colors.accentGlow }]}
+              activeOpacity={0.7}
+            >
+              <Text style={[s.toggleText, { color: period === p ? colors.accentLight : colors.textMuted }]}>
+                {p === "annual" ? "Anual" : "Trim."}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+        <Text style={[s.source, { color: colors.textMuted }]}>
+          {providerLabel(richFin?.provider ?? financials.source)}
+        </Text>
+      </View>
+
+      {/* ── Sub-tab pills ── */}
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
-        contentContainerStyle={{ paddingHorizontal: 16, gap: 8, paddingBottom: 12 }}
+        contentContainerStyle={{ paddingHorizontal: PAD, gap: 8, paddingBottom: 12 }}
       >
         {SUB_TABS.map((t) => {
           const active = t.key === subTab;
@@ -382,16 +359,10 @@ export default function StockFinancials({ financials, ticker }: { financials: Fi
             <TouchableOpacity
               key={t.key}
               onPress={() => setSubTab(t.key)}
-              style={[
-                s.subTabBtn,
-                {
-                  backgroundColor: active ? colors.accentGlow : colors.bgRaised,
-                  borderColor: active ? colors.accentLight : colors.border,
-                },
-              ]}
+              style={[s.pill, { backgroundColor: active ? colors.accentGlow : colors.bgRaised, borderColor: active ? colors.accentLight : colors.border }]}
               activeOpacity={0.7}
             >
-              <Text style={[s.subTabText, { color: active ? colors.accentLight : colors.textMuted }]}>
+              <Text style={[s.pillText, { color: active ? colors.accentLight : colors.textMuted }]}>
                 {t.label}
               </Text>
             </TouchableOpacity>
@@ -399,39 +370,49 @@ export default function StockFinancials({ financials, ticker }: { financials: Fi
         })}
       </ScrollView>
 
-      {/* Content */}
-      {!hasData ? (
-        <View style={{ alignItems: "center", paddingVertical: 40 }}>
-          <Text style={{ color: colors.textMuted, fontSize: 13 }}>Sin estados financieros</Text>
-        </View>
-      ) : (
-        <View style={[s.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          {subTab === "income"   && <IncomeTab   annual={incomeAnnual} ticker={ticker} />}
-          {subTab === "balance"  && <BalanceTab  annual={balanceAnnual} />}
-          {subTab === "cashflow" && <CashFlowTab annual={cashflowAnnual} />}
-          <View style={{ height: 8 }} />
-        </View>
-      )}
+      {/* ── Content ── */}
+      {subTab === "income"   && <IncomeTab   periods={income}   ticker={ticker} colors={colors} />}
+      {subTab === "balance"  && <BalanceTab  periods={balance}  colors={colors} />}
+      {subTab === "cashflow" && <CashFlowTab periods={cashflow} colors={colors} />}
     </View>
   );
 }
 
 const s = StyleSheet.create({
-  subTabBtn: {
+  controls: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: PAD,
+    paddingBottom: 10,
+    gap: 8,
+  },
+  toggle: {
+    flexDirection: "row",
+    borderRadius: 10,
+    borderWidth: 1,
+    overflow: "hidden",
+  },
+  toggleBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  toggleText: {
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  source: {
+    fontSize: 9,
+    fontWeight: "500",
+  },
+  pill: {
     paddingHorizontal: 14,
     paddingVertical: 7,
     borderRadius: 20,
     borderWidth: 1,
   },
-  subTabText: {
+  pillText: {
     fontSize: 12,
     fontWeight: "700",
-  },
-  card: {
-    borderRadius: 16,
-    borderWidth: 1,
-    marginHorizontal: 16,
-    paddingTop: 12,
-    overflow: "hidden",
   },
 });

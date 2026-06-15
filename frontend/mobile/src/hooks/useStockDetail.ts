@@ -157,6 +157,29 @@ export function useStockDetail(ticker: string) {
   return { data, loading, error, refetch: load };
 }
 
+export interface RichFinancials {
+  provider: string;
+  incomeStatement: { annual: FinancialPeriod[]; quarterly: FinancialPeriod[] };
+  balanceSheet:    { annual: FinancialPeriod[]; quarterly: FinancialPeriod[] };
+  cashFlow:        { annual: FinancialPeriod[]; quarterly: FinancialPeriod[] };
+}
+
+export function useRichFinancials(ticker: string, enabled: boolean) {
+  const [data, setData]       = useState<RichFinancials | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!ticker || !enabled || data) return;
+    setLoading(true);
+    marketApi.getFinancials(ticker, 5)
+      .then((r) => { if (r.data?.incomeStatement) setData(r.data as RichFinancials); })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [ticker, enabled]); // eslint-disable-line
+
+  return { data, loading };
+}
+
 export function useStockScore(ticker: string) {
   const [data, setData]       = useState<StockScore | null>(null);
   const [loading, setLoading] = useState(true);
