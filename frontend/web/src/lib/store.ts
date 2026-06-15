@@ -3,8 +3,9 @@ import { persist, createJSONStorage } from "zustand/middleware";
 import type { UserProfile, ChatMessage, Notification } from "./types";
 import { sync as syncApi } from "./api";
 
-// Storage scoped per-user so each account has its own chat history.
-const userScopedChatStorage = createJSONStorage(() => ({
+// All user-specific data is stored under per-user keys so switching accounts
+// never leaks one user's watchlist, profile, or history to another.
+const userStorage = createJSONStorage(() => ({
   getItem: (name: string) => {
     const uid = useAuthStore.getState().userId ?? "guest";
     return localStorage.getItem(`${name}__${uid}`);
@@ -18,6 +19,8 @@ const userScopedChatStorage = createJSONStorage(() => ({
     localStorage.removeItem(`${name}__${uid}`);
   },
 }));
+// Alias kept for backward compat with the chat store reference below.
+const userScopedChatStorage = userStorage;
 
 // ─── Behavioral risk helpers ────────────────────────────────────────────────
 
@@ -241,6 +244,7 @@ export const useProfileStore = create<ProfileState>()(
     }),
     {
       name: "profile-store",
+      storage: userStorage,
       partialize: (s) => ({
         profile: s.profile,
         maturityScore: s.maturityScore,
@@ -399,7 +403,7 @@ export const useSubscriptionStore = create<SubscriptionState>()(
         }
       },
     }),
-    { name: "subscription-status" }
+    { name: "subscription-status", storage: userStorage }
   )
 );
 
@@ -501,7 +505,7 @@ export const useLearnStore = create<LearnState>()(
         set({ streak: newStreak, lastLearnDate: today, totalCompleted: totalCompleted + 1, completedToday: true });
       },
     }),
-    { name: "learn-store" }
+    { name: "learn-store", storage: userStorage }
   )
 );
 
@@ -535,7 +539,7 @@ export const useWatchlistStore = create<WatchlistState>()(
       },
       has: (ticker) => !!get().items.find((i) => i.ticker === ticker.toUpperCase()),
     }),
-    { name: "watchlist" }
+    { name: "watchlist", storage: userStorage }
   )
 );
 

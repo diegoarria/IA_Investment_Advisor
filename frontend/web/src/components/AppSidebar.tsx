@@ -50,7 +50,8 @@ export default function AppSidebar({ open, onClose }: Props) {
 
   const handleLogout = () => {
     clearAuth();
-    router.push("/");
+    // Full page reload so Zustand stores reinitialize empty for the next user.
+    window.location.href = "/";
   };
   const { profile, behavioralRiskScore } = useProfileStore();
   const { notifications } = useNotificationStore();

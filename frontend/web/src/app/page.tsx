@@ -144,12 +144,13 @@ export default function Home() {
         const refCode = sessionStorage.getItem("nuvos_ref");
         if (refCode) { referralApi.applyCode(refCode).catch(() => {}); sessionStorage.removeItem("nuvos_ref"); }
       }
-      await useChatStore.persist.rehydrate();
       try {
         const p = await profileApi.get();
         setProfile(p.data);
-        router.push("/chat");
-      } catch { router.push("/onboarding"); }
+        // Full reload so every Zustand store reinitializes from the new user's
+        // user-scoped localStorage keys, preventing data leakage between accounts.
+        window.location.href = "/chat";
+      } catch { window.location.href = "/onboarding"; }
     } catch (err: unknown) {
       setError(extractErrorMsg(err) || "Verifica tus credenciales e inténtalo de nuevo.");
     } finally { setLoading(false); }
