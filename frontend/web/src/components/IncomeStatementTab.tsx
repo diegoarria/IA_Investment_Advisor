@@ -1,6 +1,6 @@
 "use client";
 
-import { Sparkles, Loader2, TrendingUp, TrendingDown } from "lucide-react";
+import { TrendingUp, TrendingDown } from "lucide-react";
 
 // ─── Formatters ───────────────────────────────────────────────────────────────
 
@@ -198,17 +198,13 @@ function MarginRow({ rows, field, label, numeratorField, fallbackPct }: MarginRo
 
 interface IncomeStatementTabProps {
   income: Row[];
-  ticker: string;
-  incomeAnalysis: string;
-  loadingAnalysis: boolean;
   grossMarginPct?: number;
   operatingMarginPct?: number;
   netMarginPct?: number;
 }
 
 export default function IncomeStatementTab({
-  income, ticker, incomeAnalysis, loadingAnalysis,
-  grossMarginPct, operatingMarginPct, netMarginPct,
+  income, grossMarginPct, operatingMarginPct, netMarginPct,
 }: IncomeStatementTabProps) {
   const rows = income.slice(-5);
 
@@ -271,28 +267,6 @@ export default function IncomeStatementTab({
         </div>
       </div>
 
-      {/* ── AI Analysis ── */}
-      <div className="p-4 border-t" style={{ borderColor: "var(--border)" }}>
-        <div className="rounded-2xl p-4" style={{ background: "var(--raised)", border: "1px solid var(--border)" }}>
-          <div className="flex items-center gap-2 mb-3">
-            <Sparkles className="w-3.5 h-3.5" style={{ color: "var(--accent-l)" }} />
-            <span className="text-[11px] font-black uppercase tracking-widest" style={{ color: "var(--accent-l)" }}>
-              Análisis IA
-            </span>
-            <span className="text-[10px] ml-auto font-semibold" style={{ color: "var(--dim)" }}>{ticker}</span>
-          </div>
-          {loadingAnalysis ? (
-            <div className="flex items-center gap-2.5">
-              <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" style={{ color: "var(--accent-l)" }} />
-              <span className="text-[12px]" style={{ color: "var(--muted)" }}>Analizando resultados financieros…</span>
-            </div>
-          ) : incomeAnalysis ? (
-            <p className="text-[13px] leading-relaxed" style={{ color: "var(--sub)" }}>{incomeAnalysis}</p>
-          ) : (
-            <p className="text-[12px]" style={{ color: "var(--muted)" }}>Sin análisis disponible</p>
-          )}
-        </div>
-      </div>
     </div>
   );
 }

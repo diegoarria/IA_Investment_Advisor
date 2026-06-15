@@ -1145,9 +1145,6 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
                     {finSection === "income" && (
                       <IncomeStatementTab
                         income={income}
-                        ticker={ticker}
-                        incomeAnalysis={incomeAnalysis}
-                        loadingAnalysis={loadingAnalysis}
                         grossMarginPct={profile?.gross_margins ?? undefined}
                         operatingMarginPct={profile?.operating_margins ?? undefined}
                         netMarginPct={profile?.profit_margins ?? undefined}
