@@ -4,7 +4,7 @@ import { useState, useRef } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import {
   BookOpen, PieChart, BarChart2, Bell, User, GraduationCap,
-  MessageSquare, ChevronLeft, ChevronRight, Plus, X, HeadphonesIcon, GripVertical, Eye, Play, ArrowRight, Lock,
+  MessageSquare, ChevronLeft, ChevronRight, Plus, X, HeadphonesIcon, GripVertical, Eye, Play, ArrowRight, Lock, LogOut,
 } from "lucide-react";
 
 const COACHING_URL = "https://calendly.com/diego-arria19/sesion-1-1-con-diego-nuvos-ai"; // ← actualiza con tu link real
@@ -46,7 +46,12 @@ interface Props {
 export default function AppSidebar({ open, onClose }: Props) {
   const router = useRouter();
   const pathname = usePathname();
-  const { isAuthenticated } = useAuthStore();
+  const { isAuthenticated, clearAuth } = useAuthStore();
+
+  const handleLogout = () => {
+    clearAuth();
+    router.push("/");
+  };
   const { profile, behavioralRiskScore } = useProfileStore();
   const { notifications } = useNotificationStore();
   const subStore = useSubscriptionStore();
@@ -348,6 +353,15 @@ export default function AppSidebar({ open, onClose }: Props) {
             </div>
             <ArrowRight className="w-3 h-3 shrink-0" style={{ color: "var(--muted)" }} />
           </a>
+
+          {/* Logout */}
+          <button
+            onClick={handleLogout}
+            className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl mt-2 transition-colors hover:bg-red-500/10 group"
+          >
+            <LogOut className="w-3.5 h-3.5 shrink-0 text-red-400 group-hover:text-red-500" />
+            <span className="text-[12px] font-semibold text-red-400 group-hover:text-red-500">Cerrar sesión</span>
+          </button>
 
         </div>
       </aside>
