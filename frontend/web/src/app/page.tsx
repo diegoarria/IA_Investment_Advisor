@@ -36,6 +36,15 @@ export default function Home() {
   const [checking, setChecking] = useState(true);
   const [existingUserName, setExistingUserName] = useState<string | null>(null);
 
+  // Pydantic v2 returns detail as an array of {type,loc,msg,input} objects on 422s.
+  // Rendering a non-string in JSX causes React error #31, so we always extract a string.
+  const extractErrorMsg = (err: unknown): string => {
+    const detail = (err as { response?: { data?: { detail?: unknown } } })?.response?.data?.detail;
+    if (typeof detail === "string") return detail;
+    if (Array.isArray(detail) && detail.length > 0) return String(detail[0]?.msg ?? detail[0]);
+    return "";
+  };
+
   const router = useRouter();
   const { setAuth } = useAuthStore();
   const { setProfile } = useProfileStore();
@@ -104,8 +113,7 @@ export default function Home() {
         setForgotDone(true);
       }
     } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
-      setError(msg || "Ocurrió un error. Inténtalo de nuevo.");
+      setError(extractErrorMsg(err) || "Ocurrió un error. Inténtalo de nuevo.");
     } finally { setLoading(false); }
   };
 
@@ -144,8 +152,7 @@ export default function Home() {
         router.push("/chat");
       } catch { router.push("/onboarding"); }
     } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
-      setError(msg || "Verifica tus credenciales e inténtalo de nuevo.");
+      setError(extractErrorMsg(err) || "Verifica tus credenciales e inténtalo de nuevo.");
     } finally { setLoading(false); }
   };
 
