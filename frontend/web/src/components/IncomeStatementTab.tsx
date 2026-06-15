@@ -84,7 +84,7 @@ interface ValueRowProps {
   isEPS?: boolean;
 }
 
-function ValueRow({ rows, field, label, isTotal, isNeg, zeroAsDash, showGrowth, indent, isEPS }: ValueRowProps) {
+function ValueRow({ rows, field, label, isTotal, zeroAsDash, showGrowth, indent, isEPS }: ValueRowProps) {
   const vals = rows.map((r) => {
     const v = safeNum(r[field]);
     return zeroAsDash && v === 0 ? null : v;
@@ -108,9 +108,7 @@ function ValueRow({ rows, field, label, isTotal, isNeg, zeroAsDash, showGrowth, 
         const isLast = i === vals.length - 1;
         const prev = i > 0 ? vals[i - 1] : null;
         const growth = showGrowth && v != null && prev != null ? pctChange(v, prev) : null;
-        const color = v == null ? "var(--dim)"
-          : isNeg ? (v <= 0 ? "#ef4444" : "#22c55e")
-          : "var(--text)";
+        const color = v == null ? "var(--dim)" : "var(--text)";
         return (
           <div key={i} className="flex-1 flex flex-col items-end justify-center gap-0.5 px-4 py-2.5"
                style={{ background: isLast ? "rgba(0,168,94,0.04)" : undefined, borderLeft: "1px solid var(--border)" }}>
@@ -162,12 +160,7 @@ function MarginRow({ rows, field, label, numeratorField, fallbackPct }: MarginRo
   });
   if (!pairs.some((p) => p.pct != null)) return null;
 
-  const marginColor = (v: number) => {
-    if (v >= 40) return "#22c55e";
-    if (v >= 15) return "#f59e0b";
-    if (v >= 0)  return "var(--muted)";
-    return "#ef4444";
-  };
+  const marginColor = (v: number) => v >= 0 ? "#22c55e" : "#ef4444";
 
   return (
     <div className="flex items-stretch border-b"
