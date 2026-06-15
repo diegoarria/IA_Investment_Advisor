@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Image from "next/image";
 import {
   Eye, X, RefreshCw, Search, Menu, LogOut,
-  TrendingUp, TrendingDown, Lock, Plus,
+  TrendingUp, TrendingDown, Lock, Plus, GripVertical,
 } from "lucide-react";
 import { watchlist as watchlistApi, market as marketApi } from "@/lib/api";
 import { useAuthStore, useSubscriptionStore, useProfileStore } from "@/lib/store";
@@ -47,6 +47,7 @@ interface SearchResult {
 
 const FREE_LIMIT = 30;
 const CACHE_KEY = "nuvos_watchlist_cache";
+const ORDER_KEY = "nuvos_watchlist_order";
 
 function readCache(): WatchlistItem[] {
   if (typeof window === "undefined") return [];
@@ -58,6 +59,23 @@ function readCache(): WatchlistItem[] {
 
 function writeCache(items: WatchlistItem[]) {
   try { localStorage.setItem(CACHE_KEY, JSON.stringify(items)); } catch {}
+}
+
+function readOrder(): string[] {
+  try { return JSON.parse(localStorage.getItem(ORDER_KEY) || "[]"); } catch { return []; }
+}
+
+function writeOrder(tickers: string[]) {
+  try { localStorage.setItem(ORDER_KEY, JSON.stringify(tickers)); } catch {}
+}
+
+function applyOrder(data: WatchlistItem[], order: string[]): WatchlistItem[] {
+  if (!order.length) return data;
+  const map = new Map(data.map((i) => [i.ticker, i]));
+  const sorted: WatchlistItem[] = [];
+  for (const t of order) { if (map.has(t)) { sorted.push(map.get(t)!); map.delete(t); } }
+  for (const i of map.values()) sorted.push(i); // new items appended at end
+  return sorted;
 }
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -151,9 +169,16 @@ interface StockCardProps {
   item: WatchlistItem;
   onDelete: (ticker: string) => void;
   onSelect: (ticker: string) => void;
+  draggable?: boolean;
+  isDragging?: boolean;
+  isDragOver?: boolean;
+  onDragStart?: (e: React.DragEvent) => void;
+  onDragOver?: (e: React.DragEvent) => void;
+  onDrop?: () => void;
+  onDragEnd?: () => void;
 }
 
-function StockCard({ item, onDelete, onSelect }: StockCardProps) {
+function StockCard({ item, onDelete, onSelect, draggable: isDraggable, isDragging, isDragOver, onDragStart, onDragOver, onDrop, onDragEnd }: StockCardProps) {
   const isUp = item.change_pct >= 0;
   const borderColor = isUp ? "rgba(34,197,94,0.5)" : "rgba(239,68,68,0.5)";
   const priceColor = isUp ? "#22c55e" : "#ef4444";
@@ -165,14 +190,29 @@ function StockCard({ item, onDelete, onSelect }: StockCardProps) {
 
   return (
     <div
-      className="rounded-xl p-3 flex items-center gap-2.5 relative overflow-hidden cursor-pointer"
+      draggable={isDraggable}
+      onDragStart={onDragStart}
+      onDragOver={onDragOver}
+      onDrop={onDrop}
+      onDragEnd={onDragEnd}
+      className="rounded-xl p-3 flex items-center gap-2.5 relative overflow-hidden cursor-pointer group"
       onClick={() => onSelect(item.ticker)}
       style={{
         background: "var(--card)",
         border: "1px solid var(--border)",
         borderLeft: `2px solid ${borderColor}`,
+        opacity: isDragging ? 0.35 : 1,
+        transition: "opacity 0.15s",
       }}
     >
+      {/* Drag handle */}
+      {isDraggable && (
+        <GripVertical
+          className="w-3.5 h-3.5 shrink-0 opacity-0 group-hover:opacity-30 transition-opacity"
+          style={{ color: "var(--muted)", cursor: "grab" }}
+        />
+      )}
+
       {/* Avatar */}
       <StockAvatar ticker={item.ticker} logoUrl={item.logo_url} />
 
@@ -311,6 +351,9 @@ export default function WatchlistPage() {
   const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null);
   const [secondsSince, setSecondsSince] = useState(0);
 
+  const [dragIndex, setDragIndex]     = useState<number | null>(null);
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+
   const [toast, setToast] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<"basic" | "advanced">(() => {
     if (typeof window === "undefined") return "basic";
@@ -329,8 +372,9 @@ export default function WatchlistPage() {
       // Guard: if server returns empty but cache has items, treat as a transient
       // backend failure — keep showing cached items, don't overwrite with []
       if (data.length === 0 && readCache().length > 0) return;
-      setItems(data);
-      writeCache(data);
+      const ordered = applyOrder(data, readOrder());
+      setItems(ordered);
+      writeCache(ordered);
       setLastRefreshed(new Date());
       setSecondsSince(0);
     } catch {
@@ -441,6 +485,40 @@ export default function WatchlistPage() {
       showToast("Error al eliminar");
     }
   };
+
+  // ── Drag-and-drop reorder (basic view only) ──────────────────────────────
+  const handleDragStart = (e: React.DragEvent, index: number) => {
+    e.dataTransfer.effectAllowed = "move";
+    setDragIndex(index);
+  };
+
+  const handleDragOver = (e: React.DragEvent, index: number) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    const insertBefore = e.clientY < rect.top + rect.height / 2;
+    setDragOverIndex(insertBefore ? index : index + 1);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    if (dragIndex === null || dragOverIndex === null) return;
+    let target = dragOverIndex;
+    if (dragIndex < target) target--;
+    if (target === dragIndex) { setDragIndex(null); setDragOverIndex(null); return; }
+    setItems((prev) => {
+      const next = [...prev];
+      const [moved] = next.splice(dragIndex, 1);
+      next.splice(target, 0, moved);
+      writeOrder(next.map((i) => i.ticker));
+      writeCache(next);
+      return next;
+    });
+    setDragIndex(null);
+    setDragOverIndex(null);
+  };
+
+  const handleDragEnd = () => { setDragIndex(null); setDragOverIndex(null); };
 
   const lastUpdatedText = lastRefreshed
     ? secondsSince < 5
@@ -677,14 +755,30 @@ export default function WatchlistPage() {
               </div>
             ) : (
               <div className="space-y-1.5">
-                {items.map((item) => (
-                  <StockCard
-                    key={item.ticker}
-                    item={item}
-                    onDelete={handleConfirmDelete}
-                    onSelect={setSelectedStock}
-                  />
+                {items.map((item, index) => (
+                  <div key={item.ticker}>
+                    {/* Drop indicator line above this card */}
+                    {dragOverIndex === index && dragIndex !== index && dragIndex !== index - 1 && (
+                      <div className="mx-2 mb-1.5 rounded-full" style={{ height: 2, background: "var(--accent-l)" }} />
+                    )}
+                    <StockCard
+                      item={item}
+                      onDelete={handleConfirmDelete}
+                      onSelect={setSelectedStock}
+                      draggable
+                      isDragging={dragIndex === index}
+                      isDragOver={dragOverIndex === index}
+                      onDragStart={(e) => handleDragStart(e, index)}
+                      onDragOver={(e) => handleDragOver(e, index)}
+                      onDrop={handleDrop}
+                      onDragEnd={handleDragEnd}
+                    />
+                  </div>
                 ))}
+                {/* Drop indicator at the very end */}
+                {dragOverIndex === items.length && (
+                  <div className="mx-2 mt-1.5 rounded-full" style={{ height: 2, background: "var(--accent-l)" }} />
+                )}
               </div>
             )}
 
