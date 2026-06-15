@@ -1,6 +1,6 @@
 import React from "react";
 import { View, Text, StyleSheet, Dimensions } from "react-native";
-import Svg, { Line, Circle, Rect } from "react-native-svg";
+import Svg, { Circle, Rect, Text as SvgText } from "react-native-svg";
 import { useTheme } from "../../lib/ThemeContext";
 import type { Analyst } from "../../hooks/useStockDetail";
 
@@ -147,15 +147,15 @@ function PriceTargetBar({
 
         {/* Labels below */}
         {/* Low */}
-        <Svg.Text x={xLow} y={42} textAnchor="middle" fontSize={9} fill={colors.textMuted} fontWeight="600">
+        <SvgText x={xLow} y={42} textAnchor="middle" fontSize={9} fill={colors.textMuted} fontWeight="600">
           {fmtPrice(low)}
-        </Svg.Text>
+        </SvgText>
         {/* Current */}
-        <Svg.Text x={xCur} y={42} textAnchor="middle" fontSize={9} fill={colors.text} fontWeight="700">
+        <SvgText x={xCur} y={42} textAnchor="middle" fontSize={9} fill={colors.text} fontWeight="700">
           {fmtPrice(current)}
-        </Svg.Text>
+        </SvgText>
         {/* Mean */}
-        <Svg.Text
+        <SvgText
           x={xMean}
           y={42}
           textAnchor="middle"
@@ -164,11 +164,11 @@ function PriceTargetBar({
           fontWeight="700"
         >
           {fmtPrice(mean)}
-        </Svg.Text>
+        </SvgText>
         {/* High */}
-        <Svg.Text x={xHigh} y={42} textAnchor="middle" fontSize={9} fill={colors.textMuted} fontWeight="600">
+        <SvgText x={xHigh} y={42} textAnchor="middle" fontSize={9} fill={colors.textMuted} fontWeight="600">
           {fmtPrice(high)}
-        </Svg.Text>
+        </SvgText>
       </Svg>
 
       {/* Legend */}
