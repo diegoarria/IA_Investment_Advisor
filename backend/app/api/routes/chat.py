@@ -1,5 +1,7 @@
 import asyncio
 import concurrent.futures
+
+_ENRICH_POOL = concurrent.futures.ThreadPoolExecutor(max_workers=4, thread_name_prefix="chat-enrich")
 import re
 import json
 from datetime import datetime, timedelta, timezone
@@ -86,19 +88,18 @@ def _extract_bscore(reply: str) -> tuple[str, dict | None]:
 
 def _enrich_message(message: str) -> str:
     """Prepend global market context + append per-company context. Both fetched in parallel."""
-    with concurrent.futures.ThreadPoolExecutor(max_workers=2) as ex:
-        f_global  = ex.submit(get_global_market_context)
-        f_company = ex.submit(get_market_context_for_message, message)
-        global_ctx  = ""
-        company_ctx = ""
-        try:
-            global_ctx = f_global.result(timeout=12)
-        except Exception:
-            pass
-        try:
-            company_ctx = f_company.result(timeout=12)
-        except Exception:
-            pass
+    f_global  = _ENRICH_POOL.submit(get_global_market_context)
+    f_company = _ENRICH_POOL.submit(get_market_context_for_message, message)
+    global_ctx  = ""
+    company_ctx = ""
+    try:
+        global_ctx = f_global.result(timeout=12)
+    except Exception:
+        pass
+    try:
+        company_ctx = f_company.result(timeout=12)
+    except Exception:
+        pass
     parts = [message]
     if global_ctx:
         parts.append("\n\n" + global_ctx)
