@@ -10,7 +10,7 @@ import {
 const COACHING_URL = "https://calendly.com/diego-arria19/sesion-1-1-con-diego-nuvos-ai"; // ← actualiza con tu link real
 import {
   useProfileStore, useNotificationStore, useSubscriptionStore,
-  useChatStore, msgsRemaining, FREE_MSG_LIMIT,
+  useChatStore,
 } from "@/lib/store";
 import { getUserLevel, isAtLeast, LEVEL_LABEL, LEVEL_COLOR, type UserLevel } from "@/lib/userLevel";
 import PaywallModal from "@/components/PaywallModal";
@@ -73,9 +73,6 @@ export default function AppSidebar({ open, onClose }: Props) {
   const orderedNav = navOrder.map((href) => NAV.find((n) => n.href === href)!).filter(Boolean);
   const userLevel  = getUserLevel(profile);
   const isPremium      = subStore.tier === "premium";
-  const isTrialPremium = subStore.isTrialPremium;
-  const trialDaysLeft  = subStore.trialDaysLeft;
-  const remaining      = msgsRemaining(subStore);
   const unreadCount = notifications.filter((n) => !n.read).length;
 
   const navigate = (href: string) => { router.push(href); onClose(); };
@@ -150,47 +147,6 @@ export default function AppSidebar({ open, onClose }: Props) {
           </button>
         </div>
 
-        {/* Premium / Trial header strip — always visible at top */}
-        {isPremium && isTrialPremium ? (
-          <div className="px-3 pb-2 pt-1 shrink-0">
-            <div className="rounded-xl px-3 py-2" style={{ background: "rgba(0,168,94,0.08)", border: "1px solid rgba(0,212,126,0.2)" }}>
-              <div className="flex items-center justify-between mb-1">
-                <span className="text-[10px] font-bold uppercase tracking-wide" style={{ color: "var(--accent-l)" }}>
-                  ✦ Premium Gratis
-                </span>
-                <span className="text-[10px] font-semibold" style={{ color: "var(--muted)" }}>
-                  {trialDaysLeft}d restantes
-                </span>
-              </div>
-              <div className="h-1 rounded-full overflow-hidden mb-1.5" style={{ background: "var(--border)" }}>
-                <div className="h-full rounded-full transition-all"
-                     style={{ width: `${Math.round((trialDaysLeft / 90) * 100)}%`, background: "var(--grad-green)" }} />
-              </div>
-              <button onClick={() => setPaywallOpen(true)}
-                      className="w-full text-[9px] font-semibold transition-colors hover:opacity-80"
-                      style={{ color: "var(--accent-l)" }}>
-                Suscribirse para no perder acceso →
-              </button>
-            </div>
-          </div>
-        ) : !isPremium ? (
-          <div className="px-3 pb-2 pt-1 shrink-0">
-            <button onClick={() => setPaywallOpen(true)}
-                    className="w-full rounded-xl px-3 py-2 text-left transition-all hover:border-[var(--accent-l)]"
-                    style={{ background: "var(--raised)", border: "1px solid var(--border)" }}>
-              <div className="flex items-center justify-between mb-1">
-                <span className="text-[9px] font-semibold uppercase tracking-wide" style={{ color: "var(--muted)" }}>Mensajes hoy · {remaining}/{FREE_MSG_LIMIT}</span>
-                <span className="text-[9px] font-bold" style={{ color: remaining < 5 ? "var(--down)" : "var(--accent-l)" }}>
-                  Activar Premium →
-                </span>
-              </div>
-              <div className="h-1 rounded-full overflow-hidden" style={{ background: "var(--border)" }}>
-                <div className="h-full rounded-full transition-all"
-                     style={{ width: `${Math.round(((FREE_MSG_LIMIT - remaining) / FREE_MSG_LIMIT) * 100)}%`, background: remaining < 5 ? "var(--down)" : "var(--grad-green)" }} />
-              </div>
-            </button>
-          </div>
-        ) : null}
 
         {/* Profile widget — compact: avatar + name + badges only */}
         {profile && (
