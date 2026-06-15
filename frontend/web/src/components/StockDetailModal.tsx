@@ -658,6 +658,15 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
   const [incomeAnalysis, setIncomeAnalysis] = useState<string>("");
   const [loadingAnalysis, setLoadingAnalysis] = useState(false);
 
+  // Rich financials from /api/stocks/{ticker}/financials (uses income_stmt, not quoteSummary)
+  type RichFinancials = {
+    incomeStatement: { annual: Record<string, unknown>[]; quarterly: Record<string, unknown>[] };
+    balanceSheet:    { annual: Record<string, unknown>[]; quarterly: Record<string, unknown>[] };
+    cashFlow:        { annual: Record<string, unknown>[]; quarterly: Record<string, unknown>[] };
+    provider: string;
+  };
+  const [richFin, setRichFin] = useState<RichFinancials | null>(null);
+
   const [peers, setPeers] = useState<Peer[]>([]);
   const [loadingPeers, setLoadingPeers] = useState(false);
 
@@ -707,6 +716,14 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
       .catch(() => setChartError(true))
       .finally(() => setLoadingChart(false));
   }, [ticker, period]); // eslint-disable-line
+
+  // Lazy-load rich financials (income_stmt source) when financials tab opens
+  useEffect(() => {
+    if (tab !== "financials" || richFin) return;
+    marketApi.getFinancials(ticker, 5)
+      .then((r) => setRichFin(r.data as RichFinancials))
+      .catch(() => {});
+  }, [tab, ticker]); // eslint-disable-line
 
   // Lazy-load AI income analysis when financials tab is opened
   useEffect(() => {
@@ -1062,9 +1079,10 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
                 </div>
               ) : (() => {
                 const src = finPeriod === "annual" ? "annual" : "quarterly";
-                const income   = (data?.financials?.income?.[src]   ?? []).slice().reverse();
-                const balance  = (data?.financials?.balance?.[src]  ?? []).slice().reverse();
-                const cashflow = (data?.financials?.cashflow?.[src] ?? []).slice().reverse();
+                // Use rich financials (income_stmt) when available — fixes COGS/OpIncome = 0 from quoteSummary
+                const income   = (richFin?.incomeStatement?.[src] ?? data?.financials?.income?.[src]   ?? []).slice().reverse();
+                const balance  = (richFin?.balanceSheet?.[src]    ?? data?.financials?.balance?.[src]  ?? []).slice().reverse();
+                const cashflow = (richFin?.cashFlow?.[src]        ?? data?.financials?.cashflow?.[src] ?? []).slice().reverse();
 
                 if (!income.length && !balance.length && !cashflow.length) {
                   return <p className="text-xs text-center py-10" style={{ color: "var(--muted)" }}>Sin datos financieros</p>;
