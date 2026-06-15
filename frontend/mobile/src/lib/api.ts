@@ -315,4 +315,9 @@ export const portfolioLeaderboardApi = {
     api.get("/api/leaderboard", { params: { period } }),
 };
 
+export const investorsApi = {
+  list: () => api.get("/api/investors"),
+  getHoldings: (investorId: string) => api.get(`/api/investors/${investorId}`),
+};
+
 export default api;

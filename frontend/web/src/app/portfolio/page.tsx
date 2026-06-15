@@ -14,7 +14,6 @@ import { usePortfolioStore, type Position } from "@/lib/portfolioStore";
 import AdvancedStockTable from "@/components/AdvancedStockTable";
 import type { AdvancedRow } from "@/components/AdvancedStockTable";
 import StockDetailModal from "@/components/StockDetailModal";
-import WhatIfSimulator from "@/components/WhatIfSimulator";
 import MonthlyReport from "@/components/MonthlyReport";
 import WeeklyScreenerCard from "@/components/WeeklyScreenerCard";
 import PortfolioLeaderboard from "@/components/PortfolioLeaderboard";
@@ -2299,17 +2298,6 @@ export default function PortfolioPage() {
                     onUnlock={() => setPaywallOpen(true)}
                   />
               }
-
-              <WhatIfSimulator
-                positions={positions.map((p) => ({
-                  ticker: p.ticker, name: p.name, shares: p.shares,
-                  avg_cost: p.avgPrice,
-                  current_price: prices[p.ticker]?.price ?? 0,
-                  value: (p.shares || 0) * (prices[p.ticker]?.price ?? p.avgPrice),
-                }))}
-                isPremium={isPremium}
-                onUpgrade={() => setPaywallOpen(true)}
-              />
 
               <WeeklyScreenerCard isPremium={isPremium} onUpgrade={() => setPaywallOpen(true)} tickers={positions.map(p => p.ticker)} />
 

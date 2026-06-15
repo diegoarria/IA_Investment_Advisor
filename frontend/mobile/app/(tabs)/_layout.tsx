@@ -25,6 +25,7 @@ const TAB_CONFIG: Record<string, { icon: IoniconName; iconFilled: IoniconName; l
   watchlist:     { icon: "eye-outline",           iconFilled: "eye",           label: "Watchlist" },
   learn:         { icon: "school-outline",        iconFilled: "school",        label: "Aprendizaje" },
   paper:         { icon: "bar-chart-outline",     iconFilled: "bar-chart",     label: "Simulador" },
+  investors:     { icon: "people-outline",        iconFilled: "people",        label: "Inversores" },
   profile:       { icon: "person-outline",        iconFilled: "person",        label: "Perfil" },
   notifications: { icon: "notifications-outline", iconFilled: "notifications", label: "Notificaciones" },
   videos:        { icon: "play-circle-outline",   iconFilled: "play-circle",   label: "Videos" },
@@ -285,6 +286,7 @@ export default function TabsLayout() {
       <Tabs.Screen name="profile"   options={{ title: "Perfil",        header: () => <MobileHeader title="Mi Perfil" /> }} />
       <Tabs.Screen name="notifications" options={{ title: "Notificaciones", header: () => <MobileHeader title="Notificaciones" /> }} />
       <Tabs.Screen name="videos"    options={{ title: "Videos",   header: () => <MobileHeader title="Videos" /> }} />
+      <Tabs.Screen name="investors"  options={{ title: "Inversores", header: () => <MobileHeader title="Inversores" /> }} />
       <Tabs.Screen name="explore"   options={{ href: null }} />
       <Tabs.Screen name="support"   options={{ title: "Soporte",  header: () => <MobileHeader title="Soporte" /> }} />
     </Tabs>
