@@ -683,6 +683,7 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
     setData(null);
     setScore(null);
     setDataError(false);
+    setRichFin(null);  // reset on every ticker change
     marketApi.getStockDetail(ticker, true)
       .then((r) => {
         const d = r.data;
@@ -1079,10 +1080,17 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
                 </div>
               ) : (() => {
                 const src = finPeriod === "annual" ? "annual" : "quarterly";
-                // Use rich financials (income_stmt) when available — fixes COGS/OpIncome = 0 from quoteSummary
-                const income   = (richFin?.incomeStatement?.[src] ?? data?.financials?.income?.[src]   ?? []).slice().reverse();
-                const balance  = (richFin?.balanceSheet?.[src]    ?? data?.financials?.balance?.[src]  ?? []).slice().reverse();
-                const cashflow = (richFin?.cashFlow?.[src]        ?? data?.financials?.cashflow?.[src] ?? []).slice().reverse();
+                // richFin already comes oldest→newest from /financials endpoint
+                // Legacy stock-detail data comes newest→oldest and needs .reverse()
+                const income   = richFin?.incomeStatement?.[src]
+                  ? [...richFin.incomeStatement[src]]
+                  : (data?.financials?.income?.[src]   ?? []).slice().reverse();
+                const balance  = richFin?.balanceSheet?.[src]
+                  ? [...richFin.balanceSheet[src]]
+                  : (data?.financials?.balance?.[src]  ?? []).slice().reverse();
+                const cashflow = richFin?.cashFlow?.[src]
+                  ? [...richFin.cashFlow[src]]
+                  : (data?.financials?.cashflow?.[src] ?? []).slice().reverse();
 
                 if (!income.length && !balance.length && !cashflow.length) {
                   return <p className="text-xs text-center py-10" style={{ color: "var(--muted)" }}>Sin datos financieros</p>;
