@@ -10,7 +10,7 @@ import random
 import string
 from fastapi import APIRouter, Depends, HTTPException
 from app.api.deps import get_current_user_id
-from app.core.database import get_supabase
+from app.core.database import get_supabase, run_query
 
 router = APIRouter(prefix="/referral", tags=["referral"])
 
@@ -35,15 +35,19 @@ def _generate_code() -> str:
     return "".join(random.choices(chars, k=8))
 
 
-def _ensure_code(user_id: str) -> str:
+async def _ensure_code(user_id: str) -> str:
     db = get_supabase()
-    row = db.table("user_profiles").select("referral_code").eq("user_id", user_id).single().execute()
+    row = await run_query(
+        db.table("user_profiles").select("referral_code").eq("user_id", user_id).single()
+    )
     code = (row.data or {}).get("referral_code")
     if not code:
         for _ in range(5):
             candidate = _generate_code()
             try:
-                db.table("user_profiles").update({"referral_code": candidate}).eq("user_id", user_id).execute()
+                await run_query(
+                    db.table("user_profiles").update({"referral_code": candidate}).eq("user_id", user_id)
+                )
                 code = candidate
                 break
             except Exception:
@@ -53,16 +57,18 @@ def _ensure_code(user_id: str) -> str:
 
 @router.get("/code")
 async def get_code(user_id: str = Depends(get_current_user_id)):
-    code = _ensure_code(user_id)
+    code = await _ensure_code(user_id)
     return {"code": code, "link": f"https://nuvosai.app/join?ref={code}"}
 
 
 @router.get("/stats")
 async def get_stats(user_id: str = Depends(get_current_user_id)):
     db = get_supabase()
-    row = db.table("user_profiles").select("referral_code, referred_count").eq("user_id", user_id).single().execute()
+    row = await run_query(
+        db.table("user_profiles").select("referral_code, referred_count").eq("user_id", user_id).single()
+    )
     data = row.data or {}
-    code = data.get("referral_code") or _ensure_code(user_id)
+    code = data.get("referral_code") or await _ensure_code(user_id)
     count = int(data.get("referred_count") or 0)
     return {
         "code": code,
@@ -82,7 +88,9 @@ async def apply_referral(body: dict, user_id: str = Depends(get_current_user_id)
     db = get_supabase()
 
     # Find referrer
-    result = db.table("user_profiles").select("user_id, referred_count").eq("referral_code", code).execute()
+    result = await run_query(
+        db.table("user_profiles").select("user_id, referred_count").eq("referral_code", code)
+    )
     if not result.data:
         raise HTTPException(status_code=404, detail="Código inválido")
 
@@ -93,13 +101,19 @@ async def apply_referral(body: dict, user_id: str = Depends(get_current_user_id)
         raise HTTPException(status_code=400, detail="No puedes referirte a ti mismo")
 
     # Check new user hasn't already been referred
-    my_row = db.table("user_profiles").select("referred_by").eq("user_id", user_id).single().execute()
+    my_row = await run_query(
+        db.table("user_profiles").select("referred_by").eq("user_id", user_id).single()
+    )
     if (my_row.data or {}).get("referred_by"):
         raise HTTPException(status_code=409, detail="Ya tienes un referido aplicado")
 
     # Credit referrer and mark new user
     new_count = int(referrer.get("referred_count") or 0) + 1
-    db.table("user_profiles").update({"referred_count": new_count}).eq("user_id", referrer_id).execute()
-    db.table("user_profiles").update({"referred_by": referrer_id}).eq("user_id", user_id).execute()
+    await run_query(
+        db.table("user_profiles").update({"referred_count": new_count}).eq("user_id", referrer_id)
+    )
+    await run_query(
+        db.table("user_profiles").update({"referred_by": referrer_id}).eq("user_id", user_id)
+    )
 
     return {"ok": True, "referred_count": new_count}

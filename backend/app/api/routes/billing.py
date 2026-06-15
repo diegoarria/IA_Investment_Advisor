@@ -5,7 +5,7 @@ from pydantic import BaseModel
 from typing import Literal
 from app.api.deps import get_current_user_id
 from app.core.config import settings
-from app.core.database import get_supabase
+from app.core.database import get_supabase, run_query
 
 router = APIRouter(prefix="/billing", tags=["billing"])
 
@@ -36,7 +36,9 @@ async def create_checkout(body: CheckoutRequest, user_id: str = Depends(get_curr
     s = _stripe()
     db = get_supabase()
 
-    result = db.table("user_profiles").select("stripe_customer_id").eq("user_id", user_id).single().execute()
+    result = await run_query(
+        db.table("user_profiles").select("stripe_customer_id").eq("user_id", user_id).single()
+    )
     customer_id = result.data.get("stripe_customer_id") if result.data else None
 
     success_url = "https://nuvo.app/premium-success"
@@ -81,24 +83,30 @@ async def stripe_webhook(request: Request):
         user_id = session.get("client_reference_id")
         customer_id = session.get("customer")
         if user_id:
-            db.table("user_profiles").update({
-                "subscription_tier": "premium",
-                "stripe_customer_id": customer_id,
-            }).eq("user_id", user_id).execute()
+            await run_query(
+                db.table("user_profiles").update({
+                    "subscription_tier": "premium",
+                    "stripe_customer_id": customer_id,
+                }).eq("user_id", user_id)
+            )
 
     elif event["type"] in ("customer.subscription.deleted", "customer.subscription.paused"):
         customer_id = event["data"]["object"].get("customer")
         if customer_id:
-            db.table("user_profiles").update({
-                "subscription_tier": "free",
-            }).eq("stripe_customer_id", customer_id).execute()
+            await run_query(
+                db.table("user_profiles").update({
+                    "subscription_tier": "free",
+                }).eq("stripe_customer_id", customer_id)
+            )
 
     elif event["type"] == "invoice.payment_failed":
         customer_id = event["data"]["object"].get("customer")
         if customer_id:
-            db.table("user_profiles").update({
-                "subscription_tier": "free",
-            }).eq("stripe_customer_id", customer_id).execute()
+            await run_query(
+                db.table("user_profiles").update({
+                    "subscription_tier": "free",
+                }).eq("stripe_customer_id", customer_id)
+            )
 
     return {"received": True}
 
@@ -109,9 +117,11 @@ _PROMO_DAYS = 90
 @router.get("/status")
 async def get_status(user_id: str = Depends(get_current_user_id)):
     db = get_supabase()
-    result = db.table("user_profiles").select(
-        "subscription_tier, msg_count, msg_window_start, trial_started_at, stripe_customer_id"
-    ).eq("user_id", user_id).single().execute()
+    result = await run_query(
+        db.table("user_profiles").select(
+            "subscription_tier, msg_count, msg_window_start, trial_started_at, stripe_customer_id"
+        ).eq("user_id", user_id).single()
+    )
 
     if not result.data:
         return {"tier": "free", "msg_count": 0, "msg_window_start": None}
@@ -124,9 +134,11 @@ async def get_status(user_id: str = Depends(get_current_user_id)):
     # Auto-start 90-day promo for any user who hasn't paid and hasn't started a trial yet
     if tier != "premium" and not trial_started and not has_stripe:
         trial_started = datetime.now(timezone.utc).isoformat()
-        db.table("user_profiles") \
-            .update({"trial_started_at": trial_started}) \
-            .eq("user_id", user_id).execute()
+        await run_query(
+            db.table("user_profiles")
+            .update({"trial_started_at": trial_started})
+            .eq("user_id", user_id)
+        )
 
     # Compute effective tier: premium if paid OR within 90-day promo window
     effective_tier = tier

@@ -6,7 +6,7 @@ from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from app.api.deps import get_current_user_id
-from app.core.database import get_supabase
+from app.core.database import get_supabase, run_query
 from app.models.user import ChatRequest, UserProfile
 from app.services import ai_service
 from app.services.market_data_service import (
@@ -20,7 +20,7 @@ FREE_MSG_LIMIT = 20
 FREE_MSG_WINDOW_HOURS = 24
 
 
-def _check_and_increment_msg_limit(user_id: str, profile: UserProfile) -> None:
+async def _check_and_increment_msg_limit(user_id: str, profile: UserProfile) -> None:
     if profile.subscription_tier == "premium":
         return
     db = get_supabase()
@@ -33,10 +33,12 @@ def _check_and_increment_msg_limit(user_id: str, profile: UserProfile) -> None:
             pass
 
     if window_start is None or (now - window_start) >= timedelta(hours=FREE_MSG_WINDOW_HOURS):
-        db.table("user_profiles").update({
-            "msg_count": 1,
-            "msg_window_start": now.isoformat(),
-        }).eq("user_id", user_id).execute()
+        await run_query(
+            db.table("user_profiles").update({
+                "msg_count": 1,
+                "msg_window_start": now.isoformat(),
+            }).eq("user_id", user_id)
+        )
         return
 
     if profile.msg_count >= FREE_MSG_LIMIT:
@@ -51,15 +53,17 @@ def _check_and_increment_msg_limit(user_id: str, profile: UserProfile) -> None:
             },
         )
 
-    db.table("user_profiles").update({"msg_count": profile.msg_count + 1}).eq("user_id", user_id).execute()
+    await run_query(
+        db.table("user_profiles").update({"msg_count": profile.msg_count + 1}).eq("user_id", user_id)
+    )
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 
 
-def _get_user_profile(user_id: str) -> UserProfile | None:
+async def _get_user_profile(user_id: str) -> UserProfile | None:
     try:
         db = get_supabase()
-        result = db.table("user_profiles").select("*").eq("user_id", user_id).execute()
+        result = await run_query(db.table("user_profiles").select("*").eq("user_id", user_id))
         if result.data:
             return UserProfile(**result.data[0])
     except Exception:
@@ -108,7 +112,7 @@ async def chat_stream(
     request: ChatRequest,
     user_id: str = Depends(get_current_user_id)
 ):
-    profile = _get_user_profile(user_id)
+    profile = await _get_user_profile(user_id)
     has_images = bool(request.images or request.image_data)
     enriched = await asyncio.to_thread(_enrich_message, request.message) if not has_images else request.message
 
@@ -137,9 +141,9 @@ async def chat_message(
     body: ChatRequest,
     user_id: str = Depends(get_current_user_id)
 ):
-    profile = _get_user_profile(user_id)
+    profile = await _get_user_profile(user_id)
     if profile:
-        _check_and_increment_msg_limit(user_id, profile)
+        await _check_and_increment_msg_limit(user_id, profile)
     tickers  = await asyncio.to_thread(detect_tickers, body.message)
     has_images = bool(body.images or body.image_data)
     enriched = await asyncio.to_thread(_enrich_message, body.message) if not has_images else body.message
@@ -173,7 +177,7 @@ async def save_message(
             "content": request.get("content"),
             "created_at": datetime.utcnow().isoformat(),
         }
-        db.table("chat_history").insert(record).execute()
+        await run_query(db.table("chat_history").insert(record))
     except Exception:
         pass
     return {"saved": True}
@@ -186,13 +190,12 @@ async def get_history(
 ):
     try:
         db = get_supabase()
-        result = (
+        result = await run_query(
             db.table("chat_history")
             .select("*")
             .eq("user_id", user_id)
             .order("created_at", desc=True)
             .limit(limit)
-            .execute()
         )
         return {"messages": list(reversed(result.data))}
     except Exception:

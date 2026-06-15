@@ -11,7 +11,7 @@ from concurrent.futures import ThreadPoolExecutor
 import yfinance as yf
 
 from app.core.cache import cache_get, cache_set
-from app.core.database import get_supabase
+from app.core.database import get_supabase, run_query
 from app.services.notification_service import create_notification
 
 logger = logging.getLogger(__name__)
@@ -51,31 +51,32 @@ def _fetch_price(ticker: str) -> tuple[str, float | None]:
         return ticker, None
 
 
-def build_global_leaderboard() -> list[dict]:
+async def build_global_leaderboard() -> list[dict]:
     """
     Returns all users ranked by paper portfolio % return.
     Each entry: { user_id, alias, return_pct, rank, top_holding }
     """
     db = get_supabase()
 
-    portfolio_rows = db.table("user_portfolio") \
-                       .select("user_id, positions").execute()
+    portfolio_rows = await run_query(
+        db.table("user_portfolio").select("user_id, positions")
+    )
     if not portfolio_rows.data:
         return []
 
-    portfolio_rows.data = [r for r in portfolio_rows.data if r.get("positions")]
-    if not portfolio_rows.data:
+    portfolio_data = [r for r in portfolio_rows.data if r.get("positions")]
+    if not portfolio_data:
         return []
 
-    user_ids = [r["user_id"] for r in portfolio_rows.data]
-    profile_rows = db.table("user_profiles") \
-                     .select("user_id, paper_alias") \
-                     .in_("user_id", user_ids).execute()
+    user_ids = [r["user_id"] for r in portfolio_data]
+    profile_rows = await run_query(
+        db.table("user_profiles").select("user_id, paper_alias").in_("user_id", user_ids)
+    )
     alias_map = {r["user_id"]: r.get("paper_alias") or "Inversor"
                  for r in (profile_rows.data or [])}
 
     all_tickers: set[str] = set()
-    for row in portfolio_rows.data:
+    for row in portfolio_data:
         for pos in (row.get("positions") or []):
             t = (pos.get("ticker") or "").strip().upper()
             if t:
@@ -86,12 +87,18 @@ def build_global_leaderboard() -> list[dict]:
         ck = f"paper:prices:{','.join(sorted(all_tickers))}"
         price_map = cache_get(ck) or {}
         if not price_map:
+            import asyncio
             with ThreadPoolExecutor(max_workers=min(len(all_tickers), 12)) as pool:
-                price_map = dict(pool.map(_fetch_price, list(all_tickers)))
+                price_map = dict(
+                    await asyncio.get_event_loop().run_in_executor(
+                        None,
+                        lambda: dict(pool.map(_fetch_price, list(all_tickers)))
+                    )
+                )
             cache_set(ck, price_map, ttl=_PRICES_TTL)
 
     entries: list[dict] = []
-    for row in portfolio_rows.data:
+    for row in portfolio_data:
         uid       = row["user_id"]
         positions = row.get("positions") or []
         if not positions:
@@ -135,7 +142,7 @@ async def notify_rank_changes() -> None:
     SNAPSHOT_KEY = "paper:rank_snapshot"
 
     try:
-        current = build_global_leaderboard()
+        current = await build_global_leaderboard()
     except Exception as e:
         logger.error("notify_rank_changes: failed to build leaderboard: %s", e)
         return

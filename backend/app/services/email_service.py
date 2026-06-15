@@ -306,7 +306,7 @@ def build_monthly_report_html(name: str, report: dict, month: str) -> str:
 async def generate_and_send_monthly_report(user_id: str, email: str, name: str) -> bool:
     """Fetch portfolio, compute performance, generate AI report and email it."""
     import asyncio
-    from app.core.database import get_supabase
+    from app.core.database import get_supabase, run_query
     from app.api.routes.market import _get_user_profile
     from app.api.routes.report import _compute_performance
     from app.services import ai_service
@@ -316,7 +316,7 @@ async def generate_and_send_monthly_report(user_id: str, email: str, name: str) 
 
     # Fetch portfolio
     try:
-        row = db.table("user_portfolio").select("positions").eq("user_id", user_id).execute()
+        row = await run_query(db.table("user_portfolio").select("positions").eq("user_id", user_id))
         if not row.data:
             return False
         raw = row.data[0]["positions"]

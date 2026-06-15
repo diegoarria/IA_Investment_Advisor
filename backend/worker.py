@@ -27,11 +27,14 @@ async def send_weekly_emails():
     if not settings.resend_api_key:
         logger.info("RESEND_API_KEY not set — skipping weekly emails")
         return
-    from app.core.database import get_supabase
+    from app.core.database import get_supabase, run_query
     db = get_supabase()
     try:
-        users = db.table("user_profiles").select("user_id,name,risk_tolerance,subscription_tier").execute().data
-        auth_users = {u["id"]: u["email"] for u in db.auth.admin.list_users()}
+        users_res = await run_query(
+            db.table("user_profiles").select("user_id,name,risk_tolerance,subscription_tier")
+        )
+        users = users_res.data
+        auth_users = {u.id: u.email for u in await asyncio.to_thread(lambda: db.auth.admin.list_users())}
         sent = 0
         for u in users:
             email = auth_users.get(u["user_id"])
@@ -40,17 +43,15 @@ async def send_weekly_emails():
             is_premium = u.get("subscription_tier") == "premium"
             snippets = []
             if is_premium:
-                chats = (
+                chats_res = await run_query(
                     db.table("chat_history")
                     .select("content")
                     .eq("user_id", u["user_id"])
                     .eq("role", "user")
                     .order("created_at", desc=True)
                     .limit(10)
-                    .execute()
-                    .data
                 )
-                snippets = [c["content"][:150] for c in chats]
+                snippets = [c["content"][:150] for c in (chats_res.data or [])]
             await generate_and_send_weekly_summary(
                 user_id=u["user_id"],
                 email=email,
@@ -78,11 +79,14 @@ async def send_monthly_reports():
     if not settings.resend_api_key:
         logger.info("RESEND_API_KEY not set — skipping monthly reports")
         return
-    from app.core.database import get_supabase
+    from app.core.database import get_supabase, run_query
     db = get_supabase()
     try:
-        users      = db.table("user_profiles").select("user_id,name,subscription_tier").execute().data
-        auth_users = {u["id"]: u["email"] for u in db.auth.admin.list_users()}
+        users_res = await run_query(
+            db.table("user_profiles").select("user_id,name,subscription_tier")
+        )
+        users = users_res.data
+        auth_users = {u.id: u.email for u in await asyncio.to_thread(lambda: db.auth.admin.list_users())}
         sent = errors = skipped = 0
         for u in users:
             if u.get("subscription_tier") != "premium":

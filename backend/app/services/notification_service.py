@@ -1,6 +1,5 @@
-import asyncio
 from datetime import datetime
-from app.core.database import get_supabase
+from app.core.database import get_supabase, run_query
 from app.services.market_service import get_market_summary, get_upcoming_earnings
 from app.services import ai_service
 from app.services.push_service import send_streak_danger
@@ -27,26 +26,25 @@ async def create_notification(user_id: str, notification_type: str, title: str, 
         "read": False,
         "created_at": datetime.utcnow().isoformat(),
     }
-    db.table("notifications").insert(record).execute()
+    await run_query(db.table("notifications").insert(record))
 
 
 async def get_user_notifications(user_id: str, limit: int = 20) -> list[dict]:
     db = get_supabase()
-    result = await asyncio.to_thread(
-        lambda: db.table("notifications")
+    result = await run_query(
+        db.table("notifications")
         .select("*")
         .eq("user_id", user_id)
         .order("created_at", desc=True)
         .limit(limit)
-        .execute()
     )
     return result.data
 
 
 async def mark_notification_read(notification_id: str):
     db = get_supabase()
-    await asyncio.to_thread(
-        lambda: db.table("notifications").update({"read": True}).eq("id", notification_id).execute()
+    await run_query(
+        db.table("notifications").update({"read": True}).eq("id", notification_id)
     )
 
 
@@ -55,12 +53,16 @@ async def scan_and_notify_all_users():
 
     earnings = get_upcoming_earnings()
 
-    users_result = db.table("user_profiles").select("user_id, risk_tolerance, investment_experience, weak_areas, interaction_count, push_token").execute()
+    users_result = await run_query(
+        db.table("user_profiles").select("user_id, risk_tolerance, investment_experience, weak_areas, interaction_count, push_token")
+    )
 
     for user_data in users_result.data:
         user_id = user_data["user_id"]
 
-        profile_result = db.table("user_profiles").select("*").eq("user_id", user_id).single().execute()
+        profile_result = await run_query(
+            db.table("user_profiles").select("*").eq("user_id", user_id).single()
+        )
         profile = None
         if profile_result.data:
             try:
@@ -71,7 +73,9 @@ async def scan_and_notify_all_users():
         # Get user's portfolio positions to filter alerts
         portfolio_tickers: list[str] = []
         try:
-            port_result = db.table("user_portfolio").select("positions").eq("user_id", user_id).maybe_single().execute()
+            port_result = await run_query(
+                db.table("user_portfolio").select("positions").eq("user_id", user_id).maybe_single()
+            )
             if port_result.data:
                 raw = port_result.data.get("positions") or {}
                 if isinstance(raw, dict):

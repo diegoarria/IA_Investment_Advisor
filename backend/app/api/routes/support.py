@@ -12,7 +12,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from app.api.deps import get_current_user_id
 from app.core.config import settings
-from app.core.database import get_supabase
+from app.core.database import get_supabase, run_query
 from datetime import datetime, timezone
 
 router = APIRouter(prefix="/support", tags=["support"])
@@ -110,7 +110,7 @@ async def create_ticket(
         "updated_at": now,
     }
     try:
-        result = db.table("support_tickets").insert(record).execute()
+        result = await run_query(db.table("support_tickets").insert(record))
         ticket_id = result.data[0]["id"] if result.data else None
     except Exception:
         ticket_id = None
@@ -124,13 +124,12 @@ async def list_tickets(
 ):
     """Returns this user's own tickets."""
     db = get_supabase()
-    result = (
+    result = await run_query(
         db.table("support_tickets")
         .select("*")
         .eq("user_id", user_id)
         .order("created_at", desc=True)
         .limit(20)
-        .execute()
     )
     return {"tickets": result.data or []}
 
@@ -148,5 +147,7 @@ async def update_ticket(
         updates["status"] = body["status"]
     if "reply" in body:
         updates["user_reply"] = str(body["reply"])[:2000]
-    db.table("support_tickets").update(updates).eq("id", ticket_id).eq("user_id", user_id).execute()
+    await run_query(
+        db.table("support_tickets").update(updates).eq("id", ticket_id).eq("user_id", user_id)
+    )
     return {"ok": True}

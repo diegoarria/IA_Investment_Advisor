@@ -63,6 +63,8 @@ INDICES = {
 
 
 def _get_user_profile(user_id: str) -> UserProfile | None:
+    """Sync helper — safe to call from sync contexts (e.g. _compute_performance callers).
+    For async route usage, prefer calling run_query directly."""
     db = get_supabase()
     result = db.table("user_profiles").select("*").eq("user_id", user_id).execute()
     if result.data:

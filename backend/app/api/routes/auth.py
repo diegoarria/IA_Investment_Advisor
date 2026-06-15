@@ -1,8 +1,9 @@
+import asyncio
 import secrets
 import time
 
 from fastapi import APIRouter, HTTPException, Depends
-from app.core.database import get_supabase
+from app.core.database import get_supabase, run_query
 from app.models.user import AuthRequest, TokenResponse
 from app.api.deps import get_current_user_id
 
@@ -89,7 +90,7 @@ async def forgot_password(request: dict):
         raise HTTPException(status_code=400, detail="Email requerido")
     db = get_supabase()
     try:
-        users = db.auth.admin.list_users()
+        users = await asyncio.to_thread(lambda: db.auth.admin.list_users())
         user = next((u for u in users if u.email and u.email.lower() == email), None)
         if user:
             code = f"{secrets.randbelow(1000000):06d}"
@@ -121,7 +122,7 @@ async def forgot_password_sms(request: dict):
         raise HTTPException(status_code=400, detail="Email y teléfono requeridos")
     db = get_supabase()
     try:
-        users = db.auth.admin.list_users()
+        users = await asyncio.to_thread(lambda: db.auth.admin.list_users())
         user = next((u for u in users if u.email and u.email.lower() == email), None)
         if user:
             code = f"{secrets.randbelow(1000000):06d}"
@@ -172,11 +173,11 @@ async def reset_password(request: dict):
         _reset_codes.pop(email, None)
 
     db = get_supabase()
-    users = db.auth.admin.list_users()
+    users = await asyncio.to_thread(lambda: db.auth.admin.list_users())
     user = next((u for u in users if u.email and u.email.lower() == email), None)
     if not user:
         raise HTTPException(status_code=400, detail="Usuario no encontrado")
-    db.auth.admin.update_user_by_id(user.id, {"password": new_password})
+    await asyncio.to_thread(lambda: db.auth.admin.update_user_by_id(user.id, {"password": new_password}))
     return {"message": "Contraseña actualizada correctamente"}
 
 
@@ -199,12 +200,12 @@ async def delete_account(user_id: str = Depends(get_current_user_id)):
                        "user_daily_usage", "push_tokens", "chat_history",
                        "user_notifications"]:
             try:
-                db.table(table).delete().eq("user_id", user_id).execute()
+                await run_query(db.table(table).delete().eq("user_id", user_id))
             except Exception:
                 pass
 
         # Delete the auth user (requires service key)
-        db.auth.admin.delete_user(user_id)
+        await asyncio.to_thread(lambda: db.auth.admin.delete_user(user_id))
     except Exception as e:
         raise HTTPException(status_code=500, detail="No se pudo eliminar la cuenta.")
 

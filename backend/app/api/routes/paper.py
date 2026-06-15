@@ -16,7 +16,7 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from app.api.deps import get_current_user_id
 from app.core.cache import cache_get, cache_set
-from app.core.database import get_supabase
+from app.core.database import get_supabase, run_query
 from app.services import ai_service
 
 logger = logging.getLogger(__name__)
@@ -44,27 +44,6 @@ _NOUNS      = ["Trader", "Capital", "Investor", "Quant", "Wolf", "Eagle",
 def _random_alias() -> str:
     suffix = "".join(random.choices(string.digits, k=3))
     return f"{random.choice(_ADJECTIVES)}{random.choice(_NOUNS)}{suffix}"
-
-
-def _ensure_alias(db, user_id: str) -> str:
-    """Returns existing alias, or creates and persists a new one."""
-    try:
-        row = db.table("user_profiles").select("paper_alias") \
-                .eq("user_id", user_id).single().execute()
-        alias = row.data.get("paper_alias") if row.data else None
-    except Exception:
-        alias = None
-
-    if not alias:
-        alias = _random_alias()
-        try:
-            db.table("user_profiles") \
-              .update({"paper_alias": alias}) \
-              .eq("user_id", user_id).execute()
-        except Exception:
-            pass  # alias collision — next request will retry
-
-    return alias
 
 
 def _fetch_price(ticker: str) -> tuple[str, float | None]:
@@ -143,48 +122,58 @@ def _calc_return_pct(positions: list, price_map: dict) -> tuple[float, str | Non
     return return_pct, top_holding
 
 
-def _build_leaderboard(user_id: str) -> list[dict]:
+async def _build_leaderboard(user_id: str) -> list[dict]:
     db = get_supabase()
 
     # 1. Ensure the requesting user has an alias
-    _ensure_alias(db, user_id)
+    alias_row = await run_query(
+        db.table("user_profiles").select("paper_alias").eq("user_id", user_id).single()
+    )
+    existing_alias = (alias_row.data or {}).get("paper_alias") if alias_row.data else None
+    if not existing_alias:
+        alias = _random_alias()
+        try:
+            await run_query(
+                db.table("user_profiles").update({"paper_alias": alias}).eq("user_id", user_id)
+            )
+        except Exception:
+            pass
 
     # 2. Fetch all REAL portfolios (not paper trading)
-    portfolio_rows = db.table("user_portfolio") \
-                       .select("user_id, positions") \
-                       .execute()
+    portfolio_rows = await run_query(
+        db.table("user_portfolio").select("user_id, positions")
+    )
     if not portfolio_rows.data:
         return []
 
     # Only include users who have at least one position
-    portfolio_rows.data = [r for r in portfolio_rows.data if r.get("positions")]
-    if not portfolio_rows.data:
+    portfolio_data = [r for r in portfolio_rows.data if r.get("positions")]
+    if not portfolio_data:
         return []
 
     # 3. Fetch aliases for all users
-    user_ids = [r["user_id"] for r in portfolio_rows.data]
-    profile_rows = db.table("user_profiles") \
-                     .select("user_id, paper_alias") \
-                     .in_("user_id", user_ids) \
-                     .execute()
+    user_ids = [r["user_id"] for r in portfolio_data]
+    profile_rows = await run_query(
+        db.table("user_profiles").select("user_id, paper_alias").in_("user_id", user_ids)
+    )
     alias_map: dict[str, str] = {}
     for p in (profile_rows.data or []):
         alias_map[p["user_id"]] = p.get("paper_alias") or _random_alias()
 
     # 4. Collect all unique tickers
     all_tickers: set[str] = set()
-    for row in portfolio_rows.data:
+    for row in portfolio_data:
         for pos in (row.get("positions") or []):
             t = (pos.get("ticker") or "").strip().upper()
             if t:
                 all_tickers.add(t)
 
-    # 5. Batch-fetch current prices
-    price_map = _batch_prices(all_tickers)
+    # 5. Batch-fetch current prices (blocking network calls — run in thread)
+    price_map = await asyncio.to_thread(_batch_prices, all_tickers)
 
     # 6. Compute each user's return % from their real portfolio
     entries: list[dict] = []
-    for row in portfolio_rows.data:
+    for row in portfolio_data:
         uid       = row["user_id"]
         positions = row.get("positions") or []
 
@@ -222,7 +211,7 @@ async def get_leaderboard(user_id: str = Depends(get_current_user_id)):
     if cached is not None:
         return cached
 
-    result = await asyncio.to_thread(_build_leaderboard, user_id)
+    result = await _build_leaderboard(user_id)
     cache_set(ck, result, ttl=_LEADERBOARD_TTL)
     return result
 
@@ -260,9 +249,11 @@ async def set_alias(body: dict, user_id: str = Depends(get_current_user_id)):
 
     db = get_supabase()
     try:
-        db.table("user_profiles") \
-          .update({"paper_alias": alias}) \
-          .eq("user_id", user_id).execute()
+        await run_query(
+            db.table("user_profiles")
+            .update({"paper_alias": alias})
+            .eq("user_id", user_id)
+        )
     except Exception as e:
         if "unique" in str(e).lower():
             raise HTTPException(status_code=409, detail="Ese alias ya está en uso")

@@ -5,7 +5,7 @@ from datetime import datetime, timezone, timedelta
 from fastapi import APIRouter, Depends
 
 from app.api.deps import get_current_user_id
-from app.core.database import get_supabase
+from app.core.database import get_supabase, run_query
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/leaderboard", tags=["leaderboard"])
@@ -80,11 +80,13 @@ async def get_portfolio_leaderboard(
     """
     db = get_supabase()
 
-    port_res = db.table("user_portfolio").select("user_id, positions").execute()
+    port_res = await run_query(db.table("user_portfolio").select("user_id, positions"))
     if not port_res.data:
         return {"leaderboard": [], "period": period, "my_rank": None, "total_users": 0}
 
-    profile_res = db.table("user_profiles").select("user_id, name, subscription_tier").execute()
+    profile_res = await run_query(
+        db.table("user_profiles").select("user_id, name, subscription_tier")
+    )
     name_map: dict[str, str] = {}
     tier_map: dict[str, str] = {}
     for p in (profile_res.data or []):

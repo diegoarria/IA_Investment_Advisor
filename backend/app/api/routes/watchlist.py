@@ -16,7 +16,7 @@ from concurrent.futures import ThreadPoolExecutor
 from fastapi import APIRouter, Depends, HTTPException
 import httpx
 from app.api.deps import get_current_user_id
-from app.core.database import get_supabase
+from app.core.database import get_supabase, run_query
 from app.core.cache import cache_get, cache_set
 
 router = APIRouter(prefix="/watchlist", tags=["watchlist"])
@@ -171,30 +171,9 @@ def _fetch_prices_batch(tickers: list[str]) -> dict[str, dict]:
     return prices
 
 
-def _get_user_tier(user_id: str) -> str:
-    """Return subscription tier: 'free' or 'premium'."""
-    try:
-        db = get_supabase()
-        res = db.table("user_profiles").select("subscription_tier").eq("user_id", user_id).execute()
-        if res.data:
-            return res.data[0].get("subscription_tier", "free") or "free"
-    except Exception:
-        pass
-    return "free"
-
-
-def _get_watchlist(user_id: str) -> list[dict]:
-    db = get_supabase()
-    res = db.table("watchlist").select("*").eq("user_id", user_id).order("added_at").execute()
-    if res.data is None:
-        # None means the DB query itself failed — raise so the endpoint returns 500
-        # rather than silently returning [] which the frontend would treat as "empty list"
-        raise RuntimeError("Watchlist DB query returned None — possible Supabase connectivity issue")
-    return res.data
-
-
 def _enrich_logos_background(items_without_logo: list[dict]) -> None:
-    """Silently fetch and store logo_url for entries that don't have one yet."""
+    """Silently fetch and store logo_url for entries that don't have one yet.
+    Called from a background thread — uses sync Supabase directly."""
     db = get_supabase()
     for item in items_without_logo:
         ticker = item["ticker"]
@@ -221,7 +200,11 @@ async def get_batch_prices(body: dict):
 async def get_watchlist(user_id: str = Depends(get_current_user_id)):
     """Return user's watchlist enriched with current prices."""
     import threading
-    items = await asyncio.to_thread(_get_watchlist, user_id)
+    db = get_supabase()
+    res = await run_query(db.table("watchlist").select("*").eq("user_id", user_id).order("added_at"))
+    items = res.data
+    if items is None:
+        raise RuntimeError("Watchlist DB query returned None — possible Supabase connectivity issue")
     if not items:
         return []
 
@@ -276,65 +259,68 @@ async def add_to_watchlist(body: dict, user_id: str = Depends(get_current_user_i
     if not ticker:
         raise HTTPException(status_code=422, detail="ticker is required")
 
-    def _do_add():
-        db = get_supabase()
+    db = get_supabase()
 
-        # Check tier and count
-        tier = _get_user_tier(user_id)
-        if tier != "premium":
-            count_res = db.table("watchlist").select("id", count="exact").eq("user_id", user_id).execute()
-            count = count_res.count or 0
-            if count >= FREE_LIMIT:
-                raise HTTPException(
-                    status_code=403,
-                    detail=f"Free tier limit of {FREE_LIMIT} items reached. Upgrade to Premium."
-                )
+    # Check tier and count
+    tier_res = await run_query(
+        db.table("user_profiles").select("subscription_tier").eq("user_id", user_id)
+    )
+    tier = "free"
+    if tier_res.data:
+        tier = tier_res.data[0].get("subscription_tier", "free") or "free"
 
-        # Resolve name and logo via YF if not provided
-        resolved_name = name
-        resolved_logo: str | None = None
-        try:
-            price_data = _fetch_extended_price(ticker)
-            if not resolved_name:
-                resolved_name = price_data.get("name") or ticker
-        except Exception:
-            pass
+    if tier != "premium":
+        count_res = await run_query(
+            db.table("watchlist").select("id", count="exact").eq("user_id", user_id)
+        )
+        count = count_res.count or 0
+        if count >= FREE_LIMIT:
+            raise HTTPException(
+                status_code=403,
+                detail=f"Free tier limit of {FREE_LIMIT} items reached. Upgrade to Premium."
+            )
+
+    # Resolve name and logo via YF if not provided (these are blocking network calls)
+    resolved_name = name
+    resolved_logo: str | None = None
+    try:
+        price_data = await asyncio.to_thread(_fetch_extended_price, ticker)
         if not resolved_name:
-            resolved_name = ticker
-        try:
-            resolved_logo = _fetch_logo_url(ticker)
-        except Exception:
-            pass
+            resolved_name = price_data.get("name") or ticker
+    except Exception:
+        pass
+    if not resolved_name:
+        resolved_name = ticker
+    try:
+        resolved_logo = await asyncio.to_thread(_fetch_logo_url, ticker)
+    except Exception:
+        pass
 
-        # Insert (will raise unique constraint if duplicate)
-        try:
-            db.table("watchlist").insert({
-                "user_id": user_id,
-                "ticker": ticker,
-                "name": resolved_name,
-                "logo_url": resolved_logo,
-            }).execute()
-        except Exception as e:
-            err_str = str(e).lower()
-            if "unique" in err_str or "duplicate" in err_str or "23505" in err_str:
-                raise HTTPException(status_code=409, detail=f"{ticker} already in watchlist")
-            raise HTTPException(status_code=500, detail="Could not add to watchlist")
+    # Insert (will raise unique constraint if duplicate)
+    try:
+        await run_query(db.table("watchlist").insert({
+            "user_id": user_id,
+            "ticker": ticker,
+            "name": resolved_name,
+            "logo_url": resolved_logo,
+        }))
+    except Exception as e:
+        err_str = str(e).lower()
+        if "unique" in err_str or "duplicate" in err_str or "23505" in err_str:
+            raise HTTPException(status_code=409, detail=f"{ticker} already in watchlist")
+        raise HTTPException(status_code=500, detail="Could not add to watchlist")
 
-        return {"ticker": ticker, "name": resolved_name}
-
-    return await asyncio.to_thread(_do_add)
+    return {"ticker": ticker, "name": resolved_name}
 
 
 @router.delete("/{ticker}")
 async def remove_from_watchlist(ticker: str, user_id: str = Depends(get_current_user_id)):
     """Remove a ticker from the user's watchlist."""
     ticker = ticker.upper()
-
-    def _do_delete():
-        db = get_supabase()
-        res = db.table("watchlist").delete().eq("user_id", user_id).eq("ticker", ticker).execute()
-        if not res.data:
-            raise HTTPException(status_code=404, detail=f"{ticker} not found in watchlist")
-        return {"deleted": ticker}
-
-    return await asyncio.to_thread(_do_delete)
+    db = get_supabase()
+    res = await run_query(
+        db.table("watchlist").delete().eq("user_id", user_id).eq("ticker", ticker)
+    )
+    if not res.data:
+        raise HTTPException(status_code=404, detail=f"{ticker} not found in watchlist")
+    return {"deleted": ticker}

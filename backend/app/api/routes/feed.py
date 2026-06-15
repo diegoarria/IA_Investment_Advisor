@@ -1,9 +1,10 @@
+import asyncio
 import logging
 import random as _random
 import httpx
 from fastapi import APIRouter, Depends, Query, HTTPException
 from app.api.deps import get_current_user_id
-from app.core.database import get_supabase
+from app.core.database import get_supabase, run_query
 from app.core.config import settings
 from app.services.ai_service import _claude
 
@@ -33,28 +34,31 @@ async def get_clips(
     if tag:
         q = q.contains("tags", [tag])
     if sort == "random":
-        all_clips = q.execute().data or []
+        all_clips_res = await run_query(q)
+        all_clips = all_clips_res.data or []
         _random.shuffle(all_clips)
         clips = all_clips[:limit]
         # Attach liked/saved below, then return early without pagination cursor
     elif sort == "trending":
         q = q.order("like_count", desc=True)
-        clips = q.range(cursor, cursor + limit - 1).execute().data or []
+        clips_res = await run_query(q.range(cursor, cursor + limit - 1))
+        clips = clips_res.data or []
     else:
         q = q.order("created_at", desc=True)
-        clips = q.range(cursor, cursor + limit - 1).execute().data or []
+        clips_res = await run_query(q.range(cursor, cursor + limit - 1))
+        clips = clips_res.data or []
 
     # Attach per-user liked/saved state in one batch query
     if clips:
         ids = [c["id"] for c in clips]
-        liked = {
-            r["clip_id"]
-            for r in (db.table("clip_likes").select("clip_id").eq("user_id", user_id).in_("clip_id", ids).execute().data or [])
-        }
-        saved = {
-            r["clip_id"]
-            for r in (db.table("clip_saves").select("clip_id").eq("user_id", user_id).in_("clip_id", ids).execute().data or [])
-        }
+        liked_res = await run_query(
+            db.table("clip_likes").select("clip_id").eq("user_id", user_id).in_("clip_id", ids)
+        )
+        saved_res = await run_query(
+            db.table("clip_saves").select("clip_id").eq("user_id", user_id).in_("clip_id", ids)
+        )
+        liked = {r["clip_id"] for r in (liked_res.data or [])}
+        saved = {r["clip_id"] for r in (saved_res.data or [])}
         for c in clips:
             c["liked"] = c["id"] in liked
             c["saved"] = c["id"] in saved
@@ -68,12 +72,14 @@ async def track_view(clip_id: str, body: dict, user_id: str = Depends(get_curren
     watched_pct = min(100, max(0, int(body.get("watched_pct", 0))))
     db = get_supabase()
     try:
-        db.table("clip_views").upsert(
-            {"user_id": user_id, "clip_id": clip_id, "watched_pct": watched_pct},
-            on_conflict="user_id,clip_id",
-        ).execute()
+        await run_query(
+            db.table("clip_views").upsert(
+                {"user_id": user_id, "clip_id": clip_id, "watched_pct": watched_pct},
+                on_conflict="user_id,clip_id",
+            )
+        )
         if watched_pct >= 10:
-            db.rpc("increment_clip_views", {"p_clip_id": clip_id}).execute()
+            await run_query(db.rpc("increment_clip_views", {"p_clip_id": clip_id}))
     except Exception as e:
         logger.warning("view track failed: %s", e)
     return {"ok": True}
@@ -82,53 +88,57 @@ async def track_view(clip_id: str, body: dict, user_id: str = Depends(get_curren
 @router.post("/clips/{clip_id}/like")
 async def toggle_like(clip_id: str, user_id: str = Depends(get_current_user_id)):
     db = get_supabase()
-    existing = db.table("clip_likes").select("id").eq("user_id", user_id).eq("clip_id", clip_id).execute().data
+    existing_res = await run_query(
+        db.table("clip_likes").select("id").eq("user_id", user_id).eq("clip_id", clip_id)
+    )
+    existing = existing_res.data
     if existing:
-        db.table("clip_likes").delete().eq("user_id", user_id).eq("clip_id", clip_id).execute()
-        db.rpc("decrement_clip_likes", {"p_clip_id": clip_id}).execute()
+        await run_query(db.table("clip_likes").delete().eq("user_id", user_id).eq("clip_id", clip_id))
+        await run_query(db.rpc("decrement_clip_likes", {"p_clip_id": clip_id}))
         return {"liked": False}
     else:
-        db.table("clip_likes").insert({"user_id": user_id, "clip_id": clip_id}).execute()
-        db.rpc("increment_clip_likes", {"p_clip_id": clip_id}).execute()
+        await run_query(db.table("clip_likes").insert({"user_id": user_id, "clip_id": clip_id}))
+        await run_query(db.rpc("increment_clip_likes", {"p_clip_id": clip_id}))
         return {"liked": True}
 
 
 @router.post("/clips/{clip_id}/save")
 async def toggle_save(clip_id: str, user_id: str = Depends(get_current_user_id)):
     db = get_supabase()
-    existing = db.table("clip_saves").select("id").eq("user_id", user_id).eq("clip_id", clip_id).execute().data
+    existing_res = await run_query(
+        db.table("clip_saves").select("id").eq("user_id", user_id).eq("clip_id", clip_id)
+    )
+    existing = existing_res.data
     if existing:
-        db.table("clip_saves").delete().eq("user_id", user_id).eq("clip_id", clip_id).execute()
+        await run_query(db.table("clip_saves").delete().eq("user_id", user_id).eq("clip_id", clip_id))
         return {"saved": False}
     else:
-        db.table("clip_saves").insert({"user_id": user_id, "clip_id": clip_id}).execute()
+        await run_query(db.table("clip_saves").insert({"user_id": user_id, "clip_id": clip_id}))
         return {"saved": True}
 
 
 @router.get("/clips/{clip_id}/comments")
 async def get_comments(clip_id: str, user_id: str = Depends(get_current_user_id)):
     db = get_supabase()
-    all_rows = (
+    all_rows_res = await run_query(
         db.table("clip_comments")
         .select("id,user_id,text,parent_id,created_at,is_deleted")
         .eq("clip_id", clip_id)
         .order("created_at")
         .limit(100)
-        .execute()
-        .data or []
     )
+    all_rows = all_rows_res.data or []
     rows = [r for r in all_rows if not r.get("is_deleted")]
 
     # Fetch user profiles separately (no direct FK between clip_comments and user_profiles)
     if rows:
         user_ids = list({r["user_id"] for r in rows})
-        profiles = (
+        profiles_res = await run_query(
             db.table("user_profiles")
             .select("user_id,name,avatar_url")
             .in_("user_id", user_ids)
-            .execute()
-            .data or []
         )
+        profiles = profiles_res.data or []
         profile_map = {p["user_id"]: p for p in profiles}
         for r in rows:
             p = profile_map.get(r["user_id"], {})
@@ -144,10 +154,13 @@ async def get_comments(clip_id: str, user_id: str = Depends(get_current_user_id)
     return {"comments": top}
 
 
-def _sync_comment_count(db, clip_id: str) -> None:
+async def _sync_comment_count(db, clip_id: str) -> None:
     """Recalculate and persist the exact non-deleted comment count for a clip."""
-    rows = db.table("clip_comments").select("id").eq("clip_id", clip_id).eq("is_deleted", False).execute().data or []
-    db.table("clips").update({"comment_count": len(rows)}).eq("id", clip_id).execute()
+    rows_res = await run_query(
+        db.table("clip_comments").select("id").eq("clip_id", clip_id).eq("is_deleted", False)
+    )
+    rows = rows_res.data or []
+    await run_query(db.table("clips").update({"comment_count": len(rows)}).eq("id", clip_id))
 
 
 @router.post("/clips/{clip_id}/comments")
@@ -157,50 +170,52 @@ async def post_comment(clip_id: str, body: dict, user_id: str = Depends(get_curr
         raise HTTPException(400, "Comentario inválido (máx 500 caracteres)")
     parent_id = body.get("parent_id")
     db = get_supabase()
-    row = db.table("clip_comments").insert({
+    row_res = await run_query(db.table("clip_comments").insert({
         "user_id": user_id, "clip_id": clip_id,
         "text": text, "parent_id": parent_id,
-    }).execute().data[0]
-    _sync_comment_count(db, clip_id)
+    }))
+    row = row_res.data[0]
+    await _sync_comment_count(db, clip_id)
     return {"comment": row}
 
 
 @router.delete("/clips/{clip_id}/comments/{comment_id}")
 async def delete_comment(clip_id: str, comment_id: str, user_id: str = Depends(get_current_user_id)):
     db = get_supabase()
-    row = db.table("clip_comments").select("user_id").eq("id", comment_id).eq("clip_id", clip_id).single().execute().data
+    row_res = await run_query(
+        db.table("clip_comments").select("user_id").eq("id", comment_id).eq("clip_id", clip_id).single()
+    )
+    row = row_res.data
     if not row:
         raise HTTPException(404, "Comentario no encontrado")
     if row["user_id"] != user_id:
         raise HTTPException(403, "Solo puedes eliminar tus propios comentarios")
-    db.table("clip_comments").update({"is_deleted": True}).eq("id", comment_id).execute()
-    _sync_comment_count(db, clip_id)
+    await run_query(db.table("clip_comments").update({"is_deleted": True}).eq("id", comment_id))
+    await _sync_comment_count(db, clip_id)
     return {"ok": True}
 
 
 @router.get("/liked")
 async def get_liked_clips(user_id: str = Depends(get_current_user_id)):
     db = get_supabase()
-    likes = (
+    likes_res = await run_query(
         db.table("clip_likes")
         .select("clip_id, created_at")
         .eq("user_id", user_id)
         .order("created_at", desc=True)
         .limit(50)
-        .execute()
-        .data or []
     )
+    likes = likes_res.data or []
     if not likes:
         return {"clips": []}
     ids = [r["clip_id"] for r in likes]
-    clips = (
+    clips_res = await run_query(
         db.table("clips")
         .select("id,title,thumbnail_url,speaker,duration_sec,view_count,like_count")
         .eq("status", "published")
         .in_("id", ids)
-        .execute()
-        .data or []
     )
+    clips = clips_res.data or []
     order = {r["clip_id"]: i for i, r in enumerate(likes)}
     clips.sort(key=lambda c: order.get(c["id"], 999))
     return {"clips": clips}
@@ -208,22 +223,25 @@ async def get_liked_clips(user_id: str = Depends(get_current_user_id)):
 
 # ── Admin endpoints ───────────────────────────────────────────────────────────
 
-def _require_admin(user_id: str):
+async def _require_admin(user_id: str):
     db = get_supabase()
-    row = db.table("user_profiles").select("is_admin").eq("user_id", user_id).single().execute().data
+    row_res = await run_query(
+        db.table("user_profiles").select("is_admin").eq("user_id", user_id).single()
+    )
+    row = row_res.data
     if not row or not row.get("is_admin"):
         raise HTTPException(403, "Solo admins pueden gestionar clips")
 
 
 @router.post("/admin/clips")
 async def create_clip(body: dict, user_id: str = Depends(get_current_user_id)):
-    _require_admin(user_id)
+    await _require_admin(user_id)
     required = ("title", "video_url", "speaker")
     for f in required:
         if not body.get(f):
             raise HTTPException(400, f"Campo requerido: {f}")
     db = get_supabase()
-    row = db.table("clips").insert({
+    row_res = await run_query(db.table("clips").insert({
         "title":              body["title"],
         "description":        body.get("description", ""),
         "video_url":          body["video_url"],
@@ -236,39 +254,42 @@ async def create_clip(body: dict, user_id: str = Depends(get_current_user_id)):
         "duration_sec":       body.get("duration_sec", 0),
         "status":             "draft",
         "created_by":         user_id,
-    }).execute().data[0]
+    }))
+    row = row_res.data[0]
     return {"clip": row}
 
 
 @router.patch("/admin/clips/{clip_id}")
 async def update_clip(clip_id: str, body: dict, user_id: str = Depends(get_current_user_id)):
-    _require_admin(user_id)
+    await _require_admin(user_id)
     allowed = {"title", "description", "video_url", "thumbnail_url", "speaker",
                "tags", "language", "translated_caption", "caption_en", "duration_sec", "status"}
     updates = {k: v for k, v in body.items() if k in allowed}
     if not updates:
         raise HTTPException(400, "Nada que actualizar")
     db = get_supabase()
-    row = db.table("clips").update(updates).eq("id", clip_id).execute().data[0]
+    row_res = await run_query(db.table("clips").update(updates).eq("id", clip_id))
+    row = row_res.data[0]
     return {"clip": row}
 
 
 @router.delete("/admin/clips/{clip_id}")
 async def delete_clip(clip_id: str, user_id: str = Depends(get_current_user_id)):
-    _require_admin(user_id)
+    await _require_admin(user_id)
     db = get_supabase()
-    db.table("clips").delete().eq("id", clip_id).execute()
+    await run_query(db.table("clips").delete().eq("id", clip_id))
     return {"ok": True}
 
 
 @router.post("/admin/clips/{clip_id}/generate-audio")
 async def generate_clip_audio(clip_id: str, user_id: str = Depends(get_current_user_id)):
-    _require_admin(user_id)
+    await _require_admin(user_id)
     if not settings.elevenlabs_api_key:
         raise HTTPException(400, "ELEVENLABS_API_KEY no configurada en el servidor")
 
     db = get_supabase()
-    clip = db.table("clips").select("*").eq("id", clip_id).single().execute().data
+    clip_res = await run_query(db.table("clips").select("*").eq("id", clip_id).single())
+    clip = clip_res.data
     if not clip:
         raise HTTPException(404, "Clip no encontrado")
 
@@ -332,28 +353,30 @@ Genera exactamente este JSON (sin nada más):
     post_audio_bytes = await tts(post_text)
 
     # 3. Upload to Supabase Storage
-    def upload_audio(filename: str, data: bytes) -> str:
+    async def upload_audio(filename: str, data: bytes) -> str:
         try:
-            db.storage.from_("clip-audio").remove([filename])
+            await asyncio.to_thread(lambda: db.storage.from_("clip-audio").remove([filename]))
         except Exception:
             pass
-        db.storage.from_("clip-audio").upload(
-            path=filename,
-            file=data,
-            file_options={"content-type": "audio/mpeg", "upsert": "true"},
+        await asyncio.to_thread(
+            lambda: db.storage.from_("clip-audio").upload(
+                path=filename,
+                file=data,
+                file_options={"content-type": "audio/mpeg", "upsert": "true"},
+            )
         )
-        return db.storage.from_("clip-audio").get_public_url(filename)
+        return await asyncio.to_thread(lambda: db.storage.from_("clip-audio").get_public_url(filename))
 
-    pre_audio_url  = upload_audio(f"{clip_id}_pre.mp3",  pre_audio_bytes)
-    post_audio_url = upload_audio(f"{clip_id}_post.mp3", post_audio_bytes)
+    pre_audio_url  = await upload_audio(f"{clip_id}_pre.mp3",  pre_audio_bytes)
+    post_audio_url = await upload_audio(f"{clip_id}_post.mp3", post_audio_bytes)
 
     # 4. Persist on clip record
-    db.table("clips").update({
+    await run_query(db.table("clips").update({
         "pre_text":       pre_text,
         "post_text":      post_text,
         "pre_audio_url":  pre_audio_url,
         "post_audio_url": post_audio_url,
-    }).eq("id", clip_id).execute()
+    }).eq("id", clip_id))
 
     return {
         "pre_text":       pre_text,
@@ -368,14 +391,12 @@ async def list_all_clips(
     status: str = Query("draft"),
     user_id: str = Depends(get_current_user_id),
 ):
-    _require_admin(user_id)
+    await _require_admin(user_id)
     db = get_supabase()
-    rows = (
+    rows_res = await run_query(
         db.table("clips")
         .select("*")
         .eq("status", status)
         .order("created_at", desc=True)
-        .execute()
-        .data or []
     )
-    return {"clips": rows}
+    return {"clips": rows_res.data or []}

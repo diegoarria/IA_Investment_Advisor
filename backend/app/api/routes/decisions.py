@@ -2,7 +2,7 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException
 from app.api.deps import get_current_user_id
 from app.api.routes.market import _get_user_profile
-from app.core.database import get_supabase
+from app.core.database import get_supabase, run_query
 from app.core.cache import cache_get, cache_set
 from app.services import ai_service
 
@@ -11,23 +11,22 @@ router = APIRouter(prefix="/decisions", tags=["decisions"])
 _TTL_BIAS = 3600  # 1 hour
 
 
-def _get_decisions(user_id: str, limit: int = 100) -> list[dict]:
+async def _get_decisions(user_id: str, limit: int = 100) -> list[dict]:
     db = get_supabase()
     try:
-        result = (
+        result = await run_query(
             db.table("investment_decisions")
             .select("*")
             .eq("user_id", user_id)
             .order("created_at", desc=True)
             .limit(limit)
-            .execute()
         )
         return result.data or []
     except Exception:
         return []
 
 
-def _log_decision(user_id: str, decision: dict) -> dict:
+async def _log_decision(user_id: str, decision: dict) -> dict:
     db = get_supabase()
     row = {
         "user_id":        user_id,
@@ -39,7 +38,7 @@ def _log_decision(user_id: str, decision: dict) -> dict:
         "notes":          decision.get("notes", ""),
         "created_at":     datetime.utcnow().isoformat(),
     }
-    result = db.table("investment_decisions").insert(row).execute()
+    result = await run_query(db.table("investment_decisions").insert(row))
     return result.data[0] if result.data else row
 
 
@@ -54,7 +53,7 @@ async def log_decision(
         raise HTTPException(status_code=400, detail="action y ticker son requeridos")
 
     try:
-        row = _log_decision(user_id, request)
+        row = await _log_decision(user_id, request)
         # Invalidate bias cache so next call re-analyzes
         cache_key = f"biases:{user_id}"
         cache_set(cache_key, None, ttl=1)
@@ -69,7 +68,7 @@ async def get_decisions(
     user_id: str = Depends(get_current_user_id),
 ):
     """Return the user's decision diary."""
-    decisions = _get_decisions(user_id, limit=limit)
+    decisions = await _get_decisions(user_id, limit=limit)
     return {"decisions": decisions, "total": len(decisions)}
 
 
@@ -83,7 +82,7 @@ async def get_bias_analysis(
     if cached:
         return cached
 
-    decisions = _get_decisions(user_id, limit=100)
+    decisions = await _get_decisions(user_id, limit=100)
     if len(decisions) < 3:
         return {
             "total_decisions": len(decisions),

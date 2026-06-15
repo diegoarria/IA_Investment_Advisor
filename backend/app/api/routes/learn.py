@@ -6,7 +6,7 @@ from datetime import date
 from fastapi import APIRouter, Depends, HTTPException, Request
 from app.api.deps import get_current_user_id
 from app.core.config import settings
-from app.core.database import get_supabase
+from app.core.database import get_supabase, run_query
 from app.core.limiter import limiter
 
 _debate_client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
@@ -23,17 +23,19 @@ FREE_DIFFICULTIES     = {"principiante", "intermedio"}
 PREMIUM_SIM_DAILY     = 50
 PREMIUM_DEBATE_DAILY  = 20
 
-def _is_premium(user_id: str) -> bool:
-    p = _get_profile_raw(user_id)
-    return bool(p and p.get("subscription_tier") == "premium")
-
-def _get_profile_raw(user_id: str) -> dict | None:
+async def _get_profile_raw(user_id: str) -> dict | None:
     try:
         db = get_supabase()
-        result = db.table("user_profiles").select("subscription_tier, trial_started_at").eq("user_id", user_id).execute()
+        result = await run_query(
+            db.table("user_profiles").select("subscription_tier, trial_started_at").eq("user_id", user_id)
+        )
         return result.data[0] if result.data else None
     except Exception:
         return None
+
+async def _is_premium(user_id: str) -> bool:
+    p = await _get_profile_raw(user_id)
+    return bool(p and p.get("subscription_tier") == "premium")
 
 def _is_trial_active(profile: dict | None) -> bool:
     """Returns True if user is within their 7-day free trial."""
@@ -49,48 +51,56 @@ def _is_trial_active(profile: dict | None) -> bool:
     except Exception:
         return False
 
-def _get_daily_usage(user_id: str) -> dict:
+async def _get_daily_usage(user_id: str) -> dict:
     """Fetch or create today's usage row from Supabase."""
     today = date.today().isoformat()
     db = get_supabase()
     try:
-        result = db.table("user_daily_usage") \
-            .select("sim_count, debate_count") \
-            .eq("user_id", user_id).eq("date", today).execute()
+        result = await run_query(
+            db.table("user_daily_usage")
+            .select("sim_count, debate_count")
+            .eq("user_id", user_id).eq("date", today)
+        )
         if result.data:
             return result.data[0]
     except Exception:
         pass
     return {"sim_count": 0, "debate_count": 0}
 
-def _increment_daily(user_id: str, field: str):
+async def _increment_daily(user_id: str, field: str):
     """Atomically increment a daily counter in Supabase."""
     today = date.today().isoformat()
     db = get_supabase()
     try:
-        existing = db.table("user_daily_usage") \
-            .select("sim_count, debate_count") \
-            .eq("user_id", user_id).eq("date", today).execute()
+        existing = await run_query(
+            db.table("user_daily_usage")
+            .select("sim_count, debate_count")
+            .eq("user_id", user_id).eq("date", today)
+        )
         if existing.data:
             current = existing.data[0].get(field, 0)
-            db.table("user_daily_usage") \
-                .update({field: current + 1}) \
-                .eq("user_id", user_id).eq("date", today).execute()
+            await run_query(
+                db.table("user_daily_usage")
+                .update({field: current + 1})
+                .eq("user_id", user_id).eq("date", today)
+            )
         else:
-            db.table("user_daily_usage") \
-                .insert({"user_id": user_id, "date": today, field: 1}).execute()
+            await run_query(
+                db.table("user_daily_usage")
+                .insert({"user_id": user_id, "date": today, field: 1})
+            )
     except Exception:
         pass  # never block the user on a counter failure
 
-def _check_daily(user_id: str, field: str, limit: int, noun: str):
-    usage = _get_daily_usage(user_id)
+async def _check_daily(user_id: str, field: str, limit: int, noun: str):
+    usage = await _get_daily_usage(user_id)
     if usage.get(field, 0) >= limit:
         raise HTTPException(status_code=429, detail={
             "code": "daily_limit",
             "message": f"Alcanzaste el límite de {limit} {noun} diarios. Activa Premium para acceso ilimitado.",
             "limit": limit,
         })
-    _increment_daily(user_id, field)
+    await _increment_daily(user_id, field)
 
 # ─── Scenarios by difficulty ───────────────────────────────────────────────
 
@@ -312,7 +322,7 @@ DIFFICULTY_DEBATE_REPLY = {
 @limiter.limit("15/minute")
 async def get_scenario(request: Request, body: dict = None, user_id: str = Depends(get_current_user_id)):
     difficulty = (body or {}).get("difficulty", "intermedio").lower()
-    premium = _is_premium(user_id)
+    premium = await _is_premium(user_id)
 
     if not premium and difficulty not in FREE_DIFFICULTIES:
         raise HTTPException(status_code=403, detail={
@@ -320,9 +330,9 @@ async def get_scenario(request: Request, body: dict = None, user_id: str = Depen
             "message": "Los niveles Difícil e Imposible son exclusivos de Premium.",
         })
     if premium:
-        _check_daily(user_id, "sim_count", PREMIUM_SIM_DAILY, "simulaciones")
+        await _check_daily(user_id, "sim_count", PREMIUM_SIM_DAILY, "simulaciones")
     else:
-        _check_daily(user_id, "sim_count", FREE_SIM_DAILY, "simulaciones")
+        await _check_daily(user_id, "sim_count", FREE_SIM_DAILY, "simulaciones")
 
     pool = SCENARIOS.get(difficulty, SCENARIOS["intermedio"])
     s = random.choice(pool)
@@ -370,7 +380,7 @@ async def start_debate(request: Request, body: dict, user_id: str = Depends(get_
     difficulty = body.get("difficulty", "intermedio").lower()
     if not thesis:
         return {"error": "Thesis required"}
-    premium = _is_premium(user_id)
+    premium = await _is_premium(user_id)
 
     if not premium and difficulty not in FREE_DIFFICULTIES:
         raise HTTPException(status_code=403, detail={
@@ -378,9 +388,9 @@ async def start_debate(request: Request, body: dict, user_id: str = Depends(get_
             "message": "Los niveles Difícil e Imposible son exclusivos de Premium.",
         })
     if premium:
-        _check_daily(user_id, "debate_count", PREMIUM_DEBATE_DAILY, "debates")
+        await _check_daily(user_id, "debate_count", PREMIUM_DEBATE_DAILY, "debates")
     else:
-        _check_daily(user_id, "debate_count", FREE_DEBATE_DAILY, "debates")
+        await _check_daily(user_id, "debate_count", FREE_DEBATE_DAILY, "debates")
 
     system_prompt = DIFFICULTY_DEBATE_PROMPTS.get(difficulty, DIFFICULTY_DEBATE_PROMPTS["intermedio"])
     message = f'TESIS DEL USUARIO: "{thesis}"\n\nResponde directamente con tus contraargumentos. Sin introducción meta.'
@@ -406,7 +416,7 @@ async def debate_reply(request: dict, user_id: str = Depends(get_current_user_id
     user_response = request.get("user_response", "")
     round_num = request.get("round", 1)
     difficulty = request.get("difficulty", "intermedio").lower()
-    premium = _is_premium(user_id)
+    premium = await _is_premium(user_id)
 
     if not premium and round_num > FREE_DEBATE_MAX_ROUNDS:
         raise HTTPException(status_code=403, detail={
@@ -441,10 +451,12 @@ async def sync_streak(request: dict, user_id: str = Depends(get_current_user_id)
     last_learn_date = request.get("last_learn_date", "")
     try:
         db = get_supabase()
-        db.table("user_profiles").update({
-            "streak_count": streak,
-            "last_learn_date": last_learn_date,
-        }).eq("user_id", user_id).execute()
+        await run_query(
+            db.table("user_profiles").update({
+                "streak_count": streak,
+                "last_learn_date": last_learn_date,
+            }).eq("user_id", user_id)
+        )
     except Exception:
         pass
     return {"synced": True}
@@ -454,12 +466,11 @@ async def sync_streak(request: dict, user_id: str = Depends(get_current_user_id)
 async def get_hall_of_fame(user_id: str = Depends(get_current_user_id)):
     try:
         db = get_supabase()
-        result = (
+        result = await run_query(
             db.table("user_profiles")
             .select("name, streak_count")
             .order("streak_count", desc=True)
             .limit(20)
-            .execute()
         )
         entries = [
             {"name": r.get("name", "Anónimo"), "streak": r.get("streak_count", 0)}

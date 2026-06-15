@@ -1,8 +1,8 @@
-import asyncio
 from fastapi import APIRouter, Depends
 from app.api.deps import get_current_user_id
 from app.services import notification_service
 from app.core.cache import cache_get, cache_set, cache_delete
+from app.core.database import get_supabase, run_query
 
 router = APIRouter(prefix="/notifications", tags=["notifications"])
 
@@ -35,10 +35,9 @@ async def mark_read(
 
 @router.post("/mark-all-read")
 async def mark_all_read(user_id: str = Depends(get_current_user_id)):
-    from app.core.database import get_supabase
     db = get_supabase()
-    await asyncio.to_thread(
-        lambda: db.table("notifications").update({"read": True}).eq("user_id", user_id).eq("read", False).execute()
+    await run_query(
+        db.table("notifications").update({"read": True}).eq("user_id", user_id).eq("read", False)
     )
     cache_delete(f"notif:{user_id}")
     return {"marked_all_read": True}

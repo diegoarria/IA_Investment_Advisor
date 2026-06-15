@@ -1,5 +1,5 @@
 from fastapi import Header, HTTPException
-from app.core.database import get_supabase
+from app.core.database import get_supabase, run_auth
 
 
 async def get_current_user_id(authorization: str = Header(default="")) -> str:
@@ -8,7 +8,7 @@ async def get_current_user_id(authorization: str = Header(default="")) -> str:
     token = authorization.split(" ")[1]
     try:
         db = get_supabase()
-        result = db.auth.get_user(token)
+        result = await run_auth(db.auth.get_user, token)
         if result.user is None:
             raise HTTPException(status_code=401, detail="Invalid token")
         return result.user.id

@@ -5,7 +5,7 @@ import base64
 import anthropic
 from fastapi import APIRouter, Depends, HTTPException
 from app.api.deps import get_current_user_id
-from app.core.database import get_supabase
+from app.core.database import get_supabase, run_query
 from app.models.user import UserProfile, UserProfileCreate, UserProfileUpdate, AvatarUpload
 from app.services import ai_service
 from app.core.cache import cache_get, cache_set, cache_delete
@@ -15,9 +15,9 @@ from datetime import datetime, timezone
 router = APIRouter(prefix="/profile", tags=["profile"])
 
 
-def _get_profile_or_404(user_id: str) -> dict:
+async def _get_profile_or_404(user_id: str) -> dict:
     db = get_supabase()
-    result = db.table("user_profiles").select("*").eq("user_id", user_id).execute()
+    result = await run_query(db.table("user_profiles").select("*").eq("user_id", user_id))
     if not result.data:
         raise HTTPException(status_code=404, detail="Profile not found. Complete onboarding first.")
     return result.data[0]
@@ -36,19 +36,15 @@ async def create_profile(
     db = get_supabase()
     db_data = {k: v for k, v in data.model_dump().items() if k in _DB_PROFILE_FIELDS and v is not None}
 
-    existing = await asyncio.to_thread(
-        lambda: db.table("user_profiles").select("id").eq("user_id", user_id).execute()
-    )
+    existing = await run_query(db.table("user_profiles").select("id").eq("user_id", user_id))
     now = datetime.now(timezone.utc).isoformat()
     if existing.data:
-        result = await asyncio.to_thread(
-            lambda: db.table("user_profiles").update({**db_data, "updated_at": now}).eq("user_id", user_id).execute()
+        result = await run_query(
+            db.table("user_profiles").update({**db_data, "updated_at": now}).eq("user_id", user_id)
         )
     else:
         record = {"user_id": user_id, **db_data, "created_at": now, "updated_at": now}
-        result = await asyncio.to_thread(
-            lambda: db.table("user_profiles").insert(record).execute()
-        )
+        result = await run_query(db.table("user_profiles").insert(record))
     cache_delete(f"profile:{user_id}")
     return UserProfile(**result.data[0])
 
@@ -59,12 +55,12 @@ async def get_profile(user_id: str = Depends(get_current_user_id)):
     cached = cache_get(cache_key)
     if cached is not None:
         return UserProfile(**cached)
-    data = await asyncio.to_thread(_get_profile_or_404, user_id)
+    data = await _get_profile_or_404(user_id)
     if not data.get("avatar_url"):
         try:
             db = get_supabase()
             path = f"{user_id}.jpg"
-            url = db.storage.from_("avatars").get_public_url(path)
+            url = await asyncio.to_thread(lambda: db.storage.from_("avatars").get_public_url(path))
             if url:
                 data["avatar_url"] = url
         except Exception:
@@ -78,18 +74,19 @@ async def get_ai_insights(user_id: str = Depends(get_current_user_id)):
     """Analyze chat history to detect behavioral patterns and suggest profile updates."""
     try:
         db = get_supabase()
-        result = (
+        result = await run_query(
             db.table("chat_history")
             .select("content")
             .eq("user_id", user_id)
             .eq("role", "user")
             .order("created_at", desc=True)
             .limit(40)
-            .execute()
         )
         msgs = result.data
-        profile_row = db.table("user_profiles").select("risk_tolerance,mentor,subscription_tier").eq("user_id", user_id).execute()
-        profile_data = profile_row.data[0] if profile_row.data else {}
+        profile_row_res = await run_query(
+            db.table("user_profiles").select("risk_tolerance,mentor,subscription_tier").eq("user_id", user_id)
+        )
+        profile_data = profile_row_res.data[0] if profile_row_res.data else {}
         declared_risk = profile_data.get("risk_tolerance", "moderate")
         is_premium = profile_data.get("subscription_tier") == "premium"
 
@@ -159,12 +156,12 @@ async def update_profile(
     data: UserProfileUpdate,
     user_id: str = Depends(get_current_user_id),
 ):
-    await asyncio.to_thread(_get_profile_or_404, user_id)
+    await _get_profile_or_404(user_id)
     db = get_supabase()
     updates = {k: v for k, v in data.model_dump(exclude_none=True).items()}
     updates["updated_at"] = datetime.now(timezone.utc).isoformat()
-    result = await asyncio.to_thread(
-        lambda: db.table("user_profiles").update(updates).eq("user_id", user_id).execute()
+    result = await run_query(
+        db.table("user_profiles").update(updates).eq("user_id", user_id)
     )
     cache_delete(f"profile:{user_id}")
     return UserProfile(**result.data[0])
@@ -186,28 +183,34 @@ async def upload_avatar(
     path = f"{user_id}.jpg"
 
     try:
-        db.storage.from_("avatars").upload(
-            path=path,
-            file=image_bytes,
-            file_options={"content-type": "image/jpeg", "upsert": "true"},
+        await asyncio.to_thread(
+            lambda: db.storage.from_("avatars").upload(
+                path=path,
+                file=image_bytes,
+                file_options={"content-type": "image/jpeg", "upsert": "true"},
+            )
         )
     except Exception:
         # Try update if file already exists (some supabase-py versions raise on upsert)
         try:
-            db.storage.from_("avatars").update(
-                path=path,
-                file=image_bytes,
-                file_options={"content-type": "image/jpeg"},
+            await asyncio.to_thread(
+                lambda: db.storage.from_("avatars").update(
+                    path=path,
+                    file=image_bytes,
+                    file_options={"content-type": "image/jpeg"},
+                )
             )
         except Exception as e:
             raise HTTPException(status_code=500, detail="Failed to upload avatar")
 
-    avatar_url = db.storage.from_("avatars").get_public_url(path)
+    avatar_url = await asyncio.to_thread(lambda: db.storage.from_("avatars").get_public_url(path))
 
-    db.table("user_profiles").update({
-        "avatar_url": avatar_url,
-        "updated_at": datetime.now(timezone.utc).isoformat(),
-    }).eq("user_id", user_id).execute()
+    await run_query(
+        db.table("user_profiles").update({
+            "avatar_url": avatar_url,
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+        }).eq("user_id", user_id)
+    )
 
     return {"avatar_url": avatar_url}
 
@@ -217,14 +220,16 @@ async def delete_avatar(user_id: str = Depends(get_current_user_id)):
     db = get_supabase()
     path = f"{user_id}.jpg"
     try:
-        db.storage.from_("avatars").remove([path])
+        await asyncio.to_thread(lambda: db.storage.from_("avatars").remove([path]))
     except Exception:
         pass  # File may not exist, continue to clear DB field
 
-    db.table("user_profiles").update({
-        "avatar_url": None,
-        "updated_at": datetime.now(timezone.utc).isoformat(),
-    }).eq("user_id", user_id).execute()
+    await run_query(
+        db.table("user_profiles").update({
+            "avatar_url": None,
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+        }).eq("user_id", user_id)
+    )
 
     return {"ok": True}
 
@@ -252,7 +257,7 @@ async def get_mentor_letter(user_id: str = Depends(get_current_user_id)):
     Generates a personalized monthly letter from the user's mentor.
     Cached per user per calendar month — only calls Claude once/month per user.
     """
-    profile = _get_profile_or_404(user_id)
+    profile = await _get_profile_or_404(user_id)
     mentor_name = profile.get("mentor")
     if not mentor_name or mentor_name not in MENTOR_VOICES:
         raise HTTPException(status_code=400, detail="No tienes un mentor configurado.")
@@ -296,7 +301,7 @@ Datos del estudiante este mes ({month_name}):
 Estilo: {mentor['style']}
 
 La carta debe:
-1. Comenzar con "Estimado {name}," 
+1. Comenzar con "Estimado {name},"
 2. Comentar 1-2 comportamientos específicos observados (usa las señales reales)
 3. Dar 1 consejo concreto y accionable para el próximo mes
 4. Terminar con una frase motivadora y la firma
