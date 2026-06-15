@@ -8,6 +8,8 @@ import {
 } from "lucide-react";
 import { market as marketApi } from "@/lib/api";
 import IncomeStatementTab from "@/components/IncomeStatementTab";
+import BalanceSheetTab from "@/components/BalanceSheetTab";
+import CashFlowTab from "@/components/CashFlowTab";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -1096,100 +1098,6 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
                   return <p className="text-xs text-center py-10" style={{ color: "var(--muted)" }}>Sin datos financieros</p>;
                 }
 
-                const fmtPeriodLabel = (p: string) => {
-                  if (finPeriod === "annual") return p.slice(0, 4);
-                  const m = parseInt(p.slice(5, 7), 10);
-                  const q = m <= 3 ? "Q1" : m <= 6 ? "Q2" : m <= 9 ? "Q3" : "Q4";
-                  return `${q} '${p.slice(2, 4)}`;
-                };
-
-                // Google Finance-style table: rows = metrics, cols = periods
-                const FinRow = ({ rows, field, label, isNeg = false, zeroAsDash = false, showGrowth = false, showGrowthBadges = false }: {
-                  rows: Record<string, unknown>[]; field: string; label: string; isNeg?: boolean; zeroAsDash?: boolean; showGrowth?: boolean; showGrowthBadges?: boolean;
-                }) => {
-                  const vals = rows.map((r) => {
-                    const v = r[field];
-                    if (v == null) return null;
-                    const n = Number(v);
-                    return (zeroAsDash && n === 0) ? null : n;
-                  });
-                  const nonNull = vals.filter((v): v is number => v != null);
-                  if (!nonNull.length) return null;
-                  const maxAbs = Math.max(...nonNull.map(Math.abs), 1);
-                  const lastVal = nonNull[nonNull.length - 1];
-                  const lastColor = isNeg ? (lastVal <= 0 ? "#ef4444" : "#22c55e") : (lastVal >= 0 ? "#22c55e" : "#ef4444");
-                  // growths[i] = growth of period i vs period i-1
-                  const growths = showGrowth ? vals.map((v, i) => {
-                    if (i === 0 || v == null || vals[i - 1] == null || vals[i - 1] === 0) return null;
-                    return ((v - vals[i - 1]!) / Math.abs(vals[i - 1]!)) * 100;
-                  }) : null;
-                  return (
-                    <div className="flex items-stretch border-b" style={{ borderColor: "var(--border)", minHeight: 80 }}>
-                      {/* Metric name */}
-                      <div className="shrink-0 flex items-center pr-3 pl-5" style={{ width: 160 }}>
-                        <span className="text-[13px] font-semibold leading-tight" style={{ color: "var(--sub)" }}>{label}</span>
-                      </div>
-                      {/* Period cols interleaved with growth badges */}
-                      {vals.flatMap((v, i) => {
-                        const pct = v != null ? Math.abs(v) / maxAbs : 0;
-                        const barH = Math.round(pct * 44);
-                        const isLast = i === vals.length - 1;
-                        const barColor = v == null ? "var(--border)" : isNeg ? (v <= 0 ? "#ef4444" : "#22c55e") : (v >= 0 ? "#22c55e" : "#ef4444");
-                        const col = (
-                          <div key={`col-${i}`} className="flex-1 flex flex-col items-center justify-end py-2 px-1 gap-0.5"
-                               style={{ background: isLast ? "rgba(0,168,94,0.04)" : "transparent" }}>
-                            <div style={{ height: 44, display: "flex", alignItems: "flex-end", justifyContent: "center", width: "100%" }}>
-                              <div style={{
-                                width: "70%", maxWidth: 38, height: barH || 2,
-                                background: barColor, borderRadius: "3px 3px 0 0",
-                                opacity: isLast ? 1 : 0.6,
-                              }} />
-                            </div>
-                            <span className="tabular-nums leading-none" style={{
-                              fontSize: 12, fontWeight: isLast ? 700 : 400,
-                              color: isLast ? lastColor : "var(--muted)",
-                            }}>
-                              {v != null ? (Math.abs(v) < 1 && v !== 0 ? v.toFixed(2) : fmtBig(v)) : "—"}
-                            </span>
-                          </div>
-                        );
-                        if (!showGrowthBadges || isLast) return [col];
-                        // Growth badge between col i and col i+1 → shows growth[i+1]
-                        const growth = growths?.[i + 1] ?? null;
-                        const badge = (
-                          <div key={`g-${i}`} className="flex items-center justify-center shrink-0" style={{ width: 38 }}>
-                            {showGrowth && growth != null && (
-                              <span className="text-[11px] font-black tabular-nums leading-none text-center"
-                                    style={{ color: growth >= 0 ? "#22c55e" : "#ef4444" }}>
-                                {growth >= 0 ? "+" : ""}{growth.toFixed(1)}%
-                              </span>
-                            )}
-                          </div>
-                        );
-                        return [col, badge];
-                      })}
-                    </div>
-                  );
-                };
-
-                // Period header row
-                const PeriodHeader = ({ rows, showGrowthBadges = false }: { rows: Record<string, unknown>[]; showGrowthBadges?: boolean }) => (
-                  <div className="flex items-center border-b sticky top-0 z-10"
-                       style={{ borderColor: "var(--border)", background: "var(--card)" }}>
-                    <div className="shrink-0 pl-5 pr-3" style={{ width: 160 }} />
-                    {rows.flatMap((r, i) => {
-                      const header = (
-                        <div key={i} className="flex-1 text-center py-2.5">
-                          <span className="text-[12px] font-bold" style={{ color: i === rows.length - 1 ? "var(--accent-l)" : "var(--muted)" }}>
-                            {fmtPeriodLabel(String(r.period ?? ""))}
-                          </span>
-                        </div>
-                      );
-                      if (!showGrowthBadges || i === rows.length - 1) return [header];
-                      return [header, <div key={`sp-${i}`} className="shrink-0" style={{ width: 38 }} />];
-                    })}
-                  </div>
-                );
 
                 const FIN_TABS: { key: "income" | "balance" | "cashflow"; label: string }[] = [
                   { key: "income",   label: "Est. Resultados" },
@@ -1246,137 +1154,9 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
                       />
                     )}
 
-                    {finSection === "balance" && balance.length > 0 && (() => {
-                      type M = { field: string; label: string; isNeg?: boolean; zeroAsDash?: boolean };
-                      const SubHdr = ({ title }: { title: string }) => (
-                        <div className="px-5 py-2 border-b" style={{ background: "var(--raised)", borderColor: "var(--border)" }}>
-                          <span className="text-[10px] font-black uppercase tracking-widest" style={{ color: "var(--sub)" }}>{title}</span>
-                        </div>
-                      );
-                      const Rows = (metrics: M[]) => metrics.map((m) => (
-                        <FinRow key={m.field} rows={balance} field={m.field} label={m.label} isNeg={m.isNeg} zeroAsDash={m.zeroAsDash} />
-                      ));
-                      return (
-                        <div className="mb-2">
-                          <PeriodHeader rows={balance} />
-                          <SubHdr title="Activos Corrientes" />
-                          {Rows([
-                            { field: "Cash And Cash Equivalents",       label: "Efectivo" },
-                            { field: "Short Term Investments",          label: "Inversiones C/P" },
-                            { field: "Cash And Short Term Investments", label: "Efectivo + Inv. C/P" },
-                            { field: "Net Receivables",                 label: "Cuentas por Cobrar" },
-                            { field: "Inventory",                       label: "Inventario" },
-                            { field: "Other Current Assets",            label: "Otros Activos C/P" },
-                            { field: "Current Assets",                  label: "Total Activos C/P" },
-                          ])}
-                          <SubHdr title="Activos No Corrientes" />
-                          {Rows([
-                            { field: "Net PPE",                              label: "PP&E Neto" },
-                            { field: "Goodwill",                             label: "Goodwill" },
-                            { field: "Intangible Assets",                    label: "Intangibles" },
-                            { field: "Goodwill And Other Intangible Assets", label: "Goodwill + Intang." },
-                            { field: "Long Term Investments",                label: "Inversiones L/P" },
-                            { field: "Tax Assets",                           label: "Activos por Impuestos" },
-                            { field: "Other Non Current Assets",             label: "Otros Activos L/P" },
-                            { field: "Total Non Current Assets",             label: "Total Activos L/P" },
-                            { field: "Total Assets",                         label: "TOTAL ACTIVOS" },
-                          ])}
-                          <SubHdr title="Pasivos Corrientes" />
-                          {Rows([
-                            { field: "Accounts Payable",           label: "Cuentas por Pagar", isNeg: true },
-                            { field: "Short Term Debt",            label: "Deuda C/P",          isNeg: true },
-                            { field: "Tax Payables",               label: "Impuestos por Pagar",isNeg: true },
-                            { field: "Deferred Revenue",           label: "Ingresos Diferidos" },
-                            { field: "Other Current Liabilities",  label: "Otros Pasivos C/P",  isNeg: true },
-                            { field: "Current Liabilities",        label: "Total Pasivos C/P",  isNeg: true },
-                          ])}
-                          <SubHdr title="Pasivos No Corrientes" />
-                          {Rows([
-                            { field: "Long Term Debt",                          label: "Deuda L/P",           isNeg: true },
-                            { field: "Capital Lease Obligations",               label: "Arrendamientos",       isNeg: true },
-                            { field: "Deferred Tax Liabilities",                label: "Impuestos Diferidos",  isNeg: true },
-                            { field: "Other Non Current Liabilities",           label: "Otros Pasivos L/P",    isNeg: true },
-                            { field: "Total Non Current Liabilities",           label: "Total Pasivos L/P",    isNeg: true },
-                            { field: "Total Liabilities Net Minority Interest", label: "TOTAL PASIVOS",        isNeg: true },
-                          ])}
-                          <SubHdr title="Patrimonio" />
-                          {Rows([
-                            { field: "Preferred Stock",                       label: "Acciones Preferentes" },
-                            { field: "Common Stock",                          label: "Capital Social" },
-                            { field: "Additional Paid In Capital",            label: "Capital Adicional" },
-                            { field: "Retained Earnings",                     label: "Utilidades Retenidas" },
-                            { field: "Accumulated Other Comprehensive Income", label: "Otras Util. Integrales" },
-                            { field: "Other Stockholder Equity",              label: "Otras Reservas" },
-                            { field: "Stockholders Equity",                   label: "PATRIMONIO NETO" },
-                            { field: "Minority Interest",                     label: "Interés Minoritario" },
-                          ])}
-                          <SubHdr title="Indicadores Clave" />
-                          {Rows([
-                            { field: "Total Debt",      label: "Deuda Total",         isNeg: true },
-                            { field: "Net Debt",        label: "Deuda Neta",          isNeg: true },
-                            { field: "Working Capital", label: "Capital de Trabajo" },
-                          ])}
-                        </div>
-                      );
-                    })()}
+                    {finSection === "balance" && <BalanceSheetTab balance={balance} />}
 
-                    {finSection === "cashflow" && cashflow.length > 0 && (() => {
-                      type M = { field: string; label: string; isNeg?: boolean };
-                      const SubHdr = ({ title }: { title: string }) => (
-                        <div className="px-5 py-2 border-b" style={{ background: "var(--raised)", borderColor: "var(--border)" }}>
-                          <span className="text-[10px] font-black uppercase tracking-widest" style={{ color: "var(--sub)" }}>{title}</span>
-                        </div>
-                      );
-                      const Rows = (metrics: M[]) => metrics.map((m) => (
-                        <FinRow key={m.field} rows={cashflow} field={m.field} label={m.label} isNeg={m.isNeg} />
-                      ));
-                      return (
-                        <div className="mb-2">
-                          <PeriodHeader rows={cashflow} />
-                          <SubHdr title="Actividades Operativas" />
-                          {Rows([
-                            { field: "Net Income",                  label: "Utilidad Neta" },
-                            { field: "Depreciation And Amortization", label: "D&A" },
-                            { field: "Stock Based Compensation",    label: "Comp. en Acciones" },
-                            { field: "Deferred Income Tax",         label: "Impuesto Diferido" },
-                            { field: "Change In Working Capital",   label: "Cambio Capital Trabajo" },
-                            { field: "Accounts Receivables Change", label: "Cambio Ctas. x Cobrar" },
-                            { field: "Inventory Change",            label: "Cambio Inventario" },
-                            { field: "Accounts Payables Change",    label: "Cambio Ctas. x Pagar" },
-                            { field: "Other Working Capital",       label: "Otros Cambios" },
-                            { field: "Other Non Cash Items",        label: "Otros No Monetarios" },
-                            { field: "Operating Cash Flow",         label: "FLUJO OPERATIVO" },
-                          ])}
-                          <SubHdr title="Actividades de Inversión" />
-                          {Rows([
-                            { field: "Capital Expenditure",              label: "CapEx",                    isNeg: true },
-                            { field: "Acquisitions Net",                 label: "Adquisiciones",             isNeg: true },
-                            { field: "Purchases Of Investments",         label: "Compra Inversiones",        isNeg: true },
-                            { field: "Sales Maturities Of Investments",  label: "Venta/Vencim. Inversiones" },
-                            { field: "Other Investing Activities",       label: "Otros de Inversión" },
-                            { field: "Investing Cash Flow",              label: "FLUJO DE INVERSIÓN" },
-                          ])}
-                          <SubHdr title="Actividades de Financiamiento" />
-                          {Rows([
-                            { field: "Issuance Of Common Stock",     label: "Emisión Acciones" },
-                            { field: "Repurchase Of Capital Stock",  label: "Recompra Acciones",  isNeg: true },
-                            { field: "Issuance Of Debt",             label: "Emisión Deuda" },
-                            { field: "Repayment Of Debt",            label: "Pago Deuda",         isNeg: true },
-                            { field: "Dividends Paid",               label: "Dividendos",         isNeg: true },
-                            { field: "Other Financing Activities",   label: "Otros Financiamiento" },
-                            { field: "Financing Cash Flow",          label: "FLUJO DE FINANCIAMIENTO" },
-                          ])}
-                          <SubHdr title="Resumen" />
-                          {Rows([
-                            { field: "Free Cash Flow",                label: "Flujo Libre (FCF)" },
-                            { field: "Effect Of Forex Changes On Cash", label: "Efecto Tipo de Cambio" },
-                            { field: "Net Change In Cash",            label: "Cambio Neto Efectivo" },
-                            { field: "Cash At Beginning Of Period",   label: "Efectivo Inicial" },
-                            { field: "Cash At End Of Period",         label: "Efectivo Final" },
-                          ])}
-                        </div>
-                      );
-                    })()}
+                    {finSection === "cashflow" && <CashFlowTab cashflow={cashflow} />}
                   </>
                 );
               })()}
