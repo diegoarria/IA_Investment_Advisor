@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { auth, profile as profileApi, referral as referralApi } from "@/lib/api";
 import { useAuthStore, useProfileStore, useChatStore } from "@/lib/store";
-import { Eye, EyeOff, ArrowRight, TrendingUp, Shield, Brain, Bell } from "lucide-react";
+import { Eye, EyeOff, ArrowRight, TrendingUp, Shield, Brain, Bell, User } from "lucide-react";
 
 const FEATURES = [
   { icon: Brain,      color: "#a78bfa", title: "IA que te conoce",       desc: "Se adapta a tu perfil de riesgo y comportamiento real" },
@@ -34,14 +34,15 @@ export default function Home() {
   const [resendCooldown, setResendCooldown] = useState(0);
 
   const [checking, setChecking] = useState(true);
+  const [existingUserName, setExistingUserName] = useState<string | null>(null);
 
   const router = useRouter();
   const { setAuth } = useAuthStore();
   const { setProfile } = useProfileStore();
 
-  // On mount: if the user has ANY stored token they've logged in before — keep them in.
-  // The axios interceptor auto-refreshes access_token using refresh_token on 401.
-  // Only truly clear tokens when both have definitively failed (401/403 after refresh).
+  // On mount: if the user has stored tokens, check who's logged in.
+  // Instead of auto-redirecting (which prevents switching accounts), we show
+  // a "Continuar como [nombre]" banner so the user can continue or log in as someone else.
   useEffect(() => {
     const hasAccess  = !!localStorage.getItem("access_token");
     const hasRefresh = !!localStorage.getItem("refresh_token");
@@ -56,18 +57,19 @@ export default function Home() {
         const storedToken = localStorage.getItem("access_token") ?? "";
         setAuth(storedToken, res.data.user_id);
         setProfile(res.data);
-        router.push("/chat");
+        // Show "Continuar como" banner instead of auto-redirecting
+        setExistingUserName(res.data.name || res.data.email || "tu cuenta");
+        setChecking(false);
       })
       .catch((err) => {
         clearTimeout(fallback);
         const status = (err as { response?: { status?: number } })?.response?.status;
         if (status === 401 || status === 403) {
-          // Both tokens genuinely failed — interceptor already tried refresh
           localStorage.removeItem("access_token");
           localStorage.removeItem("refresh_token");
           setChecking(false);
         } else {
-          // Network error or server error — tokens are likely still valid, go to app
+          // Network error — tokens likely still valid, go to app
           router.push("/chat");
         }
       });
@@ -228,6 +230,28 @@ export default function Home() {
             <Image src="/logo.png" alt="Nuvos AI" width={40} height={40} className="rounded-xl object-cover" />
             <span className="font-bold text-base" style={{ color: "var(--text)" }}>Nuvos AI</span>
           </div>
+
+          {/* Active session banner */}
+          {existingUserName && (
+            <div className="mb-4 rounded-2xl p-4 flex items-center justify-between gap-3 animate-fade-in-up"
+                 style={{ background: "rgba(0,168,94,0.08)", border: "1px solid rgba(0,168,94,0.18)" }}>
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-7 h-7 rounded-full flex items-center justify-center shrink-0"
+                     style={{ background: "rgba(0,168,94,0.15)" }}>
+                  <User className="w-3.5 h-3.5" style={{ color: "var(--accent-l)" }} />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-[10px] font-semibold uppercase tracking-widest" style={{ color: "var(--accent-l)", opacity: 0.7 }}>Sesión activa</p>
+                  <p className="text-[13px] font-bold truncate" style={{ color: "var(--text)" }}>{existingUserName}</p>
+                </div>
+              </div>
+              <button onClick={() => router.push("/chat")}
+                      className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[12px] font-bold transition-colors"
+                      style={{ background: "rgba(0,168,94,0.15)", color: "var(--accent-l)" }}>
+                Continuar <ArrowRight className="w-3 h-3" />
+              </button>
+            </div>
+          )}
 
           {/* Form card */}
           <div className="glass rounded-3xl p-8 animate-fade-in-up"
