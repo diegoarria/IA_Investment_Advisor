@@ -62,7 +62,6 @@ export default function PaperPage() {
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const searchWrapperRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => { if (!isAuthenticated) router.push("/"); }, [isAuthenticated]);
 
   useEffect(() => {
     if (isAuthenticated) usePaperStore.getState().restoreFromServer().catch(() => {});

@@ -6,7 +6,7 @@ import Image from "next/image";
 import PremiumBadge from "@/components/PremiumBadge";
 import AppSidebar from "@/components/AppSidebar";
 import MarketTickerBar from "@/components/MarketTickerBar";
-import { useAuthStore, useThemeStore } from "@/lib/store";
+import { useThemeStore } from "@/lib/store";
 import { support as supportApi } from "@/lib/api";
 import { Menu, X, Sun, Moon, Send, Loader2, ChevronDown, ChevronUp, TicketCheck } from "lucide-react";
 
@@ -22,7 +22,6 @@ const FAQ = [
 
 export default function SupportPage() {
   const router = useRouter();
-  const { isAuthenticated } = useAuthStore();
   const { theme, toggleTheme } = useThemeStore();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
@@ -42,7 +41,6 @@ export default function SupportPage() {
 
   const bottomRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => { if (!isAuthenticated) router.push("/"); }, [isAuthenticated]);
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [msgs]);
 
   const send = async () => {

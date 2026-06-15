@@ -1,15 +1,33 @@
 "use client";
 
 import { useState } from "react";
-import { useSubscriptionStore } from "@/lib/store";
+import { useRouter } from "next/navigation";
+import { useSubscriptionStore, useAuthStore } from "@/lib/store";
 import PaywallModal from "@/components/PaywallModal";
 
 export default function PremiumBadge() {
   const [open, setOpen] = useState(false);
+  const router = useRouter();
+  const { isAuthenticated } = useAuthStore();
   const sub = useSubscriptionStore();
   const isPremium      = sub.tier === "premium";
   const isTrialPremium = sub.isTrialPremium;
   const trialDaysLeft  = sub.trialDaysLeft;
+
+  if (!isAuthenticated) {
+    return (
+      <button
+        onClick={() => router.push("/")}
+        className="flex items-center gap-1 px-2.5 py-1 rounded-lg transition-opacity hover:opacity-80"
+        style={{ background: "rgba(99,102,241,0.08)", border: "1px solid rgba(99,102,241,0.2)" }}
+        title="Iniciar sesión"
+      >
+        <span style={{ fontSize: 9, fontWeight: 800, color: "#818cf8", letterSpacing: "0.05em", whiteSpace: "nowrap" }}>
+          Iniciar sesión
+        </span>
+      </button>
+    );
+  }
 
   if (isPremium && isTrialPremium) {
     return (

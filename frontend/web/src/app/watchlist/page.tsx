@@ -320,11 +320,6 @@ export default function WatchlistPage() {
   const searchRef = useRef<HTMLDivElement>(null);
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // ── Auth guard ──────────────────────────────────────────────────────────
-  useEffect(() => {
-    if (!isAuthenticated) router.push("/");
-  }, [isAuthenticated, router]);
-
   // ── Fetch watchlist ─────────────────────────────────────────────────────
   const fetchWatchlist = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
@@ -446,8 +441,6 @@ export default function WatchlistPage() {
       showToast("Error al eliminar");
     }
   };
-
-  if (!isAuthenticated) return null;
 
   const lastUpdatedText = lastRefreshed
     ? secondsSince < 5

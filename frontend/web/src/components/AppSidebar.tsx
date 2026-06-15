@@ -10,7 +10,7 @@ import {
 const COACHING_URL = "https://calendly.com/diego-arria19/sesion-1-1-con-diego-nuvos-ai"; // ← actualiza con tu link real
 import {
   useProfileStore, useNotificationStore, useSubscriptionStore,
-  useChatStore,
+  useChatStore, useAuthStore,
 } from "@/lib/store";
 import { getUserLevel, isAtLeast, LEVEL_LABEL, LEVEL_COLOR, type UserLevel } from "@/lib/userLevel";
 import PaywallModal from "@/components/PaywallModal";
@@ -35,6 +35,7 @@ interface Props {
 export default function AppSidebar({ open, onClose }: Props) {
   const router = useRouter();
   const pathname = usePathname();
+  const { isAuthenticated } = useAuthStore();
   const { profile } = useProfileStore();
   const { notifications } = useNotificationStore();
   const subStore = useSubscriptionStore();
@@ -147,6 +148,25 @@ export default function AppSidebar({ open, onClose }: Props) {
           </button>
         </div>
 
+
+        {/* Guest CTA — shown when not logged in */}
+        {!isAuthenticated && (
+          <div className="px-2 pb-1.5 shrink-0">
+            <div className="rounded-xl p-2.5 space-y-1.5" style={{ background: "var(--raised)", border: "1px solid var(--border)" }}>
+              <p className="text-[10px] font-bold uppercase tracking-wider" style={{ color: "var(--muted)" }}>Nuvos AI</p>
+              <button onClick={() => navigate("/")}
+                      className="w-full py-1.5 rounded-lg text-[11px] font-bold text-white"
+                      style={{ background: "var(--accent)" }}>
+                Iniciar sesión
+              </button>
+              <button onClick={() => navigate("/?mode=register")}
+                      className="w-full py-1.5 rounded-lg text-[11px] font-semibold border"
+                      style={{ borderColor: "var(--border)", color: "var(--muted)" }}>
+                Crear cuenta
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Profile widget — compact: avatar + name + badges only */}
         {profile && (

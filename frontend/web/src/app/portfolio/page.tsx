@@ -744,8 +744,6 @@ export default function PortfolioPage() {
     localStorage.setItem(STORAGE_KEY, String(Date.now()));
   }, []);
 
-  useEffect(() => { if (!isAuthenticated) router.push("/"); }, [isAuthenticated]);
-
   // Cargar portafolio del servidor al montar — garantiza sincronía entre dispositivos
   useEffect(() => {
     if (isAuthenticated) loadFromServer();
@@ -1082,8 +1080,6 @@ export default function PortfolioPage() {
     });
     setCalcResult({ final, invested:totalInvested, gain, pct:totalInvested>0?(gain/totalInvested)*100:0, multiplier, realFinal, bars });
   };
-
-  if (!isAuthenticated) return null;
 
   return (
     <>

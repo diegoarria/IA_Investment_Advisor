@@ -139,7 +139,6 @@ export default function ProfilePage() {
   const maturity = maturityLabel(maturityScore);
 
   useEffect(() => {
-    if (!isAuthenticated) { router.push("/"); return; }
     insightsApi.get().then((r) => setInsights(r.data)).catch(() => {});
     notifApi.getAll().then(() => {}).catch(() => {});
     feedApi.getLiked().then((r) => setLikedClips(r.data.clips || [])).catch(() => {});

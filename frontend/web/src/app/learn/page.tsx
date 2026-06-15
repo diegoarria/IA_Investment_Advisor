@@ -256,7 +256,6 @@ export default function LearnPage() {
   const [content, setContent] = useState("");
   const [streaming, setStreaming] = useState(false);
 
-  useEffect(() => { if (!isAuthenticated) router.push("/"); }, [isAuthenticated]);
   useEffect(() => { initStreak(); }, []);
 
   const filtered = useMemo(() => {
@@ -298,8 +297,6 @@ export default function LearnPage() {
     if (!q) return;
     openTopic(q, "", "🔍");
   };
-
-  if (!isAuthenticated) return null;
 
   return (
     <div className="h-full flex flex-col overflow-hidden" style={{ background: "var(--bg)" }}>

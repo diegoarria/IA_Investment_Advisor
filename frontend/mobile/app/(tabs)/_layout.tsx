@@ -163,8 +163,14 @@ function MobileHeader({ title }: { title: string }) {
       headerStyles.wrapper,
       { backgroundColor: colors.card, paddingTop: insets.top, borderBottomColor: colors.border },
     ]}>
-      {/* Premium / Trial strip — shown for trial and free users */}
-      {isPremium && isTrialPremium ? (
+      {/* Strip — guest / trial / free */}
+      {!profile ? (
+        <TouchableOpacity onPress={() => router.navigate("/")} activeOpacity={0.7}
+          style={{ height: 24, backgroundColor: "rgba(99,102,241,0.06)", borderBottomWidth: 0.5, borderBottomColor: "rgba(99,102,241,0.2)", flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4 }}>
+          <Text style={{ color: "#818cf8", fontSize: 10, fontWeight: "700" }}>Crear cuenta · Iniciar sesión</Text>
+          <Text style={{ color: "#818cf8", fontSize: 10 }}>→</Text>
+        </TouchableOpacity>
+      ) : isPremium && isTrialPremium ? (
         <View style={{ height: 24, backgroundColor: "rgba(0,212,126,0.08)", borderBottomWidth: 0.5, borderBottomColor: "rgba(0,212,126,0.25)", flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6 }}>
           <Text style={{ color: "#00d47e", fontSize: 10, fontWeight: "700" }}>✦ Premium Gratis</Text>
           <Text style={{ color: "#00d47e", fontSize: 10 }}>·</Text>
@@ -219,7 +225,13 @@ function MobileHeader({ title }: { title: string }) {
             )}
           </TouchableOpacity>
         ) : (
-          <View style={{ width: 36 }} />
+          <TouchableOpacity
+            onPress={() => router.navigate("/")}
+            style={{ paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, borderWidth: 1, borderColor: "rgba(99,102,241,0.3)", backgroundColor: "rgba(99,102,241,0.08)" }}
+            activeOpacity={0.7}
+          >
+            <Text style={{ fontSize: 11, fontWeight: "700", color: "#818cf8" }}>Entrar</Text>
+          </TouchableOpacity>
         )}
       </View>
       <MarketTicker />

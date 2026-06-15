@@ -460,6 +460,12 @@ export default function Home() {
                         className="btn-ghost w-full text-sm">
                   Probar con cuenta demo
                 </button>
+
+                <button onClick={() => router.push("/chat")}
+                        className="w-full text-sm py-2 transition-opacity hover:opacity-70"
+                        style={{ color: "var(--dim)" }}>
+                  Explorar sin cuenta →
+                </button>
               </>
             )}
           </div>

@@ -143,7 +143,6 @@ export default function NotificationsPage() {
   };
 
   useEffect(() => {
-    if (!isAuthenticated) { router.push("/"); return; }
     loadNotifications();
     loadWatchlistPrices();
     loadPortfolioPrices();

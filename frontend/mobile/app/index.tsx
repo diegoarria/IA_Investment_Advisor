@@ -642,6 +642,17 @@ export default function AuthScreen() {
                 </TouchableOpacity>
               </View>
             )}
+
+            {/* Guest access */}
+            <TouchableOpacity
+              onPress={() => router.replace("/(tabs)/chat")}
+              style={{ alignItems: "center", paddingVertical: 12 }}
+              activeOpacity={0.6}
+            >
+              <Text style={{ fontSize: 13, color: "#6b7280" }}>
+                Explorar sin cuenta →
+              </Text>
+            </TouchableOpacity>
           </View>
           )}
         </ScrollView>

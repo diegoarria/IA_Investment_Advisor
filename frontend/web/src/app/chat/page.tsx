@@ -292,8 +292,6 @@ export default function ChatPage() {
   };
 
   useEffect(() => {
-    if (!isAuthenticated) { router.push("/"); return; }
-
     if (!hasSeenTutorial) setTimeout(() => openTutorial(), 800);
 
     if (sessions.length === 0) {

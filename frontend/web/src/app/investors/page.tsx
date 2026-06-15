@@ -58,7 +58,6 @@ export default function InvestorsPage() {
   const [loadingDetail, setLoadingDetail] = useState(false);
 
   useEffect(() => {
-    if (!isAuthenticated) { router.push("/"); return; }
     investorsApi.list()
       .then((r) => setInvestors(r.data.investors ?? []))
       .catch(() => {})
