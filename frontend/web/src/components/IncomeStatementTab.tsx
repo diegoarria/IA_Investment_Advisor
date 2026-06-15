@@ -172,23 +172,30 @@ interface MarginRowProps {
   field: string;
   label: string;
   numeratorField?: string;
+  fallbackPct?: number;
 }
 
-function MarginRow({ rows, field, label, numeratorField }: MarginRowProps) {
-  const vals = rows.map((r) => {
-    const direct = safeNum(r[field]);
-    if (direct != null) return direct;
+function MarginRow({ rows, field, label, numeratorField, fallbackPct }: MarginRowProps) {
+  const pairs = rows.map((r, i) => {
+    let pct = safeNum(r[field]);
 
-    // Compute from numerator / revenue if direct field is missing
-    if (numeratorField) {
+    if (pct == null && numeratorField) {
       const rev = safeNum(r["Total Revenue"]);
       const num = safeNum(r[numeratorField]);
-      if (rev && rev !== 0 && num != null) return (num / rev) * 100;
+      if (rev && rev !== 0 && num != null) pct = (num / rev) * 100;
     }
-    return null;
+
+    // Use profile fallback only on the latest (last) period
+    if (pct == null && i === rows.length - 1 && fallbackPct != null) {
+      pct = fallbackPct;
+    }
+
+    const rev = safeNum(r["Total Revenue"]);
+    const dollars = pct != null && rev != null ? (rev * pct) / 100 : null;
+    return { pct, dollars };
   });
 
-  if (!vals.some((v) => v != null)) return null;
+  if (!pairs.some((p) => p.pct != null)) return null;
 
   const marginColor = (v: number) => {
     if (v >= 40) return "#22c55e";
@@ -218,21 +225,26 @@ function MarginRow({ rows, field, label, numeratorField }: MarginRowProps) {
         </div>
       </div>
 
-      {vals.map((v, i) => (
+      {pairs.map(({ pct, dollars }, i) => (
         <div
           key={i}
-          className="flex-1 flex items-center justify-end px-4 py-2"
+          className="flex-1 flex flex-col items-end justify-center gap-0.5 px-4 py-2"
           style={{
-            background: i === vals.length - 1 ? "rgba(0,168,94,0.04)" : undefined,
+            background: i === pairs.length - 1 ? "rgba(0,168,94,0.04)" : undefined,
             borderLeft: "1px solid var(--border)",
           }}
         >
           <span
-            className="text-[12px] font-bold tabular-nums"
-            style={{ color: v == null ? "var(--dim)" : marginColor(v) }}
+            className="text-[12px] font-bold tabular-nums leading-none"
+            style={{ color: pct == null ? "var(--dim)" : marginColor(pct) }}
           >
-            {v != null ? `${v.toFixed(1)}%` : "N/A"}
+            {pct != null ? `${pct.toFixed(1)}%` : "N/A"}
           </span>
+          {dollars != null && (
+            <span className="text-[10px] tabular-nums leading-none" style={{ color: "var(--dim)" }}>
+              {fmtMoney(dollars)}
+            </span>
+          )}
         </div>
       ))}
     </div>
@@ -246,6 +258,9 @@ interface IncomeStatementTabProps {
   ticker: string;
   incomeAnalysis: string;
   loadingAnalysis: boolean;
+  grossMarginPct?: number;
+  operatingMarginPct?: number;
+  netMarginPct?: number;
 }
 
 export default function IncomeStatementTab({
@@ -253,6 +268,9 @@ export default function IncomeStatementTab({
   ticker,
   incomeAnalysis,
   loadingAnalysis,
+  grossMarginPct,
+  operatingMarginPct,
+  netMarginPct,
 }: IncomeStatementTabProps) {
   // Take last 5 annual periods (income is already reversed: oldest → newest)
   const rows = income.slice(-5);
@@ -293,11 +311,11 @@ export default function IncomeStatementTab({
 
           <MetricRow rows={rows} field="Total Revenue"      label="Ingresos"           showGrowth />
           <MetricRow rows={rows} field="Cost Of Revenue"    label="Costo de Ventas"    isNeg />
-          <MarginRow rows={rows} field="Gross Margin %"     label="Margen Bruto"       numeratorField="Gross Profit" />
+          <MarginRow rows={rows} field="Gross Margin %"     label="Margen Bruto"       numeratorField="Gross Profit"     fallbackPct={grossMarginPct} />
           <MetricRow rows={rows} field="Operating Expenses" label="Gastos Operativos"  isNeg zeroAsDash />
-          <MarginRow rows={rows} field="Operating Margin %" label="Margen Operativo"   numeratorField="Operating Income" />
+          <MarginRow rows={rows} field="Operating Margin %" label="Margen Operativo"   numeratorField="Operating Income" fallbackPct={operatingMarginPct} />
           <MetricRow rows={rows} field="EBITDA"             label="EBITDA"             showGrowth />
-          <MarginRow rows={rows} field="Net Margin %"       label="Margen Neto"        numeratorField="Net Income" />
+          <MarginRow rows={rows} field="Net Margin %"       label="Margen Neto"        numeratorField="Net Income"       fallbackPct={netMarginPct} />
         </div>
       </div>
 
