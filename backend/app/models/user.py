@@ -4,12 +4,16 @@ from typing import Optional
 
 class UserProfileCreate(BaseModel):
     name: str
-    birth_date: str
-    monthly_income: str
-    monthly_contribution: str
     risk_tolerance: str
     quiz_answers: dict
+    birth_date: Optional[str] = None
+    monthly_income: Optional[str] = None
+    monthly_contribution: Optional[str] = None
     mentor: Optional[str] = None
+    investment_amount: Optional[str] = None
+    investment_goal: Optional[str] = None
+    investment_goal_amount: Optional[str] = None
+    knowledge_level: Optional[str] = None
 
 
 class UserProfileUpdate(BaseModel):
