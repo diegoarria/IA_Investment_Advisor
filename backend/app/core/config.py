@@ -18,6 +18,7 @@ class Settings(BaseSettings):
     redis_url: str = ""  # e.g. redis://localhost:6379 — optional, falls back to in-memory
     elevenlabs_api_key: str = ""   # for TTS
     elevenlabs_voice_id: str = "pNInz6obpgDQGcFmaJgB"  # Adam — multilingual, good Spanish
+    fiscal_ai_api_key: str = ""    # fiscal.ai — same data as stockanalysis.com
 
     class Config:
         env_file = ".env"

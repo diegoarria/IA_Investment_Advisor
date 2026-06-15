@@ -29,6 +29,7 @@ import requests
 import pandas as pd
 
 from app.core.cache import cache_get, cache_set
+from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -555,12 +556,151 @@ class YFinanceProvider(FinancialProvider):
             return []
 
 
+# ─── Fiscal.ai provider ──────────────────────────────────────────────────────
+
+FISCAL_AI_KEY = settings.fiscal_ai_api_key or os.getenv("FISCAL_AI_API_KEY", "")
+FISCAL_BASE   = "https://api.fiscal.ai/v1/company/financials"
+_TTL_FISCAL   = 86_400   # 24 h — updates within minutes of earnings, daily cache is fine
+
+
+class FiscalAIProvider(FinancialProvider):
+    """
+    Fiscal.ai — https://fiscal.ai
+    Enterprise-grade standardized financials. Same source as stockanalysis.com.
+    Free tier covers ~45 major tickers; paid plans cover the full market.
+    Requires FISCAL_AI_API_KEY env var.
+    """
+
+    name = "fiscal_ai"
+
+    def available(self) -> bool:
+        return bool(FISCAL_AI_KEY)
+
+    def _get(self, statement: str, symbol: str, annual: bool, limit: int) -> list[dict]:
+        period_type = "annual" if annual else "quarterly"
+        try:
+            r = requests.get(
+                f"{FISCAL_BASE}/{statement}/standardized",
+                params={
+                    "ticker":     symbol,
+                    "periodType": period_type,
+                    "currency":   "USD",
+                    "apiKey":     FISCAL_AI_KEY,
+                },
+                headers=_REQ_HEADERS,
+                timeout=14,
+            )
+            data = r.json()
+            if "errors" in data:
+                logger.debug("fiscal.ai error for %s: %s", symbol, data["errors"])
+                return []
+            periods = data.get("data", [])
+            # fiscal.ai returns newest first — reverse to oldest→newest, then take limit
+            return list(reversed(periods))[-limit:]
+        except Exception as exc:
+            logger.debug("fiscal.ai request failed %s/%s: %s", statement, symbol, exc)
+            return []
+
+    def _mv(self, period: dict, *keys) -> Optional[float]:
+        mv = period.get("metricsValues", {})
+        for k in keys:
+            v = mv.get(k, {})
+            if v and v.get("value") is not None:
+                return _num(v["value"])
+        return None
+
+    def get_income(self, symbol: str, annual: bool, limit: int) -> list[dict]:
+        periods = self._get("income-statement", symbol, annual, limit)
+        result = []
+        for p in periods:
+            g = lambda *keys: self._mv(p, *keys)
+            rev = g("income_statement_total_revenues")
+            cogs = g("income_statement_cost_of_sales")
+            gp   = g("income_statement_gross_profit")
+            oi   = g("income_statement_operating_profit")
+            ni   = g("income_statement_net_income_attributable_to_common_shareholders",
+                     "income_statement_consolidated_net_income")
+            rd   = g("income_statement_research_and_development_expenses")
+            sga  = g("income_statement_selling_general_and_administrative_expenses")
+            tax  = g("income_statement_provision_for_income_taxes")
+            eps  = g("income_statement_diluted_eps")
+            result.append(_income_period(
+                period=p.get("reportDate", "")[:10],
+                revenue=rev, cost_of_revenue=cogs, gross_profit=gp,
+                operating_income=oi, net_income=ni,
+                diluted_eps=eps, rd=rd, sga=sga, tax_provision=tax,
+            ))
+        return result
+
+    def get_balance(self, symbol: str, annual: bool, limit: int) -> list[dict]:
+        periods = self._get("balance-sheet", symbol, annual, limit)
+        result = []
+        for p in periods:
+            g = lambda *keys: self._mv(p, *keys)
+            ca = g("balance_sheet_total_current_assets")
+            cl = g("balance_sheet_total_current_liabilities")
+            result.append(_balance_period(
+                period=p.get("reportDate", "")[:10],
+                **{
+                    "Cash And Cash Equivalents":           g("balance_sheet_cash_and_cash_equivalents"),
+                    "Short Term Investments":              g("balance_sheet_short_term_investments"),
+                    "Cash And Short Term Investments":     g("balance_sheet_total_cash_and_cash_equivalents"),
+                    "Net Receivables":                     g("balance_sheet_accounts_receivable",
+                                                             "balance_sheet_total_trade_receivables"),
+                    "Inventory":                           g("balance_sheet_inventories"),
+                    "Other Current Assets":                g("balance_sheet_other_current_assets"),
+                    "Current Assets":                      ca,
+                    "Net PPE":                             g("balance_sheet_net_property_plant_and_equipment"),
+                    "Goodwill":                            g("balance_sheet_goodwill"),
+                    "Intangible Assets":                   g("balance_sheet_net_intangible_assets"),
+                    "Long Term Investments":               g("balance_sheet_long_term_investments"),
+                    "Total Assets":                        g("balance_sheet_total_assets"),
+                    "Accounts Payable":                    g("balance_sheet_accounts_payable"),
+                    "Short Term Debt":                     g("balance_sheet_short_term_debt"),
+                    "Current Liabilities":                 cl,
+                    "Long Term Debt":                      g("balance_sheet_long_term_debt"),
+                    "Total Liabilities Net Minority Interest": g("balance_sheet_total_liabilities"),
+                    "Stockholders Equity":                 g("balance_sheet_total_common_shareholders_equity",
+                                                             "balance_sheet_total_shareholders_equity"),
+                    "Retained Earnings":                   g("balance_sheet_retained_earnings"),
+                    "Working Capital": (
+                        round((ca or 0) - (cl or 0), 2)
+                        if ca is not None and cl is not None else None
+                    ),
+                },
+            ))
+        return result
+
+    def get_cashflow(self, symbol: str, annual: bool, limit: int) -> list[dict]:
+        periods = self._get("cash-flow-statement", symbol, annual, limit)
+        result = []
+        for p in periods:
+            g = lambda *keys: self._mv(p, *keys)
+            result.append(_cashflow_period(
+                period=p.get("reportDate", "")[:10],
+                **{
+                    "Operating Cash Flow":           g("cash_flow_statement_cash_from_operating_activities"),
+                    "Capital Expenditure":           g("cash_flow_statement_purchases_of_property_plant_and_equipment"),
+                    "Depreciation And Amortization": g("cash_flow_statement_depreciation_and_amortization"),
+                    "Stock Based Compensation":      g("cash_flow_statement_share_based_compensation_expense"),
+                    "Investing Cash Flow":           g("cash_flow_statement_cash_from_investing_activities"),
+                    "Financing Cash Flow":           g("cash_flow_statement_cash_from_financing_activities"),
+                    "Dividends Paid":                g("cash_flow_statement_common_share_dividends_paid"),
+                    "Repurchase Of Capital Stock":   g("cash_flow_statement_repurchases_of_common_shares"),
+                    "Issuance Of Common Stock":      g("cash_flow_statement_issuance_of_common_shares"),
+                    "Net Change In Cash":            g("cash_flow_statement_increase_or_decrease_in_cash_cash_equivalents_and_restricted_cash"),
+                },
+            ))
+        return result
+
+
 # ─── Provider registry ────────────────────────────────────────────────────────
 
 # Ordered by preference; extend this list to add new providers
 _REGISTRY: list[FinancialProvider] = [
-    FMPProvider(),
-    YFinanceProvider(),
+    FiscalAIProvider(),   # Best quality — 20+ years, same as stockanalysis.com
+    FMPProvider(),        # 10 years — activates when FMP_API_KEY is set
+    YFinanceProvider(),   # Always-available free fallback
 ]
 
 
@@ -673,7 +813,7 @@ def get_financials(symbol: str, limit: int = 5) -> dict:
             "fetchedAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         }
 
-        ttl = _TTL_FMP if provider.name == "fmp" else _TTL_YF
+        ttl = {"fiscal_ai": _TTL_FISCAL, "fmp": _TTL_FMP}.get(provider.name, _TTL_YF)
         if not income_a and not balance_a and not cf_a:
             ttl = _TTL_EMPTY
 
