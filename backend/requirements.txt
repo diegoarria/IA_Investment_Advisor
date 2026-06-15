@@ -19,4 +19,4 @@ apscheduler==3.10.4
 websockets==14.1
 pandas==2.2.3
 numpy==2.2.1
-plaid-python==26.3.0
+plaid-python==26.0.0
