@@ -817,25 +817,32 @@ def get_financials(symbol: str, limit: int = 5) -> dict:
         return cache_get(cache_key) or _empty_response(sym)
 
     try:
-        provider = _active_provider()
-        fallback = YFinanceProvider() if not isinstance(provider, YFinanceProvider) else None
+        active_providers = [p for p in _REGISTRY if p.available()]
 
-        def fetch(fn, annual, lim):
-            result = fn(sym, annual=annual, limit=lim)
-            if not result and fallback:
-                result = getattr(fallback, fn.__name__)(sym, annual=annual, limit=lim)
-            return result
+        def fetch_best(method_name: str, annual: bool, lim: int) -> tuple[list, str]:
+            """Try each provider in registry order; return first non-empty result + provider name."""
+            for p in active_providers:
+                try:
+                    result = getattr(p, method_name)(sym, annual=annual, limit=lim)
+                    if result:
+                        return result, p.name
+                except Exception as exc:
+                    logger.debug("%s failed for %s/%s: %s", p.name, method_name, sym, exc)
+            return [], "none"
 
-        income_a  = fetch(provider.get_income,   annual=True,  lim=limit)
-        income_q  = fetch(provider.get_income,   annual=False, lim=8)
-        balance_a = fetch(provider.get_balance,  annual=True,  lim=limit)
-        balance_q = fetch(provider.get_balance,  annual=False, lim=8)
-        cf_a      = fetch(provider.get_cashflow, annual=True,  lim=limit)
-        cf_q      = fetch(provider.get_cashflow, annual=False, lim=8)
+        income_a,  income_prov  = fetch_best("get_income",   annual=True,  lim=limit)
+        income_q,  _            = fetch_best("get_income",   annual=False, lim=8)
+        balance_a, balance_prov = fetch_best("get_balance",  annual=True,  lim=limit)
+        balance_q, _            = fetch_best("get_balance",  annual=False, lim=8)
+        cf_a,      cf_prov      = fetch_best("get_cashflow", annual=True,  lim=limit)
+        cf_q,      _            = fetch_best("get_cashflow", annual=False, lim=8)
+
+        # Use the provider that answered the income statement as the canonical label
+        best_provider = income_prov if income_prov != "none" else (balance_prov if balance_prov != "none" else cf_prov)
 
         response = {
             "ticker": sym,
-            "provider": provider.name,
+            "provider": best_provider,
             "incomeStatement":   {"annual": income_a,  "quarterly": income_q},
             "balanceSheet":      {"annual": balance_a, "quarterly": balance_q},
             "cashFlow":          {"annual": cf_a,      "quarterly": cf_q},
@@ -843,7 +850,7 @@ def get_financials(symbol: str, limit: int = 5) -> dict:
             "fetchedAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         }
 
-        ttl = {"fiscal_ai": _TTL_FISCAL, "fmp": _TTL_FMP}.get(provider.name, _TTL_YF)
+        ttl = {"fiscal_ai": _TTL_FISCAL, "fmp": _TTL_FMP}.get(best_provider, _TTL_YF)
         if not income_a and not balance_a and not cf_a:
             ttl = _TTL_EMPTY
 

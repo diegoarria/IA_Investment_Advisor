@@ -1121,7 +1121,7 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
                         </button>
                       ))}
                       <span className="ml-auto text-[9px]" style={{ color: "var(--dim)" }}>
-                        {data?.financials?.source === "fmp" ? "Financial Modeling Prep" : "Yahoo Finance"}
+                        {richFin?.provider === "fiscal_ai" ? "Fiscal.ai" : richFin?.provider === "fmp" ? "Financial Modeling Prep" : "Yahoo Finance"}
                       </span>
                     </div>
 
