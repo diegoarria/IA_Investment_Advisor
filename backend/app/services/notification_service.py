@@ -1,3 +1,4 @@
+import asyncio
 from datetime import datetime
 from app.core.database import get_supabase
 from app.services.market_service import get_market_summary, get_upcoming_earnings
@@ -31,8 +32,8 @@ async def create_notification(user_id: str, notification_type: str, title: str, 
 
 async def get_user_notifications(user_id: str, limit: int = 20) -> list[dict]:
     db = get_supabase()
-    result = (
-        db.table("notifications")
+    result = await asyncio.to_thread(
+        lambda: db.table("notifications")
         .select("*")
         .eq("user_id", user_id)
         .order("created_at", desc=True)
@@ -44,7 +45,9 @@ async def get_user_notifications(user_id: str, limit: int = 20) -> list[dict]:
 
 async def mark_notification_read(notification_id: str):
     db = get_supabase()
-    db.table("notifications").update({"read": True}).eq("id", notification_id).execute()
+    await asyncio.to_thread(
+        lambda: db.table("notifications").update({"read": True}).eq("id", notification_id).execute()
+    )
 
 
 async def scan_and_notify_all_users():

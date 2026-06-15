@@ -3,6 +3,10 @@ import os
 import threading
 from fastapi import APIRouter, Depends, Query, Request, UploadFile, File
 from concurrent.futures import ThreadPoolExecutor
+
+_INDICES_POOL = ThreadPoolExecutor(max_workers=5, thread_name_prefix="indices")
+_MARKET_POOL = ThreadPoolExecutor(max_workers=20, thread_name_prefix="market")
+_NEWS_POOL = ThreadPoolExecutor(max_workers=10, thread_name_prefix="news")
 import yfinance as yf
 import anthropic
 import json
@@ -134,8 +138,7 @@ def _fetch_indices() -> list[dict]:
     if cached:
         return cached
     result = []
-    with ThreadPoolExecutor(max_workers=5) as pool:
-        prices = dict(zip(INDICES.values(), pool.map(_fetch_one_index, INDICES.values())))
+    prices = dict(zip(INDICES.values(), _INDICES_POOL.map(_fetch_one_index, INDICES.values())))
     for name, symbol in INDICES.items():
         entry = {"name": name, "symbol": symbol, "price": None, "change": 0.0, "change_pct": 0.0}
         price, prev = prices.get(symbol, (None, None))
@@ -250,8 +253,7 @@ async def get_prices(request: dict, user_id: str = Depends(get_current_user_id))
             "name":       name,
         }
 
-    with ThreadPoolExecutor(max_workers=min(len(symbols), 10)) as pool:
-        pairs = list(pool.map(_fetch, symbols))
+    pairs = list(_MARKET_POOL.map(_fetch, symbols))
     return dict(pairs)
 
 
@@ -860,8 +862,7 @@ async def get_portfolio_news(
     all_articles: list[dict] = []
     seen_uuids: set = set()
 
-    with ThreadPoolExecutor(max_workers=min(len(tickers), 8)) as pool:
-        results = list(pool.map(_fetch_symbol_news, tickers))
+    results = list(_NEWS_POOL.map(_fetch_symbol_news, tickers))
 
     for articles in results:
         for a in articles:
@@ -1009,7 +1010,6 @@ def _build_close_df(
     tickers: list[str], period1: int, period2: int, interval: str = "1d"
 ) -> "_pd.DataFrame":
     """Parallel fetch of historical close prices via direct Yahoo Finance API. Index is timezone-naive."""
-    from concurrent.futures import ThreadPoolExecutor
 
     def _one(t: str) -> tuple[str, "_pd.Series | None"]:
         ts, closes = _fetch_ticker_history(t, period1, period2, interval)
@@ -1024,8 +1024,7 @@ def _build_close_df(
         dates, vals = zip(*pairs)
         return t, _pd.Series(list(vals), index=list(dates), name=t, dtype=float)
 
-    with ThreadPoolExecutor(max_workers=min(len(tickers), 8)) as pool:
-        results = list(pool.map(_one, tickers))
+    results = list(_MARKET_POOL.map(_one, tickers))
 
     series = [s for _, s in results if s is not None]
     if not series:
@@ -1038,7 +1037,6 @@ def _build_close_df_range(
 ) -> "_pd.DataFrame":
     """Fetch short-range intraday data (1d, 5d) via Yahoo Finance range parameter."""
     import httpx
-    from concurrent.futures import ThreadPoolExecutor
 
     def _one(t: str) -> tuple[str, "_pd.Series | None"]:
         encoded = _yf_symbol(t).replace("^", "%5E")
@@ -1062,8 +1060,7 @@ def _build_close_df_range(
                 continue
         return t, None
 
-    with ThreadPoolExecutor(max_workers=min(len(tickers), 8)) as pool:
-        results = list(pool.map(_one, tickers))
+    results = list(_MARKET_POOL.map(_one, tickers))
 
     series = [s for _, s in results if s is not None]
     if not series:
@@ -1540,21 +1537,20 @@ def _fetch_quote_details(tickers: list[str]) -> dict[str, dict]:
 
     results: dict[str, dict] = dict(cached)
 
-    from concurrent.futures import ThreadPoolExecutor, as_completed
-    with ThreadPoolExecutor(max_workers=min(len(missing), 10)) as pool:
-        futures = {pool.submit(_fetch_quote_light, t): t for t in missing}
-        for fut in as_completed(futures):
-            sym = futures[fut]
-            try:
-                qs = fut.result()
-                if qs:
-                    entry = _parse_quote_light(qs)
-                    results[sym] = entry
-                    cache_set(f"qdetailv2:{sym}", entry, ttl=_QUOTE_DETAILS_TTL)
-                else:
-                    results[sym] = {}
-            except Exception:
+    from concurrent.futures import as_completed
+    futures = {_MARKET_POOL.submit(_fetch_quote_light, t): t for t in missing}
+    for fut in as_completed(futures):
+        sym = futures[fut]
+        try:
+            qs = fut.result()
+            if qs:
+                entry = _parse_quote_light(qs)
+                results[sym] = entry
+                cache_set(f"qdetailv2:{sym}", entry, ttl=_QUOTE_DETAILS_TTL)
+            else:
                 results[sym] = {}
+        except Exception:
+            results[sym] = {}
 
     return results
 

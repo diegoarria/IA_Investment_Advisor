@@ -1,5 +1,6 @@
 import re
 import json
+import asyncio
 import base64
 import anthropic
 from fastapi import APIRouter, Depends, HTTPException
@@ -7,7 +8,7 @@ from app.api.deps import get_current_user_id
 from app.core.database import get_supabase
 from app.models.user import UserProfile, UserProfileCreate, UserProfileUpdate, AvatarUpload
 from app.services import ai_service
-from app.core.cache import cache_get, cache_set
+from app.core.cache import cache_get, cache_set, cache_delete
 from app.core.config import settings
 from datetime import datetime, timezone
 
@@ -33,25 +34,32 @@ async def create_profile(
     user_id: str = Depends(get_current_user_id),
 ):
     db = get_supabase()
-    # Only persist fields that exist in the user_profiles table
     db_data = {k: v for k, v in data.model_dump().items() if k in _DB_PROFILE_FIELDS and v is not None}
 
-    existing = db.table("user_profiles").select("id").eq("user_id", user_id).execute()
-    if existing.data:
-        now = datetime.now(timezone.utc).isoformat()
-        result = db.table("user_profiles").update({**db_data, "updated_at": now}).eq("user_id", user_id).execute()
-        return UserProfile(**result.data[0])
-
+    existing = await asyncio.to_thread(
+        lambda: db.table("user_profiles").select("id").eq("user_id", user_id).execute()
+    )
     now = datetime.now(timezone.utc).isoformat()
-    record = {"user_id": user_id, **db_data, "created_at": now, "updated_at": now}
-    result = db.table("user_profiles").insert(record).execute()
+    if existing.data:
+        result = await asyncio.to_thread(
+            lambda: db.table("user_profiles").update({**db_data, "updated_at": now}).eq("user_id", user_id).execute()
+        )
+    else:
+        record = {"user_id": user_id, **db_data, "created_at": now, "updated_at": now}
+        result = await asyncio.to_thread(
+            lambda: db.table("user_profiles").insert(record).execute()
+        )
+    cache_delete(f"profile:{user_id}")
     return UserProfile(**result.data[0])
 
 
 @router.get("", response_model=UserProfile)
 async def get_profile(user_id: str = Depends(get_current_user_id)):
-    data = _get_profile_or_404(user_id)
-    # If avatar_url not stored yet, try to generate public URL from storage
+    cache_key = f"profile:{user_id}"
+    cached = cache_get(cache_key)
+    if cached is not None:
+        return UserProfile(**cached)
+    data = await asyncio.to_thread(_get_profile_or_404, user_id)
     if not data.get("avatar_url"):
         try:
             db = get_supabase()
@@ -61,6 +69,7 @@ async def get_profile(user_id: str = Depends(get_current_user_id)):
                 data["avatar_url"] = url
         except Exception:
             pass
+    cache_set(cache_key, data, ttl=120)
     return UserProfile(**data)
 
 
@@ -150,11 +159,14 @@ async def update_profile(
     data: UserProfileUpdate,
     user_id: str = Depends(get_current_user_id),
 ):
-    _get_profile_or_404(user_id)
+    await asyncio.to_thread(_get_profile_or_404, user_id)
     db = get_supabase()
     updates = {k: v for k, v in data.model_dump(exclude_none=True).items()}
     updates["updated_at"] = datetime.now(timezone.utc).isoformat()
-    result = db.table("user_profiles").update(updates).eq("user_id", user_id).execute()
+    result = await asyncio.to_thread(
+        lambda: db.table("user_profiles").update(updates).eq("user_id", user_id).execute()
+    )
+    cache_delete(f"profile:{user_id}")
     return UserProfile(**result.data[0])
 
 

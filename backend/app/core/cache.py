@@ -35,7 +35,14 @@ def _get_redis():
         if not settings.redis_url:
             return None
         import redis as redis_lib
-        _redis = redis_lib.from_url(settings.redis_url, decode_responses=True, socket_timeout=2)
+        pool = redis_lib.BlockingConnectionPool.from_url(
+            settings.redis_url,
+            max_connections=100,
+            timeout=5,
+            decode_responses=True,
+            socket_timeout=2,
+        )
+        _redis = redis_lib.Redis(connection_pool=pool)
         _redis.ping()
         logger.info("Redis cache connected: %s", settings.redis_url)
         return _redis
