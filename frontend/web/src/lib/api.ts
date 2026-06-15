@@ -177,6 +177,8 @@ export const market = {
     api.post("/api/market/portfolio-returns", { positions }),
   getPortfolioChart: (positions: { ticker: string; shares: number; purchase_date?: string | null; avg_price?: number | null }[], period: string) =>
     api.post("/api/market/portfolio-chart", { positions, period }),
+  getFinancials: (ticker: string, limit = 5) =>
+    api.get(`/api/stocks/${encodeURIComponent(ticker)}/financials`, { params: { limit } }),
 };
 
 export const learn = {
