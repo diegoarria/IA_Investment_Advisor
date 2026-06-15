@@ -667,7 +667,7 @@ export default function PortfolioPage() {
   const [screenshotAnalyzing, setScreenshotAnalyzing] = useState(false);
   const [screenshotProgress, setScreenshotProgress] = useState("");
   const [isDragOver, setIsDragOver] = useState(false);
-  type ExtractedPos = { id: string; ticker: string; name: string; shares: number; avg_price: number };
+  type ExtractedPos = { id: string; ticker: string; name: string; shares: number; avg_price: number; purchase_date?: string | null };
   const [screenshotPreview, setScreenshotPreview] = useState<ExtractedPos[]|null>(null);
   const [mergeModalOpen, setMergeModalOpen] = useState(false);
   const [pendingMerge, setPendingMerge] = useState<ExtractedPos[]>([]);
@@ -701,7 +701,7 @@ export default function PortfolioPage() {
   const [addingLoading, setAddingLoading] = useState(false);
 
   // Currency modal (shown after screenshot or Excel import)
-  type PendingImport = { ticker: string; name?: string; shares: number; avgPrice: number }[];
+  type PendingImport = { ticker: string; name?: string; shares: number; avgPrice: number; purchaseDate?: string }[];
   const [pendingImport, setPendingImport] = useState<PendingImport|null>(null);
   const [importCurrency, setImportCurrency] = useState("USD");
   const [convertingCurrency, setConvertingCurrency] = useState(false);
@@ -987,16 +987,23 @@ export default function PortfolioPage() {
     }
     setPendingImport(screenshotPreview.map((p) => ({
       ticker: p.ticker, name: p.name, shares: p.shares, avgPrice: p.avg_price,
+      ...(p.purchase_date ? { purchaseDate: p.purchase_date } : {}),
     })));
     setImportCurrency("USD");
     setScreenshotPreview(null);
   };
 
   const applyMerge = (mode: "keep" | "replace") => {
-    const incoming = pendingMerge.map((p) => ({ ticker: p.ticker, name: p.name, shares: p.shares, avgPrice: p.avg_price }));
+    const incoming = pendingMerge.map((p) => ({
+      ticker: p.ticker, name: p.name, shares: p.shares, avgPrice: p.avg_price,
+      ...(p.purchase_date ? { purchaseDate: p.purchase_date } : {}),
+    }));
     let toImport;
     if (mode === "keep") {
-      const existing = positions.map((p) => ({ ticker: p.ticker, name: p.name ?? "", shares: p.shares, avgPrice: p.avgPrice }));
+      const existing = positions.map((p) => ({
+        ticker: p.ticker, name: p.name ?? "", shares: p.shares, avgPrice: p.avgPrice,
+        ...(p.purchaseDate ? { purchaseDate: p.purchaseDate } : {}),
+      }));
       const newOnly = incoming.filter((p) => !existing.some((e) => e.ticker.toUpperCase() === p.ticker.toUpperCase()));
       toImport = [...existing, ...newOnly];
     } else {
@@ -1319,6 +1326,7 @@ export default function PortfolioPage() {
                     <div className="text-right mr-3">
                       <p className="text-xs" style={{ color:"var(--sub)" }}>{p.shares} acc</p>
                       <p className="text-xs" style={{ color:"var(--sub)" }}>@ ${p.avg_price>0?p.avg_price.toFixed(2):"—"}</p>
+                      {p.purchase_date && <p className="text-xs" style={{ color:"var(--muted)" }}>{p.purchase_date}</p>}
                     </div>
                     <button onClick={() => setScreenshotPreview((prev) => {
                       const next=(prev??[]).filter((x)=>x.id!==p.id);

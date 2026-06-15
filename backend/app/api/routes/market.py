@@ -582,7 +582,7 @@ async def portfolio_from_screenshot(
     _PROMPT = """Analiza esta imagen de un portafolio de inversión y extrae TODAS las posiciones visibles.
 
 Responde ÚNICAMENTE con un JSON array con este formato exacto (sin texto adicional, sin markdown):
-[{"ticker":"AAPL","name":"Apple Inc.","shares":10.5,"avg_price":150.00,"current_price":187.50,"gain_loss_pct":25.0}]
+[{"ticker":"AAPL","name":"Apple Inc.","shares":10.5,"avg_price":150.00,"current_price":187.50,"gain_loss_pct":25.0,"purchase_date":"2023-08-15"}]
 
 CAMPOS:
 - ticker: símbolo bursátil en MAYÚSCULAS (BTC-USD, ETH-USD para cripto)
@@ -591,15 +591,23 @@ CAMPOS:
 - avg_price: precio promedio de COMPRA por unidad (ver cálculo abajo)
 - current_price: precio actual por unidad (null si no visible)
 - gain_loss_pct: porcentaje de ganancia/pérdida (null si no visible)
+- purchase_date: fecha de compra en formato "YYYY-MM-DD" (null si no visible)
 
 CÓMO CALCULAR avg_price (en orden de prioridad):
-1. Si ves etiquetas como "Precio Prom", "Avg Cost", "Average Cost", "Cost Per Share", "Preço Médio", "P.M." → usa ese número directamente
+1. Si ves etiquetas como "Precio Prom", "Avg Cost", "Average Cost", "Cost Per Share", "Preço Médio", "P.M.", "Precio promedio" → usa ese número DIRECTAMENTE sin cálculo adicional
 2. Si ves valor_total_mercado y ganancia/pérdida en color:
    - Verde/positivo: avg_price = (valor_mercado - ganancia) / shares
    - Rojo/negativo: avg_price = (valor_mercado + pérdida_absoluta) / shares
 3. Si ves % de retorno y valor actual: avg_price = (valor_actual / (1 + pct/100)) / shares
-4. Si ves "Invertido" o "Cost Basis" total: avg_price = monto_total / shares
+4. Si ves "Invertido", "Cost Basis", "Capital invertido", "Monto invertido" total: avg_price = monto_total / shares
 5. Si no puedes calcular: avg_price = 0
+
+CÓMO ENCONTRAR purchase_date:
+- Busca cualquier etiqueta de fecha junto a la posición: "Fecha de compra", "Date acquired", "Bought on", "Open date", "Trade date", "Fecha de apertura", "Since", "Purchase date", "Fecha", "Comprado el", "Adquirido"
+- Busca fechas en formato visual (ej: "15 ene 2024", "Jan 15, 2024", "01/15/2024", "2024-01-15") y conviértelas a YYYY-MM-DD
+- Si la pantalla muestra el detalle de la posición con una sola fecha, es la fecha de compra
+- Si hay múltiples fechas (por ejemplo historial de transacciones), usa la más antigua (primera compra)
+- Si no aparece ninguna fecha para esta posición → null
 
 NOTAS IMPORTANTES:
 - En apps latinoamericanas: el punto puede ser separador de miles (1.234,56 = 1234.56)
@@ -620,7 +628,7 @@ NOTAS IMPORTANTES:
             ]}],
         }
         if use_thinking:
-            kwargs["thinking"] = {"type": "enabled", "budget_tokens": 8000}
+            kwargs["thinking"] = {"type": "adaptive"}
 
         msg = sc.messages.create(**kwargs)
 
@@ -659,11 +667,18 @@ NOTAS IMPORTANTES:
                 if not ticker:
                     continue
                 avg_price = p.get("avg_price")
+                raw_date = p.get("purchase_date")
+                purchase_date = None
+                if raw_date and isinstance(raw_date, str):
+                    import re as _re
+                    if _re.match(r"^\d{4}-\d{2}-\d{2}$", raw_date.strip()):
+                        purchase_date = raw_date.strip()
                 result.append({
                     "ticker": ticker,
                     "name": p.get("name") or ticker,
                     "shares": float(p.get("shares") or 0),
                     "avg_price": float(avg_price) if avg_price else 0,
+                    "purchase_date": purchase_date,
                 })
             return {"positions": result}
 
