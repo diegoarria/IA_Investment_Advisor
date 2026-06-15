@@ -25,7 +25,6 @@ const TAB_CONFIG: Record<string, { icon: IoniconName; iconFilled: IoniconName; l
   watchlist:     { icon: "eye-outline",           iconFilled: "eye",           label: "Watchlist" },
   learn:         { icon: "school-outline",        iconFilled: "school",        label: "Aprendizaje" },
   paper:         { icon: "bar-chart-outline",     iconFilled: "bar-chart",     label: "Simulador" },
-  investors:     { icon: "people-outline",        iconFilled: "people",        label: "Inversores" },
   profile:       { icon: "person-outline",        iconFilled: "person",        label: "Perfil" },
   notifications: { icon: "notifications-outline", iconFilled: "notifications", label: "Notificaciones" },
   videos:        { icon: "play-circle-outline",   iconFilled: "play-circle",   label: "Videos" },

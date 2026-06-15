@@ -14,7 +14,6 @@ import * as ImagePicker from "expo-image-picker";
 import { marketApi } from "../../src/lib/api";
 import { useTheme, Colors } from "../../src/lib/ThemeContext";
 import { usePortfolioStore, Position } from "../../src/lib/portfolioStore";
-import MobileWhatIf from "../../src/components/MobileWhatIf";
 import MobileMonthlyReport from "../../src/components/MobileMonthlyReport";
 import MobileWeeklyScreener from "../../src/components/MobileWeeklyScreener";
 import MobilePortfolioLeaderboard from "../../src/components/MobilePortfolioLeaderboard";
@@ -1304,27 +1303,6 @@ export default function PortfolioScreen() {
                 />
             }
 
-            {/* ── SIMULADOR ¿QUÉ PASA SI? ── */}
-            {isPremiumAccess
-              ? <MobileWhatIf
-                  positions={positions.map((p) => ({ ticker: p.ticker, name: p.name, shares: p.shares, avg_cost: p.avgPrice, current_price: prices[p.ticker]?.price ?? 0, value: (p.shares || 0) * (prices[p.ticker]?.price ?? p.avgPrice) }))}
-                  isPremium={true} onUpgrade={() => setPaywallOpen(true)} />
-              : <PremiumToolCard
-                  title="Simulador ¿Qué pasa si?"
-                  tagline="Prueba decisiones antes de tomarlas"
-                  description="Simula cualquier cambio en tu portafolio antes de ejecutarlo. Cambia posiciones, proyecta aportes o simula eventos macroeconómicos y ve el impacto real."
-                  icon="flash-outline"
-                  color="#f59e0b"
-                  benefits={[
-                    { icon: "🔄", text: "¿Qué pasa si vendo X y compro Y?" },
-                    { icon: "💰", text: "Proyección de aportes mensuales a N años" },
-                    { icon: "🌍", text: "Impacto de eventos macro en tu portafolio" },
-                    { icon: "💡", text: "Veredicto de tu mentor en cada escenario" },
-                  ]}
-                  onUnlock={() => setPaywallOpen(true)}
-                />
-            }
-
             {/* ── SCREENER SEMANAL ── */}
             {isPremiumAccess
               ? <MobileWeeklyScreener isPremium={true} onUpgrade={() => setPaywallOpen(true)} existingTickers={positions.map(p => p.ticker)} />
@@ -1345,6 +1323,26 @@ export default function PortfolioScreen() {
             }
 
             <MobilePortfolioLeaderboard isPremium={isPremiumAccess} onUpgrade={() => setPaywallOpen(true)} />
+
+            {/* ── GRANDES INVERSORES ── */}
+            <TouchableOpacity
+              onPress={() => router.push("/(tabs)/investors")}
+              activeOpacity={0.75}
+              style={{
+                flexDirection: "row", alignItems: "center", gap: 14,
+                borderRadius: 18, borderWidth: 1, padding: 16,
+                borderColor: colors.border, backgroundColor: colors.card,
+              }}
+            >
+              <View style={{ width: 44, height: 44, borderRadius: 13, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(0,212,126,0.12)" }}>
+                <Ionicons name="people-outline" size={22} color={colors.accent} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 14, fontWeight: "800", color: colors.text, letterSpacing: -0.2 }}>Grandes Inversores</Text>
+                <Text style={{ fontSize: 11, color: colors.textMuted, marginTop: 2 }}>Burry · Buffett · Pelosi · Ackman · Wood</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={16} color={colors.textDim} />
+            </TouchableOpacity>
 
           </View>
         )}
