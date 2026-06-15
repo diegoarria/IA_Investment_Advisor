@@ -648,6 +648,8 @@ export default function PortfolioPage() {
   const userLevel = getUserLevel(profile);
   const sub = useSubscriptionStore();
   const isPremium = sub.tier === "premium";
+  const isTrialPremium = sub.isTrialPremium;
+  const trialDaysLeft  = sub.trialDaysLeft;
   const [paywallOpen, setPaywallOpen] = useState(false);
   const {
     positions, addPosition, removePosition, updatePosition, setPositions,
@@ -1164,25 +1166,52 @@ export default function PortfolioPage() {
           <GuidedSteps currentPage="portfolio" />
 
           {/* Tab switcher — Herramientas only for basico+ */}
-          <div className="flex p-1 rounded-xl gap-1 mb-5" style={{ background: "var(--raised)" }}>
-            <button onClick={() => setActiveTab("portfolio")}
-                    className="flex-1 py-2 rounded-lg text-sm font-semibold transition-all"
-                    style={{ background: activeTab === "portfolio" ? "var(--card)" : "transparent", color: activeTab === "portfolio" ? "var(--text)" : "var(--muted)" }}>
-              Mi Portafolio
-            </button>
-            {isAtLeast(userLevel, "basico") ? (
-              <button onClick={() => setActiveTab("herramientas")}
-                      className="flex-1 py-2 rounded-lg text-sm font-semibold transition-all flex items-center justify-center gap-1.5"
-                      style={{ background: activeTab === "herramientas" ? "var(--card)" : "transparent", color: activeTab === "herramientas" ? "var(--accent-l)" : "var(--muted)" }}>
-                Herramientas
+          <div className="flex items-center gap-2 mb-5">
+            <div className="flex flex-1 p-1 rounded-xl gap-1" style={{ background: "var(--raised)" }}>
+              <button onClick={() => setActiveTab("portfolio")}
+                      className="flex-1 py-2 rounded-lg text-sm font-semibold transition-all"
+                      style={{ background: activeTab === "portfolio" ? "var(--card)" : "transparent", color: activeTab === "portfolio" ? "var(--text)" : "var(--muted)" }}>
+                Mi Portafolio
               </button>
-            ) : (
-              <div className="flex-1 py-2 rounded-lg text-sm font-semibold flex items-center justify-center gap-1.5 opacity-35"
-                   style={{ color: "var(--dim)" }}
-                   title="Disponible en nivel Básico">
-                🔒 Herramientas
-              </div>
-            )}
+              {isAtLeast(userLevel, "basico") ? (
+                <button onClick={() => setActiveTab("herramientas")}
+                        className="flex-1 py-2 rounded-lg text-sm font-semibold transition-all flex items-center justify-center gap-1.5"
+                        style={{ background: activeTab === "herramientas" ? "var(--card)" : "transparent", color: activeTab === "herramientas" ? "var(--accent-l)" : "var(--muted)" }}>
+                  Herramientas
+                </button>
+              ) : (
+                <div className="flex-1 py-2 rounded-lg text-sm font-semibold flex items-center justify-center gap-1.5 opacity-35"
+                     style={{ color: "var(--dim)" }}
+                     title="Disponible en nivel Básico">
+                  🔒 Herramientas
+                </div>
+              )}
+            </div>
+
+            {/* Premium trial pill */}
+            {isPremium && isTrialPremium ? (
+              <button
+                onClick={() => setPaywallOpen(true)}
+                className="flex-shrink-0 flex flex-col items-end gap-0.5 rounded-xl px-2.5 py-1.5 transition-all hover:opacity-80"
+                style={{ background: "rgba(0,168,94,0.08)", border: "1px solid rgba(0,212,126,0.2)" }}
+              >
+                <div className="flex items-center gap-1">
+                  <span className="text-[9px] font-bold uppercase tracking-wide leading-none" style={{ color: "var(--accent-l)" }}>✦ Premium</span>
+                  <span className="text-[9px] font-semibold leading-none" style={{ color: "var(--muted)" }}>{trialDaysLeft}d</span>
+                </div>
+                <div className="w-16 h-0.5 rounded-full overflow-hidden" style={{ background: "var(--border)" }}>
+                  <div className="h-full rounded-full" style={{ width: `${Math.round((trialDaysLeft / 90) * 100)}%`, background: "var(--grad-green)" }} />
+                </div>
+              </button>
+            ) : !isPremium ? (
+              <button
+                onClick={() => setPaywallOpen(true)}
+                className="flex-shrink-0 rounded-xl px-2.5 py-1.5 text-[9px] font-bold uppercase tracking-wide transition-all hover:opacity-80"
+                style={{ background: "rgba(245,158,11,0.08)", border: "1px solid rgba(245,158,11,0.2)", color: "#f59e0b" }}
+              >
+                Activar →
+              </button>
+            ) : null}
           </div>
 
           {activeTab === "portfolio" && <div className="space-y-5">
