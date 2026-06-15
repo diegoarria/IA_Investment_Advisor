@@ -52,7 +52,7 @@ function Header({ rows }: { rows: Row[] }) {
         <div key={i} className="flex-1 text-right px-4 py-3"
              style={{ background: i === rows.length - 1 ? "rgba(0,168,94,0.05)" : undefined, borderLeft: "1px solid var(--border)" }}>
           <span className="text-[13px] font-black tabular-nums"
-                style={{ color: i === rows.length - 1 ? "var(--accent-l)" : "var(--muted)" }}>
+                style={{ color: i === rows.length - 1 ? "var(--text)" : "var(--muted)" }}>
             {fmtYear(String(r.period ?? ""))}
           </span>
         </div>
@@ -110,7 +110,7 @@ function ValueRow({ rows, field, label, isTotal, isNeg, zeroAsDash, showGrowth, 
         const growth = showGrowth && v != null && prev != null ? pctChange(v, prev) : null;
         const color = v == null ? "var(--dim)"
           : isNeg ? (v <= 0 ? "#ef4444" : "#22c55e")
-          : v >= 0 ? "var(--text)" : "#ef4444";
+          : "var(--text)";
         return (
           <div key={i} className="flex-1 flex flex-col items-end justify-center gap-0.5 px-4 py-2.5"
                style={{ background: isLast ? "rgba(0,168,94,0.04)" : undefined, borderLeft: "1px solid var(--border)" }}>
@@ -238,35 +238,35 @@ export default function IncomeStatementTab({
           <Header rows={rows} />
 
           {/* ── Ingresos ── */}
-          <Section label="Ingresos" color="#3b82f6" />
+          <Section label="Ingresos" />
           <ValueRow rows={rows} field="Total Revenue"   label="Ingresos Totales"  isTotal showGrowth />
           <ValueRow rows={rows} field="Cost Of Revenue" label="Costo de Ventas"   isNeg indent />
           <ValueRow rows={rows} field="Gross Profit"    label="Utilidad Bruta"    isTotal showGrowth />
           <MarginRow rows={rows} field="Gross Margin %" label="Margen Bruto"      numeratorField="Gross Profit" fallbackPct={grossMarginPct} />
 
           {/* ── Gastos Operativos ── */}
-          <Section label="Gastos Operativos" color="#f59e0b" />
-          <ValueRow rows={rows} field="Research And Development"     label="Investigación y Desarrollo" isNeg indent zeroAsDash />
-          <ValueRow rows={rows} field="Selling General Administrative" label="Ventas, Gral y Admin."   isNeg indent zeroAsDash />
-          <ValueRow rows={rows} field="Operating Expenses"           label="Total Gastos Operativos"    isNeg zeroAsDash />
-          <ValueRow rows={rows} field="Operating Income"             label="Utilidad Operativa (EBIT)"  isTotal showGrowth />
+          <Section label="Gastos Operativos" />
+          <ValueRow rows={rows} field="Research And Development"       label="Investigación y Desarrollo" isNeg indent zeroAsDash />
+          <ValueRow rows={rows} field="Selling General Administrative" label="Ventas, Gral y Admin."      isNeg indent zeroAsDash />
+          <ValueRow rows={rows} field="Operating Expenses"             label="Total Gastos Operativos"    isNeg zeroAsDash />
+          <ValueRow rows={rows} field="Operating Income"               label="Utilidad Operativa (EBIT)"  isTotal showGrowth />
           <MarginRow rows={rows} field="Operating Margin %" label="Margen Operativo" numeratorField="Operating Income" fallbackPct={operatingMarginPct} />
 
           {/* ── No Operativo ── */}
-          <Section label="No Operativo" color="#8b5cf6" />
-          <ValueRow rows={rows} field="Interest Income"  label="Ingresos Financieros"       indent zeroAsDash />
-          <ValueRow rows={rows} field="Interest Expense" label="Gastos Financieros"         isNeg indent zeroAsDash />
-          <ValueRow rows={rows} field="Pretax Income"    label="Utilidad Pre-Impuestos"     isTotal zeroAsDash />
-          <ValueRow rows={rows} field="Tax Provision"    label="Impuestos"                  isNeg indent zeroAsDash />
+          <Section label="No Operativo" />
+          <ValueRow rows={rows} field="Interest Income"  label="Ingresos Financieros"   indent zeroAsDash />
+          <ValueRow rows={rows} field="Interest Expense" label="Gastos Financieros"     isNeg indent zeroAsDash />
+          <ValueRow rows={rows} field="Pretax Income"    label="Utilidad Pre-Impuestos" isTotal zeroAsDash />
+          <ValueRow rows={rows} field="Tax Provision"    label="Impuestos"              isNeg indent zeroAsDash />
 
           {/* ── Resultado Final ── */}
-          <Section label="Resultado Final" color="#22c55e" />
-          <ValueRow rows={rows} field="Net Income"                  label="Utilidad Neta"    isTotal showGrowth />
+          <Section label="Resultado Final" />
+          <ValueRow rows={rows} field="Net Income"                    label="Utilidad Neta"  isTotal showGrowth />
           <MarginRow rows={rows} field="Net Margin %" label="Margen Neto" numeratorField="Net Income" fallbackPct={netMarginPct} />
-          <ValueRow rows={rows} field="EBITDA"                      label="EBITDA"           showGrowth zeroAsDash />
+          <ValueRow rows={rows} field="EBITDA"                        label="EBITDA"         showGrowth zeroAsDash />
           <ValueRow rows={rows} field="Depreciation And Amortization" label="D&A"            indent zeroAsDash />
-          <ValueRow rows={rows} field="Diluted EPS"                 label="EPS Diluido"      isEPS indent zeroAsDash />
-          <ValueRow rows={rows} field="Basic EPS"                   label="EPS Básico"       isEPS indent zeroAsDash />
+          <ValueRow rows={rows} field="Diluted EPS"                   label="EPS Diluido"    isEPS indent zeroAsDash />
+          <ValueRow rows={rows} field="Basic EPS"                     label="EPS Básico"     isEPS indent zeroAsDash />
 
         </div>
       </div>
