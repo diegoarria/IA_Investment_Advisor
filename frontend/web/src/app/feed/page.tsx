@@ -71,7 +71,7 @@ export default function FeedPage() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [nextCursor, setNextCursor] = useState<number | null>(0);
   const [activeIndex, setActiveIndex] = useState(0);
-  const [isMuted, setIsMuted]       = useState(true);
+  const [isMuted, setIsMuted]       = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [filterOpen, setFilterOpen] = useState(false);
   const [speaker, setSpeaker]       = useState<string | null>(null);

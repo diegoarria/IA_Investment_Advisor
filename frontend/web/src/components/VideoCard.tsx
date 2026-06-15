@@ -146,15 +146,17 @@ export default function VideoCard({
   }, [isActive, clip.video_url]); // eslint-disable-line
 
   const safePlay = useCallback(async (el: HTMLVideoElement) => {
-    el.muted = true;
+    el.muted = isMuted;
     try {
       await el.play();
     } catch {
+      // Browser blocked autoplay with sound — retry muted as fallback
+      el.muted = true;
       await new Promise((r) => setTimeout(r, 50));
       el.play().catch(() => {});
     }
     setPlaying(true);
-  }, []);
+  }, [isMuted]);
 
   // Sequenced playback: pre-audio → video → post-audio
   useEffect(() => {
