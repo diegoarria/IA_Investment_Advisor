@@ -69,18 +69,6 @@ function TableHeader({ rows }: { rows: Row[] }) {
   );
 }
 
-function SectionDivider({ label }: { label: string }) {
-  return (
-    <div
-      className="flex items-center px-4 py-1.5 border-b"
-      style={{ background: "var(--raised)", borderColor: "var(--border)" }}
-    >
-      <span className="text-[9px] font-black uppercase tracking-widest" style={{ color: "var(--dim)" }}>
-        {label}
-      </span>
-    </div>
-  );
-}
 
 interface MetricRowProps {
   rows: Row[];
@@ -303,52 +291,13 @@ export default function IncomeStatementTab({
 
           <TableHeader rows={rows} />
 
-          {/* ── Top Line ── */}
-          <SectionDivider label="Ingresos" />
-          <MetricRow rows={rows} field="Total Revenue"   label="Ingresos"          showGrowth />
-          <MetricRow rows={rows} field="Cost Of Revenue" label="Costo de Ventas"   isNeg />
-
-          {/* ── Gross Profit ── */}
-          <SectionDivider label="Utilidad Bruta" />
-          <MetricRow rows={rows} field="Gross Profit" label="Utilidad Bruta" showGrowth />
-          <MarginRow
-            rows={rows}
-            field="Gross Margin %"
-            label="Margen Bruto"
-            numeratorField="Gross Profit"
-          />
-
-          {/* ── Operating ── */}
-          <SectionDivider label="Resultado Operativo" />
-          <MetricRow rows={rows} field="Operating Expenses" label="Gastos Operativos" isNeg zeroAsDash />
-          <MetricRow rows={rows} field="Operating Income"   label="Utilidad Operativa" showGrowth />
-          <MarginRow
-            rows={rows}
-            field="Operating Margin %"
-            label="Margen Operativo"
-            numeratorField="Operating Income"
-          />
-
-          {/* ── EBITDA ── */}
-          <SectionDivider label="EBITDA" />
-          <MetricRow rows={rows} field="EBITDA" label="EBITDA" showGrowth />
-
-          {/* ── Bottom Line ── */}
-          <SectionDivider label="Utilidad Neta" />
-          <MetricRow rows={rows} field="Net Income" label="Utilidad Neta" showGrowth />
-          <MarginRow
-            rows={rows}
-            field="Net Margin %"
-            label="Margen Neto"
-            numeratorField="Net Income"
-          />
-
-          {/* ── Detail lines ── */}
-          <SectionDivider label="Detalles Adicionales" />
-          <MetricRow rows={rows} field="Diluted EPS"                    label="EPS Diluido"      dimLabel />
-          <MetricRow rows={rows} field="Research And Development"       label="I+D"               dimLabel />
-          <MetricRow rows={rows} field="Selling General Administrative" label="SG&A"              dimLabel />
-          <MetricRow rows={rows} field="Interest Expense"               label="Gasto Intereses"  isNeg dimLabel />
+          <MetricRow rows={rows} field="Total Revenue"      label="Ingresos"           showGrowth />
+          <MetricRow rows={rows} field="Cost Of Revenue"    label="Costo de Ventas"    isNeg />
+          <MarginRow rows={rows} field="Gross Margin %"     label="Margen Bruto"       numeratorField="Gross Profit" />
+          <MetricRow rows={rows} field="Operating Expenses" label="Gastos Operativos"  isNeg zeroAsDash />
+          <MarginRow rows={rows} field="Operating Margin %" label="Margen Operativo"   numeratorField="Operating Income" />
+          <MetricRow rows={rows} field="EBITDA"             label="EBITDA"             showGrowth />
+          <MarginRow rows={rows} field="Net Margin %"       label="Margen Neto"        numeratorField="Net Income" />
         </div>
       </div>
 
