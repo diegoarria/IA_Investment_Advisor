@@ -1,11 +1,13 @@
 import asyncio
+import base64
+import os
 import concurrent.futures
 
 _ENRICH_POOL = concurrent.futures.ThreadPoolExecutor(max_workers=4, thread_name_prefix="chat-enrich")
 import re
 import json
 from datetime import datetime, timedelta, timezone
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, File
 from fastapi.responses import StreamingResponse
 from app.api.deps import get_current_user_id
 from app.core.database import get_supabase, run_query
@@ -182,6 +184,57 @@ async def save_message(
     except Exception:
         pass
     return {"saved": True}
+
+
+@router.post("/transcribe")
+async def transcribe_audio(
+    audio: UploadFile = File(...),
+    user_id: str = Depends(get_current_user_id),
+):
+    """Convert voice recording to text using OpenAI Whisper."""
+    api_key = os.getenv("OPENAI_API_KEY")
+    if not api_key:
+        raise HTTPException(status_code=503, detail="Servicio de voz no configurado")
+    try:
+        from openai import AsyncOpenAI
+        client = AsyncOpenAI(api_key=api_key)
+        audio_bytes = await audio.read()
+        filename = audio.filename or "audio.m4a"
+        content_type = audio.content_type or "audio/m4a"
+        transcript = await client.audio.transcriptions.create(
+            model="whisper-1",
+            file=(filename, audio_bytes, content_type),
+            language="es",
+        )
+        return {"text": transcript.text}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error al transcribir: {str(e)}")
+
+
+@router.post("/speak")
+async def speak_text(
+    request: dict,
+    user_id: str = Depends(get_current_user_id),
+):
+    """Convert text to speech using OpenAI TTS. Returns base64 MP3."""
+    api_key = os.getenv("OPENAI_API_KEY")
+    if not api_key:
+        raise HTTPException(status_code=503, detail="Servicio de voz no configurado")
+    text = (request.get("text") or "").strip()[:2000]
+    if not text:
+        raise HTTPException(status_code=400, detail="text requerido")
+    try:
+        from openai import AsyncOpenAI
+        client = AsyncOpenAI(api_key=api_key)
+        response = await client.audio.speech.create(
+            model="tts-1",
+            voice="nova",
+            input=text,
+        )
+        audio_b64 = base64.b64encode(response.content).decode()
+        return {"audio": audio_b64}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error al generar voz: {str(e)}")
 
 
 @router.get("/history")

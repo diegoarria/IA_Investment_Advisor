@@ -96,6 +96,14 @@ export const chatApi = {
   getHistory: () => api.get("/api/chat/history"),
   saveMessage: (role: string, content: string) =>
     api.post("/api/chat/save-message", { role, content }),
+  transcribe: (audioUri: string) => {
+    const formData = new FormData();
+    formData.append("audio", { uri: audioUri, name: "recording.m4a", type: "audio/m4a" } as unknown as Blob);
+    return api.post("/api/chat/transcribe", formData, {
+      headers: { "Content-Type": "multipart/form-data" },
+    });
+  },
+  speak: (text: string) => api.post("/api/chat/speak", { text }),
   stream: async (
     message: string,
     history: Array<{ role: string; content: string }>,

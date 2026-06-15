@@ -1,5 +1,7 @@
 import React, { useState, useRef, useEffect, useMemo } from "react";
 import * as ImagePicker from "expo-image-picker";
+import { Audio } from "expo-av";
+import * as FileSystem from "expo-file-system/legacy";
 import {
   View, Text, TextInput, TouchableOpacity, FlatList, ScrollView,
   StyleSheet, KeyboardAvoidingView, Platform, Image, Animated,
@@ -180,6 +182,12 @@ export default function ChatScreen() {
   const [livePrices, setLivePrices] = useState<Record<string, number>>({});
   const [paywallVisible, setPaywallVisible] = useState(false);
   const [paywallReason, setPaywallReason] = useState("");
+  const [isRecording, setIsRecording] = useState(false);
+  const [isTranscribing, setIsTranscribing] = useState(false);
+  const [playingIdx, setPlayingIdx] = useState<number | null>(null);
+  const [isLoadingAudio, setIsLoadingAudio] = useState(false);
+  const recordingRef = useRef<Audio.Recording | null>(null);
+  const soundRef = useRef<Audio.Sound | null>(null);
   const listRef = useRef<FlatList>(null);
   const cancelRef = useRef({ cancelled: false });
   const inputRef = useRef<TextInput>(null);
@@ -312,6 +320,70 @@ Instrucciones críticas:
     setMessages(messages.slice(0, index));
     setInput(content);
     inputRef.current?.focus();
+  };
+
+  const startRecording = async () => {
+    try {
+      const { status } = await Audio.requestPermissionsAsync();
+      if (status !== "granted") return;
+      await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
+      const { recording } = await Audio.Recording.createAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
+      recordingRef.current = recording;
+      setIsRecording(true);
+    } catch {}
+  };
+
+  const stopRecording = async () => {
+    const recording = recordingRef.current;
+    if (!recording) return;
+    setIsRecording(false);
+    setIsTranscribing(true);
+    try {
+      await recording.stopAndUnloadAsync();
+      await Audio.setAudioModeAsync({ allowsRecordingIOS: false });
+      recordingRef.current = null;
+      const uri = recording.getURI();
+      if (!uri) return;
+      const { data } = await chatApi.transcribe(uri);
+      if (data?.text) {
+        setInput(data.text);
+        inputRef.current?.focus();
+      }
+    } catch {} finally {
+      setIsTranscribing(false);
+    }
+  };
+
+  const playMessageAudio = async (text: string, idx: number) => {
+    if (soundRef.current) {
+      await soundRef.current.stopAsync().catch(() => {});
+      await soundRef.current.unloadAsync().catch(() => {});
+      soundRef.current = null;
+      if (playingIdx === idx) { setPlayingIdx(null); return; }
+    }
+    setIsLoadingAudio(true);
+    setPlayingIdx(idx);
+    try {
+      const { data } = await chatApi.speak(text);
+      if (!data?.audio) return;
+      const path = (FileSystem.cacheDirectory ?? "") + "nuvos_tts.mp3";
+      await FileSystem.writeAsStringAsync(path, data.audio, { encoding: FileSystem.EncodingType.Base64 });
+      await Audio.setAudioModeAsync({ playsInSilentModeIOS: true, allowsRecordingIOS: false });
+      const { sound } = await Audio.Sound.createAsync({ uri: path });
+      soundRef.current = sound;
+      setIsLoadingAudio(false);
+      await sound.playAsync();
+      sound.setOnPlaybackStatusUpdate((status) => {
+        if (status.isLoaded && status.didJustFinish) {
+          setPlayingIdx(null);
+          sound.unloadAsync().catch(() => {});
+          soundRef.current = null;
+        }
+      });
+    } catch {
+      setPlayingIdx(null);
+      setIsLoadingAudio(false);
+    }
   };
 
   const handlePickImage = async () => {
@@ -464,9 +536,26 @@ Instrucciones críticas:
           )}
         </View>
         {item.content !== "" && !(streaming && isLastAssistant) && (
-          <Text style={styles.aiDisclaimer}>
-            Análisis educativo · No constituye asesoría financiera · Los datos pueden ser inexactos
-          </Text>
+          <View style={styles.aiFooter}>
+            <Text style={[styles.aiDisclaimer, { flex: 1 }]}>
+              Análisis educativo · No constituye asesoría financiera · Los datos pueden ser inexactos
+            </Text>
+            <TouchableOpacity
+              onPress={() => playMessageAudio(item.content, index)}
+              disabled={isLoadingAudio && playingIdx !== index}
+              style={styles.speakerBtn}
+            >
+              <Ionicons
+                name={
+                  playingIdx === index
+                    ? isLoadingAudio ? "hourglass-outline" : "stop-circle-outline"
+                    : "volume-medium-outline"
+                }
+                size={15}
+                color={playingIdx === index ? colors.accentLight : colors.textMuted}
+              />
+            </TouchableOpacity>
+          </View>
         )}
         {showChart && <StockChart ticker={lastTicker!} />}
       </View>
@@ -670,6 +759,21 @@ Instrucciones críticas:
               style={{ padding: 4, opacity: (streaming || pendingImages.length >= 8) ? 0.4 : 1 }}
             >
               <Ionicons name="image-outline" size={22} color={colors.textSub} />
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={isRecording ? stopRecording : startRecording}
+              disabled={streaming || isTranscribing}
+              style={{ padding: 4, opacity: streaming ? 0.4 : 1 }}
+            >
+              {isTranscribing ? (
+                <Ionicons name="hourglass-outline" size={22} color={colors.accentLight} />
+              ) : (
+                <Ionicons
+                  name={isRecording ? "stop-circle" : "mic-outline"}
+                  size={22}
+                  color={isRecording ? "#ef4444" : colors.textSub}
+                />
+              )}
             </TouchableOpacity>
             <TextInput
               ref={inputRef}
@@ -876,6 +980,8 @@ function makeStyles(c: Colors) {
     msgCounterText: { fontSize: 11, fontWeight: "500" as const, flex: 1 },
     editBtn: { alignSelf: "flex-end", marginTop: 3, padding: 4 },
     aiDisclaimer: { fontSize: 10, lineHeight: 14, marginTop: 4, color: c.textDim, fontFamily: "Inter_400Regular" },
+    aiFooter: { flexDirection: "row" as const, alignItems: "center" as const, gap: 6, marginTop: 4 },
+    speakerBtn: { padding: 3 },
 
     // Diagnostic
     diagSeparator: { borderTopWidth: StyleSheet.hairlineWidth, marginTop: 8, marginBottom: 8 },
