@@ -1,7 +1,7 @@
 import asyncio
 import os
 import threading
-from fastapi import APIRouter, Depends, Query, Request
+from fastapi import APIRouter, Depends, Query, Request, UploadFile, File
 from concurrent.futures import ThreadPoolExecutor
 import yfinance as yf
 import anthropic
@@ -17,8 +17,23 @@ from app.services import market_service, ai_service
 from app.core.cache import cache_get, cache_set
 from app.core.limiter import limiter
 
-# Semaphore for the sync Anthropic call in the screenshot endpoint
+# Semaphore for the sync Anthropic call in the screenshot/pdf endpoints
 _screenshot_sem = threading.Semaphore(10)
+
+
+def _extract_json(text: str) -> list:
+    """Robustly extract a JSON array from a model response."""
+    import re
+    text = text.strip()
+    if "```" in text:
+        match = re.search(r"```(?:json)?\s*(\[[\s\S]*?\])\s*```", text)
+        if match:
+            text = match.group(1)
+    start = text.find("[")
+    end = text.rfind("]")
+    if start != -1 and end > start:
+        text = text[start:end + 1]
+    return json.loads(text)
 
 router = APIRouter(prefix="/market", tags=["market"])
 
@@ -593,22 +608,6 @@ NOTAS IMPORTANTES:
 - Si la lista está cortada, extrae las posiciones que SÍ están visibles
 - Responde SOLO el JSON array, nada más"""
 
-    def _extract_json(text: str) -> list:
-        """Robustly extract JSON array from model response."""
-        text = text.strip()
-        # Remove markdown code blocks
-        if "```" in text:
-            import re
-            match = re.search(r"```(?:json)?\s*(\[[\s\S]*?\])\s*```", text)
-            if match:
-                text = match.group(1)
-        # Find JSON array boundaries
-        start = text.find("[")
-        end = text.rfind("]")
-        if start != -1 and end > start:
-            text = text[start:end+1]
-        return json.loads(text)
-
     def _call_claude(img_data: str, img_type: str, use_thinking: bool) -> list:
         sc = anthropic.Anthropic(api_key=settings.anthropic_api_key)
         kwargs: dict = {
@@ -670,6 +669,99 @@ NOTAS IMPORTANTES:
 
     try:
         return await asyncio.to_thread(_run_sync, image_data, image_type)
+    except Exception as e:
+        return {"positions": [], "error": str(e)}
+
+
+@router.post("/portfolio/from-pdf")
+@limiter.limit("10/minute")
+async def portfolio_from_pdf(
+    request: Request,
+    file: UploadFile = File(...),
+    user_id: str = Depends(get_current_user_id),
+):
+    import base64 as _b64
+
+    if not file.content_type == "application/pdf" and not (file.filename or "").lower().endswith(".pdf"):
+        return {"positions": [], "error": "Solo se aceptan archivos PDF"}
+
+    pdf_bytes = await file.read()
+    if len(pdf_bytes) > 32 * 1024 * 1024:
+        return {"positions": [], "error": "El PDF es demasiado grande (máx. 32 MB)"}
+
+    pdf_b64 = _b64.b64encode(pdf_bytes).decode("utf-8")
+
+    _SYSTEM = (
+        "Eres un experto en extracción de datos de estados de cuenta de inversión. "
+        "Analizas documentos de GBM+, Actinver, Kuspit, Bursanet, Interactive Brokers, "
+        "Fidelity, Schwab, Vanguard, BBVA Bancomer Fondos, y cualquier otra casa de bolsa "
+        "o broker en México, LATAM, EEUU y Europa. "
+        "Extraes TODAS las posiciones de inversión y devuelves un JSON estructurado."
+    )
+
+    _PROMPT = """Analiza este estado de cuenta de inversión y extrae TODAS las posiciones visibles.
+
+Responde ÚNICAMENTE con un JSON array con este formato exacto (sin texto adicional, sin markdown):
+[{"ticker":"AAPL","name":"Apple Inc.","shares":10.5,"avg_price":150.00}]
+
+CAMPOS:
+- ticker: símbolo bursátil en MAYÚSCULAS. Para la BMV usa el sufijo MX si es necesario (AMXL.MX).
+- name: nombre completo de la emisora, fondo o instrumento.
+- shares: número de títulos o unidades (acepta decimales).
+- avg_price: precio promedio de compra por título (0 si no aparece en el documento).
+
+GUÍA POR BROKER:
+• GBM+: sección "Posiciones" o "Mi portafolio" — columnas Título, Cantidad, P.M. (precio medio)
+• Actinver: sección "Posiciones en valores" o "Cartera de valores" — columnas Emisora, Títulos, Precio Promedio
+• Kuspit / Bursanet: tabla de cartera con columnas similares
+• Brokers EEUU (Fidelity, Schwab, etc.): columnas Shares, Average Cost / Cost Basis Per Share
+
+FORMATO DE NÚMEROS MEXICO:
+  El punto es separador de miles y la coma es decimal: 1.234,56 → 1234.56
+
+Responde SOLO el JSON array, nada más."""
+
+    def _call_claude_pdf(pdf_data: str) -> list:
+        sc = anthropic.Anthropic(api_key=settings.anthropic_api_key)
+        msg = sc.beta.messages.create(
+            model="claude-opus-4-8",
+            max_tokens=4096,
+            betas=["pdfs-2024-09-25"],
+            system=_SYSTEM,
+            messages=[{
+                "role": "user",
+                "content": [
+                    {"type": "document", "source": {"type": "base64", "media_type": "application/pdf", "data": pdf_data}},
+                    {"type": "text", "text": _PROMPT},
+                ],
+            }],
+        )
+        raw = next((b.text for b in msg.content if hasattr(b, "type") and b.type == "text"), "")
+        return _extract_json(raw)
+
+    def _run_sync_pdf(pdf_data: str) -> dict:
+        with _screenshot_sem:
+            try:
+                positions_raw = _call_claude_pdf(pdf_data)
+            except Exception as e:
+                return {"positions": [], "error": str(e)}
+
+            result = []
+            for p in positions_raw:
+                ticker = str(p.get("ticker") or "").strip().upper()
+                if not ticker:
+                    continue
+                avg_price = p.get("avg_price")
+                result.append({
+                    "ticker": ticker,
+                    "name": p.get("name") or ticker,
+                    "shares": float(p.get("shares") or 0),
+                    "avg_price": float(avg_price) if avg_price else 0,
+                })
+            return {"positions": result}
+
+    try:
+        return await asyncio.to_thread(_run_sync_pdf, pdf_b64)
     except Exception as e:
         return {"positions": [], "error": str(e)}
 

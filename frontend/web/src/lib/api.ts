@@ -145,6 +145,13 @@ export const market = {
   ) => api.post("/api/market/portfolio", { scenario, capital, positions }),
   analyzeScreenshot: (imageData: string, imageType: string) =>
     api.post("/api/market/portfolio/from-screenshot", { image: imageData, type: imageType }),
+  analyzePdf: (file: File) => {
+    const form = new FormData();
+    form.append("file", file);
+    return api.post("/api/market/portfolio/from-pdf", form, {
+      headers: { "Content-Type": "multipart/form-data" },
+    });
+  },
   getMovers: (threshold?: number) =>
     api.get("/api/market/movers", { params: { threshold } }),
   getEarnings: () => api.get("/api/market/earnings"),

@@ -10,11 +10,16 @@ import { supportApi } from "../../src/lib/api";
 interface Msg { role: "user" | "assistant"; content: string; }
 
 const FAQ = [
-  { q: "¿Cuántos mensajes puedo enviar gratis?", a: "El plan Free incluye 20 mensajes cada 24 horas. Con Premium tienes mensajes ilimitados." },
-  { q: "¿Cómo importo mi portafolio?", a: "En la sección Portafolio puedes agregar posiciones o pegar una captura de pantalla. La IA la lee automáticamente." },
-  { q: "¿Cómo cancelo mi suscripción Premium?", a: "Ve a Perfil → Suscripción → Cancelar. El acceso se mantiene hasta el fin del período pagado." },
-  { q: "¿El paper trading usa dinero real?", a: "No, inicia con $10,000 virtuales para practicar sin riesgo." },
-  { q: "¿Cómo funciona el programa de referidos?", a: "En Perfil encontrarás tu enlace único. Por cada amigo que se una, acumulas semanas/meses de Premium gratis." },
+  { q: "¿Cuántos mensajes puedo enviar gratis?", a: "El plan Free incluye 20 mensajes cada 24 horas. Con Premium tienes mensajes ilimitados y acceso a todas las funciones avanzadas." },
+  { q: "¿Cómo funciona el Premium gratis de 90 días?", a: "Todos los usuarios nuevos reciben 90 días de Premium gratis automáticamente, sin necesidad de tarjeta de crédito. Puedes explorar todas las funciones sin restricciones durante ese período." },
+  { q: "¿Cómo importo mi portafolio?", a: "En Portafolio puedes pegar una captura de pantalla de tu broker o agregar posiciones manualmente. La IA lee la imagen y extrae tus posiciones, precios y cantidades automáticamente." },
+  { q: "¿Cómo veo el análisis completo de una acción?", a: "Toca cualquier acción desde Portafolio, Watchlist o el Chat para abrir su perfil completo: gráfico histórico, estado de resultados, balance general y flujo de caja con datos en tiempo real." },
+  { q: "¿Cómo funciona el calendario de ganancias?", a: "En la sección Portafolio encontrarás un calendario con las fechas de reporte de ganancias (earnings) de tus posiciones y Watchlist. Te ayuda a anticipar movimientos importantes de precio." },
+  { q: "¿El paper trading usa dinero real?", a: "No. El simulador inicia con $10,000 virtuales para que practiques estrategias con precios reales sin arriesgar dinero. Puedes recargar el saldo virtual desde la sección Simulador." },
+  { q: "¿Qué es la Madurez Inversora?", a: "Es una puntuación (0-100) que la IA calcula analizando tu comportamiento: si entras en pánico en caídas, si diversificas bien, si piensas a largo plazo. Evoluciona conforme usas la app y aparece en tu perfil." },
+  { q: "¿La app sincroniza entre móvil y web?", a: "Sí. El portafolio, watchlist, tema oscuro/claro y configuración de perfil se sincronizan automáticamente entre la app y la versión web en tiempo real." },
+  { q: "¿Cómo cancelo mi suscripción Premium?", a: "Ve a Perfil → Suscripción → Cancelar. El acceso Premium se mantiene hasta el fin del período ya pagado." },
+  { q: "¿Cómo funciona el programa de referidos?", a: "En Perfil encontrarás tu enlace único. Por cada amigo que se registre y use la app, acumulas semanas o meses de Premium gratis." },
 ];
 
 export default function SupportScreen() {

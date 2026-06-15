@@ -534,7 +534,7 @@ export default function NotificationsScreen() {
             tintColor="#22c55e"
           />
         }
-        ListHeaderComponent={<><PortfolioTodaySection /><PortfolioNewsSection /><WatchlistSection /></>}
+        ListHeaderComponent={<><PortfolioNewsSection /><PortfolioTodaySection /><WatchlistSection /></>}
         ListEmptyComponent={
           <View style={styles.empty}>
             <Ionicons name="notifications-outline" size={48} color={colors.textMuted} style={{ marginBottom: 16 }} />

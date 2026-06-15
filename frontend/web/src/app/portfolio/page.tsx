@@ -891,6 +891,28 @@ export default function PortfolioPage() {
   }, [positions, prices]);
 
   // ── Screenshot import ──────────────────────────────────────────────────
+  const processPdfFile = useCallback(async (file: File) => {
+    setScreenshotAnalyzing(true);
+    setScreenshotPreview(null);
+    setScreenshotProgress("Leyendo PDF con IA...");
+    try {
+      const res = await marketApi.analyzePdf(file);
+      const extracted: ExtractedPos[] = (res.data.positions || []).map(
+        (p: Omit<ExtractedPos, "id">, i: number) => ({ ...p, id: `${p.ticker}-pdf-${i}-${Date.now()}` })
+      );
+      if (!extracted.length) {
+        alert("No se encontraron posiciones en el PDF. Verifica que sea un estado de cuenta con posiciones.");
+      } else {
+        setScreenshotPreview(extracted);
+      }
+    } catch {
+      alert("No se pudo leer el PDF. Intenta con el estado de cuenta más reciente o usa una captura de pantalla.");
+    } finally {
+      setScreenshotAnalyzing(false);
+      setScreenshotProgress("");
+    }
+  }, []);
+
   const processScreenshotFiles = useCallback(async (files: File[]) => {
     if (!files.length) return;
     setScreenshotAnalyzing(true);
@@ -933,7 +955,10 @@ export default function PortfolioPage() {
 
   const handleScreenshotChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
-    await processScreenshotFiles(files);
+    const pdf = files.find((f) => f.type === "application/pdf" || f.name.toLowerCase().endsWith(".pdf"));
+    const images = files.filter((f) => f.type.startsWith("image/"));
+    if (pdf) await processPdfFile(pdf);
+    else if (images.length) await processScreenshotFiles(images);
     if (screenshotInputRef.current) screenshotInputRef.current.value = "";
   };
 
@@ -1240,8 +1265,11 @@ export default function PortfolioPage() {
                 onDrop={(e) => {
                   e.preventDefault(); setIsDragOver(false);
                   if (screenshotAnalyzing) return;
-                  const files = Array.from(e.dataTransfer.files).filter((f) => f.type.startsWith("image/"));
-                  if (files.length) processScreenshotFiles(files);
+                  const all = Array.from(e.dataTransfer.files);
+                  const pdf = all.find((f) => f.type === "application/pdf" || f.name.toLowerCase().endsWith(".pdf"));
+                  const images = all.filter((f) => f.type.startsWith("image/"));
+                  if (pdf) processPdfFile(pdf);
+                  else if (images.length) processScreenshotFiles(images);
                 }}
                 className="flex items-center justify-center gap-2 py-3.5 rounded-2xl font-bold text-sm transition-all cursor-pointer select-none"
                 style={{
@@ -1255,12 +1283,12 @@ export default function PortfolioPage() {
                 ) : isDragOver ? (
                   <><Upload className="w-4 h-4" /><span>¡Suelta aquí!</span></>
                 ) : (
-                  <><Upload className="w-4 h-4" /><span>Importar captura</span></>
+                  <><Upload className="w-4 h-4" /><span>Importar captura o PDF</span></>
                 )}
               </div>
             </div>
 
-            <input ref={screenshotInputRef} type="file" accept="image/*" multiple className="hidden" onChange={handleScreenshotChange} />
+            <input ref={screenshotInputRef} type="file" accept="image/*,.pdf" multiple className="hidden" onChange={handleScreenshotChange} />
 
             {/* Hint pegado / arrastrar — sutil */}
             {!screenshotAnalyzing && !screenshotPreview && !showForm && (
@@ -1270,7 +1298,7 @@ export default function PortfolioPage() {
                 <span>También puedes pegar con{" "}
                   <kbd className="px-1 py-0.5 rounded font-mono text-[9px]"
                        style={{ background: "var(--raised)", color: "var(--muted)" }}>⌘V</kbd>
-                  {" "}o arrastrar imágenes directamente
+                  {" "}o arrastrar capturas / PDFs de GBM+, Actinver u otro broker
                 </span>
               </div>
             )}
