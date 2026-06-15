@@ -4,9 +4,10 @@ import { useEffect, useState, useRef } from "react";
 import {
   X, TrendingUp, TrendingDown, Globe, Users, Building2,
   BarChart3, Loader2, ChevronRight, Activity,
-  ArrowUpRight, ArrowDownRight, DollarSign, Percent, Sparkles,
+  ArrowUpRight, ArrowDownRight, DollarSign, Percent,
 } from "lucide-react";
 import { market as marketApi } from "@/lib/api";
+import IncomeStatementTab from "@/components/IncomeStatementTab";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -88,7 +89,8 @@ function fmtBig(v?: number | null) {
   if (abs >= 1e12) return `${sign}$${(abs / 1e12).toFixed(2)}T`;
   if (abs >= 1e9)  return `${sign}$${(abs / 1e9).toFixed(2)}B`;
   if (abs >= 1e6)  return `${sign}$${(abs / 1e6).toFixed(1)}M`;
-  return `${sign}$${abs.toLocaleString()}`;
+  if (abs >= 1e3)  return `${sign}$${(abs / 1e3).toFixed(0)}K`;
+  return `${sign}$${abs.toFixed(0)}`;
 }
 
 function fmtPct(v?: number | null) {
@@ -1163,91 +1165,6 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
                   </div>
                 );
 
-                // Margin % row — colored %, no bars, aligned with FinRow columns
-                const MarginRow = ({ rows, field, label, showGrowthBadges = false }: {
-                  rows: Record<string, unknown>[]; field: string; label: string; showGrowthBadges?: boolean;
-                }) => {
-                  const vals = rows.map((r) => r[field] != null ? Number(r[field]) : null);
-                  if (!vals.some((v) => v != null)) return null;
-                  return (
-                    <div className="flex items-center border-b" style={{ borderColor: "var(--border)", minHeight: 36, background: "rgba(0,0,0,0.018)" }}>
-                      <div className="shrink-0 flex items-center pr-3 pl-8" style={{ width: 160 }}>
-                        <span className="text-[11px] font-semibold italic" style={{ color: "var(--muted)" }}>{label}</span>
-                      </div>
-                      {rows.flatMap((r, i) => {
-                        const v = vals[i];
-                        const isLast = i === rows.length - 1;
-                        const col = (
-                          <div key={`col-${i}`} className="flex-1 flex items-center justify-center py-1.5"
-                               style={{ background: isLast ? "rgba(0,168,94,0.04)" : "transparent" }}>
-                            <span className="text-[12px] font-bold tabular-nums"
-                                  style={{ color: v == null ? "var(--dim)" : v >= 0 ? "#22c55e" : "#ef4444" }}>
-                              {v != null ? `${v.toFixed(1)}%` : "N/A"}
-                            </span>
-                          </div>
-                        );
-                        if (!showGrowthBadges || isLast) return [col];
-                        return [col, <div key={`g-${i}`} className="shrink-0" style={{ width: 38 }} />];
-                      })}
-                    </div>
-                  );
-                };
-
-                // Full income statement block (used below in income tab)
-                const IncomeStatement = () => {
-                  if (!income.length) return <p className="text-xs text-center py-8" style={{ color: "var(--muted)" }}>Sin datos disponibles</p>;
-                  return (
-                    <div className="mb-4">
-                      {/* Header row */}
-                      <div className="flex items-center justify-between px-5 py-3"
-                           style={{ borderBottom: "1px solid var(--border)", background: "var(--raised)" }}>
-                        <span className="text-xs font-bold uppercase tracking-widest" style={{ color: "var(--accent-l)", opacity: 0.8 }}>
-                          Estado de Resultados
-                        </span>
-                        <span className="text-[9px]" style={{ color: "var(--dim)" }}>
-                          % entre columnas = crecimiento vs año anterior
-                        </span>
-                      </div>
-                      <PeriodHeader rows={income} showGrowthBadges />
-                      <FinRow rows={income} field="Total Revenue"                    label="Ingresos"           showGrowth showGrowthBadges />
-                      <FinRow rows={income} field="Cost Of Revenue"                  label="Costo de Ventas"    isNeg showGrowthBadges />
-                      <FinRow rows={income} field="Gross Profit"                     label="Utilidad Bruta"     showGrowth showGrowthBadges />
-                      <MarginRow rows={income} field="Gross Margin %"                label="% Margen Bruto"     showGrowthBadges />
-                      <FinRow rows={income} field="Operating Expenses"               label="Gastos Operativos"  isNeg zeroAsDash showGrowthBadges />
-                      <FinRow rows={income} field="Operating Income"                 label="Utilidad Operativa" showGrowth showGrowthBadges />
-                      <MarginRow rows={income} field="Operating Margin %"            label="% Margen Operativo" showGrowthBadges />
-                      <FinRow rows={income} field="EBITDA"                           label="EBITDA"             showGrowth showGrowthBadges />
-                      <FinRow rows={income} field="Net Income"                       label="Utilidad Neta"      showGrowth showGrowthBadges />
-                      <MarginRow rows={income} field="Net Margin %"                  label="% Margen Neto"      showGrowthBadges />
-                      <FinRow rows={income} field="Diluted EPS"                      label="EPS Diluido"        showGrowthBadges />
-                      <FinRow rows={income} field="Research And Development"         label="I+D"                showGrowthBadges />
-                      <FinRow rows={income} field="Selling General Administrative"   label="SG&A"               showGrowthBadges />
-                      <FinRow rows={income} field="Interest Expense"                 label="Gasto Intereses"    isNeg showGrowthBadges />
-                      {/* AI Analysis */}
-                      <div className="p-5 border-t" style={{ borderColor: "var(--border)" }}>
-                        <div className="rounded-2xl p-4" style={{ background: "var(--raised)", border: "1px solid var(--border)" }}>
-                          <div className="flex items-center gap-2 mb-3">
-                            <Sparkles className="w-3.5 h-3.5" style={{ color: "var(--accent-l)" }} />
-                            <span className="text-[11px] font-black uppercase tracking-widest" style={{ color: "var(--accent-l)" }}>
-                              Análisis IA
-                            </span>
-                          </div>
-                          {loadingAnalysis ? (
-                            <div className="flex items-center gap-2">
-                              <Loader2 className="w-3.5 h-3.5 animate-spin" style={{ color: "var(--muted)" }} />
-                              <span className="text-[12px]" style={{ color: "var(--muted)" }}>Generando análisis financiero…</span>
-                            </div>
-                          ) : incomeAnalysis ? (
-                            <p className="text-[13px] leading-relaxed" style={{ color: "var(--sub)" }}>{incomeAnalysis}</p>
-                          ) : (
-                            <p className="text-[12px]" style={{ color: "var(--muted)" }}>Sin análisis disponible</p>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  );
-                };
-
                 const FIN_TABS: { key: "income" | "balance" | "cashflow"; label: string }[] = [
                   { key: "income",   label: "Est. Resultados" },
                   { key: "balance",  label: "Balance General" },
@@ -1291,7 +1208,14 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
                       ))}
                     </div>
 
-                    {finSection === "income" && <IncomeStatement />}
+                    {finSection === "income" && (
+                      <IncomeStatementTab
+                        income={income}
+                        ticker={ticker}
+                        incomeAnalysis={incomeAnalysis}
+                        loadingAnalysis={loadingAnalysis}
+                      />
+                    )}
 
                     {finSection === "balance" && balance.length > 0 && (() => {
                       type M = { field: string; label: string; isNeg?: boolean; zeroAsDash?: boolean };
