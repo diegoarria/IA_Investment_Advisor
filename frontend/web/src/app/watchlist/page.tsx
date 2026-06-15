@@ -46,27 +46,29 @@ interface SearchResult {
 }
 
 const FREE_LIMIT = 30;
-const CACHE_KEY = "nuvos_watchlist_cache";
-const ORDER_KEY = "nuvos_watchlist_order";
+
+// Cache keys are scoped per user so switching accounts never shows stale data.
+const cacheKey = () => `nuvos_watchlist_cache__${useAuthStore.getState().userId ?? "guest"}`;
+const orderKey = () => `nuvos_watchlist_order__${useAuthStore.getState().userId ?? "guest"}`;
 
 function readCache(): WatchlistItem[] {
   if (typeof window === "undefined") return [];
   try {
-    const raw = localStorage.getItem(CACHE_KEY);
+    const raw = localStorage.getItem(cacheKey());
     return raw ? (JSON.parse(raw) as WatchlistItem[]) : [];
   } catch { return []; }
 }
 
 function writeCache(items: WatchlistItem[]) {
-  try { localStorage.setItem(CACHE_KEY, JSON.stringify(items)); } catch {}
+  try { localStorage.setItem(cacheKey(), JSON.stringify(items)); } catch {}
 }
 
 function readOrder(): string[] {
-  try { return JSON.parse(localStorage.getItem(ORDER_KEY) || "[]"); } catch { return []; }
+  try { return JSON.parse(localStorage.getItem(orderKey()) || "[]"); } catch { return []; }
 }
 
 function writeOrder(tickers: string[]) {
-  try { localStorage.setItem(ORDER_KEY, JSON.stringify(tickers)); } catch {}
+  try { localStorage.setItem(orderKey(), JSON.stringify(tickers)); } catch {}
 }
 
 function applyOrder(data: WatchlistItem[], order: string[]): WatchlistItem[] {

@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
+import { useAuthStore } from "./store";
 
 export interface Position {
   id: string;
@@ -138,7 +139,20 @@ export const usePortfolioStore = create<PortfolioStore>()(
     },
     {
       name: "portfolio-positions-web",
-      storage: createJSONStorage(() => localStorage),
+      storage: createJSONStorage(() => ({
+        getItem: (key) => {
+          const uid = useAuthStore.getState().userId ?? "guest";
+          return localStorage.getItem(`${key}__${uid}`);
+        },
+        setItem: (key, value) => {
+          const uid = useAuthStore.getState().userId ?? "guest";
+          localStorage.setItem(`${key}__${uid}`, value);
+        },
+        removeItem: (key) => {
+          const uid = useAuthStore.getState().userId ?? "guest";
+          localStorage.removeItem(`${key}__${uid}`);
+        },
+      })),
       partialize: (state) => ({
         positions: state.positions,
         portfolioCurrency: state.portfolioCurrency,
