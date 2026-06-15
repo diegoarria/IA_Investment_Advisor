@@ -573,7 +573,8 @@ export default function OnboardingPage() {
       }
       setSuccess(true);
     } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+      const raw = (err as { response?: { data?: { detail?: unknown } } })?.response?.data?.detail;
+      const msg = typeof raw === "string" ? raw : Array.isArray(raw) ? String(raw[0]?.msg ?? raw[0] ?? "") : "";
       setError(msg || "Error al guardar el perfil.");
     } finally {
       setLoading(false);

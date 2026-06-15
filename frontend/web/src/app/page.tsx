@@ -128,8 +128,7 @@ export default function Home() {
       }
       setResendCooldown(30);
     } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
-      setError(msg || "No se pudo reenviar. Inténtalo de nuevo.");
+      setError(extractErrorMsg(err) || "No se pudo reenviar. Inténtalo de nuevo.");
     } finally { setLoading(false); }
   };
 

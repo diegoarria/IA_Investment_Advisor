@@ -70,7 +70,8 @@ export default function MonthlyReport({ positions, isPremium, onUpgrade }: Month
       setReport(res.data);
       setOpen(true);
     } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+      const raw = (err as { response?: { data?: { detail?: unknown } } })?.response?.data?.detail;
+      const msg = typeof raw === "string" ? raw : Array.isArray(raw) ? String(raw[0]?.msg ?? raw[0] ?? "") : "";
       alert(msg ? `Error: ${msg}` : "No se pudo generar el reporte. Intenta de nuevo.");
     } finally {
       setLoading(false);
