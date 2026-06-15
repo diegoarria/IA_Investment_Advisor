@@ -22,27 +22,28 @@ def _get_profile_or_404(user_id: str) -> dict:
     return result.data[0]
 
 
+_DB_PROFILE_FIELDS = {
+    "name", "birth_date", "monthly_income", "monthly_contribution",
+    "risk_tolerance", "quiz_answers", "mentor",
+}
+
 @router.post("", response_model=UserProfile)
 async def create_profile(
     data: UserProfileCreate,
     user_id: str = Depends(get_current_user_id),
 ):
     db = get_supabase()
+    # Only persist fields that exist in the user_profiles table
+    db_data = {k: v for k, v in data.model_dump().items() if k in _DB_PROFILE_FIELDS and v is not None}
+
     existing = db.table("user_profiles").select("id").eq("user_id", user_id).execute()
     if existing.data:
-        # Update instead of failing — idempotent
         now = datetime.now(timezone.utc).isoformat()
-        updates = {**data.model_dump(), "updated_at": now}
-        result = db.table("user_profiles").update(updates).eq("user_id", user_id).execute()
+        result = db.table("user_profiles").update({**db_data, "updated_at": now}).eq("user_id", user_id).execute()
         return UserProfile(**result.data[0])
 
     now = datetime.now(timezone.utc).isoformat()
-    record = {
-        "user_id": user_id,
-        **data.model_dump(),
-        "created_at": now,
-        "updated_at": now,
-    }
+    record = {"user_id": user_id, **db_data, "created_at": now, "updated_at": now}
     result = db.table("user_profiles").insert(record).execute()
     return UserProfile(**result.data[0])
 
