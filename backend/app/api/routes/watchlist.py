@@ -13,6 +13,8 @@
 
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
+
+_PRICES_POOL = ThreadPoolExecutor(max_workers=10, thread_name_prefix="watchlist-prices")
 from fastapi import APIRouter, Depends, HTTPException
 import httpx
 from app.api.deps import get_current_user_id
@@ -163,8 +165,7 @@ def _fetch_prices_batch(tickers: list[str]) -> dict[str, dict]:
     if cached:
         return cached
 
-    with ThreadPoolExecutor(max_workers=min(len(tickers), 10)) as pool:
-        results = list(pool.map(_fetch_extended_price, tickers))
+    results = list(_PRICES_POOL.map(_fetch_extended_price, tickers))
 
     prices = {r["ticker"]: r for r in results}
     cache_set(cache_key, prices, ttl=_PRICES_CACHE_TTL)

@@ -1,6 +1,8 @@
 import asyncio
 import logging
 from concurrent.futures import ThreadPoolExecutor
+
+_EARNINGS_POOL = ThreadPoolExecutor(max_workers=10, thread_name_prefix="earnings")
 from datetime import datetime, timedelta
 from fastapi import APIRouter, Depends
 import yfinance as yf
@@ -128,8 +130,7 @@ def _fetch_earnings_calendar(symbols: list[str]) -> list[dict]:
     """Return all calendar events for a list of symbols (earnings + dividends), fetched concurrently."""
     if not symbols:
         return []
-    with ThreadPoolExecutor(max_workers=min(len(symbols), 10)) as pool:
-        results = list(pool.map(_fetch_events_for_symbol, symbols))
+    results = list(_EARNINGS_POOL.map(_fetch_events_for_symbol, symbols))
     all_events: list[dict] = []
     for evts in results:
         all_events.extend(evts)

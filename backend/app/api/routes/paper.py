@@ -11,6 +11,8 @@ import string
 import logging
 from concurrent.futures import ThreadPoolExecutor
 
+_PRICES_POOL = ThreadPoolExecutor(max_workers=12, thread_name_prefix="paper-prices")
+
 import yfinance as yf
 from fastapi import APIRouter, Depends, HTTPException
 
@@ -86,8 +88,7 @@ def _batch_prices(tickers: set[str]) -> dict[str, float | None]:
     if cached is not None:
         return cached
 
-    with ThreadPoolExecutor(max_workers=min(len(tickers), 12)) as pool:
-        pairs = list(pool.map(_fetch_price, list(tickers)))
+    pairs = list(_PRICES_POOL.map(_fetch_price, list(tickers)))
 
     price_map = {t: p for t, p in pairs}
     cache_set(ck, price_map, ttl=_PRICES_TTL)

@@ -8,6 +8,8 @@ Called by the background worker every 2 hours.
 import logging
 from concurrent.futures import ThreadPoolExecutor
 
+_PRICES_POOL = ThreadPoolExecutor(max_workers=12, thread_name_prefix="paper-svc-prices")
+
 import yfinance as yf
 
 from app.core.cache import cache_get, cache_set
@@ -87,14 +89,10 @@ async def build_global_leaderboard() -> list[dict]:
         ck = f"paper:prices:{','.join(sorted(all_tickers))}"
         price_map = cache_get(ck) or {}
         if not price_map:
-            import asyncio
-            with ThreadPoolExecutor(max_workers=min(len(all_tickers), 12)) as pool:
-                price_map = dict(
-                    await asyncio.get_event_loop().run_in_executor(
-                        None,
-                        lambda: dict(pool.map(_fetch_price, list(all_tickers)))
-                    )
-                )
+            loop = asyncio.get_running_loop()
+            price_map = dict(await asyncio.gather(
+                *[loop.run_in_executor(_PRICES_POOL, _fetch_price, t) for t in all_tickers]
+            ))
             cache_set(ck, price_map, ttl=_PRICES_TTL)
 
     entries: list[dict] = []
