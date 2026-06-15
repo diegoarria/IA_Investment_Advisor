@@ -17,6 +17,7 @@ import MarketTickerBar from "@/components/MarketTickerBar";
 import PaywallModal from "@/components/PaywallModal";
 import TutorialModal from "@/components/TutorialModal";
 import GuidedSteps from "@/components/GuidedSteps";
+import PremiumBadge from "@/components/PremiumBadge";
 import { useTutorialStore } from "@/lib/store";
 import {
   Send, TrendingUp, Bell, LogOut, Menu, X,
@@ -434,6 +435,8 @@ export default function ChatPage() {
         </div>
 
         <div className="flex items-center gap-1">
+          <PremiumBadge />
+
           {/* Tutorial */}
           <button onClick={openTutorial}
                   className="p-2 rounded-lg hover:bg-white/5 transition-colors text-xs font-bold w-7 h-7 flex items-center justify-center border"

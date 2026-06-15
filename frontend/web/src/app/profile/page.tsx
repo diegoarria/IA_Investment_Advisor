@@ -2,6 +2,7 @@
 
 import AppSidebar from "@/components/AppSidebar";
 import MarketTickerBar from "@/components/MarketTickerBar";
+import PremiumBadge from "@/components/PremiumBadge";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
@@ -226,6 +227,7 @@ export default function ProfilePage() {
         </div>
         <span className="font-semibold text-sm" style={{ color: "var(--sub)", fontFamily: "var(--font-body)" }}>Mi Perfil</span>
         <div className="flex items-center gap-1">
+          <PremiumBadge />
           <button onClick={toggleTheme} className="p-2 rounded-lg hover:bg-white/5" style={{ color: "var(--muted)" }}>
             {theme === "dark" ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
           </button>

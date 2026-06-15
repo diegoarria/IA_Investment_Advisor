@@ -13,6 +13,7 @@ import { getUserLevel } from "@/lib/userLevel";
 import { usePortfolioStore } from "@/lib/portfolioStore";
 import AppSidebar from "@/components/AppSidebar";
 import MarketTickerBar from "@/components/MarketTickerBar";
+import PremiumBadge from "@/components/PremiumBadge";
 import PaywallModal from "@/components/PaywallModal";
 import WatchlistEarningsCalendar from "@/components/WatchlistEarningsCalendar";
 import AdvancedStockTable from "@/components/AdvancedStockTable";
@@ -514,6 +515,7 @@ export default function WatchlistPage() {
                 Avanzado
               </button>
             </div>
+            <PremiumBadge />
             <button
               onClick={handleRefresh}
               className="p-1.5 rounded-lg transition-colors"

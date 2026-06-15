@@ -2,6 +2,7 @@
 
 import AppSidebar from "@/components/AppSidebar";
 import MarketTickerBar from "@/components/MarketTickerBar";
+import PremiumBadge from "@/components/PremiumBadge";
 import StockAvatar from "@/components/StockAvatar";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
@@ -176,9 +177,12 @@ export default function PaperPage() {
           <div className="w-2 h-2 rounded-full" style={{ background: "#22c55e", boxShadow: "0 0 6px #22c55e" }} />
           <span className="font-semibold text-sm" style={{ color: "var(--sub)", fontFamily: "var(--font-body)" }}>Simulador</span>
         </div>
-        <button onClick={loadPrices} className="p-2 rounded-lg hover:bg-white/5 transition-colors" style={{ color: "var(--muted)" }}>
-          <RefreshCw className={`w-4 h-4 ${loadingPrices ? "animate-spin" : ""}`} />
-        </button>
+        <div className="flex items-center gap-1">
+          <PremiumBadge />
+          <button onClick={loadPrices} className="p-2 rounded-lg hover:bg-white/5 transition-colors" style={{ color: "var(--muted)" }}>
+            <RefreshCw className={`w-4 h-4 ${loadingPrices ? "animate-spin" : ""}`} />
+          </button>
+        </div>
       </div>
       <MarketTickerBar />
 

@@ -20,6 +20,7 @@ import PortfolioLeaderboard from "@/components/PortfolioLeaderboard";
 import PremiumToolLockedWeb from "@/components/PremiumToolLocked";
 import PaywallModal from "@/components/PaywallModal";
 import GuidedSteps from "@/components/GuidedSteps";
+import PremiumBadge from "@/components/PremiumBadge";
 import FirstStepsFlow from "@/components/FirstStepsFlow";
 import MarketTickerBar from "@/components/MarketTickerBar";
 import {
@@ -1147,6 +1148,7 @@ export default function PortfolioPage() {
               Avanzado
             </button>
           </div>
+          <PremiumBadge />
           <button onClick={fetchPrices} className="p-1.5 rounded-lg transition-colors"
                   style={{ color: "var(--muted)" }} title="Actualizar precios">
             <RefreshCw className="w-4 h-4" />

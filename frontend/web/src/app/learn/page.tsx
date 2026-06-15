@@ -2,6 +2,7 @@
 
 import AppSidebar from "@/components/AppSidebar";
 import MarketTickerBar from "@/components/MarketTickerBar";
+import PremiumBadge from "@/components/PremiumBadge";
 import { useState, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
@@ -323,7 +324,7 @@ export default function LearnPage() {
             {LEVEL_LABEL[userLevel]}
           </span>
         </div>
-        <div className="w-8" />
+        <PremiumBadge />
       </div>
       <MarketTickerBar />
 

@@ -2,6 +2,7 @@
 
 import AppSidebar from "@/components/AppSidebar";
 import MarketTickerBar from "@/components/MarketTickerBar";
+import PremiumBadge from "@/components/PremiumBadge";
 import StockAvatar from "@/components/StockAvatar";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -199,6 +200,7 @@ export default function NotificationsPage() {
         </div>
         <span className="font-semibold text-sm" style={{ color: "var(--sub)", fontFamily: "var(--font-body)" }}>Notificaciones</span>
         <div className="flex items-center gap-1">
+          <PremiumBadge />
           <button onClick={handleRefresh} disabled={refreshing} className="p-2 rounded-lg hover:bg-white/5" style={{ color: "var(--muted)" }}>
             <RefreshCw className={`w-4 h-4 ${refreshing ? "animate-spin" : ""}`} />
           </button>

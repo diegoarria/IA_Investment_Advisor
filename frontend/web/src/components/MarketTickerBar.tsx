@@ -4,8 +4,6 @@ import { useEffect, useState } from "react";
 import { market as marketApi } from "@/lib/api";
 import { X, ChevronRight } from "lucide-react";
 import type { IndexNewsItem } from "@/lib/types";
-import { useSubscriptionStore } from "@/lib/store";
-import PaywallModal from "@/components/PaywallModal";
 
 interface Idx {
   name: string;
@@ -157,13 +155,6 @@ export default function MarketTickerBar() {
   const [data, setData] = useState<Idx[]>([]);
   const [selected, setSelected] = useState<Idx | null>(null);
   const [open, setOpen] = useState(false);
-  const [paywallOpen, setPaywallOpen] = useState(false);
-
-  const sub = useSubscriptionStore();
-  const isPremium      = sub.tier === "premium";
-  const isTrialPremium = sub.isTrialPremium;
-  const trialDaysLeft  = sub.trialDaysLeft;
-
   useEffect(() => {
     const load = async () => {
       if (typeof window === "undefined") return;
@@ -192,141 +183,92 @@ export default function MarketTickerBar() {
     return () => clearTimeout(timer);
   }, []);
 
-  const showPremiumStrip = (isPremium && isTrialPremium) || !isPremium;
-  if (!data.length && !showPremiumStrip) return null;
+  if (!data.length) return null;
 
   return (
     <>
-      {/* ── Premium / Trial strip ── */}
-      {isPremium && isTrialPremium && (
-        <button
-          onClick={() => setPaywallOpen(true)}
-          className="w-full flex items-center justify-end gap-3 px-4 transition-opacity hover:opacity-80"
-          style={{
-            height: 26,
-            background: "rgba(0,168,94,0.07)",
-            borderBottom: "1px solid rgba(0,212,126,0.15)",
-            flexShrink: 0,
-          }}
-        >
-          <span style={{ fontSize: 9, fontWeight: 700, color: "var(--accent-l)", letterSpacing: "0.05em", textTransform: "uppercase" }}>
-            ✦ Premium Gratis
-          </span>
-          <div style={{ width: 64, height: 3, borderRadius: 99, overflow: "hidden", background: "rgba(0,212,126,0.2)" }}>
-            <div style={{ height: "100%", borderRadius: 99, width: `${Math.round((trialDaysLeft / 90) * 100)}%`, background: "var(--grad-green)" }} />
-          </div>
-          <span style={{ fontSize: 9, fontWeight: 600, color: "var(--muted)" }}>
-            {trialDaysLeft}d restantes
-          </span>
-          <span style={{ fontSize: 9, fontWeight: 600, color: "var(--accent-l)" }}>
-            Suscribirse para no perder acceso →
-          </span>
-        </button>
-      )}
-
-      {!isPremium && (
-        <button
-          onClick={() => setPaywallOpen(true)}
-          className="w-full flex items-center justify-end gap-3 px-4 transition-opacity hover:opacity-80"
-          style={{
-            height: 26,
-            background: "rgba(245,158,11,0.06)",
-            borderBottom: "1px solid rgba(245,158,11,0.15)",
-            flexShrink: 0,
-          }}
-        >
-          <span style={{ fontSize: 9, fontWeight: 700, color: "#f59e0b", letterSpacing: "0.05em", textTransform: "uppercase" }}>
-            Activa Premium para acceso completo →
-          </span>
-        </button>
-      )}
-
-      {/* ── Market ticker ── */}
-      {data.length > 0 && (
+      <div
+        className="scrollbar-none market-ticker-bar"
+        style={{
+          height: 30,
+          display: "flex",
+          alignItems: "center",
+          overflowX: "auto",
+          background: "var(--card)",
+          borderBottom: "1px solid var(--border)",
+          flexShrink: 0,
+        }}
+      >
         <div
-          className="scrollbar-none market-ticker-bar"
           style={{
-            height: 30,
             display: "flex",
             alignItems: "center",
-            overflowX: "auto",
-            background: "var(--card)",
-            borderBottom: "1px solid var(--border)",
-            flexShrink: 0,
+            justifyContent: "center",
+            width: "100%",
+            minWidth: "max-content",
+            gap: 0,
           }}
         >
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              width: "100%",
-              minWidth: "max-content",
-              gap: 0,
-            }}
-          >
-            {/* Market status indicator */}
-            <div style={{ display: "flex", alignItems: "center", gap: 5, paddingLeft: 12, paddingRight: 12, borderRight: "1px solid var(--border)", height: 30 }}>
-              <span style={{
-                width: 6, height: 6, borderRadius: "50%",
-                background: open ? "#22c55e" : "var(--muted)",
-                boxShadow: open ? "0 0 0 2px rgba(34,197,94,0.25)" : "none",
-                animation: open ? "pulse 2s infinite" : "none",
-                display: "inline-block",
-              }} />
-              <span style={{ fontSize: 9, fontWeight: 600, color: open ? "#22c55e" : "var(--dim)", whiteSpace: "nowrap" }}>
-                {open ? "LIVE" : "CLOSED"}
-              </span>
-            </div>
-
-            {data.map((idx, i) => {
-              const up  = idx.change_pct >= 0;
-              const col = up ? "var(--up)" : "var(--down)";
-              return (
-                <button
-                  key={idx.symbol}
-                  onClick={() => setSelected(idx)}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 7,
-                    paddingLeft: 18,
-                    paddingRight: 18,
-                    height: 30,
-                    borderRight: i < data.length - 1 ? "1px solid var(--border)" : undefined,
-                    background: "transparent",
-                    cursor: "pointer",
-                    transition: "background 0.15s",
-                  }}
-                  onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.04)"; }}
-                  onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "transparent"; }}
-                >
-                  <span style={{ fontSize: 10, fontWeight: 600, color: "var(--sub)", whiteSpace: "nowrap" }}>
-                    {ABBR[idx.name] ?? idx.name}
-                  </span>
-
-                  {idx.price != null && (
-                    <>
-                      <span style={{ fontSize: 10.5, fontWeight: 700, color: "var(--text)", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>
-                        {fmtPrice(idx.price)}
-                      </span>
-                      <span style={{ fontSize: 9.5, fontWeight: 700, color: col, fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>
-                        {up ? "▲" : "▼"}&nbsp;{Math.abs(idx.change_pct).toFixed(2)}%
-                      </span>
-                      <span style={{ fontSize: 9, fontWeight: 500, color: col, opacity: 0.65, fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>
-                        ({up ? "+" : ""}{idx.change >= 0.01 || idx.change <= -0.01 ? idx.change.toFixed(2) : idx.change.toFixed(4)})
-                      </span>
-                    </>
-                  )}
-                </button>
-              );
-            })}
+          {/* Market status indicator */}
+          <div style={{ display: "flex", alignItems: "center", gap: 5, paddingLeft: 12, paddingRight: 12, borderRight: "1px solid var(--border)", height: 30 }}>
+            <span style={{
+              width: 6, height: 6, borderRadius: "50%",
+              background: open ? "#22c55e" : "var(--muted)",
+              boxShadow: open ? "0 0 0 2px rgba(34,197,94,0.25)" : "none",
+              animation: open ? "pulse 2s infinite" : "none",
+              display: "inline-block",
+            }} />
+            <span style={{ fontSize: 9, fontWeight: 600, color: open ? "#22c55e" : "var(--dim)", whiteSpace: "nowrap" }}>
+              {open ? "LIVE" : "CLOSED"}
+            </span>
           </div>
+
+          {data.map((idx, i) => {
+            const up  = idx.change_pct >= 0;
+            const col = up ? "var(--up)" : "var(--down)";
+            return (
+              <button
+                key={idx.symbol}
+                onClick={() => setSelected(idx)}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 7,
+                  paddingLeft: 18,
+                  paddingRight: 18,
+                  height: 30,
+                  borderRight: i < data.length - 1 ? "1px solid var(--border)" : undefined,
+                  background: "transparent",
+                  cursor: "pointer",
+                  transition: "background 0.15s",
+                }}
+                onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.04)"; }}
+                onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "transparent"; }}
+              >
+                <span style={{ fontSize: 10, fontWeight: 600, color: "var(--sub)", whiteSpace: "nowrap" }}>
+                  {ABBR[idx.name] ?? idx.name}
+                </span>
+
+                {idx.price != null && (
+                  <>
+                    <span style={{ fontSize: 10.5, fontWeight: 700, color: "var(--text)", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>
+                      {fmtPrice(idx.price)}
+                    </span>
+                    <span style={{ fontSize: 9.5, fontWeight: 700, color: col, fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>
+                      {up ? "▲" : "▼"}&nbsp;{Math.abs(idx.change_pct).toFixed(2)}%
+                    </span>
+                    <span style={{ fontSize: 9, fontWeight: 500, color: col, opacity: 0.65, fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>
+                      ({up ? "+" : ""}{idx.change >= 0.01 || idx.change <= -0.01 ? idx.change.toFixed(2) : idx.change.toFixed(4)})
+                    </span>
+                  </>
+                )}
+              </button>
+            );
+          })}
         </div>
-      )}
+      </div>
 
       {selected && <NewsModal idx={selected} onClose={() => setSelected(null)} />}
-      <PaywallModal visible={paywallOpen} onClose={() => setPaywallOpen(false)} />
     </>
   );
 }
