@@ -10,9 +10,20 @@ import {
 const COACHING_URL = "https://calendly.com/diego-arria19/sesion-1-1-con-diego-nuvos-ai"; // ← actualiza con tu link real
 import {
   useProfileStore, useNotificationStore, useSubscriptionStore,
-  useChatStore, useAuthStore,
+  useChatStore, useAuthStore, behavioralRiskColor, behavioralRiskLabel,
 } from "@/lib/store";
 import { getUserLevel, isAtLeast, LEVEL_LABEL, LEVEL_COLOR, type UserLevel } from "@/lib/userLevel";
+
+function getAge(birthDate: string | null | undefined): number | null {
+  if (!birthDate) return null;
+  const birth = new Date(birthDate);
+  if (isNaN(birth.getTime())) return null;
+  const today = new Date();
+  let age = today.getFullYear() - birth.getFullYear();
+  const m = today.getMonth() - birth.getMonth();
+  if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) age--;
+  return age > 0 ? age : null;
+}
 import PaywallModal from "@/components/PaywallModal";
 
 const NAV: Array<{ href: string; icon: React.ComponentType<{ className?: string; style?: React.CSSProperties }>; label: string; minLevel: UserLevel }> = [
@@ -36,7 +47,7 @@ export default function AppSidebar({ open, onClose }: Props) {
   const router = useRouter();
   const pathname = usePathname();
   const { isAuthenticated } = useAuthStore();
-  const { profile } = useProfileStore();
+  const { profile, behavioralRiskScore } = useProfileStore();
   const { notifications } = useNotificationStore();
   const subStore = useSubscriptionStore();
   const { sessions, currentId, createSession, loadSession, deleteSession } = useChatStore();
@@ -168,42 +179,70 @@ export default function AppSidebar({ open, onClose }: Props) {
           </div>
         )}
 
-        {/* Profile widget — compact: avatar + name + badges only */}
-        {profile && (
-          <div className="px-2 pb-1.5 shrink-0">
-            <div className="rounded-xl p-2 card-accent">
-              <div className="flex items-center gap-1.5">
-                <div className="w-10 h-10 rounded-full overflow-hidden shrink-0 flex items-center justify-center text-base font-black text-white"
-                     style={{ background: "var(--grad-green)" }}>
-                  {profile.avatar_url
-                    ? <img src={profile.avatar_url} alt="avatar" className="w-full h-full object-cover" />
-                    : profile.name.charAt(0).toUpperCase()
-                  }
+        {/* Profile widget */}
+        {profile && (() => {
+          const age = getAge(profile.birth_date);
+          const riskScore = behavioralRiskScore ?? {
+            conservative: 15, conservative_moderate: 25, moderate: 45,
+            moderate_growth: 57, growth: 65, aggressive: 73,
+            aggressive_speculative: 85, speculative: 95,
+          }[profile.risk_tolerance ?? ""] ?? 50;
+          const riskColor = behavioralRiskColor(riskScore);
+          const riskLabel = behavioralRiskLabel(riskScore);
+          return (
+            <div className="px-2 pb-1.5 shrink-0">
+              <div className="rounded-xl p-2 card-accent">
+                <div className="flex items-center gap-1.5">
+                  <div className="w-10 h-10 rounded-full overflow-hidden shrink-0 flex items-center justify-center text-base font-black text-white"
+                       style={{ background: "var(--grad-green)" }}>
+                    {profile.avatar_url
+                      ? <img src={profile.avatar_url} alt="avatar" className="w-full h-full object-cover" />
+                      : profile.name.charAt(0).toUpperCase()
+                    }
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-[11px] font-bold truncate mb-0.5" style={{ color: "var(--text)" }}>
+                      {profile.name}{age ? `, ${age}` : ""}
+                    </div>
+                    <div className="flex items-center gap-1 flex-wrap">
+                      <span className="text-[8px] font-semibold px-1.5 py-px rounded"
+                            style={{ background: "var(--raised)", color: LEVEL_COLOR[userLevel], border: `1px solid var(--border)` }}>
+                        {LEVEL_LABEL[userLevel]}
+                      </span>
+                      {isPremium ? (
+                        <span className="text-[8px] font-semibold px-1.5 py-px rounded"
+                              style={{ background: "var(--raised)", color: "var(--accent-l)", border: "1px solid var(--border)" }}>
+                          Premium
+                        </span>
+                      ) : (
+                        <span className="text-[8px] font-semibold px-1.5 py-px rounded"
+                              style={{ background: "var(--raised)", color: "var(--dim)", border: "1px solid var(--border)" }}>
+                          Free
+                        </span>
+                      )}
+                    </div>
+                  </div>
                 </div>
-                <div className="flex-1 min-w-0">
-                  <div className="text-[11px] font-bold truncate mb-0.5" style={{ color: "var(--text)" }}>{profile.name}</div>
-                  <div className="flex items-center gap-1 flex-wrap">
-                    <span className="text-[8px] font-semibold px-1.5 py-px rounded"
-                          style={{ background: "var(--raised)", color: LEVEL_COLOR[userLevel], border: `1px solid var(--border)` }}>
-                      {LEVEL_LABEL[userLevel]}
+
+                {/* Risk bar */}
+                <div className="mt-2">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-[8px] font-semibold uppercase tracking-wide" style={{ color: "var(--dim)" }}>
+                      Riesgo
                     </span>
-                    {isPremium ? (
-                      <span className="text-[8px] font-semibold px-1.5 py-px rounded"
-                            style={{ background: "var(--raised)", color: "var(--accent-l)", border: "1px solid var(--border)" }}>
-                        Premium
-                      </span>
-                    ) : (
-                      <span className="text-[8px] font-semibold px-1.5 py-px rounded"
-                            style={{ background: "var(--raised)", color: "var(--dim)", border: "1px solid var(--border)" }}>
-                        Free
-                      </span>
-                    )}
+                    <span className="text-[8px] font-bold" style={{ color: riskColor }}>
+                      {riskLabel}
+                    </span>
+                  </div>
+                  <div className="h-1.5 rounded-full overflow-hidden" style={{ background: "var(--border)" }}>
+                    <div className="h-full rounded-full transition-all duration-700"
+                         style={{ width: `${riskScore}%`, background: riskColor }} />
                   </div>
                 </div>
               </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
 
         {/* Scrollable area: nav + chat history */}
         <div className="flex-1 overflow-y-auto scrollbar-thin">
