@@ -1,0 +1,328 @@
+# Nuvos AI — Artillery Load Test Configuration
+#
+# Artillery es ideal para pruebas rápidas de API y CI/CD pipelines.
+#
+# Instalación:
+#   npm install -g artillery
+#   npm install -g artillery-plugin-metrics-by-endpoint
+#
+# Uso:
+#   # Prueba rápida (50 usuarios):
+#   artillery run --target http://localhost:8000 nuvos.yml
+#
+#   # Tier específico:
+#   artillery run --target http://localhost:8000 -v '{"tier": 100}' nuvos.yml
+#
+#   # Contra producción:
+#   artillery run --target https://api.nuvosai.com nuvos.yml
+#
+#   # Con reporte HTML:
+#   artillery run --target http://localhost:8000 nuvos.yml \
+#     --output reports/artillery_run.json && \
+#     artillery report reports/artillery_run.json
+#
+#   # Modo cloud (Artillery Pro):
+#   artillery run --target https://api.nuvosai.com --cloud nuvos.yml
+
+config:
+  target: "http://localhost:8000"
+  http:
+    timeout: 30
+    pool: 100
+
+  plugins:
+    metrics-by-endpoint:
+      useOnlyRequestNames: true
+
+  # Variables globales
+  variables:
+    testEmailDomain: "nuvosai-test.com"
+    testPassword:    "LoadTest2024!"
+    tickers:
+      - "AAPL"
+      - "NVDA"
+      - "MSFT"
+      - "TSLA"
+      - "AMZN"
+      - "GOOG"
+      - "META"
+      - "SPY"
+      - "QQQ"
+    chatMessages:
+      - "¿Qué opinas de Apple como inversión?"
+      - "¿Cómo diversifico con $5000?"
+      - "Explícame el P/E ratio"
+      - "¿ETF vs acción individual?"
+      - "Analiza NVDA para mí"
+    screenerQueries:
+      - "mejor tecnología para largo plazo"
+      - "acciones defensivas con dividendos"
+      - "alta rentabilidad por dividendo"
+
+  # Fases de carga — simula ramp-up + sustain + ramp-down
+  phases:
+    # ── Tier 50 ──────────────────────────────────────────────
+    - name: "Tier 50 — Ramp up"
+      duration: 30
+      arrivalRate: 2
+      rampTo: 10
+
+    - name: "Tier 50 — Sustain"
+      duration: 120
+      arrivalRate: 10
+
+    - name: "Tier 50 — Ramp down"
+      duration: 30
+      arrivalRate: 10
+      rampTo: 1
+
+  # SLO thresholds
+  ensure:
+    p95: 3000       # P95 < 3 s
+    p99: 8000       # P99 < 8 s
+    maxErrorRate: 5 # Menos del 5% de errores
+
+# ── Payloads para flujos realistas ───────────────────────────────────────────
+
+payload:
+  - path: "./users.csv"
+    fields:
+      - "email"
+    order: sequence
+    skipHeader: true
+    # Genera users.csv con: python -c "print('email'); [print(f'loadtest+{i}@nuvosai-test.com') for i in range(10000)]" > users.csv
+
+# ── Escenarios de usuario ────────────────────────────────────────────────────
+
+scenarios:
+  # ── Flujo principal: usuario activo (60% del tráfico) ──────────────────────
+  - name: "Usuario Activo Completo"
+    weight: 60
+    flow:
+      # Flow 1: Login
+      - post:
+          url: "/api/auth/login"
+          name: "[1] Auth: Login"
+          json:
+            email: "{{ email }}"
+            password: "{{ testPassword }}"
+          capture:
+            - json: "$.access_token"
+              as: "token"
+          expect:
+            - statusCode: 200
+
+      - think: 1
+
+      # Flow 11: Sync state on login
+      - get:
+          url: "/api/sync/all"
+          name: "[11] Sync: Get all state"
+          headers:
+            Authorization: "Bearer {{ token }}"
+          expect:
+            - statusCode: 200
+
+      - think: 2
+
+      # Flow 5: Navigation
+      - get:
+          url: "/api/profile"
+          name: "[5] Nav: Profile"
+          headers:
+            Authorization: "Bearer {{ token }}"
+
+      # Flow 10: Notifications
+      - get:
+          url: "/api/notifications"
+          name: "[10] Notifications: Get all"
+          headers:
+            Authorization: "Bearer {{ token }}"
+          expect:
+            - statusCode: 200
+
+      - think: 2
+
+      # Flow 2: Portfolio
+      - get:
+          url: "/api/sync/portfolio"
+          name: "[2] Portfolio: Get positions"
+          headers:
+            Authorization: "Bearer {{ token }}"
+          expect:
+            - statusCode: 200
+
+      - post:
+          url: "/api/market/prices"
+          name: "[2] Portfolio: Market prices"
+          headers:
+            Authorization: "Bearer {{ token }}"
+          json:
+            symbols:
+              - "AAPL"
+              - "NVDA"
+              - "MSFT"
+
+      - think: 3
+
+      # Flow 7: Videos
+      - get:
+          url: "/api/feed/clips?page=1&limit=10"
+          name: "[7] Feed: Load clips"
+          headers:
+            Authorization: "Bearer {{ token }}"
+          capture:
+            - json: "$[0].id"
+              as: "clipId"
+              default: "clip-1"
+
+      - think: 2
+
+      # Flow 8: Like
+      - post:
+          url: "/api/feed/clips/{{ clipId }}/like"
+          name: "[8] Feed: Like clip"
+          headers:
+            Authorization: "Bearer {{ token }}"
+
+      # Flow 9: Save
+      - post:
+          url: "/api/feed/clips/{{ clipId }}/save"
+          name: "[9] Feed: Save clip"
+          headers:
+            Authorization: "Bearer {{ token }}"
+
+      - think: 3
+
+      # Flow 3 & 4: Chat
+      - get:
+          url: "/api/chat/history"
+          name: "[3] Chat: Load history"
+          headers:
+            Authorization: "Bearer {{ token }}"
+
+      - post:
+          url: "/api/chat/message"
+          name: "[4] Chat: Send message (AI)"
+          headers:
+            Authorization: "Bearer {{ token }}"
+          json:
+            message: "¿Cómo diversifico mi portafolio con $5000?"
+            conversation_history: []
+            mentor: null
+          timeout: 60
+
+      - think: 5
+
+      # Flow 11: Push sync state
+      - post:
+          url: "/api/sync/nav-order"
+          name: "[11] Sync: Nav order"
+          headers:
+            Authorization: "Bearer {{ token }}"
+          json:
+            order:
+              - "/chat"
+              - "/portfolio"
+              - "/watchlist"
+              - "/learn"
+
+  # ── Flujo ligero: usuario de consulta (25% del tráfico) ──────────────────
+  - name: "Usuario Solo Consultas"
+    weight: 25
+    flow:
+      - post:
+          url: "/api/auth/login"
+          name: "[1] Auth: Login (light)"
+          json:
+            email: "{{ email }}"
+            password: "{{ testPassword }}"
+          capture:
+            - json: "$.access_token"
+              as: "token"
+
+      - think: 1
+
+      - get:
+          url: "/api/market/indices"
+          name: "Market: Indices (cached)"
+          headers:
+            Authorization: "Bearer {{ token }}"
+
+      - get:
+          url: "/api/market/movers"
+          name: "Market: Movers"
+          headers:
+            Authorization: "Bearer {{ token }}"
+
+      - get:
+          url: "/api/watchlist"
+          name: "Watchlist: Get"
+          headers:
+            Authorization: "Bearer {{ token }}"
+
+      - get:
+          url: "/api/notifications"
+          name: "[10] Notifications: Check"
+          headers:
+            Authorization: "Bearer {{ token }}"
+
+      - think: 3
+
+      - post:
+          url: "/api/market/prices"
+          name: "[2] Portfolio: Quick prices"
+          headers:
+            Authorization: "Bearer {{ token }}"
+          json:
+            symbols:
+              - "AAPL"
+              - "TSLA"
+
+  # ── Flujo screener: usuario de research (15% del tráfico) ─────────────────
+  - name: "Usuario Screener y Research"
+    weight: 15
+    flow:
+      - post:
+          url: "/api/auth/login"
+          name: "[1] Auth: Login (screener)"
+          json:
+            email: "{{ email }}"
+            password: "{{ testPassword }}"
+          capture:
+            - json: "$.access_token"
+              as: "token"
+
+      - think: 2
+
+      # Flow 6: Screener
+      - post:
+          url: "/api/market/screener"
+          name: "[6] Screener: AI search"
+          headers:
+            Authorization: "Bearer {{ token }}"
+          json:
+            sector: null
+            query:  "mejor tecnología para largo plazo"
+          timeout: 30
+
+      - think: 5
+
+      - get:
+          url: "/api/market/stock-detail/AAPL"
+          name: "Market: Stock detail AAPL"
+          headers:
+            Authorization: "Bearer {{ token }}"
+          timeout: 15
+
+      - think: 2
+
+      - post:
+          url: "/api/market/screener"
+          name: "[6] Screener: Second query"
+          headers:
+            Authorization: "Bearer {{ token }}"
+          json:
+            sector: null
+            query:  "acciones defensivas con dividendos"
+          timeout: 30
