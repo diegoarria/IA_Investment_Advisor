@@ -193,7 +193,7 @@ function StockCard({ item, onDelete, onSelect, draggable: isDraggable, isDraggin
       draggable={isDraggable}
       onDragStart={onDragStart}
       onDragOver={onDragOver}
-      onDrop={onDrop}
+      onDrop={(e) => { e.preventDefault(); onDrop?.(); }}
       onDragEnd={onDragEnd}
       className="rounded-xl p-3 flex items-center gap-2.5 relative overflow-hidden cursor-pointer group"
       onClick={() => onSelect(item.ticker)}
@@ -500,8 +500,7 @@ export default function WatchlistPage() {
     setDragOverIndex(insertBefore ? index : index + 1);
   };
 
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
+  const handleDrop = () => {
     if (dragIndex === null || dragOverIndex === null) return;
     let target = dragOverIndex;
     if (dragIndex < target) target--;
