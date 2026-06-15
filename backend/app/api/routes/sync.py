@@ -184,7 +184,7 @@ async def get_all(user_id: str = Depends(get_current_user_id)):
         .eq("user_id", user_id).execute()
     try:
         profile_res = db.table("user_profiles") \
-            .select("maturity_score, maturity_history, trial_started_at, subscription_tier, nav_order, theme, avatar_url") \
+            .select("maturity_score, maturity_history, trial_started_at, subscription_tier, nav_order, theme, avatar_url, behavioral_risk_score") \
             .eq("user_id", user_id).execute()
     except Exception:
         profile_res = db.table("user_profiles") \
@@ -234,9 +234,10 @@ async def get_all(user_id: str = Depends(get_current_user_id)):
             "tier":             profile_row.get("subscription_tier", "free"),
         },
         "watchlist":   watchlist_res.data if watchlist_res.data else [],
-        "nav_order":   profile_row.get("nav_order"),
-        "theme":       profile_row.get("theme", "dark"),
-        "avatar_url":  profile_row.get("avatar_url"),
+        "nav_order":            profile_row.get("nav_order"),
+        "theme":                profile_row.get("theme", "dark"),
+        "avatar_url":           profile_row.get("avatar_url"),
+        "behavioral_risk_score": profile_row.get("behavioral_risk_score"),
     }
 
 
@@ -280,6 +281,34 @@ async def get_theme(user_id: str = Depends(get_current_user_id)):
     if result.data:
         return {"theme": result.data[0].get("theme", "dark")}
     return {"theme": "dark"}
+
+
+# ─── Behavioral risk score ────────────────────────────────────────────────────
+
+@router.post("/behavioral-risk")
+async def sync_behavioral_risk(body: dict, user_id: str = Depends(get_current_user_id)):
+    """Persist the user's computed behavioral risk score (0-100) for cross-device sync."""
+    score = body.get("score")
+    if score is None:
+        return {"ok": False, "reason": "missing_score"}
+    try:
+        db = get_supabase()
+        db.table("user_profiles").update({"behavioral_risk_score": int(score)}).eq("user_id", user_id).execute()
+        return {"ok": True}
+    except Exception:
+        return {"ok": False, "reason": "column_missing"}
+
+
+@router.get("/behavioral-risk")
+async def get_behavioral_risk(user_id: str = Depends(get_current_user_id)):
+    try:
+        db = get_supabase()
+        result = db.table("user_profiles").select("behavioral_risk_score").eq("user_id", user_id).execute()
+        if result.data:
+            return {"score": result.data[0].get("behavioral_risk_score")}
+    except Exception:
+        pass
+    return {"score": None}
 
 
 # ─── Push token ───────────────────────────────────────────────────────────────

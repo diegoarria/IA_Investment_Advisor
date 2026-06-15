@@ -1,5 +1,6 @@
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
+import { persist, createJSONStorage } from "zustand/middleware";
+import { useAuthStore } from "./store";
 
 export interface PaperPosition {
   id: string;
@@ -22,10 +23,16 @@ export interface PaperTrade {
 
 export const PAPER_INITIAL_CASH = 10_000;
 
+function currentMonth(): string {
+  return new Date().toISOString().slice(0, 7); // "YYYY-MM"
+}
+
 interface PaperStore {
   cash: number;
   positions: PaperPosition[];
   trades: PaperTrade[];
+  freeTradeMonth: string | null;
+  freeTradeCount: number;
   buy: (ticker: string, name: string, shares: number, price: number) => string | null;
   sell: (ticker: string, shares: number, price: number) => string | null;
   topUp: (amount: number) => void;
@@ -36,9 +43,15 @@ interface PaperStore {
 export const usePaperStore = create<PaperStore>()(
   persist(
     (set, get) => {
-      const _push = (cash: number, positions: PaperPosition[], trades: PaperTrade[]) => {
+      const _push = (
+        cash: number,
+        positions: PaperPosition[],
+        trades: PaperTrade[],
+        freeTradeMonth: string | null,
+        freeTradeCount: number,
+      ) => {
         import("./api").then(({ paperApi }) => {
-          paperApi.syncState(cash, positions, trades.slice(0, 50)).catch(() => {});
+          paperApi.syncState(cash, positions, trades.slice(0, 50), freeTradeMonth, freeTradeCount).catch(() => {});
         });
       };
 
@@ -46,6 +59,8 @@ export const usePaperStore = create<PaperStore>()(
         cash: PAPER_INITIAL_CASH,
         positions: [],
         trades: [],
+        freeTradeMonth: null,
+        freeTradeCount: 0,
 
         buy: (ticker, name, shares, price) => {
           if (shares <= 0 || price <= 0) return "Cantidad o precio inválido";
@@ -67,8 +82,11 @@ export const usePaperStore = create<PaperStore>()(
             newCash = state.cash - total;
           }
           const newTrades = [trade, ...state.trades.slice(0, 49)];
-          set({ cash: newCash, positions: newPositions, trades: newTrades });
-          _push(newCash, newPositions, newTrades);
+          const month = currentMonth();
+          const newFreeTradeMonth = month;
+          const newFreeTradeCount = state.freeTradeMonth === month ? state.freeTradeCount + 1 : 1;
+          set({ cash: newCash, positions: newPositions, trades: newTrades, freeTradeMonth: newFreeTradeMonth, freeTradeCount: newFreeTradeCount });
+          _push(newCash, newPositions, newTrades, newFreeTradeMonth, newFreeTradeCount);
           return null;
         },
 
@@ -86,21 +104,22 @@ export const usePaperStore = create<PaperStore>()(
           const newCash = state.cash + total;
           const newTrades = [trade, ...state.trades.slice(0, 49)];
           set({ cash: newCash, positions: newPositions, trades: newTrades });
-          _push(newCash, newPositions, newTrades);
+          _push(newCash, newPositions, newTrades, state.freeTradeMonth, state.freeTradeCount);
           return null;
         },
 
         topUp: (amount) => {
+          const state = get();
           const trade: PaperTrade = { id: `${Date.now()}-topup`, type: "topup", ticker: "CASH", shares: 0, price: 0, total: amount, timestamp: Date.now() };
-          const newCash = get().cash + amount;
-          const newTrades = [trade, ...get().trades.slice(0, 49)];
+          const newCash = state.cash + amount;
+          const newTrades = [trade, ...state.trades.slice(0, 49)];
           set({ cash: newCash, trades: newTrades });
-          _push(newCash, get().positions, newTrades);
+          _push(newCash, state.positions, newTrades, state.freeTradeMonth, state.freeTradeCount);
         },
 
         reset: () => {
-          set({ cash: PAPER_INITIAL_CASH, positions: [], trades: [] });
-          _push(PAPER_INITIAL_CASH, [], []);
+          set({ cash: PAPER_INITIAL_CASH, positions: [], trades: [], freeTradeMonth: null, freeTradeCount: 0 });
+          _push(PAPER_INITIAL_CASH, [], [], null, 0);
         },
 
         restoreFromServer: async () => {
@@ -110,14 +129,32 @@ export const usePaperStore = create<PaperStore>()(
             const d = res.data?.paper;
             if (!d) return;
             set({
-              cash:      d.cash      ?? PAPER_INITIAL_CASH,
-              positions: d.positions ?? [],
-              trades:    d.trades    ?? [],
+              cash:           d.cash           ?? PAPER_INITIAL_CASH,
+              positions:      d.positions      ?? [],
+              trades:         d.trades         ?? [],
+              freeTradeMonth: d.freeTradeMonth ?? null,
+              freeTradeCount: d.freeTradeCount ?? 0,
             });
           } catch {}
         },
       };
     },
-    { name: "paper-trading-web" }
+    {
+      name: "paper-trading-web",
+      storage: createJSONStorage(() => ({
+        getItem: (key) => {
+          const uid = useAuthStore.getState().userId ?? "guest";
+          return localStorage.getItem(`${key}__${uid}`);
+        },
+        setItem: (key, value) => {
+          const uid = useAuthStore.getState().userId ?? "guest";
+          localStorage.setItem(`${key}__${uid}`, value);
+        },
+        removeItem: (key) => {
+          const uid = useAuthStore.getState().userId ?? "guest";
+          localStorage.removeItem(`${key}__${uid}`);
+        },
+      })),
+    }
   )
 );

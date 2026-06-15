@@ -234,6 +234,9 @@ export const sync = {
   pushTheme: (theme: "dark" | "light") => api.post("/api/sync/theme", { theme }),
   pushMaturity: (score: number, history: unknown[]) =>
     api.post("/api/sync/maturity", { score, history }),
+  pushNavOrder: (order: string[]) => api.post("/api/sync/nav-order", { order }),
+  getNavOrder: () => api.get("/api/sync/nav-order"),
+  pushBehavioralRisk: (score: number) => api.post("/api/sync/behavioral-risk", { score }),
 };
 
 export const notifications = {
@@ -251,8 +254,8 @@ export const billing = {
 export const paperApi = {
   getLeaderboard: () => api.get("/api/paper/leaderboard"),
   setAlias: (alias: string) => api.post("/api/paper/alias", { alias }),
-  syncState: (cash: number, positions: unknown[], trades: unknown[]) =>
-    api.post("/api/sync/paper", { cash, positions, trades, freeTradeMonth: null, freeTradeCount: 0 }),
+  syncState: (cash: number, positions: unknown[], trades: unknown[], freeTradeMonth?: string | null, freeTradeCount?: number) =>
+    api.post("/api/sync/paper", { cash, positions, trades, freeTradeMonth: freeTradeMonth ?? null, freeTradeCount: freeTradeCount ?? 0 }),
   analyze: (positions: unknown[], trades: unknown[], totalReturnPct: number, cash: number, portfolioValue: number) =>
     api.post("/api/paper/analyze", { positions, trades, total_return_pct: totalReturnPct, cash, portfolio_value: portfolioValue }),
 };

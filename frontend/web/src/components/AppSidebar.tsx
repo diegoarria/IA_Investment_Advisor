@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import {
   BookOpen, PieChart, BarChart2, Bell, User, GraduationCap,
@@ -84,6 +84,27 @@ export default function AppSidebar({ open, onClose }: Props) {
     } catch {}
     return NAV.map((n) => n.href);
   });
+
+  // On first mount, restore nav order from server so a new device picks up
+  // the user's preferred arrangement without having to drag-and-drop again.
+  const navSyncedRef = useRef(false);
+  useEffect(() => {
+    if (navSyncedRef.current) return;
+    navSyncedRef.current = true;
+    import("@/lib/api").then(({ sync: syncApi }) => {
+      syncApi.getNavOrder().then((res) => {
+        const serverOrder: string[] | null = res.data?.nav_order;
+        if (!serverOrder || serverOrder.length === 0) return;
+        const current = NAV.map((n) => n.href);
+        const valid = serverOrder.filter((h) => current.includes(h));
+        const missing = current.filter((h) => !valid.includes(h));
+        const merged = [...valid, ...missing];
+        setNavOrder(merged);
+        localStorage.setItem("nuvos_nav_order", JSON.stringify(merged));
+      }).catch(() => {});
+    });
+  }, []);
+
   const [dragOver, setDragOver] = useState<string | null>(null);
   const [dragging, setDragging] = useState<string | null>(null);
   const dragItem = useRef<string | null>(null);
@@ -126,6 +147,9 @@ export default function AppSidebar({ open, onClose }: Props) {
     next.splice(ti, 0, from);
     setNavOrder(next);
     localStorage.setItem("nuvos_nav_order", JSON.stringify(next));
+    import("@/lib/api").then(({ sync: syncApi }) => {
+      syncApi.pushNavOrder(next).catch(() => {});
+    });
     dragItem.current = null;
     setDragging(null);
     setDragOver(null);

@@ -186,6 +186,7 @@ interface ChatState {
   removeLastMessage: () => void;
   clearMessages: () => void;
   setMessages: (msgs: ChatMessage[]) => void;
+  loadFromServer: () => Promise<void>;
 }
 
 interface NotificationState {
@@ -239,7 +240,9 @@ export const useProfileStore = create<ProfileState>()(
         const current = state.behavioralRiskScore ??
           (state.profile ? (RISK_TOLERANCE_TO_SCORE[state.profile.risk_tolerance] ?? 50) : 50);
         const next = Math.round((1 - alpha) * current + alpha * incoming);
-        set({ behavioralRiskScore: Math.min(100, Math.max(0, next)) });
+        const newScore = Math.min(100, Math.max(0, next));
+        set({ behavioralRiskScore: newScore });
+        syncApi.pushBehavioralRisk(newScore).catch(() => {});
       },
     }),
     {
@@ -324,6 +327,30 @@ export const useChatStore = create<ChatState>()(
         messages: msgs,
         sessions: syncSession(s.sessions, s.currentId, msgs),
       })),
+
+      loadFromServer: (): Promise<void> => {
+        const run = async () => {
+          if (get().sessions.length > 0) return;
+          const { chat } = await import("./api");
+          const res = await chat.getHistory();
+          const raw: ChatMessage[] = res.data?.messages ?? [];
+          const msgs = [...raw].reverse();
+          if (msgs.length === 0) return;
+          const id = makeSessionId();
+          set({
+            sessions: [{
+              id,
+              title: makeSessionTitle(msgs),
+              messages: msgs,
+              createdAt: Date.now(),
+              updatedAt: Date.now(),
+            }],
+            currentId: id,
+            messages: msgs,
+          });
+        };
+        return run().catch(() => {});
+      },
     }),
     {
       name: "chat-sessions",
@@ -333,6 +360,10 @@ export const useChatStore = create<ChatState>()(
         if (state?.currentId) {
           const session = state.sessions.find((s) => s.id === state.currentId);
           if (session) state.messages = session.messages;
+        }
+        // On a new device with no local sessions, fetch history from the server.
+        if (!state?.sessions?.length) {
+          setTimeout(() => useChatStore.getState().loadFromServer(), 200);
         }
       },
     }
