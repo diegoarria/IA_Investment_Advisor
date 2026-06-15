@@ -106,6 +106,8 @@ function calculateRisk(answers: Record<string, string>): RiskTolerance {
 
 type FormState = {
   name: string;
+  age: string;
+  monthly_contribution: string;
   investment_amount: string;      // exact $ available now
   investment_goal_amount: string; // exact $ target goal
   investment_goal: string;        // goal type key
@@ -128,6 +130,7 @@ export default function OnboardingPage() {
 
   const [form, setForm] = useState<FormState>({
     name: "",
+    age: "", monthly_contribution: "",
     investment_amount: "", investment_goal_amount: "", investment_goal: "",
     knowledge_level: "", q1: "", q4: "",
   });
@@ -194,7 +197,60 @@ export default function OnboardingPage() {
         </div>
       ),
     },
-    // 1 — Meta financiera con montos exactos
+    // 1 — Perfil personal
+    {
+      title: `Cuéntanos sobre ti, ${firstName || "tú"}`,
+      subtitle: "PERFIL PERSONAL",
+      valid: () => {
+        const age = parseInt(form.age);
+        const contrib = parseFloat(form.monthly_contribution);
+        return age >= 18 && age <= 90 && contrib > 0;
+      },
+      content: (
+        <div className="space-y-5">
+          {/* Edad */}
+          <div>
+            <label className="block text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: "var(--muted)" }}>
+              ¿Cuántos años tienes?
+            </label>
+            <input
+              type="number"
+              min={18} max={90}
+              value={form.age}
+              onChange={(e) => setForm((f) => ({ ...f, age: e.target.value }))}
+              className="w-full rounded-xl border px-4 py-3 text-sm outline-none"
+              placeholder="Ej. 28"
+              style={{ background: "var(--raised)", borderColor: "var(--border)", color: "var(--text)" }}
+            />
+            <p className="text-xs mt-1.5" style={{ color: "var(--muted)" }}>
+              Tu edad ayuda a la IA a calibrar tu horizonte de inversión.
+            </p>
+          </div>
+          {/* Aportación mensual */}
+          <div>
+            <label className="block text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: "var(--muted)" }}>
+              ¿Cuánto puedes invertir cada mes?
+            </label>
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-bold" style={{ color: "var(--muted)" }}>$</span>
+              <input
+                type="number"
+                min={0}
+                value={form.monthly_contribution}
+                onChange={(e) => setForm((f) => ({ ...f, monthly_contribution: e.target.value }))}
+                className="w-full rounded-xl border pl-7 pr-4 py-3 text-sm outline-none"
+                placeholder="500"
+                style={{ background: "var(--raised)", borderColor: "var(--border)", color: "var(--text)" }}
+              />
+            </div>
+            <p className="text-xs mt-1.5" style={{ color: "var(--muted)" }}>
+              Tu aportación mensual recurrente en USD. Puedes cambiarlo después.
+            </p>
+          </div>
+        </div>
+      ),
+    },
+    // 2 — Meta financiera con montos exactos
     {
       title: "Tu meta financiera",
       subtitle: "OBJETIVOS",
@@ -556,8 +612,11 @@ export default function OnboardingPage() {
     if (!isLastStep) { setStep(step + 1); return; }
     setLoading(true); setError("");
     try {
+      const birthYear = new Date().getFullYear() - parseInt(form.age || "0");
       const payload = {
         name:                   form.name.trim(),
+        birth_date:             form.age ? `${birthYear}-01-01` : undefined,
+        monthly_contribution:   form.monthly_contribution,
         investment_amount:      form.investment_amount,
         investment_goal:        form.investment_goal,
         investment_goal_amount: form.investment_goal_amount,
