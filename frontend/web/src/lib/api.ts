@@ -339,4 +339,22 @@ export const investorsApi = {
   getHoldings: (investorId: string) => api.get(`/api/investors/${investorId}`),
 };
 
+export const brokerageApi = {
+  // Plaid
+  createLinkToken: () => api.post("/api/brokerage/plaid/link-token"),
+  exchangePlaidToken: (public_token: string, institution_id: string, institution_name: string) =>
+    api.post("/api/brokerage/plaid/exchange", { public_token, institution_id, institution_name }),
+  getPlaidHoldings: () => api.get("/api/brokerage/plaid/holdings"),
+
+  // IOL
+  connectIOL: (username: string, password: string) =>
+    api.post("/api/brokerage/iol/connect", { username, password }),
+  getIOLHoldings: () => api.get("/api/brokerage/iol/holdings"),
+
+  // Management
+  listConnections: () => api.get("/api/brokerage/connections"),
+  deleteConnection: (id: string) => api.delete(`/api/brokerage/connections/${id}`),
+  syncAll: () => api.post("/api/brokerage/sync"),
+};
+
 export default api;

@@ -23,6 +23,7 @@ import GuidedSteps from "@/components/GuidedSteps";
 import PremiumBadge from "@/components/PremiumBadge";
 import FirstStepsFlow from "@/components/FirstStepsFlow";
 import MarketTickerBar from "@/components/MarketTickerBar";
+import BrokerConnectModal from "@/components/BrokerConnectModal";
 import {
   PieChart, Menu, X, Upload, Plus, Trash2,
   BarChart, Calculator, Shield, Sparkles, RefreshCw, AlertTriangle, FileText, Pencil, Eye,
@@ -670,6 +671,7 @@ export default function PortfolioPage() {
   type ExtractedPos = { id: string; ticker: string; name: string; shares: number; avg_price: number; purchase_date?: string | null };
   const [screenshotPreview, setScreenshotPreview] = useState<ExtractedPos[]|null>(null);
   const [mergeModalOpen, setMergeModalOpen] = useState(false);
+  const [brokerModalOpen, setBrokerModalOpen] = useState(false);
   const [pendingMerge, setPendingMerge] = useState<ExtractedPos[]>([]);
 
   // Sort
@@ -1296,6 +1298,20 @@ export default function PortfolioPage() {
             </div>
 
             <input ref={screenshotInputRef} type="file" accept="image/*,.pdf" multiple className="hidden" onChange={handleScreenshotChange} />
+
+            {/* Conectar broker */}
+            <button
+              onClick={() => setBrokerModalOpen(true)}
+              className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl font-bold text-sm transition-all hover:opacity-80"
+              style={{ background: "var(--raised)", border: "1px solid var(--border)", color: "var(--sub)" }}
+            >
+              <span>🔗</span>
+              <span>Conectar broker</span>
+              <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full ml-1"
+                style={{ background: "rgba(0,168,94,0.12)", color: "var(--accent)" }}>
+                IBKR · Schwab · Robinhood · IOL
+              </span>
+            </button>
 
             {/* Hint pegado / arrastrar — sutil */}
             {!screenshotAnalyzing && !screenshotPreview && !showForm && (
@@ -2423,6 +2439,26 @@ export default function PortfolioPage() {
         </div>
       )}
       <PaywallModal visible={paywallOpen} onClose={() => setPaywallOpen(false)} />
+
+      {/* ── Broker connect modal ── */}
+      {brokerModalOpen && (
+        <BrokerConnectModal
+          onClose={() => setBrokerModalOpen(false)}
+          onPositionsImported={(brokerPositions) => {
+            brokerPositions.forEach((p) => {
+              if (p.shares > 0) {
+                addPosition({
+                  ticker: p.ticker,
+                  name: p.name,
+                  shares: p.shares,
+                  avgPrice: p.avgPrice,
+                });
+              }
+            });
+            setBrokerModalOpen(false);
+          }}
+        />
+      )}
 
       {/* First Steps guided flow — principiante only, post-onboarding */}
       {userLevel === "principiante" && (

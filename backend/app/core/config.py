@@ -19,6 +19,10 @@ class Settings(BaseSettings):
     elevenlabs_api_key: str = ""   # for TTS
     elevenlabs_voice_id: str = "pNInz6obpgDQGcFmaJgB"  # Adam — multilingual, good Spanish
     fiscal_ai_api_key: str = ""    # fiscal.ai — same data as stockanalysis.com
+    # Plaid (brokerage integrations: IBKR, Schwab, Robinhood)
+    plaid_client_id: str = ""
+    plaid_secret: str = ""
+    plaid_env: str = "sandbox"     # sandbox | production
 
     class Config:
         env_file = ".env"
