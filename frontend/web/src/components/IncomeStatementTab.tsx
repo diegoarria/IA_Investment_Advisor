@@ -175,8 +175,17 @@ interface MarginRowProps {
   fallbackPct?: number;
 }
 
+// A computed margin is "bad data" when COGS or OpIncome came back as 0
+// causing gross=100% or operating=0%. Detect and replace with profile value.
+function _isBadMargin(pct: number | null, fallback: number | undefined): boolean {
+  if (pct == null) return true;
+  if (fallback == null) return false;
+  // 100% gross margin or 0% operating margin = COGS / OpIncome missing
+  return pct >= 99 || pct === 0;
+}
+
 function MarginRow({ rows, field, label, numeratorField, fallbackPct }: MarginRowProps) {
-  const pairs = rows.map((r, i) => {
+  const pairs = rows.map((r) => {
     let pct = safeNum(r[field]);
 
     if (pct == null && numeratorField) {
@@ -185,8 +194,8 @@ function MarginRow({ rows, field, label, numeratorField, fallbackPct }: MarginRo
       if (rev && rev !== 0 && num != null) pct = (num / rev) * 100;
     }
 
-    // Use profile fallback only on the latest (last) period
-    if (pct == null && i === rows.length - 1 && fallbackPct != null) {
+    // Replace bad/missing values with the profile TTM margin for every period
+    if (_isBadMargin(pct, fallbackPct) && fallbackPct != null) {
       pct = fallbackPct;
     }
 
