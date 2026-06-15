@@ -938,37 +938,96 @@ async def generate_weekly_picks(
     mentor_line   = f"Mentor: {mentor}." if mentor else ""
     existing_line = f"Ya posee: {', '.join(existing)}. NO incluir." if existing else ""
 
-    data_str = json.dumps(candidates[:30], ensure_ascii=False)
+    RISK_GUIDANCE: dict[str, str] = {
+        "conservative": (
+            "PERFIL CONSERVADOR — prioriza capital sobre crecimiento.\n"
+            "Picks ideales: dividendos estables (yield ≥2%), empresas del S&P 500 con ≥20 años de historia, "
+            "negocios defensivos (utilities, staples, REITs de calidad, seguros).\n"
+            "Ejemplos del universo: BRK-B, KO, PG, JNJ, O, NEE, WMT, PEP, V, MA.\n"
+            "EVITAR: empresas sin ganancias, deuda alta, sectores muy cíclicos, high-growth especulativo."
+        ),
+        "conservative_moderate": (
+            "PERFIL CONSERVADOR-MODERADO — estabilidad con algo de crecimiento.\n"
+            "Picks ideales: 3 defensivas con dividendo + 2 growth quality (bajo riesgo).\n"
+            "Ejemplos: BRK-B, KO, MSFT, AAPL, V, COST, UNH, ABT.\n"
+            "EVITAR: empresas sin rentabilidad, alta especulación, sectores muy volátiles."
+        ),
+        "moderate": (
+            "PERFIL MODERADO — balance crecimiento y estabilidad.\n"
+            "Picks ideales: mix 60% empresas establecidas líderes + 40% growth con fundamentos sólidos.\n"
+            "Ejemplos: MSFT, GOOGL, AMZN, V, UNH, COST, NVDA, META.\n"
+            "Puede incluir 1 pick de crecimiento más agresivo si tiene fundamentos claros."
+        ),
+        "moderate_growth": (
+            "PERFIL MODERADO-GROWTH — crecimiento con algo de tolerancia al riesgo.\n"
+            "Picks ideales: líderes de crecimiento + 1-2 disruptores con tesis clara.\n"
+            "Ejemplos: NVDA, META, AMZN, NOW, DDOG, NET, SHOP, PLTR.\n"
+            "Puede incluir empresas con P/E alto si el crecimiento lo justifica."
+        ),
+        "growth": (
+            "PERFIL GROWTH — crecimiento como prioridad principal.\n"
+            "Picks ideales: líderes tecnológicos + empresas de disrupción sectorial con crecimiento de ingresos ≥20%.\n"
+            "Ejemplos: NVDA, META, DDOG, NET, SHOP, PLTR, APP, DUOL, CELH, HIMS.\n"
+            "Acepta volatilidad alta si la tesis de crecimiento es sólida."
+        ),
+        "aggressive": (
+            "PERFIL AGRESIVO — alta tolerancia a volatilidad, busca retornos superiores.\n"
+            "Picks ideales: 2-3 growth leaders + 2 high-conviction speculative plays con catalizador claro.\n"
+            "Ejemplos: PLTR, APP, SMCI, AFRM, SOFI, HIMS, CELH, RDDT, RKLB, BE.\n"
+            "Puede incluir empresas con pérdidas si la tesis de disrupción es convincente."
+        ),
+        "aggressive_speculative": (
+            "PERFIL AGRESIVO-ESPECULATIVO — busca multi-baggers, acepta riesgo alto.\n"
+            "Picks ideales: disruptores temáticos (IA, energía limpia, biotech, fintech, espacio) con tesis de 3-5 años.\n"
+            "Ejemplos: BE, PLUG, IONQ, RKLB, JOBY, RXRX, BEAM, UPST, MSTR, AI.\n"
+            "Prioriza potencial de 5-10x sobre estabilidad. Explica claramente la tesis y el riesgo."
+        ),
+        "speculative": (
+            "PERFIL ESPECULATIVO — máxima tolerancia al riesgo, busca disruption total.\n"
+            "Picks ideales: early-stage disruptors, moonshots con tecnología diferenciada, empresas que pueden 10x o quebrar.\n"
+            "Ejemplos: IONQ, RGTI, JOBY, ACHR, RKLB, RXRX, BEAM, NTLA, MARA, BBAI.\n"
+            "No hay restricción de ganancias — lo que importa es la tesis y el mercado potencial."
+        ),
+    }
+    risk_guidance = RISK_GUIDANCE.get(risk, RISK_GUIDANCE["moderate"])
 
-    prompt = f"""Eres el asesor de inversión personalizado. Selecciona exactamente 5 SUGERENCIAS de exploración para esta semana (no son recomendaciones de compra — son ideas para que el usuario investigue más).
+    data_str = json.dumps(candidates[:50], ensure_ascii=False)
+
+    prompt = f"""Eres el mentor de inversión personal del usuario. Tu trabajo esta semana: elegir exactamente 5 acciones para que el usuario investigue, completamente personalizadas a su perfil.
 
 ═══ PERFIL DEL USUARIO ═══
 • Riesgo: {risk}
 • Horizonte: {horizon_ctx}
 • Conocimiento: {knowledge_ctx}
 • Seguimiento: {engage_ctx}
-• {mentor_line} {existing_line}
+• {mentor_line}
+• {existing_line}
 
 ═══ TIPO DE NEGOCIO QUE BUSCA ═══
-Según su perfil e inspiración de inversión, este usuario se inclina hacia:
 {mentor_biz}
 
-Selecciona empresas que REALMENTE encajen con esta descripción de negocio. Explica en cada pick por qué ese negocio específico es del tipo que busca.
+═══ MANDATO POR PERFIL DE RIESGO (MUY IMPORTANTE) ═══
+{risk_guidance}
+
+El perfil de riesgo DEBE determinar qué tipo de acciones seleccionas. Un usuario conservador NUNCA debe recibir picks especulativos. Un usuario especulativo NO debe recibir solo blue chips aburridos.
 
 ═══ REGLAS ═══
-- Exactamente 5 sugerencias
+- Exactamente 5 picks
 - Máximo 2 del mismo sector
-- No sugerir tickers que ya posee
-- Alineación con riesgo y horizonte
-- El campo "why" debe explicar por qué ESE negocio encaja con el tipo buscado, no solo por qué está barato
+- Nunca sugerir tickers que ya posee el usuario
+- El campo "why" habla DIRECTAMENTE al usuario como su mentor — tono personal y conversacional
+  Ejemplos de tono correcto:
+  • "Esta semana considera Bloom Energy — es una apuesta directa a la revolución del hidrógeno y con tu perfil agresivo tienes el estómago para aguantar la volatilidad."
+  • "Para tu perfil conservador, Coca-Cola sigue siendo una de las mejores formas de cobrar dividendos mientras el mercado hace lo suyo."
+  • "Con tu horizonte de largo plazo, Visa es el tipo de negocio que solo necesitas comprar y olvidar — cobra por cada transacción del planeta."
 
-═══ CANDIDATOS ═══
+═══ CANDIDATOS (datos reales de esta semana) ═══
 {data_str}
 
 Responde SOLO con JSON válido:
 {{
   "week_theme": "Tema de la semana en una frase breve",
-  "business_profile": "En 1-2 oraciones: qué tipo de negocios se priorizaron esta semana y por qué encajan con el perfil del usuario",
+  "business_profile": "1-2 oraciones: qué tipo de negocios priorizaste esta semana y por qué encajan con el perfil del usuario",
   "picks": [
     {{
       "ticker": "AAPL",
@@ -977,13 +1036,13 @@ Responde SOLO con JSON válido:
       "price": 185.50,
       "change_pct": 1.2,
       "score": 78,
-      "why": "Por qué este negocio encaja con lo que busca este usuario (1-2 oraciones, enfocado en el tipo de negocio)",
-      "catalyst": "Catalizador concreto a explorar en próximas semanas",
-      "risk": "Principal riesgo en 10 palabras máximo"
+      "why": "Mensaje directo y personal al usuario — por qué ESTA acción encaja con SU perfil específico esta semana (2 oraciones, tono de mentor)",
+      "catalyst": "Catalizador concreto a vigilar en las próximas semanas",
+      "risk": "Principal riesgo en máximo 12 palabras"
     }}
   ],
-  "mentor_note": "Perspectiva del mentor sobre estas sugerencias — 2 oraciones",
-  "disclaimer": "Estas son sugerencias educativas basadas en tu perfil. No son asesoramiento financiero ni recomendaciones de compra. Siempre haz tu propia investigación antes de invertir."
+  "mentor_note": "Mensaje final del mentor al usuario — 2 oraciones, tono personal y directo, refuerza por qué estas 5 ideas encajan con su perfil",
+  "disclaimer": "Estas son sugerencias educativas basadas en tu perfil. No son asesoramiento financiero ni recomendaciones de compra. Siempre investiga antes de invertir."
 }}
 
 Sin texto fuera del JSON."""

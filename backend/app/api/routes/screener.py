@@ -204,9 +204,47 @@ UNIVERSE = [
     {"ticker": "XLF",   "name": "Financial ETF",      "sector": "ETF",                     "industry": "ETF"},
     {"ticker": "XLV",   "name": "Healthcare ETF",     "sector": "ETF",                     "industry": "ETF"},
     {"ticker": "XLE",   "name": "Energy ETF",         "sector": "ETF",                     "industry": "ETF"},
+
+    # ── High-growth / Speculative ─────────────────────────────────────────────────
+    # Clean Energy / Hydrogen
+    {"ticker": "BE",    "name": "Bloom Energy",       "sector": "Industrials",             "industry": "Electrical Equipment & Parts"},
+    {"ticker": "PLUG",  "name": "Plug Power",         "sector": "Industrials",             "industry": "Electrical Equipment & Parts"},
+    {"ticker": "RUN",   "name": "Sunrun",             "sector": "Industrials",             "industry": "Solar"},
+    {"ticker": "NOVA",  "name": "Sunnova Energy",     "sector": "Industrials",             "industry": "Solar"},
+    # Quantum / Deep Tech
+    {"ticker": "IONQ",  "name": "IonQ",               "sector": "Technology",              "industry": "Computer Hardware"},
+    {"ticker": "RGTI",  "name": "Rigetti Computing",  "sector": "Technology",              "industry": "Computer Hardware"},
+    # AI / Data Infrastructure
+    {"ticker": "SMCI",  "name": "Super Micro Computer","sector": "Technology",             "industry": "Computer Hardware"},
+    {"ticker": "AI",    "name": "C3.ai",              "sector": "Technology",              "industry": "Software - Application"},
+    {"ticker": "BBAI",  "name": "BigBear.ai",         "sector": "Technology",              "industry": "Software - Application"},
+    # Fintech / BNPL
+    {"ticker": "AFRM",  "name": "Affirm",             "sector": "Financials",              "industry": "Credit Services"},
+    {"ticker": "UPST",  "name": "Upstart",            "sector": "Financials",              "industry": "Credit Services"},
+    {"ticker": "SOFI",  "name": "SoFi Technologies",  "sector": "Financials",              "industry": "Credit Services"},
+    {"ticker": "HOOD",  "name": "Robinhood",          "sector": "Financials",              "industry": "Capital Markets"},
+    # Space / Aviation
+    {"ticker": "RKLB",  "name": "Rocket Lab",         "sector": "Industrials",             "industry": "Aerospace & Defense"},
+    {"ticker": "JOBY",  "name": "Joby Aviation",      "sector": "Industrials",             "industry": "Aerospace & Defense"},
+    {"ticker": "ACHR",  "name": "Archer Aviation",    "sector": "Industrials",             "industry": "Aerospace & Defense"},
+    # Biotech – high risk
+    {"ticker": "RXRX",  "name": "Recursion Pharma",   "sector": "Healthcare",              "industry": "Biotechnology"},
+    {"ticker": "BEAM",  "name": "Beam Therapeutics",  "sector": "Healthcare",              "industry": "Biotechnology"},
+    {"ticker": "NTLA",  "name": "Intellia Therapeutics","sector": "Healthcare",            "industry": "Biotechnology"},
+    # Growth – mid cap
+    {"ticker": "HIMS",  "name": "Hims & Hers Health", "sector": "Healthcare",              "industry": "Health Information Services"},
+    {"ticker": "CELH",  "name": "Celsius Holdings",   "sector": "Consumer Staples",        "industry": "Beverages - Non-Alcoholic"},
+    {"ticker": "DUOL",  "name": "Duolingo",           "sector": "Technology",              "industry": "Software - Application"},
+    {"ticker": "CAVA",  "name": "CAVA Group",         "sector": "Consumer Discretionary",  "industry": "Restaurants"},
+    {"ticker": "APP",   "name": "AppLovin",           "sector": "Technology",              "industry": "Software - Application"},
+    {"ticker": "RDDT",  "name": "Reddit",             "sector": "Communication Services",  "industry": "Internet Content & Information"},
+    # Crypto / Bitcoin proxy
+    {"ticker": "MSTR",  "name": "MicroStrategy",      "sector": "Technology",              "industry": "Software - Application"},
+    {"ticker": "MARA",  "name": "MARA Holdings",      "sector": "Financials",              "industry": "Capital Markets"},
 ]
 
-_TTL = 4 * 3600  # 4 hours
+_TTL        = 4 * 3600   # 4 hours — individual ticker cache
+_WEEKLY_TTL = 7 * 86400  # 7 days — weekly picks cache (one set per week per user)
 
 
 def _fetch_one(entry: dict) -> dict:
@@ -316,7 +354,7 @@ async def weekly_picks(
     result  = await ai_service.generate_weekly_picks(candidates, profile, existing)
     result["generated_at"] = _dt.now().isoformat()
 
-    cache_set(cache_key, result, ttl=_TTL)  # 4h, refreshes once a day at most
+    cache_set(cache_key, result, ttl=_WEEKLY_TTL)
     return result
 
 
