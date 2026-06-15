@@ -151,10 +151,10 @@ def _income_period(
     period: str,
     revenue=None, cost_of_revenue=None, gross_profit=None,
     operating_expenses=None, operating_income=None, ebitda=None,
-    net_income=None, diluted_eps=None,
+    net_income=None, diluted_eps=None, basic_eps=None,
     gross_margin=None, operating_margin=None, net_margin=None,
-    rd=None, sga=None, interest_expense=None,
-    tax_provision=None,
+    rd=None, sga=None, interest_income=None, interest_expense=None,
+    pretax_income=None, tax_provision=None, depreciation_amortization=None,
 ) -> dict:
     rev = _num(revenue)
     cogs = _num(cost_of_revenue)
@@ -171,23 +171,36 @@ def _income_period(
     om = _num(operating_margin) or _pct(oi, rev)
     nm = _num(net_margin) or _pct(ni, rev)
 
+    # Auto-derive Pretax Income when missing: Operating Income + non-op items
+    pti = _num(pretax_income)
+    if pti is None and oi is not None:
+        ii = _num(interest_income) or 0
+        ie = _num(interest_expense) or 0
+        # Only auto-derive if we have at least one non-op item
+        if ii != 0 or ie != 0:
+            pti = round(oi + ii + ie, 2)
+
     return {
         "period": period,
         "Total Revenue": rev,
         "Cost Of Revenue": cogs,
         "Gross Profit": gp,
         "Gross Margin %": gm,
+        "Research And Development": _num(rd),
+        "Selling General Administrative": _num(sga),
         "Operating Expenses": _num(operating_expenses),
         "Operating Income": oi,
         "Operating Margin %": om,
-        "EBITDA": _num(ebitda),
+        "Interest Income": _num(interest_income),
+        "Interest Expense": _num(interest_expense),
+        "Pretax Income": pti,
+        "Tax Provision": _num(tax_provision),
         "Net Income": ni,
         "Net Margin %": nm,
+        "EBITDA": _num(ebitda),
+        "Depreciation And Amortization": _num(depreciation_amortization),
         "Diluted EPS": _num(diluted_eps),
-        "Research And Development": _num(rd),
-        "Selling General Administrative": _num(sga),
-        "Interest Expense": _num(interest_expense),
-        "Tax Provision": _num(tax_provision),
+        "Basic EPS": _num(basic_eps),
     }
 
 
@@ -282,13 +295,17 @@ class FMPProvider(FinancialProvider):
                 ebitda=n(r.get("ebitda")),
                 net_income=n(r.get("netIncome")),
                 diluted_eps=_num(r.get("epsdiluted")),
+                basic_eps=_num(r.get("eps")),
                 gross_margin=pct_field(r.get("grossProfitRatio")),
                 operating_margin=pct_field(r.get("operatingIncomeRatio")),
                 net_margin=pct_field(r.get("netIncomeRatio")),
                 rd=n(r.get("researchAndDevelopmentExpenses")),
                 sga=n(r.get("sellingGeneralAndAdministrativeExpenses")),
+                interest_income=n(r.get("interestIncome")),
                 interest_expense=n(r.get("interestExpense")),
+                pretax_income=n(r.get("incomeBeforeTax")),
                 tax_provision=n(r.get("incomeTaxExpense")),
+                depreciation_amortization=n(r.get("depreciationAndAmortization")),
             ))
         return result[::-1]  # oldest → newest
 
@@ -426,14 +443,21 @@ class YFinanceProvider(FinancialProvider):
                     period=str(col)[:10],
                     revenue=rev, cost_of_revenue=cogs, gross_profit=gp,
                     operating_income=oi, ebitda=ebitda, net_income=ni,
-                    diluted_eps=g("Diluted EPS", "Basic EPS"),
+                    diluted_eps=g("Diluted EPS"),
+                    basic_eps=g("Basic EPS"),
                     rd=n(g("Research And Development", "ResearchAndDevelopment",
                            "Research Development")),
                     sga=n(g("Selling General And Administration",
                             "SellingGeneralAndAdministration",
                             "General And Administrative Expense")),
+                    interest_income=n(g("Interest Income", "InterestIncome")),
                     interest_expense=n(g("Interest Expense", "InterestExpense")),
+                    pretax_income=n(g("Pretax Income", "PreTaxIncome",
+                                      "Income Before Tax", "Earnings Before Tax")),
                     tax_provision=n(g("Tax Provision", "Income Tax Expense", "IncomeTaxExpense")),
+                    depreciation_amortization=n(g("Reconciled Depreciation",
+                                                   "Depreciation And Amortization",
+                                                   "Depreciation Amortization Depletion")),
                 ))
             return result[::-1]  # oldest → newest
         except Exception as exc:
@@ -614,21 +638,27 @@ class FiscalAIProvider(FinancialProvider):
         result = []
         for p in periods:
             g = lambda *keys: self._mv(p, *keys)
-            rev = g("income_statement_total_revenues")
-            cogs = g("income_statement_cost_of_sales")
-            gp   = g("income_statement_gross_profit")
-            oi   = g("income_statement_operating_profit")
-            ni   = g("income_statement_net_income_attributable_to_common_shareholders",
-                     "income_statement_consolidated_net_income")
-            rd   = g("income_statement_research_and_development_expenses")
-            sga  = g("income_statement_selling_general_and_administrative_expenses")
-            tax  = g("income_statement_provision_for_income_taxes")
-            eps  = g("income_statement_diluted_eps")
             result.append(_income_period(
                 period=p.get("reportDate", "")[:10],
-                revenue=rev, cost_of_revenue=cogs, gross_profit=gp,
-                operating_income=oi, net_income=ni,
-                diluted_eps=eps, rd=rd, sga=sga, tax_provision=tax,
+                revenue=g("income_statement_total_revenues"),
+                cost_of_revenue=g("income_statement_cost_of_sales"),
+                gross_profit=g("income_statement_gross_profit"),
+                operating_income=g("income_statement_operating_profit"),
+                ebitda=g("income_statement_ebitda"),
+                net_income=g("income_statement_net_income_attributable_to_common_shareholders",
+                             "income_statement_consolidated_net_income"),
+                rd=g("income_statement_research_and_development_expenses"),
+                sga=g("income_statement_selling_general_and_administrative_expenses"),
+                interest_income=g("income_statement_interest_income",
+                                  "income_statement_interest_and_investment_income"),
+                interest_expense=g("income_statement_interest_expense",
+                                   "income_statement_net_interest_income_expense"),
+                pretax_income=g("income_statement_pretax_income",
+                                "income_statement_income_before_taxes"),
+                tax_provision=g("income_statement_provision_for_income_taxes"),
+                depreciation_amortization=g("income_statement_depreciation_and_amortization"),
+                diluted_eps=g("income_statement_diluted_eps"),
+                basic_eps=g("income_statement_basic_eps"),
             ))
         return result
 
