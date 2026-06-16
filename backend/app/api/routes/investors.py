@@ -11,6 +11,7 @@ import csv
 import io
 import httpx
 import asyncio
+import statistics
 from datetime import datetime, timedelta
 from fastapi import APIRouter, Depends
 from app.api.deps import get_current_user_id
@@ -72,7 +73,7 @@ TRACKED_INVESTORS = [
         "bio": "Fundador del hedge fund más grande del mundo. Creador de los Principios y del 'All Weather Portfolio'.",
         "style": "Macro global · Risk parity · Diversificación extrema",
         "source": "sec_13f",
-        "cik": "0001350683",
+        "cik": "0001350694",
     },
     {
         "id": "druckenmiller",
@@ -112,17 +113,7 @@ TRACKED_INVESTORS = [
         "bio": "Discípulo de Julian Robertson. Pionero en inversión en tecnología y startups globales.",
         "style": "Growth tech · Venture híbrido · Global",
         "source": "sec_13f",
-        "cik": "0001480770",
-    },
-    {
-        "id": "pabrai",
-        "name": "Mohnish Pabrai",
-        "fund": "Pabrai Investment Funds",
-        "avatar": "🎯",
-        "bio": "Discípulo de Buffett. Copiador sistemático de las mejores ideas de inversión del mundo.",
-        "style": "Cloning · Value concentrado · Paciencia",
-        "source": "sec_13f",
-        "cik": "0001492222",
+        "cik": "0001167483",
     },
     {
         "id": "ark",
@@ -278,49 +269,57 @@ async def _fetch_sec_13f(cik: str) -> dict:
 
 def _parse_13f_xml(xml_text: str) -> list[dict]:
     """
-    Parse 13F infotable XML. Handles:
-    - Default namespace (xmlns="http://www.sec.gov/edgar/document/thirteenf/informationtable")
-    - Namespace-prefixed tags
-    - Values in full USD (new 2024 format) — stored as value_thousands after ÷1000
+    Parse 13F infotable XML. Handles namespace prefixes and auto-detects
+    whether values are in full USD (2024+ format) or old thousands format.
+    Detection: median(value / shares) > 5 → full USD → divide by 1000.
     """
-    # Strip any namespace prefixes so regex is simple
     clean = re.sub(r"<(/?)[\w-]+:([\w-]+)", r"<\1\2", xml_text)
-
     entries = re.findall(
         r"<infoTable\b[^>]*>(.*?)</infoTable>", clean, re.DOTALL | re.IGNORECASE
     )
     if not entries:
         return []
 
-    holdings: list[dict] = []
+    def tag(t: str, entry: str) -> str:
+        m = re.search(rf"<{t}\b[^>]*>(.*?)</{t}>", entry, re.DOTALL | re.IGNORECASE)
+        return m.group(1).strip() if m else ""
+
+    # First pass: collect raw data and compute value/shares ratios
+    rows: list[tuple] = []
+    ratios: list[float] = []
     for entry in entries:
-        def tag(t: str) -> str:
-            m = re.search(rf"<{t}\b[^>]*>(.*?)</{t}>", entry, re.DOTALL | re.IGNORECASE)
-            return m.group(1).strip() if m else ""
-
-        name  = tag("nameOfIssuer").strip()
-        val   = re.sub(r"[^\d]", "", tag("value"))
-        shrs  = re.sub(r"[^\d]", "", tag("sshPrnamt"))
-        cusip = tag("cusip").replace(" ", "")
-
+        name  = tag("nameOfIssuer", entry).strip()
+        val   = re.sub(r"[^\d]", "", tag("value", entry))
+        shrs  = re.sub(r"[^\d]", "", tag("sshPrnamt", entry))
+        cusip = tag("cusip", entry).replace(" ", "")
         if not name or not val:
             continue
-
         raw_val = int(val)
-        # SEC updated 13F format in 2024: values are now full USD (not thousands).
-        # Divide by 1000 to store as "thousands" for consistent display.
-        value_thousands = raw_val // 1000
+        shares  = int(shrs) if shrs else 0
+        if shares > 0:
+            ratios.append(raw_val / shares)
+        rows.append((name, raw_val, shares, cusip))
 
+    if not rows:
+        return []
+
+    # If median(value/shares) > 5, values are in full USD — divide by 1000
+    median_ratio = statistics.median(ratios) if ratios else 0
+    is_full_usd = median_ratio > 5
+
+    holdings: list[dict] = []
+    for name, raw_val, shares, cusip in rows:
+        value_thousands = raw_val // 1000 if is_full_usd else raw_val
         holdings.append({
             "ticker": CUSIP_TICKER.get(cusip, ""),
             "name": name.title(),
             "cusip": cusip,
             "value_thousands": value_thousands,
-            "shares": int(shrs) if shrs else 0,
+            "shares": shares,
             "weight_pct": 0.0,
         })
 
-    # Aggregate duplicate tickers (multiple discretion types)
+    # Aggregate duplicates (e.g. different share classes filed separately)
     agg: dict[str, dict] = {}
     for h in holdings:
         key = h["cusip"] or h["name"]
