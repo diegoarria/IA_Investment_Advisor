@@ -75,7 +75,8 @@ export default function AdminFeedPage() {
   const [saving, setSaving]           = useState(false);
   const [error, setError]             = useState<string | null>(null);
   const [expandedId, setExpanded]     = useState<string | null>(null);
-  const [generatingAudio, setGenAudio] = useState<string | null>(null); // clip id being processed
+  const [generatingAudio, setGenAudio] = useState<string | null>(null);
+  const [publishingAll, setPublishingAll] = useState(false);
 
   // Auth guard — redirect non-admins immediately
   useEffect(() => {
@@ -178,6 +179,17 @@ export default function AdminFeedPage() {
     } catch (e) { apiError(e, "Error al eliminar"); }
   };
 
+  const handlePublishAll = async () => {
+    if (!confirm(`¿Publicar los ${clips.length} borradores de una vez?`)) return;
+    setPublishingAll(true);
+    setError(null);
+    try {
+      await Promise.all(clips.map((c) => feedApi.adminUpdate(c.id, { status: "published" })));
+      fetchClips();
+    } catch (e) { apiError(e, "Error al publicar en lote"); }
+    finally { setPublishingAll(false); }
+  };
+
   const handleGenerateAudio = async (id: string) => {
     setGenAudio(id);
     setError(null);
@@ -236,6 +248,19 @@ export default function AdminFeedPage() {
             </button>
           ))}
         </div>
+
+        {statusFilter === "draft" && clips.length > 1 && (
+          <button
+            onClick={handlePublishAll}
+            disabled={publishingAll}
+            className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-bold disabled:opacity-60"
+            style={{ background: "rgba(34,197,94,0.12)", color: "#22c55e", border: "1px solid rgba(34,197,94,0.25)" }}>
+            {publishingAll
+              ? <Loader2 className="w-4 h-4 animate-spin" />
+              : <Check className="w-4 h-4" />}
+            {publishingAll ? "Publicando todos..." : `Publicar todos los borradores (${clips.length})`}
+          </button>
+        )}
 
         {error && (
           <div className="flex items-center justify-between p-3 rounded-xl text-sm"

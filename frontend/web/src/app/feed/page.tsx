@@ -87,10 +87,12 @@ export default function FeedPage() {
     const cursor = reset ? 0 : (nextCursor ?? 0);
     if (!reset && nextCursor === null) return;
     reset ? setLoading(true) : setLoadingMore(true);
+    // Always clear seen history on a full reset so fresh content is never filtered out
+    if (reset) seenIdsRef.current.clear();
     try {
       const res = await feedApi.getClips({ cursor, speaker: speaker ?? undefined, tag: tag ?? undefined, sort });
       let newClips: Clip[] = res.data.clips || [];
-      // Filter clips already seen; if all seen (full cycle), reset history
+      // Deduplicate within session; if all already seen reset and show them anyway
       let unseen = newClips.filter((c) => !seenIdsRef.current.has(c.id));
       if (unseen.length === 0 && newClips.length > 0) {
         seenIdsRef.current.clear();
@@ -101,7 +103,8 @@ export default function FeedPage() {
       setNextCursor(res.data.next_cursor ?? null);
       if (reset) setActiveIndex(0);
     } catch {
-      // network error — keep existing clips
+      // keep existing clips on network error; don't blank the feed
+      if (reset) setClips([]);
     } finally {
       setLoading(false);
       setLoadingMore(false);
