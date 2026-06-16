@@ -773,7 +773,7 @@ export default function PortfolioScreen() {
 
   // Edit position
   const [editingPos, setEditingPos] = useState<{ id: string; shares: string; avgPrice: string; purchaseDate: string } | null>(null);
-  const [revealedPrices, setRevealedPrices] = useState<Set<string>>(new Set());
+
 
   // Period returns
   type PeriodReturn = { pct: number; avg_pct?: number; amount: number; date?: string; breakdown?: Record<string, number>; spy_pct?: number };
@@ -1623,136 +1623,50 @@ export default function PortfolioScreen() {
               );
             })()}
 
-            {/* ── Rendimiento histórico — grid 2×5 + gráfica ── */}
-            <View style={{ marginBottom: 12 }}>
-              <Text style={{ fontSize: 9, fontWeight: "800", color: colors.textDim, letterSpacing: 1.2, textTransform: "uppercase", marginBottom: 8 }}>
-                Rendimiento histórico · Yahoo Finance
-              </Text>
+            {/* ── Chart card — stats + gráfica + period pills ── */}
+            {(() => {
+              const r = periodReturns[selectedPeriod];
+              const displayPct = r?.pct !== undefined ? r.pct : chartData?.period_pct;
+              const displayAmt = r?.amount !== undefined ? r.amount : chartData?.period_amount;
+              const up = displayPct !== undefined ? displayPct >= 0 : true;
+              const color = up ? "#22c55e" : "#ef4444";
+              return (
+                <View style={{ borderRadius: 20, overflow: "hidden", borderWidth: 1, borderColor: `${color}28`, backgroundColor: colors.card, marginBottom: 12 }}>
+                  {/* Top accent line */}
+                  <View style={{ height: 2.5, backgroundColor: color }} />
 
-              {/* Grid de períodos estándar — todos visibles de un vistazo */}
-              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 4, marginBottom: 6 }}>
-                {PERIODS.filter(({ key }) => key !== "since_purchase").map(({ key, label }) => {
-                  const ret = periodReturns[key];
-                  const isSel = selectedPeriod === key;
-                  const isUp = ret ? ret.pct >= 0 : null;
-                  const valColor = isUp === null ? colors.textDim : isUp ? "#22c55e" : "#ef4444";
-                  return (
-                    <TouchableOpacity
-                      key={key}
-                      onPress={() => setSelectedPeriod(key)}
-                      style={{
-                        width: "18%", alignItems: "center", paddingVertical: 8, borderRadius: 12,
-                        backgroundColor: isSel
-                          ? (isUp === null ? "rgba(0,168,94,0.10)" : isUp ? "#22c55e1A" : "#ef44441A")
-                          : colors.bgRaised,
-                        borderWidth: 1,
-                        borderColor: isSel
-                          ? (isUp === null ? "rgba(0,168,94,0.35)" : isUp ? "#22c55e55" : "#ef444455")
-                          : "transparent",
-                      }}>
-                      <Text style={{ fontSize: 10, fontWeight: "600", color: isSel ? colors.textSub : colors.textMuted, marginBottom: 2 }}>
-                        {label}
-                      </Text>
-                      {loadingReturns ? (
-                        <Text style={{ fontSize: 9, color: colors.textDim }}>···</Text>
-                      ) : ret ? (
-                        <Text style={{ fontSize: 10, fontWeight: "900", color: valColor }}>
-                          {isUp ? "+" : ""}{ret.pct.toFixed(1)}%
-                        </Text>
-                      ) : (
-                        <Text style={{ fontSize: 9, color: colors.textDim }}>—</Text>
-                      )}
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-
-              {/* "Desde compra" — siempre visible */}
-              {(() => {
-                const r = periodReturns["since_purchase"];
-                const isSel = selectedPeriod === "since_purchase";
-                const up = r ? r.pct >= 0 : true;
-                const avgUp = r?.avg_pct !== undefined ? r.avg_pct >= 0 : up;
-                return (
-                  <TouchableOpacity
-                    onPress={() => setSelectedPeriod("since_purchase")}
-                    style={{
-                      flexDirection: "row", alignItems: "center", justifyContent: "space-between",
-                      paddingHorizontal: 12, paddingVertical: 10, borderRadius: 12, marginBottom: 6,
-                      backgroundColor: isSel ? (up ? "#22c55e0D" : "#ef44440D") : colors.bgRaised,
-                      borderWidth: 1,
-                      borderColor: isSel ? (up ? "#22c55e40" : "#ef444440") : colors.border,
-                    }}>
-                    <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                      <Text style={{ fontSize: 10, fontWeight: "700", color: colors.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>Desde compra</Text>
-                      {r?.date && <Text style={{ fontSize: 9, color: colors.textDim }}>· {r.date}</Text>}
-                    </View>
-                    {r ? (
-                      <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
-                        {r.avg_pct !== undefined && (
-                          <View style={{ alignItems: "flex-end" }}>
-                            <Text style={{ fontSize: 9, fontWeight: "600", color: colors.textDim }}>promedio</Text>
-                            <Text style={{ fontSize: 12, fontWeight: "900", color: avgUp ? "#22c55e" : "#ef4444" }}>
-                              {avgUp ? "+" : ""}{r.avg_pct.toFixed(2)}%
-                            </Text>
-                          </View>
-                        )}
-                        <View style={{ alignItems: "flex-end" }}>
-                          <Text style={{ fontSize: 9, fontWeight: "600", color: colors.textDim }}>portafolio</Text>
-                          <Text style={{ fontSize: 14, fontWeight: "900", color: up ? "#22c55e" : "#ef4444" }}>
-                            {up ? "+" : ""}{r.pct.toFixed(2)}%
-                          </Text>
-                        </View>
-                      </View>
-                    ) : (
-                      <Text style={{ fontSize: 10, color: colors.textDim }}>{loadingReturns ? "···" : "Agrega precio de compra"}</Text>
-                    )}
-                  </TouchableOpacity>
-                );
-              })()}
-
-              {/* Tarjeta: gráfica + stats + breakdown */}
-              {(() => {
-                const r = periodReturns[selectedPeriod];
-                const displayPct = r?.pct !== undefined ? r.pct : chartData?.period_pct;
-                const displayAmt = r?.amount !== undefined ? r.amount : chartData?.period_amount;
-                const up = displayPct !== undefined ? displayPct >= 0 : true;
-                const color = up ? "#22c55e" : "#ef4444";
-                const periodLabel = PERIODS.find((p) => p.key === selectedPeriod)?.label ?? "";
-                return (
-                  <View style={{ borderRadius: 16, overflow: "hidden", borderWidth: 1, borderColor: `${color}30`, backgroundColor: colors.card }}>
-                    {/* Franja de color */}
-                    <View style={{ height: 2, backgroundColor: color }} />
-
-                    {/* Stats header */}
-                    <View style={{ flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", paddingHorizontal: 14, paddingTop: 12, paddingBottom: 4 }}>
+                  {/* Stats header */}
+                  <View style={{ paddingHorizontal: 16, paddingTop: 14, paddingBottom: 10 }}>
+                    <View style={{ flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between" }}>
                       <View>
-                        <Text style={{ fontSize: 10, fontWeight: "700", color: colors.textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>
-                          Rendimiento · {periodLabel}
+                        <Text style={{ fontSize: 9, fontWeight: "800", color: colors.textDim, letterSpacing: 1, textTransform: "uppercase", marginBottom: 4 }}>
+                          Rendimiento histórico
                         </Text>
-                        {r?.date && <Text style={{ fontSize: 9, color: colors.textDim, marginTop: 1 }}>desde {r.date}</Text>}
+                        {r?.date && (
+                          <Text style={{ fontSize: 9, color: colors.textDim }}>desde {r.date}</Text>
+                        )}
                       </View>
                       <View style={{ alignItems: "flex-end" }}>
                         {displayPct !== undefined ? (
                           <>
-                            <Text style={{ fontSize: 22, fontWeight: "900", color, lineHeight: 24 }}>
+                            <Text style={{ fontSize: 26, fontWeight: "900", color, lineHeight: 28 }}>
                               {up ? "+" : ""}{displayPct.toFixed(2)}%
                             </Text>
                             {displayAmt !== undefined && (
-                              <Text style={{ fontSize: 12, fontWeight: "700", color, marginTop: 1 }}>
+                              <Text style={{ fontSize: 12, fontWeight: "700", color, marginTop: 2 }}>
                                 {up ? "+" : ""}{currencySymbol}{Math.abs(displayAmt).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                               </Text>
                             )}
                           </>
                         ) : chartLoading ? (
-                          <Text style={{ fontSize: 12, color: colors.textMuted }}>···</Text>
+                          <Text style={{ fontSize: 18, color: colors.textMuted }}>···</Text>
                         ) : null}
                       </View>
                     </View>
 
                     {/* vs S&P 500 */}
                     {r?.spy_pct !== undefined && displayPct !== undefined && (
-                      <View style={{ flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 14, paddingBottom: 10, borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 8 }}>
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginTop: 8 }}>
                         <Text style={{ fontSize: 10, fontWeight: "600", color: colors.textMuted }}>vs S&P 500</Text>
                         <Text style={{ fontSize: 11, fontWeight: "800", color: r.spy_pct >= 0 ? "#22c55e" : "#ef4444" }}>
                           {r.spy_pct >= 0 ? "+" : ""}{r.spy_pct.toFixed(2)}%
@@ -1770,38 +1684,73 @@ export default function PortfolioScreen() {
                         })()}
                       </View>
                     )}
-
-                    {/* Gráfica */}
-                    <View style={{ paddingHorizontal: 14, paddingBottom: 4 }}>
-                      {chartLoading ? (
-                        <View style={{ height: 180, alignItems: "center", justifyContent: "center", flexDirection: "row", gap: 8 }}>
-                          <ActivityIndicator size="small" color={colors.textMuted} />
-                          <Text style={{ fontSize: 11, color: colors.textMuted }}>Cargando datos históricos...</Text>
-                        </View>
-                      ) : chartData && chartData.history.length >= 2 ? (
-                        <PortfolioHistoryChart
-                          history={chartData.history}
-                          color={color}
-                          currencySymbol={currencySymbol}
-                          positions={positions}
-                        />
-                      ) : !chartLoading ? (
-                        <View style={{ height: 180, alignItems: "center", justifyContent: "center" }}>
-                          <Text style={{ fontSize: 11, color: colors.textDim }}>Sin datos históricos para este período</Text>
-                        </View>
-                      ) : null}
-                    </View>
-
-                    {/* Fuente */}
-                    <Text style={{ fontSize: 9, color: colors.textDim, paddingHorizontal: 14, paddingBottom: 8 }}>
-                      Yahoo Finance · ajustado por splits y dividendos
-                    </Text>
-
-                    {/* Breakdown por posición */}
                   </View>
-                );
-              })()}
-            </View>
+
+                  {/* Chart — edge-to-edge with tight horizontal padding */}
+                  <View style={{ paddingHorizontal: 10, paddingBottom: 4 }}>
+                    {chartLoading ? (
+                      <View style={{ height: 230, alignItems: "center", justifyContent: "center", flexDirection: "row", gap: 8 }}>
+                        <ActivityIndicator size="small" color={colors.textMuted} />
+                        <Text style={{ fontSize: 11, color: colors.textMuted }}>Cargando datos históricos...</Text>
+                      </View>
+                    ) : chartData && chartData.history.length >= 2 ? (
+                      <PortfolioHistoryChart
+                        history={chartData.history}
+                        color={color}
+                        currencySymbol={currencySymbol}
+                        positions={positions}
+                      />
+                    ) : !chartLoading ? (
+                      <View style={{ height: 230, alignItems: "center", justifyContent: "center" }}>
+                        <Text style={{ fontSize: 11, color: colors.textDim }}>Sin datos históricos para este período</Text>
+                      </View>
+                    ) : null}
+                  </View>
+
+                  {/* Period pills — below chart, inside card */}
+                  <View style={{ borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border, marginTop: 4 }}>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 12, paddingVertical: 10, gap: 6 }}>
+                      {PERIODS.map(({ key, label }) => {
+                        const ret = periodReturns[key];
+                        const isSel = selectedPeriod === key;
+                        const isUp = ret ? ret.pct >= 0 : null;
+                        const pillColor = isUp === true ? "#22c55e" : isUp === false ? "#ef4444" : colors.accentLight;
+                        return (
+                          <TouchableOpacity
+                            key={key}
+                            onPress={() => setSelectedPeriod(key)}
+                            style={{
+                              alignItems: "center", paddingHorizontal: 12, paddingVertical: 7,
+                              borderRadius: 10,
+                              backgroundColor: isSel ? pillColor + "18" : "transparent",
+                              borderWidth: 1,
+                              borderColor: isSel ? pillColor + "55" : "transparent",
+                            }}>
+                            <Text style={{ fontSize: 12, fontWeight: isSel ? "800" : "600", color: isSel ? pillColor : colors.textMuted }}>
+                              {label}
+                            </Text>
+                            {ret && !loadingReturns ? (
+                              <Text style={{ fontSize: 9, fontWeight: "700", color: isUp ? "#22c55e" : "#ef4444", marginTop: 1 }}>
+                                {isUp ? "+" : ""}{ret.pct.toFixed(1)}%
+                              </Text>
+                            ) : loadingReturns ? (
+                              <Text style={{ fontSize: 9, color: colors.textDim, marginTop: 1 }}>···</Text>
+                            ) : (
+                              <Text style={{ fontSize: 9, color: colors.textDim, marginTop: 1 }}>—</Text>
+                            )}
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </ScrollView>
+                  </View>
+
+                  {/* Source */}
+                  <Text style={{ fontSize: 9, color: colors.textDim, paddingHorizontal: 16, paddingBottom: 10, opacity: 0.7 }}>
+                    Yahoo Finance · ajustado por splits y dividendos
+                  </Text>
+                </View>
+              );
+            })()}
 
             {/* ── TABLA DE POSICIONES (estilo broker) ── */}
             <View style={{ borderRadius: 18, overflow: "hidden", borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card, marginBottom: 12 }}>
