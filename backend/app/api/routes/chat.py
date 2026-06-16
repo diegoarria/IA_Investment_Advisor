@@ -111,7 +111,9 @@ def _enrich_message(message: str) -> str:
 
 
 @router.post("/stream")
+@limiter.limit("20/minute")
 async def chat_stream(
+    req: Request,
     request: ChatRequest,
     user_id: str = Depends(get_current_user_id)
 ):
@@ -188,7 +190,9 @@ async def save_message(
 
 
 @router.post("/transcribe")
+@limiter.limit("30/minute")
 async def transcribe_audio(
+    request: Request,
     audio: UploadFile = File(...),
     user_id: str = Depends(get_current_user_id),
 ):
@@ -213,7 +217,9 @@ async def transcribe_audio(
 
 
 @router.post("/speak")
+@limiter.limit("30/minute")
 async def speak_text(
+    req: Request,
     request: dict,
     user_id: str = Depends(get_current_user_id),
 ):

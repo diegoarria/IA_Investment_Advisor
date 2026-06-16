@@ -8,10 +8,15 @@ from app.core.config import settings
 from app.core.limiter import limiter
 from app.api.routes import auth, profile, chat, market, notifications, screener, billing, learn, sync, paper, referral, support, earnings, simulate, report, decisions, watchlist, feed, leaderboard, investors, financials, brokerage
 
+_is_dev = settings.environment == "development"
+
 app = FastAPI(
     title="Nuvo API",
     description="Educational AI investment advisor — teaches you to think like a professional investor",
-    version="1.0.0"
+    version="1.0.0",
+    docs_url="/docs" if _is_dev else None,
+    redoc_url="/redoc" if _is_dev else None,
+    openapi_url="/openapi.json" if _is_dev else None,
 )
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
@@ -25,11 +30,11 @@ _prod_origins = [
     "https://www.nuvosai.com",
     "https://nuvosai.vercel.app",
 ]
-_all_origins = settings.frontend_url in ("*", "")
-_origins = (
-    ["*"] if _all_origins
-    else [settings.frontend_url] + _dev_origins + _prod_origins
-)
+# Never fall back to wildcard — always use the explicit allowlist
+_origins = list({settings.frontend_url} | set(_prod_origins) | (set(_dev_origins) if _is_dev else set()))
+if "*" in _origins:
+    _origins = _prod_origins + (_dev_origins if _is_dev else [])
+_all_origins = False
 
 app.add_middleware(
     CORSMiddleware,

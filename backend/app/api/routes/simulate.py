@@ -1,13 +1,16 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from app.api.deps import get_current_user_id
 from app.api.routes.market import _get_user_profile
+from app.core.limiter import limiter
 from app.services import ai_service
 
 router = APIRouter(prefix="/simulate", tags=["simulate"])
 
 
 @router.post("")
+@limiter.limit("10/minute")
 async def whatif_simulate(
+    req: Request,
     request: dict,
     user_id: str = Depends(get_current_user_id),
 ):

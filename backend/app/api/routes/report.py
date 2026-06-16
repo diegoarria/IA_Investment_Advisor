@@ -1,11 +1,12 @@
 import asyncio
 import logging
 from datetime import datetime
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 import yfinance as yf
 from app.api.deps import get_current_user_id
 from app.api.routes.market import _get_user_profile
 from app.core.cache import cache_get, cache_set
+from app.core.limiter import limiter
 from app.services import ai_service
 
 logger = logging.getLogger(__name__)
@@ -70,7 +71,9 @@ def _compute_performance(portfolio: list[dict]) -> dict:
 
 
 @router.post("/monthly")
+@limiter.limit("5/hour")
 async def generate_monthly_report(
+    req: Request,
     request: dict,
     user_id: str = Depends(get_current_user_id),
 ):

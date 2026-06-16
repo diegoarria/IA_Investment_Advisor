@@ -8,6 +8,7 @@ class Settings(BaseSettings):
     supabase_service_key: str = "dummy"
     secret_key: str = "dev-secret-key-32chars-for-local-only"
     frontend_url: str = "*"
+    environment: str = "production"  # set to "development" locally to enable /docs
     claude_model: str = "claude-sonnet-4-6"
     # Stripe
     stripe_secret_key: str = ""

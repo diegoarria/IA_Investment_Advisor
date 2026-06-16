@@ -2,10 +2,11 @@ import asyncio
 import logging
 import random as _random
 import httpx
-from fastapi import APIRouter, Depends, Query, HTTPException
+from fastapi import APIRouter, Depends, Query, HTTPException, Request
 from app.api.deps import get_current_user_id
 from app.core.database import get_supabase, run_query
 from app.core.config import settings
+from app.core.limiter import limiter
 from app.services.ai_service import _claude
 
 logger = logging.getLogger(__name__)
@@ -279,7 +280,8 @@ async def delete_clip(clip_id: str, user_id: str = Depends(get_current_user_id))
 
 
 @router.post("/admin/clips/{clip_id}/generate-audio")
-async def generate_clip_audio(clip_id: str, user_id: str = Depends(get_current_user_id)):
+@limiter.limit("10/hour")
+async def generate_clip_audio(req: Request, clip_id: str, user_id: str = Depends(get_current_user_id)):
     await _require_admin(user_id)
     if not settings.elevenlabs_api_key:
         raise HTTPException(400, "ELEVENLABS_API_KEY no configurada en el servidor")
