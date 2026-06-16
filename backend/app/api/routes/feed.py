@@ -223,13 +223,10 @@ async def get_liked_clips(user_id: str = Depends(get_current_user_id)):
 
 # ── Admin endpoints ───────────────────────────────────────────────────────────
 
+_ADMIN_UID = "86961402-9072-4670-9f73-b2aa91930b04"
+
 async def _require_admin(user_id: str):
-    db = get_supabase()
-    row_res = await run_query(
-        db.table("user_profiles").select("is_admin").eq("user_id", user_id).single()
-    )
-    row = row_res.data
-    if not row or not row.get("is_admin"):
+    if user_id != _ADMIN_UID:
         raise HTTPException(403, "Solo admins pueden gestionar clips")
 
 
