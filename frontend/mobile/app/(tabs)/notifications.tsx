@@ -639,30 +639,9 @@ export default function NotificationsScreen() {
 
             {/* State 3: Summary */}
             {!!newsSummary && !newsSummaryLoading && (() => {
-              const paras = newsSummary.split(/\n+/).filter(p => p.trim().length > 0);
-              const insightCfg = [
-                { icon: "📰", label: "QUÉ PASÓ",   bg: "rgba(59,130,246,0.08)",  border: "rgba(59,130,246,0.2)",  dot: "#60a5fa" },
-                { icon: "💹", label: "MERCADO",     bg: "rgba(0,168,94,0.08)",    border: "rgba(0,168,94,0.2)",    dot: "#4ade80" },
-                { icon: "🎯", label: "LO CLAVE",    bg: "rgba(245,158,11,0.08)",  border: "rgba(245,158,11,0.2)",  dot: "#fbbf24" },
-                { icon: "💡", label: "PARA TI",     bg: "rgba(168,85,247,0.08)", border: "rgba(168,85,247,0.2)", dot: "#c084fc" },
-              ];
-              const highlightText = (text: string) => {
-                const parts = text.split(/(\$[\d,.]+[BMK]?|[+-]?\d+\.?\d*%|[A-Z]{2,5}(?=[\s,.]|$))/g);
-                return (
-                  <Text>
-                    {parts.map((part, j) => {
-                      if (/^\$[\d,.]+/.test(part) || /[+-]?\d+\.?\d*%/.test(part)) {
-                        const isNeg = /^[-−]/.test(part);
-                        return <Text key={j} style={{ fontWeight: "700", color: isNeg ? "#f87171" : "#4ade80" }}>{part}</Text>;
-                      }
-                      if (/^[A-Z]{2,5}$/.test(part) && !["THE","AND","FOR","INC","LLC","ETF","CEO","USD","SEC","IA","DE","EN","LA","EL"].includes(part)) {
-                        return <Text key={j} style={{ fontWeight: "700", color: "#c084fc" }}>{part}</Text>;
-                      }
-                      return <Text key={j}>{part}</Text>;
-                    })}
-                  </Text>
-                );
-              };
+              const fullText = newsSummary.split(/\n+/).filter(p => p.trim().length > 0).join(" ");
+              const SKIP = new Set(["THE","AND","FOR","INC","LLC","ETF","CEO","USD","SEC","IA","DE","EN","LA","EL","LOS","LAS","UNA","CON","SUS","QUE"]);
+              const textParts = fullText.split(/(\$[\d,.]+[BMK]?|[+-]?\d+\.?\d*%|[A-Z]{2,5}(?=[\s,.]|$))/g);
               return (
                 <>
                   <View style={[styles.nsSummaryCard, { borderColor: "rgba(168,85,247,0.22)", backgroundColor: "rgba(168,85,247,0.05)" }]}>
@@ -682,20 +661,21 @@ export default function NotificationsScreen() {
                         </View>
                       </View>
 
-                      {/* Insight cards */}
-                      <View style={{ gap: 8 }}>
-                        {paras.map((para, i) => {
-                          const cfg = insightCfg[i % insightCfg.length];
-                          return (
-                            <View key={i} style={[styles.nsInsightCard, { backgroundColor: cfg.bg, borderColor: cfg.border }]}>
-                              <Text style={styles.nsInsightEmoji}>{cfg.icon}</Text>
-                              <View style={{ flex: 1 }}>
-                                <Text style={[styles.nsInsightLabel, { color: cfg.dot }]}>{cfg.label}</Text>
-                                <Text style={[styles.nsInsightText, { color: colors.textSub }]}>{highlightText(para.trim())}</Text>
-                              </View>
-                            </View>
-                          );
-                        })}
+                      {/* Rich paragraph with accent bar */}
+                      <View style={styles.nsParagraphRow}>
+                        <View style={styles.nsAccentBar} />
+                        <Text style={[styles.nsSummaryPara, { color: colors.textSub }]}>
+                          {textParts.map((part, j) => {
+                            if (/^\$[\d,.]+/.test(part) || /[+-]?\d+\.?\d*%/.test(part)) {
+                              const isNeg = /^[-−]/.test(part);
+                              return <Text key={j} style={{ fontWeight: "700", color: isNeg ? "#f87171" : "#4ade80" }}>{part}</Text>;
+                            }
+                            if (/^[A-Z]{2,5}$/.test(part) && !SKIP.has(part)) {
+                              return <Text key={j} style={{ fontWeight: "700", color: "#c084fc" }}>{part}</Text>;
+                            }
+                            return <Text key={j}>{part}</Text>;
+                          })}
+                        </Text>
                       </View>
 
                       {/* Footer + buttons */}
@@ -894,13 +874,9 @@ function makeStyles(c: Colors) {
     },
     nsSummaryTitle: { fontSize: 11, fontWeight: "800", letterSpacing: 1.4, color: "#c084fc", textTransform: "uppercase" },
     nsSummarySub: { fontSize: 9, marginTop: 1 },
-    nsInsightCard: {
-      flexDirection: "row", gap: 8, alignItems: "flex-start",
-      borderRadius: 10, borderWidth: 1, padding: 10,
-    },
-    nsInsightEmoji: { fontSize: 15, lineHeight: 20 },
-    nsInsightLabel: { fontSize: 8, fontWeight: "800", letterSpacing: 1, marginBottom: 3, textTransform: "uppercase" },
-    nsInsightText: { fontSize: 13, lineHeight: 19 },
+    nsParagraphRow: { flexDirection: "row", gap: 10, alignItems: "stretch" },
+    nsAccentBar: { width: 2, borderRadius: 2, backgroundColor: "rgba(168,85,247,0.6)" },
+    nsSummaryPara: { flex: 1, fontSize: 14, lineHeight: 24 },
     nsSummaryFooter: { marginTop: 14, paddingTop: 12, borderTopWidth: 1, gap: 8 },
     nsDisclaimer: { fontSize: 10, textAlign: "center" },
 

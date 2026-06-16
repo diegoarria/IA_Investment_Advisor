@@ -620,43 +620,25 @@ export default function NotificationsPage() {
                       </span>
                     </div>
 
-                    {/* Summary text — insight cards */}
+                    {/* Summary text — rich paragraph */}
                     {(() => {
-                      const paras = summaryText.split(/\n+/).filter(p => p.trim().length > 0);
-                      const insightCfg = [
-                        { icon: "📰", label: "Qué pasó",      bg: "rgba(59,130,246,0.07)",  border: "rgba(59,130,246,0.18)",  dot: "#60a5fa" },
-                        { icon: "💹", label: "Mercado",        bg: "rgba(0,168,94,0.07)",    border: "rgba(0,168,94,0.18)",    dot: "var(--accent-l)" },
-                        { icon: "🎯", label: "Lo clave",       bg: "rgba(245,158,11,0.07)",  border: "rgba(245,158,11,0.18)",  dot: "#fbbf24" },
-                        { icon: "💡", label: "Para ti",        bg: "rgba(168,85,247,0.08)",  border: "rgba(168,85,247,0.18)",  dot: "#c084fc" },
-                      ];
-                      // Highlight numbers, % and tickers inline
-                      const highlight = (text: string) => {
-                        const parts = text.split(/(\$[\d,.]+[BMK]?|[+-]?\d+\.?\d*%|[+-]?\d+\.?\d*\s*(?:dólares|millones|billones)|[A-Z]{2,5}(?=[\s,.]|$))/g);
-                        return parts.map((part, j) => {
-                          if (/^\$[\d,.]+/.test(part) || /[+-]?\d+\.?\d*%/.test(part)) {
-                            const isPositive = part.startsWith("+") || (!part.startsWith("-") && !part.startsWith("−"));
-                            return <span key={j} className="font-bold tabular-nums" style={{ color: /[-−]/.test(part[0]) ? "#f87171" : "#4ade80" }}>{part}</span>;
-                          }
-                          if (/^[A-Z]{2,5}$/.test(part)) {
-                            return <span key={j} className="font-bold text-[12px] px-1 py-0.5 rounded" style={{ background: "rgba(168,85,247,0.12)", color: "#c084fc" }}>{part}</span>;
-                          }
-                          return part;
-                        });
-                      };
+                      const fullText = summaryText.split(/\n+/).filter(p => p.trim().length > 0).join(" ");
+                      const parts = fullText.split(/(\$[\d,.]+[BMK]?|[+-]?\d+\.?\d*%|[A-Z]{2,5}(?=[\s,.]|$))/g);
+                      const SKIP = new Set(["THE","AND","FOR","BUT","INC","LLC","ETF","CEO","USD","SEC","IA","DE","EN","LA","EL","LOS","LAS","UNA","CON","SUS","QUE"]);
+                      const rendered = parts.map((part, j) => {
+                        if (/^\$[\d,.]+/.test(part) || /[+-]?\d+\.?\d*%/.test(part)) {
+                          const isNeg = /^[-−]/.test(part);
+                          return <strong key={j} className="tabular-nums" style={{ fontWeight: 700, color: isNeg ? "#f87171" : "#4ade80" }}>{part}</strong>;
+                        }
+                        if (/^[A-Z]{2,5}$/.test(part) && !SKIP.has(part)) {
+                          return <strong key={j} style={{ fontWeight: 700, color: "#c084fc" }}>{part}</strong>;
+                        }
+                        return <span key={j}>{part}</span>;
+                      });
                       return (
-                        <div className="space-y-2.5">
-                          {paras.map((para, i) => {
-                            const cfg = insightCfg[i % insightCfg.length];
-                            return (
-                              <div key={i} className="flex gap-3 p-3.5 rounded-xl" style={{ background: cfg.bg, border: `1px solid ${cfg.border}` }}>
-                                <span className="text-base shrink-0 leading-none mt-0.5">{cfg.icon}</span>
-                                <div className="flex-1 min-w-0">
-                                  <span className="text-[10px] font-bold uppercase tracking-wider block mb-1" style={{ color: cfg.dot, letterSpacing: "0.1em" }}>{cfg.label}</span>
-                                  <p className="text-[13px] leading-relaxed" style={{ color: "var(--sub)" }}>{highlight(para.trim())}</p>
-                                </div>
-                              </div>
-                            );
-                          })}
+                        <div className="flex gap-3">
+                          <div className="w-0.5 rounded-full shrink-0 self-stretch" style={{ background: "linear-gradient(to bottom, rgba(168,85,247,0.8), rgba(168,85,247,0.1))" }} />
+                          <p className="text-[14px] leading-[1.85]" style={{ color: "var(--sub)" }}>{rendered}</p>
                         </div>
                       );
                     })()}
