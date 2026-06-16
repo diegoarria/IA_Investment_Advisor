@@ -1,8 +1,13 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
-  View, Text, TextInput, TouchableOpacity, FlatList,
+  View, Text, TextInput, TouchableOpacity,
   StyleSheet, ActivityIndicator, ScrollView, Alert,
 } from "react-native";
+import { GestureDetector, Gesture } from "react-native-gesture-handler";
+import Animated, {
+  useSharedValue, useAnimatedStyle, useAnimatedReaction, withSpring, runOnJS,
+} from "react-native-reanimated";
+import type { SharedValue } from "react-native-reanimated";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { useTheme } from "../../src/lib/ThemeContext";
@@ -15,6 +20,7 @@ import PaywallModal from "../../src/components/PaywallModal";
 import MobileEarningsCalendar from "../../src/components/MobileEarningsCalendar";
 
 const FREE_LIMIT = 30;
+const ITEM_H = 72;
 
 interface ExtPrice {
   ticker: string;
@@ -84,23 +90,201 @@ const badge = StyleSheet.create({
   text: { fontSize: 10, fontWeight: "700", letterSpacing: 0.2 },
 });
 
+// ─── Sortable Row ─────────────────────────────────────────────────────────────
+
+interface SortableRowProps {
+  item: { ticker: string; name: string };
+  index: number;
+  itemCount: number;
+  prices: Record<string, ExtPrice>;
+  colors: Record<string, string>;
+  activeIdx: SharedValue<number>;
+  dragOffset: SharedValue<number>;
+  onRemove: (ticker: string) => void;
+  onReorder: (from: number, to: number) => void;
+  onScrollToggle: (enabled: boolean) => void;
+}
+
+function SortableWatchlistRow({
+  item, index, itemCount, prices, colors,
+  activeIdx, dragOffset, onRemove, onReorder, onScrollToggle,
+}: SortableRowProps) {
+  const p = prices[item.ticker] as ExtPrice | undefined;
+  const up = (p?.change_pct ?? 0) >= 0;
+  const col = up ? "#22c55e" : "#ef4444";
+  const ms = (p?.market_state ?? "").toUpperCase();
+  const showPre  = (ms === "PRE"  || ms === "PREPRE")  && p?.pre_market_price;
+  const showPost = (ms === "POST" || ms === "POSTPOST") && p?.post_market_price;
+
+  // Per-row spring-animated shift (reacts to drag of other items)
+  const translateY = useSharedValue(0);
+
+  useAnimatedReaction(
+    () => {
+      const active = activeIdx.value;
+      if (active === -1 || active === index) return 0;
+      const targetPos = Math.max(0, Math.min(itemCount - 1,
+        Math.round(active + dragOffset.value / ITEM_H)));
+      if (active < targetPos && index > active && index <= targetPos) return -ITEM_H;
+      if (active > targetPos && index >= targetPos && index < active) return ITEM_H;
+      return 0;
+    },
+    (result) => {
+      translateY.value = withSpring(result, { damping: 22, stiffness: 220 });
+    }
+  );
+
+  const gesture = Gesture.Pan()
+    .activateAfterLongPress(250)
+    .onBegin(() => {
+      activeIdx.value = index;
+      runOnJS(onScrollToggle)(false);
+    })
+    .onUpdate((e) => {
+      if (activeIdx.value === index) dragOffset.value = e.translationY;
+    })
+    .onEnd(() => {
+      const from = activeIdx.value;
+      const to = Math.max(0, Math.min(itemCount - 1, Math.round(from + dragOffset.value / ITEM_H)));
+      if (from !== to) runOnJS(onReorder)(from, to);
+    })
+    .onFinalize(() => {
+      activeIdx.value = -1;
+      dragOffset.value = withSpring(0, { damping: 22, stiffness: 220 });
+      runOnJS(onScrollToggle)(true);
+    });
+
+  const animatedStyle = useAnimatedStyle(() => {
+    if (activeIdx.value === index) {
+      return {
+        transform: [{ translateY: dragOffset.value }],
+        zIndex: 100,
+        shadowOpacity: 0.22,
+        shadowRadius: 10,
+        shadowOffset: { width: 0, height: 4 } as any,
+        elevation: 10,
+      };
+    }
+    return {
+      transform: [{ translateY: translateY.value }],
+      zIndex: 1,
+    };
+  });
+
+  return (
+    <Animated.View style={[{ height: ITEM_H }, animatedStyle]}>
+      <View style={[rw.row, { borderTopColor: colors.border }]}>
+        {/* Color bar */}
+        <View style={[rw.colorBar, { backgroundColor: col }]} />
+
+        {/* Drag handle — long-press to start dragging */}
+        <GestureDetector gesture={gesture}>
+          <View style={rw.dragHandle} hitSlop={{ top: 8, bottom: 8, left: 4, right: 8 }}>
+            <Ionicons name="reorder-three-outline" size={22} color={colors.textDim} />
+          </View>
+        </GestureDetector>
+
+        {/* Tap → stock detail */}
+        <TouchableOpacity
+          style={rw.inner}
+          onPress={() => router.push(`/stock/${item.ticker}` as any)}
+          activeOpacity={0.7}
+        >
+          <StockAvatar ticker={item.ticker} size={38} />
+          <View style={{ flex: 1, marginLeft: 10 }}>
+            <View style={rw.tickerRow}>
+              <Text style={[rw.ticker, { color: colors.text }]}>{item.ticker}</Text>
+              {p && <MarketStateBadge state={p.market_state} />}
+            </View>
+            <Text style={[rw.name, { color: colors.textMuted }]} numberOfLines={1}>
+              {p?.name ?? item.name}
+            </Text>
+            {showPre && (
+              <Text style={[rw.extPrice, { color: "#f59e0b" }]}>
+                Pre: {fmtPrice(p!.pre_market_price, p!.currency)}{" "}
+                <Text style={rw.extPct}>({fmtPct(p!.pre_market_change_pct)})</Text>
+              </Text>
+            )}
+            {showPost && (
+              <Text style={[rw.extPrice, { color: "#818cf8" }]}>
+                Post: {fmtPrice(p!.post_market_price, p!.currency)}{" "}
+                <Text style={rw.extPct}>({fmtPct(p!.post_market_change_pct)})</Text>
+              </Text>
+            )}
+          </View>
+          <View style={rw.rightCol}>
+            {p?.price != null ? (
+              <Text style={[rw.price, { color: colors.text }]}>
+                {fmtPrice(p.price, p.currency)}
+              </Text>
+            ) : (
+              <Text style={[rw.price, { color: colors.textDim }]}>—</Text>
+            )}
+            {p?.change_pct != null && (
+              <View style={[rw.changeBadge, { backgroundColor: col + "1a" }]}>
+                <Ionicons name={up ? "caret-up" : "caret-down"} size={10} color={col} />
+                <Text style={[rw.changePct, { color: col }]}>{Math.abs(p.change_pct).toFixed(2)}%</Text>
+              </View>
+            )}
+          </View>
+        </TouchableOpacity>
+
+        {/* Remove button */}
+        <TouchableOpacity
+          onPress={() => onRemove(item.ticker)}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          style={{ paddingHorizontal: 10 }}
+        >
+          <Ionicons name="close-outline" size={18} color={colors.textDim} />
+        </TouchableOpacity>
+      </View>
+    </Animated.View>
+  );
+}
+
+const rw = StyleSheet.create({
+  row: {
+    flexDirection: "row", alignItems: "center",
+    height: ITEM_H, borderTopWidth: StyleSheet.hairlineWidth,
+  },
+  colorBar: { width: 3, alignSelf: "stretch" },
+  dragHandle: { paddingHorizontal: 10, justifyContent: "center", alignItems: "center" },
+  inner: { flex: 1, flexDirection: "row", alignItems: "center", paddingRight: 6 },
+  tickerRow: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 2 },
+  ticker: { fontSize: 14, fontWeight: "800", letterSpacing: -0.2 },
+  name: { fontSize: 11, marginBottom: 1 },
+  extPrice: { fontSize: 10, fontWeight: "600", marginTop: 2 },
+  extPct: { fontWeight: "400", fontSize: 10 },
+  rightCol: { alignItems: "flex-end", gap: 4, marginLeft: 8 },
+  price: { fontSize: 14, fontWeight: "700", tabularNums: true } as never,
+  changeBadge: { flexDirection: "row", alignItems: "center", gap: 2, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 20 },
+  changePct: { fontSize: 11, fontWeight: "700" },
+});
+
+// ─── Main Screen ──────────────────────────────────────────────────────────────
+
 export default function WatchlistScreen() {
   const { colors } = useTheme();
-  const { items, add, remove, has } = useWatchlistStore();
+  const { items, add, remove, has, reorder } = useWatchlistStore();
   const subStore = useSubscriptionStore();
   const isPremium = hasPremiumAccess(subStore);
   const { positions } = usePortfolioStore();
 
-  const [prices, setPrices]             = useState<Record<string, ExtPrice>>({});
+  const [prices, setPrices]               = useState<Record<string, ExtPrice>>({});
   const [pricesLoading, setPricesLoading] = useState(false);
-  const [query, setQuery]               = useState("");
-  const [suggestions, setSuggestions]   = useState<SearchResult[]>([]);
-  const [searching, setSearching]       = useState(false);
-  const [addingTicker, setAddingTicker] = useState<string | null>(null);
-  const [paywallOpen, setPaywallOpen]   = useState(false);
-  const [secondsLeft, setSecondsLeft]   = useState(60);
+  const [query, setQuery]                 = useState("");
+  const [suggestions, setSuggestions]     = useState<SearchResult[]>([]);
+  const [searching, setSearching]         = useState(false);
+  const [addingTicker, setAddingTicker]   = useState<string | null>(null);
+  const [paywallOpen, setPaywallOpen]     = useState(false);
+  const [secondsLeft, setSecondsLeft]     = useState(60);
+  const [scrollEnabled, setScrollEnabled] = useState(true);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const refreshRef  = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Shared values for cross-row drag animation
+  const activeIdx  = useSharedValue(-1);
+  const dragOffset = useSharedValue(0);
 
   const loadPrices = useCallback(async (silent = false) => {
     if (items.length === 0) return;
@@ -112,20 +296,14 @@ export default function WatchlistScreen() {
     if (!silent) setPricesLoading(false);
   }, [items.length]);
 
-  useEffect(() => {
-    loadPrices();
-  }, [items.length]);
+  useEffect(() => { loadPrices(); }, [items.length]);
 
-  // 60-second auto refresh
   useEffect(() => {
     setSecondsLeft(60);
     if (refreshRef.current) clearInterval(refreshRef.current);
     refreshRef.current = setInterval(() => {
       setSecondsLeft((s) => {
-        if (s <= 1) {
-          loadPrices(true);
-          return 60;
-        }
+        if (s <= 1) { loadPrices(true); return 60; }
         return s - 1;
       });
     }, 1000);
@@ -152,21 +330,15 @@ export default function WatchlistScreen() {
       setQuery(""); setSuggestions([]);
       return;
     }
-    if (!isPremium && items.length >= FREE_LIMIT) {
-      setPaywallOpen(true);
-      return;
-    }
+    if (!isPremium && items.length >= FREE_LIMIT) { setPaywallOpen(true); return; }
     setAddingTicker(ticker);
     add(ticker, name);
     setQuery(""); setSuggestions([]);
     setAddingTicker(null);
-    // Refresh prices to include new ticker
     setTimeout(() => loadPrices(true), 400);
   };
 
-  const handleRemove = (ticker: string) => {
-    remove(ticker);
-  };
+  const handleRemove = (ticker: string) => { remove(ticker); };
 
   const freePct = Math.min((items.length / FREE_LIMIT) * 100, 100);
   const freeFull = !isPremium && items.length >= FREE_LIMIT;
@@ -177,6 +349,7 @@ export default function WatchlistScreen() {
         contentContainerStyle={s.scroll}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
+        scrollEnabled={scrollEnabled}
       >
         {/* Search */}
         <View style={[s.searchWrap, { backgroundColor: colors.card, borderColor: colors.border }]}>
@@ -234,9 +407,7 @@ export default function WatchlistScreen() {
               </Text>
               {freeFull && (
                 <TouchableOpacity onPress={() => setPaywallOpen(true)}>
-                  <Text style={[s.tierUpgrade, { color: colors.accentLight }]}>
-                    Actualizar a Premium →
-                  </Text>
+                  <Text style={[s.tierUpgrade, { color: colors.accentLight }]}>Actualizar a Premium →</Text>
                 </TouchableOpacity>
               )}
             </View>
@@ -257,12 +428,18 @@ export default function WatchlistScreen() {
           </View>
         )}
 
-        {/* Watchlist items */}
+        {/* Watchlist — drag ≡ to reorder */}
         {items.length > 0 && (
           <View style={[s.listCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <View style={s.listHeader}>
               <Ionicons name="eye-outline" size={14} color={colors.accentLight} />
               <Text style={[s.listHeaderText, { color: colors.text }]}>Watchlist</Text>
+              {items.length > 1 && (
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 3 }}>
+                  <Ionicons name="reorder-three-outline" size={12} color={colors.textDim} />
+                  <Text style={[s.hintText, { color: colors.textDim }]}>mantén para ordenar</Text>
+                </View>
+              )}
               {pricesLoading
                 ? <ActivityIndicator size="small" color={colors.accentLight} style={{ marginLeft: "auto" }} />
                 : (
@@ -277,81 +454,25 @@ export default function WatchlistScreen() {
               }
             </View>
 
-            {items.map((item) => {
-              const p = prices[item.ticker] as ExtPrice | undefined;
-              const up = (p?.change_pct ?? 0) >= 0;
-              const col = up ? "#22c55e" : "#ef4444";
-              const ms = (p?.market_state ?? "").toUpperCase();
-              const showPre = (ms === "PRE" || ms === "PREPRE") && p?.pre_market_price;
-              const showPost = (ms === "POST" || ms === "POSTPOST") && p?.post_market_price;
-
-              return (
-                <TouchableOpacity
-                  key={item.ticker}
-                  style={[s.itemRow, { borderTopColor: colors.border }]}
-                  onPress={() => router.push(`/stock/${item.ticker}` as any)}
-                  activeOpacity={0.7}
-                >
-                  {/* Color bar */}
-                  <View style={[s.colorBar, { backgroundColor: col }]} />
-
-                  <View style={s.itemInner}>
-                    <StockAvatar ticker={item.ticker} size={40} />
-
-                    <View style={{ flex: 1, marginLeft: 10 }}>
-                      <View style={s.tickerRow}>
-                        <Text style={[s.itemTicker, { color: colors.text }]}>{item.ticker}</Text>
-                        {p && <MarketStateBadge state={p.market_state} />}
-                      </View>
-                      <Text style={[s.itemName, { color: colors.textMuted }]} numberOfLines={1}>
-                        {p?.name ?? item.name}
-                      </Text>
-                      {/* Pre / Post market price */}
-                      {showPre && (
-                        <Text style={[s.extPrice, { color: "#f59e0b" }]}>
-                          Pre: {fmtPrice(p!.pre_market_price, p!.currency)}{" "}
-                          <Text style={s.extPct}>({fmtPct(p!.pre_market_change_pct)})</Text>
-                        </Text>
-                      )}
-                      {showPost && (
-                        <Text style={[s.extPrice, { color: "#818cf8" }]}>
-                          Post: {fmtPrice(p!.post_market_price, p!.currency)}{" "}
-                          <Text style={s.extPct}>({fmtPct(p!.post_market_change_pct)})</Text>
-                        </Text>
-                      )}
-                    </View>
-
-                    <View style={s.rightCol}>
-                      {p?.price != null ? (
-                        <Text style={[s.price, { color: colors.text }]}>
-                          {fmtPrice(p.price, p.currency)}
-                        </Text>
-                      ) : (
-                        <Text style={[s.price, { color: colors.textDim }]}>—</Text>
-                      )}
-                      {p?.change_pct != null && (
-                        <View style={[s.changeBadge, { backgroundColor: col + "1a" }]}>
-                          <Ionicons name={up ? "caret-up" : "caret-down"} size={10} color={col} />
-                          <Text style={[s.changePct, { color: col }]}>{Math.abs(p.change_pct).toFixed(2)}%</Text>
-                        </View>
-                      )}
-                    </View>
-
-                    <TouchableOpacity
-                      onPress={() => handleRemove(item.ticker)}
-                      hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                      style={{ marginLeft: 8 }}
-                    >
-                      <Ionicons name="close-outline" size={18} color={colors.textDim} />
-                    </TouchableOpacity>
-                  </View>
-                </TouchableOpacity>
-              );
-            })}
+            {items.map((item, index) => (
+              <SortableWatchlistRow
+                key={item.ticker}
+                item={item}
+                index={index}
+                itemCount={items.length}
+                prices={prices}
+                colors={colors}
+                activeIdx={activeIdx}
+                dragOffset={dragOffset}
+                onRemove={handleRemove}
+                onReorder={reorder}
+                onScrollToggle={setScrollEnabled}
+              />
+            ))}
           </View>
         )}
 
-        {/* ── Earnings Calendar ── */}
+        {/* Earnings Calendar */}
         <MobileEarningsCalendar
           watchlistTickers={items.map((i) => i.ticker)}
           portfolioTickers={positions.map((p) => p.ticker)}
@@ -374,9 +495,7 @@ const s = StyleSheet.create({
     borderRadius: 14, borderWidth: StyleSheet.hairlineWidth,
   },
   searchInput: { flex: 1, fontSize: 14, fontWeight: "500" },
-  suggestionsCard: {
-    borderRadius: 14, borderWidth: StyleSheet.hairlineWidth, overflow: "hidden",
-  },
+  suggestionsCard: { borderRadius: 14, borderWidth: StyleSheet.hairlineWidth, overflow: "hidden" },
   suggRow: {
     flexDirection: "row", alignItems: "center",
     paddingHorizontal: 14, paddingVertical: 10,
@@ -384,9 +503,7 @@ const s = StyleSheet.create({
   },
   suggTicker: { fontSize: 13, fontWeight: "700", letterSpacing: -0.2 },
   suggName: { fontSize: 11, marginTop: 1 },
-  tierBar: {
-    padding: 14, borderRadius: 14, borderWidth: StyleSheet.hairlineWidth, gap: 8,
-  },
+  tierBar: { padding: 14, borderRadius: 14, borderWidth: StyleSheet.hairlineWidth, gap: 8 },
   tierTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   tierLabel: { fontSize: 12, fontWeight: "600" },
   tierUpgrade: { fontSize: 12, fontWeight: "700" },
@@ -398,33 +515,12 @@ const s = StyleSheet.create({
   },
   emptyTitle: { fontSize: 15, fontWeight: "800", marginBottom: 8 },
   emptySub: { fontSize: 13, textAlign: "center", lineHeight: 20 },
-  listCard: {
-    borderRadius: 20, borderWidth: StyleSheet.hairlineWidth, overflow: "hidden",
-  },
+  listCard: { borderRadius: 20, borderWidth: StyleSheet.hairlineWidth, overflow: "hidden" },
   listHeader: {
-    flexDirection: "row", alignItems: "center", gap: 8,
+    flexDirection: "row", alignItems: "center", gap: 6,
     paddingHorizontal: 16, paddingVertical: 12,
   },
   listHeaderText: { fontSize: 13, fontWeight: "700" },
+  hintText: { fontSize: 10 },
   counterText: { fontSize: 11 },
-  itemRow: {
-    borderTopWidth: StyleSheet.hairlineWidth, flexDirection: "row",
-  },
-  colorBar: { width: 3 },
-  itemInner: {
-    flex: 1, flexDirection: "row", alignItems: "center",
-    paddingHorizontal: 12, paddingVertical: 12,
-  },
-  tickerRow: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 2 },
-  itemTicker: { fontSize: 14, fontWeight: "800", letterSpacing: -0.2 },
-  itemName: { fontSize: 11, marginBottom: 1 },
-  extPrice: { fontSize: 10, fontWeight: "600", marginTop: 2 },
-  extPct: { fontWeight: "400", fontSize: 10 },
-  rightCol: { alignItems: "flex-end", gap: 4, marginLeft: 8 },
-  price: { fontSize: 14, fontWeight: "700", tabularNums: true } as never,
-  changeBadge: {
-    flexDirection: "row", alignItems: "center", gap: 2,
-    paddingHorizontal: 6, paddingVertical: 2, borderRadius: 20,
-  },
-  changePct: { fontSize: 11, fontWeight: "700" },
 });

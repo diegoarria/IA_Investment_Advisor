@@ -333,6 +333,19 @@ export const portfolioLeaderboardApi = {
     api.get("/api/leaderboard", { params: { period } }),
 };
 
+export const brokerageApi = {
+  createLinkToken:      ()                              => api.post("/api/brokerage/plaid/link-token"),
+  exchangePlaidToken:   (publicToken: string, institutionId: string, institutionName: string) =>
+    api.post("/api/brokerage/plaid/exchange", { public_token: publicToken, institution_id: institutionId, institution_name: institutionName }),
+  getPlaidHoldings:     ()                              => api.get("/api/brokerage/plaid/holdings"),
+  connectIOL:           (username: string, password: string) =>
+    api.post("/api/brokerage/iol/connect", { username, password }),
+  getIOLHoldings:       ()                              => api.get("/api/brokerage/iol/holdings"),
+  listConnections:      ()                              => api.get("/api/brokerage/connections"),
+  deleteConnection:     (id: string)                    => api.delete(`/api/brokerage/connections/${id}`),
+  syncAll:              ()                              => api.post("/api/brokerage/sync"),
+};
+
 export const investorsApi = {
   list: () => api.get("/api/investors"),
   getHoldings: (investorId: string) => api.get(`/api/investors/${investorId}`),

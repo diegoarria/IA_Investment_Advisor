@@ -309,9 +309,14 @@ export default function BrokerConnectModal({ onClose, onPositionsImported }: Pro
           {screen === "home" && (
             <>
               {error && (
-                <div className="flex items-center gap-2 text-xs p-3 rounded-xl mb-4" style={{ background: "rgba(239,68,68,0.1)", color: "#ef4444" }}>
-                  <AlertCircle className="w-4 h-4 flex-shrink-0" />
-                  {error}
+                <div
+                  className="flex items-center gap-2 text-xs p-3 rounded-xl mb-4"
+                  style={error.startsWith("🚀")
+                    ? { background: "rgba(99,102,241,0.1)", color: "#818cf8" }
+                    : { background: "rgba(239,68,68,0.1)", color: "#ef4444" }}
+                >
+                  {error.startsWith("🚀") ? <span>🚀</span> : <AlertCircle className="w-4 h-4 flex-shrink-0" />}
+                  {error.startsWith("🚀") ? error.slice(2).trim() : error}
                 </div>
               )}
 
@@ -371,15 +376,8 @@ export default function BrokerConnectModal({ onClose, onPositionsImported }: Pro
                   return (
                     <button
                       key={broker.id}
-                      onClick={() => {
-                        setError("");
-                        if (broker.provider === "iol") {
-                          setScreen("iol-form");
-                        } else {
-                          handlePlaidBroker();
-                        }
-                      }}
-                      disabled={loading || isConnected}
+                      onClick={() => setError(`🚀 Próximamente — La conexión con ${broker.name} estará disponible muy pronto.`)}
+                      disabled={isConnected}
                       className="flex items-center gap-3 px-4 py-3 rounded-xl text-left transition-all hover:scale-[1.01] disabled:opacity-50"
                       style={{ background: "var(--raised)", border: "1px solid var(--border)" }}
                     >
@@ -390,10 +388,8 @@ export default function BrokerConnectModal({ onClose, onPositionsImported }: Pro
                       </div>
                       {isConnected ? (
                         <CheckCircle className="w-4 h-4 flex-shrink-0" style={{ color: "#22c55e" }} />
-                      ) : loading && broker.provider === "plaid" ? (
-                        <Loader2 className="w-4 h-4 animate-spin flex-shrink-0" style={{ color: "var(--accent)" }} />
                       ) : (
-                        <span className="text-xs font-semibold" style={{ color: "var(--accent)" }}>Conectar →</span>
+                        <span className="text-xs font-semibold" style={{ color: "var(--accent)" }}>Próximamente</span>
                       )}
                     </button>
                   );

@@ -22,6 +22,7 @@ import { useAppStore, getAge, UserProfile, RISK_CONFIG } from "../../src/lib/pro
 import { useSubscriptionStore, hasPremiumAccess } from "../../src/lib/subscriptionStore";
 import Markdown from "react-native-markdown-display";
 import PaywallModal from "../../src/components/PaywallModal";
+import MobileBrokerConnectModal from "../../src/components/MobileBrokerConnectModal";
 
 const FREE_POSITION_LIMIT = 10;
 
@@ -755,6 +756,7 @@ export default function PortfolioScreen() {
   const [screenshotProgress, setScreenshotProgress] = useState("");
   const [screenshotPreview, setScreenshotPreview] = useState<ExtractedPosition[] | null>(null);
   const [screenshotUris, setScreenshotUris] = useState<string[]>([]);
+  const [brokerModalOpen, setBrokerModalOpen] = useState(false);
 
   // Sort
   type SortField = "return" | "invested" | "price";
@@ -1425,6 +1427,19 @@ export default function PortfolioScreen() {
             }
           </TouchableOpacity>
         </View>
+
+        {/* Conectar broker */}
+        <TouchableOpacity
+          style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 13, borderRadius: 16, backgroundColor: colors.bgRaised, borderWidth: 1, borderColor: colors.border, marginBottom: 10 }}
+          onPress={() => setBrokerModalOpen(true)}
+          activeOpacity={0.8}
+        >
+          <Text style={{ fontSize: 16 }}>🔗</Text>
+          <Text style={{ fontSize: 13, fontWeight: "700", color: colors.textSub }}>Conectar broker</Text>
+          <View style={{ backgroundColor: "rgba(0,168,94,0.12)", borderRadius: 20, paddingHorizontal: 8, paddingVertical: 2 }}>
+            <Text style={{ fontSize: 10, fontWeight: "700", color: "#00a85e" }}>IBKR · IOL · Schwab</Text>
+          </View>
+        </TouchableOpacity>
 
         {/* ── PREVIEW DE CAPTURA ── */}
         {screenshotPreview && (
@@ -2570,6 +2585,22 @@ export default function PortfolioScreen() {
         visible={paywallOpen}
         onClose={() => setPaywallOpen(false)}
         reason="Más de 10 posiciones requiere Premium"
+      />
+
+      <MobileBrokerConnectModal
+        visible={brokerModalOpen}
+        onClose={() => setBrokerModalOpen(false)}
+        onPositionsImported={(positions) => {
+          positions.forEach((p) => {
+            addPosition({
+              ticker: p.ticker,
+              name: p.name,
+              shares: p.shares,
+              avgPrice: p.avgPrice,
+            });
+          });
+          setBrokerModalOpen(false);
+        }}
       />
 
       {/* Edit position modal */}

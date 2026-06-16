@@ -188,6 +188,7 @@ export default function ProfileScreen() {
   const [referralStats, setReferralStats] = useState<{ referred_count: number; pending_reward: string } | null>(null);
   const [copiedLink, setCopiedLink] = useState(false);
   const [tutorialFromProfile, setTutorialFromProfile] = useState(false);
+  const [savingLevel, setSavingLevel] = useState(false);
 
   const handleShare = async () => {
     if (Platform.OS === "web") return;
@@ -235,7 +236,6 @@ export default function ProfileScreen() {
     ]);
   };
 
-  const [savingLevel, setSavingLevel] = useState(false);
   const handleLevelChange = async (q3Key: string) => {
     if (!profile) return;
     setSavingLevel(true);

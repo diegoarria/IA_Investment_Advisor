@@ -149,7 +149,9 @@ function NavItems({
   if (collapsed) {
     return (
       <>
-        {items.map((item) => {
+        {items
+          .filter((item) => item.path !== "/investors")
+          .map((item) => {
           const isActive = pathname.includes(item.path.replace("/", ""));
           const locked = !isAtLeast(userLevel, item.minLevel);
           return (
@@ -193,102 +195,108 @@ function NavItems({
         </Text>
       )}
 
-      {items.map((item, index) => {
+      {items
+        .filter((item) => item.path !== "/investors")
+        .map((item, index, filteredItems) => {
         const isActive = pathname.includes(item.path.replace("/", ""));
         const isLifted = liftedPath === item.path;
         const isInTab = top5Paths.has(item.path);
         const locked = !isAtLeast(userLevel, item.minLevel);
+        const realIndex = order.indexOf(item.path);
         return (
-          <View
-            key={item.path}
-            style={[
-              styles.navItemRow,
-              isLifted && styles.navItemLifted,
-              locked && { opacity: 0.45 },
-            ]}
-          >
-            <TouchableOpacity
+          <React.Fragment key={item.path}>
+            <View
               style={[
-                styles.navItem,
-                { flex: 1, borderRadius: 12 },
-                isActive && !locked && { backgroundColor: "rgba(34,197,94,0.1)" },
-                isLifted && { backgroundColor: "rgba(34,197,94,0.08)" },
+                styles.navItemRow,
+                isLifted && styles.navItemLifted,
+                locked && { opacity: 0.45 },
               ]}
-              onPress={() => {
-                if (editMode) { setLiftedPath(null); return; }
-                if (locked) { onPress("/profile"); return; }
-                onPress(item.path);
-              }}
-              onLongPress={() => {
-                if (locked) return;
-                setEditMode(true);
-                setLiftedPath(item.path);
-              }}
-              delayLongPress={400}
             >
-              <Ionicons
-                name={locked ? "lock-closed-outline" : item.icon as IoniconName}
-                size={20}
-                color={isActive && !locked ? "#22c55e" : colors.textSub}
-              />
-              <Text style={[styles.navLabel, { color: isActive && !locked ? "#22c55e" : colors.textSub }]}>
-                {item.label}
-              </Text>
-              {locked && !editMode && (
-                <Text style={[styles.lockLevelText, { color: colors.textDim }]}>
-                  Requiere {LEVEL_LABEL[item.minLevel]}
+              <TouchableOpacity
+                style={[
+                  styles.navItem,
+                  { flex: 1, borderRadius: 12 },
+                  isActive && !locked && { backgroundColor: "rgba(34,197,94,0.1)" },
+                  isLifted && { backgroundColor: "rgba(34,197,94,0.08)" },
+                ]}
+                onPress={() => {
+                  if (editMode) { setLiftedPath(null); return; }
+                  if (locked) { onPress("/profile"); return; }
+                  onPress(item.path);
+                }}
+                onLongPress={() => {
+                  if (locked) return;
+                  setEditMode(true);
+                  setLiftedPath(item.path);
+                }}
+                delayLongPress={400}
+              >
+                <Ionicons
+                  name={locked ? "lock-closed-outline" : item.icon as IoniconName}
+                  size={20}
+                  color={isActive && !locked ? "#22c55e" : colors.textSub}
+                />
+                <Text style={[styles.navLabel, { color: isActive && !locked ? "#22c55e" : colors.textSub }]}>
+                  {item.label}
                 </Text>
-              )}
-              {isActive && !editMode && !locked && <View style={styles.activeDot} />}
-              {/* Tab badge: shown for unlocked tab-capable items */}
-              {!editMode && !locked && item.tabCapable && (
-                <View style={[
-                  styles.tabBadge,
-                  { borderColor: isInTab ? "#22c55e44" : colors.border },
-                ]}>
-                  <Text style={[styles.tabBadgeText, { color: isInTab ? "#22c55e" : colors.textDim }]}>
-                    TAB
+                {locked && !editMode && (
+                  <Text style={[styles.lockLevelText, { color: colors.textDim }]}>
+                    Requiere {LEVEL_LABEL[item.minLevel]}
                   </Text>
+                )}
+                {isActive && !editMode && !locked && <View style={styles.activeDot} />}
+                {/* Tab badge: shown for unlocked tab-capable items */}
+                {!editMode && !locked && item.tabCapable && (
+                  <View style={[
+                    styles.tabBadge,
+                    { borderColor: isInTab ? "#22c55e44" : colors.border },
+                  ]}>
+                    <Text style={[styles.tabBadgeText, { color: isInTab ? "#22c55e" : colors.textDim }]}>
+                      TAB
+                    </Text>
+                  </View>
+                )}
+                {editMode && !locked && (
+                  <Ionicons
+                    name="reorder-two-outline"
+                    size={18}
+                    color={isLifted ? "#22c55e" : colors.textDim}
+                  />
+                )}
+              </TouchableOpacity>
+
+              {editMode && !locked && (
+                <View style={styles.arrowGroup}>
+                  <TouchableOpacity
+                    onPress={() => moveItem(realIndex, -1)}
+                    disabled={realIndex === 0}
+                    hitSlop={{ top: 6, bottom: 3, left: 6, right: 6 }}
+                  >
+                    <Ionicons
+                      name="chevron-up"
+                      size={16}
+                      color={realIndex === 0 ? colors.border : colors.textSub}
+                    />
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={() => moveItem(realIndex, 1)}
+                    disabled={realIndex === order.length - 1}
+                    hitSlop={{ top: 3, bottom: 6, left: 6, right: 6 }}
+                  >
+                    <Ionicons
+                      name="chevron-down"
+                      size={16}
+                      color={realIndex === order.length - 1 ? colors.border : colors.textSub}
+                    />
+                  </TouchableOpacity>
                 </View>
               )}
-              {editMode && !locked && (
-                <Ionicons
-                  name="reorder-two-outline"
-                  size={18}
-                  color={isLifted ? "#22c55e" : colors.textDim}
-                />
-              )}
-            </TouchableOpacity>
+            </View>
 
-            {editMode && !locked && (
-              <View style={styles.arrowGroup}>
-                <TouchableOpacity
-                  onPress={() => moveItem(index, -1)}
-                  disabled={index === 0}
-                  hitSlop={{ top: 6, bottom: 3, left: 6, right: 6 }}
-                >
-                  <Ionicons
-                    name="chevron-up"
-                    size={16}
-                    color={index === 0 ? colors.border : colors.textSub}
-                  />
-                </TouchableOpacity>
-                <TouchableOpacity
-                  onPress={() => moveItem(index, 1)}
-                  disabled={index === items.length - 1}
-                  hitSlop={{ top: 3, bottom: 6, left: 6, right: 6 }}
-                >
-                  <Ionicons
-                    name="chevron-down"
-                    size={16}
-                    color={index === items.length - 1 ? colors.border : colors.textSub}
-                  />
-                </TouchableOpacity>
-              </View>
-            )}
-          </View>
+          </React.Fragment>
         );
       })}
+
     </>
   );
 }

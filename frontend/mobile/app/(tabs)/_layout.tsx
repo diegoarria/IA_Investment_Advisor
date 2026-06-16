@@ -277,16 +277,58 @@ export default function TabsLayout() {
   const loadOrder = useNavOrderStore((s) => s.loadOrder);
   const loadWatchlist = useWatchlistStore((s) => s.loadFromServer);
   const appState = useRef(AppState.currentState);
+  const lastForegroundSync = useRef<number>(0);
 
-  useEffect(() => {
+  const syncAllFromServer = () => {
+    const now = Date.now();
+    // Throttle: don't re-sync more than once every 30 seconds
+    if (now - lastForegroundSync.current < 30_000) return;
+    lastForegroundSync.current = now;
+
     loadOrder();
     loadWatchlist();
 
-    // Refresh nav order from server whenever app comes back to foreground
-    // so changes made on web are reflected immediately on mobile.
+    // Refresh portfolio, paper trading, and maturity from server
+    import("../../src/lib/api").then(({ syncApi }) => {
+      syncApi.getAll().then((res) => {
+        const data = res.data;
+        if (!data) return;
+
+        // Portfolio
+        if (data.portfolio?.positions) {
+          import("../../src/lib/portfolioStore").then(({ usePortfolioStore }) => {
+            usePortfolioStore.getState().restoreFromServer(data.portfolio.positions, data.portfolio.currency);
+          }).catch(() => {});
+        }
+
+        // Paper trading
+        if (data.paper) {
+          import("../../src/lib/paperStore").then(({ usePaperStore }) => {
+            usePaperStore.getState().restoreFromServer?.(data.paper);
+          }).catch(() => {});
+        }
+
+        // Streak
+        if (data.streak && data.streak.count > 0) {
+          import("../../src/lib/learnStore").then(({ useLearnStore }) => {
+            const store = useLearnStore.getState();
+            if (data.streak.count >= store.streak) {
+              store.setStreakFromServer?.(data.streak.count, data.streak.last_learn_date);
+            }
+          }).catch(() => {});
+        }
+      }).catch(() => {});
+    }).catch(() => {});
+  };
+
+  useEffect(() => {
+    syncAllFromServer();
+
+    // Sync all data from server whenever app comes back to foreground
+    // so changes made on web/another device are reflected immediately.
     const sub = AppState.addEventListener("change", (nextState) => {
       if (appState.current.match(/inactive|background/) && nextState === "active") {
-        loadOrder();
+        syncAllFromServer();
       }
       appState.current = nextState;
     });

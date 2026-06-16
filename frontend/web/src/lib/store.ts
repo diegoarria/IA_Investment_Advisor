@@ -522,6 +522,7 @@ interface LearnState {
   completedToday: boolean;
   markTopicCompleted: () => void;
   initStreak: () => void;
+  restoreFromServer: () => Promise<void>;
 }
 
 export const useLearnStore = create<LearnState>()(
@@ -540,6 +541,9 @@ export const useLearnStore = create<LearnState>()(
           set({ completedToday: true });
         } else if (lastLearnDate && lastLearnDate < yesterday) {
           set({ streak: 0, completedToday: false });
+          import("./api").then(({ learn }) => {
+            learn.syncStreak(0, "").catch(() => {});
+          });
         } else {
           set({ completedToday: false });
         }
@@ -556,9 +560,34 @@ export const useLearnStore = create<LearnState>()(
         }
         const newStreak = lastLearnDate === yesterday ? streak + 1 : 1;
         set({ streak: newStreak, lastLearnDate: today, totalCompleted: totalCompleted + 1, completedToday: true });
+        import("./api").then(({ learn }) => {
+          learn.syncStreak(newStreak, today).catch(() => {});
+        });
+      },
+
+      restoreFromServer: async () => {
+        try {
+          const res = await syncApi.getAll();
+          const serverStreak = res.data?.streak;
+          if (serverStreak && typeof serverStreak.count === "number" && serverStreak.count > 0) {
+            const current = get();
+            if (serverStreak.count >= current.streak) {
+              set({
+                streak: serverStreak.count,
+                lastLearnDate: serverStreak.last_learn_date ?? current.lastLearnDate,
+              });
+            }
+          }
+        } catch {}
       },
     }),
-    { name: "learn-store", storage: userStorage }
+    {
+      name: "learn-store",
+      storage: userStorage,
+      onRehydrateStorage: () => () => {
+        setTimeout(() => useLearnStore.getState().restoreFromServer(), 600);
+      },
+    }
   )
 );
 
@@ -575,6 +604,7 @@ interface WatchlistState {
   add: (ticker: string, name: string) => void;
   remove: (ticker: string) => void;
   has: (ticker: string) => boolean;
+  loadFromServer: () => Promise<void>;
 }
 
 export const useWatchlistStore = create<WatchlistState>()(
@@ -585,14 +615,38 @@ export const useWatchlistStore = create<WatchlistState>()(
         const t = ticker.toUpperCase();
         if (get().items.find((i) => i.ticker === t)) return;
         set((s) => ({ items: [...s.items, { ticker: t, name, addedAt: Date.now() }] }));
+        import("./api").then(({ watchlist }) => {
+          watchlist.add(t, name).catch(() => {});
+        });
       },
       remove: (ticker) => {
         const t = ticker.toUpperCase();
         set((s) => ({ items: s.items.filter((i) => i.ticker !== t) }));
+        import("./api").then(({ watchlist }) => {
+          watchlist.remove(t).catch(() => {});
+        });
       },
       has: (ticker) => !!get().items.find((i) => i.ticker === ticker.toUpperCase()),
+      loadFromServer: async () => {
+        try {
+          const { watchlist } = await import("./api");
+          const res = await watchlist.get();
+          const serverItems: WatchItem[] = (res.data ?? []).map((i: any) => ({
+            ticker: i.ticker,
+            name: i.name || i.ticker,
+            addedAt: i.added_at ? new Date(i.added_at).getTime() : Date.now(),
+          }));
+          set({ items: serverItems });
+        } catch {}
+      },
     }),
-    { name: "watchlist", storage: userStorage }
+    {
+      name: "watchlist",
+      storage: userStorage,
+      onRehydrateStorage: () => () => {
+        setTimeout(() => useWatchlistStore.getState().loadFromServer(), 500);
+      },
+    }
   )
 );
 

@@ -36,6 +36,7 @@ interface LearnStore {
   completedToday: boolean;
   markTopicCompleted: () => void;
   initStreak: () => void;
+  setStreakFromServer: (count: number, lastLearnDate: string | null) => void;
 }
 
 export const useLearnStore = create<LearnStore>()(
@@ -58,6 +59,10 @@ export const useLearnStore = create<LearnStore>()(
         } else {
           set({ completedToday: false });
         }
+      },
+
+      setStreakFromServer: (count, lastDate) => {
+        set({ streak: count, lastLearnDate: lastDate ?? null });
       },
 
       markTopicCompleted: () => {

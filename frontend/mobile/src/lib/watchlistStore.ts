@@ -13,6 +13,7 @@ interface WatchlistStore {
   items: WatchItem[];
   add: (ticker: string, name: string) => void;
   remove: (ticker: string) => void;
+  reorder: (from: number, to: number) => void;
   has: (ticker: string) => boolean;
   loadFromServer: () => Promise<void>;
 }
@@ -34,6 +35,14 @@ export const useWatchlistStore = create<WatchlistStore>()(
         const t = ticker.toUpperCase();
         set((s) => ({ items: s.items.filter((i) => i.ticker !== t) }));
         watchlistServerApi.remove(t).catch(() => {});
+      },
+
+      reorder: (from, to) => {
+        const arr = [...get().items];
+        if (from < 0 || to < 0 || from >= arr.length || to >= arr.length || from === to) return;
+        const [moved] = arr.splice(from, 1);
+        arr.splice(to, 0, moved);
+        set({ items: arr });
       },
 
       has: (ticker) => !!get().items.find((i) => i.ticker === ticker.toUpperCase()),
