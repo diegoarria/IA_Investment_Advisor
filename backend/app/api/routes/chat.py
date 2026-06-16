@@ -257,7 +257,7 @@ async def speak_text(
         client = AsyncOpenAI(api_key=api_key)
         response = await client.audio.speech.create(
             model="tts-1",
-            voice="onyx",
+            voice="nova",
             input=text,
         )
         audio_b64 = base64.b64encode(response.content).decode()
