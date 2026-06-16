@@ -712,19 +712,17 @@ export default function PortfolioScreen() {
     : portfolioCurrency === "JPY" ? "¥"
     : `${portfolioCurrency} `;
 
-  // Fallback rates USD → user currency
-  const FALLBACK_TO_LOCAL: Record<string, number> = {
-    MXN: 17.5, EUR: 0.92, GBP: 0.79, CAD: 1.37, ARS: 870,
-    BRL: 5.0, COP: 4000, CLP: 900, PEN: 3.7, JPY: 150, AUD: 1.55,
-  };
-
-  // Fetch live FX rate USD → portfolioCurrency when currency changes
+  // Fetch live FX rate from backend (yfinance → frankfurter fallback), refresh every 30 min
   useEffect(() => {
     if (portfolioCurrency === "USD") { setFxRate(1); return; }
-    fetch(`https://api.frankfurter.app/latest?from=USD&to=${portfolioCurrency}`)
-      .then((r) => r.json())
-      .then((d) => { if (d.rates?.[portfolioCurrency]) setFxRate(d.rates[portfolioCurrency]); })
-      .catch(() => setFxRate(FALLBACK_TO_LOCAL[portfolioCurrency] ?? 1));
+    const fetchRate = () => {
+      marketApi.getFxRate(portfolioCurrency)
+        .then((r) => { if (r.data?.rate) setFxRate(r.data.rate); })
+        .catch(() => {});
+    };
+    fetchRate();
+    const interval = setInterval(fetchRate, 30 * 60 * 1000);
+    return () => clearInterval(interval);
   }, [portfolioCurrency]);
 
   // Currency import modal
@@ -1190,9 +1188,10 @@ export default function PortfolioScreen() {
   const totals = useMemo(() => {
     let invested = 0, current = 0;
     for (const p of positions) {
-      invested += p.shares * p.avgPrice; // stored in user's currency
+      // Both invested and current in user's currency via fxRate
+      invested += p.shares * p.avgPrice * fxRate;
       const cpUSD = prices[p.ticker]?.price;
-      current += cpUSD ? p.shares * cpUSD * fxRate : p.shares * p.avgPrice;
+      current += cpUSD ? p.shares * cpUSD * fxRate : p.shares * p.avgPrice * fxRate;
     }
     const diff = current - invested;
     const pct = invested > 0 ? (diff / invested) * 100 : 0;
@@ -1204,16 +1203,18 @@ export default function PortfolioScreen() {
     return [...positions].sort((a, b) => {
       let va = 0, vb = 0;
       if (sortField === "invested") {
-        va = a.shares * a.avgPrice;
-        vb = b.shares * b.avgPrice;
+        va = a.shares * a.avgPrice * fxRate;
+        vb = b.shares * b.avgPrice * fxRate;
       } else if (sortField === "price") {
         va = (prices[a.ticker]?.price ?? 0) * fxRate;
         vb = (prices[b.ticker]?.price ?? 0) * fxRate;
       } else if (sortField === "return") {
         const cpA = (prices[a.ticker]?.price ?? 0) * fxRate;
         const cpB = (prices[b.ticker]?.price ?? 0) * fxRate;
-        va = a.avgPrice > 0 && cpA > 0 ? (cpA - a.avgPrice) / a.avgPrice * 100 : 0;
-        vb = b.avgPrice > 0 && cpB > 0 ? (cpB - b.avgPrice) / b.avgPrice * 100 : 0;
+        const costA = a.avgPrice * fxRate;
+        const costB = b.avgPrice * fxRate;
+        va = costA > 0 && cpA > 0 ? (cpA - costA) / costA * 100 : 0;
+        vb = costB > 0 && cpB > 0 ? (cpB - costB) / costB * 100 : 0;
       }
       return sortDir === "desc" ? vb - va : va - vb;
     });
@@ -1819,7 +1820,7 @@ export default function PortfolioScreen() {
               const cp = cpUSD ? cpUSD * fxRate : null; // convert USD → user currency
               const hasCost = pos.avgPrice > 0;
               const currentVal = cp ? pos.shares * cp : null;
-              const investedVal = hasCost ? pos.shares * pos.avgPrice : null;
+              const investedVal = hasCost ? pos.shares * pos.avgPrice * fxRate : null;
               const diff = currentVal !== null && investedVal !== null ? currentVal - investedVal : null;
               const pct = diff !== null && investedVal! > 0 ? (diff / investedVal!) * 100 : null;
               const isUp = diff !== null && diff >= 0;

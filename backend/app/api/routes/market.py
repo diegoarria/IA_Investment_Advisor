@@ -3270,3 +3270,53 @@ async def get_stock_income_analysis(
     result = {"analysis": analysis}
     cache_set(cache_key, result, ttl=43200)
     return result
+
+
+@router.get("/fx-rate")
+async def get_fx_rate(to: str = "USD"):
+    """Real-time USD → {to} exchange rate. Cached 30 min. Uses yfinance, falls back to frankfurter.app."""
+    if to.upper() == "USD":
+        return {"rate": 1.0, "pair": "USD/USD", "source": "exact"}
+
+    to = to.upper()
+    cache_key = f"fx:USD:{to}"
+    cached = cache_get(cache_key)
+    if cached:
+        return cached
+
+    result = None
+
+    # Primary: yfinance (real-time, market hours)
+    try:
+        import asyncio as _asyncio
+
+        def _yf_rate():
+            t = yf.Ticker(f"USD{to}=X")
+            rate = t.fast_info.last_price
+            return float(rate) if rate and rate > 0 else None
+
+        rate = await _asyncio.to_thread(_yf_rate)
+        if rate:
+            result = {"rate": round(rate, 6), "pair": f"USD/{to}", "source": "live"}
+    except Exception:
+        pass
+
+    # Fallback: frankfurter.app (ECB rates, updated daily)
+    if not result:
+        try:
+            import httpx as _httpx
+            async with _httpx.AsyncClient(timeout=5) as client:
+                resp = await client.get(
+                    f"https://api.frankfurter.app/latest?from=USD&to={to}"
+                )
+                d = resp.json()
+                if d.get("rates", {}).get(to):
+                    result = {"rate": d["rates"][to], "pair": f"USD/{to}", "source": "frankfurter"}
+        except Exception:
+            pass
+
+    if result:
+        cache_set(cache_key, result, ttl=1800)
+        return result
+
+    return {"rate": None, "pair": f"USD/{to}", "source": "unavailable"}

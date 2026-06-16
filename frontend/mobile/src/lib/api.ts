@@ -180,6 +180,8 @@ export const marketApi = {
     api.get(`/api/market/stock-income-analysis/${encodeURIComponent(symbol)}`),
   getPeers: (symbol: string) =>
     api.get(`/api/market/peers/${encodeURIComponent(symbol)}`),
+  getFxRate: (to: string) =>
+    api.get("/api/market/fx-rate", { params: { to } }),
   getFinancials: (symbol: string, limit = 5) =>
     api.get(`/api/stocks/${encodeURIComponent(symbol)}/financials`, { params: { limit } }),
 };

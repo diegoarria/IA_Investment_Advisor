@@ -857,10 +857,10 @@ export default function PortfolioPage() {
   const totals = useMemo(() => {
     let invested=0, current=0;
     for (const p of positions) {
-      invested += p.shares * p.avgPrice; // stored in user's currency
+      // Both invested and current converted to user's currency via fxRate
+      invested += p.shares * p.avgPrice * fxRate;
       const cpUSD = prices[p.ticker]?.price;
-      // Convert USD price → user's currency
-      current += cpUSD ? p.shares * cpUSD * fxRate : p.shares * p.avgPrice;
+      current += cpUSD ? p.shares * cpUSD * fxRate : p.shares * p.avgPrice * fxRate;
     }
     const diff = current - invested;
     const pct = invested>0 ? (diff/invested)*100 : 0;
@@ -872,16 +872,18 @@ export default function PortfolioPage() {
     return [...positions].sort((a, b) => {
       let va = 0, vb = 0;
       if (sortField === "invested") {
-        va = a.shares * a.avgPrice;
-        vb = b.shares * b.avgPrice;
+        va = a.shares * a.avgPrice * fxRate;
+        vb = b.shares * b.avgPrice * fxRate;
       } else if (sortField === "price") {
         va = (prices[a.ticker]?.price ?? 0) * fxRate;
         vb = (prices[b.ticker]?.price ?? 0) * fxRate;
       } else if (sortField === "return") {
         const cpA = (prices[a.ticker]?.price ?? 0) * fxRate;
         const cpB = (prices[b.ticker]?.price ?? 0) * fxRate;
-        va = a.avgPrice > 0 && cpA > 0 ? (cpA - a.avgPrice) / a.avgPrice * 100 : 0;
-        vb = b.avgPrice > 0 && cpB > 0 ? (cpB - b.avgPrice) / b.avgPrice * 100 : 0;
+        const costA = a.avgPrice * fxRate;
+        const costB = b.avgPrice * fxRate;
+        va = costA > 0 && cpA > 0 ? (cpA - costA) / costA * 100 : 0;
+        vb = costB > 0 && cpB > 0 ? (cpB - costB) / costB * 100 : 0;
       }
       return sortDir === "desc" ? vb - va : va - vb;
     });
@@ -1017,20 +1019,17 @@ export default function PortfolioPage() {
     setPendingMerge([]);
   };
 
-  // Exchange rate: USD → portfolioCurrency (for converting current market prices to user's currency)
-  const FALLBACK_RATES_TO_USD: Record<string, number> = {
-    MXN: 0.0500, EUR: 1.08, GBP: 1.27, CAD: 0.73,
-    ARS: 0.00095, BRL: 0.18, COP: 0.00024, CLP: 0.00105,
-    PEN: 0.265, JPY: 0.0065, CHF: 1.12, AUD: 0.65,
-  };
-
-  // Fetch exchange rate whenever portfolioCurrency changes
+  // Fetch live FX rate from backend (yfinance → frankfurter fallback), refresh every 30 min
   useEffect(() => {
     if (portfolioCurrency === "USD") { setFxRate(1); return; }
-    fetch(`https://api.frankfurter.app/latest?from=USD&to=${portfolioCurrency}`)
-      .then((r) => r.json())
-      .then((d) => { if (d.rates?.[portfolioCurrency]) setFxRate(d.rates[portfolioCurrency]); })
-      .catch(() => { setFxRate(1 / (FALLBACK_RATES_TO_USD[portfolioCurrency] ?? 1)); });
+    const fetchRate = () => {
+      marketApi.getFxRate(portfolioCurrency)
+        .then((r) => { if (r.data?.rate) setFxRate(r.data.rate); })
+        .catch(() => {});
+    };
+    fetchRate();
+    const interval = setInterval(fetchRate, 30 * 60 * 1000);
+    return () => clearInterval(interval);
   }, [portfolioCurrency]);
 
   // Import: keep prices in original currency, just store the currency
@@ -1785,7 +1784,7 @@ export default function PortfolioPage() {
                       const pd = prices[pos.ticker];
                       const cp = pd?.price ? pd.price * fxRate : null;
                       const currentVal = cp ? pos.shares * cp : null;
-                      const investedVal = pos.avgPrice > 0 ? pos.shares * pos.avgPrice : null;
+                      const investedVal = pos.avgPrice > 0 ? pos.shares * pos.avgPrice * fxRate : null;
                       const gainLossPct = currentVal !== null && investedVal !== null && investedVal > 0
                         ? ((currentVal - investedVal) / investedVal) * 100 : null;
                       return {
@@ -1795,7 +1794,7 @@ export default function PortfolioPage() {
                         changePct: null,
                         currency: portfolioCurrency,
                         shares: pos.shares,
-                        avgCost: pos.avgPrice,
+                        avgCost: pos.avgPrice * fxRate,
                         positionValue: currentVal,
                         gainLossPct,
                       };
@@ -1840,7 +1839,7 @@ export default function PortfolioPage() {
                 const cp = cpUSD ? cpUSD * fxRate : null;
                 const hasCost = pos.avgPrice > 0;
                 const currentVal = cp ? pos.shares * cp : null;
-                const investedVal = hasCost ? pos.shares * pos.avgPrice : null;
+                const investedVal = hasCost ? pos.shares * pos.avgPrice * fxRate : null;
                 const diff = currentVal !== null && investedVal !== null ? currentVal - investedVal : null;
                 const pct = diff !== null && investedVal! > 0 ? (diff / investedVal!) * 100 : null;
                 const isUp = diff !== null && diff >= 0;

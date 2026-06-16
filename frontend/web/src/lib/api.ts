@@ -176,6 +176,8 @@ export const market = {
     api.get(`/api/market/stock-income-analysis/${encodeURIComponent(symbol)}`),
   getPeers: (symbol: string) =>
     api.get(`/api/market/peers/${encodeURIComponent(symbol)}`),
+  getFxRate: (to: string) =>
+    api.get("/api/market/fx-rate", { params: { to } }),
   summarizeNews: (title: string, url: string) =>
     api.post("/api/market/summarize-news", { title, url }),
   screener: (sector: string | null, query: string) =>
