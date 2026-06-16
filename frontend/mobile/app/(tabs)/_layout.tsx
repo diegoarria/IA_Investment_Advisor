@@ -1,7 +1,7 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useRef } from "react";
 import { Tabs } from "expo-router";
 import {
-  View, Text, TouchableOpacity, StyleSheet, Platform, Pressable, Image,
+  View, Text, TouchableOpacity, StyleSheet, Platform, Pressable, Image, AppState,
 } from "react-native";
 import type { BottomTabBarProps } from "@react-navigation/bottom-tabs";
 import { Ionicons } from "@expo/vector-icons";
@@ -275,10 +275,21 @@ export default function TabsLayout() {
   const isWeb = Platform.OS === "web";
   const loadOrder = useNavOrderStore((s) => s.loadOrder);
   const loadWatchlist = useWatchlistStore((s) => s.loadFromServer);
+  const appState = useRef(AppState.currentState);
 
   useEffect(() => {
     loadOrder();
     loadWatchlist();
+
+    // Refresh nav order from server whenever app comes back to foreground
+    // so changes made on web are reflected immediately on mobile.
+    const sub = AppState.addEventListener("change", (nextState) => {
+      if (appState.current.match(/inactive|background/) && nextState === "active") {
+        loadOrder();
+      }
+      appState.current = nextState;
+    });
+    return () => sub.remove();
   }, []);
 
   return (

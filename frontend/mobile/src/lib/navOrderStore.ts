@@ -16,9 +16,6 @@ export interface NavItem {
   minLevel: UserLevel;
 }
 
-// Icons mirror the web app's Lucide icons mapped to Ionicons equivalents:
-// BookOpen→book, PieChart→pie-chart, Eye→eye, BarChart2→bar-chart,
-// GraduationCap→school, Trophy→trophy, Bell→notifications, Headphones→headset, User→person
 export const ALL_NAV_ITEMS: NavItem[] = [
   { icon: "book-outline",          iconFilled: "book",          label: "Chat",          path: "/chat",          tabCapable: true,  minLevel: "principiante" },
   { icon: "pie-chart-outline",     iconFilled: "pie-chart",     label: "Portafolio",    path: "/portfolio",     tabCapable: true,  minLevel: "principiante" },
@@ -34,6 +31,18 @@ export const ALL_NAV_ITEMS: NavItem[] = [
 const ALL_PATHS = ALL_NAV_ITEMS.map((i) => i.path);
 const DEFAULT_ORDER = ALL_PATHS;
 
+// Web uses /feed for Videos; mobile uses /videos. Translate when syncing with server.
+const FROM_SERVER: Record<string, string> = { "/feed": "/videos" };
+const TO_SERVER:   Record<string, string> = { "/videos": "/feed" };
+
+function normalizeFromServer(paths: string[]): string[] {
+  return paths.map((p) => FROM_SERVER[p] ?? p);
+}
+
+function normalizeToServer(paths: string[]): string[] {
+  return paths.map((p) => TO_SERVER[p] ?? p);
+}
+
 interface NavOrderStore {
   order: string[];
   setOrder: (order: string[]) => void;
@@ -46,12 +55,11 @@ export const useNavOrderStore = create<NavOrderStore>((set) => ({
   setOrder: (order) => {
     set({ order });
     AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(order)).catch(() => {});
-    // Persist to server for cross-device sync (fire-and-forget)
-    syncApi.pushNavOrder(order).catch(() => {});
+    syncApi.pushNavOrder(normalizeToServer(order)).catch(() => {});
   },
 
   loadOrder: async () => {
-    // 1. Apply AsyncStorage immediately so UI is fast
+    // 1. AsyncStorage first — fast local restore
     try {
       const saved = await AsyncStorage.getItem(STORAGE_KEY);
       if (saved) {
@@ -64,11 +72,12 @@ export const useNavOrderStore = create<NavOrderStore>((set) => ({
       }
     } catch {}
 
-    // 2. Fetch server order (authoritative for cross-device restore)
+    // 2. Server order is authoritative (web drag-and-drop syncs here)
     try {
       const res = await syncApi.getNavOrder();
-      const serverOrder: string[] | null | undefined = res.data?.nav_order;
-      if (serverOrder && Array.isArray(serverOrder) && serverOrder.length > 0) {
+      const raw: string[] | null | undefined = res.data?.nav_order;
+      if (raw && Array.isArray(raw) && raw.length > 0) {
+        const serverOrder = normalizeFromServer(raw);
         const merged = [
           ...serverOrder.filter((p) => ALL_PATHS.includes(p)),
           ...ALL_PATHS.filter((p) => !serverOrder.includes(p)),
