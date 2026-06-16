@@ -91,8 +91,8 @@ export const profile = {
 
 export const chat = {
   getHistory: (since?: string) => api.get("/api/chat/history", since ? { params: { since } } : undefined),
-  saveMessage: (role: string, content: string) =>
-    api.post("/api/chat/save-message", { role, content }),
+  saveMessage: (role: string, content: string, sessionId?: string | null) =>
+    api.post("/api/chat/save-message", { role, content, session_id: sessionId }),
   transcribe: (blob: Blob) => {
     const form = new FormData();
     form.append("audio", blob, "recording.webm");

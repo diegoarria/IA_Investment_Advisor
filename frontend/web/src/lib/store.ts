@@ -187,6 +187,7 @@ interface ChatState {
   clearMessages: () => void;
   setMessages: (msgs: ChatMessage[]) => void;
   loadFromServer: () => Promise<void>;
+  syncSessionMessages: (sessionId: string, msgs: ChatMessage[]) => void;
 }
 
 interface NotificationState {
@@ -327,6 +328,27 @@ export const useChatStore = create<ChatState>()(
         messages: msgs,
         sessions: syncSession(s.sessions, s.currentId, msgs),
       })),
+
+      syncSessionMessages: (sessionId: string, msgs: ChatMessage[]): void => {
+        set((s): Partial<ChatState> => {
+          const existing = s.sessions.find((sess) => sess.id === sessionId);
+          if (existing) {
+            const updatedMsgs = [...existing.messages, ...msgs];
+            const updatedSessions = s.sessions.map((sess) =>
+              sess.id === sessionId
+                ? { ...sess, messages: updatedMsgs, title: makeSessionTitle(updatedMsgs), updatedAt: Date.now() }
+                : sess
+            );
+            return { sessions: updatedSessions, messages: s.currentId === sessionId ? updatedMsgs : s.messages };
+          } else {
+            const newSession: ChatSession = {
+              id: sessionId, title: makeSessionTitle(msgs),
+              messages: msgs, createdAt: Date.now(), updatedAt: Date.now(),
+            };
+            return { sessions: [newSession, ...s.sessions] };
+          }
+        });
+      },
 
       loadFromServer: (): Promise<void> => {
         const run = async () => {

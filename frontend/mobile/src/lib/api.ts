@@ -94,8 +94,8 @@ export const profileApi = {
 
 export const chatApi = {
   getHistory: (since?: string) => api.get("/api/chat/history", since ? { params: { since } } : undefined),
-  saveMessage: (role: string, content: string) =>
-    api.post("/api/chat/save-message", { role, content }),
+  saveMessage: (role: string, content: string, sessionId?: string | null) =>
+    api.post("/api/chat/save-message", { role, content, session_id: sessionId }),
   transcribe: (audioUri: string) => {
     const formData = new FormData();
     formData.append("audio", { uri: audioUri, name: "recording.m4a", type: "audio/m4a" } as unknown as Blob);

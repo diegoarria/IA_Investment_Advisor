@@ -173,7 +173,7 @@ export default function ChatPage() {
   const { hasSeenTutorial, openTutorial } = useTutorialStore();
   const { isAuthenticated, clearAuth } = useAuthStore();
   const { profile, updateMaturity, updateBehavioralRisk } = useProfileStore();
-  const { messages, isStreaming, addMessage, appendToLastAssistant, setStreaming, startAssistantMessage, removeLastMessage, setMessages, sessions, currentId, createSession, clearMessages } = useChatStore();
+  const { messages, isStreaming, addMessage, appendToLastAssistant, setStreaming, startAssistantMessage, removeLastMessage, setMessages, sessions, currentId, createSession, clearMessages, syncSessionMessages } = useChatStore();
   const { notifications, setNotifications, markRead } = useNotificationStore();
   const { theme, toggleTheme } = useThemeStore();
   const subStore = useSubscriptionStore();
@@ -407,11 +407,25 @@ export default function ChatPage() {
       if (!syncCursorRef.current) return;
       try {
         const res = await chatApi.getHistory(syncCursorRef.current);
-        const newMsgs: { role: string; content: string; created_at?: string }[] = res.data.messages ?? [];
+        const newMsgs: { role: string; content: string; created_at?: string; session_id?: string | null }[] = res.data.messages ?? [];
         if (newMsgs.length === 0) return;
         const foreign = newMsgs.filter((m) => !localFingerprintsRef.current.has(fp(m.role, m.content)));
         if (foreign.length > 0) {
-          foreign.forEach((m) => addMessage({ role: m.role as "user" | "assistant", content: m.content }));
+          // Group by session_id and route each group to the right session
+          const bySession = new Map<string, typeof foreign>();
+          for (const m of foreign) {
+            const sid = m.session_id ?? "__legacy__";
+            if (!bySession.has(sid)) bySession.set(sid, []);
+            bySession.get(sid)!.push(m);
+          }
+          for (const [sid, msgs] of bySession) {
+            const chatMsgs = msgs.map((m) => ({ role: m.role as "user" | "assistant", content: m.content }));
+            if (sid === "__legacy__") {
+              chatMsgs.forEach((m) => addMessage(m));
+            } else {
+              syncSessionMessages(sid, chatMsgs);
+            }
+          }
         }
         syncCursorRef.current = newMsgs[newMsgs.length - 1].created_at ?? syncCursorRef.current;
       } catch {}
@@ -440,7 +454,7 @@ export default function ChatPage() {
       images: imagesToSend.length > 0 ? imagesToSend.map((i) => ({ preview: i.preview })) : undefined,
     });
     localFingerprintsRef.current.add(fp("user", saveMsg));
-    chatApi.saveMessage("user", saveMsg).catch(() => {});
+    chatApi.saveMessage("user", saveMsg, currentId).catch(() => {});
     syncCursorRef.current = new Date().toISOString();
 
     const profileCtx = buildProfileContext();
@@ -469,7 +483,7 @@ export default function ChatPage() {
         () => {
           setStreaming(false);
           localFingerprintsRef.current.add(fp("assistant", fullResponse));
-          chatApi.saveMessage("assistant", fullResponse).catch(() => {});
+          chatApi.saveMessage("assistant", fullResponse, currentId).catch(() => {});
           syncCursorRef.current = new Date().toISOString();
           if (voiceInputRef.current) {
             voiceInputRef.current = false;

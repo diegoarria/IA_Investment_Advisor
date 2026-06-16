@@ -65,6 +65,7 @@ interface ChatStore {
   deleteSession: (id: string) => void;
   clearAll: () => void;
   restoreFromServer: () => Promise<void>;
+  syncSessionMessages: (sessionId: string, msgs: Message[]) => void;
 }
 
 function makeId() {
@@ -148,6 +149,28 @@ export const useChatStore = create<ChatStore>()(
         }),
 
       clearAll: () => set({ sessions: [], currentId: null, behavioralTimeline: [] }),
+
+      syncSessionMessages: (sessionId: string, msgs: Message[]): void => {
+        set((s): Partial<ChatStore> => {
+          const existing = s.sessions.find((sess) => sess.id === sessionId);
+          if (existing) {
+            const updatedMsgs = [...existing.messages, ...msgs];
+            return {
+              sessions: s.sessions.map((sess) =>
+                sess.id === sessionId
+                  ? { ...sess, messages: updatedMsgs, title: makeTitle(updatedMsgs), updatedAt: Date.now() }
+                  : sess
+              ),
+            };
+          } else {
+            const newSession: ChatSession = {
+              id: sessionId, title: makeTitle(msgs),
+              messages: msgs, createdAt: Date.now(), updatedAt: Date.now(), diagnosis: null,
+            };
+            return { sessions: [newSession, ...s.sessions] };
+          }
+        });
+      },
 
       restoreFromServer: async () => {
         try {

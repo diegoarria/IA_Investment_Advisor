@@ -162,7 +162,7 @@ export default function ChatScreen() {
   const mentor = getMentorInfo(profile?.mentor);
   const mentorPhoto = mentor ? MENTOR_PHOTOS[mentor.id] : null;
 
-  const { currentId, currentMessages, setMessages, createSession, currentDiagnosis, setDiagnosis, restoreFromServer, sessions } = useChatStore();
+  const { currentId, currentMessages, setMessages, createSession, currentDiagnosis, setDiagnosis, restoreFromServer, sessions, syncSessionMessages } = useChatStore();
   const messages = currentMessages();
   const diagnosis = currentDiagnosis();
   const positions = usePortfolioStore((s) => s.positions);
@@ -218,12 +218,25 @@ export default function ChatScreen() {
       if (!syncCursorRef.current) return;
       try {
         const res = await chatApi.getHistory(syncCursorRef.current);
-        const newMsgs: { role: string; content: string; created_at?: string }[] = res.data?.messages ?? [];
+        const newMsgs: { role: string; content: string; created_at?: string; session_id?: string | null }[] = res.data?.messages ?? [];
         if (newMsgs.length === 0) return;
         const foreign = newMsgs.filter((m) => !localFingerprintsRef.current.has(fp(m.role, m.content)));
         if (foreign.length > 0) {
-          const current = useChatStore.getState().currentMessages();
-          setMessages([...current, ...foreign.map((m) => ({ role: m.role as "user" | "assistant", content: m.content, timestamp: Date.now() }))]);
+          const bySession = new Map<string, typeof foreign>();
+          for (const m of foreign) {
+            const sid = m.session_id ?? "__legacy__";
+            if (!bySession.has(sid)) bySession.set(sid, []);
+            bySession.get(sid)!.push(m);
+          }
+          for (const [sid, msgs] of bySession) {
+            const chatMsgs: Message[] = msgs.map((m) => ({ role: m.role as "user" | "assistant", content: m.content, timestamp: Date.now() }));
+            if (sid === "__legacy__") {
+              const current = useChatStore.getState().currentMessages();
+              setMessages([...current, ...chatMsgs]);
+            } else {
+              syncSessionMessages(sid, chatMsgs);
+            }
+          }
         }
         syncCursorRef.current = newMsgs[newMsgs.length - 1].created_at ?? syncCursorRef.current;
       } catch {}
@@ -470,7 +483,7 @@ Instrucciones críticas:
     setMessages(newMessages);
     localFingerprintsRef.current.add(fp("user", saveMsg));
     syncCursorRef.current = new Date().toISOString();
-    chatApi.saveMessage("user", saveMsg).catch(() => {});
+    chatApi.saveMessage("user", saveMsg, currentId).catch(() => {});
 
     const profileCtx = buildProfileContext();
     const recentHistory = newMessages.slice(-18);
@@ -502,7 +515,7 @@ Instrucciones críticas:
           setStreaming(false);
           localFingerprintsRef.current.add(fp("assistant", full));
           syncCursorRef.current = new Date().toISOString();
-          chatApi.saveMessage("assistant", full).catch(() => {});
+          chatApi.saveMessage("assistant", full, currentId).catch(() => {});
           if (voiceInputRef.current) {
             voiceInputRef.current = false;
             playMessageAudio(full, withAssistant.length - 1);

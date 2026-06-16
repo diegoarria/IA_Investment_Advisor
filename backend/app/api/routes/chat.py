@@ -179,6 +179,7 @@ async def save_message(
             "role": request.get("role"),
             "content": request.get("content"),
             "created_at": datetime.utcnow().isoformat(),
+            "session_id": request.get("session_id"),
         }
         await run_query(db.table("chat_history").insert(record))
     except Exception:
@@ -247,7 +248,7 @@ async def get_history(
         db = get_supabase()
         q = (
             db.table("chat_history")
-            .select("id, role, content, created_at")
+            .select("id, role, content, created_at, session_id")
             .eq("user_id", user_id)
         )
         if since:
