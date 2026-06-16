@@ -3272,9 +3272,20 @@ async def get_stock_income_analysis(
     return result
 
 
+_FX_FALLBACK_RATES: dict[str, float] = {
+    "MXN": 18.5,  "EUR": 0.92, "GBP": 0.79, "CAD": 1.38,
+    "ARS": 1150,  "BRL": 5.7,  "COP": 4200, "CLP": 960,
+    "PEN": 3.75,  "JPY": 155,  "AUD": 1.55, "CHF": 0.89,
+    "NZD": 1.68,  "INR": 83.5, "CNY": 7.25, "HKD": 7.82,
+    "SGD": 1.35,  "TRY": 32.5, "ZAR": 18.8, "SEK": 10.6,
+    "NOK": 10.8,  "DKK": 6.85, "PLN": 4.05, "HUF": 365,
+    "CZK": 22.8,  "KRW": 1360, "THB": 35.5, "PHP": 56.5,
+}
+
+
 @router.get("/fx-rate")
 async def get_fx_rate(to: str = "USD"):
-    """Real-time USD → {to} exchange rate. Cached 30 min. Uses yfinance, falls back to frankfurter.app."""
+    """Real-time USD → {to} exchange rate. Cached 30 min."""
     if to.upper() == "USD":
         return {"rate": 1.0, "pair": "USD/USD", "source": "exact"}
 
@@ -3286,14 +3297,26 @@ async def get_fx_rate(to: str = "USD"):
 
     result = None
 
-    # Primary: yfinance (real-time, market hours)
+    # Primary: yfinance — try fast_info then recent history
     try:
         import asyncio as _asyncio
 
         def _yf_rate():
             t = yf.Ticker(f"USD{to}=X")
-            rate = t.fast_info.last_price
-            return float(rate) if rate and rate > 0 else None
+            try:
+                rate = t.fast_info.last_price
+                if rate and float(rate) > 0:
+                    return float(rate)
+            except Exception:
+                pass
+            # history fallback (last 5 trading days)
+            try:
+                hist = t.history(period="5d", interval="1d")
+                if not hist.empty:
+                    return float(hist["Close"].iloc[-1])
+            except Exception:
+                pass
+            return None
 
         rate = await _asyncio.to_thread(_yf_rate)
         if rate:
@@ -3315,8 +3338,13 @@ async def get_fx_rate(to: str = "USD"):
         except Exception:
             pass
 
+    # Last resort: hardcoded approximate rates so UI never shows 1 by mistake
+    if not result and to in _FX_FALLBACK_RATES:
+        result = {"rate": _FX_FALLBACK_RATES[to], "pair": f"USD/{to}", "source": "fallback"}
+
     if result:
-        cache_set(cache_key, result, ttl=1800)
+        ttl = 1800 if result["source"] != "fallback" else 300
+        cache_set(cache_key, result, ttl=ttl)
         return result
 
     return {"rate": None, "pair": f"USD/{to}", "source": "unavailable"}
