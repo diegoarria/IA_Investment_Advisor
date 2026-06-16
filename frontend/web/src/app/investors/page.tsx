@@ -220,17 +220,73 @@ export default function InvestorsPage() {
                     )}
 
                     {/* AI Analysis */}
-                    {selected.analysis && (
-                      <div className="rounded-2xl border p-4" style={{ background: "var(--card)", borderColor: "var(--border)" }}>
-                        <div className="flex items-center gap-2 mb-3">
-                          <span className="text-xs font-black" style={{ color: "var(--accent-l)" }}>✦</span>
-                          <span className="text-xs font-black tracking-wide uppercase" style={{ color: "var(--accent-l)" }}>
-                            Análisis IA
-                          </span>
+                    {selected.analysis && (() => {
+                      const sentences = (selected.analysis.match(/[^.!?]+[.!?]+/g) ?? [selected.analysis])
+                        .map(s => s.trim()).filter(s => s.length > 15);
+                      const insightConfig = [
+                        { icon: "🏛️", bg: "rgba(59,130,246,0.07)", border: "rgba(59,130,246,0.18)", dot: "#3b82f6", label: "Sectores" },
+                        { icon: "🌐", bg: "rgba(168,85,247,0.07)", border: "rgba(168,85,247,0.18)", dot: "#a855f7", label: "Visión macro" },
+                        { icon: "💡", bg: "rgba(245,158,11,0.07)", border: "rgba(245,158,11,0.18)", dot: "#f59e0b", label: "Para el inversor" },
+                        { icon: "🎯", bg: "rgba(0,168,94,0.07)", border: "rgba(0,168,94,0.18)", dot: "var(--accent-l)", label: "Conclusión" },
+                      ];
+                      return (
+                        <div className="rounded-2xl overflow-hidden" style={{
+                          background: "linear-gradient(145deg, rgba(0,168,94,0.05) 0%, var(--card) 40%, rgba(0,168,94,0.03) 100%)",
+                          border: "1px solid rgba(0,168,94,0.22)",
+                          boxShadow: "0 0 48px rgba(0,168,94,0.05), inset 0 1px 0 rgba(0,168,94,0.12)",
+                        }}>
+                          {/* shimmer top line */}
+                          <div style={{ height: 2, background: "linear-gradient(90deg, transparent 0%, rgba(0,212,126,0.6) 40%, rgba(0,168,94,0.8) 60%, transparent 100%)" }} />
+
+                          <div className="p-5">
+                            {/* Header */}
+                            <div className="flex items-center justify-between mb-5">
+                              <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-2xl flex items-center justify-center shrink-0"
+                                     style={{ background: "linear-gradient(135deg, rgba(0,168,94,0.25), rgba(0,212,126,0.1))", border: "1px solid rgba(0,168,94,0.35)", boxShadow: "0 0 16px rgba(0,168,94,0.15)" }}>
+                                  <span style={{ fontSize: 18 }}>✦</span>
+                                </div>
+                                <div>
+                                  <p className="text-sm font-black tracking-widest uppercase" style={{ color: "var(--accent-l)", letterSpacing: "0.14em" }}>Análisis IA</p>
+                                  <p className="text-[10px] mt-0.5" style={{ color: "var(--dim)" }}>Generado por Claude · Basado en datos públicos SEC</p>
+                                </div>
+                              </div>
+                              <span className="text-[10px] font-bold px-2.5 py-1 rounded-full shrink-0"
+                                    style={{ background: "rgba(0,168,94,0.12)", color: "var(--accent-l)", border: "1px solid rgba(0,168,94,0.25)" }}>
+                                Premium
+                              </span>
+                            </div>
+
+                            {/* Insight cards */}
+                            <div className="space-y-2.5">
+                              {sentences.map((s, i) => {
+                                const cfg = insightConfig[i % insightConfig.length];
+                                return (
+                                  <div key={i} className="flex gap-3 p-3.5 rounded-xl" style={{ background: cfg.bg, border: `1px solid ${cfg.border}` }}>
+                                    <span className="text-lg shrink-0 leading-none mt-0.5">{cfg.icon}</span>
+                                    <div className="flex-1 min-w-0">
+                                      <span className="text-[10px] font-bold uppercase tracking-wider block mb-1" style={{ color: cfg.dot, letterSpacing: "0.1em" }}>{cfg.label}</span>
+                                      <p className="text-[13px] leading-relaxed" style={{ color: "var(--sub)" }}>{s}</p>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+
+                            {/* Footer */}
+                            <div className="flex items-center gap-2 mt-5 pt-4" style={{ borderTop: "1px solid rgba(0,168,94,0.08)" }}>
+                              <div className="w-5 h-5 rounded-full flex items-center justify-center shrink-0"
+                                   style={{ background: "rgba(0,168,94,0.12)", border: "1px solid rgba(0,168,94,0.2)" }}>
+                                <span style={{ fontSize: 9, color: "var(--accent-l)" }}>✦</span>
+                              </div>
+                              <p className="text-[10px]" style={{ color: "var(--dim)" }}>
+                                Análisis generado por IA · No constituye asesoramiento de inversión
+                              </p>
+                            </div>
+                          </div>
                         </div>
-                        <p className="text-sm leading-relaxed" style={{ color: "var(--sub)" }}>{selected.analysis}</p>
-                      </div>
-                    )}
+                      );
+                    })()}
 
                     {/* Holdings table */}
                     <div className="rounded-2xl border overflow-hidden" style={{ background: "var(--card)", borderColor: "var(--border)" }}>
