@@ -21,7 +21,7 @@ import PremiumBadge from "@/components/PremiumBadge";
 import { useTutorialStore } from "@/lib/store";
 import {
   Send, TrendingUp, Bell, LogOut, Menu, X,
-  ChevronRight, Sun, Moon, Square, Pencil, ImagePlus, Plus,
+  ChevronRight, Sun, Moon, Square, Pencil, ImagePlus, Plus, Mic, MicOff, Volume2,
 } from "lucide-react";
 import { getUserLevel, LEVEL_LABEL, LEVEL_COLOR } from "@/lib/userLevel";
 
@@ -194,6 +194,15 @@ export default function ChatPage() {
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Voice input state
+  const [isRecording, setIsRecording] = useState(false);
+  const [isTranscribing, setIsTranscribing] = useState(false);
+  const [isPlayingAudio, setIsPlayingAudio] = useState(false);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const voiceInputRef = useRef(false);
+
   const handleScrollContainer = () => {
     const el = scrollContainerRef.current;
     if (!el) return;
@@ -221,6 +230,65 @@ export default function ChatPage() {
       };
       reader.readAsDataURL(file);
     });
+  };
+
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
+        ? "audio/webm;codecs=opus"
+        : MediaRecorder.isTypeSupported("audio/webm") ? "audio/webm" : "audio/ogg";
+      const recorder = new MediaRecorder(stream, { mimeType });
+      audioChunksRef.current = [];
+      recorder.ondataavailable = (e) => { if (e.data.size > 0) audioChunksRef.current.push(e.data); };
+      recorder.start(100);
+      mediaRecorderRef.current = recorder;
+      setIsRecording(true);
+    } catch {
+      alert("No se pudo acceder al micrófono. Asegúrate de dar permiso en el navegador.");
+    }
+  };
+
+  const stopRecording = async () => {
+    const recorder = mediaRecorderRef.current;
+    if (!recorder) return;
+    setIsRecording(false);
+    setIsTranscribing(true);
+    recorder.stop();
+    recorder.stream.getTracks().forEach((t) => t.stop());
+    mediaRecorderRef.current = null;
+    await new Promise<void>((res) => { recorder.onstop = () => res(); });
+    try {
+      const blob = new Blob(audioChunksRef.current, { type: recorder.mimeType });
+      const { data } = await chatApi.transcribe(blob);
+      if (data?.text) {
+        voiceInputRef.current = true;
+        sendMessage(data.text);
+      }
+    } catch {
+      // silently ignore — user already sees no response
+    } finally {
+      setIsTranscribing(false);
+    }
+  };
+
+  const playTTS = async (text: string) => {
+    try {
+      if (audioRef.current) { audioRef.current.pause(); audioRef.current = null; }
+      setIsPlayingAudio(true);
+      const { data } = await chatApi.speak(text);
+      if (!data?.audio) return;
+      const bytes = Uint8Array.from(atob(data.audio), (c) => c.charCodeAt(0));
+      const blob = new Blob([bytes], { type: "audio/mpeg" });
+      const url = URL.createObjectURL(blob);
+      const audio = new Audio(url);
+      audioRef.current = audio;
+      audio.onended = () => { setIsPlayingAudio(false); URL.revokeObjectURL(url); audioRef.current = null; };
+      audio.onerror = () => { setIsPlayingAudio(false); URL.revokeObjectURL(url); audioRef.current = null; };
+      await audio.play();
+    } catch {
+      setIsPlayingAudio(false);
+    }
   };
 
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -363,6 +431,10 @@ export default function ChatPage() {
         () => {
           setStreaming(false);
           chatApi.saveMessage("assistant", fullResponse).catch(() => {});
+          if (voiceInputRef.current) {
+            voiceInputRef.current = false;
+            playTTS(fullResponse);
+          }
         },
         (a) => {
           setLastAssessment(a);
@@ -715,6 +787,31 @@ export default function ChatPage() {
                     <ImagePlus className="w-4 h-4" style={{ color: "var(--muted)" }} />
                   </button>
                 )}
+
+                {/* Mic button */}
+                <button
+                  onClick={isRecording ? stopRecording : startRecording}
+                  disabled={isStreaming || isTranscribing}
+                  title={isRecording ? "Detener grabación" : "Grabar mensaje de voz"}
+                  className="w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 transition-all disabled:opacity-30 relative"
+                  style={{
+                    background: isRecording ? "rgba(239,68,68,0.15)" : isTranscribing ? "rgba(99,102,241,0.12)" : "var(--raised)",
+                    border: isRecording ? "1px solid rgba(239,68,68,0.4)" : isPlayingAudio ? "1px solid rgba(0,212,126,0.4)" : "1px solid var(--border)",
+                  }}>
+                  {isTranscribing ? (
+                    <span className="w-3.5 h-3.5 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin" />
+                  ) : isPlayingAudio ? (
+                    <Volume2 className="w-4 h-4" style={{ color: "#00d47e" }} />
+                  ) : isRecording ? (
+                    <MicOff className="w-4 h-4" style={{ color: "#ef4444" }} />
+                  ) : (
+                    <Mic className="w-4 h-4" style={{ color: "var(--muted)" }} />
+                  )}
+                  {isRecording && (
+                    <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+                  )}
+                </button>
+
                 <div className="flex-1 relative">
                   <textarea
                     ref={inputRef}

@@ -93,6 +93,12 @@ export const chat = {
   getHistory: () => api.get("/api/chat/history"),
   saveMessage: (role: string, content: string) =>
     api.post("/api/chat/save-message", { role, content }),
+  transcribe: (blob: Blob) => {
+    const form = new FormData();
+    form.append("audio", blob, "recording.webm");
+    return api.post("/api/chat/transcribe", form, { headers: { "Content-Type": "multipart/form-data" } });
+  },
+  speak: (text: string) => api.post("/api/chat/speak", { text }),
 
   stream: async (
     message: string,
