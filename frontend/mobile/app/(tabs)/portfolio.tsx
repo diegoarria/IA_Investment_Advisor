@@ -465,11 +465,10 @@ function PortfolioHistoryChart({
   const [hovIdx, setHovIdx] = useState<number | null>(null);
   const [ctrW, setCtrW] = useState(0);
 
-  const Y_AXIS_W = 46;
-  const W = Math.max(100, ctrW - Y_AXIS_W);
-  const H = 180;
-  const PT = 12, PB = 8, PL = 2;
-  const cW = W - PL;
+  const W = Math.max(100, ctrW);
+  const H = 230;
+  const PT = 18, PB = 26, PL = 2, PR = 2;
+  const cW = W - PL - PR;
   const cH = H - PT - PB;
 
   const costBasis = useMemo(
@@ -494,7 +493,6 @@ function PortfolioHistoryChart({
 
   if (history.length < 2) return null;
 
-  // ── Cumulative investment curve ──────────────────────────────────────────
   const noDateCost = positions
     .filter(p => !p.purchaseDate && p.avgPrice > 0)
     .reduce((s, p) => s + p.shares * p.avgPrice, 0);
@@ -509,21 +507,19 @@ function PortfolioHistoryChart({
   const hasCurveData = investedCurve[investedCurve.length - 1] > 0;
   const effectiveCurve = hasCurveData ? investedCurve : history.map(() => costBasis);
 
-  // ── Value range ──────────────────────────────────────────────────────────
   const vals = history.map(h => h.value);
   const endV = vals[vals.length - 1];
   const allVals = [...vals, ...effectiveCurve.filter(v => v > 0)];
   const minV = Math.min(...allVals);
   const maxV = Math.max(...allVals);
   const spread = maxV - minV || Math.abs(maxV) || 1;
-  const lo = minV - spread * 0.08;
-  const hi = maxV + spread * 0.14;
+  const lo = minV - spread * 0.06;
+  const hi = maxV + spread * 0.12;
   const range = hi - lo;
 
   const toX = (i: number) => PL + (i / (history.length - 1)) * cW;
   const toY = (v: number) => PT + ((hi - v) / range) * cH;
 
-  // ── Paths ────────────────────────────────────────────────────────────────
   const pts = history.map((h, i) => `${toX(i).toFixed(1)},${toY(h.value).toFixed(1)}`);
   const lineD = "M" + pts.join("L");
   const lx = toX(history.length - 1);
@@ -532,13 +528,12 @@ function PortfolioHistoryChart({
   const areaD = `${lineD}L${lx.toFixed(1)},${by}L${PL},${by}Z`;
   const invD = "M" + effectiveCurve.map((v, i) => `${toX(i).toFixed(1)},${toY(v).toFixed(1)}`).join("L");
 
-  // ── Y-axis ticks ─────────────────────────────────────────────────────────
-  const yTicks = [0, 1, 2, 3].map(i => ({ v: hi - (range * i) / 3, y: PT + (cH * i) / 3 }));
+  // 3 subtle horizontal reference lines
+  const gridLines = [0, 1, 2].map(i => ({ y: PT + (cH * i) / 2, v: hi - (range * i) / 2 }));
 
-  // ── X-axis indices ────────────────────────────────────────────────────────
+  // 4 x-axis ticks evenly distributed
   const xIdxs = [0, 1, 2, 3].map(i => Math.round((i * (history.length - 1)) / 3));
 
-  // ── Hover computations ───────────────────────────────────────────────────
   const hovV   = hovIdx !== null ? vals[hovIdx] : null;
   const hovX   = hovIdx !== null ? toX(hovIdx) : null;
   const hovY   = hovIdx !== null ? toY(vals[hovIdx]) : null;
@@ -563,119 +558,129 @@ function PortfolioHistoryChart({
     return Math.round(v).toString();
   };
 
-  const ttLeft  = hovX !== null && hovX < W * 0.55 ? hovX + 8 : undefined;
-  const ttRight = hovX !== null && hovX >= W * 0.55 ? W - hovX + 8 : undefined;
+  // tooltip positioning: prefer same side as crosshair, avoid clipping
+  const ttLeft  = hovX !== null && hovX < W * 0.58 ? hovX + 12 : undefined;
+  const ttRight = hovX !== null && hovX >= W * 0.58 ? W - hovX + 12 : undefined;
 
   return (
     <View onLayout={e => setCtrW(e.nativeEvent.layout.width)}>
       {ctrW > 0 && (
-        <>
-          {/* Chart area + Y-axis */}
-          <View style={{ flexDirection: "row" }}>
-            {/* Touchable chart */}
-            <View style={{ width: W, height: H, position: "relative" }} {...panResponder.panHandlers}>
-              {/* Floating tooltip */}
-              {hovPt && hovV !== null && (
-                <View
-                  pointerEvents="none"
-                  style={{
-                    position: "absolute", zIndex: 20,
-                    left: ttLeft, right: ttRight, top: 6,
-                    backgroundColor: colors.card,
-                    borderRadius: 12, paddingHorizontal: 10, paddingVertical: 8,
-                    borderWidth: 1, borderColor: hCol + "28",
-                    shadowColor: "#000", shadowOffset: { width: 0, height: 4 },
-                    shadowOpacity: 0.18, shadowRadius: 12, elevation: 8,
-                  }}
-                >
-                  <Text style={{ fontSize: 15, fontWeight: "900", color: colors.text, lineHeight: 18 }}>
-                    {fmtV(hovV)}
-                  </Text>
-                  <Text style={{ fontSize: 10, fontWeight: "700", color: hCol, marginTop: 1 }}>
-                    {isHovUp ? "+" : ""}{fmtV(chgV)} ({isHovUp ? "+" : ""}{chgP.toFixed(2)}%)
-                  </Text>
-                  <Text style={{ fontSize: 9, color: colors.textDim, marginTop: 2 }}>
-                    vs {fmtV(hovInv)} invertido
-                  </Text>
-                  <Text style={{ fontSize: 9, color: colors.textDim, marginTop: 1 }}>
-                    {fmtChartDate(hovPt.date, true)}
+        <View style={{ position: "relative" }}>
+          {/* Floating hover tooltip */}
+          {hovPt && hovV !== null && (
+            <View
+              pointerEvents="none"
+              style={{
+                position: "absolute", zIndex: 30,
+                left: ttLeft, right: ttRight, top: 4,
+                backgroundColor: colors.card,
+                borderRadius: 12, paddingHorizontal: 11, paddingVertical: 9,
+                borderWidth: 1, borderColor: hCol + "35",
+                shadowColor: "#000", shadowOffset: { width: 0, height: 6 },
+                shadowOpacity: 0.22, shadowRadius: 14, elevation: 10,
+              }}
+            >
+              <Text style={{ fontSize: 16, fontWeight: "900", color: colors.text, lineHeight: 19 }}>
+                {fmtV(hovV)}
+              </Text>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 2 }}>
+                <View style={{ backgroundColor: hCol + "20", borderRadius: 6, paddingHorizontal: 5, paddingVertical: 2 }}>
+                  <Text style={{ fontSize: 10, fontWeight: "800", color: hCol }}>
+                    {isHovUp ? "+" : ""}{chgP.toFixed(2)}%
                   </Text>
                 </View>
-              )}
-              <Svg width={W} height={H}>
-                <Defs>
-                  <LinearGradient id="pfhg_m" x1="0" y1="0" x2="0" y2="1">
-                    <Stop offset="0" stopColor={color} stopOpacity="0.20" />
-                    <Stop offset="0.65" stopColor={color} stopOpacity="0.04" />
-                    <Stop offset="1" stopColor={color} stopOpacity="0" />
-                  </LinearGradient>
-                </Defs>
-                {/* Y gridlines */}
-                {yTicks.map((t, i) => (
-                  <SvgLine key={i} x1={PL} y1={t.y} x2={W} y2={t.y}
-                    stroke="#888" strokeWidth={0.55} strokeOpacity={0.12} />
-                ))}
-                {/* Investment curve — dashed amber */}
-                <Path d={invD} fill="none" stroke="#f59e0b"
-                  strokeWidth={1.4} strokeDasharray="5,3" strokeOpacity={0.65}
-                  strokeLinejoin="round" />
-                {/* Area fill */}
-                <Path d={areaD} fill="url(#pfhg_m)" />
-                {/* Main portfolio line */}
-                <Path d={lineD} fill="none" stroke={color} strokeWidth={2.2}
-                  strokeLinejoin="round" strokeLinecap="round" />
-                {/* End dot — idle */}
-                {hovIdx === null && (
-                  <>
-                    <Circle cx={lx} cy={ly} r={6} fill={color} fillOpacity={0.18} />
-                    <Circle cx={lx} cy={ly} r={2.8} fill={color} />
-                  </>
-                )}
-                {/* Cursor crosshair */}
-                {hovIdx !== null && hovX !== null && hovY !== null && (
-                  <>
-                    <SvgLine x1={hovX} y1={PT} x2={hovX} y2={PT + cH}
-                      stroke={hCol} strokeWidth={1.2} strokeOpacity={0.45} />
-                    <Circle cx={hovX} cy={hovY} r={7.5} fill={hCol} fillOpacity={0.13} />
-                    <Circle cx={hovX} cy={hovY} r={3.2} fill={hCol} />
-                    <Circle cx={hovX} cy={hovY} r={5.8} fill="none"
-                      stroke={hCol} strokeWidth={1.3} strokeOpacity={0.5} />
-                  </>
-                )}
-              </Svg>
-            </View>
-            {/* Y-axis labels */}
-            <View style={{ width: Y_AXIS_W, height: H }}>
-              {yTicks.map((t, i) => (
-                <Text key={i} style={{
-                  position: "absolute", left: 4, top: t.y - 6,
-                  fontSize: 9, fontWeight: "500", color: colors.textDim,
-                }}>
-                  {fmtY(t.v)}
+                <Text style={{ fontSize: 10, fontWeight: "600", color: hCol }}>
+                  {isHovUp ? "+" : ""}{fmtV(chgV)}
                 </Text>
-              ))}
+              </View>
+              <Text style={{ fontSize: 9, color: colors.textDim, marginTop: 3 }}>
+                {fmtChartDate(hovPt.date, true)}
+              </Text>
             </View>
+          )}
+
+          {/* Chart + overlaid y-labels */}
+          <View style={{ width: W, height: H, position: "relative" }} {...panResponder.panHandlers}>
+            {/* Y price labels — overlaid as absolute Text */}
+            {gridLines.map((g, i) => (
+              <Text key={i} pointerEvents="none" style={{
+                position: "absolute", left: PL + 4, top: g.y - 7,
+                fontSize: 9, fontWeight: "600", color: colors.textDim, opacity: 0.65,
+              }}>
+                {fmtY(g.v)}
+              </Text>
+            ))}
+
+            <Svg width={W} height={H}>
+              <Defs>
+                <LinearGradient id="pfhg_rb" x1="0" y1="0" x2="0" y2="1">
+                  <Stop offset="0"    stopColor={color} stopOpacity="0.30" />
+                  <Stop offset="0.50" stopColor={color} stopOpacity="0.10" />
+                  <Stop offset="1"    stopColor={color} stopOpacity="0" />
+                </LinearGradient>
+              </Defs>
+
+              {/* Subtle horizontal gridlines */}
+              {gridLines.map((g, i) => (
+                <SvgLine key={i}
+                  x1={PL + 44} y1={g.y} x2={W - PR} y2={g.y}
+                  stroke="#888" strokeWidth={0.4} strokeOpacity={0.10} />
+              ))}
+
+              {/* Cost-basis dashed line */}
+              <Path d={invD} fill="none" stroke="#f59e0b"
+                strokeWidth={1.3} strokeDasharray="4,4" strokeOpacity={0.55}
+                strokeLinejoin="round" />
+
+              {/* Area fill */}
+              <Path d={areaD} fill="url(#pfhg_rb)" />
+
+              {/* Main portfolio line */}
+              <Path d={lineD} fill="none" stroke={color} strokeWidth={2.6}
+                strokeLinejoin="round" strokeLinecap="round" />
+
+              {/* End-of-line dot (idle state) */}
+              {hovIdx === null && (
+                <>
+                  <Circle cx={lx} cy={ly} r={10} fill={color} fillOpacity={0.10} />
+                  <Circle cx={lx} cy={ly} r={3.5} fill={color} />
+                </>
+              )}
+
+              {/* Crosshair */}
+              {hovIdx !== null && hovX !== null && hovY !== null && (
+                <>
+                  <SvgLine x1={hovX} y1={PT} x2={hovX} y2={PT + cH}
+                    stroke={hCol} strokeWidth={1} strokeOpacity={0.5}
+                    strokeDasharray="3,3" />
+                  <Circle cx={hovX} cy={hovY} r={10} fill={hCol} fillOpacity={0.10} />
+                  <Circle cx={hovX} cy={hovY} r={3.5} fill={hCol} />
+                </>
+              )}
+            </Svg>
           </View>
+
           {/* X-axis date labels */}
-          <View style={{ flexDirection: "row", justifyContent: "space-between", marginTop: 4, paddingRight: Y_AXIS_W }}>
+          <View style={{ flexDirection: "row", justifyContent: "space-between", marginTop: 2, paddingHorizontal: PL + 2 }}>
             {xIdxs.map((idx) => (
               <Text key={idx} style={{ fontSize: 9, fontWeight: "500", color: colors.textDim }}>
                 {fmtChartDate(history[idx].date)}
               </Text>
             ))}
           </View>
+
           {/* Legend */}
-          <View style={{ flexDirection: "row", gap: 12, marginTop: 6 }}>
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
-              <View style={{ width: 16, height: 2, backgroundColor: color, borderRadius: 1 }} />
+          <View style={{ flexDirection: "row", gap: 14, marginTop: 8, paddingHorizontal: PL + 2 }}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
+              <View style={{ width: 18, height: 2.5, backgroundColor: color, borderRadius: 2 }} />
               <Text style={{ fontSize: 9, color: colors.textDim }}>Portafolio</Text>
             </View>
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
-              <View style={{ width: 12, height: 1, borderBottomWidth: 1, borderColor: "#f59e0b", borderStyle: "dashed" }} />
-              <Text style={{ fontSize: 9, color: colors.textDim }}>Invertido</Text>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
+              <View style={{ width: 14, borderBottomWidth: 1.5, borderColor: "#f59e0b", borderStyle: "dashed" }} />
+              <Text style={{ fontSize: 9, color: colors.textDim }}>Costo base</Text>
             </View>
           </View>
-        </>
+        </View>
       )}
     </View>
   );
@@ -1798,139 +1803,141 @@ export default function PortfolioScreen() {
               })()}
             </View>
 
-            {/* Sort chips */}
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 10 }}>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 6, paddingRight: 8 }}>
-                <Text style={{ fontSize: 10, fontWeight: "600", color: colors.textDim }}>Ordenar:</Text>
-                {([
-                  { field: "return" as const,  label: "Rentabilidad" },
-                  { field: "invested" as const, label: "Invertido" },
-                  { field: "price" as const,    label: "Precio" },
-                ] as const).map(({ field, label }) => {
-                  const active = sortField === field;
-                  return (
-                    <TouchableOpacity
-                      key={field}
-                      onPress={() => handleSort(field)}
-                      style={{
-                        flexDirection: "row", alignItems: "center", gap: 4,
-                        paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10,
-                        backgroundColor: active ? "rgba(0,168,94,0.12)" : colors.bgRaised,
-                        borderWidth: 1,
-                        borderColor: active ? "rgba(0,168,94,0.35)" : "transparent",
-                      }}>
-                      <Text style={{ fontSize: 11, fontWeight: "700", color: active ? colors.accentLight : colors.textMuted }}>
-                        {label}{active ? (sortDir === "desc" ? " ↓" : " ↑") : ""}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            </ScrollView>
+            {/* ── TABLA DE POSICIONES (estilo broker) ── */}
+            <View style={{ borderRadius: 18, overflow: "hidden", borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card, marginBottom: 12 }}>
 
-            {sortedPositions.map((pos) => {
-              const pd = prices[pos.ticker];
-              const cpUSD = pd?.price;
-              const cp = cpUSD ? cpUSD * fxRate : null; // convert USD → user currency
-              const hasCost = pos.avgPrice > 0;
-              const currentVal = cp ? pos.shares * cp : null;
-              const investedVal = hasCost ? pos.shares * pos.avgPrice * fxRate : null;
-              const diff = currentVal !== null && investedVal !== null ? currentVal - investedVal : null;
-              const pct = diff !== null && investedVal! > 0 ? (diff / investedVal!) * 100 : null;
-              const isUp = diff !== null && diff >= 0;
-              const priceRevealed = revealedPrices.has(pos.id);
-              return (
-                <View key={pos.id} style={[s.posCardWrapper, { backgroundColor: colors.card, borderColor: diff !== null ? (isUp ? "rgba(34,197,94,0.2)" : "rgba(239,68,68,0.2)") : colors.border }]}>
-                  {diff !== null && (
-                    <View style={[s.posCardAccent, { backgroundColor: isUp ? "#22c55e" : "#ef4444" }]} />
-                  )}
-                  <View style={s.posCard}>
-                  {/* Header: ticker + edit + remove */}
-                  <View style={s.posHeader}>
+              {/* Table toolbar */}
+              <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 14, paddingVertical: 10, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border, backgroundColor: colors.bgRaised }}>
+                <Text style={{ fontSize: 10, fontWeight: "800", color: colors.textDim, letterSpacing: 1, textTransform: "uppercase" }}>
+                  {sortedPositions.length} posicion{sortedPositions.length !== 1 ? "es" : ""}
+                </Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                  <View style={{ flexDirection: "row", gap: 5 }}>
+                    {([
+                      { field: "return"   as const, label: "Rentabilidad" },
+                      { field: "invested" as const, label: "Invertido" },
+                      { field: "price"    as const, label: "Precio" },
+                    ] as const).map(({ field, label }) => {
+                      const active = sortField === field;
+                      return (
+                        <TouchableOpacity key={field} onPress={() => handleSort(field)}
+                          style={{ flexDirection: "row", alignItems: "center", gap: 3,
+                            paddingHorizontal: 9, paddingVertical: 4, borderRadius: 8,
+                            backgroundColor: active ? "rgba(0,212,126,0.13)" : colors.bg,
+                            borderWidth: 1, borderColor: active ? "rgba(0,212,126,0.4)" : colors.border }}>
+                          <Text style={{ fontSize: 10, fontWeight: "700", color: active ? colors.accentLight : colors.textMuted }}>
+                            {label}{active ? (sortDir === "desc" ? " ↓" : " ↑") : ""}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                </ScrollView>
+              </View>
+
+              {/* Column headers */}
+              <View style={{ flexDirection: "row", alignItems: "center", paddingHorizontal: 14, paddingVertical: 6, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border }}>
+                <Text style={{ flex: 5, fontSize: 9, fontWeight: "700", color: colors.textDim, letterSpacing: 0.6, textTransform: "uppercase" }}>Acción</Text>
+                <Text style={{ flex: 3, fontSize: 9, fontWeight: "700", color: colors.textDim, letterSpacing: 0.6, textTransform: "uppercase", textAlign: "right" }}>Valor</Text>
+                <Text style={{ flex: 3, fontSize: 9, fontWeight: "700", color: colors.textDim, letterSpacing: 0.6, textTransform: "uppercase", textAlign: "right" }}>Ganancia</Text>
+                <View style={{ width: 52 }} />
+              </View>
+
+              {/* Rows */}
+              {sortedPositions.map((pos, idx) => {
+                const pd = prices[pos.ticker];
+                const cpUSD = pd?.price;
+                const cp = cpUSD ? cpUSD * fxRate : null;
+                const hasCost = pos.avgPrice > 0;
+                const currentVal = cp ? pos.shares * cp : null;
+                const investedVal = hasCost ? pos.shares * pos.avgPrice * fxRate : null;
+                const diff = currentVal !== null && investedVal !== null ? currentVal - investedVal : null;
+                const pct = diff !== null && investedVal! > 0 ? (diff / investedVal!) * 100 : null;
+                const isUp = diff !== null ? diff >= 0 : null;
+                const rowColor = isUp === true ? "#22c55e" : isUp === false ? "#ef4444" : colors.border;
+
+                const fmtCompact = (v: number) => {
+                  const abs = Math.abs(v);
+                  if (abs >= 1e6) return `${currencySymbol}${(abs / 1e6).toFixed(1)}M`;
+                  if (abs >= 1e3) return `${currencySymbol}${(abs / 1e3).toFixed(1)}K`;
+                  return `${currencySymbol}${abs.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+                };
+
+                return (
+                  <View key={pos.id}>
                     <TouchableOpacity
-                      style={{ flexDirection: "row", alignItems: "center", gap: 10 }}
+                      activeOpacity={0.75}
                       onPress={() => router.push(`/stock/${pos.ticker}` as any)}
-                      activeOpacity={0.7}
+                      style={{ flexDirection: "row", alignItems: "center", paddingVertical: 11, paddingRight: 10 }}
                     >
-                      <StockAvatar ticker={pos.ticker} size={36} />
-                      <View>
-                        <Text style={[s.posTicker, { color: colors.text }]}>{pos.ticker}</Text>
-                        {(pd?.name || pos.name) && (
-                          <Text style={[s.posName, { color: colors.textMuted }]}>{pd?.name || pos.name}</Text>
+                      {/* Left accent bar */}
+                      <View style={{ width: 3, alignSelf: "stretch", backgroundColor: rowColor, marginRight: 11, borderRadius: 2 }} />
+
+                      {/* Logo + ticker + meta */}
+                      <View style={{ flex: 5, flexDirection: "row", alignItems: "center", gap: 9 }}>
+                        <StockAvatar ticker={pos.ticker} size={34} />
+                        <View style={{ flexShrink: 1 }}>
+                          <Text style={{ fontSize: 13, fontWeight: "800", color: colors.text }} numberOfLines={1}>{pos.ticker}</Text>
+                          <Text style={{ fontSize: 10, color: colors.textMuted, marginTop: 1 }} numberOfLines={1}>
+                            {pos.shares % 1 === 0 ? pos.shares : pos.shares.toFixed(3)} acc{hasCost ? ` · ${currencySymbol}${(pos.avgPrice * fxRate).toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}/acc` : ""}
+                          </Text>
+                        </View>
+                      </View>
+
+                      {/* Current value + cost */}
+                      <View style={{ flex: 3, alignItems: "flex-end" }}>
+                        <Text style={{ fontSize: 13, fontWeight: "700", color: colors.text }}>
+                          {currentVal != null ? fmtCompact(currentVal) : "—"}
+                        </Text>
+                        {investedVal != null && (
+                          <Text style={{ fontSize: 10, color: colors.textMuted, marginTop: 1 }}>
+                            {fmtCompact(investedVal)} inv.
+                          </Text>
                         )}
                       </View>
+
+                      {/* P&L % + $ */}
+                      <View style={{ flex: 3, alignItems: "flex-end" }}>
+                        {pct !== null && diff !== null ? (
+                          <>
+                            <View style={{ backgroundColor: rowColor + "20", borderRadius: 7, paddingHorizontal: 6, paddingVertical: 2, marginBottom: 2 }}>
+                              <Text style={{ fontSize: 11, fontWeight: "900", color: rowColor }}>
+                                {isUp ? "+" : ""}{pct.toFixed(2)}%
+                              </Text>
+                            </View>
+                            <Text style={{ fontSize: 10, fontWeight: "600", color: rowColor }}>
+                              {isUp ? "+" : "-"}{fmtCompact(Math.abs(diff))}
+                            </Text>
+                          </>
+                        ) : (
+                          <Text style={{ fontSize: 11, color: colors.textDim }}>—</Text>
+                        )}
+                      </View>
+
+                      {/* Actions */}
+                      <View style={{ width: 52, flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 4, paddingLeft: 4 }}>
+                        <TouchableOpacity
+                          onPress={(e) => { e.stopPropagation(); setEditingPos({ id: pos.id, shares: String(pos.shares), avgPrice: String(pos.avgPrice), purchaseDate: pos.purchaseDate ?? new Date().toISOString().split("T")[0] }); }}
+                          hitSlop={{ top: 8, bottom: 8, left: 8, right: 4 }}
+                          activeOpacity={0.7}>
+                          <Ionicons name="pencil-outline" size={14} color={colors.textDim} />
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          onPress={(e) => { e.stopPropagation(); removePosition(pos.id); }}
+                          hitSlop={{ top: 8, bottom: 8, left: 4, right: 8 }}
+                          activeOpacity={0.7}>
+                          <Ionicons name="trash-outline" size={14} color="#ef444470" />
+                        </TouchableOpacity>
+                      </View>
                     </TouchableOpacity>
-                    <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                      <TouchableOpacity
-                        onPress={() => setEditingPos({ id: pos.id, shares: String(pos.shares), avgPrice: String(pos.avgPrice), purchaseDate: pos.purchaseDate ?? new Date().toISOString().split("T")[0] })}
-                        style={{ flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.bgRaised }}
-                        activeOpacity={0.7}>
-                        <Ionicons name="pencil-outline" size={13} color={colors.textSub} />
-                        <Text style={{ fontSize: 11, fontWeight: "700", color: colors.textSub }}>Editar</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        onPress={() => removePosition(pos.id)}
-                        style={{ paddingHorizontal: 8, paddingVertical: 6, borderRadius: 10, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.bgRaised }}
-                        hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
-                        activeOpacity={0.7}>
-                        <Ionicons name="trash-outline" size={13} color="#ef444480" />
-                      </TouchableOpacity>
-                    </View>
-                  </View>
 
-                  {/* Invested / Shares / Current Value */}
-                  <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 8 }}>
-                    <View>
-                      <Text style={{ fontSize: 10, color: colors.textDim, fontWeight: "600", letterSpacing: 0.4, textTransform: "uppercase", marginBottom: 2 }}>Invertido</Text>
-                      <Text style={{ fontSize: 14, fontWeight: "700", color: colors.textSub }}>
-                        {investedVal != null ? `${currencySymbol}${investedVal.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "—"}
-                      </Text>
-                    </View>
-                    <View style={{ alignItems: "center" }}>
-                      <Text style={{ fontSize: 10, color: colors.textDim, fontWeight: "600", letterSpacing: 0.4, textTransform: "uppercase", marginBottom: 2 }}>Acciones</Text>
-                      <Text style={{ fontSize: 14, fontWeight: "700", color: colors.textSub }}>{pos.shares.toLocaleString("en-US")}</Text>
-                    </View>
-                    <View style={{ alignItems: "flex-end" }}>
-                      <Text style={{ fontSize: 10, color: colors.textDim, fontWeight: "600", letterSpacing: 0.4, textTransform: "uppercase", marginBottom: 2 }}>Valor hoy</Text>
-                      <Text style={{ fontSize: 14, fontWeight: "800", color: colors.text }}>
-                        {currentVal != null ? `${currencySymbol}${currentVal.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "—"}
-                      </Text>
-                    </View>
+                    {idx < sortedPositions.length - 1 && (
+                      <View style={{ height: StyleSheet.hairlineWidth, backgroundColor: colors.border, marginLeft: 58 }} />
+                    )}
                   </View>
-
-                  {/* Performance row */}
-                  {diff !== null && pct !== null && (
-                    <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center",
-                      backgroundColor: isUp ? "#22c55e14" : "#ef444414",
-                      borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, marginBottom: 8 }}>
-                      <Text style={{ fontSize: 12, fontWeight: "700", color: isUp ? "#22c55e" : "#ef4444" }}>
-                        {isUp ? "+" : ""}{currencySymbol}{Math.abs(diff).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                      </Text>
-                      <Text style={{ fontSize: 14, fontWeight: "900", color: isUp ? "#22c55e" : "#ef4444" }}>
-                        {isUp ? "+" : ""}{pct.toFixed(2)}%
-                      </Text>
-                    </View>
-                  )}
-
-                  {/* Reveal price per share */}
-                  <TouchableOpacity
-                    onPress={() => setRevealedPrices((prev) => {
-                      const next = new Set(prev);
-                      next.has(pos.id) ? next.delete(pos.id) : next.add(pos.id);
-                      return next;
-                    })}
-                    style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
-                    <Ionicons name="eye-outline" size={13} color={colors.textMuted} />
-                    <Text style={{ fontSize: 11, fontWeight: "600", color: colors.textMuted }}>
-                      {priceRevealed
-                        ? cp ? `${currencySymbol}${cp.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} / acción · ocultar` : "Sin precio"
-                        : "Ver precio por acción"}
-                    </Text>
-                  </TouchableOpacity>
-                  </View>
-                </View>
-              );
-            })}
+                );
+              })}
+            </View>
           </>
         ) : null}
 
