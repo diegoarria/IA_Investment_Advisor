@@ -324,6 +324,9 @@ export const feedApi = {
   deleteComment: (clipId: string, commentId: string) =>
     api.delete(`/api/feed/clips/${clipId}/comments/${commentId}`),
 
+  getSaved: () => api.get("/api/feed/saved"),
+  downloadUrl: (clipId: string) => `${BASE_URL}/api/feed/clips/${clipId}/download`,
+
   // Admin
   adminList: (status = "draft") =>
     api.get("/api/feed/admin/clips", { params: { status } }),

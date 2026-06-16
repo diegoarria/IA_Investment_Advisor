@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useEffect, useState, useCallback } from "react";
-import { Heart, MessageCircle, Bookmark, Share2, Play, Pause, Volume2, VolumeX, ChevronDown, SkipForward, Subtitles, Trash2 } from "lucide-react";
+import { Heart, MessageCircle, Bookmark, Share2, Play, Pause, Volume2, VolumeX, ChevronDown, SkipForward, Subtitles, Trash2, Download } from "lucide-react";
 import { feedApi } from "@/lib/api";
 import { useProfileStore, useAuthStore } from "@/lib/store";
 import Hls from "hls.js";
@@ -101,6 +101,7 @@ export default function VideoCard({
   const [saved, setSaved]               = useState(clip.saved);
   const [loadingLike, setLoadingLike]   = useState(false);
   const [copied, setCopied]             = useState(false);
+  const [downloading, setDownloading]   = useState(false);
   const [captionLang, setCaptionLang]   = useState<"off"|"es"|"en">("off");
   const [showCaptionPicker, setShowCaptionPicker] = useState(false);
   const [tapIcon, setTapIcon]           = useState<"play"|"pause"|null>(null);
@@ -258,6 +259,36 @@ export default function VideoCard({
       onSaveChange(clip.id, next);
     } catch {
       setSaved(!next);
+    }
+  };
+
+  const handleDownload = async () => {
+    if (downloading) return;
+    if (clip.video_url.includes(".m3u8")) {
+      // HLS stream — can't proxy easily; open in new tab so user can save manually
+      window.open(clip.video_url, "_blank");
+      return;
+    }
+    setDownloading(true);
+    try {
+      // Proxy through backend so download works regardless of CDN CORS policy
+      const token = localStorage.getItem("access_token");
+      const res = await fetch(`/api/feed/clips/${clip.id}/download`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!res.ok) throw new Error("download failed");
+      const blob = await res.blob();
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement("a");
+      a.href     = url;
+      a.download = `${clip.title.replace(/[^a-z0-9 ]/gi, "_")}.mp4`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      // Fallback: direct link in new tab
+      window.open(clip.video_url, "_blank");
+    } finally {
+      setDownloading(false);
     }
   };
 
@@ -829,6 +860,16 @@ export default function VideoCard({
                       style={{ color: saved ? "#ffd700" : "var(--text)" }} />
           </div>
           <span className="text-xs font-semibold" style={{ color: "var(--sub)" }}>{saved ? "Guardado" : "Guardar"}</span>
+        </button>
+
+        <button onClick={handleDownload} disabled={downloading} className="flex flex-col items-center gap-1">
+          <div className="w-11 h-11 rounded-full flex items-center justify-center"
+               style={{ background: "var(--raised)", opacity: downloading ? 0.5 : 1 }}>
+            <Download className="w-5 h-5" style={{ color: downloading ? "var(--accent)" : "var(--text)" }} />
+          </div>
+          <span className="text-xs font-semibold" style={{ color: "var(--sub)" }}>
+            {downloading ? "..." : "Bajar"}
+          </span>
         </button>
 
         {/* Captions button + picker */}

@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import {
   BookOpen, PieChart, BarChart2, Bell, User, GraduationCap,
-  MessageSquare, ChevronLeft, ChevronRight, Plus, X, HeadphonesIcon, GripVertical, Eye, Play, ArrowRight, Lock, LogOut,
+  MessageSquare, ChevronLeft, ChevronRight, Plus, X, HeadphonesIcon, GripVertical, Eye, Play, ArrowRight, Lock, LogOut, Bookmark,
 } from "lucide-react";
 
 const COACHING_URL = "https://calendly.com/diego-arria19/sesion-1-1-con-diego-nuvos-ai"; // ← actualiza con tu link real
@@ -31,6 +31,7 @@ const NAV: Array<{ href: string; icon: React.ComponentType<{ className?: string;
   { href: "/portfolio",     icon: PieChart,       label: "Portafolio",     minLevel: "principiante" },
   { href: "/watchlist",     icon: Eye,            label: "Watchlist",      minLevel: "basico" },
   { href: "/feed",          icon: Play,           label: "Videos",         minLevel: "principiante" },
+  { href: "/feed/saved",   icon: Bookmark,       label: "Guardados",      minLevel: "principiante" },
   { href: "/paper",         icon: BarChart2,      label: "Simulador",      minLevel: "basico" },
   { href: "/learn",         icon: GraduationCap,  label: "Aprendizaje",    minLevel: "principiante" },
   { href: "/notifications", icon: Bell,           label: "Notificaciones", minLevel: "principiante" },

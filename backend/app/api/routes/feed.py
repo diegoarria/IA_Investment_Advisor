@@ -196,6 +196,67 @@ async def delete_comment(clip_id: str, comment_id: str, user_id: str = Depends(g
     return {"ok": True}
 
 
+@router.get("/saved")
+async def get_saved_clips(user_id: str = Depends(get_current_user_id)):
+    db = get_supabase()
+    saves_res = await run_query(
+        db.table("clip_saves")
+        .select("clip_id, created_at")
+        .eq("user_id", user_id)
+        .order("created_at", desc=True)
+        .limit(100)
+    )
+    saves = saves_res.data or []
+    if not saves:
+        return {"clips": []}
+    ids = [r["clip_id"] for r in saves]
+    clips_res = await run_query(
+        db.table("clips")
+        .select("id,title,description,thumbnail_url,video_url,speaker,tags,duration_sec,view_count,like_count,created_at")
+        .eq("status", "published")
+        .in_("id", ids)
+    )
+    clips = clips_res.data or []
+    order = {r["clip_id"]: i for i, r in enumerate(saves)}
+    clips.sort(key=lambda c: order.get(c["id"], 999))
+    return {"clips": clips}
+
+
+@router.get("/clips/{clip_id}/download")
+async def download_clip(clip_id: str, user_id: str = Depends(get_current_user_id)):
+    """Proxy-stream a clip video so the browser can download it regardless of CDN CORS policy."""
+    db = get_supabase()
+    clip_res = await run_query(
+        db.table("clips")
+        .select("video_url, title")
+        .eq("id", clip_id)
+        .eq("status", "published")
+        .single()
+    )
+    clip = clip_res.data
+    if not clip or not clip.get("video_url"):
+        raise HTTPException(404, "Clip no encontrado")
+    url = clip["video_url"]
+    if ".m3u8" in url:
+        raise HTTPException(400, "Este video es HLS y no puede descargarse directamente")
+    safe_title = "".join(c if c.isalnum() or c in " -_" else "_" for c in (clip.get("title") or "video"))[:80]
+
+    async def stream_video():
+        async with httpx.AsyncClient(follow_redirects=True, timeout=120) as client:
+            async with client.stream("GET", url) as resp:
+                if resp.status_code >= 400:
+                    return
+                async for chunk in resp.aiter_bytes(65536):
+                    yield chunk
+
+    from fastapi.responses import StreamingResponse as SR
+    return SR(
+        stream_video(),
+        media_type="video/mp4",
+        headers={"Content-Disposition": f'attachment; filename="{safe_title}.mp4"'},
+    )
+
+
 @router.get("/liked")
 async def get_liked_clips(user_id: str = Depends(get_current_user_id)):
     db = get_supabase()
