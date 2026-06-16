@@ -294,6 +294,8 @@ export const feedApi = {
     api.post(`/api/feed/clips/${clipId}/comments`, { text, parent_id: parentId }),
   deleteComment: (clipId: string, commentId: string) =>
     api.delete(`/api/feed/clips/${clipId}/comments/${commentId}`),
+  getSaved: () => api.get("/api/feed/saved"),
+  downloadClipUrl: (clipId: string) => `${BASE_URL}/api/feed/clips/${clipId}/download`,
 };
 
 export const simulateApi = {

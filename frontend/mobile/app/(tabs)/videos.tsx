@@ -2,13 +2,15 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   View, Text, FlatList, TouchableOpacity, StyleSheet, TextInput,
   ActivityIndicator, Dimensions, ScrollView, Modal, Share, KeyboardAvoidingView, Platform,
-  PanResponder, Animated, Image, RefreshControl,
+  PanResponder, Animated, Image, RefreshControl, Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { Video, ResizeMode, Audio } from "expo-av";
 import { useFocusEffect } from "expo-router";
 import * as SecureStore from "expo-secure-store";
+import * as FileSystem from "expo-file-system/legacy";
+import * as Sharing from "expo-sharing";
 import { feedApi } from "../../src/lib/api";
 import { useTheme, Colors } from "../../src/lib/ThemeContext";
 import { useAppStore } from "../../src/lib/profileStore";
@@ -362,6 +364,38 @@ function ClipCard({
     } catch {}
   };
 
+  const [downloading, setDownloading] = useState(false);
+
+  const handleDownload = async () => {
+    if (downloading) return;
+    if (clip.video_url.includes(".m3u8")) {
+      Alert.alert("No disponible", "Este video es streaming (HLS) y no puede descargarse directamente.");
+      return;
+    }
+    setDownloading(true);
+    try {
+      const token = await SecureStore.getItemAsync("access_token");
+      const filename = `${clip.title.replace(/[^a-z0-9 ]/gi, "_").slice(0, 60)}.mp4`;
+      const localUri = FileSystem.cacheDirectory + filename;
+      const dlResult = await FileSystem.downloadAsync(
+        feedApi.downloadClipUrl(clip.id),
+        localUri,
+        token ? { headers: { Authorization: `Bearer ${token}` } } : {}
+      );
+      if (dlResult.status !== 200) throw new Error("download failed");
+      const canShare = await Sharing.isAvailableAsync();
+      if (canShare) {
+        await Sharing.shareAsync(dlResult.uri, { mimeType: "video/mp4", dialogTitle: "Guardar video" });
+      } else {
+        Alert.alert("Descargado", `Guardado en: ${dlResult.uri}`);
+      }
+    } catch {
+      Alert.alert("Error", "No se pudo descargar el video. Intenta de nuevo.");
+    } finally {
+      setDownloading(false);
+    }
+  };
+
   return (
     <View style={[styles.card, { width: W, height: cardHeight }]}>
       {/* Video */}
@@ -551,6 +585,11 @@ function ClipCard({
         <TouchableOpacity style={styles.actionBtn} onPress={handleShare}>
           <Ionicons name="share-social-outline" size={26} color="white" />
           <Text style={styles.actionLabel}>Compartir</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.actionBtn} onPress={handleDownload} disabled={downloading}>
+          <Ionicons name={downloading ? "hourglass-outline" : "download-outline"} size={26} color={downloading ? "rgba(255,255,255,0.5)" : "white"} />
+          <Text style={styles.actionLabel}>{downloading ? "..." : "Bajar"}</Text>
         </TouchableOpacity>
 
         {/* CC captions button */}
@@ -798,6 +837,56 @@ export default function VideosScreen() {
 
   const seenIdsRef = useRef<Set<string>>(new Set());
 
+  // Saved clips panel
+  const [savedOpen, setSavedOpen] = useState(false);
+  const [savedClips, setSavedClips] = useState<Clip[]>([]);
+  const [savedLoading, setSavedLoading] = useState(false);
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
+
+  const loadSaved = async () => {
+    setSavedLoading(true);
+    try {
+      const res = await feedApi.getSaved();
+      setSavedClips(res.data.clips || []);
+    } catch {}
+    setSavedLoading(false);
+  };
+
+  const handleUnsave = (id: string) => {
+    setSavedClips((prev) => prev.filter((c) => c.id !== id));
+    feedApi.saveClip(id).catch(() => {}); // toggle removes
+    // also update main feed
+    setClips((prev) => prev.map((c) => c.id === id ? { ...c, saved: false } : c));
+  };
+
+  const handleDownloadSaved = async (clip: Clip) => {
+    if (downloadingId) return;
+    if (clip.video_url.includes(".m3u8")) {
+      Alert.alert("No disponible", "Este video es streaming y no puede descargarse.");
+      return;
+    }
+    setDownloadingId(clip.id);
+    try {
+      const token = await SecureStore.getItemAsync("access_token");
+      const filename = `${clip.title.replace(/[^a-z0-9 ]/gi, "_").slice(0, 60)}.mp4`;
+      const localUri = FileSystem.cacheDirectory + filename;
+      const dlResult = await FileSystem.downloadAsync(
+        feedApi.downloadClipUrl(clip.id),
+        localUri,
+        token ? { headers: { Authorization: `Bearer ${token}` } } : {}
+      );
+      if (dlResult.status !== 200) throw new Error();
+      const canShare = await Sharing.isAvailableAsync();
+      if (canShare) {
+        await Sharing.shareAsync(dlResult.uri, { mimeType: "video/mp4", dialogTitle: "Guardar video" });
+      }
+    } catch {
+      Alert.alert("Error", "No se pudo descargar. Intenta de nuevo.");
+    } finally {
+      setDownloadingId(null);
+    }
+  };
+
   const loadClips = useCallback(async (reset = false, overrideSort?: "recent" | "trending" | "random") => {
     const cursor = reset ? 0 : (nextCursor ?? 0);
     if (!reset && nextCursor === null) return;
@@ -907,13 +996,21 @@ export default function VideosScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: "#000" }]}>
-      {/* Filter button */}
+      {/* Header buttons */}
       <TouchableOpacity
         style={styles.filterBtn}
         onPress={() => setFilterOpen(true)}
       >
         <Ionicons name="options-outline" size={20} color="white" />
         {(speaker || tag) && <View style={styles.filterDot} />}
+      </TouchableOpacity>
+
+      {/* Saved clips button */}
+      <TouchableOpacity
+        style={[styles.filterBtn, { right: 60 }]}
+        onPress={() => { setSavedOpen(true); loadSaved(); }}
+      >
+        <Ionicons name="bookmark-outline" size={20} color="white" />
       </TouchableOpacity>
 
       {/* Active filters chips */}
@@ -1042,9 +1139,128 @@ export default function VideosScreen() {
           </View>
         </TouchableOpacity>
       </Modal>
+
+      {/* Saved Clips Modal */}
+      <Modal visible={savedOpen} transparent animationType="slide" onRequestClose={() => setSavedOpen(false)}>
+        <TouchableOpacity style={styles.filterOverlay} activeOpacity={1} onPress={() => setSavedOpen(false)} />
+        <View style={[savedStyles.sheet, { backgroundColor: colors.card }]}>
+          <View style={[styles.captionHandle, { backgroundColor: colors.border }]} />
+
+          {/* Header */}
+          <View style={savedStyles.header}>
+            <Ionicons name="bookmark" size={18} color="#f59e0b" style={{ marginRight: 6 }} />
+            <Text style={[savedStyles.title, { color: colors.text }]}>Videos guardados</Text>
+            <TouchableOpacity onPress={() => setSavedOpen(false)} style={{ marginLeft: "auto" }}>
+              <Ionicons name="close" size={22} color={colors.textMuted} />
+            </TouchableOpacity>
+          </View>
+
+          {savedLoading ? (
+            <View style={savedStyles.center}>
+              <ActivityIndicator color="#00d47e" />
+            </View>
+          ) : savedClips.length === 0 ? (
+            <View style={savedStyles.center}>
+              <Ionicons name="bookmark-outline" size={40} color={colors.textDim} />
+              <Text style={[savedStyles.empty, { color: colors.textMuted }]}>
+                Aún no guardaste videos
+              </Text>
+              <Text style={[savedStyles.emptySub, { color: colors.textDim }]}>
+                Toca el ícono de marcador en cualquier video
+              </Text>
+            </View>
+          ) : (
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 24 }}>
+              {savedClips.map((clip) => (
+                <View key={clip.id} style={[savedStyles.row, { borderBottomColor: colors.border }]}>
+                  {/* Thumbnail */}
+                  <View style={savedStyles.thumb}>
+                    {clip.thumbnail_url
+                      ? <Image source={{ uri: clip.thumbnail_url }} style={{ width: "100%", height: "100%", borderRadius: 10 }} />
+                      : <Ionicons name="videocam-outline" size={24} color={colors.textDim} />}
+                    {clip.duration_sec > 0 && (
+                      <View style={savedStyles.duration}>
+                        <Text style={{ color: "#fff", fontSize: 9, fontWeight: "700" }}>
+                          {formatDuration(clip.duration_sec)}
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+
+                  {/* Info + actions */}
+                  <View style={{ flex: 1 }}>
+                    <Text style={[savedStyles.clipTitle, { color: colors.text }]} numberOfLines={2}>
+                      {clip.title}
+                    </Text>
+                    <Text style={[savedStyles.speaker, { color: colors.textMuted }]}>{clip.speaker}</Text>
+
+                    <View style={savedStyles.actions}>
+                      <TouchableOpacity
+                        style={[savedStyles.btn, { backgroundColor: "rgba(0,212,126,0.12)" }]}
+                        onPress={() => handleDownloadSaved(clip)}
+                        disabled={downloadingId === clip.id}>
+                        <Ionicons
+                          name={downloadingId === clip.id ? "hourglass-outline" : "download-outline"}
+                          size={14}
+                          color="#00d47e"
+                        />
+                        <Text style={[savedStyles.btnText, { color: "#00d47e" }]}>
+                          {downloadingId === clip.id ? "Bajando..." : "Descargar"}
+                        </Text>
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
+                        style={[savedStyles.btn, { backgroundColor: "rgba(245,158,11,0.12)" }]}
+                        onPress={() => handleUnsave(clip.id)}>
+                        <Ionicons name="bookmark" size={14} color="#f59e0b" />
+                        <Text style={[savedStyles.btnText, { color: "#f59e0b" }]}>Quitar</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                </View>
+              ))}
+            </ScrollView>
+          )}
+        </View>
+      </Modal>
     </View>
   );
 }
+
+const savedStyles = StyleSheet.create({
+  sheet: {
+    position: "absolute", left: 0, right: 0, bottom: 0,
+    borderTopLeftRadius: 24, borderTopRightRadius: 24,
+    paddingHorizontal: 20, paddingBottom: 40, maxHeight: H * 0.75,
+  },
+  header: { flexDirection: "row", alignItems: "center", paddingVertical: 14 },
+  title: { fontSize: 16, fontWeight: "800" },
+  center: { alignItems: "center", justifyContent: "center", paddingVertical: 40, gap: 8 },
+  empty: { fontSize: 15, fontWeight: "700", marginTop: 12 },
+  emptySub: { fontSize: 12, textAlign: "center", marginTop: 4 },
+  row: {
+    flexDirection: "row", gap: 12, paddingVertical: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  thumb: {
+    width: 72, height: 104, borderRadius: 10, overflow: "hidden",
+    backgroundColor: "rgba(255,255,255,0.05)",
+    alignItems: "center", justifyContent: "center",
+    position: "relative",
+  },
+  duration: {
+    position: "absolute", bottom: 4, right: 4,
+    backgroundColor: "rgba(0,0,0,0.7)", borderRadius: 3, paddingHorizontal: 3, paddingVertical: 1,
+  },
+  clipTitle: { fontSize: 13, fontWeight: "700", lineHeight: 18 },
+  speaker: { fontSize: 11, marginTop: 3 },
+  actions: { flexDirection: "row", gap: 8, marginTop: 8 },
+  btn: {
+    flexDirection: "row", alignItems: "center", gap: 5,
+    paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8,
+  },
+  btnText: { fontSize: 11, fontWeight: "700" },
+});
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
