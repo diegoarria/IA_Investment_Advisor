@@ -264,9 +264,9 @@ async def get_market_summary(user_id: str = Depends(get_current_user_id)):
     return market_service.get_market_summary()
 
 
-@router.get("/asset/{symbol}")
+@router.get("/asset/{symbol:path}")
 async def get_asset(symbol: str, user_id: str = Depends(get_current_user_id)):
-    return market_service.get_asset_data(symbol.upper())
+    return market_service.get_asset_data(_yf_symbol(symbol.upper()))
 
 
 @router.post("/analyze")
@@ -459,7 +459,7 @@ def _finnhub_candles(symbol: str, resolution: str, from_ts: int, to_ts: int) -> 
 def _yfinance_chart_fallback(symbol: str, yf_period: str, interval: str) -> dict | None:
     """yfinance as last-resort fallback."""
     try:
-        t    = yf.Ticker(symbol)
+        t    = yf.Ticker(_yf_symbol(symbol))
         hist = t.history(period=yf_period, interval=interval, raise_errors=False)
         if hist is None or hist.empty:
             return None
@@ -479,13 +479,13 @@ def _yfinance_chart_fallback(symbol: str, yf_period: str, interval: str) -> dict
         return None
 
 
-@router.get("/chart/{ticker}")
+@router.get("/chart/{ticker:path}")
 async def get_chart(
     ticker: str,
     period: str = "1y",
     user_id: str = Depends(get_current_user_id),
 ):
-    sym = ticker.upper().strip()
+    sym = _yf_symbol(ticker.upper().strip())
     cache_key = f"chart3:{sym}:{period}"
     cached = cache_get(cache_key)
     if cached:
@@ -975,8 +975,13 @@ def _safe_price(row, ticker: str) -> float:
 
 
 def _yf_symbol(ticker: str) -> str:
-    """Normalize ticker for Yahoo Finance: BRK.B → BRK-B (dots become hyphens)."""
-    return ticker.replace(".", "-")
+    """Normalize ticker for Yahoo Finance.
+
+    BRK.B → BRK-B  (single-letter class suffix: dot → hyphen)
+    ENB.TO → ENB.TO (exchange suffix with 2+ letters: unchanged)
+    """
+    import re
+    return re.sub(r'\.([A-Z])$', r'-\1', ticker)
 
 
 def _fetch_ticker_history(
@@ -2135,6 +2140,7 @@ def _parse_qs_cashflow(qs: dict, quarterly: bool = False, n: int = 5) -> list[di
 # ── Main detail fetcher ───────────────────────────────────────────────────────
 
 def _fetch_stock_detail(symbol: str) -> dict:
+    symbol = _yf_symbol(symbol)
     cache_key = f"detail2:{symbol}"
     cached = cache_get(cache_key)
     # Discard stale cache entries where name wasn't resolved (empty data bug)
@@ -2685,7 +2691,7 @@ def _fetch_stock_detail(symbol: str) -> dict:
     return result
 
 
-@router.get("/stock-detail/{symbol}")
+@router.get("/stock-detail/{symbol:path}")
 async def get_stock_detail(
     symbol: str,
     include_score: bool = Query(False),
@@ -2705,13 +2711,13 @@ async def get_stock_detail(
     return result
 
 
-@router.get("/peers/{symbol}")
+@router.get("/peers/{symbol:path}")
 async def get_peers(
     symbol: str,
     user_id: str = Depends(get_current_user_id),
 ):
     """Return peer/competitor companies using Finnhub + basic price info."""
-    sym = symbol.upper()
+    sym = _yf_symbol(symbol.upper())
     cache_key = f"peers:{sym}"
     if cached := await redis_get(cache_key):
         return cached
@@ -3181,13 +3187,13 @@ def _de_label(v):
     return "Deuda muy alta, riesgo"
 
 
-@router.get("/stock-score/{symbol}")
+@router.get("/stock-score/{symbol:path}")
 async def get_stock_score(
     symbol: str,
     user_id: str = Depends(get_current_user_id),
 ):
     """AI quality score + verdict for a stock (0-100, 8 metrics, 4 categories)."""
-    sym = symbol.upper()
+    sym = _yf_symbol(symbol.upper())
     cache_key = f"score4:{sym}"
     cached = cache_get(cache_key)
     if cached:
@@ -3198,13 +3204,13 @@ async def get_stock_score(
     return result
 
 
-@router.get("/stock-income-analysis/{symbol}")
+@router.get("/stock-income-analysis/{symbol:path}")
 async def get_stock_income_analysis(
     symbol: str,
     user_id: str = Depends(get_current_user_id),
 ):
     """AI-generated analysis of a stock's income statement trends (cached 12h)."""
-    sym = symbol.upper()
+    sym = _yf_symbol(symbol.upper())
     cache_key = f"income_ai:{sym}"
     cached = cache_get(cache_key)
     if cached:
