@@ -557,73 +557,172 @@ export default function NotificationsScreen() {
         <View style={styles.modalOverlay}>
           <View style={[styles.modalCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <View style={styles.modalHandle} />
+
+            {/* Article header */}
             <View style={styles.modalHeader}>
-              <Text style={[styles.modalTitle, { color: colors.text }]} numberOfLines={2}>
-                {newsModal?.title}
-              </Text>
-              <TouchableOpacity onPress={() => { setNewsModal(null); setNewsSummary(null); }}>
-                <Ionicons name="close" size={22} color={colors.textMuted} />
+              <View style={{ flex: 1 }}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 4 }}>
+                  <View style={[styles.nsTickerBadge, { backgroundColor: "rgba(0,168,94,0.12)", borderColor: "rgba(0,168,94,0.25)" }]}>
+                    <Text style={[styles.nsTickerText, { color: colors.accentLight }]}>{newsModal?.symbol}</Text>
+                  </View>
+                  <Text style={[styles.nsPublisher, { color: colors.textDim }]}>{newsModal?.publisher}</Text>
+                </View>
+                <Text style={[styles.modalTitle, { color: colors.text }]} numberOfLines={2}>{newsModal?.title}</Text>
+              </View>
+              <TouchableOpacity onPress={() => { setNewsModal(null); setNewsSummary(null); }} style={{ padding: 2 }}>
+                <Ionicons name="close" size={20} color={colors.textMuted} />
               </TouchableOpacity>
             </View>
-            <Text style={{ color: colors.textDim, fontSize: 11, marginBottom: 14 }}>
-              {newsModal?.publisher} · {newsModal ? new Date(newsModal.timestamp * 1000).toLocaleDateString("es", { day: "numeric", month: "long" }) : ""}
-            </Text>
+
+            <View style={[styles.nsDivider, { backgroundColor: colors.border }]} />
 
             {/* State 1: Initial choice */}
             {!newsSummary && !newsSummaryLoading && (
-              <View style={styles.newsChoiceRow}>
+              <View style={{ gap: 10 }}>
+                {/* Hero — AI summary */}
                 <TouchableOpacity
-                  style={[styles.newsChoiceCard, { borderColor: colors.border, backgroundColor: colors.bg }]}
+                  style={[styles.nsHeroBtn, { borderColor: "rgba(168,85,247,0.3)", backgroundColor: "rgba(168,85,247,0.08)" }]}
+                  activeOpacity={0.8}
+                  onPress={handleRequestSummary}
+                >
+                  <View style={styles.nsShimmerLine} />
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 12, padding: 14 }}>
+                    <View style={[styles.nsHeroIcon, { backgroundColor: "rgba(168,85,247,0.2)", borderColor: "rgba(168,85,247,0.4)" }]}>
+                      <Text style={{ fontSize: 22 }}>✦</Text>
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.nsHeroTitle}>Resumen IA</Text>
+                      <Text style={[styles.nsHeroSub, { color: colors.textMuted }]}>Claude lee y extrae lo esencial</Text>
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 5 }}>
+                        <View style={[styles.nsPremiumBadge, { backgroundColor: "rgba(168,85,247,0.15)", borderColor: "rgba(168,85,247,0.25)" }]}>
+                          <Text style={styles.nsPremiumText}>Premium</Text>
+                        </View>
+                        <Text style={[{ fontSize: 10, color: colors.textDim }]}>4–8 líneas · en segundos</Text>
+                      </View>
+                    </View>
+                    <Ionicons name="chevron-forward" size={18} color="#c084fc" style={{ opacity: 0.7 }} />
+                  </View>
+                </TouchableOpacity>
+
+                {/* Secondary — article link */}
+                <TouchableOpacity
+                  style={[styles.nsSecondaryBtn, { backgroundColor: colors.bgRaised, borderColor: colors.border }]}
                   activeOpacity={0.75}
                   onPress={() => { setNewsModal(null); Linking.openURL(newsModal?.url ?? "").catch(() => {}); }}
                 >
-                  <Text style={styles.newsChoiceEmoji}>🌐</Text>
-                  <Text style={[styles.newsChoiceTitle, { color: colors.text }]}>Ver noticia completa</Text>
-                  <Text style={[styles.newsChoiceSub, { color: colors.textMuted }]}>Abre el artículo original</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.newsChoiceCard, { borderColor: colors.accentLight + "55", backgroundColor: colors.accentGlow }]}
-                  activeOpacity={0.75}
-                  onPress={handleRequestSummary}
-                >
-                  <Text style={styles.newsChoiceEmoji}>✦</Text>
-                  <Text style={[styles.newsChoiceTitle, { color: colors.accentLight }]}>Resumen de IA</Text>
-                  <Text style={[styles.newsChoiceSub, { color: colors.textMuted }]}>4–8 líneas con lo esencial</Text>
+                  <View style={[styles.nsSecondaryIcon, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                    <Text style={{ fontSize: 18 }}>🌐</Text>
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.nsSecondaryTitle, { color: colors.text }]}>Ver artículo completo</Text>
+                    <Text style={[styles.nsSecondarySub, { color: colors.textDim }]}>Abre el original en {newsModal?.publisher}</Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={16} color={colors.textDim} />
                 </TouchableOpacity>
               </View>
             )}
 
             {/* State 2: Loading */}
             {newsSummaryLoading && (
-              <View style={{ alignItems: "center", paddingVertical: 36 }}>
-                <ActivityIndicator color={colors.accentLight} size="large" />
-                <Text style={{ color: colors.textMuted, marginTop: 14, fontSize: 13 }}>Leyendo el artículo…</Text>
+              <View style={styles.nsLoadingContainer}>
+                <View style={[styles.nsLoadingIcon, { backgroundColor: "rgba(168,85,247,0.15)", borderColor: "rgba(168,85,247,0.3)" }]}>
+                  <ActivityIndicator color="#c084fc" size="large" />
+                </View>
+                <Text style={[styles.nsLoadingTitle, { color: colors.text }]}>Claude está leyendo el artículo</Text>
+                <Text style={[styles.nsLoadingSub, { color: colors.textMuted }]}>Extrayendo lo más importante…</Text>
+                {/* Skeleton lines */}
+                {[1, 0.88, 0.94, 0.72].map((w, i) => (
+                  <View key={i} style={[styles.nsSkeletonLine, { width: `${w * 100}%` as any, opacity: 0.8 - i * 0.12 }]} />
+                ))}
               </View>
             )}
 
             {/* State 3: Summary */}
-            {!!newsSummary && !newsSummaryLoading && (
-              <>
-                <ScrollView style={{ maxHeight: 280 }}>
-                  <Markdown style={markdownStyles}>{newsSummary}</Markdown>
-                </ScrollView>
-                <View style={[styles.newsSummaryActions, { borderTopColor: colors.border }]}>
-                  <TouchableOpacity
-                    style={[styles.newsSummaryBtn, { borderColor: colors.border }]}
-                    onPress={() => { setNewsModal(null); setNewsSummary(null); Linking.openURL(newsModal?.url ?? "").catch(() => {}); }}
-                  >
-                    <Ionicons name="open-outline" size={14} color={colors.textSub} />
-                    <Text style={[styles.newsSummaryBtnText, { color: colors.textSub }]}>Ver artículo completo</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[styles.newsSummaryBtn, { borderColor: colors.accentLight + "55", backgroundColor: colors.accentGlow }]}
-                    onPress={() => { setNewsModal(null); setNewsSummary(null); }}
-                  >
-                    <Text style={[styles.newsSummaryBtnText, { color: colors.accentLight }]}>Cerrar</Text>
-                  </TouchableOpacity>
-                </View>
-              </>
-            )}
+            {!!newsSummary && !newsSummaryLoading && (() => {
+              const paras = newsSummary.split(/\n+/).filter(p => p.trim().length > 0);
+              const insightCfg = [
+                { icon: "📰", label: "QUÉ PASÓ",   bg: "rgba(59,130,246,0.08)",  border: "rgba(59,130,246,0.2)",  dot: "#60a5fa" },
+                { icon: "💹", label: "MERCADO",     bg: "rgba(0,168,94,0.08)",    border: "rgba(0,168,94,0.2)",    dot: "#4ade80" },
+                { icon: "🎯", label: "LO CLAVE",    bg: "rgba(245,158,11,0.08)",  border: "rgba(245,158,11,0.2)",  dot: "#fbbf24" },
+                { icon: "💡", label: "PARA TI",     bg: "rgba(168,85,247,0.08)", border: "rgba(168,85,247,0.2)", dot: "#c084fc" },
+              ];
+              const highlightText = (text: string) => {
+                const parts = text.split(/(\$[\d,.]+[BMK]?|[+-]?\d+\.?\d*%|[A-Z]{2,5}(?=[\s,.]|$))/g);
+                return (
+                  <Text>
+                    {parts.map((part, j) => {
+                      if (/^\$[\d,.]+/.test(part) || /[+-]?\d+\.?\d*%/.test(part)) {
+                        const isNeg = /^[-−]/.test(part);
+                        return <Text key={j} style={{ fontWeight: "700", color: isNeg ? "#f87171" : "#4ade80" }}>{part}</Text>;
+                      }
+                      if (/^[A-Z]{2,5}$/.test(part) && !["THE","AND","FOR","INC","LLC","ETF","CEO","USD","SEC","IA","DE","EN","LA","EL"].includes(part)) {
+                        return <Text key={j} style={{ fontWeight: "700", color: "#c084fc" }}>{part}</Text>;
+                      }
+                      return <Text key={j}>{part}</Text>;
+                    })}
+                  </Text>
+                );
+              };
+              return (
+                <>
+                  <View style={[styles.nsSummaryCard, { borderColor: "rgba(168,85,247,0.22)", backgroundColor: "rgba(168,85,247,0.05)" }]}>
+                    <View style={styles.nsSummaryShimmer} />
+                    <View style={{ padding: 14 }}>
+                      {/* Header */}
+                      <View style={styles.nsSummaryHeader}>
+                        <View style={[styles.nsSummaryIconBox, { backgroundColor: "rgba(168,85,247,0.18)", borderColor: "rgba(168,85,247,0.35)" }]}>
+                          <Text style={{ fontSize: 16 }}>✦</Text>
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.nsSummaryTitle}>RESUMEN IA</Text>
+                          <Text style={[styles.nsSummarySub, { color: colors.textDim }]}>Generado por Claude</Text>
+                        </View>
+                        <View style={[styles.nsPremiumBadge, { backgroundColor: "rgba(168,85,247,0.12)", borderColor: "rgba(168,85,247,0.25)" }]}>
+                          <Text style={styles.nsPremiumText}>Premium</Text>
+                        </View>
+                      </View>
+
+                      {/* Insight cards */}
+                      <View style={{ gap: 8 }}>
+                        {paras.map((para, i) => {
+                          const cfg = insightCfg[i % insightCfg.length];
+                          return (
+                            <View key={i} style={[styles.nsInsightCard, { backgroundColor: cfg.bg, borderColor: cfg.border }]}>
+                              <Text style={styles.nsInsightEmoji}>{cfg.icon}</Text>
+                              <View style={{ flex: 1 }}>
+                                <Text style={[styles.nsInsightLabel, { color: cfg.dot }]}>{cfg.label}</Text>
+                                <Text style={[styles.nsInsightText, { color: colors.textSub }]}>{highlightText(para.trim())}</Text>
+                              </View>
+                            </View>
+                          );
+                        })}
+                      </View>
+
+                      {/* Footer + buttons */}
+                      <View style={[styles.nsSummaryFooter, { borderTopColor: "rgba(168,85,247,0.1)" }]}>
+                        <View style={{ flexDirection: "row", gap: 8 }}>
+                          <TouchableOpacity
+                            style={[styles.newsSummaryBtn, { borderColor: colors.border, backgroundColor: colors.card }]}
+                            onPress={() => { setNewsModal(null); setNewsSummary(null); Linking.openURL(newsModal?.url ?? "").catch(() => {}); }}
+                          >
+                            <Text style={[styles.newsSummaryBtnText, { color: colors.textSub }]}>Ver artículo</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            style={[styles.newsSummaryBtn, { borderColor: "rgba(168,85,247,0.3)", backgroundColor: "rgba(168,85,247,0.1)" }]}
+                            onPress={() => { setNewsModal(null); setNewsSummary(null); }}
+                          >
+                            <Text style={[styles.newsSummaryBtnText, { color: "#c084fc" }]}>Cerrar</Text>
+                          </TouchableOpacity>
+                        </View>
+                        <Text style={[styles.nsDisclaimer, { color: colors.textDim }]}>
+                          Resumen por IA · No constituye asesoramiento de inversión
+                        </Text>
+                      </View>
+                    </View>
+                  </View>
+                </>
+              );
+            })()}
           </View>
         </View>
       </Modal>
@@ -744,24 +843,70 @@ function makeStyles(c: Colors) {
     },
     newsShowMoreText: { fontSize: 12, fontWeight: "600" },
 
-    newsChoiceRow: {
-      flexDirection: "row", gap: 10, marginBottom: 8,
-    },
-    newsChoiceCard: {
-      flex: 1, borderWidth: 1, borderRadius: 12,
-      padding: 14, alignItems: "center", gap: 6,
-    },
-    newsChoiceEmoji: { fontSize: 22 },
-    newsChoiceTitle: { fontSize: 13, fontWeight: "700", textAlign: "center" },
-    newsChoiceSub: { fontSize: 11, textAlign: "center", lineHeight: 15 },
+    // News summary modal — new design
+    nsTickerBadge: { borderRadius: 20, borderWidth: 1, paddingHorizontal: 7, paddingVertical: 2 },
+    nsTickerText: { fontSize: 10, fontWeight: "800", letterSpacing: 0.3 },
+    nsPublisher: { fontSize: 10 },
+    nsDivider: { height: StyleSheet.hairlineWidth, marginVertical: 14 },
 
-    newsSummaryActions: {
-      flexDirection: "row", gap: 8, marginTop: 14,
-      paddingTop: 12, borderTopWidth: StyleSheet.hairlineWidth,
+    // Choice screen
+    nsHeroBtn: { borderRadius: 14, borderWidth: 1, overflow: "hidden" },
+    nsShimmerLine: { height: 2, backgroundColor: "rgba(168,85,247,0.7)" },
+    nsHeroIcon: {
+      width: 52, height: 52, borderRadius: 14, borderWidth: 1,
+      alignItems: "center", justifyContent: "center",
     },
+    nsHeroTitle: { fontSize: 16, fontWeight: "800", color: "#c084fc" },
+    nsHeroSub: { fontSize: 12, marginTop: 2 },
+    nsPremiumBadge: { borderRadius: 20, borderWidth: 1, paddingHorizontal: 7, paddingVertical: 2, alignSelf: "flex-start" },
+    nsPremiumText: { fontSize: 9, fontWeight: "800", color: "#c084fc", letterSpacing: 0.3 },
+    nsSecondaryBtn: {
+      flexDirection: "row", alignItems: "center", gap: 12,
+      borderRadius: 14, borderWidth: 1, padding: 12,
+    },
+    nsSecondaryIcon: {
+      width: 42, height: 42, borderRadius: 10, borderWidth: 1,
+      alignItems: "center", justifyContent: "center",
+    },
+    nsSecondaryTitle: { fontSize: 14, fontWeight: "700" },
+    nsSecondarySub: { fontSize: 11, marginTop: 2 },
+
+    // Loading state
+    nsLoadingContainer: { alignItems: "center", gap: 10, paddingVertical: 16 },
+    nsLoadingIcon: {
+      width: 60, height: 60, borderRadius: 18, borderWidth: 1,
+      alignItems: "center", justifyContent: "center", marginBottom: 4,
+    },
+    nsLoadingTitle: { fontSize: 14, fontWeight: "700" },
+    nsLoadingSub: { fontSize: 12, marginBottom: 8 },
+    nsSkeletonLine: {
+      height: 10, borderRadius: 6, backgroundColor: "rgba(168,85,247,0.1)",
+      marginVertical: 4, alignSelf: "flex-start",
+    },
+
+    // Summary display
+    nsSummaryCard: { borderRadius: 14, borderWidth: 1, overflow: "hidden" },
+    nsSummaryShimmer: { height: 2, backgroundColor: "rgba(168,85,247,0.7)" },
+    nsSummaryHeader: { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 14 },
+    nsSummaryIconBox: {
+      width: 38, height: 38, borderRadius: 11, borderWidth: 1,
+      alignItems: "center", justifyContent: "center",
+    },
+    nsSummaryTitle: { fontSize: 11, fontWeight: "800", letterSpacing: 1.4, color: "#c084fc", textTransform: "uppercase" },
+    nsSummarySub: { fontSize: 9, marginTop: 1 },
+    nsInsightCard: {
+      flexDirection: "row", gap: 8, alignItems: "flex-start",
+      borderRadius: 10, borderWidth: 1, padding: 10,
+    },
+    nsInsightEmoji: { fontSize: 15, lineHeight: 20 },
+    nsInsightLabel: { fontSize: 8, fontWeight: "800", letterSpacing: 1, marginBottom: 3, textTransform: "uppercase" },
+    nsInsightText: { fontSize: 13, lineHeight: 19 },
+    nsSummaryFooter: { marginTop: 14, paddingTop: 12, borderTopWidth: 1, gap: 8 },
+    nsDisclaimer: { fontSize: 10, textAlign: "center" },
+
     newsSummaryBtn: {
-      flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center",
-      gap: 5, borderWidth: 1, borderRadius: 10, paddingVertical: 10,
+      flex: 1, alignItems: "center", justifyContent: "center",
+      borderWidth: 1, borderRadius: 10, paddingVertical: 10,
     },
     newsSummaryBtnText: { fontSize: 12, fontWeight: "600" },
 
