@@ -21,7 +21,7 @@ import PremiumBadge from "@/components/PremiumBadge";
 import { useTutorialStore } from "@/lib/store";
 import {
   Send, TrendingUp, Bell, LogOut, Menu, X,
-  ChevronRight, Sun, Moon, Square, Pencil, ImagePlus, Plus, Mic, MicOff, Volume2,
+  ChevronRight, Sun, Moon, Square, Pencil, ImagePlus, Plus, Mic, Play,
 } from "lucide-react";
 import { getUserLevel, LEVEL_LABEL, LEVEL_COLOR } from "@/lib/userLevel";
 
@@ -197,11 +197,16 @@ export default function ChatPage() {
   // Voice input state
   const [isRecording, setIsRecording] = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
-  const [isPlayingAudio, setIsPlayingAudio] = useState(false);
+  const [showVoiceModal, setShowVoiceModal] = useState(false);
+  const [recordingSecs, setRecordingSecs] = useState(0);
+  const [voiceAudio, setVoiceAudio] = useState<{ content: string; url: string | null; loading: boolean; playing: boolean } | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const voiceInputRef = useRef(false);
+  const analyserRef = useRef<AnalyserNode | null>(null);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const waveCanvasRef = useRef<HTMLCanvasElement | null>(null);
 
   // Cross-device sync
   const syncCursorRef = useRef<string | null>(null);
@@ -239,7 +244,17 @@ export default function ChatPage() {
 
   const startRecording = async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: { sampleRate: 48000, channelCount: 1, echoCancellation: true, noiseSuppression: true },
+      });
+
+      const audioCtx = new AudioContext();
+      const source = audioCtx.createMediaStreamSource(stream);
+      const analyser = audioCtx.createAnalyser();
+      analyser.fftSize = 256;
+      source.connect(analyser);
+      analyserRef.current = analyser;
+
       const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
         ? "audio/webm;codecs=opus"
         : MediaRecorder.isTypeSupported("audio/webm") ? "audio/webm" : "audio/ogg";
@@ -248,13 +263,21 @@ export default function ChatPage() {
       recorder.ondataavailable = (e) => { if (e.data.size > 0) audioChunksRef.current.push(e.data); };
       recorder.start(100);
       mediaRecorderRef.current = recorder;
+
       setIsRecording(true);
+      setShowVoiceModal(true);
+      setRecordingSecs(0);
+      timerRef.current = setInterval(() => setRecordingSecs((s) => s + 1), 1000);
     } catch {
       alert("No se pudo acceder al micrófono. Asegúrate de dar permiso en el navegador.");
     }
   };
 
   const stopRecording = async () => {
+    setShowVoiceModal(false);
+    if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
+    analyserRef.current = null;
+
     const recorder = mediaRecorderRef.current;
     if (!recorder) return;
     setIsRecording(false);
@@ -271,29 +294,51 @@ export default function ChatPage() {
         sendMessage(data.text);
       }
     } catch {
-      // silently ignore — user already sees no response
+      // silently ignore
     } finally {
       setIsTranscribing(false);
     }
   };
 
-  const playTTS = async (text: string) => {
+  const cancelRecording = () => {
+    setShowVoiceModal(false);
+    if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
+    analyserRef.current = null;
+    const recorder = mediaRecorderRef.current;
+    if (recorder) {
+      recorder.stop();
+      recorder.stream.getTracks().forEach((t) => t.stop());
+      mediaRecorderRef.current = null;
+    }
+    setIsRecording(false);
+    audioChunksRef.current = [];
+  };
+
+  const generateVoiceResponse = async (text: string) => {
+    const key = text.slice(0, 80);
+    setVoiceAudio({ content: key, url: null, loading: true, playing: false });
     try {
-      if (audioRef.current) { audioRef.current.pause(); audioRef.current = null; }
-      setIsPlayingAudio(true);
       const { data } = await chatApi.speak(text);
-      if (!data?.audio) return;
+      if (!data?.audio) { setVoiceAudio(null); return; }
       const bytes = Uint8Array.from(atob(data.audio), (c) => c.charCodeAt(0));
       const blob = new Blob([bytes], { type: "audio/mpeg" });
       const url = URL.createObjectURL(blob);
-      const audio = new Audio(url);
-      audioRef.current = audio;
-      audio.onended = () => { setIsPlayingAudio(false); URL.revokeObjectURL(url); audioRef.current = null; };
-      audio.onerror = () => { setIsPlayingAudio(false); URL.revokeObjectURL(url); audioRef.current = null; };
-      await audio.play();
+      setVoiceAudio({ content: key, url, loading: false, playing: false });
     } catch {
-      setIsPlayingAudio(false);
+      setVoiceAudio(null);
     }
+  };
+
+  const playVoiceResponse = async () => {
+    if (!voiceAudio?.url) return;
+    if (audioRef.current) { audioRef.current.pause(); }
+    setVoiceAudio((prev) => prev ? { ...prev, playing: true } : null);
+    const url = voiceAudio.url;
+    const audio = new Audio(url);
+    audioRef.current = audio;
+    audio.onended = () => { setVoiceAudio((prev) => prev ? { ...prev, playing: false } : null); audioRef.current = null; };
+    audio.onerror = () => { setVoiceAudio((prev) => prev ? { ...prev, playing: false } : null); audioRef.current = null; };
+    await audio.play();
   };
 
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -433,6 +478,39 @@ export default function ChatPage() {
     return () => clearInterval(poll);
   }, [isAuthenticated]);
 
+  // Waveform animation loop (runs while voice modal is open)
+  useEffect(() => {
+    if (!showVoiceModal) return;
+    let animId: number;
+    const draw = () => {
+      const canvas = waveCanvasRef.current;
+      const analyser = analyserRef.current;
+      if (canvas && analyser) {
+        const ctx = canvas.getContext("2d");
+        if (ctx) {
+          const bufLen = analyser.frequencyBinCount;
+          const data = new Uint8Array(bufLen);
+          analyser.getByteFrequencyData(data);
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          const barCount = 40;
+          const barW = Math.floor(canvas.width / barCount) - 2;
+          const step = Math.floor(bufLen / barCount);
+          for (let i = 0; i < barCount; i++) {
+            const v = data[i * step] / 255;
+            const h = Math.max(4, v * canvas.height * 0.85);
+            const x = i * (barW + 2);
+            const y = (canvas.height - h) / 2;
+            ctx.fillStyle = `rgba(0, 212, 126, ${0.35 + v * 0.65})`;
+            ctx.fillRect(x, y, barW, h);
+          }
+        }
+      }
+      animId = requestAnimationFrame(draw);
+    };
+    animId = requestAnimationFrame(draw);
+    return () => cancelAnimationFrame(animId);
+  }, [showVoiceModal]);
+
   const sendMessage = async (text?: string) => {
     const msg = text || input.trim();
     if ((!msg && pendingImages.length === 0) || isStreaming) return;
@@ -487,7 +565,7 @@ export default function ChatPage() {
           syncCursorRef.current = new Date().toISOString();
           if (voiceInputRef.current) {
             voiceInputRef.current = false;
-            playTTS(fullResponse);
+            generateVoiceResponse(fullResponse);
           }
         },
         (a) => {
@@ -737,16 +815,58 @@ export default function ChatPage() {
                       </div>
                     ) : (
                       <div className="bubble-ai">
-                        <div className="prose-dark">
-                          {msg.content === "" && isStreaming && i === messages.length - 1
-                            ? <TypingDots />
-                            : <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
-                          }
-                        </div>
-                        {msg.content !== "" && !(isStreaming && i === messages.length - 1) && (
-                          <p className="mt-2 text-[10px] leading-tight" style={{ color: "var(--dim)" }}>
-                            Análisis educativo · No constituye asesoría financiera · Los datos pueden ser inexactos
-                          </p>
+                        {voiceAudio && msg.content && msg.content.slice(0, 80) === voiceAudio.content && !(isStreaming && i === messages.length - 1) ? (
+                          <div className="flex items-center gap-3 py-1">
+                            {/* Waveform bars decoration */}
+                            <div className="flex items-end gap-0.5 shrink-0" style={{ height: 32 }}>
+                              {[0.35, 0.65, 0.85, 0.55, 0.95, 0.7, 0.45, 0.8, 0.6, 0.4, 0.75, 0.5].map((h, bi) => (
+                                <div key={bi} style={{
+                                  width: 3,
+                                  height: `${h * 100}%`,
+                                  background: "var(--accent)",
+                                  borderRadius: 2,
+                                  opacity: voiceAudio.playing ? 1 : 0.5,
+                                  transition: "opacity 0.2s",
+                                }} />
+                              ))}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs font-bold" style={{ color: "var(--text)" }}>
+                                {voiceAudio.loading ? "Generando audio..." : voiceAudio.playing ? "Reproduciendo..." : "Respuesta de voz"}
+                              </p>
+                              <p className="text-[10px]" style={{ color: "var(--muted)" }}>
+                                Análisis educativo · No constituye asesoría financiera
+                              </p>
+                            </div>
+                            {voiceAudio.loading ? (
+                              <span className="w-9 h-9 border-2 border-t-transparent rounded-full animate-spin shrink-0"
+                                    style={{ borderColor: "var(--accent)" }} />
+                            ) : (
+                              <button
+                                onClick={playVoiceResponse}
+                                disabled={voiceAudio.playing}
+                                className="w-10 h-10 rounded-full flex items-center justify-center shrink-0 transition-all disabled:opacity-50"
+                                style={{ background: "var(--accent)", boxShadow: "0 0 16px rgba(0,212,126,0.25)" }}>
+                                {voiceAudio.playing
+                                  ? <Square className="w-3.5 h-3.5" style={{ color: "#000" }} fill="#000" />
+                                  : <Play className="w-3.5 h-3.5 ml-0.5" style={{ color: "#000" }} fill="#000" />}
+                              </button>
+                            )}
+                          </div>
+                        ) : (
+                          <>
+                            <div className="prose-dark">
+                              {msg.content === "" && isStreaming && i === messages.length - 1
+                                ? <TypingDots />
+                                : <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
+                              }
+                            </div>
+                            {msg.content !== "" && !(isStreaming && i === messages.length - 1) && (
+                              <p className="mt-2 text-[10px] leading-tight" style={{ color: "var(--dim)" }}>
+                                Análisis educativo · No constituye asesoría financiera · Los datos pueden ser inexactos
+                              </p>
+                            )}
+                          </>
                         )}
                       </div>
                     )}
@@ -844,25 +964,18 @@ export default function ChatPage() {
 
                 {/* Mic button */}
                 <button
-                  onClick={isRecording ? stopRecording : startRecording}
-                  disabled={isStreaming || isTranscribing}
-                  title={isRecording ? "Detener grabación" : "Grabar mensaje de voz"}
-                  className="w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 transition-all disabled:opacity-30 relative"
+                  onClick={startRecording}
+                  disabled={isStreaming || isTranscribing || showVoiceModal}
+                  title="Grabar mensaje de voz"
+                  className="w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 transition-all disabled:opacity-30"
                   style={{
-                    background: isRecording ? "rgba(239,68,68,0.15)" : isTranscribing ? "rgba(99,102,241,0.12)" : "var(--raised)",
-                    border: isRecording ? "1px solid rgba(239,68,68,0.4)" : isPlayingAudio ? "1px solid rgba(0,212,126,0.4)" : "1px solid var(--border)",
+                    background: isTranscribing ? "rgba(99,102,241,0.12)" : "var(--raised)",
+                    border: "1px solid var(--border)",
                   }}>
                   {isTranscribing ? (
                     <span className="w-3.5 h-3.5 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin" />
-                  ) : isPlayingAudio ? (
-                    <Volume2 className="w-4 h-4" style={{ color: "#00d47e" }} />
-                  ) : isRecording ? (
-                    <MicOff className="w-4 h-4" style={{ color: "#ef4444" }} />
                   ) : (
                     <Mic className="w-4 h-4" style={{ color: "var(--muted)" }} />
-                  )}
-                  {isRecording && (
-                    <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-red-500 animate-pulse" />
                   )}
                 </button>
 
@@ -906,6 +1019,45 @@ export default function ChatPage() {
           </div>
         </main>
       </div>
+
+      {/* Voice Recording Modal */}
+      {showVoiceModal && (
+        <div className="fixed inset-0 z-50 flex flex-col items-center justify-center"
+             style={{ background: "rgba(0,0,0,0.95)" }}>
+          <div className="flex flex-col items-center w-full max-w-xs px-6">
+            {/* Waveform canvas */}
+            <canvas
+              ref={waveCanvasRef}
+              width={280}
+              height={80}
+              className="block mb-8"
+              style={{ borderRadius: 8 }}
+            />
+
+            {/* Timer */}
+            <div className="text-5xl font-mono font-bold mb-1 tabular-nums" style={{ color: "#fff", letterSpacing: "0.04em" }}>
+              {String(Math.floor(recordingSecs / 60)).padStart(2, "0")}:{String(recordingSecs % 60).padStart(2, "0")}
+            </div>
+            <p className="text-sm mb-10" style={{ color: "rgba(255,255,255,0.35)" }}>Grabando audio...</p>
+
+            {/* Stop (send) button */}
+            <button
+              onClick={stopRecording}
+              className="w-20 h-20 rounded-full flex items-center justify-center mb-8 transition-transform active:scale-95"
+              style={{ background: "#ef4444", boxShadow: "0 0 40px rgba(239,68,68,0.4)" }}>
+              <Square className="w-7 h-7" style={{ color: "#fff" }} fill="#fff" />
+            </button>
+
+            {/* Cancel */}
+            <button
+              onClick={cancelRecording}
+              className="text-sm font-medium transition-opacity hover:opacity-60"
+              style={{ color: "rgba(255,255,255,0.4)" }}>
+              Cancelar
+            </button>
+          </div>
+        </div>
+      )}
 
       <PaywallModal visible={paywallOpen} onClose={() => setPaywallOpen(false)} />
       <TutorialModal />
