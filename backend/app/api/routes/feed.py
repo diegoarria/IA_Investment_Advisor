@@ -281,7 +281,7 @@ async def delete_clip(clip_id: str, user_id: str = Depends(get_current_user_id))
 
 @router.post("/admin/clips/{clip_id}/generate-audio")
 @limiter.limit("10/hour")
-async def generate_clip_audio(req: Request, clip_id: str, user_id: str = Depends(get_current_user_id)):
+async def generate_clip_audio(request: Request, clip_id: str, user_id: str = Depends(get_current_user_id)):
     await _require_admin(user_id)
     if not settings.elevenlabs_api_key:
         raise HTTPException(400, "ELEVENLABS_API_KEY no configurada en el servidor")
