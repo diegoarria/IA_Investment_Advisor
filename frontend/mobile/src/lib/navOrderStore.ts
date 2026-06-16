@@ -17,15 +17,16 @@ export interface NavItem {
 }
 
 export const ALL_NAV_ITEMS: NavItem[] = [
-  { icon: "book-outline",          iconFilled: "book",          label: "Chat",          path: "/chat",          tabCapable: true,  minLevel: "principiante" },
+  { icon: "reader-outline",        iconFilled: "reader",        label: "Chat",          path: "/chat",          tabCapable: true,  minLevel: "principiante" },
   { icon: "pie-chart-outline",     iconFilled: "pie-chart",     label: "Portafolio",    path: "/portfolio",     tabCapable: true,  minLevel: "principiante" },
   { icon: "eye-outline",           iconFilled: "eye",           label: "Watchlist",     path: "/watchlist",     tabCapable: true,  minLevel: "basico" },
+  { icon: "people-outline",        iconFilled: "people",        label: "Inversores",    path: "/investors",     tabCapable: true,  minLevel: "basico" },
+  { icon: "play-outline",          iconFilled: "play",          label: "Videos",        path: "/videos",        tabCapable: true,  minLevel: "principiante" },
   { icon: "school-outline",        iconFilled: "school",        label: "Aprendizaje",   path: "/learn",         tabCapable: true,  minLevel: "principiante" },
   { icon: "bar-chart-outline",     iconFilled: "bar-chart",     label: "Simulador",     path: "/paper",         tabCapable: true,  minLevel: "basico" },
-  { icon: "person-outline",        iconFilled: "person",        label: "Perfil",        path: "/profile",       tabCapable: true,  minLevel: "principiante" },
   { icon: "notifications-outline", iconFilled: "notifications", label: "Notificaciones",path: "/notifications", tabCapable: true,  minLevel: "principiante" },
-  { icon: "play-circle-outline",   iconFilled: "play-circle",   label: "Videos",        path: "/videos",        tabCapable: true,  minLevel: "principiante" },
   { icon: "headset-outline",       iconFilled: "headset",       label: "Soporte",       path: "/support",       tabCapable: false, minLevel: "principiante" },
+  { icon: "person-outline",        iconFilled: "person",        label: "Perfil",        path: "/profile",       tabCapable: true,  minLevel: "principiante" },
 ];
 
 const ALL_PATHS = ALL_NAV_ITEMS.map((i) => i.path);
