@@ -17,18 +17,19 @@ import MarketTicker from "../../src/components/MarketTicker";
 
 type IoniconName = React.ComponentProps<typeof Ionicons>["name"];
 
-// Icons mirror the web app's Lucide icons: BookOpen, PieChart, Eye, Trophy,
-// GraduationCap, BarChart2, User, Bell, Headphones
+// Icons mirror the web app's Lucide icons: BookOpen, PieChart, Eye, Users,
+// Play, Bookmark, BarChart2, GraduationCap, Bell, Headphones, User
 const TAB_CONFIG: Record<string, { icon: IoniconName; iconFilled: IoniconName; label: string }> = {
-  chat:          { icon: "book-outline",          iconFilled: "book",          label: "Chat" },
+  chat:          { icon: "reader-outline",         iconFilled: "reader",        label: "Chat" },
   portfolio:     { icon: "pie-chart-outline",     iconFilled: "pie-chart",     label: "Portafolio" },
   watchlist:     { icon: "eye-outline",           iconFilled: "eye",           label: "Watchlist" },
+  investors:     { icon: "people-outline",        iconFilled: "people",        label: "Inversores" },
+  videos:        { icon: "play-outline",          iconFilled: "play",          label: "Videos" },
   learn:         { icon: "school-outline",        iconFilled: "school",        label: "Aprendizaje" },
   paper:         { icon: "bar-chart-outline",     iconFilled: "bar-chart",     label: "Simulador" },
-  profile:       { icon: "person-outline",        iconFilled: "person",        label: "Perfil" },
   notifications: { icon: "notifications-outline", iconFilled: "notifications", label: "Notificaciones" },
-  videos:        { icon: "play-circle-outline",   iconFilled: "play-circle",   label: "Videos" },
   support:       { icon: "headset-outline",       iconFilled: "headset",       label: "Soporte" },
+  profile:       { icon: "person-outline",        iconFilled: "person",        label: "Perfil" },
 };
 
 // ─── Custom Tab Bar ───────────────────────────────────────────────────────────
