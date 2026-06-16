@@ -547,115 +547,199 @@ export default function NotificationsPage() {
       {/* ── Modal elección + resumen IA ── */}
       {newsModal && (
         <div
-          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4"
-          style={{ background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)" }}
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-4"
+          style={{ background: "rgba(0,0,0,0.7)", backdropFilter: "blur(6px)" }}
           onClick={() => { if (!summaryLoading) setNewsModal(null); }}
         >
           <div
-            className="w-full max-w-lg rounded-3xl overflow-hidden"
-            style={{ background: "var(--card)", border: "1px solid var(--border)" }}
+            className="w-full max-w-lg rounded-t-3xl sm:rounded-3xl overflow-hidden flex flex-col"
+            style={{ background: "var(--card)", border: "1px solid var(--border)", maxHeight: "90vh" }}
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Header */}
-            <div className="px-5 pt-5 pb-4 border-b" style={{ borderColor: "var(--border)" }}>
-              <div className="flex items-center gap-2 mb-2">
-                <span className="text-[10px] font-black px-1.5 py-0.5 rounded"
-                      style={{ background: "rgba(0,168,94,0.12)", color: "var(--accent-l)" }}>
-                  {newsModal.symbol}
-                </span>
-                <span className="text-[10px]" style={{ color: "var(--dim)" }}>{newsModal.publisher}</span>
-              </div>
-              <p className="text-sm font-bold leading-snug" style={{ color: "var(--text)" }}>
-                {newsModal.title}
-              </p>
+            {/* Drag handle (mobile) */}
+            <div className="flex justify-center pt-3 pb-1 sm:hidden">
+              <div className="w-10 h-1 rounded-full" style={{ background: "var(--border)" }} />
             </div>
 
-            {/* Contenido */}
-            <div className="px-5 py-4">
+            {/* Header — article info */}
+            <div className="relative overflow-hidden shrink-0">
+              {newsModal.thumbnail && (
+                <img src={newsModal.thumbnail} alt="" className="w-full h-24 object-cover"
+                     style={{ opacity: 0.45 }} />
+              )}
+              {newsModal.thumbnail && (
+                <div className="absolute inset-0" style={{ background: "linear-gradient(to bottom, transparent 0%, var(--card) 100%)" }} />
+              )}
+              <div className={`${newsModal.thumbnail ? "absolute bottom-0 left-0 right-0" : ""} px-5 pt-4 pb-4`}>
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-[10px] font-black px-2 py-0.5 rounded-full"
+                        style={{ background: "rgba(0,168,94,0.12)", color: "var(--accent-l)", border: "1px solid rgba(0,168,94,0.2)" }}>
+                    {newsModal.symbol}
+                  </span>
+                  <span className="text-[10px]" style={{ color: "var(--dim)" }}>{newsModal.publisher}</span>
+                  <button onClick={() => { if (!summaryLoading) setNewsModal(null); }}
+                          className="ml-auto p-1 rounded-lg hover:opacity-70" style={{ color: "var(--muted)" }}>
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+                <p className="text-sm font-bold leading-snug line-clamp-2" style={{ color: "var(--text)" }}>
+                  {newsModal.title}
+                </p>
+              </div>
+              <div className="h-px mx-5" style={{ background: "var(--border)" }} />
+            </div>
+
+            {/* Scrollable content */}
+            <div className="flex-1 overflow-y-auto scrollbar-thin px-5 py-4">
               {summaryText ? (
-                /* Resumen generado */
-                <div>
-                  <div className="flex items-center gap-2 mb-3">
-                    <span className="text-xs font-black px-2 py-0.5 rounded-full"
-                          style={{ background: "rgba(168,85,247,0.12)", color: "#a855f7" }}>
-                      ✦ Resumen IA
-                    </span>
-                  </div>
-                  <p className="text-sm leading-relaxed" style={{ color: "var(--text)" }}>
-                    {summaryText}
-                  </p>
-                  <div className="flex gap-2 mt-4">
-                    <button
-                      onClick={() => window.open(newsModal.url, "_blank", "noopener,noreferrer")}
-                      className="flex-1 py-2.5 rounded-xl text-sm font-semibold border transition-colors hover:opacity-80"
-                      style={{ borderColor: "var(--border)", color: "var(--muted)" }}
-                    >
-                      Ver artículo completo
-                    </button>
-                    <button
-                      onClick={() => setNewsModal(null)}
-                      className="flex-1 py-2.5 rounded-xl text-sm font-bold transition-colors"
-                      style={{ background: "var(--raised)", color: "var(--text)" }}
-                    >
-                      Cerrar
-                    </button>
+                /* ── Resumen generado ── */
+                <div className="rounded-2xl overflow-hidden" style={{
+                  background: "linear-gradient(145deg, rgba(168,85,247,0.07) 0%, var(--raised) 50%, rgba(168,85,247,0.04) 100%)",
+                  border: "1px solid rgba(168,85,247,0.22)",
+                  boxShadow: "0 0 40px rgba(168,85,247,0.06), inset 0 1px 0 rgba(168,85,247,0.1)",
+                }}>
+                  {/* shimmer line */}
+                  <div style={{ height: 2, background: "linear-gradient(90deg, transparent, rgba(168,85,247,0.75), transparent)" }} />
+
+                  <div className="p-5">
+                    {/* Header */}
+                    <div className="flex items-center justify-between mb-5">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-2xl flex items-center justify-center shrink-0"
+                             style={{ background: "linear-gradient(135deg, rgba(168,85,247,0.22), rgba(139,92,246,0.1))", border: "1px solid rgba(168,85,247,0.35)", boxShadow: "0 0 16px rgba(168,85,247,0.15)" }}>
+                          <span style={{ fontSize: 18 }}>✦</span>
+                        </div>
+                        <div>
+                          <p className="text-sm font-black tracking-widest uppercase" style={{ color: "#c084fc", letterSpacing: "0.14em" }}>Resumen IA</p>
+                          <p className="text-[10px] mt-0.5" style={{ color: "var(--dim)" }}>Generado por Claude</p>
+                        </div>
+                      </div>
+                      <span className="text-[10px] font-bold px-2.5 py-1 rounded-full shrink-0"
+                            style={{ background: "rgba(168,85,247,0.12)", color: "#c084fc", border: "1px solid rgba(168,85,247,0.25)" }}>
+                        Premium
+                      </span>
+                    </div>
+
+                    {/* Summary text */}
+                    <div className="space-y-3">
+                      {summaryText.split(/\n+/).filter(p => p.trim().length > 0).map((para, i) => (
+                        <p key={i} className="text-[13px] leading-relaxed" style={{ color: "var(--sub)" }}>{para.trim()}</p>
+                      ))}
+                    </div>
+
+                    {/* Footer */}
+                    <div className="mt-5 pt-4" style={{ borderTop: "1px solid rgba(168,85,247,0.1)" }}>
+                      <div className="flex gap-2.5">
+                        <button
+                          onClick={() => window.open(newsModal.url, "_blank", "noopener,noreferrer")}
+                          className="flex-1 py-2.5 rounded-xl text-sm font-semibold border transition-all hover:opacity-80"
+                          style={{ borderColor: "var(--border)", color: "var(--muted)", background: "var(--card)" }}
+                        >
+                          Ver artículo
+                        </button>
+                        <button
+                          onClick={() => setNewsModal(null)}
+                          className="flex-1 py-2.5 rounded-xl text-sm font-bold transition-all hover:opacity-80"
+                          style={{ background: "rgba(168,85,247,0.12)", color: "#c084fc", border: "1px solid rgba(168,85,247,0.22)" }}
+                        >
+                          Cerrar
+                        </button>
+                      </div>
+                      <p className="text-[10px] text-center mt-3" style={{ color: "var(--dim)" }}>
+                        Resumen por IA · No constituye asesoramiento de inversión
+                      </p>
+                    </div>
                   </div>
                 </div>
+
               ) : summaryLoading ? (
-                /* Cargando resumen */
-                <div className="flex flex-col items-center gap-3 py-6">
-                  <div className="w-8 h-8 rounded-full flex items-center justify-center"
-                       style={{ background: "rgba(168,85,247,0.12)" }}>
-                    <Loader2 className="w-4 h-4 animate-spin" style={{ color: "#a855f7" }} />
+                /* ── Cargando resumen ── */
+                <div className="flex flex-col items-center gap-5 py-6">
+                  <div className="relative">
+                    <div className="w-16 h-16 rounded-2xl flex items-center justify-center"
+                         style={{ background: "linear-gradient(135deg, rgba(168,85,247,0.18), rgba(139,92,246,0.08))", border: "1px solid rgba(168,85,247,0.3)", boxShadow: "0 0 28px rgba(168,85,247,0.14)" }}>
+                      <Loader2 className="w-7 h-7 animate-spin" style={{ color: "#c084fc" }} />
+                    </div>
+                    <div className="absolute -top-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center animate-pulse"
+                         style={{ background: "rgba(168,85,247,0.25)", border: "1px solid rgba(168,85,247,0.4)" }}>
+                      <span style={{ fontSize: 9, color: "#c084fc" }}>✦</span>
+                    </div>
                   </div>
-                  <p className="text-sm font-semibold" style={{ color: "var(--muted)" }}>
-                    Leyendo el artículo…
-                  </p>
+                  <div className="text-center">
+                    <p className="text-sm font-bold" style={{ color: "var(--text)" }}>Claude está leyendo el artículo</p>
+                    <p className="text-xs mt-1" style={{ color: "var(--muted)" }}>Extrayendo lo más importante para ti…</p>
+                  </div>
+                  {/* Skeleton lines */}
+                  <div className="w-full space-y-2.5">
+                    {[100, 88, 94, 72].map((w, i) => (
+                      <div key={i} className="h-3 rounded-full animate-pulse"
+                           style={{ width: `${w}%`, background: "rgba(168,85,247,0.09)", animationDelay: `${i * 120}ms` }} />
+                    ))}
+                  </div>
                 </div>
+
               ) : (
-                /* Elección inicial */
-                <div>
-                  <p className="text-sm font-semibold mb-4" style={{ color: "var(--muted)" }}>
-                    ¿Qué prefieres?
-                  </p>
-                  <div className="grid grid-cols-2 gap-3">
-                    <button
-                      onClick={() => window.open(newsModal.url, "_blank", "noopener,noreferrer")}
-                      className="flex flex-col items-center gap-2 py-4 px-3 rounded-2xl border transition-all hover:opacity-80"
-                      style={{ borderColor: "var(--border)", background: "var(--raised)" }}
-                    >
-                      <span className="text-2xl">🌐</span>
-                      <span className="text-sm font-bold" style={{ color: "var(--text)" }}>
-                        Ver noticia completa
-                      </span>
-                      <span className="text-[10px] text-center" style={{ color: "var(--dim)" }}>
-                        Abre el artículo original
-                      </span>
-                    </button>
-                    <button
-                      onClick={async () => {
-                        setSummaryLoading(true);
-                        try {
-                          const res = await marketApi.summarizeNews(newsModal.title, newsModal.url);
-                          setSummaryText(res.data.summary);
-                        } catch {
-                          setSummaryText("No se pudo generar el resumen. Intenta ver el artículo completo.");
-                        } finally {
-                          setSummaryLoading(false);
-                        }
-                      }}
-                      className="flex flex-col items-center gap-2 py-4 px-3 rounded-2xl border transition-all hover:opacity-80"
-                      style={{ borderColor: "#a855f740", background: "rgba(168,85,247,0.06)" }}
-                    >
-                      <span className="text-2xl">✦</span>
-                      <span className="text-sm font-bold" style={{ color: "#a855f7" }}>
-                        Resumen de IA
-                      </span>
-                      <span className="text-[10px] text-center" style={{ color: "var(--dim)" }}>
-                        4–8 líneas con lo esencial
-                      </span>
-                    </button>
-                  </div>
+                /* ── Elección inicial ── */
+                <div className="space-y-3 py-1">
+                  {/* AI Summary — hero CTA */}
+                  <button
+                    onClick={async () => {
+                      setSummaryLoading(true);
+                      try {
+                        const res = await marketApi.summarizeNews(newsModal.title, newsModal.url);
+                        setSummaryText(res.data.summary);
+                      } catch {
+                        setSummaryText("No se pudo generar el resumen. Intenta ver el artículo completo.");
+                      } finally {
+                        setSummaryLoading(false);
+                      }
+                    }}
+                    className="w-full rounded-2xl overflow-hidden text-left transition-opacity hover:opacity-90 active:scale-[0.99]"
+                    style={{
+                      background: "linear-gradient(145deg, rgba(168,85,247,0.12) 0%, rgba(139,92,246,0.07) 100%)",
+                      border: "1px solid rgba(168,85,247,0.28)",
+                      boxShadow: "0 0 32px rgba(168,85,247,0.08), inset 0 1px 0 rgba(168,85,247,0.12)",
+                    }}
+                  >
+                    <div style={{ height: 2, background: "linear-gradient(90deg, transparent, rgba(168,85,247,0.7), transparent)" }} />
+                    <div className="p-5 flex items-center gap-4">
+                      <div className="w-14 h-14 rounded-2xl flex items-center justify-center shrink-0"
+                           style={{ background: "linear-gradient(135deg, rgba(168,85,247,0.22), rgba(139,92,246,0.08))", border: "1px solid rgba(168,85,247,0.35)", boxShadow: "0 0 20px rgba(168,85,247,0.18)" }}>
+                        <span style={{ fontSize: 26 }}>✦</span>
+                      </div>
+                      <div className="flex-1">
+                        <p className="font-black text-base" style={{ color: "#c084fc" }}>Resumen IA</p>
+                        <p className="text-xs mt-0.5 leading-relaxed" style={{ color: "var(--muted)" }}>
+                          Claude lee y extrae lo esencial
+                        </p>
+                        <div className="flex items-center gap-2 mt-2">
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full"
+                                style={{ background: "rgba(168,85,247,0.15)", color: "#c084fc", border: "1px solid rgba(168,85,247,0.2)" }}>
+                            Premium
+                          </span>
+                          <span className="text-[10px]" style={{ color: "var(--dim)" }}>4–8 líneas · en segundos</span>
+                        </div>
+                      </div>
+                      <span className="text-xl" style={{ color: "#c084fc", opacity: 0.6 }}>›</span>
+                    </div>
+                  </button>
+
+                  {/* Original article — secondary */}
+                  <button
+                    onClick={() => window.open(newsModal.url, "_blank", "noopener,noreferrer")}
+                    className="w-full p-4 rounded-2xl border flex items-center gap-3 text-left transition-opacity hover:opacity-80"
+                    style={{ background: "var(--raised)", borderColor: "var(--border)" }}
+                  >
+                    <div className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0"
+                         style={{ background: "var(--card)", border: "1px solid var(--border)" }}>
+                      <span className="text-xl">🌐</span>
+                    </div>
+                    <div className="flex-1">
+                      <p className="font-bold text-sm" style={{ color: "var(--text)" }}>Ver artículo completo</p>
+                      <p className="text-[11px] mt-0.5" style={{ color: "var(--dim)" }}>Abre el original en {newsModal.publisher}</p>
+                    </div>
+                    <span className="text-lg" style={{ color: "var(--dim)" }}>›</span>
+                  </button>
                 </div>
               )}
             </div>
