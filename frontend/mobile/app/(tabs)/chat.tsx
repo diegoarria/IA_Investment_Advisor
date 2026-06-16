@@ -4,7 +4,7 @@ import { Audio } from "expo-av";
 import * as FileSystem from "expo-file-system/legacy";
 import {
   View, Text, TextInput, TouchableOpacity, FlatList, ScrollView,
-  StyleSheet, KeyboardAvoidingView, Platform, Image, Animated,
+  StyleSheet, KeyboardAvoidingView, Platform, Image, Animated, Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -343,13 +343,22 @@ Instrucciones críticas:
       await Audio.setAudioModeAsync({ allowsRecordingIOS: false });
       recordingRef.current = null;
       const uri = recording.getURI();
-      if (!uri) return;
+      if (!uri) {
+        Alert.alert("Error", "No se pudo obtener el audio grabado");
+        return;
+      }
       const { data } = await chatApi.transcribe(uri);
       if (data?.text) {
         setInput(data.text);
         inputRef.current?.focus();
+      } else {
+        Alert.alert("Sin resultado", "No se detectó voz en el audio");
       }
-    } catch {} finally {
+    } catch (e: unknown) {
+      const err = e as { response?: { data?: { detail?: string } }; message?: string };
+      const msg = err?.response?.data?.detail || err?.message || "Error desconocido";
+      Alert.alert("Error al transcribir", msg);
+    } finally {
       setIsTranscribing(false);
     }
   };
