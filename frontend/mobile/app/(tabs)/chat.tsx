@@ -194,13 +194,42 @@ export default function ChatScreen() {
   const inputRef = useRef<TextInput>(null);
   const isAtBottom = useRef(true);
 
-  // On first load: restore history from server if no local sessions, then ensure active session
+  // Cross-device sync
+  const syncCursorRef = useRef<string | null>(null);
+  const localFingerprintsRef = useRef<Set<string>>(new Set());
+  const fp = (role: string, content: string) => `${role}:${content.slice(0, 60)}`;
+
+  // On first load: restore history from server, set sync cursor, then start polling
   useEffect(() => {
     const init = async () => {
       if (sessions.length === 0) await restoreFromServer();
       if (!useChatStore.getState().currentId) createSession();
+      try {
+        const res = await chatApi.getHistory();
+        const msgs: { created_at?: string }[] = res.data?.messages ?? [];
+        syncCursorRef.current = msgs[msgs.length - 1]?.created_at ?? new Date().toISOString();
+      } catch {
+        syncCursorRef.current = new Date().toISOString();
+      }
     };
     init();
+
+    const poll = setInterval(async () => {
+      if (!syncCursorRef.current) return;
+      try {
+        const res = await chatApi.getHistory(syncCursorRef.current);
+        const newMsgs: { role: string; content: string; created_at?: string }[] = res.data?.messages ?? [];
+        if (newMsgs.length === 0) return;
+        const foreign = newMsgs.filter((m) => !localFingerprintsRef.current.has(fp(m.role, m.content)));
+        if (foreign.length > 0) {
+          const current = useChatStore.getState().currentMessages();
+          setMessages([...current, ...foreign.map((m) => ({ role: m.role as "user" | "assistant", content: m.content, timestamp: Date.now() }))]);
+        }
+        syncCursorRef.current = newMsgs[newMsgs.length - 1].created_at ?? syncCursorRef.current;
+      } catch {}
+    }, 8000);
+
+    return () => clearInterval(poll);
   }, []);
 
   // Refresh subscription status on mount
@@ -439,6 +468,8 @@ Instrucciones críticas:
     };
     const newMessages = [...messages, userMsg];
     setMessages(newMessages);
+    localFingerprintsRef.current.add(fp("user", saveMsg));
+    syncCursorRef.current = new Date().toISOString();
     chatApi.saveMessage("user", saveMsg).catch(() => {});
 
     const profileCtx = buildProfileContext();
@@ -469,6 +500,8 @@ Instrucciones críticas:
         },
         () => {
           setStreaming(false);
+          localFingerprintsRef.current.add(fp("assistant", full));
+          syncCursorRef.current = new Date().toISOString();
           chatApi.saveMessage("assistant", full).catch(() => {});
           if (voiceInputRef.current) {
             voiceInputRef.current = false;

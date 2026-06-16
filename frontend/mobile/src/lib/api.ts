@@ -93,7 +93,7 @@ export const profileApi = {
 };
 
 export const chatApi = {
-  getHistory: () => api.get("/api/chat/history"),
+  getHistory: (since?: string) => api.get("/api/chat/history", since ? { params: { since } } : undefined),
   saveMessage: (role: string, content: string) =>
     api.post("/api/chat/save-message", { role, content }),
   transcribe: (audioUri: string) => {

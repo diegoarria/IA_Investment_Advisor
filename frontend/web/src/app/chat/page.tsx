@@ -203,6 +203,11 @@ export default function ChatPage() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const voiceInputRef = useRef(false);
 
+  // Cross-device sync
+  const syncCursorRef = useRef<string | null>(null);
+  const localFingerprintsRef = useRef<Set<string>>(new Set());
+  const fp = (role: string, content: string) => `${role}:${content.slice(0, 60)}`;
+
   const handleScrollContainer = () => {
     const el = scrollContainerRef.current;
     if (!el) return;
@@ -365,8 +370,20 @@ export default function ChatPage() {
     if (sessions.length === 0) {
       createSession();
       chatApi.getHistory()
-        .then((res) => setMessages(res.data.messages.map((m: { role: string; content: string }) => ({ role: m.role as "user" | "assistant", content: m.content }))))
-        .catch(() => {});
+        .then((res) => {
+          const msgs: { role: string; content: string; created_at?: string }[] = res.data.messages ?? [];
+          setMessages(msgs.map((m) => ({ role: m.role as "user" | "assistant", content: m.content })));
+          syncCursorRef.current = msgs[msgs.length - 1]?.created_at ?? new Date().toISOString();
+        })
+        .catch(() => { syncCursorRef.current = new Date().toISOString(); });
+    } else {
+      // Already have local sessions — still set cursor so polling works
+      chatApi.getHistory()
+        .then((res) => {
+          const msgs: { created_at?: string }[] = res.data.messages ?? [];
+          syncCursorRef.current = msgs[msgs.length - 1]?.created_at ?? new Date().toISOString();
+        })
+        .catch(() => { syncCursorRef.current = new Date().toISOString(); });
     }
 
     notifApi.getAll()
@@ -382,6 +399,25 @@ export default function ChatPage() {
       bottomRef.current?.scrollIntoView({ behavior: "smooth" });
     }
   }, [messages]);
+
+  // Cross-device sync: poll for messages sent from other devices
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    const poll = setInterval(async () => {
+      if (!syncCursorRef.current) return;
+      try {
+        const res = await chatApi.getHistory(syncCursorRef.current);
+        const newMsgs: { role: string; content: string; created_at?: string }[] = res.data.messages ?? [];
+        if (newMsgs.length === 0) return;
+        const foreign = newMsgs.filter((m) => !localFingerprintsRef.current.has(fp(m.role, m.content)));
+        if (foreign.length > 0) {
+          foreign.forEach((m) => addMessage({ role: m.role as "user" | "assistant", content: m.content }));
+        }
+        syncCursorRef.current = newMsgs[newMsgs.length - 1].created_at ?? syncCursorRef.current;
+      } catch {}
+    }, 8000);
+    return () => clearInterval(poll);
+  }, [isAuthenticated]);
 
   const sendMessage = async (text?: string) => {
     const msg = text || input.trim();
@@ -403,7 +439,9 @@ export default function ChatPage() {
       content: msg,
       images: imagesToSend.length > 0 ? imagesToSend.map((i) => ({ preview: i.preview })) : undefined,
     });
+    localFingerprintsRef.current.add(fp("user", saveMsg));
     chatApi.saveMessage("user", saveMsg).catch(() => {});
+    syncCursorRef.current = new Date().toISOString();
 
     const profileCtx = buildProfileContext();
     const recentHistory = messages.slice(-18).map((m) => ({ role: m.role, content: m.content }));
@@ -430,7 +468,9 @@ export default function ChatPage() {
         },
         () => {
           setStreaming(false);
+          localFingerprintsRef.current.add(fp("assistant", fullResponse));
           chatApi.saveMessage("assistant", fullResponse).catch(() => {});
+          syncCursorRef.current = new Date().toISOString();
           if (voiceInputRef.current) {
             voiceInputRef.current = false;
             playTTS(fullResponse);

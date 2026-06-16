@@ -240,17 +240,22 @@ async def speak_text(
 @router.get("/history")
 async def get_history(
     limit: int = 100,
+    since: str | None = None,
     user_id: str = Depends(get_current_user_id)
 ):
     try:
         db = get_supabase()
-        result = await run_query(
+        q = (
             db.table("chat_history")
-            .select("*")
+            .select("id, role, content, created_at")
             .eq("user_id", user_id)
-            .order("created_at", desc=True)
-            .limit(limit)
         )
-        return {"messages": list(reversed(result.data))}
+        if since:
+            q = q.gt("created_at", since).order("created_at", desc=False)
+        else:
+            q = q.order("created_at", desc=True).limit(limit)
+        result = await run_query(q)
+        msgs = result.data if since else list(reversed(result.data))
+        return {"messages": msgs}
     except Exception:
         return {"messages": []}
