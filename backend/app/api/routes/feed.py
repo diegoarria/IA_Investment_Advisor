@@ -392,10 +392,14 @@ async def list_all_clips(
 ):
     await _require_admin(user_id)
     db = get_supabase()
-    rows_res = await run_query(
-        db.table("clips")
-        .select("*")
-        .eq("status", status)
-        .order("created_at", desc=True)
-    )
-    return {"clips": rows_res.data or []}
+    try:
+        rows_res = await run_query(
+            db.table("clips")
+            .select("*")
+            .eq("status", status)
+            .order("created_at", desc=True)
+        )
+        return {"clips": rows_res.data or []}
+    except Exception as e:
+        logger.error("list_all_clips failed: %s", e)
+        raise HTTPException(500, f"Error consultando clips: {type(e).__name__}: {str(e)[:200]}")

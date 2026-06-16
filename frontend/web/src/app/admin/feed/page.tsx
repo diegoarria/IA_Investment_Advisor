@@ -88,8 +88,10 @@ export default function AdminFeedPage() {
     try {
       const res = await feedApi.adminList(statusFilter);
       setClips(res.data.clips || []);
-    } catch {
-      setError("No se pudieron cargar los clips");
+    } catch (e) {
+      const status = (e as { response?: { status?: number; data?: { detail?: string } } })?.response?.status;
+      const detail = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+      setError(`Error ${status ?? "red"}: ${detail || "No se pudieron cargar los clips. Verifica que el backend esté corriendo."}`);
     } finally {
       setLoading(false);
     }
@@ -206,6 +208,17 @@ export default function AdminFeedPage() {
       tags: f.tags.includes(t) ? f.tags.filter((x) => x !== t) : [...f.tags, t],
     }));
 
+  const runDiag = async () => {
+    try {
+      const res = await feedApi.adminList("draft");
+      alert(`OK — ${res.data.clips?.length ?? 0} borradores encontrados`);
+    } catch (e) {
+      const status = (e as { response?: { status?: number; data?: unknown } })?.response?.status;
+      const data   = (e as { response?: { data?: unknown } })?.response?.data;
+      alert(`ERROR ${status}\n${JSON.stringify(data, null, 2)}`);
+    }
+  };
+
   if (!userId) return null;
   if (userId !== ADMIN_UID) return null;
 
@@ -227,12 +240,21 @@ export default function AdminFeedPage() {
               Solo visible para ti · diego.arria19@gmail.com
             </p>
           </div>
-          <button
-            onClick={() => { setFormOpen(true); setError(null); }}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-sm text-white"
-            style={{ background: "linear-gradient(90deg,#00a85e,#00d47e)" }}>
-            <Plus className="w-4 h-4" /> Nuevo clip
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={runDiag}
+              className="px-3 py-2 rounded-xl text-xs font-bold"
+              style={{ background: "var(--raised)", color: "var(--muted)" }}
+              title="Diagnosticar conexión con el backend">
+              🔍 Diag
+            </button>
+            <button
+              onClick={() => { setFormOpen(true); setError(null); }}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-sm text-white"
+              style={{ background: "linear-gradient(90deg,#00a85e,#00d47e)" }}>
+              <Plus className="w-4 h-4" /> Nuevo clip
+            </button>
+          </div>
         </div>
 
         {/* Status filter tabs */}
