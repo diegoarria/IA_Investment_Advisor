@@ -188,6 +188,7 @@ export default function ChatScreen() {
   const [isLoadingAudio, setIsLoadingAudio] = useState(false);
   const recordingRef = useRef<Audio.Recording | null>(null);
   const soundRef = useRef<Audio.Sound | null>(null);
+  const voiceInputRef = useRef(false); // true while a voice-originated message is in flight
   const listRef = useRef<FlatList>(null);
   const cancelRef = useRef({ cancelled: false });
   const inputRef = useRef<TextInput>(null);
@@ -349,8 +350,8 @@ Instrucciones críticas:
       }
       const { data } = await chatApi.transcribe(uri);
       if (data?.text) {
-        setInput(data.text);
-        inputRef.current?.focus();
+        voiceInputRef.current = true;
+        sendMessage(data.text);
       } else {
         Alert.alert("Sin resultado", "No se detectó voz en el audio");
       }
@@ -466,7 +467,14 @@ Instrucciones críticas:
           full += chunk;
           setMessages([...withAssistant.slice(0, -1), { role: "assistant", content: full, timestamp: Date.now() }]);
         },
-        () => { setStreaming(false); chatApi.saveMessage("assistant", full).catch(() => {}); },
+        () => {
+          setStreaming(false);
+          chatApi.saveMessage("assistant", full).catch(() => {});
+          if (voiceInputRef.current) {
+            voiceInputRef.current = false;
+            playMessageAudio(full, withAssistant.length - 1);
+          }
+        },
         (a) => {
           const d: BehavioralDiagnosis = { score: a.s, profile: a.p, signals: a.sig, confidence: a.conf };
           updateMaturity(a.sig);
