@@ -223,19 +223,41 @@ async def speak_text(
     request: dict,
     user_id: str = Depends(get_current_user_id),
 ):
-    """Convert text to speech using OpenAI TTS. Returns base64 MP3."""
-    api_key = os.getenv("OPENAI_API_KEY")
-    if not api_key:
-        raise HTTPException(status_code=503, detail="Servicio de voz no configurado")
+    """Convert text to speech. Uses ElevenLabs if configured, else OpenAI TTS."""
     text = (request.get("text") or "").strip()[:2000]
     if not text:
         raise HTTPException(status_code=400, detail="text requerido")
+
+    eleven_key = os.getenv("ELEVENLABS_API_KEY")
+    if eleven_key:
+        voice_id = os.getenv("ELEVENLABS_VOICE_ID", "SOYHLrjzK2X1ezoPC6cr")
+        url = f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}"
+        payload = {
+            "text": text,
+            "model_id": "eleven_multilingual_v2",
+            "voice_settings": {"stability": 0.45, "similarity_boost": 0.80, "style": 0.20, "use_speaker_boost": True},
+        }
+        headers = {"xi-api-key": eleven_key, "Content-Type": "application/json", "Accept": "audio/mpeg"}
+        try:
+            import httpx
+            async with httpx.AsyncClient(timeout=30) as client:
+                resp = await client.post(url, json=payload, headers=headers)
+                resp.raise_for_status()
+                audio_b64 = base64.b64encode(resp.content).decode()
+                return {"audio": audio_b64}
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Error ElevenLabs: {str(e)}")
+
+    # Fallback: OpenAI TTS
+    api_key = os.getenv("OPENAI_API_KEY")
+    if not api_key:
+        raise HTTPException(status_code=503, detail="Servicio de voz no configurado")
     try:
         from openai import AsyncOpenAI
         client = AsyncOpenAI(api_key=api_key)
         response = await client.audio.speech.create(
             model="tts-1",
-            voice="nova",
+            voice="onyx",
             input=text,
         )
         audio_b64 = base64.b64encode(response.content).decode()
