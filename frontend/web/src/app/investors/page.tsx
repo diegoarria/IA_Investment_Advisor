@@ -9,7 +9,8 @@ import MarketTickerBar from "@/components/MarketTickerBar";
 import StockAvatar from "@/components/StockAvatar";
 import { useAuthStore, useThemeStore } from "@/lib/store";
 import { investorsApi } from "@/lib/api";
-import { Menu, X, Sun, Moon, Loader2, ChevronLeft, TrendingUp, Info } from "lucide-react";
+import { Menu, X, Sun, Moon, Loader2, ChevronLeft, TrendingUp, Info, Copy, Check } from "lucide-react";
+import { watchlist as watchlistApi } from "@/lib/api";
 
 interface Investor {
   id: string;
@@ -56,6 +57,8 @@ export default function InvestorsPage() {
 
   const [selected, setSelected] = useState<InvestorDetail | null>(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
+  const [copying, setCopying] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     investorsApi.list()
@@ -63,6 +66,20 @@ export default function InvestorsPage() {
       .catch(() => {})
       .finally(() => setLoadingList(false));
   }, [isAuthenticated]);
+
+  const copyPortfolio = async () => {
+    if (!selected || copying) return;
+    const tickers = selected.holdings.filter((h) => h.ticker && h.ticker !== "N/A").map((h) => ({ ticker: h.ticker, name: h.name }));
+    if (tickers.length === 0) return;
+    setCopying(true);
+    try {
+      await Promise.allSettled(tickers.slice(0, 20).map((t) => watchlistApi.add(t.ticker, t.name)));
+      setCopied(true);
+      setTimeout(() => setCopied(false), 3000);
+    } finally {
+      setCopying(false);
+    }
+  };
 
   const openInvestor = useCallback(async (inv: Investor) => {
     setSelected(null);
@@ -178,6 +195,29 @@ export default function InvestorsPage() {
                         </p>
                       )}
                     </div>
+
+                    {/* Copy Portfolio */}
+                    {selected.holdings.some((h) => h.ticker) && (
+                      <button
+                        onClick={copyPortfolio}
+                        disabled={copying}
+                        className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl font-bold text-sm transition-all disabled:opacity-60"
+                        style={{
+                          background: copied ? "rgba(0,212,126,0.12)" : "var(--grad-green)",
+                          color: copied ? "var(--accent)" : "#000",
+                          border: copied ? "1px solid var(--accent)" : "none",
+                          boxShadow: copied ? "none" : "var(--shadow-accent-sm)",
+                        }}>
+                        {copying ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : copied ? (
+                          <Check className="w-4 h-4" />
+                        ) : (
+                          <Copy className="w-4 h-4" />
+                        )}
+                        {copying ? "Agregando a Watchlist..." : copied ? "¡Portafolio copiado a tu Watchlist!" : "Copiar Portafolio → Watchlist"}
+                      </button>
+                    )}
 
                     {/* AI Analysis */}
                     {selected.analysis && (

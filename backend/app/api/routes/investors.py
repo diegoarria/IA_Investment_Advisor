@@ -25,6 +25,26 @@ _ANTHROPIC = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY", ""))
 # ── Known investors with their SEC CIK numbers and display info ───────────────
 TRACKED_INVESTORS = [
     {
+        "id": "buffett",
+        "name": "Warren Buffett",
+        "fund": "Berkshire Hathaway",
+        "avatar": "🏦",
+        "bio": "El Oráculo de Omaha. El inversor value más famoso del mundo con 60+ años de retornos excepcionales.",
+        "style": "Value investing · Largo plazo · Foso competitivo",
+        "source": "sec_13f",
+        "cik": "0001067983",
+    },
+    {
+        "id": "munger",
+        "name": "Charlie Munger",
+        "fund": "Daily Journal Corporation (histórico)",
+        "avatar": "📚",
+        "bio": "Socio de Buffett durante décadas. Filósofo del value investing. Falleció en noviembre 2023.",
+        "style": "Value profundo · Concentración extrema · Psicología del mercado",
+        "source": "sec_13f",
+        "cik": "0000783412",
+    },
+    {
         "id": "burry",
         "name": "Michael Burry",
         "fund": "Scion Asset Management",
@@ -32,57 +52,106 @@ TRACKED_INVESTORS = [
         "bio": "El inversor de 'The Big Short'. Conocido por apostar contra el mercado hipotecario en 2008.",
         "style": "Value contrarian · Apuestas asimétricas",
         "source": "sec_13f",
-        "cik": "0001418387",
-    },
-    {
-        "id": "buffett",
-        "name": "Warren Buffett",
-        "fund": "Berkshire Hathaway",
-        "avatar": "🏦",
-        "bio": "El Oráculo de Omaha. Inversor value más famoso del mundo.",
-        "style": "Value investing · Largo plazo · Foso competitivo",
-        "source": "sec_13f",
-        "cik": "0001067983",
+        "cik": "0001649339",
     },
     {
         "id": "ackman",
         "name": "Bill Ackman",
         "fund": "Pershing Square Capital",
         "avatar": "📣",
-        "bio": "Activista con posiciones concentradas y tesis públicas muy detalladas.",
-        "style": "Activismo · Posiciones concentradas",
+        "bio": "Activista con posiciones concentradas y tesis públicas muy detalladas. Habla directo.",
+        "style": "Activismo · Posiciones concentradas · Catalizadores",
         "source": "sec_13f",
         "cik": "0001336528",
+    },
+    {
+        "id": "dalio",
+        "name": "Ray Dalio",
+        "fund": "Bridgewater Associates",
+        "avatar": "🌊",
+        "bio": "Fundador del hedge fund más grande del mundo. Creador de los Principios y del 'All Weather Portfolio'.",
+        "style": "Macro global · Risk parity · Diversificación extrema",
+        "source": "sec_13f",
+        "cik": "0001350683",
+    },
+    {
+        "id": "druckenmiller",
+        "name": "Stanley Druckenmiller",
+        "fund": "Duquesne Family Office",
+        "avatar": "⚡",
+        "bio": "Trabajó con Soros para quebrar el Banco de Inglaterra. Uno de los mejores macro traders de la historia.",
+        "style": "Global macro · Momentum · Alta convicción",
+        "source": "sec_13f",
+        "cik": "0001536411",
+    },
+    {
+        "id": "klarman",
+        "name": "Seth Klarman",
+        "fund": "Baupost Group",
+        "avatar": "🔍",
+        "bio": "Autor de 'Margin of Safety'. El más secreto de los grandes inversores value. Fondo de $30B+.",
+        "style": "Deep value · Margen de seguridad · Paciencia extrema",
+        "source": "sec_13f",
+        "cik": "0001061768",
     },
     {
         "id": "tepper",
         "name": "David Tepper",
         "fund": "Appaloosa Management",
         "avatar": "🦁",
-        "bio": "Uno de los hedge fund managers más rentables de la historia.",
-        "style": "Macro · Distressed assets",
+        "bio": "Uno de los hedge fund managers más rentables de la historia. Sus declaraciones mueven mercados.",
+        "style": "Macro · Distressed assets · Oportunismo",
         "source": "sec_13f",
         "cik": "0001656456",
     },
     {
-        "id": "pelosi",
-        "name": "Nancy Pelosi",
-        "fund": "Divulgaciones Congresistas (STOCK Act)",
-        "avatar": "🏛️",
-        "bio": "Ex-Speaker de la Cámara. Sus trades han superado al S&P 500 consistentemente.",
-        "style": "Tech · Semiconductores · Opciones",
-        "source": "congress",
-        "bioguide_id": "P000197",
+        "id": "coleman",
+        "name": "Chase Coleman",
+        "fund": "Tiger Global Management",
+        "avatar": "🐯",
+        "bio": "Discípulo de Julian Robertson. Pionero en inversión en tecnología y startups globales.",
+        "style": "Growth tech · Venture híbrido · Global",
+        "source": "sec_13f",
+        "cik": "0001480770",
+    },
+    {
+        "id": "pabrai",
+        "name": "Mohnish Pabrai",
+        "fund": "Pabrai Investment Funds",
+        "avatar": "🎯",
+        "bio": "Discípulo de Buffett. Copiador sistemático de las mejores ideas de inversión del mundo.",
+        "style": "Cloning · Value concentrado · Paciencia",
+        "source": "sec_13f",
+        "cik": "0001492222",
     },
     {
         "id": "ark",
         "name": "Cathie Wood",
         "fund": "ARK Invest",
         "avatar": "🚀",
-        "bio": "Fundadora de ARK. Apuesta por tecnología disruptiva e innovación.",
+        "bio": "Fundadora de ARK. Apuesta por tecnología disruptiva e innovación con horizonte de 5 años.",
         "style": "Disruptive tech · Alto crecimiento · Largo plazo",
         "source": "ark",
         "ark_fund": "ARKK",
+    },
+    {
+        "id": "pelosi",
+        "name": "Nancy Pelosi",
+        "fund": "Divulgaciones Congresistas (STOCK Act)",
+        "avatar": "🏛️",
+        "bio": "Ex-Speaker de la Cámara. Sus trades en opciones tech han superado al S&P 500 consistentemente.",
+        "style": "Tech · Semiconductores · Opciones",
+        "source": "congress",
+        "bioguide_id": "P000197",
+    },
+    {
+        "id": "congress",
+        "name": "Portafolio Congresistas EE.UU.",
+        "fund": "Agregado STOCK Act (Cámara + Senado)",
+        "avatar": "🇺🇸",
+        "bio": "Agregado de las transacciones más recientes de todos los miembros del Congreso bajo el STOCK Act.",
+        "style": "Diversificado · Insider político · Todas las industrias",
+        "source": "congress_all",
     },
 ]
 
@@ -269,8 +338,11 @@ async def get_investor_holdings(
             filing_date = result.get("filing_date", "")
 
         elif inv["source"] == "congress":
-            # Congress data: use house.gov disclosure API (returns recent transactions)
             holdings = await _fetch_congress_trades(inv.get("bioguide_id", ""))
+            filing_date = datetime.utcnow().strftime("%Y-%m-%d")
+
+        elif inv["source"] == "congress_all":
+            holdings = await _fetch_congress_all()
             filing_date = datetime.utcnow().strftime("%Y-%m-%d")
 
     except Exception as e:
@@ -287,12 +359,20 @@ async def get_investor_holdings(
         except Exception:
             analysis = ""
 
+    source = inv.get("source", "")
+    data_note = {
+        "sec_13f": "Datos trimestrales con hasta 45 días de retraso (SEC Form 13F)",
+        "ark": "Holdings publicados diariamente por ARK Invest",
+        "congress": "Transacciones reportadas bajo el STOCK Act (hasta 45 días de retraso)",
+        "congress_all": "Transacciones agregadas de todos los congresistas bajo el STOCK Act",
+    }.get(source, "Datos de fuentes públicas")
+
     result = {
         **{k: v for k, v in inv.items() if k not in ("cik", "bioguide_id", "ark_fund", "source")},
         "holdings": holdings,
         "filing_date": filing_date,
         "analysis": analysis,
-        "data_note": "Datos con hasta 45 días de retraso (SEC Form 13F / STOCK Act)",
+        "data_note": data_note,
     }
 
     cache_set(cache_key, result, ttl=6 * 3600)
@@ -300,36 +380,96 @@ async def get_investor_holdings(
 
 
 async def _fetch_congress_trades(bioguide_id: str) -> list[dict]:
-    """Fetch recent stock transactions from house.gov STOCK Act disclosures."""
-    url = "https://disclosures-clerk.house.gov/public_disc/financial-pdfs/2024FD.zip"
-    # Use the quiverquant or capitoltrades public API as fallback
-    # Capitol Trades has a free tier that aggregates this data
+    """Fetch recent trades for one congress member via House Stock Watcher data."""
     try:
-        async with httpx.AsyncClient(timeout=10) as client:
+        async with httpx.AsyncClient(timeout=15) as client:
             r = await client.get(
-                "https://www.capitoltrades.com/politicians/P000197/trades.json",
-                headers={"Accept": "application/json"},
+                "https://house-stock-watcher-data.s3-us-west-2.amazonaws.com/data/all_transactions.json",
+                headers={"User-Agent": "NuvosAI contact@nuvosai.com"},
             )
-            if r.status_code == 200:
-                data = r.json()
-                trades = data.get("trades", data if isinstance(data, list) else [])
-                holdings = []
-                seen = set()
-                for t in trades[:30]:
-                    ticker = t.get("ticker") or t.get("asset_ticker", "")
-                    name = t.get("asset_name") or t.get("company", ticker)
-                    if ticker and ticker not in seen:
-                        seen.add(ticker)
-                        holdings.append({
-                            "ticker": ticker,
-                            "name": name,
-                            "transaction": t.get("type") or t.get("transaction_type", ""),
-                            "amount": t.get("amount") or t.get("size", ""),
-                            "date": t.get("disclosed_date") or t.get("date", ""),
-                            "value_thousands": 0,
-                            "shares": 0,
-                        })
-                return holdings
+            r.raise_for_status()
+            all_trades = r.json()
     except Exception:
-        pass
-    return []
+        return []
+
+    # Filter by representative name (Pelosi → "Nancy Pelosi")
+    name_map = {"P000197": "Nancy Pelosi"}
+    target_name = name_map.get(bioguide_id, "").lower()
+
+    holdings = []
+    seen: set[str] = set()
+    for t in all_trades:
+        rep = (t.get("representative") or "").lower()
+        if target_name and target_name not in rep:
+            continue
+        ticker = (t.get("ticker") or "").strip().upper()
+        if not ticker or ticker in seen or ticker in ("N/A", "--"):
+            continue
+        seen.add(ticker)
+        holdings.append({
+            "ticker": ticker,
+            "name": t.get("asset_description") or ticker,
+            "transaction": t.get("type", ""),
+            "amount": t.get("amount", ""),
+            "date": t.get("disclosure_date") or t.get("transaction_date", ""),
+            "value_thousands": 0,
+            "shares": 0,
+        })
+        if len(holdings) >= 25:
+            break
+    return holdings
+
+
+async def _fetch_congress_all() -> list[dict]:
+    """Aggregate recent STOCK Act transactions across ALL congress members."""
+    try:
+        async with httpx.AsyncClient(timeout=20) as client:
+            r = await client.get(
+                "https://house-stock-watcher-data.s3-us-west-2.amazonaws.com/data/all_transactions.json",
+                headers={"User-Agent": "NuvosAI contact@nuvosai.com"},
+            )
+            r.raise_for_status()
+            all_trades = r.json()
+    except Exception:
+        return []
+
+    # Count how many times each ticker was bought by congress members
+    from collections import Counter, defaultdict
+    buy_count: Counter = Counter()
+    sell_count: Counter = Counter()
+    names: dict[str, str] = {}
+    recent: dict[str, str] = {}
+    reps: dict[str, set] = defaultdict(set)
+
+    for t in all_trades:
+        ticker = (t.get("ticker") or "").strip().upper()
+        if not ticker or ticker in ("N/A", "--"):
+            continue
+        tx_type = (t.get("type") or "").lower()
+        date = t.get("disclosure_date") or t.get("transaction_date") or ""
+        rep = t.get("representative") or ""
+        if "purchase" in tx_type or "buy" in tx_type:
+            buy_count[ticker] += 1
+        elif "sale" in tx_type or "sell" in tx_type:
+            sell_count[ticker] += 1
+        if ticker not in names:
+            names[ticker] = t.get("asset_description") or ticker
+        if date > recent.get(ticker, ""):
+            recent[ticker] = date
+        if rep:
+            reps[ticker].add(rep)
+
+    # Rank by buy activity
+    top = sorted(buy_count.keys(), key=lambda t: buy_count[t], reverse=True)[:25]
+    result = []
+    for tk in top:
+        result.append({
+            "ticker": tk,
+            "name": names.get(tk, tk),
+            "transaction": f"Compras: {buy_count[tk]} · Ventas: {sell_count.get(tk, 0)}",
+            "amount": f"{len(reps[tk])} congresistas",
+            "date": recent.get(tk, ""),
+            "value_thousands": 0,
+            "shares": 0,
+        })
+    return result
