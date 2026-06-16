@@ -127,12 +127,12 @@ TRACKED_INVESTORS = [
     {
         "id": "ark",
         "name": "Cathie Wood",
-        "fund": "ARK Invest",
+        "fund": "ARK Investment Management",
         "avatar": "🚀",
         "bio": "Fundadora de ARK. Apuesta por tecnología disruptiva e innovación con horizonte de 5 años.",
         "style": "Disruptive tech · Alto crecimiento · Largo plazo",
-        "source": "ark",
-        "ark_fund": "ARKK",
+        "source": "sec_13f",
+        "cik": "0001697748",
     },
     {
         "id": "pelosi",
@@ -155,82 +155,188 @@ TRACKED_INVESTORS = [
     },
 ]
 
+# ── CUSIP → ticker mapping (common stocks held by tracked investors) ──────────
+CUSIP_TICKER: dict[str, str] = {
+    # Big Tech
+    "037833100": "AAPL", "594918104": "MSFT", "023135106": "AMZN",
+    "02079K305": "GOOGL", "02079K107": "GOOG", "30303M102": "META",
+    "67066G104": "NVDA", "88160R101": "TSLA", "79466L302": "SHOP",
+    # Financials
+    "025816109": "AXP", "060505104": "BAC", "172967424": "C",
+    "46625H100": "JPM", "808513105": "SCHW", "451055106": "BK",
+    "38141G104": "GS", "14040H105": "COF", "02005N100": "ALLY",
+    "913017109": "USB", "718172109": "PGR", "125509109": "CB",
+    "29977A105": "EVR", "03748R747": "BLK", "844741108": "SPGI",
+    # Berkshire staples
+    "49327M100": "KO", "61166W101": "MCO", "500754106": "KHC",
+    "26441C204": "DVA", "097023105": "BOH",
+    # Energy
+    "984121103": "XOM", "12189T104": "CVX", "682095102": "OXY",
+    "413216109": "HAL", "29273V100": "ENB",
+    # Healthcare & Pharma
+    "532457108": "LLY", "023586100": "AMGN", "09243R107": "BIIB",
+    "58492M109": "MRK", "719413100": "PFE", "585055106": "MDT",
+    # Consumer & Other
+    "742718109": "PG", "72971M104": "PM", "871000103": "SYX",
+    "064058100": "BAX", "92108H102": "V", "571748102": "MA",
+    "58155Q103": "MCD", "G76720132": "QSR", "11120U105": "BN",
+    # Tech & Growth
+    "639734107": "NFLX", "204448104": "CPRT", "456837104": "ISRG",
+    "G2519Y108": "AXON", "741503207": "RH", "22788C105": "CROX",
+    "64110D104": "NWSA", "879585209": "TDG", "370334104": "GE",
+    "92189F106": "VZ", "44919V101": "HPQ",
+    # ETFs
+    "78464A870": "QQQ", "464287614": "IVV", "78462F103": "SPY",
+    # Burry picks
+    "69366A100": "PLTR", "67066G104": "NVDA", "717081103": "PFE",
+    # International
+    "G8056D108": "RY", "T67604100": "BCE", "S8126G103": "SE",
+    "G40404148": "HTHT",
+}
+
 # ── SEC EDGAR helpers ─────────────────────────────────────────────────────────
 
-async def _fetch_sec_13f(cik: str) -> list[dict]:
-    """Fetch latest 13F holdings from SEC EDGAR for a given CIK."""
-    headers = {"User-Agent": "NuvosAI contact@nuvosai.com"}
-    async with httpx.AsyncClient(timeout=15) as client:
-        # Get latest 13F filing
-        filings_url = f"https://data.sec.gov/submissions/CIK{cik.zfill(10)}.json"
-        r = await client.get(filings_url, headers=headers)
-        r.raise_for_status()
-        data = r.json()
+async def _fetch_sec_13f(cik: str) -> dict:
+    """
+    Fetch latest 13F holdings from SEC EDGAR.
 
-        recent = data.get("filings", {}).get("recent", {})
+    Bugs fixed vs. original:
+    1. Index URL was .json (404) — now uses .htm and parses href links
+    2. Company CIK (not filer CIK) is used for the data directory
+    3. 13F values are in full USD since ~2024 — we divide by 1000 for display
+    """
+    headers = {
+        "User-Agent": "NuvosAI research@nuvosai.com",
+        "Accept-Encoding": "gzip",
+    }
+    cik_int = int(cik.lstrip("0") or "0")
+    cik_padded = str(cik_int).zfill(10)
+
+    async with httpx.AsyncClient(timeout=30, headers=headers, follow_redirects=True) as client:
+        # 1. Get list of all filings for this entity
+        r = await client.get(f"https://data.sec.gov/submissions/CIK{cik_padded}.json")
+        r.raise_for_status()
+        sub = r.json()
+
+        recent = sub.get("filings", {}).get("recent", {})
         forms = recent.get("form", [])
         accessions = recent.get("accessionNumber", [])
         dates = recent.get("filingDate", [])
+        primary_docs = recent.get("primaryDocument", [])
 
-        # Find most recent 13F-HR
+        # Find the most recent 13F-HR (not amendment)
         filing_idx = next((i for i, f in enumerate(forms) if f == "13F-HR"), None)
         if filing_idx is None:
-            return []
+            return {"holdings": [], "filing_date": ""}
 
-        accession = accessions[filing_idx].replace("-", "")
+        acc_raw = accessions[filing_idx]           # e.g. "0001193125-26-226661"
+        acc_nodash = acc_raw.replace("-", "")      # "000119312526226661"
         filing_date = dates[filing_idx]
 
-        # Get the index of that filing
-        index_url = f"https://www.sec.gov/Archives/edgar/data/{int(cik)}/{accession}/{accessions[filing_idx]}-index.json"
-        idx_r = await client.get(index_url, headers=headers)
-        idx_r.raise_for_status()
-        idx_data = idx_r.json()
+        # 2. The data directory always uses the COMPANY CIK (not the filing agent CIK).
+        #    Parse the .htm index to discover XML file names.
+        index_htm = (
+            f"https://www.sec.gov/Archives/edgar/data/"
+            f"{cik_int}/{acc_nodash}/{acc_raw}-index.htm"
+        )
+        ir = await client.get(index_htm)
+        if ir.status_code != 200:
+            return {"holdings": [], "filing_date": filing_date}
 
-        # Find the primary XML document (infotable)
-        xml_file = None
-        for item in idx_data.get("directory", {}).get("item", []):
-            name = item.get("name", "")
-            if "infotable" in name.lower() or name.endswith(".xml"):
-                xml_file = name
-                break
+        # Extract .xml hrefs from the index page
+        xml_links = re.findall(
+            r'href="(/Archives/edgar/data/[^"]+\.xml)"',
+            ir.text, re.IGNORECASE,
+        )
+        # Filter out primary/cover/header docs, keep infotable candidates
+        infotable_urls: list[str] = []
+        primary_url: str = ""
+        for lnk in xml_links:
+            base = lnk.split("/")[-1].lower()
+            if "infotable" in base or "information_table" in base:
+                infotable_urls.insert(0, "https://www.sec.gov" + lnk)
+            elif "primary" in base or "cover" in base:
+                primary_url = "https://www.sec.gov" + lnk
+            else:
+                infotable_urls.append("https://www.sec.gov" + lnk)
 
-        if not xml_file:
-            return []
+        # Remove duplicates while preserving order
+        seen: set[str] = set()
+        candidates = [u for u in infotable_urls if not (u in seen or seen.add(u))]
 
-        xml_url = f"https://www.sec.gov/Archives/edgar/data/{int(cik)}/{accession}/{xml_file}"
-        xml_r = await client.get(xml_url, headers=headers)
-        xml_r.raise_for_status()
-        xml_text = xml_r.text
+        # 3. Try each candidate XML until we find one with holdings
+        for url in candidates:
+            xr = await client.get(url)
+            if xr.status_code != 200:
+                continue
+            holdings = _parse_13f_xml(xr.text)
+            if holdings:
+                return {"holdings": holdings, "filing_date": filing_date}
 
-        holdings = _parse_13f_xml(xml_text)
-        return {"holdings": holdings, "filing_date": filing_date}
+        return {"holdings": [], "filing_date": filing_date}
 
 
 def _parse_13f_xml(xml_text: str) -> list[dict]:
-    """Parse 13F XML infotable into a list of holdings."""
-    holdings = []
-    entries = re.findall(r"<infoTable>(.*?)</infoTable>", xml_text, re.DOTALL)
+    """
+    Parse 13F infotable XML. Handles:
+    - Default namespace (xmlns="http://www.sec.gov/edgar/document/thirteenf/informationtable")
+    - Namespace-prefixed tags
+    - Values in full USD (new 2024 format) — stored as value_thousands after ÷1000
+    """
+    # Strip any namespace prefixes so regex is simple
+    clean = re.sub(r"<(/?)[\w-]+:([\w-]+)", r"<\1\2", xml_text)
+
+    entries = re.findall(
+        r"<infoTable\b[^>]*>(.*?)</infoTable>", clean, re.DOTALL | re.IGNORECASE
+    )
+    if not entries:
+        return []
+
+    holdings: list[dict] = []
     for entry in entries:
-        def get(tag):
-            m = re.search(rf"<{tag}[^>]*>(.*?)</{tag}>", entry, re.DOTALL)
+        def tag(t: str) -> str:
+            m = re.search(rf"<{t}\b[^>]*>(.*?)</{t}>", entry, re.DOTALL | re.IGNORECASE)
             return m.group(1).strip() if m else ""
 
-        name = get("nameOfIssuer")
-        value = get("value")       # in thousands
-        shares = get("sshPrnamt")
-        ticker = ""  # 13F doesn't include ticker, we infer from name
+        name  = tag("nameOfIssuer").strip()
+        val   = re.sub(r"[^\d]", "", tag("value"))
+        shrs  = re.sub(r"[^\d]", "", tag("sshPrnamt"))
+        cusip = tag("cusip").replace(" ", "")
 
-        if name and value:
-            holdings.append({
-                "name": name,
-                "ticker": ticker,
-                "value_thousands": int(value.replace(",", "")) if value.replace(",", "").isdigit() else 0,
-                "shares": int(shares.replace(",", "")) if shares.replace(",", "").isdigit() else 0,
-            })
+        if not name or not val:
+            continue
 
-    # Sort by value descending, take top 20
-    holdings.sort(key=lambda x: x["value_thousands"], reverse=True)
-    return holdings[:20]
+        raw_val = int(val)
+        # SEC updated 13F format in 2024: values are now full USD (not thousands).
+        # Divide by 1000 to store as "thousands" for consistent display.
+        value_thousands = raw_val // 1000
+
+        holdings.append({
+            "ticker": CUSIP_TICKER.get(cusip, ""),
+            "name": name.title(),
+            "cusip": cusip,
+            "value_thousands": value_thousands,
+            "shares": int(shrs) if shrs else 0,
+            "weight_pct": 0.0,
+        })
+
+    # Aggregate duplicate tickers (multiple discretion types)
+    agg: dict[str, dict] = {}
+    for h in holdings:
+        key = h["cusip"] or h["name"]
+        if key in agg:
+            agg[key]["value_thousands"] += h["value_thousands"]
+            agg[key]["shares"] += h["shares"]
+        else:
+            agg[key] = dict(h)
+    merged = sorted(agg.values(), key=lambda x: x["value_thousands"], reverse=True)[:20]
+
+    total = sum(h["value_thousands"] for h in merged)
+    if total:
+        for h in merged:
+            h["weight_pct"] = round(h["value_thousands"] / total * 100, 1)
+
+    return merged
 
 
 # ── ARK helper ────────────────────────────────────────────────────────────────
@@ -332,11 +438,6 @@ async def get_investor_holdings(
             holdings = result.get("holdings", []) if isinstance(result, dict) else []
             filing_date = result.get("filing_date", "") if isinstance(result, dict) else ""
 
-        elif inv["source"] == "ark":
-            result = await _fetch_ark_holdings(inv.get("ark_fund", "ARKK"))
-            holdings = result.get("holdings", [])
-            filing_date = result.get("filing_date", "")
-
         elif inv["source"] == "congress":
             holdings = await _fetch_congress_trades(inv.get("bioguide_id", ""))
             filing_date = datetime.utcnow().strftime("%Y-%m-%d")
@@ -361,8 +462,7 @@ async def get_investor_holdings(
 
     source = inv.get("source", "")
     data_note = {
-        "sec_13f": "Datos trimestrales con hasta 45 días de retraso (SEC Form 13F)",
-        "ark": "Holdings publicados diariamente por ARK Invest",
+        "sec_13f": "Datos trimestrales con hasta 45 días de retraso (SEC Form 13F, valores en USD)",
         "congress": "Transacciones reportadas bajo el STOCK Act (hasta 45 días de retraso)",
         "congress_all": "Transacciones agregadas de todos los congresistas bajo el STOCK Act",
     }.get(source, "Datos de fuentes públicas")
