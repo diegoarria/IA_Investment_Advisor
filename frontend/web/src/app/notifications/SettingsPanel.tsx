@@ -9,8 +9,8 @@ const API = process.env.NEXT_PUBLIC_API_URL ?? "";
 const PUSH_TOGGLES = [
   { key: "push_market_open",        label: "Apertura del mercado",    desc: "9:30 AM ET cada día hábil" },
   { key: "push_market_close",       label: "Cierre del mercado",      desc: "4:00 PM ET cada día hábil" },
-  { key: "push_portfolio_alerts",   label: "Alertas de portafolio",   desc: "Movimientos ±4% en tus posiciones" },
-  { key: "push_watchlist_alerts",   label: "Alertas de watchlist",    desc: "Movimientos ±4% en tu lista de seguimiento" },
+  { key: "push_portfolio_alerts",   label: "Alertas de portafolio",   desc: "Movimientos ±4%, earnings y dividendos de tus posiciones" },
+  { key: "push_watchlist_alerts",   label: "Alertas de watchlist",    desc: "Movimientos ±4%, earnings y dividendos de tu lista de seguimiento" },
   { key: "push_news_general",       label: "Noticias importantes",    desc: "Fed, CPI, resultados trimestrales" },
   { key: "push_ai_recommendations", label: "Recomendaciones IA",      desc: "Insights personalizados según tu perfil" },
   { key: "push_milestones",         label: "Hitos y logros",          desc: "Rachas, metas y aniversarios" },

@@ -10,6 +10,7 @@ type Period = "ytd" | "1m" | "1w";
 interface LeaderboardEntry {
   rank: number;
   display_name: string;
+  age: number | null;
   is_me: boolean;
   return_pct: number;
   positions_count: number;
@@ -223,20 +224,29 @@ export default function PortfolioLeaderboard({ isPremium, onUpgrade }: Props) {
                 <div className="flex flex-col gap-2">
                   {data.leaderboard.map((entry) => (
                     <div key={entry.rank}
-                         className="flex items-center gap-3 px-3 py-2.5 rounded-2xl transition-all"
+                         className="flex items-center gap-3 px-3 py-3 rounded-2xl transition-all"
                          style={{
                            background: entry.is_me ? "rgba(139,92,246,0.08)" : "var(--raised)",
                            border: entry.is_me ? "1px solid rgba(139,92,246,0.3)" : "1px solid var(--border)",
                          }}>
-                      <div className="w-6 flex items-center justify-center">
+                      {/* Rank */}
+                      <div className="w-6 flex items-center justify-center shrink-0">
                         <RankMedal rank={entry.rank} />
                       </div>
+
+                      {/* Name + age + stats */}
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-1.5">
+                        <div className="flex items-center gap-1.5 flex-wrap">
                           <span className="text-sm font-semibold truncate"
                                 style={{ color: entry.is_me ? "#a78bfa" : "var(--text)" }}>
                             {entry.display_name}
                           </span>
+                          {entry.age != null && (
+                            <span className="text-[10px] font-semibold px-1.5 py-px rounded-full shrink-0"
+                                  style={{ background: "rgba(59,130,246,0.12)", color: "#60a5fa" }}>
+                              {entry.age} años
+                            </span>
+                          )}
                           {entry.is_me && (
                             <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full shrink-0"
                                   style={{ background: "rgba(139,92,246,0.15)", color: "#a78bfa" }}>
@@ -247,7 +257,7 @@ export default function PortfolioLeaderboard({ isPremium, onUpgrade }: Props) {
                             <Star size={10} style={{ color: "#f59e0b", fill: "#f59e0b", flexShrink: 0 }} />
                           )}
                         </div>
-                        <div className="flex items-center gap-2 mt-0.5">
+                        <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                           <span className="text-[11px]" style={{ color: "var(--muted)" }}>
                             {entry.positions_count} acciones · {entry.win_rate}% ganadoras
                           </span>
@@ -258,13 +268,21 @@ export default function PortfolioLeaderboard({ isPremium, onUpgrade }: Props) {
                           )}
                         </div>
                       </div>
-                      <div className="flex items-center gap-1 shrink-0">
-                        {entry.return_pct >= 0
-                          ? <TrendingUp size={13} style={{ color: "#22c55e" }} />
-                          : <TrendingDown size={13} style={{ color: "#ef4444" }} />}
-                        <span className="text-sm font-bold"
-                              style={{ color: entry.return_pct >= 0 ? "#22c55e" : "#ef4444" }}>
-                          {entry.return_pct >= 0 ? "+" : ""}{entry.return_pct.toFixed(1)}%
+
+                      {/* Return */}
+                      <div className="flex flex-col items-end shrink-0 gap-0.5">
+                        <div className="flex items-center gap-1">
+                          {entry.return_pct >= 0
+                            ? <TrendingUp size={13} style={{ color: "#22c55e" }} />
+                            : <TrendingDown size={13} style={{ color: "#ef4444" }} />}
+                          <span className="text-sm font-bold"
+                                style={{ color: entry.return_pct >= 0 ? "#22c55e" : "#ef4444" }}>
+                            {entry.return_pct >= 0 ? "+" : ""}{entry.return_pct.toFixed(1)}%
+                          </span>
+                        </div>
+                        <span className="text-[9px] uppercase tracking-wider font-semibold"
+                              style={{ color: "var(--muted)" }}>
+                          {period === "ytd" ? "YTD" : period === "1m" ? "1M" : "1S"}
                         </span>
                       </div>
                     </div>
@@ -273,7 +291,7 @@ export default function PortfolioLeaderboard({ isPremium, onUpgrade }: Props) {
               )}
 
               <p className="text-[10px] mt-4 text-center pb-2" style={{ color: "var(--muted)" }}>
-                Rendimiento del período · No incluye valores monetarios · Solo primeros nombres
+                Rendimiento del período · No incluye valores monetarios · Solo usuarios con portafolio
               </p>
             </div>
           </div>

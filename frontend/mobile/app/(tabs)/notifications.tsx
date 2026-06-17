@@ -9,7 +9,6 @@ import { Ionicons } from "@expo/vector-icons";
 import Markdown from "react-native-markdown-display";
 import { notificationsApi, marketApi } from "../../src/lib/api";
 import { useTheme, Colors } from "../../src/lib/ThemeContext";
-import { useWatchlistStore } from "../../src/lib/watchlistStore";
 import { usePortfolioStore } from "../../src/lib/portfolioStore";
 import { useSubscriptionStore, hasPremiumAccess } from "../../src/lib/subscriptionStore";
 import PaywallModal from "../../src/components/PaywallModal";
@@ -70,11 +69,6 @@ export default function NotificationsScreen() {
   const [portPrices, setPortPrices] = useState<Record<string, PriceData>>({});
   const [portPricesLoading, setPortPricesLoading] = useState(false);
   const [portSort, setPortSort]     = useState<"gainers" | "losers" | "default">("gainers");
-
-  // Watchlist prices
-  const { items: watchlist } = useWatchlistStore();
-  const [prices, setPrices]  = useState<Record<string, PriceData>>({});
-  const [pricesLoading, setPricesLoading] = useState(false);
 
   const subStore = useSubscriptionStore();
   const isPremiumAccess = hasPremiumAccess(subStore);
@@ -152,31 +146,7 @@ export default function NotificationsScreen() {
     setNewsLoading(false);
   }, [positions.length]);
 
-  const loadWatchlistWithChange = useCallback(async () => {
-    if (watchlist.length === 0) return;
-    setPricesLoading(true);
-    try {
-      const symbols = watchlist.map((w) => w.ticker);
-      const results: Record<string, PriceData> = {};
-      await Promise.all(symbols.map(async (sym) => {
-        try {
-          const res = await marketApi.getChart(sym, "1d");
-          const d = res.data;
-          results[sym] = {
-            price: d.current_price ?? null,
-            change_pct: d.change_pct ?? null,
-          };
-        } catch {
-          results[sym] = { price: null, change_pct: null };
-        }
-      }));
-      setPrices(results);
-    } catch {}
-    setPricesLoading(false);
-  }, [watchlist]);
-
   useEffect(() => { loadNotifications(); }, []);
-  useEffect(() => { loadWatchlistWithChange(); }, [watchlist.length]);
 
   useFocusEffect(useCallback(() => {
     loadPortfolioNews();
@@ -461,55 +431,6 @@ export default function NotificationsScreen() {
     );
   };
 
-  const WatchlistSection = () => {
-    const { remove } = useWatchlistStore();
-    if (watchlist.length === 0) return null;
-    return (
-      <View style={[styles.section, { backgroundColor: colors.card, borderColor: colors.border }]}>
-        <View style={styles.sectionHeader}>
-          <Ionicons name="bookmark" size={14} color={colors.accentLight} />
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>Watchlist</Text>
-          {pricesLoading && <ActivityIndicator size="small" color={colors.accentLight} style={{ marginLeft: 8 }} />}
-        </View>
-        {watchlist.map((item) => {
-          const p = prices[item.ticker];
-          const chgColor = !p?.change_pct ? colors.textDim : p.change_pct >= 0 ? "#22c55e" : "#ef4444";
-          const bigDrop = p?.change_pct !== null && p?.change_pct !== undefined && Math.abs(p.change_pct) >= 3;
-          return (
-            <View key={item.ticker} style={[styles.watchRow, { borderTopColor: colors.border }]}>
-              <StockAvatar ticker={item.ticker} size={34} />
-              <View style={{ flex: 1, marginLeft: 10 }}>
-                <Text style={[styles.watchTicker, { color: colors.text }]}>{item.ticker}</Text>
-                <Text style={[styles.watchName, { color: colors.textMuted }]}>{item.name}</Text>
-              </View>
-              <View style={{ alignItems: "flex-end", gap: 2 }}>
-                {p?.price ? (
-                  <Text style={[styles.watchPrice, { color: colors.text }]}>
-                    ${p.price.toLocaleString("en-US", { minimumFractionDigits: 2 })}
-                  </Text>
-                ) : <Text style={{ color: colors.textDim, fontSize: 12 }}>—</Text>}
-                {p?.change_pct !== null && p?.change_pct !== undefined && (
-                  <TouchableOpacity
-                    onPress={() => bigDrop ? openAlertContext(item.ticker, p.change_pct!) : null}
-                    activeOpacity={bigDrop ? 0.7 : 1}
-                  >
-                    <Text style={[styles.watchChange, { color: chgColor }]}>
-                      {p.change_pct >= 0 ? "▲" : "▼"} {Math.abs(p.change_pct).toFixed(2)}%
-                      {bigDrop ? " ⚠️" : ""}
-                    </Text>
-                  </TouchableOpacity>
-                )}
-              </View>
-              <TouchableOpacity onPress={() => remove(item.ticker)} style={{ marginLeft: 12, padding: 4 }}>
-                <Ionicons name="close-outline" size={16} color={colors.textDim} />
-              </TouchableOpacity>
-            </View>
-          );
-        })}
-      </View>
-    );
-  };
-
   return (
     <SafeAreaView style={styles.container}>
       {unread > 0 && (
@@ -528,13 +449,13 @@ export default function NotificationsScreen() {
             refreshing={refreshing}
             onRefresh={async () => {
               setRefreshing(true);
-              await Promise.all([loadNotifications(), loadWatchlistWithChange(), loadPortfolioNews(), loadPortfolioPrices()]);
+              await Promise.all([loadNotifications(), loadPortfolioNews(), loadPortfolioPrices()]);
               setRefreshing(false);
             }}
             tintColor="#22c55e"
           />
         }
-        ListHeaderComponent={<><PortfolioNewsSection /><PortfolioTodaySection /><WatchlistSection /></>}
+        ListHeaderComponent={<><PortfolioNewsSection /><PortfolioTodaySection /></>}
         ListEmptyComponent={
           <View style={styles.empty}>
             <Ionicons name="notifications-outline" size={48} color={colors.textMuted} style={{ marginBottom: 16 }} />
@@ -895,17 +816,6 @@ function makeStyles(c: Colors) {
       borderWidth: 1, borderColor: "transparent",
     },
     newsTabText: { fontSize: 12, fontWeight: "700" },
-
-    // Watchlist
-    watchRow: {
-      flexDirection: "row", alignItems: "center",
-      paddingHorizontal: 14, paddingVertical: 12,
-      borderTopWidth: StyleSheet.hairlineWidth,
-    },
-    watchTicker: { fontSize: 14, fontWeight: "800", letterSpacing: -0.2 },
-    watchName:   { fontSize: 11, marginTop: 2, letterSpacing: 0.1 },
-    watchPrice:  { fontSize: 15, fontWeight: "700" },
-    watchChange: { fontSize: 12, fontWeight: "700" },
 
     // Notification cards
     card: {

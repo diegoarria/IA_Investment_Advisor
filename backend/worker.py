@@ -308,6 +308,99 @@ async def job_weekly_summary_push():
         logger.error("job_weekly_summary_push failed: %s", e)
 
 
+async def job_events_alerts():
+    """8:00 AM ET weekdays — push for today/tomorrow ex-div, dividend payment, and earnings dates."""
+    from app.core.database import get_supabase, run_query
+    from app.services.notification_engine import send_push
+    from app.api.routes.earnings import _fetch_events_for_symbol
+    from datetime import timedelta
+    import random
+
+    db       = get_supabase()
+    today    = datetime.now(timezone.utc).date()
+    tomorrow = today + timedelta(days=1)
+    targets  = {str(today), str(tomorrow)}
+
+    try:
+        prefs_res = await run_query(
+            db.table("notification_preferences")
+            .select("user_id,push_portfolio_alerts,push_watchlist_alerts")
+            .or_("push_portfolio_alerts.eq.true,push_watchlist_alerts.eq.true")
+        )
+        if not prefs_res.data:
+            return
+        prefs_by_uid = {p["user_id"]: p for p in prefs_res.data}
+
+        processed = notified = 0
+        for i, (uid, prefs) in enumerate(prefs_by_uid.items()):
+            if i % 100 == 0 and i > 0:
+                await asyncio.sleep(12)
+
+            port_tickers: set = set()
+            watch_tickers: set = set()
+
+            if prefs.get("push_portfolio_alerts"):
+                port_res = await run_query(
+                    db.table("user_portfolio").select("positions").eq("user_id", uid)
+                )
+                if port_res.data:
+                    raw = port_res.data[0].get("positions") or {}
+                    positions = raw.get("positions", []) if isinstance(raw, dict) else raw if isinstance(raw, list) else []
+                    port_tickers = {p["ticker"] for p in positions if p.get("ticker")}
+
+            if prefs.get("push_watchlist_alerts"):
+                watch_res = await run_query(
+                    db.table("watchlist").select("ticker").eq("user_id", uid)
+                )
+                watch_tickers = {r["ticker"] for r in (watch_res.data or [])} - port_tickers
+
+            all_tickers = port_tickers | watch_tickers
+            if not all_tickers:
+                processed += 1
+                continue
+
+            for ticker in all_tickers:
+                events = await asyncio.to_thread(_fetch_events_for_symbol, ticker)
+                for evt in events:
+                    if evt.get("event_date") not in targets:
+                        continue
+                    is_today   = evt["event_date"] == str(today)
+                    when       = "hoy" if is_today else "mañana"
+                    event_type = evt.get("event_type")
+
+                    if event_type == "earnings":
+                        title    = f"📊 Resultados: {ticker}"
+                        eps      = evt.get("eps_estimate")
+                        body     = f"{ticker} reporta ganancias {when}." + (f" EPS est. ${eps:.2f}." if eps else "")
+                        category = "earnings_report"
+                    elif event_type == "ex_dividend":
+                        title    = f"✂️ Ex-Dividendo: {ticker}"
+                        amt      = evt.get("dividend_amount")
+                        body     = f"Fecha ex-dividendo de {ticker} es {when}." + (f" ${amt:.4f}/acción." if amt else "")
+                        category = "ex_dividend"
+                    elif event_type == "dividend":
+                        title    = f"💰 Dividendo: {ticker}"
+                        body     = f"{ticker} paga dividendo {when}."
+                        category = "dividend_payment"
+                    else:
+                        continue
+
+                    is_portfolio = ticker in port_tickers
+                    await send_push(
+                        uid, category, title, body,
+                        {"ticker": ticker, "screen": "portfolio" if is_portfolio else "watchlist"},
+                        db,
+                    )
+                    notified += 1
+                    await asyncio.sleep(random.uniform(0.05, 0.15))
+
+            processed += 1
+
+        logger.info("Events alerts: %d users processed, %d notifications sent", processed, notified)
+    except Exception as e:
+        logger.error("job_events_alerts failed: %s", e)
+
+
 async def job_cleanup_analytics():
     """Hourly — delete notification_log entries older than 90 days."""
     from app.core.database import get_supabase, run_query
@@ -336,6 +429,7 @@ async def main():
     scheduler.add_job(job_daily_email,          "cron", day_of_week="mon-fri", hour=18,      minute=0,     timezone="America/New_York")
     scheduler.add_job(job_portfolio_alerts,     "cron", day_of_week="mon-fri", hour="9-15",  minute="0,30",timezone="America/New_York")
     scheduler.add_job(job_weekly_summary_push,  "cron", day_of_week="sat",     hour=9,       minute=30,    timezone="America/New_York")
+    scheduler.add_job(job_events_alerts,        "cron", day_of_week="mon-fri", hour=8,       minute=0,     timezone="America/New_York")
     scheduler.add_job(job_cleanup_analytics,    "interval", hours=1)
     scheduler.start()
     logger.info("Worker started — scheduler running")

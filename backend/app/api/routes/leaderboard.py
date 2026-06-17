@@ -71,6 +71,17 @@ def _get_prices_for_period(tickers: list[str], period: str) -> dict:
     return prices
 
 
+def _calc_age(birth_date_str: str) -> int | None:
+    if not birth_date_str:
+        return None
+    try:
+        bd    = datetime.strptime(birth_date_str[:10], "%Y-%m-%d").date()
+        today = datetime.now(timezone.utc).date()
+        return today.year - bd.year - ((today.month, today.day) < (bd.month, bd.day))
+    except Exception:
+        return None
+
+
 def _parse_positions(raw) -> list[dict]:
     if isinstance(raw, str):
         try:
@@ -117,14 +128,16 @@ async def get_portfolio_leaderboard(
         return {"leaderboard": [], "period": period, "my_rank": None, "total_users": 0}
 
     profile_res = await run_query(
-        db.table("user_profiles").select("user_id, name, subscription_tier")
+        db.table("user_profiles").select("user_id, name, subscription_tier, birth_date")
     )
     name_map: dict[str, str] = {}
     tier_map: dict[str, str] = {}
+    age_map:  dict[str, int | None] = {}
     for p in (profile_res.data or []):
         uid = str(p["user_id"])
         name_map[uid] = p.get("name", "Usuario")
         tier_map[uid] = p.get("subscription_tier", "free")
+        age_map[uid]  = _calc_age(p.get("birth_date") or "")
 
     parsed: list[dict] = []
     all_tickers: set[str] = set()
@@ -179,18 +192,18 @@ async def get_portfolio_leaderboard(
 
         portfolio_return = weighted_return / total_weight
         win_rate = round(wins / counted * 100)
-        first_name = (name_map.get(uid) or "Usuario").split()[0]
 
         leaderboard.append({
-            "user_id": uid,
-            "display_name": first_name,
-            "is_me": uid == user_id,
-            "return_pct": round(portfolio_return, 2),
-            "positions_count": len(positions),
-            "best_ticker": best_ticker,
+            "user_id":           uid,
+            "display_name":      name_map.get(uid) or "Usuario",
+            "age":               age_map.get(uid),
+            "is_me":             uid == user_id,
+            "return_pct":        round(portfolio_return, 2),
+            "positions_count":   len(positions),
+            "best_ticker":       best_ticker,
             "best_ticker_return": round(best_return, 2) if best_ticker else None,
-            "win_rate": win_rate,
-            "is_premium": tier_map.get(uid) == "premium",
+            "win_rate":          win_rate,
+            "is_premium":        tier_map.get(uid) == "premium",
         })
 
     leaderboard.sort(key=lambda x: x["return_pct"], reverse=True)
@@ -201,7 +214,7 @@ async def get_portfolio_leaderboard(
             my_rank = i + 1
 
     board_data = {
-        "leaderboard": leaderboard[:50],
+        "leaderboard": leaderboard,
         "period": period,
         "my_rank": my_rank,
         "total_users": len(leaderboard),
