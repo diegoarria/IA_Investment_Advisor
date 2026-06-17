@@ -250,7 +250,7 @@ async def get_all(user_id: str = Depends(get_current_user_id)):
     try:
         profile_res = await run_query(
             db.table("user_profiles")
-            .select("maturity_score, maturity_history, trial_started_at, subscription_tier, nav_order, theme, avatar_url, behavioral_risk_score, streak_count, last_learn_date")
+            .select("maturity_score, maturity_history, trial_started_at, subscription_tier, nav_order, watchlist_order, theme, avatar_url, behavioral_risk_score, streak_count, last_learn_date")
             .eq("user_id", user_id)
         )
     except Exception:
@@ -306,6 +306,7 @@ async def get_all(user_id: str = Depends(get_current_user_id)):
         },
         "watchlist":   watchlist_res.data if watchlist_res.data else [],
         "nav_order":            profile_row.get("nav_order"),
+        "watchlist_order":      profile_row.get("watchlist_order"),
         "theme":                profile_row.get("theme", "dark"),
         "avatar_url":           profile_row.get("avatar_url"),
         "behavioral_risk_score": profile_row.get("behavioral_risk_score"),
@@ -341,6 +342,18 @@ async def get_nav_order(user_id: str = Depends(get_current_user_id)):
     resp = {"nav_order": result.data[0].get("nav_order")} if result.data else {"nav_order": None}
     cache_set(ck, resp, ttl=_TTL_MISC)
     return resp
+
+
+# ─── Watchlist order ─────────────────────────────────────────────────────────
+
+@router.post("/watchlist-order")
+async def sync_watchlist_order(body: dict, user_id: str = Depends(get_current_user_id)):
+    """Persist watchlist ticker order for cross-device sync."""
+    order = body.get("order", [])
+    db = get_supabase()
+    await run_query(db.table("user_profiles").update({"watchlist_order": order}).eq("user_id", user_id))
+    cache_delete(f"sync:all:{user_id}")
+    return {"ok": True}
 
 
 # ─── Theme ───────────────────────────────────────────────────────────────────

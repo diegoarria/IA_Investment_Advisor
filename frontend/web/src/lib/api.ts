@@ -244,6 +244,7 @@ export const sync = {
     api.post("/api/sync/maturity", { score, history }),
   pushNavOrder: (order: string[]) => api.post("/api/sync/nav-order", { order }),
   getNavOrder: () => api.get("/api/sync/nav-order"),
+  pushWatchlistOrder: (order: string[]) => api.post("/api/sync/watchlist-order", { order }),
   pushBehavioralRisk: (score: number) => api.post("/api/sync/behavioral-risk", { score }),
 };
 

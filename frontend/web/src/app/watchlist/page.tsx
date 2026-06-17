@@ -7,7 +7,7 @@ import {
   Eye, X, RefreshCw, Search, Menu, LogOut,
   TrendingUp, TrendingDown, Lock, Plus, GripVertical,
 } from "lucide-react";
-import { watchlist as watchlistApi, market as marketApi } from "@/lib/api";
+import { watchlist as watchlistApi, market as marketApi, sync as syncApi } from "@/lib/api";
 import { useAuthStore, useSubscriptionStore, useProfileStore } from "@/lib/store";
 import { getUserLevel } from "@/lib/userLevel";
 import { usePortfolioStore } from "@/lib/portfolioStore";
@@ -371,10 +371,16 @@ export default function WatchlistPage() {
     try {
       const res = await watchlistApi.get();
       const data = res.data as WatchlistItem[];
-      // Guard: if server returns empty but cache has items, treat as a transient
-      // backend failure — keep showing cached items, don't overwrite with []
       if (data.length === 0 && readCache().length > 0) return;
-      const ordered = applyOrder(data, readOrder());
+      // Prefer server-persisted order; fall back to localStorage
+      let serverOrder: string[] = [];
+      try {
+        const syncRes = await syncApi.getAll();
+        serverOrder = syncRes.data?.watchlist_order ?? [];
+      } catch { /* ignore */ }
+      const order = serverOrder.length ? serverOrder : readOrder();
+      const ordered = applyOrder(data, order);
+      if (serverOrder.length) writeOrder(serverOrder);
       setItems(ordered);
       writeCache(ordered);
       setLastRefreshed(new Date());
@@ -511,8 +517,10 @@ export default function WatchlistPage() {
       const next = [...prev];
       const [moved] = next.splice(dragIndex, 1);
       next.splice(target, 0, moved);
-      writeOrder(next.map((i) => i.ticker));
+      const newOrder = next.map((i) => i.ticker);
+      writeOrder(newOrder);
       writeCache(next);
+      syncApi.pushWatchlistOrder(newOrder).catch(() => {});
       return next;
     });
     setDragIndex(null);
