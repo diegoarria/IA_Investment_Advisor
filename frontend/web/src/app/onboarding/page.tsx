@@ -257,32 +257,12 @@ export default function OnboardingPage() {
       title: "Tu meta financiera",
       subtitle: "OBJETIVOS",
       valid: () => {
-        const amt     = parseFloat(form.investment_amount);
         const goal    = parseFloat(form.investment_goal_amount);
         const horizon = parseInt(form.investment_horizon);
-        return amt > 0 && goal > 0 && horizon >= 1 && !!form.investment_goal && !!form.knowledge_level;
+        return goal > 0 && horizon >= 1 && !!form.investment_goal && !!form.knowledge_level;
       },
       content: (
         <div className="space-y-5">
-          {/* Capital disponible */}
-          <div>
-            <label className="block text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: "var(--muted)" }}>
-              ¿Cuánto tienes disponible para invertir hoy?
-            </label>
-            <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-bold" style={{ color: "var(--muted)" }}>$</span>
-              <input
-                type="number"
-                min={0}
-                value={form.investment_amount}
-                onChange={(e) => setForm((f) => ({ ...f, investment_amount: e.target.value }))}
-                className="w-full rounded-xl border px-4 py-3 pl-7 text-sm outline-none"
-                placeholder="5,000"
-                style={{ background: "var(--raised)", borderColor: "var(--border)", color: "var(--text)" }}
-              />
-            </div>
-          </div>
-
           {/* Meta en dinero */}
           <div>
             <label className="block text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: "var(--muted)" }}>
@@ -442,10 +422,9 @@ export default function OnboardingPage() {
               <p className="text-xs font-bold uppercase tracking-wider" style={{ color: "var(--muted)" }}>Datos financieros</p>
             </div>
             {[
-              { label: "Nombre",          value: form.name },
-              { label: "Capital inicial", value: `$${Number(form.investment_amount).toLocaleString()}` },
-              { label: "Meta",            value: `$${Number(form.investment_goal_amount).toLocaleString()}` },
-              { label: "Horizonte",       value: `${form.investment_horizon} años` },
+              { label: "Nombre",     value: form.name },
+              { label: "Meta",       value: `$${Number(form.investment_goal_amount).toLocaleString()}` },
+              { label: "Horizonte",  value: `${form.investment_horizon} años` },
             ].map((f) => (
               <div key={f.label} className="flex items-center justify-between px-4 py-2.5 border-b last:border-0"
                    style={{ borderColor: "var(--border)" }}>
@@ -463,32 +442,31 @@ export default function OnboardingPage() {
       title: `Tu meta: $${Number(form.investment_goal_amount || 0).toLocaleString()}`,
       valid: () => true,
       content: (() => {
-        const pv         = Math.max(parseFloat(form.investment_amount) || 1000, 1);
         const pmt        = Math.max(parseFloat(form.monthly_contribution) || 0, 0);
-        const goalAmt    = Math.max(parseFloat(form.investment_goal_amount) || pv * 3, pv + 1);
+        const goalAmt    = Math.max(parseFloat(form.investment_goal_amount) || 10000, 1);
         const horizonYrs = Math.max(parseInt(form.investment_horizon) || 10, 1);
+        const plus10Yrs  = horizonYrs + 10;
         const annualRate = calculated === "conservative" ? 0.07 : calculated === "moderate" ? 0.10 : 0.12;
         const rateLabel  = calculated === "conservative" ? "7%" : calculated === "moderate" ? "10%" : "12%";
         const r = annualRate / 12;
 
         const fvCombined = (months: number) => {
-          const lump    = pv * Math.pow(1 + r, months);
           const annuity = pmt > 0 ? pmt * ((Math.pow(1 + r, months) - 1) / r) : 0;
-          return Math.round(lump + annuity);
+          return Math.round(annuity);
         };
 
         const fvHorizon  = fvCombined(horizonYrs * 12);
-        const fvDouble   = fvCombined(horizonYrs * 2 * 12);
-        const extraGain  = fvDouble - fvHorizon;
-        const extraPct   = Math.round((extraGain / fvHorizon) * 100);
-        const maxFV      = Math.max(fvDouble, goalAmt);
+        const fvPlus10   = fvCombined(plus10Yrs * 12);
+        const extraGain  = fvPlus10 - fvHorizon;
+        const extraPct   = fvHorizon > 0 ? Math.round((extraGain / fvHorizon) * 100) : 0;
+        const maxFV      = Math.max(fvPlus10, goalAmt);
         const goalLinePct = Math.min((goalAmt / maxFV) * 100, 100);
 
         const goalStatus = fvHorizon >= goalAmt
-          ? `¡la alcanzas antes de los ${horizonYrs} años!`
-          : fvDouble >= goalAmt
-          ? `la alcanzas entre los ${horizonYrs} y ${horizonYrs * 2} años`
-          : `proyecta a más de ${horizonYrs * 2} años a esta tasa`;
+          ? `¡la alcanzas dentro de los ${horizonYrs} años!`
+          : fvPlus10 >= goalAmt
+          ? `la alcanzas entre los ${horizonYrs} y ${plus10Yrs} años`
+          : `proyecta a más de ${plus10Yrs} años a esta tasa`;
 
         return (
           <div className="space-y-5">
@@ -496,15 +474,15 @@ export default function OnboardingPage() {
             <div className="rounded-xl border p-4 space-y-4" style={{ background: "var(--raised)", borderColor: "var(--border)" }}>
               <div className="flex items-center justify-between">
                 <p className="text-xs font-bold" style={{ color: "var(--muted)" }}>
-                  ${pv.toLocaleString()} + ${pmt.toLocaleString()}/mes
+                  Aportando ${pmt.toLocaleString()}/mes
                 </p>
                 <span className="text-[10px] px-2 py-0.5 rounded-full font-bold"
                       style={{ background: riskCfg.color + "20", color: riskCfg.color }}>~{rateLabel}/año</span>
               </div>
 
               {[
-                { years: horizonYrs,     fv: fvHorizon, label: `A los ${horizonYrs} años (tu horizonte)` },
-                { years: horizonYrs * 2, fv: fvDouble,  label: `Si lo dejas ${horizonYrs} años más (${horizonYrs * 2} total)` },
+                { years: horizonYrs, fv: fvHorizon, label: `A los ${horizonYrs} años (tu horizonte)` },
+                { years: plus10Yrs,  fv: fvPlus10,  label: `Si lo dejas 10 años más (${plus10Yrs} total)` },
               ].map(({ years, fv, label }) => {
                 const barPct = Math.min((fv / maxFV) * 100, 100);
                 return (
@@ -531,11 +509,11 @@ export default function OnboardingPage() {
                 <div className="flex items-center gap-2">
                   <span className="text-base">⏳</span>
                   <p className="text-xs font-bold" style={{ color: "#818cf8" }}>
-                    Quedate {horizonYrs} años más: +${extraGain.toLocaleString()} (+{extraPct}%)
+                    10 años más: +${extraGain.toLocaleString()} extra (+{extraPct}%)
                   </p>
                 </div>
                 <p className="text-[10px] ml-6" style={{ color: "var(--dim)" }}>
-                  El interés compuesto se acelera — la segunda mitad del tiempo genera más que la primera.
+                  El interés compuesto se acelera — los últimos años generan más que los primeros.
                 </p>
               </div>
 

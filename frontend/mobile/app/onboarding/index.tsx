@@ -214,26 +214,12 @@ export default function OnboardingScreen() {
     {
       title: "Tu meta financiera",
       isValid: () => {
-        const amt     = parseFloat(form.investment_amount);
         const goal    = parseFloat(form.investment_goal_amount);
         const horizon = parseInt(form.investment_horizon);
-        return amt > 0 && goal > 0 && horizon >= 1 && !!form.investment_goal && !!form.knowledge_level;
+        return goal > 0 && horizon >= 1 && !!form.investment_goal && !!form.knowledge_level;
       },
       content: (
         <View style={s.fields}>
-          {/* Capital disponible */}
-          <Text style={s.label}>¿Cuánto tienes disponible para invertir hoy?</Text>
-          <View style={s.prefixWrap}>
-            <Text style={[s.prefix, { color: colors.textMuted }]}>$</Text>
-            <TextInput
-              style={[s.input, s.prefixInput, { color: colors.text }]}
-              value={form.investment_amount}
-              onChangeText={(v) => setForm((f) => ({ ...f, investment_amount: v }))}
-              placeholder="5,000" placeholderTextColor={colors.placeholder}
-              keyboardType="numeric"
-            />
-          </View>
-
           {/* Meta en $ */}
           <Text style={[s.label, { marginTop: 16 }]}>¿A cuánto quieres llegar?</Text>
           <View style={s.prefixWrap}>
@@ -368,10 +354,9 @@ export default function OnboardingScreen() {
           {/* Financial summary */}
           <Text style={[s.factorsTitle, { color: colors.textSub, marginTop: 16 }]}>Datos financieros</Text>
           {[
-            { label: "Nombre",          value: form.name },
-            { label: "Capital inicial", value: `$${Number(form.investment_amount).toLocaleString()}` },
-            { label: "Meta",            value: `$${Number(form.investment_goal_amount).toLocaleString()}` },
-            { label: "Horizonte",       value: `${form.investment_horizon} años` },
+            { label: "Nombre",    value: form.name },
+            { label: "Meta",      value: `$${Number(form.investment_goal_amount).toLocaleString()}` },
+            { label: "Horizonte", value: `${form.investment_horizon} años` },
           ].map((f) => (
             <View key={f.label} style={[s.factorRow, { borderColor: colors.border }]}>
               <Text style={[s.factorLabel, { color: colors.textMuted }]}>{f.label}</Text>
@@ -386,32 +371,31 @@ export default function OnboardingScreen() {
       title: `Tu meta: $${Number(form.investment_goal_amount || 0).toLocaleString()}`,
       isValid: () => true,
       content: (() => {
-        const pv         = Math.max(parseFloat(form.investment_amount) || 1000, 1);
         const pmt        = Math.max(parseFloat(form.monthly_contribution) || 0, 0);
-        const goalAmt    = Math.max(parseFloat(form.investment_goal_amount) || pv * 3, pv + 1);
+        const goalAmt    = Math.max(parseFloat(form.investment_goal_amount) || 10000, 1);
         const horizonYrs = Math.max(parseInt(form.investment_horizon) || 10, 1);
+        const plus10Yrs  = horizonYrs + 10;
         const annualRate = calculated === "conservative" ? 0.07 : calculated === "moderate" ? 0.10 : 0.12;
         const rateLabel  = calculated === "conservative" ? "7%" : calculated === "moderate" ? "10%" : "12%";
         const r = annualRate / 12;
 
         const fvCombined = (months: number) => {
-          const lump    = pv * Math.pow(1 + r, months);
           const annuity = pmt > 0 ? pmt * ((Math.pow(1 + r, months) - 1) / r) : 0;
-          return Math.round(lump + annuity);
+          return Math.round(annuity);
         };
 
         const fvHorizon   = fvCombined(horizonYrs * 12);
-        const fvDouble    = fvCombined(horizonYrs * 2 * 12);
-        const extraGain   = fvDouble - fvHorizon;
-        const extraPct    = Math.round((extraGain / fvHorizon) * 100);
-        const maxFV       = Math.max(fvDouble, goalAmt);
+        const fvPlus10    = fvCombined(plus10Yrs * 12);
+        const extraGain   = fvPlus10 - fvHorizon;
+        const extraPct    = fvHorizon > 0 ? Math.round((extraGain / fvHorizon) * 100) : 0;
+        const maxFV       = Math.max(fvPlus10, goalAmt);
         const goalLinePct = Math.min((goalAmt / maxFV) * 100, 100);
 
         const goalStatus = fvHorizon >= goalAmt
-          ? `¡la alcanzas antes de los ${horizonYrs} años!`
-          : fvDouble >= goalAmt
-          ? `la alcanzas entre los ${horizonYrs} y ${horizonYrs * 2} años`
-          : `proyecta a más de ${horizonYrs * 2} años a esta tasa`;
+          ? `¡la alcanzas dentro de los ${horizonYrs} años!`
+          : fvPlus10 >= goalAmt
+          ? `la alcanzas entre los ${horizonYrs} y ${plus10Yrs} años`
+          : `proyecta a más de ${plus10Yrs} años a esta tasa`;
 
         return (
           <View style={{ gap: 16 }}>
@@ -419,7 +403,7 @@ export default function OnboardingScreen() {
             <View style={[s.revealCard, { alignItems: "stretch" }]}>
               <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
                 <Text style={[s.factorsTitle, { color: colors.textSub, marginBottom: 0 }]}>
-                  ${pv.toLocaleString()} + ${pmt.toLocaleString()}/mes
+                  Aportando ${pmt.toLocaleString()}/mes
                 </Text>
                 <View style={{ backgroundColor: riskCfg.color + "22", borderRadius: 20, paddingHorizontal: 8, paddingVertical: 3 }}>
                   <Text style={{ color: riskCfg.color, fontSize: 10, fontWeight: "700" }}>~{rateLabel}/año</Text>
@@ -427,8 +411,8 @@ export default function OnboardingScreen() {
               </View>
 
               {[
-                { years: horizonYrs,     fv: fvHorizon, label: `A los ${horizonYrs} años (tu horizonte)` },
-                { years: horizonYrs * 2, fv: fvDouble,  label: `+${horizonYrs} años más (${horizonYrs * 2} total)` },
+                { years: horizonYrs, fv: fvHorizon, label: `A los ${horizonYrs} años (tu horizonte)` },
+                { years: plus10Yrs,  fv: fvPlus10,  label: `Si lo dejas 10 años más (${plus10Yrs} total)` },
               ].map(({ years, fv, label }) => {
                 const barPct = Math.min((fv / maxFV) * 100, 100);
                 return (
@@ -452,11 +436,11 @@ export default function OnboardingScreen() {
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
                   <Text style={{ fontSize: 16 }}>⏳</Text>
                   <Text style={{ color: "#818cf8", fontSize: 12, fontWeight: "700", flex: 1 }}>
-                    Quedate {horizonYrs} años más: +${extraGain.toLocaleString()} (+{extraPct}%)
+                    10 años más: +${extraGain.toLocaleString()} extra (+{extraPct}%)
                   </Text>
                 </View>
                 <Text style={{ color: colors.textDim, fontSize: 10, marginTop: 6, marginLeft: 24 }}>
-                  El interés compuesto se acelera — la segunda mitad genera más que la primera.
+                  El interés compuesto se acelera — los últimos años generan más que los primeros.
                 </Text>
               </View>
 
