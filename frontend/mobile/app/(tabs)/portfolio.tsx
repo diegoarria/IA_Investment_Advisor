@@ -16,7 +16,6 @@ import { useTheme, Colors } from "../../src/lib/ThemeContext";
 import { usePortfolioStore, Position } from "../../src/lib/portfolioStore";
 import MobileMonthlyReport from "../../src/components/MobileMonthlyReport";
 import MobileWeeklyScreener from "../../src/components/MobileWeeklyScreener";
-import MobilePortfolioLeaderboard from "../../src/components/MobilePortfolioLeaderboard";
 import PremiumToolCard from "../../src/components/PremiumToolCard";
 import { useAppStore, getAge, UserProfile, RISK_CONFIG } from "../../src/lib/profileStore";
 import { useSubscriptionStore, hasPremiumAccess } from "../../src/lib/subscriptionStore";
@@ -1343,8 +1342,6 @@ export default function PortfolioScreen() {
                   onUnlock={() => setPaywallOpen(true)}
                 />
             }
-
-            <MobilePortfolioLeaderboard isPremium={isPremiumAccess} onUpgrade={() => setPaywallOpen(true)} />
 
             {/* ── GRANDES INVERSORES ── */}
             <TouchableOpacity

@@ -16,7 +16,6 @@ import type { AdvancedRow } from "@/components/AdvancedStockTable";
 import StockDetailModal from "@/components/StockDetailModal";
 import MonthlyReport from "@/components/MonthlyReport";
 import WeeklyScreenerCard from "@/components/WeeklyScreenerCard";
-import PortfolioLeaderboard from "@/components/PortfolioLeaderboard";
 import PremiumToolLockedWeb from "@/components/PremiumToolLocked";
 import PaywallModal from "@/components/PaywallModal";
 import GuidedSteps from "@/components/GuidedSteps";
@@ -2363,8 +2362,6 @@ export default function PortfolioPage() {
               }
 
               <WeeklyScreenerCard isPremium={isPremium} onUpgrade={() => setPaywallOpen(true)} tickers={positions.map(p => p.ticker)} />
-
-              <PortfolioLeaderboard isPremium={isPremium} onUpgrade={() => setPaywallOpen(true)} />
 
               {/* ── INVERSORES ── */}
               <button
