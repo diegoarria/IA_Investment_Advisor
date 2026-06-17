@@ -191,10 +191,12 @@ function MobileHeader({ title }: { title: string }) {
           <View style={[headerStyles.menuLine, headerStyles.menuLineShort, { backgroundColor: colors.accentLight }]} />
         </TouchableOpacity>
 
-        {/* Title */}
-        <Text style={[headerStyles.title, { color: colors.text }]} numberOfLines={1}>
-          {title}
-        </Text>
+        {/* Title — absolutely centered so it sits in the true middle of the screen */}
+        <View style={headerStyles.titleContainer} pointerEvents="none">
+          <Text style={[headerStyles.title, { color: colors.text }]} numberOfLines={1}>
+            {title}
+          </Text>
+        </View>
 
         {/* Notification bell */}
         <TouchableOpacity
@@ -257,9 +259,15 @@ const headerStyles = StyleSheet.create({
   menuLineShort: {
     width: 14,
   },
+  titleContainer: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    alignItems: "center",
+  },
   title: {
-    flex: 1, textAlign: "center",
     fontSize: 16, fontFamily: "DMSans_700Bold", letterSpacing: -0.3,
+    textAlign: "center",
   },
   bellBtn: { padding: 6 },
   avatar: {
