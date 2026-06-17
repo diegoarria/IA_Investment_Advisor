@@ -198,6 +198,9 @@ function MobileHeader({ title }: { title: string }) {
           </Text>
         </View>
 
+        {/* Spacer pushes right-side icons to the edge */}
+        <View style={{ flex: 1 }} />
+
         {/* Notification bell */}
         <TouchableOpacity
           style={headerStyles.bellBtn}
