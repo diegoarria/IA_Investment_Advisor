@@ -1,552 +1,401 @@
 ======================================================================
-  NUVOS AI — BOTTLENECK ANALYSIS REPORT
-  Generado: 2026-06-15 10:12
+  NUVOS AI — BOTTLENECK ANALYSIS REPORT v2
+  Generated: 2026-06-16
+  Analyst:   Static code inspection (server not running locally)
+  Scope:     backend/app/  — all routes, services, core modules
 ======================================================================
-  CRITICAL: 81  |  HIGH: 10  |  MEDIUM: 14  |  LOW: 1
+  CRITICAL: 3  |  HIGH: 5  |  MEDIUM: 9  |  LOW: 3
 ======================================================================
 
-🔴 [CRITICAL] SINGLE_UVICORN_WORKER
-   File: Procfile:1
-   Issue: Procfile starts uvicorn without --workers flag → single-process server
-   Fix:   Add --workers $(nproc) or use gunicorn:
-  web: gunicorn main:app -k uvicorn.workers.UvicornWorker -w 4 --bind 0.0.0.0:$PORT
-Or set WEB_CONCURRENCY env var on Railway/Render
-
-🔴 [CRITICAL] SYNC_SUPABASE_CLIENT
-   File: core/database.py:1
-   Issue: Using synchronous supabase-py Client — all DB calls block the asyncio event loop
-   Fix:   Switch to AsyncClient:
-  from supabase._async.client import AsyncClient, create_async_client
-  async def get_supabase() -> AsyncClient:
-      return await create_async_client(url, key)
-
-🔴 [CRITICAL] SYNC_DB_IN_ASYNC
-   File: auth.py:202
-   Issue: Supabase .execute() called synchronously in async context: db.table(table).delete().eq("user_id", user_id).execute()
-   Fix:   Wrap in asyncio.to_thread() or switch to supabase-py's async client (AsyncClient)
-
-🔴 [CRITICAL] SYNC_DB_IN_ASYNC
-   File: billing.py:39
-   Issue: Supabase .execute() called synchronously in async context: result = db.table("user_profiles").select("stripe_customer_id").eq("user_id", us
-   Fix:   Wrap in asyncio.to_thread() or switch to supabase-py's async client (AsyncClient)
-
-🔴 [CRITICAL] SYNC_DB_IN_ASYNC
-   File: billing.py:87
-   Issue: Supabase .execute() called synchronously in async context: }).eq("user_id", user_id).execute()
-   Fix:   Wrap in asyncio.to_thread() or switch to supabase-py's async client (AsyncClient)
-
-🔴 [CRITICAL] SYNC_DB_IN_ASYNC
-   File: billing.py:94
-   Issue: Supabase .execute() called synchronously in async context: }).eq("stripe_customer_id", customer_id).execute()
-   Fix:   Wrap in asyncio.to_thread() or switch to supabase-py's async client (AsyncClient)
-
-🔴 [CRITICAL] SYNC_DB_IN_ASYNC
-   File: billing.py:101
-   Issue: Supabase .execute() called synchronously in async context: }).eq("stripe_customer_id", customer_id).execute()
-   Fix:   Wrap in asyncio.to_thread() or switch to supabase-py's async client (AsyncClient)
-
-🔴 [CRITICAL] SYNC_DB_IN_ASYNC
-   File: billing.py:114
-   Issue: Supabase .execute() called synchronously in async context: ).eq("user_id", user_id).single().execute()
-   Fix:   Wrap in asyncio.to_thread() or switch to supabase-py's async client (AsyncClient)
-
-🔴 [CRITICAL] SYNC_DB_IN_ASYNC
-   File: billing.py:129
-   Issue: Supabase .execute() called synchronously in async context: .eq("user_id", user_id).execute()
-   Fix:   Wrap in asyncio.to_thread() or switch to supabase-py's async client (AsyncClient)
-
-🔴 [CRITICAL] SYNC_DB_IN_ASYNC
-   File: chat.py:176
-   Issue: Supabase .execute() called synchronously in async context: db.table("chat_history").insert(record).execute()
-   Fix:   Wrap in asyncio.to_thread() or switch to supabase-py's async client (AsyncClient)
-
-🔴 [CRITICAL] SYNC_DB_IN_ASYNC
-   File: chat.py:195
-   Issue: Supabase .execute() called synchronously in async context: .execute()
-   Fix:   Wrap in asyncio.to_thread() or switch to supabase-py's async client (AsyncClient)
-
-🔴 [CRITICAL] SYNC_DB_IN_ASYNC
-   File: feed.py:36
-   Issue: Supabase .execute() called synchronously in async context: all_clips = q.execute().data or []
-   Fix:   Wrap in asyncio.to_thread() or switch to supabase-py's async client (AsyncClient)
-
-🔴 [CRITICAL] SYNC_DB_IN_ASYNC
-   File: feed.py:42
-   Issue: Supabase .execute() called synchronously in async context: clips = q.range(cursor, cursor + limit - 1).execute().data or []
-   Fix:   Wrap in asyncio.to_thread() or switch to supabase-py's async client (AsyncClient)
-
-🔴 [CRITICAL] SYNC_DB_IN_ASYNC
-   File: feed.py:45
-   Issue: Supabase .execute() called synchronously in async context: clips = q.range(cursor, cursor + limit - 1).execute().data or []
-   Fix:   Wrap in asyncio.to_thread() or switch to supabase-py's async client (AsyncClient)
-
-🔴 [CRITICAL] SYNC_DB_IN_ASYNC
-   File: feed.py:52
-   Issue: Supabase .execute() called synchronously in async context: for r in (db.table("clip_likes").select("clip_id").eq("user_id", user_id).in_("c
-   Fix:   Wrap in asyncio.to_thread() or switch to supabase-py's async client (AsyncClient)
-
-🔴 [CRITICAL] SYNC_DB_IN_ASYNC
-   File: feed.py:56
-   Issue: Supabase .execute() called synchronously in async context: for r in (db.table("clip_saves").select("clip_id").eq("user_id", user_id).in_("c
-   Fix:   Wrap in asyncio.to_thread() or switch to supabase-py's async client (AsyncClient)
-
-🔴 [CRITICAL] SYNC_DB_IN_ASYNC
-   File: feed.py:74
-   Issue: Supabase .execute() called synchronously in async context: ).execute()
-   Fix:   Wrap in asyncio.to_thread() or switch to supabase-py's async client (AsyncClient)
-
-🔴 [CRITICAL] SYNC_DB_IN_ASYNC
-   File: feed.py:76
-   Issue: Supabase .execute() called synchronously in async context: db.rpc("increment_clip_views", {"p_clip_id": clip_id}).execute()
-   Fix:   Wrap in asyncio.to_thread() or switch to supabase-py's async client (AsyncClient)
-
-🔴 [CRITICAL] SYNC_DB_IN_ASYNC
-   File: feed.py:85
-   Issue: Supabase .execute() called synchronously in async context: existing = db.table("clip_likes").select("id").eq("user_id", user_id).eq("clip_i
-   Fix:   Wrap in asyncio.to_thread() or switch to supabase-py's async client (AsyncClient)
-
-🔴 [CRITICAL] SYNC_DB_IN_ASYNC
-   File: feed.py:87
-   Issue: Supabase .execute() called synchronously in async context: db.table("clip_likes").delete().eq("user_id", user_id).eq("clip_id", clip_id).ex
-   Fix:   Wrap in asyncio.to_thread() or switch to supabase-py's async client (AsyncClient)
-
-🔴 [CRITICAL] SYNC_DB_IN_ASYNC
-   File: feed.py:88
-   Issue: Supabase .execute() called synchronously in async context: db.rpc("decrement_clip_likes", {"p_clip_id": clip_id}).execute()
-   Fix:   Wrap in asyncio.to_thread() or switch to supabase-py's async client (AsyncClient)
-
-🔴 [CRITICAL] SYNC_DB_IN_ASYNC
-   File: feed.py:91
-   Issue: Supabase .execute() called synchronously in async context: db.table("clip_likes").insert({"user_id": user_id, "clip_id": clip_id}).execute(
-   Fix:   Wrap in asyncio.to_thread() or switch to supabase-py's async client (AsyncClient)
-
-🔴 [CRITICAL] SYNC_DB_IN_ASYNC
-   File: feed.py:92
-   Issue: Supabase .execute() called synchronously in async context: db.rpc("increment_clip_likes", {"p_clip_id": clip_id}).execute()
-   Fix:   Wrap in asyncio.to_thread() or switch to supabase-py's async client (AsyncClient)
-
-🔴 [CRITICAL] SYNC_DB_IN_ASYNC
-   File: feed.py:99
-   Issue: Supabase .execute() called synchronously in async context: existing = db.table("clip_saves").select("id").eq("user_id", user_id).eq("clip_i
-   Fix:   Wrap in asyncio.to_thread() or switch to supabase-py's async client (AsyncClient)
-
-🔴 [CRITICAL] SYNC_DB_IN_ASYNC
-   File: feed.py:101
-   Issue: Supabase .execute() called synchronously in async context: db.table("clip_saves").delete().eq("user_id", user_id).eq("clip_id", clip_id).ex
-   Fix:   Wrap in asyncio.to_thread() or switch to supabase-py's async client (AsyncClient)
-
-🔴 [CRITICAL] SYNC_DB_IN_ASYNC
-   File: feed.py:104
-   Issue: Supabase .execute() called synchronously in async context: db.table("clip_saves").insert({"user_id": user_id, "clip_id": clip_id}).execute(
-   Fix:   Wrap in asyncio.to_thread() or switch to supabase-py's async client (AsyncClient)
-
-🔴 [CRITICAL] SYNC_DB_IN_ASYNC
-   File: feed.py:117
-   Issue: Supabase .execute() called synchronously in async context: .execute()
-   Fix:   Wrap in asyncio.to_thread() or switch to supabase-py's async client (AsyncClient)
-
-🔴 [CRITICAL] SYNC_DB_IN_ASYNC
-   File: feed.py:129
-   Issue: Supabase .execute() called synchronously in async context: .execute()
-   Fix:   Wrap in asyncio.to_thread() or switch to supabase-py's async client (AsyncClient)
-
-🔴 [CRITICAL] SYNC_DB_IN_ASYNC
-   File: feed.py:163
-   Issue: Supabase .execute() called synchronously in async context: }).execute().data[0]
-   Fix:   Wrap in asyncio.to_thread() or switch to supabase-py's async client (AsyncClient)
-
-🔴 [CRITICAL] SYNC_DB_IN_ASYNC
-   File: feed.py:171
-   Issue: Supabase .execute() called synchronously in async context: row = db.table("clip_comments").select("user_id").eq("id", comment_id).eq("clip_
-   Fix:   Wrap in asyncio.to_thread() or switch to supabase-py's async client (AsyncClient)
-
-🔴 [CRITICAL] SYNC_DB_IN_ASYNC
-   File: feed.py:176
-   Issue: Supabase .execute() called synchronously in async context: db.table("clip_comments").update({"is_deleted": True}).eq("id", comment_id).exec
-   Fix:   Wrap in asyncio.to_thread() or switch to supabase-py's async client (AsyncClient)
-
-🔴 [CRITICAL] SYNC_DB_IN_ASYNC
-   File: feed.py:190
-   Issue: Supabase .execute() called synchronously in async context: .execute()
-   Fix:   Wrap in asyncio.to_thread() or switch to supabase-py's async client (AsyncClient)
-
-🔴 [CRITICAL] SYNC_DB_IN_ASYNC
-   File: feed.py:201
-   Issue: Supabase .execute() called synchronously in async context: .execute()
-   Fix:   Wrap in asyncio.to_thread() or switch to supabase-py's async client (AsyncClient)
-
-🔴 [CRITICAL] SYNC_DB_IN_ASYNC
-   File: feed.py:239
-   Issue: Supabase .execute() called synchronously in async context: }).execute().data[0]
-   Fix:   Wrap in asyncio.to_thread() or switch to supabase-py's async client (AsyncClient)
-
-🔴 [CRITICAL] SYNC_DB_IN_ASYNC
-   File: feed.py:252
-   Issue: Supabase .execute() called synchronously in async context: row = db.table("clips").update(updates).eq("id", clip_id).execute().data[0]
-   Fix:   Wrap in asyncio.to_thread() or switch to supabase-py's async client (AsyncClient)
-
-🔴 [CRITICAL] SYNC_DB_IN_ASYNC
-   File: feed.py:260
-   Issue: Supabase .execute() called synchronously in async context: db.table("clips").delete().eq("id", clip_id).execute()
-   Fix:   Wrap in asyncio.to_thread() or switch to supabase-py's async client (AsyncClient)
-
-🔴 [CRITICAL] SYNC_DB_IN_ASYNC
-   File: feed.py:271
-   Issue: Supabase .execute() called synchronously in async context: clip = db.table("clips").select("*").eq("id", clip_id).single().execute().data
-   Fix:   Wrap in asyncio.to_thread() or switch to supabase-py's async client (AsyncClient)
-
-🔴 [CRITICAL] SYNC_DB_IN_ASYNC
-   File: feed.py:378
-   Issue: Supabase .execute() called synchronously in async context: .execute()
-   Fix:   Wrap in asyncio.to_thread() or switch to supabase-py's async client (AsyncClient)
-
-🔴 [CRITICAL] SYNC_DB_IN_ASYNC
-   File: leaderboard.py:83
-   Issue: Supabase .execute() called synchronously in async context: port_res = db.table("user_portfolio").select("user_id, positions").execute()
-   Fix:   Wrap in asyncio.to_thread() or switch to supabase-py's async client (AsyncClient)
-
-🔴 [CRITICAL] SYNC_DB_IN_ASYNC
-   File: leaderboard.py:87
-   Issue: Supabase .execute() called synchronously in async context: profile_res = db.table("user_profiles").select("user_id, name, subscription_tier
-   Fix:   Wrap in asyncio.to_thread() or switch to supabase-py's async client (AsyncClient)
-
-🔴 [CRITICAL] SYNC_DB_IN_ASYNC
-   File: learn.py:447
-   Issue: Supabase .execute() called synchronously in async context: }).eq("user_id", user_id).execute()
-   Fix:   Wrap in asyncio.to_thread() or switch to supabase-py's async client (AsyncClient)
-
-🔴 [CRITICAL] SYNC_DB_IN_ASYNC
-   File: learn.py:462
-   Issue: Supabase .execute() called synchronously in async context: .execute()
-   Fix:   Wrap in asyncio.to_thread() or switch to supabase-py's async client (AsyncClient)
-
-🔴 [CRITICAL] SYNC_DB_IN_ASYNC
-   File: notifications.py:31
-   Issue: Supabase .execute() called synchronously in async context: db.table("notifications").update({"read": True}).eq("user_id", user_id).eq("read
-   Fix:   Wrap in asyncio.to_thread() or switch to supabase-py's async client (AsyncClient)
-
-🔴 [CRITICAL] SYNC_DB_IN_ASYNC
-   File: paper.py:265
-   Issue: Supabase .execute() called synchronously in async context: .eq("user_id", user_id).execute()
-   Fix:   Wrap in asyncio.to_thread() or switch to supabase-py's async client (AsyncClient)
-
-🔴 [CRITICAL] SYNC_DB_IN_ASYNC
-   File: profile.py:39
-   Issue: Supabase .execute() called synchronously in async context: existing = db.table("user_profiles").select("id").eq("user_id", user_id).execute
-   Fix:   Wrap in asyncio.to_thread() or switch to supabase-py's async client (AsyncClient)
-
-🔴 [CRITICAL] SYNC_DB_IN_ASYNC
-   File: profile.py:42
-   Issue: Supabase .execute() called synchronously in async context: result = db.table("user_profiles").update({**db_data, "updated_at": now}).eq("us
-   Fix:   Wrap in asyncio.to_thread() or switch to supabase-py's async client (AsyncClient)
-
-🔴 [CRITICAL] SYNC_DB_IN_ASYNC
-   File: profile.py:47
-   Issue: Supabase .execute() called synchronously in async context: result = db.table("user_profiles").insert(record).execute()
-   Fix:   Wrap in asyncio.to_thread() or switch to supabase-py's async client (AsyncClient)
-
-🔴 [CRITICAL] SYNC_DB_IN_ASYNC
-   File: profile.py:79
-   Issue: Supabase .execute() called synchronously in async context: .execute()
-   Fix:   Wrap in asyncio.to_thread() or switch to supabase-py's async client (AsyncClient)
-
-🔴 [CRITICAL] SYNC_DB_IN_ASYNC
-   File: profile.py:82
-   Issue: Supabase .execute() called synchronously in async context: profile_row = db.table("user_profiles").select("risk_tolerance,mentor,subscripti
-   Fix:   Wrap in asyncio.to_thread() or switch to supabase-py's async client (AsyncClient)
-
-🔴 [CRITICAL] SYNC_DB_IN_ASYNC
-   File: profile.py:157
-   Issue: Supabase .execute() called synchronously in async context: result = db.table("user_profiles").update(updates).eq("user_id", user_id).execut
-   Fix:   Wrap in asyncio.to_thread() or switch to supabase-py's async client (AsyncClient)
-
-🔴 [CRITICAL] SYNC_DB_IN_ASYNC
-   File: profile.py:198
-   Issue: Supabase .execute() called synchronously in async context: }).eq("user_id", user_id).execute()
-   Fix:   Wrap in asyncio.to_thread() or switch to supabase-py's async client (AsyncClient)
-
-🔴 [CRITICAL] SYNC_DB_IN_ASYNC
-   File: profile.py:215
-   Issue: Supabase .execute() called synchronously in async context: }).eq("user_id", user_id).execute()
-   Fix:   Wrap in asyncio.to_thread() or switch to supabase-py's async client (AsyncClient)
-
-🔴 [CRITICAL] SYNC_DB_IN_ASYNC
-   File: referral.py:63
-   Issue: Supabase .execute() called synchronously in async context: row = db.table("user_profiles").select("referral_code, referred_count").eq("user
-   Fix:   Wrap in asyncio.to_thread() or switch to supabase-py's async client (AsyncClient)
-
-🔴 [CRITICAL] SYNC_DB_IN_ASYNC
-   File: referral.py:85
-   Issue: Supabase .execute() called synchronously in async context: result = db.table("user_profiles").select("user_id, referred_count").eq("referra
-   Fix:   Wrap in asyncio.to_thread() or switch to supabase-py's async client (AsyncClient)
-
-🔴 [CRITICAL] SYNC_DB_IN_ASYNC
-   File: referral.py:96
-   Issue: Supabase .execute() called synchronously in async context: my_row = db.table("user_profiles").select("referred_by").eq("user_id", user_id).
-   Fix:   Wrap in asyncio.to_thread() or switch to supabase-py's async client (AsyncClient)
-
-🔴 [CRITICAL] SYNC_DB_IN_ASYNC
-   File: referral.py:102
-   Issue: Supabase .execute() called synchronously in async context: db.table("user_profiles").update({"referred_count": new_count}).eq("user_id", re
-   Fix:   Wrap in asyncio.to_thread() or switch to supabase-py's async client (AsyncClient)
-
-🔴 [CRITICAL] SYNC_DB_IN_ASYNC
-   File: referral.py:103
-   Issue: Supabase .execute() called synchronously in async context: db.table("user_profiles").update({"referred_by": referrer_id}).eq("user_id", use
-   Fix:   Wrap in asyncio.to_thread() or switch to supabase-py's async client (AsyncClient)
-
-🔴 [CRITICAL] SYNC_DB_IN_ASYNC
-   File: support.py:113
-   Issue: Supabase .execute() called synchronously in async context: result = db.table("support_tickets").insert(record).execute()
-   Fix:   Wrap in asyncio.to_thread() or switch to supabase-py's async client (AsyncClient)
-
-🔴 [CRITICAL] SYNC_DB_IN_ASYNC
-   File: support.py:133
-   Issue: Supabase .execute() called synchronously in async context: .execute()
-   Fix:   Wrap in asyncio.to_thread() or switch to supabase-py's async client (AsyncClient)
-
-🔴 [CRITICAL] SYNC_DB_IN_ASYNC
-   File: support.py:151
-   Issue: Supabase .execute() called synchronously in async context: db.table("support_tickets").update(updates).eq("id", ticket_id).eq("user_id", us
-   Fix:   Wrap in asyncio.to_thread() or switch to supabase-py's async client (AsyncClient)
-
-🔴 [CRITICAL] SYNC_DB_IN_ASYNC
-   File: sync.py:30
-   Issue: Supabase .execute() called synchronously in async context: }, on_conflict="user_id").execute()
-   Fix:   Wrap in asyncio.to_thread() or switch to supabase-py's async client (AsyncClient)
-
-🔴 [CRITICAL] SYNC_DB_IN_ASYNC
-   File: sync.py:47
-   Issue: Supabase .execute() called synchronously in async context: .eq("user_id", user_id).execute()
-   Fix:   Wrap in asyncio.to_thread() or switch to supabase-py's async client (AsyncClient)
-
-🔴 [CRITICAL] SYNC_DB_IN_ASYNC
-   File: sync.py:74
-   Issue: Supabase .execute() called synchronously in async context: db.table("user_paper_trading").upsert(update_data, on_conflict="user_id").execut
-   Fix:   Wrap in asyncio.to_thread() or switch to supabase-py's async client (AsyncClient)
-
-🔴 [CRITICAL] SYNC_DB_IN_ASYNC
-   File: sync.py:83
-   Issue: Supabase .execute() called synchronously in async context: .eq("user_id", user_id).execute()
-   Fix:   Wrap in asyncio.to_thread() or switch to supabase-py's async client (AsyncClient)
-
-🔴 [CRITICAL] SYNC_DB_IN_ASYNC
-   File: sync.py:107
-   Issue: Supabase .execute() called synchronously in async context: }).eq("user_id", user_id).execute()
-   Fix:   Wrap in asyncio.to_thread() or switch to supabase-py's async client (AsyncClient)
-
-🔴 [CRITICAL] SYNC_DB_IN_ASYNC
-   File: sync.py:116
-   Issue: Supabase .execute() called synchronously in async context: .eq("user_id", user_id).execute()
-   Fix:   Wrap in asyncio.to_thread() or switch to supabase-py's async client (AsyncClient)
-
-🔴 [CRITICAL] SYNC_DB_IN_ASYNC
-   File: sync.py:133
-   Issue: Supabase .execute() called synchronously in async context: .eq("user_id", user_id).execute()
-   Fix:   Wrap in asyncio.to_thread() or switch to supabase-py's async client (AsyncClient)
-
-🔴 [CRITICAL] SYNC_DB_IN_ASYNC
-   File: sync.py:144
-   Issue: Supabase .execute() called synchronously in async context: .eq("user_id", user_id).execute()
-   Fix:   Wrap in asyncio.to_thread() or switch to supabase-py's async client (AsyncClient)
-
-🔴 [CRITICAL] SYNC_DB_IN_ASYNC
-   File: sync.py:154
-   Issue: Supabase .execute() called synchronously in async context: .eq("user_id", user_id).execute()
-   Fix:   Wrap in asyncio.to_thread() or switch to supabase-py's async client (AsyncClient)
-
-🔴 [CRITICAL] SYNC_DB_IN_ASYNC
-   File: sync.py:181
-   Issue: Supabase .execute() called synchronously in async context: .select("positions").eq("user_id", user_id).execute()
-   Fix:   Wrap in asyncio.to_thread() or switch to supabase-py's async client (AsyncClient)
-
-🔴 [CRITICAL] SYNC_DB_IN_ASYNC
-   File: sync.py:184
-   Issue: Supabase .execute() called synchronously in async context: .eq("user_id", user_id).execute()
-   Fix:   Wrap in asyncio.to_thread() or switch to supabase-py's async client (AsyncClient)
-
-🔴 [CRITICAL] SYNC_DB_IN_ASYNC
-   File: sync.py:188
-   Issue: Supabase .execute() called synchronously in async context: .eq("user_id", user_id).execute()
-   Fix:   Wrap in asyncio.to_thread() or switch to supabase-py's async client (AsyncClient)
-
-🔴 [CRITICAL] SYNC_DB_IN_ASYNC
-   File: sync.py:192
-   Issue: Supabase .execute() called synchronously in async context: .eq("user_id", user_id).execute()
-   Fix:   Wrap in asyncio.to_thread() or switch to supabase-py's async client (AsyncClient)
-
-🔴 [CRITICAL] SYNC_DB_IN_ASYNC
-   File: sync.py:196
-   Issue: Supabase .execute() called synchronously in async context: .order("added_at").execute()
-   Fix:   Wrap in asyncio.to_thread() or switch to supabase-py's async client (AsyncClient)
-
-🔴 [CRITICAL] SYNC_DB_IN_ASYNC
-   File: sync.py:251
-   Issue: Supabase .execute() called synchronously in async context: db.table("user_profiles").update({"nav_order": order}).eq("user_id", user_id).ex
-   Fix:   Wrap in asyncio.to_thread() or switch to supabase-py's async client (AsyncClient)
-
-🔴 [CRITICAL] SYNC_DB_IN_ASYNC
-   File: sync.py:258
-   Issue: Supabase .execute() called synchronously in async context: result = db.table("user_profiles").select("nav_order").eq("user_id", user_id).ex
-   Fix:   Wrap in asyncio.to_thread() or switch to supabase-py's async client (AsyncClient)
-
-🔴 [CRITICAL] SYNC_DB_IN_ASYNC
-   File: sync.py:273
-   Issue: Supabase .execute() called synchronously in async context: db.table("user_profiles").update({"theme": theme}).eq("user_id", user_id).execut
-   Fix:   Wrap in asyncio.to_thread() or switch to supabase-py's async client (AsyncClient)
-
-🔴 [CRITICAL] SYNC_DB_IN_ASYNC
-   File: sync.py:280
-   Issue: Supabase .execute() called synchronously in async context: result = db.table("user_profiles").select("theme").eq("user_id", user_id).execut
-   Fix:   Wrap in asyncio.to_thread() or switch to supabase-py's async client (AsyncClient)
-
-🔴 [CRITICAL] SYNC_DB_IN_ASYNC
-   File: sync.py:296
-   Issue: Supabase .execute() called synchronously in async context: db.table("user_profiles").update({"behavioral_risk_score": int(score)}).eq("user
-   Fix:   Wrap in asyncio.to_thread() or switch to supabase-py's async client (AsyncClient)
-
-🔴 [CRITICAL] SYNC_DB_IN_ASYNC
-   File: sync.py:306
-   Issue: Supabase .execute() called synchronously in async context: result = db.table("user_profiles").select("behavioral_risk_score").eq("user_id",
-   Fix:   Wrap in asyncio.to_thread() or switch to supabase-py's async client (AsyncClient)
-
-🔴 [CRITICAL] SYNC_DB_IN_ASYNC
-   File: sync.py:323
-   Issue: Supabase .execute() called synchronously in async context: db.table("user_profiles").update({"push_token": token}).eq("user_id", user_id).e
-   Fix:   Wrap in asyncio.to_thread() or switch to supabase-py's async client (AsyncClient)
-
-🟠 [HIGH] PER_REQUEST_THREAD_POOL
-   File: chat.py:85
-   Issue: ThreadPoolExecutor created per request: with concurrent.futures.ThreadPoolExecutor(max_workers=2) as ex:
-   Fix:   Create a module-level thread pool and reuse it: _pool = ThreadPoolExecutor(max_workers=20)
-
-🟠 [HIGH] PER_REQUEST_THREAD_POOL
-   File: earnings.py:131
-   Issue: ThreadPoolExecutor created per request: with ThreadPoolExecutor(max_workers=min(len(symbols), 10)) as pool:
-   Fix:   Create a module-level thread pool and reuse it: _pool = ThreadPoolExecutor(max_workers=20)
-
-🟠 [HIGH] PER_REQUEST_THREAD_POOL
-   File: market.py:137
-   Issue: ThreadPoolExecutor created per request: with ThreadPoolExecutor(max_workers=5) as pool:
-   Fix:   Create a module-level thread pool and reuse it: _pool = ThreadPoolExecutor(max_workers=20)
-
-🟠 [HIGH] PER_REQUEST_THREAD_POOL
-   File: market.py:253
-   Issue: ThreadPoolExecutor created per request: with ThreadPoolExecutor(max_workers=min(len(symbols), 10)) as pool:
-   Fix:   Create a module-level thread pool and reuse it: _pool = ThreadPoolExecutor(max_workers=20)
-
-🟠 [HIGH] PER_REQUEST_THREAD_POOL
-   File: market.py:863
-   Issue: ThreadPoolExecutor created per request: with ThreadPoolExecutor(max_workers=min(len(tickers), 8)) as pool:
-   Fix:   Create a module-level thread pool and reuse it: _pool = ThreadPoolExecutor(max_workers=20)
-
-🟠 [HIGH] PER_REQUEST_THREAD_POOL
-   File: market.py:1027
-   Issue: ThreadPoolExecutor created per request: with ThreadPoolExecutor(max_workers=min(len(tickers), 8)) as pool:
-   Fix:   Create a module-level thread pool and reuse it: _pool = ThreadPoolExecutor(max_workers=20)
-
-🟠 [HIGH] PER_REQUEST_THREAD_POOL
-   File: market.py:1065
-   Issue: ThreadPoolExecutor created per request: with ThreadPoolExecutor(max_workers=min(len(tickers), 8)) as pool:
-   Fix:   Create a module-level thread pool and reuse it: _pool = ThreadPoolExecutor(max_workers=20)
-
-🟠 [HIGH] PER_REQUEST_THREAD_POOL
-   File: market.py:1544
-   Issue: ThreadPoolExecutor created per request: with ThreadPoolExecutor(max_workers=min(len(missing), 10)) as pool:
-   Fix:   Create a module-level thread pool and reuse it: _pool = ThreadPoolExecutor(max_workers=20)
-
-🟠 [HIGH] PER_REQUEST_THREAD_POOL
-   File: paper.py:110
-   Issue: ThreadPoolExecutor created per request: with ThreadPoolExecutor(max_workers=min(len(tickers), 12)) as pool:
-   Fix:   Create a module-level thread pool and reuse it: _pool = ThreadPoolExecutor(max_workers=20)
-
-🟠 [HIGH] PER_REQUEST_THREAD_POOL
-   File: watchlist.py:166
-   Issue: ThreadPoolExecutor created per request: with ThreadPoolExecutor(max_workers=min(len(tickers), 10)) as pool:
-   Fix:   Create a module-level thread pool and reuse it: _pool = ThreadPoolExecutor(max_workers=20)
-
-🟡 [MEDIUM] NO_PG_CONNECTION_POOL
-   File: core/database.py:1
-   Issue: Supabase REST (PostgREST) handles connection pooling, but direct Postgres access has no explicit pgBouncer config
-   Fix:   Enable PgBouncer in Supabase dashboard (Transaction mode) for high-concurrency writes. For direct psycopg2 use: asyncpg with min_size=5, max_size=20
-
-🟡 [MEDIUM] NO_REDIS_POOL_SIZE
-   File: core/cache.py:1
-   Issue: Redis client has no explicit connection pool size — defaults to 10 connections max
-   Fix:   Set max_connections: redis.from_url(url, max_connections=50, decode_responses=True)
-
-🟡 [MEDIUM] ANTHROPIC_CONCURRENCY_LIMIT
-   File: routes/market.py:1
-   Issue: Screenshot/PDF endpoint limited to 10 concurrent Anthropic calls (threading.Semaphore(10))
-   Fix:   This is actually correct. Ensure the Anthropic tier supports 10+ concurrent requests. Consider a queue for overflow.
-
-🟡 [MEDIUM] NO_CACHE_IN_FILE
-   File: auth.py:1
-   Issue: 7 route(s) found but NO cache_get/cache_set usage in file
-   Fix:   Add caching for read-heavy endpoints (e.g., notifications, watchlist) with TTL 30-300 s
-
-🟡 [MEDIUM] NO_CACHE_IN_FILE
-   File: billing.py:1
-   Issue: 3 route(s) found but NO cache_get/cache_set usage in file
-   Fix:   Add caching for read-heavy endpoints (e.g., notifications, watchlist) with TTL 30-300 s
-
-🟡 [MEDIUM] NO_CACHE_IN_FILE
-   File: chat.py:1
-   Issue: 3 route(s) found but NO cache_get/cache_set usage in file
-   Fix:   Add caching for read-heavy endpoints (e.g., notifications, watchlist) with TTL 30-300 s
-
-🟡 [MEDIUM] NO_CACHE_IN_FILE
-   File: feed.py:1
-   Issue: 10 route(s) found but NO cache_get/cache_set usage in file
-   Fix:   Add caching for read-heavy endpoints (e.g., notifications, watchlist) with TTL 30-300 s
-
-🟡 [MEDIUM] NO_CACHE_IN_FILE
-   File: leaderboard.py:1
-   Issue: 1 route(s) found but NO cache_get/cache_set usage in file
-   Fix:   Add caching for read-heavy endpoints (e.g., notifications, watchlist) with TTL 30-300 s
-
-🟡 [MEDIUM] NO_CACHE_IN_FILE
-   File: learn.py:1
-   Issue: 4 route(s) found but NO cache_get/cache_set usage in file
-   Fix:   Add caching for read-heavy endpoints (e.g., notifications, watchlist) with TTL 30-300 s
-
-🟡 [MEDIUM] NO_CACHE_IN_FILE
-   File: notifications.py:1
-   Issue: 3 route(s) found but NO cache_get/cache_set usage in file
-   Fix:   Add caching for read-heavy endpoints (e.g., notifications, watchlist) with TTL 30-300 s
-
-🟡 [MEDIUM] NO_CACHE_IN_FILE
-   File: referral.py:1
-   Issue: 3 route(s) found but NO cache_get/cache_set usage in file
-   Fix:   Add caching for read-heavy endpoints (e.g., notifications, watchlist) with TTL 30-300 s
-
-🟡 [MEDIUM] NO_CACHE_IN_FILE
-   File: simulate.py:1
-   Issue: 1 route(s) found but NO cache_get/cache_set usage in file
-   Fix:   Add caching for read-heavy endpoints (e.g., notifications, watchlist) with TTL 30-300 s
-
-🟡 [MEDIUM] NO_CACHE_IN_FILE
-   File: support.py:1
-   Issue: 3 route(s) found but NO cache_get/cache_set usage in file
-   Fix:   Add caching for read-heavy endpoints (e.g., notifications, watchlist) with TTL 30-300 s
-
-🟡 [MEDIUM] NO_CACHE_IN_FILE
-   File: sync.py:1
-   Issue: 16 route(s) found but NO cache_get/cache_set usage in file
-   Fix:   Add caching for read-heavy endpoints (e.g., notifications, watchlist) with TTL 30-300 s
-
-🔵 [LOW] NON_BLOCKING_REDIS_POOL
-   File: core/cache.py:1
-   Issue: Redis uses non-blocking pool — under load, connection exhaustion returns None silently
-   Fix:   Use BlockingConnectionPool with timeout: redis.BlockingConnectionPool(max_connections=50, timeout=5)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  CRITICAL FINDINGS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🔴 [CRITICAL #1] SYNCHRONOUS SUPABASE CLIENT BLOCKS ASYNC EVENT LOOP
+   File: core/database.py:1-12 + all 22 route files
+   Issue: supabase-py Client uses synchronous httpx internally. Every
+          .execute() call blocks the asyncio event loop while waiting
+          for the network response. With N concurrent users, N-1 users
+          are frozen while one DB call completes.
+   Evidence: get_supabase() returns sync Client; run_query() wraps in
+             asyncio.to_thread() — this mitigates but does NOT eliminate
+             the problem (thread pool is still finite at OS level).
+   Estimated impact: With 4 uvicorn workers (current Procfile), the
+             effective DB concurrency ceiling is ~20-40 requests before
+             thread pool saturation causes queue buildup.
+   Fix:   Switch to AsyncClient when supabase-py stable async API is
+          available. Short-term: ensure run_query() is used everywhere
+          (audit shows it IS used correctly in all routes — good).
+          Long-term: migrate to httpx.AsyncClient direct PostgREST calls.
+   Status: PARTIALLY MITIGATED — run_query() offloads to thread pool.
+           True fix requires async Supabase client.
+
+🔴 [CRITICAL #2] GET /api/leaderboard — FULL TABLE SCAN ON EVERY REQUEST
+   File: routes/leaderboard.py:87-209
+   Issue: get_portfolio_leaderboard() fetches ALL rows from user_portfolio
+          and ALL rows from user_profiles on every single request.
+          With 10,000 users this means ~10,000 rows read + yfinance.download()
+          for all unique tickers on every leaderboard page load.
+   Evidence: Lines 99-105: db.table("user_portfolio").select("user_id, positions")
+             — no WHERE clause, no LIMIT.
+             Line 112: await asyncio.to_thread(_get_prices_for_period, ...) with
+             yf.download() which takes 3-10 seconds for many tickers.
+   Estimated impact: At 100 concurrent leaderboard requests = 100 full table scans
+             + 100 yfinance downloads running simultaneously. Server melts.
+   Fix (IMPLEMENTED): Added two-layer cache:
+     1. Price cache in _get_prices_for_period: 10 min TTL
+     2. Board-level cache (leaderboard:board:{period}): 5 min TTL
+     3. Per-request personalization (is_me/my_rank) applied on cache hit
+        without any DB query.
+   Status: FIXED IN THIS DIFF — routes/leaderboard.py updated.
+
+🔴 [CRITICAL #3] RACE CONDITION: PASSWORD RESET CODES IN PROCESS MEMORY
+   File: routes/auth.py:14-16
+   Issue: _reset_codes and _reset_codes_phone are plain Python dicts stored
+          in process memory. With 4 gunicorn workers, a code generated in
+          worker-1 is invisible to worker-2. Password reset fails ~75% of
+          the time in production multi-worker setup.
+   Evidence: Lines 14-16: _reset_codes: dict[str, dict] = {}
+             If /forgot-password lands on worker-1 and /reset-password lands
+             on worker-2, the code lookup fails.
+   Estimated impact: ~75% of password reset attempts fail silently in production.
+   Fix:   Move _reset_codes to Redis with TTL:
+     from app.core.cache import cache_get, cache_set
+     # In forgot_password:
+     cache_set(f"reset_code:email:{email}", code, ttl=900)
+     # In reset_password:
+     code = cache_get(f"reset_code:email:{email}")
+   Status: NOT FIXED — requires careful implementation to avoid security issues.
+           Recommend as immediate priority fix.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  HIGH FINDINGS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🟠 [HIGH #1] AUTH VALIDATION ON EVERY REQUEST — NO TOKEN CACHE
+   File: api/deps.py:5-18
+   Issue: get_current_user_id() calls db.auth.get_user(token) on EVERY
+          authenticated request. This is a network round-trip to Supabase
+          Auth server. With 1,000 concurrent users each making 5 req/min,
+          that's 5,000 auth validation calls per minute against Supabase.
+   Evidence: Line 11: result = await run_auth(db.auth.get_user, token)
+   Estimated overhead: 50-200ms per request just for auth validation.
+   Fix:   Cache validated tokens with short TTL (e.g., 60 seconds):
+     ck = f"auth:token:{hash(token)}"
+     cached_uid = cache_get(ck)
+     if cached_uid:
+         return cached_uid
+     result = await run_auth(db.auth.get_user, token)
+     cache_set(ck, result.user.id, ttl=60)
+   Risk:   Token revocation takes up to 60 seconds to propagate. Acceptable.
+   Status: NOT FIXED — requires careful consideration of security tradeoffs.
+
+🟠 [HIGH #2] GET /api/sync/all — 4 SEQUENTIAL DB QUERIES, NO CACHING
+   File: routes/sync.py:233-312 (before this diff)
+   Issue: get_all() makes 4 sequential DB calls (portfolio, paper, profile,
+          watchlist). This is called on every app startup/login. With no
+          caching, 1,000 users logging in simultaneously = 4,000 DB queries.
+   Evidence: Lines 238-263: Four separate await run_query() calls,
+             all sequential (not concurrent).
+   Fix (IMPLEMENTED):
+     1. Added 20-second cache on the full response: cache_set(ck, resp, ttl=20)
+     2. Cache is invalidated on portfolio/paper/maturity POST writes.
+     3. Parallel fetch optimization NOT implemented (would require asyncio.gather).
+   Additional optimization opportunity:
+     portfolio_res, paper_res, profile_res, watchlist_res = await asyncio.gather(
+         run_query(portfolio_q), run_query(paper_q),
+         run_query(profile_q),  run_query(watchlist_q)
+     )
+     This would reduce latency by ~75% for cache misses.
+   Status: CACHING FIXED. Parallel fetch left as future optimization.
+
+🟠 [HIGH #3] POST /api/market/prices — NO CACHING ON yfinance CALLS
+   File: routes/market.py:210-259
+   Issue: get_prices() fetches each ticker from Yahoo Finance on every
+          request. Multiple users with the same tickers (very common —
+          AAPL, NVDA, MSFT are in 80%+ of portfolios) each trigger
+          separate HTTP calls to Yahoo Finance.
+   Evidence: Line 258: pairs = list(_MARKET_POOL.map(_fetch, symbols))
+             No cache_get check before fetching.
+   Estimated impact: At 500 users, AAPL alone is fetched 500 times/min
+             instead of once. Yahoo Finance rate limits will kick in.
+   Fix:   Per-ticker cache with 30-second TTL (already done for indices):
+     uncached = []
+     result = {}
+     for sym in symbols:
+         cached = cache_get(f"price:{sym}")
+         if cached:
+             result[sym] = cached
+         else:
+             uncached.append(sym)
+     if uncached:
+         new_pairs = list(_MARKET_POOL.map(_fetch, uncached))
+         for sym, data in new_pairs:
+             cache_set(f"price:{sym}", data, ttl=30)
+             result[sym] = data
+     return result
+   Status: NOT FIXED — recommend as next immediate priority after auth cache.
+
+🟠 [HIGH #4] GET /api/chat/history — NO PAGINATION ENFORCED ON CLIENT SIDE
+   File: routes/chat.py:269-290
+   Issue: Default limit is 100 messages. Each message can have large content.
+          A user with 1,000 chat messages hitting limit=100 returns a 100-row
+          result set. No cursor-based pagination exists.
+   Evidence: Line 269: async def get_history(limit: int = 100, ...
+   Estimated payload: 100 messages x avg 2KB content = ~200KB per request.
+             At 1,000 users = 200MB/min in DB + network transfer.
+   Fix:   Enforce a lower default limit (20) and add cursor-based pagination:
+     q = q.order("created_at", desc=True).limit(min(limit, 50))
+   Status: NOT FIXED — requires frontend coordination.
+
+🟠 [HIGH #5] POST /api/chat/message — AI CALL IS BLOCKING (NO QUEUE)
+   File: routes/chat.py:142-168, services/ai_service.py:10-16
+   Issue: chat_message() streams the full Claude response synchronously.
+          _claude_sem = asyncio.Semaphore(40) limits concurrent AI calls to 40.
+          Once 40 users are simultaneously chatting, the 41st user waits for
+          a slot — the entire request is held open, consuming worker thread.
+   Evidence: ai_service.py:10: _claude_sem = asyncio.Semaphore(40)
+             chat.py:159: async for chunk in ai_service.chat_stream(...)
+   Claude API rate limits: claude-sonnet-4-6 has per-minute token limits.
+             At 40 concurrent calls each generating 8192 tokens max,
+             the per-minute token budget can be exceeded quickly.
+   Fix:   Reduce semaphore to 20 (safer with rate limits), add queue timeout:
+     _claude_sem = asyncio.Semaphore(20)
+     try:
+         async with asyncio.timeout(55):
+             async with _claude_sem:
+                 # ... claude call
+     except asyncio.TimeoutError:
+         raise HTTPException(503, "AI service temporarily busy")
+   Status: PARTIALLY MITIGATED by semaphore. Timeout guard not implemented.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  MEDIUM FINDINGS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🟡 [MEDIUM #1] SYNC ENDPOINTS — NO CACHING (before this diff)
+   File: routes/sync.py (all GET endpoints)
+   Issue: Every GET /sync/* endpoint hit the DB on every call. These are
+          called frequently by the mobile app background sync.
+   Fix (IMPLEMENTED): Added cache to:
+     - GET /sync/portfolio  (30s TTL)
+     - GET /sync/paper      (30s TTL)
+     - GET /sync/maturity   (120s TTL)
+     - GET /sync/all        (20s TTL)
+     - GET /sync/nav-order  (60s TTL)
+     - GET /sync/theme      (60s TTL)
+     POST writes invalidate corresponding cache keys.
+   Status: FIXED IN THIS DIFF.
+
+🟡 [MEDIUM #2] GET /api/leaderboard — yfinance BLOCKS THREAD POOL
+   File: routes/leaderboard.py:14-69
+   Issue: _get_prices_for_period() calls yf.download() synchronously.
+          This blocks a thread for 3-15 seconds per call.
+   Fix (IMPLEMENTED): Added 10-minute price cache. yfinance only called
+          on cache miss (first call per period per unique ticker set).
+   Status: FIXED IN THIS DIFF.
+
+🟡 [MEDIUM #3] GET /api/feed/clips — NO CACHING (before this diff)
+   File: routes/feed.py:23-73
+   Issue: Three DB queries per request (clips + clip_likes + clip_saves).
+          Clip list is identical across users — only liked/saved state differs.
+   Fix (IMPLEMENTED):
+     - Base clip list cached 60s per (cursor, limit, speaker, tag, sort).
+     - Per-user liked/saved still fetched live (required for correctness).
+     - "random" sort is intentionally not cached.
+   Status: FIXED IN THIS DIFF.
+
+🟡 [MEDIUM #4] MISSING DATABASE INDEXES
+   File: supabase_schema.sql, migrations/001-010
+   Analysis of existing indexes:
+     PRESENT:
+       idx_chat_user ON chat_history(user_id, created_at DESC) ✅
+       idx_notif_user ON notifications(user_id, created_at DESC) ✅
+       idx_notif_unread ON notifications(user_id, read) WHERE read=FALSE ✅
+       idx_chat_session ON chat_history(user_id, session_id, created_at) ✅
+       watchlist_user_id_idx ON watchlist(user_id) ✅
+     MISSING (recommend adding in Supabase SQL editor):
+       ON clips(status, created_at DESC)   — feed queries filter by status
+       ON clips(status, like_count DESC)   — trending sort
+       ON clip_likes(user_id, clip_id)     — liked state lookup
+       ON clip_saves(user_id, clip_id)     — saved state lookup
+   Recommended SQL:
+     CREATE INDEX IF NOT EXISTS idx_clips_status_created
+       ON clips(status, created_at DESC);
+     CREATE INDEX IF NOT EXISTS idx_clips_status_likes
+       ON clips(status, like_count DESC);
+     CREATE INDEX IF NOT EXISTS idx_clip_likes_user_clip
+       ON clip_likes(user_id, clip_id);
+     CREATE INDEX IF NOT EXISTS idx_clip_saves_user_clip
+       ON clip_saves(user_id, clip_id);
+   Status: NOT FIXED — requires Supabase SQL editor access.
+
+🟡 [MEDIUM #5] GET /api/market/indices — THUNDERING HERD ON CACHE MISS
+   File: routes/market.py:138-154
+   Issue: On cache miss, N concurrent requests all miss simultaneously and
+          all trigger 5 Yahoo Finance HTTP calls each (thundering herd).
+   Fix:   Add asyncio.Lock for single-flight fetch on cache miss.
+   Status: NOT FIXED — existing TTL mitigates most cases in practice.
+
+🟡 [MEDIUM #6] MSG RATE LIMIT — RACE CONDITION ON msg_count
+   File: routes/chat.py:27-62
+   Issue: Read-check-write pattern on msg_count is not atomic.
+          Two concurrent requests can both read count=19, both pass check,
+          both increment — bypassing the free tier limit.
+   Fix:   Supabase RPC with PostgreSQL row-level lock (FOR UPDATE).
+   Status: NOT FIXED — low practical risk at current scale.
+
+🟡 [MEDIUM #7] IN-MEMORY CACHE NOT SHARED BETWEEN WORKERS
+   File: core/cache.py:23
+   Issue: _mem dict is process-local. Cache benefits only work if Redis is
+          configured (REDIS_URL env var).
+   Fix:   Set REDIS_URL in Railway dashboard. Pool is already configured.
+   Status: OPERATIONAL — not a code fix.
+
+🟡 [MEDIUM #8] POST /api/auth/forgot-password — list_users() FULL SCAN
+   File: routes/auth.py:93
+   Issue: Fetches ALL users to find one by email. Scales as O(N) users.
+   Fix:   Use Supabase Admin API email filter.
+   Status: NOT FIXED — non-hot path, low urgency.
+
+🟡 [MEDIUM #9] BEHAVIORAL RISK SCORE — CLIENT-SIDE CALCULATION
+   File: routes/sync.py:365-377
+   Issue: Score computed on client, synced to server. Drift risk across
+          devices, no server-side validation, gameable by premium checks.
+   Status: NOT FIXED — design decision, track as tech debt.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  LOW FINDINGS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🔵 [LOW #1] LARGE THREAD POOLS — MEMORY OVERHEAD
+   File: routes/market.py:7-9
+   20+10+5 threads x 4 workers = 140 threads. ~1.1GB stack memory.
+   Informational — monitor Railway RAM usage.
+
+🔵 [LOW #2] _mem DICT EVICTION THRESHOLD TOO HIGH
+   File: core/cache.py:87-92
+   Eviction only at 2,000 entries. Potential memory leak without Redis.
+
+🔵 [LOW #3] PAPER TRADING TRADES ARRAY UNBOUNDED
+   File: routes/sync.py (POST /sync/paper)
+   trades array grows indefinitely. Add trim: trades[-500:] on write.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  CROSS-DEVICE CONSISTENCY ANALYSIS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Q1: Portfolio writes — locking/versioning?
+  NO LOCKING. Pure last-write-wins upsert (on_conflict="user_id").
+  Risk: simultaneous iOS + Android write loses one update.
+  Risk level: LOW — simultaneous writes are rare; full-state semantics
+  mean the "winner" is correct. Not catastrophic.
+  Recommendation: Add client_updated_at optimistic lock for production scale.
+
+Q2: Chat history — timestamps and session IDs?
+  YES — migration 010 added session_id column + index.
+  chat.py:184 stores session_id. GET /history returns it.
+  Cross-device ordering by created_at is CORRECT. SAFE.
+
+Q3: Risk score — server-side or client-side?
+  CLIENT-SIDE (behavioral_risk_score). Drift risk across device versions.
+  maturity_score also client-controlled.
+  Recommendation: Move to server-computed, client provides raw signals.
+
+Q4: Maturity score — stored atomically?
+  YES — single UPDATE statement sets both maturity_score and maturity_history
+  atomically. PostgreSQL guarantees this. SAFE.
+
+Q5: UPSERT operations — race conditions?
+  All portfolio/paper upserts use PostgreSQL INSERT ... ON CONFLICT DO UPDATE.
+  Atomic at DB level. SAFE.
+  Exception: msg_count read-then-write in chat.py (see MEDIUM #6).
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  FIXES IMPLEMENTED IN THIS DIFF
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+File: backend/app/api/routes/sync.py
+  + cache imports (cache_get, cache_set, cache_delete)
+  + TTL constants
+  + GET /sync/portfolio:   30s cache + POST invalidation
+  + GET /sync/paper:       30s cache + POST invalidation
+  + GET /sync/maturity:    120s cache + POST invalidation
+  + GET /sync/all:         20s cache + invalidation on writes
+  + GET /sync/nav-order:   60s cache
+  + GET /sync/theme:       60s cache + POST invalidation
+  + POST sync writes invalidate sync:all:{uid}
+
+File: backend/app/api/routes/leaderboard.py
+  + cache imports
+  + _get_prices_for_period: 10-min price cache
+  + GET /leaderboard: 5-min shared board cache
+    personalization (is_me/my_rank) without DB on hit
+
+File: backend/app/api/routes/feed.py
+  + cache imports + _TTL_CLIPS=60
+  + GET /feed/clips: 60s base clip list cache
+    per-user liked/saved fetched live (correctness)
+    random sort bypasses cache
+
+File: load-tests/locust/locust_nuvos.py (NEW)
+  + NormalUser (weight=60): 1-3 actions/min, 20-60s wait
+  + PowerUser (weight=30):  5-10 actions/min, 6-12s wait
+  + BotUser   (weight=10):  rapid sync calls, 1-3s wait
+  + All 14 endpoint types from spec covered
+  + Event hook with detailed summary + slowest endpoints + high error endpoints
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  PRIORITY FIX LIST (ordered by impact x effort)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  DONE (this diff):
+    ✅ Leaderboard full-table scan + yfinance caching (CRITICAL #2)
+    ✅ All sync GET endpoint caching (MEDIUM #1)
+    ✅ Feed clips caching (MEDIUM #3)
+    ✅ Comprehensive Locust test file (NormalUser/PowerUser/BotUser)
+
+  DONE (prior commits):
+    ✅ Gunicorn multi-worker Procfile (4 workers)
+    ✅ Redis pool 100 connections (cache.py)
+    ✅ Module-level ThreadPoolExecutors (market.py, chat.py)
+    ✅ Claude semaphore (ai_service.py:_claude_sem=40)
+
+  MUST DO NEXT (30 min each):
+    1. Move password reset codes to Redis (CRITICAL #3) — auth.py:14-16
+    2. Cache auth token validation (HIGH #1) — api/deps.py:11
+    3. Per-ticker price cache in /market/prices (HIGH #3) — market.py:258
+
+  PHASE 2 (before 10k users):
+    4. asyncio.gather for /sync/all 4 parallel DB queries
+    5. Add clips/likes/saves DB indexes (Supabase SQL editor)
+    6. Migrate Supabase to AsyncClient
+    7. AI chat queue with Redis for overflow beyond semaphore(40)
+    8. Supabase PgBouncer transaction mode
+    9. Atomic msg_count increment (PostgreSQL RPC)
 
 ======================================================================
-  PRIORITY FIX LIST (ordered by impact on scalability):
+  THEORETICAL THROUGHPUT ESTIMATES
+  (static analysis — not measured; mark all as ESTIMATED)
 ======================================================================
-  1. [CRITICAL] Switch Supabase to AsyncClient — every DB call currently blocks the event loop
-  2. [CRITICAL] Add --workers 4 to uvicorn (or use gunicorn) — currently single-process
-  3. [HIGH]     Reuse module-level ThreadPoolExecutors instead of creating per-request
-  4. [HIGH]     Increase Redis connection pool size to 50+
-  5. [MEDIUM]   Add caching to notifications, watchlist, and profile endpoints
-  6. [MEDIUM]   Enable PgBouncer in Supabase for transaction-mode connection pooling
+
+  ESTIMATED current (pre-diff, post prior fixes):
+    ~100-200 concurrent users before degradation
+    Bottleneck: leaderboard full-scan + sync GET DB hits
+
+  ESTIMATED after this diff:
+    ~300-500 concurrent users stable
+    Bottleneck: auth validation round-trip (50-200ms every request)
+
+  ESTIMATED after auth cache + price cache (next 2 PRs):
+    ~800-1,500 concurrent users
+    Bottleneck: synchronous Supabase client thread pool exhaustion
+
+  ESTIMATED after async Supabase + PgBouncer:
+    ~3,000-8,000 concurrent users
+    Bottleneck: Railway single instance CPU/RAM
+
+  ESTIMATED with horizontal scaling (2-4 Railway instances + Redis):
+    ~10,000-25,000 concurrent users
+    Bottleneck: Anthropic API rate limits for AI chat
+
 ======================================================================

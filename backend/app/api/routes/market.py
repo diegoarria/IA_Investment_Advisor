@@ -255,8 +255,23 @@ async def get_prices(request: dict, user_id: str = Depends(get_current_user_id))
             "name":       name,
         }
 
-    pairs = list(_MARKET_POOL.map(_fetch, symbols))
-    return dict(pairs)
+    _PRICE_TTL = 30
+    cached_result: dict = {}
+    uncached: list[str] = []
+    for sym in symbols:
+        hit = cache_get(f"price:{sym}")
+        if hit is not None:
+            cached_result[sym] = hit
+        else:
+            uncached.append(sym)
+
+    if uncached:
+        new_pairs = list(_MARKET_POOL.map(_fetch, uncached))
+        for sym, data in new_pairs:
+            cache_set(f"price:{sym}", data, ttl=_PRICE_TTL)
+            cached_result[sym] = data
+
+    return cached_result
 
 
 @router.get("/summary")

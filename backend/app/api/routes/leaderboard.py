@@ -6,15 +6,29 @@ from fastapi import APIRouter, Depends
 
 from app.api.deps import get_current_user_id
 from app.core.database import get_supabase, run_query
+from app.core.cache import cache_get, cache_set
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/leaderboard", tags=["leaderboard"])
+
+# Cache TTL for leaderboard — expensive to compute (full table scan + yfinance)
+# 5 minutes keeps data fresh enough while massively reducing DB + yfinance load.
+# Each unique (period, requesting_user) pair gets its own cache entry because
+# the response includes is_me / my_rank which are user-specific.
+_TTL_LEADERBOARD = 300   # seconds (5 minutes)
+_TTL_PRICES      = 600   # 10 minutes — yfinance price data changes slowly
 
 
 def _get_prices_for_period(tickers: list[str], period: str) -> dict:
     if not tickers:
         return {}
     import yfinance as yf
+    # Cache prices to avoid hammering yfinance on every leaderboard request
+    sorted_tickers = ",".join(sorted(set(t.upper() for t in tickers)))
+    ck = f"leaderboard:prices:{period}:{sorted_tickers[:200]}"
+    cached = cache_get(ck)
+    if cached is not None:
+        return cached
 
     now = datetime.now(timezone.utc)
     if period == "ytd":
@@ -52,6 +66,8 @@ def _get_prices_for_period(tickers: list[str], period: str) -> dict:
             }
     except Exception as e:
         logger.warning(f"[leaderboard] price fetch: {e}")
+    if prices:
+        cache_set(ck, prices, ttl=_TTL_PRICES)
     return prices
 
 
@@ -77,7 +93,23 @@ async def get_portfolio_leaderboard(
     Compara rendimiento porcentual de portafolios entre usuarios.
     Solo métricas no monetarias: % retorno, win rate, diversificación.
     period: ytd | 1m | 1w
+
+    Caching strategy: the leaderboard is expensive (full-table scan + yfinance).
+    We cache it per period for 5 minutes. The my_rank / is_me fields are derived
+    at response time from a shared cached board, avoiding per-user DB round-trips.
     """
+    # Check shared (period-level) leaderboard cache first
+    board_ck = f"leaderboard:board:{period}"
+    cached_board = cache_get(board_ck)
+    if cached_board is not None:
+        # Personalize rank fields from the cached board without re-querying DB
+        my_rank = None
+        for entry in cached_board["leaderboard"]:
+            entry["is_me"] = entry["user_id"] == user_id
+            if entry["is_me"]:
+                my_rank = entry["rank"]
+        return {**cached_board, "my_rank": my_rank}
+
     db = get_supabase()
 
     port_res = await run_query(db.table("user_portfolio").select("user_id, positions"))
@@ -168,10 +200,14 @@ async def get_portfolio_leaderboard(
         if entry["is_me"]:
             my_rank = i + 1
 
-    return {
+    board_data = {
         "leaderboard": leaderboard[:50],
         "period": period,
         "my_rank": my_rank,
         "total_users": len(leaderboard),
         "updated_at": datetime.now(timezone.utc).isoformat(),
     }
+    # Cache the board so subsequent requests skip the DB + yfinance round-trip.
+    # my_rank is stored in the cache but overridden per-user at the top of the endpoint.
+    cache_set(board_ck, board_data, ttl=_TTL_LEADERBOARD)
+    return board_data

@@ -2,15 +2,31 @@
 Sync endpoints — persist user data that was previously AsyncStorage-only.
 Every endpoint is an upsert (last-write-wins). Called silently in background
 from the mobile app so the user's data survives reinstalls and device changes.
+
+Scalability notes:
+  - GET endpoints are cached with short TTLs to reduce DB hits at scale.
+  - POST endpoints invalidate the relevant cache key after a successful write.
+  - Portfolio/paper writes are last-write-wins (no locking). Under normal usage
+    this is safe because clients always send the full state. If two devices write
+    simultaneously, the last write wins — acceptable for eventual-consistency sync.
+  - updated_at is returned on all reads so clients can detect stale local state.
 """
 from datetime import datetime, timezone, timedelta
 from fastapi import APIRouter, Depends
 from app.api.deps import get_current_user_id
 from app.core.database import get_supabase, run_query
+from app.core.cache import cache_get, cache_set, cache_delete
 
 router = APIRouter(prefix="/sync", tags=["sync"])
 
 _NOW = lambda: datetime.now(timezone.utc).isoformat()
+
+# Cache TTLs (seconds) — kept short because sync endpoints carry mutable state
+_TTL_PORTFOLIO = 30    # portfolio changes on every trade
+_TTL_PAPER     = 30    # paper trades change frequently
+_TTL_MATURITY  = 120   # score updated on lesson completion
+_TTL_ALL       = 20    # full restore — called on login, keep fresh
+_TTL_MISC      = 60    # nav-order, theme, behavioral-risk
 
 
 # ─── Portfolio ────────────────────────────────────────────────────────────────
@@ -28,6 +44,9 @@ async def sync_portfolio(body: dict, user_id: str = Depends(get_current_user_id)
         "positions": portfolio_state,
         "updated_at": _NOW(),
     }, on_conflict="user_id"))
+    # Invalidate cached reads so the next GET returns fresh data
+    cache_delete(f"sync:portfolio:{user_id}")
+    cache_delete(f"sync:all:{user_id}")
     return {"ok": True}
 
 
@@ -42,14 +61,21 @@ def _parse_portfolio(raw) -> dict:
 
 @router.get("/portfolio")
 async def get_portfolio(user_id: str = Depends(get_current_user_id)):
+    ck = f"sync:portfolio:{user_id}"
+    cached = cache_get(ck)
+    if cached is not None:
+        return cached
     db = get_supabase()
     result = await run_query(
         db.table("user_portfolio").select("positions, updated_at").eq("user_id", user_id)
     )
     if result.data:
         parsed = _parse_portfolio(result.data[0]["positions"])
-        return {**parsed, "updated_at": result.data[0]["updated_at"]}
-    return {"positions": [], "currency": "USD", "updated_at": None}
+        resp = {**parsed, "updated_at": result.data[0]["updated_at"]}
+    else:
+        resp = {"positions": [], "currency": "USD", "updated_at": None}
+    cache_set(ck, resp, ttl=_TTL_PORTFOLIO)
+    return resp
 
 
 # ─── Paper Trading ────────────────────────────────────────────────────────────
@@ -73,11 +99,18 @@ async def sync_paper(body: dict, user_id: str = Depends(get_current_user_id)):
     if "freeTradeCount" in body:
         update_data["free_trade_count"] = body["freeTradeCount"]
     await run_query(db.table("user_paper_trading").upsert(update_data, on_conflict="user_id"))
+    # Invalidate cached reads
+    cache_delete(f"sync:paper:{user_id}")
+    cache_delete(f"sync:all:{user_id}")
     return {"ok": True}
 
 
 @router.get("/paper")
 async def get_paper(user_id: str = Depends(get_current_user_id)):
+    ck = f"sync:paper:{user_id}"
+    cached = cache_get(ck)
+    if cached is not None:
+        return cached
     db = get_supabase()
     result = await run_query(
         db.table("user_paper_trading")
@@ -86,7 +119,7 @@ async def get_paper(user_id: str = Depends(get_current_user_id)):
     )
     if result.data:
         r = result.data[0]
-        return {
+        resp = {
             "cash":           r["cash"],
             "positions":      r["positions"],
             "trades":         r["trades"],
@@ -94,8 +127,11 @@ async def get_paper(user_id: str = Depends(get_current_user_id)):
             "freeTradeCount": r["free_trade_count"],
             "updated_at":     r["updated_at"],
         }
-    return {"cash": 10000, "positions": [], "trades": [],
-            "freeTradeMonth": None, "freeTradeCount": 0, "updated_at": None}
+    else:
+        resp = {"cash": 10000, "positions": [], "trades": [],
+                "freeTradeMonth": None, "freeTradeCount": 0, "updated_at": None}
+    cache_set(ck, resp, ttl=_TTL_PAPER)
+    return resp
 
 
 # ─── Maturity Score ───────────────────────────────────────────────────────────
@@ -110,11 +146,17 @@ async def sync_maturity(body: dict, user_id: str = Depends(get_current_user_id))
             "maturity_history": body.get("history", []),
         }).eq("user_id", user_id)
     )
+    cache_delete(f"sync:maturity:{user_id}")
+    cache_delete(f"sync:all:{user_id}")
     return {"ok": True}
 
 
 @router.get("/maturity")
 async def get_maturity(user_id: str = Depends(get_current_user_id)):
+    ck = f"sync:maturity:{user_id}"
+    cached = cache_get(ck)
+    if cached is not None:
+        return cached
     db = get_supabase()
     result = await run_query(
         db.table("user_profiles")
@@ -122,11 +164,14 @@ async def get_maturity(user_id: str = Depends(get_current_user_id)):
         .eq("user_id", user_id)
     )
     if result.data:
-        return {
+        resp = {
             "score":   result.data[0].get("maturity_score", 0),
             "history": result.data[0].get("maturity_history", []),
         }
-    return {"score": 0, "history": []}
+    else:
+        resp = {"score": 0, "history": []}
+    cache_set(ck, resp, ttl=_TTL_MATURITY)
+    return resp
 
 
 # ─── Trial ────────────────────────────────────────────────────────────────────
@@ -188,6 +233,10 @@ async def get_trial_status(user_id: str = Depends(get_current_user_id)):
 @router.get("/all")
 async def get_all(user_id: str = Depends(get_current_user_id)):
     """Single call that returns everything needed to restore user state after login."""
+    ck = f"sync:all:{user_id}"
+    cached = cache_get(ck)
+    if cached is not None:
+        return cached
     db = get_supabase()
 
     portfolio_res = await run_query(
@@ -234,7 +283,7 @@ async def get_all(user_id: str = Depends(get_current_user_id)):
         except Exception:
             pass
 
-    return {
+    resp = {
         "portfolio": {
             "positions": portfolio_parsed["positions"],
             "currency":  portfolio_parsed["currency"],
@@ -265,6 +314,8 @@ async def get_all(user_id: str = Depends(get_current_user_id)):
             "last_learn_date": profile_row.get("last_learn_date"),
         },
     }
+    cache_set(ck, resp, ttl=_TTL_ALL)
+    return resp
 
 
 # ─── Nav order ───────────────────────────────────────────────────────────────
@@ -275,16 +326,21 @@ async def sync_nav_order(body: dict, user_id: str = Depends(get_current_user_id)
     order = body.get("order", [])
     db = get_supabase()
     await run_query(db.table("user_profiles").update({"nav_order": order}).eq("user_id", user_id))
+    cache_delete(f"sync:all:{user_id}")
     return {"ok": True}
 
 
 @router.get("/nav-order")
 async def get_nav_order(user_id: str = Depends(get_current_user_id)):
+    ck = f"sync:nav_order:{user_id}"
+    cached = cache_get(ck)
+    if cached is not None:
+        return cached
     db = get_supabase()
     result = await run_query(db.table("user_profiles").select("nav_order").eq("user_id", user_id))
-    if result.data:
-        return {"nav_order": result.data[0].get("nav_order")}
-    return {"nav_order": None}
+    resp = {"nav_order": result.data[0].get("nav_order")} if result.data else {"nav_order": None}
+    cache_set(ck, resp, ttl=_TTL_MISC)
+    return resp
 
 
 # ─── Theme ───────────────────────────────────────────────────────────────────
@@ -297,16 +353,22 @@ async def sync_theme(body: dict, user_id: str = Depends(get_current_user_id)):
         theme = "dark"
     db = get_supabase()
     await run_query(db.table("user_profiles").update({"theme": theme}).eq("user_id", user_id))
+    cache_delete(f"sync:theme:{user_id}")
+    cache_delete(f"sync:all:{user_id}")
     return {"ok": True}
 
 
 @router.get("/theme")
 async def get_theme(user_id: str = Depends(get_current_user_id)):
+    ck = f"sync:theme:{user_id}"
+    cached = cache_get(ck)
+    if cached is not None:
+        return cached
     db = get_supabase()
     result = await run_query(db.table("user_profiles").select("theme").eq("user_id", user_id))
-    if result.data:
-        return {"theme": result.data[0].get("theme", "dark")}
-    return {"theme": "dark"}
+    resp = {"theme": result.data[0].get("theme", "dark")} if result.data else {"theme": "dark"}
+    cache_set(ck, resp, ttl=_TTL_MISC)
+    return resp
 
 
 # ─── Behavioral risk score ────────────────────────────────────────────────────
@@ -322,6 +384,7 @@ async def sync_behavioral_risk(body: dict, user_id: str = Depends(get_current_us
         await run_query(
             db.table("user_profiles").update({"behavioral_risk_score": int(score)}).eq("user_id", user_id)
         )
+        cache_delete(f"sync:all:{user_id}")
         return {"ok": True}
     except Exception:
         return {"ok": False, "reason": "column_missing"}
