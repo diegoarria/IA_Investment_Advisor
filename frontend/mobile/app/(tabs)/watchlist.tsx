@@ -3,11 +3,6 @@ import {
   View, Text, TextInput, TouchableOpacity,
   StyleSheet, ActivityIndicator, ScrollView, Alert,
 } from "react-native";
-import { GestureDetector, Gesture } from "react-native-gesture-handler";
-import Animated, {
-  useSharedValue, useAnimatedStyle, useAnimatedReaction, withSpring, runOnJS,
-} from "react-native-reanimated";
-import type { SharedValue } from "react-native-reanimated";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { useTheme } from "../../src/lib/ThemeContext";
@@ -20,7 +15,6 @@ import PaywallModal from "../../src/components/PaywallModal";
 import MobileEarningsCalendar from "../../src/components/MobileEarningsCalendar";
 
 const FREE_LIMIT = 30;
-const ITEM_H = 72;
 
 interface ExtPrice {
   ticker: string;
@@ -90,25 +84,21 @@ const badge = StyleSheet.create({
   text: { fontSize: 10, fontWeight: "700", letterSpacing: 0.2 },
 });
 
-// ─── Sortable Row ─────────────────────────────────────────────────────────────
+// ─── Watchlist Row ────────────────────────────────────────────────────────────
 
-interface SortableRowProps {
+interface RowProps {
   item: { ticker: string; name: string };
   index: number;
   itemCount: number;
   prices: Record<string, ExtPrice>;
-  colors: Record<string, string>;
-  activeIdx: SharedValue<number>;
-  dragOffset: SharedValue<number>;
+  colors: ReturnType<typeof useTheme>["colors"];
+  editMode: boolean;
   onRemove: (ticker: string) => void;
-  onReorder: (from: number, to: number) => void;
-  onScrollToggle: (enabled: boolean) => void;
+  onMoveUp: (index: number) => void;
+  onMoveDown: (index: number) => void;
 }
 
-function SortableWatchlistRow({
-  item, index, itemCount, prices, colors,
-  activeIdx, dragOffset, onRemove, onReorder, onScrollToggle,
-}: SortableRowProps) {
+function WatchlistRow({ item, index, itemCount, prices, colors, editMode, onRemove, onMoveUp, onMoveDown }: RowProps) {
   const p = prices[item.ticker] as ExtPrice | undefined;
   const up = (p?.change_pct ?? 0) >= 0;
   const col = up ? "#22c55e" : "#ef4444";
@@ -116,120 +106,80 @@ function SortableWatchlistRow({
   const showPre  = (ms === "PRE"  || ms === "PREPRE")  && p?.pre_market_price;
   const showPost = (ms === "POST" || ms === "POSTPOST") && p?.post_market_price;
 
-  // Per-row spring-animated shift (reacts to drag of other items)
-  const translateY = useSharedValue(0);
-
-  useAnimatedReaction(
-    () => {
-      const active = activeIdx.value;
-      if (active === -1 || active === index) return 0;
-      const targetPos = Math.max(0, Math.min(itemCount - 1,
-        Math.round(active + dragOffset.value / ITEM_H)));
-      if (active < targetPos && index > active && index <= targetPos) return -ITEM_H;
-      if (active > targetPos && index >= targetPos && index < active) return ITEM_H;
-      return 0;
-    },
-    (result) => {
-      translateY.value = withSpring(result, { damping: 22, stiffness: 220 });
-    }
-  );
-
-  const gesture = Gesture.Pan()
-    .activateAfterLongPress(250)
-    .onBegin(() => {
-      activeIdx.value = index;
-      runOnJS(onScrollToggle)(false);
-    })
-    .onUpdate((e) => {
-      if (activeIdx.value === index) dragOffset.value = e.translationY;
-    })
-    .onEnd(() => {
-      const from = activeIdx.value;
-      const to = Math.max(0, Math.min(itemCount - 1, Math.round(from + dragOffset.value / ITEM_H)));
-      if (from !== to) runOnJS(onReorder)(from, to);
-    })
-    .onFinalize(() => {
-      activeIdx.value = -1;
-      dragOffset.value = withSpring(0, { damping: 22, stiffness: 220 });
-      runOnJS(onScrollToggle)(true);
-    });
-
-  const animatedStyle = useAnimatedStyle(() => {
-    if (activeIdx.value === index) {
-      return {
-        transform: [{ translateY: dragOffset.value }],
-        zIndex: 100,
-        shadowOpacity: 0.22,
-        shadowRadius: 10,
-        shadowOffset: { width: 0, height: 4 } as any,
-        elevation: 10,
-      };
-    }
-    return {
-      transform: [{ translateY: translateY.value }],
-      zIndex: 1,
-    };
-  });
-
   return (
-    <Animated.View style={[{ height: ITEM_H }, animatedStyle]}>
-      <View style={[rw.row, { borderTopColor: colors.border }]}>
-        {/* Color bar */}
-        <View style={[rw.colorBar, { backgroundColor: col }]} />
+    <View style={[rw.row, { borderTopColor: colors.border }]}>
+      {/* Color bar */}
+      <View style={[rw.colorBar, { backgroundColor: col }]} />
 
-        {/* Drag handle — long-press to start dragging */}
-        <GestureDetector gesture={gesture}>
-          <View style={rw.dragHandle} hitSlop={{ top: 8, bottom: 8, left: 4, right: 8 }}>
-            <Ionicons name="reorder-three-outline" size={22} color={colors.textDim} />
+      {editMode ? (
+        // Reorder controls
+        <View style={rw.reorderCol}>
+          <TouchableOpacity
+            onPress={() => onMoveUp(index)}
+            disabled={index === 0}
+            style={[rw.arrowBtn, { opacity: index === 0 ? 0.2 : 1 }]}
+            hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+          >
+            <Ionicons name="chevron-up" size={18} color={colors.textSub} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => onMoveDown(index)}
+            disabled={index === itemCount - 1}
+            style={[rw.arrowBtn, { opacity: index === itemCount - 1 ? 0.2 : 1 }]}
+            hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+          >
+            <Ionicons name="chevron-down" size={18} color={colors.textSub} />
+          </TouchableOpacity>
+        </View>
+      ) : null}
+
+      {/* Tap → stock detail */}
+      <TouchableOpacity
+        style={rw.inner}
+        onPress={() => router.push(`/stock/${item.ticker}` as any)}
+        activeOpacity={0.7}
+      >
+        <StockAvatar ticker={item.ticker} size={38} />
+        <View style={{ flex: 1, marginLeft: 10 }}>
+          <View style={rw.tickerRow}>
+            <Text style={[rw.ticker, { color: colors.text }]}>{item.ticker}</Text>
+            {p && <MarketStateBadge state={p.market_state} />}
           </View>
-        </GestureDetector>
-
-        {/* Tap → stock detail */}
-        <TouchableOpacity
-          style={rw.inner}
-          onPress={() => router.push(`/stock/${item.ticker}` as any)}
-          activeOpacity={0.7}
-        >
-          <StockAvatar ticker={item.ticker} size={38} />
-          <View style={{ flex: 1, marginLeft: 10 }}>
-            <View style={rw.tickerRow}>
-              <Text style={[rw.ticker, { color: colors.text }]}>{item.ticker}</Text>
-              {p && <MarketStateBadge state={p.market_state} />}
-            </View>
-            <Text style={[rw.name, { color: colors.textMuted }]} numberOfLines={1}>
-              {p?.name ?? item.name}
+          <Text style={[rw.name, { color: colors.textMuted }]} numberOfLines={1}>
+            {p?.name ?? item.name}
+          </Text>
+          {showPre && (
+            <Text style={[rw.extPrice, { color: "#f59e0b" }]}>
+              Pre: {fmtPrice(p!.pre_market_price, p!.currency)}{" "}
+              <Text style={rw.extPct}>({fmtPct(p!.pre_market_change_pct)})</Text>
             </Text>
-            {showPre && (
-              <Text style={[rw.extPrice, { color: "#f59e0b" }]}>
-                Pre: {fmtPrice(p!.pre_market_price, p!.currency)}{" "}
-                <Text style={rw.extPct}>({fmtPct(p!.pre_market_change_pct)})</Text>
-              </Text>
-            )}
-            {showPost && (
-              <Text style={[rw.extPrice, { color: "#818cf8" }]}>
-                Post: {fmtPrice(p!.post_market_price, p!.currency)}{" "}
-                <Text style={rw.extPct}>({fmtPct(p!.post_market_change_pct)})</Text>
-              </Text>
-            )}
-          </View>
-          <View style={rw.rightCol}>
-            {p?.price != null ? (
-              <Text style={[rw.price, { color: colors.text }]}>
-                {fmtPrice(p.price, p.currency)}
-              </Text>
-            ) : (
-              <Text style={[rw.price, { color: colors.textDim }]}>—</Text>
-            )}
-            {p?.change_pct != null && (
-              <View style={[rw.changeBadge, { backgroundColor: col + "1a" }]}>
-                <Ionicons name={up ? "caret-up" : "caret-down"} size={10} color={col} />
-                <Text style={[rw.changePct, { color: col }]}>{Math.abs(p.change_pct).toFixed(2)}%</Text>
-              </View>
-            )}
-          </View>
-        </TouchableOpacity>
+          )}
+          {showPost && (
+            <Text style={[rw.extPrice, { color: "#818cf8" }]}>
+              Post: {fmtPrice(p!.post_market_price, p!.currency)}{" "}
+              <Text style={rw.extPct}>({fmtPct(p!.post_market_change_pct)})</Text>
+            </Text>
+          )}
+        </View>
+        <View style={rw.rightCol}>
+          {p?.price != null ? (
+            <Text style={[rw.price, { color: colors.text }]}>
+              {fmtPrice(p.price, p.currency)}
+            </Text>
+          ) : (
+            <Text style={[rw.price, { color: colors.textDim }]}>—</Text>
+          )}
+          {p?.change_pct != null && (
+            <View style={[rw.changeBadge, { backgroundColor: col + "1a" }]}>
+              <Ionicons name={up ? "caret-up" : "caret-down"} size={10} color={col} />
+              <Text style={[rw.changePct, { color: col }]}>{Math.abs(p.change_pct).toFixed(2)}%</Text>
+            </View>
+          )}
+        </View>
+      </TouchableOpacity>
 
-        {/* Remove button */}
+      {/* Remove / reorder-mode shows nothing on right */}
+      {!editMode && (
         <TouchableOpacity
           onPress={() => onRemove(item.ticker)}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
@@ -237,26 +187,27 @@ function SortableWatchlistRow({
         >
           <Ionicons name="close-outline" size={18} color={colors.textDim} />
         </TouchableOpacity>
-      </View>
-    </Animated.View>
+      )}
+    </View>
   );
 }
 
 const rw = StyleSheet.create({
   row: {
     flexDirection: "row", alignItems: "center",
-    height: ITEM_H, borderTopWidth: StyleSheet.hairlineWidth,
+    minHeight: 72, borderTopWidth: StyleSheet.hairlineWidth,
   },
   colorBar: { width: 3, alignSelf: "stretch" },
-  dragHandle: { paddingHorizontal: 10, justifyContent: "center", alignItems: "center" },
-  inner: { flex: 1, flexDirection: "row", alignItems: "center", paddingRight: 6 },
+  reorderCol: { width: 38, alignItems: "center", justifyContent: "center", gap: 0 },
+  arrowBtn: { paddingVertical: 4, paddingHorizontal: 4 },
+  inner: { flex: 1, flexDirection: "row", alignItems: "center", paddingRight: 6, paddingVertical: 10 },
   tickerRow: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 2 },
   ticker: { fontSize: 14, fontWeight: "800", letterSpacing: -0.2 },
   name: { fontSize: 11, marginBottom: 1 },
   extPrice: { fontSize: 10, fontWeight: "600", marginTop: 2 },
   extPct: { fontWeight: "400", fontSize: 10 },
   rightCol: { alignItems: "flex-end", gap: 4, marginLeft: 8 },
-  price: { fontSize: 14, fontWeight: "700", tabularNums: true } as never,
+  price: { fontSize: 14, fontWeight: "700" },
   changeBadge: { flexDirection: "row", alignItems: "center", gap: 2, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 20 },
   changePct: { fontSize: 11, fontWeight: "700" },
 });
@@ -278,13 +229,9 @@ export default function WatchlistScreen() {
   const [addingTicker, setAddingTicker]   = useState<string | null>(null);
   const [paywallOpen, setPaywallOpen]     = useState(false);
   const [secondsLeft, setSecondsLeft]     = useState(60);
-  const [scrollEnabled, setScrollEnabled] = useState(true);
+  const [editMode, setEditMode]           = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const refreshRef  = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  // Shared values for cross-row drag animation
-  const activeIdx  = useSharedValue(-1);
-  const dragOffset = useSharedValue(0);
 
   const loadPrices = useCallback(async (silent = false) => {
     if (items.length === 0) return;
@@ -338,7 +285,13 @@ export default function WatchlistScreen() {
     setTimeout(() => loadPrices(true), 400);
   };
 
-  const handleRemove = (ticker: string) => { remove(ticker); };
+  const handleMoveUp = (index: number) => {
+    if (index > 0) reorder(index, index - 1);
+  };
+
+  const handleMoveDown = (index: number) => {
+    if (index < items.length - 1) reorder(index, index + 1);
+  };
 
   const freePct = Math.min((items.length / FREE_LIMIT) * 100, 100);
   const freeFull = !isPremium && items.length >= FREE_LIMIT;
@@ -349,7 +302,6 @@ export default function WatchlistScreen() {
         contentContainerStyle={s.scroll}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
-        scrollEnabled={scrollEnabled}
       >
         {/* Search */}
         <View style={[s.searchWrap, { backgroundColor: colors.card, borderColor: colors.border }]}>
@@ -428,45 +380,53 @@ export default function WatchlistScreen() {
           </View>
         )}
 
-        {/* Watchlist — drag ≡ to reorder */}
+        {/* Watchlist */}
         {items.length > 0 && (
           <View style={[s.listCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <View style={s.listHeader}>
               <Ionicons name="eye-outline" size={14} color={colors.accentLight} />
               <Text style={[s.listHeaderText, { color: colors.text }]}>Watchlist</Text>
+
+              {/* Reorder toggle */}
               {items.length > 1 && (
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 3 }}>
-                  <Ionicons name="reorder-three-outline" size={12} color={colors.textDim} />
-                  <Text style={[s.hintText, { color: colors.textDim }]}>mantén para ordenar</Text>
-                </View>
+                <TouchableOpacity
+                  onPress={() => setEditMode((v) => !v)}
+                  style={[s.editBtn, { backgroundColor: editMode ? colors.accentLight + "22" : colors.bgRaised, borderColor: editMode ? colors.accentLight : colors.border }]}
+                >
+                  <Ionicons name={editMode ? "checkmark" : "reorder-three-outline"} size={13} color={editMode ? colors.accentLight : colors.textDim} />
+                  <Text style={[s.editBtnText, { color: editMode ? colors.accentLight : colors.textDim }]}>
+                    {editMode ? "Listo" : "Ordenar"}
+                  </Text>
+                </TouchableOpacity>
               )}
-              {pricesLoading
-                ? <ActivityIndicator size="small" color={colors.accentLight} style={{ marginLeft: "auto" }} />
-                : (
-                  <TouchableOpacity
-                    style={{ marginLeft: "auto", flexDirection: "row", alignItems: "center", gap: 4 }}
-                    onPress={() => { loadPrices(); setSecondsLeft(60); }}
-                  >
-                    <Ionicons name="refresh-outline" size={13} color={colors.textDim} />
-                    <Text style={[s.counterText, { color: colors.textDim }]}>{secondsLeft}s</Text>
-                  </TouchableOpacity>
-                )
-              }
+
+              {!editMode && (
+                pricesLoading
+                  ? <ActivityIndicator size="small" color={colors.accentLight} style={{ marginLeft: "auto" }} />
+                  : (
+                    <TouchableOpacity
+                      style={{ marginLeft: "auto", flexDirection: "row", alignItems: "center", gap: 4 }}
+                      onPress={() => { loadPrices(); setSecondsLeft(60); }}
+                    >
+                      <Ionicons name="refresh-outline" size={13} color={colors.textDim} />
+                      <Text style={[s.counterText, { color: colors.textDim }]}>{secondsLeft}s</Text>
+                    </TouchableOpacity>
+                  )
+              )}
             </View>
 
             {items.map((item, index) => (
-              <SortableWatchlistRow
+              <WatchlistRow
                 key={item.ticker}
                 item={item}
                 index={index}
                 itemCount={items.length}
                 prices={prices}
                 colors={colors}
-                activeIdx={activeIdx}
-                dragOffset={dragOffset}
-                onRemove={handleRemove}
-                onReorder={reorder}
-                onScrollToggle={setScrollEnabled}
+                editMode={editMode}
+                onRemove={remove}
+                onMoveUp={handleMoveUp}
+                onMoveDown={handleMoveDown}
               />
             ))}
           </View>
@@ -521,6 +481,11 @@ const s = StyleSheet.create({
     paddingHorizontal: 16, paddingVertical: 12,
   },
   listHeaderText: { fontSize: 13, fontWeight: "700" },
-  hintText: { fontSize: 10 },
+  editBtn: {
+    flexDirection: "row", alignItems: "center", gap: 4,
+    paddingHorizontal: 10, paddingVertical: 5,
+    borderRadius: 20, borderWidth: 1,
+  },
+  editBtnText: { fontSize: 11, fontWeight: "700" },
   counterText: { fontSize: 11 },
 });
