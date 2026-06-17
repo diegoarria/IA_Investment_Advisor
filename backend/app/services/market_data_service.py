@@ -181,21 +181,38 @@ def get_global_market_context() -> str:
 
     now = datetime.now()
 
-    with concurrent.futures.ThreadPoolExecutor(max_workers=len(_INDICES) + 1) as ex:
-        index_futs = {ex.submit(_get_index_summary, t, l): (t, l) for t, l in _INDICES}
-        ipo_fut = ex.submit(_fetch_recent_ipos)
+    # Check for a stale fallback before making any network calls
+    stale = cache_get("mds:global_market_stale")
 
-        ordered_results: dict[tuple, str] = {}
-        for fut, key in index_futs.items():
+    try:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=len(_INDICES) + 1) as ex:
+            index_futs = {ex.submit(_get_index_summary, t, l): (t, l) for t, l in _INDICES}
+            ipo_fut = ex.submit(_fetch_recent_ipos)
+
+            ordered_results: dict[tuple, str] = {}
+            all_nd = True
+            for fut, key in index_futs.items():
+                try:
+                    val = fut.result(timeout=6)
+                    ordered_results[key] = val
+                    if "N/D" not in val:
+                        all_nd = False
+                except Exception:
+                    ordered_results[key] = f"  {key[1]}: N/D"
+
             try:
-                ordered_results[key] = fut.result(timeout=10)
+                ipo_section = ipo_fut.result(timeout=6)
             except Exception:
-                ordered_results[key] = f"  {key[1]}: N/D"
+                ipo_section = ""
 
-        try:
-            ipo_section = ipo_fut.result(timeout=8)
-        except Exception:
-            ipo_section = ""
+        # If Yahoo Finance rate-limited everything, return stale cache to avoid hammering
+        if all_nd and stale:
+            return stale
+    except Exception:
+        if stale:
+            return stale
+        ordered_results = {(t, l): f"  {l}: N/D" for t, l in _INDICES}
+        ipo_section = ""
 
     lines = [
         "---",
@@ -221,6 +238,7 @@ def get_global_market_context() -> str:
 
     result = "\n".join(lines)
     cache_set("mds:global_market", result, ttl=GLOBAL_CACHE_TTL)
+    cache_set("mds:global_market_stale", result, ttl=7200)  # 2h fallback when YF is rate-limited
     return result
 
 

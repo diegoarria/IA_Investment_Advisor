@@ -95,11 +95,11 @@ def _enrich_message(message: str) -> str:
     global_ctx  = ""
     company_ctx = ""
     try:
-        global_ctx = f_global.result(timeout=12)
+        global_ctx = f_global.result(timeout=5)
     except Exception:
         pass
     try:
-        company_ctx = f_company.result(timeout=12)
+        company_ctx = f_company.result(timeout=5)
     except Exception:
         pass
     parts = [message]
