@@ -215,7 +215,7 @@ export default function ProfileScreen() {
   }
 
   const riskCfg = RISK_CONFIG[profile.risk_tolerance];
-  const age = getAge(profile.birth_date);
+  const age = getAge(profile.birth_date ?? "");
   const mentor = getMentorInfo(profile.mentor);
   const maturity = maturityLabel(maturityScore);
   const knowledge = knowledgeFromMaturity(maturityScore);

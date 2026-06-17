@@ -15,11 +15,15 @@ export interface QuizAnswers {
 
 export interface UserProfile {
   name: string;
-  birth_date: string; // "DD/MM/YYYY"
-  monthly_income: string;
+  birth_date?: string;
+  monthly_income?: string;
   monthly_contribution: string;
+  investment_amount?: string;
+  investment_goal?: string;
+  investment_goal_amount?: string;
+  knowledge_level?: QuizAnswer | "";
   risk_tolerance: RiskTolerance;
-  quiz_answers: QuizAnswers;
+  quiz_answers: Partial<QuizAnswers>;
   mentor?: string | null;
   avatarUri?: string | null;
 }

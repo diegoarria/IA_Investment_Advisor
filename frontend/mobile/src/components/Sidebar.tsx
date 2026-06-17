@@ -87,8 +87,8 @@ function ProfileCard({ colors }: { colors: ReturnType<typeof useTheme>["colors"]
       {/* Stats grid: Edad · Ingresos · Inversión */}
       <View style={styles.statsGrid}>
         {[
-          { label: "Edad",      value: String(getAge(profile.birth_date)), sub: "años" },
-          { label: "Ingresos",  value: `$${Number(profile.monthly_income).toLocaleString()}`, sub: "/mes" },
+          { label: "Edad",      value: String(getAge(profile.birth_date ?? "")), sub: "años" },
+          { label: "Ingresos",  value: `$${Number(profile.monthly_income ?? 0).toLocaleString()}`, sub: "/mes" },
           { label: "Inversión", value: `$${Number(profile.monthly_contribution).toLocaleString()}`, sub: "/mes" },
         ].map(({ label, value, sub }) => (
           <View key={label} style={[styles.statBox, { backgroundColor: colors.card }]}>

@@ -198,9 +198,9 @@ export default function InvestorScorecard() {
           <Text style={s.sectionLabel}>ADN INVERSOR</Text>
           <View style={s.dnaChips}>
             {([
-              { label: "MENTALIDAD",   val: Q1_LABELS[qa.q1], ans: qa.q1 },
-              { label: "CONOCIMIENTO", val: knowledge.label,  ans: knowledge.key },
-              { label: "GESTIÓN",      val: Q5_LABELS[qa.q5], ans: qa.q5 },
+              { label: "MENTALIDAD",   val: Q1_LABELS[qa.q1 ?? "A"], ans: qa.q1 ?? "A" },
+              { label: "CONOCIMIENTO", val: knowledge.label,          ans: knowledge.key },
+              { label: "GESTIÓN",      val: Q5_LABELS[qa.q5 ?? "A"], ans: qa.q5 ?? "A" },
             ] as const).map((row) => {
               const tc = TRAIT_COLORS[row.ans] ?? ac;
               return (
