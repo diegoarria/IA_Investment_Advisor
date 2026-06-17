@@ -230,6 +230,7 @@ export default function WatchlistScreen() {
   const [paywallOpen, setPaywallOpen]     = useState(false);
   const [secondsLeft, setSecondsLeft]     = useState(60);
   const [editMode, setEditMode]           = useState(false);
+  const [sortMode, setSortMode]           = useState<"default" | "gainers" | "losers">("default");
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const refreshRef  = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -292,6 +293,15 @@ export default function WatchlistScreen() {
   const handleMoveDown = (index: number) => {
     if (index < items.length - 1) reorder(index, index + 1);
   };
+
+  const sortedItems = React.useMemo(() => {
+    if (sortMode === "default") return items;
+    return [...items].sort((a, b) => {
+      const pctA = prices[a.ticker]?.change_pct ?? 0;
+      const pctB = prices[b.ticker]?.change_pct ?? 0;
+      return sortMode === "gainers" ? pctB - pctA : pctA - pctB;
+    });
+  }, [items, sortMode, prices]);
 
   const freePct = Math.min((items.length / FREE_LIMIT) * 100, 100);
   const freeFull = !isPremium && items.length >= FREE_LIMIT;
@@ -387,8 +397,30 @@ export default function WatchlistScreen() {
               <Ionicons name="eye-outline" size={14} color={colors.accentLight} />
               <Text style={[s.listHeaderText, { color: colors.text }]}>Watchlist</Text>
 
-              {/* Reorder toggle */}
-              {items.length > 1 && (
+              {/* Sort buttons — gainers / losers */}
+              {items.length > 1 && !editMode && (
+                <View style={s.sortRow}>
+                  <TouchableOpacity
+                    onPress={() => setSortMode((v) => v === "gainers" ? "default" : "gainers")}
+                    style={[s.sortBtn, sortMode === "gainers" && { backgroundColor: "#22c55e22", borderColor: "#22c55e" }]}
+                    hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                  >
+                    <Ionicons name="arrow-up" size={11} color={sortMode === "gainers" ? "#22c55e" : colors.textDim} />
+                    <Text style={[s.sortBtnText, { color: sortMode === "gainers" ? "#22c55e" : colors.textDim }]}>Suben</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={() => setSortMode((v) => v === "losers" ? "default" : "losers")}
+                    style={[s.sortBtn, sortMode === "losers" && { backgroundColor: "#ef444422", borderColor: "#ef4444" }]}
+                    hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                  >
+                    <Ionicons name="arrow-down" size={11} color={sortMode === "losers" ? "#ef4444" : colors.textDim} />
+                    <Text style={[s.sortBtnText, { color: sortMode === "losers" ? "#ef4444" : colors.textDim }]}>Caen</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+
+              {/* Reorder toggle — hidden while sorted */}
+              {items.length > 1 && sortMode === "default" && (
                 <TouchableOpacity
                   onPress={() => setEditMode((v) => !v)}
                   style={[s.editBtn, { backgroundColor: editMode ? colors.accentLight + "22" : colors.bgRaised, borderColor: editMode ? colors.accentLight : colors.border }]}
@@ -415,7 +447,7 @@ export default function WatchlistScreen() {
               )}
             </View>
 
-            {items.map((item, index) => (
+            {sortedItems.map((item, index) => (
               <WatchlistRow
                 key={item.ticker}
                 item={item}
@@ -423,7 +455,7 @@ export default function WatchlistScreen() {
                 itemCount={items.length}
                 prices={prices}
                 colors={colors}
-                editMode={editMode}
+                editMode={editMode && sortMode === "default"}
                 onRemove={remove}
                 onMoveUp={handleMoveUp}
                 onMoveDown={handleMoveDown}
@@ -488,4 +520,11 @@ const s = StyleSheet.create({
   },
   editBtnText: { fontSize: 11, fontWeight: "700" },
   counterText: { fontSize: 11 },
+  sortRow: { flexDirection: "row", alignItems: "center", gap: 4 },
+  sortBtn: {
+    flexDirection: "row", alignItems: "center", gap: 3,
+    paddingHorizontal: 8, paddingVertical: 4,
+    borderRadius: 20, borderWidth: 1, borderColor: "transparent",
+  },
+  sortBtnText: { fontSize: 10, fontWeight: "700" },
 });
