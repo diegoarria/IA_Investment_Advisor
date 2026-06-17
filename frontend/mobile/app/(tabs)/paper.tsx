@@ -8,8 +8,8 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { marketApi, paperApi } from "../../src/lib/api";
 import { useTheme, Colors } from "../../src/lib/ThemeContext";
-import { usePaperStore, PAPER_INITIAL_CASH, FREE_PAPER_INITIAL_CASH, FREE_PAPER_MONTHLY_TRADES, TOP_UP_PLANS } from "../../src/lib/paperStore";
-import { useSubscriptionStore, hasPremiumAccess, isTrialActive, trialDaysLeft } from "../../src/lib/subscriptionStore";
+import { usePaperStore, PAPER_INITIAL_CASH } from "../../src/lib/paperStore";
+import { useSubscriptionStore, hasPremiumAccess } from "../../src/lib/subscriptionStore";
 import PaywallModal from "../../src/components/PaywallModal";
 
 interface PaperAnalysis {
@@ -117,12 +117,8 @@ export default function PaperScreen() {
   const s = useMemo(() => makeStyles(colors), [colors]);
   const subStore = useSubscriptionStore();
   const isPremiumAccess = hasPremiumAccess(subStore);
-  const inTrial = isTrialActive(subStore);
-  const daysLeft = trialDaysLeft(subStore.trialStartDate);
   const [paywallOpen, setPaywallOpen] = useState(false);
-
-  const { cash, positions, trades, buy, sell, topUp, reset, freeTradesThisMonth, incrementFreeTrade } = usePaperStore();
-  const [topUpOpen, setTopUpOpen] = useState(false);
+  const { cash, positions, trades, buy, sell, topUp, reset } = usePaperStore();
 
   // Ticker search
   const [query, setQuery]             = useState("");
@@ -225,27 +221,15 @@ export default function PaperScreen() {
     if (!tickerInfo || !buyQty) return;
     const shares = parseFloat(buyQty);
     if (!shares || shares <= 0) return;
-    if (!isPremiumAccess) {
-      if (freeTradesThisMonth() >= FREE_PAPER_MONTHLY_TRADES) { setPaywallOpen(true); return; }
-      const newTotal = cash - shares * tickerInfo.price + positions.reduce((a, p) => a + p.shares * (posPrices[p.ticker]?.price ?? p.avgPrice), 0) + shares * tickerInfo.price;
-      if (newTotal > FREE_PAPER_INITIAL_CASH) { setPaywallOpen(true); return; }
-    }
     setBuyLoading(true);
     const err = buy(tickerInfo.ticker, tickerInfo.name, shares, tickerInfo.price);
     if (err) { Alert.alert("Error", err); }
-    else {
-      if (!isPremiumAccess) incrementFreeTrade();
-      setQuery(""); setBuyQty(""); setTickerInfo(null);
-    }
+    else { setQuery(""); setBuyQty(""); setTickerInfo(null); }
     setBuyLoading(false);
   };
 
   const confirmSell = (shares: number) => {
     if (!sellModal) return;
-    if (!isPremiumAccess) {
-      if (freeTradesThisMonth() >= FREE_PAPER_MONTHLY_TRADES) { setSellModal(null); setPaywallOpen(true); return; }
-      incrementFreeTrade();
-    }
     sell(sellModal.ticker, shares, sellModal.price);
     setPosPrices((prev) => ({ ...prev }));
   };
@@ -264,29 +248,6 @@ export default function PaperScreen() {
     <SafeAreaView style={s.container}>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
 
-        {/* Trial / free-mode banner */}
-        {inTrial && (
-          <TouchableOpacity
-            style={{ backgroundColor: "#f59e0b18", borderBottomWidth: 1, borderBottomColor: "#f59e0b33", flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingVertical: 10, gap: 8 }}
-            onPress={() => setPaywallOpen(true)} activeOpacity={0.8}>
-            <Ionicons name="star" size={14} color="#f59e0b" />
-            <Text style={{ color: "#f59e0b", fontSize: 12, fontWeight: "700", flex: 1 }}>
-              Premium de prueba — {daysLeft} {daysLeft === 1 ? "día" : "días"} restantes
-            </Text>
-            <Text style={{ color: "#f59e0b", fontSize: 11 }}>Activar →</Text>
-          </TouchableOpacity>
-        )}
-        {!isPremiumAccess && !inTrial && (
-          <TouchableOpacity
-            style={{ backgroundColor: colors.card, borderBottomWidth: 1, borderBottomColor: colors.border, flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingVertical: 10, gap: 8 }}
-            onPress={() => setPaywallOpen(true)} activeOpacity={0.8}>
-            <Ionicons name="lock-closed-outline" size={14} color={colors.textMuted} />
-            <Text style={{ color: colors.textMuted, fontSize: 12, flex: 1 }}>
-              Modo gratuito: ${FREE_PAPER_INITIAL_CASH.toLocaleString()} cap · {FREE_PAPER_MONTHLY_TRADES - freeTradesThisMonth()} operaciones restantes
-            </Text>
-            <Text style={{ color: "#f59e0b", fontSize: 11, fontWeight: "700" }}>Premium →</Text>
-          </TouchableOpacity>
-        )}
 
         <ScrollView contentContainerStyle={s.content} keyboardShouldPersistTaps="handled">
 
@@ -309,10 +270,18 @@ export default function PaperScreen() {
                       </View>
                     </View>
                     <View style={s.actionBtns}>
-                      <TouchableOpacity style={[s.resetBtn, { backgroundColor: "#22c55e12", borderColor: "#22c55e44" }]} onPress={() => setTopUpOpen(true)}>
-                        <Ionicons name="add-circle-outline" size={14} color="#22c55e" />
-                        <Text style={s.topUpBtnText}>Recargar</Text>
-                      </TouchableOpacity>
+                      {[1000, 5000, 10000].map((amt) => (
+                        <TouchableOpacity
+                          key={amt}
+                          style={[s.resetBtn, { backgroundColor: "#22c55e12", borderColor: "#22c55e44" }]}
+                          onPress={() => topUp(amt)}
+                        >
+                          <Ionicons name="add" size={12} color="#22c55e" />
+                          <Text style={s.topUpBtnText}>
+                            {amt >= 1000 ? `+$${amt / 1000}K` : `+$${amt}`}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
                       <TouchableOpacity style={s.resetBtn} onPress={() => Alert.alert("Reiniciar", "¿Volver a $10,000 virtuales?", [
                         { text: "Cancelar", style: "cancel" },
                         { text: "Reiniciar", style: "destructive", onPress: reset },
@@ -676,43 +645,7 @@ export default function PaperScreen() {
         onClose={() => setSellModal(null)} onSell={confirmSell}
       />
 
-      {/* Top-up modal */}
-      <Modal visible={topUpOpen} transparent animationType="slide" onRequestClose={() => setTopUpOpen(false)}>
-        <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "flex-end" }}>
-          <View style={[s.topUpSheet, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <View style={s.topUpHandle} />
-            <Text style={[s.topUpTitle, { color: colors.text }]}>Recargar saldo virtual</Text>
-            <Text style={[s.topUpSub, { color: colors.textMuted }]}>Añade fondos para seguir practicando sin riesgo</Text>
-            <View style={s.planGrid}>
-              {TOP_UP_PLANS.map((plan) => (
-                <TouchableOpacity key={plan.id}
-                  style={[s.planCard, { borderColor: plan.color + "55", backgroundColor: plan.color + "12" }]}
-                  onPress={() => { topUp(plan.amount); setTopUpOpen(false); Alert.alert("¡Recarga exitosa!", `Se añadieron ${plan.label} a tu cuenta virtual.`); }}>
-                  {plan.tag && (
-                    <View style={[s.planTag, { backgroundColor: plan.color }]}>
-                      <Text style={s.planTagText}>{plan.tag}</Text>
-                    </View>
-                  )}
-                  <Text style={[s.planAmount, { color: plan.color }]}>{plan.label}</Text>
-                  <Text style={[s.planPrice, { color: colors.text }]}>{plan.price}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-            <TouchableOpacity style={[s.topUpCloseBtn, { borderColor: colors.border }]} onPress={() => setTopUpOpen(false)}>
-              <Text style={[s.topUpCloseBtnText, { color: colors.textMuted }]}>Cancelar</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
-
-      <PaywallModal
-        visible={paywallOpen} onClose={() => setPaywallOpen(false)}
-        reason={
-          !isPremiumAccess && freeTradesThisMonth() >= FREE_PAPER_MONTHLY_TRADES
-            ? `Alcanzaste el límite de ${FREE_PAPER_MONTHLY_TRADES} operaciones gratuitas este mes. Activa Premium para trading ilimitado con $100,000 virtuales.`
-            : "Activa Premium para trading ilimitado con $100,000 virtuales y sin restricciones de capital."
-        }
-      />
+      <PaywallModal visible={paywallOpen} onClose={() => setPaywallOpen(false)} reason="El análisis IA del simulador es exclusivo de Premium." />
     </SafeAreaView>
   );
 }
