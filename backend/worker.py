@@ -12,6 +12,7 @@ Railway setup:
 
 import asyncio
 import logging
+from datetime import datetime, timezone
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from app.core.config import settings
 from app.services.notification_service import scan_and_notify_all_users
@@ -122,15 +123,220 @@ async def run_league_notifications():
         logger.error("League notification job failed: %s", e)
 
 
+# ── Notification engine jobs ──────────────────────────────────────────────────
+
+async def job_market_open():
+    """9:30 AM ET weekdays — push market open to all opted-in users."""
+    from app.core.database import get_supabase, run_query
+    from app.services.notification_engine import send_push, get_market_summary_text
+    import random
+    db = get_supabase()
+    try:
+        market = await get_market_summary_text()
+        sp500  = market.get("indices", {}).get("S&P 500", {})
+        pct    = sp500.get("change_pct")
+        if pct is not None:
+            emoji = "📈" if pct >= 0 else "📉"
+            body  = f"S&P 500 {emoji} {pct:+.1f}% ayer. La sesión comienza ahora."
+        else:
+            body = "Los mercados acaban de abrir. Revisa tus inversiones."
+        users_res = await run_query(
+            db.table("notification_preferences").select("user_id").eq("push_market_open", True)
+        )
+        sent = 0
+        for i, u in enumerate(users_res.data or []):
+            if i % 100 == 0 and i > 0:
+                await asyncio.sleep(12)
+            await asyncio.sleep(random.uniform(0, 0.12))
+            await send_push(u["user_id"], "market_open", "Mercado Abierto", body, {"screen": "portfolio"}, db)
+            sent += 1
+        logger.info("Market open push: %d sent", sent)
+    except Exception as e:
+        logger.error("job_market_open failed: %s", e)
+
+
+async def job_market_open_reminder():
+    """11:30 AM ET weekdays — reminder only to users who haven't opened the app."""
+    from app.core.database import get_supabase, run_query
+    from app.services.notification_engine import send_push
+    from datetime import timedelta
+    import random
+    db = get_supabase()
+    try:
+        cutoff = (datetime.now(timezone.utc) - timedelta(hours=2)).isoformat()
+        prefs_res = await run_query(
+            db.table("notification_preferences").select("user_id,last_opened_app").eq("push_market_open", True)
+        )
+        sent = 0
+        for i, row in enumerate(prefs_res.data or []):
+            last = row.get("last_opened_app") or ""
+            if last >= cutoff:
+                continue  # already opened today
+            if i % 100 == 0 and i > 0:
+                await asyncio.sleep(12)
+            await asyncio.sleep(random.uniform(0, 0.12))
+            await send_push(
+                row["user_id"], "market_open_reminder",
+                "Mercado activo", "Los mercados siguen abiertos. ¿Ya revisaste tu portafolio?",
+                {"screen": "portfolio"}, db,
+            )
+            sent += 1
+        logger.info("Market open reminder: %d sent", sent)
+    except Exception as e:
+        logger.error("job_market_open_reminder failed: %s", e)
+
+
+async def job_market_close():
+    """4:00 PM ET weekdays — push market close summary."""
+    from app.core.database import get_supabase, run_query
+    from app.services.notification_engine import send_push, get_market_summary_text
+    import random
+    db = get_supabase()
+    try:
+        market = await get_market_summary_text()
+        sp500  = market.get("indices", {}).get("S&P 500", {})
+        pct    = sp500.get("change_pct")
+        if pct is not None:
+            emoji = "📈" if pct >= 0 else "📉"
+            body  = f"Mercados cerraron. S&P 500 {emoji} {pct:+.1f}% hoy."
+        else:
+            body = "Los mercados cerraron. Revisa el resumen del día."
+        users_res = await run_query(
+            db.table("notification_preferences").select("user_id").eq("push_market_close", True)
+        )
+        sent = 0
+        for i, u in enumerate(users_res.data or []):
+            if i % 100 == 0 and i > 0:
+                await asyncio.sleep(12)
+            await asyncio.sleep(random.uniform(0, 0.12))
+            await send_push(u["user_id"], "market_close", "Cierre del Mercado", body, {"screen": "portfolio"}, db)
+            sent += 1
+        logger.info("Market close push: %d sent", sent)
+    except Exception as e:
+        logger.error("job_market_close failed: %s", e)
+
+
+async def job_daily_email():
+    """6:00 PM ET weekdays — daily summary email to all opted-in users."""
+    if not settings.resend_api_key:
+        return
+    from app.core.database import get_supabase, run_query
+    from app.services.notification_engine import send_email_notification, get_market_summary_text
+    from app.services.email_templates import daily_summary_email
+    db = get_supabase()
+    try:
+        market = await get_market_summary_text()
+        html   = daily_summary_email(market, [])
+        prefs_res = await run_query(
+            db.table("notification_preferences").select("user_id").eq("email_daily_summary", True)
+        )
+        sent = 0
+        for i, u in enumerate(prefs_res.data or []):
+            if i % 100 == 0 and i > 0:
+                await asyncio.sleep(12)
+            await send_email_notification(
+                u["user_id"], "daily_summary", "Tu resumen diario del mercado — Nuvos AI", html, db
+            )
+            sent += 1
+        logger.info("Daily email: %d sent", sent)
+    except Exception as e:
+        logger.error("job_daily_email failed: %s", e)
+
+
+async def job_portfolio_alerts():
+    """Every 30 min weekday market hours — check premium portfolios for ±4%/±8% moves."""
+    from app.core.database import get_supabase, run_query
+    from app.services.notification_engine import send_push, check_portfolio_alerts
+    import random
+    db = get_supabase()
+    try:
+        users_res = await run_query(
+            db.table("user_profiles").select("user_id").eq("subscription_tier", "premium")
+        )
+        processed = 0
+        for u in (users_res.data or []):
+            uid      = u["user_id"]
+            port_res = await run_query(db.table("user_portfolio").select("positions").eq("user_id", uid))
+            if not port_res.data:
+                continue
+            raw = port_res.data[0].get("positions") or {}
+            positions = raw.get("positions", []) if isinstance(raw, dict) else raw if isinstance(raw, list) else []
+            if not positions:
+                continue
+            alerts = await check_portfolio_alerts(uid, positions, db)
+            for alert in alerts:
+                ticker    = alert["ticker"]
+                pct       = alert["change_pct"]
+                emoji     = "🚀" if pct > 0 else "📉"
+                direction = "subió" if pct > 0 else "cayó"
+                category  = "portfolio_extreme" if alert["level"] == "extreme" else "portfolio_alert"
+                await send_push(
+                    uid, category,
+                    f"{emoji} {ticker} {direction} {abs(pct):.1f}%",
+                    f"Tu posición en {ticker} tiene un movimiento significativo hoy.",
+                    {"ticker": ticker, "change_pct": pct, "screen": "portfolio"},
+                    db,
+                )
+                await asyncio.sleep(random.uniform(0.05, 0.3))
+            processed += 1
+        logger.info("Portfolio alerts: %d premium users scanned", processed)
+    except Exception as e:
+        logger.error("job_portfolio_alerts failed: %s", e)
+
+
+async def job_weekly_summary_push():
+    """9:30 AM ET Saturday — weekly summary push to opted-in users."""
+    from app.core.database import get_supabase, run_query
+    from app.services.notification_engine import send_push, get_market_summary_text
+    import random
+    db = get_supabase()
+    try:
+        market = await get_market_summary_text()
+        sp500  = market.get("indices", {}).get("S&P 500", {})
+        pct    = sp500.get("change_pct")
+        body   = f"S&P 500 {pct:+.1f}% esta semana. Tu resumen personalizado está listo." if pct else "Tu resumen semanal está listo."
+        users_res = await run_query(
+            db.table("notification_preferences").select("user_id").eq("email_weekly_summary", True)
+        )
+        for i, u in enumerate(users_res.data or []):
+            if i % 100 == 0 and i > 0:
+                await asyncio.sleep(12)
+            await asyncio.sleep(random.uniform(0, 0.12))
+            await send_push(u["user_id"], "weekly_summary", "Resumen Semanal", body, {"screen": "portfolio"}, db)
+        logger.info("Weekly summary push: %d sent", len(users_res.data or []))
+    except Exception as e:
+        logger.error("job_weekly_summary_push failed: %s", e)
+
+
+async def job_cleanup_analytics():
+    """Hourly — delete notification_log entries older than 90 days."""
+    from app.core.database import get_supabase, run_query
+    from datetime import timedelta
+    db = get_supabase()
+    try:
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=90)).isoformat()
+        await run_query(db.table("notification_log").delete().lt("sent_at", cutoff))
+        logger.debug("Analytics cleanup done")
+    except Exception as e:
+        logger.warning("Analytics cleanup failed: %s", e)
+
+
 async def main():
+    from datetime import timezone as tz
     scheduler = AsyncIOScheduler()
-    # Market alerts: 9am and 4pm Eastern (market open + close)
+    # Existing jobs
     scheduler.add_job(run_notifications, "cron", hour="9,16", minute="0", timezone="America/New_York")
     scheduler.add_job(run_league_notifications, "interval", hours=2)
-    # Weekly recap: Friday 6:30pm Eastern (2h after NYSE close)
     scheduler.add_job(send_weekly_emails, "cron", day_of_week="fri", hour=18, minute=30, timezone="America/New_York")
-    # Monthly report: 1st of each month at 9am Eastern
     scheduler.add_job(send_monthly_reports, "cron", day=1, hour=9, minute=0, timezone="America/New_York")
+    # New notification engine jobs
+    scheduler.add_job(job_market_open,          "cron", day_of_week="mon-fri", hour=9,       minute=30,    timezone="America/New_York")
+    scheduler.add_job(job_market_open_reminder, "cron", day_of_week="mon-fri", hour=11,      minute=30,    timezone="America/New_York")
+    scheduler.add_job(job_market_close,         "cron", day_of_week="mon-fri", hour=16,      minute=0,     timezone="America/New_York")
+    scheduler.add_job(job_daily_email,          "cron", day_of_week="mon-fri", hour=18,      minute=0,     timezone="America/New_York")
+    scheduler.add_job(job_portfolio_alerts,     "cron", day_of_week="mon-fri", hour="9-15",  minute="0,30",timezone="America/New_York")
+    scheduler.add_job(job_weekly_summary_push,  "cron", day_of_week="sat",     hour=9,       minute=30,    timezone="America/New_York")
+    scheduler.add_job(job_cleanup_analytics,    "interval", hours=1)
     scheduler.start()
     logger.info("Worker started — scheduler running")
     try:

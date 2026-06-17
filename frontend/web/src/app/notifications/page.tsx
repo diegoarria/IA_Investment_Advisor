@@ -12,8 +12,9 @@ import { notifications as notifApi, market as marketApi } from "@/lib/api";
 import { useAuthStore, useNotificationStore, useThemeStore, useWatchlistStore, useSubscriptionStore } from "@/lib/store";
 import { usePortfolioStore, type Position } from "@/lib/portfolioStore";
 import PaywallModal from "@/components/PaywallModal";
-import { Bell, Menu, X, Sun, Moon, Newspaper, Bookmark, RefreshCw, Loader2 } from "lucide-react";
+import { Bell, Menu, X, Sun, Moon, Newspaper, Bookmark, RefreshCw, Loader2, Settings } from "lucide-react";
 import GuidedSteps from "@/components/GuidedSteps";
+import NotificationSettingsPanel from "./SettingsPanel";
 
 const TYPE_ICONS: Record<string, string> = {
   market_move:           "📉",
@@ -42,6 +43,7 @@ export default function NotificationsPage() {
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [paywallOpen, setPaywallOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
   // Portfolio news
@@ -205,6 +207,9 @@ export default function NotificationsPage() {
           </button>
           <button onClick={toggleTheme} className="p-2 rounded-lg hover:bg-white/5" style={{ color: "var(--muted)" }}>
             {theme === "dark" ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+          </button>
+          <button onClick={() => setSettingsOpen(true)} className="p-2 rounded-lg hover:bg-white/5" style={{ color: "var(--muted)" }}>
+            <Settings className="w-4 h-4" />
           </button>
         </div>
       </div>
@@ -762,6 +767,7 @@ export default function NotificationsPage() {
           </div>
         </div>
       )}
+    {settingsOpen && <NotificationSettingsPanel onClose={() => setSettingsOpen(false)} />}
     </div>
   );
 }
