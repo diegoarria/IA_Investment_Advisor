@@ -85,6 +85,7 @@ type FormState = {
   investment_amount: string;
   investment_goal_amount: string;
   investment_goal: string;
+  investment_horizon: string;
   knowledge_level: QuizAnswer | "";
   q1: QuizAnswer | "";
   q4: QuizAnswer | "";
@@ -109,6 +110,7 @@ export default function OnboardingScreen() {
   const [form, setForm] = useState<FormState>({
     name: "", age: "", monthly_contribution: "",
     investment_amount: "", investment_goal_amount: "", investment_goal: "",
+    investment_horizon: "",
     knowledge_level: "", q1: "", q4: "", mentor: "",
   });
 
@@ -212,9 +214,10 @@ export default function OnboardingScreen() {
     {
       title: "Tu meta financiera",
       isValid: () => {
-        const amt  = parseFloat(form.investment_amount);
-        const goal = parseFloat(form.investment_goal_amount);
-        return amt > 0 && goal > 0 && !!form.investment_goal && !!form.knowledge_level;
+        const amt     = parseFloat(form.investment_amount);
+        const goal    = parseFloat(form.investment_goal_amount);
+        const horizon = parseInt(form.investment_horizon);
+        return amt > 0 && goal > 0 && horizon >= 1 && !!form.investment_goal && !!form.knowledge_level;
       },
       content: (
         <View style={s.fields}>
@@ -245,6 +248,22 @@ export default function OnboardingScreen() {
           </View>
           <Text style={[s.hint, { color: colors.textMuted }]}>
             La app mostrará tu progreso hacia esta meta en tiempo real.
+          </Text>
+
+          {/* Horizonte de inversión */}
+          <Text style={[s.label, { marginTop: 16 }]}>¿Por cuántos años quieres invertir?</Text>
+          <View style={s.prefixWrap}>
+            <TextInput
+              style={[s.input, s.prefixInput, { color: colors.text, flex: 1 }]}
+              value={form.investment_horizon}
+              onChangeText={(v) => setForm((f) => ({ ...f, investment_horizon: v }))}
+              placeholder="10" placeholderTextColor={colors.placeholder}
+              keyboardType="numeric"
+            />
+            <Text style={[s.prefix, { paddingRight: 18 }]}>años</Text>
+          </View>
+          <Text style={[s.hint, { color: colors.textMuted }]}>
+            Proyectaremos a este horizonte y mostraremos el beneficio de dejarlo el doble de tiempo.
           </Text>
 
           {/* Tipo de meta */}
@@ -352,6 +371,7 @@ export default function OnboardingScreen() {
             { label: "Nombre",          value: form.name },
             { label: "Capital inicial", value: `$${Number(form.investment_amount).toLocaleString()}` },
             { label: "Meta",            value: `$${Number(form.investment_goal_amount).toLocaleString()}` },
+            { label: "Horizonte",       value: `${form.investment_horizon} años` },
           ].map((f) => (
             <View key={f.label} style={[s.factorRow, { borderColor: colors.border }]}>
               <Text style={[s.factorLabel, { color: colors.textMuted }]}>{f.label}</Text>
@@ -361,27 +381,37 @@ export default function OnboardingScreen() {
         </View>
       ),
     },
-    // 6 — ROI projection (lump sum, igual que web)
+    // 6 — ROI projection (combined lump-sum + monthly, horizon-based)
     {
       title: `Tu meta: $${Number(form.investment_goal_amount || 0).toLocaleString()}`,
       isValid: () => true,
       content: (() => {
-        const pv       = Math.max(parseFloat(form.investment_amount) || 1000, 1);
-        const goalAmt  = Math.max(parseFloat(form.investment_goal_amount) || pv * 3, pv + 1);
+        const pv         = Math.max(parseFloat(form.investment_amount) || 1000, 1);
+        const pmt        = Math.max(parseFloat(form.monthly_contribution) || 0, 0);
+        const goalAmt    = Math.max(parseFloat(form.investment_goal_amount) || pv * 3, pv + 1);
+        const horizonYrs = Math.max(parseInt(form.investment_horizon) || 10, 1);
         const annualRate = calculated === "conservative" ? 0.07 : calculated === "moderate" ? 0.10 : 0.12;
         const rateLabel  = calculated === "conservative" ? "7%" : calculated === "moderate" ? "10%" : "12%";
         const r = annualRate / 12;
-        const proj = [12, 60, 120].map((months) => ({
-          years: months / 12,
-          fv: Math.round(pv * Math.pow(1 + r, months)),
-        }));
-        const maxFV = Math.max(proj[2].fv, goalAmt);
-        const monthsToGoal = Math.log(goalAmt / pv) / Math.log(1 + r);
-        const yearsToGoal  = monthsToGoal / 12;
-        const timeLabel = yearsToGoal < 1
-          ? `${Math.ceil(monthsToGoal)} meses`
-          : yearsToGoal < 1.83 ? "~1 año y medio"
-          : `~${Math.round(yearsToGoal)} años`;
+
+        const fvCombined = (months: number) => {
+          const lump    = pv * Math.pow(1 + r, months);
+          const annuity = pmt > 0 ? pmt * ((Math.pow(1 + r, months) - 1) / r) : 0;
+          return Math.round(lump + annuity);
+        };
+
+        const fvHorizon   = fvCombined(horizonYrs * 12);
+        const fvDouble    = fvCombined(horizonYrs * 2 * 12);
+        const extraGain   = fvDouble - fvHorizon;
+        const extraPct    = Math.round((extraGain / fvHorizon) * 100);
+        const maxFV       = Math.max(fvDouble, goalAmt);
+        const goalLinePct = Math.min((goalAmt / maxFV) * 100, 100);
+
+        const goalStatus = fvHorizon >= goalAmt
+          ? `¡la alcanzas antes de los ${horizonYrs} años!`
+          : fvDouble >= goalAmt
+          ? `la alcanzas entre los ${horizonYrs} y ${horizonYrs * 2} años`
+          : `proyecta a más de ${horizonYrs * 2} años a esta tasa`;
 
         return (
           <View style={{ gap: 16 }}>
@@ -389,42 +419,55 @@ export default function OnboardingScreen() {
             <View style={[s.revealCard, { alignItems: "stretch" }]}>
               <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
                 <Text style={[s.factorsTitle, { color: colors.textSub, marginBottom: 0 }]}>
-                  ${pv.toLocaleString()} → Meta: ${goalAmt.toLocaleString()}
+                  ${pv.toLocaleString()} + ${pmt.toLocaleString()}/mes
                 </Text>
                 <View style={{ backgroundColor: riskCfg.color + "22", borderRadius: 20, paddingHorizontal: 8, paddingVertical: 3 }}>
                   <Text style={{ color: riskCfg.color, fontSize: 10, fontWeight: "700" }}>~{rateLabel}/año</Text>
                 </View>
               </View>
 
-              {proj.map(({ years, fv }) => {
-                const barPct  = Math.min((fv / maxFV) * 100, 100);
-                const goalPct = Math.min((goalAmt / maxFV) * 100, 100);
+              {[
+                { years: horizonYrs,     fv: fvHorizon, label: `A los ${horizonYrs} años (tu horizonte)` },
+                { years: horizonYrs * 2, fv: fvDouble,  label: `+${horizonYrs} años más (${horizonYrs * 2} total)` },
+              ].map(({ years, fv, label }) => {
+                const barPct = Math.min((fv / maxFV) * 100, 100);
                 return (
                   <View key={years} style={{ marginBottom: 14 }}>
                     <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 5 }}>
-                      <Text style={{ color: colors.textSub, fontSize: 12 }}>
-                        {years} año{years !== 1 ? "s" : ""}
-                      </Text>
+                      <Text style={{ color: colors.textSub, fontSize: 11, flex: 1, marginRight: 8 }}>{label}</Text>
                       <Text style={{ color: fv >= goalAmt ? "#22c55e" : colors.text, fontSize: 13, fontWeight: "800" }}>
                         ${fv.toLocaleString()}
                       </Text>
                     </View>
-                    <View style={{ height: 10, borderRadius: 5, overflow: "hidden", flexDirection: "row", backgroundColor: colors.border }}>
-                      {/* Goal marker line */}
-                      <View style={{ position: "absolute", top: 0, bottom: 0, left: `${goalPct}%` as any, width: 2, backgroundColor: "#22c55e", zIndex: 2, opacity: 0.8 }} />
+                    <View style={{ height: 10, borderRadius: 5, overflow: "hidden", backgroundColor: colors.border }}>
+                      <View style={{ position: "absolute", top: 0, bottom: 0, left: `${goalLinePct}%` as any, width: 2, backgroundColor: "#22c55e", zIndex: 2, opacity: 0.8 }} />
                       <View style={{ width: `${barPct}%` as any, backgroundColor: fv >= goalAmt ? "#22c55e" : riskCfg.color, height: "100%", borderRadius: 5 }} />
                     </View>
                   </View>
                 );
               })}
 
-              {/* Time to goal */}
-              <View style={{ backgroundColor: "rgba(34,197,94,0.08)", borderRadius: 14, padding: 12, flexDirection: "row", alignItems: "center", gap: 10, borderWidth: 1, borderColor: "rgba(34,197,94,0.25)" }}>
-                <Text style={{ fontSize: 18 }}>🎯</Text>
-                <Text style={{ color: "#22c55e", fontSize: 13, fontWeight: "600", flex: 1 }}>
-                  A tasa del {rateLabel}/año, alcanzas tu meta en {timeLabel}
+              {/* Power of time */}
+              <View style={{ backgroundColor: "rgba(99,102,241,0.08)", borderRadius: 14, padding: 12, borderWidth: 1, borderColor: "rgba(99,102,241,0.25)", marginBottom: 8 }}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                  <Text style={{ fontSize: 16 }}>⏳</Text>
+                  <Text style={{ color: "#818cf8", fontSize: 12, fontWeight: "700", flex: 1 }}>
+                    Quedate {horizonYrs} años más: +${extraGain.toLocaleString()} (+{extraPct}%)
+                  </Text>
+                </View>
+                <Text style={{ color: colors.textDim, fontSize: 10, marginTop: 6, marginLeft: 24 }}>
+                  El interés compuesto se acelera — la segunda mitad genera más que la primera.
                 </Text>
               </View>
+
+              {/* Goal status */}
+              <View style={{ backgroundColor: "rgba(34,197,94,0.08)", borderRadius: 14, padding: 12, flexDirection: "row", alignItems: "center", gap: 10, borderWidth: 1, borderColor: "rgba(34,197,94,0.25)" }}>
+                <Text style={{ fontSize: 18 }}>🎯</Text>
+                <Text style={{ color: "#22c55e", fontSize: 12, fontWeight: "600", flex: 1 }}>
+                  Meta de ${goalAmt.toLocaleString()}: {goalStatus}
+                </Text>
+              </View>
+
               <Text style={{ color: colors.textDim, fontSize: 10, fontStyle: "italic", marginTop: 8 }}>
                 * Ilustrativo. Basado en promedios históricos del mercado. No garantiza rendimientos futuros.
               </Text>
@@ -620,6 +663,7 @@ export default function OnboardingScreen() {
         investment_amount:      form.investment_amount,
         investment_goal:        form.investment_goal,
         investment_goal_amount: form.investment_goal_amount,
+        investment_horizon:     form.investment_horizon,
         knowledge_level:        form.knowledge_level,
         risk_tolerance:         calculated,
         quiz_answers:           quizAnswers,

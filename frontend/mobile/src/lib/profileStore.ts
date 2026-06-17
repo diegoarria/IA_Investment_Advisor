@@ -21,6 +21,7 @@ export interface UserProfile {
   investment_amount?: string;
   investment_goal?: string;
   investment_goal_amount?: string;
+  investment_horizon?: string;
   knowledge_level?: QuizAnswer | "";
   risk_tolerance: RiskTolerance;
   quiz_answers: Partial<QuizAnswers>;

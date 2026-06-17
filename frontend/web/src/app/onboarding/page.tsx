@@ -108,9 +108,10 @@ type FormState = {
   name: string;
   age: string;
   monthly_contribution: string;
-  investment_amount: string;      // exact $ available now
-  investment_goal_amount: string; // exact $ target goal
-  investment_goal: string;        // goal type key
+  investment_amount: string;
+  investment_goal_amount: string;
+  investment_goal: string;
+  investment_horizon: string;
   knowledge_level: QuizAnswer | "";
   q1: QuizAnswer | "";
   q4: QuizAnswer | "";
@@ -132,6 +133,7 @@ export default function OnboardingPage() {
     name: "",
     age: "", monthly_contribution: "",
     investment_amount: "", investment_goal_amount: "", investment_goal: "",
+    investment_horizon: "",
     knowledge_level: "", q1: "", q4: "",
   });
 
@@ -255,9 +257,10 @@ export default function OnboardingPage() {
       title: "Tu meta financiera",
       subtitle: "OBJETIVOS",
       valid: () => {
-        const amt = parseFloat(form.investment_amount);
-        const goal = parseFloat(form.investment_goal_amount);
-        return amt > 0 && goal > 0 && !!form.investment_goal && !!form.knowledge_level;
+        const amt     = parseFloat(form.investment_amount);
+        const goal    = parseFloat(form.investment_goal_amount);
+        const horizon = parseInt(form.investment_horizon);
+        return amt > 0 && goal > 0 && horizon >= 1 && !!form.investment_goal && !!form.knowledge_level;
       },
       content: (
         <div className="space-y-5">
@@ -299,6 +302,28 @@ export default function OnboardingPage() {
             </div>
             <p className="text-[10px] mt-1.5" style={{ color: "var(--dim)" }}>
               La app mostrará tu progreso hacia esta meta en tiempo real.
+            </p>
+          </div>
+
+          {/* Horizonte de inversión */}
+          <div>
+            <label className="block text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: "var(--muted)" }}>
+              ¿Por cuántos años quieres invertir?
+            </label>
+            <div className="relative">
+              <input
+                type="number"
+                min={1} max={50}
+                value={form.investment_horizon}
+                onChange={(e) => setForm((f) => ({ ...f, investment_horizon: e.target.value }))}
+                className="w-full rounded-xl border px-4 py-3 pr-16 text-sm outline-none"
+                placeholder="10"
+                style={{ background: "var(--raised)", borderColor: "var(--border)", color: "var(--text)" }}
+              />
+              <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-semibold" style={{ color: "var(--muted)" }}>años</span>
+            </div>
+            <p className="text-[10px] mt-1.5" style={{ color: "var(--dim)" }}>
+              Proyectaremos tu crecimiento a este horizonte y mostraremos el beneficio de dejarlo el doble de tiempo.
             </p>
           </div>
 
@@ -420,6 +445,7 @@ export default function OnboardingPage() {
               { label: "Nombre",          value: form.name },
               { label: "Capital inicial", value: `$${Number(form.investment_amount).toLocaleString()}` },
               { label: "Meta",            value: `$${Number(form.investment_goal_amount).toLocaleString()}` },
+              { label: "Horizonte",       value: `${form.investment_horizon} años` },
             ].map((f) => (
               <div key={f.label} className="flex items-center justify-between px-4 py-2.5 border-b last:border-0"
                    style={{ borderColor: "var(--border)" }}>
@@ -431,69 +457,97 @@ export default function OnboardingPage() {
         </div>
       ),
     },
-    // 5 — ROI demo (lump-sum compound growth)
+    // 5 — ROI demo (combined lump-sum + monthly, horizon-based)
     {
       subtitle: "TU PROYECCIÓN",
       title: `Tu meta: $${Number(form.investment_goal_amount || 0).toLocaleString()}`,
       valid: () => true,
       content: (() => {
-        const pv = Math.max(parseFloat(form.investment_amount) || 1000, 1);
-        const goalAmt = Math.max(parseFloat(form.investment_goal_amount) || pv * 3, pv + 1);
+        const pv         = Math.max(parseFloat(form.investment_amount) || 1000, 1);
+        const pmt        = Math.max(parseFloat(form.monthly_contribution) || 0, 0);
+        const goalAmt    = Math.max(parseFloat(form.investment_goal_amount) || pv * 3, pv + 1);
+        const horizonYrs = Math.max(parseInt(form.investment_horizon) || 10, 1);
         const annualRate = calculated === "conservative" ? 0.07 : calculated === "moderate" ? 0.10 : 0.12;
         const rateLabel  = calculated === "conservative" ? "7%" : calculated === "moderate" ? "10%" : "12%";
         const r = annualRate / 12;
-        const proj = [12, 60, 120].map((months) => ({
-          years: months / 12,
-          fv: Math.round(pv * Math.pow(1 + r, months)),
-        }));
-        const maxFV = Math.max(proj[2].fv, goalAmt);
-        const monthsToGoal = Math.log(goalAmt / pv) / Math.log(1 + r);
-        const yearsToGoal = monthsToGoal / 12;
-        const timeLabel = yearsToGoal < 1
-          ? `${Math.ceil(monthsToGoal)} meses`
-          : yearsToGoal < 1.83
-          ? "~1 año y medio"
-          : `~${Math.round(yearsToGoal)} años`;
+
+        const fvCombined = (months: number) => {
+          const lump    = pv * Math.pow(1 + r, months);
+          const annuity = pmt > 0 ? pmt * ((Math.pow(1 + r, months) - 1) / r) : 0;
+          return Math.round(lump + annuity);
+        };
+
+        const fvHorizon  = fvCombined(horizonYrs * 12);
+        const fvDouble   = fvCombined(horizonYrs * 2 * 12);
+        const extraGain  = fvDouble - fvHorizon;
+        const extraPct   = Math.round((extraGain / fvHorizon) * 100);
+        const maxFV      = Math.max(fvDouble, goalAmt);
+        const goalLinePct = Math.min((goalAmt / maxFV) * 100, 100);
+
+        const goalStatus = fvHorizon >= goalAmt
+          ? `¡la alcanzas antes de los ${horizonYrs} años!`
+          : fvDouble >= goalAmt
+          ? `la alcanzas entre los ${horizonYrs} y ${horizonYrs * 2} años`
+          : `proyecta a más de ${horizonYrs * 2} años a esta tasa`;
+
         return (
           <div className="space-y-5">
             {/* Projection bars */}
             <div className="rounded-xl border p-4 space-y-4" style={{ background: "var(--raised)", borderColor: "var(--border)" }}>
               <div className="flex items-center justify-between">
                 <p className="text-xs font-bold" style={{ color: "var(--muted)" }}>
-                  Capital inicial: ${pv.toLocaleString()} → Meta: ${goalAmt.toLocaleString()}
+                  ${pv.toLocaleString()} + ${pmt.toLocaleString()}/mes
                 </p>
                 <span className="text-[10px] px-2 py-0.5 rounded-full font-bold"
                       style={{ background: riskCfg.color + "20", color: riskCfg.color }}>~{rateLabel}/año</span>
               </div>
-              {proj.map(({ years, fv }) => {
+
+              {[
+                { years: horizonYrs,     fv: fvHorizon, label: `A los ${horizonYrs} años (tu horizonte)` },
+                { years: horizonYrs * 2, fv: fvDouble,  label: `Si lo dejas ${horizonYrs} años más (${horizonYrs * 2} total)` },
+              ].map(({ years, fv, label }) => {
                 const barPct = Math.min((fv / maxFV) * 100, 100);
-                const goalPct = Math.min((goalAmt / maxFV) * 100, 100);
                 return (
                   <div key={years}>
                     <div className="flex justify-between text-xs mb-1.5">
-                      <span style={{ color: "var(--sub)" }}>{years} año{years !== 1 ? "s" : ""}</span>
+                      <span style={{ color: "var(--sub)" }}>{label}</span>
                       <span className="font-extrabold" style={{ color: fv >= goalAmt ? "#22c55e" : "var(--text)" }}>
                         ${fv.toLocaleString()}
                       </span>
                     </div>
                     <div className="relative h-2.5 rounded-full overflow-hidden" style={{ background: "var(--border)" }}>
-                      {/* Goal marker */}
                       <div className="absolute inset-y-0 w-0.5 z-10"
-                           style={{ left: `${goalPct}%`, background: "#22c55e", opacity: 0.8 }} />
+                           style={{ left: `${goalLinePct}%`, background: "#22c55e", opacity: 0.8 }} />
                       <div className="absolute inset-y-0 left-0 rounded-full"
                            style={{ width: `${barPct}%`, background: fv >= goalAmt ? "#22c55e" : riskCfg.color }} />
                     </div>
                   </div>
                 );
               })}
-              {/* Goal time highlight */}
+
+              {/* Power of time */}
+              <div className="rounded-xl px-3 py-2.5 space-y-0.5"
+                   style={{ background: "rgba(99,102,241,0.08)", border: "1px solid rgba(99,102,241,0.25)" }}>
+                <div className="flex items-center gap-2">
+                  <span className="text-base">⏳</span>
+                  <p className="text-xs font-bold" style={{ color: "#818cf8" }}>
+                    Quedate {horizonYrs} años más: +${extraGain.toLocaleString()} (+{extraPct}%)
+                  </p>
+                </div>
+                <p className="text-[10px] ml-6" style={{ color: "var(--dim)" }}>
+                  El interés compuesto se acelera — la segunda mitad del tiempo genera más que la primera.
+                </p>
+              </div>
+
+              {/* Goal status */}
               <div className="rounded-xl px-3 py-2.5 flex items-center gap-2"
                    style={{ background: "rgba(34,197,94,0.08)", border: "1px solid rgba(34,197,94,0.25)" }}>
                 <span className="text-lg">🎯</span>
                 <p className="text-xs font-semibold" style={{ color: "#22c55e" }}>
-                  A tasa del {rateLabel}/año, alcanzas tu meta en {timeLabel}
+                  Meta de ${goalAmt.toLocaleString()}: {goalStatus}
                 </p>
               </div>
+
               <p className="text-[10px] italic" style={{ color: "var(--dim)" }}>
                 * Ilustrativo. Basado en promedios históricos del mercado. No garantiza rendimientos futuros.
               </p>
@@ -620,6 +674,7 @@ export default function OnboardingPage() {
         investment_amount:      form.investment_amount,
         investment_goal:        form.investment_goal,
         investment_goal_amount: form.investment_goal_amount,
+        investment_horizon:     form.investment_horizon,
         knowledge_level:        form.knowledge_level,
         risk_tolerance:         calculated,
         quiz_answers:           quizAnswers,
