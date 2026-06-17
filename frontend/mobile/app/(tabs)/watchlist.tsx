@@ -100,19 +100,32 @@ interface RowProps {
 
 function WatchlistRow({ item, index, itemCount, prices, colors, editMode, onRemove, onMoveUp, onMoveDown }: RowProps) {
   const p = prices[item.ticker] as ExtPrice | undefined;
-  const up = (p?.change_pct ?? 0) >= 0;
-  const col = up ? "#22c55e" : "#ef4444";
+  const dayUp  = (p?.change_pct ?? 0) >= 0;
+  const dayCol = dayUp ? "#22c55e" : "#ef4444";
   const ms = (p?.market_state ?? "").toUpperCase();
-  const showPre  = (ms === "PRE"  || ms === "PREPRE")  && p?.pre_market_price;
-  const showPost = (ms === "POST" || ms === "POSTPOST") && p?.post_market_price;
+  const showPre  = (ms === "PRE"  || ms === "PREPRE")  && !!p?.pre_market_price;
+  const showPost = (ms === "POST" || ms === "POSTPOST") && !!p?.post_market_price;
+
+  // Primary display: ext price when pre/post, regular price otherwise
+  const primaryPrice = showPre
+    ? p!.pre_market_price
+    : showPost
+      ? p!.post_market_price
+      : p?.price ?? null;
+  const primaryPct = showPre
+    ? p!.pre_market_change_pct
+    : showPost
+      ? p!.post_market_change_pct
+      : p?.change_pct ?? null;
+  const primaryColor = showPre ? "#f59e0b" : showPost ? "#818cf8" : colors.text;
+  const primaryPctColor = showPre ? "#f59e0b" : showPost ? "#818cf8" : dayCol;
 
   return (
     <View style={[rw.row, { borderTopColor: colors.border }]}>
       {/* Color bar */}
-      <View style={[rw.colorBar, { backgroundColor: col }]} />
+      <View style={[rw.colorBar, { backgroundColor: dayCol }]} />
 
       {editMode ? (
-        // Reorder controls
         <View style={rw.reorderCol}>
           <TouchableOpacity
             onPress={() => onMoveUp(index)}
@@ -140,6 +153,8 @@ function WatchlistRow({ item, index, itemCount, prices, colors, editMode, onRemo
         activeOpacity={0.7}
       >
         <StockAvatar ticker={item.ticker} size={38} />
+
+        {/* Left: ticker, name, state badge */}
         <View style={{ flex: 1, marginLeft: 10 }}>
           <View style={rw.tickerRow}>
             <Text style={[rw.ticker, { color: colors.text }]}>{item.ticker}</Text>
@@ -148,37 +163,42 @@ function WatchlistRow({ item, index, itemCount, prices, colors, editMode, onRemo
           <Text style={[rw.name, { color: colors.textMuted }]} numberOfLines={1}>
             {p?.name ?? item.name}
           </Text>
-          {showPre && (
-            <Text style={[rw.extPrice, { color: "#f59e0b" }]}>
-              Pre: {fmtPrice(p!.pre_market_price, p!.currency)}{" "}
-              <Text style={rw.extPct}>({fmtPct(p!.pre_market_change_pct)})</Text>
-            </Text>
-          )}
-          {showPost && (
-            <Text style={[rw.extPrice, { color: "#818cf8" }]}>
-              Post: {fmtPrice(p!.post_market_price, p!.currency)}{" "}
-              <Text style={rw.extPct}>({fmtPct(p!.post_market_change_pct)})</Text>
-            </Text>
+          {/* Day change shown below name when pre/post active (mirrors web) */}
+          {(showPre || showPost) && p?.change_pct != null && (
+            <View style={rw.dayChangeRow}>
+              <Ionicons name={dayUp ? "trending-up" : "trending-down"} size={10} color={dayCol} />
+              <Text style={[rw.dayChangeText, { color: dayCol }]}>
+                {fmtPct(p.change_pct)} vs cierre anterior
+              </Text>
+            </View>
           )}
         </View>
+
+        {/* Right: primary price + pct, then close price when pre/post */}
         <View style={rw.rightCol}>
-          {p?.price != null ? (
-            <Text style={[rw.price, { color: colors.text }]}>
-              {fmtPrice(p.price, p.currency)}
-            </Text>
-          ) : (
-            <Text style={[rw.price, { color: colors.textDim }]}>—</Text>
-          )}
-          {p?.change_pct != null && (
-            <View style={[rw.changeBadge, { backgroundColor: col + "1a" }]}>
-              <Ionicons name={up ? "caret-up" : "caret-down"} size={10} color={col} />
-              <Text style={[rw.changePct, { color: col }]}>{Math.abs(p.change_pct).toFixed(2)}%</Text>
+          <Text style={[rw.price, { color: primaryColor }]}>
+            {primaryPrice != null ? fmtPrice(primaryPrice, p?.currency) : "—"}
+          </Text>
+          {primaryPct != null && (
+            <View style={rw.pctRow}>
+              <Ionicons
+                name={(primaryPct ?? 0) >= 0 ? "trending-up" : "trending-down"}
+                size={11}
+                color={primaryPctColor}
+              />
+              <Text style={[rw.changePct, { color: primaryPctColor }]}>
+                {fmtPct(primaryPct)}
+              </Text>
             </View>
+          )}
+          {(showPre || showPost) && p?.price != null && (
+            <Text style={[rw.closeLabel, { color: colors.textMuted }]}>
+              {showPre ? "Reg." : "Cierre"} {fmtPrice(p.price, p.currency)}
+            </Text>
           )}
         </View>
       </TouchableOpacity>
 
-      {/* Remove / reorder-mode shows nothing on right */}
       {!editMode && (
         <TouchableOpacity
           onPress={() => onRemove(item.ticker)}
@@ -204,12 +224,13 @@ const rw = StyleSheet.create({
   tickerRow: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 2 },
   ticker: { fontSize: 14, fontWeight: "800", letterSpacing: -0.2 },
   name: { fontSize: 11, marginBottom: 1 },
-  extPrice: { fontSize: 10, fontWeight: "600", marginTop: 2 },
-  extPct: { fontWeight: "400", fontSize: 10 },
-  rightCol: { alignItems: "flex-end", gap: 4, marginLeft: 8 },
+  dayChangeRow: { flexDirection: "row", alignItems: "center", gap: 3, marginTop: 2 },
+  dayChangeText: { fontSize: 10, fontWeight: "600" },
+  rightCol: { alignItems: "flex-end", gap: 2, marginLeft: 8 },
   price: { fontSize: 14, fontWeight: "700" },
-  changeBadge: { flexDirection: "row", alignItems: "center", gap: 2, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 20 },
+  pctRow: { flexDirection: "row", alignItems: "center", gap: 3, marginTop: 1 },
   changePct: { fontSize: 11, fontWeight: "700" },
+  closeLabel: { fontSize: 10, marginTop: 1 },
 });
 
 // ─── Main Screen ──────────────────────────────────────────────────────────────
