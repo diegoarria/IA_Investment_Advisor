@@ -84,8 +84,7 @@ export default function HomePage() {
   const { profile } = useProfileStore();
   const { positions, portfolioCurrency } = usePortfolioStore();
   const streak = useLearnStore((s) => s.streak);
-  const subStore = useSubscriptionStore();
-  const isPremium = subStore.tier === "premium";
+  useSubscriptionStore();
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [prices, setPrices]       = useState<Record<string, any>>({});
@@ -150,18 +149,20 @@ export default function HomePage() {
     return { total, dayGain, dayGainPct, totalGain, totalGainPct };
   }, [positions, prices]);
 
-  // ── Top movers ─────────────────────────────────────────────────────────────
+  // ── Top gainers today (sorted by % change desc, top 4) ────────────────────
   const movers = useMemo(() => {
     return [...positions]
       .map((p) => {
         const px   = prices[p.ticker];
         const curr = px?.price ?? p.avgPrice;
-        const prev = px?.previousClose ?? curr;
+        const cp   = px?.change_pct ?? 0;
+        const prev = cp !== -100 ? curr / (1 + cp / 100) : curr;
         const chg  = prev > 0 ? ((curr - prev) / prev) * 100 : 0;
         return { ...p, curr, chg };
       })
-      .sort((a, b) => Math.abs(b.chg) - Math.abs(a.chg))
-      .slice(0, 5);
+      .filter((m) => m.chg > 0)
+      .sort((a, b) => b.chg - a.chg)
+      .slice(0, 4);
   }, [positions, prices]);
 
   // ── Goal ───────────────────────────────────────────────────────────────────
@@ -497,7 +498,7 @@ export default function HomePage() {
             {positions.length > 0 && (
               <div>
                 <div className="flex items-center justify-between mb-3">
-                  <h2 className="text-sm font-bold" style={{ color: "var(--text)" }}>Hoy en tu portafolio</h2>
+                  <h2 className="text-sm font-bold" style={{ color: "var(--text)" }}>📈 Subiendo hoy</h2>
                   <button onClick={() => router.push("/patrimonio")}
                           className="text-xs font-semibold" style={{ color: "var(--accent-l)" }}>
                     Ver todo →
@@ -516,6 +517,14 @@ export default function HomePage() {
                           <div className="h-5 w-12 rounded" style={{ background: "var(--raised)" }} />
                         </div>
                       ))
+                    : movers.length === 0
+                    ? (
+                        <div className="px-4 py-5 text-center">
+                          <p className="text-sm" style={{ color: "var(--muted)" }}>
+                            Sin posiciones al alza hoy
+                          </p>
+                        </div>
+                      )
                     : movers.map((m) => (
                         <div key={m.ticker}
                              className="flex items-center gap-3 px-4 py-3 border-b last:border-b-0 cursor-pointer hover:opacity-80 transition-opacity"
@@ -529,11 +538,8 @@ export default function HomePage() {
                           <div className="text-right">
                             <p className="text-sm font-bold" style={{ color: "var(--text)" }}>{sym}{m.curr.toFixed(2)}</p>
                             <span className="text-xs font-bold px-2 py-0.5 rounded-full"
-                                  style={{
-                                    background: m.chg >= 0 ? "rgba(34,197,94,0.12)" : "rgba(239,68,68,0.12)",
-                                    color: m.chg >= 0 ? "#22c55e" : "#ef4444",
-                                  }}>
-                              {fmtPct(m.chg)}
+                                  style={{ background: "rgba(34,197,94,0.12)", color: "#22c55e" }}>
+                              +{m.chg.toFixed(2)}%
                             </span>
                           </div>
                         </div>
