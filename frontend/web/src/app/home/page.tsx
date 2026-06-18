@@ -21,9 +21,10 @@ const CURRENCY_SYM: Record<string, string> = {
 
 function fmt(n: number, currency = "USD") {
   const sym = CURRENCY_SYM[currency] ?? "$";
-  if (Math.abs(n) >= 1_000_000) return `${sym}${(n / 1_000_000).toFixed(2)}M`;
-  if (Math.abs(n) >= 1_000)     return `${sym}${(n / 1_000).toFixed(1)}K`;
-  return `${sym}${n.toFixed(2)}`;
+  const abs = Math.abs(n);
+  const sign = n < 0 ? "-" : "";
+  if (abs >= 1_000_000) return `${sign}${sym}${(abs / 1_000_000).toFixed(2)}M`;
+  return `${sign}${sym}${abs.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 function fmtPct(n: number) {
@@ -129,6 +130,23 @@ export default function HomePage() {
   }, [positions]);
 
   useEffect(() => { loadData(); }, [loadData]);
+
+  // Refresh prices + indices every 30s (no news/notifs to avoid hammering API)
+  useEffect(() => {
+    const tick = () => {
+      const tickers = positions.map((p) => p.ticker);
+      if (tickers.length) {
+        marketApi.getPrices(tickers)
+          .then((res) => { if (res?.data) setPrices(res.data ?? {}); })
+          .catch(() => {});
+      }
+      marketApi.getIndices()
+        .then((res) => { if (res?.data) setIndices(res.data ?? []); })
+        .catch(() => {});
+    };
+    const id = setInterval(tick, 30_000);
+    return () => clearInterval(id);
+  }, [positions]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Computed portfolio totals ───────────────────────────────────────────────
   const { total, dayGain, dayGainPct, totalGain, totalGainPct } = useMemo(() => {

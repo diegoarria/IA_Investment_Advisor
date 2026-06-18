@@ -28,10 +28,9 @@ type PriceMap = Record<string, PriceData>;
 
 function fmtMoney(n: number): string {
   const abs = Math.abs(n);
-  const neg = n < 0 ? "-" : "";
-  if (abs >= 1_000_000) return `${neg}$${(abs / 1_000_000).toFixed(2)}M`;
-  if (abs >= 1_000) return `${neg}$${(abs / 1_000).toFixed(1)}K`;
-  return `${neg}$${abs.toFixed(2)}`;
+  const sign = n < 0 ? "-" : "";
+  if (abs >= 1_000_000) return `${sign}$${(abs / 1_000_000).toFixed(2)}M`;
+  return `${sign}$${abs.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 function fmtPct(n: number): string {
@@ -347,14 +346,18 @@ export default function PatrimonioScreen() {
     const unique = [...new Set(allTickers)];
     if (unique.length === 0) return;
 
-    setPricesLoading(true);
-    marketApi
-      .getPrices(unique)
-      .then((res: any) => {
-        if (res?.data) setPrices(res.data as PriceMap);
-      })
-      .catch(() => {})
-      .finally(() => setPricesLoading(false));
+    const fetchPrices = (initial = false) => {
+      if (initial) setPricesLoading(true);
+      marketApi
+        .getPrices(unique)
+        .then((res: any) => { if (res?.data) setPrices(res.data as PriceMap); })
+        .catch(() => {})
+        .finally(() => { if (initial) setPricesLoading(false); });
+    };
+
+    fetchPrices(true);
+    const id = setInterval(() => fetchPrices(false), 30_000);
+    return () => clearInterval(id);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
