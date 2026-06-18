@@ -38,7 +38,7 @@ export interface AdvancedRow {
   gainLossPct?: number | null;
 }
 
-import { isAtLeast, type UserLevel } from "@/lib/userLevel";
+import type { UserLevel } from "@/lib/userLevel";
 
 type SortKey = keyof AdvancedRow;
 type Mode = "watchlist" | "portfolio";
@@ -168,13 +168,13 @@ function DeleteBtn({ ticker, onRemove }: { ticker: string; onRemove: (t: string)
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export default function AdvancedStockTable({ rows, mode, userLevel = "avanzado", onRemove, onEdit, onRowClick }: Props) {
-  // Column visibility based on user level
-  const showVol      = isAtLeast(userLevel, "intermedio");
-  const showCap      = isAtLeast(userLevel, "intermedio");
-  const showPE       = isAtLeast(userLevel, "intermedio");
-  const showEarnings = isAtLeast(userLevel, "intermedio");
-  const showAH       = isAtLeast(userLevel, "basico");
-  const show52W      = isAtLeast(userLevel, "basico");
+  // All columns visible — the Avanzado toggle already gates access to this table
+  const showVol      = true;
+  const showCap      = true;
+  const showPE       = true;
+  const showEarnings = true;
+  const showAH       = true;
+  const show52W      = true;
   const [details, setDetails]               = useState<Record<string, Partial<AdvancedRow>>>({});
   const [loadingDetails, setLoadingDetails] = useState(false);
   const [livePrices, setLivePrices]         = useState<Record<string, { price: number; ts: number }>>({});
@@ -266,17 +266,17 @@ export default function AdvancedStockTable({ rows, mode, userLevel = "avanzado",
 
       {/* Table */}
       <div className="w-full overflow-hidden">
-        <table className="w-full border-collapse" style={{ tableLayout: isAtLeast(userLevel, "intermedio") ? "fixed" : "auto" }}>
+        <table className="w-full border-collapse" style={{ tableLayout: "fixed" }}>
           <colgroup>
-            <col style={{ width: isAtLeast(userLevel, "intermedio") ? "22%" : showAH ? "30%" : "50%" }} />
-            <col style={{ width: isAtLeast(userLevel, "intermedio") ? "10%" : showAH ? "14%" : "24%" }} />
-            <col style={{ width: isAtLeast(userLevel, "intermedio") ? "9%"  : showAH ? "11%" : "26%" }} />
+            <col style={{ width: "22%" }} />
+            <col style={{ width: "10%" }} />
+            <col style={{ width: "9%"  }} />
             {showVol      && <col style={{ width: "9%"  }} />}
-            {showAH       && <col style={{ width: isAtLeast(userLevel, "intermedio") ? "11%" : "21%" }} />}
+            {showAH       && <col style={{ width: "11%" }} />}
             {showCap      && <col style={{ width: "9%"  }} />}
             {showPE       && <col style={{ width: "7%"  }} />}
             {showEarnings && <col style={{ width: "9%"  }} />}
-            {show52W      && <col style={{ width: isAtLeast(userLevel, "intermedio") ? "14%" : "24%" }} />}
+            {show52W      && <col style={{ width: "14%" }} />}
             {mode === "portfolio" && <col style={{ width: "10%" }} />}
             {mode === "portfolio" && <col style={{ width: "9%"  }} />}
             {onEdit       && <col style={{ width: "5%"  }} />}
