@@ -24,8 +24,8 @@ interface CalendarEvent {
 interface Props {
   watchlistTickers: string[];
   portfolioTickers?: string[];
-  isPremium: boolean;
-  onUpgrade: () => void;
+  isPremium?: boolean;
+  onUpgrade?: () => void;
 }
 
 const DAYS   = ["D", "L", "M", "X", "J", "V", "S"];
@@ -47,7 +47,7 @@ function toDateStr(year: number, month: number, day: number) {
 export default function MobileEarningsCalendar({
   watchlistTickers,
   portfolioTickers = [],
-  isPremium,
+  isPremium = false,
   onUpgrade,
 }: Props) {
   const { colors } = useTheme();
@@ -62,7 +62,7 @@ export default function MobileEarningsCalendar({
   const portfolioSet = new Set(portfolioTickers);
 
   useEffect(() => {
-    if (!isPremium || allTickers.length === 0) return;
+    if (allTickers.length === 0) return;
     setLoading(true);
     earningsApi
       .getCalendar(allTickers)
@@ -70,7 +70,7 @@ export default function MobileEarningsCalendar({
       .catch(() => {})
       .finally(() => setLoading(false));
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isPremium, allTickers.join(",")]);
+  }, [allTickers.join(",")]);
 
   // date → events map
   const eventMap: Record<string, CalendarEvent[]> = {};
@@ -111,24 +111,6 @@ export default function MobileEarningsCalendar({
 
   const selectedEntries = selectedDay ? (eventMap[selectedDay] ?? []) : [];
   const s = makeStyles(colors);
-
-  // ── Locked ──────────────────────────────────────────────────────────────────
-  if (!isPremium) {
-    return (
-      <View style={[s.lockedCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-        <View style={[s.lockIcon, { backgroundColor: "rgba(0,168,94,0.10)" }]}>
-          <Ionicons name="lock-closed-outline" size={22} color={colors.accentLight} />
-        </View>
-        <Text style={[s.lockTitle, { color: colors.text }]}>Calendario de Eventos</Text>
-        <Text style={[s.lockSub, { color: colors.textMuted }]}>
-          Ve las fechas de earnings, dividendos y ex-dividendos de tu watchlist con análisis IA.
-        </Text>
-        <TouchableOpacity style={s.lockBtn} onPress={onUpgrade}>
-          <Text style={s.lockBtnText}>⭐ Activar Premium</Text>
-        </TouchableOpacity>
-      </View>
-    );
-  }
 
   return (
     <View style={[s.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
@@ -352,7 +334,7 @@ export default function MobileEarningsCalendar({
                         <ActivityIndicator size="small" color={colors.accentLight} />
                         <Text style={[s.analyzingText, { color: colors.textMuted }]}>Analizando con IA...</Text>
                       </View>
-                    ) : (
+                    ) : isPremium ? (
                       <TouchableOpacity
                         onPress={() => handleAnalyze(entry.ticker)}
                         style={s.aiBtn}
@@ -360,6 +342,15 @@ export default function MobileEarningsCalendar({
                       >
                         <Ionicons name="flash-outline" size={12} color={colors.accentLight} />
                         <Text style={[s.aiBtnText, { color: colors.accentLight }]}>Análisis IA</Text>
+                      </TouchableOpacity>
+                    ) : (
+                      <TouchableOpacity
+                        onPress={onUpgrade}
+                        style={[s.aiBtn, { backgroundColor: "rgba(107,114,128,0.10)" }]}
+                        activeOpacity={0.7}
+                      >
+                        <Ionicons name="flash-outline" size={12} color={colors.textMuted} />
+                        <Text style={[s.aiBtnText, { color: colors.textMuted }]}>Análisis IA · Premium</Text>
                       </TouchableOpacity>
                     )
                   )}
@@ -401,26 +392,6 @@ function makeStyles(_colors: unknown) {
       borderWidth: StyleSheet.hairlineWidth,
       overflow: "hidden",
     },
-    lockedCard: {
-      borderRadius: 20,
-      borderWidth: StyleSheet.hairlineWidth,
-      padding: 24,
-      alignItems: "center",
-      gap: 10,
-    },
-    lockIcon: {
-      width: 48, height: 48, borderRadius: 14,
-      alignItems: "center", justifyContent: "center",
-    },
-    lockTitle: { fontSize: 14, fontWeight: "800", textAlign: "center" },
-    lockSub: { fontSize: 12, textAlign: "center", lineHeight: 18 },
-    lockBtn: {
-      backgroundColor: "#00a85e",
-      paddingHorizontal: 20, paddingVertical: 10,
-      borderRadius: 12, marginTop: 4,
-    },
-    lockBtnText: { color: "#fff", fontWeight: "800", fontSize: 13 },
-
     monthRow: {
       flexDirection: "row", alignItems: "center", justifyContent: "space-between",
       paddingHorizontal: 12, paddingVertical: 10,

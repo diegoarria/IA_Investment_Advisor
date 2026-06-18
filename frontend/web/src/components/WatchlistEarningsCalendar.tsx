@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import type { LucideIcon } from "lucide-react";
 import {
   ChevronLeft, ChevronRight, Calendar, Loader2,
-  Zap, Briefcase, Eye, Lock,
+  Zap, Briefcase, Eye,
   BarChart2, Scissors, DollarSign,
 } from "lucide-react";
 import { earningsApi } from "@/lib/api";
@@ -28,8 +28,8 @@ interface CalendarEvent {
 interface Props {
   watchlistTickers: string[];
   portfolioTickers?: string[];
-  isPremium: boolean;
-  onUpgrade: () => void;
+  isPremium?: boolean;
+  onUpgrade?: () => void;
 }
 
 const DAYS   = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
@@ -51,7 +51,7 @@ const EVENT_META: Record<EventType, { icon: LucideIcon; label: string; bg: strin
 export default function WatchlistEarningsCalendar({
   watchlistTickers,
   portfolioTickers = [],
-  isPremium,
+  isPremium = false,
   onUpgrade,
 }: Props) {
   const [events, setEvents]       = useState<CalendarEvent[]>([]);
@@ -66,7 +66,7 @@ export default function WatchlistEarningsCalendar({
   const portfolioSet = new Set(portfolioTickers);
 
   const loadEvents = () => {
-    if (!isPremium || allTickers.length === 0) return;
+    if (allTickers.length === 0) return;
     setLoading(true);
     setLoadError(false);
     earningsApi
@@ -79,7 +79,7 @@ export default function WatchlistEarningsCalendar({
   useEffect(() => {
     loadEvents();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isPremium, allTickers.join(",")]);
+  }, [allTickers.join(",")]);
 
   // date → events map
   const eventMap: Record<string, CalendarEvent[]> = {};
@@ -116,32 +116,6 @@ export default function WatchlistEarningsCalendar({
   };
 
   const selectedEntries = selectedDay ? (eventMap[selectedDay] ?? []) : [];
-
-  // ── Locked state ──────────────────────────────────────────────────────────
-  if (!isPremium) {
-    return (
-      <div
-        className="rounded-2xl border p-6 flex flex-col items-center gap-3 text-center"
-        style={{ background: "var(--card)", borderColor: "var(--border)" }}
-      >
-        <div className="w-12 h-12 rounded-2xl flex items-center justify-center"
-             style={{ background: "rgba(0,168,94,0.10)" }}>
-          <Lock className="w-5 h-5" style={{ color: "var(--accent-l)" }} />
-        </div>
-        <div>
-          <p className="text-sm font-bold mb-1" style={{ color: "var(--text)" }}>
-            Calendario de Eventos
-          </p>
-          <p className="text-xs" style={{ color: "var(--muted)" }}>
-            Ve las fechas de earnings y dividendos de tu watchlist. Incluye análisis IA de cada reporte.
-          </p>
-        </div>
-        <button onClick={onUpgrade} className="btn-primary text-xs px-4 py-2">
-          Activar Premium
-        </button>
-      </div>
-    );
-  }
 
   return (
     <div className="rounded-2xl border overflow-hidden"
@@ -364,13 +338,21 @@ export default function WatchlistEarningsCalendar({
                           Analizando con IA...
                         </span>
                       </div>
-                    ) : (
+                    ) : isPremium ? (
                       <button
                         onClick={() => handleAnalyze(entry.ticker)}
                         className="flex items-center gap-1 text-[10px] font-semibold transition-opacity hover:opacity-70"
                         style={{ color: "var(--accent-l)" }}
                       >
                         <Zap className="w-2.5 h-2.5" /> Análisis IA
+                      </button>
+                    ) : (
+                      <button
+                        onClick={onUpgrade}
+                        className="flex items-center gap-1 text-[10px] font-semibold transition-opacity hover:opacity-70"
+                        style={{ color: "var(--muted)" }}
+                      >
+                        <Zap className="w-2.5 h-2.5" /> Análisis IA · Premium
                       </button>
                     )
                   )}

@@ -210,7 +210,7 @@ async def get_earnings_calendar(
     if not ticker_list:
         return {"earnings": []}
 
-    results = await asyncio.to_thread(_fetch_earnings_calendar, ticker_list[:20])
+    results = await asyncio.to_thread(_fetch_earnings_calendar, ticker_list[:50])
     # Sort: upcoming/today first, then past, then unknown; secondary by date
     order = {"upcoming": 0, "today": 0, "past": 1, "unknown": 2}
     results.sort(key=lambda x: (order.get(x["status"], 2), x.get("event_date") or ""))
