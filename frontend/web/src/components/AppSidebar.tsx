@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import {
-  BrainCircuit, Wallet, Bell, User, GraduationCap, Users,
+  BrainCircuit, Wallet, Bell, User, GraduationCap,
   MessageSquare, ChevronLeft, ChevronRight, Plus, X, HeadphonesIcon, GripVertical, ArrowRight, Lock, LogOut, Home,
 } from "lucide-react";
 
@@ -36,7 +36,6 @@ const MAIN_NAV: NavItem[] = [
 ];
 
 const SECONDARY_NAV: NavItem[] = [
-  { href: "/investors",     icon: Users,          label: "Inversores",     minLevel: "intermedio" },
   { href: "/notifications", icon: Bell,           label: "Notificaciones", minLevel: "basico" },
   { href: "/profile",       icon: User,           label: "Perfil",         minLevel: "basico" },
   { href: "/support",       icon: HeadphonesIcon, label: "Soporte",        minLevel: "basico" },
