@@ -1122,10 +1122,13 @@ export default function VideosScreen() {
     return () => setActiveIndex(-1);
   }, []));
 
-  // Tap the Videos tab icon while already on it → refresh (TikTok-style)
+  // Tap the Videos tab icon while already on it → TikTok-style refresh.
+  // Scroll to top first so the RefreshControl spinner is visible, then load.
   const navigation = useNavigation();
   useEffect(() => {
-    const unsub = navigation.addListener("tabPress" as any, () => {
+    const tabNav = navigation.getParent() ?? navigation;
+    const unsub = (tabNav as any).addListener("tabPress", () => {
+      flatRef.current?.scrollToOffset({ offset: 0, animated: true });
       handlePullRefresh();
     });
     return unsub;

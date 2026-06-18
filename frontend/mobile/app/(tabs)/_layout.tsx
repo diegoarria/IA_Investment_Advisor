@@ -70,7 +70,12 @@ function CustomTabBar({ state, descriptors: _d, navigation }: BottomTabBarProps)
             style={[tabStyles.tab, locked && { opacity: 0.45 }]}
             onPress={() => {
               if (locked) { navigation.navigate("profile"); return; }
-              if (!focused) navigation.navigate(route.name);
+              if (focused) {
+                // Emit tabPress so the active screen can listen and refresh
+                navigation.emit({ type: "tabPress", target: route.key, canPreventDefault: true });
+              } else {
+                navigation.navigate(route.name);
+              }
             }}
             android_ripple={{ color: colors.accentGlow, borderless: true, radius: 28 }}
           >
