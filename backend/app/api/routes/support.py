@@ -13,7 +13,10 @@ from fastapi.responses import StreamingResponse
 from app.api.deps import get_current_user_id
 from app.core.config import settings
 from app.core.database import get_supabase, run_query
+from app.services.email_service import send_email
 from datetime import datetime, timezone
+
+ADMIN_EMAIL = "diegoarria@nuvosai.com"
 
 router = APIRouter(prefix="/support", tags=["support"])
 
@@ -114,6 +117,40 @@ async def create_ticket(
         ticket_id = result.data[0]["id"] if result.data else None
     except Exception:
         ticket_id = None
+
+    # Notify admin by email — fire-and-forget, never blocks the response
+    try:
+        user_email = ""
+        try:
+            user_res = db.auth.admin.get_user_by_id(user_id)
+            user_email = user_res.user.email or ""
+        except Exception:
+            pass
+
+        html = f"""
+<div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px">
+  <h2 style="color:#7c3aed;margin-bottom:4px">🎫 Nuevo ticket de soporte</h2>
+  <p style="color:#6b7280;font-size:13px;margin-top:0">
+    Ticket ID: <code>{ticket_id or "—"}</code>
+  </p>
+  <table style="width:100%;border-collapse:collapse;margin:16px 0">
+    <tr>
+      <td style="padding:8px 12px;background:#f3f4f6;font-weight:600;width:120px;border-radius:4px 0 0 4px">Usuario</td>
+      <td style="padding:8px 12px;background:#f9fafb;border-radius:0 4px 4px 0">{user_email or user_id}</td>
+    </tr>
+    <tr>
+      <td style="padding:8px 12px;background:#f3f4f6;font-weight:600">Asunto</td>
+      <td style="padding:8px 12px;background:#f9fafb">{subject}</td>
+    </tr>
+  </table>
+  <div style="background:#f9fafb;border-left:4px solid #7c3aed;padding:16px;border-radius:4px;white-space:pre-wrap">{message}</div>
+  <p style="color:#9ca3af;font-size:12px;margin-top:20px">
+    Enviado desde Nuvos AI · {datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")}
+  </p>
+</div>"""
+        await send_email(ADMIN_EMAIL, f"[Soporte] {subject}", html)
+    except Exception:
+        pass
 
     return {"ok": True, "ticket_id": ticket_id}
 
