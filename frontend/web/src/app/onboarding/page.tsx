@@ -342,10 +342,9 @@ export default function OnboardingPage() {
             </label>
             <div className="space-y-1.5">
               {[
-                { value: "A", label: "Sin experiencia — empiezo de cero" },
-                { value: "B", label: "Conozco lo básico (CETES, fondos indexados)" },
-                { value: "C", label: "Tengo experiencia (ETFs, acciones)" },
-                { value: "D", label: "Avanzado — análisis, derivados, ciclos" },
+                { value: "B", label: "Básico — sin experiencia o conozco lo básico (CETES, fondos)" },
+                { value: "C", label: "Intermedio — tengo experiencia (ETFs, acciones)" },
+                { value: "D", label: "Avanzado — análisis financiero, derivados, ciclos" },
               ].map((opt) => {
                 const active = form.knowledge_level === opt.value;
                 return (

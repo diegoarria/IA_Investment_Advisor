@@ -280,10 +280,9 @@ export default function OnboardingScreen() {
           {/* Nivel de conocimiento */}
           <Text style={[s.label, { marginTop: 16 }]}>¿Cómo describes tu experiencia con inversiones?</Text>
           {[
-            { value: "A" as QuizAnswer, label: "Sin experiencia — empiezo de cero" },
-            { value: "B" as QuizAnswer, label: "Conozco lo básico (CETES, fondos indexados)" },
-            { value: "C" as QuizAnswer, label: "Tengo experiencia (ETFs, acciones)" },
-            { value: "D" as QuizAnswer, label: "Avanzado — análisis, derivados, ciclos" },
+            { value: "B" as QuizAnswer, label: "Básico — sin experiencia o conozco lo básico (CETES, fondos)" },
+            { value: "C" as QuizAnswer, label: "Intermedio — tengo experiencia (ETFs, acciones)" },
+            { value: "D" as QuizAnswer, label: "Avanzado — análisis financiero, derivados, ciclos" },
           ].map((opt) => {
             const active = form.knowledge_level === opt.value;
             return (

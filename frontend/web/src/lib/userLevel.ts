@@ -1,22 +1,21 @@
 import { useProfileStore } from "./store";
 import type { UserProfile } from "./types";
 
-export type UserLevel = "principiante" | "basico" | "intermedio" | "avanzado";
+export type UserLevel = "basico" | "intermedio" | "avanzado";
 
 // Maps quiz q3 answer → level
-// q3: A=Principiante, B=Básico, C=Intermedio, D=Avanzado
+// A (old principiante) and B both map to "basico"
 const Q3_MAP: Record<string, UserLevel> = {
-  A: "principiante",
+  A: "basico",
   B: "basico",
   C: "intermedio",
   D: "avanzado",
 };
 
 const LEVEL_ORDER: Record<UserLevel, number> = {
-  principiante: 0,
-  basico:       1,
-  intermedio:   2,
-  avanzado:     3,
+  basico:     0,
+  intermedio: 1,
+  avanzado:   2,
 };
 
 export function getUserLevel(profile: UserProfile | null): UserLevel {
@@ -41,26 +40,21 @@ export function useUserLevel(): UserLevel {
 }
 
 export const LEVEL_LABEL: Record<UserLevel, string> = {
-  principiante: "Principiante",
-  basico:       "Básico",
-  intermedio:   "Intermedio",
-  avanzado:     "Avanzado",
+  basico:     "Básico",
+  intermedio: "Intermedio",
+  avanzado:   "Avanzado",
 };
 
-// Single accent color for all levels — clean, on-brand
 export const LEVEL_COLOR: Record<UserLevel, string> = {
-  principiante: "#6b7280",
-  basico:       "#6b7280",
-  intermedio:   "#00a85e",
-  avanzado:     "#00a85e",
+  basico:     "#6b7280",
+  intermedio: "#00a85e",
+  avanzado:   "#00a85e",
 };
 
-// Kept for backwards compat — all empty, use icons instead
 export const LEVEL_EMOJI: Record<UserLevel, string> = {
-  principiante: "",
-  basico:       "",
-  intermedio:   "",
-  avanzado:     "",
+  basico:     "",
+  intermedio: "",
+  avanzado:   "",
 };
 
 // Tooltip text shown to basic users on complex financial terms

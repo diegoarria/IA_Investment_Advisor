@@ -29,17 +29,17 @@ import PaywallModal from "@/components/PaywallModal";
 type NavItem = { href: string; icon: React.ComponentType<{ className?: string; style?: React.CSSProperties }>; label: string; minLevel: UserLevel };
 
 const MAIN_NAV: NavItem[] = [
-  { href: "/home",       icon: Home,           label: "Inicio",     minLevel: "principiante" },
-  { href: "/chat",       icon: BrainCircuit,   label: "Mentor IA",  minLevel: "principiante" },
-  { href: "/patrimonio", icon: Wallet,         label: "Patrimonio", minLevel: "principiante" },
-  { href: "/academy",    icon: GraduationCap,  label: "Academy",    minLevel: "principiante" },
+  { href: "/home",       icon: Home,           label: "Inicio",     minLevel: "basico" },
+  { href: "/chat",       icon: BrainCircuit,   label: "Mentor IA",  minLevel: "basico" },
+  { href: "/patrimonio", icon: Wallet,         label: "Patrimonio", minLevel: "basico" },
+  { href: "/academy",    icon: GraduationCap,  label: "Academy",    minLevel: "basico" },
 ];
 
 const SECONDARY_NAV: NavItem[] = [
   { href: "/investors",     icon: Users,          label: "Inversores",     minLevel: "intermedio" },
-  { href: "/notifications", icon: Bell,           label: "Notificaciones", minLevel: "principiante" },
-  { href: "/profile",       icon: User,           label: "Perfil",         minLevel: "principiante" },
-  { href: "/support",       icon: HeadphonesIcon, label: "Soporte",        minLevel: "principiante" },
+  { href: "/notifications", icon: Bell,           label: "Notificaciones", minLevel: "basico" },
+  { href: "/profile",       icon: User,           label: "Perfil",         minLevel: "basico" },
+  { href: "/support",       icon: HeadphonesIcon, label: "Soporte",        minLevel: "basico" },
 ];
 
 

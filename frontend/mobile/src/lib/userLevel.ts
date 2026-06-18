@@ -1,21 +1,20 @@
 import { useAppStore } from "./profileStore";
 import type { UserProfile } from "./profileStore";
 
-export type UserLevel = "principiante" | "basico" | "intermedio" | "avanzado";
+export type UserLevel = "basico" | "intermedio" | "avanzado";
 
-// q3 answer → level (same mapping as web)
+// A (old principiante) and B both map to "basico"
 const Q3_MAP: Record<string, UserLevel> = {
-  A: "principiante",
+  A: "basico",
   B: "basico",
   C: "intermedio",
   D: "avanzado",
 };
 
 const LEVEL_ORDER: Record<UserLevel, number> = {
-  principiante: 0,
-  basico:       1,
-  intermedio:   2,
-  avanzado:     3,
+  basico:     0,
+  intermedio: 1,
+  avanzado:   2,
 };
 
 export function getUserLevel(profile: UserProfile | null): UserLevel {
@@ -34,29 +33,25 @@ export function useUserLevel(): UserLevel {
 }
 
 export const LEVEL_LABEL: Record<UserLevel, string> = {
-  principiante: "Principiante",
-  basico:       "Básico",
-  intermedio:   "Intermedio",
-  avanzado:     "Avanzado",
+  basico:     "Básico",
+  intermedio: "Intermedio",
+  avanzado:   "Avanzado",
 };
 
 export const LEVEL_COLOR: Record<UserLevel, string> = {
-  principiante: "#6b7280",
-  basico:       "#6b7280",
-  intermedio:   "#00a85e",
-  avanzado:     "#00a85e",
+  basico:     "#6b7280",
+  intermedio: "#00a85e",
+  avanzado:   "#00a85e",
 };
 
 export const LEVEL_EMOJI: Record<UserLevel, string> = {
-  principiante: "🌱",
-  basico:       "📚",
-  intermedio:   "📈",
-  avanzado:     "⚡",
+  basico:     "📚",
+  intermedio: "📈",
+  avanzado:   "⚡",
 };
 
 export const LEVEL_DESC: Record<UserLevel, string> = {
-  principiante: "Nunca he invertido",
-  basico:       "Conozco lo básico",
-  intermedio:   "Leo estados financieros",
-  avanzado:     "Análisis profundo",
+  basico:     "Sin experiencia o conozco lo básico",
+  intermedio: "Tengo experiencia (ETFs, acciones)",
+  avanzado:   "Análisis financiero profundo",
 };

@@ -80,7 +80,7 @@ export default function ScreenerPage() {
       <AppSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
       <main className="flex-1 overflow-y-auto p-6">
         <div className="max-w-2xl mx-auto space-y-6">
-          {/* ETF mode for principiante/basico */}
+          {/* ETF mode for basico */}
           {!isAtLeast(userLevel, "intermedio") && (() => {
             const risk = (profile?.risk_tolerance ?? "moderate") as string;
             const riskKey = risk.startsWith("conservative") ? "conservative" : risk.startsWith("aggressive") ? "aggressive" : "moderate";

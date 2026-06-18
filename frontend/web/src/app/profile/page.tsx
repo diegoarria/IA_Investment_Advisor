@@ -20,10 +20,9 @@ import {
 import { getUserLevel, LEVEL_COLOR, LEVEL_LABEL, LEVEL_EMOJI } from "@/lib/userLevel";
 
 const LEVEL_OPTIONS = [
-  { key: "A", label: "Principiante", emoji: "🌱", desc: "Nunca he invertido" },
-  { key: "B", label: "Básico",       emoji: "📚", desc: "Conozco lo básico" },
-  { key: "C", label: "Intermedio",   emoji: "📈", desc: "Leo estados financieros" },
-  { key: "D", label: "Avanzado",     emoji: "⚡", desc: "Análisis profundo" },
+  { key: "B", label: "Básico",      emoji: "📚", desc: "Sin experiencia o conozco lo básico" },
+  { key: "C", label: "Intermedio",  emoji: "📈", desc: "Tengo experiencia (ETFs, acciones)" },
+  { key: "D", label: "Avanzado",    emoji: "⚡", desc: "Análisis financiero profundo" },
 ];
 
 const RISK_LABEL: Record<string, string> = {
@@ -600,7 +599,7 @@ export default function ProfilePage() {
                           <div className="grid grid-cols-2 gap-2">
                             {LEVEL_OPTIONS.map(({ key, label, emoji, desc }) => {
                               const isActive = currentQ3 === key || (!currentQ3 && key === "C");
-                              const lc = LEVEL_COLOR[key === "A" || key === "B" ? "basico" : key === "C" ? "intermedio" : "avanzado"];
+                              const lc = LEVEL_COLOR[key === "B" ? "basico" : key === "C" ? "intermedio" : "avanzado"];
                               return (
                                 <button key={key}
                                         onClick={() => handleLevelChange(key)}

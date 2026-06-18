@@ -33,17 +33,11 @@ const SUGGESTIONS_DEFAULT = [
 ];
 
 const SUGGESTIONS_BY_LEVEL: Record<string, string[]> = {
-  principiante: [
-    "Tengo $500 y nunca he invertido, ¿por dónde empiezo?",
-    "¿Es seguro invertir ahora con la inflación tan alta?",
-    "¿Puedo perder todo mi dinero si invierto en bolsa?",
-    "¿Cuánto tiempo tarda en crecer una inversión de verdad?",
-  ],
   basico: [
-    "¿Cómo analizo si una empresa es buena inversión?",
+    "Tengo $500 y nunca he invertido, ¿por dónde empiezo?",
     "Explícame qué es un ETF y por qué es popular",
+    "¿Puedo perder todo mi dinero si invierto en bolsa?",
     "¿Cómo construyo un portafolio diversificado?",
-    "¿Qué es el interés compuesto y por qué importa tanto?",
   ],
   intermedio: [
     "¿Cómo identifico acciones subvaloradas con P/E y PEG?",
@@ -367,7 +361,7 @@ export default function ChatPage() {
     const qa = profile.quiz_answers;
     const q1Labels: Record<string, string> = { A: "vende ante caídas (reactivo conservador)", B: "espera sin actuar (pasivo)", C: "analiza fundamentos y mantiene (racional)", D: "compra más en caídas (inversor de valor)" };
     const q2Labels: Record<string, string> = { A: "necesita el dinero en menos de 2 años", B: "horizonte de 3–5 años", C: "10+ años, busca independencia financiera", D: "largo plazo sin prisa" };
-    const q3Labels: Record<string, string> = { A: "principiante — apenas empieza", B: "básico — conoce fondos indexados", C: "intermedio — entiende P/E, diversificación", D: "avanzado — maneja análisis fundamental" };
+    const q3Labels: Record<string, string> = { A: "básico — apenas empieza", B: "básico — conoce fondos indexados", C: "intermedio — entiende P/E, diversificación", D: "avanzado — maneja análisis fundamental" };
     const q4Labels: Record<string, string> = { A: "conservador — prefiere $5K garantizado", B: "moderado-bajo — acepta riesgo de $5K", C: "moderado-alto — acepta riesgo de $20K", D: "especulador — arriesga todo" };
     const q5Labels: Record<string, string> = { A: "pasivo — inversión automática", B: "semipasivo — revisión mensual", C: "activo — revisiones semanales", D: "muy activo — gestión diaria" };
 

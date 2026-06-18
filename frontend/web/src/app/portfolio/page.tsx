@@ -2558,8 +2558,8 @@ export default function PortfolioPage() {
         />
       )}
 
-      {/* First Steps guided flow — principiante only, post-onboarding */}
-      {userLevel === "principiante" && (
+      {/* First Steps guided flow — basico only, post-onboarding */}
+      {userLevel === "basico" && (
         <FirstStepsFlow onOpenAddPosition={() => setShowForm(true)} />
       )}
 

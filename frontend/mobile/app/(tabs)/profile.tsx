@@ -28,7 +28,7 @@ const QUIZ_CATEGORIES = ["Mentalidad", "Horizonte", "Conocimiento", "Riesgo", "E
 const QUIZ_LABELS: Record<string, Record<string, string>> = {
   q1: { A: "Vende ante caídas", B: "Espera sin actuar", C: "Analiza y mantiene", D: "Compra las caídas" },
   q2: { A: "Menos de 2 años", B: "3–5 años", C: "10+ años", D: "Largo plazo, sin prisa" },
-  q3: { A: "Principiante", B: "Básico", C: "Intermedio", D: "Avanzado" },
+  q3: { A: "Básico", B: "Básico", C: "Intermedio", D: "Avanzado" },
   q4: { A: "$5K seguro", B: "$15K / riesgo $5K", C: "$40K / riesgo $20K", D: "$120K / riesgo total" },
   q5: { A: "Automático / pasivo", B: "Revisión mensual", C: "Revisión semanal", D: "Gestión diaria" },
 };

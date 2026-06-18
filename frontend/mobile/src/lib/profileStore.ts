@@ -106,10 +106,9 @@ export function maturityLabel(score: number): { label: string; color: string } {
 
 /** Knowledge level derived from the actual maturity score (overrides quiz self-report). */
 export function knowledgeFromMaturity(score: number): { label: string; key: "A" | "B" | "C" | "D" } {
-  if (score < 25) return { label: "Principiante", key: "A" };
-  if (score < 50) return { label: "Básico",       key: "B" };
-  if (score < 75) return { label: "Intermedio",   key: "C" };
-  return                 { label: "Avanzado",      key: "D" };
+  if (score < 50) return { label: "Básico",      key: "B" };
+  if (score < 75) return { label: "Intermedio",  key: "C" };
+  return                 { label: "Avanzado",     key: "D" };
 }
 
 interface AppStore {

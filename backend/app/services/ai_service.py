@@ -905,9 +905,9 @@ async def generate_weekly_picks(
         "D": "muy largo plazo sin urgencia — máxima paciencia, enfoque en compounders",
     }
     KNOWLEDGE_MAP = {
-        "A": "principiante — prefiere negocios simples y fáciles de entender",
-        "B": "básico — comprende conceptos generales de inversión",
-        "C": "intermedio — puede leer estados financieros y evaluar múltiplos",
+        "A": "básico — sin experiencia previa, prefiere conceptos simples y guía paso a paso",
+        "B": "básico — comprende conceptos generales (ETFs, fondos indexados), necesita orientación",
+        "C": "intermedio — puede leer estados financieros y evaluar múltiplos básicos",
         "D": "avanzado — análisis financiero profundo, valoración, métricas complejas",
     }
     ENGAGEMENT_MAP = {
@@ -1157,6 +1157,77 @@ Usa los valores reales del portafolio para calcular estimaciones. Sin texto fuer
         if m:
             return json.loads(m.group())
         return {"summary": raw, "scenario_type": scenario_type}
+
+
+# ──────────────────────────────────────────────────────────────
+# FEATURE: Análisis completo del portafolio con puntuación
+# ──────────────────────────────────────────────────────────────
+
+async def analyze_portfolio_score(portfolio: list[dict], profile: "UserProfile | None" = None) -> dict:
+    """Deep AI analysis of the user's real portfolio. Returns score 1-100 + structured breakdown."""
+    system_prompt = build_system_prompt(profile)
+    portfolio_str = json.dumps(portfolio, ensure_ascii=False)
+
+    prompt = f"""Eres un analista de portafolios de inversión de nivel institucional. Analiza el siguiente portafolio y devuelve un JSON estructurado con una evaluación profunda.
+
+Portafolio del usuario:
+{portfolio_str}
+
+Evalúa con criterio profesional: diversificación sectorial, calidad de las empresas, concentración de riesgo, momentum, correlación entre activos, y alineación con objetivos a largo plazo.
+
+Responde ÚNICAMENTE con JSON válido en este formato exacto:
+{{
+  "score": <entero 1-100 que refleje la calidad real del portafolio>,
+  "score_label": "<uno de: Excelente|Muy Bueno|Bueno|Regular|Mejorable>",
+  "score_color": "<hex: #22c55e para >=80, #84cc16 para >=65, #f59e0b para >=50, #ef4444 para <50>",
+  "summary": "<Párrafo de 3-4 oraciones con visión ejecutiva del portafolio, mencionando tickers específicos>",
+  "sections": [
+    {{"title": "Diversificación",    "score": <1-100>, "detail": "<análisis específico con tickers>", "icon": "pie-chart-outline"}},
+    {{"title": "Gestión de Riesgo",  "score": <1-100>, "detail": "<análisis específico>",            "icon": "shield-checkmark-outline"}},
+    {{"title": "Calidad de Activos", "score": <1-100>, "detail": "<análisis específico con tickers>","icon": "star-outline"}},
+    {{"title": "Concentración",      "score": <1-100>, "detail": "<análisis específico>",            "icon": "funnel-outline"}},
+    {{"title": "Momentum",           "score": <1-100>, "detail": "<análisis específico>",            "icon": "trending-up-outline"}}
+  ],
+  "strengths": [
+    "<Fortaleza concreta, menciona tickers específicos>",
+    "<Fortaleza concreta>",
+    "<Fortaleza concreta>"
+  ],
+  "weaknesses": [
+    "<Debilidad concreta, menciona tickers si aplica>",
+    "<Debilidad concreta>",
+    "<Debilidad concreta>"
+  ],
+  "recommendations": [
+    {{"title": "<Acción recomendada>", "detail": "<Explicación accionable de 1-2 oraciones con tickers concretos>"}},
+    {{"title": "<Acción recomendada>", "detail": "<Explicación accionable>"}},
+    {{"title": "<Acción recomendada>", "detail": "<Explicación accionable>"}}
+  ]
+}}
+
+Reglas estrictas:
+- El score debe ser honesto: un portafolio de 2 posiciones en el mismo sector NO puede tener score >50.
+- Menciona tickers reales del portafolio, no genéricos.
+- Sin texto fuera del JSON. Sin markdown. Solo JSON puro."""
+
+    response = await _claude(
+        model=settings.claude_model,
+        max_tokens=1500,
+        system=[{"type": "text", "text": system_prompt, "cache_control": {"type": "ephemeral"}}],
+        messages=[{"role": "user", "content": prompt}],
+    )
+    raw = response.content[0].text.strip()
+    try:
+        return json.loads(raw)
+    except Exception:
+        import re
+        m = re.search(r"\{.*\}", raw, re.DOTALL)
+        if m:
+            try:
+                return json.loads(m.group())
+            except Exception:
+                pass
+        return {"score": 0, "summary": raw, "sections": [], "strengths": [], "weaknesses": [], "recommendations": []}
 
 
 # ──────────────────────────────────────────────────────────────
