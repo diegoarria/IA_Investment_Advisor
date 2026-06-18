@@ -248,7 +248,7 @@ async def download_clip(clip_id: str, user_id: str = Depends(get_current_user_id
     db = get_supabase()
     clip_res = await run_query(
         db.table("clips")
-        .select("video_url, title")
+        .select("video_url, download_url, title")
         .eq("id", clip_id)
         .eq("status", "published")
         .single()
@@ -256,9 +256,15 @@ async def download_clip(clip_id: str, user_id: str = Depends(get_current_user_id
     clip = clip_res.data
     if not clip or not clip.get("video_url"):
         raise HTTPException(404, "Clip no encontrado")
-    url = clip["video_url"]
+
+    # Prefer the dedicated MP4 download URL; fall back to video_url when it's not HLS
+    url = clip.get("download_url") or clip["video_url"]
     if ".m3u8" in url:
-        raise HTTPException(400, "Este video es HLS y no puede descargarse directamente")
+        raise HTTPException(
+            400,
+            "Este video aún no tiene un archivo descargable. "
+            "Contacta al administrador para agregar download_url al clip.",
+        )
     safe_title = "".join(c if c.isalnum() or c in " -_" else "_" for c in (clip.get("title") or "video"))[:80]
 
     async def stream_video():
@@ -307,6 +313,16 @@ async def get_liked_clips(user_id: str = Depends(get_current_user_id)):
 
 _ADMIN_UID = "86961402-9072-4670-9f73-b2aa91930b04"
 
+import re as _re
+
+def _derive_download_url(video_url: str) -> str | None:
+    """Auto-derive an MP4 download URL from a Cloudflare Stream HLS URL."""
+    m = _re.match(r"(https://[^/]*cloudflarestream\.com/[^/]+)", video_url)
+    if m:
+        return f"{m.group(1)}/downloads/default.mp4"
+    return None
+
+
 async def _require_admin(user_id: str):
     if user_id != _ADMIN_UID:
         raise HTTPException(403, "Solo admins pueden gestionar clips")
@@ -324,6 +340,7 @@ async def create_clip(body: dict, user_id: str = Depends(get_current_user_id)):
         "title":              body["title"],
         "description":        body.get("description", ""),
         "video_url":          body["video_url"],
+        "download_url":       body.get("download_url") or _derive_download_url(body["video_url"]),
         "thumbnail_url":      body.get("thumbnail_url", ""),
         "speaker":            body["speaker"],
         "tags":               body.get("tags", []),
@@ -341,7 +358,7 @@ async def create_clip(body: dict, user_id: str = Depends(get_current_user_id)):
 @router.patch("/admin/clips/{clip_id}")
 async def update_clip(clip_id: str, body: dict, user_id: str = Depends(get_current_user_id)):
     await _require_admin(user_id)
-    allowed = {"title", "description", "video_url", "thumbnail_url", "speaker",
+    allowed = {"title", "description", "video_url", "download_url", "thumbnail_url", "speaker",
                "tags", "language", "translated_caption", "caption_en", "duration_sec", "status"}
     updates = {k: v for k, v in body.items() if k in allowed}
     if not updates:

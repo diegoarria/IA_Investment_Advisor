@@ -1,16 +1,17 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   View, Text, FlatList, TouchableOpacity, StyleSheet, TextInput,
-  ActivityIndicator, Dimensions, ScrollView, Modal, Share, KeyboardAvoidingView, Platform,
-  PanResponder, Animated, Image, RefreshControl, Alert,
+  ActivityIndicator, Dimensions, ScrollView, Modal, KeyboardAvoidingView, Platform,
+  PanResponder, Animated, Image, RefreshControl, Alert, Linking,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { Video, ResizeMode, Audio } from "expo-av";
-import { useFocusEffect } from "expo-router";
+import { useFocusEffect, useNavigation } from "expo-router";
 import * as SecureStore from "expo-secure-store";
 import * as FileSystem from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
+import { captureRef } from "react-native-view-shot";
 import { feedApi } from "../../src/lib/api";
 import { useTheme, Colors } from "../../src/lib/ThemeContext";
 import { useAppStore } from "../../src/lib/profileStore";
@@ -108,6 +109,9 @@ function ClipCard({
   const [replyingTo, setReplyingTo] = useState<{ id: string; name: string } | null>(null);
   const [replyText, setReplyText] = useState("");
   const [commentsLoading, setCommentsLoading] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
+  const [isCreatingShare, setIsCreatingShare] = useState(false);
+  const brandCardRef = useRef<View>(null);
 
   useEffect(() => {
     SecureStore.getItemAsync("user_id").then((id) => setMyUserId(id ?? null)).catch(() => {});
@@ -358,20 +362,64 @@ function ClipCard({
     }
   };
 
-  const handleShare = async () => {
+  const WEB_URL = process.env.EXPO_PUBLIC_WEB_URL ?? "https://nuvosai.com";
+
+  const handleShare = () => setShareOpen(true);
+
+  const shareToWhatsApp = async () => {
+    setShareOpen(false);
+    const clipUrl = `${WEB_URL}/feed?clip=${clip.id}`;
+    const text = encodeURIComponent(
+      `🎯 *${clip.title}*\n\n📣 ${clip.speaker} | Nuvos AI\n\n👉 ${clipUrl}`
+    );
+    const waUrl = `whatsapp://send?text=${text}`;
+    const canOpen = await Linking.canOpenURL(waUrl);
+    if (canOpen) {
+      await Linking.openURL(waUrl);
+    } else {
+      // WhatsApp not installed — open wa.me in browser
+      await Linking.openURL(`https://wa.me/?text=${text}`);
+    }
+  };
+
+  const shareToStories = async (platform: "instagram" | "facebook") => {
+    setShareOpen(false);
+    setIsCreatingShare(true);
     try {
-      await Share.share({ message: `${clip.title} — ${clip.speaker} | Nuvos AI` });
-    } catch {}
+      // Brief delay — ensures the brand card View renders before capture
+      await new Promise((r) => setTimeout(r, 120));
+
+      const uri = await captureRef(brandCardRef, {
+        format: "jpg",
+        quality: 0.95,
+        result: "tmpfile",
+      });
+
+      // expo-sharing opens the native OS share sheet.
+      // On iOS: Instagram and Facebook appear as "Add to Story" options.
+      // On Android: Instagram/Facebook appear in the intent chooser.
+      // The branded image (thumbnail + Nuvos logo top-left) is passed directly.
+      await Sharing.shareAsync(uri, {
+        mimeType: "image/jpeg",
+        UTI: "public.jpeg",
+        dialogTitle: platform === "instagram"
+          ? "Compartir en Instagram Stories"
+          : "Compartir en Facebook Stories",
+      });
+    } catch {
+      Alert.alert(
+        "Error al preparar la imagen",
+        "Intenta de nuevo o verifica que el video esté cargado.",
+      );
+    } finally {
+      setIsCreatingShare(false);
+    }
   };
 
   const [downloading, setDownloading] = useState(false);
 
   const handleDownload = async () => {
     if (downloading) return;
-    if (clip.video_url.includes(".m3u8")) {
-      Alert.alert("No disponible", "Este video es streaming (HLS) y no puede descargarse directamente.");
-      return;
-    }
     setDownloading(true);
     try {
       const token = await SecureStore.getItemAsync("access_token");
@@ -382,7 +430,23 @@ function ClipCard({
         localUri,
         token ? { headers: { Authorization: `Bearer ${token}` } } : {}
       );
-      if (dlResult.status !== 200) throw new Error("download failed");
+      if (dlResult.status !== 200) {
+        // FileSystem writes the error JSON to localUri — read it to get the real message
+        let detail = "";
+        try {
+          const body = await FileSystem.readAsStringAsync(dlResult.uri);
+          detail = JSON.parse(body)?.detail ?? "";
+        } catch {}
+        if (detail.includes("HLS") || detail.includes("descargable") || detail.includes("download_url")) {
+          Alert.alert(
+            "Descarga no disponible",
+            "Este clip aún no tiene archivo MP4 descargable. Escríbenos a soporte para solicitarlo.",
+          );
+        } else {
+          Alert.alert("Error", detail || "No se pudo descargar el video. Intenta de nuevo.");
+        }
+        return;
+      }
       const canShare = await Sharing.isAvailableAsync();
       if (canShare) {
         await Sharing.shareAsync(dlResult.uri, { mimeType: "video/mp4", dialogTitle: "Guardar video" });
@@ -562,33 +626,33 @@ function ClipCard({
         <TouchableOpacity style={styles.actionBtn} onPress={() => onLike(clip.id)}>
           <Ionicons
             name={clip.liked ? "heart" : "heart-outline"}
-            size={28}
+            size={22}
             color={clip.liked ? "#ef4444" : "white"}
           />
           <Text style={styles.actionLabel}>{formatCount(clip.like_count)}</Text>
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.actionBtn} onPress={openComments}>
-          <Ionicons name="chatbubble-outline" size={24} color="white" />
+          <Ionicons name="chatbubble-outline" size={20} color="white" />
           <Text style={styles.actionLabel}>{formatCount(commentCount)}</Text>
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.actionBtn} onPress={() => onSave(clip.id)}>
           <Ionicons
             name={clip.saved ? "bookmark" : "bookmark-outline"}
-            size={26}
+            size={20}
             color={clip.saved ? "#f59e0b" : "white"}
           />
           <Text style={styles.actionLabel}>{clip.saved ? "Guardado" : "Guardar"}</Text>
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.actionBtn} onPress={handleShare}>
-          <Ionicons name="share-social-outline" size={26} color="white" />
+          <Ionicons name="share-social-outline" size={20} color="white" />
           <Text style={styles.actionLabel}>Compartir</Text>
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.actionBtn} onPress={handleDownload} disabled={downloading}>
-          <Ionicons name={downloading ? "hourglass-outline" : "download-outline"} size={26} color={downloading ? "rgba(255,255,255,0.5)" : "white"} />
+          <Ionicons name={downloading ? "hourglass-outline" : "download-outline"} size={20} color={downloading ? "rgba(255,255,255,0.5)" : "white"} />
           <Text style={styles.actionLabel}>{downloading ? "..." : "Bajar"}</Text>
         </TouchableOpacity>
 
@@ -600,7 +664,7 @@ function ClipCard({
           <View style={[ccStyles.ccBadge, captionLang !== "off" && ccStyles.ccBadgeActive]}>
             <Ionicons
               name="text-outline"
-              size={18}
+              size={15}
               color={captionLang !== "off" ? "#a78bfa" : "white"}
             />
           </View>
@@ -610,7 +674,7 @@ function ClipCard({
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.actionBtn}>
-          <Ionicons name="eye-outline" size={22} color="rgba(255,255,255,0.7)" />
+          <Ionicons name="eye-outline" size={18} color="rgba(255,255,255,0.7)" />
           <Text style={styles.actionLabel}>{formatCount(clip.view_count)}</Text>
         </TouchableOpacity>
       </View>
@@ -650,6 +714,130 @@ function ClipCard({
           </View>
         </View>
       </View>
+
+      {/* Branded card — opacity 0.01 so ViewShot captures it on both iOS & Android.
+          left:-9999 breaks Android; on-screen but invisible is the reliable pattern. */}
+      <View
+        ref={brandCardRef}
+        collapsable={false}
+        pointerEvents="none"
+        style={{ position: "absolute", top: 0, left: 0, width: W, height: H,
+                 opacity: 0.01, zIndex: -1, backgroundColor: "#0a0a14" }}
+      >
+        {clip.thumbnail_url ? (
+          <Image source={{ uri: clip.thumbnail_url }} style={StyleSheet.absoluteFillObject} resizeMode="cover" />
+        ) : null}
+        {/* Dark overlay */}
+        <View style={{ position: "absolute", left: 0, right: 0, bottom: 0, height: H * 0.45, backgroundColor: "rgba(0,0,0,0.72)" }} />
+
+        {/* ── TOP-LEFT: Nuvos logo ── */}
+        <View style={{ position: "absolute", top: 44, left: 20,
+                       flexDirection: "row", alignItems: "center", gap: 8,
+                       backgroundColor: "rgba(0,0,0,0.5)", borderRadius: 24,
+                       paddingHorizontal: 12, paddingVertical: 6 }}>
+          <Image
+            source={require("../../assets/images/logo_new.png")}
+            style={{ width: 80, height: 24 }}
+            resizeMode="contain"
+          />
+        </View>
+
+        {/* ── BOTTOM: title + speaker ── */}
+        <Text style={{ position: "absolute", bottom: 100, left: 24, color: "rgba(255,255,255,0.65)",
+                       fontSize: 13, fontWeight: "600" }}>
+          {clip.speaker}
+        </Text>
+        <Text numberOfLines={3}
+          style={{ position: "absolute", bottom: 54, left: 24, right: 24,
+                   color: "#fff", fontSize: 18, fontWeight: "800", lineHeight: 26 }}>
+          {clip.title}
+        </Text>
+      </View>
+
+      {/* Share stories modal */}
+      <Modal
+        visible={shareOpen}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShareOpen(false)}
+      >
+        <TouchableOpacity
+          style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.55)" }}
+          activeOpacity={1}
+          onPress={() => setShareOpen(false)}
+        />
+        <View style={shareStyles.sheet}>
+          {/* Handle */}
+          <View style={shareStyles.handle} />
+          <Text style={shareStyles.title}>Compartir como Historia</Text>
+
+          {/* Thumbnail preview */}
+          {clip.thumbnail_url ? (
+            <View style={shareStyles.previewWrap}>
+              <Image source={{ uri: clip.thumbnail_url }} style={shareStyles.previewImg} resizeMode="cover" />
+              <View style={shareStyles.previewOverlay} />
+              <Image
+                source={require("../../assets/images/logo_new.png")}
+                style={shareStyles.previewLogo}
+                resizeMode="contain"
+              />
+            </View>
+          ) : null}
+
+          {/* Platform buttons */}
+          <View style={shareStyles.platformRow}>
+            <TouchableOpacity
+              style={[shareStyles.platformBtn, { backgroundColor: "#E1306C" }]}
+              onPress={() => shareToStories("instagram")}
+              disabled={isCreatingShare}
+            >
+              {isCreatingShare ? (
+                <ActivityIndicator color="white" size="small" />
+              ) : (
+                <Ionicons name="logo-instagram" size={26} color="white" />
+              )}
+              <Text style={shareStyles.platformLabel}>Instagram</Text>
+              <Text style={shareStyles.platformSub}>Historia</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[shareStyles.platformBtn, { backgroundColor: "#1877F2" }]}
+              onPress={() => shareToStories("facebook")}
+              disabled={isCreatingShare}
+            >
+              {isCreatingShare ? (
+                <ActivityIndicator color="white" size="small" />
+              ) : (
+                <Ionicons name="logo-facebook" size={26} color="white" />
+              )}
+              <Text style={shareStyles.platformLabel}>Facebook</Text>
+              <Text style={shareStyles.platformSub}>Historia</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Divider */}
+          <View style={{ height: 1, backgroundColor: "rgba(255,255,255,0.08)", marginHorizontal: 4, marginBottom: 12 }} />
+
+          {/* WhatsApp */}
+          <TouchableOpacity
+            style={shareStyles.whatsappBtn}
+            onPress={shareToWhatsApp}
+          >
+            <View style={shareStyles.whatsappIcon}>
+              <Ionicons name="logo-whatsapp" size={22} color="white" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={shareStyles.whatsappLabel}>Enviar por WhatsApp</Text>
+              <Text style={shareStyles.whatsappSub}>Tus contactos pueden abrir el clip aunque no tengan la app</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={16} color="rgba(255,255,255,0.3)" />
+          </TouchableOpacity>
+
+          <TouchableOpacity style={shareStyles.cancelBtn} onPress={() => setShareOpen(false)}>
+            <Text style={shareStyles.cancelText}>Cancelar</Text>
+          </TouchableOpacity>
+        </View>
+      </Modal>
 
       {/* Comments modal */}
       <Modal visible={commentsOpen} transparent animationType="slide" onRequestClose={() => { setCommentsOpen(false); setReplyingTo(null); setReplyText(""); }}>
@@ -933,6 +1121,15 @@ export default function VideosScreen() {
   useFocusEffect(useCallback(() => {
     return () => setActiveIndex(-1);
   }, []));
+
+  // Tap the Videos tab icon while already on it → refresh (TikTok-style)
+  const navigation = useNavigation();
+  useEffect(() => {
+    const unsub = navigation.addListener("tabPress" as any, () => {
+      handlePullRefresh();
+    });
+    return unsub;
+  }, [navigation, handlePullRefresh]);
 
   const handleLike = async (id: string) => {
     const prev = clips.find((c) => c.id === id);
@@ -1310,12 +1507,12 @@ const styles = StyleSheet.create({
   captionBtnText: { color: "rgba(255,255,255,0.8)", fontSize: 12 },
 
   actions: {
-    position: "absolute", right: 12, bottom: 80,
-    alignItems: "center", gap: 20,
+    position: "absolute", right: 10, bottom: 80,
+    alignItems: "center", gap: 14,
   },
-  actionBtn: { alignItems: "center", gap: 3 },
+  actionBtn: { alignItems: "center", gap: 2 },
   actionLabel: {
-    color: "white", fontSize: 11, fontWeight: "600",
+    color: "white", fontSize: 10, fontWeight: "600",
     textShadowColor: "rgba(0,0,0,0.8)", textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 3,
   },
 
@@ -1526,9 +1723,9 @@ const capStyles = StyleSheet.create({
 // CC button + lang picker
 const ccStyles = StyleSheet.create({
   ccBadge: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "rgba(255,255,255,0.15)",
@@ -1706,3 +1903,75 @@ const cmtStyles = StyleSheet.create({
     paddingTop: 12,
   },
 });
+
+const shareStyles = StyleSheet.create({
+  sheet: {
+    backgroundColor: "#111118",
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingBottom: 36,
+    paddingHorizontal: 20,
+    paddingTop: 10,
+  },
+  handle: {
+    width: 36, height: 4, borderRadius: 2,
+    backgroundColor: "rgba(255,255,255,0.2)",
+    alignSelf: "center", marginBottom: 16,
+  },
+  title: {
+    color: "#fff", fontSize: 15, fontWeight: "800",
+    textAlign: "center", marginBottom: 16,
+  },
+  previewWrap: {
+    alignSelf: "center", width: 120, height: 213,
+    borderRadius: 14, overflow: "hidden", marginBottom: 20,
+    borderWidth: 1, borderColor: "rgba(255,255,255,0.12)",
+  },
+  previewImg: { width: "100%", height: "100%" },
+  previewOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.35)",
+  },
+  previewLogo: {
+    position: "absolute", bottom: 12, left: 10,
+    width: 70, height: 22,
+  },
+  platformRow: {
+    flexDirection: "row", gap: 14, justifyContent: "center", marginBottom: 16,
+  },
+  platformBtn: {
+    flex: 1, borderRadius: 18, paddingVertical: 16,
+    alignItems: "center", gap: 6, maxWidth: 150,
+  },
+  platformLabel: {
+    color: "#fff", fontSize: 13, fontWeight: "800",
+  },
+  platformSub: {
+    color: "rgba(255,255,255,0.65)", fontSize: 11, fontWeight: "600",
+  },
+  whatsappBtn: {
+    flexDirection: "row", alignItems: "center", gap: 12,
+    backgroundColor: "rgba(37,211,102,0.12)", borderRadius: 16,
+    paddingHorizontal: 14, paddingVertical: 13, marginBottom: 12,
+    borderWidth: 1, borderColor: "rgba(37,211,102,0.25)",
+  },
+  whatsappIcon: {
+    width: 40, height: 40, borderRadius: 20,
+    backgroundColor: "#25D366",
+    alignItems: "center", justifyContent: "center",
+  },
+  whatsappLabel: {
+    color: "#fff", fontSize: 13, fontWeight: "800", marginBottom: 2,
+  },
+  whatsappSub: {
+    color: "rgba(255,255,255,0.5)", fontSize: 10, lineHeight: 14,
+  },
+  cancelBtn: {
+    alignItems: "center", paddingVertical: 14,
+    borderRadius: 14, backgroundColor: "rgba(255,255,255,0.07)",
+  },
+  cancelText: {
+    color: "rgba(255,255,255,0.6)", fontSize: 14, fontWeight: "700",
+  },
+});
+
