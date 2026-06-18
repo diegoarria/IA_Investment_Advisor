@@ -1,13 +1,9 @@
 import React, { useState } from "react";
 import {
-  View, Text, TouchableOpacity, Modal, StyleSheet,
-  Dimensions, ScrollView,
+  View, Text, TouchableOpacity, Modal, StyleSheet, ScrollView,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "../lib/ThemeContext";
-import { useAppStore } from "../lib/profileStore";
-
-const { width } = Dimensions.get("window");
 
 const STEPS = [
   {
@@ -15,64 +11,72 @@ const STEPS = [
     color: "#00b96d",
     title: "Bienvenido a Nuvos AI",
     subtitle: "Tu mentor de inversiones con IA",
-    desc: "Nuvos AI te enseña a pensar como un inversor profesional. No te decimos qué comprar — te enseñamos a analizar, entender y tomar decisiones por ti mismo. Todos los usuarios nuevos reciben 90 días de Premium gratis, sin tarjeta.",
-    tip: "Tus datos se sincronizan automáticamente entre la app y la web. Empieza donde quieras.",
+    desc: "Nuvos AI te enseña a pensar como un inversor profesional. No te decimos qué comprar — te enseñamos a analizar, entender y tomar decisiones por ti mismo. Todos tus datos se sincronizan en tiempo real entre la app y la web.",
+    tip: "💡 Completa el perfil inicial para que la IA adapte sus respuestas a tu nivel: Básico, Intermedio o Avanzado.",
+  },
+  {
+    emoji: "🏠",
+    color: "#00b96d",
+    title: "Tu Dashboard",
+    subtitle: "El pulso del mercado, de un vistazo",
+    desc: "El Inicio muestra los índices S&P 500, Nasdaq y Dow Jones en tiempo real. Debajo verás el valor de tu portafolio con tres métricas clave: rendimiento de Hoy, YTD (lo que va del año) y Total acumulado.",
+    tip: "💡 La sección «Subiendo hoy» muestra las 4 posiciones de tu portafolio con mayor ganancia del día.",
   },
   {
     emoji: "💬",
-    color: "#00b96d",
-    title: "Chat con tu mentor IA",
+    color: "#10b981",
+    title: "Chat con tu Mentor IA",
     subtitle: "La herramienta principal de Nuvos",
-    desc: "Pregunta sobre cualquier empresa, ETF, concepto o estrategia. La IA conoce tu perfil de riesgo y tu portafolio real, y detecta cuando tus decisiones lo contradicen. Tu barra de riesgo conductual se ajusta con cada conversación.",
-    tip: "💡 Puedes editar cualquier mensaje tuyo tocando el ícono de lápiz que aparece al lado.",
+    desc: "Pregunta sobre cualquier empresa, ETF, concepto o estrategia. La IA conoce tu perfil de riesgo, tu portafolio real y tu nivel inversor, y detecta cuando tus decisiones los contradicen. Cada conversación actualiza tu madurez conductual.",
+    tip: "💡 Puedes editar cualquier mensaje tuyo tocando el ícono de lápiz que aparece al lado del texto.",
   },
   {
     emoji: "📊",
     color: "#3b82f6",
-    title: "Portafolio",
-    subtitle: "Analiza tus inversiones reales",
-    desc: "Importa tus posiciones con una captura de pantalla de tu broker o agrégalas manualmente — la IA extrae todo automáticamente. Obtén análisis de riesgo, stress test en crisis históricas (2008, COVID-19) y simulaciones de rendimiento.",
-    tip: "💡 Toca cualquier posición para abrir su análisis completo con estados financieros y gráfico histórico.",
+    title: "Portafolio en Tiempo Real",
+    subtitle: "Tus inversiones con datos vivos",
+    desc: "Agrega posiciones manualmente o con una captura de tu broker — la IA extrae los datos automáticamente. Los precios se actualizan cada 30 segundos. Alterna entre vista Básica y Avanzada para ver Volumen, Market Cap, P/E y rango 52 semanas.",
+    tip: "💡 El badge de moneda junto a «Mi Portafolio» indica la divisa de tu portafolio. Toca cualquier posición para ver su análisis completo.",
   },
   {
-    emoji: "📈",
+    emoji: "📅",
+    color: "#f59e0b",
+    title: "Calendario de Eventos",
+    subtitle: "Earnings, dividendos y ex-dividendos",
+    desc: "El calendario en Watchlist muestra automáticamente tres tipos de eventos para todas tus posiciones y watchlist: Earnings (resultados trimestrales), Ex-Dividendo (fecha límite para recibir el dividendo) y pago de Dividendo.",
+    tip: "💡 Las posiciones de tu portafolio aparecen en verde intenso; las de watchlist en azul — así identificas de un vistazo cuáles te afectan directamente.",
+  },
+  {
+    emoji: "👁️",
     color: "#0ea5e9",
-    title: "Análisis de Acciones",
-    subtitle: "Estados financieros completos",
-    desc: "Cada acción tiene su propio perfil con estado de resultados, balance general y flujo de caja en tiempo real. Compara períodos trimestrales y anuales, revisa márgenes y detecta tendencias antes de invertir.",
-    tip: "💡 El calendario de ganancias en Portafolio muestra las fechas de reporte de tus posiciones y Watchlist.",
+    title: "Watchlist",
+    subtitle: "Sigue acciones sin comprarlas",
+    desc: "Agrega cualquier acción para seguir su precio, noticias y eventos en tiempo real. En modo Avanzado obtienes una tabla completa con after-hours, market cap, P/E ratio, fecha de earnings y rango 52 semanas.",
+    tip: "💡 Arrastra las tarjetas para reordenar tu watchlist. El orden se sincroniza automáticamente entre la app y la web.",
   },
   {
     emoji: "🎮",
     color: "#8b5cf6",
-    title: "Simulador",
+    title: "Simulador Paper Trading",
     subtitle: "Practica sin dinero real",
-    desc: "Opera con $10,000 virtuales a precios reales del mercado. Compra y vende acciones, sigue tus rendimientos y aprende a ejecutar estrategias sin arriesgar tu capital. Puedes recargar el saldo virtual cuando quieras.",
-    tip: "💡 El simulador usa precios en tiempo real, así que la práctica refleja condiciones reales del mercado.",
+    desc: "Opera con $10,000 virtuales a precios reales del mercado. Compra, vende y sigue tus rendimientos sin arriesgar capital. Puedes recargar el saldo virtual en cualquier momento y comparar tu desempeño en el Leaderboard.",
+    tip: "💡 El simulador usa los mismos precios en tiempo real que el portafolio — la práctica refleja condiciones reales del mercado.",
   },
   {
     emoji: "📚",
     color: "#06b6d4",
-    title: "Aprendizaje",
-    subtitle: "45+ temas financieros",
-    desc: "Biblioteca de conceptos explicados con IA: ETFs, análisis fundamental, P/E ratio, DCA, Value Investing, psicología del inversor y mucho más. Cada tema en menos de 2 minutos con ejemplos de inversores reales.",
-    tip: "💡 Busca cualquier concepto financiero que no conozcas — la IA lo explica de forma clara con ejemplos.",
-  },
-  {
-    emoji: "🔔",
-    color: "#f97316",
-    title: "Notificaciones & Watchlist",
-    subtitle: "El mercado en tiempo real",
-    desc: "Ve el rendimiento diario de tu portafolio, noticias filtradas automáticamente de tus posiciones y alertas de movimientos importantes. Agrega acciones al Watchlist y reordénalas arrastrando las tarjetas.",
-    tip: "💡 Las noticias de tu portafolio se agregan solas de todas tus posiciones — sin configuración.",
+    title: "Aprendizaje & Herramientas",
+    subtitle: "Todo lo que necesitas para invertir mejor",
+    desc: "Biblioteca de conceptos financieros con IA adaptada a tu nivel: ETFs, análisis fundamental, P/E ratio, DCA, Value Investing y psicología del inversor. El Screener semanal analiza el mercado y selecciona oportunidades personalizadas.",
+    tip: "💡 La sección Inversores te muestra cómo invierten los grandes fondos — útil para identificar tendencias y validar tus ideas.",
   },
   {
     emoji: "🧠",
     color: "#a855f7",
     title: "Tu Perfil & Madurez Inversora",
-    subtitle: "Conoce tu evolución como inversor",
-    desc: "La IA analiza tu comportamiento real en la app — detecta si entras en pánico, si diversificas bien, si piensas a largo plazo — y te asigna una Madurez Inversora (0-100) que evoluciona con el tiempo. Tus preferencias se sincronizan entre dispositivos.",
-    tip: "💡 Tu barra de riesgo conductual en el perfil se actualiza automáticamente con cada conversación.",
+    subtitle: "La IA que te conoce como inversor",
+    desc: "La IA analiza tu comportamiento real — si entras en pánico, si diversificas bien, si piensas a largo plazo — y te asigna una Madurez Inversora (0-100) que evoluciona. Tu nivel (Básico, Intermedio o Avanzado) adapta toda la experiencia.",
+    tip: "💡 Tu barra de riesgo conductual en el perfil se actualiza automáticamente con cada conversación. Puedes cambiar tu nivel en Perfil en cualquier momento.",
   },
 ];
 
