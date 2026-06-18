@@ -357,8 +357,8 @@ export default function HomePage() {
                   {/* Profile avatar */}
                   <div className="shrink-0 w-14 h-14 rounded-full overflow-hidden border-2"
                        style={{ borderColor: "var(--border)" }}>
-                    {profile?.avatarUri ? (
-                      <img src={profile.avatarUri} className="w-full h-full object-cover" alt="avatar" />
+                    {profile?.avatar_url ? (
+                      <img src={profile.avatar_url} className="w-full h-full object-cover" alt="avatar" />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center text-xl font-black"
                            style={{ background: "var(--accent)22", color: "var(--accent-l)" }}>
