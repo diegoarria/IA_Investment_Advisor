@@ -588,115 +588,131 @@ export default function ChatPage() {
 
   const unreadNotifCount = notifications.filter((n) => !n.read).length;
 
+  const accentCol = mentor?.color ?? "var(--accent-l)";
+
   return (
     <div className="h-full flex flex-col overflow-hidden" style={{ background: "var(--bg)" }}>
-      {/* Top bar */}
-      <div className="font-ui flex items-center justify-between px-4 py-2.5 shrink-0"
-           style={{ borderBottom: "1px solid var(--border)", background: "var(--card)" }}>
-        <div className="flex items-center gap-3">
+
+      {/* ── Header ───────────────────────────────────────────────────────────── */}
+      <div className="shrink-0 flex items-center justify-between px-4 py-2.5 border-b gap-3"
+           style={{ background: "var(--card)", borderColor: "var(--border)" }}>
+
+        {/* Left: hamburger + logo */}
+        <div className="flex items-center gap-3 shrink-0">
           <button onClick={() => setSidebarOpen(!sidebarOpen)}
-                  className="lg:hidden p-1.5 rounded-lg transition-colors hover:bg-white/5"
+                  className="lg:hidden p-1.5 rounded-lg hover:bg-white/5 transition-colors"
                   style={{ color: "var(--muted)" }}>
-            {sidebarOpen ? <X className="w-4.5 h-4.5" /> : <Menu className="w-4.5 h-4.5" />}
+            {sidebarOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
           </button>
-          <button onClick={() => router.push("/chat")} className="flex items-center gap-2.5">
-            <div className="relative">
-              <Image src="/logo.png" alt="Nuvos AI" width={30} height={30}
-                     className="rounded-xl object-cover" />
-            </div>
-            <span className="font-bold text-sm" style={{ color: "var(--text)" }}>Nuvos AI</span>
+          <button onClick={() => router.push("/chat")} className="flex items-center gap-2">
+            <Image src="/logo.png" alt="Nuvos AI" width={28} height={28} className="rounded-xl object-cover" />
+            <span className="font-bold text-sm hidden sm:block" style={{ color: "var(--text)" }}>Nuvos AI</span>
           </button>
         </div>
 
-        {/* Chat title + new chat */}
-        <div className="flex items-center gap-3">
-          <span className="font-bold text-sm" style={{ color: "var(--text)", fontFamily: "var(--font-body)" }}>Chat</span>
+        {/* Center: mentor identity pill */}
+        <div className="flex items-center gap-2 flex-1 justify-center">
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-2xl border"
+               style={{
+                 background: mentor ? mentor.color + "0d" : "var(--raised)",
+                 borderColor: mentor ? mentor.color + "30" : "var(--border)",
+               }}>
+            <span className="text-lg leading-none">{mentor ? mentor.emoji : "🤖"}</span>
+            <div className="hidden sm:block">
+              <p className="text-xs font-black leading-none" style={{ color: "var(--text)" }}>
+                {mentor ? mentor.name : profile?.name ? `Hola, ${profile.name.split(" ")[0]}` : "Mentor IA"}
+              </p>
+              {mentor && (
+                <p className="text-[10px] leading-none mt-0.5" style={{ color: mentor.color }}>
+                  {mentor.badge}
+                </p>
+              )}
+            </div>
+          </div>
           {(() => {
             const level = getUserLevel(profile);
             return (
-              <span className="text-[10px] font-semibold px-2 py-0.5 rounded"
-                    style={{ background: "var(--raised)", color: LEVEL_COLOR[level], border: "1px solid var(--border)" }}>
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-lg border hidden sm:inline"
+                    style={{ background: "var(--raised)", color: LEVEL_COLOR[level], borderColor: "var(--border)" }}>
                 {LEVEL_LABEL[level]}
               </span>
             );
           })()}
-          <button
-            onClick={() => { clearMessages(); router.push("/chat"); }}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-semibold transition-colors hover:bg-white/5"
-            style={{ color: "var(--muted)", borderColor: "var(--border)" }}
-          >
-            <Plus className="w-3.5 h-3.5" />
-            Nuevo chat
-          </button>
         </div>
 
-        <div className="flex items-center gap-1">
-          <PremiumBadge />
-
-          {/* Tutorial */}
-          <button onClick={openTutorial}
-                  className="p-2 rounded-lg hover:bg-white/5 transition-colors text-xs font-bold w-7 h-7 flex items-center justify-center border"
-                  style={{ color: "var(--muted)", borderColor: "var(--border)" }}
-                  title="Ver tutorial">
-            ?
+        {/* Right: actions */}
+        <div className="flex items-center gap-1 shrink-0">
+          {!isPremium && remaining > 0 && (
+            <span className="hidden md:block text-[10px] font-semibold px-2 py-1 rounded-full"
+                  style={{ background: "var(--raised)", color: "var(--dim)", border: "1px solid var(--border)" }}>
+              {remaining} msg
+            </span>
+          )}
+          <button onClick={() => { clearMessages(); router.push("/chat"); }}
+                  className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-semibold hover:bg-white/5 transition-colors"
+                  style={{ color: "var(--muted)", borderColor: "var(--border)" }}>
+            <Plus className="w-3 h-3" />
+            Nuevo
           </button>
-
-          {/* Theme toggle */}
-          <button onClick={toggleTheme}
-                  className="p-2 rounded-lg hover:bg-white/5 transition-colors"
-                  style={{ color: "var(--muted)" }}
-                  title={theme === "dark" ? "Modo claro" : "Modo oscuro"}>
+          <PremiumBadge />
+          <button onClick={openTutorial}
+                  className="w-7 h-7 flex items-center justify-center rounded-lg border text-xs font-bold hover:bg-white/5 transition-colors"
+                  style={{ color: "var(--muted)", borderColor: "var(--border)" }}>?</button>
+          <button onClick={toggleTheme} className="p-1.5 rounded-lg hover:bg-white/5 transition-colors"
+                  style={{ color: "var(--muted)" }}>
             {theme === "dark" ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
           </button>
-
           <button onClick={() => setNotifOpen(!notifOpen)}
-                  className="relative p-2 rounded-lg hover:bg-white/5 transition-colors"
+                  className="relative p-1.5 rounded-lg hover:bg-white/5 transition-colors"
                   style={{ color: "var(--muted)" }}>
-            <Bell className="w-5 h-5" />
+            <Bell className="w-4 h-4" />
             {unreadNotifCount > 0 && (
-              <span className="absolute top-1 right-1 w-4 h-4 rounded-full text-white text-[10px] flex items-center justify-center font-bold"
+              <span className="absolute top-0.5 right-0.5 w-3.5 h-3.5 rounded-full text-white text-[9px] flex items-center justify-center font-bold"
                     style={{ background: "var(--accent)" }}>
                 {unreadNotifCount > 9 ? "9+" : unreadNotifCount}
               </span>
             )}
           </button>
           <button onClick={() => { clearAuth(); router.push("/"); }}
-                  className="p-2 rounded-lg hover:bg-white/5 transition-colors"
+                  className="p-1.5 rounded-lg hover:bg-white/5 transition-colors"
                   style={{ color: "var(--muted)" }}>
-            <LogOut className="w-5 h-5" />
+            <LogOut className="w-4 h-4" />
           </button>
         </div>
       </div>
+
       <MarketTickerBar />
 
       <div className="flex flex-1 overflow-hidden relative">
-        {/* Sidebar */}
         <AppSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
         {/* Notification panel */}
         {notifOpen && (
           <div className="absolute right-0 top-0 w-80 h-full border-l z-30 flex flex-col"
                style={{ background: "var(--card)", borderColor: "var(--border)" }}>
-            <div className="flex items-center justify-between p-4 border-b" style={{ borderColor: "var(--border)" }}>
-              <span className="font-semibold text-sm" style={{ color: "var(--text)" }}>Notificaciones</span>
+            <div className="flex items-center justify-between px-4 py-3 border-b" style={{ borderColor: "var(--border)" }}>
+              <span className="font-bold text-sm" style={{ color: "var(--text)" }}>Notificaciones</span>
               <button onClick={() => setNotifOpen(false)} style={{ color: "var(--muted)" }}>
                 <X className="w-4 h-4" />
               </button>
             </div>
-            <div className="flex-1 overflow-y-auto scrollbar-thin p-3 space-y-2">
+            <div className="flex-1 overflow-y-auto p-3 space-y-2" style={{ scrollbarWidth: "thin" }}>
               {notifications.length === 0 && (
-                <p className="text-center py-8 text-sm" style={{ color: "var(--dim)" }}>Sin notificaciones aún</p>
+                <p className="text-center py-10 text-sm" style={{ color: "var(--dim)" }}>Sin notificaciones</p>
               )}
               {notifications.map((n) => (
                 <div key={n.id} onClick={() => markRead(n.id)}
                      className="p-3 rounded-xl border cursor-pointer transition-all"
-                     style={{ borderColor: n.read ? "var(--border)" : "rgba(0,168,94,0.4)", background: n.read ? "var(--raised)" : "rgba(0,168,94,0.05)" }}>
-                  <div className="text-sm font-medium" style={{ color: "var(--text)" }}>{n.title}</div>
-                  <div className="text-xs mt-1 line-clamp-2" style={{ color: "var(--muted)" }}>{n.message}</div>
+                     style={{
+                       borderColor: n.read ? "var(--border)" : "rgba(0,168,94,0.4)",
+                       background: n.read ? "var(--raised)" : "rgba(0,168,94,0.05)",
+                     }}>
+                  <p className="text-sm font-semibold" style={{ color: "var(--text)" }}>{n.title}</p>
+                  <p className="text-xs mt-1 line-clamp-2" style={{ color: "var(--muted)" }}>{n.message}</p>
                   <button onClick={(e) => { e.stopPropagation(); sendMessage(n.message.slice(0, 200)); setNotifOpen(false); }}
-                          className="text-xs mt-1 flex items-center gap-1 hover:opacity-80"
+                          className="text-xs mt-2 flex items-center gap-1 font-semibold hover:opacity-80"
                           style={{ color: "var(--accent-l)" }}>
-                    Discutir esto <ChevronRight className="w-3 h-3" />
+                    Preguntarle al Mentor <ChevronRight className="w-3 h-3" />
                   </button>
                 </div>
               ))}
@@ -704,122 +720,199 @@ export default function ChatPage() {
           </div>
         )}
 
-        {/* Chat area */}
+        {/* ── Chat column ───────────────────────────────────────────────────── */}
         <main className="flex-1 flex flex-col overflow-hidden">
           <GuidedSteps currentPage="chat" />
-          <div ref={scrollContainerRef} onScroll={handleScrollContainer} className="flex-1 overflow-y-auto scrollbar-thin p-4 space-y-4">
+
+          {/* Scroll area */}
+          <div ref={scrollContainerRef} onScroll={handleScrollContainer}
+               className="flex-1 overflow-y-auto p-4 md:px-8 space-y-5"
+               style={{ scrollbarWidth: "thin" }}>
+
+            {/* ─── Welcome / Empty state ──────────────────────────────────── */}
             {messages.length === 0 && (
-              <div className="h-full flex flex-col items-center justify-center text-center px-6 animate-fade-in">
-                {mentor ? (
-                  <div className="mb-5">
-                    <div className="w-16 h-16 rounded-2xl flex items-center justify-center text-4xl"
-                         style={{ background: "var(--raised)", border: "1px solid var(--border)" }}>
-                      {mentor.emoji}
+              <div className="min-h-full flex flex-col items-center justify-center gap-5 animate-fade-in py-8 max-w-2xl mx-auto w-full">
+
+                {/* Hero card */}
+                <div className="w-full rounded-2xl border overflow-hidden"
+                     style={{ background: "var(--card)", borderColor: mentor ? mentor.color + "35" : "var(--border)" }}>
+
+                  {/* Color strip */}
+                  <div className="h-1.5"
+                       style={{ background: mentor ? `linear-gradient(90deg, ${mentor.color}, ${mentor.color}70)` : "var(--grad-green)" }} />
+
+                  <div className="p-6 text-center">
+                    {/* Avatar */}
+                    <div className="mx-auto mb-4 w-20 h-20 rounded-2xl flex items-center justify-center text-4xl"
+                         style={{
+                           background: mentor ? mentor.color + "18" : "rgba(0,212,126,0.1)",
+                           border: `2px solid ${mentor ? mentor.color + "35" : "rgba(0,212,126,0.25)"}`,
+                         }}>
+                      {mentor ? mentor.emoji : <TrendingUp className="w-9 h-9" style={{ color: "var(--accent-l)" }} />}
                     </div>
+
+                    <h2 className="text-2xl font-black tracking-tight mb-1"
+                        style={{ color: "var(--text)", fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                      {mentor ? mentor.name : profile?.name ? `Hola, ${profile.name.split(" ")[0]}` : "Nuvos AI"}
+                    </h2>
+                    <p className="text-sm font-semibold mb-4"
+                       style={{ color: mentor ? mentor.color : "var(--accent-l)" }}>
+                      {mentor ? mentor.title : "Tu mentor de inversiones con IA"}
+                    </p>
+
+                    {mentor && <span className="badge-green inline-block mb-4">{mentor.badge}</span>}
+                    {mentor && (
+                      <div className="flex flex-wrap justify-center gap-1.5 mb-2">
+                        {mentor.principles.map((p) => (
+                          <span key={p} className="text-xs px-2.5 py-1 rounded-full border font-medium"
+                                style={{ borderColor: (mentor as NonNullable<typeof mentor>).color + "40", background: (mentor as NonNullable<typeof mentor>).color + "0e", color: (mentor as NonNullable<typeof mentor>).color }}>
+                            {p}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+
+                    {!mentor && (() => {
+                      const obj = profile?.quiz_answers?.objective as string | undefined;
+                      if (obj) return (
+                        <p className="text-sm leading-relaxed max-w-sm mx-auto" style={{ color: "var(--muted)" }}>
+                          {OBJECTIVE_GREETING[obj] ?? "¿En qué puedo ayudarte hoy?"}
+                        </p>
+                      );
+                      return (
+                        <p className="text-sm" style={{ color: "var(--muted)" }}>
+                          Pregúntame sobre empresas, ETFs, estrategias o conceptos
+                        </p>
+                      );
+                    })()}
                   </div>
-                ) : (
-                  <div className="mb-5">
-                    <div className="w-16 h-16 rounded-2xl flex items-center justify-center"
-                         style={{ background: "var(--raised)", border: "1px solid var(--border)" }}>
-                      <TrendingUp className="w-7 h-7" style={{ color: "var(--accent-l)" }} />
+
+                  {/* Context chips strip */}
+                  {profile && (
+                    <div className="border-t px-5 py-3 flex flex-wrap gap-2"
+                         style={{ borderColor: "var(--border)", background: "var(--raised)" }}>
+                      {profile.risk_tolerance && (
+                        <span className="text-[10px] font-semibold px-2.5 py-1 rounded-full border"
+                              style={{ borderColor: "var(--border)", color: "var(--muted)", background: "var(--card)" }}>
+                          🎯 {RISK_LABEL[profile.risk_tolerance] ?? profile.risk_tolerance}
+                        </span>
+                      )}
+                      {(() => {
+                        const level = getUserLevel(profile);
+                        return (
+                          <span className="text-[10px] font-bold px-2.5 py-1 rounded-full border"
+                                style={{ borderColor: "var(--border)", color: LEVEL_COLOR[level], background: "var(--card)" }}>
+                            📊 {LEVEL_LABEL[level]}
+                          </span>
+                        );
+                      })()}
+                      {positions.length > 0 && (
+                        <span className="text-[10px] font-semibold px-2.5 py-1 rounded-full border"
+                              style={{ borderColor: "var(--border)", color: "var(--muted)", background: "var(--card)" }}>
+                          💼 {positions.length} posición{positions.length !== 1 ? "es" : ""}
+                        </span>
+                      )}
+                      {!isPremium && (
+                        <span className="text-[10px] font-semibold px-2.5 py-1 rounded-full border ml-auto"
+                              style={{ borderColor: "rgba(244,63,94,0.25)", color: "var(--down)", background: "rgba(244,63,94,0.05)" }}>
+                          {remaining} msg hoy
+                        </span>
+                      )}
                     </div>
-                  </div>
-                )}
-                <h2 className="text-2xl font-black mb-1.5 tracking-tight"
-                    style={{ color: "var(--text)", fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
-                  {mentor ? mentor.name : profile?.name ? `Hola, ${profile.name.split(" ")[0]}` : "Nuvos AI"}
-                </h2>
+                  )}
+                </div>
+
+                {/* Suggestion cards */}
                 {(() => {
                   const obj = profile?.quiz_answers?.objective as string | undefined;
                   const level = getUserLevel(profile);
-                  const greeting = obj ? OBJECTIVE_GREETING[obj] : null;
                   const suggestions = obj && SUGGESTIONS_BY_OBJECTIVE[obj]
                     ? SUGGESTIONS_BY_OBJECTIVE[obj]
                     : (SUGGESTIONS_BY_LEVEL[level] ?? SUGGESTIONS_DEFAULT);
                   return (
-                    <>
-                      {greeting && !mentor ? (
-                        <p className="text-sm mb-7 max-w-sm leading-relaxed" style={{ color: "var(--muted)" }}>
-                          {greeting}
-                        </p>
-                      ) : (
-                        <>
-                          <p className="text-sm mb-1" style={{ color: "var(--muted)" }}>
-                            {mentor ? mentor.title : "Tu mentor de inversiones con IA"}
-                          </p>
-                          {mentor && <span className="badge-green mb-5">{mentor.badge}</span>}
-                          {mentor && (
-                            <div className="flex flex-wrap justify-center gap-2 mb-7 max-w-sm">
-                              {mentor.principles.map((p) => (
-                                <span key={p} className="text-xs px-3 py-1.5 rounded-full border font-medium"
-                                      style={{ borderColor: mentor.color + "40", background: mentor.color + "0e", color: mentor.color }}>
-                                  {p}
-                                </span>
-                              ))}
+                    <div className="w-full">
+                      <p className="text-xs font-bold uppercase tracking-widest mb-3" style={{ color: "var(--muted)" }}>
+                        Preguntas sugeridas
+                      </p>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                        {suggestions.map((s, si) => (
+                          <button key={si} onClick={() => sendMessage(s)}
+                                  className="text-left p-4 rounded-xl border transition-all hover:scale-[1.01] group"
+                                  style={{ background: "var(--card)", borderColor: "var(--border)" }}
+                                  onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.borderColor = accentCol + "60"; }}
+                                  onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.borderColor = "var(--border)"; }}>
+                            <div className="flex items-start justify-between gap-2">
+                              <p className="text-sm leading-relaxed" style={{ color: "var(--sub)" }}>{s}</p>
+                              <ChevronRight className="w-3.5 h-3.5 shrink-0 mt-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
+                                            style={{ color: "var(--accent-l)" }} />
                             </div>
-                          )}
-                          {!mentor && <div className="mb-7" />}
-                        </>
-                      )}
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 w-full max-w-lg">
-                        {suggestions.map((s) => (
-                          <button key={s} onClick={() => sendMessage(s)}
-                                  className="text-left p-3 rounded-xl text-xs transition-all border hover:border-[var(--accent-l)]"
-                                  style={{ background: "var(--raised)", borderColor: "var(--border)", color: "var(--sub)" }}>
-                            {s}
                           </button>
                         ))}
                       </div>
-                    </>
+                    </div>
                   );
                 })()}
               </div>
             )}
 
+            {/* ─── Message list ──────────────────────────────────────────── */}
             {messages.map((msg, i) => (
               <div key={i} className="animate-fade-in">
-                <div className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
+                <div className={`flex ${msg.role === "user" ? "justify-end" : "justify-start gap-2.5"}`}>
+
+                  {/* AI avatar */}
                   {msg.role === "assistant" && (
-                    <div className="w-8 h-8 rounded-2xl flex items-center justify-center mr-2.5 mt-0.5 shrink-0 overflow-hidden text-sm"
+                    <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0 mt-0.5 text-sm overflow-hidden"
                          style={{
-                           background: mentor ? mentor.color + "22" : "var(--accent-glow)",
-                           border: `1px solid ${mentor ? mentor.color + "30" : "rgba(0,185,109,0.2)"}`,
+                           background: mentor ? mentor.color + "20" : "rgba(0,185,109,0.15)",
+                           border: `1px solid ${mentor ? mentor.color + "35" : "rgba(0,185,109,0.25)"}`,
                          }}>
                       {mentor ? mentor.emoji : <TrendingUp className="w-3.5 h-3.5" style={{ color: "var(--accent-l)" }} />}
                     </div>
                   )}
-                  <div className={msg.role === "user" ? "max-w-[78%]" : "flex-1"}>
+
+                  {/* Bubble */}
+                  <div className={msg.role === "user" ? "max-w-[78%]" : "flex-1 min-w-0"}>
                     {msg.role === "user" ? (
-                      <div className="bubble-user">
-                        {msg.images && msg.images.length > 0 && (
-                          <div className={`flex flex-wrap gap-1.5${msg.content ? " mb-2" : ""}`}>
-                            {msg.images.map((img, idx) => (
-                              // eslint-disable-next-line @next/next/no-img-element
-                              <img
-                                key={idx}
-                                src={img.preview}
-                                alt={`img-${idx}`}
-                                className="rounded-xl object-cover"
-                                style={{ maxWidth: "180px", maxHeight: "160px" }}
-                              />
-                            ))}
-                          </div>
-                        )}
-                        {msg.content && <span>{msg.content}</span>}
-                      </div>
+                      <>
+                        <div className="bubble-user">
+                          {msg.images && msg.images.length > 0 && (
+                            <div className={`flex flex-wrap gap-1.5${msg.content ? " mb-2" : ""}`}>
+                              {msg.images.map((img, idx) => (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img key={idx} src={img.preview} alt=""
+                                     className="rounded-xl object-cover"
+                                     style={{ maxWidth: 180, maxHeight: 160 }} />
+                              ))}
+                            </div>
+                          )}
+                          {msg.content && <span>{msg.content}</span>}
+                        </div>
+                        <div className="flex justify-end mt-0.5">
+                          <button onClick={() => handleEditMessage(i, msg.content)}
+                                  className="p-1.5 rounded-lg opacity-0 hover:opacity-100 hover:bg-white/5 transition-all"
+                                  style={{ color: "var(--dim)" }}>
+                            <Pencil className="w-3 h-3" />
+                          </button>
+                        </div>
+                      </>
                     ) : (
-                      <div className="bubble-ai">
+                      /* ── AI message card ── */
+                      <div className="rounded-2xl border px-4 py-3.5 overflow-hidden"
+                           style={{
+                             background: "var(--card)",
+                             borderColor: "var(--border)",
+                             borderLeftWidth: 3,
+                             borderLeftColor: mentor ? mentor.color + "70" : "rgba(0,185,109,0.5)",
+                           }}>
                         {voiceAudio && msg.content && msg.content.slice(0, 80) === voiceAudio.content && !(isStreaming && i === messages.length - 1) ? (
                           <div className="flex items-center gap-3 py-1">
-                            {/* Waveform bars decoration */}
                             <div className="flex items-end gap-0.5 shrink-0" style={{ height: 32 }}>
-                              {[0.35, 0.65, 0.85, 0.55, 0.95, 0.7, 0.45, 0.8, 0.6, 0.4, 0.75, 0.5].map((h, bi) => (
+                              {[0.35,0.65,0.85,0.55,0.95,0.7,0.45,0.8,0.6,0.4,0.75,0.5].map((h, bi) => (
                                 <div key={bi} style={{
-                                  width: 3,
-                                  height: `${h * 100}%`,
-                                  background: "var(--accent)",
-                                  borderRadius: 2,
-                                  opacity: voiceAudio.playing ? 1 : 0.5,
+                                  width: 3, height: `${h * 100}%`,
+                                  background: mentor?.color ?? "var(--accent)",
+                                  borderRadius: 2, opacity: voiceAudio.playing ? 1 : 0.5,
                                   transition: "opacity 0.2s",
                                 }} />
                               ))}
@@ -829,21 +922,19 @@ export default function ChatPage() {
                                 {voiceAudio.loading ? "Generando audio..." : voiceAudio.playing ? "Reproduciendo..." : "Respuesta de voz"}
                               </p>
                               <p className="text-[10px]" style={{ color: "var(--muted)" }}>
-                                Análisis educativo · No constituye asesoría financiera
+                                Análisis educativo · No asesoría financiera
                               </p>
                             </div>
                             {voiceAudio.loading ? (
                               <span className="w-9 h-9 border-2 border-t-transparent rounded-full animate-spin shrink-0"
-                                    style={{ borderColor: "var(--accent)" }} />
+                                    style={{ borderColor: mentor?.color ?? "var(--accent)" }} />
                             ) : (
-                              <button
-                                onClick={playVoiceResponse}
-                                disabled={voiceAudio.playing}
-                                className="w-10 h-10 rounded-full flex items-center justify-center shrink-0 transition-all disabled:opacity-50"
-                                style={{ background: "var(--accent)", boxShadow: "0 0 16px rgba(0,212,126,0.25)" }}>
+                              <button onClick={playVoiceResponse} disabled={voiceAudio.playing}
+                                      className="w-10 h-10 rounded-full flex items-center justify-center shrink-0 disabled:opacity-50 transition-all"
+                                      style={{ background: mentor?.color ?? "var(--accent)", boxShadow: `0 0 16px ${mentor?.color ?? "rgba(0,212,126,0.25)"}40` }}>
                                 {voiceAudio.playing
-                                  ? <Square className="w-3.5 h-3.5" style={{ color: "#000" }} fill="#000" />
-                                  : <Play className="w-3.5 h-3.5 ml-0.5" style={{ color: "#000" }} fill="#000" />}
+                                  ? <Square className="w-3.5 h-3.5" style={{ color: "#fff" }} fill="#fff" />
+                                  : <Play className="w-3.5 h-3.5 ml-0.5" style={{ color: "#fff" }} fill="#fff" />}
                               </button>
                             )}
                           </div>
@@ -852,11 +943,11 @@ export default function ChatPage() {
                             <div className="prose-dark">
                               {msg.content === "" && isStreaming && i === messages.length - 1
                                 ? <TypingDots />
-                                : <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
-                              }
+                                : <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>}
                             </div>
                             {msg.content !== "" && !(isStreaming && i === messages.length - 1) && (
-                              <p className="mt-2 text-[10px] leading-tight" style={{ color: "var(--dim)" }}>
+                              <p className="mt-3 pt-2.5 border-t text-[10px] leading-tight"
+                                 style={{ color: "var(--dim)", borderColor: "var(--border)" }}>
                                 Análisis educativo · No constituye asesoría financiera · Los datos pueden ser inexactos
                               </p>
                             )}
@@ -864,17 +955,10 @@ export default function ChatPage() {
                         )}
                       </div>
                     )}
-                    {msg.role === "user" && (
-                      <div className="flex justify-end mt-1">
-                        <button onClick={() => handleEditMessage(i, msg.content)}
-                                className="p-1.5 rounded-lg hover:bg-white/5 transition-all opacity-0 hover:opacity-100 group-hover:opacity-100"
-                                style={{ color: "var(--dim)" }}>
-                          <Pencil className="w-3 h-3" />
-                        </button>
-                      </div>
-                    )}
                   </div>
                 </div>
+
+                {/* BScore card */}
                 {msg.role === "assistant" && i === messages.length - 1 && lastAssessment && !isStreaming && (
                   <BScoreCard data={lastAssessment} />
                 )}
@@ -883,24 +967,27 @@ export default function ChatPage() {
             <div ref={bottomRef} />
           </div>
 
-          {/* Input */}
+          {/* ─── Input bar ─────────────────────────────────────────────────── */}
           <div className="shrink-0 px-4 pb-4 pt-3"
                style={{ borderTop: "1px solid var(--border)", background: "var(--card)" }}>
+
+            {/* Paywall banner */}
             {remaining === 0 && !isPremium && (
               <div className="max-w-3xl mx-auto mb-3 px-4 py-2.5 rounded-xl flex items-center justify-between"
                    style={{ background: "rgba(244,63,94,0.06)", border: "1px solid rgba(244,63,94,0.2)" }}>
-                <span className="text-xs" style={{ color: "var(--down)" }}>Alcanzaste el límite de {FREE_MSG_LIMIT} mensajes diarios.</span>
-                <button onClick={() => setPaywallOpen(true)} className="text-xs font-bold ml-3 shrink-0" style={{ color: "var(--accent-l)" }}>
+                <span className="text-xs" style={{ color: "var(--down)" }}>
+                  Alcanzaste el límite de {FREE_MSG_LIMIT} mensajes diarios.
+                </span>
+                <button onClick={() => setPaywallOpen(true)}
+                        className="text-xs font-bold ml-3 shrink-0" style={{ color: "var(--accent-l)" }}>
                   Activar Premium →
                 </button>
               </div>
             )}
-            <div
-              className="flex flex-col gap-2 max-w-3xl mx-auto"
-              onDragOver={handleDragOver}
-              onDragLeave={handleDragLeave}
-              onDrop={handleDrop}
-            >
+
+            <div className="max-w-3xl mx-auto relative"
+                 onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop}>
+
               {/* Drag overlay */}
               {isDragging && (
                 <div className="absolute inset-0 z-10 flex items-center justify-center rounded-2xl border-2 border-dashed pointer-events-none"
@@ -909,71 +996,37 @@ export default function ChatPage() {
                 </div>
               )}
 
-              {/* Multi-image thumbnails */}
-              {pendingImages.length > 0 && (
-                <div className="flex gap-2 flex-wrap">
-                  {pendingImages.map((img, idx) => (
-                    <div key={idx} className="relative w-16 h-16 rounded-xl overflow-hidden border shrink-0"
-                         style={{ borderColor: "var(--border)" }}>
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={img.preview} alt={`img-${idx}`} className="w-full h-full object-cover" />
-                      <button
-                        onClick={() => removeImage(idx)}
-                        className="absolute top-0.5 right-0.5 w-5 h-5 rounded-full flex items-center justify-center"
-                        style={{ background: "rgba(0,0,0,0.75)" }}>
-                        <X className="w-3 h-3 text-white" />
-                      </button>
-                    </div>
-                  ))}
-                  {pendingImages.length < 8 && (
-                    <button
-                      onClick={() => fileInputRef.current?.click()}
-                      className="w-16 h-16 rounded-xl border-2 border-dashed flex items-center justify-center shrink-0 transition-colors hover:border-solid"
-                      style={{ borderColor: "var(--border)" }}>
-                      <ImagePlus className="w-5 h-5" style={{ color: "var(--muted)" }} />
-                    </button>
-                  )}
-                </div>
-              )}
+              {/* Input card */}
+              <div className="rounded-2xl border overflow-hidden"
+                   style={{ background: "var(--raised)", borderColor: "var(--border)" }}>
 
-              <div className="flex gap-2.5 items-end">
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/*"
-                  multiple
-                  className="hidden"
-                  onChange={handleImageSelect}
-                />
-                {pendingImages.length === 0 && (
-                  <button
-                    onClick={() => fileInputRef.current?.click()}
-                    disabled={isStreaming}
-                    title="Adjuntar hasta 8 imágenes (o arrastra aquí)"
-                    className="w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 transition-all disabled:opacity-30"
-                    style={{ background: "var(--raised)", border: "1px solid var(--border)" }}>
-                    <ImagePlus className="w-4 h-4" style={{ color: "var(--muted)" }} />
-                  </button>
+                {/* Image thumbnails */}
+                {pendingImages.length > 0 && (
+                  <div className="flex gap-2 flex-wrap px-3 pt-3">
+                    {pendingImages.map((img, idx) => (
+                      <div key={idx} className="relative w-14 h-14 rounded-xl overflow-hidden border shrink-0"
+                           style={{ borderColor: "var(--border)" }}>
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={img.preview} alt="" className="w-full h-full object-cover" />
+                        <button onClick={() => removeImage(idx)}
+                                className="absolute top-0.5 right-0.5 w-5 h-5 rounded-full flex items-center justify-center"
+                                style={{ background: "rgba(0,0,0,0.75)" }}>
+                          <X className="w-3 h-3 text-white" />
+                        </button>
+                      </div>
+                    ))}
+                    {pendingImages.length < 8 && (
+                      <button onClick={() => fileInputRef.current?.click()}
+                              className="w-14 h-14 rounded-xl border-2 border-dashed flex items-center justify-center shrink-0"
+                              style={{ borderColor: "var(--border)" }}>
+                        <ImagePlus className="w-4 h-4" style={{ color: "var(--muted)" }} />
+                      </button>
+                    )}
+                  </div>
                 )}
 
-                {/* Mic button */}
-                <button
-                  onClick={startRecording}
-                  disabled={isStreaming || isTranscribing || showVoiceModal}
-                  title="Grabar mensaje de voz"
-                  className="w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 transition-all disabled:opacity-30"
-                  style={{
-                    background: isTranscribing ? "rgba(99,102,241,0.12)" : "var(--raised)",
-                    border: "1px solid var(--border)",
-                  }}>
-                  {isTranscribing ? (
-                    <span className="w-3.5 h-3.5 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin" />
-                  ) : (
-                    <Mic className="w-4 h-4" style={{ color: "var(--muted)" }} />
-                  )}
-                </button>
-
-                <div className="flex-1 relative">
+                {/* Textarea + send */}
+                <div className="flex items-end gap-2 px-3 pt-3 pb-2">
                   <textarea
                     ref={inputRef}
                     value={input}
@@ -983,70 +1036,83 @@ export default function ChatPage() {
                       remaining === 0 && !isPremium
                         ? "Límite alcanzado — activa Premium"
                         : pendingImages.length > 0
-                        ? `Describe qué quieres analizar en ${pendingImages.length === 1 ? "esta imagen" : "estas imágenes"} (opcional)...`
-                        : "Pregunta sobre cualquier empresa, concepto o estrategia..."
+                        ? `Describe qué analizar en ${pendingImages.length === 1 ? "la imagen" : "las imágenes"} (opcional)...`
+                        : "Pregunta sobre empresas, ETFs, estrategias o conceptos..."
                     }
                     rows={1}
                     disabled={isStreaming || (remaining === 0 && !isPremium)}
-                    className="input-premium resize-none"
-                    style={{ maxHeight: "120px", overflowY: "auto", paddingRight: "16px", lineHeight: "1.6" }}
+                    className="flex-1 resize-none bg-transparent text-sm py-1.5 outline-none leading-relaxed placeholder:text-sm"
+                    style={{ color: "var(--text)", maxHeight: 120, overflowY: "auto", caretColor: "var(--accent-l)" }}
                   />
+                  <button
+                    onClick={isStreaming ? handleStop : () => sendMessage()}
+                    disabled={!isStreaming && ((!input.trim() && pendingImages.length === 0) || (remaining === 0 && !isPremium))}
+                    className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 transition-all disabled:opacity-30"
+                    style={{
+                      background: isStreaming ? "rgba(244,63,94,0.15)" : "var(--grad-green)",
+                      border: isStreaming ? "1px solid rgba(244,63,94,0.3)" : "none",
+                      boxShadow: isStreaming ? "none" : "var(--shadow-accent-sm)",
+                    }}>
+                    {isStreaming
+                      ? <Square className="w-3.5 h-3.5" style={{ color: "#f87171" }} />
+                      : <Send className="w-3.5 h-3.5 text-white" />}
+                  </button>
                 </div>
-                <button
-                  onClick={isStreaming ? handleStop : () => sendMessage()}
-                  disabled={!isStreaming && ((!input.trim() && pendingImages.length === 0) || (remaining === 0 && !isPremium))}
-                  className="w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 transition-all disabled:opacity-30"
-                  style={{
-                    background: isStreaming ? "rgba(244,63,94,0.15)" : "var(--grad-green)",
-                    border: isStreaming ? "1px solid rgba(244,63,94,0.3)" : "none",
-                    boxShadow: isStreaming ? "none" : "var(--shadow-accent-sm)",
-                  }}>
-                  {isStreaming
-                    ? <Square className="w-4 h-4" style={{ color: "#f87171" }} />
-                    : <Send className="w-4 h-4 text-white" />}
-                </button>
+
+                {/* Action toolbar */}
+                <div className="flex items-center gap-0.5 px-2 pb-2.5">
+                  <input ref={fileInputRef} type="file" accept="image/*" multiple className="hidden" onChange={handleImageSelect} />
+
+                  <button onClick={() => fileInputRef.current?.click()} disabled={isStreaming}
+                          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium hover:bg-white/5 disabled:opacity-30 transition-colors"
+                          style={{ color: "var(--muted)" }}>
+                    <ImagePlus className="w-3.5 h-3.5" />
+                    <span className="hidden sm:inline">Imagen</span>
+                  </button>
+
+                  <button onClick={startRecording} disabled={isStreaming || isTranscribing || showVoiceModal}
+                          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium hover:bg-white/5 disabled:opacity-30 transition-colors"
+                          style={{ color: isTranscribing ? "#818cf8" : "var(--muted)" }}>
+                    {isTranscribing
+                      ? <span className="w-3.5 h-3.5 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin" />
+                      : <Mic className="w-3.5 h-3.5" />}
+                    <span className="hidden sm:inline">{isTranscribing ? "Transcribiendo..." : "Voz"}</span>
+                  </button>
+
+                  <div className="flex-1" />
+
+                  <span className="text-[9px] hidden md:block" style={{ color: "var(--dim)" }}>
+                    Enter para enviar · Shift+Enter nueva línea
+                  </span>
+                </div>
               </div>
+
+              <p className="text-center text-[10px] mt-2" style={{ color: "var(--dim)" }}>
+                Solo educativo · No reemplaza asesoramiento financiero profesional
+              </p>
             </div>
-            <p className="text-center text-[10px] mt-2" style={{ color: "var(--dim)" }}>
-              Solo educativo · No reemplaza asesoramiento financiero profesional
-            </p>
           </div>
         </main>
       </div>
 
-      {/* Voice Recording Modal */}
+      {/* ── Voice recording modal ──────────────────────────────────────────── */}
       {showVoiceModal && (
         <div className="fixed inset-0 z-50 flex flex-col items-center justify-center"
              style={{ background: "rgba(0,0,0,0.95)" }}>
           <div className="flex flex-col items-center w-full max-w-xs px-6">
-            {/* Waveform canvas */}
-            <canvas
-              ref={waveCanvasRef}
-              width={280}
-              height={80}
-              className="block mb-8"
-              style={{ borderRadius: 8 }}
-            />
-
-            {/* Timer */}
+            <canvas ref={waveCanvasRef} width={280} height={80} className="block mb-8" style={{ borderRadius: 8 }} />
             <div className="text-5xl font-mono font-bold mb-1 tabular-nums" style={{ color: "#fff", letterSpacing: "0.04em" }}>
               {String(Math.floor(recordingSecs / 60)).padStart(2, "0")}:{String(recordingSecs % 60).padStart(2, "0")}
             </div>
             <p className="text-sm mb-10" style={{ color: "rgba(255,255,255,0.35)" }}>Grabando audio...</p>
-
-            {/* Stop (send) button */}
-            <button
-              onClick={stopRecording}
-              className="w-20 h-20 rounded-full flex items-center justify-center mb-8 transition-transform active:scale-95"
-              style={{ background: "#ef4444", boxShadow: "0 0 40px rgba(239,68,68,0.4)" }}>
-              <Square className="w-7 h-7" style={{ color: "#fff" }} fill="#fff" />
+            <button onClick={stopRecording}
+                    className="w-20 h-20 rounded-full flex items-center justify-center mb-8 transition-transform active:scale-95"
+                    style={{ background: "#ef4444", boxShadow: "0 0 40px rgba(239,68,68,0.4)" }}>
+              <Square className="w-7 h-7 text-white" fill="white" />
             </button>
-
-            {/* Cancel */}
-            <button
-              onClick={cancelRecording}
-              className="text-sm font-medium transition-opacity hover:opacity-60"
-              style={{ color: "rgba(255,255,255,0.4)" }}>
+            <button onClick={cancelRecording}
+                    className="text-sm font-medium hover:opacity-60 transition-opacity"
+                    style={{ color: "rgba(255,255,255,0.4)" }}>
               Cancelar
             </button>
           </div>
