@@ -2,8 +2,10 @@ import React, { useEffect, useState, useCallback, useRef } from "react";
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
   Image, RefreshControl, Animated, Dimensions,
+  Modal, Pressable, ActivityIndicator, Linking,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import Svg, { Path, Defs, LinearGradient, Stop } from "react-native-svg";
 import { Ionicons } from "@expo/vector-icons";
 import { router, useFocusEffect } from "expo-router";
 import { useTheme } from "../../src/lib/ThemeContext";
@@ -14,6 +16,214 @@ import { useSubscriptionStore } from "../../src/lib/subscriptionStore";
 import { hasPremiumAccess } from "../../src/lib/subscriptionStore";
 import { marketApi, notificationsApi } from "../../src/lib/api";
 import StockAvatar from "../../src/components/StockAvatar";
+
+// ── Sparkline helpers ─────────────────────────────────────────────────────────
+function sparkPath(prices: number[], w: number, h: number, close = false): string {
+  if (prices.length < 2) return "";
+  const min = Math.min(...prices);
+  const max = Math.max(...prices);
+  const rng = max - min || 1;
+  const pad = 1.5;
+  const pts = prices.map((p, i) => {
+    const x = pad + (i / (prices.length - 1)) * (w - pad * 2);
+    const y = pad + (h - pad * 2) - ((p - min) / rng) * (h - pad * 2);
+    return `${x.toFixed(1)} ${y.toFixed(1)}`;
+  });
+  const line = pts.map((pt, i) => `${i === 0 ? "M" : "L"} ${pt}`).join(" ");
+  return close ? `${line} L ${(w - pad).toFixed(1)} ${h} L ${pad.toFixed(1)} ${h} Z` : line;
+}
+
+function Sparkline({ prices, color, width = 72, height = 32 }: {
+  prices: number[]; color: string; width?: number; height?: number;
+}) {
+  const gradId = `g${color.replace("#","")}`;
+  return (
+    <Svg width={width} height={height}>
+      <Defs>
+        <LinearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
+          <Stop offset="0"   stopColor={color} stopOpacity="0.28" />
+          <Stop offset="1"   stopColor={color} stopOpacity="0"    />
+        </LinearGradient>
+      </Defs>
+      <Path d={sparkPath(prices, width, height, true)} fill={`url(#${gradId})`} />
+      <Path d={sparkPath(prices, width, height)} stroke={color} strokeWidth="1.6"
+            fill="none" strokeLinecap="round" strokeLinejoin="round" />
+    </Svg>
+  );
+}
+
+// ── Index detail modal ────────────────────────────────────────────────────────
+interface IdxData { name: string; symbol: string; price: number | null; change: number; change_pct: number; }
+interface NewsItem { uuid: string; title: string; publisher: string; url: string; timestamp: number; thumbnail: string | null; }
+
+const SHORT: Record<string, string> = {
+  "^GSPC": "S&P 500", "^IXIC": "Nasdaq", "^DJI": "Dow Jones", "^RUT": "Russell", "^VIX": "VIX",
+};
+
+function relTime(ts: number): string {
+  const h = Math.floor((Date.now() / 1000 - ts) / 3600);
+  if (h < 1) return "Ahora";
+  if (h === 1) return "Hace 1h";
+  if (h < 24) return `Hace ${h}h`;
+  const d = Math.floor(h / 24);
+  return d === 1 ? "Ayer" : `Hace ${d}d`;
+}
+
+function IndexDetailModal({ idx, chartPrices, onClose, colors }: {
+  idx: IdxData; chartPrices: number[]; onClose: () => void; colors: any;
+}) {
+  const [period, setPeriod] = useState<"1d"|"5d"|"1m">("1d");
+  const [periodPrices, setPeriodPrices] = useState(chartPrices);
+  const [periodLoading, setPeriodLoading] = useState(false);
+  const [news, setNews]     = useState<NewsItem[]>([]);
+  const [newsLoading, setNewsLoading] = useState(true);
+  const priceCache = useRef<Record<string, number[]>>({ "1d": chartPrices });
+
+  useEffect(() => {
+    // Fetch news
+    marketApi.getIndexNews(idx.symbol)
+      .then((res: any) => setNews((res.data ?? []).slice(0, 3)))
+      .catch(() => {})
+      .finally(() => setNewsLoading(false));
+  }, [idx.symbol]);
+
+  const loadPeriod = async (p: "1d"|"5d"|"1m") => {
+    setPeriod(p);
+    if (priceCache.current[p]) { setPeriodPrices(priceCache.current[p]); return; }
+    setPeriodLoading(true);
+    try {
+      const res: any = await marketApi.getChart(idx.symbol, p);
+      const prices: number[] = res?.data?.prices ?? [];
+      priceCache.current[p] = prices;
+      setPeriodPrices(prices);
+    } catch {}
+    setPeriodLoading(false);
+  };
+
+  const up   = idx.change_pct >= 0;
+  const col  = up ? "#22c55e" : "#ef4444";
+  const CHDIMS = { w: W - 80, h: 140 };
+
+  return (
+    <Modal visible transparent animationType="slide" onRequestClose={onClose}>
+      <Pressable style={idxMStyles.overlay} onPress={onClose}>
+        <Pressable style={[idxMStyles.card, { backgroundColor: colors.card, borderColor: colors.border }]}
+                   onPress={(e) => e.stopPropagation()}>
+
+          {/* Header */}
+          <View style={idxMStyles.header}>
+            <View>
+              <Text style={[idxMStyles.name, { color: colors.text }]}>
+                {SHORT[idx.symbol] ?? idx.name}
+              </Text>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginTop: 4 }}>
+                <Text style={{ fontSize: 22, fontWeight: "800", color: colors.text }}>
+                  {idx.price != null
+                    ? idx.symbol === "^VIX"
+                      ? idx.price.toFixed(2)
+                      : idx.price >= 10000
+                        ? idx.price.toLocaleString("en-US", { maximumFractionDigits: 0 })
+                        : idx.price.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                    : "—"}
+                </Text>
+                <View style={[idxMStyles.changePill, { backgroundColor: col + "18" }]}>
+                  <Text style={{ fontSize: 12, fontWeight: "700", color: col }}>
+                    {up ? "▲" : "▼"} {Math.abs(idx.change_pct).toFixed(2)}%
+                  </Text>
+                </View>
+              </View>
+            </View>
+            <TouchableOpacity onPress={onClose} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+              <Ionicons name="close" size={22} color={colors.textMuted} />
+            </TouchableOpacity>
+          </View>
+
+          {/* Period selector */}
+          <View style={idxMStyles.periods}>
+            {(["1d","5d","1m"] as const).map((p) => (
+              <TouchableOpacity key={p} onPress={() => loadPeriod(p)}
+                                style={[idxMStyles.periodBtn, period === p && { backgroundColor: col + "20" }]}>
+                <Text style={{ fontSize: 11, fontWeight: "700",
+                               color: period === p ? col : colors.textMuted }}>
+                  {p === "1d" ? "1D" : p === "5d" ? "5D" : "1M"}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          {/* Chart */}
+          <View style={{ alignItems: "center", paddingVertical: 8, paddingHorizontal: 20 }}>
+            {periodLoading ? (
+              <View style={{ width: CHDIMS.w, height: CHDIMS.h, alignItems: "center", justifyContent: "center" }}>
+                <ActivityIndicator color={col} />
+              </View>
+            ) : periodPrices.length > 1 ? (
+              <Sparkline prices={periodPrices} color={col} width={CHDIMS.w} height={CHDIMS.h} />
+            ) : (
+              <View style={{ width: CHDIMS.w, height: CHDIMS.h, alignItems: "center", justifyContent: "center" }}>
+                <Text style={{ color: colors.textDim, fontSize: 12 }}>Sin datos</Text>
+              </View>
+            )}
+          </View>
+
+          {/* Divider */}
+          <View style={{ height: StyleSheet.hairlineWidth, backgroundColor: colors.border, marginHorizontal: 20 }} />
+
+          {/* News */}
+          <View style={{ paddingHorizontal: 20, paddingTop: 14, paddingBottom: 20 }}>
+            <Text style={{ fontSize: 11, fontWeight: "700", color: colors.textMuted,
+                           letterSpacing: 0.6, textTransform: "uppercase", marginBottom: 10 }}>
+              Noticias
+            </Text>
+            {newsLoading ? (
+              <ActivityIndicator color={colors.accentLight} style={{ marginTop: 8 }} />
+            ) : news.length === 0 ? (
+              <Text style={{ color: colors.textDim, fontSize: 12 }}>Sin noticias disponibles</Text>
+            ) : (
+              news.map((item, i) => (
+                <TouchableOpacity key={item.uuid || i} onPress={() => Linking.openURL(item.url)}
+                                  activeOpacity={0.75}
+                                  style={[idxMStyles.newsRow, i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border }]}>
+                  <View style={{ flex: 1 }}>
+                    <View style={{ flexDirection: "row", gap: 6, alignItems: "flex-start" }}>
+                      <Text style={{ fontSize: 12, fontWeight: "800", color: colors.accentLight, flexShrink: 0 }}>{i + 1}.</Text>
+                      <Text style={{ flex: 1, fontSize: 13, fontWeight: "600", color: colors.text, lineHeight: 18 }} numberOfLines={2}>
+                        {item.title}
+                      </Text>
+                    </View>
+                    <Text style={{ fontSize: 11, color: colors.textDim, marginTop: 4 }}>
+                      {item.publisher} · {relTime(item.timestamp)}
+                    </Text>
+                    <Text style={{ fontSize: 12, fontWeight: "700", color: colors.accentLight, marginTop: 4 }}>
+                      Leer artículo →
+                    </Text>
+                  </View>
+                  {item.thumbnail && (
+                    <Image source={{ uri: item.thumbnail }} style={idxMStyles.thumb} resizeMode="cover" />
+                  )}
+                </TouchableOpacity>
+              ))
+            )}
+          </View>
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+}
+
+const idxMStyles = StyleSheet.create({
+  overlay:    { flex: 1, backgroundColor: "rgba(0,0,0,0.65)", justifyContent: "flex-end" },
+  card:       { borderRadius: 24, borderWidth: StyleSheet.hairlineWidth, overflow: "hidden",
+                maxHeight: "88%", borderBottomLeftRadius: 0, borderBottomRightRadius: 0 },
+  header:     { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between",
+                paddingHorizontal: 20, paddingTop: 20, paddingBottom: 12 },
+  name:       { fontSize: 13, fontWeight: "600", letterSpacing: 0.3, textTransform: "uppercase", opacity: 0.6 },
+  changePill: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 },
+  periods:    { flexDirection: "row", gap: 6, paddingHorizontal: 20, marginBottom: 4 },
+  periodBtn:  { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20 },
+  newsRow:    { flexDirection: "row", gap: 12, paddingVertical: 12, alignItems: "flex-start" },
+  thumb:      { width: 72, height: 56, borderRadius: 10, flexShrink: 0 },
+});
 
 const { width: W } = Dimensions.get("window");
 
@@ -93,7 +303,9 @@ export default function HomeScreen() {
 
   const [prices,     setPrices]    = useState<Record<string, any>>({});
   const [news,       setNews]      = useState<any[]>([]);
-  const [indices,    setIndices]   = useState<any[]>([]);
+  const [indices,    setIndices]       = useState<any[]>([]);
+  const [indexCharts, setIndexCharts] = useState<Record<string, number[]>>({});
+  const [selectedIdx, setSelectedIdx] = useState<IdxData | null>(null);
   const [unread,     setUnread]    = useState(0);
   const [topNotifs,  setTopNotifs] = useState<any[]>([]);
   const [refreshing, setRefreshing] = useState(false);
@@ -167,7 +379,17 @@ export default function HomeScreen() {
         const items: any[] = d?.notifications ?? d?.items ?? [];
         setTopNotifs(items.slice(0, 2));
       }
-      if (idxRes.status === "fulfilled") setIndices(idxRes.value.data ?? []);
+      if (idxRes.status === "fulfilled") {
+        const idxData: IdxData[] = idxRes.value.data ?? [];
+        setIndices(idxData);
+        // Fetch 1D sparklines in background — no await, fire and forget
+        idxData.forEach((idx: IdxData) => {
+          marketApi.getChart(idx.symbol, "1d").then((res: any) => {
+            const prices: number[] = res?.data?.prices ?? [];
+            if (prices.length > 1) setIndexCharts(prev => ({ ...prev, [idx.symbol]: prices }));
+          }).catch(() => {});
+        });
+      }
 
       // News + YTD only when we have positions
       if (tickers.length) {
@@ -447,30 +669,58 @@ export default function HomeScreen() {
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
-            contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 14, gap: 8, flexDirection: "row" }}
+            contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 14, gap: 10, flexDirection: "row" }}
           >
             {indices.map((idx) => {
-              const up = idx.change_pct >= 0;
+              const up     = idx.change_pct >= 0;
+              const col    = up ? colors.up : colors.down;
+              const prices = indexCharts[idx.symbol];
               return (
-                <View key={idx.symbol}
+                <TouchableOpacity
+                  key={idx.symbol}
+                  activeOpacity={0.75}
+                  onPress={() => setSelectedIdx(idx)}
                   style={[ss.idxChip, {
                     backgroundColor: colors.card,
-                    borderColor: up ? colors.up + "40" : colors.down + "40",
+                    borderColor: up ? colors.up + "45" : colors.down + "45",
                   }]}
                 >
                   <Text style={[ss.idxName, { color: colors.textSub }]}>{idx.name}</Text>
                   {idx.price != null && (
                     <Text style={[ss.idxPrice, { color: colors.text }]}>
-                      {idx.price >= 1000 ? (idx.price / 1000).toFixed(1) + "K" : idx.price.toFixed(2)}
+                      {idx.price >= 10000
+                        ? idx.price.toLocaleString("en-US", { maximumFractionDigits: 0 })
+                        : idx.price >= 1000
+                          ? (idx.price / 1000).toFixed(1) + "K"
+                          : idx.price.toFixed(2)}
                     </Text>
                   )}
-                  <Text style={[ss.idxChange, { color: up ? colors.up : colors.down }]}>
+                  <Text style={[ss.idxChange, { color: col }]}>
                     {up ? "+" : ""}{idx.change_pct.toFixed(2)}%
                   </Text>
-                </View>
+                  {/* Sparkline */}
+                  <View style={{ marginTop: 6 }}>
+                    {prices && prices.length > 1 ? (
+                      <Sparkline prices={prices} color={col} width={88} height={34} />
+                    ) : (
+                      <View style={{ width: 88, height: 34, opacity: 0.15,
+                                     borderRadius: 4, backgroundColor: col }} />
+                    )}
+                  </View>
+                </TouchableOpacity>
               );
             })}
           </ScrollView>
+        )}
+
+        {/* ── Index detail modal ───────────────────────────────────────────── */}
+        {selectedIdx && (
+          <IndexDetailModal
+            idx={selectedIdx}
+            chartPrices={indexCharts[selectedIdx.symbol] ?? []}
+            onClose={() => setSelectedIdx(null)}
+            colors={colors}
+          />
         )}
 
         {/* ── Lección recomendada ──────────────────────────────────────────── */}
@@ -748,13 +998,13 @@ const ss = StyleSheet.create({
 
   // Index chips
   idxChip: {
-    borderRadius: 12, borderWidth: 1,
-    paddingHorizontal: 12, paddingVertical: 9, gap: 2,
-    alignItems: "center", minWidth: 78,
+    borderRadius: 14, borderWidth: 1,
+    paddingHorizontal: 12, paddingTop: 10, paddingBottom: 10,
+    gap: 2, alignItems: "flex-start", minWidth: 112,
   },
-  idxName:   { fontSize: 10, fontWeight: "500" },
-  idxPrice:  { fontSize: 13, fontWeight: "700" },
-  idxChange: { fontSize: 11, fontWeight: "600" },
+  idxName:   { fontSize: 10, fontWeight: "600", textTransform: "uppercase", letterSpacing: 0.4 },
+  idxPrice:  { fontSize: 14, fontWeight: "800", letterSpacing: -0.3 },
+  idxChange: { fontSize: 11, fontWeight: "700" },
 
   avatar: {
     width: 38, height: 38, borderRadius: 19, borderWidth: 1.5,
