@@ -98,6 +98,8 @@ export default function HomeScreen() {
   const [topNotifs,  setTopNotifs] = useState<any[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [loading,    setLoading]   = useState(true);
+  const [ytdGain,    setYtdGain]   = useState<number | null>(null);
+  const [ytdPct,     setYtdPct]    = useState<number | null>(null);
 
   const DAILY_LESSONS = [
     { emoji: "🥧", title: "Diversificación" },
@@ -167,10 +169,20 @@ export default function HomeScreen() {
       }
       if (idxRes.status === "fulfilled") setIndices(idxRes.value.data ?? []);
 
-      // News only when we have positions
+      // News + YTD only when we have positions
       if (tickers.length) {
         const newsRes = await marketApi.getNews(tickers.slice(0, 6)).catch(() => null);
         if (newsRes) setNews((newsRes.data?.articles ?? newsRes.data?.news ?? []).slice(0, 6));
+
+        marketApi.getPortfolioChart(
+          positions.map((p) => ({ ticker: p.ticker, shares: p.shares, avg_price: p.avgPrice })),
+          "ytd"
+        ).then((res: any) => {
+          if (res?.data) {
+            setYtdGain(res.data.period_amount ?? null);
+            setYtdPct(res.data.period_pct ?? null);
+          }
+        }).catch(() => {});
       }
     } catch {}
     setLoading(false);
@@ -311,16 +323,43 @@ export default function HomeScreen() {
 
           {!loading && (
             <View style={ss.heroStats}>
+              {/* Hoy */}
               <View style={ss.heroStat}>
-                <Text style={[ss.heroStatLabel, { color: colors.textMuted }]}>Ganancia total</Text>
-                <Text style={[ss.heroStatVal, { color: totalGain >= 0 ? colors.up : colors.down }]}>
-                  {totalGain >= 0 ? "+" : ""}{fmt(totalGain, portfolioCurrency)} ({fmtPct(totalGainPct)})
+                <Text style={[ss.heroStatLabel, { color: colors.textMuted }]}>Hoy</Text>
+                <Text style={[ss.heroStatVal, { color: dayGain >= 0 ? colors.up : colors.down }]}>
+                  {dayGain >= 0 ? "+" : ""}{fmt(dayGain, portfolioCurrency)}
+                </Text>
+                <Text style={{ fontSize: 11, fontWeight: "600", color: dayGain >= 0 ? colors.up : colors.down }}>
+                  {fmtPct(dayGainPct)}
                 </Text>
               </View>
               <View style={[ss.heroDivider, { backgroundColor: colors.border }]} />
+              {/* YTD */}
               <View style={ss.heroStat}>
-                <Text style={[ss.heroStatLabel, { color: colors.textMuted }]}>Posiciones</Text>
-                <Text style={[ss.heroStatVal, { color: colors.text }]}>{positions.length}</Text>
+                <Text style={[ss.heroStatLabel, { color: colors.textMuted }]}>YTD</Text>
+                {ytdGain !== null ? (
+                  <>
+                    <Text style={[ss.heroStatVal, { color: (ytdGain ?? 0) >= 0 ? colors.up : colors.down }]}>
+                      {(ytdGain ?? 0) >= 0 ? "+" : ""}{fmt(ytdGain ?? 0, portfolioCurrency)}
+                    </Text>
+                    <Text style={{ fontSize: 11, fontWeight: "600", color: (ytdPct ?? 0) >= 0 ? colors.up : colors.down }}>
+                      {fmtPct(ytdPct ?? 0)}
+                    </Text>
+                  </>
+                ) : (
+                  <Text style={[ss.heroStatVal, { color: colors.textMuted }]}>—</Text>
+                )}
+              </View>
+              <View style={[ss.heroDivider, { backgroundColor: colors.border }]} />
+              {/* Total */}
+              <View style={ss.heroStat}>
+                <Text style={[ss.heroStatLabel, { color: colors.textMuted }]}>Total</Text>
+                <Text style={[ss.heroStatVal, { color: totalGain >= 0 ? colors.up : colors.down }]}>
+                  {totalGain >= 0 ? "+" : ""}{fmt(totalGain, portfolioCurrency)}
+                </Text>
+                <Text style={{ fontSize: 11, fontWeight: "600", color: totalGain >= 0 ? colors.up : colors.down }}>
+                  {fmtPct(totalGainPct)}
+                </Text>
               </View>
             </View>
           )}

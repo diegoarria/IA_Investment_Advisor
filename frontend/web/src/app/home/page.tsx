@@ -94,6 +94,8 @@ export default function HomePage() {
   const [unread, setUnread]       = useState(0);
   const [topNotifs, setTopNotifs] = useState<any[]>([]);
   const [loading, setLoading]     = useState(true);
+  const [ytdGain, setYtdGain]     = useState<number | null>(null);
+  const [ytdPct,  setYtdPct]      = useState<number | null>(null);
   const marketOpen = useMemo(() => isNYSEOpen(), []);
 
   const sym = CURRENCY_SYM[portfolioCurrency] ?? "$";
@@ -124,6 +126,16 @@ export default function HomePage() {
       if (tickers.length) {
         const newsRes = await marketApi.getNews(tickers.slice(0, 6)).catch(() => null);
         if (newsRes) setNews((newsRes.data?.articles ?? newsRes.data?.news ?? []).slice(0, 6));
+
+        marketApi.getPortfolioChart(
+          positions.map((p) => ({ ticker: p.ticker, shares: p.shares, avg_price: p.avgPrice })),
+          "ytd"
+        ).then((res) => {
+          if (res?.data) {
+            setYtdGain(res.data.period_amount ?? null);
+            setYtdPct(res.data.period_pct ?? null);
+          }
+        }).catch(() => {});
       }
     } catch {}
     setLoading(false);
@@ -324,24 +336,44 @@ export default function HomePage() {
                 )}
 
                 {!loading && (
-                  <div className="flex gap-5 mt-3 pt-3 border-t" style={{ borderColor: "var(--border)" }}>
-                    <div>
+                  <div className="flex items-stretch mt-3 pt-3 border-t divide-x" style={{ borderColor: "var(--border)" }}>
+                    {/* Hoy */}
+                    <div className="pr-4">
                       <p className="text-[11px]" style={{ color: "var(--muted)" }}>Hoy</p>
                       <p className="text-sm font-bold" style={{ color: dayGain >= 0 ? "#22c55e" : "#ef4444" }}>
-                        {dayGain >= 0 ? "+" : ""}{fmt(dayGain, portfolioCurrency)} ({fmtPct(dayGainPct)})
+                        {dayGain >= 0 ? "+" : ""}{fmt(dayGain, portfolioCurrency)}
+                      </p>
+                      <p className="text-[11px] font-semibold" style={{ color: dayGain >= 0 ? "#22c55e" : "#ef4444" }}>
+                        {fmtPct(dayGainPct)}
                       </p>
                     </div>
                     {positions.length > 0 && (
                       <>
-                        <div>
+                        {/* YTD */}
+                        <div className="px-4">
+                          <p className="text-[11px]" style={{ color: "var(--muted)" }}>YTD</p>
+                          {ytdGain !== null ? (
+                            <>
+                              <p className="text-sm font-bold" style={{ color: ytdGain >= 0 ? "#22c55e" : "#ef4444" }}>
+                                {ytdGain >= 0 ? "+" : ""}{fmt(ytdGain, portfolioCurrency)}
+                              </p>
+                              <p className="text-[11px] font-semibold" style={{ color: (ytdPct ?? 0) >= 0 ? "#22c55e" : "#ef4444" }}>
+                                {fmtPct(ytdPct ?? 0)}
+                              </p>
+                            </>
+                          ) : (
+                            <p className="text-sm font-bold" style={{ color: "var(--muted)" }}>—</p>
+                          )}
+                        </div>
+                        {/* Total */}
+                        <div className="pl-4">
                           <p className="text-[11px]" style={{ color: "var(--muted)" }}>Total</p>
                           <p className="text-sm font-bold" style={{ color: totalGain >= 0 ? "#22c55e" : "#ef4444" }}>
-                            {totalGain >= 0 ? "+" : ""}{fmt(totalGain, portfolioCurrency)} ({fmtPct(totalGainPct)})
+                            {totalGain >= 0 ? "+" : ""}{fmt(totalGain, portfolioCurrency)}
                           </p>
-                        </div>
-                        <div>
-                          <p className="text-[11px]" style={{ color: "var(--muted)" }}>Posiciones</p>
-                          <p className="text-sm font-bold" style={{ color: "var(--text)" }}>{positions.length}</p>
+                          <p className="text-[11px] font-semibold" style={{ color: totalGain >= 0 ? "#22c55e" : "#ef4444" }}>
+                            {fmtPct(totalGainPct)}
+                          </p>
                         </div>
                       </>
                     )}
