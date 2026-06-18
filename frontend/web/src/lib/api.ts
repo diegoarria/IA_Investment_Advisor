@@ -149,6 +149,8 @@ export const market = {
     capital?: number,
     positions?: { ticker: string; shares: number; avg_price: number; name?: string }[]
   ) => api.post("/api/market/portfolio", { scenario, capital, positions }),
+  analyzePortfolio: (positions: { ticker: string; shares: number; avg_price: number; name?: string; current_price?: number }[]) =>
+    api.post("/api/simulate/analyze-portfolio", { positions }),
   analyzeScreenshot: (imageData: string, imageType: string) =>
     api.post("/api/market/portfolio/from-screenshot", { image: imageData, type: imageType }),
   analyzePdf: (file: File) => {
