@@ -25,11 +25,17 @@ type PriceMap = Record<string, PriceData>;
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
-function fmtMoney(n: number): string {
+const CURRENCY_SYM: Record<string, string> = {
+  USD: "$", MXN: "$", ARS: "$", CLP: "$", COP: "$", CAD: "$",
+  EUR: "€", GBP: "£", BRL: "R$", JPY: "¥", CHF: "Fr",
+};
+
+function fmtMoney(n: number, currency = "USD"): string {
+  const sym = CURRENCY_SYM[currency] ?? "$";
   const abs = Math.abs(n);
   const sign = n < 0 ? "-" : "";
-  if (abs >= 1_000_000) return `${sign}$${(abs / 1_000_000).toFixed(2)}M`;
-  return `${sign}$${abs.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  if (abs >= 1_000_000) return `${sign}${sym}${(abs / 1_000_000).toFixed(2)}M`;
+  return `${sign}${sym}${abs.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 function fmtPct(n: number): string {
@@ -76,7 +82,7 @@ function SummaryCard({
 
 function PortfolioTab({ prices, loading }: { prices: PriceMap; loading: boolean }) {
   const router = useRouter();
-  const { positions } = usePortfolioStore();
+  const { positions, portfolioCurrency } = usePortfolioStore();
 
   const totalValue = positions.reduce((sum, pos) => {
     const p = prices[pos.ticker]?.price ?? pos.avgPrice;
@@ -103,16 +109,19 @@ function PortfolioTab({ prices, loading }: { prices: PriceMap; loading: boolean 
     <div className="space-y-4">
       {/* Summary Cards */}
       <div className="grid grid-cols-3 gap-3">
-        <SummaryCard label="Valor Total" value={fmtMoney(totalValue)} />
+        <SummaryCard
+          label={`Valor Total · ${portfolioCurrency}`}
+          value={fmtMoney(totalValue, portfolioCurrency)}
+        />
         <SummaryCard
           label="Ganancia Día"
-          value={fmtMoney(dayGain)}
+          value={fmtMoney(dayGain, portfolioCurrency)}
           sub={fmtPct(dayGainPctFinal)}
           positive={dayGain >= 0}
         />
         <SummaryCard
           label="Ganancia Total"
-          value={fmtMoney(totalGain)}
+          value={fmtMoney(totalGain, portfolioCurrency)}
           sub={fmtPct(totalGainPct)}
           positive={totalGain >= 0}
         />
@@ -160,7 +169,7 @@ function PortfolioTab({ prices, loading }: { prices: PriceMap; loading: boolean 
                   </div>
                   <div className="text-right">
                     <p className="font-bold text-sm" style={{ color: "var(--text)" }}>
-                      {fmtMoney(currentValue)}
+                      {fmtMoney(currentValue, portfolioCurrency)}
                     </p>
                     <div className="flex items-center justify-end gap-1">
                       {positive ? (

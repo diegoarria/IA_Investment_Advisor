@@ -308,8 +308,12 @@ export default function HomePage() {
               <button onClick={() => router.push("/patrimonio")}
                       className="lg:col-span-2 text-left rounded-2xl p-5 border transition-all hover:border-[var(--accent)] group relative"
                       style={{ background: "var(--card)", borderColor: "var(--border)" }}>
-                <p className="text-xs font-semibold uppercase tracking-wide mb-1" style={{ color: "var(--muted)" }}>
+                <p className="text-xs font-semibold uppercase tracking-wide mb-1 flex items-center gap-1.5" style={{ color: "var(--muted)" }}>
                   Mi Portafolio
+                  <span className="text-[10px] font-black px-1.5 py-0.5 rounded-md"
+                        style={{ background: "var(--raised)", color: "var(--sub)" }}>
+                    {portfolioCurrency}
+                  </span>
                 </p>
                 {loading ? (
                   <div className="h-10 w-44 rounded-lg animate-pulse" style={{ background: "var(--raised)" }} />

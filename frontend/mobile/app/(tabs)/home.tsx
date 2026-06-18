@@ -279,7 +279,12 @@ export default function HomeScreen() {
         >
           <View style={ss.heroTop}>
             <View>
-              <Text style={[ss.heroLabel, { color: colors.textMuted }]}>Mi Portafolio</Text>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                <Text style={[ss.heroLabel, { color: colors.textMuted }]}>Mi Portafolio</Text>
+                <View style={{ backgroundColor: colors.bgRaised ?? colors.card, paddingHorizontal: 5, paddingVertical: 2, borderRadius: 4 }}>
+                  <Text style={{ fontSize: 9, fontWeight: "900", color: colors.textMuted, letterSpacing: 0.8 }}>{portfolioCurrency}</Text>
+                </View>
+              </View>
               {loading
                 ? <Skeleton w={160} h={36} r={8} />
                 : <Text style={[ss.heroBalance, { color: colors.text }]}>

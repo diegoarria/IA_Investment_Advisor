@@ -26,11 +26,17 @@ type PriceMap = Record<string, PriceData>;
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
-function fmtMoney(n: number): string {
+const CURRENCY_SYM: Record<string, string> = {
+  USD: "$", MXN: "$", ARS: "$", CLP: "$", COP: "$", CAD: "$",
+  EUR: "€", GBP: "£", BRL: "R$", JPY: "¥", CHF: "Fr",
+};
+
+function fmtMoney(n: number, currency = "USD"): string {
+  const sym = CURRENCY_SYM[currency] ?? "$";
   const abs = Math.abs(n);
   const sign = n < 0 ? "-" : "";
-  if (abs >= 1_000_000) return `${sign}$${(abs / 1_000_000).toFixed(2)}M`;
-  return `${sign}$${abs.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  if (abs >= 1_000_000) return `${sign}${sym}${(abs / 1_000_000).toFixed(2)}M`;
+  return `${sign}${sym}${abs.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 function fmtPct(n: number): string {
@@ -45,7 +51,7 @@ type TabId = (typeof TABS)[number];
 // ─── Portafolio Tab ──────────────────────────────────────────────────────────
 
 function PortafolioTab({ prices, loading, colors }: { prices: PriceMap; loading: boolean; colors: any }) {
-  const { positions } = usePortfolioStore();
+  const { positions, portfolioCurrency } = usePortfolioStore();
 
   const totalValue = positions.reduce((sum, pos) => {
     const p = prices[pos.ticker]?.price ?? pos.avgPrice;
@@ -73,13 +79,18 @@ function PortafolioTab({ prices, loading, colors }: { prices: PriceMap; loading:
       {/* Summary Row */}
       <View style={{ flexDirection: "row", gap: 8 }}>
         <View style={[ss.statCard, { flex: 1, backgroundColor: colors.card, borderColor: colors.border }]}>
-          <Text style={[ss.statLabel, { color: colors.textMuted }]}>Valor Total</Text>
-          <Text style={[ss.statValue, { color: colors.text }]}>{fmtMoney(totalValue)}</Text>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
+            <Text style={[ss.statLabel, { color: colors.textMuted }]}>Valor Total</Text>
+            <View style={{ backgroundColor: colors.bgRaised ?? colors.card, paddingHorizontal: 5, paddingVertical: 1, borderRadius: 4, borderWidth: 1, borderColor: colors.border }}>
+              <Text style={{ fontSize: 9, fontWeight: "900", color: colors.textMuted, letterSpacing: 0.5 }}>{portfolioCurrency}</Text>
+            </View>
+          </View>
+          <Text style={[ss.statValue, { color: colors.text }]}>{fmtMoney(totalValue, portfolioCurrency)}</Text>
         </View>
         <View style={[ss.statCard, { flex: 1, backgroundColor: colors.card, borderColor: colors.border }]}>
           <Text style={[ss.statLabel, { color: colors.textMuted }]}>Ganancia Día</Text>
           <Text style={[ss.statValue, { color: dayGain >= 0 ? colors.up ?? "#10b981" : colors.down ?? "#ef4444" }]}>
-            {fmtMoney(dayGain)}
+            {fmtMoney(dayGain, portfolioCurrency)}
           </Text>
           <Text style={{ fontSize: 11, fontWeight: "600", color: dayGain >= 0 ? colors.up ?? "#10b981" : colors.down ?? "#ef4444", marginTop: 2 }}>
             {fmtPct(dayGainPct)}
@@ -90,7 +101,7 @@ function PortafolioTab({ prices, loading, colors }: { prices: PriceMap; loading:
       <View style={[ss.statCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
         <Text style={[ss.statLabel, { color: colors.textMuted }]}>Ganancia Total</Text>
         <Text style={[ss.statValue, { color: totalGain >= 0 ? colors.up ?? "#10b981" : colors.down ?? "#ef4444" }]}>
-          {fmtMoney(totalGain)}{" "}
+          {fmtMoney(totalGain, portfolioCurrency)}{" "}
           <Text style={ss.statSubValue}>{fmtPct(totalGainPct)}</Text>
         </Text>
       </View>
@@ -134,7 +145,7 @@ function PortafolioTab({ prices, loading, colors }: { prices: PriceMap; loading:
                   </Text>
                 </View>
                 <View style={ss.rowRight}>
-                  <Text style={[ss.rowValue, { color: colors.text }]}>{fmtMoney(currentValue)}</Text>
+                  <Text style={[ss.rowValue, { color: colors.text }]}>{fmtMoney(currentValue, portfolioCurrency)}</Text>
                   <View style={ss.rowBadgeRow}>
                     <Text style={[ss.rowBadge, { color: positive ? colors.up ?? "#10b981" : colors.down ?? "#ef4444" }]}>
                       {fmtPct(gainPct)}
@@ -303,7 +314,7 @@ function SimuladorTab({ prices, loading, colors }: { prices: PriceMap; loading: 
                   </Text>
                 </View>
                 <View style={ss.rowRight}>
-                  <Text style={[ss.rowValue, { color: colors.text }]}>{fmtMoney(currentValue)}</Text>
+                  <Text style={[ss.rowValue, { color: colors.text }]}>{fmtMoney(currentValue, portfolioCurrency)}</Text>
                   <Text style={[ss.rowBadge, { color: positive ? colors.up ?? "#10b981" : colors.down ?? "#ef4444" }]}>
                     {fmtPct(gainPct2)}
                   </Text>
