@@ -17,8 +17,9 @@ import StockAvatar from "../../src/components/StockAvatar";
 
 interface PriceData {
   price: number | null;
-  change: number;
   change_pct: number;
+  currency?: string;
+  name?: string;
 }
 
 type PriceMap = Record<string, PriceData>;
@@ -56,11 +57,17 @@ function PortafolioTab({ prices, loading, colors }: { prices: PriceMap; loading:
   const totalGain = totalValue - totalCost;
   const totalGainPct = totalCost > 0 ? (totalGain / totalCost) * 100 : 0;
 
-  const dayGain = positions.reduce((sum, pos) => {
+  const { dayGain, dayPrev } = positions.reduce((acc, pos) => {
     const pr = prices[pos.ticker];
-    if (!pr?.price) return sum;
-    return sum + pos.shares * pr.change;
-  }, 0);
+    if (!pr?.price) return acc;
+    const cp = pr.change_pct ?? 0;
+    const prevPrice = cp !== -100 ? pr.price / (1 + cp / 100) : pr.price;
+    return {
+      dayGain: acc.dayGain + pos.shares * (pr.price - prevPrice),
+      dayPrev: acc.dayPrev + pos.shares * prevPrice,
+    };
+  }, { dayGain: 0, dayPrev: 0 });
+  const dayGainPct = dayPrev > 0 ? (dayGain / dayPrev) * 100 : 0;
 
   return (
     <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: 16, gap: 12 }}>
@@ -74,6 +81,9 @@ function PortafolioTab({ prices, loading, colors }: { prices: PriceMap; loading:
           <Text style={[ss.statLabel, { color: colors.textMuted }]}>Ganancia Día</Text>
           <Text style={[ss.statValue, { color: dayGain >= 0 ? colors.up ?? "#10b981" : colors.down ?? "#ef4444" }]}>
             {fmtMoney(dayGain)}
+          </Text>
+          <Text style={{ fontSize: 11, fontWeight: "600", color: dayGain >= 0 ? colors.up ?? "#10b981" : colors.down ?? "#ef4444", marginTop: 2 }}>
+            {fmtPct(dayGainPct)}
           </Text>
         </View>
       </View>

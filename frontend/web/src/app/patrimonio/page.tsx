@@ -16,8 +16,9 @@ import { TrendingUp, TrendingDown, ArrowRight, Wallet, Eye, BarChart2 } from "lu
 
 interface PriceData {
   price: number | null;
-  change: number;
   change_pct: number;
+  currency?: string;
+  name?: string;
 }
 
 type PriceMap = Record<string, PriceData>;
@@ -87,11 +88,17 @@ function PortfolioTab({ prices, loading }: { prices: PriceMap; loading: boolean 
   const totalGain = totalValue - totalCost;
   const totalGainPct = totalCost > 0 ? (totalGain / totalCost) * 100 : 0;
 
-  const dayGain = positions.reduce((sum, pos) => {
+  const { dayGain, dayPrev } = positions.reduce((acc, pos) => {
     const pr = prices[pos.ticker];
-    if (!pr?.price) return sum;
-    return sum + pos.shares * pr.change;
-  }, 0);
+    if (!pr?.price) return acc;
+    const cp = pr.change_pct ?? 0;
+    const prevPrice = cp !== -100 ? pr.price / (1 + cp / 100) : pr.price;
+    return {
+      dayGain: acc.dayGain + pos.shares * (pr.price - prevPrice),
+      dayPrev: acc.dayPrev + pos.shares * prevPrice,
+    };
+  }, { dayGain: 0, dayPrev: 0 });
+  const dayGainPctFinal = dayPrev > 0 ? (dayGain / dayPrev) * 100 : 0;
 
   return (
     <div className="space-y-4">
@@ -101,6 +108,7 @@ function PortfolioTab({ prices, loading }: { prices: PriceMap; loading: boolean 
         <SummaryCard
           label="Ganancia Día"
           value={fmtMoney(dayGain)}
+          sub={fmtPct(dayGainPctFinal)}
           positive={dayGain >= 0}
         />
         <SummaryCard
