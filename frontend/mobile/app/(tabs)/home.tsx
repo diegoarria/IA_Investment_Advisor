@@ -304,8 +304,9 @@ export default function HomeScreen() {
   const [prices,     setPrices]    = useState<Record<string, any>>({});
   const [news,       setNews]      = useState<any[]>([]);
   const [indices,    setIndices]       = useState<any[]>([]);
-  const [indexCharts, setIndexCharts] = useState<Record<string, number[]>>({});
-  const [selectedIdx, setSelectedIdx] = useState<IdxData | null>(null);
+  const [indexCharts, setIndexCharts]     = useState<Record<string, number[]>>({});
+  const [selectedIdx, setSelectedIdx]     = useState<IdxData | null>(null);
+  const [idxRefresh,  setIdxRefresh]      = useState<Date | null>(null);
   const [unread,     setUnread]    = useState(0);
   const [topNotifs,  setTopNotifs] = useState<any[]>([]);
   const [refreshing, setRefreshing] = useState(false);
@@ -382,6 +383,7 @@ export default function HomeScreen() {
       if (idxRes.status === "fulfilled") {
         const idxData: IdxData[] = idxRes.value.data ?? [];
         setIndices(idxData);
+        setIdxRefresh(new Date());
         // Fetch 1D sparklines in background — no await, fire and forget
         idxData.forEach((idx: IdxData) => {
           marketApi.getChart(idx.symbol, "1d").then((res: any) => {
@@ -422,7 +424,7 @@ export default function HomeScreen() {
           .catch(() => {});
       }
       marketApi.getIndices()
-        .then((res: any) => { if (res?.data) setIndices(res.data ?? []); })
+        .then((res: any) => { if (res?.data) { setIndices(res.data ?? []); setIdxRefresh(new Date()); } })
         .catch(() => {});
     }, 30_000);
     return () => clearInterval(id);
@@ -665,53 +667,129 @@ export default function HomeScreen() {
         </ScrollView>
 
         {/* ── Índices de mercado ───────────────────────────────────────────── */}
-        {indices.length > 0 && (
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 14, gap: 10, flexDirection: "row" }}
-          >
-            {indices.map((idx) => {
-              const up     = idx.change_pct >= 0;
-              const col    = up ? colors.up : colors.down;
-              const prices = indexCharts[idx.symbol];
-              return (
-                <TouchableOpacity
-                  key={idx.symbol}
-                  activeOpacity={0.75}
-                  onPress={() => setSelectedIdx(idx)}
-                  style={[ss.idxChip, {
-                    backgroundColor: colors.card,
-                    borderColor: up ? colors.up + "45" : colors.down + "45",
-                  }]}
-                >
-                  <Text style={[ss.idxName, { color: colors.textSub }]}>{idx.name}</Text>
-                  {idx.price != null && (
-                    <Text style={[ss.idxPrice, { color: colors.text }]}>
-                      {idx.price >= 10000
-                        ? idx.price.toLocaleString("en-US", { maximumFractionDigits: 0 })
-                        : idx.price >= 1000
-                          ? (idx.price / 1000).toFixed(1) + "K"
-                          : idx.price.toFixed(2)}
+        {indices.length > 0 && (() => {
+          // Derived values used in this block
+          const nonVix  = indices.filter((i: IdxData) => i.symbol !== "^VIX");
+          const best    = nonVix.length
+            ? nonVix.reduce((a: IdxData, b: IdxData) => b.change_pct > a.change_pct ? b : a, nonVix[0])
+            : null;
+          const vixIdx  = indices.find((i: IdxData) => i.symbol === "^VIX");
+          const vixPrice = vixIdx?.price ?? null;
+          const sentiment = vixPrice == null ? null
+            : vixPrice < 15 ? { label: "Calma",           color: "#22c55e", bar: 15  }
+            : vixPrice < 20 ? { label: "Normal",           color: "#84cc16", bar: 35  }
+            : vixPrice < 30 ? { label: "Cauteloso",        color: "#f59e0b", bar: 65  }
+            :                 { label: "Alta volatilidad", color: "#ef4444", bar: 100 };
+          const secsSince = idxRefresh ? Math.round((Date.now() - idxRefresh.getTime()) / 1000) : null;
+          const updLabel  = secsSince == null ? null : secsSince < 5 ? "Ahora" : secsSince < 60 ? `${secsSince}s` : `${Math.round(secsSince / 60)}min`;
+
+          return (
+            <View>
+              {/* Section header */}
+              <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+                             paddingHorizontal: 16, paddingTop: 14, paddingBottom: 8 }}>
+                <Text style={{ fontSize: 10, fontWeight: "700", color: colors.textMuted,
+                               textTransform: "uppercase", letterSpacing: 1.2 }}>
+                  Mercados
+                </Text>
+                {updLabel && (
+                  <View style={{ paddingHorizontal: 7, paddingVertical: 2, borderRadius: 10,
+                                 backgroundColor: colors.raised ?? colors.card }}>
+                    <Text style={{ fontSize: 9, color: colors.textDim, fontWeight: "600" }}>
+                      {updLabel === "Ahora" ? "Ahora" : `Hace ${updLabel}`}
                     </Text>
-                  )}
-                  <Text style={[ss.idxChange, { color: col }]}>
-                    {up ? "+" : ""}{idx.change_pct.toFixed(2)}%
-                  </Text>
-                  {/* Sparkline */}
-                  <View style={{ marginTop: 6 }}>
-                    {prices && prices.length > 1 ? (
-                      <Sparkline prices={prices} color={col} width={88} height={34} />
-                    ) : (
-                      <View style={{ width: 88, height: 34, opacity: 0.15,
-                                     borderRadius: 4, backgroundColor: col }} />
-                    )}
                   </View>
-                </TouchableOpacity>
-              );
-            })}
-          </ScrollView>
-        )}
+                )}
+              </View>
+
+              {/* Cards */}
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={{ paddingHorizontal: 16, gap: 10, flexDirection: "row" }}
+              >
+                {indices.map((idx: IdxData) => {
+                  const up     = idx.change_pct >= 0;
+                  const col    = up ? colors.up : colors.down;
+                  const prices = indexCharts[idx.symbol];
+                  const isBest = best?.symbol === idx.symbol;
+                  return (
+                    <TouchableOpacity
+                      key={idx.symbol}
+                      activeOpacity={0.75}
+                      onPress={() => setSelectedIdx(idx)}
+                      style={[ss.idxChip, {
+                        backgroundColor: colors.card,
+                        borderColor: up ? colors.up + "45" : colors.down + "45",
+                      }]}
+                    >
+                      {/* Best performer badge */}
+                      {isBest && (
+                        <View style={{ position: "absolute", top: 0, right: 0,
+                                       backgroundColor: "#f59e0b", borderBottomLeftRadius: 8,
+                                       paddingHorizontal: 5, paddingVertical: 2, zIndex: 1 }}>
+                          <Text style={{ fontSize: 8, fontWeight: "900", color: "#000" }}>★ MEJOR</Text>
+                        </View>
+                      )}
+                      <Text style={[ss.idxName, { color: colors.textSub }]}>{idx.name}</Text>
+                      {idx.price != null && (
+                        <Text style={[ss.idxPrice, { color: colors.text }]}>
+                          {idx.price >= 10000
+                            ? idx.price.toLocaleString("en-US", { maximumFractionDigits: 0 })
+                            : idx.price >= 1000
+                              ? (idx.price / 1000).toFixed(1) + "K"
+                              : idx.price.toFixed(2)}
+                        </Text>
+                      )}
+                      <Text style={[ss.idxChange, { color: col }]}>
+                        {up ? "+" : ""}{idx.change_pct.toFixed(2)}%
+                      </Text>
+                      {/* Sparkline */}
+                      <View style={{ marginTop: 6 }}>
+                        {prices && prices.length > 1 ? (
+                          <Sparkline prices={prices} color={col} width={88} height={34} />
+                        ) : (
+                          <View style={{ width: 88, height: 34, opacity: 0.15,
+                                         borderRadius: 4, backgroundColor: col }} />
+                        )}
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+
+              {/* VIX sentiment */}
+              {sentiment && vixPrice != null && (
+                <View style={{ marginHorizontal: 16, marginTop: 10, borderRadius: 14,
+                               paddingHorizontal: 14, paddingVertical: 9, flexDirection: "row",
+                               alignItems: "center", gap: 10,
+                               backgroundColor: sentiment.color + "12",
+                               borderWidth: StyleSheet.hairlineWidth, borderColor: sentiment.color + "30" }}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 10, fontWeight: "700", color: colors.textMuted,
+                                   textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 3 }}>
+                      Sentimiento de mercado
+                    </Text>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                      <Text style={{ fontSize: 12, fontWeight: "800", color: sentiment.color }}>
+                        {sentiment.label}
+                      </Text>
+                      <Text style={{ fontSize: 10, color: colors.textDim }}>
+                        VIX {vixPrice.toFixed(2)}
+                      </Text>
+                    </View>
+                  </View>
+                  {/* Progress bar */}
+                  <View style={{ width: 72, height: 5, borderRadius: 3,
+                                 backgroundColor: colors.border, overflow: "hidden" }}>
+                    <View style={{ width: `${sentiment.bar}%` as any, height: "100%",
+                                   borderRadius: 3, backgroundColor: sentiment.color }} />
+                  </View>
+                </View>
+              )}
+            </View>
+          );
+        })()}
 
         {/* ── Index detail modal ───────────────────────────────────────────── */}
         {selectedIdx && (

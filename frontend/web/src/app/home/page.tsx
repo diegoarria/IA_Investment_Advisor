@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import AppSidebar from "@/components/AppSidebar";
 import MarketTickerBar from "@/components/MarketTickerBar";
+import HomeMarketOverview from "@/components/HomeMarketOverview";
 import StockAvatar from "@/components/StockAvatar";
 import { market as marketApi, notifications as notifApi } from "@/lib/api";
 import { useAuthStore, useProfileStore, useLearnStore, useSubscriptionStore } from "@/lib/store";
@@ -93,7 +94,8 @@ export default function HomePage() {
   const [news, setNews]           = useState<any[]>([]);
   const [unread, setUnread]       = useState(0);
   const [topNotifs, setTopNotifs] = useState<any[]>([]);
-  const [loading, setLoading]     = useState(true);
+  const [loading, setLoading]       = useState(true);
+  const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
   const [ytdGain, setYtdGain]     = useState<number | null>(null);
   const [ytdPct,  setYtdPct]      = useState<number | null>(null);
   const marketOpen = useMemo(() => isNYSEOpen(), []);
@@ -115,7 +117,7 @@ export default function HomePage() {
         notifApi.getAll(),
       ]);
       if (priceRes.status === "fulfilled")  setPrices(priceRes.value.data ?? {});
-      if (idxRes.status  === "fulfilled")   setIndices(idxRes.value.data ?? []);
+      if (idxRes.status  === "fulfilled") { setIndices(idxRes.value.data ?? []); setLastRefresh(new Date()); }
       if (notifRes.status === "fulfilled") {
         const d = notifRes.value.data;
         setUnread(d?.unread_count ?? 0);
@@ -153,7 +155,7 @@ export default function HomePage() {
           .catch(() => {});
       }
       marketApi.getIndices()
-        .then((res) => { if (res?.data) setIndices(res.data ?? []); })
+        .then((res) => { if (res?.data) { setIndices(res.data ?? []); setLastRefresh(new Date()); } })
         .catch(() => {});
     };
     const id = setInterval(tick, 30_000);
@@ -499,32 +501,7 @@ export default function HomePage() {
             )}
 
             {/* ── Market Indices ──────────────────────────────────────────── */}
-            {indices.length > 0 && (
-              <div className="flex gap-3 overflow-x-auto pb-1 scrollbar-thin">
-                {indices.map((idx) => {
-                  const up = idx.change_pct >= 0;
-                  return (
-                    <div key={idx.symbol} className="flex-shrink-0 rounded-xl px-4 py-3 border min-w-[110px]"
-                         style={{
-                           background: "var(--card)",
-                           borderColor: up ? "rgba(34,197,94,0.25)" : "rgba(239,68,68,0.25)",
-                         }}>
-                      <p className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: "var(--muted)" }}>
-                        {idx.name}
-                      </p>
-                      {idx.price != null && (
-                        <p className="text-sm font-bold mt-0.5" style={{ color: "var(--text)" }}>
-                          {idx.price >= 1000 ? (idx.price / 1000).toFixed(1) + "K" : idx.price.toFixed(2)}
-                        </p>
-                      )}
-                      <p className="text-xs font-semibold" style={{ color: up ? "#22c55e" : "#ef4444" }}>
-                        {up ? "+" : ""}{idx.change_pct.toFixed(2)}%
-                      </p>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
+            <HomeMarketOverview indices={indices} lastRefresh={lastRefresh} />
 
             {/* ── Quick Actions ────────────────────────────────────────────── */}
             <div className="grid grid-cols-4 gap-3">
