@@ -382,9 +382,9 @@ function RecentChats({
 
 function useLogout() {
   const logout = useAppStore((s) => s.logout);
-  const clearPortfolio = usePortfolioStore((s) => s.clearPortfolio);
   return () => {
-    clearPortfolio();
+    // Do NOT clear portfolio or watchlist — data belongs to the user and must
+    // survive logout. Server sync on next login will restore the correct state.
     logout();
     router.replace("/");
     SecureStore.deleteItemAsync("access_token").catch(() => {});

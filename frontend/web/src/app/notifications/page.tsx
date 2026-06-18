@@ -184,40 +184,39 @@ export default function NotificationsPage() {
     new Date(iso).toLocaleDateString("es", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 
   return (
-    <div className="h-full flex flex-col overflow-hidden" style={{ background: "var(--bg)" }}>
-      {/* Top bar */}
-      <div className="font-ui border-b flex items-center justify-between px-4 py-2 shrink-0"
-           style={{ borderColor: "var(--border)", background: "var(--card)" }}>
-        <div className="flex items-center gap-3">
-          <button onClick={() => setSidebarOpen(!sidebarOpen)} className="lg:hidden p-1 rounded-lg" style={{ color: "var(--muted)" }}>
-            {sidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-          </button>
-          <button onClick={() => router.push("/chat")} className="flex items-center gap-2.5">
-            <div className="relative">
-              <Image src="/logo.png" alt="Nuvos AI" width={30} height={30} className="rounded-xl object-cover" />
-            </div>
-            <span className="font-bold text-sm" style={{ color: "var(--text)" }}>Nuvos AI</span>
-          </button>
-        </div>
-        <span className="font-semibold text-sm" style={{ color: "var(--sub)", fontFamily: "var(--font-body)" }}>Notificaciones</span>
-        <div className="flex items-center gap-1">
-          <PremiumBadge />
-          <button onClick={handleRefresh} disabled={refreshing} className="p-2 rounded-lg hover:bg-white/5" style={{ color: "var(--muted)" }}>
-            <RefreshCw className={`w-4 h-4 ${refreshing ? "animate-spin" : ""}`} />
-          </button>
-          <button onClick={toggleTheme} className="p-2 rounded-lg hover:bg-white/5" style={{ color: "var(--muted)" }}>
-            {theme === "dark" ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
-          </button>
-          <button onClick={() => setSettingsOpen(true)} className="p-2 rounded-lg hover:bg-white/5" style={{ color: "var(--muted)" }}>
-            <Settings className="w-4 h-4" />
-          </button>
-        </div>
-      </div>
-      <MarketTickerBar />
+    <>
+    <div className="flex h-screen overflow-hidden" style={{ background: "var(--bg)" }}>
+      <AppSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
-      <div className="flex flex-1 overflow-hidden relative">
-        {/* Sidebar */}
-        <AppSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+      <div className="flex-1 flex flex-col overflow-hidden">
+        <MarketTickerBar />
+
+        {/* ── Sticky Header ── */}
+        <div className="sticky top-0 z-10 px-6 py-4 flex items-center justify-between border-b shrink-0"
+             style={{ background: "var(--bg)", borderColor: "var(--border)" }}>
+          <div>
+            <p className="text-sm" style={{ color: "var(--muted)" }}>Alertas y noticias</p>
+            <h1 className="text-2xl font-black tracking-tight" style={{ color: "var(--text)" }}>Notificaciones</h1>
+          </div>
+          <div className="flex items-center gap-2">
+            <PremiumBadge />
+            <button onClick={handleRefresh} disabled={refreshing}
+                    className="w-9 h-9 flex items-center justify-center rounded-xl border transition-colors hover:border-[var(--accent)]"
+                    style={{ borderColor: "var(--border)", background: "var(--raised)", color: "var(--sub)" }}>
+              <RefreshCw className={`w-4 h-4 ${refreshing ? "animate-spin" : ""}`} />
+            </button>
+            <button onClick={toggleTheme}
+                    className="w-9 h-9 flex items-center justify-center rounded-xl border transition-colors hover:border-[var(--accent)]"
+                    style={{ borderColor: "var(--border)", background: "var(--raised)", color: "var(--sub)" }}>
+              {theme === "dark" ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+            </button>
+            <button onClick={() => setSettingsOpen(true)}
+                    className="w-9 h-9 flex items-center justify-center rounded-xl border transition-colors hover:border-[var(--accent)]"
+                    style={{ borderColor: "var(--border)", background: "var(--raised)", color: "var(--sub)" }}>
+              <Settings className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
 
         {/* Main */}
         <main className="flex-1 overflow-y-auto scrollbar-thin p-4">
@@ -511,6 +510,7 @@ export default function NotificationsPage() {
           </div>
         </main>
       </div>
+    </div>
 
       {/* Alert context modal */}
       {alertModal && (
@@ -767,7 +767,7 @@ export default function NotificationsPage() {
           </div>
         </div>
       )}
-    {settingsOpen && <NotificationSettingsPanel onClose={() => setSettingsOpen(false)} />}
-    </div>
+      {settingsOpen && <NotificationSettingsPanel onClose={() => setSettingsOpen(false)} />}
+    </>
   );
 }

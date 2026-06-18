@@ -57,7 +57,15 @@ export const useWatchlistStore = create<WatchlistStore>()(
             name: item.name || item.ticker,
             addedAt: item.added_at ? new Date(item.added_at).getTime() : Date.now(),
           }));
-          set({ items: serverItems });
+          const localItems = get().items;
+          if (serverItems.length > 0) {
+            // Server has data — use it as source of truth
+            set({ items: serverItems });
+          } else if (localItems.length > 0) {
+            // Server returned empty but we have local items — push them up
+            localItems.forEach((i) => watchlistServerApi.add(i.ticker, i.name).catch(() => {}));
+          }
+          // If both are empty, do nothing
         } catch {}
       },
     }),

@@ -120,8 +120,16 @@ export const usePortfolioStore = create<PortfolioStore>()(
           push([], portfolioCurrency);
         },
 
-        // Called from login restore — sets without triggering another push
+        // Called from login restore — sets without triggering another push.
+        // Never overwrites local positions with an empty server response;
+        // if server is empty but we have local data, push local up instead.
         restoreFromServer: (list, currency) => {
+          const { positions: local, portfolioCurrency } = get();
+          if (!list.length && local.length > 0) {
+            push(local, currency ?? portfolioCurrency);
+            return;
+          }
+          if (!list.length) return;
           set({
             positions: list.map((p, i) => ({ ...p, id: `${p.ticker}-restore-${i}` })),
             ...(currency ? { portfolioCurrency: currency } : {}),

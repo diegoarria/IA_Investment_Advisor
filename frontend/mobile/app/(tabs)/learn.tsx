@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect, useCallback } from "react";
 import {
   View, Text, TextInput, TouchableOpacity, ScrollView, FlatList,
   Modal, StyleSheet, SafeAreaView, ActivityIndicator,
@@ -6,8 +6,9 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import Markdown from "react-native-markdown-display";
+import { router } from "expo-router";
 import { useTheme, Colors } from "../../src/lib/ThemeContext";
-import { chatApi } from "../../src/lib/api";
+import { chatApi, investorsApi } from "../../src/lib/api";
 import { useLearnStore } from "../../src/lib/learnStore";
 
 // ─── Data ──────────────────────────────────────────────────────────────────
@@ -244,6 +245,20 @@ export default function LearnScreen() {
   const { streak, completedToday, markTopicCompleted, initStreak } = useLearnStore();
   useEffect(() => { initStreak(); }, []);
 
+  const [subTab, setSubTab] = useState<"aprender" | "inversores">("aprender");
+  const [investors, setInvestors] = useState<any[]>([]);
+  const [investorsLoading, setInvestorsLoading] = useState(false);
+
+  const loadInvestors = useCallback(async () => {
+    if (investors.length) return;
+    setInvestorsLoading(true);
+    try {
+      const r = await investorsApi.list();
+      setInvestors(r.data.investors ?? []);
+    } catch {}
+    setInvestorsLoading(false);
+  }, [investors.length]);
+
   const [search, setSearch] = useState("");
   const [selectedCat, setSelectedCat] = useState("all");
   const [modal, setModal] = useState<{ title: string; icon: IoniconName } | null>(null);
@@ -292,6 +307,77 @@ export default function LearnScreen() {
 
   return (
     <SafeAreaView style={s.container}>
+
+      {/* ── Sub-tab bar: Aprender | Inversores ── */}
+      <View style={s.subTabBar}>
+        <View style={[s.subTabInner, { backgroundColor: colors.bgRaised }]}>
+          {(["aprender", "inversores"] as const).map((tab) => {
+            const active = subTab === tab;
+            return (
+              <TouchableOpacity
+                key={tab}
+                style={[s.subTab, active && [s.subTabActive, { backgroundColor: colors.card }]]}
+                onPress={() => { setSubTab(tab); if (tab === "inversores") loadInvestors(); }}
+                activeOpacity={0.75}
+              >
+                <Ionicons
+                  name={tab === "aprender"
+                    ? (active ? "school" : "school-outline")
+                    : (active ? "people" : "people-outline")}
+                  size={14}
+                  color={active ? colors.accentLight : colors.textMuted}
+                />
+                <Text style={[s.subTabText, { color: active ? colors.text : colors.textMuted }]}>
+                  {tab === "aprender" ? "Aprender" : "Inversores"}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      </View>
+
+      {/* ── Inversores tab ── */}
+      {subTab === "inversores" && (
+        <ScrollView contentContainerStyle={{ padding: 16, gap: 10, paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
+          {investorsLoading
+            ? <ActivityIndicator size="large" color={colors.accentLight} style={{ marginTop: 40 }} />
+            : investors.length === 0
+            ? (
+              <View style={{ alignItems: "center", padding: 40, gap: 12 }}>
+                <Ionicons name="people-outline" size={48} color={colors.textDim} />
+                <Text style={{ color: colors.textMuted, fontSize: 14, textAlign: "center" }}>
+                  No hay inversores disponibles
+                </Text>
+              </View>
+            )
+            : investors.map((inv: any) => (
+              <TouchableOpacity
+                key={inv.id}
+                activeOpacity={0.85}
+                onPress={() => router.navigate("/(tabs)/investors")}
+                style={[s.invCard, { backgroundColor: colors.card, borderColor: colors.border }]}
+              >
+                <View style={[s.invAvatar, { backgroundColor: colors.accentLight + "18" }]}>
+                  <Text style={s.invAvatarText}>{inv.avatar}</Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[s.invName, { color: colors.text }]}>{inv.name}</Text>
+                  <Text style={[s.invFund, { color: colors.textMuted }]} numberOfLines={1}>{inv.fund}</Text>
+                  {inv.style ? (
+                    <View style={[s.invStylePill, { backgroundColor: colors.accentLight + "15" }]}>
+                      <Text style={[s.invStyleText, { color: colors.accentLight }]}>{inv.style}</Text>
+                    </View>
+                  ) : null}
+                </View>
+                <Ionicons name="chevron-forward" size={16} color={colors.textDim} />
+              </TouchableOpacity>
+            ))
+          }
+        </ScrollView>
+      )}
+
+      {/* ── Aprender content ── */}
+      <View style={{ flex: 1, display: subTab === "aprender" ? "flex" : "none" }}>
 
       {/* Streak banner — simple, games moved to Arena tab */}
       <View style={[s.streakBanner, { backgroundColor: colors.card, borderColor: completedToday ? "#22c55e44" : colors.border }]}>
@@ -479,6 +565,8 @@ export default function LearnScreen() {
         </View>
       </Modal>
 
+      </View>
+
     </SafeAreaView>
   );
 }
@@ -593,6 +681,32 @@ function makeStyles(c: Colors) {
     modalContent: { padding: 20, paddingBottom: 48 },
     loadingState: { alignItems: "center", paddingTop: 72, gap: 16 },
     loadingText: { fontSize: 14 },
+    // Sub-tab bar
+    subTabBar:   { paddingHorizontal: 16, paddingVertical: 10 },
+    subTabInner: { flexDirection: "row" as const, borderRadius: 14, padding: 3, gap: 2 },
+    subTab: {
+      flex: 1, flexDirection: "row" as const, alignItems: "center" as const,
+      justifyContent: "center" as const, gap: 5, paddingVertical: 8, borderRadius: 11,
+    },
+    subTabActive: {},
+    subTabText:   { fontSize: 13, fontWeight: "600" as const },
+    // Investor cards
+    invCard: {
+      flexDirection: "row" as const, alignItems: "center" as const,
+      gap: 12, padding: 14, borderRadius: 16, borderWidth: StyleSheet.hairlineWidth,
+    },
+    invAvatar: {
+      width: 46, height: 46, borderRadius: 23,
+      alignItems: "center" as const, justifyContent: "center" as const,
+    },
+    invAvatarText: { fontSize: 22 },
+    invName:       { fontSize: 15, fontWeight: "700" as const },
+    invFund:       { fontSize: 12, marginTop: 1 },
+    invStylePill: {
+      alignSelf: "flex-start" as const, marginTop: 4,
+      paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6,
+    },
+    invStyleText:  { fontSize: 10, fontWeight: "600" as const },
   });
 }
 

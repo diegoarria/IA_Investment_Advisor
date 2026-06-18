@@ -1003,6 +1003,73 @@ function ClipCard({
   );
 }
 
+// ── Skeleton loading screen ───────────────────────────────────────────────────
+
+function SkimmerBar({ w, h, r = 6, delay = 0 }: { w: number | string; h: number; r?: number; delay?: number }) {
+  const anim = useRef(new Animated.Value(0.25)).current;
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(anim, { toValue: 0.55, duration: 900, delay, useNativeDriver: true }),
+        Animated.timing(anim, { toValue: 0.25, duration: 900, useNativeDriver: true }),
+      ])
+    );
+    loop.start();
+    return () => loop.stop();
+  }, []);
+  return (
+    <Animated.View style={{ width: w as any, height: h, borderRadius: r, backgroundColor: "#ffffff", opacity: anim }} />
+  );
+}
+
+function VideosSkeleton() {
+  return (
+    <SafeAreaView style={[styles.container, { backgroundColor: "#0a0a0a" }]} edges={["top"]}>
+      {/* Simulated fullscreen card */}
+      <View style={{ flex: 1, position: "relative" }}>
+        {/* Thumbnail shimmer */}
+        <View style={{ position: "absolute", inset: 0, backgroundColor: "#111" }} />
+
+        {/* Right action column */}
+        <View style={{
+          position: "absolute", right: 14, bottom: 160,
+          alignItems: "center", gap: 22,
+        }}>
+          {[52, 52, 52, 44].map((size, i) => (
+            <View key={i} style={{ alignItems: "center", gap: 4 }}>
+              <SkimmerBar w={size} h={size} r={size / 2} delay={i * 120} />
+              <SkimmerBar w={28} h={10} delay={i * 120} />
+            </View>
+          ))}
+        </View>
+
+        {/* Bottom info area */}
+        <View style={{
+          position: "absolute", left: 16, right: 80, bottom: 100, gap: 10,
+        }}>
+          <SkimmerBar w="60%" h={14} r={7} />
+          <SkimmerBar w="90%" h={13} r={6} />
+          <SkimmerBar w="75%" h={13} r={6} delay={80} />
+          <View style={{ flexDirection: "row", gap: 8, marginTop: 4 }}>
+            <SkimmerBar w={64} h={26} r={13} delay={100} />
+            <SkimmerBar w={64} h={26} r={13} delay={180} />
+          </View>
+        </View>
+
+        {/* Progress bar */}
+        <View style={{ position: "absolute", bottom: 72, left: 0, right: 0, height: 2, backgroundColor: "#222" }}>
+          <Animated.View style={{ width: "35%", height: 2, backgroundColor: "#00d47e", opacity: 0.7 }} />
+        </View>
+
+        {/* Nuvos watermark hint */}
+        <View style={{ position: "absolute", top: 16, left: 16 }}>
+          <SkimmerBar w={90} h={28} r={14} />
+        </View>
+      </View>
+    </SafeAreaView>
+  );
+}
+
 // ── Main Screen ───────────────────────────────────────────────────────────────
 
 export default function VideosScreen() {
@@ -1171,14 +1238,7 @@ export default function VideosScreen() {
   }).current;
 
   if (loading) {
-    return (
-      <SafeAreaView style={[styles.container, { backgroundColor: "#000" }]} edges={["top"]}>
-        <View style={styles.center}>
-          <ActivityIndicator size="large" color="#00d47e" />
-          <Text style={{ color: "white", marginTop: 12, fontSize: 14 }}>Cargando videos...</Text>
-        </View>
-      </SafeAreaView>
-    );
+    return <VideosSkeleton />;
   }
 
   if (clips.length === 0) {

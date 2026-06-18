@@ -537,90 +537,70 @@ export default function WatchlistPage() {
 
   return (
     <>
-      <div className="h-full flex flex-col overflow-hidden" style={{ background: "var(--bg)" }}>
+      <div className="flex h-screen overflow-hidden" style={{ background: "var(--bg)" }}>
+        <AppSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
-        {/* ── Topbar ── */}
-        <div
-          className="font-ui border-b flex items-center justify-between px-4 py-2 shrink-0"
-          style={{ borderColor: "var(--border)", background: "var(--card)" }}
-        >
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => setSidebarOpen(!sidebarOpen)}
-              className="lg:hidden p-1"
-              style={{ color: "var(--muted)" }}
-            >
-              {sidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-            </button>
-            <button onClick={() => router.push("/chat")} className="flex items-center gap-2.5">
-              <div className="relative">
-                <Image src="/logo.png" alt="Nuvos AI" width={30} height={30} className="rounded-xl object-cover" />
-                <div
-                  style={{ background: "var(--grad-green)" }}
-                />
-              </div>
-              <span className="font-bold text-sm" style={{ color: "var(--text)" }}>Nuvos AI</span>
-            </button>
-          </div>
-
-          <span className="font-semibold text-sm" style={{ color: "var(--sub)", fontFamily: "var(--font-body)" }}>Watchlist</span>
-
-          <div className="flex items-center gap-2">
-            {lastUpdatedText && (
-              <span className="hidden sm:inline text-[10px]" style={{ color: "var(--dim)" }}>
-                {lastUpdatedText}
-              </span>
-            )}
-            {/* View toggle */}
-            <div className="flex items-center rounded-lg border overflow-hidden"
-                 style={{ borderColor: "var(--border)" }}>
-              <button
-                onClick={() => { setViewMode("basic"); localStorage.setItem("nuvos_watchlist_view", "basic"); }}
-                className="px-2.5 py-1.5 text-[10px] font-bold transition-colors"
-                style={{
-                  background: viewMode === "basic" ? "var(--accent)" : "transparent",
-                  color: viewMode === "basic" ? "#fff" : "var(--muted)",
-                }}
-              >
-                Básico
-              </button>
-              <button
-                onClick={() => { setViewMode("advanced"); localStorage.setItem("nuvos_watchlist_view", "advanced"); }}
-                className="px-2.5 py-1.5 text-[10px] font-bold transition-colors"
-                style={{
-                  background: viewMode === "advanced" ? "var(--accent)" : "transparent",
-                  color: viewMode === "advanced" ? "#fff" : "var(--muted)",
-                }}
-              >
-                Avanzado
-              </button>
-            </div>
-            <PremiumBadge />
-            <button
-              onClick={handleRefresh}
-              className="p-1.5 rounded-lg transition-colors"
-              style={{ color: "var(--muted)" }}
-              title="Actualizar"
-            >
-              <RefreshCw className={`w-4 h-4 ${refreshing ? "animate-spin" : ""}`} />
-            </button>
-            <button
-              onClick={() => { clearAuth(); router.push("/"); }}
-              className="p-1.5 rounded-lg transition-colors"
-              style={{ color: "var(--muted)" }}
-              title="Cerrar sesión"
-            >
-              <LogOut className="w-5 h-5" />
-            </button>
-          </div>
-        </div>
+        <div className="flex-1 flex flex-col overflow-hidden">
         <MarketTickerBar />
 
-        {/* ── Body ── */}
-        <div className="flex flex-1 overflow-hidden relative">
-          <AppSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+          {/* ── Sticky Header ── */}
+          <div className="sticky top-0 z-10 px-6 py-4 flex items-center justify-between border-b shrink-0"
+               style={{ background: "var(--bg)", borderColor: "var(--border)" }}>
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--muted)" }}>Mi lista</p>
+              <h1 className="text-2xl font-black tracking-tight" style={{ color: "var(--text)" }}>Watchlist</h1>
+            </div>
+            <div className="flex items-center gap-2">
+              {lastUpdatedText && (
+                <span className="hidden sm:inline text-[10px]" style={{ color: "var(--dim)" }}>
+                  {lastUpdatedText}
+                </span>
+              )}
+              {/* View toggle */}
+              <div className="flex items-center rounded-lg border overflow-hidden"
+                   style={{ borderColor: "var(--border)" }}>
+                <button
+                  onClick={() => { setViewMode("basic"); localStorage.setItem("nuvos_watchlist_view", "basic"); }}
+                  className="px-2.5 py-1.5 text-[10px] font-bold transition-colors"
+                  style={{
+                    background: viewMode === "basic" ? "var(--accent)" : "transparent",
+                    color: viewMode === "basic" ? "#fff" : "var(--muted)",
+                  }}
+                >
+                  Básico
+                </button>
+                <button
+                  onClick={() => { setViewMode("advanced"); localStorage.setItem("nuvos_watchlist_view", "advanced"); }}
+                  className="px-2.5 py-1.5 text-[10px] font-bold transition-colors"
+                  style={{
+                    background: viewMode === "advanced" ? "var(--accent)" : "transparent",
+                    color: viewMode === "advanced" ? "#fff" : "var(--muted)",
+                  }}
+                >
+                  Avanzado
+                </button>
+              </div>
+              <PremiumBadge />
+              <button
+                onClick={handleRefresh}
+                className="w-9 h-9 flex items-center justify-center rounded-xl border transition-colors hover:border-[var(--accent)]"
+                style={{ borderColor: "var(--border)", background: "var(--raised)", color: "var(--sub)" }}
+                title="Actualizar"
+              >
+                <RefreshCw className={`w-4 h-4 ${refreshing ? "animate-spin" : ""}`} />
+              </button>
+              <button
+                onClick={() => { clearAuth(); router.push("/"); }}
+                className="w-9 h-9 flex items-center justify-center rounded-xl border transition-colors hover:border-[var(--accent)]"
+                style={{ borderColor: "var(--border)", background: "var(--raised)", color: "var(--sub)" }}
+                title="Cerrar sesión"
+              >
+                <LogOut className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
 
-          <main className="flex-1 overflow-y-auto scrollbar-thin p-4 w-full">
+          <main className="flex-1 overflow-y-auto scrollbar-thin p-4 w-full max-w-5xl mx-auto">
             <GuidedSteps currentPage="watchlist" />
 
             {/* ── Search bar ── */}
@@ -803,8 +783,8 @@ export default function WatchlistPage() {
               </div>
             )}
           </main>
-        </div>
-      </div>
+        </div>{/* end flex-1 flex-col */}
+      </div>{/* end flex h-screen */}
 
       {/* ── Stock Detail Modal ── */}
       {selectedStock && (

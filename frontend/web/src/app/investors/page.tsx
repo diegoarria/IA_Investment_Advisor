@@ -94,56 +94,40 @@ export default function InvestorsPage() {
   }, []);
 
   return (
-    <div className="h-full flex flex-col overflow-hidden" style={{ background: "var(--bg)" }}>
-      {/* Top bar */}
-      <div className="font-ui border-b flex items-center justify-between px-4 py-2 shrink-0"
-           style={{ borderColor: "var(--border)", background: "var(--card)" }}>
-        <div className="flex items-center gap-3">
-          <button onClick={() => setSidebarOpen(!sidebarOpen)} className="lg:hidden p-1 rounded-lg" style={{ color: "var(--muted)" }}>
-            {sidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-          </button>
-          <button onClick={() => router.push("/chat")} className="flex items-center gap-2.5">
-            <Image src="/logo.png" alt="Nuvos AI" width={30} height={30} className="rounded-xl object-cover" />
-            <span className="font-bold text-sm" style={{ color: "var(--text)" }}>Nuvos AI</span>
-          </button>
-        </div>
-        <span className="font-semibold text-sm" style={{ color: "var(--sub)", fontFamily: "var(--font-body)" }}>
-          Inversores
-        </span>
-        <div className="flex items-center gap-1">
-          <PremiumBadge />
-          <button onClick={toggleTheme} className="p-2 rounded-lg hover:bg-white/5" style={{ color: "var(--muted)" }}>
-            {theme === "dark" ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
-          </button>
-        </div>
-      </div>
+    <div className="flex h-screen overflow-hidden" style={{ background: "var(--bg)" }}>
+      <AppSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+
+      <div className="flex-1 flex flex-col overflow-hidden">
       <MarketTickerBar />
 
-      <div className="flex flex-1 overflow-hidden relative">
-        <AppSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+        {/* ── Sticky Header ── */}
+        <div className="sticky top-0 z-10 px-6 py-4 flex items-center justify-between border-b shrink-0"
+             style={{ background: "var(--bg)", borderColor: "var(--border)" }}>
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--muted)" }}>Datos SEC · 45d retraso</p>
+            <h1 className="text-2xl font-black tracking-tight" style={{ color: "var(--text)" }}>Inversores</h1>
+          </div>
+          <div className="flex items-center gap-2">
+            <PremiumBadge />
+            <button onClick={toggleTheme}
+                    className="w-9 h-9 flex items-center justify-center rounded-xl border transition-colors hover:border-[var(--accent)]"
+                    style={{ borderColor: "var(--border)", background: "var(--raised)", color: "var(--sub)" }}>
+              {theme === "dark" ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+            </button>
+          </div>
+        </div>
 
         <main className="flex-1 overflow-y-auto scrollbar-thin p-4">
           <div className="max-w-2xl mx-auto pb-8 space-y-4">
 
-            {/* Header */}
-            <div className="rounded-2xl border p-4" style={{ background: "var(--card)", borderColor: "var(--border)" }}>
-              <div className="flex items-center gap-3 mb-2">
-                <div className="w-9 h-9 rounded-xl flex items-center justify-center text-lg"
-                     style={{ background: "rgba(0,168,94,0.12)" }}>📡</div>
-                <div>
-                  <h1 className="font-extrabold text-base" style={{ color: "var(--text)" }}>Rastreador de Inversores</h1>
-                  <p className="text-xs" style={{ color: "var(--muted)" }}>
-                    Posiciones públicas de los mejores inversores del mundo
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-start gap-2 mt-3 p-3 rounded-xl" style={{ background: "rgba(245,158,11,0.08)", border: "1px solid rgba(245,158,11,0.2)" }}>
-                <Info className="w-3.5 h-3.5 mt-0.5 shrink-0" style={{ color: "#f59e0b" }} />
-                <p className="text-[11px] leading-relaxed" style={{ color: "var(--muted)" }}>
-                  Datos con hasta <strong>45 días de retraso</strong> — provenientes de declaraciones públicas obligatorias
-                  (SEC Form 13F, STOCK Act, ARK Invest). No son posiciones en tiempo real.
-                </p>
-              </div>
+            {/* Delay notice */}
+            <div className="flex items-start gap-2 p-3 rounded-xl border"
+                 style={{ background: "rgba(245,158,11,0.06)", borderColor: "rgba(245,158,11,0.2)" }}>
+              <Info className="w-3.5 h-3.5 mt-0.5 shrink-0" style={{ color: "#f59e0b" }} />
+              <p className="text-[11px] leading-relaxed" style={{ color: "var(--muted)" }}>
+                Datos con hasta <strong>45 días de retraso</strong> — provenientes de declaraciones públicas obligatorias
+                (SEC Form 13F, STOCK Act, ARK Invest). No son posiciones en tiempo real.
+              </p>
             </div>
 
             {/* Investor list or detail */}

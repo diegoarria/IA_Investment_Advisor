@@ -636,7 +636,14 @@ export const useWatchlistStore = create<WatchlistState>()(
             name: i.name || i.ticker,
             addedAt: i.added_at ? new Date(i.added_at).getTime() : Date.now(),
           }));
-          set({ items: serverItems });
+          const localItems = get().items;
+          if (serverItems.length > 0) {
+            set({ items: serverItems });
+          } else if (localItems.length > 0) {
+            // Server returned empty but local has data — push local up
+            const { watchlist: wl } = await import("./api");
+            localItems.forEach((i) => wl.add(i.ticker, i.name).catch(() => {}));
+          }
         } catch {}
       },
     }),

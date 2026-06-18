@@ -9,40 +9,40 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { useTheme } from "../../src/lib/ThemeContext";
 import { useAppStore } from "../../src/lib/profileStore";
-import { useNavOrderStore, getTop5TabPaths, pathToRoute, ALL_NAV_ITEMS } from "../../src/lib/navOrderStore";
+import { useNavOrderStore } from "../../src/lib/navOrderStore";
 import { useSubscriptionStore } from "../../src/lib/subscriptionStore";
-import { getUserLevel, isAtLeast } from "../../src/lib/userLevel";
 import { useWatchlistStore } from "../../src/lib/watchlistStore";
 import MarketTicker from "../../src/components/MarketTicker";
 
 type IoniconName = React.ComponentProps<typeof Ionicons>["name"];
 
-// Icons mirror the web app's Lucide icons: BookOpen, PieChart, Eye, Users,
-// Play, Bookmark, BarChart2, GraduationCap, Bell, Headphones, User
 const TAB_CONFIG: Record<string, { icon: IoniconName; iconFilled: IoniconName; label: string }> = {
-  chat:          { icon: "reader-outline",         iconFilled: "reader",        label: "Chat" },
-  portfolio:     { icon: "pie-chart-outline",     iconFilled: "pie-chart",     label: "Portafolio" },
-  watchlist:     { icon: "eye-outline",           iconFilled: "eye",           label: "Watchlist" },
-  investors:     { icon: "people-outline",        iconFilled: "people",        label: "Inversores" },
-  videos:        { icon: "play-outline",          iconFilled: "play",          label: "Videos" },
-  learn:         { icon: "school-outline",        iconFilled: "school",        label: "Aprendizaje" },
-  paper:         { icon: "bar-chart-outline",     iconFilled: "bar-chart",     label: "Simulador" },
-  notifications: { icon: "notifications-outline", iconFilled: "notifications", label: "Notificaciones" },
-  support:       { icon: "headset-outline",       iconFilled: "headset",       label: "Soporte" },
-  profile:       { icon: "person-outline",        iconFilled: "person",        label: "Perfil" },
+  // ── 4 main tabs ──
+  home:          { icon: "home-outline",            iconFilled: "home",            label: "Inicio" },
+  chat:          { icon: "sparkles-outline",        iconFilled: "sparkles",        label: "Mentor IA" },
+  patrimonio:    { icon: "wallet-outline",          iconFilled: "wallet",          label: "Patrimonio" },
+  academy:       { icon: "school-outline",          iconFilled: "school",          label: "Academy" },
+  // ── Secondary screens (accessible from hub screens) ──
+  portfolio:     { icon: "pie-chart-outline",       iconFilled: "pie-chart",       label: "Portafolio" },
+  watchlist:     { icon: "pulse-outline",           iconFilled: "pulse",           label: "Watchlist" },
+  paper:         { icon: "bar-chart-outline",       iconFilled: "bar-chart",       label: "Simulador" },
+  learn:         { icon: "book-outline",            iconFilled: "book",            label: "Aprendizaje" },
+  videos:        { icon: "play-outline",            iconFilled: "play",            label: "Videos" },
+  investors:     { icon: "people-outline",          iconFilled: "people",          label: "Inversores" },
+  notifications: { icon: "notifications-outline",   iconFilled: "notifications",   label: "Notificaciones" },
+  support:       { icon: "headset-outline",         iconFilled: "headset",         label: "Soporte" },
+  profile:       { icon: "person-outline",          iconFilled: "person",          label: "Perfil" },
 };
+
+const FIXED_TABS = ["home", "chat", "patrimonio", "academy"] as const;
 
 // ─── Custom Tab Bar ───────────────────────────────────────────────────────────
 
-function CustomTabBar({ state, descriptors: _d, navigation }: BottomTabBarProps) {
+function CustomTabBar({ state, navigation }: BottomTabBarProps) {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
-  const navOrder = useNavOrderStore((s) => s.order);
-  const profile = useAppStore((s) => s.profile);
-  const userLevel = getUserLevel(profile);
 
-  const top5RouteNames = getTop5TabPaths(navOrder).map(pathToRoute);
-  const visibleRoutes = top5RouteNames
+  const visibleRoutes = FIXED_TABS
     .map((name) => state.routes.find((r) => r.name === name))
     .filter(Boolean) as typeof state.routes;
 
@@ -61,17 +61,12 @@ function CustomTabBar({ state, descriptors: _d, navigation }: BottomTabBarProps)
         const cfg = TAB_CONFIG[route.name];
         if (!cfg) return null;
 
-        const navItem = ALL_NAV_ITEMS.find((i) => i.path === `/${route.name}`);
-        const locked = navItem ? !isAtLeast(userLevel, navItem.minLevel) : false;
-
         return (
           <Pressable
             key={route.key}
-            style={[tabStyles.tab, locked && { opacity: 0.45 }]}
+            style={tabStyles.tab}
             onPress={() => {
-              if (locked) { navigation.navigate("profile"); return; }
               if (focused) {
-                // Emit tabPress so the active screen can listen and refresh
                 navigation.emit({ type: "tabPress", target: route.key, canPreventDefault: true });
               } else {
                 navigation.navigate(route.name);
@@ -79,10 +74,9 @@ function CustomTabBar({ state, descriptors: _d, navigation }: BottomTabBarProps)
             }}
             android_ripple={{ color: colors.accentGlow, borderless: true, radius: 28 }}
           >
-            {/* Top glow line */}
             <View style={[
               tabStyles.topLine,
-              focused && !locked && {
+              focused && {
                 backgroundColor: colors.accentLight,
                 shadowColor: colors.accentLight,
                 shadowOpacity: 0.8,
@@ -90,24 +84,17 @@ function CustomTabBar({ state, descriptors: _d, navigation }: BottomTabBarProps)
                 shadowOffset: { width: 0, height: 0 },
               },
             ]} />
-
-            {/* Icon container */}
-            <View style={[
-              tabStyles.iconBox,
-              focused && !locked && { backgroundColor: colors.accentGlow },
-            ]}>
+            <View style={[tabStyles.iconBox, focused && { backgroundColor: colors.accentGlow }]}>
               <Ionicons
-                name={locked ? "lock-closed-outline" : (focused ? cfg.iconFilled : cfg.icon)}
+                name={focused ? cfg.iconFilled : cfg.icon}
                 size={21}
-                color={focused && !locked ? colors.accentLight : colors.textDim}
+                color={focused ? colors.accentLight : colors.textDim}
               />
             </View>
-
-            {/* Label */}
             <Text style={[
               tabStyles.label,
-              { color: focused && !locked ? colors.accentLight : colors.textDim },
-              focused && !locked && tabStyles.labelActive,
+              { color: focused ? colors.accentLight : colors.textDim },
+              focused && tabStyles.labelActive,
             ]}>
               {cfg.label}
             </Text>
@@ -310,8 +297,8 @@ export default function TabsLayout() {
         const data = res.data;
         if (!data) return;
 
-        // Portfolio
-        if (data.portfolio?.positions) {
+        // Portfolio — only restore if server has data; never overwrite local with empty
+        if (data.portfolio?.positions?.length) {
           import("../../src/lib/portfolioStore").then(({ usePortfolioStore }) => {
             usePortfolioStore.getState().restoreFromServer(data.portfolio.positions, data.portfolio.currency);
           }).catch(() => {});
@@ -353,23 +340,29 @@ export default function TabsLayout() {
 
   return (
     <Tabs
+      initialRouteName="home"
       tabBar={isWeb ? undefined : (props) => <CustomTabBar {...props} />}
       screenOptions={{
         tabBarStyle: isWeb ? { display: "none" } : undefined,
         headerShown: !isWeb,
       }}
     >
-      <Tabs.Screen name="chat"      options={{ title: "Chat",          header: () => <MobileHeader title="Nuvos AI" /> }} />
-      <Tabs.Screen name="portfolio" options={{ title: "Portafolios",   header: () => <MobileHeader title="Mi Portafolio" /> }} />
-      <Tabs.Screen name="watchlist" options={{ title: "Watchlist",     header: () => <MobileHeader title="Watchlist" /> }} />
-      <Tabs.Screen name="learn"     options={{ title: "Aprender",      header: () => <MobileHeader title="Aprendizaje" /> }} />
-      <Tabs.Screen name="paper"     options={{ title: "Simulador",     header: () => <MobileHeader title="Simulador" /> }} />
-      <Tabs.Screen name="profile"   options={{ title: "Perfil",        header: () => <MobileHeader title="Mi Perfil" /> }} />
+      {/* ── 4 primary hub tabs ────────────────────────────────────────── */}
+      <Tabs.Screen name="home"       options={{ headerShown: false }} />
+      <Tabs.Screen name="chat"       options={{ title: "Mentor IA",      header: () => <MobileHeader title="Mentor IA" /> }} />
+      <Tabs.Screen name="patrimonio" options={{ headerShown: false }} />
+      <Tabs.Screen name="academy"    options={{ headerShown: false }} />
+      {/* ── Secondary screens (accessible from hub pages) ─────────────── */}
+      <Tabs.Screen name="portfolio"     options={{ title: "Portafolio",    header: () => <MobileHeader title="Mi Portafolio" /> }} />
+      <Tabs.Screen name="watchlist"     options={{ title: "Watchlist",     header: () => <MobileHeader title="Watchlist" /> }} />
+      <Tabs.Screen name="paper"         options={{ title: "Simulador",     header: () => <MobileHeader title="Simulador" /> }} />
+      <Tabs.Screen name="learn"         options={{ title: "Aprendizaje",   header: () => <MobileHeader title="Aprendizaje" /> }} />
+      <Tabs.Screen name="videos"        options={{ title: "Videos",        header: () => <MobileHeader title="Videos" /> }} />
+      <Tabs.Screen name="investors"     options={{ title: "Inversores",    header: () => <MobileHeader title="Inversores" /> }} />
       <Tabs.Screen name="notifications" options={{ title: "Notificaciones", header: () => <MobileHeader title="Notificaciones" /> }} />
-      <Tabs.Screen name="videos"    options={{ title: "Videos",   header: () => <MobileHeader title="Videos" /> }} />
-      <Tabs.Screen name="investors"  options={{ title: "Inversores", header: () => <MobileHeader title="Inversores" /> }} />
-      <Tabs.Screen name="explore"   options={{ href: null }} />
-      <Tabs.Screen name="support"   options={{ title: "Soporte",  header: () => <MobileHeader title="Soporte" /> }} />
+      <Tabs.Screen name="profile"       options={{ title: "Perfil",        header: () => <MobileHeader title="Mi Perfil" /> }} />
+      <Tabs.Screen name="support"       options={{ title: "Soporte",       header: () => <MobileHeader title="Soporte" /> }} />
+      <Tabs.Screen name="explore"       options={{ href: null }} />
     </Tabs>
   );
 }

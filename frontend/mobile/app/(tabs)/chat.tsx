@@ -914,6 +914,11 @@ function makeStyles(c: Colors) {
       alignItems: "center", justifyContent: "center",
       marginBottom: 16, borderWidth: 2,
     },
+    quickChip: {
+      borderRadius: 20, borderWidth: 1,
+      paddingHorizontal: 14, paddingVertical: 7,
+    },
+    quickChipText: { fontSize: 13, fontWeight: "500" },
     suggestions: { width: "100%", gap: 8 },
     suggestion: {
       backgroundColor: c.card,

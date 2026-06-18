@@ -3,8 +3,8 @@
 import { useState, useRef, useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import {
-  BookOpen, PieChart, BarChart2, Bell, User, GraduationCap,
-  MessageSquare, ChevronLeft, ChevronRight, Plus, X, HeadphonesIcon, GripVertical, Eye, Play, ArrowRight, Lock, LogOut,
+  BrainCircuit, Wallet, Bell, User, GraduationCap, Users,
+  MessageSquare, ChevronLeft, ChevronRight, Plus, X, HeadphonesIcon, GripVertical, ArrowRight, Lock, LogOut, Home,
 } from "lucide-react";
 
 const COACHING_URL = "https://calendly.com/diego-arria19/sesion-1-1-con-diego-nuvos-ai"; // ← actualiza con tu link real
@@ -26,17 +26,22 @@ function getAge(birthDate: string | null | undefined): number | null {
 }
 import PaywallModal from "@/components/PaywallModal";
 
-const NAV: Array<{ href: string; icon: React.ComponentType<{ className?: string; style?: React.CSSProperties }>; label: string; minLevel: UserLevel }> = [
-  { href: "/chat",          icon: BookOpen,       label: "Chat",           minLevel: "principiante" },
-  { href: "/portfolio",     icon: PieChart,       label: "Portafolio",     minLevel: "principiante" },
-  { href: "/watchlist",     icon: Eye,            label: "Watchlist",      minLevel: "basico" },
-  { href: "/feed",          icon: Play,           label: "Videos",         minLevel: "principiante" },
-  { href: "/paper",         icon: BarChart2,      label: "Simulador",      minLevel: "basico" },
-  { href: "/learn",         icon: GraduationCap,  label: "Aprendizaje",    minLevel: "principiante" },
-  { href: "/notifications", icon: Bell,           label: "Notificaciones", minLevel: "principiante" },
-  { href: "/support",       icon: HeadphonesIcon, label: "Soporte",        minLevel: "principiante" },
-  { href: "/profile",       icon: User,           label: "Perfil",         minLevel: "principiante" },
+type NavItem = { href: string; icon: React.ComponentType<{ className?: string; style?: React.CSSProperties }>; label: string; minLevel: UserLevel };
+
+const MAIN_NAV: NavItem[] = [
+  { href: "/home",       icon: Home,           label: "Inicio",     minLevel: "principiante" },
+  { href: "/chat",       icon: BrainCircuit,   label: "Mentor IA",  minLevel: "principiante" },
+  { href: "/patrimonio", icon: Wallet,         label: "Patrimonio", minLevel: "principiante" },
+  { href: "/academy",    icon: GraduationCap,  label: "Academy",    minLevel: "principiante" },
 ];
+
+const SECONDARY_NAV: NavItem[] = [
+  { href: "/investors",     icon: Users,          label: "Inversores",     minLevel: "intermedio" },
+  { href: "/notifications", icon: Bell,           label: "Notificaciones", minLevel: "principiante" },
+  { href: "/profile",       icon: User,           label: "Perfil",         minLevel: "principiante" },
+  { href: "/support",       icon: HeadphonesIcon, label: "Soporte",        minLevel: "principiante" },
+];
+
 
 interface Props {
   open: boolean;
@@ -71,18 +76,18 @@ export default function AppSidebar({ open, onClose }: Props) {
   };
 
   const [navOrder, setNavOrder] = useState<string[]>(() => {
-    if (typeof window === "undefined") return NAV.map((n) => n.href);
+    if (typeof window === "undefined") return MAIN_NAV.map((n) => n.href);
     try {
       const saved = localStorage.getItem("nuvos_nav_order");
       if (saved) {
         const parsed: string[] = JSON.parse(saved);
-        const current = NAV.map((n) => n.href);
+        const current = MAIN_NAV.map((n) => n.href);
         const valid = parsed.filter((h) => current.includes(h));
         const missing = current.filter((h) => !valid.includes(h));
         return [...valid, ...missing];
       }
     } catch {}
-    return NAV.map((n) => n.href);
+    return MAIN_NAV.map((n) => n.href);
   });
 
   // On first mount, restore nav order from server so a new device picks up
@@ -95,7 +100,7 @@ export default function AppSidebar({ open, onClose }: Props) {
       syncApi.getNavOrder().then((res) => {
         const serverOrder: string[] | null = res.data?.nav_order;
         if (!serverOrder || serverOrder.length === 0) return;
-        const current = NAV.map((n) => n.href);
+        const current = MAIN_NAV.map((n) => n.href);
         const valid = serverOrder.filter((h) => current.includes(h));
         const missing = current.filter((h) => !valid.includes(h));
         const merged = [...valid, ...missing];
@@ -109,7 +114,7 @@ export default function AppSidebar({ open, onClose }: Props) {
   const [dragging, setDragging] = useState<string | null>(null);
   const dragItem = useRef<string | null>(null);
 
-  const orderedNav = navOrder.map((href) => NAV.find((n) => n.href === href)!).filter(Boolean);
+  const orderedNav = navOrder.map((href) => MAIN_NAV.find((n) => n.href === href)!).filter(Boolean);
   const userLevel  = getUserLevel(profile);
   const isPremium      = subStore.tier === "premium";
   const unreadCount = notifications.filter((n) => !n.read).length;
@@ -277,9 +282,9 @@ export default function AppSidebar({ open, onClose }: Props) {
         {/* Scrollable area: nav + chat history */}
         <div className="flex-1 overflow-y-auto scrollbar-thin">
           <nav className="px-2 py-1 space-y-0.5">
+            {/* Main draggable nav */}
             {orderedNav.map(({ href, icon: Icon, label, minLevel }) => {
               const active  = pathname === href;
-              const badge   = href === "/notifications" && unreadCount > 0;
               const locked  = !isAtLeast(userLevel, minLevel);
               return (
                 <button
@@ -300,6 +305,34 @@ export default function AppSidebar({ open, onClose }: Props) {
                     className="w-2.5 h-2.5 shrink-0 opacity-0 group-hover:opacity-40 cursor-grab active:cursor-grabbing transition-opacity"
                     style={{ color: "var(--muted)" }}
                   />
+                  <Icon className="w-3.5 h-3.5 shrink-0" style={{ color: locked ? "var(--dim)" : undefined }} />
+                  <span style={{ color: locked ? "var(--dim)" : undefined }}>{label}</span>
+                  {locked && (
+                    <span className="ml-auto flex items-center gap-0.5 text-[8px] font-bold"
+                          style={{ color: "var(--dim)" }}>
+                      <Lock className="w-2.5 h-2.5" />
+                      {LEVEL_LABEL[minLevel]}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+
+            {/* Divider */}
+            <div className="my-1.5 border-t" style={{ borderColor: "var(--border)" }} />
+
+            {/* Secondary static nav */}
+            {SECONDARY_NAV.map(({ href, icon: Icon, label, minLevel }) => {
+              const active  = pathname === href;
+              const badge   = href === "/notifications" && unreadCount > 0;
+              const locked  = !isAtLeast(userLevel, minLevel);
+              return (
+                <button
+                  key={href}
+                  onClick={() => locked ? navigate("/profile") : navigate(href)}
+                  className={`nav-item ${active ? "active" : ""} transition-opacity`}
+                  style={{ opacity: locked ? 0.4 : 1 }}
+                >
                   <Icon className="w-3.5 h-3.5 shrink-0" style={{ color: locked ? "var(--dim)" : undefined }} />
                   <span style={{ color: locked ? "var(--dim)" : undefined }}>{label}</span>
                   {locked ? (

@@ -26,7 +26,7 @@ import BrokerConnectModal from "@/components/BrokerConnectModal";
 import {
   PieChart, Menu, X, Upload, Plus, Trash2,
   BarChart, Calculator, Shield, Sparkles, RefreshCw, AlertTriangle, FileText, Pencil, Eye,
-  Cloud, CloudOff, Check, BarChart2, TrendingDown, GraduationCap, CheckSquare, Bell, Users,
+  Cloud, CloudOff, Check, BarChart2, TrendingUp, TrendingDown, GraduationCap, CheckSquare, Bell, Users,
 } from "lucide-react";
 
 // ─── Stress Test data ──────────────────────────────────────────────────────
@@ -714,10 +714,14 @@ export default function PortfolioPage() {
   type StressResult = { total:number; stressed:number; diff:number; pct:number; rows:{ticker:string;invested:number;stressed:number;diff:number;pct:number;sector:string}[] };
   const [stressResult, setStressResult] = useState<StressResult|null>(null);
 
-  // AI Simulator
-  const [scenario, setScenario] = useState<Scenario>("moderate");
-  const [analysis, setAnalysis] = useState("");
-  const [simLoading, setSimLoading] = useState(false);
+  // Portfolio Analyzer
+  const [portfolioAnalysis, setPortfolioAnalysis] = useState<{
+    score: number; score_label: string; score_color: string; summary: string;
+    sections: { title: string; score: number; detail: string; icon: string }[];
+    strengths: string[]; weaknesses: string[];
+    recommendations: { title: string; detail: string }[];
+  } | null>(null);
+  const [analysisLoading, setAnalysisLoading] = useState(false);
 
   // Calculator
   const [calcCapital, setCalcCapital] = useState("");
@@ -1090,17 +1094,19 @@ export default function PortfolioPage() {
     setStressResult({ total, stressed:stressedTotal, diff:stressedTotal-total, pct:total>0?((stressedTotal-total)/total)*100:0, rows });
   };
 
-  // ── AI Simulate ─────────────────────────────────────────────────────────
-  const simulate = async () => {
-    setSimLoading(true); setAnalysis("");
+  // ── Portfolio Analyzer ───────────────────────────────────────────────────
+  const runPortfolioAnalysis = async () => {
+    if (positions.length === 0) return;
+    setAnalysisLoading(true); setPortfolioAnalysis(null);
     try {
-      const posPayload = positions.length>0
-        ? positions.map((p) => ({ ticker:p.ticker, shares:p.shares, avg_price:p.avgPrice, name:p.name }))
-        : undefined;
-      const res = await marketApi.getPortfolio(scenario, undefined, posPayload);
-      setAnalysis(res.data.analysis);
-    } catch { setAnalysis("Error al generar el análisis. Intenta de nuevo."); }
-    setSimLoading(false);
+      const posPayload = positions.map((p) => ({
+        ticker: p.ticker, shares: p.shares, avg_price: p.avgPrice, name: p.name,
+        current_price: prices[p.ticker]?.price ?? undefined,
+      }));
+      const res = await marketApi.analyzePortfolio(posPayload);
+      setPortfolioAnalysis(res.data);
+    } catch { /* silent */ }
+    setAnalysisLoading(false);
   };
 
   // ── Calculator ──────────────────────────────────────────────────────────
@@ -1129,79 +1135,66 @@ export default function PortfolioPage() {
 
   return (
     <>
-    <div className="h-full flex flex-col overflow-hidden" style={{ background: "var(--bg)" }}>
-      {/* Top bar */}
-      <div className="font-ui border-b flex items-center justify-between px-4 py-2 shrink-0"
-           style={{ borderColor: "var(--border)", background: "var(--card)" }}>
-        <div className="flex items-center gap-3">
-          <button onClick={() => setSidebarOpen(!sidebarOpen)} className="lg:hidden p-1" style={{ color: "var(--muted)" }}>
-            {sidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-          </button>
-          <button onClick={() => router.push("/chat")} className="flex items-center gap-2.5">
-            <div className="relative">
-              <Image src="/logo.png" alt="Nuvos AI" width={30} height={30} className="rounded-xl object-cover" />
-            </div>
-            <span className="font-bold text-sm" style={{ color: "var(--text)" }}>Nuvos AI</span>
-          </button>
-        </div>
-        <span className="font-semibold text-sm" style={{ color: "var(--sub)", fontFamily: "var(--font-body)" }}>Portafolio</span>
+    <div className="flex h-screen overflow-hidden" style={{ background: "var(--bg)" }}>
+      <AppSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
-        {/* Sync status + refresh */}
-        <div className="flex items-center gap-2">
-          {syncStatus === "syncing" && (
-            <div className="flex items-center gap-1 text-[10px] font-semibold" style={{ color: "var(--muted)" }}>
-              <RefreshCw className="w-3 h-3 animate-spin" />
-              <span className="hidden sm:inline">Guardando...</span>
+      <div className="flex-1 flex flex-col overflow-hidden">
+        <MarketTickerBar />
+
+        {/* Sticky Header */}
+        <div className="sticky top-0 z-10 px-6 py-4 flex items-center justify-between border-b shrink-0"
+             style={{ background: "var(--bg)", borderColor: "var(--border)" }}>
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--muted)" }}>Mis inversiones</p>
+            <h1 className="text-2xl font-black tracking-tight" style={{ color: "var(--text)" }}>Mi Portafolio</h1>
+          </div>
+          <div className="flex items-center gap-2">
+            {/* Sync status */}
+            {syncStatus === "syncing" && (
+              <div className="flex items-center gap-1 text-[10px] font-semibold" style={{ color: "var(--muted)" }}>
+                <RefreshCw className="w-3 h-3 animate-spin" /><span className="hidden sm:inline">Guardando...</span>
+              </div>
+            )}
+            {syncStatus === "saved" && (
+              <div className="flex items-center gap-1 text-[10px] font-semibold" style={{ color: "#22c55e" }}>
+                <Check className="w-3 h-3" /><span className="hidden sm:inline">Guardado</span>
+              </div>
+            )}
+            {syncStatus === "error" && (
+              <div className="flex items-center gap-1 text-[10px] font-semibold" style={{ color: "#ef4444" }}>
+                <CloudOff className="w-3 h-3" /><span className="hidden sm:inline">Error al guardar</span>
+              </div>
+            )}
+            {syncStatus === "idle" && lastSaved && (
+              <div className="flex items-center gap-1 text-[10px]" style={{ color: "var(--dim)" }}
+                   title={`Guardado: ${new Date(lastSaved).toLocaleTimeString()}`}>
+                <Cloud className="w-3 h-3" />
+              </div>
+            )}
+            {/* View toggle */}
+            <div className="flex items-center rounded-lg border overflow-hidden" style={{ borderColor: "var(--border)" }}>
+              <button onClick={() => { setViewMode("basic"); localStorage.setItem("nuvos_portfolio_view", "basic"); }}
+                      className="px-2.5 py-1.5 text-[10px] font-bold transition-colors"
+                      style={{ background: viewMode === "basic" ? "var(--accent)" : "transparent", color: viewMode === "basic" ? "#fff" : "var(--muted)" }}>
+                Básico
+              </button>
+              <button onClick={() => { setViewMode("advanced"); localStorage.setItem("nuvos_portfolio_view", "advanced"); }}
+                      className="px-2.5 py-1.5 text-[10px] font-bold transition-colors"
+                      style={{ background: viewMode === "advanced" ? "var(--accent)" : "transparent", color: viewMode === "advanced" ? "#fff" : "var(--muted)" }}>
+                Avanzado
+              </button>
             </div>
-          )}
-          {syncStatus === "saved" && (
-            <div className="flex items-center gap-1 text-[10px] font-semibold" style={{ color: "#22c55e" }}>
-              <Check className="w-3 h-3" />
-              <span className="hidden sm:inline">Guardado</span>
-            </div>
-          )}
-          {syncStatus === "error" && (
-            <div className="flex items-center gap-1 text-[10px] font-semibold" style={{ color: "#ef4444" }}>
-              <CloudOff className="w-3 h-3" />
-              <span className="hidden sm:inline">Error al guardar</span>
-            </div>
-          )}
-          {syncStatus === "idle" && lastSaved && (
-            <div className="flex items-center gap-1 text-[10px]" style={{ color: "var(--dim)" }}
-                 title={`Guardado: ${new Date(lastSaved).toLocaleTimeString()}`}>
-              <Cloud className="w-3 h-3" />
-            </div>
-          )}
-          {/* View toggle */}
-          <div className="flex items-center rounded-lg border overflow-hidden"
-               style={{ borderColor: "var(--border)" }}>
-            <button
-              onClick={() => { setViewMode("basic"); localStorage.setItem("nuvos_portfolio_view", "basic"); }}
-              className="px-2.5 py-1.5 text-[10px] font-bold transition-colors"
-              style={{ background: viewMode === "basic" ? "var(--accent)" : "transparent", color: viewMode === "basic" ? "#fff" : "var(--muted)" }}
-            >
-              Básico
-            </button>
-            <button
-              onClick={() => { setViewMode("advanced"); localStorage.setItem("nuvos_portfolio_view", "advanced"); }}
-              className="px-2.5 py-1.5 text-[10px] font-bold transition-colors"
-              style={{ background: viewMode === "advanced" ? "var(--accent)" : "transparent", color: viewMode === "advanced" ? "#fff" : "var(--muted)" }}
-            >
-              Avanzado
+            <PremiumBadge />
+            <button onClick={fetchPrices}
+                    className="w-9 h-9 flex items-center justify-center rounded-xl border transition-colors hover:border-[var(--accent)]"
+                    style={{ borderColor: "var(--border)", background: "var(--raised)", color: "var(--sub)" }}
+                    title="Actualizar precios">
+              <RefreshCw className="w-4 h-4" />
             </button>
           </div>
-          <PremiumBadge />
-          <button onClick={fetchPrices} className="p-1.5 rounded-lg transition-colors"
-                  style={{ color: "var(--muted)" }} title="Actualizar precios">
-            <RefreshCw className="w-4 h-4" />
-          </button>
         </div>
-      </div>
-      <MarketTickerBar />
 
       <div className="flex flex-1 overflow-hidden relative">
-        {/* Sidebar */}
-        <AppSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
         {/* Main */}
         <main className="flex-1 overflow-y-auto scrollbar-thin p-4 w-full">
@@ -2138,48 +2131,142 @@ export default function PortfolioPage() {
             </section>
           )}
 
-          {/* ── AI Portfolio Simulator ── */}
+          {/* ── Analiza tu Portafolio ── */}
           <section>
             <div className="flex items-center gap-2 mb-3">
-              <Sparkles className="w-5 h-5 text-[#22c55e] shrink-0" />
+              <Sparkles className="w-5 h-5 shrink-0" style={{ color:"#22c55e" }} />
               <div>
-                <h3 className="text-sm font-extrabold" style={{ color:"var(--text)" }}>Simulador de Portafolio</h3>
+                <h3 className="text-sm font-extrabold" style={{ color:"var(--text)" }}>Analiza tu Portafolio</h3>
                 <p className="text-xs" style={{ color:"var(--muted)" }}>
-                  {positions.length>0 ? `Analiza tus ${positions.length} posiciones con IA` : "Simula un portafolio hipotético"}
+                  IA evalúa tus {positions.length} posiciones y te da una calificación detallada
                 </p>
               </div>
             </div>
-            <div className="grid grid-cols-3 gap-2 mb-3">
-              {SCENARIOS.map((sc) => (
-                <button key={sc.value} onClick={() => setScenario(sc.value)}
-                        className="flex flex-col items-center gap-1 p-3 rounded-2xl border text-center transition-all"
-                        style={{
-                          borderColor: scenario===sc.value ? "var(--accent-l)" : "var(--border)",
-                          background: scenario===sc.value ? "rgba(0,212,126,0.08)" : "var(--card)",
-                        }}>
-                  <span className="text-xl">{sc.emoji}</span>
-                  <span className="text-xs font-bold" style={{ color:scenario===sc.value?"var(--text)":"var(--sub)" }}>{sc.label}</span>
-                </button>
-              ))}
-            </div>
-            <button onClick={simulate} disabled={simLoading}
-                    className="w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl text-white font-bold text-sm disabled:opacity-40 transition-colors"
-                    style={{ background:"var(--accent)" }}>
-              {simLoading ? (
-                <><RefreshCw className="w-4 h-4 animate-spin" /> Analizando...</>
-              ) : (
-                <><Sparkles className="w-4 h-4" /> {positions.length>0?"Analizar mi portafolio con IA":"Simular portafolio"}</>
-              )}
-            </button>
-            {analysis && (
-              <div className="mt-3 rounded-2xl border p-4" style={{ borderColor:"var(--border)", background:"var(--card)" }}>
-                <div className="prose prose-sm max-w-none text-xs leading-relaxed" style={{ color:"var(--sub)" }}>
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{analysis}</ReactMarkdown>
+
+            {/* Analyze button */}
+            {positions.length > 0 ? (
+              <button onClick={runPortfolioAnalysis} disabled={analysisLoading}
+                      className="w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl text-white font-bold text-sm disabled:opacity-40 transition-opacity"
+                      style={{ background:"var(--accent)" }}>
+                {analysisLoading
+                  ? <><RefreshCw className="w-4 h-4 animate-spin" /> Analizando tu portafolio...</>
+                  : <><Sparkles className="w-4 h-4" /> Analizar mi portafolio con IA</>}
+              </button>
+            ) : (
+              <div className="text-center py-6 rounded-2xl border" style={{ borderColor:"var(--border)", background:"var(--card)" }}>
+                <p className="text-xs" style={{ color:"var(--muted)" }}>Agrega posiciones a tu portafolio para analizarlo</p>
+              </div>
+            )}
+
+            {/* Results */}
+            {portfolioAnalysis && (
+              <div className="mt-3 flex flex-col gap-3">
+
+                {/* Score hero */}
+                <div className="rounded-2xl border p-5 flex items-center gap-5"
+                     style={{ borderColor: portfolioAnalysis.score_color + "40", background: portfolioAnalysis.score_color + "08" }}>
+                  {/* Score circle */}
+                  <div className="relative shrink-0 w-20 h-20">
+                    <svg viewBox="0 0 80 80" className="w-full h-full -rotate-90">
+                      <circle cx="40" cy="40" r="32" fill="none" stroke="var(--border)" strokeWidth="7" />
+                      <circle cx="40" cy="40" r="32" fill="none"
+                              stroke={portfolioAnalysis.score_color} strokeWidth="7" strokeLinecap="round"
+                              strokeDasharray={`${2 * Math.PI * 32}`}
+                              strokeDashoffset={`${2 * Math.PI * 32 * (1 - portfolioAnalysis.score / 100)}`} />
+                    </svg>
+                    <div className="absolute inset-0 flex flex-col items-center justify-center">
+                      <span className="text-xl font-black leading-none" style={{ color: portfolioAnalysis.score_color }}>
+                        {portfolioAnalysis.score}
+                      </span>
+                      <span className="text-[8px] font-bold" style={{ color:"var(--muted)" }}>/ 100</span>
+                    </div>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <span className="text-base font-black" style={{ color: portfolioAnalysis.score_color }}>
+                      {portfolioAnalysis.score_label}
+                    </span>
+                    <p className="text-[11px] leading-relaxed mt-1" style={{ color:"var(--sub)" }}>
+                      {portfolioAnalysis.summary}
+                    </p>
+                  </div>
                 </div>
-                <div className="flex items-center gap-1.5 mt-3 px-3 py-2 rounded-lg"
+
+                {/* Dimension bars */}
+                <div className="rounded-2xl border overflow-hidden" style={{ borderColor:"var(--border)", background:"var(--card)" }}>
+                  {portfolioAnalysis.sections.map((sec, i) => (
+                    <div key={sec.title}
+                         className="px-4 py-3"
+                         style={{ borderTop: i > 0 ? "1px solid var(--border)" : "none" }}>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className="text-xs font-bold" style={{ color:"var(--text)" }}>{sec.title}</span>
+                        <span className="text-xs font-black" style={{ color: sec.score >= 70 ? "#22c55e" : sec.score >= 50 ? "#f59e0b" : "#ef4444" }}>
+                          {sec.score}/100
+                        </span>
+                      </div>
+                      <div className="h-1.5 rounded-full overflow-hidden" style={{ background:"var(--border)" }}>
+                        <div className="h-full rounded-full transition-all duration-700"
+                             style={{
+                               width:`${sec.score}%`,
+                               background: sec.score >= 70 ? "#22c55e" : sec.score >= 50 ? "#f59e0b" : "#ef4444",
+                             }} />
+                      </div>
+                      <p className="text-[10px] mt-1.5 leading-relaxed" style={{ color:"var(--muted)" }}>{sec.detail}</p>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Strengths & Weaknesses */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="rounded-2xl border p-3" style={{ borderColor:"rgba(34,197,94,0.25)", background:"rgba(34,197,94,0.05)" }}>
+                    <p className="text-[10px] font-black uppercase tracking-wider mb-2" style={{ color:"#22c55e" }}>Fortalezas</p>
+                    <div className="flex flex-col gap-1.5">
+                      {portfolioAnalysis.strengths.map((s, i) => (
+                        <div key={i} className="flex items-start gap-1.5">
+                          <span className="text-[10px] mt-0.5">✓</span>
+                          <p className="text-[10px] leading-snug" style={{ color:"var(--sub)" }}>{s}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="rounded-2xl border p-3" style={{ borderColor:"rgba(239,68,68,0.25)", background:"rgba(239,68,68,0.05)" }}>
+                    <p className="text-[10px] font-black uppercase tracking-wider mb-2" style={{ color:"#ef4444" }}>A Mejorar</p>
+                    <div className="flex flex-col gap-1.5">
+                      {portfolioAnalysis.weaknesses.map((w, i) => (
+                        <div key={i} className="flex items-start gap-1.5">
+                          <span className="text-[10px] mt-0.5">!</span>
+                          <p className="text-[10px] leading-snug" style={{ color:"var(--sub)" }}>{w}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Recommendations */}
+                <div className="rounded-2xl border overflow-hidden" style={{ borderColor:"var(--border)", background:"var(--card)" }}>
+                  <div className="px-4 py-3 border-b flex items-center gap-2" style={{ borderColor:"var(--border)" }}>
+                    <TrendingUp className="w-3.5 h-3.5" style={{ color:"#6366f1" }} />
+                    <span className="text-xs font-bold" style={{ color:"var(--text)" }}>Recomendaciones</span>
+                  </div>
+                  {portfolioAnalysis.recommendations.map((r, i) => (
+                    <div key={i} className="flex items-start gap-3 px-4 py-3"
+                         style={{ borderTop: i > 0 ? "1px solid var(--border)" : "none" }}>
+                      <div className="w-5 h-5 rounded-full shrink-0 flex items-center justify-center text-[9px] font-black mt-0.5"
+                           style={{ background:"rgba(99,102,241,0.15)", color:"#818cf8" }}>
+                        {i + 1}
+                      </div>
+                      <div>
+                        <p className="text-[11px] font-bold mb-0.5" style={{ color:"var(--text)" }}>{r.title}</p>
+                        <p className="text-[10px] leading-snug" style={{ color:"var(--muted)" }}>{r.detail}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Disclaimer */}
+                <div className="flex items-center gap-1.5 px-3 py-2 rounded-lg"
                      style={{ background:"rgba(234,179,8,0.08)", border:"1px solid rgba(234,179,8,0.25)" }}>
                   <AlertTriangle className="w-3 h-3 text-yellow-600 shrink-0" />
-                  <p className="text-[11px] text-yellow-600">Análisis educativo. No es asesoramiento financiero.</p>
+                  <p className="text-[10px] text-yellow-600">Análisis educativo. No es asesoramiento financiero.</p>
                 </div>
               </div>
             )}
@@ -2384,6 +2471,7 @@ export default function PortfolioPage() {
           )}
 
         </main>
+      </div>
       </div>
 
     </div>

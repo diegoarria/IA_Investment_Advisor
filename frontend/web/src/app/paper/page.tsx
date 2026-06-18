@@ -157,36 +157,33 @@ export default function PaperPage() {
   const returnColor   = isUp ? "#22c55e" : "#ef4444";
 
   return (
-    <div className="h-full flex flex-col overflow-hidden" style={{ background: "var(--bg)" }}>
-      {/* Top bar */}
-      <div className="font-ui border-b flex items-center justify-between px-4 py-2 shrink-0"
-           style={{ borderColor: "var(--border)", background: "var(--card)" }}>
-        <div className="flex items-center gap-3">
-          <button onClick={() => setSidebarOpen(!sidebarOpen)} className="lg:hidden p-1" style={{ color: "var(--muted)" }}>
-            {sidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-          </button>
-          <button onClick={() => router.push("/chat")} className="flex items-center gap-2.5">
-            <div className="relative">
-              <Image src="/logo.png" alt="Nuvos AI" width={30} height={30} className="rounded-xl object-cover" />
-            </div>
-            <span className="font-bold text-sm" style={{ color: "var(--text)" }}>Nuvos AI</span>
-          </button>
+    <div className="flex h-screen overflow-hidden" style={{ background: "var(--bg)" }}>
+      <AppSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+
+      <div className="flex-1 flex flex-col overflow-hidden">
+        <MarketTickerBar />
+
+        {/* Sticky Header */}
+        <div className="sticky top-0 z-10 px-6 py-4 flex items-center justify-between border-b shrink-0"
+             style={{ background: "var(--bg)", borderColor: "var(--border)" }}>
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide flex items-center gap-1.5" style={{ color: "var(--muted)" }}>
+              <span className="w-1.5 h-1.5 rounded-full inline-block" style={{ background: "#22c55e", boxShadow: "0 0 6px #22c55e" }} />
+              Paper Trading
+            </p>
+            <h1 className="text-2xl font-black tracking-tight" style={{ color: "var(--text)" }}>Simulador</h1>
+          </div>
+          <div className="flex items-center gap-2">
+            <PremiumBadge />
+            <button onClick={loadPrices}
+                    className="w-9 h-9 flex items-center justify-center rounded-xl border transition-colors hover:border-[var(--accent)]"
+                    style={{ borderColor: "var(--border)", background: "var(--raised)", color: "var(--sub)" }}>
+              <RefreshCw className={`w-4 h-4 ${loadingPrices ? "animate-spin" : ""}`} />
+            </button>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          <div className="w-2 h-2 rounded-full" style={{ background: "#22c55e", boxShadow: "0 0 6px #22c55e" }} />
-          <span className="font-semibold text-sm" style={{ color: "var(--sub)", fontFamily: "var(--font-body)" }}>Simulador</span>
-        </div>
-        <div className="flex items-center gap-1">
-          <PremiumBadge />
-          <button onClick={loadPrices} className="p-2 rounded-lg hover:bg-white/5 transition-colors" style={{ color: "var(--muted)" }}>
-            <RefreshCw className={`w-4 h-4 ${loadingPrices ? "animate-spin" : ""}`} />
-          </button>
-        </div>
-      </div>
-      <MarketTickerBar />
 
       <div className="flex flex-1 overflow-hidden relative">
-        <AppSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
         <main className="flex-1 overflow-y-auto scrollbar-thin p-4 space-y-4 max-w-2xl mx-auto w-full">
 
@@ -758,6 +755,7 @@ export default function PaperPage() {
           </div>
 
         </main>
+      </div>
       </div>
 
       <PaywallModal visible={paywallOpen} onClose={() => setPaywallOpen(false)}

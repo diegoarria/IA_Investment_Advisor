@@ -299,35 +299,27 @@ export default function LearnPage() {
   };
 
   return (
-    <div className="h-full flex flex-col overflow-hidden" style={{ background: "var(--bg)" }}>
-      {/* Top bar */}
-      <div className="font-ui border-b flex items-center justify-between px-4 py-2 shrink-0"
-           style={{ borderColor: "var(--border)", background: "var(--card)" }}>
-        <div className="flex items-center gap-3">
-          <button onClick={() => setSidebarOpen(!sidebarOpen)} className="lg:hidden p-1" style={{ color: "var(--muted)" }}>
-            {sidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-          </button>
-          <button onClick={() => router.push("/chat")} className="flex items-center gap-2.5">
-            <div className="relative">
-              <Image src="/logo.png" alt="Nuvos AI" width={30} height={30} className="rounded-xl object-cover" />
-            </div>
-            <span className="font-bold text-sm" style={{ color: "var(--text)" }}>Nuvos AI</span>
-          </button>
+    <div className="flex h-screen overflow-hidden" style={{ background: "var(--bg)" }}>
+      <AppSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+
+      <div className="flex-1 flex flex-col overflow-hidden">
+        <MarketTickerBar />
+
+        {/* Sticky Header */}
+        <div className="sticky top-0 z-10 px-6 py-4 flex items-center justify-between border-b shrink-0"
+             style={{ background: "var(--bg)", borderColor: "var(--border)" }}>
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--muted)" }}>
+              Nivel · <span style={{ color: LEVEL_COLOR[userLevel] }}>{LEVEL_LABEL[userLevel]}</span>
+            </p>
+            <h1 className="text-2xl font-black tracking-tight" style={{ color: "var(--text)" }}>Aprendizaje</h1>
+          </div>
+          <div className="flex items-center gap-2">
+            <PremiumBadge />
+          </div>
         </div>
-        <div className="flex flex-col items-center gap-0.5">
-          <span className="font-semibold text-sm" style={{ color: "var(--sub)", fontFamily: "var(--font-body)" }}>Aprendizaje</span>
-          <span className="text-[9px] font-bold px-2 py-0.5 rounded-full"
-                style={{ background: `${LEVEL_COLOR[userLevel]}15`, color: LEVEL_COLOR[userLevel] }}>
-            {LEVEL_LABEL[userLevel]}
-          </span>
-        </div>
-        <PremiumBadge />
-      </div>
-      <MarketTickerBar />
 
       <div className="flex flex-1 overflow-hidden relative">
-        {/* Sidebar */}
-        <AppSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
         {/* Main */}
         <main className="flex-1 flex flex-col overflow-hidden">
@@ -485,6 +477,7 @@ export default function LearnPage() {
             </a>
           </div>
         </main>
+      </div>
       </div>
 
       {/* Flashcard modal */}
