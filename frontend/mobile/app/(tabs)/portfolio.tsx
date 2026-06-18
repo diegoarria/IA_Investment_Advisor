@@ -8,7 +8,7 @@ import {
   AppState, AppStateStatus, PanResponder,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import Svg, { Path, Defs, RadialGradient as SvgRadial, Stop, Rect as SvgRect, G, LinearGradient, Circle, Line as SvgLine } from "react-native-svg";
+import Svg, { Path, Defs, Stop, LinearGradient, Circle, Line as SvgLine } from "react-native-svg";
 import * as ImagePicker from "expo-image-picker";
 
 import { marketApi } from "../../src/lib/api";
@@ -17,16 +17,14 @@ import { usePortfolioStore, Position } from "../../src/lib/portfolioStore";
 import MobileMonthlyReport from "../../src/components/MobileMonthlyReport";
 import MobileWeeklyScreener from "../../src/components/MobileWeeklyScreener";
 import PremiumToolCard from "../../src/components/PremiumToolCard";
-import { useAppStore, getAge, UserProfile, RISK_CONFIG } from "../../src/lib/profileStore";
+import { useAppStore, getAge, UserProfile } from "../../src/lib/profileStore";
 import { useSubscriptionStore, hasPremiumAccess } from "../../src/lib/subscriptionStore";
-import Markdown from "react-native-markdown-display";
 import PaywallModal from "../../src/components/PaywallModal";
 import MobileBrokerConnectModal from "../../src/components/MobileBrokerConnectModal";
 
 const FREE_POSITION_LIMIT = 10;
 
-type IoniconName = React.ComponentProps<typeof Ionicons>["name"];
-type Scenario = "conservative" | "moderate" | "aggressive";
+
 
 // ─── Stress test data ──────────────────────────────────────────────────────
 
@@ -230,33 +228,6 @@ const SECTOR_RISK_BASE: Record<string, number> = {
   Cripto:92,
 };
 
-const SECTOR_COLOR: Record<string, string> = {
-  Semiconductores:"#8b5cf6",
-  Software:"#3b82f6",
-  Tecnología:"#06b6d4",
-  "Inteligencia Artificial":"#a855f7",
-  Fintech:"#10b981",
-  eCommerce:"#f59e0b",
-  "Consumo Discrecional":"#f97316",
-  "Consumo Básico":"#eab308",
-  Salud:"#ec4899",
-  "Farmacéutica":"#f43f5e",
-  Biotecnología:"#c026d3",
-  Financiero:"#475569",
-  Bancario:"#64748b",
-  Seguros:"#6b7280",
-  Energía:"#ef4444",
-  "Energía Renovable":"#22c55e",
-  Industriales:"#78716c",
-  Aeroespacial:"#0ea5e9",
-  Logística:"#84cc16",
-  Materiales:"#d97706",
-  Telecomunicaciones:"#7c3aed",
-  Medios:"#db2777",
-  "Real Estate":"#14b8a6",
-  Cripto:"#f59e0b",
-  ETF:"#94a3b8",
-};
 
 const PORTFOLIO_LEVELS = [
   { label: "Conservador",           min: 0,   max: 13,  color: "#3b82f6" },
@@ -428,11 +399,6 @@ function fmtMoney(n: number, showSign = false): string {
   return `${neg}${sign}$${abs.toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
 }
 
-const SCENARIOS: { value: Scenario; icon: IoniconName; label: string }[] = [
-  { value: "conservative", icon: "shield-outline", label: "Conservador" },
-  { value: "moderate",     icon: "scale-outline",  label: "Moderado" },
-  { value: "aggressive",   icon: "rocket-outline", label: "Agresivo" },
-];
 
 interface PriceData { price: number | null; currency: string; name: string }
 interface ExtractedPosition { id: string; ticker: string; name: string; shares: number; avg_price: number }
@@ -694,7 +660,7 @@ export default function PortfolioScreen() {
 
 
   const {
-    positions, addPosition, removePosition, updatePosition, setPositions, mergePositions,
+    positions, addPosition, removePosition, updatePosition, setPositions,
     clearPortfolio, portfolioCurrency, setCurrency,
     loadFromServer, syncStatus, lastSaved,
   } = usePortfolioStore();
@@ -769,9 +735,6 @@ export default function PortfolioScreen() {
   // Currency picker
   const [showCurrencyPicker, setShowCurrencyPicker] = useState(false);
 
-  // Sector drill-down
-  const [selectedSector, setSelectedSector] = useState<string | null>(null);
-
   // Edit position
   const [editingPos, setEditingPos] = useState<{ id: string; shares: string; avgPrice: string; purchaseDate: string } | null>(null);
 
@@ -801,21 +764,15 @@ export default function PortfolioScreen() {
   const [form, setForm] = useState({ ticker: "", shares: "", avgPrice: "" });
   const [addingLoading, setAddingLoading] = useState(false);
 
-  // Simulator
-  const riskCfg = profile?.risk_tolerance ? RISK_CONFIG[profile.risk_tolerance] : null;
-  const [scenario, setScenario] = useState<Scenario>(
-    (profile?.risk_tolerance as Scenario) ?? "moderate"
-  );
-  const [analysis, setAnalysis] = useState("");
-  const [simLoading, setSimLoading] = useState(false);
-  type PortfolioResult = {
-    summary: string;
-    mismatch?: string;
-    allocations: { ticker: string; name: string; pct: number; color: string; reason: string }[];
-    risks: string[];
-    history: Record<string, string>;
+  // Portfolio Analyzer
+  type PortfolioAnalysis = {
+    score: number; score_label: string; score_color: string; summary: string;
+    sections: { title: string; score: number; detail: string; icon: string }[];
+    strengths: string[]; weaknesses: string[];
+    recommendations: { title: string; detail: string }[];
   };
-  const [portfolioResult, setPortfolioResult] = useState<PortfolioResult | null>(null);
+  const [portfolioAnalysis, setPortfolioAnalysis] = useState<PortfolioAnalysis | null>(null);
+  const [analysisLoading, setAnalysisLoading] = useState(false);
 
   const fetchPrices = useCallback(async (silent = false) => {
     if (!positions.length) return;
@@ -1091,31 +1048,30 @@ export default function PortfolioScreen() {
 
 
   // ── Simulator 1: portfolio AI analysis ────────────────────────────────
-  const simulate = async () => {
-    setSimLoading(true); setAnalysis(""); setPortfolioResult(null);
+  const runPortfolioAnalysis = async () => {
+    if (!positions.length) return;
+    setAnalysisLoading(true); setPortfolioAnalysis(null);
     try {
-      const positionsPayload = positions.length > 0
-        ? positions.map((p) => ({ ticker: p.ticker, shares: p.shares, avg_price: p.avgPrice, name: p.name }))
-        : undefined;
-      const res = await marketApi.getPortfolio(
-        scenario,
-        undefined,
-        positionsPayload,
-      );
-      const text: string = res.data.analysis;
-      // Try to parse structured JSON (no-positions mode)
-      if (!positionsPayload) {
-        try {
-          const jsonMatch = text.match(/\{[\s\S]*\}/);
-          if (jsonMatch) {
-            const parsed = JSON.parse(jsonMatch[0]) as PortfolioResult;
-            if (parsed.allocations?.length) { setPortfolioResult(parsed); }
-          }
-        } catch { /* fallback to text */ }
+      const posPayload = positions.map((p) => ({
+        ticker: p.ticker, shares: p.shares, avg_price: p.avgPrice, name: p.name,
+        current_price: prices[p.ticker]?.price ?? undefined,
+      }));
+      const res = await marketApi.analyzePortfolio(posPayload);
+      if (res.data?.score !== undefined) {
+        setPortfolioAnalysis(res.data);
+      } else {
+        Alert.alert("Sin resultado", "La IA no devolvió un análisis válido. Intenta de nuevo.");
       }
-      setAnalysis(text);
-    } catch { setAnalysis("Error al generar el análisis. Intenta de nuevo."); }
-    finally { setSimLoading(false); }
+    } catch (err: any) {
+      const detail = err?.response?.data?.detail ?? err?.message ?? "";
+      if (detail.includes("rate") || detail.includes("limit") || err?.response?.status === 429) {
+        Alert.alert("Límite alcanzado", "Demasiadas solicitudes. Espera un momento e intenta de nuevo.");
+      } else {
+        Alert.alert("Error al analizar", "No se pudo conectar con la IA. Verifica tu conexión e intenta de nuevo.");
+      }
+    } finally {
+      setAnalysisLoading(false);
+    }
   };
 
   // Stress Test state
@@ -1240,12 +1196,6 @@ export default function PortfolioScreen() {
     });
   }, [positions, prices, fxRate, sortField, sortDir]);
 
-  const diagnosis = useMemo(() => {
-    if (!positions.length) return null;
-    const { score, levelIdx, sectorPcts } = scorePortfolio(positions, prices);
-    const feedback = buildFeedback(levelIdx, profile, age, sectorPcts);
-    return { score, levelIdx, sectorPcts, feedback };
-  }, [positions, prices, profile, age]);
 
   return (
     <SafeAreaView style={s.container}>
@@ -1992,414 +1942,141 @@ export default function PortfolioScreen() {
           </>
         )}
 
-        {/* ── SIMULADOR 1: PORTAFOLIO CON IA ── */}
+        {/* ── ANALIZA TU PORTAFOLIO ── */}
         <View style={[s.divider, { borderTopColor: colors.border }]} />
         <View style={s.simHeader}>
-          <Ionicons name="analytics-outline" size={20} color="#22c55e" />
+          <Ionicons name="sparkles-outline" size={20} color="#22c55e" />
           <View style={{ flex: 1 }}>
-            <Text style={[s.sectionTitle, { marginBottom: 2 }]}>Simulador de Portafolio</Text>
+            <Text style={[s.sectionTitle, { marginBottom: 2 }]}>Analiza tu Portafolio</Text>
             <Text style={[s.simSubtitle, { color: colors.textMuted }]}>
-              {positions.length > 0
-                ? `Analiza tus ${positions.length} posiciones con forecast de analistas`
-                : "Simula un portafolio hipotético según tu perfil"}
+              IA evalúa tus {positions.length} posiciones y da una calificación detallada
             </Text>
           </View>
         </View>
         {/* ── DIAGNÓSTICO DE RIESGO ── */}
-        {diagnosis && (() => {
-          const level = PORTFOLIO_LEVELS[diagnosis.levelIdx];
+        {/* Analyze button */}
+        {positions.length > 0 ? (
+          <TouchableOpacity
+            style={[s.simBtn, analysisLoading && s.btnDisabled]}
+            onPress={runPortfolioAnalysis}
+            disabled={analysisLoading}
+          >
+            {analysisLoading ? (
+              <ActivityIndicator color="white" />
+            ) : (
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                <Ionicons name="sparkles-outline" size={16} color="white" />
+                <Text style={s.simBtnText}>Analizar mi portafolio con IA</Text>
+              </View>
+            )}
+          </TouchableOpacity>
+        ) : (
+          <View style={[s.resultCard, { backgroundColor: colors.card, borderColor: colors.border, alignItems: "center", paddingVertical: 20 }]}>
+            <Text style={{ color: colors.textMuted, fontSize: 12 }}>Agrega posiciones para analizar tu portafolio</Text>
+          </View>
+        )}
+
+        {/* Analysis results */}
+        {portfolioAnalysis && (() => {
+          const scoreCol = portfolioAnalysis.score_color;
+          const R = 42;
+          const CIRC = 2 * Math.PI * R;
+          const offset = CIRC * (1 - portfolioAnalysis.score / 100);
           return (
-            <View style={[s.diagCard, { backgroundColor: s.diagCard.backgroundColor, borderColor: level.color + "60" }]}>
-              {/* Header */}
-              <View style={s.diagHeader}>
-                <View style={[s.diagBadge, { backgroundColor: level.color + "18", borderColor: level.color + "50" }]}>
-                  <View style={[s.diagBadgeDot, { backgroundColor: level.color }]} />
-                  <Text style={[s.diagBadgeText, { color: level.color }]}>{level.label}</Text>
-                </View>
-                <Text style={[s.diagScore, { color: colors.textMuted }]}>{diagnosis.score}/100</Text>
-              </View>
+            <View style={{ gap: 12, marginTop: 4 }}>
 
-              {/* 8-segment risk bar */}
-              <View style={s.diagBarRow}>
-                {PORTFOLIO_LEVELS.map((l, i) => (
-                  <View
-                    key={l.label}
-                    style={[
-                      s.diagBarSeg,
-                      {
-                        backgroundColor: i === diagnosis.levelIdx ? l.color : l.color + "35",
-                        height: i === diagnosis.levelIdx ? 14 : 8,
-                        borderRadius: i === 0 ? 4 : i === PORTFOLIO_LEVELS.length - 1 ? 4 : 2,
-                      },
-                    ]}
-                  />
-                ))}
-              </View>
-              <View style={s.diagBarLabels}>
-                <Text style={[s.diagBarLabel, { color: colors.textDim }]}>Conservador</Text>
-                <Text style={[s.diagBarLabel, { color: colors.textDim }]}>Especulativo</Text>
-              </View>
-
-              {/* Sector breakdown chips — toca uno para ver las posiciones */}
-              {Object.keys(diagnosis.sectorPcts).length > 0 && (
-                <>
-                  <View style={s.diagSectors}>
-                    {Object.entries(diagnosis.sectorPcts)
-                      .sort((a, b) => b[1] - a[1])
-                      .map(([sector, pct]) => {
-                        const col = SECTOR_COLOR[sector] ?? "#94a3b8";
-                        const isSelected = selectedSector === sector;
-                        return (
-                          <TouchableOpacity
-                            key={sector}
-                            onPress={() => setSelectedSector(isSelected ? null : sector)}
-                            style={[
-                              s.diagSectorChip,
-                              {
-                                backgroundColor: isSelected ? col : `${col}18`,
-                                borderColor: isSelected ? col : `${col}40`,
-                              },
-                            ]}
-                            activeOpacity={0.7}
-                          >
-                            <Text style={[s.diagSectorText, { color: isSelected ? "#fff" : col }]}>
-                              {sector} {pct}%
-                            </Text>
-                          </TouchableOpacity>
-                        );
-                      })}
+              {/* Score hero */}
+              <View style={{ borderRadius: 20, borderWidth: 1, borderColor: scoreCol + "40", backgroundColor: scoreCol + "0a", padding: 20, flexDirection: "row", alignItems: "center", gap: 16 }}>
+                {/* SVG ring */}
+                <View style={{ width: 88, height: 88, alignItems: "center", justifyContent: "center" }}>
+                  <Svg width={88} height={88} style={{ transform: [{ rotate: "-90deg" }] }}>
+                    <Circle cx={44} cy={44} r={R} stroke={colors.border} strokeWidth={8} fill="none" />
+                    <Circle cx={44} cy={44} r={R} stroke={scoreCol} strokeWidth={8} fill="none"
+                      strokeLinecap="round"
+                      strokeDasharray={`${CIRC}`}
+                      strokeDashoffset={`${offset}`}
+                    />
+                  </Svg>
+                  <View style={{ position: "absolute", alignItems: "center" }}>
+                    <Text style={{ color: scoreCol, fontSize: 22, fontWeight: "900", lineHeight: 26 }}>{portfolioAnalysis.score}</Text>
+                    <Text style={{ color: colors.textMuted, fontSize: 9, fontWeight: "700" }}>/ 100</Text>
                   </View>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ color: scoreCol, fontSize: 16, fontWeight: "900", marginBottom: 4 }}>{portfolioAnalysis.score_label}</Text>
+                  <Text style={{ color: colors.textSub, fontSize: 11, lineHeight: 17 }}>{portfolioAnalysis.summary}</Text>
+                </View>
+              </View>
 
-                  {/* Drill-down: posiciones del sector seleccionado */}
-                  {selectedSector && (() => {
-                    const col = SECTOR_COLOR[selectedSector] ?? "#94a3b8";
-                    const sectorPositions = positions.filter(
-                      (p) => (TICKER_SECTOR[p.ticker] ?? "Otro") === selectedSector
-                    );
-                    const sectorTotal = sectorPositions.reduce((sum, p) => {
-                      const price = (prices[p.ticker]?.price ?? p.avgPrice) * fxRate;
-                      return sum + p.shares * price;
-                    }, 0);
-                    return (
-                      <View style={[s.sectorDrillBox, { backgroundColor: `${col}0e`, borderColor: `${col}40` }]}>
-                        <View style={s.sectorDrillHeader}>
-                          <Text style={[s.sectorDrillTitle, { color: col }]}>
-                            Posiciones · {selectedSector}
-                          </Text>
-                          <TouchableOpacity onPress={() => setSelectedSector(null)} activeOpacity={0.7}>
-                            <Text style={[s.sectorDrillClose, { color: colors.textDim }]}>Cerrar ✕</Text>
-                          </TouchableOpacity>
-                        </View>
-                        {sectorPositions.map((pos) => {
-                          const price = (prices[pos.ticker]?.price ?? pos.avgPrice) * fxRate;
-                          const val = pos.shares * price;
-                          const pctOfSector = sectorTotal > 0 ? Math.round((val / sectorTotal) * 100) : 0;
-                          return (
-                            <View key={pos.id} style={[s.sectorDrillRow, { backgroundColor: colors.bg }]}>
-                              <View style={s.sectorDrillLeft}>
-                                <Text style={[s.sectorDrillTicker, { color: col }]}>{pos.ticker}</Text>
-                                {pos.name && (
-                                  <Text style={[s.sectorDrillName, { color: colors.textSub }]} numberOfLines={1}>
-                                    {pos.name}
-                                  </Text>
-                                )}
-                              </View>
-                              <View style={s.sectorDrillRight}>
-                                <Text style={[s.sectorDrillShares, { color: colors.textDim }]}>
-                                  {pos.shares} acc.
-                                </Text>
-                                <Text style={[s.sectorDrillVal, { color: colors.text }]}>
-                                  {currencySymbol}{val.toLocaleString("en-US", { maximumFractionDigits: 0 })}
-                                </Text>
-                                <Text style={[s.sectorDrillPct, { color: col }]}>
-                                  {pctOfSector}%
-                                </Text>
-                              </View>
-                            </View>
-                          );
-                        })}
-                        <View style={[s.sectorDrillFooter, { borderTopColor: `${col}30` }]}>
-                          <Text style={[s.sectorDrillFooterLabel, { color: colors.textDim }]}>
-                            Total sector:{" "}
-                            <Text style={{ color: col }}>
-                              {currencySymbol}{sectorTotal.toLocaleString("en-US", { maximumFractionDigits: 0 })}
-                            </Text>
-                          </Text>
-                        </View>
+              {/* Dimension bars */}
+              <View style={{ borderRadius: 20, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card, overflow: "hidden" }}>
+                {portfolioAnalysis.sections.map((sec, i) => {
+                  const barCol = sec.score >= 70 ? "#22c55e" : sec.score >= 50 ? "#f59e0b" : "#ef4444";
+                  return (
+                    <View key={sec.title} style={{ paddingHorizontal: 16, paddingVertical: 12, borderTopWidth: i > 0 ? StyleSheet.hairlineWidth : 0, borderTopColor: colors.border }}>
+                      <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 6 }}>
+                        <Text style={{ color: colors.text, fontSize: 12, fontWeight: "700" }}>{sec.title}</Text>
+                        <Text style={{ color: barCol, fontSize: 12, fontWeight: "900" }}>{sec.score}/100</Text>
                       </View>
-                    );
-                  })()}
-                </>
-              )}
+                      <View style={{ height: 5, backgroundColor: colors.border, borderRadius: 3 }}>
+                        <View style={{ width: `${sec.score}%` as any, height: 5, backgroundColor: barCol, borderRadius: 3 }} />
+                      </View>
+                      <Text style={{ color: colors.textMuted, fontSize: 10, lineHeight: 15, marginTop: 5 }}>{sec.detail}</Text>
+                    </View>
+                  );
+                })}
+              </View>
 
-              {/* Feedback lines */}
-              {diagnosis.feedback.length > 0 && (
-                <View style={[s.diagFeedback, { borderTopColor: colors.border }]}>
-                  {diagnosis.feedback.map((line, i) => (
-                    <View key={i} style={s.diagFeedbackRow}>
-                      <Ionicons
-                        name={i === 0 ? "stats-chart-outline" : i === 1 ? "person-outline" : "time-outline"}
-                        size={13}
-                        color={level.color}
-                        style={{ marginTop: 2, flexShrink: 0 }}
-                      />
-                      <Text style={[s.diagFeedbackText, { color: colors.textSub }]}>{line}</Text>
+              {/* Strengths & Weaknesses */}
+              <View style={{ flexDirection: "row", gap: 10 }}>
+                <View style={{ flex: 1, borderRadius: 16, borderWidth: 1, borderColor: "rgba(34,197,94,0.25)", backgroundColor: "rgba(34,197,94,0.05)", padding: 12 }}>
+                  <Text style={{ color: "#22c55e", fontSize: 10, fontWeight: "800", letterSpacing: 0.5, marginBottom: 8 }}>FORTALEZAS</Text>
+                  {portfolioAnalysis.strengths.map((str, i) => (
+                    <View key={i} style={{ flexDirection: "row", gap: 6, marginBottom: 5 }}>
+                      <Text style={{ color: "#22c55e", fontSize: 10, marginTop: 1 }}>✓</Text>
+                      <Text style={{ color: colors.textSub, fontSize: 10, lineHeight: 15, flex: 1 }}>{str}</Text>
                     </View>
                   ))}
                 </View>
-              )}
-            </View>
-          );
-        })()}
-
-        {/* Risk profile indicator */}
-        {riskCfg && (
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 10 }}>
-            <View style={{ flex: 1, height: 4, borderRadius: 2, backgroundColor: colors.border, overflow: "hidden" }}>
-              <View style={{ width: `${Math.round(riskCfg.pct * 100)}%` as any, height: "100%", backgroundColor: riskCfg.color, borderRadius: 2 }} />
-            </View>
-            <Text style={{ color: riskCfg.color, fontSize: 11, fontWeight: "700" }}>
-              Tu perfil: {riskCfg.label}
-            </Text>
-          </View>
-        )}
-        {riskCfg && scenario !== profile?.risk_tolerance && (
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#f59e0b12", borderColor: "#f59e0b30", borderWidth: 1, borderRadius: 8, padding: 8, marginBottom: 8 }}>
-            <Ionicons name="warning-outline" size={13} color="#f59e0b" />
-            <Text style={{ color: "#f59e0b", fontSize: 11, fontWeight: "600", flex: 1 }}>
-              Este escenario difiere de tu perfil real ({riskCfg.label.toLowerCase()})
-            </Text>
-          </View>
-        )}
-        <View style={s.scenarioRow}>
-          {SCENARIOS.map((sc) => (
-            <TouchableOpacity
-              key={sc.value}
-              style={[s.scenarioCard, { backgroundColor: colors.card, borderColor: colors.border }, scenario === sc.value && s.scenarioActive]}
-              onPress={() => setScenario(sc.value)}
-            >
-              <Ionicons name={sc.icon} size={20} color={scenario === sc.value ? "#22c55e" : colors.textSub} style={{ marginBottom: 2 }} />
-              <Text style={[s.scenarioLabel, { color: scenario === sc.value ? colors.text : colors.textSub }]}>{sc.label}</Text>
-              {sc.value === profile?.risk_tolerance && (
-                <View style={{ backgroundColor: riskCfg?.color + "25", borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1, marginTop: 2 }}>
-                  <Text style={{ color: riskCfg?.color, fontSize: 8, fontWeight: "800" }}>TU PERFIL</Text>
-                </View>
-              )}
-            </TouchableOpacity>
-          ))}
-        </View>
-        <TouchableOpacity style={[s.simBtn, simLoading && s.btnDisabled]} onPress={simulate} disabled={simLoading}>
-          {simLoading
-            ? <ActivityIndicator color="white" />
-            : (
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                <Ionicons name="sparkles-outline" size={16} color="white" />
-                <Text style={s.simBtnText}>
-                  {positions.length > 0 ? "Analizar mi portafolio con IA" : "Simular portafolio"}
-                </Text>
-              </View>
-            )}
-        </TouchableOpacity>
-        {/* ── Resultado estructurado premium ── */}
-        {portfolioResult && (() => {
-          const scenarioColor = scenario === "conservative" ? "#3b82f6" : scenario === "moderate" ? "#22c55e" : "#f59e0b";
-          const scenarioLabel = scenario === "conservative" ? "Conservador" : scenario === "moderate" ? "Moderado" : "Agresivo";
-
-          // Donut chart math
-          const CHART = 180;
-          const cx = CHART / 2;
-          const cy = CHART / 2;
-          const R = 62;
-          const SW = 26;
-          const GAP = 3;
-          let cum = 0;
-          const segs = portfolioResult.allocations.map((a) => {
-            const s = cum; cum += a.pct; return { ...a, s, e: cum };
-          });
-          const arc = (s: number, e: number) => {
-            const sa = s * 3.6 + GAP / 2, ea = e * 3.6 - GAP / 2;
-            const toXY = (deg: number) => {
-              const r = ((deg - 90) * Math.PI) / 180;
-              return { x: cx + R * Math.cos(r), y: cy + R * Math.sin(r) };
-            };
-            const p1 = toXY(sa), p2 = toXY(ea);
-            const large = ea - sa > 180 ? 1 : 0;
-            return `M ${p1.x.toFixed(1)} ${p1.y.toFixed(1)} A ${R} ${R} 0 ${large} 1 ${p2.x.toFixed(1)} ${p2.y.toFixed(1)}`;
-          };
-
-          return (
-            <View style={{ gap: 12 }}>
-
-              {/* ── Hero card ── */}
-              <View style={{ borderRadius: 22, overflow: "hidden", borderWidth: 1, borderColor: scenarioColor + "35" }}>
-                <View style={{ backgroundColor: "#080d18", padding: 22, alignItems: "center", gap: 0 }}>
-                  {/* Glow bg */}
-                  <Svg style={StyleSheet.absoluteFillObject as any} width="100%" height="100%">
-                    <Defs>
-                      <SvgRadial id="hglow" cx="50%" cy="30%" r="60%">
-                        <Stop offset="0%" stopColor={scenarioColor} stopOpacity={0.18} />
-                        <Stop offset="100%" stopColor={scenarioColor} stopOpacity={0} />
-                      </SvgRadial>
-                    </Defs>
-                    <SvgRect x="0" y="0" width="100%" height="100%" fill="url(#hglow)" />
-                  </Svg>
-
-                  <Text style={{ color: "rgba(255,255,255,0.4)", fontSize: 9, fontWeight: "900", letterSpacing: 2.5 }}>PORTAFOLIO SUGERIDO</Text>
-                  <Text style={{ color: scenarioColor, fontSize: 26, fontWeight: "900", letterSpacing: -0.5, marginTop: 2 }}>{scenarioLabel.toUpperCase()}</Text>
-
-                  {/* Donut chart */}
-                  <View style={{ marginVertical: 18 }}>
-                    <Svg width={CHART} height={CHART}>
-                      {/* Track */}
-                      <G>
-                        {segs.map((sg) => (
-                          <Path key={sg.ticker} d={arc(sg.s, sg.e)} stroke={sg.color} strokeWidth={SW} fill="none" strokeLinecap="butt" opacity={0.9} />
-                        ))}
-                      </G>
-                    </Svg>
-                    {/* Center label */}
-                    <View style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, alignItems: "center", justifyContent: "center" }}>
-                      <Text style={{ color: "rgba(255,255,255,0.35)", fontSize: 8, fontWeight: "800", letterSpacing: 1 }}>ESTRATEGIA</Text>
-                      <Text style={{ color: "#fff", fontSize: 16, fontWeight: "900", marginTop: 2 }}>{scenarioLabel}</Text>
+                <View style={{ flex: 1, borderRadius: 16, borderWidth: 1, borderColor: "rgba(239,68,68,0.25)", backgroundColor: "rgba(239,68,68,0.05)", padding: 12 }}>
+                  <Text style={{ color: "#ef4444", fontSize: 10, fontWeight: "800", letterSpacing: 0.5, marginBottom: 8 }}>A MEJORAR</Text>
+                  {portfolioAnalysis.weaknesses.map((w, i) => (
+                    <View key={i} style={{ flexDirection: "row", gap: 6, marginBottom: 5 }}>
+                      <Text style={{ color: "#ef4444", fontSize: 10, marginTop: 1 }}>!</Text>
+                      <Text style={{ color: colors.textSub, fontSize: 10, lineHeight: 15, flex: 1 }}>{w}</Text>
                     </View>
-                  </View>
-
-                  {/* Legend */}
-                  <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, justifyContent: "center" }}>
-                    {portfolioResult.allocations.map((a) => (
-                      <View key={a.ticker} style={{ flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: a.color + "18", borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4 }}>
-                        <View style={{ width: 7, height: 7, borderRadius: 3.5, backgroundColor: a.color }} />
-                        <Text style={{ color: "rgba(255,255,255,0.8)", fontSize: 11, fontWeight: "700" }}>{a.ticker}</Text>
-                        <Text style={{ color: a.color, fontSize: 11, fontWeight: "900" }}>{a.pct}%</Text>
-                      </View>
-                    ))}
-                  </View>
-
-                  {/* Summary */}
-                  <Text style={{ color: "rgba(255,255,255,0.55)", fontSize: 12, lineHeight: 19, textAlign: "center", marginTop: 14 }}>
-                    {portfolioResult.summary}
-                  </Text>
-
-                  {/* Mismatch warning */}
-                  {!!portfolioResult.mismatch && (
-                    <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 8, marginTop: 12, backgroundColor: "#f59e0b14", borderRadius: 12, padding: 12, borderWidth: 1, borderColor: "#f59e0b30", width: "100%" }}>
-                      <Ionicons name="warning-outline" size={15} color="#f59e0b" style={{ marginTop: 1 }} />
-                      <Text style={{ color: "#f59e0b", fontSize: 11, fontWeight: "600", flex: 1, lineHeight: 17 }}>{portfolioResult.mismatch}</Text>
-                    </View>
-                  )}
+                  ))}
                 </View>
               </View>
 
-              {/* ── Allocation rows ── */}
-              <View style={{ backgroundColor: colors.card, borderRadius: 20, borderWidth: 1, borderColor: colors.border, overflow: "hidden" }}>
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 10, padding: 16, paddingBottom: 12 }}>
-                  <View style={{ width: 30, height: 30, borderRadius: 9, backgroundColor: scenarioColor + "20", alignItems: "center", justifyContent: "center" }}>
-                    <Ionicons name="pie-chart-outline" size={16} color={scenarioColor} />
-                  </View>
-                  <Text style={{ color: colors.text, fontSize: 14, fontWeight: "800" }}>Distribución de activos</Text>
+              {/* Recommendations */}
+              <View style={{ borderRadius: 20, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card, overflow: "hidden" }}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8, padding: 14, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border }}>
+                  <Ionicons name="bulb-outline" size={15} color="#6366f1" />
+                  <Text style={{ color: colors.text, fontSize: 13, fontWeight: "800" }}>Recomendaciones</Text>
                 </View>
-                {portfolioResult.allocations.map((a, i) => (
-                  <View key={a.ticker} style={{ flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 16, paddingVertical: 13, borderTopWidth: i === 0 ? 0 : 1, borderTopColor: colors.border }}>
-                    {/* Color stripe */}
-                    <View style={{ width: 4, height: 52, borderRadius: 2, backgroundColor: a.color }} />
-                    <View style={{ flex: 1, gap: 5 }}>
-                      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
-                        <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flex: 1 }}>
-                          <View style={{ backgroundColor: a.color + "20", borderRadius: 7, paddingHorizontal: 8, paddingVertical: 3 }}>
-                            <Text style={{ color: a.color, fontSize: 12, fontWeight: "900" }}>{a.ticker}</Text>
-                          </View>
-                          <Text style={{ color: colors.textMuted, fontSize: 11, flex: 1 }} numberOfLines={1}>{a.name}</Text>
-                        </View>
-                        <Text style={{ color: a.color, fontSize: 22, fontWeight: "900", marginLeft: 8 }}>{a.pct}%</Text>
-                      </View>
-                      {/* Bar */}
-                      <View style={{ height: 5, backgroundColor: colors.border, borderRadius: 3 }}>
-                        <View style={{ width: `${a.pct}%` as any, height: 5, backgroundColor: a.color, borderRadius: 3, opacity: 0.85 }} />
-                      </View>
-                      <Text style={{ color: colors.textMuted, fontSize: 10, lineHeight: 14 }}>{a.reason}</Text>
+                {portfolioAnalysis.recommendations.map((rec, i) => (
+                  <View key={i} style={{ flexDirection: "row", gap: 12, padding: 14, borderTopWidth: i > 0 ? StyleSheet.hairlineWidth : 0, borderTopColor: colors.border }}>
+                    <View style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: "rgba(99,102,241,0.15)", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: 1 }}>
+                      <Text style={{ color: "#818cf8", fontSize: 10, fontWeight: "900" }}>{i + 1}</Text>
                     </View>
-                  </View>
-                ))}
-              </View>
-
-              {/* ── Historical performance ── */}
-              <View style={{ backgroundColor: colors.card, borderRadius: 20, borderWidth: 1, borderColor: colors.border, padding: 16, gap: 12 }}>
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-                  <View style={{ width: 30, height: 30, borderRadius: 9, backgroundColor: "#6366f120", alignItems: "center", justifyContent: "center" }}>
-                    <Ionicons name="time-outline" size={16} color="#6366f1" />
-                  </View>
-                  <Text style={{ color: colors.text, fontSize: 14, fontWeight: "800" }}>Comportamiento histórico</Text>
-                </View>
-                <View style={{ flexDirection: "row", gap: 8 }}>
-                  {Object.entries(portfolioResult.history).map(([year, val]) => {
-                    const pos = !val.startsWith("-");
-                    const clr = pos ? "#22c55e" : "#ef4444";
-                    return (
-                      <View key={year} style={{ flex: 1, backgroundColor: clr + "10", borderRadius: 16, borderWidth: 1, borderColor: clr + "30", padding: 14, alignItems: "center", gap: 6 }}>
-                        <Text style={{ color: "rgba(255,255,255,0.4)", fontSize: 9, fontWeight: "800", letterSpacing: 1 }}>{year}</Text>
-                        <Ionicons name={pos ? "trending-up" : "trending-down"} size={20} color={clr} />
-                        <Text style={{ color: clr, fontSize: 20, fontWeight: "900" }}>{val}</Text>
-                      </View>
-                    );
-                  })}
-                </View>
-              </View>
-
-              {/* ── Risks ── */}
-              <View style={{ backgroundColor: colors.card, borderRadius: 20, borderWidth: 1, borderColor: "#f59e0b22", padding: 16, gap: 12 }}>
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-                  <View style={{ width: 30, height: 30, borderRadius: 9, backgroundColor: "#f59e0b18", alignItems: "center", justifyContent: "center" }}>
-                    <Ionicons name="shield-outline" size={16} color="#f59e0b" />
-                  </View>
-                  <Text style={{ color: colors.text, fontSize: 14, fontWeight: "800" }}>Riesgos a considerar</Text>
-                </View>
-                {portfolioResult.risks.map((r, i) => (
-                  <View key={i} style={{ flexDirection: "row", alignItems: "flex-start", gap: 12 }}>
-                    <View style={{ width: 24, height: 24, borderRadius: 12, backgroundColor: "#f59e0b18", borderWidth: 1, borderColor: "#f59e0b30", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: 1 }}>
-                      <Text style={{ color: "#f59e0b", fontSize: 10, fontWeight: "900" }}>{i + 1}</Text>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ color: colors.text, fontSize: 12, fontWeight: "700", marginBottom: 3 }}>{rec.title}</Text>
+                      <Text style={{ color: colors.textMuted, fontSize: 11, lineHeight: 16 }}>{rec.detail}</Text>
                     </View>
-                    <Text style={{ color: colors.textSub, fontSize: 12, lineHeight: 19, flex: 1 }}>{r}</Text>
                   </View>
                 ))}
               </View>
 
               {/* Disclaimer */}
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 5, justifyContent: "center", paddingBottom: 4 }}>
-                <Ionicons name="warning-outline" size={10} color={colors.textDim} />
-                <Text style={{ color: colors.textDim, fontSize: 10 }}>Análisis educativo · No es asesoramiento financiero</Text>
+              <View style={s.disclaimer}>
+                <Ionicons name="warning-outline" size={12} color="#ca8a04" />
+                <Text style={s.disclaimerText}>Análisis educativo. No es asesoramiento financiero.</Text>
               </View>
 
             </View>
           );
         })()}
-
-        {/* Resultado texto (con posiciones) — renderizado con Markdown */}
-        {analysis !== "" && (
-          <View style={[s.resultCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <Markdown
-              style={{
-                body:       { color: colors.textSub, fontSize: 13, lineHeight: 20 },
-                heading1:   { color: colors.text, fontWeight: "800", fontSize: 15, marginBottom: 6 },
-                heading2:   { color: colors.text, fontWeight: "700", fontSize: 14, marginBottom: 4 },
-                heading3:   { color: colors.text, fontWeight: "700", fontSize: 13, marginBottom: 4 },
-                strong:     { color: colors.text, fontWeight: "700" },
-                bullet_list:{ marginLeft: 4 },
-                list_item:  { color: colors.textSub, fontSize: 13, lineHeight: 20 },
-                paragraph:  { marginBottom: 8 },
-                fence:      { backgroundColor: colors.bgRaised, borderRadius: 8, padding: 10, fontSize: 12 },
-                code_inline:{ backgroundColor: colors.bgRaised, borderRadius: 4, paddingHorizontal: 4, fontSize: 12 },
-              }}
-            >
-              {analysis}
-            </Markdown>
-            <View style={s.disclaimer}>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                <Ionicons name="warning-outline" size={13} color="#ca8a04" />
-                <Text style={s.disclaimerText}>Análisis educativo. No es asesoramiento financiero.</Text>
-              </View>
-            </View>
-          </View>
-        )}
 
         {/* ── SIMULADOR 2: CALCULADORA DE INTERÉS COMPUESTO ── */}
         <View style={[s.divider, { borderTopColor: colors.border }]} />
