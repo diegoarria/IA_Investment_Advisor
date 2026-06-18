@@ -49,6 +49,16 @@ export default function Home() {
   const { setAuth } = useAuthStore();
   const { setProfile } = useProfileStore();
 
+  // Allow page scroll (globals.css locks overflow:hidden for the main app panels)
+  useEffect(() => {
+    document.documentElement.style.overflow = "auto";
+    document.body.style.overflow = "auto";
+    return () => {
+      document.documentElement.style.overflow = "";
+      document.body.style.overflow = "";
+    };
+  }, []);
+
   // On mount: if the user has stored tokens, check who's logged in.
   // Instead of auto-redirecting (which prevents switching accounts), we show
   // a "Continuar como [nombre]" banner so the user can continue or log in as someone else.
@@ -57,8 +67,8 @@ export default function Home() {
     const hasRefresh = !!localStorage.getItem("refresh_token");
     if (!hasAccess && !hasRefresh) { setChecking(false); return; }
 
-    // Safety: if the profile request hangs for >4s, go to chat optimistically
-    const fallback = setTimeout(() => router.push("/chat"), 4000);
+    // Safety: if the profile request hangs for >4s, go to home optimistically
+    const fallback = setTimeout(() => router.push("/home"), 4000);
 
     profileApi.get()
       .then((res) => {
@@ -79,7 +89,7 @@ export default function Home() {
           setChecking(false);
         } else {
           // Network error — tokens likely still valid, go to app
-          router.push("/chat");
+          router.push("/home");
         }
       });
   }, []);
@@ -149,7 +159,7 @@ export default function Home() {
         setProfile(p.data);
         // Full reload so every Zustand store reinitializes from the new user's
         // user-scoped localStorage keys, preventing data leakage between accounts.
-        window.location.href = "/chat";
+        window.location.href = "/home";
       } catch { window.location.href = "/onboarding"; }
     } catch (err: unknown) {
       setError(extractErrorMsg(err) || "Verifica tus credenciales e inténtalo de nuevo.");
@@ -252,7 +262,7 @@ export default function Home() {
                   <p className="text-[13px] font-bold truncate" style={{ color: "var(--text)" }}>{existingUserName}</p>
                 </div>
               </div>
-              <button onClick={() => router.push("/chat")}
+              <button onClick={() => router.push("/home")}
                       className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[12px] font-bold transition-colors"
                       style={{ background: "rgba(0,168,94,0.15)", color: "var(--accent-l)" }}>
                 Continuar <ArrowRight className="w-3 h-3" />

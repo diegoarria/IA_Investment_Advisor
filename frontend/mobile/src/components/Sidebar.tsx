@@ -117,6 +117,51 @@ function ProfileCard({ colors }: { colors: ReturnType<typeof useTheme>["colors"]
   );
 }
 
+// ─── Goal card ────────────────────────────────────────────────────────────────
+
+const GOAL_MAP: Record<string, { label: string; emoji: string }> = {
+  house:             { label: "Comprar una casa",         emoji: "🏠" },
+  car:               { label: "Comprar un carro",         emoji: "🚗" },
+  passive_income:    { label: "Vivir de mis inversiones", emoji: "💸" },
+  retirement:        { label: "Retiro / pensión",         emoji: "👴" },
+  financial_freedom: { label: "Libertad financiera",      emoji: "🦅" },
+  long_term_wealth:  { label: "Patrimonio a largo plazo", emoji: "🏛️" },
+};
+
+function GoalCard({ colors }: { colors: ReturnType<typeof useTheme>["colors"] }) {
+  const { profile } = useAppStore();
+  if (!profile?.investment_goal) return null;
+  const goal = GOAL_MAP[profile.investment_goal] ?? { label: profile.investment_goal, emoji: "🎯" };
+  const amount = profile.investment_goal_amount ? Number(profile.investment_goal_amount) : null;
+  return (
+    <View style={[goalStyles.card, { borderColor: "rgba(0,212,126,0.25)", backgroundColor: "rgba(0,212,126,0.07)" }]}>
+      <Text style={goalStyles.emoji}>{goal.emoji}</Text>
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <Text style={[goalStyles.label, { color: "rgba(0,212,126,0.6)" }]}>MI META</Text>
+        <Text style={[goalStyles.name, { color: "#00d47e" }]} numberOfLines={1}>{goal.label}</Text>
+        {amount ? (
+          <Text style={[goalStyles.amount, { color: colors.text }]}>
+            ${amount.toLocaleString("en-US")} USD
+          </Text>
+        ) : null}
+      </View>
+    </View>
+  );
+}
+
+const goalStyles = StyleSheet.create({
+  card: {
+    marginHorizontal: 12, marginBottom: 8,
+    borderRadius: 12, borderWidth: 1,
+    paddingHorizontal: 12, paddingVertical: 9,
+    flexDirection: "row", alignItems: "center", gap: 10,
+  },
+  emoji: { fontSize: 22 },
+  label: { fontSize: 8, fontWeight: "700", letterSpacing: 0.8, textTransform: "uppercase", marginBottom: 1 },
+  name:  { fontSize: 12, fontWeight: "700", letterSpacing: -0.1 },
+  amount: { fontSize: 11, fontWeight: "600", marginTop: 1 },
+});
+
 // ─── Nav items ────────────────────────────────────────────────────────────────
 
 function NavItems({
@@ -440,6 +485,7 @@ function WebSidebar() {
 
       <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
         {!collapsed && <ProfileCard colors={colors} />}
+        {!collapsed && <GoalCard colors={colors} />}
         <View style={[styles.navSection, collapsed && styles.navSectionCollapsed]}>
           <NavItems
             colors={colors}
@@ -554,6 +600,7 @@ function MobileSidebar() {
 
         <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
           <ProfileCard colors={colors} />
+          <GoalCard colors={colors} />
           <View style={styles.navSection}>
             <NavItems
               colors={colors}

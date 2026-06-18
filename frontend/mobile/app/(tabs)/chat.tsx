@@ -13,7 +13,7 @@ import Markdown from "react-native-markdown-display";
 import { chatApi, marketApi } from "../../src/lib/api";
 import { useTheme, Colors } from "../../src/lib/ThemeContext";
 import { useAppStore, RISK_CONFIG, getAge } from "../../src/lib/profileStore";
-import { getUserLevel } from "../../src/lib/userLevel";
+import { getUserLevel, LEVEL_LABEL, LEVEL_COLOR } from "../../src/lib/userLevel";
 import { useChatStore, Message, BehavioralDiagnosis } from "../../src/lib/chatStore";
 import { usePortfolioStore } from "../../src/lib/portfolioStore";
 import { useSubscriptionStore, msgsRemaining, resetMinutes, FREE_MSG_LIMIT, hasPremiumAccess } from "../../src/lib/subscriptionStore";
@@ -588,8 +588,11 @@ Instrucciones críticas:
 
     return (
       <View style={styles.aiRow}>
-        <Text style={styles.senderName}>{mentor?.name ?? "Nuvos AI"}</Text>
-        <View style={styles.aiBubble}>
+        <Text style={[styles.senderName, { color: mentor?.color ?? colors.accentLight }]}>{mentor?.name ?? "Nuvos AI"}</Text>
+        <View style={[styles.aiBubble, {
+          borderLeftWidth: 3,
+          borderLeftColor: mentor ? mentor.color + "70" : "rgba(0,185,109,0.5)",
+        }]}>
           <Markdown style={markdownStyles} rules={markdownRules}>{item.content || ""}</Markdown>
           {streaming && isLastAssistant && item.content === "" && (
             <TypingIndicator color={colors.accentLight} />
@@ -636,32 +639,42 @@ Instrucciones críticas:
       keyboardVerticalOffset={headerHeight}
     >
     <SafeAreaView style={styles.flex} edges={["left", "right"]}>
-      {/* Top bar */}
+      {/* ── Header ── */}
       <View style={[styles.topBar, { borderBottomColor: colors.border }]}>
-        {mentor ? (
-          <Text style={[styles.topBarTitle, { color: colors.text }]}>{`Con ${mentor.name}`}</Text>
-        ) : Platform.OS === "web" && profile?.name ? (
-          <Text style={[styles.topBarTitle, { color: colors.text }]}>{`Hola, ${profile.name.split(" ")[0]}`}</Text>
-        ) : (
-          <View style={styles.topBarLogo}>
-            <Image source={require("../../assets/images/logo_new.png")} style={styles.topBarLogoImg} />
-            <Text style={[styles.topBarTitle, { color: colors.text }]}>Nuvos AI</Text>
+        {/* Left: logo */}
+        <Image source={require("../../assets/images/logo_new.png")} style={styles.topBarLogoImg} />
+
+        {/* Center: mentor identity pill */}
+        <View style={[styles.mentorPill, {
+          backgroundColor: mentor ? mentor.color + "12" : colors.card,
+          borderColor: mentor ? mentor.color + "30" : colors.border,
+        }]}>
+          <Text style={{ fontSize: 20, lineHeight: 24 }}>{mentor ? mentor.emoji : "🤖"}</Text>
+          <View style={{ gap: 1, flexShrink: 1 }}>
+            <Text numberOfLines={1} style={[styles.mentorPillName, { color: colors.text }]}>
+              {mentor ? mentor.name : profile?.name ? `Hola, ${profile.name.split(" ")[0]}` : "Mentor IA"}
+            </Text>
+            {mentor && (
+              <Text style={[styles.mentorPillBadge, { color: mentor.color }]}>{mentor.badge}</Text>
+            )}
           </View>
-        )}
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+        </View>
+
+        {/* Right: actions */}
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
           <TouchableOpacity
             onPress={() => setTutorialVisible(true)}
-            style={[styles.newChatBtn, { borderColor: colors.border, paddingHorizontal: 10 }]}
+            style={[styles.iconBtn, { borderColor: colors.border }]}
           >
-            <Ionicons name="help-circle-outline" size={16} color={colors.textSub} />
+            <Ionicons name="help-circle-outline" size={17} color={colors.textSub} />
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.newChatBtn, { borderColor: colors.border }]}
             onPress={handleNewChat}
             disabled={streaming}
           >
-            <Ionicons name="add-outline" size={16} color={colors.textSub} />
-            <Text style={[styles.newChatBtnText, { color: colors.textSub }]}>Nuevo chat</Text>
+            <Ionicons name="add-outline" size={15} color={colors.textSub} />
+            <Text style={[styles.newChatBtnText, { color: colors.textSub }]}>Nuevo</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -674,40 +687,88 @@ Instrucciones críticas:
               keyboardShouldPersistTaps="handled"
               showsVerticalScrollIndicator={false}
             >
-              {mentor ? (
-                mentorPhoto ? (
-                  <Image source={mentorPhoto} style={styles.mentorAvatar} />
-                ) : (
-                  <View style={[styles.mentorAvatarEmoji, { backgroundColor: mentor.color + "22" }]}>
-                    <Text style={{ fontSize: 40 }}>{mentor.emoji}</Text>
-                  </View>
-                )
-              ) : (
-                <View style={[styles.emptyIconBox, { backgroundColor: colors.accentGlow, borderColor: "rgba(0,185,109,0.2)" }]}>
-                <Ionicons name="trending-up" size={40} color={colors.accentLight} />
-              </View>
-              )}
-              <Text style={styles.emptyTitle}>
-                {mentor
-                  ? mentor.name
-                  : profile?.name
-                  ? `Hola, ${profile.name.split(" ")[0]}!`
-                  : "Nuvos AI"}
-              </Text>
-              <Text style={styles.emptySubtitle}>
-                {mentor
-                  ? `${mentor.title} · ${mentor.badge}`
-                  : "Pregunta sobre cualquier empresa, concepto o estrategia"}
-              </Text>
-              {mentor && (
-                <View style={styles.mentorPrinciples}>
-                  {mentor.principles.map((p, i) => (
-                    <View key={i} style={[styles.principlePill, { borderColor: mentor.color + "50", backgroundColor: mentor.color + "12" }]}>
-                      <Text style={[styles.principlePillText, { color: mentor.color }]}>{p}</Text>
+              {/* ── Hero card ── */}
+              <View style={[styles.heroCard, {
+                backgroundColor: colors.card,
+                borderColor: mentor ? mentor.color + "30" : colors.border,
+              }]}>
+                {/* Color strip */}
+                <View style={[styles.heroStrip, {
+                  backgroundColor: mentor ? mentor.color : colors.accentLight,
+                }]} />
+
+                <View style={styles.heroContent}>
+                  {/* Avatar */}
+                  {mentor && mentorPhoto ? (
+                    <Image source={mentorPhoto} style={styles.heroAvatar} />
+                  ) : (
+                    <View style={[styles.heroAvatarBox, {
+                      backgroundColor: mentor ? mentor.color + "18" : colors.accentGlow,
+                      borderColor: mentor ? mentor.color + "35" : "rgba(0,185,109,0.25)",
+                    }]}>
+                      {mentor
+                        ? <Text style={{ fontSize: 40 }}>{mentor.emoji}</Text>
+                        : <Ionicons name="trending-up" size={38} color={colors.accentLight} />}
                     </View>
-                  ))}
+                  )}
+
+                  <Text style={[styles.heroTitle, { color: colors.text }]}>
+                    {mentor ? mentor.name : profile?.name ? `Hola, ${profile.name.split(" ")[0]}` : "Nuvos AI"}
+                  </Text>
+                  <Text style={[styles.heroSub, { color: mentor ? mentor.color : colors.accentLight }]}>
+                    {mentor ? mentor.title : "Tu mentor de inversiones con IA"}
+                  </Text>
+
+                  {mentor && (
+                    <View style={styles.principlesRow}>
+                      {mentor.principles.map((p, i) => (
+                        <View key={i} style={[styles.principlePill, {
+                          borderColor: mentor.color + "50",
+                          backgroundColor: mentor.color + "12",
+                        }]}>
+                          <Text style={[styles.principlePillText, { color: mentor.color }]}>{p}</Text>
+                        </View>
+                      ))}
+                    </View>
+                  )}
                 </View>
-              )}
+
+                {/* Context chips strip */}
+                {profile && (
+                  <View style={[styles.contextStrip, {
+                    borderTopColor: colors.border,
+                    backgroundColor: colors.bgRaised ?? colors.bg,
+                  }]}>
+                    {profile.risk_tolerance && riskCfg && (
+                      <View style={[styles.contextChip, { borderColor: colors.border }]}>
+                        <Text style={[styles.contextChipText, { color: colors.textMuted }]}>🎯 {riskCfg.label}</Text>
+                      </View>
+                    )}
+                    {(() => {
+                      const lvl = getUserLevel(profile);
+                      const lvlColor = LEVEL_COLOR[lvl];
+                      const lvlLabel = LEVEL_LABEL[lvl];
+                      return (
+                        <View style={[styles.contextChip, { borderColor: lvlColor + "40", backgroundColor: lvlColor + "10" }]}>
+                          <Text style={[styles.contextChipText, { color: lvlColor }]}>📊 {lvlLabel}</Text>
+                        </View>
+                      );
+                    })()}
+                    {positions.length > 0 && (
+                      <View style={[styles.contextChip, { borderColor: colors.border }]}>
+                        <Text style={[styles.contextChipText, { color: colors.textMuted }]}>💼 {positions.length} posiciones</Text>
+                      </View>
+                    )}
+                    {!isPremiumAccess && (
+                      <View style={[styles.contextChip, { borderColor: "rgba(239,68,68,0.25)", backgroundColor: "rgba(239,68,68,0.07)" }]}>
+                        <Text style={[styles.contextChipText, { color: "#ef4444" }]}>{remaining} msg restantes</Text>
+                      </View>
+                    )}
+                  </View>
+                )}
+              </View>
+
+              {/* ── Suggestions ── */}
               {(() => {
                 const obj = profile?.quiz_answers?.objective as string | undefined;
                 const level = getUserLevel(profile);
@@ -718,15 +779,18 @@ Instrucciones críticas:
                 return (
                   <>
                     {greeting && !mentor && (
-                      <Text style={[styles.emptySubtitle, { marginBottom: 24, marginTop: -8 }]}>
-                        {greeting}
-                      </Text>
+                      <Text style={[styles.greetingText, { color: colors.textMuted }]}>{greeting}</Text>
                     )}
-                    <View style={styles.suggestions}>
-                      {suggestions.map((s) => (
-                        <TouchableOpacity key={s} style={[styles.suggestion, { borderColor: colors.border }]} onPress={() => sendMessage(s)}>
-                          <Text style={[styles.suggestionBullet, { color: colors.accent }]}>✦</Text>
-                          <Text style={[styles.suggestionText, { color: colors.textSub }]}>{s}</Text>
+                    <Text style={[styles.suggestLabel, { color: colors.textMuted }]}>Preguntas sugeridas</Text>
+                    <View style={styles.suggestGrid}>
+                      {suggestions.map((s, i) => (
+                        <TouchableOpacity
+                          key={i}
+                          style={[styles.suggestCard, { backgroundColor: colors.card, borderColor: colors.border }]}
+                          onPress={() => sendMessage(s)}
+                        >
+                          <Text style={[styles.suggestCardText, { color: colors.textSub }]}>{s}</Text>
+                          <Ionicons name="chevron-forward" size={13} color={colors.accentLight} style={{ alignSelf: "flex-end", marginTop: 4, opacity: 0.7 }} />
                         </TouchableOpacity>
                       ))}
                     </View>
@@ -815,50 +879,61 @@ Instrucciones críticas:
               )}
             </View>
           )}
-          <View style={styles.inputContainer}>
-            <TouchableOpacity
-              onPress={handlePickImage}
-              disabled={streaming || pendingImages.length >= 8}
-              style={{ padding: 4, opacity: (streaming || pendingImages.length >= 8) ? 0.4 : 1 }}
-            >
-              <Ionicons name="image-outline" size={22} color={colors.textSub} />
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={isRecording ? stopRecording : startRecording}
-              disabled={streaming || isTranscribing}
-              style={{ padding: 4, opacity: streaming ? 0.4 : 1 }}
-            >
-              {isTranscribing ? (
-                <Ionicons name="hourglass-outline" size={22} color={colors.accentLight} />
-              ) : (
-                <Ionicons
-                  name={isRecording ? "stop-circle" : "mic-outline"}
-                  size={22}
-                  color={isRecording ? "#ef4444" : colors.textSub}
-                />
-              )}
-            </TouchableOpacity>
-            <TextInput
-              ref={inputRef}
-              style={styles.input}
-              value={input}
-              onChangeText={setInput}
-              placeholder={pendingImages.length > 0 ? "Describe qué analizar (opcional)..." : "¿Cómo puedo ayudarte hoy?"}
-              placeholderTextColor={colors.placeholder}
-              multiline
-              editable={!streaming}
-            />
-            <TouchableOpacity
-              style={[styles.sendButton, !streaming && !input.trim() && pendingImages.length === 0 && styles.sendDisabled]}
-              onPress={streaming ? handleStop : () => sendMessage()}
-              disabled={!streaming && !input.trim() && pendingImages.length === 0}
-            >
-              {streaming ? (
-                <Ionicons name="stop" size={18} color="white" />
-              ) : (
-                <Ionicons name="send" size={18} color="white" />
-              )}
-            </TouchableOpacity>
+          {/* ── Input card ── */}
+          <View style={[styles.inputCard, { borderTopColor: colors.border, backgroundColor: colors.card }]}>
+            <View style={[styles.inputInner, { backgroundColor: colors.bgRaised ?? colors.bg, borderColor: colors.border }]}>
+              <TextInput
+                ref={inputRef}
+                style={[styles.input, { color: colors.text }]}
+                value={input}
+                onChangeText={setInput}
+                placeholder={pendingImages.length > 0 ? "Describe qué analizar (opcional)..." : "¿Cómo puedo ayudarte hoy?"}
+                placeholderTextColor={colors.placeholder}
+                multiline
+                editable={!streaming}
+              />
+              <TouchableOpacity
+                style={[styles.sendButton, !streaming && !input.trim() && pendingImages.length === 0 && styles.sendDisabled]}
+                onPress={streaming ? handleStop : () => sendMessage()}
+                disabled={!streaming && !input.trim() && pendingImages.length === 0}
+              >
+                {streaming ? (
+                  <Ionicons name="stop" size={18} color="white" />
+                ) : (
+                  <Ionicons name="send" size={18} color="white" />
+                )}
+              </TouchableOpacity>
+            </View>
+            <View style={styles.inputToolbar}>
+              <TouchableOpacity
+                onPress={handlePickImage}
+                disabled={streaming || pendingImages.length >= 8}
+                style={[styles.toolbarBtn, { opacity: (streaming || pendingImages.length >= 8) ? 0.4 : 1 }]}
+              >
+                <Ionicons name="image-outline" size={18} color={colors.textSub} />
+                <Text style={[styles.toolbarBtnText, { color: colors.textMuted }]}>Imagen</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={isRecording ? stopRecording : startRecording}
+                disabled={streaming || isTranscribing}
+                style={[styles.toolbarBtn, { opacity: streaming ? 0.4 : 1 }]}
+              >
+                {isTranscribing ? (
+                  <Ionicons name="hourglass-outline" size={18} color={colors.accentLight} />
+                ) : (
+                  <Ionicons
+                    name={isRecording ? "stop-circle" : "mic-outline"}
+                    size={18}
+                    color={isRecording ? "#ef4444" : colors.textSub}
+                  />
+                )}
+                <Text style={[styles.toolbarBtnText, { color: isRecording ? "#ef4444" : colors.textMuted }]}>
+                  {isTranscribing ? "Procesando..." : isRecording ? "Detener" : "Voz"}
+                </Text>
+              </TouchableOpacity>
+              <View style={{ flex: 1 }} />
+              <Text style={[styles.toolbarBtnText, { color: colors.textDim }]}>↵ Enviar</Text>
+            </View>
           </View>
         </View>
     </SafeAreaView>
@@ -906,7 +981,7 @@ function makeStyles(c: Colors) {
     newChatBtnText: { fontSize: 12, fontWeight: "600", letterSpacing: 0.1 },
 
     // Empty / welcome state
-    empty: { flexGrow: 1, alignItems: "center", justifyContent: "center", padding: 28 },
+    empty: { flexGrow: 1, alignItems: "center", justifyContent: "flex-start", padding: 20, paddingTop: 24 },
     emptyTitle: { fontSize: 22, fontWeight: "800", color: c.text, marginBottom: 6, letterSpacing: -0.5 },
     emptySubtitle: { fontSize: 14, color: c.textMuted, textAlign: "center", marginBottom: 32, lineHeight: 21 },
     emptyIconBox: {
@@ -983,11 +1058,10 @@ function makeStyles(c: Colors) {
       backgroundColor: c.accent,
       borderBottomLeftRadius: 8,
     },
-    // AI bubble (full-width card, clean)
+    // AI bubble (full-width card, mentor-accent left border added inline)
     aiBubble: {
       backgroundColor: c.card,
       borderRadius: 16,
-      borderTopLeftRadius: 4,
       paddingHorizontal: 14,
       paddingVertical: 12,
       borderWidth: 1,
@@ -997,6 +1071,7 @@ function makeStyles(c: Colors) {
       shadowRadius: 3,
       shadowOffset: { width: 0, height: 1 },
       elevation: 1,
+      overflow: "hidden" as const,
     },
     timeRowUser: {
       flexDirection: "row" as const, justifyContent: "flex-end" as const,
@@ -1006,20 +1081,11 @@ function makeStyles(c: Colors) {
     timeAI: { fontSize: 10, color: c.textDim, fontFamily: "Inter_400Regular", textAlign: "right" as const, marginTop: 6 },
     userText: { color: "white", fontSize: 15, lineHeight: 22, flexWrap: "wrap" as const, fontFamily: "Inter_400Regular" },
 
-    // Input area — mirrors web: input-premium (radius 12) + send rounded-2xl (14)
-    inputContainer: {
-      flexDirection: "row", alignItems: "flex-end",
-      paddingHorizontal: 16, paddingBottom: 16, paddingTop: 12,
-      borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.border,
-      backgroundColor: c.card, gap: 8,
-    },
     input: {
       flex: 1,
-      backgroundColor: c.bgRaised ?? c.bg,
-      borderWidth: 1, borderColor: c.border,
-      borderRadius: 12,
-      paddingHorizontal: 16, paddingVertical: 10,
-      color: c.text, fontSize: 15, maxHeight: 110, lineHeight: 20,
+      backgroundColor: "transparent",
+      paddingHorizontal: 12, paddingVertical: 10,
+      fontSize: 15, maxHeight: 110, lineHeight: 20,
     },
     sendButton: {
       width: 44, height: 44,
@@ -1056,6 +1122,99 @@ function makeStyles(c: Colors) {
     signalsRow: { flexDirection: "row", flexWrap: "wrap", gap: 4, marginTop: 5 },
     signalChip: { borderWidth: 1, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 },
     signalText: { fontSize: 9 },
+
+    // ── Header pill ──────────────────────────────────────────────────────────────
+    mentorPill: {
+      flexDirection: "row" as const, alignItems: "center", gap: 8,
+      paddingHorizontal: 10, paddingVertical: 6,
+      borderRadius: 20, borderWidth: 1,
+      maxWidth: 180, flexShrink: 1,
+    },
+    mentorPillName: { fontSize: 12, fontWeight: "700" as const, letterSpacing: -0.1 },
+    mentorPillBadge: { fontSize: 9, fontWeight: "600" as const, letterSpacing: 0.2 },
+    iconBtn: {
+      width: 32, height: 32, borderRadius: 10,
+      alignItems: "center" as const, justifyContent: "center" as const,
+      borderWidth: 1,
+    },
+
+    // ── Hero card ────────────────────────────────────────────────────────────────
+    heroCard: {
+      width: "100%" as const, borderRadius: 20, borderWidth: 1,
+      overflow: "hidden" as const, marginBottom: 20,
+    },
+    heroStrip: { height: 5 },
+    heroContent: { padding: 20, alignItems: "center" as const },
+    heroAvatar: { width: 80, height: 80, borderRadius: 20, marginBottom: 12 },
+    heroAvatarBox: {
+      width: 80, height: 80, borderRadius: 20,
+      alignItems: "center" as const, justifyContent: "center" as const,
+      marginBottom: 12, borderWidth: 2,
+    },
+    heroTitle: {
+      fontSize: 20, fontWeight: "800" as const, letterSpacing: -0.4,
+      marginBottom: 4, textAlign: "center" as const,
+    },
+    heroSub: {
+      fontSize: 12, fontWeight: "600" as const, letterSpacing: 0.2,
+      marginBottom: 12, textAlign: "center" as const,
+    },
+    principlesRow: {
+      flexDirection: "row" as const, flexWrap: "wrap" as const,
+      gap: 6, justifyContent: "center" as const,
+    },
+
+    // ── Context chips ────────────────────────────────────────────────────────────
+    contextStrip: {
+      flexDirection: "row" as const, flexWrap: "wrap" as const,
+      gap: 6, padding: 12, borderTopWidth: StyleSheet.hairlineWidth,
+    },
+    contextChip: {
+      borderRadius: 20, borderWidth: 1,
+      paddingHorizontal: 10, paddingVertical: 5,
+    },
+    contextChipText: { fontSize: 11, fontWeight: "500" as const },
+
+    // ── Suggestions ──────────────────────────────────────────────────────────────
+    greetingText: {
+      fontSize: 13, textAlign: "center" as const, lineHeight: 20,
+      marginBottom: 16, paddingHorizontal: 8,
+    },
+    suggestLabel: {
+      fontSize: 10, fontWeight: "700" as const, letterSpacing: 0.8,
+      textTransform: "uppercase" as const,
+      marginBottom: 10, alignSelf: "flex-start" as const,
+    },
+    suggestGrid: {
+      width: "100%" as const,
+      flexDirection: "row" as const, flexWrap: "wrap" as const, gap: 8,
+    },
+    suggestCard: {
+      borderWidth: 1, borderRadius: 16, padding: 14,
+      flexGrow: 1, flexBasis: "45%" as const, minWidth: 150,
+    },
+    suggestCardText: { fontSize: 12, lineHeight: 18, flex: 1 },
+
+    // ── Input card ───────────────────────────────────────────────────────────────
+    inputCard: {
+      borderTopWidth: StyleSheet.hairlineWidth,
+      paddingHorizontal: 12, paddingTop: 10, paddingBottom: 14,
+    },
+    inputInner: {
+      flexDirection: "row" as const, alignItems: "flex-end",
+      borderWidth: 1, borderRadius: 16, overflow: "hidden" as const,
+      paddingHorizontal: 4, paddingVertical: 4,
+    },
+    inputToolbar: {
+      flexDirection: "row" as const, alignItems: "center",
+      paddingHorizontal: 4, paddingTop: 8, gap: 4,
+    },
+    toolbarBtn: {
+      flexDirection: "row" as const, alignItems: "center",
+      gap: 4, paddingHorizontal: 10, paddingVertical: 5,
+      borderRadius: 20,
+    },
+    toolbarBtnText: { fontSize: 11, fontWeight: "500" as const },
   });
 }
 

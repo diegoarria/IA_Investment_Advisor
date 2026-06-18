@@ -198,7 +198,16 @@ export default function HomePage() {
   }, [positions, prices]);
 
   // ── Goal ───────────────────────────────────────────────────────────────────
-  const goalName   = profile?.investment_goal ?? null;
+  const GOAL_MAP: Record<string, { label: string; emoji: string }> = {
+    house:             { label: "Comprar una casa",         emoji: "🏠" },
+    car:               { label: "Comprar un carro",         emoji: "🚗" },
+    passive_income:    { label: "Vivir de mis inversiones", emoji: "💸" },
+    retirement:        { label: "Retiro / pensión",         emoji: "👴" },
+    financial_freedom: { label: "Libertad financiera",      emoji: "🦅" },
+    long_term_wealth:  { label: "Patrimonio a largo plazo", emoji: "🏛️" },
+  };
+  const goalKey    = profile?.investment_goal ?? null;
+  const goalInfo   = goalKey ? (GOAL_MAP[goalKey] ?? { label: goalKey, emoji: "🎯" }) : null;
   const goalAmount = parseFloat(profile?.investment_goal_amount ?? "0") || 0;
   const goalPct    = goalAmount > 0 ? Math.min(100, (total / goalAmount) * 100) : 0;
 
@@ -286,15 +295,18 @@ export default function HomePage() {
               {/* Meta */}
               <button onClick={() => router.push("/profile")}
                       className="flex items-center gap-2.5 px-4 py-3 rounded-xl border transition-all hover:border-[var(--accent)]"
-                      style={{ background: "var(--card)", borderColor: "var(--border)" }}>
-                <Target className="w-5 h-5 shrink-0" style={{ color: "var(--accent-l)" }} />
+                      style={{ background: "var(--card)", borderColor: goalInfo ? "rgba(0,212,126,0.25)" : "var(--border)" }}>
+                {goalInfo
+                  ? <span className="text-xl shrink-0 leading-none">{goalInfo.emoji}</span>
+                  : <Target className="w-5 h-5 shrink-0" style={{ color: "var(--accent-l)" }} />}
                 <div className="text-left min-w-0">
-                  <p className="text-sm font-black leading-none truncate"
-                     style={{ color: "var(--text)" }}>
-                    {goalName ?? "Sin meta"}
+                  <p className="text-sm font-black leading-none truncate" style={{ color: "var(--text)" }}>
+                    {goalInfo ? goalInfo.label : "Sin meta"}
                   </p>
-                  <p className="text-[10px] mt-0.5" style={{ color: "var(--muted)" }}>
-                    {goalPct > 0 ? `${goalPct.toFixed(0)}% completado` : "Meta"}
+                  <p className="text-[10px] mt-0.5 truncate" style={{ color: "var(--accent-l)" }}>
+                    {goalAmount > 0
+                      ? `$${goalAmount.toLocaleString("en-US")} USD`
+                      : goalInfo ? "Meta activa" : "Meta"}
                   </p>
                 </div>
               </button>
@@ -320,65 +332,87 @@ export default function HomePage() {
 
               {/* Portfolio hero (2/3) */}
               <button onClick={() => router.push("/patrimonio")}
-                      className="lg:col-span-2 text-left rounded-2xl p-5 border transition-all hover:border-[var(--accent)] group relative"
+                      className="lg:col-span-2 text-left rounded-2xl p-5 border transition-all hover:border-[var(--accent)] group relative overflow-hidden"
                       style={{ background: "var(--card)", borderColor: "var(--border)" }}>
-                <p className="text-xs font-semibold uppercase tracking-wide mb-1 flex items-center gap-1.5" style={{ color: "var(--muted)" }}>
-                  Mi Portafolio
-                  <span className="text-[10px] font-black px-1.5 py-0.5 rounded-md"
-                        style={{ background: "var(--raised)", color: "var(--sub)" }}>
-                    {portfolioCurrency}
-                  </span>
-                </p>
-                {loading ? (
-                  <div className="h-10 w-44 rounded-lg animate-pulse" style={{ background: "var(--raised)" }} />
-                ) : (
-                  <p className="text-4xl font-black tracking-tight" style={{ color: "var(--text)" }}>
-                    {fmt(total, portfolioCurrency)}
-                  </p>
-                )}
 
-                {!loading && (
-                  <div className="flex items-stretch mt-3 pt-3 border-t divide-x" style={{ borderColor: "var(--border)" }}>
-                    {/* Hoy */}
-                    <div className="pr-4">
-                      <p className="text-[11px]" style={{ color: "var(--muted)" }}>Hoy</p>
-                      <p className="text-sm font-bold" style={{ color: dayGain >= 0 ? "#22c55e" : "#ef4444" }}>
-                        {dayGain >= 0 ? "+" : ""}{fmt(dayGain, portfolioCurrency)}
+                {/* Top row: label + amount LEFT, avatar RIGHT */}
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-semibold uppercase tracking-wide mb-1 flex items-center gap-1.5" style={{ color: "var(--muted)" }}>
+                      MI PORTAFOLIO
+                      <span className="text-[10px] font-black px-1.5 py-0.5 rounded-md"
+                            style={{ background: "var(--raised)", color: "var(--sub)" }}>
+                        {portfolioCurrency}
+                      </span>
+                    </p>
+                    {loading ? (
+                      <div className="h-10 w-44 rounded-lg animate-pulse" style={{ background: "var(--raised)" }} />
+                    ) : (
+                      <p className="text-4xl font-black tracking-tight leading-none" style={{ color: "var(--text)" }}>
+                        {fmt(total, portfolioCurrency)}
                       </p>
-                      <p className="text-[11px] font-semibold" style={{ color: dayGain >= 0 ? "#22c55e" : "#ef4444" }}>
+                    )}
+                  </div>
+
+                  {/* Profile avatar */}
+                  <div className="shrink-0 w-14 h-14 rounded-full overflow-hidden border-2"
+                       style={{ borderColor: "var(--border)" }}>
+                    {profile?.avatarUri ? (
+                      <img src={profile.avatarUri} className="w-full h-full object-cover" alt="avatar" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-xl font-black"
+                           style={{ background: "var(--accent)22", color: "var(--accent-l)" }}>
+                        {profile?.name?.charAt(0)?.toUpperCase() ?? "?"}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Stats row — full width, vertical-line dividers, no boxes */}
+                {!loading && positions.length > 0 && (
+                  <div className="flex items-stretch mt-4 pt-4 border-t"
+                       style={{ borderColor: "var(--border)" }}>
+                    {/* Hoy */}
+                    <div className="flex-1 pr-4">
+                      <p className="text-[11px] font-medium mb-1" style={{ color: "var(--muted)" }}>Hoy</p>
+                      <p className="text-xl font-black tracking-tight leading-none" style={{ color: dayGain >= 0 ? "#22c55e" : "#ef4444" }}>
                         {fmtPct(dayGainPct)}
                       </p>
+                      <p className="text-[11px] mt-1" style={{ color: "var(--sub)" }}>
+                        Rendimiento Hoy ({dayGain >= 0 ? "+" : ""}{fmt(dayGain, portfolioCurrency)})
+                      </p>
                     </div>
-                    {positions.length > 0 && (
-                      <>
-                        {/* YTD */}
-                        <div className="px-4">
-                          <p className="text-[11px]" style={{ color: "var(--muted)" }}>YTD</p>
-                          {ytdGain !== null ? (
-                            <>
-                              <p className="text-sm font-bold" style={{ color: ytdGain >= 0 ? "#22c55e" : "#ef4444" }}>
-                                {ytdGain >= 0 ? "+" : ""}{fmt(ytdGain, portfolioCurrency)}
-                              </p>
-                              <p className="text-[11px] font-semibold" style={{ color: (ytdPct ?? 0) >= 0 ? "#22c55e" : "#ef4444" }}>
-                                {fmtPct(ytdPct ?? 0)}
-                              </p>
-                            </>
-                          ) : (
-                            <p className="text-sm font-bold" style={{ color: "var(--muted)" }}>—</p>
-                          )}
-                        </div>
-                        {/* Total */}
-                        <div className="pl-4">
-                          <p className="text-[11px]" style={{ color: "var(--muted)" }}>Total</p>
-                          <p className="text-sm font-bold" style={{ color: totalGain >= 0 ? "#22c55e" : "#ef4444" }}>
-                            {totalGain >= 0 ? "+" : ""}{fmt(totalGain, portfolioCurrency)}
+                    {/* Divider */}
+                    <div className="w-px self-stretch" style={{ background: "var(--border)" }} />
+                    {/* YTD */}
+                    <div className="flex-1 px-4">
+                      <p className="text-[11px] font-medium mb-1" style={{ color: "var(--muted)" }}>YTD</p>
+                      {ytdGain !== null ? (
+                        <>
+                          <p className="text-xl font-black tracking-tight leading-none" style={{ color: (ytdPct ?? 0) >= 0 ? "#22c55e" : "#ef4444" }}>
+                            {fmtPct(ytdPct ?? 0)}
                           </p>
-                          <p className="text-[11px] font-semibold" style={{ color: totalGain >= 0 ? "#22c55e" : "#ef4444" }}>
-                            {fmtPct(totalGainPct)}
+                          <p className="text-[11px] mt-1" style={{ color: "var(--sub)" }}>
+                            Rendimiento YTD ({ytdGain >= 0 ? "+" : ""}{fmt(ytdGain, portfolioCurrency)})
                           </p>
-                        </div>
-                      </>
-                    )}
+                        </>
+                      ) : (
+                        <p className="text-xl font-black" style={{ color: "var(--muted)" }}>—</p>
+                      )}
+                    </div>
+                    {/* Divider */}
+                    <div className="w-px self-stretch" style={{ background: "var(--border)" }} />
+                    {/* Total */}
+                    <div className="flex-1 pl-4">
+                      <p className="text-[11px] font-medium mb-1" style={{ color: "var(--muted)" }}>Total</p>
+                      <p className="text-xl font-black tracking-tight leading-none" style={{ color: totalGain >= 0 ? "#22c55e" : "#ef4444" }}>
+                        {fmtPct(totalGainPct)}
+                        <span className="text-sm font-semibold ml-1">
+                          ({totalGain >= 0 ? "+" : ""}{fmt(totalGain, portfolioCurrency)})
+                        </span>
+                      </p>
+                      <p className="text-[11px] mt-1" style={{ color: "var(--sub)" }}>Rendimiento Total</p>
+                    </div>
                   </div>
                 )}
 
@@ -396,7 +430,7 @@ export default function HomePage() {
                   </div>
                 )}
 
-                <ChevronRight className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity"
+                <ChevronRight className="absolute right-4 top-5 w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity"
                               style={{ color: "var(--dim)" }} />
               </button>
 
@@ -406,23 +440,30 @@ export default function HomePage() {
                 {/* 🎯 Meta */}
                 <button onClick={() => router.push("/profile")}
                         className="flex-1 flex items-center gap-3 px-4 py-4 rounded-xl border transition-all hover:border-[var(--accent)] text-left"
-                        style={{ background: "var(--card)", borderColor: "var(--border)" }}>
+                        style={{ background: "var(--card)", borderColor: goalInfo ? "rgba(0,212,126,0.25)" : "var(--border)" }}>
                   <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
-                       style={{ background: "rgba(0,212,126,0.12)" }}>
-                    <Target className="w-5 h-5" style={{ color: "var(--accent-l)" }} />
+                       style={{ background: goalInfo ? "rgba(0,212,126,0.12)" : "var(--raised)" }}>
+                    {goalInfo
+                      ? <span className="text-xl leading-none">{goalInfo.emoji}</span>
+                      : <Target className="w-5 h-5" style={{ color: "var(--accent-l)" }} />}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-[10px] font-semibold uppercase tracking-wide mb-0.5" style={{ color: "var(--muted)" }}>Meta</p>
+                    <p className="text-[10px] font-semibold uppercase tracking-wide mb-0.5" style={{ color: "var(--muted)" }}>Mi meta</p>
                     <p className="text-sm font-black truncate" style={{ color: "var(--text)" }}>
-                      {goalName ?? "Configura tu meta"}
+                      {goalInfo ? goalInfo.label : "Configura tu meta"}
                     </p>
+                    {goalAmount > 0 && (
+                      <p className="text-[11px] font-semibold mt-0.5" style={{ color: "var(--accent-l)" }}>
+                        ${goalAmount.toLocaleString("en-US")} USD
+                      </p>
+                    )}
                     {goalPct > 0 && (
-                      <div className="mt-1.5 h-1.5 rounded-full overflow-hidden" style={{ background: "var(--raised)" }}>
+                      <div className="mt-1.5 h-1 rounded-full overflow-hidden" style={{ background: "var(--raised)" }}>
                         <div className="h-full rounded-full transition-all" style={{ width: `${goalPct}%`, background: "var(--accent)" }} />
                       </div>
                     )}
                     {goalPct > 0 && (
-                      <p className="text-[10px] mt-1" style={{ color: "var(--muted)" }}>{goalPct.toFixed(0)}% completado</p>
+                      <p className="text-[10px] mt-0.5" style={{ color: "var(--muted)" }}>{goalPct.toFixed(1)}% completado</p>
                     )}
                   </div>
                 </button>

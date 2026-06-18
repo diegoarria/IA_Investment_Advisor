@@ -150,6 +150,8 @@ export const marketApi = {
     capital?: number,
     positions?: Array<{ ticker: string; shares: number; avg_price: number; name?: string }>
   ) => api.post("/api/market/portfolio", { scenario, capital, positions }),
+  analyzePortfolio: (positions: Array<{ ticker: string; shares: number; avg_price: number; name?: string; current_price?: number }>) =>
+    api.post("/api/simulate/analyze-portfolio", { positions }),
   getPrices: (symbols: string[]) => api.post("/api/market/prices", { symbols }),
   searchTickers: (q: string) => api.get("/api/market/search", { params: { q } }),
   analyzeScreenshot: (base64: string, mimeType: string) =>

@@ -36,6 +36,15 @@ const TAB_CONFIG: Record<string, { icon: IoniconName; iconFilled: IoniconName; l
 
 const FIXED_TABS = ["home", "chat", "patrimonio", "academy"] as const;
 
+const GOAL_MAP: Record<string, { label: string; emoji: string }> = {
+  house:             { label: "Comprar una casa",         emoji: "🏠" },
+  car:               { label: "Comprar un carro",         emoji: "🚗" },
+  passive_income:    { label: "Vivir de mis inversiones", emoji: "💸" },
+  retirement:        { label: "Retiro / pensión",         emoji: "👴" },
+  financial_freedom: { label: "Libertad financiera",      emoji: "🦅" },
+  long_term_wealth:  { label: "Patrimonio a largo plazo", emoji: "🏛️" },
+};
+
 // ─── Custom Tab Bar ───────────────────────────────────────────────────────────
 
 function CustomTabBar({ state, navigation }: BottomTabBarProps) {
@@ -156,7 +165,7 @@ function MobileHeader({ title }: { title: string }) {
       headerStyles.wrapper,
       { backgroundColor: colors.card, paddingTop: insets.top, borderBottomColor: colors.border },
     ]}>
-      {/* Strip — guest / trial / free */}
+      {/* Strip — guest / trial / free / goal */}
       {!profile ? (
         <TouchableOpacity onPress={() => router.navigate("/")} activeOpacity={0.7}
           style={{ height: 24, backgroundColor: "rgba(99,102,241,0.06)", borderBottomWidth: 0.5, borderBottomColor: "rgba(99,102,241,0.2)", flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4 }}>
@@ -173,6 +182,19 @@ function MobileHeader({ title }: { title: string }) {
         <View style={{ height: 24, backgroundColor: "rgba(245,158,11,0.06)", borderBottomWidth: 0.5, borderBottomColor: "rgba(245,158,11,0.2)", flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4 }}>
           <Text style={{ color: "#f59e0b", fontSize: 10, fontWeight: "700" }}>Activar Premium</Text>
           <Text style={{ color: "#f59e0b", fontSize: 10 }}>→</Text>
+        </View>
+      ) : profile.investment_goal ? (
+        /* Premium non-trial: show the user's permanent financial goal */
+        <View style={{ height: 26, backgroundColor: "rgba(0,212,126,0.06)", borderBottomWidth: 0.5, borderBottomColor: "rgba(0,212,126,0.18)", flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5 }}>
+          <Text style={{ fontSize: 12 }}>{GOAL_MAP[profile.investment_goal]?.emoji ?? "🎯"}</Text>
+          <Text style={{ color: "#00d47e", fontSize: 10, fontWeight: "700" }}>
+            {GOAL_MAP[profile.investment_goal]?.label ?? "Mi meta"}
+          </Text>
+          {!!profile.investment_goal_amount && (
+            <Text style={{ color: "#00d47e", fontSize: 10, fontWeight: "600" }}>
+              · ${Number(profile.investment_goal_amount).toLocaleString("en-US")} USD
+            </Text>
+          )}
         </View>
       ) : null}
 

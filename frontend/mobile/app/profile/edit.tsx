@@ -114,6 +114,7 @@ export default function EditProfileScreen() {
   const handleSave = () => {
     if (!canSave) return;
     setProfile({
+      ...(profile ?? {}),
       name:                 form.name.trim(),
       birth_date:           form.birth_date,
       monthly_income:       form.monthly_income,
@@ -122,7 +123,7 @@ export default function EditProfileScreen() {
       quiz_answers:         quizAnswers as QuizAnswers,
       mentor:               profile?.mentor ?? null,
       avatarUri:            profile?.avatarUri ?? null,
-    });
+    } as any);
     Alert.alert("✅ Perfil actualizado", "Tus cambios se guardaron correctamente.", [
       { text: "OK", onPress: () => router.back() },
     ]);

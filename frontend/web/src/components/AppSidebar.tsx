@@ -8,6 +8,15 @@ import {
 } from "lucide-react";
 
 const COACHING_URL = "https://calendly.com/diego-arria19/sesion-1-1-con-diego-nuvos-ai"; // ← actualiza con tu link real
+
+const GOAL_MAP: Record<string, { label: string; emoji: string }> = {
+  house:             { label: "Comprar una casa",          emoji: "🏠" },
+  car:               { label: "Comprar un carro",          emoji: "🚗" },
+  passive_income:    { label: "Vivir de mis inversiones",  emoji: "💸" },
+  retirement:        { label: "Retiro / pensión",          emoji: "👴" },
+  financial_freedom: { label: "Libertad financiera",       emoji: "🦅" },
+  long_term_wealth:  { label: "Patrimonio a largo plazo",  emoji: "🏛️" },
+};
 import {
   useProfileStore, useNotificationStore, useSubscriptionStore,
   useChatStore, useAuthStore, behavioralRiskColor, behavioralRiskLabel,
@@ -272,6 +281,33 @@ export default function AppSidebar({ open, onClose }: Props) {
                     <div className="h-full rounded-full transition-all duration-700"
                          style={{ width: `${riskScore}%`, background: riskColor }} />
                   </div>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* ── Goal banner ── always visible for logged-in users with a goal */}
+        {profile?.investment_goal && (() => {
+          const goal = GOAL_MAP[profile.investment_goal] ?? { label: profile.investment_goal, emoji: "🎯" };
+          const amount = profile.investment_goal_amount ? Number(profile.investment_goal_amount) : null;
+          return (
+            <div className="px-2 pb-1.5 shrink-0">
+              <div className="rounded-xl px-2.5 py-2 flex items-center gap-2"
+                   style={{ background: "linear-gradient(135deg, rgba(0,168,94,0.09), rgba(0,184,94,0.04))", border: "1px solid rgba(0,168,94,0.22)" }}>
+                <span style={{ fontSize: 18, lineHeight: 1 }}>{goal.emoji}</span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-[8px] font-bold uppercase tracking-widest leading-none mb-0.5" style={{ color: "var(--dim)" }}>
+                    Mi meta
+                  </p>
+                  <p className="text-[11px] font-bold leading-tight truncate" style={{ color: "var(--accent-l)" }}>
+                    {goal.label}
+                  </p>
+                  {amount ? (
+                    <p className="text-[10px] font-semibold mt-0.5" style={{ color: "var(--text)" }}>
+                      ${amount.toLocaleString("en-US")} USD
+                    </p>
+                  ) : null}
                 </div>
               </div>
             </div>

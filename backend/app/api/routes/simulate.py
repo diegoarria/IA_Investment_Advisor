@@ -14,14 +14,6 @@ async def whatif_simulate(
     request: dict,
     user_id: str = Depends(get_current_user_id),
 ):
-    """
-    ¿Qué pasa si? simulator.
-
-    Body:
-      scenario_type: "swap" | "add_monthly" | "macro" | "custom"
-      scenario_params: dict with scenario-specific fields
-      portfolio: list of { ticker, name, shares, avg_cost, current_price, value }
-    """
     scenario_type   = request.get("scenario_type", "custom")
     scenario_params = request.get("scenario_params", {})
     portfolio       = request.get("portfolio", [])
@@ -31,4 +23,24 @@ async def whatif_simulate(
 
     profile = _get_user_profile(user_id)
     result  = await ai_service.simulate_whatif(scenario_type, scenario_params, portfolio, profile)
+    return result
+
+
+@router.post("/analyze-portfolio")
+@limiter.limit("5/minute")
+async def analyze_portfolio(
+    req: Request,
+    request: dict,
+    user_id: str = Depends(get_current_user_id),
+):
+    """
+    Deep AI portfolio analysis with score 1-100 and structured breakdown.
+    Body: { positions: [{ ticker, shares, avg_price, name?, current_price? }] }
+    """
+    positions = request.get("positions", [])
+    if not positions:
+        return {"error": "No hay posiciones para analizar."}
+
+    profile = _get_user_profile(user_id)
+    result  = await ai_service.analyze_portfolio_score(positions, profile)
     return result
