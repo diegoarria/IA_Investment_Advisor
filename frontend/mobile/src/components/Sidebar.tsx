@@ -8,11 +8,9 @@ import * as SecureStore from "expo-secure-store";
 import { router, usePathname } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAppStore, getAge } from "../lib/profileStore";
-import { usePortfolioStore } from "../lib/portfolioStore";
 import { useChatStore } from "../lib/chatStore";
 import { useTheme } from "../lib/ThemeContext";
 import MarketTicker from "./MarketTicker";
-import { ALL_NAV_ITEMS, useNavOrderStore, getTop5TabPaths } from "../lib/navOrderStore";
 import { getUserLevel, useUserLevel, isAtLeast, LEVEL_LABEL, LEVEL_COLOR } from "../lib/userLevel";
 
 const SIDEBAR_WIDTH = Math.min(Dimensions.get("window").width * 0.78, 300);
@@ -55,10 +53,11 @@ function ProfileCard({ colors }: { colors: ReturnType<typeof useTheme>["colors"]
   const level = getUserLevel(profile);
   const levelColor = LEVEL_COLOR[level];
   const isPremium = (profile as any).subscription_tier === "premium";
+  const age = getAge(profile.birth_date ?? "");
 
   return (
     <View style={[styles.profileCard, { backgroundColor: colors.bg, borderColor: colors.border }]}>
-      {/* Avatar + name + level badges */}
+      {/* Avatar + name + badges */}
       <View style={styles.profileHeader}>
         <View style={styles.avatar}>
           {profile.avatarUri ? (
@@ -69,7 +68,7 @@ function ProfileCard({ colors }: { colors: ReturnType<typeof useTheme>["colors"]
         </View>
         <View style={{ flex: 1, minWidth: 0 }}>
           <Text style={[styles.profileName, { color: colors.text }]} numberOfLines={1}>
-            {profile.name}
+            {profile.name}{age ? `, ${age}` : ""}
           </Text>
           <View style={styles.profileBadgesRow}>
             <View style={[styles.levelBadge, { borderColor: levelColor + "55", backgroundColor: levelColor + "18" }]}>
@@ -84,29 +83,14 @@ function ProfileCard({ colors }: { colors: ReturnType<typeof useTheme>["colors"]
         </View>
       </View>
 
-      {/* Stats grid: Edad · Ingresos · Inversión */}
-      <View style={styles.statsGrid}>
-        {[
-          { label: "Edad",      value: String(getAge(profile.birth_date ?? "")), sub: "años" },
-          { label: "Ingresos",  value: `$${Number(profile.monthly_income ?? 0).toLocaleString()}`, sub: "/mes" },
-          { label: "Inversión", value: `$${Number(profile.monthly_contribution).toLocaleString()}`, sub: "/mes" },
-        ].map(({ label, value, sub }) => (
-          <View key={label} style={[styles.statBox, { backgroundColor: colors.card }]}>
-            <Text style={[styles.statLabel, { color: colors.textDim }]}>{label}</Text>
-            <Text style={[styles.statValue, { color: colors.text }]}>{value}</Text>
-            <Text style={[styles.statSub, { color: colors.textMuted }]}>{sub}</Text>
-          </View>
-        ))}
-      </View>
-
       {/* Risk bar */}
       {seg && (
-        <View>
+        <View style={{ marginTop: 10 }}>
           <View style={styles.riskRow}>
-            <Text style={[styles.riskLabel, { color: seg.color }]}>
+            <Text style={[styles.riskLabel, { color: colors.textDim }]}>Riesgo</Text>
+            <Text style={[styles.riskPct, { color: seg.color }]}>
               {RISK_LABEL[profile.risk_tolerance] ?? profile.risk_tolerance}
             </Text>
-            <Text style={[styles.riskPct, { color: seg.color }]}>{seg.pct}%</Text>
           </View>
           <View style={[styles.riskBarTrack, { backgroundColor: colors.border }]}>
             <View style={[styles.riskBarFill, { width: `${seg.pct}%` as any, backgroundColor: seg.color }]} />
@@ -162,7 +146,20 @@ const goalStyles = StyleSheet.create({
   amount: { fontSize: 11, fontWeight: "600", marginTop: 1 },
 });
 
-// ─── Nav items ────────────────────────────────────────────────────────────────
+// ─── Fixed nav items ──────────────────────────────────────────────────────────
+
+const MAIN_NAV = [
+  { icon: "home-outline",                 label: "Inicio",         path: "/home",          minLevel: "basico" as const },
+  { icon: "chatbubble-ellipses-outline",  label: "Mentor IA",      path: "/chat",          minLevel: "basico" as const },
+  { icon: "pie-chart-outline",            label: "Patrimonio",     path: "/portfolio",     minLevel: "basico" as const },
+  { icon: "school-outline",              label: "Academy",        path: "/learn",         minLevel: "basico" as const },
+];
+
+const SECONDARY_NAV = [
+  { icon: "notifications-outline",  label: "Notificaciones", path: "/notifications", minLevel: "basico" as const },
+  { icon: "person-outline",         label: "Perfil",         path: "/profile",       minLevel: "basico" as const },
+  { icon: "headset-outline",        label: "Soporte",        path: "/support",       minLevel: "basico" as const },
+];
 
 function NavItems({
   colors, pathname, onPress, collapsed = false,
@@ -172,31 +169,13 @@ function NavItems({
   onPress: (path: string) => void;
   collapsed?: boolean;
 }) {
-  const { order, setOrder } = useNavOrderStore();
   const userLevel = useUserLevel();
-  const [editMode, setEditMode] = useState(false);
-  const [liftedPath, setLiftedPath] = useState<string | null>(null);
-
-  const items = order
-    .map((path) => ALL_NAV_ITEMS.find((i) => i.path === path))
-    .filter(Boolean) as typeof ALL_NAV_ITEMS;
-
-  const top5Paths = new Set(getTop5TabPaths(order));
-
-  const moveItem = (index: number, dir: -1 | 1) => {
-    const to = index + dir;
-    if (to < 0 || to >= order.length) return;
-    const next = [...order];
-    [next[index], next[to]] = [next[to], next[index]];
-    setOrder(next);
-  };
+  const allItems = [...MAIN_NAV, ...SECONDARY_NAV];
 
   if (collapsed) {
     return (
       <>
-        {items
-          .filter((item) => item.path !== "/investors")
-          .map((item) => {
+        {allItems.map((item) => {
           const isActive = pathname.includes(item.path.replace("/", ""));
           const locked = !isAtLeast(userLevel, item.minLevel);
           return (
@@ -204,7 +183,7 @@ function NavItems({
               key={item.path}
               style={[
                 styles.navItemCollapsed,
-                isActive && { backgroundColor: "rgba(34,197,94,0.1)", borderRadius: 12 },
+                isActive && { backgroundColor: "rgba(34,197,94,0.1)" },
                 locked && { opacity: 0.4 },
               ]}
               onPress={() => locked ? onPress("/profile") : onPress(item.path)}
@@ -217,131 +196,43 @@ function NavItems({
     );
   }
 
-  return (
-    <>
+  const renderItem = (item: typeof MAIN_NAV[number]) => {
+    const isActive = pathname.includes(item.path.replace("/", ""));
+    const locked = !isAtLeast(userLevel, item.minLevel);
+    return (
       <TouchableOpacity
-        style={[styles.editModeToggle, { borderColor: colors.border }]}
-        onPress={() => { setEditMode((v) => !v); setLiftedPath(null); }}
+        key={item.path}
+        style={[
+          styles.navItem,
+          { borderRadius: 12 },
+          isActive && !locked && { backgroundColor: "rgba(34,197,94,0.1)" },
+          locked && { opacity: 0.45 },
+        ]}
+        onPress={() => locked ? onPress("/profile") : onPress(item.path)}
       >
         <Ionicons
-          name={editMode ? "checkmark-circle" : "reorder-three-outline"}
-          size={15}
-          color={editMode ? "#22c55e" : colors.textDim}
+          name={(locked ? "lock-closed-outline" : item.icon) as IoniconName}
+          size={20}
+          color={isActive && !locked ? "#22c55e" : colors.textSub}
         />
-        <Text style={[styles.editModeText, { color: editMode ? "#22c55e" : colors.textDim }]}>
-          {editMode ? "Listo" : "Reordenar"}
+        <Text style={[styles.navLabel, { color: isActive && !locked ? "#22c55e" : colors.textSub }]}>
+          {item.label}
         </Text>
+        {locked && (
+          <Text style={[styles.lockLevelText, { color: colors.textDim }]}>
+            {LEVEL_LABEL[item.minLevel]}
+          </Text>
+        )}
+        {isActive && !locked && <View style={styles.activeDot} />}
       </TouchableOpacity>
+    );
+  };
 
-      {/* Hint text shown in edit mode */}
-      {editMode && (
-        <Text style={[styles.tabHintText, { color: colors.textDim }]}>
-          Los primeros 5 aparecen en la barra inferior
-        </Text>
-      )}
-
-      {items
-        .filter((item) => item.path !== "/investors")
-        .map((item, index, filteredItems) => {
-        const isActive = pathname.includes(item.path.replace("/", ""));
-        const isLifted = liftedPath === item.path;
-        const isInTab = top5Paths.has(item.path);
-        const locked = !isAtLeast(userLevel, item.minLevel);
-        const realIndex = order.indexOf(item.path);
-        return (
-          <React.Fragment key={item.path}>
-            <View
-              style={[
-                styles.navItemRow,
-                isLifted && styles.navItemLifted,
-                locked && { opacity: 0.45 },
-              ]}
-            >
-              <TouchableOpacity
-                style={[
-                  styles.navItem,
-                  { flex: 1, borderRadius: 12 },
-                  isActive && !locked && { backgroundColor: "rgba(34,197,94,0.1)" },
-                  isLifted && { backgroundColor: "rgba(34,197,94,0.08)" },
-                ]}
-                onPress={() => {
-                  if (editMode) { setLiftedPath(null); return; }
-                  if (locked) { onPress("/profile"); return; }
-                  onPress(item.path);
-                }}
-                onLongPress={() => {
-                  if (locked) return;
-                  setEditMode(true);
-                  setLiftedPath(item.path);
-                }}
-                delayLongPress={400}
-              >
-                <Ionicons
-                  name={locked ? "lock-closed-outline" : item.icon as IoniconName}
-                  size={20}
-                  color={isActive && !locked ? "#22c55e" : colors.textSub}
-                />
-                <Text style={[styles.navLabel, { color: isActive && !locked ? "#22c55e" : colors.textSub }]}>
-                  {item.label}
-                </Text>
-                {locked && !editMode && (
-                  <Text style={[styles.lockLevelText, { color: colors.textDim }]}>
-                    Requiere {LEVEL_LABEL[item.minLevel]}
-                  </Text>
-                )}
-                {isActive && !editMode && !locked && <View style={styles.activeDot} />}
-                {/* Tab badge: shown for unlocked tab-capable items */}
-                {!editMode && !locked && item.tabCapable && (
-                  <View style={[
-                    styles.tabBadge,
-                    { borderColor: isInTab ? "#22c55e44" : colors.border },
-                  ]}>
-                    <Text style={[styles.tabBadgeText, { color: isInTab ? "#22c55e" : colors.textDim }]}>
-                      TAB
-                    </Text>
-                  </View>
-                )}
-                {editMode && !locked && (
-                  <Ionicons
-                    name="reorder-two-outline"
-                    size={18}
-                    color={isLifted ? "#22c55e" : colors.textDim}
-                  />
-                )}
-              </TouchableOpacity>
-
-              {editMode && !locked && (
-                <View style={styles.arrowGroup}>
-                  <TouchableOpacity
-                    onPress={() => moveItem(realIndex, -1)}
-                    disabled={realIndex === 0}
-                    hitSlop={{ top: 6, bottom: 3, left: 6, right: 6 }}
-                  >
-                    <Ionicons
-                      name="chevron-up"
-                      size={16}
-                      color={realIndex === 0 ? colors.border : colors.textSub}
-                    />
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    onPress={() => moveItem(realIndex, 1)}
-                    disabled={realIndex === order.length - 1}
-                    hitSlop={{ top: 3, bottom: 6, left: 6, right: 6 }}
-                  >
-                    <Ionicons
-                      name="chevron-down"
-                      size={16}
-                      color={realIndex === order.length - 1 ? colors.border : colors.textSub}
-                    />
-                  </TouchableOpacity>
-                </View>
-              )}
-            </View>
-
-          </React.Fragment>
-        );
-      })}
-
+  return (
+    <>
+      {MAIN_NAV.map(renderItem)}
+      <View style={{ height: 1, marginHorizontal: 4, marginVertical: 4, backgroundColor: colors.border }} />
+      {SECONDARY_NAV.map(renderItem)}
     </>
   );
 }
@@ -685,20 +576,20 @@ const styles = StyleSheet.create({
     width: 30, height: 30, borderRadius: 8, borderWidth: 1,
     alignItems: "center", justifyContent: "center", flexShrink: 0,
   },
-  // Profile card — identical to web AppSidebar
+  // Profile card
   profileCard: {
-    marginHorizontal: 12, marginBottom: 8,
-    borderRadius: 16, borderWidth: 1, padding: 12,
+    marginHorizontal: 10, marginBottom: 8,
+    borderRadius: 14, borderWidth: 1, padding: 10,
   },
-  profileHeader: { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 12 },
+  profileHeader: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 0 },
   avatar: {
-    width: 36, height: 36, borderRadius: 18, flexShrink: 0,
+    width: 40, height: 40, borderRadius: 20, flexShrink: 0,
     alignItems: "center", justifyContent: "center",
     backgroundColor: "#00a85e",
   },
-  avatarText: { color: "white", fontSize: 14, fontFamily: "DMSans_800ExtraBold" },
-  avatarImg: { width: 36, height: 36, borderRadius: 18 },
-  profileName: { fontSize: 12, fontFamily: "DMSans_700Bold", marginBottom: 2 },
+  avatarText: { color: "white", fontSize: 16, fontFamily: "DMSans_800ExtraBold" },
+  avatarImg: { width: 40, height: 40, borderRadius: 20 },
+  profileName: { fontSize: 12, fontFamily: "DMSans_700Bold", marginBottom: 3 },
   profileSub: { fontSize: 10, fontFamily: "DMSans_400Regular" },
   profileBadgesRow: { flexDirection: "row", alignItems: "center", gap: 4, flexWrap: "wrap" },
   levelBadge: { borderWidth: 1, borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1 },
@@ -706,12 +597,6 @@ const styles = StyleSheet.create({
   subBadge: { borderWidth: 1, borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1 },
   subBadgeText: { fontSize: 8, fontFamily: "DMSans_500Medium", letterSpacing: 0.2 },
   lockLevelText: { fontSize: 9, fontFamily: "DMSans_400Regular" },
-  // Stats grid: 3 equal columns with individual boxes
-  statsGrid: { flexDirection: "row", gap: 6, marginBottom: 12 },
-  statBox: { flex: 1, borderRadius: 12, padding: 8, alignItems: "center" },
-  statLabel: { fontSize: 9, fontFamily: "DMSans_600SemiBold", textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 2 },
-  statValue: { fontSize: 11, fontFamily: "DMSans_800ExtraBold", lineHeight: 13 },
-  statSub: { fontSize: 9, fontFamily: "DMSans_400Regular", marginTop: 2 },
   // Risk bar
   riskRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 4 },
   riskLabel: { fontSize: 10, fontFamily: "DMSans_600SemiBold" },
@@ -719,15 +604,16 @@ const styles = StyleSheet.create({
   riskBarTrack: { height: 6, borderRadius: 3, overflow: "hidden" },
   riskBarFill: { height: "100%", borderRadius: 3 },
   // Nav
-  navSection: { paddingHorizontal: 12, paddingTop: 4, gap: 2 },
+  navSection: { paddingHorizontal: 10, paddingTop: 4, gap: 1 },
   navSectionCollapsed: { paddingHorizontal: 6, alignItems: "center" },
-  navItem: { flexDirection: "row", alignItems: "center", padding: 14, gap: 12 },
+  navItem: { flexDirection: "row", alignItems: "center", paddingHorizontal: 12, paddingVertical: 9, gap: 10 },
   navItemCollapsed: {
-    width: 44, height: 44, borderRadius: 12,
+    width: 42, height: 42, borderRadius: 12,
     alignItems: "center", justifyContent: "center",
-    marginVertical: 2, alignSelf: "center",
+    marginVertical: 1, alignSelf: "center",
   },
   navLabel: { fontSize: 13, fontFamily: "DMSans_500Medium", flex: 1 },
+
   activeDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: "#22c55e" },
   footer: { paddingHorizontal: 12, borderTopWidth: 1 },
   coachingBtn: {
