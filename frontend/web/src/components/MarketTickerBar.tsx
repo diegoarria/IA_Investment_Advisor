@@ -151,10 +151,59 @@ function NewsModal({ idx, onClose }: { idx: Idx; onClose: () => void }) {
   );
 }
 
+function TickerItem({ idx, last, keySuffix, onSelect }: {
+  idx: Idx;
+  last: boolean;
+  keySuffix: string;
+  onSelect: (idx: Idx) => void;
+}) {
+  const up  = idx.change_pct >= 0;
+  const col = up ? "var(--up)" : "var(--down)";
+  return (
+    <button
+      key={idx.symbol + keySuffix}
+      onClick={() => onSelect(idx)}
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 7,
+        paddingLeft: 18,
+        paddingRight: 18,
+        height: 30,
+        borderRight: !last ? "1px solid var(--border)" : undefined,
+        background: "transparent",
+        cursor: "pointer",
+        flexShrink: 0,
+        transition: "background 0.15s",
+      }}
+      onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.04)"; }}
+      onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "transparent"; }}
+    >
+      <span style={{ fontSize: 10, fontWeight: 600, color: "var(--sub)", whiteSpace: "nowrap" }}>
+        {ABBR[idx.name] ?? idx.name}
+      </span>
+      {idx.price != null && (
+        <>
+          <span style={{ fontSize: 10.5, fontWeight: 700, color: "var(--text)", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>
+            {fmtPrice(idx.price)}
+          </span>
+          <span style={{ fontSize: 9.5, fontWeight: 700, color: col, fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>
+            {up ? "▲" : "▼"}&nbsp;{Math.abs(idx.change_pct).toFixed(2)}%
+          </span>
+          <span style={{ fontSize: 9, fontWeight: 500, color: col, opacity: 0.65, fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>
+            ({up ? "+" : ""}{idx.change >= 0.01 || idx.change <= -0.01 ? idx.change.toFixed(2) : idx.change.toFixed(4)})
+          </span>
+        </>
+      )}
+    </button>
+  );
+}
+
 export default function MarketTickerBar() {
   const [data, setData] = useState<Idx[]>([]);
   const [selected, setSelected] = useState<Idx | null>(null);
   const [open, setOpen] = useState(false);
+
   useEffect(() => {
     const load = async () => {
       if (typeof window === "undefined") return;
@@ -167,7 +216,6 @@ export default function MarketTickerBar() {
 
     load();
 
-    // Re-schedule dynamically: 10s when market open, 5min when closed
     let timer: ReturnType<typeof setTimeout>;
     const schedule = () => {
       const marketOpen = isMarketOpen();
@@ -187,84 +235,83 @@ export default function MarketTickerBar() {
 
   return (
     <>
+      <style>{`
+        @keyframes ticker-marquee {
+          from { transform: translateX(0); }
+          to   { transform: translateX(-50%); }
+        }
+      `}</style>
+
       <div
-        className="scrollbar-none market-ticker-bar"
         style={{
           height: 30,
           display: "flex",
           alignItems: "center",
-          overflowX: "auto",
           background: "var(--card)",
           borderBottom: "1px solid var(--border)",
           flexShrink: 0,
+          overflow: "hidden",
         }}
       >
-        <div
-          style={{
+        {/* Fixed status badge — never scrolls */}
+        <div style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 5,
+          paddingLeft: 12,
+          paddingRight: 12,
+          borderRight: "1px solid var(--border)",
+          height: 30,
+          flexShrink: 0,
+        }}>
+          <span style={{
+            width: 6, height: 6, borderRadius: "50%",
+            background: open ? "#22c55e" : "var(--muted)",
+            boxShadow: open ? "0 0 0 2px rgba(34,197,94,0.25)" : "none",
+            animation: open ? "pulse 2s infinite" : "none",
+            display: "inline-block",
+          }} />
+          <span style={{ fontSize: 9, fontWeight: 600, color: open ? "#22c55e" : "var(--dim)", whiteSpace: "nowrap" }}>
+            {open ? "LIVE" : "CLOSED"}
+          </span>
+        </div>
+
+        {/* Ticker area: loops when open, static scrollable when closed */}
+        <div style={{
+          flex: 1,
+          overflow: open ? "hidden" : "auto",
+          height: 30,
+          display: "flex",
+          alignItems: "center",
+        }}
+          className="scrollbar-none"
+        >
+          <div style={{
             display: "flex",
             alignItems: "center",
-            justifyContent: "center",
-            width: "100%",
-            minWidth: "max-content",
-            gap: 0,
-          }}
-        >
-          {/* Market status indicator */}
-          <div style={{ display: "flex", alignItems: "center", gap: 5, paddingLeft: 12, paddingRight: 12, borderRight: "1px solid var(--border)", height: 30 }}>
-            <span style={{
-              width: 6, height: 6, borderRadius: "50%",
-              background: open ? "#22c55e" : "var(--muted)",
-              boxShadow: open ? "0 0 0 2px rgba(34,197,94,0.25)" : "none",
-              animation: open ? "pulse 2s infinite" : "none",
-              display: "inline-block",
-            }} />
-            <span style={{ fontSize: 9, fontWeight: 600, color: open ? "#22c55e" : "var(--dim)", whiteSpace: "nowrap" }}>
-              {open ? "LIVE" : "CLOSED"}
-            </span>
-          </div>
-
-          {data.map((idx, i) => {
-            const up  = idx.change_pct >= 0;
-            const col = up ? "var(--up)" : "var(--down)";
-            return (
-              <button
+            // When open: 2 copies total, animate -50% = exactly 1 copy width → seamless loop
+            animation: open ? `ticker-marquee ${Math.max(data.length * 5, 20)}s linear infinite` : "none",
+          }}>
+            {data.map((idx, i) => (
+              <TickerItem
                 key={idx.symbol}
-                onClick={() => setSelected(idx)}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 7,
-                  paddingLeft: 18,
-                  paddingRight: 18,
-                  height: 30,
-                  borderRight: i < data.length - 1 ? "1px solid var(--border)" : undefined,
-                  background: "transparent",
-                  cursor: "pointer",
-                  transition: "background 0.15s",
-                }}
-                onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.04)"; }}
-                onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "transparent"; }}
-              >
-                <span style={{ fontSize: 10, fontWeight: 600, color: "var(--sub)", whiteSpace: "nowrap" }}>
-                  {ABBR[idx.name] ?? idx.name}
-                </span>
-
-                {idx.price != null && (
-                  <>
-                    <span style={{ fontSize: 10.5, fontWeight: 700, color: "var(--text)", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>
-                      {fmtPrice(idx.price)}
-                    </span>
-                    <span style={{ fontSize: 9.5, fontWeight: 700, color: col, fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>
-                      {up ? "▲" : "▼"}&nbsp;{Math.abs(idx.change_pct).toFixed(2)}%
-                    </span>
-                    <span style={{ fontSize: 9, fontWeight: 500, color: col, opacity: 0.65, fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>
-                      ({up ? "+" : ""}{idx.change >= 0.01 || idx.change <= -0.01 ? idx.change.toFixed(2) : idx.change.toFixed(4)})
-                    </span>
-                  </>
-                )}
-              </button>
-            );
-          })}
+                idx={idx}
+                last={i === data.length - 1}
+                keySuffix=""
+                onSelect={setSelected}
+              />
+            ))}
+            {/* Duplicate for seamless loop — only rendered when market is open */}
+            {open && data.map((idx, i) => (
+              <TickerItem
+                key={idx.symbol + "-dup"}
+                idx={idx}
+                last={i === data.length - 1}
+                keySuffix="-dup"
+                onSelect={setSelected}
+              />
+            ))}
+          </div>
         </div>
       </div>
 
