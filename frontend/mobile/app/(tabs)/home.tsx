@@ -450,12 +450,15 @@ export default function HomeScreen() {
         }).catch(() => {});
       }
     } catch {}
-    // Sync maturity from server (take highest score across devices)
+    // Bidirectional maturity sync — always keep the highest score across devices
     syncApi.getAll().then((res: any) => {
-      const s: number = res.data?.maturity?.score ?? 0;
-      const h = res.data?.maturity?.history ?? [];
-      if (s > useAppStore.getState().maturityScore) {
-        useAppStore.setState({ maturityScore: s, maturityHistory: h });
+      const serverScore: number = res.data?.maturity?.score ?? 0;
+      const serverHistory = res.data?.maturity?.history ?? [];
+      const { maturityScore: localScore, maturityHistory: localHistory } = useAppStore.getState();
+      if (serverScore > localScore) {
+        useAppStore.setState({ maturityScore: serverScore, maturityHistory: serverHistory });
+      } else if (localScore > serverScore) {
+        syncApi.pushMaturity(localScore, localHistory).catch(() => {});
       }
     }).catch(() => {});
     setLoading(false);

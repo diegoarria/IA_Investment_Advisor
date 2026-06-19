@@ -155,10 +155,13 @@ export default function HomePage() {
   useEffect(() => {
     loadData();
     syncApi.getAll().then((res) => {
-      const s: number = res.data?.maturity?.score ?? 0;
-      const h = res.data?.maturity?.history ?? [];
-      if (s > useProfileStore.getState().maturityScore) {
-        useProfileStore.setState({ maturityScore: s, maturityHistory: h });
+      const serverScore: number = res.data?.maturity?.score ?? 0;
+      const serverHistory = res.data?.maturity?.history ?? [];
+      const { maturityScore: localScore, maturityHistory: localHistory } = useProfileStore.getState();
+      if (serverScore > localScore) {
+        useProfileStore.setState({ maturityScore: serverScore, maturityHistory: serverHistory });
+      } else if (localScore > serverScore) {
+        syncApi.pushMaturity(localScore, localHistory).catch(() => {});
       }
     }).catch(() => {});
   }, [loadData]);
