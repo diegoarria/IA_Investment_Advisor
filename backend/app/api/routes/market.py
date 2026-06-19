@@ -265,24 +265,29 @@ async def get_prices(request: dict, user_id: str = Depends(get_current_user_id))
         encoded = _yf_symbol(symbol).replace("^", "%5E")
         price, prev, currency, name = None, None, "USD", symbol
 
-        # Primary: direct Yahoo Finance API
+        # Primary: direct Yahoo Finance API — use regularMarketPrice (always current, no lag)
         for domain in ("query1", "query2"):
             if price:
                 break
-            try:
-                url = f"https://{domain}.finance.yahoo.com/v8/finance/chart/{encoded}?interval=1d&range=5d"
-                r = httpx.get(url, headers=_YF_HEADERS, timeout=8, follow_redirects=True)
-                if r.status_code == 200:
-                    res = r.json()["chart"]["result"][0]
-                    meta = res.get("meta", {})
-                    closes = [c for c in res["indicators"]["quote"][0]["close"] if c is not None]
-                    if closes:
-                        price = closes[-1]
-                        prev  = closes[-2] if len(closes) >= 2 else None
-                        currency = meta.get("currency", "USD")
-                        name = meta.get("shortName") or meta.get("longName") or symbol
-            except Exception:
-                pass
+            for interval, rng in (("2m", "1d"), ("1d", "5d")):
+                try:
+                    url = f"https://{domain}.finance.yahoo.com/v8/finance/chart/{encoded}?interval={interval}&range={rng}"
+                    r = httpx.get(url, headers=_YF_HEADERS, timeout=8, follow_redirects=True)
+                    if r.status_code == 200:
+                        res = r.json()["chart"]["result"][0]
+                        meta = res.get("meta", {})
+                        p = meta.get("regularMarketPrice")
+                        if p:
+                            price = float(p)
+                            prev  = meta.get("chartPreviousClose") or meta.get("previousClose")
+                            if prev: prev = float(prev)
+                            currency = meta.get("currency", "USD")
+                            name = meta.get("shortName") or meta.get("longName") or symbol
+                            break
+                except Exception:
+                    pass
+            if price:
+                break
 
         # Fallback: yfinance fast_info
         if not price:
@@ -1050,8 +1055,12 @@ def _yf_symbol(ticker: str) -> str:
 
 def _fetch_ticker_history(
     ticker: str, period1: int, period2: int, interval: str = "1d"
-) -> tuple[list[int], list[float]]:
-    """Fetch historical adjusted-close prices via Yahoo Finance Chart API (same endpoint as getPrices)."""
+) -> tuple[list[int], list[float], float | None]:
+    """Fetch historical adjusted-close prices + regularMarketPrice via Yahoo Finance Chart API.
+
+    Returns (timestamps, closes, rt_price) where rt_price is always the current real-time price
+    from the meta field — regardless of what the historical bars show (which can lag one day).
+    """
     import httpx
     encoded = _yf_symbol(ticker).replace("^", "%5E")
     params = {"period1": period1, "period2": period2, "interval": interval, "includePrePost": "false"}
@@ -1064,6 +1073,8 @@ def _fetch_ticker_history(
             if r.status_code != 200:
                 continue
             res = r.json()["chart"]["result"][0]
+            meta = res.get("meta", {})
+            rt_price = meta.get("regularMarketPrice")
             ts = res.get("timestamp") or []
             # Prefer adjclose (accounts for splits + dividends)
             ac = (res.get("indicators", {}).get("adjclose") or [])
@@ -1071,36 +1082,41 @@ def _fetch_ticker_history(
             if not closes:
                 closes = (res.get("indicators", {}).get("quote") or [{}])[0].get("close")
             if ts and closes and len(ts) == len(closes):
-                return ts, closes
+                return ts, closes, float(rt_price) if rt_price else None
         except Exception:
             continue
-    return [], []
+    return [], [], None
 
 
 def _build_close_df(
     tickers: list[str], period1: int, period2: int, interval: str = "1d"
-) -> "_pd.DataFrame":
-    """Parallel fetch of historical close prices via direct Yahoo Finance API. Index is timezone-naive."""
+) -> "tuple[_pd.DataFrame, dict[str, float]]":
+    """Parallel fetch of historical close prices via direct Yahoo Finance API. Index is timezone-naive.
 
-    def _one(t: str) -> tuple[str, "_pd.Series | None"]:
-        ts, closes = _fetch_ticker_history(t, period1, period2, interval)
+    Returns (df, rt_prices) where rt_prices maps ticker → regularMarketPrice (always current).
+    Historical adjclose can lag one day; rt_prices is always up to date.
+    """
+
+    def _one(t: str) -> "tuple[str, _pd.Series | None, float | None]":
+        ts, closes, rt_price = _fetch_ticker_history(t, period1, period2, interval)
         if not ts:
-            return t, None
+            return t, None, rt_price
         pairs = [
             (_pd.Timestamp(s, unit="s").normalize(), float(c))
             for s, c in zip(ts, closes) if c is not None
         ]
         if not pairs:
-            return t, None
+            return t, None, rt_price
         dates, vals = zip(*pairs)
-        return t, _pd.Series(list(vals), index=list(dates), name=t, dtype=float)
+        return t, _pd.Series(list(vals), index=list(dates), name=t, dtype=float), rt_price
 
     results = list(_MARKET_POOL.map(_one, tickers))
 
-    series = [s for _, s in results if s is not None]
+    rt_prices: dict[str, float] = {t: rt for t, _, rt in results if rt is not None}
+    series = [s for _, s, _ in results if s is not None]
     if not series:
-        return _pd.DataFrame()
-    return _pd.concat(series, axis=1).ffill().dropna(how="all")
+        return _pd.DataFrame(), rt_prices
+    return _pd.concat(series, axis=1).ffill().dropna(how="all"), rt_prices
 
 
 def _build_close_df_range(
@@ -1155,7 +1171,7 @@ def _compute_portfolio_returns(positions: list[_PortfolioReturnsItem]) -> dict:
     # Fetch 5+ years via direct Yahoo Finance Chart API (same as getPrices — guaranteed to work)
     today_ts = int(today.timestamp())
     start_ts = int((today - _td(days=1835)).timestamp())
-    close = _build_close_df(all_tickers, start_ts, today_ts, interval="1d")
+    close, rt_prices = _build_close_df(all_tickers, start_ts, today_ts, interval="1d")
 
     # Infer purchase dates for positions that have avg_price but no purchase_date
     inferred_dates: dict[str, str] = {}
@@ -1166,27 +1182,36 @@ def _compute_portfolio_returns(positions: list[_PortfolioReturnsItem]) -> dict:
                 purchase_date_map[t] = inferred
                 inferred_dates[t] = inferred
 
-    if close.empty:
+    if close.empty and not rt_prices:
         return {}
 
     # Bail if none of the user's tickers returned data
-    if not any(t in close.columns for t in tickers):
+    if not any(t in close.columns or t in rt_prices for t in tickers):
         return {}
 
     # Ensure all portfolio tickers are present (SPY might be missing in some envs)
-    missing = [t for t in tickers if t not in close.columns]
-    if missing == tickers:   # none of the user tickers found — bail
+    missing = [t for t in tickers if t not in close.columns and t not in rt_prices]
+    if missing == tickers:
         return {}
 
-    current_row = close.iloc[-1]
+    current_row = close.iloc[-1] if not close.empty else None
+
+    # rt_prices contains regularMarketPrice — always current (adjclose can lag one session).
+    # Use it for the "current" side of every calculation; fall back to last historical row only
+    # if the real-time fetch failed for a specific ticker.
+    def _cp(t: str) -> float:
+        if t in rt_prices:
+            return rt_prices[t]
+        return _safe_price(current_row, t) if current_row is not None else 0.0
+
     current_val = sum(
-        shares_map.get(t, 0) * _safe_price(current_row, t)
-        for t in tickers if t in close.columns
+        shares_map.get(t, 0) * _cp(t)
+        for t in tickers if t in close.columns or t in rt_prices
     )
     if current_val <= 0:
         return {}
 
-    spy_current = _safe_price(current_row, "SPY") if "SPY" in close.columns else 0.0
+    spy_current = _cp("SPY") if ("SPY" in close.columns or "SPY" in rt_prices) else 0.0
 
     # All cutoffs use timezone-naive today (index is also timezone-naive from _build_close_df)
     ytd_start = _pd.Timestamp(f"{today.year}-01-01")
@@ -1215,15 +1240,15 @@ def _compute_portfolio_returns(positions: list[_PortfolioReturnsItem]) -> dict:
 
             for t in tickers:
                 pd_str = purchase_date_map.get(t)
-                if not pd_str or t not in close.columns:
+                if not pd_str or (t not in close.columns and t not in rt_prices):
                     continue
                 cutoff = _pd.Timestamp(pd_str)
-                subset = close[close.index >= cutoff]
-                if subset.empty:
+                subset = close[close.index >= cutoff] if not close.empty else _pd.DataFrame()
+                if subset.empty and t not in rt_prices:
                     continue
                 # Use avg_price (real cost paid) when available — more accurate than historical close
-                sp = avg_price_map.get(t) or _safe_price(subset.iloc[0], t)
-                cp = _safe_price(current_row, t)
+                sp = avg_price_map.get(t) or (_safe_price(subset.iloc[0], t) if not subset.empty else 0.0)
+                cp = _cp(t)
                 if sp > 0 and cp > 0:
                     shares = shares_map.get(t, 0)
                     total_cost += shares * sp
@@ -1271,19 +1296,18 @@ def _compute_portfolio_returns(positions: list[_PortfolioReturnsItem]) -> dict:
             end_value  = 0.0
             breakdown  = {}
             for t in tickers:
-                if t not in close.columns:
+                if t not in close.columns and t not in rt_prices:
                     continue
                 shares = shares_map.get(t, 0)
-                cp = _safe_price(current_row, t)
+                cp = _cp(t)
                 pd_str = purchase_date_map.get(t)
                 if not short_period and pd_str and _pd.Timestamp(pd_str) > cutoff:
                     # Bought mid-period (only for periods > 5D): cost is what we actually paid
-                    sp = avg_price_map.get(t) or _safe_price(
-                        close[close.index >= _pd.Timestamp(pd_str)].iloc[0], t
-                    )
+                    mid_subset = close[close.index >= _pd.Timestamp(pd_str)] if not close.empty else _pd.DataFrame()
+                    sp = avg_price_map.get(t) or (_safe_price(mid_subset.iloc[0], t) if not mid_subset.empty else 0.0)
                 else:
                     # Use price at start of period (always for 1D/5D)
-                    sp = _safe_price(start_row, t)
+                    sp = _safe_price(start_row, t) if not close.empty else 0.0
                 if sp > 0 and cp > 0:
                     start_cost += shares * sp
                     end_value  += shares * cp
@@ -1343,7 +1367,7 @@ def _compute_portfolio_chart(positions: list[_PortfolioReturnsItem], period: str
     if any(t not in purchase_date_map and t in avg_price_map for t in tickers):
         all_tickers_inf = list(dict.fromkeys(tickers))
         start_inf = int((today - _td(days=1835)).timestamp())
-        close_inf = _build_close_df(all_tickers_inf, start_inf, today_ts, interval="1d")
+        close_inf, _ = _build_close_df(all_tickers_inf, start_inf, today_ts, interval="1d")
         for t in tickers:
             if t not in purchase_date_map and t in avg_price_map and t in close_inf.columns:
                 inferred = _infer_purchase_date(t, avg_price_map[t], close_inf)
@@ -1366,7 +1390,7 @@ def _compute_portfolio_chart(positions: list[_PortfolioReturnsItem], period: str
         except Exception:
             interval = "1d"
         start_ts = int(_dt.fromisoformat(oldest_str).timestamp())
-        close = _build_close_df(tickers, start_ts, today_ts, interval=interval)
+        close, rt_prices = _build_close_df(tickers, start_ts, today_ts, interval=interval)
         intraday = False
     else:
         PERIOD_CFG: dict[str, tuple[int, str]] = {
@@ -1386,7 +1410,7 @@ def _compute_portfolio_chart(positions: list[_PortfolioReturnsItem], period: str
             start_ts = int(_dt(1993, 1, 1).timestamp())
         else:
             start_ts = int((today - _td(days=days_back)).timestamp())
-        close = _build_close_df(tickers, start_ts, today_ts, interval=interval)
+        close, rt_prices = _build_close_df(tickers, start_ts, today_ts, interval=interval)
         intraday = False
 
     if close is None or close.empty:
@@ -1434,6 +1458,18 @@ def _compute_portfolio_chart(positions: list[_PortfolioReturnsItem], period: str
 
     if len(history) < 2:
         return {"history": []}
+
+    # For non-intraday charts, replace the last data point with real-time prices so the
+    # chart always ends at the current price (adjclose from daily bars lags one session).
+    if not intraday and rt_prices:
+        rt_end_val = sum(
+            shares_map.get(t, 0) * rt_prices[t]
+            for t in tickers
+            if t in rt_prices
+            and (t not in purchase_ts_map or (close.index[-1] if not close.empty else _pd.Timestamp.now()) >= purchase_ts_map[t])
+        )
+        if rt_end_val > 0:
+            history[-1]["value"] = round(rt_end_val, 2)
 
     start_val = history[0]["value"]
     end_val   = history[-1]["value"]
