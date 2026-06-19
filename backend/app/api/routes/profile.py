@@ -46,6 +46,22 @@ async def create_profile(
     else:
         record = {"user_id": user_id, **db_data, "created_at": now, "updated_at": now}
         result = await run_query(db.table("user_profiles").insert(record))
+        # Create default notification preferences for new users
+        existing_prefs = await run_query(
+            db.table("notification_preferences").select("user_id").eq("user_id", user_id)
+        )
+        if not existing_prefs.data:
+            await run_query(db.table("notification_preferences").insert({
+                "user_id": user_id,
+                "push_market_open": True, "push_market_close": True,
+                "push_news_general": True, "push_portfolio_alerts": True,
+                "push_watchlist_alerts": True, "push_ai_recommendations": True,
+                "push_milestones": True, "push_volatility": True,
+                "email_daily_summary": True, "email_weekly_summary": True,
+                "max_push_per_day": 5, "max_push_per_week": 20,
+                "quiet_hours_start": 22, "quiet_hours_end": 8,
+                "consecutive_ignores": 0,
+            }))
     cache_delete(f"profile:{user_id}")
     return UserProfile(**result.data[0])
 
