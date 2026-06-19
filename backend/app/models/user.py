@@ -27,6 +27,10 @@ class UserProfileUpdate(BaseModel):
     avatar_url: Optional[str] = None
     nav_order: Optional[list] = None
     theme: Optional[str] = None
+    investment_goal: Optional[str] = None
+    investment_goal_amount: Optional[str] = None
+    investment_horizon: Optional[str] = None
+    knowledge_level: Optional[str] = None
 
 
 class UserProfile(BaseModel):
@@ -46,6 +50,10 @@ class UserProfile(BaseModel):
     msg_window_start: Optional[str] = None
     nav_order: Optional[list] = None
     theme: Optional[str] = None
+    investment_goal: Optional[str] = None
+    investment_goal_amount: Optional[str] = None
+    investment_horizon: Optional[str] = None
+    knowledge_level: Optional[str] = None
     created_at: str
     updated_at: str
 
