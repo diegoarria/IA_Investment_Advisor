@@ -111,6 +111,8 @@ async def send_push(user_id: str, category: str, title: str, body: str, data: di
     tok_res = await run_query(db.table("user_profiles").select("push_token").eq("user_id", user_id))
     token = (tok_res.data[0].get("push_token") or "") if tok_res.data else ""
     if not token or not token.startswith("ExponentPushToken"):
+        logger.warning("No valid push token for user %s (category=%s) — skipping push", user_id, category)
+        await _log_notification(db, user_id, "push", category, title, body, data, "no_token")
         return
 
     today = _today_et()

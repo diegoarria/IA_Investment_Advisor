@@ -71,20 +71,22 @@ def build_weekly_summary_html(name: str, summary: str, risk: str) -> str:
 </html>"""
 
 
-async def generate_and_send_weekly_summary(user_id: str, email: str, name: str, risk: str, chat_snippets: list[str]):
+async def generate_and_send_weekly_summary(user_id: str, email: str, name: str, risk: str, chat_snippets: list[str]) -> bool:
     from app.services import ai_service
+    import logging
+    logger = logging.getLogger(__name__)
 
     is_premium = bool(chat_snippets)
     context = "\n".join(f"- {s}" for s in chat_snippets[:10]) if chat_snippets else ""
 
     if is_premium:
-        intro = f"""Eres el asesor financiero personal de {name}, con perfil {risk}.
+        intro = f"""Eres Nuvos, mentor y educador de inversiones de {name}, con perfil {risk}.
 Esta semana tuvieron las siguientes conversaciones de inversión:
 {context}
 
 Escribe un resumen semanal PERSONALIZADO de máximo 220 palabras que incluya:"""
     else:
-        intro = f"""Eres un asesor financiero para {name}, inversor con perfil {risk}.
+        intro = f"""Eres Nuvos, mentor y educador de inversiones para {name}, inversor con perfil {risk}.
 
 Escribe un resumen semanal GENERAL de los mercados de máximo 150 palabras que incluya:"""
 
@@ -96,14 +98,21 @@ Escribe un resumen semanal GENERAL de los mercados de máximo 150 palabras que i
 
 Tono: cálido, profesional, directo. Como un mentor que se preocupa por el progreso del usuario."""
 
-    summary = ""
-    async for chunk in ai_service.chat_stream(
-        message=prompt, conversation_history=[], profile=None, mentor=None,
-    ):
-        summary += chunk
+    try:
+        summary = ""
+        async for chunk in ai_service.chat_stream(
+            message=prompt, conversation_history=[], profile=None, mentor=None,
+        ):
+            summary += chunk
 
-    html = build_weekly_summary_html(name, summary, risk)
-    await send_email(email, f"Tu resumen semanal de inversión, {name} 📈", html)
+        html = build_weekly_summary_html(name, summary, risk)
+        ok = await send_email(email, f"Tu resumen semanal de inversión, {name} 📈", html)
+        if not ok:
+            logger.error("send_email returned False for %s (%s)", email, user_id)
+        return ok
+    except Exception as e:
+        logger.error("generate_and_send_weekly_summary failed for %s: %s", email, e)
+        return False
 
 
 # ── Monthly Report ────────────────────────────────────────────────────────────

@@ -53,15 +53,18 @@ async def send_weekly_emails():
                     .limit(10)
                 )
                 snippets = [c["content"][:150] for c in (chats_res.data or [])]
-            await generate_and_send_weekly_summary(
+            ok = await generate_and_send_weekly_summary(
                 user_id=u["user_id"],
                 email=email,
                 name=u["name"].split()[0],
                 risk=u["risk_tolerance"],
                 chat_snippets=snippets,
             )
-            sent += 1
-        logger.info("Weekly emails sent: %d", sent)
+            if ok:
+                sent += 1
+            else:
+                logger.error("Weekly email failed for %s (%s)", email, u["user_id"])
+        logger.info("Weekly emails sent: %d / %d users", sent, len(users))
     except Exception as e:
         logger.error("Weekly email job failed: %s", e)
 
