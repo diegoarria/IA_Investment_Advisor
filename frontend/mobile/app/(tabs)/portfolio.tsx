@@ -408,6 +408,7 @@ interface ExtractedPosition { id: string; ticker: string; name: string; shares: 
 // ─── Portfolio historical chart ────────────────────────────────────────────
 
 type ChartPoint = { date: string; pct: number; value: number };
+type ChartHovData = { value: number; chgV: number; chgP: number; date: string; isUp: boolean };
 
 function fmtChartDate(s: string, full = false) {
   try {
@@ -419,104 +420,104 @@ function fmtChartDate(s: string, full = false) {
   } catch { return s.slice(5, 10); }
 }
 
+function smoothBezierMobile(pts: { x: number; y: number }[], t = 0.3): string {
+  if (pts.length < 2) return "";
+  let d = `M ${pts[0].x.toFixed(1)},${pts[0].y.toFixed(1)}`;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const p0 = pts[Math.max(0, i - 1)];
+    const p1 = pts[i];
+    const p2 = pts[i + 1];
+    const p3 = pts[Math.min(pts.length - 1, i + 2)];
+    const cp1x = p1.x + (p2.x - p0.x) * t;
+    const cp1y = p1.y + (p2.y - p0.y) * t;
+    const cp2x = p2.x - (p3.x - p1.x) * t;
+    const cp2y = p2.y - (p3.y - p1.y) * t;
+    d += ` C ${cp1x.toFixed(1)},${cp1y.toFixed(1)} ${cp2x.toFixed(1)},${cp2y.toFixed(1)} ${p2.x.toFixed(1)},${p2.y.toFixed(1)}`;
+  }
+  return d;
+}
+
 function PortfolioHistoryChart({
-  history, color, currencySymbol, positions,
+  history, color, currencySymbol, onHoverChange,
 }: {
   history: ChartPoint[];
   color: string;
   currencySymbol: string;
-  positions: Array<{ purchaseDate?: string | null; shares: number; avgPrice: number }>;
+  onHoverChange?: (data: ChartHovData | null) => void;
 }) {
   const { colors } = useTheme();
   const [hovIdx, setHovIdx] = useState<number | null>(null);
   const [ctrW, setCtrW] = useState(0);
 
   const W = Math.max(100, ctrW);
-  const H = 230;
-  const PT = 18, PB = 26, PL = 2, PR = 2;
-  const cW = W - PL - PR;
+  const H = 280;
+  const PT = 14, PB = 30;
   const cH = H - PT - PB;
 
-  const costBasis = useMemo(
-    () => positions.reduce((s, p) => s + p.shares * p.avgPrice, 0),
-    [positions],
-  );
+  const vals   = history.map(h => h.value);
+  const endV   = vals[vals.length - 1];
+  const startV = vals[0];
+  const minV   = Math.min(...vals);
+  const maxV   = Math.max(...vals);
+  const spread = maxV - minV || Math.abs(maxV) || 1;
+  const lo = minV - spread * 0.05;
+  const hi = maxV + spread * 0.10;
+  const range = hi - lo;
+
+  const toX = (i: number) => (i / (history.length - 1)) * W;
+  const toY = (v: number) => PT + ((hi - v) / range) * cH;
+
+  const base = startV > 0 ? startV : 1;
 
   const updateHov = useCallback((x: number) => {
-    if (cW <= 0 || history.length < 2) return;
-    const ratio = Math.max(0, Math.min(1, (x - PL) / cW));
-    setHovIdx(Math.round(ratio * (history.length - 1)));
-  }, [cW, history.length]);
+    if (W <= 0 || history.length < 2) return;
+    const ratio = Math.max(0, Math.min(1, x / W));
+    const idx = Math.round(ratio * (history.length - 1));
+    setHovIdx(idx);
+    if (onHoverChange) {
+      const v = vals[idx];
+      const cv = v - base;
+      const cp = (cv / base) * 100;
+      onHoverChange({ value: v, chgV: cv, chgP: cp, date: history[idx].date, isUp: v >= base });
+    }
+  }, [W, history.length, vals, base, onHoverChange, history]);
+
+  const handleRelease = useCallback(() => {
+    setHovIdx(null);
+    onHoverChange?.(null);
+  }, [onHoverChange]);
 
   const panResponder = useMemo(() => PanResponder.create({
     onStartShouldSetPanResponder: () => true,
     onMoveShouldSetPanResponder: () => true,
     onPanResponderGrant: (evt) => updateHov(evt.nativeEvent.locationX),
     onPanResponderMove: (evt) => updateHov(evt.nativeEvent.locationX),
-    onPanResponderRelease: () => setHovIdx(null),
-    onPanResponderTerminate: () => setHovIdx(null),
-  }), [updateHov]);
+    onPanResponderRelease: handleRelease,
+    onPanResponderTerminate: handleRelease,
+  }), [updateHov, handleRelease]);
 
   if (history.length < 2) return null;
 
-  const noDateCost = positions
-    .filter(p => !p.purchaseDate && p.avgPrice > 0)
-    .reduce((s, p) => s + p.shares * p.avgPrice, 0);
-  const events = positions
-    .filter(p => p.purchaseDate && p.avgPrice > 0)
-    .map(p => ({ date: p.purchaseDate!, cost: p.shares * p.avgPrice }))
-    .sort((a, b) => a.date.localeCompare(b.date));
-  const investedCurve = history.map(h => {
-    const fromDated = events.filter(e => e.date <= h.date).reduce((s, e) => s + e.cost, 0);
-    return noDateCost + fromDated;
-  });
-  const hasCurveData = investedCurve[investedCurve.length - 1] > 0;
-  const effectiveCurve = hasCurveData ? investedCurve : history.map(() => costBasis);
+  const pts   = history.map((h, i) => ({ x: toX(i), y: toY(h.value) }));
+  const lineD = smoothBezierMobile(pts);
+  const lx    = toX(history.length - 1);
+  const ly    = toY(endV);
+  const by    = PT + cH;
+  const areaD = `${lineD} L ${lx.toFixed(1)},${by} L 0,${by} Z`;
 
-  const vals = history.map(h => h.value);
-  const endV = vals[vals.length - 1];
-  const allVals = [...vals, ...effectiveCurve.filter(v => v > 0)];
-  const minV = Math.min(...allVals);
-  const maxV = Math.max(...allVals);
-  const spread = maxV - minV || Math.abs(maxV) || 1;
-  const lo = minV - spread * 0.06;
-  const hi = maxV + spread * 0.12;
-  const range = hi - lo;
+  const baseLineY = toY(startV);
 
-  const toX = (i: number) => PL + (i / (history.length - 1)) * cW;
-  const toY = (v: number) => PT + ((hi - v) / range) * cH;
+  const yTicks = [0.2, 0.5, 0.8].map(frac => ({
+    v: hi - range * frac,
+    y: PT + frac * cH,
+  }));
 
-  const pts = history.map((h, i) => `${toX(i).toFixed(1)},${toY(h.value).toFixed(1)}`);
-  const lineD = "M" + pts.join("L");
-  const lx = toX(history.length - 1);
-  const ly = toY(endV);
-  const by = PT + cH;
-  const areaD = `${lineD}L${lx.toFixed(1)},${by}L${PL},${by}Z`;
-  const invD = "M" + effectiveCurve.map((v, i) => `${toX(i).toFixed(1)},${toY(v).toFixed(1)}`).join("L");
-
-  // 3 subtle horizontal reference lines
-  const gridLines = [0, 1, 2].map(i => ({ y: PT + (cH * i) / 2, v: hi - (range * i) / 2 }));
-
-  // 4 x-axis ticks evenly distributed
   const xIdxs = [0, 1, 2, 3].map(i => Math.round((i * (history.length - 1)) / 3));
 
-  const hovV   = hovIdx !== null ? vals[hovIdx] : null;
-  const hovX   = hovIdx !== null ? toX(hovIdx) : null;
-  const hovY   = hovIdx !== null ? toY(vals[hovIdx]) : null;
-  const hovPt  = hovIdx !== null ? history[hovIdx] : null;
-  const hovInv = hovIdx !== null ? effectiveCurve[hovIdx] : effectiveCurve[effectiveCurve.length - 1];
-  const base   = hovInv > 0 ? hovInv : (costBasis > 0 ? costBasis : 1);
-  const chgV   = hovV !== null ? hovV - base : endV - base;
-  const chgP   = base > 0 ? (chgV / base) * 100 : 0;
-  const isHovUp = (hovV ?? endV) >= base;
-  const hCol    = isHovUp ? "#22c55e" : "#ef4444";
+  const hovX = hovIdx !== null ? toX(hovIdx) : null;
+  const hovY = hovIdx !== null ? toY(vals[hovIdx]) : null;
+  const hovPt = hovIdx !== null ? history[hovIdx] : null;
 
-  const fmtV = (v: number) => {
-    const abs = Math.abs(v), sign = v < 0 ? "-" : "";
-    if (abs >= 1e6) return `${sign}${currencySymbol}${(abs / 1e6).toFixed(2)}M`;
-    if (abs >= 1e3) return `${sign}${currencySymbol}${(abs / 1e3).toFixed(1)}K`;
-    return `${sign}${currencySymbol}${abs.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
-  };
   const fmtY = (v: number) => {
     const abs = Math.abs(v);
     if (abs >= 1e6) return `${(v / 1e6).toFixed(1)}M`;
@@ -524,91 +525,52 @@ function PortfolioHistoryChart({
     return Math.round(v).toString();
   };
 
-  // tooltip positioning: prefer same side as crosshair, avoid clipping
-  const ttLeft  = hovX !== null && hovX < W * 0.58 ? hovX + 12 : undefined;
-  const ttRight = hovX !== null && hovX >= W * 0.58 ? W - hovX + 12 : undefined;
-
   return (
     <View onLayout={e => setCtrW(e.nativeEvent.layout.width)}>
       {ctrW > 0 && (
-        <View style={{ position: "relative" }}>
-          {/* Floating hover tooltip */}
-          {hovPt && hovV !== null && (
-            <View
-              pointerEvents="none"
-              style={{
-                position: "absolute", zIndex: 30,
-                left: ttLeft, right: ttRight, top: 4,
-                backgroundColor: colors.card,
-                borderRadius: 12, paddingHorizontal: 11, paddingVertical: 9,
-                borderWidth: 1, borderColor: hCol + "35",
-                shadowColor: "#000", shadowOffset: { width: 0, height: 6 },
-                shadowOpacity: 0.22, shadowRadius: 14, elevation: 10,
-              }}
-            >
-              <Text style={{ fontSize: 16, fontWeight: "900", color: colors.text, lineHeight: 19 }}>
-                {fmtV(hovV)}
-              </Text>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 2 }}>
-                <View style={{ backgroundColor: hCol + "20", borderRadius: 6, paddingHorizontal: 5, paddingVertical: 2 }}>
-                  <Text style={{ fontSize: 10, fontWeight: "800", color: hCol }}>
-                    {isHovUp ? "+" : ""}{chgP.toFixed(2)}%
-                  </Text>
-                </View>
-                <Text style={{ fontSize: 10, fontWeight: "600", color: hCol }}>
-                  {isHovUp ? "+" : ""}{fmtV(chgV)}
-                </Text>
-              </View>
-              <Text style={{ fontSize: 9, color: colors.textDim, marginTop: 3 }}>
-                {fmtChartDate(hovPt.date, true)}
-              </Text>
-            </View>
-          )}
-
-          {/* Chart + overlaid y-labels */}
+        <View>
+          {/* Chart */}
           <View style={{ width: W, height: H, position: "relative" }} {...panResponder.panHandlers}>
-            {/* Y price labels — overlaid as absolute Text */}
-            {gridLines.map((g, i) => (
+            {/* Y-axis labels */}
+            {yTicks.map((g, i) => (
               <Text key={i} pointerEvents="none" style={{
-                position: "absolute", left: PL + 4, top: g.y - 7,
+                position: "absolute", left: 6, top: g.y - 7,
                 fontSize: 9, fontWeight: "600", color: colors.textDim, opacity: 0.65,
               }}>
-                {fmtY(g.v)}
+                {currencySymbol}{fmtY(g.v)}
               </Text>
             ))}
 
             <Svg width={W} height={H}>
               <Defs>
-                <LinearGradient id="pfhg_rb" x1="0" y1="0" x2="0" y2="1">
-                  <Stop offset="0"    stopColor={color} stopOpacity="0.30" />
-                  <Stop offset="0.50" stopColor={color} stopOpacity="0.10" />
+                <LinearGradient id="pfhg_rb2" x1="0" y1="0" x2="0" y2="1">
+                  <Stop offset="0"    stopColor={color} stopOpacity="0.28" />
+                  <Stop offset="0.55" stopColor={color} stopOpacity="0.06" />
                   <Stop offset="1"    stopColor={color} stopOpacity="0" />
                 </LinearGradient>
               </Defs>
 
-              {/* Subtle horizontal gridlines */}
-              {gridLines.map((g, i) => (
-                <SvgLine key={i}
-                  x1={PL + 44} y1={g.y} x2={W - PR} y2={g.y}
-                  stroke="#888" strokeWidth={0.4} strokeOpacity={0.10} />
+              {/* Baseline at period start */}
+              <SvgLine x1={0} y1={baseLineY} x2={W} y2={baseLineY}
+                stroke="#888" strokeWidth={0.6} strokeOpacity={0.20} strokeDasharray="4,5" />
+
+              {/* Subtle gridlines */}
+              {yTicks.map((g, i) => (
+                <SvgLine key={i} x1={0} y1={g.y} x2={W} y2={g.y}
+                  stroke="#888" strokeWidth={0.4} strokeOpacity={0.06} />
               ))}
 
-              {/* Cost-basis dashed line */}
-              <Path d={invD} fill="none" stroke="#f59e0b"
-                strokeWidth={1.3} strokeDasharray="4,4" strokeOpacity={0.55}
-                strokeLinejoin="round" />
-
               {/* Area fill */}
-              <Path d={areaD} fill="url(#pfhg_rb)" />
+              <Path d={areaD} fill="url(#pfhg_rb2)" />
 
-              {/* Main portfolio line */}
-              <Path d={lineD} fill="none" stroke={color} strokeWidth={2.6}
+              {/* Main line */}
+              <Path d={lineD} fill="none" stroke={color} strokeWidth={2.5}
                 strokeLinejoin="round" strokeLinecap="round" />
 
-              {/* End-of-line dot (idle state) */}
+              {/* End dot (idle) */}
               {hovIdx === null && (
                 <>
-                  <Circle cx={lx} cy={ly} r={10} fill={color} fillOpacity={0.10} />
+                  <Circle cx={lx} cy={ly} r={9}   fill={color} fillOpacity={0.15} />
                   <Circle cx={lx} cy={ly} r={3.5} fill={color} />
                 </>
               )}
@@ -616,35 +578,35 @@ function PortfolioHistoryChart({
               {/* Crosshair */}
               {hovIdx !== null && hovX !== null && hovY !== null && (
                 <>
-                  <SvgLine x1={hovX} y1={PT} x2={hovX} y2={PT + cH}
-                    stroke={hCol} strokeWidth={1} strokeOpacity={0.5}
-                    strokeDasharray="3,3" />
-                  <Circle cx={hovX} cy={hovY} r={10} fill={hCol} fillOpacity={0.10} />
-                  <Circle cx={hovX} cy={hovY} r={3.5} fill={hCol} />
+                  <SvgLine x1={hovX} y1={PT} x2={hovX} y2={by}
+                    stroke={color} strokeWidth={1} strokeOpacity={0.3} />
+                  <Circle cx={hovX} cy={hovY} r={12} fill={color} fillOpacity={0.10} />
+                  <Circle cx={hovX} cy={hovY} r={4}  fill={color} />
                 </>
               )}
             </Svg>
+
+            {/* Floating date label below crosshair */}
+            {hovPt && hovX !== null && (
+              <View pointerEvents="none" style={{
+                position: "absolute", bottom: 4,
+                left: Math.min(Math.max(hovX - 40, 0), W - 90),
+              }}>
+                <Text style={{ fontSize: 9, fontWeight: "600", color: colors.textDim,
+                  backgroundColor: colors.bgRaised, borderRadius: 4, paddingHorizontal: 5, paddingVertical: 2 }}>
+                  {fmtChartDate(hovPt.date, true)}
+                </Text>
+              </View>
+            )}
           </View>
 
           {/* X-axis date labels */}
-          <View style={{ flexDirection: "row", justifyContent: "space-between", marginTop: 2, paddingHorizontal: PL + 2 }}>
-            {xIdxs.map((idx) => (
+          <View style={{ flexDirection: "row", justifyContent: "space-between", marginTop: 2, paddingHorizontal: 2 }}>
+            {xIdxs.map(idx => (
               <Text key={idx} style={{ fontSize: 9, fontWeight: "500", color: colors.textDim }}>
                 {fmtChartDate(history[idx].date)}
               </Text>
             ))}
-          </View>
-
-          {/* Legend */}
-          <View style={{ flexDirection: "row", gap: 14, marginTop: 8, paddingHorizontal: PL + 2 }}>
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
-              <View style={{ width: 18, height: 2.5, backgroundColor: color, borderRadius: 2 }} />
-              <Text style={{ fontSize: 9, color: colors.textDim }}>Portafolio</Text>
-            </View>
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
-              <View style={{ width: 14, borderBottomWidth: 1.5, borderColor: "#f59e0b", borderStyle: "dashed" }} />
-              <Text style={{ fontSize: 9, color: colors.textDim }}>Costo base</Text>
-            </View>
           </View>
         </View>
       )}
@@ -758,6 +720,7 @@ export default function PortfolioScreen() {
   type ChartData = { history: ChartPoint[]; period_pct: number; period_amount: number };
   const [chartData, setChartData] = useState<ChartData | null>(null);
   const [chartLoading, setChartLoading] = useState(false);
+  const [hovData, setHovData] = useState<ChartHovData | null>(null);
 
   // Manual add form
   const [showForm, setShowForm] = useState(false);
@@ -1602,14 +1565,25 @@ export default function PortfolioScreen() {
                     <View style={{ flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between" }}>
                       <View>
                         <Text style={{ fontSize: 9, fontWeight: "800", color: colors.textDim, letterSpacing: 1, textTransform: "uppercase", marginBottom: 4 }}>
-                          Rendimiento histórico
+                          {hovData ? "En esta fecha" : "Rendimiento histórico"}
                         </Text>
-                        {r?.date && (
+                        {hovData ? (
+                          <Text style={{ fontSize: 9, color: colors.textDim }}>{fmtChartDate(hovData.date, true)}</Text>
+                        ) : r?.date ? (
                           <Text style={{ fontSize: 9, color: colors.textDim }}>desde {r.date}</Text>
-                        )}
+                        ) : null}
                       </View>
                       <View style={{ alignItems: "flex-end" }}>
-                        {displayPct !== undefined ? (
+                        {hovData ? (
+                          <>
+                            <Text style={{ fontSize: 26, fontWeight: "900", color: hovData.isUp ? "#22c55e" : "#ef4444", lineHeight: 28 }}>
+                              {currencySymbol}{hovData.value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </Text>
+                            <Text style={{ fontSize: 13, fontWeight: "800", color: hovData.isUp ? "#22c55e" : "#ef4444", marginTop: 2 }}>
+                              {hovData.isUp ? "+" : ""}{hovData.chgP.toFixed(2)}%
+                            </Text>
+                          </>
+                        ) : displayPct !== undefined ? (
                           <>
                             <Text style={{ fontSize: 26, fontWeight: "900", color, lineHeight: 28 }}>
                               {up ? "+" : ""}{displayPct.toFixed(2)}%
@@ -1660,7 +1634,7 @@ export default function PortfolioScreen() {
                         history={chartData.history}
                         color={color}
                         currencySymbol={currencySymbol}
-                        positions={positions}
+                        onHoverChange={setHovData}
                       />
                     ) : !chartLoading ? (
                       <View style={{ height: 230, alignItems: "center", justifyContent: "center" }}>
