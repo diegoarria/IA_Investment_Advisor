@@ -450,15 +450,27 @@ export default function HomeScreen() {
         }).catch(() => {});
       }
     } catch {}
-    // Bidirectional maturity sync — always keep the highest score across devices
+    // Full sync from server: maturity + investment goal
     syncApi.getAll().then((res: any) => {
-      const serverScore: number = res.data?.maturity?.score ?? 0;
-      const serverHistory = res.data?.maturity?.history ?? [];
-      const { maturityScore: localScore, maturityHistory: localHistory } = useAppStore.getState();
+      const d = res.data;
+      // Maturity — bidirectional, keep highest
+      const serverScore: number = d?.maturity?.score ?? 0;
+      const serverHistory = d?.maturity?.history ?? [];
+      const { maturityScore: localScore, maturityHistory: localHistory, profile } = useAppStore.getState();
       if (serverScore > localScore) {
         useAppStore.setState({ maturityScore: serverScore, maturityHistory: serverHistory });
       } else if (localScore > serverScore) {
         syncApi.pushMaturity(localScore, localHistory).catch(() => {});
+      }
+      // Investment goal — server is always source of truth
+      if (profile && (d?.investment_goal !== undefined)) {
+        useAppStore.setState({
+          profile: {
+            ...profile,
+            investment_goal: d.investment_goal ?? profile.investment_goal,
+            investment_goal_amount: d.investment_goal_amount ?? profile.investment_goal_amount,
+          },
+        });
       }
     }).catch(() => {});
     setLoading(false);

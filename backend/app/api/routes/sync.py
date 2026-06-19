@@ -250,13 +250,13 @@ async def get_all(user_id: str = Depends(get_current_user_id)):
     try:
         profile_res = await run_query(
             db.table("user_profiles")
-            .select("maturity_score, maturity_history, trial_started_at, subscription_tier, nav_order, watchlist_order, theme, avatar_url, behavioral_risk_score, streak_count, last_learn_date")
+            .select("maturity_score, maturity_history, trial_started_at, subscription_tier, nav_order, watchlist_order, theme, avatar_url, behavioral_risk_score, streak_count, last_learn_date, investment_goal, investment_goal_amount")
             .eq("user_id", user_id)
         )
     except Exception:
         profile_res = await run_query(
             db.table("user_profiles")
-            .select("maturity_score, maturity_history, trial_started_at, subscription_tier, nav_order")
+            .select("maturity_score, maturity_history, trial_started_at, subscription_tier, nav_order, investment_goal, investment_goal_amount")
             .eq("user_id", user_id)
         )
     watchlist_res = await run_query(
@@ -310,6 +310,8 @@ async def get_all(user_id: str = Depends(get_current_user_id)):
         "theme":                profile_row.get("theme", "dark"),
         "avatar_url":           profile_row.get("avatar_url"),
         "behavioral_risk_score": profile_row.get("behavioral_risk_score"),
+        "investment_goal":        profile_row.get("investment_goal"),
+        "investment_goal_amount": profile_row.get("investment_goal_amount"),
         "streak": {
             "count":          profile_row.get("streak_count", 0) or 0,
             "last_learn_date": profile_row.get("last_learn_date"),
