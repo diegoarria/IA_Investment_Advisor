@@ -12,7 +12,7 @@ interface IndexData {
   change_pct: number;
 }
 
-type Period = "1d" | "5d" | "1m";
+type Period = "1d" | "5d" | "6m" | "ytd" | "1y" | "5y" | "max";
 
 interface Props {
   indices:     IndexData[];
@@ -22,9 +22,13 @@ interface Props {
 // ─── Constants ─────────────────────────────────────────────────────────────────
 const CW = 280, CH = 68;
 const PERIODS: { key: Period; label: string }[] = [
-  { key: "1d", label: "1D" },
-  { key: "5d", label: "5D" },
-  { key: "1m", label: "1M" },
+  { key: "1d",  label: "1D"  },
+  { key: "5d",  label: "5D"  },
+  { key: "6m",  label: "6M"  },
+  { key: "ytd", label: "YTD" },
+  { key: "1y",  label: "1A"  },
+  { key: "5y",  label: "5A"  },
+  { key: "max", label: "MÁX" },
 ];
 
 // ─── SVG helpers ───────────────────────────────────────────────────────────────
@@ -91,25 +95,30 @@ function SkeletonCard() {
   );
 }
 
+// Compute period return from a price array: (last - first) / first * 100
+function calcPeriodReturn(prices: number[]): number | null {
+  if (prices.length < 2 || prices[0] === 0) return null;
+  return ((prices[prices.length - 1] - prices[0]) / prices[0]) * 100;
+}
+
 // ─── Single index card ─────────────────────────────────────────────────────────
-function IndexCard({ idx, prices, loading, isBest }: {
+function IndexCard({ idx, prices, loading, isBest, period }: {
   idx:     IndexData;
   prices:  number[];
   loading: boolean;
   isBest:  boolean;
+  period:  Period;
 }) {
-  const up    = idx.change_pct >= 0;
+  const isHistorical = period !== "1d" && period !== "5d";
+  const periodReturn = isHistorical ? calcPeriodReturn(prices) : null;
+  const displayPct   = periodReturn ?? idx.change_pct;
+  const up    = displayPct >= 0;
   const col   = up ? "#22c55e" : "#ef4444";
   const gradId = `hmo-grad-${idx.symbol.replace(/[^a-z0-9]/gi, "")}`;
 
   return (
     <div className="flex-shrink-0 rounded-2xl border flex flex-col overflow-hidden transition-all hover:scale-[1.02]"
-         style={{
-           minWidth:    165,
-           background:  "var(--card)",
-           borderColor: `${col}30`,
-           position:    "relative",
-         }}>
+         style={{ minWidth: 165, background: "var(--card)", borderColor: `${col}30`, position: "relative" }}>
 
       {/* Best performer badge */}
       {isBest && (
@@ -121,25 +130,39 @@ function IndexCard({ idx, prices, loading, isBest }: {
 
       {/* Top section */}
       <div className="px-3 pt-3 pb-1.5">
-        <p className="text-[10px] font-bold uppercase tracking-widest mb-1.5"
-           style={{ color: "var(--muted)" }}>
+        <p className="text-[10px] font-bold uppercase tracking-widest mb-1.5" style={{ color: "var(--muted)" }}>
           {idx.name}
         </p>
         <p className="text-[17px] font-black leading-none tracking-tight"
            style={{ color: "var(--text)", fontVariantNumeric: "tabular-nums" }}>
           {idx.price != null ? fmtPrice(idx.price, idx.symbol) : "—"}
         </p>
+
+        {/* Period return or day change */}
         <div className="flex items-center gap-1.5 mt-1.5">
-          <span className="text-[11px] font-bold px-1.5 py-0.5 rounded-md"
+          <span className="text-[12px] font-black px-1.5 py-0.5 rounded-md"
                 style={{ background: `${col}15`, color: col }}>
-            {up ? "▲" : "▼"} {Math.abs(idx.change_pct).toFixed(2)}%
+            {up ? "▲" : "▼"} {Math.abs(displayPct).toFixed(2)}%
           </span>
-          {idx.change !== 0 && (
+          {isHistorical && periodReturn != null ? (
+            <span className="text-[9px] font-semibold" style={{ color: "var(--dim)" }}>
+              {PERIODS.find(p => p.key === period)?.label}
+            </span>
+          ) : idx.change !== 0 && (
             <span className="text-[10px]" style={{ color: "var(--dim)", fontVariantNumeric: "tabular-nums" }}>
               {fmtChange(idx.change)}
             </span>
           )}
         </div>
+
+        {/* Secondary: 1D change shown when viewing historical period */}
+        {isHistorical && (
+          <p className="text-[9px] mt-0.5" style={{ color: "var(--dim)" }}>
+            Hoy: <span style={{ color: idx.change_pct >= 0 ? "#22c55e" : "#ef4444" }}>
+              {idx.change_pct >= 0 ? "+" : ""}{idx.change_pct.toFixed(2)}%
+            </span>
+          </p>
+        )}
       </div>
 
       {/* Sparkline */}
@@ -147,8 +170,7 @@ function IndexCard({ idx, prices, loading, isBest }: {
         {loading && prices.length === 0 ? (
           <div className="w-full h-full animate-pulse" style={{ background: `${col}08` }} />
         ) : prices.length > 1 ? (
-          <svg viewBox={`0 0 ${CW} ${CH}`} style={{ width: "100%", height: 56 }}
-               preserveAspectRatio="none">
+          <svg viewBox={`0 0 ${CW} ${CH}`} style={{ width: "100%", height: 56 }} preserveAspectRatio="none">
             <defs>
               <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0%"   stopColor={col} stopOpacity="0.22" />
@@ -172,14 +194,7 @@ export default function HomeMarketOverview({ indices, lastRefresh }: Props) {
   const [period, setPeriod]         = useState<Period>("1d");
   const [charts, setCharts]         = useState<Record<string, number[]>>({});
   const [chartLoading, setLoading]  = useState(false);
-  const [now, setNow]               = useState(new Date());
   const cache = useRef<Record<string, Partial<Record<Period, number[]>>>>({});
-
-  // Live clock for "updated N seconds ago"
-  useEffect(() => {
-    const id = setInterval(() => setNow(new Date()), 1_000);
-    return () => clearInterval(id);
-  }, []);
 
   // Fetch charts when period changes or indices first arrive
   const fetchCharts = useCallback(async (p: Period, syms: string[]) => {
@@ -213,10 +228,15 @@ export default function HomeMarketOverview({ indices, lastRefresh }: Props) {
   }, [period, indices.length, fetchCharts]);
 
   // ── Derived values ───────────────────────────────────────────────────────────
+  const isHistorical = period !== "1d" && period !== "5d";
   const vixIdx  = indices.find(i => i.symbol === "^VIX");
   const nonVix  = indices.filter(i => i.symbol !== "^VIX");
   const best    = nonVix.length
-    ? nonVix.reduce((a, b) => b.change_pct > a.change_pct ? b : a, nonVix[0])
+    ? nonVix.reduce((a, b) => {
+        const ra = isHistorical ? (calcPeriodReturn(charts[a.symbol] ?? []) ?? a.change_pct) : a.change_pct;
+        const rb = isHistorical ? (calcPeriodReturn(charts[b.symbol] ?? []) ?? b.change_pct) : b.change_pct;
+        return rb > ra ? b : a;
+      }, nonVix[0])
     : null;
   const sentiment = vixSentiment(vixIdx?.price ?? null);
   const updLabel  = lastRefresh ? timeAgo(lastRefresh) : null;
@@ -273,6 +293,7 @@ export default function HomeMarketOverview({ indices, lastRefresh }: Props) {
             prices={charts[idx.symbol] ?? []}
             loading={chartLoading}
             isBest={best?.symbol === idx.symbol}
+            period={period}
           />
         ))}
       </div>

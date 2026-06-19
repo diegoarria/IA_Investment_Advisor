@@ -69,10 +69,25 @@ function relTime(ts: number): string {
   return d === 1 ? "Ayer" : `Hace ${d}d`;
 }
 
+const IDX_PERIODS: { key: string; label: string }[] = [
+  { key: "1d",  label: "1D"  },
+  { key: "5d",  label: "5D"  },
+  { key: "6m",  label: "6M"  },
+  { key: "ytd", label: "YTD" },
+  { key: "1y",  label: "1A"  },
+  { key: "5y",  label: "5A"  },
+  { key: "max", label: "MÁX" },
+];
+
+function calcReturn(prices: number[]): number | null {
+  if (prices.length < 2 || prices[0] === 0) return null;
+  return ((prices[prices.length - 1] - prices[0]) / prices[0]) * 100;
+}
+
 function IndexDetailModal({ idx, chartPrices, onClose, colors }: {
   idx: IdxData; chartPrices: number[]; onClose: () => void; colors: any;
 }) {
-  const [period, setPeriod] = useState<"1d"|"5d"|"1m">("1d");
+  const [period, setPeriod] = useState("1d");
   const [periodPrices, setPeriodPrices] = useState(chartPrices);
   const [periodLoading, setPeriodLoading] = useState(false);
   const [news, setNews]     = useState<NewsItem[]>([]);
@@ -80,14 +95,13 @@ function IndexDetailModal({ idx, chartPrices, onClose, colors }: {
   const priceCache = useRef<Record<string, number[]>>({ "1d": chartPrices });
 
   useEffect(() => {
-    // Fetch news
     marketApi.getIndexNews(idx.symbol)
       .then((res: any) => setNews((res.data ?? []).slice(0, 3)))
       .catch(() => {})
       .finally(() => setNewsLoading(false));
   }, [idx.symbol]);
 
-  const loadPeriod = async (p: "1d"|"5d"|"1m") => {
+  const loadPeriod = async (p: string) => {
     setPeriod(p);
     if (priceCache.current[p]) { setPeriodPrices(priceCache.current[p]); return; }
     setPeriodLoading(true);
@@ -100,7 +114,10 @@ function IndexDetailModal({ idx, chartPrices, onClose, colors }: {
     setPeriodLoading(false);
   };
 
-  const up   = idx.change_pct >= 0;
+  const isHistorical = period !== "1d" && period !== "5d";
+  const periodReturn  = isHistorical ? calcReturn(periodPrices) : null;
+  const displayPct    = periodReturn ?? idx.change_pct;
+  const up   = displayPct >= 0;
   const col  = up ? "#22c55e" : "#ef4444";
   const CHDIMS = { w: W - 80, h: 140 };
 
@@ -127,11 +144,24 @@ function IndexDetailModal({ idx, chartPrices, onClose, colors }: {
                     : "—"}
                 </Text>
                 <View style={[idxMStyles.changePill, { backgroundColor: col + "18" }]}>
-                  <Text style={{ fontSize: 12, fontWeight: "700", color: col }}>
-                    {up ? "▲" : "▼"} {Math.abs(idx.change_pct).toFixed(2)}%
+                  <Text style={{ fontSize: 13, fontWeight: "800", color: col }}>
+                    {up ? "▲" : "▼"} {Math.abs(displayPct).toFixed(2)}%
                   </Text>
                 </View>
+                {isHistorical && (
+                  <Text style={{ fontSize: 10, color: colors.textDim, fontWeight: "600" }}>
+                    {IDX_PERIODS.find(p => p.key === period)?.label}
+                  </Text>
+                )}
               </View>
+              {isHistorical && (
+                <Text style={{ fontSize: 11, color: colors.textDim, marginTop: 3 }}>
+                  Hoy:{" "}
+                  <Text style={{ color: idx.change_pct >= 0 ? "#22c55e" : "#ef4444", fontWeight: "700" }}>
+                    {idx.change_pct >= 0 ? "+" : ""}{idx.change_pct.toFixed(2)}%
+                  </Text>
+                </Text>
+              )}
             </View>
             <TouchableOpacity onPress={onClose} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
               <Ionicons name="close" size={22} color={colors.textMuted} />
@@ -139,17 +169,19 @@ function IndexDetailModal({ idx, chartPrices, onClose, colors }: {
           </View>
 
           {/* Period selector */}
-          <View style={idxMStyles.periods}>
-            {(["1d","5d","1m"] as const).map((p) => (
-              <TouchableOpacity key={p} onPress={() => loadPeriod(p)}
-                                style={[idxMStyles.periodBtn, period === p && { backgroundColor: col + "20" }]}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}
+                      contentContainerStyle={idxMStyles.periods}>
+            {IDX_PERIODS.map(({ key, label }) => (
+              <TouchableOpacity key={key} onPress={() => loadPeriod(key)}
+                                style={[idxMStyles.periodBtn,
+                                        period === key && { backgroundColor: col + "22", borderColor: col + "60" }]}>
                 <Text style={{ fontSize: 11, fontWeight: "700",
-                               color: period === p ? col : colors.textMuted }}>
-                  {p === "1d" ? "1D" : p === "5d" ? "5D" : "1M"}
+                               color: period === key ? col : colors.textMuted }}>
+                  {label}
                 </Text>
               </TouchableOpacity>
             ))}
-          </View>
+          </ScrollView>
 
           {/* Chart */}
           <View style={{ alignItems: "center", paddingVertical: 8, paddingHorizontal: 20 }}>
@@ -694,7 +726,7 @@ export default function HomeScreen() {
                 </Text>
                 {updLabel && (
                   <View style={{ paddingHorizontal: 7, paddingVertical: 2, borderRadius: 10,
-                                 backgroundColor: colors.raised ?? colors.card }}>
+                                 backgroundColor: colors.bgRaised ?? colors.card }}>
                     <Text style={{ fontSize: 9, color: colors.textDim, fontWeight: "600" }}>
                       {updLabel === "Ahora" ? "Ahora" : `Hace ${updLabel}`}
                     </Text>
