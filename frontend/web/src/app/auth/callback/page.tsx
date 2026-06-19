@@ -12,17 +12,34 @@ export default function AuthCallback() {
   const { setProfile } = useProfileStore();
 
   useEffect(() => {
-    const code = new URLSearchParams(window.location.search).get("code");
-    if (!code) { router.push("/"); return; }
+    async function handleCallback() {
+      const supabase = getSupabaseClient();
 
-    getSupabaseClient().auth.exchangeCodeForSession(window.location.href).then(async ({ data, error }: { data: any; error: any }) => {
-      if (error || !data.session) { router.push("/"); return; }
+      // First try: Supabase may have already exchanged the code automatically
+      const { data: { session: existingSession } } = await supabase.auth.getSession();
+      if (existingSession) {
+        await saveAndRedirect(existingSession);
+        return;
+      }
 
-      const { access_token, refresh_token, user } = data.session;
-      localStorage.setItem("access_token", access_token);
-      if (refresh_token) localStorage.setItem("refresh_token", refresh_token);
-      setAuth(access_token, user.id);
+      // Second try: manual exchange using just the code param
+      const code = new URLSearchParams(window.location.search).get("code");
+      if (!code) { router.push("/"); return; }
 
+      const { data, error } = await supabase.auth.exchangeCodeForSession(code);
+      if (error || !data.session) {
+        console.error("OAuth callback error:", error);
+        router.push("/");
+        return;
+      }
+
+      await saveAndRedirect(data.session);
+    }
+
+    async function saveAndRedirect(session: any) {
+      localStorage.setItem("access_token", session.access_token);
+      if (session.refresh_token) localStorage.setItem("refresh_token", session.refresh_token);
+      setAuth(session.access_token, session.user.id);
       try {
         const p = await profileApi.get();
         setProfile(p.data);
@@ -30,7 +47,9 @@ export default function AuthCallback() {
       } catch {
         window.location.href = "/onboarding";
       }
-    });
+    }
+
+    handleCallback();
   }, []);
 
   return (
