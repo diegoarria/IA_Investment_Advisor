@@ -85,6 +85,9 @@ async def scan_and_notify_all_users():
         except Exception:
             pass
 
+        # Custom price alerts (user-defined targets)
+        await check_custom_price_alerts(user_id)
+
         # Market move alerts: only for stocks the user actually holds
         if portfolio_tickers:
             await check_portfolio_alerts(user_id, portfolio_tickers, profile)
@@ -159,6 +162,71 @@ async def check_portfolio_alerts(user_id: str, tickers: list[str], profile: User
                 title=f"{emoji} {move['symbol']} {direction} {abs(move['change_pct'])}%",
                 message=msg,
                 data=move,
+            )
+    except Exception:
+        pass
+
+
+async def check_custom_price_alerts(user_id: str):
+    """Check user-defined price alerts and fire notifications when targets are hit."""
+    try:
+        import yfinance as yf
+        import asyncio, concurrent.futures
+        from datetime import timezone
+
+        db = get_supabase()
+        alerts_res = await run_query(
+            db.table("price_alerts")
+            .select("*")
+            .eq("user_id", user_id)
+            .is_("triggered_at", "null")
+        )
+        alerts = alerts_res.data or []
+        if not alerts:
+            return
+
+        tickers = list({a["ticker"] for a in alerts})
+
+        def fetch_prices():
+            prices = {}
+            for t in tickers[:20]:
+                try:
+                    hist = yf.Ticker(t).history(period="1d")
+                    if len(hist):
+                        prices[t] = float(hist["Close"].iloc[-1])
+                except Exception:
+                    pass
+            return prices
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=4) as ex:
+            loop = asyncio.get_event_loop()
+            prices = await loop.run_in_executor(ex, fetch_prices)
+
+        now = datetime.now(timezone.utc).isoformat()
+        for alert in alerts:
+            ticker = alert["ticker"]
+            price = prices.get(ticker)
+            if price is None:
+                continue
+            target = float(alert["target_price"])
+            condition = alert["condition"]
+            triggered = (condition == "above" and price >= target) or (condition == "below" and price <= target)
+            if not triggered:
+                continue
+
+            direction = "superó" if condition == "above" else "cayó por debajo de"
+            emoji = "🚀" if condition == "above" else "📉"
+            await create_notification(
+                user_id=user_id,
+                notification_type="price_alert",
+                title=f"{emoji} Alerta: {ticker} {direction} ${target}",
+                message=f"{ticker} cotiza ahora en ${price:.2f}. Tu alerta de precio {'por encima' if condition == 'above' else 'por debajo'} de ${target} se ha activado.",
+                data={"ticker": ticker, "price": price, "target": target, "condition": condition},
+            )
+            await run_query(
+                db.table("price_alerts")
+                .update({"triggered_at": now})
+                .eq("id", alert["id"])
             )
     except Exception:
         pass

@@ -341,8 +341,9 @@ export default function HomeScreen() {
   const [indexCharts, setIndexCharts]     = useState<Record<string, number[]>>({});
   const [selectedIdx, setSelectedIdx]     = useState<IdxData | null>(null);
   const [idxRefresh,  setIdxRefresh]      = useState<Date | null>(null);
-  const [unread,     setUnread]    = useState(0);
-  const [topNotifs,  setTopNotifs] = useState<any[]>([]);
+  const [unread,      setUnread]     = useState(0);
+  const [totalNotifs, setTotalNotifs] = useState(0);
+  const [topNotifs,   setTopNotifs]  = useState<any[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [loading,    setLoading]   = useState(true);
   const [ytdGain,    setYtdGain]   = useState<number | null>(null);
@@ -416,6 +417,7 @@ export default function HomeScreen() {
         const d = notifRes.value.data;
         setUnread(d?.unread_count ?? 0);
         const items: any[] = d?.notifications ?? d?.items ?? [];
+        setTotalNotifs(items.length);
         setTopNotifs(items.slice(0, 2));
       }
       if (idxRes.status === "fulfilled") {
@@ -711,9 +713,10 @@ export default function HomeScreen() {
           )}
 
           {!positions.length && !loading && (
-            <View style={[ss.emptyPortfolio, { borderColor: colors.border }]}>
-              <Text style={[ss.emptyPortfolioText, { color: colors.textMuted }]}>
-                Empieza agregando acciones:
+            <View style={[ss.emptyPortfolio, { borderColor: colors.border, gap: 10 }]}>
+              <Text style={{ fontSize: 14, fontWeight: "800", color: colors.text }}>Agrega tu primera acción</Text>
+              <Text style={{ fontSize: 12, color: colors.textMuted, lineHeight: 17 }}>
+                Registra tus posiciones y Nuvos te dará análisis IA, alertas de precio y seguimiento en tiempo real.
               </Text>
               <View style={ss.popularRow}>
                 {["AAPL", "NVDA", "MSFT", "TSLA", "GOOGL"].map((t) => (
@@ -726,6 +729,13 @@ export default function HomeScreen() {
                   </TouchableOpacity>
                 ))}
               </View>
+              <TouchableOpacity
+                onPress={() => router.navigate("/(tabs)/portfolio")}
+                activeOpacity={0.8}
+                style={{ backgroundColor: colors.accent, borderRadius: 12, paddingVertical: 11, alignItems: "center" }}
+              >
+                <Text style={{ fontSize: 13, fontWeight: "800", color: "#fff" }}>+ Agregar posición →</Text>
+              </TouchableOpacity>
             </View>
           )}
 
@@ -781,7 +791,7 @@ export default function HomeScreen() {
             <Ionicons name="notifications-outline" size={16} color={unread > 0 ? "#ef4444" : colors.textSub} />
             <View>
               <Text style={{ fontSize: 13, fontWeight: "800", color: unread > 0 ? "#ef4444" : colors.text }}>
-                {unread > 0 ? `${unread} nuevas` : "Sin alertas"}
+                {unread > 0 ? `${unread} nuevas` : totalNotifs > 0 ? `${totalNotifs} alertas` : "Sin alertas"}
               </Text>
               <Text style={{ fontSize: 10, color: colors.textMuted }}>Alertas</Text>
             </View>

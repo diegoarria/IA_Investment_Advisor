@@ -9,11 +9,14 @@ import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import * as SecureStore from "expo-secure-store";
 import * as LocalAuthentication from "expo-local-authentication";
+import * as WebBrowser from "expo-web-browser";
+import * as Linking from "expo-linking";
 import Constants, { ExecutionEnvironment } from "expo-constants";
 
 // Face ID no funciona en Expo Go — requiere build nativo
 const IS_EXPO_GO = Constants.executionEnvironment === ExecutionEnvironment.StoreClient;
 import { authApi, profileApi, syncApi, referralApi } from "../src/lib/api";
+import { supabase } from "../src/lib/supabase";
 import { useTheme, Colors } from "../src/lib/ThemeContext";
 import { useAppStore } from "../src/lib/profileStore";
 import type { UserProfile } from "../src/lib/profileStore";
@@ -288,6 +291,31 @@ export default function AuthScreen() {
         ? detail.map((d: any) => d.msg ?? String(d)).join(", ")
         : typeof detail === "string" ? detail : null;
       Alert.alert("Error", msg || (mode === "login" ? "Credenciales inválidas" : "No se pudo crear la cuenta"));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleGoogleSignIn = async () => {
+    setLoading(true);
+    try {
+      const redirectUrl = Linking.createURL("/auth/callback");
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: { redirectTo: redirectUrl, skipBrowserRedirect: true },
+      });
+      if (error || !data.url) throw error ?? new Error("No OAuth URL");
+
+      const result = await WebBrowser.openAuthSessionAsync(data.url, redirectUrl);
+      if (result.type !== "success") return;
+
+      const { data: sessionData, error: sessionError } = await supabase.auth.exchangeCodeForSession(result.url);
+      if (sessionError || !sessionData.session) throw sessionError ?? new Error("No session");
+
+      const { access_token, refresh_token, user } = sessionData.session;
+      await afterAuth(access_token, refresh_token ?? "", user.id);
+    } catch {
+      Alert.alert("Error", "No se pudo iniciar sesión con Google. Inténtalo de nuevo.");
     } finally {
       setLoading(false);
     }
@@ -615,7 +643,28 @@ export default function AuthScreen() {
               )}
             </TouchableOpacity>
 
-            <TouchableOpacity onPress={() => setMode(mode === "login" ? "register" : "login")}>
+            {/* Divider */}
+            <View style={styles.divider}>
+              <View style={styles.dividerLine} />
+              <Text style={styles.dividerText}>o</Text>
+              <View style={styles.dividerLine} />
+            </View>
+
+            {/* Google sign-in */}
+            <TouchableOpacity
+              style={[styles.socialBtn, loading && styles.buttonDisabled]}
+              onPress={handleGoogleSignIn}
+              disabled={loading}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.googleG}>G</Text>
+              <Text style={styles.socialBtnText}>Continuar con Google</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={() => setMode(mode === "login" ? "register" : "login")}
+              style={{ marginTop: 16 }}
+            >
               <Text style={styles.switchText}>
                 {mode === "login" ? "¿No tienes cuenta? " : "¿Ya tienes cuenta? "}
                 <Text style={styles.switchLink}>

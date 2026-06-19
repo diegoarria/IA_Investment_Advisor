@@ -5,9 +5,9 @@ import { useRouter } from "next/navigation";
 import Image from "next/image";
 import {
   Eye, X, RefreshCw, Search, Menu, LogOut,
-  TrendingUp, TrendingDown, Lock, Plus, GripVertical,
+  TrendingUp, TrendingDown, Lock, Plus, GripVertical, Bell, BellOff,
 } from "lucide-react";
-import { watchlist as watchlistApi, market as marketApi, sync as syncApi } from "@/lib/api";
+import { watchlist as watchlistApi, market as marketApi, sync as syncApi, priceAlerts as priceAlertsApi } from "@/lib/api";
 import { useAuthStore, useSubscriptionStore, useProfileStore } from "@/lib/store";
 import { getUserLevel } from "@/lib/userLevel";
 import { usePortfolioStore } from "@/lib/portfolioStore";
@@ -171,6 +171,8 @@ interface StockCardProps {
   item: WatchlistItem;
   onDelete: (ticker: string) => void;
   onSelect: (ticker: string) => void;
+  onAlert: (ticker: string, price: number | null) => void;
+  hasAlert?: boolean;
   draggable?: boolean;
   isDragging?: boolean;
   isDragOver?: boolean;
@@ -180,7 +182,7 @@ interface StockCardProps {
   onDragEnd?: () => void;
 }
 
-function StockCard({ item, onDelete, onSelect, draggable: isDraggable, isDragging, isDragOver, onDragStart, onDragOver, onDrop, onDragEnd }: StockCardProps) {
+function StockCard({ item, onDelete, onSelect, onAlert, hasAlert, draggable: isDraggable, isDragging, isDragOver: _isDragOver, onDragStart, onDragOver, onDrop, onDragEnd }: StockCardProps) {
   const isUp = item.change_pct >= 0;
   const borderColor = isUp ? "rgba(34,197,94,0.5)" : "rgba(239,68,68,0.5)";
   const priceColor = isUp ? "#22c55e" : "#ef4444";
@@ -293,8 +295,16 @@ function StockCard({ item, onDelete, onSelect, draggable: isDraggable, isDraggin
         )}
       </div>
 
-      {/* Delete button */}
-      <div className="shrink-0" onClick={(e) => e.stopPropagation()}>
+      {/* Alert + Delete buttons */}
+      <div className="shrink-0 flex items-center gap-0.5" onClick={(e) => e.stopPropagation()}>
+        <button
+          onClick={() => onAlert(item.ticker, item.price)}
+          className="w-6 h-6 rounded flex items-center justify-center transition-opacity"
+          style={{ color: hasAlert ? "var(--accent-l)" : "var(--muted)", opacity: hasAlert ? 1 : 0.35 }}
+          title={hasAlert ? "Editar alerta de precio" : "Crear alerta de precio"}
+        >
+          {hasAlert ? <Bell className="w-3.5 h-3.5" /> : <BellOff className="w-3.5 h-3.5" />}
+        </button>
         <button
           onClick={() => onDelete(item.ticker)}
           className="w-6 h-6 rounded flex items-center justify-center opacity-30 hover:opacity-80 transition-opacity"
@@ -357,6 +367,49 @@ export default function WatchlistPage() {
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
 
   const [toast, setToast] = useState<string | null>(null);
+
+  // ── Price Alerts ────────────────────────────────────────────────────────
+  type PriceAlert = { ticker: string; target_price: number; condition: string };
+  const [alerts, setAlerts] = useState<Record<string, PriceAlert>>({});
+  const [alertModal, setAlertModal] = useState<{ ticker: string; currentPrice: number | null } | null>(null);
+  const [alertPrice, setAlertPrice] = useState("");
+  const [alertCondition, setAlertCondition] = useState<"above" | "below">("below");
+  const [savingAlert, setSavingAlert] = useState(false);
+
+  useEffect(() => {
+    priceAlertsApi.list().then((r) => {
+      const map: Record<string, PriceAlert> = {};
+      for (const a of r.data ?? []) map[a.ticker] = a;
+      setAlerts(map);
+    }).catch(() => {});
+  }, []);
+
+  const openAlertModal = (ticker: string, currentPrice: number | null) => {
+    const existing = alerts[ticker];
+    setAlertPrice(existing ? String(existing.target_price) : "");
+    setAlertCondition(existing?.condition === "above" ? "above" : "below");
+    setAlertModal({ ticker, currentPrice });
+  };
+
+  const saveAlert = async () => {
+    if (!alertModal || !alertPrice || isNaN(Number(alertPrice))) return;
+    setSavingAlert(true);
+    try {
+      const res = await priceAlertsApi.create(alertModal.ticker, Number(alertPrice), alertCondition);
+      setAlerts((prev) => ({ ...prev, [alertModal.ticker]: res.data }));
+      showToast(`Alerta creada para ${alertModal.ticker}`);
+      setAlertModal(null);
+    } catch { showToast("Error al guardar alerta"); }
+    finally { setSavingAlert(false); }
+  };
+
+  const deleteAlert = async (ticker: string) => {
+    await priceAlertsApi.remove(ticker).catch(() => {});
+    setAlerts((prev) => { const n = { ...prev }; delete n[ticker]; return n; });
+    showToast(`Alerta eliminada`);
+    setAlertModal(null);
+  };
+
   const [viewMode, setViewMode] = useState<"basic" | "advanced">(() => {
     if (typeof window === "undefined") return "basic";
     return (localStorage.getItem("nuvos_watchlist_view") as "basic" | "advanced") ?? "basic";
@@ -754,6 +807,8 @@ export default function WatchlistPage() {
                       item={item}
                       onDelete={handleConfirmDelete}
                       onSelect={setSelectedStock}
+                      onAlert={openAlertModal}
+                      hasAlert={!!alerts[item.ticker]}
                       draggable
                       isDragging={dragIndex === index}
                       isDragOver={dragOverIndex === index}
@@ -793,6 +848,67 @@ export default function WatchlistPage() {
 
       {/* ── Paywall Modal ── */}
       <PaywallModal visible={paywallOpen} onClose={() => setPaywallOpen(false)} />
+
+      {/* ── Price Alert Modal ── */}
+      {alertModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.6)" }}
+             onClick={() => setAlertModal(null)}>
+          <div className="w-full max-w-sm rounded-2xl p-5 flex flex-col gap-4"
+               style={{ background: "var(--card)", border: "1px solid var(--border)" }}
+               onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide mb-0.5" style={{ color: "var(--muted)" }}>Alerta de precio</p>
+                <p className="text-base font-black" style={{ color: "var(--text)" }}>{alertModal.ticker}</p>
+              </div>
+              <button onClick={() => setAlertModal(null)} className="p-1.5 rounded-lg" style={{ color: "var(--muted)" }}>
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {alertModal.currentPrice != null && (
+              <p className="text-xs" style={{ color: "var(--muted)" }}>
+                Precio actual: <span className="font-bold" style={{ color: "var(--text)" }}>${alertModal.currentPrice.toFixed(2)}</span>
+              </p>
+            )}
+
+            <div className="flex rounded-xl overflow-hidden border" style={{ borderColor: "var(--border)" }}>
+              {(["below", "above"] as const).map((c) => (
+                <button key={c} onClick={() => setAlertCondition(c)}
+                        className="flex-1 py-2 text-sm font-bold transition-colors"
+                        style={{ background: alertCondition === c ? "var(--accent)" : "var(--raised)", color: alertCondition === c ? "#fff" : "var(--muted)" }}>
+                  {c === "below" ? "Por debajo de" : "Por encima de"}
+                </button>
+              ))}
+            </div>
+
+            <input
+              type="number"
+              placeholder="Precio objetivo (ej. 180.00)"
+              value={alertPrice}
+              onChange={(e) => setAlertPrice(e.target.value)}
+              className="w-full px-4 py-3 rounded-xl text-sm font-semibold outline-none"
+              style={{ background: "var(--raised)", color: "var(--text)", border: "1px solid var(--border)" }}
+              onKeyDown={(e) => e.key === "Enter" && saveAlert()}
+            />
+
+            <div className="flex gap-2">
+              {alerts[alertModal.ticker] && (
+                <button onClick={() => deleteAlert(alertModal.ticker)}
+                        className="flex-1 py-2.5 rounded-xl text-sm font-bold border transition-colors"
+                        style={{ borderColor: "#ef4444", color: "#ef4444", background: "transparent" }}>
+                  Eliminar alerta
+                </button>
+              )}
+              <button onClick={saveAlert} disabled={savingAlert || !alertPrice}
+                      className="flex-1 py-2.5 rounded-xl text-sm font-bold transition-colors"
+                      style={{ background: "var(--accent)", color: "#fff", opacity: (!alertPrice || savingAlert) ? 0.5 : 1 }}>
+                {savingAlert ? "Guardando…" : "Guardar alerta"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Toast ── */}
       {toast && (

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   View, Text, TextInput, TouchableOpacity,
-  StyleSheet, ActivityIndicator, ScrollView, Alert,
+  StyleSheet, ActivityIndicator, ScrollView, Alert, Modal,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
@@ -9,7 +9,7 @@ import { useTheme } from "../../src/lib/ThemeContext";
 import { useWatchlistStore } from "../../src/lib/watchlistStore";
 import { useSubscriptionStore, hasPremiumAccess } from "../../src/lib/subscriptionStore";
 import { usePortfolioStore } from "../../src/lib/portfolioStore";
-import { marketApi, watchlistExtApi, feedApi } from "../../src/lib/api";
+import { marketApi, watchlistExtApi, feedApi, priceAlertsApi } from "../../src/lib/api";
 import { Image } from "react-native";
 import StockAvatar from "../../src/components/StockAvatar";
 import PaywallModal from "../../src/components/PaywallModal";
@@ -97,9 +97,11 @@ interface RowProps {
   onRemove: (ticker: string) => void;
   onMoveUp: (index: number) => void;
   onMoveDown: (index: number) => void;
+  onAlert: (ticker: string, currentPrice: number | null) => void;
+  hasAlert?: boolean;
 }
 
-function WatchlistRow({ item, index, itemCount, prices, colors, editMode, onRemove, onMoveUp, onMoveDown }: RowProps) {
+function WatchlistRow({ item, index, itemCount, prices, colors, editMode, onRemove, onMoveUp, onMoveDown, onAlert, hasAlert }: RowProps) {
   const p = prices[item.ticker] as ExtPrice | undefined;
   const dayUp  = (p?.change_pct ?? 0) >= 0;
   const dayCol = dayUp ? "#22c55e" : "#ef4444";
@@ -201,13 +203,26 @@ function WatchlistRow({ item, index, itemCount, prices, colors, editMode, onRemo
       </TouchableOpacity>
 
       {!editMode && (
-        <TouchableOpacity
-          onPress={() => onRemove(item.ticker)}
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-          style={{ paddingHorizontal: 10 }}
-        >
-          <Ionicons name="close-outline" size={18} color={colors.textDim} />
-        </TouchableOpacity>
+        <View style={{ flexDirection: "row", alignItems: "center" }}>
+          <TouchableOpacity
+            onPress={() => onAlert(item.ticker, prices[item.ticker]?.price ?? null)}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            style={{ paddingHorizontal: 8 }}
+          >
+            <Ionicons
+              name={hasAlert ? "notifications" : "notifications-outline"}
+              size={17}
+              color={hasAlert ? colors.accentLight : colors.textDim}
+            />
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => onRemove(item.ticker)}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            style={{ paddingHorizontal: 8 }}
+          >
+            <Ionicons name="close-outline" size={18} color={colors.textDim} />
+          </TouchableOpacity>
+        </View>
       )}
     </View>
   );
@@ -260,6 +275,45 @@ export default function WatchlistScreen() {
 
   const [clips, setClips]           = useState<any[]>([]);
   const [clipsLoading, setClipsLoading] = useState(false);
+
+  type PriceAlert = { ticker: string; target_price: number; condition: string };
+  const [alerts, setAlerts]             = useState<Record<string, PriceAlert>>({});
+  const [alertModal, setAlertModal]     = useState<{ ticker: string; currentPrice: number | null } | null>(null);
+  const [alertPrice, setAlertPrice]     = useState("");
+  const [alertCondition, setAlertCondition] = useState<"above" | "below">("below");
+  const [savingAlert, setSavingAlert]   = useState(false);
+
+  useEffect(() => {
+    priceAlertsApi.list().then((r: any) => {
+      const map: Record<string, PriceAlert> = {};
+      for (const a of r.data ?? []) map[a.ticker] = a;
+      setAlerts(map);
+    }).catch(() => {});
+  }, []);
+
+  const openAlertModal = (ticker: string, currentPrice: number | null) => {
+    const existing = alerts[ticker];
+    setAlertPrice(existing ? String(existing.target_price) : "");
+    setAlertCondition(existing?.condition === "above" ? "above" : "below");
+    setAlertModal({ ticker, currentPrice });
+  };
+
+  const saveAlert = async () => {
+    if (!alertModal || !alertPrice || isNaN(Number(alertPrice))) return;
+    setSavingAlert(true);
+    try {
+      const res = await priceAlertsApi.create(alertModal.ticker, Number(alertPrice), alertCondition);
+      setAlerts((prev) => ({ ...prev, [alertModal.ticker]: res.data }));
+      setAlertModal(null);
+    } catch { /* ignore */ }
+    finally { setSavingAlert(false); }
+  };
+
+  const deleteAlert = async (ticker: string) => {
+    await priceAlertsApi.remove(ticker).catch(() => {});
+    setAlerts((prev) => { const n = { ...prev }; delete n[ticker]; return n; });
+    setAlertModal(null);
+  };
 
   const loadClips = useCallback(async () => {
     if (clips.length) return;
@@ -530,6 +584,8 @@ export default function WatchlistScreen() {
                 onRemove={remove}
                 onMoveUp={handleMoveUp}
                 onMoveDown={handleMoveDown}
+                onAlert={openAlertModal}
+                hasAlert={!!alerts[item.ticker]}
               />
             ))}
           </View>
@@ -600,6 +656,64 @@ export default function WatchlistScreen() {
       )}
 
       <PaywallModal visible={paywallOpen} onClose={() => setPaywallOpen(false)} />
+
+      {/* ── Price Alert Modal ── */}
+      <Modal visible={!!alertModal} transparent animationType="fade" onRequestClose={() => setAlertModal(null)}>
+        <TouchableOpacity style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "center", alignItems: "center", padding: 24 }}
+          activeOpacity={1} onPress={() => setAlertModal(null)}>
+          <TouchableOpacity activeOpacity={1} onPress={() => {}}
+            style={{ width: "100%", borderRadius: 20, padding: 20, gap: 16, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border }}>
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+              <View>
+                <Text style={{ fontSize: 10, fontWeight: "600", color: colors.textMuted, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 2 }}>Alerta de precio</Text>
+                <Text style={{ fontSize: 18, fontWeight: "900", color: colors.text }}>{alertModal?.ticker}</Text>
+              </View>
+              <TouchableOpacity onPress={() => setAlertModal(null)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                <Ionicons name="close" size={20} color={colors.textMuted} />
+              </TouchableOpacity>
+            </View>
+
+            {alertModal?.currentPrice != null && (
+              <Text style={{ fontSize: 12, color: colors.textMuted }}>
+                Precio actual: <Text style={{ fontWeight: "700", color: colors.text }}>${alertModal.currentPrice.toFixed(2)}</Text>
+              </Text>
+            )}
+
+            <View style={{ flexDirection: "row", borderRadius: 12, overflow: "hidden", borderWidth: 1, borderColor: colors.border }}>
+              {(["below", "above"] as const).map((c) => (
+                <TouchableOpacity key={c} onPress={() => setAlertCondition(c)} activeOpacity={0.8}
+                  style={{ flex: 1, paddingVertical: 10, alignItems: "center", backgroundColor: alertCondition === c ? colors.accent : colors.bgRaised }}>
+                  <Text style={{ fontSize: 12, fontWeight: "700", color: alertCondition === c ? "#fff" : colors.textMuted }}>
+                    {c === "below" ? "Por debajo" : "Por encima"}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <TextInput
+              placeholder="Precio objetivo (ej. 180.00)"
+              placeholderTextColor={colors.textMuted}
+              keyboardType="numeric"
+              value={alertPrice}
+              onChangeText={setAlertPrice}
+              style={{ backgroundColor: colors.bgRaised, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 12, fontSize: 15, fontWeight: "600", color: colors.text, borderWidth: 1, borderColor: colors.border }}
+            />
+
+            <View style={{ flexDirection: "row", gap: 10 }}>
+              {alertModal && alerts[alertModal.ticker] && (
+                <TouchableOpacity onPress={() => deleteAlert(alertModal.ticker)} activeOpacity={0.8}
+                  style={{ flex: 1, paddingVertical: 13, borderRadius: 14, alignItems: "center", borderWidth: 1, borderColor: "#ef4444" }}>
+                  <Text style={{ fontSize: 14, fontWeight: "700", color: "#ef4444" }}>Eliminar</Text>
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity onPress={saveAlert} activeOpacity={0.8} disabled={savingAlert || !alertPrice}
+                style={{ flex: 1, paddingVertical: 13, borderRadius: 14, alignItems: "center", backgroundColor: colors.accent, opacity: (!alertPrice || savingAlert) ? 0.5 : 1 }}>
+                <Text style={{ fontSize: 14, fontWeight: "700", color: "#fff" }}>{savingAlert ? "Guardando…" : "Guardar alerta"}</Text>
+              </TouchableOpacity>
+            </View>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
     </View>
   );
 }

@@ -26,7 +26,7 @@ import BrokerConnectModal from "@/components/BrokerConnectModal";
 import {
   PieChart, Menu, X, Upload, Plus, Trash2,
   BarChart, Calculator, Shield, Sparkles, RefreshCw, AlertTriangle, FileText, Pencil, Eye,
-  Cloud, CloudOff, Check, BarChart2, TrendingUp, TrendingDown, GraduationCap, CheckSquare, Bell, Users,
+  Cloud, CloudOff, Check, BarChart2, TrendingUp, TrendingDown, GraduationCap, CheckSquare, Bell, Users, Share2,
 } from "lucide-react";
 
 // ─── Stress Test data ──────────────────────────────────────────────────────
@@ -1137,6 +1137,22 @@ export default function PortfolioPage() {
                     style={{ borderColor: "var(--border)", background: "var(--raised)", color: "var(--sub)" }}
                     title="Actualizar precios">
               <RefreshCw className="w-4 h-4" />
+            </button>
+            <button
+              title="Compartir portafolio"
+              className="w-9 h-9 flex items-center justify-center rounded-xl border transition-colors hover:border-[var(--accent)]"
+              style={{ borderColor: "var(--border)", background: "var(--raised)", color: "var(--sub)" }}
+              onClick={() => {
+                const sign = totals.pct >= 0 ? "+" : "";
+                const text = `Mi portafolio en Nuvos AI: ${currencySymbol}${totals.current.toLocaleString("en-US", { maximumFractionDigits: 0 })} (${sign}${totals.pct.toFixed(1)}%) 📈\n\nAnalizo mis inversiones con IA. Pruébalo en nuvosai.com`;
+                if (navigator.share) {
+                  navigator.share({ title: "Mi portafolio – Nuvos AI", text });
+                } else {
+                  navigator.clipboard.writeText(text);
+                  alert("¡Texto copiado al portapapeles!");
+                }
+              }}>
+              <Share2 className="w-4 h-4" />
             </button>
           </div>
         </div>

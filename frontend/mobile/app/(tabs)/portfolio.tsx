@@ -4,7 +4,7 @@ import { useFocusEffect, router } from "expo-router";
 import {
   View, Text, TouchableOpacity, TextInput, ScrollView,
   StyleSheet, ActivityIndicator, SafeAreaView, Alert,
-  RefreshControl, Image, Modal,
+  RefreshControl, Image, Modal, Share,
   AppState, AppStateStatus, PanResponder,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
@@ -1487,13 +1487,25 @@ export default function PortfolioScreen() {
                     <>
                       <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
                         <Text style={[s.totalsLabel, { color: colors.textMuted }]}>Valor actual del portafolio</Text>
-                        <TouchableOpacity
-                          onPress={() => setShowCurrencyPicker(true)}
-                          style={{ flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: colors.bgRaised, borderRadius: 10, paddingHorizontal: 8, paddingVertical: 4, borderWidth: 1, borderColor: colors.border }}
-                          activeOpacity={0.7}>
-                          <Text style={{ fontSize: 11, fontWeight: "800", color: colors.text }}>{portfolioCurrency}</Text>
-                          <Ionicons name="chevron-down" size={10} color={colors.textDim} />
-                        </TouchableOpacity>
+                        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                          <TouchableOpacity
+                            onPress={() => {
+                              const sign = totals.pct >= 0 ? "+" : "";
+                              Share.share({
+                                message: `Mi portafolio en Nuvos AI: ${currencySymbol}${totals.current.toLocaleString("en-US", { maximumFractionDigits: 0 })} (${sign}${totals.pct.toFixed(1)}%) 📈\n\nAnalizo mis inversiones con IA. Pruébalo en nuvosai.com`,
+                              });
+                            }}
+                            activeOpacity={0.7}>
+                            <Ionicons name="share-social-outline" size={17} color={colors.textMuted} />
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            onPress={() => setShowCurrencyPicker(true)}
+                            style={{ flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: colors.bgRaised, borderRadius: 10, paddingHorizontal: 8, paddingVertical: 4, borderWidth: 1, borderColor: colors.border }}
+                            activeOpacity={0.7}>
+                            <Text style={{ fontSize: 11, fontWeight: "800", color: colors.text }}>{portfolioCurrency}</Text>
+                            <Ionicons name="chevron-down" size={10} color={colors.textDim} />
+                          </TouchableOpacity>
+                        </View>
                       </View>
                       <View style={{ flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 12 }}>
                         <Text style={[s.totalsValue, { color: colors.text }]}>

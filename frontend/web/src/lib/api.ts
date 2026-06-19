@@ -310,6 +310,13 @@ export const watchlist = {
   remove: (ticker: string) => api.delete(`/api/watchlist/${encodeURIComponent(ticker)}`),
 };
 
+export const priceAlerts = {
+  list: () => api.get("/api/price-alerts"),
+  create: (ticker: string, targetPrice: number, condition: "above" | "below", name?: string) =>
+    api.post("/api/price-alerts", { ticker, target_price: targetPrice, condition, name }),
+  remove: (ticker: string) => api.delete(`/api/price-alerts/${encodeURIComponent(ticker)}`),
+};
+
 export const feedApi = {
   getClips: (params: { cursor?: number; speaker?: string; tag?: string; sort?: string }) =>
     api.get("/api/feed/clips", { params }),

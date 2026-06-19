@@ -92,8 +92,9 @@ export default function HomePage() {
   const [prices, setPrices]       = useState<Record<string, any>>({});
   const [indices, setIndices]     = useState<any[]>([]);
   const [news, setNews]           = useState<any[]>([]);
-  const [unread, setUnread]       = useState(0);
-  const [topNotifs, setTopNotifs] = useState<any[]>([]);
+  const [unread,     setUnread]    = useState(0);
+  const [totalNotifs, setTotalNotifs] = useState(0);
+  const [topNotifs,  setTopNotifs] = useState<any[]>([]);
   const [loading, setLoading]       = useState(true);
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
   const [ytdGain, setYtdGain]     = useState<number | null>(null);
@@ -128,6 +129,7 @@ export default function HomePage() {
         const d = notifRes.value.data;
         setUnread(d?.unread_count ?? 0);
         const items: any[] = d?.notifications ?? d?.items ?? [];
+        setTotalNotifs(items.length);
         setTopNotifs(items.slice(0, 2));
       }
 
@@ -426,7 +428,7 @@ export default function HomePage() {
                 <div className="text-left min-w-0">
                   <p className="text-sm font-black leading-none"
                      style={{ color: unread > 0 ? "#ef4444" : "var(--text)" }}>
-                    {unread > 0 ? `${unread} nuevas` : "Sin alertas"}
+                    {unread > 0 ? `${unread} nuevas` : totalNotifs > 0 ? `${totalNotifs} alertas` : "Sin alertas"}
                   </p>
                   <p className="text-[10px] mt-0.5" style={{ color: "var(--muted)" }}>Notificaciones</p>
                 </div>
@@ -523,16 +525,25 @@ export default function HomePage() {
                 )}
 
                 {!loading && !positions.length && (
-                  <div className="mt-3 pt-3 border-t border-dashed" style={{ borderColor: "var(--border)" }}>
-                    <p className="text-xs mb-2" style={{ color: "var(--muted)" }}>Empieza agregando acciones:</p>
-                    <div className="flex flex-wrap gap-2">
+                  <div className="mt-4 pt-4 border-t border-dashed" style={{ borderColor: "var(--border)" }}>
+                    <p className="text-sm font-black mb-1" style={{ color: "var(--text)" }}>Agrega tu primera acción</p>
+                    <p className="text-xs mb-3 leading-relaxed" style={{ color: "var(--muted)" }}>
+                      Registra tus posiciones y Nuvos te dará análisis IA, alertas de precio y seguimiento en tiempo real.
+                    </p>
+                    <div className="flex flex-wrap gap-1.5 mb-3">
                       {["AAPL", "NVDA", "MSFT", "TSLA", "GOOGL"].map((t) => (
-                        <span key={t} className="text-xs font-bold px-2.5 py-1 rounded-lg border"
-                              style={{ borderColor: "var(--border)", color: "var(--accent-l)", background: "var(--raised)" }}>
+                        <button key={t} onClick={() => router.push("/portfolio")}
+                                className="text-xs font-bold px-2.5 py-1 rounded-lg border transition-colors hover:border-[var(--accent)]"
+                                style={{ borderColor: "var(--border)", color: "var(--accent-l)", background: "var(--raised)" }}>
                           {t}
-                        </span>
+                        </button>
                       ))}
                     </div>
+                    <button onClick={() => router.push("/portfolio")}
+                            className="w-full py-2 rounded-xl text-xs font-bold transition-colors"
+                            style={{ background: "var(--accent)", color: "#fff" }}>
+                      + Agregar posición →
+                    </button>
                   </div>
                 )}
 

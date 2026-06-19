@@ -324,6 +324,13 @@ export const watchlistServerApi = {
   remove:  (ticker: string) => api.delete(`/api/watchlist/${ticker}`),
 };
 
+export const priceAlertsApi = {
+  list:   () => api.get("/api/price-alerts"),
+  create: (ticker: string, targetPrice: number, condition: "above" | "below", name?: string) =>
+    api.post("/api/price-alerts", { ticker, target_price: targetPrice, condition, name }),
+  remove: (ticker: string) => api.delete(`/api/price-alerts/${ticker}`),
+};
+
 export const decisionsApi = {
   log: (decision: Record<string, unknown>) => api.post("/api/decisions/log", decision),
   getAll: (limit = 50) => api.get("/api/decisions", { params: { limit } }),
