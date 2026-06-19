@@ -12,31 +12,12 @@ export default function AuthCallback() {
   const { setProfile } = useProfileStore();
 
   useEffect(() => {
-    async function handleCallback() {
-      const supabase = getSupabaseClient();
-
-      // First try: Supabase may have already exchanged the code automatically
-      const { data: { session: existingSession } } = await supabase.auth.getSession();
-      if (existingSession) {
-        await saveAndRedirect(existingSession);
-        return;
-      }
-
-      // Second try: manual exchange using just the code param
-      const code = new URLSearchParams(window.location.search).get("code");
-      if (!code) { router.push("/"); return; }
-
-      const { data, error } = await supabase.auth.exchangeCodeForSession(code);
-      if (error || !data.session) {
-        console.error("OAuth callback error:", error);
-        router.push("/");
-        return;
-      }
-
-      await saveAndRedirect(data.session);
-    }
+    const supabase = getSupabaseClient();
+    let done = false;
 
     async function saveAndRedirect(session: any) {
+      if (done) return;
+      done = true;
       localStorage.setItem("access_token", session.access_token);
       if (session.refresh_token) localStorage.setItem("refresh_token", session.refresh_token);
       setAuth(session.access_token, session.user.id);
@@ -49,7 +30,36 @@ export default function AuthCallback() {
       }
     }
 
-    handleCallback();
+    // Primary: Supabase auto-detects the code in the URL and fires SIGNED_IN.
+    // This handles PKCE exchange without us calling exchangeCodeForSession manually
+    // (calling it manually can conflict with the auto-exchange and cause "code reuse" errors).
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === "SIGNED_IN" && session) {
+        subscription.unsubscribe();
+        saveAndRedirect(session);
+      }
+    });
+
+    // Secondary: in case the session was already set before this component mounted
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session && !done) {
+        subscription.unsubscribe();
+        saveAndRedirect(session);
+      }
+    });
+
+    // Safety timeout: if Supabase never fires (bad code, expired, etc.) send to login
+    const timeout = setTimeout(() => {
+      if (!done) {
+        subscription.unsubscribe();
+        router.push("/");
+      }
+    }, 8000);
+
+    return () => {
+      clearTimeout(timeout);
+      subscription.unsubscribe();
+    };
   }, []);
 
   return (
