@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { auth, profile as profileApi, referral as referralApi } from "@/lib/api";
-import { supabase } from "@/lib/supabase";
+import { getSupabaseClient } from "@/lib/supabase";
 import { useAuthStore, useProfileStore, useChatStore } from "@/lib/store";
 import { Eye, EyeOff, ArrowRight, TrendingUp, Shield, Brain, Bell, User } from "lucide-react";
 
@@ -146,7 +146,7 @@ export default function Home() {
   const handleGoogleSignIn = async () => {
     setLoading(true); setError("");
     try {
-      const { error } = await supabase.auth.signInWithOAuth({
+      const { error } = await getSupabaseClient().auth.signInWithOAuth({
         provider: "google",
         options: { redirectTo: `${window.location.origin}/auth/callback` },
       });

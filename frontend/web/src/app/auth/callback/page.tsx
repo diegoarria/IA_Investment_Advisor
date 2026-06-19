@@ -2,7 +2,7 @@
 export const dynamic = "force-dynamic";
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { supabase } from "@/lib/supabase";
+import { getSupabaseClient } from "@/lib/supabase";
 import { useAuthStore, useProfileStore } from "@/lib/store";
 import { profile as profileApi } from "@/lib/api";
 
@@ -15,7 +15,7 @@ export default function AuthCallback() {
     const code = new URLSearchParams(window.location.search).get("code");
     if (!code) { router.push("/"); return; }
 
-    supabase.auth.exchangeCodeForSession(window.location.href).then(async ({ data, error }) => {
+    getSupabaseClient().auth.exchangeCodeForSession(window.location.href).then(async ({ data, error }: { data: any; error: any }) => {
       if (error || !data.session) { router.push("/"); return; }
 
       const { access_token, refresh_token, user } = data.session;
