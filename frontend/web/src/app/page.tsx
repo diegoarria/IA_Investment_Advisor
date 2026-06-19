@@ -150,9 +150,9 @@ export default function Home() {
         provider: "google",
         options: { redirectTo: `${window.location.origin}/auth/callback` },
       });
-      if (error) setError("No se pudo iniciar sesión con Google. Inténtalo de nuevo.");
-    } catch {
-      setError("No se pudo iniciar sesión con Google. Inténtalo de nuevo.");
+      if (error) setError(`Google error: ${error.message}`);
+    } catch (e: any) {
+      setError(`Error: ${e?.message ?? "desconocido"}`);
       setLoading(false);
     }
   };
