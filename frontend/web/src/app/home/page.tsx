@@ -10,7 +10,7 @@ import AppSidebar from "@/components/AppSidebar";
 import MarketTickerBar from "@/components/MarketTickerBar";
 import HomeMarketOverview from "@/components/HomeMarketOverview";
 import StockAvatar from "@/components/StockAvatar";
-import { market as marketApi, notifications as notifApi, profile as profileApi } from "@/lib/api";
+import { market as marketApi, notifications as notifApi, profile as profileApi, sync as syncApi } from "@/lib/api";
 import { useAuthStore, useProfileStore, useLearnStore, useSubscriptionStore } from "@/lib/store";
 import { usePortfolioStore } from "@/lib/portfolioStore";
 
@@ -152,7 +152,16 @@ export default function HomePage() {
     setLoading(false);
   }, [positions]);
 
-  useEffect(() => { loadData(); }, [loadData]);
+  useEffect(() => {
+    loadData();
+    syncApi.getAll().then((res) => {
+      const s: number = res.data?.maturity?.score ?? 0;
+      const h = res.data?.maturity?.history ?? [];
+      if (s > useProfileStore.getState().maturityScore) {
+        useProfileStore.setState({ maturityScore: s, maturityHistory: h });
+      }
+    }).catch(() => {});
+  }, [loadData]);
 
   const openGoalModal = () => {
     setGoalDraft(profile?.investment_goal ?? "");

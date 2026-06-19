@@ -10,7 +10,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { router, useFocusEffect } from "expo-router";
 import { useTheme } from "../../src/lib/ThemeContext";
 import { useAppStore } from "../../src/lib/profileStore";
-import { profileApi } from "../../src/lib/api";
+import { profileApi, syncApi } from "../../src/lib/api";
 import { usePortfolioStore } from "../../src/lib/portfolioStore";
 import { useLearnStore } from "../../src/lib/learnStore";
 import { useSubscriptionStore } from "../../src/lib/subscriptionStore";
@@ -450,6 +450,14 @@ export default function HomeScreen() {
         }).catch(() => {});
       }
     } catch {}
+    // Sync maturity from server (take highest score across devices)
+    syncApi.getAll().then((res: any) => {
+      const s: number = res.data?.maturity?.score ?? 0;
+      const h = res.data?.maturity?.history ?? [];
+      if (s > useAppStore.getState().maturityScore) {
+        useAppStore.setState({ maturityScore: s, maturityHistory: h });
+      }
+    }).catch(() => {});
     setLoading(false);
     setRefreshing(false);
   }, [positions]);
