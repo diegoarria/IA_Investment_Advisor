@@ -268,7 +268,7 @@ async def speak_text(
 
 @router.get("/history")
 async def get_history(
-    limit: int = 100,
+    limit: int = 500,
     since: str | None = None,
     user_id: str = Depends(get_current_user_id)
 ):

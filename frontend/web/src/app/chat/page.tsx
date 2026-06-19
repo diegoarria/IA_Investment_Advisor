@@ -167,7 +167,7 @@ export default function ChatPage() {
   const { hasSeenTutorial, openTutorial } = useTutorialStore();
   const { isAuthenticated, clearAuth } = useAuthStore();
   const { profile, updateMaturity, updateBehavioralRisk } = useProfileStore();
-  const { messages, isStreaming, addMessage, appendToLastAssistant, setStreaming, startAssistantMessage, removeLastMessage, setMessages, sessions, currentId, createSession, clearMessages, syncSessionMessages } = useChatStore();
+  const { messages, isStreaming, addMessage, appendToLastAssistant, setStreaming, startAssistantMessage, removeLastMessage, setMessages, sessions, currentId, createSession, clearMessages, syncSessionMessages, loadFromServer } = useChatStore();
   const { notifications, setNotifications, markRead } = useNotificationStore();
   const { theme, toggleTheme } = useThemeStore();
   const subStore = useSubscriptionStore();
@@ -406,24 +406,19 @@ export default function ChatPage() {
   useEffect(() => {
     if (!hasSeenTutorial) setTimeout(() => openTutorial(), 800);
 
-    if (sessions.length === 0) {
-      createSession();
+    // Load all sessions from server (grouped by session_id) then set polling cursor
+    loadFromServer().finally(() => {
       chatApi.getHistory()
         .then((res) => {
-          const msgs: { role: string; content: string; created_at?: string }[] = res.data.messages ?? [];
-          setMessages(msgs.map((m) => ({ role: m.role as "user" | "assistant", content: m.content })));
+          const msgs: { created_at?: string }[] = res.data?.messages ?? [];
           syncCursorRef.current = msgs[msgs.length - 1]?.created_at ?? new Date().toISOString();
+          if (useChatStore.getState().sessions.length === 0) createSession();
         })
-        .catch(() => { syncCursorRef.current = new Date().toISOString(); });
-    } else {
-      // Already have local sessions — still set cursor so polling works
-      chatApi.getHistory()
-        .then((res) => {
-          const msgs: { created_at?: string }[] = res.data.messages ?? [];
-          syncCursorRef.current = msgs[msgs.length - 1]?.created_at ?? new Date().toISOString();
-        })
-        .catch(() => { syncCursorRef.current = new Date().toISOString(); });
-    }
+        .catch(() => {
+          syncCursorRef.current = new Date().toISOString();
+          if (useChatStore.getState().sessions.length === 0) createSession();
+        });
+    });
 
     notifApi.getAll()
       .then((res) => setNotifications(res.data.notifications, res.data.unread_count))

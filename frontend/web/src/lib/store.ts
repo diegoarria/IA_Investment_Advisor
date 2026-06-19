@@ -352,23 +352,51 @@ export const useChatStore = create<ChatState>()(
 
       loadFromServer: (): Promise<void> => {
         const run = async () => {
-          if (get().sessions.length > 0) return;
           const { chat } = await import("./api");
           const res = await chat.getHistory();
-          const raw: ChatMessage[] = res.data?.messages ?? [];
-          const msgs = [...raw].reverse();
-          if (msgs.length === 0) return;
-          const id = makeSessionId();
+          const raw: { role: string; content: string; created_at?: string; session_id?: string | null }[] =
+            res.data?.messages ?? [];
+          if (raw.length === 0) return;
+
+          // Group by session_id — each unique id becomes a separate chat session
+          const sessionMap = new Map<string, typeof raw>();
+          for (const msg of raw) {
+            const sid = (msg.session_id as string) ?? "legacy";
+            if (!sessionMap.has(sid)) sessionMap.set(sid, []);
+            sessionMap.get(sid)!.push(msg);
+          }
+
+          const serverSessions: ChatSession[] = [...sessionMap.entries()]
+            .map(([sid, msgs]) => {
+              const chatMsgs: ChatMessage[] = msgs.map((m) => ({
+                role: m.role as "user" | "assistant",
+                content: m.content,
+              }));
+              return {
+                id: sid,
+                title: makeSessionTitle(chatMsgs),
+                messages: chatMsgs,
+                createdAt: new Date(msgs[0].created_at ?? 0).getTime() || Date.now(),
+                updatedAt: new Date(msgs[msgs.length - 1].created_at ?? 0).getTime() || Date.now(),
+              };
+            })
+            .sort((a, b) => b.updatedAt - a.updatedAt);
+
+          // Keep local sessions that have messages but are not yet on server (unsent)
+          const serverIds = new Set(serverSessions.map((s) => s.id));
+          const localOnly = get().sessions.filter((s) => !serverIds.has(s.id) && s.messages.length > 0);
+          const merged = [...localOnly, ...serverSessions].sort((a, b) => b.updatedAt - a.updatedAt);
+
+          const { currentId } = get();
+          const validCurrentId =
+            currentId && merged.find((s) => s.id === currentId)
+              ? currentId
+              : merged[0]?.id ?? null;
+
           set({
-            sessions: [{
-              id,
-              title: makeSessionTitle(msgs),
-              messages: msgs,
-              createdAt: Date.now(),
-              updatedAt: Date.now(),
-            }],
-            currentId: id,
-            messages: msgs,
+            sessions: merged,
+            currentId: validCurrentId,
+            messages: merged.find((s) => s.id === validCurrentId)?.messages ?? [],
           });
         };
         return run().catch(() => {});
