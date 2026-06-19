@@ -10,7 +10,7 @@ import AppSidebar from "@/components/AppSidebar";
 import MarketTickerBar from "@/components/MarketTickerBar";
 import HomeMarketOverview from "@/components/HomeMarketOverview";
 import StockAvatar from "@/components/StockAvatar";
-import { market as marketApi, notifications as notifApi } from "@/lib/api";
+import { market as marketApi, notifications as notifApi, profile as profileApi } from "@/lib/api";
 import { useAuthStore, useProfileStore, useLearnStore, useSubscriptionStore } from "@/lib/store";
 import { usePortfolioStore } from "@/lib/portfolioStore";
 
@@ -83,7 +83,7 @@ const DAILY_LESSONS = [
 export default function HomePage() {
   const router = useRouter();
   const { isAuthenticated } = useAuthStore();
-  const { profile } = useProfileStore();
+  const { profile, setProfile } = useProfileStore();
   const { positions, portfolioCurrency } = usePortfolioStore();
   const streak = useLearnStore((s) => s.streak);
   useSubscriptionStore();
@@ -99,6 +99,12 @@ export default function HomePage() {
   const [ytdGain, setYtdGain]     = useState<number | null>(null);
   const [ytdPct,  setYtdPct]      = useState<number | null>(null);
   const marketOpen = useMemo(() => isNYSEOpen(), []);
+
+  // Goal modal
+  const [showGoalModal, setShowGoalModal] = useState(false);
+  const [goalDraft,     setGoalDraft]     = useState("");
+  const [goalAmtDraft,  setGoalAmtDraft]  = useState("");
+  const [savingGoal,    setSavingGoal]    = useState(false);
 
   const sym = CURRENCY_SYM[portfolioCurrency] ?? "$";
   const dailyLesson = DAILY_LESSONS[new Date().getDay() % DAILY_LESSONS.length];
@@ -144,6 +150,26 @@ export default function HomePage() {
   }, [positions]);
 
   useEffect(() => { loadData(); }, [loadData]);
+
+  const openGoalModal = () => {
+    setGoalDraft(profile?.investment_goal ?? "");
+    setGoalAmtDraft(profile?.investment_goal_amount ?? "");
+    setShowGoalModal(true);
+  };
+
+  const saveGoal = async () => {
+    if (!goalDraft) return;
+    setSavingGoal(true);
+    try {
+      const res = await profileApi.update({
+        investment_goal: goalDraft,
+        investment_goal_amount: goalAmtDraft || null,
+      });
+      setProfile(res.data);
+      setShowGoalModal(false);
+    } catch {}
+    setSavingGoal(false);
+  };
 
   // Refresh prices + indices every 30s (no news/notifs to avoid hammering API)
   useEffect(() => {
@@ -213,9 +239,89 @@ export default function HomePage() {
 
   const firstName = profile?.name?.split(" ")[0] ?? "Inversor";
 
+  const GOAL_OPTIONS = [
+    { key: "house",             label: "Comprar una casa",         emoji: "🏠" },
+    { key: "car",               label: "Comprar un carro",         emoji: "🚗" },
+    { key: "passive_income",    label: "Vivir de inversiones",     emoji: "💸" },
+    { key: "retirement",        label: "Retiro / pensión",         emoji: "👴" },
+    { key: "financial_freedom", label: "Libertad financiera",      emoji: "🦅" },
+    { key: "long_term_wealth",  label: "Patrimonio a largo plazo", emoji: "🏛️" },
+  ];
+
   return (
     <div className="flex h-screen overflow-hidden" style={{ background: "var(--bg)" }}>
       <AppSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+
+      {/* ── Goal Modal ── */}
+      {showGoalModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
+             style={{ background: "rgba(0,0,0,0.55)" }}
+             onClick={() => setShowGoalModal(false)}>
+          <div className="w-full max-w-sm rounded-2xl p-6 shadow-2xl"
+               style={{ background: "var(--card)", border: "1px solid var(--border)" }}
+               onClick={e => e.stopPropagation()}>
+
+            <h3 className="text-base font-black mb-1" style={{ color: "var(--text)" }}>
+              🎯 Tu meta financiera
+            </h3>
+            <p className="text-xs mb-4" style={{ color: "var(--muted)" }}>
+              ¿Cuál es tu objetivo de inversión?
+            </p>
+
+            {/* Goal options grid */}
+            <div className="grid grid-cols-2 gap-2 mb-4">
+              {GOAL_OPTIONS.map(g => (
+                <button key={g.key}
+                        onClick={() => setGoalDraft(g.key)}
+                        className="flex items-center gap-2 px-3 py-2.5 rounded-xl border text-left transition-all"
+                        style={{
+                          background: goalDraft === g.key ? "rgba(0,212,126,0.10)" : "var(--raised)",
+                          borderColor: goalDraft === g.key ? "rgba(0,212,126,0.50)" : "var(--border)",
+                        }}>
+                  <span className="text-lg leading-none shrink-0">{g.emoji}</span>
+                  <span className="text-[11px] font-semibold leading-tight" style={{ color: goalDraft === g.key ? "var(--accent)" : "var(--sub)" }}>
+                    {g.label}
+                  </span>
+                </button>
+              ))}
+            </div>
+
+            {/* Amount input */}
+            <div className="mb-5">
+              <label className="text-[10px] font-bold uppercase tracking-wider mb-1.5 block" style={{ color: "var(--muted)" }}>
+                Patrimonio objetivo (opcional)
+              </label>
+              <div className="flex items-center gap-2 px-3 py-2 rounded-xl border"
+                   style={{ background: "var(--raised)", borderColor: "var(--border)" }}>
+                <span className="font-bold text-sm" style={{ color: "var(--dim)" }}>$</span>
+                <input
+                  type="number"
+                  placeholder="100,000"
+                  value={goalAmtDraft}
+                  onChange={e => setGoalAmtDraft(e.target.value)}
+                  className="flex-1 bg-transparent text-sm font-semibold outline-none"
+                  style={{ color: "var(--text)" }}
+                />
+                <span className="text-[10px]" style={{ color: "var(--dim)" }}>USD</span>
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div className="flex gap-2">
+              <button onClick={() => setShowGoalModal(false)}
+                      className="flex-1 py-2.5 rounded-xl text-sm font-bold border transition-all"
+                      style={{ borderColor: "var(--border)", color: "var(--sub)" }}>
+                Cancelar
+              </button>
+              <button onClick={saveGoal} disabled={!goalDraft || savingGoal}
+                      className="flex-1 py-2.5 rounded-xl text-sm font-black transition-all disabled:opacity-40"
+                      style={{ background: "var(--accent)", color: "#000" }}>
+                {savingGoal ? "Guardando…" : "Guardar"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="flex-1 flex flex-col overflow-hidden">
         <MarketTickerBar />
@@ -293,7 +399,7 @@ export default function HomePage() {
               </button>
 
               {/* Meta */}
-              <button onClick={() => router.push("/profile")}
+              <button onClick={openGoalModal}
                       className="flex items-center gap-2.5 px-4 py-3 rounded-xl border transition-all hover:border-[var(--accent)]"
                       style={{ background: "var(--card)", borderColor: goalInfo ? "rgba(0,212,126,0.25)" : "var(--border)" }}>
                 {goalInfo
@@ -438,7 +544,7 @@ export default function HomePage() {
               <div className="flex flex-col gap-3">
 
                 {/* 🎯 Meta */}
-                <button onClick={() => router.push("/profile")}
+                <button onClick={openGoalModal}
                         className="flex-1 flex items-center gap-3 px-4 py-4 rounded-xl border transition-all hover:border-[var(--accent)] text-left"
                         style={{ background: "var(--card)", borderColor: goalInfo ? "rgba(0,212,126,0.25)" : "var(--border)" }}>
                   <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"

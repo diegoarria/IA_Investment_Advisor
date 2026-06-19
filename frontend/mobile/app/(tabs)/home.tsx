@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback, useRef } from "react";
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
   Image, RefreshControl, Animated, Dimensions,
-  Modal, Pressable, ActivityIndicator, Linking,
+  Modal, Pressable, ActivityIndicator, Linking, TextInput,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Svg, { Path, Defs, LinearGradient, Stop } from "react-native-svg";
@@ -10,6 +10,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { router, useFocusEffect } from "expo-router";
 import { useTheme } from "../../src/lib/ThemeContext";
 import { useAppStore } from "../../src/lib/profileStore";
+import { profileApi } from "../../src/lib/api";
 import { usePortfolioStore } from "../../src/lib/portfolioStore";
 import { useLearnStore } from "../../src/lib/learnStore";
 import { useSubscriptionStore } from "../../src/lib/subscriptionStore";
@@ -326,8 +327,9 @@ function ActionChip({ icon, label, onPress, accent = false, colors }: any) {
 
 export default function HomeScreen() {
   const { colors } = useTheme();
-  const profile  = useAppStore((s) => s.profile);
-  const maturity = useAppStore((s) => s.maturityScore);
+  const profile    = useAppStore((s) => s.profile);
+  const setProfile = useAppStore((s) => s.setProfile);
+  const maturity   = useAppStore((s) => s.maturityScore);
   const streak   = useLearnStore((s) => s.streak);
   const { positions, portfolioCurrency } = usePortfolioStore();
   const subStore = useSubscriptionStore();
@@ -345,6 +347,10 @@ export default function HomeScreen() {
   const [loading,    setLoading]   = useState(true);
   const [ytdGain,    setYtdGain]   = useState<number | null>(null);
   const [ytdPct,     setYtdPct]    = useState<number | null>(null);
+  const [showGoalModal, setShowGoalModal] = useState(false);
+  const [goalDraft,     setGoalDraft]     = useState("");
+  const [goalAmtDraft,  setGoalAmtDraft]  = useState("");
+  const [savingGoal,    setSavingGoal]    = useState(false);
 
   const DAILY_LESSONS = [
     { emoji: "🥧", title: "Diversificación" },
@@ -464,6 +470,32 @@ export default function HomeScreen() {
 
   const onRefresh = () => { setRefreshing(true); loadData(); };
 
+  const GOAL_OPTIONS = [
+    { key: "house",             label: "Comprar una casa",         emoji: "🏠" },
+    { key: "car",               label: "Comprar un carro",         emoji: "🚗" },
+    { key: "passive_income",    label: "Vivir de inversiones",     emoji: "💸" },
+    { key: "retirement",        label: "Retiro / pensión",         emoji: "👴" },
+    { key: "financial_freedom", label: "Libertad financiera",      emoji: "🦅" },
+    { key: "long_term_wealth",  label: "Patrimonio a largo plazo", emoji: "🏛️" },
+  ];
+
+  const openGoalModal = () => {
+    setGoalDraft(profile?.investment_goal ?? "");
+    setGoalAmtDraft((profile as any)?.investment_goal_amount ?? "");
+    setShowGoalModal(true);
+  };
+
+  const saveGoal = async () => {
+    if (!goalDraft) return;
+    setSavingGoal(true);
+    try {
+      const res = await profileApi.update({ investment_goal: goalDraft, investment_goal_amount: goalAmtDraft || null });
+      if (res?.data) setProfile(res.data);
+      setShowGoalModal(false);
+    } catch {}
+    setSavingGoal(false);
+  };
+
   const greeting = () => {
     const h = new Date().getHours();
     if (h < 12) return "Buenos días";
@@ -488,6 +520,64 @@ export default function HomeScreen() {
 
   return (
     <SafeAreaView style={[ss.root, { backgroundColor: colors.bg }]} edges={["top"]}>
+
+      {/* ── Goal Modal ───────────────────────────────────────────────────────── */}
+      <Modal visible={showGoalModal} transparent animationType="fade" onRequestClose={() => setShowGoalModal(false)}>
+        <Pressable style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.55)", justifyContent: "center", alignItems: "center", padding: 20 }}
+                   onPress={() => setShowGoalModal(false)}>
+          <Pressable onPress={e => e.stopPropagation()}
+                     style={{ width: "100%", maxWidth: 400, backgroundColor: colors.card, borderRadius: 20, padding: 22, borderWidth: 1, borderColor: colors.border }}>
+            <Text style={{ fontSize: 16, fontWeight: "900", color: colors.text, marginBottom: 4 }}>🎯 Tu meta financiera</Text>
+            <Text style={{ fontSize: 12, color: colors.textMuted, marginBottom: 16 }}>¿Cuál es tu objetivo de inversión?</Text>
+
+            {/* Goal options grid */}
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>
+              {GOAL_OPTIONS.map(g => (
+                <TouchableOpacity key={g.key} onPress={() => setGoalDraft(g.key)} activeOpacity={0.7}
+                  style={{ width: "47%", flexDirection: "row", alignItems: "center", gap: 8, padding: 10, borderRadius: 12,
+                    backgroundColor: goalDraft === g.key ? "rgba(0,212,126,0.10)" : colors.bgRaised,
+                    borderWidth: 1, borderColor: goalDraft === g.key ? "rgba(0,212,126,0.50)" : colors.border }}>
+                  <Text style={{ fontSize: 20 }}>{g.emoji}</Text>
+                  <Text style={{ fontSize: 11, fontWeight: "600", color: goalDraft === g.key ? "#00d47e" : colors.textSub, flex: 1 }} numberOfLines={2}>{g.label}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            {/* Amount input */}
+            <Text style={{ fontSize: 10, fontWeight: "700", color: colors.textMuted, letterSpacing: 0.8, textTransform: "uppercase", marginBottom: 6 }}>
+              Patrimonio objetivo (opcional)
+            </Text>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: colors.bgRaised, borderRadius: 12,
+              borderWidth: 1, borderColor: colors.border, paddingHorizontal: 12, paddingVertical: 10, marginBottom: 18 }}>
+              <Text style={{ fontSize: 14, fontWeight: "700", color: colors.textDim }}>$</Text>
+              <TextInput
+                value={goalAmtDraft}
+                onChangeText={setGoalAmtDraft}
+                placeholder="100,000"
+                placeholderTextColor={colors.textDim}
+                keyboardType="numeric"
+                style={{ flex: 1, fontSize: 14, fontWeight: "600", color: colors.text }}
+              />
+              <Text style={{ fontSize: 12, color: colors.textDim }}>USD</Text>
+            </View>
+
+            {/* Actions */}
+            <View style={{ flexDirection: "row", gap: 10 }}>
+              <TouchableOpacity onPress={() => setShowGoalModal(false)} activeOpacity={0.7}
+                style={{ flex: 1, paddingVertical: 12, borderRadius: 12, borderWidth: 1, borderColor: colors.border, alignItems: "center" }}>
+                <Text style={{ fontSize: 14, fontWeight: "700", color: colors.textSub }}>Cancelar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={saveGoal} disabled={!goalDraft || savingGoal} activeOpacity={0.7}
+                style={{ flex: 1, paddingVertical: 12, borderRadius: 12, backgroundColor: goalDraft ? "#00d47e" : colors.border, alignItems: "center" }}>
+                <Text style={{ fontSize: 14, fontWeight: "900", color: goalDraft ? "#000" : colors.textDim }}>
+                  {savingGoal ? "Guardando…" : "Guardar"}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
       {/* ── Header ─────────────────────────────────────────────────────────── */}
       <View style={[ss.header, { backgroundColor: colors.bg, borderBottomColor: colors.border }]}>
         <View>
@@ -674,11 +764,11 @@ export default function HomeScreen() {
           </TouchableOpacity>
 
           <TouchableOpacity activeOpacity={0.8}
-            onPress={() => router.navigate("/(tabs)/profile")}
-            style={[ss.statChip, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            onPress={openGoalModal}
+            style={[ss.statChip, { backgroundColor: colors.card, borderColor: goalName ? "rgba(0,212,126,0.30)" : colors.border }]}>
             <Text style={{ fontSize: 18 }}>🎯</Text>
             <View>
-              <Text style={{ fontSize: 13, fontWeight: "800", color: colors.text }} numberOfLines={1}>
+              <Text style={{ fontSize: 13, fontWeight: "800", color: goalName ? "#00d47e" : colors.text }} numberOfLines={1}>
                 {goalName ?? "Sin meta"}
               </Text>
               <Text style={{ fontSize: 10, color: colors.textMuted }}>Meta</Text>
