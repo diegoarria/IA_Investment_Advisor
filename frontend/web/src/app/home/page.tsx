@@ -106,6 +106,7 @@ export default function HomePage() {
   const [goalDraft,     setGoalDraft]     = useState("");
   const [goalAmtDraft,  setGoalAmtDraft]  = useState("");
   const [savingGoal,    setSavingGoal]    = useState(false);
+  const [goalError,     setGoalError]     = useState("");
 
   const sym = CURRENCY_SYM[portfolioCurrency] ?? "$";
   const dailyLesson = DAILY_LESSONS[new Date().getDay() % DAILY_LESSONS.length];
@@ -162,14 +163,20 @@ export default function HomePage() {
   const saveGoal = async () => {
     if (!goalDraft) return;
     setSavingGoal(true);
+    setGoalError("");
     try {
-      const res = await profileApi.update({
+      await profileApi.update({
         investment_goal: goalDraft,
         investment_goal_amount: goalAmtDraft || null,
       });
-      setProfile(res.data);
+      const fresh = await profileApi.get();
+      setProfile(fresh.data);
       setShowGoalModal(false);
-    } catch {}
+    } catch (err: any) {
+      const msg = err?.response?.data?.detail ?? err?.message ?? "Error al guardar";
+      setGoalError(msg);
+      console.error("saveGoal error:", err?.response ?? err);
+    }
     setSavingGoal(false);
   };
 
@@ -307,6 +314,11 @@ export default function HomePage() {
                 <span className="text-[10px]" style={{ color: "var(--dim)" }}>USD</span>
               </div>
             </div>
+
+            {/* Error */}
+            {goalError && (
+              <p className="text-xs text-red-400 text-center -mt-1">{goalError}</p>
+            )}
 
             {/* Actions */}
             <div className="flex gap-2">

@@ -352,6 +352,7 @@ export default function HomeScreen() {
   const [goalDraft,     setGoalDraft]     = useState("");
   const [goalAmtDraft,  setGoalAmtDraft]  = useState("");
   const [savingGoal,    setSavingGoal]    = useState(false);
+  const [goalError,     setGoalError]     = useState("");
 
   const DAILY_LESSONS = [
     { emoji: "🥧", title: "Diversificación" },
@@ -490,11 +491,17 @@ export default function HomeScreen() {
   const saveGoal = async () => {
     if (!goalDraft) return;
     setSavingGoal(true);
+    setGoalError("");
     try {
-      const res = await profileApi.update({ investment_goal: goalDraft, investment_goal_amount: goalAmtDraft || null });
-      if (res?.data) setProfile(res.data);
+      await profileApi.update({ investment_goal: goalDraft, investment_goal_amount: goalAmtDraft || null });
+      const fresh = await profileApi.get();
+      if (fresh?.data) setProfile(fresh.data);
       setShowGoalModal(false);
-    } catch {}
+    } catch (err: any) {
+      const msg = err?.response?.data?.detail ?? err?.message ?? "Error al guardar";
+      setGoalError(msg);
+      console.error("saveGoal error:", err?.response ?? err);
+    }
     setSavingGoal(false);
   };
 
@@ -562,6 +569,11 @@ export default function HomeScreen() {
               />
               <Text style={{ fontSize: 12, color: colors.textDim }}>USD</Text>
             </View>
+
+            {/* Error */}
+            {!!goalError && (
+              <Text style={{ fontSize: 12, color: "#f87171", textAlign: "center", marginTop: -4 }}>{goalError}</Text>
+            )}
 
             {/* Actions */}
             <View style={{ flexDirection: "row", gap: 10 }}>
