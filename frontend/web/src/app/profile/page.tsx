@@ -10,7 +10,7 @@ import {
   useAuthStore, useProfileStore, useSubscriptionStore,
   useThemeStore, msgsRemaining, FREE_MSG_LIMIT, maturityLabel,
 } from "@/lib/store";
-import { auth as authApi, feedApi, insights as insightsApi, mentorLetter as mentorLetterApi, notifications as notifApi, profile as profileApi, referral as referralApi } from "@/lib/api";
+import { auth as authApi, feedApi, insights as insightsApi, mentorLetter as mentorLetterApi, notifications as notifApi, profile as profileApi, referral as referralApi, sync as syncApi } from "@/lib/api";
 import { getMentorInfo } from "@/lib/mentorData";
 import PaywallModal from "@/components/PaywallModal";
 import {
@@ -144,8 +144,18 @@ export default function ProfilePage() {
     subStore.fetchStatus().catch(() => {});
     referralApi.getCode().then((r) => setReferralCode(r.data.code ?? null)).catch(() => {});
     referralApi.getStats().then((r) => setReferralStats(r.data)).catch(() => {});
-    // Load avatar from profile store on mount
     if (profile?.avatar_url) setAvatarUrl(profile.avatar_url);
+    // Bidirectional maturity sync on every profile view
+    syncApi.getAll().then((res) => {
+      const serverScore: number = res.data?.maturity?.score ?? 0;
+      const serverHistory = res.data?.maturity?.history ?? [];
+      const { maturityScore: local, maturityHistory: localHist } = useProfileStore.getState();
+      if (serverScore > local) {
+        useProfileStore.setState({ maturityScore: serverScore, maturityHistory: serverHistory });
+      } else if (local > serverScore) {
+        syncApi.pushMaturity(local, localHist).catch(() => {});
+      }
+    }).catch(() => {});
   }, [isAuthenticated]);
 
   const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {

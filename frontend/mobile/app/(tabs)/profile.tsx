@@ -16,7 +16,7 @@ import { getMentorInfo } from "../../src/lib/mentorData";
 import InvestorScorecard from "../../src/components/InvestorScorecard";
 import ProgressModal from "../../src/components/ProgressModal";
 import TutorialModal from "../../src/components/TutorialModal";
-import { insightsApi, mentorLetterApi, profileApi, authApi, referralApi } from "../../src/lib/api";
+import { insightsApi, mentorLetterApi, profileApi, authApi, referralApi, syncApi } from "../../src/lib/api";
 
 const MENTOR_PHOTOS: Record<string, number> = {
   "Warren Buffett": require("../../assets/images/mentors/warren_buffett.jpg"),
@@ -152,6 +152,17 @@ export default function ProfileScreen() {
     insightsApi.get().then((r) => setInsights(r.data)).catch(() => {});
     referralApi.getCode().then((r) => setReferralCode(r.data.code ?? null)).catch(() => {});
     referralApi.getStats().then((r) => setReferralStats(r.data)).catch(() => {});
+    // Bidirectional maturity sync on every profile view
+    syncApi.getAll().then((res: any) => {
+      const serverScore: number = res.data?.maturity?.score ?? 0;
+      const serverHistory = res.data?.maturity?.history ?? [];
+      const { maturityScore: local, maturityHistory: localHist } = useAppStore.getState();
+      if (serverScore > local) {
+        useAppStore.setState({ maturityScore: serverScore, maturityHistory: serverHistory });
+      } else if (local > serverScore) {
+        syncApi.pushMaturity(local, localHist).catch(() => {});
+      }
+    }).catch(() => {});
   }, []);
 
   const [avatarUploading, setAvatarUploading] = useState(false);
