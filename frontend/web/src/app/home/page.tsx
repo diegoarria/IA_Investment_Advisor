@@ -13,6 +13,7 @@ import StockAvatar from "@/components/StockAvatar";
 import { market as marketApi, notifications as notifApi, profile as profileApi, sync as syncApi } from "@/lib/api";
 import { useAuthStore, useProfileStore, useLearnStore, useSubscriptionStore } from "@/lib/store";
 import { usePortfolioStore } from "@/lib/portfolioStore";
+import { isNYSEOpen } from "@/lib/marketHours";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -30,16 +31,6 @@ function fmt(n: number, currency = "USD") {
 
 function fmtPct(n: number) {
   return `${n >= 0 ? "+" : ""}${n.toFixed(2)}%`;
-}
-
-function isNYSEOpen(): boolean {
-  const now = new Date();
-  const day = now.getUTCDay();
-  if (day === 0 || day === 6) return false;
-  const etH = now.getUTCHours() - 4;
-  const etM = now.getUTCMinutes();
-  const mins = etH * 60 + etM;
-  return mins >= 9 * 60 + 30 && mins < 16 * 60;
 }
 
 function greeting(): string {

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { market as marketApi } from "@/lib/api";
 import { X, ChevronRight } from "lucide-react";
 import type { IndexNewsItem } from "@/lib/types";
+import { isNYSEOpen } from "@/lib/marketHours";
 
 interface Idx {
   name: string;
@@ -21,21 +22,6 @@ const ABBR: Record<string, string> = {
   "VIX":       "VIX",
 };
 
-function isMarketOpen(): boolean {
-  const now = new Date();
-  const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone: "America/New_York",
-    weekday: "short",
-    hour: "numeric",
-    minute: "numeric",
-    hour12: false,
-  }).formatToParts(now);
-  const get = (t: string) => parts.find(p => p.type === t)?.value ?? "";
-  const day = get("weekday");
-  if (day === "Sat" || day === "Sun") return false;
-  const mins = parseInt(get("hour")) * 60 + parseInt(get("minute"));
-  return mins >= 9 * 60 + 30 && mins < 16 * 60;
-}
 
 function fmtPrice(p: number): string {
   if (p >= 10000) return p.toLocaleString("en-US", { maximumFractionDigits: 0 });
@@ -218,7 +204,7 @@ export default function MarketTickerBar() {
 
     let timer: ReturnType<typeof setTimeout>;
     const schedule = () => {
-      const marketOpen = isMarketOpen();
+      const marketOpen = isNYSEOpen();
       setOpen(marketOpen);
       const delay = marketOpen ? 10_000 : 300_000;
       timer = setTimeout(async () => {

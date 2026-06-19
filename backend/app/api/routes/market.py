@@ -84,12 +84,61 @@ _YF_HEADERS = {
 }
 
 
+def _us_market_holidays(year: int) -> set:
+    """NYSE holidays for the given year (date objects)."""
+    from datetime import date, timedelta
+    import calendar
+
+    def nth_weekday(y: int, month: int, n: int, weekday: int):
+        first = date(y, month, 1)
+        offset = (weekday - first.weekday()) % 7
+        return first + timedelta(days=offset + (n - 1) * 7)
+
+    def last_weekday(y: int, month: int, weekday: int):
+        last_day = calendar.monthrange(y, month)[1]
+        last = date(y, month, last_day)
+        return last - timedelta(days=(last.weekday() - weekday) % 7)
+
+    def observed(d):
+        if d.weekday() == 5: return d - timedelta(days=1)   # Sat → Fri
+        if d.weekday() == 6: return d + timedelta(days=1)   # Sun → Mon
+        return d
+
+    def easter_sunday(y: int):
+        a = y % 19; b = y // 100; c = y % 100
+        d = b // 4; e = b % 4; f = (b + 8) // 25
+        g = (b - f + 1) // 3
+        h = (19 * a + b - d - g + 15) % 30
+        i = c // 4; k = c % 4
+        l = (32 + 2 * e + 2 * i - h - k) % 7
+        m = (a + 11 * h + 22 * l) // 451
+        month = (h + l - 7 * m + 114) // 31
+        day = ((h + l - 7 * m + 114) % 31) + 1
+        return date(y, month, day)
+
+    holidays = set()
+    holidays.add(observed(date(year, 1, 1)))                     # New Year's Day
+    holidays.add(nth_weekday(year, 1, 3, 0))                     # MLK Day — 3rd Mon Jan
+    holidays.add(nth_weekday(year, 2, 3, 0))                     # Presidents' Day — 3rd Mon Feb
+    holidays.add(easter_sunday(year) - timedelta(days=2))        # Good Friday
+    holidays.add(last_weekday(year, 5, 0))                       # Memorial Day — last Mon May
+    if year >= 2022:
+        holidays.add(observed(date(year, 6, 19)))                # Juneteenth — Jun 19
+    holidays.add(observed(date(year, 7, 4)))                     # Independence Day
+    holidays.add(nth_weekday(year, 9, 1, 0))                     # Labor Day — 1st Mon Sep
+    holidays.add(nth_weekday(year, 11, 4, 3))                    # Thanksgiving — 4th Thu Nov
+    holidays.add(observed(date(year, 12, 25)))                   # Christmas
+    return holidays
+
+
 def _is_market_open() -> bool:
-    """True when US equities market is open (Mon–Fri 09:30–16:00 ET)."""
+    """True when US equities market is open (Mon–Fri 09:30–16:00 ET, excluding holidays)."""
     from zoneinfo import ZoneInfo
     from datetime import datetime
     now = datetime.now(ZoneInfo("America/New_York"))
     if now.weekday() >= 5:
+        return False
+    if now.date() in _us_market_holidays(now.year):
         return False
     mins = now.hour * 60 + now.minute
     return 9 * 60 + 30 <= mins < 16 * 60

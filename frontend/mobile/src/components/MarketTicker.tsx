@@ -33,18 +33,61 @@ const SHORT: Record<string, string> = {
   "^VIX":  "VIX",
 };
 
+function easterSunday(year: number): Date {
+  const a = year % 19, b = Math.floor(year / 100), c = year % 100;
+  const d = Math.floor(b / 4), e = b % 4, f = Math.floor((b + 8) / 25);
+  const g = Math.floor((b - f + 1) / 3);
+  const h = (19 * a + b - d - g + 15) % 30;
+  const i = Math.floor(c / 4), k = c % 4;
+  const l = (32 + 2 * e + 2 * i - h - k) % 7;
+  const m = Math.floor((a + 11 * h + 22 * l) / 451);
+  const month = Math.floor((h + l - 7 * m + 114) / 31) - 1;
+  const day = ((h + l - 7 * m + 114) % 31) + 1;
+  return new Date(year, month, day);
+}
+
+function usMarketHolidays(year: number): Set<string> {
+  const nthWd = (y: number, mo: number, n: number, wd: number) => {
+    const first = new Date(y, mo, 1);
+    return new Date(y, mo, 1 + ((wd - first.getDay() + 7) % 7) + (n - 1) * 7);
+  };
+  const lastWd = (y: number, mo: number, wd: number) => {
+    const last = new Date(y, mo + 1, 0);
+    return new Date(y, mo, last.getDate() - ((last.getDay() - wd + 7) % 7));
+  };
+  const obs = (d: Date) => {
+    const w = d.getDay();
+    if (w === 6) return new Date(d.getFullYear(), d.getMonth(), d.getDate() - 1);
+    if (w === 0) return new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1);
+    return d;
+  };
+  const key = (d: Date) => `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+  const h = new Set<string>();
+  h.add(key(obs(new Date(year, 0, 1))));
+  h.add(key(nthWd(year, 0, 3, 1)));
+  h.add(key(nthWd(year, 1, 3, 1)));
+  const gf = new Date(easterSunday(year)); gf.setDate(gf.getDate() - 2); h.add(key(gf));
+  h.add(key(lastWd(year, 4, 1)));
+  if (year >= 2022) h.add(key(obs(new Date(year, 5, 19))));
+  h.add(key(obs(new Date(year, 6, 4))));
+  h.add(key(nthWd(year, 8, 1, 1)));
+  h.add(key(nthWd(year, 10, 4, 4)));
+  h.add(key(obs(new Date(year, 11, 25))));
+  return h;
+}
+
 function isMarketOpen(): boolean {
   const now = new Date();
   const parts = new Intl.DateTimeFormat("en-US", {
     timeZone: "America/New_York",
-    weekday: "short",
-    hour: "numeric",
-    minute: "numeric",
-    hour12: false,
+    weekday: "short", hour: "numeric", minute: "numeric",
+    year: "numeric", month: "numeric", day: "numeric", hour12: false,
   }).formatToParts(now);
   const get = (t: string) => parts.find((p) => p.type === t)?.value ?? "";
   const day = get("weekday");
   if (day === "Sat" || day === "Sun") return false;
+  const year = parseInt(get("year")), month = parseInt(get("month")) - 1, date = parseInt(get("day"));
+  if (usMarketHolidays(year).has(`${year}-${month}-${date}`)) return false;
   const mins = parseInt(get("hour")) * 60 + parseInt(get("minute"));
   return mins >= 9 * 60 + 30 && mins < 16 * 60;
 }
