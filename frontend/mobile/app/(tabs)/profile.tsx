@@ -16,7 +16,7 @@ import { getMentorInfo } from "../../src/lib/mentorData";
 import InvestorScorecard from "../../src/components/InvestorScorecard";
 import ProgressModal from "../../src/components/ProgressModal";
 import TutorialModal from "../../src/components/TutorialModal";
-import { insightsApi, mentorLetterApi, profileApi, authApi, referralApi, syncApi } from "../../src/lib/api";
+import { insightsApi, mentorLetterApi, profileApi, authApi, referralApi, syncApi, feedApi } from "../../src/lib/api";
 
 const MENTOR_PHOTOS: Record<string, number> = {
   "Warren Buffett": require("../../assets/images/mentors/warren_buffett.jpg"),
@@ -147,10 +147,12 @@ export default function ProfileScreen() {
   const [insights, setInsights] = useState<{ ready: boolean; topics?: string[]; risk_behavior?: string; risk_match?: boolean; risk_note?: string; suggestion?: string; interests?: string[] } | null>(null);
   const [referralCode, setReferralCode] = useState<string | null>(null);
   const [referralStats, setReferralStats] = useState<{ referred_count: number; pending_reward: string } | null>(null);
+  const [likedClips, setLikedClips] = useState<{ id: string; title: string; thumbnail_url: string; speaker: string; duration_sec: number }[]>([]);
 
   useEffect(() => {
     insightsApi.get().then((r) => setInsights(r.data)).catch(() => {});
     referralApi.getCode().then((r) => setReferralCode(r.data.code ?? null)).catch(() => {});
+    feedApi.getLiked().then((r: any) => setLikedClips(r.data.clips || [])).catch(() => {});
     referralApi.getStats().then((r) => setReferralStats(r.data)).catch(() => {});
     // Bidirectional maturity sync on every profile view
     syncApi.getAll().then((res: any) => {
@@ -774,10 +776,9 @@ export default function ProfileScreen() {
           </View>
           <View style={[s.levelCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
             {[
-              { key: "A", label: "Principiante", emoji: "🌱", desc: "Nunca he invertido",           color: "#3b82f6" },
-              { key: "B", label: "Básico",       emoji: "📚", desc: "Conozco lo básico",            color: "#22c55e" },
-              { key: "C", label: "Intermedio",   emoji: "📈", desc: "Leo estados financieros",       color: "#f59e0b" },
-              { key: "D", label: "Avanzado",     emoji: "⚡", desc: "Análisis profundo",            color: "#ef4444" },
+              { key: "B", label: "Básico",       emoji: "🌱", desc: "Conozco lo básico",      color: "#22c55e" },
+              { key: "C", label: "Intermedio",   emoji: "📈", desc: "Tengo experiencia",       color: "#3b82f6" },
+              { key: "D", label: "Avanzado",     emoji: "🎯", desc: "Análisis profundo",       color: "#a855f7" },
             ].map((opt, i) => {
               const isActive = profile.quiz_answers?.q3 === opt.key || profile.knowledge_level === opt.key;
               return (
@@ -786,7 +787,7 @@ export default function ProfileScreen() {
                   style={[
                     s.levelOption,
                     { borderColor: isActive ? opt.color : colors.border, backgroundColor: isActive ? opt.color + "12" : colors.bgRaised },
-                    i % 2 === 0 && { marginRight: 6 },
+                    i < 2 && { marginRight: 6 },
                   ]}
                   onPress={() => handleLevelChange(opt.key)}
                   disabled={savingLevel}
@@ -872,6 +873,54 @@ export default function ProfileScreen() {
             </View>
           </View>
         </View>
+
+        {/* ── VIDEOS QUE TE GUSTARON ── */}
+        {likedClips.length > 0 && (
+          <View style={s.section}>
+            <View style={s.sectionHeader}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                <Text style={{ fontSize: 14 }}>❤️</Text>
+                <Text style={[s.sectionTitle, { color: colors.text }]}>
+                  VIDEOS QUE TE GUSTARON
+                </Text>
+                <View style={{ backgroundColor: colors.accent + "22", borderRadius: 10, paddingHorizontal: 7, paddingVertical: 2 }}>
+                  <Text style={{ color: colors.accentLight, fontSize: 11, fontWeight: "700" }}>{likedClips.length}</Text>
+                </View>
+              </View>
+            </View>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10, paddingRight: 4 }}>
+              {likedClips.map((clip) => (
+                <TouchableOpacity
+                  key={clip.id}
+                  activeOpacity={0.8}
+                  onPress={() => router.push("/(tabs)/videos")}
+                  style={{ width: 148, borderRadius: 16, borderWidth: 1, overflow: "hidden", backgroundColor: colors.card, borderColor: colors.border }}
+                >
+                  {/* Thumbnail */}
+                  <View style={{ width: "100%", height: 90, backgroundColor: colors.bgRaised, position: "relative" }}>
+                    {clip.thumbnail_url ? (
+                      <Image source={{ uri: clip.thumbnail_url }} style={StyleSheet.absoluteFillObject} resizeMode="cover" />
+                    ) : (
+                      <View style={[StyleSheet.absoluteFillObject, { alignItems: "center", justifyContent: "center" }]}>
+                        <Text style={{ fontSize: 28 }}>🎬</Text>
+                      </View>
+                    )}
+                    <View style={{ position: "absolute", bottom: 6, right: 6, backgroundColor: "rgba(0,0,0,0.65)", borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 }}>
+                      <Text style={{ color: "#fff", fontSize: 10, fontWeight: "700" }}>
+                        {clip.duration_sec >= 60 ? `${Math.floor(clip.duration_sec / 60)}m` : `${clip.duration_sec}s`}
+                      </Text>
+                    </View>
+                  </View>
+                  {/* Info */}
+                  <View style={{ padding: 10, gap: 3 }}>
+                    <Text style={{ fontSize: 12, fontWeight: "700", lineHeight: 16, color: colors.text }} numberOfLines={2}>{clip.title}</Text>
+                    <Text style={{ fontSize: 10, color: colors.textMuted }} numberOfLines={1}>{clip.speaker}</Text>
+                  </View>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        )}
 
         {/* ── BOTTOM ── */}
         <View style={{ marginTop: 16, gap: 10, paddingBottom: 12 }}>
@@ -1095,6 +1144,23 @@ function makeStyles(c: Colors) {
     referralShareBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, borderWidth: 1, borderRadius: 14, paddingVertical: 12 },
     referralShareText: { fontSize: 13, fontWeight: "700" },
     referralNote: { fontSize: 10, textAlign: "center", lineHeight: 15 },
+
+    // ── Liked video cards ──
+    likedCard: {
+      width: 148, borderRadius: 16, borderWidth: 1, overflow: "hidden",
+    },
+    likedThumb: {
+      width: "100%", height: 90, backgroundColor: c.bgRaised, position: "relative",
+    },
+    likedDuration: {
+      position: "absolute", bottom: 6, right: 6,
+      backgroundColor: "rgba(0,0,0,0.65)", borderRadius: 6,
+      paddingHorizontal: 6, paddingVertical: 2,
+    },
+    likedDurationText: { color: "#fff", fontSize: 10, fontWeight: "700" },
+    likedInfo: { padding: 10, gap: 3 },
+    likedTitle: { fontSize: 12, fontWeight: "700", lineHeight: 16 },
+    likedSpeaker: { fontSize: 10 },
 
     // ── Action buttons ──
     actionBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, borderWidth: 1, borderRadius: 14, paddingVertical: 14 },
