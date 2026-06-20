@@ -758,6 +758,8 @@ export default function OnboardingPage() {
         knowledge_level:        form.knowledge_level,
         risk_tolerance:         calculated,
         quiz_answers:           { q1: form.q1, q4: form.q4 },
+        terms_accepted_at:      new Date().toISOString(),
+        terms_version:          "2026-06",
       };
       const res = await profileApi.create(payload);
       setProfile(res.data);

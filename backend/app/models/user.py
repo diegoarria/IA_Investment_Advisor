@@ -14,6 +14,8 @@ class UserProfileCreate(BaseModel):
     investment_goal: Optional[str] = None
     investment_goal_amount: Optional[str] = None
     knowledge_level: Optional[str] = None
+    terms_accepted_at: Optional[str] = None
+    terms_version: Optional[str] = None
 
 
 class UserProfileUpdate(BaseModel):
@@ -54,6 +56,8 @@ class UserProfile(BaseModel):
     investment_goal_amount: Optional[str] = None
     investment_horizon: Optional[str] = None
     knowledge_level: Optional[str] = None
+    terms_accepted_at: Optional[str] = None
+    terms_version: Optional[str] = None
     created_at: str
     updated_at: str
 
