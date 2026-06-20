@@ -611,27 +611,85 @@ export default function OnboardingPage() {
       valid: () => acceptedTerms && acceptedDisclaimer,
       content: (
         <div className="space-y-4">
-          <div className="rounded-xl border p-4 space-y-3"
-               style={{ background: "rgba(245,158,11,0.07)", borderColor: "rgba(245,158,11,0.3)" }}>
-            <p className="text-xs font-black uppercase tracking-widest" style={{ color: "#f59e0b" }}>
-              ⚠️ Herramienta educativa — no asesoría financiera
-            </p>
-            <p className="text-xs leading-relaxed" style={{ color: "var(--sub)" }}>
-              Nuvos AI es una plataforma de{" "}
-              <strong style={{ color: "var(--text)" }}>educación e información financiera</strong>.
-              El análisis generado por la IA, los portafolios simulados, las noticias y el paper trading son{" "}
-              <strong style={{ color: "var(--text)" }}>únicamente educativos</strong> y no constituyen
-              asesoramiento financiero, de inversión, legal ni fiscal regulado.
-            </p>
-            <p className="text-xs leading-relaxed" style={{ color: "var(--sub)" }}>
-              Los datos de mercado pueden ser inexactos o retrasados. El rendimiento pasado no
-              garantiza resultados futuros.{" "}
-              <strong style={{ color: "var(--text)" }}>Nunca tomes decisiones de inversión basándote
-              únicamente en esta app.</strong>{" "}
-              Consulta siempre a un asesor financiero certificado antes de invertir.
-            </p>
+          {/* Scrollable legal document */}
+          <div className="rounded-xl border overflow-hidden"
+               style={{ borderColor: "rgba(245,158,11,0.3)" }}>
+            <div className="px-3 py-2 flex items-center gap-2"
+                 style={{ background: "rgba(245,158,11,0.1)", borderBottom: "1px solid rgba(245,158,11,0.2)" }}>
+              <span className="text-[10px] font-black uppercase tracking-widest" style={{ color: "#f59e0b" }}>
+                ⚠️ Aviso de Carácter Educativo — léelo completo antes de continuar
+              </span>
+            </div>
+            <div className="overflow-y-auto px-4 py-4 space-y-4 text-xs leading-relaxed"
+                 style={{ maxHeight: 260, color: "var(--sub)" }}>
+
+              <div>
+                <p className="font-bold mb-1" style={{ color: "var(--text)" }}>1. Naturaleza del servicio</p>
+                <p>
+                  Nuvos AI es una herramienta tecnológica de carácter educativo e informativo orientada a la
+                  educación financiera y al análisis de mercados. Nuvos AI <strong style={{ color: "var(--text)" }}>no es</strong>{" "}
+                  una institución bancaria, casa de bolsa, asesor en inversiones, ni ninguna otra entidad regulada
+                  por la CNBV, CONDUSEF, SEC ni cualquier otro regulador financiero en México, Estados Unidos o
+                  cualquier otro país.
+                </p>
+              </div>
+
+              <div>
+                <p className="font-bold mb-1" style={{ color: "var(--text)" }}>2. Ausencia de asesoría financiera personalizada</p>
+                <p>
+                  Ningún contenido generado dentro de la aplicación —incluyendo perfiles de riesgo, análisis de
+                  portafolios, comparativos con inversionistas, simulaciones, alertas o calendarios de resultados—
+                  constituye una recomendación personalizada de inversión, una oferta, ni una invitación para
+                  comprar, vender o mantener algún instrumento financiero. Todo el contenido es de naturaleza
+                  general y educativa, generado o asistido por inteligencia artificial.
+                </p>
+              </div>
+
+              <div>
+                <p className="font-bold mb-1" style={{ color: "var(--text)" }}>3. Riesgos de invertir en los mercados financieros</p>
+                <p>
+                  Toda inversión conlleva riesgo, incluyendo la posible pérdida total o parcial del capital
+                  invertido. El desempeño histórico no garantiza resultados futuros. Cualquier decisión de
+                  inversión que tomes, dentro o fuera de la aplicación,{" "}
+                  <strong style={{ color: "var(--text)" }}>es responsabilidad exclusiva del usuario</strong>.
+                </p>
+              </div>
+
+              <div>
+                <p className="font-bold mb-1" style={{ color: "var(--text)" }}>4. Limitaciones de la inteligencia artificial</p>
+                <p>
+                  El contenido generado por IA dentro de Nuvos AI puede contener errores, imprecisiones u
+                  omisiones derivados de limitaciones técnicas de los modelos utilizados o de la información
+                  de mercado disponible. No debe interpretarse como una afirmación de exactitud absoluta ni
+                  como sustituto de la consulta con un profesional financiero certificado.
+                </p>
+              </div>
+
+              <div>
+                <p className="font-bold mb-1" style={{ color: "var(--text)" }}>5. Responsabilidad del usuario</p>
+                <p>
+                  El uso de la información y herramientas de Nuvos AI es completamente voluntario. Nuvos AI,
+                  sus fundadores y colaboradores no asumen responsabilidad alguna por pérdidas, daños o
+                  perjuicios relacionados con decisiones de inversión tomadas con base, total o parcial,
+                  en el contenido de la aplicación.
+                </p>
+              </div>
+
+              <div>
+                <p className="font-bold mb-1" style={{ color: "var(--text)" }}>6. Tratamiento de datos personales</p>
+                <p>
+                  Los datos personales y financieros proporcionados serán tratados conforme a la Ley Federal
+                  de Protección de Datos Personales en Posesión de Particulares y demás disposiciones
+                  aplicables, según se describe en el{" "}
+                  <a href="/privacy" target="_blank" style={{ color: "var(--accent-l)", textDecoration: "underline" }}>
+                    Aviso de Privacidad de Nuvos AI
+                  </a>.
+                </p>
+              </div>
+            </div>
           </div>
 
+          {/* Acceptance checkboxes */}
           <label className="flex items-start gap-3 cursor-pointer">
             <div className="mt-0.5 w-5 h-5 rounded-md border-2 shrink-0 flex items-center justify-center transition-all"
                  style={{
@@ -671,9 +729,10 @@ export default function OnboardingPage() {
               )}
             </div>
             <span className="text-xs leading-relaxed" style={{ color: "var(--sub)" }}>
-              Entiendo que Nuvos AI es una herramienta educativa y{" "}
-              <strong style={{ color: "var(--text)" }}>NO constituye asesoría financiera regulada</strong>.
-              Soy responsable de mis propias decisiones de inversión.
+              Entiendo que Nuvos AI ofrece contenido educativo generado con IA,{" "}
+              <strong style={{ color: "var(--text)" }}>que no constituye asesoría financiera
+              personalizada ni recomendación de inversión</strong>, y que cualquier decisión
+              financiera que tome es de mi exclusiva responsabilidad.
             </span>
           </label>
         </div>
