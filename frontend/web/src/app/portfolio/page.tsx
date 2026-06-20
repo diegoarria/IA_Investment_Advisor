@@ -610,6 +610,7 @@ export default function PortfolioPage() {
 
   const [prices, setPrices] = useState<Record<string, PriceData>>({});
   const [loadingPrices, setLoadingPrices] = useState(false);
+  const [priceError, setPriceError] = useState(false);
   const [fxRate, setFxRate] = useState(1);
 
   // Screenshot import
@@ -718,10 +719,13 @@ export default function PortfolioPage() {
   const fetchPrices = useCallback(async () => {
     if (!positions.length) return;
     setLoadingPrices(true);
+    setPriceError(false);
     try {
       const res = await marketApi.getPrices(positions.map((p) => p.ticker));
       setPrices(res.data);
-    } catch {}
+    } catch {
+      setPriceError(true);
+    }
     setLoadingPrices(false);
   }, [positions]);
 
@@ -1547,6 +1551,17 @@ export default function PortfolioPage() {
                         <div className="flex items-center gap-2" style={{ color: "var(--muted)" }}>
                           <RefreshCw className="w-4 h-4 animate-spin" />
                           <span className="text-sm">Actualizando precios...</span>
+                        </div>
+                      ) : priceError ? (
+                        <div className="flex items-center gap-2 py-2">
+                          <span className="text-sm" style={{ color: "var(--muted)" }}>
+                            Los precios no están disponibles ahora.{" "}
+                          </span>
+                          <button onClick={fetchPrices}
+                                  className="text-sm font-semibold underline hover:opacity-70 transition-opacity"
+                                  style={{ color: "var(--accent-l)" }}>
+                            Reintentar
+                          </button>
                         </div>
                       ) : (
                         <>

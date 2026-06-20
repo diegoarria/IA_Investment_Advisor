@@ -90,7 +90,14 @@ function JoinContent() {
         </button>
 
         <p className="text-center text-[10px]" style={{ color: "rgba(255,255,255,0.3)" }}>
-          Al registrarte aceptas nuestros Términos de uso y Política de privacidad.
+          Al registrarte aceptas nuestros{" "}
+          <a href="/terms" target="_blank" className="underline hover:opacity-80" style={{ color: "rgba(255,255,255,0.5)" }}>
+            Términos de uso
+          </a>{" "}
+          y{" "}
+          <a href="/privacy" target="_blank" className="underline hover:opacity-80" style={{ color: "rgba(255,255,255,0.5)" }}>
+            Política de privacidad
+          </a>.
         </p>
       </div>
     </div>

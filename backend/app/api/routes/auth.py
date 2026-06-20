@@ -198,7 +198,8 @@ async def delete_account(user_id: str = Depends(get_current_user_id)):
         # Delete all user data from app tables
         for table in ["user_profiles", "user_portfolio", "user_paper_trading",
                        "user_daily_usage", "push_tokens", "chat_history",
-                       "user_notifications"]:
+                       "user_notifications", "watchlist", "notification_preferences",
+                       "notification_log", "notification_analytics"]:
             try:
                 await run_query(db.table(table).delete().eq("user_id", user_id))
             except Exception:

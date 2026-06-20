@@ -125,6 +125,8 @@ export default function ProfilePage() {
   const [shareOpen, setShareOpen] = useState(false);
   const [copiedProfile, setCopiedProfile] = useState(false);
   const [likedClips, setLikedClips] = useState<{ id: string; title: string; thumbnail_url: string; speaker: string; duration_sec: number }[]>([]);
+  const [deletingAccount, setDeletingAccount] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [insights, setInsights] = useState<{
     ready: boolean; topics?: string[]; risk_match?: boolean;
     risk_note?: string; suggestion?: string;
@@ -212,9 +214,16 @@ export default function ProfilePage() {
   const handleDeleteAccount = async () => {
     if (!confirm("Esta acción es permanente. Se borrarán todos tus datos. ¿Continuar?")) return;
     if (!confirm("¿Estás absolutamente seguro? No se puede deshacer.")) return;
-    try { await authApi.deleteAccount(); } catch {}
-    clearAuth();
-    router.push("/");
+    setDeletingAccount(true);
+    setDeleteError(null);
+    try {
+      await authApi.deleteAccount();
+      clearAuth();
+      router.push("/");
+    } catch {
+      setDeleteError("No se pudo eliminar la cuenta. Intenta de nuevo o escríbenos a soporte.");
+      setDeletingAccount(false);
+    }
   };
 
   return (
@@ -862,10 +871,14 @@ export default function ProfilePage() {
                 </button>
 
                 {/* Delete account */}
+                {deleteError && (
+                  <p className="text-xs text-center px-2" style={{ color: "#ef4444" }}>{deleteError}</p>
+                )}
                 <button onClick={handleDeleteAccount}
-                        className="w-full py-3 text-xs text-center hover:opacity-70 transition-opacity"
+                        disabled={deletingAccount}
+                        className="w-full py-3 text-xs text-center hover:opacity-70 transition-opacity disabled:opacity-40"
                         style={{ color: "var(--dim)" }}>
-                  Eliminar mi cuenta
+                  {deletingAccount ? "Eliminando cuenta..." : "Eliminar mi cuenta"}
                 </button>
               </>
             )}

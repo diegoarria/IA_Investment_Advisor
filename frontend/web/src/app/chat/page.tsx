@@ -197,6 +197,7 @@ export default function ChatPage() {
   const [showVoiceModal, setShowVoiceModal] = useState(false);
   const [recordingSecs, setRecordingSecs] = useState(0);
   const [voiceAudio, setVoiceAudio] = useState<{ content: string; url: string | null; loading: boolean; playing: boolean } | null>(null);
+  const [sendError, setSendError] = useState<string | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -513,6 +514,7 @@ export default function ChatPage() {
     setInput("");
     setPendingImages([]);
     setLastAssessment(null);
+    setSendError(null);
     cancelRef.current.cancelled = false;
     isAtBottom.current = true;
     subStore.incrementMsgCount();
@@ -577,6 +579,7 @@ export default function ChatPage() {
       removeLastMessage();
       const status = (err as { response?: { status?: number } })?.response?.status;
       if (status === 429) { await subStore.fetchStatus(); setPaywallOpen(true); }
+      else { setSendError("No se pudo conectar con el asistente. Verifica tu conexión e intenta de nuevo."); }
     }
   };
 
@@ -1020,6 +1023,15 @@ export default function ChatPage() {
                         <ImagePlus className="w-4 h-4" style={{ color: "var(--muted)" }} />
                       </button>
                     )}
+                  </div>
+                )}
+
+                {/* Send error */}
+                {sendError && (
+                  <div className="mx-3 mb-1 px-3 py-2 rounded-xl text-xs flex items-center gap-2"
+                       style={{ background: "rgba(239,68,68,0.08)", color: "#ef4444", border: "1px solid rgba(239,68,68,0.2)" }}>
+                    <span className="flex-1">{sendError}</span>
+                    <button onClick={() => setSendError(null)} className="shrink-0 opacity-60 hover:opacity-100">✕</button>
                   </div>
                 )}
 
