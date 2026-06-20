@@ -1702,6 +1702,110 @@ export default function PortfolioScreen() {
               );
             })()}
 
+            {/* ── META FINANCIERA ── */}
+            {(() => {
+              const goalAmt = parseFloat(profile?.investment_goal_amount ?? "0");
+              if (!goalAmt || goalAmt <= 0) return null;
+              const progressPct = Math.min((totals.current / goalAmt) * 100, 100);
+              const remaining = Math.max(goalAmt - totals.current, 0);
+              const reached = progressPct >= 100;
+              const GOAL_LABELS: Record<string, string> = {
+                emergency_fund: "Fondo de emergencia",
+                big_purchase:   "Compra importante",
+                retirement:     "Retiro / pensión",
+                independence:   "Independencia financiera",
+              };
+              const goalLabel = GOAL_LABELS[profile?.investment_goal ?? ""] ?? "Mi meta";
+              const annualRate = (profile?.risk_tolerance ?? "").startsWith("conservative") ? 0.07
+                               : (profile?.risk_tolerance ?? "").startsWith("aggressive") ? 0.12 : 0.10;
+              const rateLabel = (profile?.risk_tolerance ?? "").startsWith("conservative") ? "7%"
+                              : (profile?.risk_tolerance ?? "").startsWith("aggressive") ? "12%" : "10%";
+              const r = annualRate / 12;
+              const monthsToGoal = totals.current > 0 && goalAmt > totals.current
+                ? Math.log(goalAmt / totals.current) / Math.log(1 + r) : null;
+              const timeLabel = monthsToGoal !== null
+                ? monthsToGoal / 12 < 1
+                  ? `${Math.ceil(monthsToGoal)} meses`
+                  : monthsToGoal / 12 < 1.83
+                    ? "~1 año y medio"
+                    : `~${Math.round(monthsToGoal / 12)} años`
+                : null;
+
+              return (
+                <View style={{
+                  borderRadius: 20, borderWidth: 1, padding: 16, marginBottom: 12,
+                  backgroundColor: colors.card,
+                  borderColor: reached ? "rgba(34,197,94,0.35)" : colors.border,
+                }}>
+                  {/* Header row */}
+                  <View style={{ flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 14 }}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontSize: 10, fontWeight: "800", letterSpacing: 1.2, textTransform: "uppercase", color: colors.accentLight, marginBottom: 3 }}>
+                        META FINANCIERA
+                      </Text>
+                      <Text style={{ fontSize: 15, fontFamily: "DMSans_800ExtraBold", color: colors.text }}>
+                        {goalLabel}
+                      </Text>
+                    </View>
+                    <View style={{ alignItems: "flex-end" }}>
+                      <Text style={{ fontSize: 26, fontFamily: "DMSans_800ExtraBold", lineHeight: 28, color: reached ? "#22c55e" : colors.text }}>
+                        {progressPct.toFixed(1)}%
+                      </Text>
+                      <Text style={{ fontSize: 10, color: colors.textMuted, marginTop: 2 }}>
+                        {reached ? "¡Alcanzada!" : "completado"}
+                      </Text>
+                    </View>
+                  </View>
+
+                  {/* Progress bar */}
+                  <View style={{ height: 8, borderRadius: 4, backgroundColor: colors.bgRaised, overflow: "hidden", marginBottom: 12 }}>
+                    <View style={{
+                      height: 8, borderRadius: 4,
+                      width: `${progressPct}%`,
+                      backgroundColor: reached ? "#22c55e" : colors.accentLight,
+                    }} />
+                  </View>
+
+                  {/* Amount row */}
+                  <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                    <Text style={{ fontSize: 12, color: colors.textMuted }}>
+                      <Text style={{ fontFamily: "DMSans_600SemiBold", color: colors.textSub }}>
+                        {currencySymbol}{totals.current.toLocaleString("en-US", { maximumFractionDigits: 0 })}
+                      </Text>
+                      {" "}acumulados
+                    </Text>
+                    {reached ? (
+                      <Text style={{ fontSize: 12, fontFamily: "DMSans_800ExtraBold", color: "#22c55e" }}>
+                        Meta alcanzada 🎉
+                      </Text>
+                    ) : (
+                      <Text style={{ fontSize: 12, color: colors.textMuted }}>
+                        Faltan{" "}
+                        <Text style={{ fontFamily: "DMSans_600SemiBold", color: colors.textSub }}>
+                          {currencySymbol}{remaining.toLocaleString("en-US", { maximumFractionDigits: 0 })}
+                        </Text>
+                      </Text>
+                    )}
+                  </View>
+
+                  {/* Footer */}
+                  <View style={{ borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border, paddingTop: 10, gap: 3 }}>
+                    <Text style={{ fontSize: 10, color: colors.textDim }}>
+                      Meta:{" "}
+                      <Text style={{ fontFamily: "DMSans_600SemiBold" }}>
+                        {currencySymbol}{goalAmt.toLocaleString("en-US", { maximumFractionDigits: 0 })}
+                      </Text>
+                    </Text>
+                    {timeLabel && !reached && (
+                      <Text style={{ fontSize: 10, color: colors.textDim }}>
+                        A tasa del {rateLabel}/año (histórico), llegas en {timeLabel}
+                      </Text>
+                    )}
+                  </View>
+                </View>
+              );
+            })()}
+
             {/* ── TABLA DE POSICIONES (estilo broker) ── */}
             <View style={{ borderRadius: 18, overflow: "hidden", borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card, marginBottom: 12 }}>
 
