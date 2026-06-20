@@ -10,8 +10,9 @@ import AppSidebar from "@/components/AppSidebar";
 import MarketTickerBar from "@/components/MarketTickerBar";
 import HomeMarketOverview from "@/components/HomeMarketOverview";
 import StockAvatar from "@/components/StockAvatar";
-import { market as marketApi, notifications as notifApi, profile as profileApi, sync as syncApi } from "@/lib/api";
-import { useAuthStore, useProfileStore, useLearnStore, useSubscriptionStore } from "@/lib/store";
+import { market as marketApi, notifications as notifApi, profile as profileApi, sync as syncApi, watchlist as watchlistApi } from "@/lib/api";
+import { useAuthStore, useProfileStore, useLearnStore, useSubscriptionStore, useChatStore } from "@/lib/store";
+import OnboardingChecklist, { type OnboardingStep } from "@/components/OnboardingChecklist";
 import { usePortfolioStore } from "@/lib/portfolioStore";
 import { isNYSEOpen } from "@/lib/marketHours";
 
@@ -90,7 +91,9 @@ export default function HomePage() {
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
   const [ytdGain, setYtdGain]     = useState<number | null>(null);
   const [ytdPct,  setYtdPct]      = useState<number | null>(null);
+  const [watchlistCount, setWatchlistCount] = useState(0);
   const marketOpen = useMemo(() => isNYSEOpen(), []);
+  const hasChatted = useChatStore((s) => s.sessions.some((sess) => sess.messages.length > 0));
 
   // Goal modal
   const [showGoalModal, setShowGoalModal] = useState(false);
@@ -124,6 +127,9 @@ export default function HomePage() {
         setTotalNotifs(items.length);
         setTopNotifs(items.slice(0, 2));
       }
+
+      const wlRes = await watchlistApi.get().catch(() => null);
+      setWatchlistCount((wlRes?.data as any[])?.length ?? 0);
 
       if (tickers.length) {
         const newsRes = await marketApi.getNews(tickers.slice(0, 6)).catch(() => null);
@@ -250,6 +256,23 @@ export default function HomePage() {
   const goalPct    = goalAmount > 0 ? Math.min(100, (total / goalAmount) * 100) : 0;
 
   const firstName = profile?.name?.split(" ")[0] ?? "Inversor";
+
+  // ── Onboarding checklist ─────────────────────────────────────────────────
+  const onboardingSteps: OnboardingStep[] = [
+    { emoji: "💼", title: "Agrega tu primera posición",       description: "Registra tus acciones y activa el análisis IA",   completed: positions.length > 0 },
+    { emoji: "🎯", title: "Configura tu meta financiera",     description: "¿Para qué estás invirtiendo?",                    completed: !!profile?.investment_goal },
+    { emoji: "🤖", title: "Habla con Nuvos por primera vez",  description: "Pregunta cualquier cosa sobre inversiones",        completed: hasChatted },
+    { emoji: "📚", title: "Completa tu primera lección",      description: "Empieza tu racha de aprendizaje diario",          completed: streak > 0 },
+    { emoji: "👀", title: "Agrega una acción a tu watchlist", description: "Monitorea empresas que te interesan",             completed: watchlistCount > 0 },
+  ];
+  const allOnboardingDone = onboardingSteps.every((s) => s.completed);
+
+  const handleOnboardingStep = (index: number) => {
+    if (index === 1) { openGoalModal(); return; }
+    const hrefs = ["/portfolio?tour=1", null, "/chat?tour=3", "/academy?tour=4", "/watchlist?tour=5"];
+    const href = hrefs[index];
+    if (href) router.push(href);
+  };
 
   const GOAL_OPTIONS = [
     { key: "house",             label: "Comprar una casa",         emoji: "🏠" },
@@ -381,6 +404,11 @@ export default function HomePage() {
           </div>
 
           <div className="px-6 py-5 space-y-5 max-w-5xl mx-auto">
+
+            {/* ── Onboarding checklist (hidden once all done) ──────────────── */}
+            {!allOnboardingDone && (
+              <OnboardingChecklist steps={onboardingSteps} onStepClick={handleOnboardingStep} />
+            )}
 
             {/* ── Stat Strip ──────────────────────────────────────────────── */}
             <div className="grid grid-cols-4 gap-3">

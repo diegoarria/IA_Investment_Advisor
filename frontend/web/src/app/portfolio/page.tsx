@@ -1,6 +1,7 @@
 "use client";
 
 import AppSidebar from "@/components/AppSidebar";
+import TourSpotlight from "@/components/TourSpotlight";
 import StockAvatar from "@/components/StockAvatar";
 import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
@@ -591,6 +592,9 @@ function PortfolioHistoryChart({
 export default function PortfolioPage() {
   const router = useRouter();
   const { isAuthenticated } = useAuthStore();
+  const [isTour, setIsTour] = useState(false);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { setIsTour(new URLSearchParams(window.location.search).get("tour") === "1"); }, []);
   const { profile } = useProfileStore();
   const userLevel = getUserLevel(profile);
   const sub = useSubscriptionStore();
@@ -1221,6 +1225,7 @@ export default function PortfolioPage() {
             <div className="grid grid-cols-2 gap-2 mb-3">
               {/* Agregar posición — acción primaria */}
               <button
+                id="tour-add-position"
                 onClick={() => { setShowForm(!showForm); setScreenshotPreview(null); }}
                 className="flex items-center justify-center gap-2 py-3.5 rounded-2xl font-bold text-sm transition-all"
                 style={{
@@ -2729,6 +2734,16 @@ export default function PortfolioPage() {
       {/* ── Stock Detail Modal ── */}
       {selectedStock && (
         <StockDetailModal ticker={selectedStock} onClose={() => setSelectedStock(null)} />
+      )}
+
+      {isTour && (
+        <TourSpotlight
+          targetId="tour-add-position"
+          step={1}
+          title="Agrega tu primera posición"
+          description="Toca el botón verde para registrar las acciones que ya tienes. Nuvos calculará tu rendimiento en tiempo real."
+          ctaLabel="Entendido, volver al inicio ✓"
+        />
       )}
     </>
   );

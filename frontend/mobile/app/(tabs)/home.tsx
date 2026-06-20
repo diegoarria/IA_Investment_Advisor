@@ -16,7 +16,10 @@ import { useLearnStore } from "../../src/lib/learnStore";
 import { useSubscriptionStore } from "../../src/lib/subscriptionStore";
 import { hasPremiumAccess } from "../../src/lib/subscriptionStore";
 import { marketApi, notificationsApi } from "../../src/lib/api";
+import { useChatStore } from "../../src/lib/chatStore";
+import { useWatchlistStore } from "../../src/lib/watchlistStore";
 import StockAvatar from "../../src/components/StockAvatar";
+import MobileOnboardingChecklist, { type OnboardingStep } from "../../src/components/MobileOnboardingChecklist";
 
 // ── Sparkline helpers ─────────────────────────────────────────────────────────
 function sparkPath(prices: number[], w: number, h: number, close = false): string {
@@ -332,6 +335,8 @@ export default function HomeScreen() {
   const maturity   = useAppStore((s) => s.maturityScore);
   const streak   = useLearnStore((s) => s.streak);
   const { positions, portfolioCurrency } = usePortfolioStore();
+  const hasChatted = useChatStore((s) => s.sessions.some((sess) => sess.messages.length > 0));
+  const watchlistItems = useWatchlistStore((s) => s.items);
   const subStore = useSubscriptionStore();
   const isPremium = hasPremiumAccess(subStore);
 
@@ -550,6 +555,29 @@ export default function HomeScreen() {
 
   const firstName = profile?.name?.split(" ")[0] ?? "Inversor";
 
+  // ── Onboarding checklist ──────────────────────────────────────────────────
+  const onboardingSteps: OnboardingStep[] = [
+    { emoji: "💼", title: "Agrega tu primera posición",       description: "Registra tus acciones y activa el análisis IA",   completed: positions.length > 0 },
+    { emoji: "🎯", title: "Configura tu meta financiera",     description: "¿Para qué estás invirtiendo?",                    completed: !!goalName },
+    { emoji: "🤖", title: "Habla con Nuvos por primera vez",  description: "Pregunta cualquier cosa sobre inversiones",        completed: hasChatted },
+    { emoji: "📚", title: "Completa tu primera lección",      description: "Empieza tu racha de aprendizaje diario",          completed: streak > 0 },
+    { emoji: "👀", title: "Agrega una acción a tu watchlist", description: "Monitorea empresas que te interesan",             completed: watchlistItems.length > 0 },
+  ];
+  const allOnboardingDone = onboardingSteps.every((s) => s.completed);
+
+  const handleOnboardingStep = (index: number) => {
+    if (index === 1) { openGoalModal(); return; }
+    const routes: (string | null)[] = [
+      "/(tabs)/portfolio",
+      null,
+      "/(tabs)/chat",
+      "/(tabs)/academy",
+      "/(tabs)/watchlist",
+    ];
+    const route = routes[index];
+    if (route) router.push({ pathname: route as any, params: { tour: String(index + 1) } });
+  };
+
   return (
     <SafeAreaView style={[ss.root, { backgroundColor: colors.bg }]} edges={["top"]}>
 
@@ -666,6 +694,11 @@ export default function HomeScreen() {
             tintColor={colors.accentLight} colors={[colors.accentLight]} />
         }
       >
+        {/* ── Onboarding checklist ─────────────────────────────────────────── */}
+        {!allOnboardingDone && (
+          <MobileOnboardingChecklist steps={onboardingSteps} onStepPress={handleOnboardingStep} />
+        )}
+
         {/* ── Portfolio Hero Card ──────────────────────────────────────────── */}
         <TouchableOpacity
           activeOpacity={0.92}

@@ -1,6 +1,7 @@
 "use client";
 
 import { Suspense, useState } from "react";
+import TourSpotlight from "@/components/TourSpotlight";
 import { useSearchParams, useRouter } from "next/navigation";
 import AppSidebar from "@/components/AppSidebar";
 import MarketTickerBar from "@/components/MarketTickerBar";
@@ -85,6 +86,7 @@ function AprendizajeTab() {
 
       {/* Ver todos button */}
       <button
+        id="tour-start-learning"
         onClick={() => router.push("/learn")}
         className="w-full flex items-center justify-center gap-2 py-3 rounded-xl font-semibold text-sm transition-opacity hover:opacity-80"
         style={{ background: "var(--accent)", color: "#fff" }}
@@ -167,6 +169,7 @@ function AcademyContent() {
 
   const rawTab = searchParams.get("tab") as TabId | null;
   const activeTab: TabId = rawTab && TABS.some((t) => t.id === rawTab) ? rawTab : "aprendizaje";
+  const isTour = searchParams.get("tour") === "4";
 
   function setTab(id: TabId) {
     router.push(`/academy?tab=${id}`);
@@ -224,6 +227,16 @@ function AcademyContent() {
           </main>
         </div>
       </div>
+
+      {isTour && (
+        <TourSpotlight
+          targetId="tour-start-learning"
+          step={4}
+          title="Empieza tu primera lección"
+          description="Cada día hay una lección nueva. Completa 3 seguidas y arranca tu racha — tu streak se muestra en el home."
+          ctaLabel="Entendido, volver al inicio ✓"
+        />
+      )}
     </div>
   );
 }

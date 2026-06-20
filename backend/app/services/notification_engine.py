@@ -291,7 +291,7 @@ async def check_portfolio_alerts(user_id: str, positions: list, db) -> list[dict
                     prev = float(hist["Close"].iloc[-2])
                     curr = float(hist["Close"].iloc[-1])
                     pct  = round((curr - prev) / prev * 100, 2)
-                    if abs(pct) >= 4.0:
+                    if abs(pct) >= 3.0:
                         alerts.append({
                             "ticker": ticker, "change_pct": pct,
                             "price": round(curr, 2),

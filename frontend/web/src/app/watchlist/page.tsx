@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
+import TourSpotlight from "@/components/TourSpotlight";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import {
@@ -340,6 +341,8 @@ function SkeletonCard() {
 
 export default function WatchlistPage() {
   const router = useRouter();
+  const [isTour, setIsTour] = useState(false);
+  useEffect(() => { setIsTour(new URLSearchParams(window.location.search).get("tour") === "5"); }, []);
   const { isAuthenticated, clearAuth } = useAuthStore();
   const { profile } = useProfileStore();
   const userLevel = getUserLevel(profile);
@@ -657,7 +660,7 @@ export default function WatchlistPage() {
             <GuidedSteps currentPage="watchlist" />
 
             {/* ── Search bar ── */}
-            <div ref={searchRef} className="relative mb-4">
+            <div id="tour-watchlist-search" ref={searchRef} className="relative mb-4">
               <div
                 className="flex items-center gap-2 px-3 py-2.5 rounded-2xl border"
                 style={{ background: "var(--card)", borderColor: "var(--border)" }}
@@ -918,6 +921,16 @@ export default function WatchlistPage() {
         >
           {toast}
         </div>
+      )}
+
+      {isTour && (
+        <TourSpotlight
+          targetId="tour-watchlist-search"
+          step={5}
+          title="Busca una acción para seguir"
+          description="Escribe el ticker o nombre de la empresa — ej. AAPL o Tesla. Nuvos te avisará cuando haya movimientos importantes."
+          ctaLabel="Entendido, volver al inicio ✓"
+        />
       )}
     </>
   );

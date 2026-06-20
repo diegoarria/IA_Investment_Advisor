@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import StockAvatar from "../../src/components/StockAvatar";
-import { useFocusEffect, router } from "expo-router";
+import { useFocusEffect, router, useLocalSearchParams } from "expo-router";
+import MobileTourBanner from "../../src/components/MobileTourBanner";
 import {
   View, Text, TouchableOpacity, TextInput, ScrollView,
   StyleSheet, ActivityIndicator, SafeAreaView, Alert,
@@ -619,7 +620,8 @@ function PortfolioHistoryChart({
 export default function PortfolioScreen() {
   const { colors } = useTheme();
   const s = useMemo(() => makeStyles(colors), [colors]);
-
+  const { tour } = useLocalSearchParams<{ tour?: string }>();
+  const isTour = tour === "1";
 
   const {
     positions, addPosition, removePosition, updatePosition, setPositions,
@@ -1318,7 +1320,7 @@ export default function PortfolioScreen() {
         <View style={{ flexDirection: "row", gap: 8, marginBottom: 10 }}>
           {/* Agregar posición — acción primaria */}
           <TouchableOpacity
-            style={{ flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 14, borderRadius: 16, backgroundColor: "#00a85e" }}
+            style={{ flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 14, borderRadius: 16, backgroundColor: "#00a85e", ...(isTour && { borderWidth: 3, borderColor: "#fff" }) }}
             onPress={() => { setShowForm(!showForm); setScreenshotPreview(null); }}
             activeOpacity={0.8}>
             <Ionicons name="add-circle-outline" size={18} color="white" />
@@ -2453,6 +2455,14 @@ export default function PortfolioScreen() {
           </View>
         </View>
       </Modal>
+
+      {isTour && (
+        <MobileTourBanner
+          step={1}
+          title="Agrega tu primera posición"
+          description="Toca el botón verde para registrar las acciones que ya tienes. Nuvos calculará tu rendimiento en tiempo real."
+        />
+      )}
     </SafeAreaView>
   );
 }

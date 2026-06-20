@@ -1,4 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo } from "react";
+import { router, useLocalSearchParams } from "expo-router";
+import MobileTourBanner from "../../src/components/MobileTourBanner";
 import * as ImagePicker from "expo-image-picker";
 import { Audio } from "expo-av";
 import * as FileSystem from "expo-file-system/legacy";
@@ -130,7 +132,9 @@ const OBJECTIVE_GREETING: Record<string, string> = {
 
 export default function ChatScreen() {
   const insets = useSafeAreaInsets();
-  const headerHeight = insets.top + 104; // MobileHeader row (52) + MarketTicker (52)
+  const headerHeight = insets.top + 104;
+  const { tour } = useLocalSearchParams<{ tour?: string }>();
+  const isTour = tour === "3"; // MobileHeader row (52) + MarketTicker (52)
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const markdownStyles = useMemo(() => makeMarkdownStyles(colors), [colors]);
@@ -880,7 +884,7 @@ Instrucciones críticas:
             </View>
           )}
           {/* ── Input card ── */}
-          <View style={[styles.inputCard, { borderTopColor: colors.border, backgroundColor: colors.card }]}>
+          <View style={[styles.inputCard, { borderTopColor: colors.border, backgroundColor: colors.card }, isTour && { borderWidth: 2, borderColor: "#00d47e", borderRadius: 16, margin: 8 }]}>
             <View style={[styles.inputInner, { backgroundColor: colors.bgRaised ?? colors.bg, borderColor: colors.border }]}>
               <TextInput
                 ref={inputRef}
@@ -948,6 +952,13 @@ Instrucciones críticas:
       visible={tutorialVisible}
       onClose={() => { setTutorialVisible(false); markTutorialSeen(); }}
     />
+    {isTour && (
+      <MobileTourBanner
+        step={3}
+        title="Habla con Nuvos"
+        description="Escribe cualquier pregunta sobre inversiones. Nuvos recuerda tu portafolio y perfil para darte respuestas personalizadas."
+      />
+    )}
     </KeyboardAvoidingView>
   );
 }

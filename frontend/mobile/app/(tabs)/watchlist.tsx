@@ -4,7 +4,8 @@ import {
   StyleSheet, ActivityIndicator, ScrollView, Alert, Modal,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
+import MobileTourBanner from "../../src/components/MobileTourBanner";
 import { useTheme } from "../../src/lib/ThemeContext";
 import { useWatchlistStore } from "../../src/lib/watchlistStore";
 import { useSubscriptionStore, hasPremiumAccess } from "../../src/lib/subscriptionStore";
@@ -253,6 +254,8 @@ const rw = StyleSheet.create({
 
 export default function WatchlistScreen() {
   const { colors } = useTheme();
+  const { tour } = useLocalSearchParams<{ tour?: string }>();
+  const isTour = tour === "5";
   const { items, add, remove, has, reorder } = useWatchlistStore();
   const subStore = useSubscriptionStore();
   const isPremium = hasPremiumAccess(subStore);
@@ -439,7 +442,7 @@ export default function WatchlistScreen() {
         showsVerticalScrollIndicator={false}
       >
         {/* Search */}
-        <View style={[s.searchWrap, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        <View style={[s.searchWrap, { backgroundColor: colors.card, borderColor: isTour ? "#00d47e" : colors.border, borderWidth: isTour ? 2 : 1 }]}>
           <Ionicons name="search-outline" size={16} color={colors.textMuted} />
           <TextInput
             style={[s.searchInput, { color: colors.text }]}
@@ -714,6 +717,14 @@ export default function WatchlistScreen() {
           </TouchableOpacity>
         </TouchableOpacity>
       </Modal>
+
+      {isTour && (
+        <MobileTourBanner
+          step={5}
+          title="Busca una acción para seguir"
+          description="Escribe el ticker o nombre de la empresa — ej. AAPL o Tesla. Nuvos te avisará cuando haya movimientos importantes."
+        />
+      )}
     </View>
   );
 }

@@ -1,5 +1,67 @@
 import httpx
+import re
 from app.core.config import settings
+
+# ── Logo (JPEG 160px, white background strip) ─────────────────────────────────
+# To replace with a hosted URL: set NUVOS_LOGO_SRC = "https://your-cdn/logo.png"
+with open(__file__.replace("email_service.py", "_nuvos_logo.b64"), "r") as _f:
+    NUVOS_LOGO_SRC = _f.read().strip()
+
+
+def _render_md(text: str) -> str:
+    """Convert AI-generated markdown to inline-safe HTML for email clients."""
+    lines = text.split("\n")
+    html_parts = []
+    for line in lines:
+        stripped = line.strip()
+        if not stripped:
+            continue
+        # H1/H2/H3 headings
+        h3_match = re.match(r"^###\s+(.*)", stripped)
+        h2_match = re.match(r"^##\s+(.*)", stripped)
+        h1_match = re.match(r"^#\s+(.*)", stripped)
+        if h3_match:
+            inner = _inline_md(h3_match.group(1))
+            html_parts.append(f'<p style="color:#fff;font-size:14px;font-weight:800;margin:16px 0 6px;letter-spacing:-0.2px">{inner}</p>')
+        elif h2_match:
+            inner = _inline_md(h2_match.group(1))
+            html_parts.append(f'<p style="color:#fff;font-size:15px;font-weight:800;margin:18px 0 8px">{inner}</p>')
+        elif h1_match:
+            inner = _inline_md(h1_match.group(1))
+            html_parts.append(f'<p style="color:#fff;font-size:16px;font-weight:900;margin:20px 0 8px">{inner}</p>')
+        elif stripped.startswith("- ") or stripped.startswith("* "):
+            inner = _inline_md(stripped[2:])
+            html_parts.append(f'<p style="color:#d1d5db;font-size:14px;line-height:1.7;margin:4px 0 4px 12px">• {inner}</p>')
+        elif re.match(r"^-{3,}$", stripped):
+            html_parts.append('<div style="border-top:1px solid #2a2d3a;margin:16px 0"></div>')
+        else:
+            inner = _inline_md(stripped)
+            html_parts.append(f'<p style="color:#d1d5db;font-size:14px;line-height:1.7;margin:0 0 12px">{inner}</p>')
+    return "\n".join(html_parts)
+
+
+def _inline_md(text: str) -> str:
+    """Convert inline markdown (bold, italic, code) to HTML spans."""
+    # Bold+italic ***text***
+    text = re.sub(r"\*\*\*(.+?)\*\*\*", r'<strong><em>\1</em></strong>', text)
+    # Bold **text**
+    text = re.sub(r"\*\*(.+?)\*\*", r'<strong style="color:#fff;font-weight:800">\1</strong>', text)
+    # Italic *text*
+    text = re.sub(r"\*(.+?)\*", r'<em style="color:#e5e7eb">\1</em>', text)
+    # Inline code `text`
+    text = re.sub(r"`(.+?)`", r'<code style="background:#1e2235;color:#00a85e;padding:2px 5px;border-radius:4px;font-size:12px">\1</code>', text)
+    return text
+
+
+def _nuvos_email_header(tagline: str = "Tu asistente de inversiones") -> str:
+    """White strip header with Nuvos AI logo — works on any email client."""
+    return f"""
+  <!-- ── Logo header (white strip) ── -->
+  <div style="background:#ffffff;border-radius:20px 20px 0 0;padding:28px 32px 24px;text-align:center;border-bottom:1px solid #e5e7eb">
+    <img src="{NUVOS_LOGO_SRC}" alt="Nuvos AI" width="140" height="auto"
+         style="display:block;margin:0 auto;max-width:140px;height:auto">
+    <p style="color:#6b7280;font-size:12px;margin:8px 0 0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">{tagline}</p>
+  </div>"""
 
 
 async def send_email(to: str, subject: str, html: str) -> bool:
@@ -23,50 +85,48 @@ async def send_email(to: str, subject: str, html: str) -> bool:
 
 
 def build_weekly_summary_html(name: str, summary: str, risk: str) -> str:
+    first = name.split()[0] if name else "Inversor"
     risk_color = {"conservative": "#3b82f6", "moderate": "#22c55e", "aggressive": "#f59e0b"}.get(
-        risk.split("_")[0], "#22c55e"
+        (risk or "").split("_")[0], "#22c55e"
     )
-    paragraphs = "".join(f"<p style='margin:0 0 12px'>{p}</p>" for p in summary.split("\n") if p.strip())
+    rendered = _render_md(summary)
+    cta_url  = "https://nuvosai.com/home"
+    header   = _nuvos_email_header("Resumen Semanal de Inversión")
     return f"""<!DOCTYPE html>
 <html>
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
-<body style="margin:0;padding:0;background:#0f1117;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">
-  <div style="max-width:600px;margin:0 auto;padding:40px 20px">
-    <div style="background:#1a1d27;border-radius:20px;padding:32px;border:1px solid #2a2d3a">
-      <div style="display:flex;align-items:center;gap:12px;margin-bottom:24px">
-        <div style="width:44px;height:44px;background:{risk_color}22;border-radius:12px;display:flex;align-items:center;justify-content:center">
-          <span style="font-size:22px">📈</span>
-        </div>
-        <div>
-          <div style="color:#fff;font-size:18px;font-weight:700">Nuvos AI</div>
-          <div style="color:#6b7280;font-size:13px">Resumen Semanal de Inversión</div>
-        </div>
-      </div>
+<body style="margin:0;padding:0;background:#0a0c12;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">
+<div style="max-width:600px;margin:0 auto;padding:32px 16px">
+  <div style="border-radius:20px;overflow:hidden;border:1px solid #2a2d3a">
 
-      <h1 style="color:#fff;font-size:22px;font-weight:800;margin:0 0 8px">
-        Hola {name}, aquí está tu resumen de esta semana 👋
+    {header}
+
+    <!-- Dark content -->
+    <div style="background:#1a1d27;padding:32px">
+      <h1 style="color:#fff;font-size:22px;font-weight:900;margin:0 0 6px;line-height:1.3">
+        Hola {first}, aquí está tu resumen de esta semana 👋
       </h1>
-      <p style="color:#9ca3af;font-size:14px;margin:0 0 24px">
+      <p style="color:#9ca3af;font-size:14px;margin:0 0 28px;line-height:1.6">
         Mercados cerrados. Es momento de reflexionar y prepararse para la próxima semana.
       </p>
 
-      <div style="background:#0f1117;border-radius:14px;padding:20px;border:1px solid #2a2d3a;margin-bottom:20px">
-        <div style="color:{risk_color};font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;margin-bottom:12px">
+      <div style="background:#0f1117;border-radius:16px;padding:24px;border:1px solid #2a2d3a;margin-bottom:24px">
+        <p style="color:{risk_color};font-size:11px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;margin:0 0 16px">
           ANÁLISIS PERSONALIZADO
-        </div>
-        <div style="color:#d1d5db;font-size:15px;line-height:1.7">
-          {paragraphs}
-        </div>
+        </p>
+        {rendered}
       </div>
 
-      <div style="border-top:1px solid #2a2d3a;padding-top:20px;margin-top:8px">
-        <p style="color:#6b7280;font-size:12px;margin:0;text-align:center">
-          Nuvos AI — Solo educativo. No constituye asesoramiento financiero profesional.<br>
-          <a href="#" style="color:{risk_color}">Abrir la app</a>
-        </p>
+      <div style="text-align:center;margin-bottom:24px">
+        <a href="{cta_url}" style="display:inline-block;background:{risk_color};color:#000;font-weight:800;font-size:15px;padding:14px 32px;border-radius:12px;text-decoration:none">Abrir Nuvos AI →</a>
+      </div>
+
+      <div style="border-top:1px solid #2a2d3a;padding-top:18px;text-align:center">
+        <p style="color:#4b5563;font-size:11px;margin:0">Nuvos AI — Solo educativo. No constituye asesoramiento financiero profesional.</p>
       </div>
     </div>
   </div>
+</div>
 </body>
 </html>"""
 
@@ -383,3 +443,369 @@ async def generate_and_send_monthly_report(user_id: str, email: str, name: str) 
         f"📊 Tu reporte mensual de {month}, {first}",
         html,
     )
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Enhanced Weekly Summary Email  (with portfolio performance data)
+# ─────────────────────────────────────────────────────────────────────────────
+
+def build_enhanced_weekly_html(
+    name: str,
+    is_premium: bool,
+    user_perf: float | None,
+    sp500_perf: float | None,
+    nasdaq_perf: float | None,
+    top_ticker: str | None,
+    top_perf: float | None,
+    sector: str | None,
+    ai_summary: str,
+) -> str:
+    first = name.split()[0] if name else "Inversor"
+    header = _nuvos_email_header("Resumen Semanal de Inversión")
+
+    def fmt(v, sign=True):
+        if v is None:
+            return "—"
+        prefix = "+" if sign and v > 0 else ""
+        return f"{prefix}{v:.2f}%"
+
+    beats      = (user_perf is not None and sp500_perf is not None and user_perf > sp500_perf)
+    perf_color = "#22c55e" if (user_perf or 0) >= 0 else "#ef4444"
+
+    perf_hero = ""
+    if is_premium and user_perf is not None:
+        vs_label   = "🏆 Superaste al S&P 500 esta semana" if beats else "📊 Debajo del S&P 500 esta semana"
+        top_html   = f'<div style="text-align:center"><p style="color:#6b7280;font-size:11px;margin:0 0 2px;text-transform:uppercase;letter-spacing:1px">Mejor activo</p><p style="color:#22c55e;font-size:16px;font-weight:800;margin:0">{top_ticker} {fmt(top_perf)}</p></div>' if top_ticker else ""
+        perf_hero  = f"""
+      <div style="background:linear-gradient(135deg,#0f1c12,#1a1d27);border:1px solid rgba(0,168,94,0.3);border-radius:16px;padding:28px;margin-bottom:20px;text-align:center">
+        <p style="color:#9ca3af;font-size:11px;margin:0 0 6px;text-transform:uppercase;letter-spacing:1.5px">Tu rendimiento esta semana</p>
+        <div style="font-size:46px;font-weight:900;color:{perf_color};margin:0 0 6px;letter-spacing:-1px">{fmt(user_perf)}</div>
+        <p style="color:#6b7280;font-size:13px;margin:0 0 20px">{vs_label}</p>
+        <div style="display:table;width:100%;border-collapse:collapse">
+          <div style="display:table-row">
+            <div style="display:table-cell;text-align:center;padding:0 12px">
+              <p style="color:#6b7280;font-size:11px;margin:0 0 2px;text-transform:uppercase;letter-spacing:1px">S&amp;P 500</p>
+              <p style="color:#d1d5db;font-size:18px;font-weight:800;margin:0">{fmt(sp500_perf)}</p>
+            </div>
+            <div style="display:table-cell;text-align:center;padding:0 12px;border-left:1px solid #2a2d3a">
+              <p style="color:#6b7280;font-size:11px;margin:0 0 2px;text-transform:uppercase;letter-spacing:1px">NASDAQ</p>
+              <p style="color:#d1d5db;font-size:18px;font-weight:800;margin:0">{fmt(nasdaq_perf)}</p>
+            </div>
+            {"<div style='display:table-cell;text-align:center;padding:0 12px;border-left:1px solid #2a2d3a'>" + top_html + "</div>" if top_ticker else ""}
+          </div>
+        </div>
+      </div>"""
+    elif not is_premium and sp500_perf is not None:
+        perf_hero = f"""
+      <div style="background:#111318;border:1px solid #2a2d3a;border-radius:16px;padding:20px;margin-bottom:20px;text-align:center">
+        <p style="color:#6b7280;font-size:11px;margin:0 0 12px;text-transform:uppercase;letter-spacing:1.5px">Mercados esta semana</p>
+        <div style="display:table;width:100%;border-collapse:collapse">
+          <div style="display:table-row">
+            <div style="display:table-cell;text-align:center">
+              <p style="color:#6b7280;font-size:11px;margin:0 0 2px">S&amp;P 500</p>
+              <p style="color:#d1d5db;font-size:20px;font-weight:800;margin:0">{fmt(sp500_perf)}</p>
+            </div>
+            <div style="display:table-cell;text-align:center;border-left:1px solid #2a2d3a">
+              <p style="color:#6b7280;font-size:11px;margin:0 0 2px">NASDAQ</p>
+              <p style="color:#d1d5db;font-size:20px;font-weight:800;margin:0">{fmt(nasdaq_perf)}</p>
+            </div>
+          </div>
+        </div>
+        <div style="margin-top:16px;padding:10px 14px;background:rgba(0,168,94,0.07);border:1px solid rgba(0,168,94,0.2);border-radius:10px">
+          <p style="color:#00a85e;font-size:12px;margin:0;font-weight:600">🔒 Activa <strong>Premium</strong> y ve el rendimiento real de tu portafolio aquí</p>
+        </div>
+      </div>"""
+
+    rendered     = _render_md(ai_summary)
+    sector_note  = f'<p style="color:#9ca3af;font-size:12px;margin:16px 0 0">📍 Sector destacado esta semana: <strong style="color:#d1d5db">{sector}</strong></p>' if sector else ""
+    cta_url      = "https://nuvosai.com/home"
+
+    return f"""<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#0a0c12;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">
+<div style="max-width:600px;margin:0 auto;padding:32px 16px">
+  <div style="border-radius:20px;overflow:hidden;border:1px solid #2a2d3a">
+
+    {header}
+
+    <div style="background:#1a1d27;padding:32px">
+      <h1 style="color:#fff;font-size:22px;font-weight:900;margin:0 0 6px">Hola {first}, ¿cómo fue tu semana? 👋</h1>
+      <p style="color:#9ca3af;font-size:13px;margin:0 0 24px">La semana cerró. Es momento de reflexionar y prepararse para el lunes.</p>
+
+      {perf_hero}
+
+      <div style="background:#111318;border:1px solid #2a2d3a;border-radius:14px;padding:24px;margin-bottom:20px">
+        <p style="color:#00a85e;font-size:11px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;margin:0 0 16px">ANÁLISIS DE LA SEMANA</p>
+        {rendered}
+        {sector_note}
+      </div>
+
+      <div style="text-align:center;margin-bottom:20px">
+        <a href="{cta_url}" style="display:inline-block;background:#00a85e;color:#000;font-weight:800;font-size:15px;padding:14px 32px;border-radius:12px;text-decoration:none">Ver mi reporte semanal →</a>
+      </div>
+
+      <div style="border-top:1px solid #2a2d3a;padding-top:16px;text-align:center">
+        <p style="color:#4b5563;font-size:11px;margin:0">Nuvos AI — Solo educativo. No constituye asesoramiento financiero profesional.</p>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>"""
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Earnings Results Email
+# ─────────────────────────────────────────────────────────────────────────────
+
+def build_earnings_results_html(
+    name: str,
+    ticker: str,
+    eps_real: float | None,
+    eps_est: float | None,
+    rev_real_b: float | None,
+    rev_est_b: float | None,
+    change_pct: float | None,
+) -> str:
+    first    = name.split()[0] if name else "Inversor"
+    header   = _nuvos_email_header(f"Alerta de Resultados — {ticker}")
+    beat_eps = (eps_real is not None and eps_est is not None and eps_real >= eps_est)
+    beat_rev = (rev_real_b is not None and rev_est_b is not None and rev_real_b >= rev_est_b)
+
+    def fmt_eps(v):
+        return f"${v:.2f}" if v is not None else "N/D"
+    def fmt_rev(v):
+        return f"${v:.2f}B" if v is not None else "N/D"
+
+    eps_color  = "#22c55e" if beat_eps else "#ef4444"
+    rev_color  = "#22c55e" if beat_rev else "#ef4444"
+    eps_label  = "✅ Superó estimados" if beat_eps else "❌ Debajo de estimados"
+    rev_label  = "✅ Superó estimados" if beat_rev else "❌ Debajo de estimados"
+
+    if change_pct is not None:
+        ch_color  = "#22c55e" if change_pct >= 0 else "#ef4444"
+        ch_prefix = "+" if change_pct >= 0 else ""
+        change_str = f'<span style="color:{ch_color};font-weight:900;font-size:28px">{ch_prefix}{change_pct:.2f}%</span>'
+    else:
+        change_str = '<span style="color:#6b7280;font-size:28px">—</span>'
+
+    cta_url = f"https://nuvosai.com/home"
+    return f"""<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#0a0c12;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">
+<div style="max-width:600px;margin:0 auto;padding:32px 16px">
+  <div style="border-radius:20px;overflow:hidden;border:1px solid #2a2d3a">
+
+    {header}
+
+    <div style="background:#1a1d27;padding:32px">
+      <div style="display:inline-block;background:rgba(245,158,11,0.12);border:1px solid rgba(245,158,11,0.3);border-radius:8px;padding:6px 14px;margin-bottom:16px">
+        <span style="color:#f59e0b;font-weight:700;font-size:11px;letter-spacing:1.5px;text-transform:uppercase">⚠️ Earnings Report</span>
+      </div>
+      <h1 style="color:#fff;font-size:22px;font-weight:900;margin:0 0 6px">Hola {first}, <strong style="color:#f59e0b">{ticker}</strong> acaba de reportar resultados</h1>
+      <p style="color:#9ca3af;font-size:14px;margin:0 0 24px">Tu posición puede verse afectada. Aquí está el desglose completo.</p>
+
+      <!-- Results table -->
+      <div style="border:1px solid #2a2d3a;border-radius:14px;overflow:hidden;margin-bottom:16px">
+        <div style="background:#111318;padding:12px 18px;border-bottom:1px solid #2a2d3a">
+          <p style="color:#f59e0b;font-size:11px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;margin:0">Resultados Trimestrales</p>
+        </div>
+        <table style="width:100%;border-collapse:collapse;background:#1a1d27">
+          <thead><tr style="background:#111318">
+            <th style="padding:10px 16px;color:#6b7280;font-size:11px;text-align:left;text-transform:uppercase;letter-spacing:1px;font-weight:600">Métrica</th>
+            <th style="padding:10px 16px;color:#6b7280;font-size:11px;text-align:right;text-transform:uppercase;letter-spacing:1px;font-weight:600">Real</th>
+            <th style="padding:10px 16px;color:#6b7280;font-size:11px;text-align:right;text-transform:uppercase;letter-spacing:1px;font-weight:600">Estimado</th>
+            <th style="padding:10px 16px;color:#6b7280;font-size:11px;text-align:right;text-transform:uppercase;letter-spacing:1px;font-weight:600">Resultado</th>
+          </tr></thead>
+          <tbody>
+            <tr style="border-top:1px solid #2a2d3a">
+              <td style="padding:14px 16px;color:#d1d5db;font-size:14px;font-weight:700">EPS</td>
+              <td style="padding:14px 16px;color:{eps_color};font-size:16px;font-weight:900;text-align:right">{fmt_eps(eps_real)}</td>
+              <td style="padding:14px 16px;color:#6b7280;font-size:14px;text-align:right">{fmt_eps(eps_est)}</td>
+              <td style="padding:14px 16px;color:{eps_color};font-size:12px;text-align:right;font-weight:700">{eps_label}</td>
+            </tr>
+            <tr style="border-top:1px solid #2a2d3a">
+              <td style="padding:14px 16px;color:#d1d5db;font-size:14px;font-weight:700">Ingresos</td>
+              <td style="padding:14px 16px;color:{rev_color};font-size:16px;font-weight:900;text-align:right">{fmt_rev(rev_real_b)}</td>
+              <td style="padding:14px 16px;color:#6b7280;font-size:14px;text-align:right">{fmt_rev(rev_est_b)}</td>
+              <td style="padding:14px 16px;color:{rev_color};font-size:12px;text-align:right;font-weight:700">{rev_label}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Price impact -->
+      <div style="background:#111318;border:1px solid #2a2d3a;border-radius:14px;padding:20px;margin-bottom:20px;text-align:center">
+        <p style="color:#9ca3af;font-size:11px;margin:0 0 6px;text-transform:uppercase;letter-spacing:1.5px">Impacto en precio (hoy)</p>
+        {change_str}
+        <p style="color:#6b7280;font-size:12px;margin:8px 0 0;line-height:1.5">La volatilidad post-earnings suele mantenerse 48 horas. Monitorea con atención.</p>
+      </div>
+
+      <div style="text-align:center;margin-bottom:20px">
+        <a href="{cta_url}" style="display:inline-block;background:#f59e0b;color:#000;font-weight:800;font-size:15px;padding:14px 32px;border-radius:12px;text-decoration:none">Ver análisis técnico de Nuvos →</a>
+      </div>
+
+      <div style="border-top:1px solid #2a2d3a;padding-top:16px;text-align:center">
+        <p style="color:#4b5563;font-size:11px;margin:0">Nuvos AI — Solo educativo. No constituye asesoramiento financiero profesional.</p>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>"""
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Birthday Email
+# ─────────────────────────────────────────────────────────────────────────────
+
+def build_birthday_html(name: str) -> str:
+    first   = name.split()[0] if name else "Inversor"
+    header  = _nuvos_email_header("Un regalo especial para ti 🎁")
+    cta_url = "https://nuvosai.com/premium-success?source=birthday"
+    return f"""<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#0a0c12;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">
+<div style="max-width:600px;margin:0 auto;padding:32px 16px">
+  <div style="border-radius:20px;overflow:hidden;border:1px solid #2a2d3a">
+
+    {header}
+
+    <div style="background:#1a1d27;padding:32px;text-align:center">
+      <div style="font-size:56px;margin-bottom:16px">🎂</div>
+      <h1 style="color:#fff;font-size:28px;font-weight:900;margin:0 0 10px">¡Feliz cumpleaños, {first}!</h1>
+      <p style="color:#9ca3af;font-size:15px;margin:0 0 28px;line-height:1.7">De parte de todo el equipo de Nuvos AI,<br>te deseamos un día lleno de éxitos personales y financieros.</p>
+
+      <div style="background:linear-gradient(135deg,#0f2a1a,#111318);border:1px solid rgba(0,168,94,0.35);border-radius:16px;padding:28px;margin-bottom:24px">
+        <div style="font-size:32px;margin-bottom:12px">🎁</div>
+        <p style="color:#00a85e;font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;margin:0 0 10px">TU REGALO DE CUMPLEAÑOS</p>
+        <p style="color:#fff;font-size:22px;font-weight:900;margin:0 0 10px">7 días de acceso Premium</p>
+        <p style="color:#9ca3af;font-size:14px;margin:0 0 22px;line-height:1.7">Sin costo. Sin tarjeta de crédito.<br>Portafolio en tiempo real, análisis de earnings, IA personalizada y más.</p>
+        <a href="{cta_url}" style="display:inline-block;background:#00a85e;color:#000;font-weight:800;font-size:15px;padding:14px 32px;border-radius:12px;text-decoration:none">🎁 Activar mi regalo Premium</a>
+      </div>
+
+      <p style="color:#6b7280;font-size:14px;margin:0 0 0;line-height:1.7">¡A disfrutar! 🥂<br><strong style="color:#d1d5db">El equipo de Nuvos AI</strong></p>
+
+      <div style="border-top:1px solid #2a2d3a;padding-top:16px;margin-top:24px">
+        <p style="color:#4b5563;font-size:11px;margin:0">Nuvos AI — Solo educativo. No constituye asesoramiento financiero profesional.</p>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>"""
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Re-engagement Email (7+ days inactive)
+# ─────────────────────────────────────────────────────────────────────────────
+
+def build_reengagement_html(name: str, movers: list[dict]) -> str:
+    first   = name.split()[0] if name else "Inversor"
+    header  = _nuvos_email_header("Te hemos echado de menos")
+    cta_url = "https://nuvosai.com/home"
+
+    movers_html = ""
+    for m in movers[:3]:
+        ticker = m.get("ticker", "")
+        pct    = m.get("change_pct", 0)
+        color  = "#22c55e" if pct >= 0 else "#ef4444"
+        sign   = "+" if pct >= 0 else ""
+        emoji  = "🚀" if pct >= 0 else "📉"
+        movers_html += f'<tr style="border-top:1px solid #2a2d3a"><td style="padding:14px 18px"><span style="font-size:16px">{emoji}</span> <strong style="color:#d1d5db;font-size:14px">{ticker}</strong></td><td style="padding:14px 18px;text-align:right;color:{color};font-size:15px;font-weight:800">{sign}{pct:.2f}%</td></tr>'
+
+    if not movers_html:
+        movers_html = '<tr><td colspan="2" style="padding:16px;text-align:center;color:#6b7280;font-size:13px">Tus activos están en movimiento esta semana.</td></tr>'
+
+    return f"""<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#0a0c12;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">
+<div style="max-width:600px;margin:0 auto;padding:32px 16px">
+  <div style="border-radius:20px;overflow:hidden;border:1px solid #2a2d3a">
+
+    {header}
+
+    <div style="background:#1a1d27;padding:32px">
+      <div style="text-align:center;margin-bottom:24px">
+        <div style="font-size:48px;margin-bottom:12px">📊</div>
+        <h1 style="color:#fff;font-size:22px;font-weight:900;margin:0 0 8px">¡Tu portafolio te extraña, {first}!</h1>
+        <p style="color:#9ca3af;font-size:14px;margin:0;line-height:1.6">El mercado ha tenido movimientos interesantes esta semana.<br>Tus activos han superado sus medias móviles de 50 días.</p>
+      </div>
+
+      <div style="border:1px solid #2a2d3a;border-radius:14px;overflow:hidden;margin-bottom:20px">
+        <div style="background:#111318;padding:12px 18px;border-bottom:1px solid #2a2d3a">
+          <p style="color:#00a85e;font-size:11px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;margin:0">Movimientos recientes</p>
+        </div>
+        <table style="width:100%;border-collapse:collapse;background:#1a1d27">
+          {movers_html}
+        </table>
+      </div>
+
+      <p style="color:#9ca3af;font-size:14px;margin:0 0 20px;text-align:center;line-height:1.7">No dejes que las oportunidades pasen desapercibidas.</p>
+
+      <div style="text-align:center;margin-bottom:20px">
+        <a href="{cta_url}" style="display:inline-block;background:#00a85e;color:#000;font-weight:800;font-size:15px;padding:14px 32px;border-radius:12px;text-decoration:none">Revisar mi portafolio →</a>
+      </div>
+
+      <div style="border-top:1px solid #2a2d3a;padding-top:16px;text-align:center">
+        <p style="color:#4b5563;font-size:11px;margin:0">Nuvos AI — Solo educativo. No constituye asesoramiento financiero profesional.</p>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>"""
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Educational Email (biweekly)
+# ─────────────────────────────────────────────────────────────────────────────
+
+def build_educational_email_html(name: str, concept: str, explanation: str, example: str) -> str:
+    first   = name.split()[0] if name else "Inversor"
+    header  = _nuvos_email_header("Academia Nuvos · Concepto Quincenal")
+    cta_url = "https://nuvosai.com/academy"
+    paragraphs = "".join(
+        f"<p style='margin:0 0 14px;color:#d1d5db;font-size:14px;line-height:1.75'>{p.strip()}</p>"
+        for p in explanation.split("\n") if p.strip()
+    )
+    return f"""<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#0a0c12;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">
+<div style="max-width:600px;margin:0 auto;padding:32px 16px">
+  <div style="border-radius:20px;overflow:hidden;border:1px solid #2a2d3a">
+
+    {header}
+
+    <div style="background:#1a1d27;padding:32px">
+      <h1 style="color:#fff;font-size:22px;font-weight:900;margin:0 0 6px">Hola {first}, ¿conoces este concepto? 📚</h1>
+      <p style="color:#9ca3af;font-size:14px;margin:0 0 24px">Cada dos semanas te compartimos una idea clave que todo inversor debería dominar.</p>
+
+      <div style="background:linear-gradient(135deg,#140e28,#1a1d27);border:1px solid rgba(139,92,246,0.3);border-radius:14px;padding:24px;margin-bottom:16px">
+        <p style="color:#8b5cf6;font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;margin:0 0 10px">CONCEPTO DE LA QUINCENA</p>
+        <h2 style="color:#fff;font-size:22px;font-weight:900;margin:0 0 20px;line-height:1.3">{concept}</h2>
+        {paragraphs}
+      </div>
+
+      <div style="background:#111318;border:1px solid rgba(245,158,11,0.25);border-radius:14px;padding:20px;margin-bottom:20px">
+        <p style="color:#f59e0b;font-size:11px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;margin:0 0 10px">💡 EJEMPLO PRÁCTICO</p>
+        <p style="color:#d1d5db;font-size:14px;margin:0;line-height:1.7">{example}</p>
+      </div>
+
+      <div style="text-align:center;margin-bottom:20px">
+        <a href="{cta_url}" style="display:inline-block;background:#8b5cf6;color:#fff;font-weight:800;font-size:15px;padding:14px 32px;border-radius:12px;text-decoration:none">Ir a la Academia Nuvos →</a>
+      </div>
+
+      <div style="border-top:1px solid #2a2d3a;padding-top:16px;text-align:center">
+        <p style="color:#4b5563;font-size:11px;margin:0">Nuvos AI — Solo educativo. No constituye asesoramiento financiero profesional.</p>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>"""

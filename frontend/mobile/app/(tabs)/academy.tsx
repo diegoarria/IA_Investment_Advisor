@@ -5,7 +5,8 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
+import MobileTourBanner from "../../src/components/MobileTourBanner";
 import { useTheme } from "../../src/lib/ThemeContext";
 import { useLearnStore } from "../../src/lib/learnStore";
 
@@ -47,7 +48,7 @@ function StreakRing({ streak, colors }: { streak: number; colors: any }) {
 
 // ─── Aprendizaje Tab ─────────────────────────────────────────────────────────
 
-function AprendizajeTab({ colors }: { colors: any }) {
+function AprendizajeTab({ colors, isTour }: { colors: any; isTour?: boolean }) {
   const streak = useLearnStore((s) => s.streak);
   const completedToday = useLearnStore((s) => s.completedToday);
 
@@ -82,7 +83,7 @@ function AprendizajeTab({ colors }: { colors: any }) {
               style={[ss.categoryCard, { backgroundColor: colors.card, borderColor: colors.border }]}
             >
               <Text style={ss.categoryEmoji}>{cat.emoji}</Text>
-              <Text style={[ss.categoryTitle, { color: colors.text }]}>{cat.title}</Text>
+              <Text style={[ss.categoryTitle, { color: colors.text }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{cat.title}</Text>
             </TouchableOpacity>
           ))}
         </View>
@@ -92,7 +93,7 @@ function AprendizajeTab({ colors }: { colors: any }) {
       <TouchableOpacity
         onPress={() => router.push("/(tabs)/learn")}
         activeOpacity={0.8}
-        style={[ss.btn, { backgroundColor: colors.accent }]}
+        style={[ss.btn, { backgroundColor: colors.accent }, isTour && { borderWidth: 3, borderColor: "#fff" }]}
       >
         <Ionicons name="library-outline" size={16} color="#fff" />
         <Text style={ss.btnText}>Ver todos →</Text>
@@ -144,6 +145,8 @@ function VideosTab({ colors }: { colors: any }) {
 export default function AcademyScreen() {
   const { colors } = useTheme();
   const [activeTab, setActiveTab] = useState<TabId>("Aprendizaje");
+  const { tour } = useLocalSearchParams<{ tour?: string }>();
+  const isTour = tour === "4";
 
   return (
     <SafeAreaView edges={["top"]} style={[ss.safe, { backgroundColor: colors.bg }]}>
@@ -180,8 +183,16 @@ export default function AcademyScreen() {
       </View>
 
       {/* Content */}
-      {activeTab === "Aprendizaje" && <AprendizajeTab colors={colors} />}
+      {activeTab === "Aprendizaje" && <AprendizajeTab colors={colors} isTour={isTour} />}
       {activeTab === "Videos" && <VideosTab colors={colors} />}
+
+      {isTour && (
+        <MobileTourBanner
+          step={4}
+          title="Empieza tu primera lección"
+          description="Cada día hay una lección nueva. Completa 3 seguidas y arranca tu racha — tu streak aparece en el home."
+        />
+      )}
     </SafeAreaView>
   );
 }
@@ -292,7 +303,7 @@ const ss = StyleSheet.create({
     marginBottom: 8,
   },
   categoryTitle: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: "700",
   },
   // Videos

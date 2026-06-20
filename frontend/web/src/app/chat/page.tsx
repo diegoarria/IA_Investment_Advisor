@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import TourSpotlight from "@/components/TourSpotlight";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import ReactMarkdown from "react-markdown";
@@ -175,6 +176,8 @@ export default function ChatPage() {
   const mentor = getMentorInfo(profile?.mentor);
   const cancelRef = useRef({ cancelled: false });
 
+  const [isTour, setIsTour] = useState(false);
+  useEffect(() => { setIsTour(new URLSearchParams(window.location.search).get("tour") === "3"); }, []);
   const [input, setInput] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
@@ -1023,6 +1026,7 @@ export default function ChatPage() {
                 {/* Textarea + send */}
                 <div className="flex items-end gap-2 px-3 pt-3 pb-2">
                   <textarea
+                    id="tour-chat-input"
                     ref={inputRef}
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
@@ -1116,6 +1120,16 @@ export default function ChatPage() {
 
       <PaywallModal visible={paywallOpen} onClose={() => setPaywallOpen(false)} />
       <TutorialModal />
+
+      {isTour && (
+        <TourSpotlight
+          targetId="tour-chat-input"
+          step={3}
+          title="Habla con Nuvos"
+          description="Escribe cualquier pregunta sobre inversiones. Nuvos recuerda tu portafolio y perfil para darte respuestas personalizadas."
+          ctaLabel="Entendido, volver al inicio ✓"
+        />
+      )}
     </div>
   );
 }
