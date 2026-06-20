@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import Image from "next/image";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { chat as chatApi, notifications as notifApi } from "@/lib/api";
+import { chat as chatApi, notifications as notifApi, decisionsApi } from "@/lib/api";
 import {
   useAuthStore, useProfileStore, useChatStore, useNotificationStore,
   useThemeStore, useSubscriptionStore, msgsRemaining, FREE_MSG_LIMIT,
@@ -22,7 +22,7 @@ import PremiumBadge from "@/components/PremiumBadge";
 import { useTutorialStore } from "@/lib/store";
 import {
   Send, TrendingUp, Bell, LogOut, Menu, X,
-  ChevronRight, Sun, Moon, Square, Pencil, ImagePlus, Plus, Mic, Play,
+  ChevronRight, Sun, Moon, Square, Pencil, ImagePlus, Plus, Mic, Play, Copy,
 } from "lucide-react";
 import { getUserLevel, LEVEL_LABEL, LEVEL_COLOR } from "@/lib/userLevel";
 
@@ -177,7 +177,39 @@ export default function ChatPage() {
   const cancelRef = useRef({ cancelled: false });
 
   const [isTour, setIsTour] = useState(false);
-  useEffect(() => { setIsTour(new URLSearchParams(window.location.search).get("tour") === "3"); }, []);
+  const [notificationContext, setNotificationContext] = useState<string | null>(null);
+  const [pendingActions, setPendingActions] = useState<Array<{ type: string; label: string; data: Record<string, unknown> }> | null>(null);
+  const [decisionModal, setDecisionModal] = useState<{ action: string; ticker: string; notes: string } | null>(null);
+  const [decisionSaved, setDecisionSaved] = useState(false);
+
+  // ── Guided tour & 1:1 suggestion ─────────────────────────────────────────
+  const [guidedTour, setGuidedTour]     = useState(false);
+  const [guidedStep, setGuidedStep]     = useState(1);
+  const [show1on1, setShow1on1]         = useState(false);
+  const [dismissed1on1, setDismissed1on1] = useState(false);
+
+  const GUIDED_STEPS = [
+    { emoji: "💬", label: "Responde a tu mentor",         action: null },
+    { emoji: "💼", label: "Agrega tu primera posición",   action: "/portfolio?tour=1" },
+    { emoji: "📚", label: "Completa una lección del día", action: "/academy" },
+    { emoji: "👀", label: "Agrega algo a tu watchlist",   action: "/watchlist" },
+  ];
+
+  useEffect(() => {
+    setIsTour(new URLSearchParams(window.location.search).get("tour") === "3");
+    const ctx = new URLSearchParams(window.location.search).get("ctx");
+    const msg = new URLSearchParams(window.location.search).get("msg");
+    if (ctx) setNotificationContext(decodeURIComponent(ctx));
+    if (msg) setInput(decodeURIComponent(msg));
+
+    // Guided tour init
+    const tourActive = localStorage.getItem("nuvos_guided_tour") === "1";
+    const savedStep  = parseInt(localStorage.getItem("nuvos_guided_step") ?? "1");
+    setGuidedTour(tourActive);
+    setGuidedStep(savedStep);
+    setDismissed1on1(sessionStorage.getItem("nuvos_1on1_dismissed") === "1");
+  }, []);
+
   const [input, setInput] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
@@ -211,10 +243,19 @@ export default function ChatPage() {
   const localFingerprintsRef = useRef<Set<string>>(new Set());
   const fp = (role: string, content: string) => `${role}:${content.slice(0, 60)}`;
 
+  const [showScrollBtn, setShowScrollBtn] = useState(false);
+
   const handleScrollContainer = () => {
     const el = scrollContainerRef.current;
     if (!el) return;
-    isAtBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+    const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+    isAtBottom.current = atBottom;
+    setShowScrollBtn(!atBottom);
+  };
+
+  const scrollToBottom = () => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    setShowScrollBtn(false);
   };
 
   const isPremium = subStore.tier === "premium";
@@ -529,6 +570,16 @@ export default function ChatPage() {
     chatApi.saveMessage("user", saveMsg, currentId).catch(() => {});
     syncCursorRef.current = new Date().toISOString();
 
+    // Advance guided tour to step 2 on first user message
+    if (guidedTour && guidedStep === 1) {
+      setGuidedStep(2);
+      localStorage.setItem("nuvos_guided_step", "2");
+    }
+    // Show 1:1 suggestion after first exchange
+    if (guidedTour && !dismissed1on1) {
+      setShow1on1(true);
+    }
+
     const profileCtx = buildProfileContext();
     const recentHistory = messages.slice(-18).map((m) => ({ role: m.role, content: m.content }));
     const historyForApi = profileCtx
@@ -542,6 +593,9 @@ export default function ChatPage() {
     startAssistantMessage();
     setStreaming(true);
 
+    const ctxToSend = notificationContext;
+    setNotificationContext(null);
+    setPendingActions(null);
     let fullResponse = "";
     try {
       await chatApi.stream(
@@ -573,6 +627,8 @@ export default function ChatPage() {
         null,
         null,
         imagesToSend.length > 0 ? imagesToSend.map((i) => ({ data: i.data, type: i.type })) : null,
+        ctxToSend,
+        (actions) => setPendingActions(actions),
       );
     } catch (err: unknown) {
       setStreaming(false);
@@ -859,7 +915,7 @@ export default function ChatPage() {
             {/* ─── Message list ──────────────────────────────────────────── */}
             {messages.map((msg, i) => (
               <div key={i} className="animate-fade-in">
-                <div className={`flex ${msg.role === "user" ? "justify-end" : "justify-start gap-2.5"}`}>
+                <div className={`flex ${msg.role === "user" ? "justify-end items-start gap-2.5 group/msg" : "justify-start gap-2.5"}`}>
 
                   {/* AI avatar */}
                   {msg.role === "assistant" && (
@@ -873,32 +929,61 @@ export default function ChatPage() {
                   )}
 
                   {/* Bubble */}
-                  <div className={msg.role === "user" ? "max-w-[78%]" : "flex-1 min-w-0"}>
-                    {msg.role === "user" ? (
-                      <>
+                  {msg.role === "user" ? (
+                    <>
+                      {/* ── User message column ── */}
+                      <div className="flex flex-col items-end" style={{ maxWidth: "72%" }}>
+                        {/* Sender label */}
+                        <span className="text-[10px] font-semibold tracking-wide mb-1.5 mr-0.5 select-none"
+                              style={{ color: "var(--dim)" }}>
+                          Tú
+                        </span>
+                        {/* Bubble */}
                         <div className="bubble-user">
                           {msg.images && msg.images.length > 0 && (
-                            <div className={`flex flex-wrap gap-1.5${msg.content ? " mb-2" : ""}`}>
+                            <div className={`flex flex-wrap gap-1.5${msg.content ? " mb-2.5" : ""}`}>
                               {msg.images.map((img, idx) => (
                                 // eslint-disable-next-line @next/next/no-img-element
                                 <img key={idx} src={img.preview} alt=""
                                      className="rounded-xl object-cover"
-                                     style={{ maxWidth: 180, maxHeight: 160 }} />
+                                     style={{ maxWidth: 200, maxHeight: 180 }} />
                               ))}
                             </div>
                           )}
                           {msg.content && <span>{msg.content}</span>}
                         </div>
-                        <div className="flex justify-end mt-0.5">
+                        {/* Action row — appears on hover */}
+                        <div className="flex items-center gap-0.5 mt-1.5 opacity-0 group-hover/msg:opacity-100 transition-opacity duration-150">
                           <button onClick={() => handleEditMessage(i, msg.content)}
-                                  className="p-1.5 rounded-lg opacity-0 hover:opacity-100 hover:bg-white/5 transition-all"
+                                  className="flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-medium hover:bg-white/5 transition-colors"
                                   style={{ color: "var(--dim)" }}>
-                            <Pencil className="w-3 h-3" />
+                            <Pencil className="w-2.5 h-2.5" />
+                            Editar
                           </button>
+                          {msg.content && (
+                            <button onClick={() => navigator.clipboard.writeText(msg.content)}
+                                    className="flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-medium hover:bg-white/5 transition-colors"
+                                    style={{ color: "var(--dim)" }}>
+                              <Copy className="w-2.5 h-2.5" />
+                              Copiar
+                            </button>
+                          )}
                         </div>
-                      </>
-                    ) : (
-                      /* ── AI message card ── */
+                      </div>
+                      {/* User avatar */}
+                      <div className="w-8 h-8 rounded-xl shrink-0 flex items-center justify-center text-[11px] font-bold mt-[26px]"
+                           style={{
+                             background: "linear-gradient(135deg, rgba(0,185,109,0.20) 0%, rgba(0,90,200,0.12) 100%)",
+                             border: "1px solid rgba(0,185,109,0.25)",
+                             color: "var(--accent-l)",
+                             boxShadow: "0 1px 4px rgba(0,0,0,0.15)",
+                           }}>
+                        {profile?.name ? profile.name.charAt(0).toUpperCase() : "T"}
+                      </div>
+                    </>
+                  ) : (
+                    <div className="flex-1 min-w-0">
+                      {/* ── AI message card ── */}
                       <div className="rounded-2xl border px-4 py-3.5 overflow-hidden"
                            style={{
                              background: "var(--card)",
@@ -955,18 +1040,200 @@ export default function ChatPage() {
                           </>
                         )}
                       </div>
-                    )}
-                  </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* BScore card */}
                 {msg.role === "assistant" && i === messages.length - 1 && lastAssessment && !isStreaming && (
                   <BScoreCard data={lastAssessment} />
                 )}
+
+                {/* Welcome quick-reply chips — only on the first assistant message when tour is active */}
+                {msg.role === "assistant" && i === 0 && messages.length === 1 && guidedTour && !isStreaming && (
+                  <div className="flex flex-wrap gap-2 mt-3 ml-11">
+                    {[
+                      { label: "Ya tengo posiciones",          msg: "Ya tengo posiciones en el mercado que me gustaría analizar contigo." },
+                      { label: "Estoy comenzando desde cero",  msg: "Estoy comenzando desde cero. No tengo ninguna inversión todavía. ¿Por dónde empiezo?" },
+                      { label: "Quiero una sesión 1:1",        msg: "Me interesa tener una sesión 1:1 con mi mentor para definir mi estrategia desde el inicio." },
+                    ].map((chip, ci) => (
+                      <button
+                        key={ci}
+                        onClick={() => sendMessage(chip.msg)}
+                        className="flex items-center gap-1.5 px-3 py-2 rounded-full text-xs font-semibold border transition-all hover:opacity-80 active:scale-95"
+                        style={{ background: "var(--raised)", borderColor: "var(--border)", color: "var(--sub)" }}
+                      >
+                        {ci === 0 ? "📊" : ci === 1 ? "🌱" : "🎯"} {chip.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {/* Action chips */}
+                {msg.role === "assistant" && i === messages.length - 1 && pendingActions && !isStreaming && (
+                  <div className="flex flex-wrap gap-2 mt-2 ml-11">
+                    {pendingActions.map((action, ai) => (
+                      <button
+                        key={ai}
+                        onClick={() => {
+                          if (action.type === "decision") {
+                            const d = action.data as Record<string, string>;
+                            setDecisionModal({ action: d.action ?? "hold", ticker: d.ticker ?? "", notes: d.notes ?? "" });
+                          } else if (action.type === "chat") {
+                            const d = action.data as Record<string, string>;
+                            sendMessage(d.message);
+                          } else if (action.type === "watchlist") {
+                            const d = action.data as Record<string, string>;
+                            router.push(`/portfolio?add=${d.ticker}`);
+                          } else if (action.type === "alert") {
+                            const d = action.data as Record<string, string>;
+                            router.push(`/portfolio?alert=${d.ticker}`);
+                          } else if (action.type === "learn") {
+                            const d = action.data as Record<string, string>;
+                            router.push(`/learn?topic=${d.topic}`);
+                          }
+                        }}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all hover:opacity-80 active:scale-95"
+                        style={{
+                          background: action.type === "decision" ? "rgba(0,185,109,0.10)" : "var(--raised)",
+                          borderColor: action.type === "decision" ? "rgba(0,185,109,0.35)" : "var(--border)",
+                          color: action.type === "decision" ? "var(--accent-l)" : "var(--sub)",
+                        }}
+                      >
+                        <span>
+                          {action.type === "decision" ? "📝" : action.type === "watchlist" ? "👁" : action.type === "alert" ? "🔔" : action.type === "learn" ? "📚" : "→"}
+                        </span>
+                        {action.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             ))}
             <div ref={bottomRef} />
           </div>
+
+          {/* ─── Scroll to bottom ──────────────────────────────────────────── */}
+          {showScrollBtn && (
+            <div className="relative h-0 flex justify-center">
+              <button
+                onClick={scrollToBottom}
+                className="absolute -top-12 flex items-center justify-center w-8 h-8 rounded-full shadow-lg transition-opacity duration-200 hover:opacity-80"
+                style={{ background: "var(--card)", border: "1px solid var(--border)" }}
+              >
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                  <path d="M4 6l4 4 4-4" stroke="var(--text)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              </button>
+            </div>
+          )}
+
+          {/* ─── Guided tour banner ────────────────────────────────────────── */}
+          {guidedTour && guidedStep <= GUIDED_STEPS.length && (
+            <div className="shrink-0 px-4 pt-3 pb-0 max-w-3xl mx-auto w-full">
+              <div className="rounded-2xl border overflow-hidden"
+                   style={{ background: "rgba(0,168,94,0.06)", borderColor: "rgba(0,168,94,0.25)" }}>
+                <div className="flex items-center justify-between px-4 py-2.5 border-b"
+                     style={{ borderColor: "rgba(0,168,94,0.15)" }}>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-black" style={{ color: "var(--accent-l)" }}>
+                      🗺️ Guía de inicio rápido
+                    </span>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full"
+                          style={{ background: "rgba(0,168,94,0.15)", color: "var(--accent-l)" }}>
+                      {guidedStep - 1} / {GUIDED_STEPS.length} completados
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setGuidedTour(false);
+                      localStorage.removeItem("nuvos_guided_tour");
+                      localStorage.removeItem("nuvos_guided_step");
+                    }}
+                    className="text-xs transition-opacity hover:opacity-60"
+                    style={{ color: "var(--dim)" }}
+                  >
+                    ✕ Saltar tour
+                  </button>
+                </div>
+                <div className="flex items-stretch">
+                  {GUIDED_STEPS.map((s, i) => {
+                    const done = i < guidedStep - 1;
+                    const active = i === guidedStep - 1;
+                    return (
+                      <div key={i}
+                           className="flex-1 flex flex-col items-center gap-1 px-2 py-2.5 text-center"
+                           style={{ borderLeft: i > 0 ? "1px solid rgba(0,168,94,0.15)" : "none" }}>
+                        <div className="w-7 h-7 rounded-full flex items-center justify-center text-sm shrink-0"
+                             style={{
+                               background: done ? "#00a85e" : active ? "rgba(0,168,94,0.15)" : "var(--raised)",
+                               border: active ? "2px solid #00a85e" : "none",
+                             }}>
+                          {done ? "✓" : s.emoji}
+                        </div>
+                        <p className="text-[10px] leading-tight font-semibold"
+                           style={{ color: done ? "var(--dim)" : active ? "var(--text)" : "var(--dim)" }}>
+                          {s.label}
+                        </p>
+                        {active && s.action && (
+                          <button
+                            onClick={() => { router.push(s.action!); setGuidedStep(i + 2); localStorage.setItem("nuvos_guided_step", String(i + 2)); }}
+                            className="text-[10px] font-bold px-2 py-0.5 rounded-full mt-0.5"
+                            style={{ background: "#00a85e", color: "#000" }}
+                          >
+                            Ir →
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ─── Sesión 1:1 card ───────────────────────────────────────────── */}
+          {show1on1 && !dismissed1on1 && guidedTour && (
+            <div className="shrink-0 px-4 pt-3 pb-0 max-w-3xl mx-auto w-full">
+              <div className="rounded-2xl border p-4 flex gap-3"
+                   style={{ background: "rgba(99,102,241,0.06)", borderColor: "rgba(99,102,241,0.25)" }}>
+                <div className="text-2xl shrink-0">🎯</div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-black mb-0.5" style={{ color: "var(--text)" }}>
+                    ¿Quieres ir más rápido con una sesión 1:1?
+                  </p>
+                  <p className="text-xs leading-relaxed mb-3" style={{ color: "var(--muted)" }}>
+                    En 20 minutos tu mentor revisa tu situación, define tu estrategia y responde todas tus dudas en tiempo real — gratis para nuevos usuarios.
+                  </p>
+                  <div className="flex gap-2 flex-wrap">
+                    <button
+                      onClick={() => {
+                        setShow1on1(false);
+                        setDismissed1on1(false);
+                        sessionStorage.removeItem("nuvos_1on1_dismissed");
+                        sendMessage("Quiero solicitar una sesión 1:1 con mi mentor para personalizar mi estrategia de inversión.");
+                      }}
+                      className="text-xs font-bold px-3 py-1.5 rounded-full"
+                      style={{ background: "rgba(99,102,241,0.8)", color: "white" }}
+                    >
+                      Solicitar sesión gratuita →
+                    </button>
+                    <button
+                      onClick={() => {
+                        setShow1on1(false);
+                        setDismissed1on1(true);
+                        sessionStorage.setItem("nuvos_1on1_dismissed", "1");
+                      }}
+                      className="text-xs px-3 py-1.5 rounded-full transition-opacity hover:opacity-70"
+                      style={{ color: "var(--dim)" }}
+                    >
+                      Ahora no
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* ─── Input bar ─────────────────────────────────────────────────── */}
           <div className="shrink-0 px-4 pb-4 pt-3"
@@ -1132,6 +1399,73 @@ export default function ChatPage() {
 
       <PaywallModal visible={paywallOpen} onClose={() => setPaywallOpen(false)} />
       <TutorialModal />
+
+      {/* Decision journal modal */}
+      {decisionModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4"
+          style={{ background: "rgba(0,0,0,0.55)", backdropFilter: "blur(6px)" }}
+          onClick={() => setDecisionModal(null)}
+        >
+          <div
+            className="w-full max-w-sm rounded-2xl p-5 flex flex-col gap-3"
+            style={{ background: "var(--card)", border: "1px solid var(--border)" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <p className="font-bold text-sm" style={{ color: "var(--text)" }}>📝 Registrar decisión</p>
+            <p className="text-xs" style={{ color: "var(--sub)" }}>
+              Guarda esta decisión en tu diario para revisarla más adelante.
+            </p>
+            <div className="flex flex-col gap-2">
+              <label className="text-xs font-semibold" style={{ color: "var(--sub)" }}>Decisión</label>
+              <input
+                className="rounded-lg px-3 py-2 text-sm outline-none border focus:border-[var(--accent)]"
+                style={{ background: "var(--raised)", border: "1px solid var(--border)", color: "var(--text)" }}
+                value={decisionModal.action}
+                onChange={(e) => setDecisionModal({ ...decisionModal, action: e.target.value })}
+                placeholder="ej. Comprar, Vender, Mantener..."
+              />
+              <label className="text-xs font-semibold" style={{ color: "var(--sub)" }}>Ticker</label>
+              <input
+                className="rounded-lg px-3 py-2 text-sm outline-none border focus:border-[var(--accent)]"
+                style={{ background: "var(--raised)", border: "1px solid var(--border)", color: "var(--text)" }}
+                value={decisionModal.ticker}
+                onChange={(e) => setDecisionModal({ ...decisionModal, ticker: e.target.value })}
+                placeholder="ej. AAPL"
+              />
+              <label className="text-xs font-semibold" style={{ color: "var(--sub)" }}>Notas (opcional)</label>
+              <textarea
+                rows={3}
+                className="rounded-lg px-3 py-2 text-sm outline-none border focus:border-[var(--accent)] resize-none"
+                style={{ background: "var(--raised)", border: "1px solid var(--border)", color: "var(--text)" }}
+                value={decisionModal.notes}
+                onChange={(e) => setDecisionModal({ ...decisionModal, notes: e.target.value })}
+                placeholder="¿Por qué tomaste esta decisión?"
+              />
+            </div>
+            <div className="flex gap-2 mt-1">
+              <button
+                className="flex-1 py-2 rounded-xl text-sm font-semibold transition-colors"
+                style={{ background: "var(--raised)", color: "var(--sub)" }}
+                onClick={() => setDecisionModal(null)}
+              >Cancelar</button>
+              <button
+                className="flex-1 py-2 rounded-xl text-sm font-semibold transition-colors"
+                style={{ background: "var(--accent)", color: "#fff" }}
+                onClick={async () => {
+                  try {
+                    await decisionsApi.log({ action: decisionModal.action, ticker: decisionModal.ticker, notes: decisionModal.notes, date: new Date().toISOString() });
+                  } catch {}
+                  setDecisionSaved(true);
+                  setTimeout(() => { setDecisionSaved(false); setDecisionModal(null); }, 1500);
+                }}
+              >
+                {decisionSaved ? "✓ Guardado" : "Guardar"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {isTour && (
         <TourSpotlight

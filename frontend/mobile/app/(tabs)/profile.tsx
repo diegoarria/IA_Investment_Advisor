@@ -154,6 +154,13 @@ export default function ProfileScreen() {
     referralApi.getCode().then((r) => setReferralCode(r.data.code ?? null)).catch(() => {});
     feedApi.getLiked().then((r: any) => setLikedClips(r.data.clips || [])).catch(() => {});
     referralApi.getStats().then((r) => setReferralStats(r.data)).catch(() => {});
+    // Sync full profile from server to keep birth_date and other fields up to date
+    profileApi.get().then((r: any) => {
+      const current = useAppStore.getState().profile;
+      if (current && r.data) {
+        useAppStore.getState().setProfile({ ...current, ...r.data, avatarUri: current.avatarUri });
+      }
+    }).catch(() => {});
     // Bidirectional maturity sync on every profile view
     syncApi.getAll().then((res: any) => {
       const serverScore: number = res.data?.maturity?.score ?? 0;

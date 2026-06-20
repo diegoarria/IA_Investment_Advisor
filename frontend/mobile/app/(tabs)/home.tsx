@@ -360,18 +360,29 @@ export default function HomeScreen() {
   const [goalError,     setGoalError]     = useState("");
 
   const DAILY_LESSONS = [
-    { emoji: "🥧", title: "Diversificación" },
-    { emoji: "📅", title: "Dollar Cost Averaging" },
-    { emoji: "💰", title: "Dividendos" },
-    { emoji: "📈", title: "Análisis Fundamental" },
-    { emoji: "🛡️", title: "Ventaja Competitiva" },
-    { emoji: "⚠️", title: "Aversión a la Pérdida" },
-    { emoji: "🔄", title: "Rebalanceo" },
+    { emoji: "🥧", title: "Diversificación",       topicId: "diversif"  },
+    { emoji: "📅", title: "Dollar Cost Averaging",  topicId: "dca"       },
+    { emoji: "💰", title: "Dividendos",             topicId: "dividendo" },
+    { emoji: "📈", title: "Análisis Fundamental",   topicId: "fund"      },
+    { emoji: "🛡️", title: "Ventaja Competitiva",   topicId: "moat"      },
+    { emoji: "⚠️", title: "Aversión a la Pérdida", topicId: "aversion"  },
+    { emoji: "🔄", title: "Rebalanceo",             topicId: "rebalanceo"},
   ];
   const dailyLesson = DAILY_LESSONS[new Date().getDay() % DAILY_LESSONS.length];
 
   const goalName   = profile?.investment_goal ?? null;
   const goalAmount = parseFloat((profile as any)?.investment_goal_amount ?? "0") || 0;
+
+  const yearsToGoal = React.useMemo(() => {
+    const pmt = parseFloat(profile?.monthly_contribution ?? "0") || 0;
+    if (pmt <= 0 || goalAmount <= 0) return null;
+    const rate = profile?.risk_tolerance === "aggressive" ? 0.12 : profile?.risk_tolerance === "conservative" ? 0.07 : 0.10;
+    const r = rate / 12;
+    const n = Math.log(1 + (goalAmount * r) / pmt) / Math.log(1 + r);
+    if (!isFinite(n) || n <= 0) return null;
+    const yrs = Math.ceil(n / 12);
+    return yrs;
+  }, [profile?.monthly_contribution, goalAmount, profile?.risk_tolerance]);
 
   const sym = CURRENCY_SYMBOL[portfolioCurrency] ?? "$";
 
@@ -405,6 +416,20 @@ export default function HomeScreen() {
         return { ...p, curr, chg };
       })
       .sort((a, b) => Math.abs(b.chg) - Math.abs(a.chg))
+      .slice(0, 4);
+  }, [positions, prices]);
+
+  // ── Top losers (only negative, sorted worst first, max 4) ─────────────────
+  const losers = React.useMemo(() => {
+    return [...positions]
+      .map((p) => {
+        const px   = prices[p.ticker];
+        const curr = px?.price ?? p.avgPrice;
+        const chg  = px?.change_pct ?? 0;
+        return { ...p, curr, chg };
+      })
+      .filter((m) => m.chg < 0)
+      .sort((a, b) => a.chg - b.chg)
       .slice(0, 4);
   }, [positions, prices]);
 
@@ -742,11 +767,11 @@ export default function HomeScreen() {
               {/* Hoy */}
               <View style={ss.heroStat}>
                 <Text style={[ss.heroStatLabel, { color: colors.textMuted }]}>Hoy</Text>
+                <Text style={{ fontSize: 15, fontWeight: "800", color: dayGain >= 0 ? colors.up : colors.down }}>
+                  {fmtPct(dayGainPct)}
+                </Text>
                 <Text style={[ss.heroStatVal, { color: dayGain >= 0 ? colors.up : colors.down }]}>
                   {dayGain >= 0 ? "+" : ""}{fmt(dayGain, portfolioCurrency)}
-                </Text>
-                <Text style={{ fontSize: 11, fontWeight: "600", color: dayGain >= 0 ? colors.up : colors.down }}>
-                  {fmtPct(dayGainPct)}
                 </Text>
               </View>
               <View style={[ss.heroDivider, { backgroundColor: colors.border }]} />
@@ -755,11 +780,11 @@ export default function HomeScreen() {
                 <Text style={[ss.heroStatLabel, { color: colors.textMuted }]}>YTD</Text>
                 {ytdGain !== null ? (
                   <>
+                    <Text style={{ fontSize: 15, fontWeight: "800", color: (ytdPct ?? 0) >= 0 ? colors.up : colors.down }}>
+                      {fmtPct(ytdPct ?? 0)}
+                    </Text>
                     <Text style={[ss.heroStatVal, { color: (ytdGain ?? 0) >= 0 ? colors.up : colors.down }]}>
                       {(ytdGain ?? 0) >= 0 ? "+" : ""}{fmt(ytdGain ?? 0, portfolioCurrency)}
-                    </Text>
-                    <Text style={{ fontSize: 11, fontWeight: "600", color: (ytdPct ?? 0) >= 0 ? colors.up : colors.down }}>
-                      {fmtPct(ytdPct ?? 0)}
                     </Text>
                   </>
                 ) : (
@@ -770,11 +795,11 @@ export default function HomeScreen() {
               {/* Total */}
               <View style={ss.heroStat}>
                 <Text style={[ss.heroStatLabel, { color: colors.textMuted }]}>Total</Text>
+                <Text style={{ fontSize: 15, fontWeight: "800", color: totalGain >= 0 ? colors.up : colors.down }}>
+                  {fmtPct(totalGainPct)}
+                </Text>
                 <Text style={[ss.heroStatVal, { color: totalGain >= 0 ? colors.up : colors.down }]}>
                   {totalGain >= 0 ? "+" : ""}{fmt(totalGain, portfolioCurrency)}
-                </Text>
-                <Text style={{ fontSize: 11, fontWeight: "600", color: totalGain >= 0 ? colors.up : colors.down }}>
-                  {fmtPct(totalGainPct)}
                 </Text>
               </View>
             </View>
@@ -847,9 +872,11 @@ export default function HomeScreen() {
             <Text style={{ fontSize: 18 }}>🎯</Text>
             <View>
               <Text style={{ fontSize: 13, fontWeight: "800", color: goalName ? "#00d47e" : colors.text }} numberOfLines={1}>
-                {goalName ?? "Sin meta"}
+                {goalName ? (GOAL_OPTIONS.find(g => g.key === goalName)?.label ?? goalName) : "Sin meta"}
               </Text>
-              <Text style={{ fontSize: 10, color: colors.textMuted }}>Meta</Text>
+              <Text style={{ fontSize: 10, color: colors.textMuted }}>
+                {yearsToGoal ? `en ~${yearsToGoal} años` : "Meta"}
+              </Text>
             </View>
           </TouchableOpacity>
 
@@ -1004,7 +1031,7 @@ export default function HomeScreen() {
         {/* ── Lección recomendada ──────────────────────────────────────────── */}
         <TouchableOpacity
           activeOpacity={0.88}
-          onPress={() => router.navigate("/(tabs)/academy")}
+          onPress={() => router.navigate({ pathname: "/(tabs)/learn", params: { topicId: dailyLesson.topicId } })}
           style={[ss.lessonCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <View style={[ss.lessonIcon, { backgroundColor: "#7c3aed18" }]}>
             <Text style={{ fontSize: 22 }}>{dailyLesson.emoji}</Text>
@@ -1026,8 +1053,7 @@ export default function HomeScreen() {
             onPress={() => router.navigate("/(tabs)/patrimonio")} colors={colors} />
           <ActionChip icon="school-outline" label="Academy"
             onPress={() => router.navigate("/(tabs)/academy")} colors={colors} />
-          <ActionChip icon="search-outline" label="Screener"
-            onPress={() => router.navigate("/(tabs)/explore")} colors={colors} />
+
         </View>
 
         {/* ── Top Movers ───────────────────────────────────────────────────── */}
@@ -1074,6 +1100,42 @@ export default function HomeScreen() {
                     </View>
                   ))
               }
+            </View>
+          </View>
+        )}
+
+        {/* ── Más caídas hoy ───────────────────────────────────────────────── */}
+        {losers.length > 0 && (
+          <View style={ss.section}>
+            <View style={ss.sectionHeader}>
+              <Text style={[ss.sectionTitle, { color: colors.text }]}>📉 Cayendo hoy</Text>
+              <TouchableOpacity onPress={() => router.navigate("/(tabs)/portfolio")}>
+                <Text style={[ss.sectionLink, { color: colors.accentLight }]}>Ver todo →</Text>
+              </TouchableOpacity>
+            </View>
+            <View style={[ss.moversCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              {losers.map((m, i) => (
+                <View key={m.ticker}
+                  style={[ss.moverRow,
+                    i > 0 && { borderTopColor: colors.border, borderTopWidth: StyleSheet.hairlineWidth }
+                  ]}
+                >
+                  <StockAvatar ticker={m.ticker} size={38} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={[ss.moverTicker, { color: colors.text }]}>{m.ticker}</Text>
+                    <Text style={[ss.moverName, { color: colors.textMuted }]}
+                      numberOfLines={1}>{m.name ?? m.ticker}</Text>
+                  </View>
+                  <View style={{ alignItems: "flex-end" }}>
+                    <Text style={[ss.moverPrice, { color: colors.text }]}>{sym}{m.curr.toFixed(2)}</Text>
+                    <View style={[ss.moverBadge, { backgroundColor: colors.down + "18" }]}>
+                      <Text style={[ss.moverBadgeText, { color: colors.down }]}>
+                        {fmtPct(m.chg)}
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+              ))}
             </View>
           </View>
         )}
@@ -1310,7 +1372,7 @@ const ss = StyleSheet.create({
   heroStats: { flexDirection: "row", marginTop: 16, paddingTop: 16, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: "#162035" },
   heroStat:      { flex: 1 },
   heroStatLabel: { fontSize: 11, fontWeight: "500", marginBottom: 3 },
-  heroStatVal:   { fontSize: 14, fontWeight: "700" },
+  heroStatVal:   { fontSize: 11, fontWeight: "700" },
   heroDivider:   { width: 1, marginHorizontal: 16 },
   heroChevron:   { position: "absolute", right: 14, top: "50%" },
   emptyPortfolio: {

@@ -86,7 +86,7 @@ def _calc_portfolio_pct(positions: list, prices: dict) -> float | None:
 
 
 def _top_performer(positions: list, prices: dict) -> tuple[str | None, float | None]:
-    """Return (ticker, pct) for best-performing position today."""
+    """Return (ticker, pct) for best-performing position today (by %)."""
     best_ticker, best_pct = None, None
     for p in positions:
         ticker = p.get("ticker")
@@ -98,6 +98,104 @@ def _top_performer(positions: list, prices: dict) -> tuple[str | None, float | N
         if pct is not None and (best_pct is None or pct > best_pct):
             best_ticker, best_pct = ticker, pct
     return best_ticker, best_pct
+
+
+def _top_performer_by_impact(positions: list, prices: dict) -> tuple[str | None, float | None]:
+    """Return (ticker, pct) for position with highest absolute dollar P&L today.
+    This is the 'hecho clave' — the move that actually moved the needle most."""
+    best_ticker, best_pct, best_impact = None, None, 0.0
+    for p in positions:
+        ticker = p.get("ticker")
+        shares = float(p.get("shares", 0))
+        if not ticker or not shares or ticker not in prices:
+            continue
+        px = prices[ticker]
+        if not px.get("prev"):
+            continue
+        pct = (px["curr"] - px["prev"]) / px["prev"] * 100
+        dollar_impact = abs(pct / 100 * px["curr"] * shares)
+        if dollar_impact > best_impact:
+            best_ticker, best_pct, best_impact = ticker, pct, dollar_impact
+    return best_ticker, best_pct
+
+
+def _pct_emoji(pct: float | None) -> str:
+    if pct is None:
+        return "—"
+    if pct >= 2.0:
+        return "🚀"
+    if pct >= 0.0:
+        return "🟢"
+    if pct >= -2.0:
+        return "🔴"
+    return "📉"
+
+
+def _market_comparison_push(
+    sp500_pct: float | None,
+    nasdaq_pct: float | None,
+    user_pct: float | None = None,
+) -> str:
+    """Compact Market Wrap line for push body:
+    'S&P +1.8% 🟢 | NQ +2.8% 🟢 | Tú +3.5% 🚀'"""
+    sp = f"S&P {sp500_pct:+.1f}% {_pct_emoji(sp500_pct)}" if sp500_pct is not None else "S&P —"
+    nq = f"NQ {nasdaq_pct:+.1f}% {_pct_emoji(nasdaq_pct)}" if nasdaq_pct is not None else "NQ —"
+    if user_pct is not None:
+        tu_emoji = "🚀" if user_pct > (sp500_pct or 0) else "📊"
+        return f"{sp} | {nq} | Tú {user_pct:+.1f}% {tu_emoji}"
+    return f"{sp} | {nq}"
+
+
+# ── Risk-tiered ticker universes ───────────────────────────────────────────────
+
+_RISK_SUGGESTIONS: dict[str, list[str]] = {
+    "aggressive":   ["NVDA", "TSLA", "META", "AMD", "PLTR", "COIN", "SOFI", "BE", "RKLB", "SMCI", "MSTR"],
+    "moderate":     ["AAPL", "MSFT", "JPM", "V",    "AMZN", "GOOGL", "HD",  "UNH", "CRM", "ADBE"],
+    "conservative": ["KO",   "JNJ",  "PEP", "WMT",  "PG",   "VZ",   "MCD", "NEE", "O",   "BRK-B", "DVY"],
+}
+
+
+def get_risk_filtered_suggestions(risk_tolerance: str) -> list[str]:
+    """Return curated ticker list that matches user's risk profile.
+    Aggressive → high-beta/growth only. Conservative → dividend/value only."""
+    r = (risk_tolerance or "").lower()
+    if "conserv" in r:
+        return _RISK_SUGGESTIONS["conservative"]
+    if "agres" in r or "aggres" in r:
+        return _RISK_SUGGESTIONS["aggressive"]
+    return _RISK_SUGGESTIONS["moderate"]
+
+
+async def _batch_fetch_weekly_prices(tickers: list[str]) -> dict:
+    """Fetch Mon→Fri performance for weekly % comparison (period='5d')."""
+    if not tickers:
+        return {}
+
+    def _fetch():
+        try:
+            import yfinance as yf
+            data = yf.download(list(set(tickers)), period="5d", progress=False, group_by="ticker")
+            result = {}
+            if len(tickers) == 1:
+                t = tickers[0]
+                closes = data["Close"].dropna()
+                if len(closes) >= 2:
+                    result[t] = {"prev": float(closes.iloc[0]), "curr": float(closes.iloc[-1])}
+            else:
+                for t in tickers:
+                    try:
+                        closes = data[t]["Close"].dropna()
+                        if len(closes) >= 2:
+                            result[t] = {"prev": float(closes.iloc[0]), "curr": float(closes.iloc[-1])}
+                    except Exception:
+                        pass
+            return result
+        except Exception as e:
+            logger.warning("_batch_fetch_weekly_prices failed: %s", e)
+            return {}
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as ex:
+        return await asyncio.get_event_loop().run_in_executor(ex, _fetch)
 
 
 async def send_weekly_emails():
@@ -312,17 +410,17 @@ async def job_market_open_reminder():
 
 
 async def job_market_close():
-    """4:00 PM ET weekdays — Free: S&P/NASDAQ close. Premium: portfolio beat/lag + prompt."""
+    """4:00 PM ET weekdays — Market Wrap format: comparison block + 1-line key fact (hecho clave).
+    Premium: S&P vs NQ vs Tu Portfolio + best mover by dollar impact.
+    Free: comparison block only — brevedad absoluta."""
     from app.core.database import get_supabase, run_query
     from app.services.notification_engine import send_push, get_market_summary_text
     db = get_supabase()
     try:
-        market   = await get_market_summary_text()
-        indices  = market.get("indices", {})
-        sp500_d  = indices.get("S&P 500", {})
-        nasdaq_d = indices.get("NASDAQ",  {})
-        sp500_pct  = sp500_d.get("change_pct")
-        nasdaq_pct = nasdaq_d.get("change_pct")
+        market     = await get_market_summary_text()
+        indices    = market.get("indices", {})
+        sp500_pct  = (indices.get("S&P 500") or {}).get("change_pct")
+        nasdaq_pct = (indices.get("NASDAQ")  or {}).get("change_pct")
 
         prefs_res = await run_query(
             db.table("notification_preferences").select("user_id").eq("push_market_close", True)
@@ -358,24 +456,19 @@ async def job_market_close():
             is_premium = tier_map.get(uid) == "premium"
             if is_premium and uid in portfolio_map and prices:
                 user_pct = _calc_portfolio_pct(portfolio_map[uid], prices)
-                sp_str   = f"{sp500_pct:+.1f}%" if sp500_pct is not None else "—"
-                nq_str   = f"{nasdaq_pct:+.1f}%" if nasdaq_pct is not None else "—"
-                if user_pct is not None and sp500_pct is not None:
-                    if user_pct > sp500_pct:
-                        title = "🏆 ¡Superaste al mercado hoy!"
-                        body  = f"Tu portafolio {user_pct:+.1f}% vs S&P 500 ({sp_str}). ¡Excelente día, sigue así!"
-                    else:
-                        title = "📊 Mercados cerraron"
-                        body  = f"Tu portafolio {user_pct:+.1f}% vs S&P 500 ({sp_str}). Entra a Nuvos AI para revisar tu estrategia."
+                # Hecho clave: ticker with highest absolute dollar impact today
+                key_ticker, key_pct = _top_performer_by_impact(portfolio_map[uid], prices)
+                comparison = _market_comparison_push(sp500_pct, nasdaq_pct, user_pct)
+                if key_ticker and key_pct is not None:
+                    key_line = f"Tu mejor activo: {key_ticker} {key_pct:+.1f}%"
+                    body = f"{comparison}\n{key_line}"
                 else:
-                    title = "📊 Mercados cerraron"
-                    body  = f"S&P 500 {sp_str}, NASDAQ {nq_str}. Entra a revisar tu portafolio."
+                    body = comparison
+                title = "🏆 ¡Superaste al mercado!" if (user_pct or 0) > (sp500_pct or 0) else "📊 Cierre del mercado"
             else:
-                sp_str = f"{sp500_pct:+.1f}%" if sp500_pct is not None else "—"
-                nq_str = f"{nasdaq_pct:+.1f}%" if nasdaq_pct is not None else "—"
-                emoji  = "📈" if (sp500_pct or 0) >= 0 else "📉"
-                title  = f"{emoji} Mercados cerraron"
-                body   = f"S&P 500 {sp_str} | NASDAQ {nq_str}. Revisa el resumen del día en Nuvos."
+                comparison = _market_comparison_push(sp500_pct, nasdaq_pct)
+                title = "📊 Mercados cerraron"
+                body  = comparison
 
             await send_push(uid, "market_close", title, body, {"screen": "portfolio"}, db)
             sent += 1
@@ -453,13 +546,14 @@ async def job_portfolio_alerts():
 
 
 async def job_weekly_summary_push():
-    """9:30 AM ET Saturday — Free: generic weekly push. Premium: portfolio vs indices (beat/lag variant)."""
+    """9:30 AM ET Saturday — Market Wrap + AI storytelling (causas del rendimiento semanal).
+    Uses weekly prices (5d). Pre-generates 2 AI blurbs (beat / lag) to avoid per-user API calls."""
     from app.core.database import get_supabase, run_query
     from app.services.notification_engine import send_push, get_market_summary_text
     db = get_supabase()
     try:
-        market   = await get_market_summary_text()
-        indices  = market.get("indices", {})
+        market     = await get_market_summary_text()
+        indices    = market.get("indices", {})
         sp500_pct  = (indices.get("S&P 500") or {}).get("change_pct")
         nasdaq_pct = (indices.get("NASDAQ")  or {}).get("change_pct")
 
@@ -470,12 +564,12 @@ async def job_weekly_summary_push():
         if not uids:
             return
 
-        tiers_res = await run_query(
-            db.table("user_profiles").select("user_id,subscription_tier").in_("user_id", uids)
+        profiles_res = await run_query(
+            db.table("user_profiles").select("user_id,subscription_tier,risk_tolerance").in_("user_id", uids)
         )
-        tier_map = {r["user_id"]: r.get("subscription_tier") for r in (tiers_res.data or [])}
+        profile_map = {r["user_id"]: r for r in (profiles_res.data or [])}
 
-        premium_uids = [uid for uid in uids if tier_map.get(uid) == "premium"]
+        premium_uids = [uid for uid in uids if profile_map.get(uid, {}).get("subscription_tier") == "premium"]
         all_tickers: set[str] = set()
         portfolio_map: dict[str, list] = {}
         for uid in premium_uids:
@@ -486,7 +580,37 @@ async def job_weekly_summary_push():
                 portfolio_map[uid] = pos
                 all_tickers.update(p["ticker"] for p in pos if p.get("ticker"))
 
-        prices = await _batch_fetch_prices(list(all_tickers)) if all_tickers else {}
+        # Weekly prices (Mon→Fri) for accurate weekly % change
+        weekly_prices = await _batch_fetch_weekly_prices(list(all_tickers)) if all_tickers else {}
+
+        # Pre-generate 2 AI storytelling blurbs (beat vs. lag) — shared across users
+        ai_beat = "Tu portafolio superó al mercado. Las posiciones de crecimiento lideraron en un contexto de apetito de riesgo."
+        ai_lag  = "El mercado tuvo una semana positiva. Rotar hacia activos de calidad puede mejorar el alfa en las próximas semanas."
+        try:
+            import anthropic
+            from app.core.config import settings as cfg
+            client = anthropic.Anthropic(api_key=cfg.anthropic_api_key)
+            sp_label = f"{sp500_pct:+.1f}%" if sp500_pct is not None else "plano"
+            nq_label = f"{nasdaq_pct:+.1f}%" if nasdaq_pct is not None else "plano"
+            resp = await asyncio.to_thread(
+                lambda: client.messages.create(
+                    model="claude-haiku-4-5-20251001",
+                    max_tokens=120,
+                    messages=[{"role": "user", "content": (
+                        f"S&P 500 {sp_label}, NASDAQ {nq_label} esta semana. "
+                        "Escribe DOS frases ultra-cortas separadas por '|||': "
+                        "1) causa de por qué un portafolio diversificado pudo SUPERAR al S&P esta semana (max 18 palabras), "
+                        "2) causa de por qué pudo QUEDAR DEBAJO (max 18 palabras). "
+                        "Solo las dos frases, sin más texto."
+                    )}],
+                )
+            )
+            raw_blurbs = resp.content[0].text.strip() if resp.content else ""
+            parts = raw_blurbs.split("|||")
+            if len(parts) == 2:
+                ai_beat, ai_lag = parts[0].strip(), parts[1].strip()
+        except Exception:
+            pass
 
         sent = 0
         for i, uid in enumerate(uids):
@@ -494,25 +618,23 @@ async def job_weekly_summary_push():
                 await asyncio.sleep(12)
             await asyncio.sleep(random.uniform(0, 0.12))
 
-            is_premium = tier_map.get(uid) == "premium"
-            if is_premium and uid in portfolio_map and prices:
-                user_pct = _calc_portfolio_pct(portfolio_map[uid], prices)
-                sp_str   = f"{sp500_pct:+.1f}%" if sp500_pct is not None else "—"
-                nq_str   = f"{nasdaq_pct:+.1f}%" if nasdaq_pct is not None else "—"
-                if user_pct is not None and sp500_pct is not None:
-                    if user_pct > sp500_pct:
-                        title = "🏆 Semana ganadora"
-                        body  = f"Tu portafolio {user_pct:+.1f}% superó al S&P 500 ({sp_str}) esta semana. ¡Sigue así!"
-                    else:
-                        title = "📊 Tu resumen semanal"
-                        body  = f"Tu portafolio {user_pct:+.1f}% vs S&P 500 ({sp_str}). Entra a Nuvos AI para analizar tu estrategia."
+            p = profile_map.get(uid, {})
+            is_premium = p.get("subscription_tier") == "premium"
+
+            if is_premium and uid in portfolio_map and weekly_prices:
+                user_pct   = _calc_portfolio_pct(portfolio_map[uid], weekly_prices)
+                comparison = _market_comparison_push(sp500_pct, nasdaq_pct, user_pct)
+                beats      = (user_pct is not None and sp500_pct is not None and user_pct > sp500_pct)
+                if beats:
+                    title = "🏆 Semana ganadora"
+                    body  = f"{comparison}\n{ai_beat}"
                 else:
                     title = "📊 Tu resumen semanal"
-                    body  = f"S&P 500 {sp_str}, NASDAQ {nq_str}. Tu análisis personalizado está listo."
+                    body  = f"{comparison}\n{ai_lag}"
             else:
-                sp_str = f"{sp500_pct:+.1f}%" if sp500_pct is not None else "—"
-                title  = "📊 Resumen Semanal"
-                body   = f"S&P 500 {sp_str} esta semana. Tu resumen personalizado está listo en Nuvos AI."
+                comparison = _market_comparison_push(sp500_pct, nasdaq_pct)
+                title = "📊 Resumen Semanal"
+                body  = comparison
 
             await send_push(uid, "weekly_summary", title, body, {"screen": "portfolio"}, db)
             sent += 1
@@ -786,32 +908,47 @@ async def job_education_push():
 
 
 async def job_social_proof_push():
-    """3:00 PM ET Saturday — 'Most users with similar portfolios are watching {{Ticker}}'."""
+    """3:00 PM ET Saturday — Risk-Based Filter: suggest tickers that match each user's risk profile.
+    Aggressive → high-beta/growth (NVDA, TSLA, PLTR...). Conservative → dividend/value (KO, JNJ, O...).
+    Rule: never suggest defensive stocks to aggressive users or vice versa."""
     from app.core.database import get_supabase, run_query
     from app.services.notification_engine import send_push
     db = get_supabase()
     try:
-        # Find the most-watched ticker across all watchlists this week
+        # Global trending (for cross-referencing)
         watch_res = await run_query(db.table("watchlist").select("ticker"))
         ticker_counts: dict[str, int] = {}
         for row in (watch_res.data or []):
             t = row.get("ticker")
             if t:
                 ticker_counts[t] = ticker_counts.get(t, 0) + 1
-        if not ticker_counts:
-            return
-        trending = sorted(ticker_counts, key=lambda x: ticker_counts[x], reverse=True)[:5]
+        trending_global = set(sorted(ticker_counts, key=lambda x: ticker_counts[x], reverse=True)[:20])
 
         users_res = await run_query(
-            db.table("user_profiles").select("user_id")
+            db.table("user_profiles").select("user_id,risk_tolerance")
         )
         sent = 0
         for i, u in enumerate(users_res.data or []):
             if i % 100 == 0 and i > 0:
                 await asyncio.sleep(12)
             await asyncio.sleep(random.uniform(0, 0.12))
-            ticker = random.choice(trending)
-            body   = f"La mayoría de los inversores con portafolios similares al tuyo están siguiendo {ticker} esta semana. ¿Ya lo tienes en tu watchlist?"
+
+            risk      = u.get("risk_tolerance") or "moderate"
+            pool      = get_risk_filtered_suggestions(risk)
+            # Prefer tickers that are also trending globally (social proof is stronger)
+            trending_in_pool = [t for t in pool if t in trending_global]
+            candidates = trending_in_pool if trending_in_pool else pool
+            ticker = candidates[i % len(candidates)]
+
+            # Personalized body per risk profile
+            r = risk.lower()
+            if "agres" in r or "aggres" in r:
+                body = f"Inversores agresivos como tú están vigilando {ticker} esta semana. Alta volatilidad = alta oportunidad. ¿Está en tu watchlist?"
+            elif "conserv" in r:
+                body = f"Inversores enfocados en dividendos están siguiendo {ticker}. Valor estable y flujo de caja consistente. ¿Lo tienes en tu radar?"
+            else:
+                body = f"Inversores con perfil similar al tuyo están monitoreando {ticker} esta semana. ¿Ya lo tienes en tu watchlist?"
+
             await send_push(
                 u["user_id"], "social_proof",
                 f"👀 {ticker} está en tendencia",
@@ -820,7 +957,7 @@ async def job_social_proof_push():
                 db,
             )
             sent += 1
-        logger.info("Social proof push: %d sent, top tickers: %s", sent, trending[:3])
+        logger.info("Social proof push: %d sent", sent)
     except Exception as e:
         logger.error("job_social_proof_push failed: %s", e)
 
@@ -1077,30 +1214,48 @@ async def send_enhanced_weekly_emails():
 
         prices = await _batch_fetch_prices(list(all_tickers)) if all_tickers else {}
 
-        # Build generic AI market summary once (reused for free users)
+        # Pre-compute AI summaries per risk profile variant: 3 profiles × 2 scenarios (beat/lag) = 6 blurbs
+        # Each blurb: market context + behavioral analysis (why the portfolio moved that way)
+        ai_summaries: dict[str, str] = {}
         try:
             import anthropic
-            client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
-            sp_label = f"{sp500_pct:+.1f}%" if sp500_pct is not None else "datos no disponibles"
-            nq_label = f"{nasdaq_pct:+.1f}%" if nasdaq_pct is not None else "datos no disponibles"
-            ai_resp = await asyncio.to_thread(
-                lambda: client.messages.create(
-                    model="claude-haiku-4-5-20251001",
-                    max_tokens=400,
-                    messages=[{
-                        "role": "user",
-                        "content": (
-                            f"Escribe 2 párrafos cortos en español sobre el contexto del mercado esta semana. "
-                            f"S&P 500: {sp_label}, NASDAQ: {nq_label}. "
-                            "Menciona los principales factores macroeconómicos y qué deben considerar los inversores. "
-                            "Tono profesional pero accesible. Sin bullets, solo prosa."
-                        ),
-                    }],
-                )
-            )
-            ai_summary = ai_resp.content[0].text if ai_resp.content else "Los mercados esta semana reflejaron las condiciones macro globales."
-        except Exception:
-            ai_summary = "Los mercados esta semana reflejaron las condiciones macro globales. Mantén tu estrategia de largo plazo y no tomes decisiones apresuradas basadas en la volatilidad de corto plazo."
+            from app.core.config import settings as _cfg
+            _client = anthropic.Anthropic(api_key=_cfg.anthropic_api_key)
+            sp_label = f"{sp500_pct:+.1f}%" if sp500_pct is not None else "plano"
+            nq_label = f"{nasdaq_pct:+.1f}%" if nasdaq_pct is not None else "plano"
+
+            for _risk in ("conservative", "moderate", "aggressive"):
+                for _scenario in ("beat", "lag"):
+                    _key = f"{_risk}_{_scenario}"
+                    _scenario_desc = (
+                        "superó al S&P 500" if _scenario == "beat"
+                        else "quedó por debajo del S&P 500"
+                    )
+                    _risk_desc = {
+                        "conservative": "conservador (dividendos, valor, baja volatilidad)",
+                        "moderate": "moderado (crecimiento equilibrado)",
+                        "aggressive": "agresivo (alta beta, tecnología, crecimiento)",
+                    }[_risk]
+                    _resp = await asyncio.to_thread(
+                        lambda r=_risk_desc, sc=_scenario_desc: _client.messages.create(
+                            model="claude-haiku-4-5-20251001",
+                            max_tokens=280,
+                            messages=[{"role": "user", "content": (
+                                f"S&P 500 {sp_label}, NASDAQ {nq_label} esta semana. "
+                                f"Un portafolio de perfil {r} {sc} al S&P 500. "
+                                "Escribe 2 párrafos CORTOS en español (max 120 palabras total): "
+                                "1) Por qué ocurrió esto (causas del mercado + comportamiento del perfil). "
+                                "2) Qué debería considerar este tipo de inversor la próxima semana. "
+                                "Tono de mentor financiero. Sin bullets. Solo prosa."
+                            )}],
+                        )
+                    )
+                    ai_summaries[_key] = _resp.content[0].text.strip() if _resp.content else ""
+        except Exception as e:
+            logger.warning("AI weekly summaries failed: %s", e)
+
+        # Weekly prices for accurate weekly performance
+        weekly_prices = await _batch_fetch_weekly_prices(list(all_tickers)) if all_tickers else {}
 
         sent = 0
         for u in (users_res.data or []):
@@ -1109,14 +1264,23 @@ async def send_enhanced_weekly_emails():
             if not email:
                 continue
             is_premium = u.get("subscription_tier") == "premium"
+            risk       = (u.get("risk_tolerance") or "moderate").lower()
+            risk_key   = "conservative" if "conserv" in risk else ("aggressive" if "agres" in risk or "aggres" in risk else "moderate")
             user_pct   = None
             top_ticker = None
             top_perf   = None
-            sector     = None
 
-            if is_premium and uid in port_map and prices:
-                user_pct               = _calc_portfolio_pct(port_map[uid], prices)
-                top_ticker, top_perf   = _top_performer(port_map[uid], prices)
+            if is_premium and uid in port_map and weekly_prices:
+                user_pct             = _calc_portfolio_pct(port_map[uid], weekly_prices)
+                top_ticker, top_perf = _top_performer_by_impact(port_map[uid], weekly_prices)
+
+            beats       = user_pct is not None and sp500_pct is not None and user_pct > sp500_pct
+            scenario    = "beat" if beats else "lag"
+            ai_key      = f"{risk_key}_{scenario}"
+            ai_summary  = ai_summaries.get(ai_key) or (
+                "Los mercados reflejaron las condiciones macro globales. "
+                "Mantén tu estrategia de largo plazo."
+            )
 
             html = build_enhanced_weekly_html(
                 name=u.get("name") or "Inversor",
@@ -1126,8 +1290,9 @@ async def send_enhanced_weekly_emails():
                 nasdaq_perf=nasdaq_pct,
                 top_ticker=top_ticker,
                 top_perf=top_perf,
-                sector=sector,
+                sector=None,
                 ai_summary=ai_summary,
+                risk=risk_key,
             )
             ok = await send_email(email, "📊 Tu resumen semanal está listo — Nuvos AI", html)
             if ok:

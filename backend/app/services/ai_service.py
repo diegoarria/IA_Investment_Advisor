@@ -672,7 +672,32 @@ Si hay cualquier duda sobre si algo es interno, confidencial o del sistema: NO L
 """
 
 
-def build_system_prompt(profile: UserProfile | None = None, mentor: str | None = None) -> str:
+ACTION_TAG_INSTRUCTIONS = """
+
+## ACCIONES SUGERIDAS (OBLIGATORIO)
+
+Al final de CADA respuesta, después de tu texto normal, emite EXACTAMENTE UN bloque oculto en este formato (sin espacios extra, en una sola línea):
+
+<!-- ACTION: {"actions":[{"type":"TIPO","label":"TEXTO_BOTÓN","data":{}}]} -->
+
+Tipos disponibles y cuándo usarlos:
+- `"decision"` — SIEMPRE incluye una acción de decisión. label: "Registrar esta decisión", data: {"action":"hold|buy|sell|watch","ticker":"TICKER_SI_LO_HAY","notes":"resumen breve de la conversación"}
+- `"watchlist"` — cuando mencionas un ticker concreto. label: "Añadir TICKER al watchlist", data: {"ticker":"TICKER"}
+- `"alert"` — cuando hay un precio relevante. label: "Crear alerta para TICKER", data: {"ticker":"TICKER","price":PRECIO}
+- `"learn"` — cuando introduces un concepto que el usuario debería estudiar. label: "Explorar [concepto]", data: {"topic":"TOPIC_ID"}
+- `"chat"` — pregunta de seguimiento concreta. label: "Texto de la pregunta", data: {"message":"la pregunta completa"}
+
+Incluye entre 1 y 3 acciones. SIEMPRE incluye `"decision"`. Ejemplo real:
+<!-- ACTION: {"actions":[{"type":"decision","label":"Registrar esta decisión","data":{"action":"hold","ticker":"NVDA","notes":"Mantener posición a pesar de la caída — fundamentos intactos"}},{"type":"watchlist","label":"Añadir NVDA al watchlist","data":{"ticker":"NVDA"}},{"type":"chat","label":"¿Cuándo debería reconsiderar vender?","data":{"message":"¿Cuándo debería reconsiderar vender mi posición en NVDA?"}}]} -->
+"""
+
+
+def build_system_prompt(
+    profile: UserProfile | None = None,
+    mentor: str | None = None,
+    memory_context: str | None = None,
+    notification_context: str | None = None,
+) -> str:
     from datetime import datetime as _dt
     today = _dt.now().strftime("%A %d de %B de %Y")
     base = SYSTEM_PROMPT_BASE.replace("{TODAY_DATE}", today)
@@ -681,7 +706,14 @@ def build_system_prompt(profile: UserProfile | None = None, mentor: str | None =
         core = base + mentor_section + "\n\n" + build_profile_context(profile)
     else:
         core = base + mentor_section + "\n\n## NOTA: Usuario aún no ha completado su perfil. Invítalo a hacerlo para personalizar el análisis."
-    return core + SECURITY_GUARDRAILS
+
+    if memory_context:
+        core += f"\n\n## 🧠 MEMORIA DE CONVERSACIONES ANTERIORES\n\nEstas son las últimas interacciones del usuario con Nuvos. Úsalas para dar continuidad y personalización — no las repitas explícitamente pero sí refléjalas en tu respuesta:\n\n{memory_context}"
+
+    if notification_context:
+        core += f"\n\n## 📩 CONTEXTO: EL USUARIO LLEGÓ DESDE UNA NOTIFICACIÓN\n\n{notification_context}\n\nEl usuario acaba de ver esta notificación y abrió el chat. Empieza reconociendo este contexto de forma natural y ofrece análisis relevante."
+
+    return core + ACTION_TAG_INSTRUCTIONS + SECURITY_GUARDRAILS
 
 
 async def chat_stream(
@@ -692,8 +724,10 @@ async def chat_stream(
     image_data: str | None = None,
     image_type: str | None = None,
     images: list[dict] | None = None,
+    memory_context: str | None = None,
+    notification_context: str | None = None,
 ):
-    system_prompt = build_system_prompt(profile, mentor)
+    system_prompt = build_system_prompt(profile, mentor, memory_context, notification_context)
 
     messages = [{"role": m.role, "content": m.content} for m in conversation_history]
 

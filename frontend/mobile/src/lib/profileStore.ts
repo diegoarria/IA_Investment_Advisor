@@ -42,16 +42,17 @@ export function calculateRisk(answers: Partial<Record<keyof QuizAnswers, QuizAns
   return "aggressive";
 }
 
-/** Calculates current age from "DD/MM/YYYY" — auto-updates every birthday */
+/** Calculates current age from "DD/MM/YYYY" or "YYYY-MM-DD" */
 export function getAge(birthDate: string): number {
-  const parts = birthDate.split("/");
+  if (!birthDate) return 0;
+  const sep = birthDate.includes("/") ? "/" : "-";
+  const parts = birthDate.split(sep).map(Number);
   if (parts.length !== 3) return 0;
-  const [day, month, year] = parts.map(Number);
-  if (!day || !month || !year || year < 1900) return 0;
+  const [y, m, d] = sep === "-" ? parts : [parts[2], parts[1], parts[0]];
+  if (!y || !m || !d || y < 1900) return 0;
   const today = new Date();
-  let age = today.getFullYear() - year;
-  const m = today.getMonth() + 1 - month;
-  if (m < 0 || (m === 0 && today.getDate() < day)) age--;
+  let age = today.getFullYear() - y;
+  if (today.getMonth() + 1 < m || (today.getMonth() + 1 === m && today.getDate() < d)) age--;
   return Math.max(0, age);
 }
 

@@ -4,7 +4,7 @@ import { useEffect, useState, useRef } from "react";
 import {
   X, TrendingUp, TrendingDown, Globe, Users, Building2,
   BarChart3, Loader2, ChevronRight, Activity,
-  ArrowUpRight, ArrowDownRight, DollarSign, Percent,
+  ArrowUpRight, ArrowDownRight, DollarSign,
 } from "lucide-react";
 import { market as marketApi } from "@/lib/api";
 import IncomeStatementTab from "@/components/IncomeStatementTab";
@@ -167,15 +167,35 @@ function Avatar({ ticker, glowColor }: { ticker: string; glowColor?: string }) {
   );
 }
 
+function MiniAvatar({ ticker }: { ticker: string }) {
+  const clean = ticker.replace(".", "-");
+  const [failed, setFailed] = useState(false);
+  if (!failed) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img src={`https://financialmodelingprep.com/image-stock/${clean}.png`} alt={ticker}
+           className="w-8 h-8 rounded-full object-contain p-0.5 shrink-0"
+           style={{ background: "var(--raised)", border: "1px solid var(--border)" }}
+           onError={() => setFailed(true)} />
+    );
+  }
+  return (
+    <div className="w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-black shrink-0"
+         style={{ background: "rgba(0,168,94,0.14)", color: "var(--accent-l)", border: "1px solid var(--border)" }}>
+      {ticker.slice(0, 2)}
+    </div>
+  );
+}
+
 function StatCard({ label, value, color }: {
   label: string; value: string; color?: string;
 }) {
   return (
-    <div className="rounded-xl p-3 flex flex-col gap-0.5" style={{ background: "var(--raised)", border: "1px solid var(--border)" }}>
-      <span className="text-[9px] font-semibold uppercase tracking-wide" style={{ color: "var(--dim)" }}>
+    <div className="rounded-xl p-4 flex flex-col gap-1" style={{ background: "var(--raised)", border: "1px solid var(--border)" }}>
+      <span className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: "var(--dim)" }}>
         {label}
       </span>
-      <span className="text-xl font-black leading-tight" style={{ color: color ?? "var(--text)" }}>
+      <span className="text-2xl font-black leading-tight" style={{ color: color ?? "var(--text)" }}>
         {value}
       </span>
     </div>
@@ -760,7 +780,7 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
         onClick={(e) => e.stopPropagation()}
       >
         {/* ── Header ── */}
-        <div className="px-5 pt-4 pb-3 border-b shrink-0" style={{ borderColor: "var(--border)" }}>
+        <div className="px-5 pt-4 pb-3 border-b shrink-0" style={{ borderColor: "var(--border)", background: score ? `linear-gradient(180deg, ${score.signal.includes("COMPRA") ? "#22c55e" : score.signal.includes("VEND") ? "#ef4444" : "#f59e0b"}08 0%, var(--card) 100%)` : "var(--card)" }}>
           {/* Top row: avatar + name/ticker + close */}
           <div className="flex items-start gap-3 mb-3">
             <Avatar ticker={ticker} glowColor={recColor(profile?.recommendation)} />
@@ -869,21 +889,25 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
         </div>
 
         {/* ── Tab bar ── */}
-        <div className="flex gap-1 px-3 py-2 border-b shrink-0" style={{ borderColor: "var(--border)", background: "var(--bg)" }}>
-          {TABS.map(({ key, label }) => (
-            <button
-              key={key}
-              onClick={() => setTab(key)}
-              className="flex-1 py-1.5 text-xs font-bold transition-all rounded-lg"
-              style={{
-                color: tab === key ? "var(--accent-l)" : "var(--muted)",
-                background: tab === key ? "rgba(0,168,94,0.12)" : "transparent",
-                border: "none",
-              }}
-            >
-              {label}
-            </button>
-          ))}
+        <div className="shrink-0" style={{ background: "var(--bg)", borderBottom: "1px solid var(--border)" }}>
+          <div style={{ display: "flex", gap: 6, padding: "10px 16px", overflowX: "auto" }}>
+            {TABS.map(({ key, label }) => (
+              <button
+                key={key}
+                onClick={() => setTab(key)}
+                className="rounded-full whitespace-nowrap transition-all"
+                style={{
+                  padding: "6px 16px", fontSize: 12, flexShrink: 0,
+                  fontWeight: tab === key ? 900 : 600,
+                  color: tab === key ? "var(--accent-l)" : "var(--muted)",
+                  background: tab === key ? "rgba(0,168,94,0.14)" : "var(--raised)",
+                  border: tab === key ? "1px solid rgba(0,168,94,0.3)" : "1px solid var(--border)",
+                }}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* ── Content ── */}
@@ -1006,7 +1030,7 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
                     {score.categories.map((cat) => {
                       const catColor = cat.score >= 75 ? "#22c55e" : cat.score >= 55 ? "#f59e0b" : "#ef4444";
                       return (
-                        <div key={cat.key} className="rounded-2xl p-3 flex flex-col gap-2"
+                        <div key={cat.key} className="rounded-2xl p-4 flex flex-col gap-3"
                              style={{ background: "var(--raised)", border: `1px solid ${catColor}30` }}>
                           <div className="flex items-center justify-between gap-1">
                             <span className="text-[9px] font-bold uppercase tracking-wide leading-tight"
@@ -1024,14 +1048,13 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
                   {/* Metric cards */}
                   {score.categories.map((cat) => (
                     <div key={cat.key} className="pt-2">
-                      <p className="text-xs font-bold uppercase tracking-widest mb-3"
-                         style={{ color: "var(--accent-l)", opacity: 0.7 }}>
-                        {cat.name}
-                        <span className="ml-2 font-black"
-                              style={{ color: cat.score >= 75 ? "#22c55e" : cat.score >= 55 ? "#f59e0b" : "#ef4444", opacity: 1 }}>
+                      <div className="flex items-center gap-2 mb-3">
+                        <div className="w-1 h-4 rounded-full shrink-0" style={{ background: cat.score >= 75 ? "#22c55e" : cat.score >= 55 ? "#f59e0b" : "#ef4444" }} />
+                        <span className="text-xs font-black uppercase tracking-widest" style={{ color: "var(--muted)" }}>{cat.name}</span>
+                        <span className="ml-auto text-xs font-black" style={{ color: cat.score >= 75 ? "#22c55e" : cat.score >= 55 ? "#f59e0b" : "#ef4444" }}>
                           {cat.score}/100
                         </span>
-                      </p>
+                      </div>
                       <div className="grid grid-cols-2 gap-2">
                         {cat.metrics.map((m) => (
                           <MetricCard key={m.name} metric={m} />
@@ -1111,7 +1134,7 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
                     <div className="flex items-center gap-2 px-5 pb-3">
                       {(["annual", "quarterly"] as const).map((p) => (
                         <button key={p} onClick={() => setFinPeriod(p)}
-                                className="px-3 py-1.5 text-xs font-bold rounded-lg transition-colors"
+                                className="px-3 py-1.5 text-xs font-bold rounded-full transition-colors"
                                 style={{
                                   background: finPeriod === p ? "rgba(0,168,94,0.14)" : "var(--raised)",
                                   color: finPeriod === p ? "var(--accent-l)" : "var(--muted)",
@@ -1126,18 +1149,18 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
                     </div>
 
                     {/* Section sub-tabs */}
-                    <div className="flex border-b mx-5 mb-1" style={{ borderColor: "var(--border)" }}>
+                    <div className="flex gap-2 px-5 pb-3">
                       {FIN_TABS.map(({ key, label }) => (
                         <button
                           key={key}
                           onClick={() => setFinSection(key)}
-                          className="px-3 py-2.5 text-[11px] font-bold transition-colors relative"
-                          style={{ color: finSection === key ? "var(--accent-l)" : "var(--muted)" }}>
+                          className="px-3 py-1.5 text-[11px] font-bold rounded-full transition-colors"
+                          style={{
+                            background: finSection === key ? "rgba(0,168,94,0.14)" : "var(--raised)",
+                            color: finSection === key ? "var(--accent-l)" : "var(--muted)",
+                            border: `1px solid ${finSection === key ? "rgba(0,168,94,0.3)" : "var(--border)"}`,
+                          }}>
                           {label}
-                          {finSection === key && (
-                            <span className="absolute bottom-0 left-0 right-0 h-[2px] rounded-t-full"
-                                  style={{ background: "var(--accent-l)" }} />
-                          )}
                         </button>
                       ))}
                     </div>
@@ -1407,7 +1430,10 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
                 <>
                   {/* Valoración */}
                   <div>
-                    <p className="text-xs font-bold uppercase tracking-widest mb-2" style={{ color: "var(--accent-l)", opacity: 0.7 }}>Valoración</p>
+                    <div className="flex items-center gap-2 mb-3">
+                      <div className="w-1 h-4 rounded-full shrink-0" style={{ background: "var(--accent-l)" }} />
+                      <span className="text-xs font-black uppercase tracking-widest" style={{ color: "var(--muted)" }}>💰 Valoración</span>
+                    </div>
                     <div className="grid grid-cols-3 gap-2">
                       <StatCard label="Cap. Mkt"   value={fmtBig(profile.market_cap)} />
                       <StatCard label="EV"          value={fmtBig(profile.enterprise_value)} />
@@ -1423,9 +1449,10 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
 
                   {/* Rentabilidad */}
                   <div>
-                    <p className="text-xs font-bold uppercase tracking-widest mb-2" style={{ color: "var(--accent-l)", opacity: 0.7 }}>
-                      Rentabilidad &amp; Márgenes
-                    </p>
+                    <div className="flex items-center gap-2 mb-3">
+                      <div className="w-1 h-4 rounded-full shrink-0" style={{ background: "var(--accent-l)" }} />
+                      <span className="text-xs font-black uppercase tracking-widest" style={{ color: "var(--muted)" }}>📊 Rentabilidad &amp; Márgenes</span>
+                    </div>
                     <div className="grid grid-cols-3 gap-2">
                       <StatCard label="Margen Bruto"  value={profile.gross_margins != null ? `${profile.gross_margins.toFixed(1)}%` : "—"} />
                       <StatCard label="Margen Op."    value={profile.operating_margins != null ? `${profile.operating_margins.toFixed(1)}%` : "—"} />
@@ -1441,9 +1468,10 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
 
                   {/* Balance */}
                   <div>
-                    <p className="text-xs font-bold uppercase tracking-widest mb-2" style={{ color: "var(--accent-l)", opacity: 0.7 }}>
-                      Balance &amp; Liquidez
-                    </p>
+                    <div className="flex items-center gap-2 mb-3">
+                      <div className="w-1 h-4 rounded-full shrink-0" style={{ background: "var(--accent-l)" }} />
+                      <span className="text-xs font-black uppercase tracking-widest" style={{ color: "var(--muted)" }}>🏛️ Balance &amp; Liquidez</span>
+                    </div>
                     <div className="grid grid-cols-3 gap-2">
                       <StatCard label="Deuda/Capital"   value={fmtNum(profile.debt_to_equity)} />
                       <StatCard label="Ratio Corriente"  value={fmtNum(profile.current_ratio)} />
@@ -1456,9 +1484,10 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
 
                   {/* Precio & Volumen */}
                   <div>
-                    <p className="text-xs font-bold uppercase tracking-widest mb-2" style={{ color: "var(--accent-l)", opacity: 0.7 }}>
-                      Precio &amp; Volumen
-                    </p>
+                    <div className="flex items-center gap-2 mb-3">
+                      <div className="w-1 h-4 rounded-full shrink-0" style={{ background: "var(--accent-l)" }} />
+                      <span className="text-xs font-black uppercase tracking-widest" style={{ color: "var(--muted)" }}>📈 Precio &amp; Volumen</span>
+                    </div>
                     <div className="grid grid-cols-3 gap-2">
                       <StatCard label="SMA 50"      value={profile.sma_50 ? `$${profile.sma_50.toFixed(2)}` : "—"} />
                       <StatCard label="SMA 200"     value={profile.sma_200 ? `$${profile.sma_200.toFixed(2)}` : "—"} />
@@ -1472,15 +1501,15 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
                   {/* Dividends */}
                   {(data?.dividends?.length ?? 0) > 0 && (
                     <div>
-                      <p className="text-xs font-bold uppercase tracking-widest mb-2" style={{ color: "var(--accent-l)", opacity: 0.7 }}>
-                        <Percent className="w-3 h-3 inline mr-1" />
-                        Historial de Dividendos
+                      <div className="flex items-center gap-2 mb-3">
+                        <div className="w-1 h-4 rounded-full shrink-0" style={{ background: "var(--accent-l)" }} />
+                        <span className="text-xs font-black uppercase tracking-widest" style={{ color: "var(--muted)" }}>💵 Historial de Dividendos</span>
                         {profile.dividend_yield != null && profile.dividend_yield > 0 && (
                           <span className="ml-2 font-bold" style={{ color: "var(--accent-l)" }}>
                             {profile.dividend_yield.toFixed(2)}% yield
                           </span>
                         )}
-                      </p>
+                      </div>
                       <div className="rounded-xl overflow-hidden border" style={{ borderColor: "var(--border)" }}>
                         <table className="w-full text-xs">
                           <thead>
@@ -1508,10 +1537,10 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
                   {/* Institutional holders */}
                   {(data?.holders?.institutional?.length ?? 0) > 0 && (
                     <div>
-                      <p className="text-xs font-bold uppercase tracking-widest mb-2" style={{ color: "var(--accent-l)", opacity: 0.7 }}>
-                        <Building2 className="w-3 h-3 inline mr-1" />
-                        Tenedores Institucionales
-                      </p>
+                      <div className="flex items-center gap-2 mb-3">
+                        <div className="w-1 h-4 rounded-full shrink-0" style={{ background: "var(--accent-l)" }} />
+                        <span className="text-xs font-black uppercase tracking-widest" style={{ color: "var(--muted)" }}>🏦 Tenedores Institucionales</span>
+                      </div>
                       <div className="rounded-xl overflow-hidden border" style={{ borderColor: "var(--border)" }}>
                         <table className="w-full text-xs">
                           <thead>
@@ -1543,10 +1572,11 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
                   {/* Insider transactions */}
                   {(data?.insiders?.length ?? 0) > 0 && (
                     <div>
-                      <p className="text-xs font-bold uppercase tracking-widest mb-2" style={{ color: "var(--accent-l)", opacity: 0.7 }}>
-                        Transacciones de Insiders
-                        <span className="ml-1 font-normal text-[10px]" style={{ color: "var(--muted)", opacity: 1 }}>— directivos y directores</span>
-                      </p>
+                      <div className="flex items-center gap-2 mb-3">
+                        <div className="w-1 h-4 rounded-full shrink-0" style={{ background: "var(--accent-l)" }} />
+                        <span className="text-xs font-black uppercase tracking-widest" style={{ color: "var(--muted)" }}>🔍 Transacciones de Insiders</span>
+                        <span className="text-[10px]" style={{ color: "var(--dim)" }}>directivos y directores</span>
+                      </div>
                       <div className="space-y-1.5">
                         {data!.insiders!.slice(0, 10).map((ins, i) => {
                           const isBuy = ["P", "A", "Buy"].includes(ins.transaction?.slice(0, 1) ?? "");
@@ -1609,9 +1639,11 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
                     </div>
 
                     {profile.description && (
-                      <p className="text-xs leading-relaxed mb-3" style={{ color: "var(--sub)" }}>
-                        {profile.description}
-                      </p>
+                      <div className="mb-3" style={{ background: "var(--raised)", border: "1px solid var(--border)", borderRadius: 16, padding: 16 }}>
+                        <p style={{ fontSize: 13, color: "var(--sub)", lineHeight: 1.6, margin: 0 }}>
+                          {profile.description}
+                        </p>
+                      </div>
                     )}
 
                     {profile.website && (
@@ -1628,9 +1660,10 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
                   {/* Competitors */}
                   {(loadingPeers || peers.length > 0) && (
                     <div>
-                      <p className="text-xs font-bold uppercase tracking-widest mb-2" style={{ color: "var(--accent-l)", opacity: 0.7 }}>
-                        Empresas Similares
-                      </p>
+                      <div className="flex items-center gap-2 mb-3">
+                        <div className="w-1 h-4 rounded-full shrink-0" style={{ background: "var(--accent-l)" }} />
+                        <span className="text-xs font-black uppercase tracking-widest" style={{ color: "var(--muted)" }}>🔎 Empresas Similares</span>
+                      </div>
                       {loadingPeers ? (
                         <div className="flex justify-center py-4">
                           <Loader2 className="w-4 h-4 animate-spin" style={{ color: "var(--accent-l)" }} />
@@ -1643,10 +1676,7 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
                             return (
                               <div key={peer.ticker} className="flex items-center gap-3 px-3 py-2.5"
                                    style={{ borderBottom: i < peers.length - 1 ? "1px solid var(--border)" : "none" }}>
-                                <div className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-black shrink-0"
-                                     style={{ background: "rgba(0,168,94,0.14)", color: "var(--accent-l)" }}>
-                                  {peer.ticker.slice(0, 2)}
-                                </div>
+                                <MiniAvatar ticker={peer.ticker} />
                                 <div className="flex-1 min-w-0">
                                   <p className="text-xs font-bold" style={{ color: "var(--text)" }}>{peer.ticker}</p>
                                   <p className="text-[10px] truncate" style={{ color: "var(--muted)" }}>{peer.name}</p>

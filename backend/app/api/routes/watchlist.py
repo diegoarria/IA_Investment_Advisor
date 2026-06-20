@@ -91,12 +91,21 @@ def _fetch_extended_price(ticker: str) -> dict:
             if reg_price:
                 result["price"] = round(float(reg_price), 4)
 
-            prev_close = meta.get("chartPreviousClose") or meta.get("previousClose")
+            prev_close = (
+                meta.get("regularMarketPreviousClose")
+                or meta.get("chartPreviousClose")
+                or meta.get("previousClose")
+            )
             if prev_close:
                 result["prev_close"] = round(float(prev_close), 4)
 
-            # Calculate regular change
-            if result["price"] and result["prev_close"] and result["prev_close"] != 0:
+            # Use Yahoo's own change values when available (avoids off-by-one from daily closes array)
+            reg_chg = meta.get("regularMarketChange")
+            reg_chg_pct = meta.get("regularMarketChangePercent")
+            if reg_chg is not None and reg_chg_pct is not None:
+                result["change"] = round(float(reg_chg), 4)
+                result["change_pct"] = round(float(reg_chg_pct), 2)
+            elif result["price"] and result["prev_close"] and result["prev_close"] != 0:
                 result["change"] = round(result["price"] - result["prev_close"], 4)
                 result["change_pct"] = round(
                     (result["price"] - result["prev_close"]) / result["prev_close"] * 100, 2

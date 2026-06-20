@@ -98,15 +98,24 @@ async def scan_and_notify_all_users():
             days = event["days_until"]
             timing = "hoy" if days == 0 else f"en {days} días"
             event_desc = f"{event['symbol']} reporta resultados {timing}"
-            message = await ai_service.generate_notification_insight(
+            insight = await ai_service.generate_notification_insight(
                 "earnings_event", event_desc, profile
+            )
+            suggested_message = (
+                f"¿Qué debo saber antes de que {event['symbol']} reporte resultados {timing}? "
+                f"Tengo posición en esta empresa."
             )
             await create_notification(
                 user_id=user_id,
                 notification_type="earnings_event",
                 title=f"📊 {event['symbol']} reporta {timing}",
-                message=message,
-                data=event
+                message=insight,
+                data={
+                    **event,
+                    "screen": "chat",
+                    "chat_context": f"{event['symbol']} reporta resultados {timing}. {insight}",
+                    "suggested_message": suggested_message,
+                },
             )
 
         if user_data.get("interaction_count", 0) > 0:
@@ -151,17 +160,31 @@ async def check_portfolio_alerts(user_id: str, tickers: list[str], profile: User
         for move in [r for r in results if r]:
             direction = "subió" if move["change_pct"] > 0 else "cayó"
             emoji = "🚀" if move["change_pct"] > 0 else "📉"
-            msg = await ai_service.generate_notification_insight(
+            insight = await ai_service.generate_notification_insight(
                 "market_move",
                 f"{move['symbol']} {direction} {abs(move['change_pct'])}% hoy — acción en tu portafolio",
                 profile,
+            )
+            chat_context = (
+                f"{move['symbol']} {direction} {abs(move['change_pct'])}% hoy. "
+                f"Precio actual: ${move['price']:.2f}. "
+                f"Análisis: {insight}"
+            )
+            suggested_message = (
+                f"¿Qué debería hacer con mi posición en {move['symbol']} "
+                f"después de que {direction} {abs(move['change_pct'])}%?"
             )
             await create_notification(
                 user_id=user_id,
                 notification_type="market_move",
                 title=f"{emoji} {move['symbol']} {direction} {abs(move['change_pct'])}%",
-                message=msg,
-                data=move,
+                message=insight,
+                data={
+                    **move,
+                    "screen": "chat",
+                    "chat_context": chat_context,
+                    "suggested_message": suggested_message,
+                },
             )
     except Exception:
         pass
@@ -216,12 +239,21 @@ async def check_custom_price_alerts(user_id: str):
 
             direction = "superó" if condition == "above" else "cayó por debajo de"
             emoji = "🚀" if condition == "above" else "📉"
+            msg = f"{ticker} cotiza ahora en ${price:.2f}. Tu alerta de precio {'por encima' if condition == 'above' else 'por debajo'} de ${target} se ha activado."
             await create_notification(
                 user_id=user_id,
                 notification_type="price_alert",
                 title=f"{emoji} Alerta: {ticker} {direction} ${target}",
-                message=f"{ticker} cotiza ahora en ${price:.2f}. Tu alerta de precio {'por encima' if condition == 'above' else 'por debajo'} de ${target} se ha activado.",
-                data={"ticker": ticker, "price": price, "target": target, "condition": condition},
+                message=msg,
+                data={
+                    "ticker": ticker,
+                    "price": price,
+                    "target": target,
+                    "condition": condition,
+                    "screen": "chat",
+                    "chat_context": f"{ticker} acaba de {direction} tu alerta de ${target}. Precio actual: ${price:.2f}.",
+                    "suggested_message": f"¿Qué debería hacer ahora que {ticker} {direction} mi alerta de ${target}?",
+                },
             )
             await run_query(
                 db.table("price_alerts")

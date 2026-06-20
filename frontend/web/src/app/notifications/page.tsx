@@ -6,13 +6,12 @@ import PremiumBadge from "@/components/PremiumBadge";
 import StockAvatar from "@/components/StockAvatar";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import Image from "next/image";
 import ReactMarkdown from "react-markdown";
 import { notifications as notifApi, market as marketApi } from "@/lib/api";
-import { useAuthStore, useNotificationStore, useThemeStore, useWatchlistStore, useSubscriptionStore } from "@/lib/store";
+import { useAuthStore, useNotificationStore, useThemeStore, useSubscriptionStore } from "@/lib/store";
 import { usePortfolioStore, type Position } from "@/lib/portfolioStore";
 import PaywallModal from "@/components/PaywallModal";
-import { Bell, Menu, X, Sun, Moon, Newspaper, Bookmark, RefreshCw, Loader2, Settings } from "lucide-react";
+import { Bell, X, Sun, Moon, Newspaper, RefreshCw, Loader2, Settings } from "lucide-react";
 import GuidedSteps from "@/components/GuidedSteps";
 import NotificationSettingsPanel from "./SettingsPanel";
 
@@ -36,7 +35,6 @@ export default function NotificationsPage() {
   const { isAuthenticated } = useAuthStore();
   const { notifications, unreadCount, setNotifications, markRead } = useNotificationStore();
   const { theme, toggleTheme } = useThemeStore();
-  const { items: watchlist, remove: removeFromWatchlist } = useWatchlistStore();
   const { positions } = usePortfolioStore();
   const subStore = useSubscriptionStore();
   const isPremium = subStore.tier === "premium";
@@ -55,10 +53,6 @@ export default function NotificationsPage() {
   const [portPrices, setPortPrices] = useState<Record<string, PriceData>>({});
   const [portPricesLoading, setPortPricesLoading] = useState(false);
   const [portSort, setPortSort] = useState<"default" | "gainers" | "losers">("gainers");
-
-  // Watchlist prices
-  const [prices, setPrices] = useState<Record<string, PriceData>>({});
-  const [pricesLoading, setPricesLoading] = useState(false);
 
   // News filter + pagination
   const [newsFilter, setNewsFilter] = useState<string | null>(null);
@@ -107,31 +101,6 @@ export default function NotificationsPage() {
   }, [positions.length]);
 
 
-  const loadWatchlistPrices = useCallback(async () => {
-    if (watchlist.length === 0) return;
-    setPricesLoading(true);
-    try {
-      const results: Record<string, PriceData> = {};
-      await Promise.all(watchlist.map(async (item) => {
-        try {
-          const res = await marketApi.getChart(item.ticker, "1d");
-          results[item.ticker] = { price: res.data.current_price ?? null, change_pct: res.data.change_pct ?? null };
-        } catch { results[item.ticker] = { price: null, change_pct: null }; }
-      }));
-      setPrices(results);
-    } catch {}
-    setPricesLoading(false);
-  }, [watchlist.length]);
-
-  const openAlertContext = async (ticker: string, change_pct: number) => {
-    setAlertModal({ ticker, change_pct });
-    setAlertInsight(null); setAlertLoading(true);
-    try {
-      const res = await marketApi.alertContext(ticker, change_pct);
-      setAlertInsight(res.data.insight);
-    } catch {}
-    setAlertLoading(false);
-  };
 
   const handleMarkAllRead = async () => {
     await notifApi.markAllRead();
@@ -140,13 +109,12 @@ export default function NotificationsPage() {
 
   const handleRefresh = async () => {
     setRefreshing(true);
-    await Promise.all([loadNotifications(), loadPortfolioNews(), loadWatchlistPrices(), loadPortfolioPrices()]);
+    await Promise.all([loadNotifications(), loadPortfolioNews(), loadPortfolioPrices()]);
     setRefreshing(false);
   };
 
   useEffect(() => {
     loadNotifications();
-    loadWatchlistPrices();
     loadPortfolioPrices();
   }, [isAuthenticated]);
 
@@ -416,49 +384,6 @@ export default function NotificationsPage() {
                     );
                   })}
                 </div>
-              </div>
-            )}
-
-            {/* Watchlist */}
-            {watchlist.length > 0 && (
-              <div className="rounded-2xl border overflow-hidden" style={{ background: "var(--card)", borderColor: "var(--border)" }}>
-                <div className="flex items-center gap-2 px-4 py-3 border-b" style={{ borderColor: "var(--border)" }}>
-                  <Bookmark className="w-3.5 h-3.5 fill-current" style={{ color: "var(--accent-l)" }} />
-                  <span className="text-sm font-bold" style={{ color: "var(--text)" }}>Watchlist</span>
-                  {pricesLoading && <Loader2 className="w-3.5 h-3.5 animate-spin ml-1" style={{ color: "var(--accent-l)" }} />}
-                </div>
-                {watchlist.map((item) => {
-                  const p = prices[item.ticker];
-                  const chgColor = !p?.change_pct ? "var(--dim)" : p.change_pct >= 0 ? "#22c55e" : "#ef4444";
-                  const bigMove = p?.change_pct !== null && p?.change_pct !== undefined && Math.abs(p.change_pct) >= 3;
-                  return (
-                    <div key={item.ticker} className="flex items-center gap-3 px-4 py-3 border-t"
-                         style={{ borderColor: "var(--border)" }}>
-                      <StockAvatar ticker={item.ticker} size="sm" />
-                      <div className="flex-1">
-                        <div className="font-bold text-sm" style={{ color: "var(--text)" }}>{item.ticker}</div>
-                        <div className="text-xs mt-0.5" style={{ color: "var(--muted)" }}>{item.name}</div>
-                      </div>
-                      <div className="text-right">
-                        {p?.price ? (
-                          <div className="text-sm font-bold" style={{ color: "var(--text)" }}>
-                            ${p.price.toLocaleString("en-US", { minimumFractionDigits: 2 })}
-                          </div>
-                        ) : <div className="text-sm" style={{ color: "var(--dim)" }}>—</div>}
-                        {p?.change_pct !== null && p?.change_pct !== undefined && (
-                          <button onClick={() => bigMove ? openAlertContext(item.ticker, p.change_pct!) : undefined}
-                                  className={`text-xs font-bold mt-0.5 ${bigMove ? "hover:opacity-70" : ""}`}
-                                  style={{ color: chgColor }}>
-                            {p.change_pct >= 0 ? "▲" : "▼"} {Math.abs(p.change_pct).toFixed(2)}%{bigMove ? " ⚠️" : ""}
-                          </button>
-                        )}
-                      </div>
-                      <button onClick={() => removeFromWatchlist(item.ticker)} className="ml-2 p-1 hover:opacity-70" style={{ color: "var(--dim)" }}>
-                        <X className="w-4 h-4" />
-                      </button>
-                    </div>
-                  );
-                })}
               </div>
             )}
 

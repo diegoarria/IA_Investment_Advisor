@@ -116,6 +116,8 @@ export const chat = {
     imageData?: string | null,
     imageType?: string | null,
     images?: Array<{ data: string; type: string }> | null,
+    notificationContext?: string | null,
+    onActions?: (actions: Array<{ type: string; label: string; data: Record<string, unknown> }>) => void,
   ) => {
     const res = await api.post("/api/chat/message", {
       message,
@@ -124,10 +126,12 @@ export const chat = {
       image_data: imageData ?? null,
       image_type: imageType ?? null,
       images: images ?? [],
+      notification_context: notificationContext ?? null,
     });
     const reply: string = res.data.reply ?? "";
     const assessment = res.data.risk_assessment ?? null;
     const tickers: string[] = res.data.tickers ?? [];
+    const actions = res.data.actions ?? null;
     const words = reply.split(" ");
     for (let i = 0; i < words.length; i++) {
       if (cancelSignal?.cancelled) break;
@@ -137,6 +141,7 @@ export const chat = {
     if (!cancelSignal?.cancelled) {
       if (assessment && onAssessment) onAssessment(assessment);
       if (tickers.length > 0 && onTickers) onTickers(tickers);
+      if (actions && onActions) onActions(actions);
     }
     onDone();
   },

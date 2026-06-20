@@ -5,7 +5,6 @@ import MarketTickerBar from "@/components/MarketTickerBar";
 import PremiumBadge from "@/components/PremiumBadge";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import Image from "next/image";
 import {
   useAuthStore, useProfileStore, useSubscriptionStore,
   useThemeStore, msgsRemaining, FREE_MSG_LIMIT, maturityLabel,
@@ -14,7 +13,7 @@ import { auth as authApi, feedApi, insights as insightsApi, mentorLetter as ment
 import { getMentorInfo } from "@/lib/mentorData";
 import PaywallModal from "@/components/PaywallModal";
 import {
-  User, LogOut, Menu, X, Sun, Moon, ChevronDown, ChevronUp, Star, BarChart,
+  User, LogOut, X, Sun, Moon, ChevronDown, ChevronUp, Star, BarChart,
   Loader2, Copy, Check, Gift, Users, Share2,
 } from "lucide-react";
 import { getUserLevel, LEVEL_COLOR, LEVEL_LABEL, LEVEL_EMOJI } from "@/lib/userLevel";
@@ -311,7 +310,7 @@ export default function ProfilePage() {
                     </div>
                   </div>
                   <div className="border-t flex" style={{ borderColor: "var(--border)" }}>
-                    <button onClick={() => router.push("/onboarding")}
+                    <button onClick={() => router.push("/profile/edit")}
                             className="flex-1 py-3 text-xs font-semibold text-center hover:bg-white/5 transition-colors border-r"
                             style={{ color: "var(--muted)", borderColor: "var(--border)" }}>
                       Editar perfil

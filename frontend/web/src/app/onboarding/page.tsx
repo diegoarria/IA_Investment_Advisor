@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { profile as profileApi } from "@/lib/api";
-import { useProfileStore, useAuthStore } from "@/lib/store";
+import { useProfileStore, useAuthStore, useChatStore } from "@/lib/store";
 import { ChevronRight, ChevronLeft } from "lucide-react";
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
@@ -763,6 +763,38 @@ export default function OnboardingPage() {
       };
       const res = await profileApi.create(payload);
       setProfile(res.data);
+
+      // ── Inyectar mensaje de bienvenida del mentor en el chat ──────────────
+      const _goalLabel: Record<string, string> = {
+        house:             "comprar una casa",
+        car:               "comprar un carro",
+        passive_income:    "vivir de tus inversiones",
+        retirement:        "retiro y pensión",
+        financial_freedom: "libertad financiera",
+        long_term_wealth:  "construir patrimonio a largo plazo",
+      };
+      const _rateLabel  = { conservative: "7%", moderate: "10%", aggressive: "12%" }[calculated] ?? "10%";
+      const _levelIntro = form.knowledge_level === "B"
+        ? "Sin importar desde dónde empiezes, voy paso a paso contigo."
+        : form.knowledge_level === "C"
+        ? "Con tu experiencia en ETFs y acciones, podemos ir directo a lo que importa."
+        : "Con tu nivel avanzado, iremos a los análisis más sofisticados desde el inicio.";
+      const _yrsPart = yrsNeeded && goalAmt > 0 && pmt > 0
+        ? `\n\n📊 Con **$${pmt.toLocaleString()}/mes** y un retorno histórico promedio del **${_rateLabel}** anual, podrías alcanzar **${fmtMoney(goalAmt)}** en aproximadamente **${yrsNeeded} años**.`
+        : "";
+      const _welcomeMsg =
+        `Hola **${firstName}** 👋 Ya revisé tu perfil.\n\n` +
+        `Eres un inversionista **${riskCfg.label}** con meta de **${_goalLabel[form.investment_goal] ?? form.investment_goal}**.` +
+        `${_yrsPart}\n\n${_levelIntro}\n\n` +
+        `Para empezar bien, necesito saber una cosa: **¿ya tienes alguna posición o inversión en el mercado, o estás comenzando desde cero?**`;
+
+      const _chat = useChatStore.getState();
+      _chat.createSession();
+      _chat.addMessage({ role: "assistant", content: _welcomeMsg });
+
+      // Marcar tour guiado activo
+      localStorage.setItem("nuvos_guided_tour", "1");
+      localStorage.setItem("nuvos_guided_step", "1");
       if (form.knowledge_level === "B") localStorage.setItem("nuvos_first_steps_active", "1");
       setSuccess(true);
     } catch (err: unknown) {

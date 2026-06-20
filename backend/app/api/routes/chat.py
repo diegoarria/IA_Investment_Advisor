@@ -88,6 +88,44 @@ def _extract_bscore(reply: str) -> tuple[str, dict | None]:
     return reply, None
 
 
+def _extract_action(reply: str) -> tuple[str, list | None]:
+    """Strip the hidden ACTION tag and parse suggested actions."""
+    match = re.search(r'<!--\s*ACTION:\s*(\{.*?\})\s*-->', reply, re.DOTALL)
+    if match:
+        try:
+            data = json.loads(match.group(1))
+            actions = data.get("actions", [])
+            clean = reply[:match.start()].rstrip()
+            return clean, actions if actions else None
+        except Exception:
+            pass
+    return reply, None
+
+
+async def _get_memory_context(user_id: str) -> str | None:
+    """Fetch last 10 messages from chat_history to inject as memory."""
+    try:
+        db = get_supabase()
+        result = await run_query(
+            db.table("chat_history")
+            .select("role, content, created_at")
+            .eq("user_id", user_id)
+            .order("created_at", desc=True)
+            .limit(10)
+        )
+        msgs = list(reversed(result.data or []))
+        if not msgs:
+            return None
+        lines = []
+        for m in msgs:
+            role = "Usuario" if m["role"] == "user" else "Nuvos"
+            content = m["content"][:300] + ("..." if len(m["content"]) > 300 else "")
+            lines.append(f"{role}: {content}")
+        return "\n".join(lines)
+    except Exception:
+        return None
+
+
 def _enrich_message(message: str) -> str:
     """Prepend global market context + append per-company context. Both fetched in parallel."""
     f_global  = _ENRICH_POOL.submit(get_global_market_context)
@@ -126,6 +164,11 @@ async def chat_stream(
     if not images and request.image_data:
         images = [{"data": request.image_data, "type": request.image_type or "image/jpeg"}]
 
+    memory, _ = await asyncio.gather(
+        _get_memory_context(user_id),
+        asyncio.sleep(0),
+    )
+
     async def generate():
         async for chunk in ai_service.chat_stream(
             message=enriched,
@@ -133,6 +176,8 @@ async def chat_stream(
             profile=profile,
             mentor=request.mentor,
             images=images,
+            memory_context=memory,
+            notification_context=request.notification_context,
         ):
             yield chunk
 
@@ -155,6 +200,7 @@ async def chat_message(
     images = [{"data": img.data, "type": img.type} for img in body.images] if body.images else None
     if not images and body.image_data:
         images = [{"data": body.image_data, "type": body.image_type or "image/jpeg"}]
+    memory = await _get_memory_context(user_id)
     full = ""
     async for chunk in ai_service.chat_stream(
         message=enriched,
@@ -162,10 +208,13 @@ async def chat_message(
         profile=profile,
         mentor=body.mentor,
         images=images,
+        memory_context=memory,
+        notification_context=body.notification_context,
     ):
         full += chunk
     clean_reply, bscore = _extract_bscore(full)
-    return {"reply": clean_reply, "risk_assessment": bscore, "tickers": tickers}
+    clean_reply, actions = _extract_action(clean_reply)
+    return {"reply": clean_reply, "risk_assessment": bscore, "tickers": tickers, "actions": actions}
 
 
 @router.post("/save-message")

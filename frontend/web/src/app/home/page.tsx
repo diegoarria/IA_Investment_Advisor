@@ -241,6 +241,22 @@ export default function HomePage() {
       .slice(0, 4);
   }, [positions, prices]);
 
+  // ── Top losers today (sorted by % change asc, top 4, only negative) ────────
+  const losers = useMemo(() => {
+    return [...positions]
+      .map((p) => {
+        const px   = prices[p.ticker];
+        const curr = px?.price ?? p.avgPrice;
+        const cp   = px?.change_pct ?? 0;
+        const prev = cp !== -100 ? curr / (1 + cp / 100) : curr;
+        const chg  = prev > 0 ? ((curr - prev) / prev) * 100 : 0;
+        return { ...p, curr, chg };
+      })
+      .filter((m) => m.chg < 0)
+      .sort((a, b) => a.chg - b.chg)
+      .slice(0, 4);
+  }, [positions, prices]);
+
   // ── Goal ───────────────────────────────────────────────────────────────────
   const GOAL_MAP: Record<string, { label: string; emoji: string }> = {
     house:             { label: "Comprar una casa",         emoji: "🏠" },
@@ -777,6 +793,40 @@ export default function HomePage() {
                         </div>
                       ))
                   }
+                </div>
+              </div>
+            )}
+
+            {/* ── Top losers ───────────────────────────────────────────────── */}
+            {losers.length > 0 && (
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <h2 className="text-sm font-bold" style={{ color: "var(--text)" }}>📉 Cayendo hoy</h2>
+                  <button onClick={() => router.push("/patrimonio")}
+                          className="text-xs font-semibold" style={{ color: "var(--accent-l)" }}>
+                    Ver todo →
+                  </button>
+                </div>
+                <div className="rounded-xl border overflow-hidden" style={{ background: "var(--card)", borderColor: "var(--border)" }}>
+                  {losers.map((m) => (
+                    <div key={m.ticker}
+                         className="flex items-center gap-3 px-4 py-3 border-b last:border-b-0 cursor-pointer hover:opacity-80 transition-opacity"
+                         style={{ borderColor: "var(--border)" }}
+                         onClick={() => router.push("/patrimonio")}>
+                      <StockAvatar ticker={m.ticker} size="sm" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-bold" style={{ color: "var(--text)" }}>{m.ticker}</p>
+                        <p className="text-xs truncate" style={{ color: "var(--muted)" }}>{(m as any).name ?? m.ticker}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm font-bold" style={{ color: "var(--text)" }}>{sym}{m.curr.toFixed(2)}</p>
+                        <span className="text-xs font-bold px-2 py-0.5 rounded-full"
+                              style={{ background: "rgba(239,68,68,0.12)", color: "#ef4444" }}>
+                          {m.chg.toFixed(2)}%
+                        </span>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
             )}

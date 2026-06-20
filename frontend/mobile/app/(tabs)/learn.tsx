@@ -6,7 +6,7 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import Markdown from "react-native-markdown-display";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { useTheme, Colors } from "../../src/lib/ThemeContext";
 import { chatApi, investorsApi } from "../../src/lib/api";
 import { useLearnStore } from "../../src/lib/learnStore";
@@ -259,6 +259,8 @@ export default function LearnScreen() {
     setInvestorsLoading(false);
   }, [investors.length]);
 
+  const { topicId } = useLocalSearchParams<{ topicId?: string }>();
+
   const [search, setSearch] = useState("");
   const [selectedCat, setSelectedCat] = useState("all");
   const [modal, setModal] = useState<{ title: string; icon: IoniconName } | null>(null);
@@ -304,6 +306,12 @@ export default function LearnScreen() {
     if (!q) return;
     openTopic(q, "", "search-outline");
   };
+
+  useEffect(() => {
+    if (!topicId) return;
+    const topic = TOPICS.find(t => t.id === topicId);
+    if (topic) openTopic(topic.title, topic.prompt, topic.icon as IoniconName);
+  }, [topicId]);
 
   return (
     <SafeAreaView style={s.container}>

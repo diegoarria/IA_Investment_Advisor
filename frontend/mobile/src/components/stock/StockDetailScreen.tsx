@@ -20,22 +20,20 @@ import {
   TouchableOpacity,
   StyleSheet,
   Linking,
-  Dimensions,
   ActivityIndicator,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import Svg, { Circle, Rect, G, Text as SvgText } from "react-native-svg";
+import Svg, { Circle } from "react-native-svg";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useTheme } from "../../lib/ThemeContext";
-import { useStockDetail, useStockScore, useRichFinancials, type FinancialPeriod } from "../../hooks/useStockDetail";
+import { useStockDetail, useStockScore, useRichFinancials } from "../../hooks/useStockDetail";
 import StockChart from "../StockChart";
 import StockNews from "./StockNews";
 import StockCompetitors from "./StockCompetitors";
 import StockFinancials from "./StockFinancials";
 import StockAnalysts from "./StockAnalysts";
-
-const { width: SCREEN_W } = Dimensions.get("window");
+import StockAvatar from "../StockAvatar";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -54,17 +52,6 @@ function fmtNum(n?: number | null, dec = 2): string {
 
 function fmtPct(n?: number | null): string {
   return n != null ? `${(n * 100).toFixed(1)}%` : "—";
-}
-
-function consensusLabel(rec?: string | null): { label: string; color: string } {
-  const r = (rec ?? "").toLowerCase();
-  if (r.includes("strong_buy") || r.includes("strongbuy"))
-    return { label: "Compra Fuerte", color: "#22c55e" };
-  if (r.includes("strong_sell") || r.includes("strongsell"))
-    return { label: "Venta Fuerte", color: "#ef4444" };
-  if (r.includes("buy"))  return { label: "Comprar",  color: "#22c55e" };
-  if (r.includes("sell")) return { label: "Vender",   color: "#ef4444" };
-  return { label: "Neutral", color: "#f59e0b" };
 }
 
 // ─── Verdict ──────────────────────────────────────────────────────────────────
@@ -242,25 +229,21 @@ const vd = StyleSheet.create({
 
 // ─── Section Header ───────────────────────────────────────────────────────────
 
-function SectionHeader({ title, colors }: { title: string; colors: ReturnType<typeof useTheme>["colors"] }) {
+function SectionHeader({ title, emoji, colors }: { title: string; emoji?: string; colors: ReturnType<typeof useTheme>["colors"] }) {
   return (
-    <Text style={[sh.title, { color: colors.textMuted, borderBottomColor: colors.border }]}>
-      {title}
-    </Text>
+    <View style={sh.row}>
+      <View style={[sh.bar, { backgroundColor: colors.accentLight }]} />
+      {emoji ? <Text style={sh.emoji}>{emoji}</Text> : null}
+      <Text style={[sh.title, { color: colors.textMuted }]}>{title}</Text>
+    </View>
   );
 }
 
 const sh = StyleSheet.create({
-  title: {
-    fontSize: 12,
-    fontWeight: "700",
-    letterSpacing: 0.8,
-    textTransform: "uppercase",
-    paddingHorizontal: 16,
-    paddingTop: 20,
-    paddingBottom: 10,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-  },
+  row:   { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 16, paddingTop: 22, paddingBottom: 10 },
+  bar:   { width: 3, height: 16, borderRadius: 2 },
+  emoji: { fontSize: 14 },
+  title: { fontSize: 11, fontFamily: "DMSans_800ExtraBold", letterSpacing: 0.5, textTransform: "uppercase", flex: 1 },
 });
 
 // ─── 1. Métricas Clave ────────────────────────────────────────────────────────
@@ -286,9 +269,9 @@ function KeyMetrics({ profile }: { profile?: ReturnType<typeof useStockDetail>["
 
   return (
     <View style={{ paddingHorizontal: 16, paddingVertical: 4 }}>
-      <View style={km.grid}>
+      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
         {stats.map((s) => (
-          <View key={s.label} style={[km.cell, { borderColor: colors.border }]}>
+          <View key={s.label} style={[km.card, { backgroundColor: colors.bgRaised, borderColor: colors.border }]}>
             <Text style={[km.label, { color: colors.textMuted }]}>{s.label}</Text>
             <Text style={[km.value, { color: colors.text }]}>{s.value}</Text>
           </View>
@@ -299,18 +282,9 @@ function KeyMetrics({ profile }: { profile?: ReturnType<typeof useStockDetail>["
 }
 
 const km = StyleSheet.create({
-  grid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-  },
-  cell: {
-    width: "50%",
-    paddingVertical: 10,
-    paddingHorizontal: 4,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-  },
-  label: { fontSize: 11, fontWeight: "500", marginBottom: 3 },
-  value: { fontSize: 14, fontWeight: "700" },
+  card:  { width: "47%", borderRadius: 14, borderWidth: 1, padding: 12 },
+  label: { fontSize: 10, fontFamily: "DMSans_600SemiBold", textTransform: "uppercase", letterSpacing: 0.4, color: "#888", marginBottom: 4 },
+  value: { fontSize: 17, fontFamily: "DMSans_800ExtraBold" },
 });
 
 // ─── 2. Acerca de ─────────────────────────────────────────────────────────────
@@ -323,280 +297,68 @@ function AboutSection({ profile }: { profile?: ReturnType<typeof useStockDetail>
   const desc = profile.description ?? "";
   const short = desc.length > 240 && !expanded ? desc.slice(0, 240) + "…" : desc;
 
+  const tags = [
+    profile.sector    && { icon: "🏭", text: profile.sector },
+    profile.industry  && { icon: "⚙️",  text: profile.industry },
+    profile.country   && { icon: "🌍", text: profile.city ? `${profile.city}, ${profile.country}` : profile.country },
+    profile.employees && { icon: "👥", text: profile.employees.toLocaleString() + " emp." },
+  ].filter(Boolean) as { icon: string; text: string }[];
+
   return (
-    <View style={{ paddingHorizontal: 16, paddingVertical: 12 }}>
+    <View style={{ paddingHorizontal: 16, paddingVertical: 8 }}>
       {desc.length > 0 && (
-        <>
+        <View style={[ab.descCard, { backgroundColor: colors.bgRaised, borderColor: colors.border }]}>
           <Text style={[ab.desc, { color: colors.textSub }]}>{short}</Text>
           {desc.length > 240 && (
-            <TouchableOpacity onPress={() => setExpanded(!expanded)}>
+            <TouchableOpacity onPress={() => setExpanded(!expanded)} style={{ marginTop: 6 }}>
               <Text style={[ab.toggle, { color: colors.accentLight }]}>
                 {expanded ? "Ver menos" : "Ver más"}
               </Text>
             </TouchableOpacity>
           )}
-        </>
+        </View>
       )}
 
-      <View style={{ marginTop: 14, gap: 8 }}>
-        {[
-          { label: "Sector",     value: profile.sector    },
-          { label: "Industria",  value: profile.industry  },
-          { label: "País",       value: profile.country   },
-          { label: "Ciudad",     value: profile.city      },
-          { label: "Empleados",  value: profile.employees?.toLocaleString() },
-        ].filter((r) => r.value).map((r) => (
-          <View key={r.label} style={ab.row}>
-            <Text style={[ab.rLabel, { color: colors.textMuted }]}>{r.label}</Text>
-            <Text style={[ab.rValue, { color: colors.text }]}>{r.value}</Text>
-          </View>
-        ))}
-        {profile.website && (
-          <TouchableOpacity onPress={() => Linking.openURL(profile.website!)}>
-            <Text style={[ab.link, { color: colors.accentLight }]}>
-              {profile.website.replace(/^https?:\/\//, "")}
-            </Text>
-          </TouchableOpacity>
-        )}
-      </View>
-    </View>
-  );
-}
-
-const ab = StyleSheet.create({
-  desc:   { fontSize: 13, lineHeight: 20 },
-  toggle: { fontSize: 12, fontWeight: "600", marginTop: 6 },
-  row:    { flexDirection: "row", justifyContent: "space-between" },
-  rLabel: { fontSize: 12 },
-  rValue: { fontSize: 12, fontWeight: "600" },
-  link:   { fontSize: 12, fontWeight: "600" },
-});
-
-// ─── 3. Financiero — gráfica de barras simple ─────────────────────────────────
-
-const FIN_W = SCREEN_W - 32;
-const FIN_H = 90;
-const BAR_LABEL_H = 16;
-const DRAW_H = FIN_H - BAR_LABEL_H;
-
-function MiniBarChart({ data, color, muted }: {
-  data: { label: string; value: number | null }[];
-  color: string;
-  muted: string;
-}) {
-  const valid = data.filter((d) => d.value != null);
-  if (valid.length < 2) return null;
-
-  const maxAbs = Math.max(...valid.map((d) => Math.abs(d.value!)));
-  const n = data.length;
-  const gap = 6;
-  const barW = Math.max(1, (FIN_W - gap * (n - 1)) / n);
-
-  return (
-    <Svg width={FIN_W} height={FIN_H}>
-      {data.map((d, i) => {
-        const x = i * (barW + gap);
-        const val = d.value ?? 0;
-        const barH = maxAbs > 0 ? (Math.abs(val) / maxAbs) * (DRAW_H - 6) : 0;
-        const y = DRAW_H - barH;
-        const barColor = val < 0 ? "#ef4444" : color;
-        return (
-          <G key={i}>
-            {barH > 1 && (
-              <Rect x={x} y={y} width={barW} height={barH} rx={3} fill={barColor} opacity={0.9} />
-            )}
-            <SvgText x={x + barW / 2} y={FIN_H - 2} textAnchor="middle" fontSize={9} fill={muted} fontWeight="600">
-              {d.label}
-            </SvgText>
-          </G>
-        );
-      })}
-    </Svg>
-  );
-}
-
-function FinancialSection({
-  financials,
-}: {
-  financials?: ReturnType<typeof useStockDetail>["data"] extends { financials: infer F } | null ? F | undefined : never;
-}) {
-  const { colors } = useTheme();
-  if (!financials) return null;
-
-  const annual = financials.income?.annual ?? [];
-  if (annual.length === 0) {
-    return (
-      <View style={{ paddingHorizontal: 16, paddingVertical: 16 }}>
-        <Text style={{ color: colors.textMuted, fontSize: 13 }}>Sin estados financieros</Text>
-      </View>
-    );
-  }
-
-  function toBarData(key: keyof FinancialPeriod) {
-    return [...annual].slice(-5).map((p) => ({
-      label: p.period.slice(2, 4), // "2024" → "24"
-      value: p[key] as number | null,
-    }));
-  }
-
-  const revenue   = toBarData("Total Revenue");
-  const netIncome = toBarData("Net Income");
-
-  const latest   = annual[annual.length - 1] ?? {};
-  const prev     = annual[annual.length - 2] ?? {};
-  const revGrowth = latest["Total Revenue"] && prev["Total Revenue"]
-    ? ((+latest["Total Revenue"]! - +prev["Total Revenue"]!) / Math.abs(+prev["Total Revenue"]!)) * 100
-    : null;
-
-  return (
-    <View style={{ paddingHorizontal: 16, paddingVertical: 12 }}>
-      {/* Revenue bars */}
-      <Text style={[fn.chartLabel, { color: colors.textMuted }]}>Ingresos anuales</Text>
-      <MiniBarChart data={revenue} color={colors.accentLight} muted={colors.textMuted} />
-
-      {/* Net Income bars */}
-      <Text style={[fn.chartLabel, { color: colors.textMuted, marginTop: 16 }]}>Ganancia neta</Text>
-      <MiniBarChart data={netIncome} color={colors.accentLight} muted={colors.textMuted} />
-
-      {/* Key numbers row */}
-      <View style={[fn.row, { borderTopColor: colors.border, marginTop: 14 }]}>
-        {[
-          { label: "Ingresos (TTM)",   value: fmtBig(latest["Total Revenue"]) },
-          { label: "Ganancia Neta",    value: fmtBig(latest["Net Income"]) },
-          { label: "Crecimiento YoY",  value: revGrowth != null ? `${revGrowth >= 0 ? "+" : ""}${revGrowth.toFixed(1)}%` : "—", isGrowth: true, isUp: (revGrowth ?? 0) >= 0 },
-        ].map((item) => (
-          <View key={item.label} style={fn.cell}>
-            <Text style={[fn.cellLabel, { color: colors.textMuted }]}>{item.label}</Text>
-            <Text style={[
-              fn.cellValue,
-              { color: item.isGrowth ? (item.isUp ? colors.up : colors.down) : colors.text },
-            ]}>
-              {item.value}
-            </Text>
-          </View>
-        ))}
-      </View>
-    </View>
-  );
-}
-
-const fn = StyleSheet.create({
-  chartLabel: { fontSize: 11, fontWeight: "600", marginBottom: 6 },
-  row: {
-    flexDirection: "row",
-    borderTopWidth: StyleSheet.hairlineWidth,
-    paddingTop: 12,
-  },
-  cell:      { flex: 1, alignItems: "center" },
-  cellLabel: { fontSize: 10, fontWeight: "500", marginBottom: 3 },
-  cellValue: { fontSize: 13, fontWeight: "800" },
-});
-
-// ─── 4. Analistas ─────────────────────────────────────────────────────────────
-
-function AnalystSection({
-  analyst,
-  currentPrice,
-}: {
-  analyst?: ReturnType<typeof useStockDetail>["data"] extends { analyst: infer A } | null ? A | undefined : never;
-  currentPrice?: number;
-}) {
-  const { colors } = useTheme();
-  if (!analyst) return null;
-
-  const { label, color } = consensusLabel(analyst.recommendation);
-  const pt = analyst.price_target ?? {};
-  const upside = currentPrice && pt.mean
-    ? ((pt.mean - currentPrice) / currentPrice) * 100
-    : null;
-  const isUp = (upside ?? 0) >= 0;
-  const total = Object.values(analyst.ratings ?? {}).reduce((s, v) => s + (v ?? 0), 0);
-
-  return (
-    <View style={{ paddingHorizontal: 16, paddingVertical: 12 }}>
-      {/* Consensus pill */}
-      <View style={an.headerRow}>
-        <View style={[an.pill, { backgroundColor: `${color}18`, borderColor: `${color}44` }]}>
-          <Text style={[an.pillText, { color }]}>{label}</Text>
-        </View>
-        {total > 0 && (
-          <Text style={[an.analystCount, { color: colors.textMuted }]}>
-            {analyst.n_analysts ?? total} analistas
-          </Text>
-        )}
-      </View>
-
-      {/* Rating distribution — compact horizontal bars */}
-      {total > 0 && (
-        <View style={{ marginTop: 12, gap: 5 }}>
-          {[
-            { label: "Compra Fuerte", count: analyst.ratings.strong_buy,  barColor: colors.up },
-            { label: "Comprar",       count: analyst.ratings.buy,         barColor: `${colors.up}88` },
-            { label: "Neutral",       count: analyst.ratings.hold,        barColor: colors.warning },
-            { label: "Vender",        count: analyst.ratings.sell,        barColor: `${colors.down}88` },
-            { label: "Venta Fuerte",  count: analyst.ratings.strong_sell, barColor: colors.down },
-          ].map((r) => (
-            <View key={r.label} style={an.ratingRow}>
-              <Text style={[an.ratingLabel, { color: colors.textMuted }]}>{r.label}</Text>
-              <View style={[an.ratingTrack, { backgroundColor: colors.bgRaised }]}>
-                <View
-                  style={[
-                    an.ratingFill,
-                    { width: `${total > 0 ? (r.count / total) * 100 : 0}%`, backgroundColor: r.barColor },
-                  ]}
-                />
-              </View>
-              <Text style={[an.ratingCount, { color: colors.text }]}>{r.count}</Text>
+      {tags.length > 0 && (
+        <View style={ab.tagsRow}>
+          {tags.map((tag, i) => (
+            <View key={i} style={[ab.tag, { backgroundColor: colors.bgRaised, borderColor: colors.border }]}>
+              <Text style={{ fontSize: 12 }}>{tag.icon}</Text>
+              <Text style={[ab.tagText, { color: colors.textSub }]}>{tag.text}</Text>
             </View>
           ))}
         </View>
       )}
 
-      {/* Price target */}
-      {pt.mean != null && currentPrice != null && (
-        <View style={[an.targetRow, { borderTopColor: colors.border }]}>
-          <View>
-            <Text style={[an.targetLabel, { color: colors.textMuted }]}>Precio objetivo</Text>
-            <Text style={[an.targetPrice, { color: colors.text }]}>
-              {pt.mean >= 1000 ? `$${pt.mean.toFixed(0)}` : `$${pt.mean.toFixed(2)}`}
-            </Text>
-          </View>
-          {upside != null && (
-            <View style={[an.upsidePill, { backgroundColor: isUp ? `${colors.up}18` : `${colors.down}18` }]}>
-              <Text style={[an.upsideText, { color: isUp ? colors.up : colors.down }]}>
-                {isUp ? "+" : ""}{upside.toFixed(1)}% potencial
-              </Text>
-            </View>
-          )}
-        </View>
+      {profile.website && (
+        <TouchableOpacity
+          onPress={() => Linking.openURL(profile.website!)}
+          style={[ab.websiteBtn, { backgroundColor: "rgba(0,168,94,0.08)", borderColor: "rgba(0,168,94,0.2)" }]}
+        >
+          <Ionicons name="globe-outline" size={14} color={colors.accentLight} />
+          <Text style={[ab.websiteText, { color: colors.accentLight }]} numberOfLines={1}>
+            {profile.website.replace(/^https?:\/\//, "")}
+          </Text>
+          <Ionicons name="chevron-forward" size={14} color={colors.accentLight} style={{ marginLeft: "auto" }} />
+        </TouchableOpacity>
       )}
     </View>
   );
 }
 
-const an = StyleSheet.create({
-  headerRow:    { flexDirection: "row", alignItems: "center", gap: 10 },
-  pill:         { paddingHorizontal: 12, paddingVertical: 5, borderRadius: 20, borderWidth: 1 },
-  pillText:     { fontSize: 14, fontWeight: "800" },
-  analystCount: { fontSize: 12 },
-  ratingRow:    { flexDirection: "row", alignItems: "center", gap: 8 },
-  ratingLabel:  { fontSize: 11, fontWeight: "500", width: 90 },
-  ratingTrack:  { flex: 1, height: 5, borderRadius: 3, overflow: "hidden" },
-  ratingFill:   { height: 5, borderRadius: 3 },
-  ratingCount:  { fontSize: 11, fontWeight: "700", width: 20, textAlign: "right" },
-  targetRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    borderTopWidth: StyleSheet.hairlineWidth,
-    paddingTop: 14,
-    marginTop: 14,
-  },
-  targetLabel: { fontSize: 11, marginBottom: 3 },
-  targetPrice: { fontSize: 22, fontWeight: "800", letterSpacing: -0.5 },
-  upsidePill:  { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20 },
-  upsideText:  { fontSize: 14, fontWeight: "700" },
+const ab = StyleSheet.create({
+  descCard:   { borderRadius: 16, borderWidth: 1, padding: 14, marginBottom: 12 },
+  desc:       { fontSize: 13, fontFamily: "DMSans_400Regular", lineHeight: 20 },
+  toggle:     { fontSize: 12, fontFamily: "DMSans_600SemiBold" },
+  tagsRow:    { flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: 12 },
+  tag:        { flexDirection: "row", alignItems: "center", gap: 5, borderRadius: 20, borderWidth: 1, paddingHorizontal: 10, paddingVertical: 5 },
+  tagText:    { fontSize: 11, fontFamily: "DMSans_600SemiBold" },
+  websiteBtn: { flexDirection: "row", alignItems: "center", gap: 6, borderRadius: 14, borderWidth: 1, paddingHorizontal: 14, paddingVertical: 10 },
+  websiteText:{ fontSize: 12, fontFamily: "DMSans_600SemiBold", flex: 1 },
 });
+
+// ─── 3. Financiero — gráfica de barras simple ─────────────────────────────────
+
 
 // ─── Divider ─────────────────────────────────────────────────────────────────
 
@@ -625,6 +387,11 @@ export default function StockDetailScreen({ ticker }: { ticker: string }) {
   const { data, loading, error, refetch } = useStockDetail(ticker);
   const [activeTab, setActiveTab] = useState<TabId>("veredicto");
   const { data: richFin } = useRichFinancials(ticker, activeTab === "financieros");
+
+  const pricePct = data?.profile?.current_price != null && data?.profile?.prev_close != null && data.profile.prev_close !== 0
+    ? ((data.profile.current_price - data.profile.prev_close) / data.profile.prev_close) * 100
+    : null;
+  const priceUp = (pricePct ?? 0) >= 0;
 
   function renderContent() {
     if (activeTab === "grafica") {
@@ -693,16 +460,16 @@ export default function StockDetailScreen({ ticker }: { ticker: string }) {
     if (activeTab === "empresa") {
       return (
         <>
-          <SectionHeader title="Métricas Clave" colors={colors} />
+          <SectionHeader title="Métricas Clave" emoji="📊" colors={colors} />
           <KeyMetrics profile={data?.profile} />
           <Divider color={colors.bgRaised} />
-          <SectionHeader title={`Acerca de ${data?.profile?.name ?? ticker}`} colors={colors} />
+          <SectionHeader title={`Acerca de ${data?.profile?.name ?? ticker}`} emoji="🏢" colors={colors} />
           <AboutSection profile={data?.profile} />
           <Divider color={colors.bgRaised} />
-          <SectionHeader title="Noticias" colors={colors} />
+          <SectionHeader title="Noticias" emoji="📰" colors={colors} />
           <StockNews ticker={ticker} />
           <Divider color={colors.bgRaised} />
-          <SectionHeader title="Empresas Similares" colors={colors} />
+          <SectionHeader title="Empresas Similares" emoji="🔎" colors={colors} />
           <StockCompetitors ticker={ticker} />
         </>
       );
@@ -713,12 +480,15 @@ export default function StockDetailScreen({ ticker }: { ticker: string }) {
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg, paddingTop: insets.top }}>
-      {/* ── Minimal top bar ── */}
-      <View style={[tb.topBar, { borderBottomColor: colors.border }]}>
+      {/* ── Top bar ── */}
+      <View style={[tb.topBar, { borderBottomColor: colors.border, backgroundColor: colors.bg }]}>
         <TouchableOpacity onPress={() => router.back()} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
           <Ionicons name="chevron-back" size={24} color={colors.text} />
         </TouchableOpacity>
-        <View style={{ flex: 1, marginLeft: 8 }}>
+        <View style={{ marginLeft: 10 }}>
+          <StockAvatar ticker={ticker} size={38} />
+        </View>
+        <View style={{ flex: 1, marginLeft: 10 }}>
           <Text style={[tb.topTicker, { color: colors.text }]}>{ticker}</Text>
           {data?.profile?.name && (
             <Text style={[tb.topName, { color: colors.textMuted }]} numberOfLines={1}>
@@ -726,20 +496,34 @@ export default function StockDetailScreen({ ticker }: { ticker: string }) {
             </Text>
           )}
         </View>
-        {data?.profile?.current_price != null && (
-          <Text style={[tb.topPrice, { color: colors.text }]}>
-            ${data.profile.current_price >= 1000
-              ? data.profile.current_price.toLocaleString("en-US", { maximumFractionDigits: 0 })
-              : data.profile.current_price.toFixed(2)}
-          </Text>
-        )}
+        <View style={{ alignItems: "flex-end" }}>
+          {data?.profile?.current_price != null && (
+            <Text style={[tb.topPrice, { color: colors.text }]}>
+              ${data.profile.current_price >= 1000
+                ? data.profile.current_price.toLocaleString("en-US", { maximumFractionDigits: 0 })
+                : data.profile.current_price.toFixed(2)}
+            </Text>
+          )}
+          {pricePct != null && (
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 3, marginTop: 2 }}>
+              <Ionicons
+                name={priceUp ? "trending-up" : "trending-down"}
+                size={11}
+                color={priceUp ? colors.up : colors.down}
+              />
+              <Text style={{ fontSize: 12, fontFamily: "DMSans_600SemiBold", color: priceUp ? colors.up : colors.down }}>
+                {priceUp ? "+" : ""}{pricePct.toFixed(2)}%
+              </Text>
+            </View>
+          )}
+        </View>
       </View>
 
       {/* ── Tab Bar ── */}
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
-        style={[tb.barWrap, { borderBottomColor: colors.border }]}
+        style={[tb.barWrap, { borderBottomColor: colors.border, backgroundColor: colors.bg }]}
         contentContainerStyle={tb.bar}
       >
         {TABS.map((tab) => {
@@ -748,9 +532,17 @@ export default function StockDetailScreen({ ticker }: { ticker: string }) {
             <TouchableOpacity
               key={tab.id}
               onPress={() => setActiveTab(tab.id)}
-              style={[tb.tab, active && { borderBottomColor: colors.accentLight }]}
+              style={[
+                tb.tab,
+                active
+                  ? { backgroundColor: "rgba(0,168,94,0.12)", borderRadius: 20, borderWidth: 1, borderColor: "rgba(0,168,94,0.3)" }
+                  : { borderWidth: 0 },
+              ]}
             >
-              <Text style={[tb.label, { color: active ? colors.accentLight : colors.textMuted }]}>
+              <Text style={[tb.label, {
+                color: active ? colors.accentLight : colors.textMuted,
+                fontFamily: active ? "DMSans_800ExtraBold" : "DMSans_400Regular",
+              }]}>
                 {tab.label}
               </Text>
             </TouchableOpacity>

@@ -1,5 +1,5 @@
 import { GestureHandlerRootView } from "react-native-gesture-handler";
-import { Stack, usePathname } from "expo-router";
+import { Stack, usePathname, router } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { View, Platform, Modal, Text, TouchableOpacity, StyleSheet, Alert } from "react-native";
 import { useEffect, useState } from "react";
@@ -90,6 +90,20 @@ function AppStack() {
       registerPushToken();
     }
   }, [pathname]);
+
+  useEffect(() => {
+    const sub = Notifications.addNotificationResponseReceivedListener((response) => {
+      const data = response.notification.request.content.data as Record<string, string> | undefined;
+      if (!data) return;
+      if (data.screen === "chat") {
+        const params: Record<string, string> = {};
+        if (data.chat_context) params.ctx = encodeURIComponent(data.chat_context);
+        if (data.suggested_message) params.msg = encodeURIComponent(data.suggested_message);
+        router.navigate({ pathname: "/(tabs)/chat", params });
+      }
+    });
+    return () => sub.remove();
+  }, []);
 
   const registerPushToken = async () => {
     if (Platform.OS === "web") return;

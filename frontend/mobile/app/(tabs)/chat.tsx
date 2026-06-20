@@ -6,13 +6,13 @@ import { Audio } from "expo-av";
 import * as FileSystem from "expo-file-system/legacy";
 import {
   View, Text, TextInput, TouchableOpacity, FlatList, ScrollView,
-  StyleSheet, KeyboardAvoidingView, Platform, Image, Animated, Alert,
+  StyleSheet, KeyboardAvoidingView, Platform, Image, Animated, Alert, Modal,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import Markdown from "react-native-markdown-display";
-import { chatApi, marketApi } from "../../src/lib/api";
+import { chatApi, marketApi, decisionsApi } from "../../src/lib/api";
 import { useTheme, Colors } from "../../src/lib/ThemeContext";
 import { useAppStore, RISK_CONFIG, getAge } from "../../src/lib/profileStore";
 import { getUserLevel, LEVEL_LABEL, LEVEL_COLOR } from "../../src/lib/userLevel";
@@ -133,7 +133,7 @@ const OBJECTIVE_GREETING: Record<string, string> = {
 export default function ChatScreen() {
   const insets = useSafeAreaInsets();
   const headerHeight = insets.top + 104;
-  const { tour } = useLocalSearchParams<{ tour?: string }>();
+  const { tour, ctx, msg: msgParam } = useLocalSearchParams<{ tour?: string; ctx?: string; msg?: string }>();
   const isTour = tour === "3"; // MobileHeader row (52) + MarketTicker (52)
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
@@ -190,13 +190,31 @@ export default function ChatScreen() {
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [playingIdx, setPlayingIdx] = useState<number | null>(null);
   const [isLoadingAudio, setIsLoadingAudio] = useState(false);
+  const [showRecordingModal, setShowRecordingModal] = useState(false);
+  const [recordingSecs, setRecordingSecs] = useState(0);
   const recordingRef = useRef<Audio.Recording | null>(null);
   const soundRef = useRef<Audio.Sound | null>(null);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const meteringRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const waveAnimValues = useRef<Animated.Value[]>(
+    Array.from({ length: 24 }, () => new Animated.Value(0.12))
+  ).current;
   const voiceInputRef = useRef(false); // true while a voice-originated message is in flight
   const listRef = useRef<FlatList>(null);
   const cancelRef = useRef({ cancelled: false });
   const inputRef = useRef<TextInput>(null);
   const isAtBottom = useRef(true);
+  const [showScrollBtn, setShowScrollBtn] = useState(false);
+  const [notificationContext, setNotificationContext] = useState<string | null>(null);
+  const [pendingActions, setPendingActions] = useState<Array<{ type: string; label: string; data: Record<string, unknown> }> | null>(null);
+  const [decisionModal, setDecisionModal] = useState<{ action: string; ticker: string; notes: string } | null>(null);
+  const [decisionSaved, setDecisionSaved] = useState(false);
+
+  // Handle notification deep-link params
+  useEffect(() => {
+    if (ctx) setNotificationContext(decodeURIComponent(ctx));
+    if (msgParam) setInput(decodeURIComponent(msgParam));
+  }, [ctx, msgParam]);
 
   // Cross-device sync
   const syncCursorRef = useRef<string | null>(null);
@@ -369,22 +387,69 @@ Instrucciones críticas:
     inputRef.current?.focus();
   };
 
+  const _clearRecordingTimers = () => {
+    if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
+    if (meteringRef.current) { clearInterval(meteringRef.current); meteringRef.current = null; }
+  };
+
   const startRecording = async () => {
     try {
       const { status } = await Audio.requestPermissionsAsync();
       if (status !== "granted") return;
       await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
-      const { recording } = await Audio.Recording.createAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
+      const { recording } = await Audio.Recording.createAsync({
+        ...Audio.RecordingOptionsPresets.HIGH_QUALITY,
+        isMeteringEnabled: true,
+      });
       recordingRef.current = recording;
       setIsRecording(true);
+      setRecordingSecs(0);
+      setShowRecordingModal(true);
+
+      timerRef.current = setInterval(() => setRecordingSecs((s) => s + 1), 1000);
+
+      meteringRef.current = setInterval(async () => {
+        try {
+          const st = await recordingRef.current?.getStatusAsync() as any;
+          if (st?.isRecording) {
+            const metering: number = st.metering ?? -60;
+            const level = Math.max(0, Math.min(1, (metering + 60) / 60));
+            waveAnimValues.forEach((val, i) => {
+              const phase = (i / waveAnimValues.length) * Math.PI * 2;
+              const idle = 0.07 + 0.06 * Math.sin(Date.now() / 400 + phase);
+              const target = level > 0.05
+                ? Math.max(0.06, level * (0.45 + 0.55 * Math.abs(Math.sin(i * 1.4 + Date.now() / 120))))
+                : idle;
+              Animated.timing(val, { toValue: target, duration: 80, useNativeDriver: false }).start();
+            });
+          }
+        } catch {}
+      }, 80);
     } catch {}
   };
 
+  const cancelRecording = async () => {
+    _clearRecordingTimers();
+    const recording = recordingRef.current;
+    if (recording) {
+      try { await recording.stopAndUnloadAsync(); } catch {}
+      await Audio.setAudioModeAsync({ allowsRecordingIOS: false });
+      recordingRef.current = null;
+    }
+    waveAnimValues.forEach((v) => v.setValue(0.12));
+    setIsRecording(false);
+    setShowRecordingModal(false);
+    setRecordingSecs(0);
+  };
+
   const stopRecording = async () => {
+    _clearRecordingTimers();
+    setShowRecordingModal(false);
     const recording = recordingRef.current;
     if (!recording) return;
     setIsRecording(false);
     setIsTranscribing(true);
+    waveAnimValues.forEach((v) => v.setValue(0.12));
     try {
       await recording.stopAndUnloadAsync();
       await Audio.setAudioModeAsync({ allowsRecordingIOS: false });
@@ -407,6 +472,7 @@ Instrucciones críticas:
       Alert.alert("Error al transcribir", msg);
     } finally {
       setIsTranscribing(false);
+      setRecordingSecs(0);
     }
   };
 
@@ -506,6 +572,9 @@ Instrucciones críticas:
 
     incrementMsgCount();
 
+    const ctxToSend = notificationContext;
+    setNotificationContext(null);
+    setPendingActions(null);
     let full = "";
     try {
       await chatApi.stream(
@@ -536,6 +605,8 @@ Instrucciones críticas:
         null,
         null,
         imagesToSend.length > 0 ? imagesToSend.map((i) => ({ data: i.data, type: i.type })) : null,
+        ctxToSend,
+        (actions) => setPendingActions(actions),
       );
     } catch (err: unknown) {
       const errObj = err as { response?: { status?: number; data?: { detail?: { message?: string } } }; message?: string };
@@ -628,6 +699,42 @@ Instrucciones críticas:
           </View>
         )}
         {showChart && <StockChart ticker={lastTicker!} />}
+        {isLastAssistant && pendingActions && !streaming && (
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 6, marginLeft: 4 }}>
+            {pendingActions.map((action, ai) => (
+              <TouchableOpacity
+                key={ai}
+                onPress={() => {
+                  if (action.type === "decision") {
+                    const d = action.data as Record<string, string>;
+                    setDecisionModal({ action: d.action ?? "hold", ticker: d.ticker ?? "", notes: d.notes ?? "" });
+                  } else if (action.type === "chat") {
+                    const d = action.data as Record<string, string>;
+                    sendMessage(d.message);
+                  }
+                }}
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 4,
+                  paddingHorizontal: 12,
+                  paddingVertical: 7,
+                  borderRadius: 20,
+                  borderWidth: 1,
+                  borderColor: action.type === "decision" ? "rgba(0,185,109,0.4)" : colors.border,
+                  backgroundColor: action.type === "decision" ? "rgba(0,185,109,0.10)" : colors.bgRaised,
+                }}
+              >
+                <Text style={{ fontSize: 12 }}>
+                  {action.type === "decision" ? "📝" : action.type === "watchlist" ? "👁" : action.type === "alert" ? "🔔" : "→"}
+                </Text>
+                <Text style={{ fontSize: 12, fontWeight: "600", color: action.type === "decision" ? colors.accentLight : colors.textSub }}>
+                  {action.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
       </View>
     );
   };
@@ -813,8 +920,9 @@ Instrucciones críticas:
                 if (isAtBottom.current) listRef.current?.scrollToEnd({ animated: false });
               }}
               onScroll={({ nativeEvent: e }) => {
-                isAtBottom.current =
-                  e.contentOffset.y + e.layoutMeasurement.height >= e.contentSize.height - 80;
+                const atBottom = e.contentOffset.y + e.layoutMeasurement.height >= e.contentSize.height - 80;
+                isAtBottom.current = atBottom;
+                setShowScrollBtn(!atBottom);
               }}
               scrollEventThrottle={100}
               keyboardShouldPersistTaps="handled"
@@ -824,6 +932,23 @@ Instrucciones críticas:
               windowSize={8}
               style={styles.flex}
             />
+          )}
+
+          {showScrollBtn && (
+            <TouchableOpacity
+              onPress={() => listRef.current?.scrollToEnd({ animated: true })}
+              style={{
+                position: "absolute", bottom: 80, alignSelf: "center", zIndex: 20,
+                width: 36, height: 36, borderRadius: 18,
+                backgroundColor: colors.card,
+                borderWidth: 1, borderColor: colors.border,
+                alignItems: "center", justifyContent: "center",
+                shadowColor: "#000", shadowOpacity: 0.18, shadowRadius: 6, shadowOffset: { width: 0, height: 2 },
+                elevation: 4,
+              }}
+            >
+              <Ionicons name="chevron-down" size={20} color={colors.text} />
+            </TouchableOpacity>
           )}
 
           {!isPremiumAccess && (
@@ -959,6 +1084,189 @@ Instrucciones críticas:
         description="Escribe cualquier pregunta sobre inversiones. Nuvos recuerda tu portafolio y perfil para darte respuestas personalizadas."
       />
     )}
+
+    {/* ── Voice Recording Modal ── */}
+    <Modal
+      visible={showRecordingModal}
+      transparent
+      animationType="fade"
+      statusBarTranslucent
+      onRequestClose={cancelRecording}
+    >
+      <View style={{
+        flex: 1, backgroundColor: "rgba(0,0,0,0.96)",
+        alignItems: "center", justifyContent: "center",
+      }}>
+        <View style={{ alignItems: "center", paddingHorizontal: 40, width: "100%" }}>
+
+          {/* Waveform bars */}
+          <View style={{ flexDirection: "row", alignItems: "center", height: 80, gap: 3, marginBottom: 36 }}>
+            {waveAnimValues.map((val, i) => (
+              <Animated.View
+                key={i}
+                style={{
+                  width: 5,
+                  borderRadius: 3,
+                  backgroundColor: "rgba(0,212,126,0.85)",
+                  height: val.interpolate({ inputRange: [0, 1], outputRange: [4, 72] }),
+                }}
+              />
+            ))}
+          </View>
+
+          {/* Timer */}
+          <Text style={{
+            fontSize: 54, fontWeight: "800", color: "white",
+            letterSpacing: 2, marginBottom: 6,
+            fontVariant: ["tabular-nums"],
+          }}>
+            {String(Math.floor(recordingSecs / 60)).padStart(2, "0")}:{String(recordingSecs % 60).padStart(2, "0")}
+          </Text>
+          <Text style={{ fontSize: 13, color: "rgba(255,255,255,0.35)", marginBottom: 48 }}>
+            Grabando audio...
+          </Text>
+
+          {/* Stop button */}
+          <TouchableOpacity
+            onPress={stopRecording}
+            activeOpacity={0.85}
+            style={{
+              width: 80, height: 80, borderRadius: 40,
+              backgroundColor: "#ef4444",
+              alignItems: "center", justifyContent: "center",
+              marginBottom: 32,
+              shadowColor: "#ef4444", shadowOpacity: 0.5,
+              shadowRadius: 24, shadowOffset: { width: 0, height: 0 },
+              elevation: 10,
+            }}
+          >
+            <View style={{ width: 26, height: 26, borderRadius: 5, backgroundColor: "white" }} />
+          </TouchableOpacity>
+
+          {/* Cancel */}
+          <TouchableOpacity onPress={cancelRecording} activeOpacity={0.6}>
+            <Text style={{ fontSize: 14, fontWeight: "500", color: "rgba(255,255,255,0.38)" }}>
+              Cancelar
+            </Text>
+          </TouchableOpacity>
+
+        </View>
+      </View>
+    </Modal>
+
+    {/* Decision journal modal */}
+    <Modal
+      visible={!!decisionModal}
+      transparent
+      animationType="slide"
+      statusBarTranslucent
+      onRequestClose={() => setDecisionModal(null)}
+    >
+      <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.55)", justifyContent: "flex-end" }}>
+        <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={() => setDecisionModal(null)} />
+        {decisionModal && (
+          <View style={{
+            backgroundColor: colors.card,
+            borderTopLeftRadius: 20,
+            borderTopRightRadius: 20,
+            padding: 20,
+            gap: 12,
+            borderTopWidth: 1,
+            borderColor: colors.border,
+          }}>
+            <Text style={{ fontSize: 15, fontWeight: "700", color: colors.text }}>📝 Registrar decisión</Text>
+            <Text style={{ fontSize: 12, color: colors.textSub }}>
+              Guarda esta decisión en tu diario para revisarla más adelante.
+            </Text>
+            <Text style={{ fontSize: 11, fontWeight: "600", color: colors.textMuted }}>Decisión</Text>
+            <TextInput
+              style={{
+                backgroundColor: colors.bgRaised,
+                borderWidth: 1,
+                borderColor: colors.border,
+                borderRadius: 10,
+                paddingHorizontal: 12,
+                paddingVertical: 8,
+                fontSize: 14,
+                color: colors.text,
+              }}
+              value={decisionModal.action}
+              onChangeText={(v) => setDecisionModal({ ...decisionModal, action: v })}
+              placeholder="ej. Comprar, Vender, Mantener..."
+              placeholderTextColor={colors.textMuted}
+            />
+            <Text style={{ fontSize: 11, fontWeight: "600", color: colors.textMuted }}>Ticker</Text>
+            <TextInput
+              style={{
+                backgroundColor: colors.bgRaised,
+                borderWidth: 1,
+                borderColor: colors.border,
+                borderRadius: 10,
+                paddingHorizontal: 12,
+                paddingVertical: 8,
+                fontSize: 14,
+                color: colors.text,
+              }}
+              value={decisionModal.ticker}
+              onChangeText={(v) => setDecisionModal({ ...decisionModal, ticker: v })}
+              placeholder="ej. AAPL"
+              placeholderTextColor={colors.textMuted}
+              autoCapitalize="characters"
+            />
+            <Text style={{ fontSize: 11, fontWeight: "600", color: colors.textMuted }}>Notas (opcional)</Text>
+            <TextInput
+              style={{
+                backgroundColor: colors.bgRaised,
+                borderWidth: 1,
+                borderColor: colors.border,
+                borderRadius: 10,
+                paddingHorizontal: 12,
+                paddingVertical: 8,
+                fontSize: 14,
+                color: colors.text,
+                minHeight: 70,
+                textAlignVertical: "top",
+              }}
+              value={decisionModal.notes}
+              onChangeText={(v) => setDecisionModal({ ...decisionModal, notes: v })}
+              placeholder="¿Por qué tomaste esta decisión?"
+              placeholderTextColor={colors.textMuted}
+              multiline
+            />
+            <View style={{ flexDirection: "row", gap: 10, marginTop: 4 }}>
+              <TouchableOpacity
+                onPress={() => setDecisionModal(null)}
+                style={{
+                  flex: 1, paddingVertical: 12, borderRadius: 12,
+                  backgroundColor: colors.bgRaised, alignItems: "center",
+                  borderWidth: 1, borderColor: colors.border,
+                }}
+              >
+                <Text style={{ fontSize: 14, fontWeight: "600", color: colors.textSub }}>Cancelar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={async () => {
+                  try {
+                    await decisionsApi.log({ action: decisionModal.action, ticker: decisionModal.ticker, notes: decisionModal.notes, date: new Date().toISOString() });
+                  } catch {}
+                  setDecisionSaved(true);
+                  setTimeout(() => { setDecisionSaved(false); setDecisionModal(null); }, 1500);
+                }}
+                style={{
+                  flex: 1, paddingVertical: 12, borderRadius: 12,
+                  backgroundColor: colors.accent, alignItems: "center",
+                }}
+              >
+                <Text style={{ fontSize: 14, fontWeight: "600", color: "#fff" }}>
+                  {decisionSaved ? "✓ Guardado" : "Guardar"}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+      </View>
+    </Modal>
+
     </KeyboardAvoidingView>
   );
 }

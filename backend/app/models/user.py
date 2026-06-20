@@ -84,6 +84,8 @@ class ChatRequest(BaseModel):
     image_type: Optional[str] = None
     # Multi-image support (1-8 images)
     images: list[ChatImage] = []
+    # Notification deep-link context (optional)
+    notification_context: Optional[str] = None
 
 
 class AuthRequest(BaseModel):

@@ -449,6 +449,69 @@ async def generate_and_send_monthly_report(user_id: str, email: str, name: str) 
 # Enhanced Weekly Summary Email  (with portfolio performance data)
 # ─────────────────────────────────────────────────────────────────────────────
 
+def _pct_color(v: float | None) -> str:
+    return "#22c55e" if (v or 0) >= 0 else "#ef4444"
+
+
+def _pct_emoji_html(v: float | None) -> str:
+    if v is None:
+        return "—"
+    if v >= 2.0:
+        return "🚀"
+    if v >= 0.0:
+        return "🟢"
+    if v >= -2.0:
+        return "🔴"
+    return "📉"
+
+
+def _build_market_wrap_table(
+    sp500_perf: float | None,
+    nasdaq_perf: float | None,
+    user_perf: float | None = None,
+    top_ticker: str | None = None,
+    top_perf: float | None = None,
+) -> str:
+    """Visual Market Wrap table: S&P 500 | NASDAQ | Tu Portafolio (optional) | Top Activo (optional)."""
+
+    def cell(label: str, value: float | None, highlight: bool = False) -> str:
+        fmt_val = f"{value:+.2f}%" if value is not None else "—"
+        color   = _pct_color(value) if value is not None else "#6b7280"
+        emoji   = _pct_emoji_html(value)
+        bg      = "background:rgba(0,168,94,0.08);" if highlight else ""
+        return (
+            f'<td style="padding:16px 10px;text-align:center;{bg}">'
+            f'<p style="color:#6b7280;font-size:10px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;margin:0 0 6px">{label}</p>'
+            f'<p style="color:{color};font-size:20px;font-weight:900;margin:0 0 2px">{fmt_val}</p>'
+            f'<p style="font-size:16px;margin:0">{emoji}</p>'
+            f'</td>'
+        )
+
+    cols = [
+        cell("S&amp;P 500", sp500_perf),
+        cell("NASDAQ",    nasdaq_perf),
+    ]
+    if user_perf is not None:
+        cols.append(cell("Tu portafolio", user_perf, highlight=True))
+    if top_ticker and top_perf is not None:
+        cols.append(cell(f"Top: {top_ticker}", top_perf))
+
+    dividers = "".join(
+        f'<td style="width:1px;padding:0;background:#2a2d3a"></td>{c}' if i > 0 else c
+        for i, c in enumerate(cols)
+    )
+    return (
+        '<div style="border:1px solid #2a2d3a;border-radius:14px;overflow:hidden;margin-bottom:20px">'
+        '<div style="background:#111318;padding:10px 18px;border-bottom:1px solid #2a2d3a">'
+        '<p style="color:#6b7280;font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;margin:0">📊 MARKET WRAP — RENDIMIENTO SEMANAL</p>'
+        '</div>'
+        '<table style="width:100%;border-collapse:collapse;background:#1a1d27">'
+        f'<tr>{dividers}</tr>'
+        '</table>'
+        '</div>'
+    )
+
+
 def build_enhanced_weekly_html(
     name: str,
     is_premium: bool,
@@ -459,8 +522,9 @@ def build_enhanced_weekly_html(
     top_perf: float | None,
     sector: str | None,
     ai_summary: str,
+    risk: str = "moderate",
 ) -> str:
-    first = name.split()[0] if name else "Inversor"
+    first  = name.split()[0] if name else "Inversor"
     header = _nuvos_email_header("Resumen Semanal de Inversión")
 
     def fmt(v, sign=True):
@@ -470,55 +534,58 @@ def build_enhanced_weekly_html(
         return f"{prefix}{v:.2f}%"
 
     beats      = (user_perf is not None and sp500_perf is not None and user_perf > sp500_perf)
-    perf_color = "#22c55e" if (user_perf or 0) >= 0 else "#ef4444"
+    perf_color = _pct_color(user_perf)
 
+    # ── 1. Market Wrap comparison table (always shown) ─────────────────────────
+    market_wrap = _build_market_wrap_table(
+        sp500_perf, nasdaq_perf,
+        user_perf  if is_premium else None,
+        top_ticker if is_premium else None,
+        top_perf   if is_premium else None,
+    )
+
+    # ── 2. Performance hero for premium ───────────────────────────────────────
     perf_hero = ""
     if is_premium and user_perf is not None:
-        vs_label   = "🏆 Superaste al S&P 500 esta semana" if beats else "📊 Debajo del S&P 500 esta semana"
-        top_html   = f'<div style="text-align:center"><p style="color:#6b7280;font-size:11px;margin:0 0 2px;text-transform:uppercase;letter-spacing:1px">Mejor activo</p><p style="color:#22c55e;font-size:16px;font-weight:800;margin:0">{top_ticker} {fmt(top_perf)}</p></div>' if top_ticker else ""
-        perf_hero  = f"""
-      <div style="background:linear-gradient(135deg,#0f1c12,#1a1d27);border:1px solid rgba(0,168,94,0.3);border-radius:16px;padding:28px;margin-bottom:20px;text-align:center">
-        <p style="color:#9ca3af;font-size:11px;margin:0 0 6px;text-transform:uppercase;letter-spacing:1.5px">Tu rendimiento esta semana</p>
-        <div style="font-size:46px;font-weight:900;color:{perf_color};margin:0 0 6px;letter-spacing:-1px">{fmt(user_perf)}</div>
-        <p style="color:#6b7280;font-size:13px;margin:0 0 20px">{vs_label}</p>
-        <div style="display:table;width:100%;border-collapse:collapse">
-          <div style="display:table-row">
-            <div style="display:table-cell;text-align:center;padding:0 12px">
-              <p style="color:#6b7280;font-size:11px;margin:0 0 2px;text-transform:uppercase;letter-spacing:1px">S&amp;P 500</p>
-              <p style="color:#d1d5db;font-size:18px;font-weight:800;margin:0">{fmt(sp500_perf)}</p>
-            </div>
-            <div style="display:table-cell;text-align:center;padding:0 12px;border-left:1px solid #2a2d3a">
-              <p style="color:#6b7280;font-size:11px;margin:0 0 2px;text-transform:uppercase;letter-spacing:1px">NASDAQ</p>
-              <p style="color:#d1d5db;font-size:18px;font-weight:800;margin:0">{fmt(nasdaq_perf)}</p>
-            </div>
-            {"<div style='display:table-cell;text-align:center;padding:0 12px;border-left:1px solid #2a2d3a'>" + top_html + "</div>" if top_ticker else ""}
-          </div>
-        </div>
-      </div>"""
-    elif not is_premium and sp500_perf is not None:
+        vs_label  = "🏆 Superaste al S&P 500 esta semana" if beats else "📊 Debajo del S&P 500 esta semana"
         perf_hero = f"""
-      <div style="background:#111318;border:1px solid #2a2d3a;border-radius:16px;padding:20px;margin-bottom:20px;text-align:center">
-        <p style="color:#6b7280;font-size:11px;margin:0 0 12px;text-transform:uppercase;letter-spacing:1.5px">Mercados esta semana</p>
-        <div style="display:table;width:100%;border-collapse:collapse">
-          <div style="display:table-row">
-            <div style="display:table-cell;text-align:center">
-              <p style="color:#6b7280;font-size:11px;margin:0 0 2px">S&amp;P 500</p>
-              <p style="color:#d1d5db;font-size:20px;font-weight:800;margin:0">{fmt(sp500_perf)}</p>
-            </div>
-            <div style="display:table-cell;text-align:center;border-left:1px solid #2a2d3a">
-              <p style="color:#6b7280;font-size:11px;margin:0 0 2px">NASDAQ</p>
-              <p style="color:#d1d5db;font-size:20px;font-weight:800;margin:0">{fmt(nasdaq_perf)}</p>
-            </div>
-          </div>
-        </div>
-        <div style="margin-top:16px;padding:10px 14px;background:rgba(0,168,94,0.07);border:1px solid rgba(0,168,94,0.2);border-radius:10px">
-          <p style="color:#00a85e;font-size:12px;margin:0;font-weight:600">🔒 Activa <strong>Premium</strong> y ve el rendimiento real de tu portafolio aquí</p>
-        </div>
+      <div style="text-align:center;padding:8px 0 20px">
+        <div style="font-size:44px;font-weight:900;color:{perf_color};letter-spacing:-1px">{fmt(user_perf)}</div>
+        <p style="color:#6b7280;font-size:13px;margin:4px 0 0">{vs_label}</p>
+      </div>"""
+    elif not is_premium:
+        perf_hero = """
+      <div style="margin-bottom:4px;padding:10px 14px;background:rgba(0,168,94,0.07);border:1px solid rgba(0,168,94,0.2);border-radius:10px;text-align:center">
+        <p style="color:#00a85e;font-size:12px;margin:0;font-weight:600">🔒 Activa <strong>Premium</strong> para ver el rendimiento real de tu portafolio</p>
       </div>"""
 
-    rendered     = _render_md(ai_summary)
-    sector_note  = f'<p style="color:#9ca3af;font-size:12px;margin:16px 0 0">📍 Sector destacado esta semana: <strong style="color:#d1d5db">{sector}</strong></p>' if sector else ""
-    cta_url      = "https://nuvosai.com/home"
+    # ── 3. AI analysis (behavioral context) ───────────────────────────────────
+    rendered    = _render_md(ai_summary)
+    sector_note = f'<p style="color:#9ca3af;font-size:12px;margin:16px 0 0">📍 Sector destacado esta semana: <strong style="color:#d1d5db">{sector}</strong></p>' if sector else ""
+
+    # ── 4. Personalized CTA per risk profile ──────────────────────────────────
+    _cta_base = "https://nuvosai.com"
+    cta_config = {
+        "conservative": {
+            "text":  "Revisar mis dividendos →",
+            "color": "#3b82f6",
+            "url":   f"{_cta_base}/portfolio",
+            "note":  "💡 Esta semana: revisa la cobertura de dividendos de tus posiciones.",
+        },
+        "moderate": {
+            "text":  "Ver mi análisis semanal →",
+            "color": "#00a85e",
+            "url":   f"{_cta_base}/home",
+            "note":  "💡 Esta semana: evalúa el balance entre crecimiento y valor en tu portafolio.",
+        },
+        "aggressive": {
+            "text":  "Explorar señales técnicas →",
+            "color": "#f59e0b",
+            "url":   f"{_cta_base}/portfolio",
+            "note":  "💡 Esta semana: identifica activos con alta beta que puedan superar al índice.",
+        },
+    }
+    cta = cta_config.get(risk, cta_config["moderate"])
 
     return f"""<!DOCTYPE html>
 <html>
@@ -531,8 +598,9 @@ def build_enhanced_weekly_html(
 
     <div style="background:#1a1d27;padding:32px">
       <h1 style="color:#fff;font-size:22px;font-weight:900;margin:0 0 6px">Hola {first}, ¿cómo fue tu semana? 👋</h1>
-      <p style="color:#9ca3af;font-size:13px;margin:0 0 24px">La semana cerró. Es momento de reflexionar y prepararse para el lunes.</p>
+      <p style="color:#9ca3af;font-size:13px;margin:0 0 20px">La semana cerró. Es momento de reflexionar y prepararse para el lunes.</p>
 
+      {market_wrap}
       {perf_hero}
 
       <div style="background:#111318;border:1px solid #2a2d3a;border-radius:14px;padding:24px;margin-bottom:20px">
@@ -541,8 +609,12 @@ def build_enhanced_weekly_html(
         {sector_note}
       </div>
 
+      <div style="background:#111318;border:1px solid #2a2d3a;border-radius:12px;padding:14px 18px;margin-bottom:20px">
+        <p style="color:#9ca3af;font-size:13px;margin:0">{cta["note"]}</p>
+      </div>
+
       <div style="text-align:center;margin-bottom:20px">
-        <a href="{cta_url}" style="display:inline-block;background:#00a85e;color:#000;font-weight:800;font-size:15px;padding:14px 32px;border-radius:12px;text-decoration:none">Ver mi reporte semanal →</a>
+        <a href="{cta["url"]}" style="display:inline-block;background:{cta["color"]};color:#000;font-weight:800;font-size:15px;padding:14px 32px;border-radius:12px;text-decoration:none">{cta["text"]}</a>
       </div>
 
       <div style="border-top:1px solid #2a2d3a;padding-top:16px;text-align:center">

@@ -23,6 +23,7 @@ export interface UserProfile {
   investment_amount?: string | null;
   investment_goal?: string | null;
   investment_goal_amount?: string | null;
+  investment_horizon?: string | null;
   knowledge_level?: string | null;
   created_at: string;
   updated_at: string;
