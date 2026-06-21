@@ -1039,11 +1039,12 @@ export default function PortfolioScreen() {
         Alert.alert("Sin resultado", "La IA no devolvió un análisis válido. Intenta de nuevo.");
       }
     } catch (err: any) {
-      const detail = err?.response?.data?.detail ?? err?.message ?? "";
-      if (detail.includes("rate") || detail.includes("limit") || err?.response?.status === 429) {
+      const status = err?.response?.status;
+      const detail = err?.response?.data?.detail ?? err?.response?.data?.error ?? err?.message ?? "";
+      if (status === 429 || detail.includes("rate") || detail.includes("limit")) {
         Alert.alert("Límite alcanzado", "Demasiadas solicitudes. Espera un momento e intenta de nuevo.");
       } else {
-        Alert.alert("Error al analizar", "No se pudo conectar con la IA. Verifica tu conexión e intenta de nuevo.");
+        Alert.alert("Error al analizar", `No se pudo completar el análisis (${status ?? err?.code ?? "red"}: ${detail || "sin detalle"}). Intenta de nuevo.`);
       }
     } finally {
       setAnalysisLoading(false);
