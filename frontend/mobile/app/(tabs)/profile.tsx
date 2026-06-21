@@ -881,7 +881,7 @@ export default function ProfileScreen() {
                 <TouchableOpacity
                   key={clip.id}
                   activeOpacity={0.8}
-                  onPress={() => router.push("/(tabs)/videos")}
+                  onPress={() => router.push({ pathname: "/(tabs)/videos", params: { clipId: clip.id } })}
                   style={{ width: 148, borderRadius: 16, borderWidth: 1, overflow: "hidden", backgroundColor: colors.card, borderColor: colors.border }}
                 >
                   {/* Thumbnail */}

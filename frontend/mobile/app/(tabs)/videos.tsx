@@ -7,7 +7,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { Video, ResizeMode, Audio } from "expo-av";
-import { useFocusEffect, useNavigation } from "expo-router";
+import { useFocusEffect, useNavigation, useLocalSearchParams } from "expo-router";
 import * as SecureStore from "expo-secure-store";
 import * as FileSystem from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
@@ -1200,6 +1200,21 @@ export default function VideosScreen() {
     });
     return unsub;
   }, [navigation, handlePullRefresh]);
+
+  // Deep-link from profile liked videos — fetch that clip and place it first
+  const { clipId: deepLinkClipId } = useLocalSearchParams<{ clipId?: string }>();
+  useEffect(() => {
+    if (!deepLinkClipId) return;
+    feedApi.getClip(deepLinkClipId).then((res) => {
+      const clip: Clip = res.data;
+      setClips((prev) => {
+        if (prev.some((c) => c.id === clip.id)) return prev;
+        return [clip, ...prev];
+      });
+      setActiveIndex(0);
+      flatRef.current?.scrollToOffset({ offset: 0, animated: false });
+    }).catch(() => {});
+  }, [deepLinkClipId]); // eslint-disable-line
 
   const handleLike = async (id: string) => {
     const prev = clips.find((c) => c.id === id);

@@ -88,6 +88,27 @@ async def get_clips(
     return {"clips": clips, "next_cursor": next_cursor}
 
 
+@router.get("/clips/{clip_id}")
+async def get_clip(clip_id: str, user_id: str = Depends(get_current_user_id)):
+    """Fetch a single published clip by ID, with per-user liked/saved state."""
+    db = get_supabase()
+    result = await run_query(
+        db.table("clips")
+        .select("id,title,description,video_url,thumbnail_url,speaker,tags,language,translated_caption,caption_en,duration_sec,view_count,like_count,comment_count,created_at,pre_audio_url,post_audio_url,pre_text,post_text")
+        .eq("id", clip_id)
+        .eq("status", "published")
+        .single()
+    )
+    if not result.data:
+        raise HTTPException(status_code=404, detail="Clip not found")
+    clip = dict(result.data)
+    liked_res = await run_query(db.table("clip_likes").select("clip_id").eq("user_id", user_id).eq("clip_id", clip_id))
+    saved_res = await run_query(db.table("clip_saves").select("clip_id").eq("user_id", user_id).eq("clip_id", clip_id))
+    clip["liked"] = bool(liked_res.data)
+    clip["saved"] = bool(saved_res.data)
+    return clip
+
+
 @router.post("/clips/{clip_id}/view")
 async def track_view(clip_id: str, body: dict, user_id: str = Depends(get_current_user_id)):
     watched_pct = min(100, max(0, int(body.get("watched_pct", 0))))

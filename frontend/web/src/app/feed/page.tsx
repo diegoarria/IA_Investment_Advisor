@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
+import { useSearchParams } from "next/navigation";
 import React from "react";
 import { Loader2, Search, X, Shuffle } from "lucide-react";
 import AppSidebar from "@/components/AppSidebar";
@@ -66,6 +67,7 @@ const TAGS = [
 ];
 
 export default function FeedPage() {
+  const searchParams = useSearchParams();
   const [clips, setClips]           = useState<Clip[]>([]);
   const [loading, setLoading]       = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -113,6 +115,21 @@ export default function FeedPage() {
   }, [speaker, tag, sort, nextCursor]); // eslint-disable-line
 
   useEffect(() => { loadClips(true); }, [speaker, tag, sort, refreshKey]); // eslint-disable-line
+
+  // Deep-link: /feed?clip=<id> — fetch that clip and put it first
+  const deepLinkClipId = searchParams.get("clip");
+  useEffect(() => {
+    if (!deepLinkClipId) return;
+    feedApi.getClip(deepLinkClipId).then((res) => {
+      const clip: Clip = res.data;
+      setClips((prev) => {
+        if (prev.some((c) => c.id === clip.id)) return prev;
+        return [clip, ...prev];
+      });
+      setActiveIndex(0);
+      containerRef.current?.scrollTo({ top: 0, behavior: "instant" });
+    }).catch(() => {});
+  }, [deepLinkClipId]); // eslint-disable-line
 
   const handleShuffle = () => {
     containerRef.current?.scrollTo({ top: 0, behavior: "instant" });

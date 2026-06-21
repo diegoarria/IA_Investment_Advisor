@@ -343,6 +343,7 @@ export const feedApi = {
   deleteComment: (clipId: string, commentId: string) =>
     api.delete(`/api/feed/clips/${clipId}/comments/${commentId}`),
 
+  getClip: (clipId: string) => api.get(`/api/feed/clips/${clipId}`),
   getSaved: () => api.get("/api/feed/saved"),
   downloadUrl: (clipId: string) => `${BASE_URL}/api/feed/clips/${clipId}/download`,
 
