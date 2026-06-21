@@ -1,8 +1,12 @@
 import asyncio
 import anthropic
 import json
+import logging
+import traceback
 from app.core.config import settings
 from app.models.user import UserProfile, ChatMessage
+
+_log = logging.getLogger(__name__)
 
 client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
 
@@ -1361,52 +1365,38 @@ async def analyze_portfolio_score(portfolio: list[dict], profile: "UserProfile |
     )
     portfolio_str = json.dumps(portfolio, ensure_ascii=False)
 
-    prompt = f"""Eres un analista de portafolios de inversión de nivel institucional. Analiza el siguiente portafolio y devuelve un JSON estructurado con una evaluación profunda.
+    prompt = f"""Analiza este portafolio y responde con JSON puro (sin markdown, sin texto extra).
 
-Portafolio del usuario:
-{portfolio_str}
+Portafolio: {portfolio_str}
 
-Evalúa con criterio profesional: diversificación sectorial, calidad de las empresas, concentración de riesgo, momentum, correlación entre activos, y alineación con objetivos a largo plazo.
-
-Responde ÚNICAMENTE con JSON válido en este formato exacto:
+JSON requerido (sé conciso — máx 1 oración por campo de texto):
 {{
-  "score": <entero 1-100 que refleje la calidad real del portafolio>,
-  "score_label": "<uno de: Excelente|Muy Bueno|Bueno|Regular|Mejorable>",
-  "score_color": "<hex: #22c55e para >=80, #84cc16 para >=65, #f59e0b para >=50, #ef4444 para <50>",
-  "summary": "<Párrafo de 3-4 oraciones con visión ejecutiva del portafolio, mencionando tickers específicos>",
+  "score": <1-100>,
+  "score_label": "<Excelente|Muy Bueno|Bueno|Regular|Mejorable>",
+  "score_color": "<#22c55e si>=80, #84cc16 si>=65, #f59e0b si>=50, #ef4444 si<50>",
+  "summary": "<2 oraciones: valoración global y tickers clave>",
   "sections": [
-    {{"title": "Diversificación",    "score": <1-100>, "detail": "<análisis específico con tickers>", "icon": "pie-chart-outline"}},
-    {{"title": "Gestión de Riesgo",  "score": <1-100>, "detail": "<análisis específico>",            "icon": "shield-checkmark-outline"}},
-    {{"title": "Calidad de Activos", "score": <1-100>, "detail": "<análisis específico con tickers>","icon": "star-outline"}},
-    {{"title": "Concentración",      "score": <1-100>, "detail": "<análisis específico>",            "icon": "funnel-outline"}},
-    {{"title": "Momentum",           "score": <1-100>, "detail": "<análisis específico>",            "icon": "trending-up-outline"}}
+    {{"title": "Diversificación",    "score": <1-100>, "detail": "<1 oración>", "icon": "pie-chart-outline"}},
+    {{"title": "Gestión de Riesgo",  "score": <1-100>, "detail": "<1 oración>", "icon": "shield-checkmark-outline"}},
+    {{"title": "Calidad de Activos", "score": <1-100>, "detail": "<1 oración>", "icon": "star-outline"}},
+    {{"title": "Concentración",      "score": <1-100>, "detail": "<1 oración>", "icon": "funnel-outline"}},
+    {{"title": "Momentum",           "score": <1-100>, "detail": "<1 oración>", "icon": "trending-up-outline"}}
   ],
-  "strengths": [
-    "<Fortaleza concreta, menciona tickers específicos>",
-    "<Fortaleza concreta>",
-    "<Fortaleza concreta>"
-  ],
-  "weaknesses": [
-    "<Debilidad concreta, menciona tickers si aplica>",
-    "<Debilidad concreta>",
-    "<Debilidad concreta>"
-  ],
+  "strengths": ["<1 oración con ticker>", "<1 oración>", "<1 oración>"],
+  "weaknesses": ["<1 oración con ticker>", "<1 oración>", "<1 oración>"],
   "recommendations": [
-    {{"title": "<Acción recomendada>", "detail": "<Explicación accionable de 1-2 oraciones con tickers concretos>"}},
-    {{"title": "<Acción recomendada>", "detail": "<Explicación accionable>"}},
-    {{"title": "<Acción recomendada>", "detail": "<Explicación accionable>"}}
+    {{"title": "<acción breve>", "detail": "<1 oración con ticker>"}},
+    {{"title": "<acción breve>", "detail": "<1 oración>"}},
+    {{"title": "<acción breve>", "detail": "<1 oración>"}}
   ]
 }}
 
-Reglas estrictas:
-- El score debe ser honesto: un portafolio de 2 posiciones en el mismo sector NO puede tener score >50.
-- Menciona tickers reales del portafolio, no genéricos.
-- Sin texto fuera del JSON. Sin markdown. Solo JSON puro."""
+Reglas: score honesto; tickers reales; solo JSON puro."""
 
     try:
         response = await _claude(
             model=settings.claude_model,
-            max_tokens=2000,
+            max_tokens=3000,
             system=system_prompt,
             messages=[{"role": "user", "content": prompt}],
         )
@@ -1426,6 +1416,7 @@ Reglas estrictas:
                 return json.loads(m.group())
             raise
     except Exception as exc:
+        _log.error("analyze_portfolio_score failed: %s\n%s", exc, traceback.format_exc())
         return {
             "error": str(exc),
             "score": 0,

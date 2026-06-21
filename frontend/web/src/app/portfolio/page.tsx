@@ -1061,8 +1061,17 @@ export default function PortfolioPage() {
       }));
       const res = await marketApi.analyzePortfolio(posPayload);
       setPortfolioAnalysis(res.data);
-    } catch {
-      setAnalysisError("No se pudo completar el análisis. Intenta de nuevo en unos segundos.");
+    } catch (err: unknown) {
+      const axiosErr = err as { response?: { status?: number; data?: { detail?: string; error?: string } } };
+      const status = axiosErr?.response?.status;
+      const detail = axiosErr?.response?.data?.detail ?? axiosErr?.response?.data?.error;
+      if (status === 429) {
+        setAnalysisError("Límite de intentos alcanzado. Espera un minuto e intenta de nuevo.");
+      } else if (detail) {
+        setAnalysisError(`Error ${status ?? ""}: ${detail}`);
+      } else {
+        setAnalysisError("No se pudo completar el análisis. Intenta de nuevo en unos segundos.");
+      }
     }
     setAnalysisLoading(false);
   };
