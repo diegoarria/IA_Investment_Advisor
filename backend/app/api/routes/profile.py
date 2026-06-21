@@ -4,7 +4,7 @@ import asyncio
 import base64
 import anthropic
 from fastapi import APIRouter, Depends, HTTPException
-from app.api.deps import get_current_user_id
+from app.api.deps import get_current_user_id, get_current_user
 from app.core.database import get_supabase, run_query
 from app.models.user import UserProfile, UserProfileCreate, UserProfileUpdate, AvatarUpload
 from app.services import ai_service
@@ -21,6 +21,47 @@ async def _get_profile_or_404(user_id: str) -> dict:
     if not result.data:
         raise HTTPException(status_code=404, detail="Profile not found. Complete onboarding first.")
     return result.data[0]
+
+
+_TABLES_WITH_USER_ID = [
+    "user_profiles", "watchlist", "user_portfolio",
+    "investment_decisions", "notification_preferences", "chat_history", "user_sync",
+]
+
+
+async def _migrate_profile_by_email(db, new_user_id: str, email: str) -> dict | None:
+    """
+    Google OAuth creates a new user_id even when the email already exists.
+    Find the original account's profile and migrate all user data to the new id.
+    """
+    try:
+        all_users = await asyncio.to_thread(lambda: db.auth.admin.list_users())
+        old_ids = [
+            u.id for u in all_users
+            if getattr(u, "email", None) == email and u.id != new_user_id
+        ]
+        if not old_ids:
+            return None
+        existing = await run_query(
+            db.table("user_profiles").select("*").in_("user_id", old_ids)
+        )
+        if not existing.data:
+            return None
+        old_id = existing.data[0]["user_id"]
+        for table in _TABLES_WITH_USER_ID:
+            try:
+                await run_query(
+                    db.table(table).update({"user_id": new_user_id}).eq("user_id", old_id)
+                )
+            except Exception:
+                pass
+        # Re-fetch after migration
+        migrated = await run_query(
+            db.table("user_profiles").select("*").eq("user_id", new_user_id)
+        )
+        return migrated.data[0] if migrated.data else None
+    except Exception:
+        return None
 
 
 _DB_PROFILE_FIELDS = {
@@ -68,15 +109,28 @@ async def create_profile(
 
 
 @router.get("", response_model=UserProfile)
-async def get_profile(user_id: str = Depends(get_current_user_id)):
+async def get_profile(current_user: dict = Depends(get_current_user)):
+    user_id = current_user["id"]
+    email = current_user.get("email")
     cache_key = f"profile:{user_id}"
     cached = cache_get(cache_key)
     if cached is not None:
         return UserProfile(**cached)
-    data = await _get_profile_or_404(user_id)
+
+    db = get_supabase()
+    result = await run_query(db.table("user_profiles").select("*").eq("user_id", user_id))
+    if result.data:
+        data = result.data[0]
+    elif email:
+        # Google OAuth created a new user_id — try to find and migrate existing profile
+        data = await _migrate_profile_by_email(db, user_id, email)
+        if data is None:
+            raise HTTPException(status_code=404, detail="Profile not found. Complete onboarding first.")
+    else:
+        raise HTTPException(status_code=404, detail="Profile not found. Complete onboarding first.")
+
     if not data.get("avatar_url"):
         try:
-            db = get_supabase()
             path = f"{user_id}.jpg"
             url = await asyncio.to_thread(lambda: db.storage.from_("avatars").get_public_url(path))
             if url:
