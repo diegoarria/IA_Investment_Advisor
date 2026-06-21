@@ -1395,7 +1395,7 @@ Reglas: score honesto; tickers reales; solo JSON puro."""
 
     try:
         response = await _claude(
-            model=settings.claude_model,
+            model="claude-haiku-4-5-20251001",
             max_tokens=3000,
             system=system_prompt,
             messages=[{"role": "user", "content": prompt}],
