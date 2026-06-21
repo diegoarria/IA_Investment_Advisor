@@ -668,17 +668,22 @@ export default function NotificationsPage() {
                     {/* Summary text — rich paragraph */}
                     {(() => {
                       const fullText = summaryText.split(/\n+/).filter(p => p.trim().length > 0).join(" ");
-                      const parts = fullText.split(/(\$[\d,.]+[BMK]?|[+-]?\d+\.?\d*%|[A-Z]{2,5}(?=[\s,.]|$))/g);
                       const SKIP = new Set(["THE","AND","FOR","BUT","INC","LLC","ETF","CEO","USD","SEC","IA","DE","EN","LA","EL","LOS","LAS","UNA","CON","SUS","QUE"]);
-                      const rendered = parts.map((part, j) => {
-                        if (/^\$[\d,.]+/.test(part) || /[+-]?\d+\.?\d*%/.test(part)) {
-                          const isNeg = /^[-−]/.test(part);
-                          return <strong key={j} className="tabular-nums" style={{ fontWeight: 700, color: isNeg ? "#f87171" : "#4ade80" }}>{part}</strong>;
+                      const renderPlain = (text: string, prefix: string) =>
+                        text.split(/(\$[\d,.]+[BMK]?|[+-]?\d+\.?\d*%|[A-Z]{2,5}(?=[\s,.]|$))/g).map((p, j) => {
+                          if (/^\$[\d,.]+/.test(p) || /[+-]?\d+\.?\d*%/.test(p)) {
+                            return <strong key={`${prefix}-${j}`} className="tabular-nums" style={{ fontWeight: 700, color: /^[-−]/.test(p) ? "#f87171" : "#4ade80" }}>{p}</strong>;
+                          }
+                          if (/^[A-Z]{2,5}$/.test(p) && !SKIP.has(p)) {
+                            return <strong key={`${prefix}-${j}`} style={{ fontWeight: 700, color: "#c084fc" }}>{p}</strong>;
+                          }
+                          return <span key={`${prefix}-${j}`}>{p}</span>;
+                        });
+                      const rendered = fullText.split(/(\*\*[^*]+\*\*)/g).flatMap((part, i) => {
+                        if (part.startsWith("**") && part.endsWith("**")) {
+                          return [<strong key={i} style={{ fontWeight: 800, color: "var(--text)" }}>{part.slice(2, -2)}</strong>];
                         }
-                        if (/^[A-Z]{2,5}$/.test(part) && !SKIP.has(part)) {
-                          return <strong key={j} style={{ fontWeight: 700, color: "#c084fc" }}>{part}</strong>;
-                        }
-                        return <span key={j}>{part}</span>;
+                        return renderPlain(part, String(i));
                       });
                       return (
                         <div className="flex gap-3">

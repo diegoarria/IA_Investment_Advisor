@@ -612,7 +612,22 @@ export default function NotificationsScreen() {
             {!!newsSummary && !newsSummaryLoading && (() => {
               const fullText = newsSummary.split(/\n+/).filter(p => p.trim().length > 0).join(" ");
               const SKIP = new Set(["THE","AND","FOR","INC","LLC","ETF","CEO","USD","SEC","IA","DE","EN","LA","EL","LOS","LAS","UNA","CON","SUS","QUE"]);
-              const textParts = fullText.split(/(\$[\d,.]+[BMK]?|[+-]?\d+\.?\d*%|[A-Z]{2,5}(?=[\s,.]|$))/g);
+              const renderPlain = (text: string, prefix: string) =>
+                text.split(/(\$[\d,.]+[BMK]?|[+-]?\d+\.?\d*%|[A-Z]{2,5}(?=[\s,.]|$))/g).map((p, j) => {
+                  if (/^\$[\d,.]+/.test(p) || /[+-]?\d+\.?\d*%/.test(p)) {
+                    return <Text key={`${prefix}-${j}`} style={{ fontWeight: "700", color: /^[-−]/.test(p) ? "#f87171" : "#4ade80" }}>{p}</Text>;
+                  }
+                  if (/^[A-Z]{2,5}$/.test(p) && !SKIP.has(p)) {
+                    return <Text key={`${prefix}-${j}`} style={{ fontWeight: "700", color: "#c084fc" }}>{p}</Text>;
+                  }
+                  return <Text key={`${prefix}-${j}`}>{p}</Text>;
+                });
+              const rendered = fullText.split(/(\*\*[^*]+\*\*)/g).flatMap((part, i) => {
+                if (part.startsWith("**") && part.endsWith("**")) {
+                  return [<Text key={i} style={{ fontWeight: "800", color: colors.text }}>{part.slice(2, -2)}</Text>];
+                }
+                return renderPlain(part, String(i));
+              });
               return (
                 <>
                   <View style={[styles.nsSummaryCard, { borderColor: "rgba(168,85,247,0.22)", backgroundColor: "rgba(168,85,247,0.05)" }]}>
@@ -636,16 +651,7 @@ export default function NotificationsScreen() {
                       <View style={styles.nsParagraphRow}>
                         <View style={styles.nsAccentBar} />
                         <Text style={[styles.nsSummaryPara, { color: colors.textSub }]}>
-                          {textParts.map((part, j) => {
-                            if (/^\$[\d,.]+/.test(part) || /[+-]?\d+\.?\d*%/.test(part)) {
-                              const isNeg = /^[-−]/.test(part);
-                              return <Text key={j} style={{ fontWeight: "700", color: isNeg ? "#f87171" : "#4ade80" }}>{part}</Text>;
-                            }
-                            if (/^[A-Z]{2,5}$/.test(part) && !SKIP.has(part)) {
-                              return <Text key={j} style={{ fontWeight: "700", color: "#c084fc" }}>{part}</Text>;
-                            }
-                            return <Text key={j}>{part}</Text>;
-                          })}
+                          {rendered}
                         </Text>
                       </View>
 
