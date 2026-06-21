@@ -218,6 +218,8 @@ export default function ProfileScreen() {
   const [copiedLink, setCopiedLink] = useState(false);
   const [tutorialFromProfile, setTutorialFromProfile] = useState(false);
   const [savingLevel, setSavingLevel] = useState(false);
+  const [psyEditField, setPsyEditField] = useState<string | null>(null);
+  const [savingPsy, setSavingPsy] = useState(false);
 
   const handleShare = async () => {
     if (Platform.OS === "web") return;
@@ -273,6 +275,34 @@ export default function ProfileScreen() {
       setProfile(updated);
     } catch {}
     setSavingLevel(false);
+  };
+
+  const handlePsySave = async (field: string, value: string) => {
+    if (!profile) return;
+    setSavingPsy(true);
+    try {
+      let update: Record<string, unknown> = {};
+      if (field === "risk_tolerance") {
+        update = { risk_tolerance: value };
+      } else if (field === "investment_goal") {
+        update = { investment_goal: value };
+      } else {
+        update = { quiz_answers: { ...profile.quiz_answers, [field]: value } };
+      }
+      await profileApi.update(update);
+      setProfile({
+        ...profile,
+        ...(field === "risk_tolerance" ? { risk_tolerance: value as import("../../src/lib/profileStore").RiskTolerance } : {}),
+        ...(field === "investment_goal" ? { investment_goal: value } : {}),
+        quiz_answers: field !== "risk_tolerance" && field !== "investment_goal"
+          ? { ...profile.quiz_answers, [field]: value as import("../../src/lib/profileStore").QuizAnswer }
+          : profile.quiz_answers,
+      });
+      setPsyEditField(null);
+    } catch {
+      Alert.alert("Error", "No se pudo guardar. Intenta de nuevo.");
+    }
+    setSavingPsy(false);
   };
 
   const handleDeleteAccount = () => {
@@ -707,12 +737,14 @@ export default function ProfileScreen() {
         <View style={s.section}>
           <View style={s.sectionHeader}>
             <Text style={[s.sectionTitle, { color: colors.text }]}>Perfil psicológico</Text>
+            {savingPsy && <ActivityIndicator size="small" color={colors.accentLight} />}
           </View>
           <View style={[s.psyTwoCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            {/* Horizonte */}
+
+            {/* ── Horizonte ── */}
             {(() => {
-              const q2 = profile.quiz_answers?.q2;
-              const horizonText = q2 ? QUIZ_LABELS.q2[q2] : null;
+              const val = profile.quiz_answers?.q2;
+              const label = val ? QUIZ_LABELS.q2[val] : null;
               return (
                 <View style={[s.psyRow, { borderBottomColor: colors.border }]}>
                   <View style={[s.psyRowIcon, { backgroundColor: "rgba(34,197,94,0.12)" }]}>
@@ -720,26 +752,32 @@ export default function ProfileScreen() {
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={[s.psyRowCat, { color: colors.textDim }]}>Horizonte de inversión</Text>
-                    <Text style={[s.psyRowVal, { color: horizonText ? colors.text : colors.textDim }]}>
-                      {horizonText ?? "No completado"}
+                    <Text style={[s.psyRowVal, { color: label ? colors.text : colors.textDim }]}>
+                      {label ?? "No completado"}
                     </Text>
                   </View>
-                  {horizonText && (
-                    <View style={{ backgroundColor: "rgba(34,197,94,0.12)", borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4, borderWidth: 1, borderColor: "rgba(34,197,94,0.3)" }}>
-                      <Text style={{ color: "#22c55e", fontSize: 11, fontWeight: "700" }}>{horizonText}</Text>
-                    </View>
+                  {label ? (
+                    <TouchableOpacity onPress={() => setPsyEditField("q2")}
+                      style={{ backgroundColor: "rgba(34,197,94,0.12)", borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4, borderWidth: 1, borderColor: "rgba(34,197,94,0.3)" }}>
+                      <Text style={{ color: "#22c55e", fontSize: 11, fontWeight: "700" }}>{label}</Text>
+                    </TouchableOpacity>
+                  ) : (
+                    <TouchableOpacity onPress={() => setPsyEditField("q2")}
+                      style={{ backgroundColor: "rgba(251,191,36,0.12)", borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4, borderWidth: 1, borderColor: "rgba(251,191,36,0.3)" }}>
+                      <Text style={{ color: "#fbbf24", fontSize: 11, fontWeight: "700" }}>Completar</Text>
+                    </TouchableOpacity>
                   )}
                 </View>
               );
             })()}
-            {/* Comportamiento */}
+
+            {/* ── Comportamiento / Perfil de riesgo ── */}
             {(() => {
               const rt = profile.risk_tolerance;
-              const cat = rt === "aggressive" ? "aggressive" : rt === "conservative" ? "conservative" : "moderate";
-              const compLabel = RT_LABEL[cat] ?? RT_LABEL[rt] ?? rt;
-              const compColor = RT_COLOR[cat] ?? RT_COLOR[rt] ?? colors.accentLight;
+              const compLabel = RT_LABEL[rt] ?? rt;
+              const compColor = RT_COLOR[rt] ?? "#f59e0b";
               return (
-                <View style={[s.psyRow, { borderBottomWidth: 0 }]}>
+                <View style={[s.psyRow, { borderBottomColor: colors.border }]}>
                   <View style={[s.psyRowIcon, { backgroundColor: compColor + "18" }]}>
                     <Text style={{ fontSize: 18 }}>🧠</Text>
                   </View>
@@ -747,14 +785,193 @@ export default function ProfileScreen() {
                     <Text style={[s.psyRowCat, { color: colors.textDim }]}>Comportamiento</Text>
                     <Text style={[s.psyRowVal, { color: colors.text }]}>{compLabel}</Text>
                   </View>
-                  <View style={{ backgroundColor: compColor + "18", borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4, borderWidth: 1, borderColor: compColor + "44" }}>
+                  <TouchableOpacity onPress={() => setPsyEditField("risk_tolerance")}
+                    style={{ backgroundColor: compColor + "18", borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4, borderWidth: 1, borderColor: compColor + "44" }}>
                     <Text style={{ color: compColor, fontSize: 11, fontWeight: "700" }}>{compLabel}</Text>
+                  </TouchableOpacity>
+                </View>
+              );
+            })()}
+
+            {/* ── Reacción ante caídas ── */}
+            {(() => {
+              const val = profile.quiz_answers?.q1;
+              const label = val ? QUIZ_LABELS.q1[val] : null;
+              return (
+                <View style={[s.psyRow, { borderBottomColor: colors.border }]}>
+                  <View style={[s.psyRowIcon, { backgroundColor: "rgba(239,68,68,0.10)" }]}>
+                    <Text style={{ fontSize: 18 }}>📉</Text>
                   </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[s.psyRowCat, { color: colors.textDim }]}>Reacción ante caídas</Text>
+                    <Text style={[s.psyRowVal, { color: label ? colors.text : colors.textDim }]}>
+                      {label ?? "No completado"}
+                    </Text>
+                  </View>
+                  {label ? (
+                    <TouchableOpacity onPress={() => setPsyEditField("q1")}
+                      style={{ backgroundColor: "rgba(239,68,68,0.10)", borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4, borderWidth: 1, borderColor: "rgba(239,68,68,0.25)" }}>
+                      <Text style={{ color: "#ef4444", fontSize: 11, fontWeight: "700" }}>{label}</Text>
+                    </TouchableOpacity>
+                  ) : (
+                    <TouchableOpacity onPress={() => setPsyEditField("q1")}
+                      style={{ backgroundColor: "rgba(251,191,36,0.12)", borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4, borderWidth: 1, borderColor: "rgba(251,191,36,0.3)" }}>
+                      <Text style={{ color: "#fbbf24", fontSize: 11, fontWeight: "700" }}>Completar</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              );
+            })()}
+
+            {/* ── Seguimiento del mercado ── */}
+            {(() => {
+              const val = profile.quiz_answers?.q5;
+              const label = val ? QUIZ_LABELS.q5[val] : null;
+              return (
+                <View style={[s.psyRow, { borderBottomWidth: 0 }]}>
+                  <View style={[s.psyRowIcon, { backgroundColor: "rgba(59,130,246,0.10)" }]}>
+                    <Text style={{ fontSize: 18 }}>⚙️</Text>
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[s.psyRowCat, { color: colors.textDim }]}>Seguimiento del mercado</Text>
+                    <Text style={[s.psyRowVal, { color: label ? colors.text : colors.textDim }]}>
+                      {label ?? "No completado"}
+                    </Text>
+                  </View>
+                  {label ? (
+                    <TouchableOpacity onPress={() => setPsyEditField("q5")}
+                      style={{ backgroundColor: "rgba(59,130,246,0.10)", borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4, borderWidth: 1, borderColor: "rgba(59,130,246,0.25)" }}>
+                      <Text style={{ color: "#3b82f6", fontSize: 11, fontWeight: "700" }}>{label}</Text>
+                    </TouchableOpacity>
+                  ) : (
+                    <TouchableOpacity onPress={() => setPsyEditField("q5")}
+                      style={{ backgroundColor: "rgba(251,191,36,0.12)", borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4, borderWidth: 1, borderColor: "rgba(251,191,36,0.3)" }}>
+                      <Text style={{ color: "#fbbf24", fontSize: 11, fontWeight: "700" }}>Completar</Text>
+                    </TouchableOpacity>
+                  )}
                 </View>
               );
             })()}
           </View>
         </View>
+
+        {/* ── MODAL EDICIÓN PERFIL PSICOLÓGICO ── */}
+        <Modal
+          visible={psyEditField !== null}
+          transparent
+          animationType="slide"
+          onRequestClose={() => setPsyEditField(null)}
+        >
+          <TouchableOpacity
+            style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.55)", justifyContent: "flex-end" }}
+            activeOpacity={1}
+            onPress={() => setPsyEditField(null)}
+          >
+            <View style={{ backgroundColor: colors.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 40, gap: 12 }}
+              onStartShouldSetResponder={() => true}>
+              {/* Header */}
+              <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
+                <Text style={{ color: colors.text, fontSize: 16, fontWeight: "800" }}>
+                  {psyEditField === "q2" ? "¿Cuál es tu horizonte de inversión?" :
+                   psyEditField === "risk_tolerance" ? "¿Cuál es tu comportamiento inversor?" :
+                   psyEditField === "q1" ? "¿Qué haces cuando tu portafolio cae?" :
+                   "¿Con qué frecuencia revisas el mercado?"}
+                </Text>
+                <TouchableOpacity onPress={() => setPsyEditField(null)}>
+                  <Ionicons name="close" size={22} color={colors.textMuted} />
+                </TouchableOpacity>
+              </View>
+              <Text style={{ color: colors.textMuted, fontSize: 12, marginBottom: 4 }}>
+                Toca una opción para guardar automáticamente
+              </Text>
+
+              {/* Options */}
+              {psyEditField === "q2" && Object.entries(QUIZ_LABELS.q2).map(([key, text]) => {
+                const active = profile.quiz_answers?.q2 === key;
+                return (
+                  <TouchableOpacity key={key} onPress={() => handlePsySave("q2", key)} disabled={savingPsy}
+                    style={{ flexDirection: "row", alignItems: "center", gap: 12, padding: 14, borderRadius: 14,
+                      backgroundColor: active ? "rgba(34,197,94,0.12)" : colors.bgRaised,
+                      borderWidth: 1.5, borderColor: active ? "#22c55e" : colors.border }}>
+                    <View style={{ width: 28, height: 28, borderRadius: 8, backgroundColor: active ? "#22c55e" : colors.border + "60",
+                      alignItems: "center", justifyContent: "center" }}>
+                      <Text style={{ fontSize: 11, fontWeight: "800", color: active ? "#fff" : colors.textMuted }}>{key}</Text>
+                    </View>
+                    <Text style={{ flex: 1, fontSize: 14, fontWeight: active ? "700" : "500", color: active ? colors.text : colors.textSub }}>{text}</Text>
+                    {active && <Ionicons name="checkmark-circle" size={20} color="#22c55e" />}
+                  </TouchableOpacity>
+                );
+              })}
+
+              {psyEditField === "risk_tolerance" && [
+                { key: "conservative", label: "Conservador", color: "#3b82f6", desc: "Priorizo no perder dinero sobre ganar" },
+                { key: "moderate",     label: "Moderado",    color: "#f59e0b", desc: "Balance entre crecimiento y estabilidad" },
+                { key: "aggressive",   label: "Agresivo",    color: "#ef4444", desc: "Acepto alta volatilidad buscando mayor retorno" },
+              ].map(({ key, label, color, desc }) => {
+                const active = profile.risk_tolerance === key;
+                return (
+                  <TouchableOpacity key={key} onPress={() => handlePsySave("risk_tolerance", key)} disabled={savingPsy}
+                    style={{ flexDirection: "row", alignItems: "center", gap: 12, padding: 14, borderRadius: 14,
+                      backgroundColor: active ? color + "12" : colors.bgRaised,
+                      borderWidth: 1.5, borderColor: active ? color : colors.border }}>
+                    <View style={{ width: 28, height: 28, borderRadius: 8, backgroundColor: active ? color : color + "30",
+                      alignItems: "center", justifyContent: "center" }}>
+                      <Text style={{ fontSize: 14, fontWeight: "800", color: active ? "#fff" : color }}>
+                        {key === "conservative" ? "C" : key === "moderate" ? "M" : "A"}
+                      </Text>
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontSize: 14, fontWeight: "700", color: active ? color : colors.text }}>{label}</Text>
+                      <Text style={{ fontSize: 11, color: colors.textMuted, marginTop: 1 }}>{desc}</Text>
+                    </View>
+                    {active && <Ionicons name="checkmark-circle" size={20} color={color} />}
+                  </TouchableOpacity>
+                );
+              })}
+
+              {psyEditField === "q1" && Object.entries(QUIZ_LABELS.q1).map(([key, text]) => {
+                const active = profile.quiz_answers?.q1 === key;
+                const color = key === "A" ? "#ef4444" : key === "B" ? "#f59e0b" : key === "C" ? "#3b82f6" : "#22c55e";
+                return (
+                  <TouchableOpacity key={key} onPress={() => handlePsySave("q1", key)} disabled={savingPsy}
+                    style={{ flexDirection: "row", alignItems: "center", gap: 12, padding: 14, borderRadius: 14,
+                      backgroundColor: active ? color + "12" : colors.bgRaised,
+                      borderWidth: 1.5, borderColor: active ? color : colors.border }}>
+                    <View style={{ width: 28, height: 28, borderRadius: 8, backgroundColor: active ? color : color + "30",
+                      alignItems: "center", justifyContent: "center" }}>
+                      <Text style={{ fontSize: 11, fontWeight: "800", color: active ? "#fff" : color }}>{key}</Text>
+                    </View>
+                    <Text style={{ flex: 1, fontSize: 14, fontWeight: active ? "700" : "500", color: active ? colors.text : colors.textSub }}>{text}</Text>
+                    {active && <Ionicons name="checkmark-circle" size={20} color={color} />}
+                  </TouchableOpacity>
+                );
+              })}
+
+              {psyEditField === "q5" && Object.entries(QUIZ_LABELS.q5).map(([key, text]) => {
+                const active = profile.quiz_answers?.q5 === key;
+                return (
+                  <TouchableOpacity key={key} onPress={() => handlePsySave("q5", key)} disabled={savingPsy}
+                    style={{ flexDirection: "row", alignItems: "center", gap: 12, padding: 14, borderRadius: 14,
+                      backgroundColor: active ? "rgba(59,130,246,0.12)" : colors.bgRaised,
+                      borderWidth: 1.5, borderColor: active ? "#3b82f6" : colors.border }}>
+                    <View style={{ width: 28, height: 28, borderRadius: 8, backgroundColor: active ? "#3b82f6" : colors.border + "60",
+                      alignItems: "center", justifyContent: "center" }}>
+                      <Text style={{ fontSize: 11, fontWeight: "800", color: active ? "#fff" : colors.textMuted }}>{key}</Text>
+                    </View>
+                    <Text style={{ flex: 1, fontSize: 14, fontWeight: active ? "700" : "500", color: active ? colors.text : colors.textSub }}>{text}</Text>
+                    {active && <Ionicons name="checkmark-circle" size={20} color="#3b82f6" />}
+                  </TouchableOpacity>
+                );
+              })}
+
+              {savingPsy && (
+                <View style={{ alignItems: "center", paddingTop: 4 }}>
+                  <ActivityIndicator size="small" color={colors.accentLight} />
+                </View>
+              )}
+            </View>
+          </TouchableOpacity>
+        </Modal>
 
         {/* ── NIVEL DE CONOCIMIENTO ── */}
         <View style={s.section}>
