@@ -29,6 +29,7 @@ _prod_origins = [
     "https://nuvosai.com",
     "https://www.nuvosai.com",
     "https://nuvosai.vercel.app",
+    "https://ia-investment-advisor-adv5o8d43-diego-arria-s-projects.vercel.app",
 ]
 # Never fall back to wildcard — always use the explicit allowlist
 _origins = list({settings.frontend_url} | set(_prod_origins) | (set(_dev_origins) if _is_dev else set()))
