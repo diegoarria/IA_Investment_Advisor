@@ -275,6 +275,14 @@ function scorePortfolio(
   return { score, levelIdx: idx === -1 ? 7 : idx, sectorPcts };
 }
 
+const SECTOR_COLOR: Record<string, string> = {
+  Tecnología: "#8b5cf6", Comunicaciones: "#06b6d4",
+  "Consumo Discrecional": "#f97316", "Consumo Básico": "#eab308",
+  Salud: "#ec4899", Financiero: "#475569", Energía: "#ef4444",
+  Industriales: "#0ea5e9", Materiales: "#d97706",
+  "Bienes Raíces": "#14b8a6", "Servicios Públicos": "#22c55e", ETF: "#94a3b8",
+};
+
 function buildFeedback(
   levelIdx: number,
   profile: UserProfile | null,
@@ -633,6 +641,7 @@ export default function PortfolioScreen() {
   const isPremiumAccess = hasPremiumAccess(subStore);
   const [paywallOpen, setPaywallOpen] = useState(false);
   const [activeSection, setActiveSection] = useState<"portafolio" | "herramientas">("portafolio");
+  const [selectedSector, setSelectedSector] = useState<string | null>(null);
   const age = profile?.birth_date ? getAge(profile.birth_date) : 0;
   const [prices, setPrices] = useState<Record<string, PriceData>>({});
   const [loadingPrices, setLoadingPrices] = useState(false);
@@ -792,6 +801,8 @@ export default function PortfolioScreen() {
     return () => sub.remove();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const diagnosis = useMemo(() => scorePortfolio(positions, prices), [positions, prices]);
 
   // Clave estable que cambia con tickers, acciones o fecha de compra
   const positionsKey = useMemo(
@@ -2033,6 +2044,86 @@ export default function PortfolioScreen() {
             })()}
           </>
         )}
+
+        {/* ── DIAGNÓSTICO DE RIESGO ── */}
+        {diagnosis && positions.length > 0 && (() => {
+          const level = PORTFOLIO_LEVELS[diagnosis.levelIdx];
+          return (
+            <View style={[s.diagCard, { borderColor: level.color + "60" }]}>
+              <View style={s.diagHeader}>
+                <View style={[s.diagBadge, { borderColor: level.color + "50", backgroundColor: level.color + "18" }]}>
+                  <View style={[s.diagBadgeDot, { backgroundColor: level.color }]} />
+                  <Text style={[s.diagBadgeText, { color: level.color }]}>{level.label}</Text>
+                </View>
+                <Text style={[s.diagScore, { color: colors.textMuted }]}>{diagnosis.score}/100</Text>
+              </View>
+              <View style={s.diagBarRow}>
+                {PORTFOLIO_LEVELS.map((l, i) => (
+                  <View key={l.label} style={[s.diagBarSeg, {
+                    backgroundColor: i === diagnosis.levelIdx ? l.color : l.color + "35",
+                    height: i === diagnosis.levelIdx ? 12 : 7,
+                    borderRadius: 4,
+                  }]} />
+                ))}
+              </View>
+              <View style={s.diagBarLabels}>
+                <Text style={[s.diagBarLabel, { color: colors.textDim }]}>Conservador</Text>
+                <Text style={[s.diagBarLabel, { color: colors.textDim }]}>Especulativo</Text>
+              </View>
+              {Object.keys(diagnosis.sectorPcts).length > 0 && (
+                <>
+                  <View style={s.diagSectors}>
+                    {Object.entries(diagnosis.sectorPcts).sort((a, b) => b[1] - a[1]).map(([sector, pct]) => {
+                      const col = SECTOR_COLOR[sector] ?? "#94a3b8";
+                      const active = selectedSector === sector;
+                      return (
+                        <TouchableOpacity
+                          key={sector}
+                          onPress={() => setSelectedSector(active ? null : sector)}
+                          style={[s.diagSectorChip, { backgroundColor: active ? col : col + "18", borderColor: active ? col : col + "40" }]}
+                        >
+                          <Text style={[s.diagSectorText, { color: active ? "#fff" : col }]}>{sector} {pct}%</Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                  {selectedSector && (() => {
+                    const col = SECTOR_COLOR[selectedSector] ?? "#94a3b8";
+                    const sectorPos = positions.filter((p) => (TICKER_SECTOR[p.ticker] ?? "Otro") === selectedSector);
+                    return (
+                      <View style={[s.sectorDrillBox, { backgroundColor: col + "0e", borderColor: col + "40" }]}>
+                        <View style={s.sectorDrillHeader}>
+                          <Text style={[s.sectorDrillTitle, { color: col }]}>Posiciones · {selectedSector}</Text>
+                          <TouchableOpacity onPress={() => setSelectedSector(null)}>
+                            <Text style={[s.sectorDrillClose, { color: colors.textMuted }]}>✕ cerrar</Text>
+                          </TouchableOpacity>
+                        </View>
+                        {sectorPos.map((p) => {
+                          const pr = prices[p.ticker];
+                          const val = p.shares * ((pr?.price ?? p.avgPrice) * fxRate);
+                          const cost = p.shares * p.avgPrice;
+                          const gainPct = cost > 0 ? ((val - cost) / cost) * 100 : 0;
+                          return (
+                            <View key={p.id} style={[s.sectorDrillRow, { backgroundColor: col + "12" }]}>
+                              <View style={s.sectorDrillLeft}>
+                                <Text style={[s.sectorDrillTicker, { color: colors.text }]}>{p.ticker}</Text>
+                                <Text style={[s.sectorDrillName, { color: colors.textMuted }]} numberOfLines={1}>{p.name}</Text>
+                              </View>
+                              <View style={s.sectorDrillRight}>
+                                <Text style={[s.sectorDrillVal, { color: colors.text }]}>{currencySymbol}{val.toLocaleString("en-US", { maximumFractionDigits: 0 })}</Text>
+                                <Text style={[s.sectorDrillPct, { color: gainPct >= 0 ? "#22c55e" : "#ef4444" }]}>{gainPct >= 0 ? "+" : ""}{gainPct.toFixed(1)}%</Text>
+                              </View>
+                            </View>
+                          );
+                        })}
+                      </View>
+                    );
+                  })()}
+                </>
+              )}
+            </View>
+          );
+        })()}
 
         {/* ── ANALIZA TU PORTAFOLIO ── */}
         <View style={[s.divider, { borderTopColor: colors.border }]} />
