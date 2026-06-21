@@ -68,7 +68,7 @@ _DB_PROFILE_FIELDS = {
     "name", "birth_date", "monthly_income", "monthly_contribution",
     "risk_tolerance", "quiz_answers", "mentor",
     "investment_goal", "investment_goal_amount", "investment_horizon", "knowledge_level",
-    "terms_accepted_at", "terms_version",
+    # terms_accepted_at and terms_version require adding those columns in Supabase first
 }
 
 @router.post("", response_model=UserProfile)
