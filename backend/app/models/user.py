@@ -39,11 +39,11 @@ class UserProfile(BaseModel):
     id: str
     user_id: str
     name: str
-    birth_date: str
-    monthly_income: str
-    monthly_contribution: str
+    birth_date: Optional[str] = None
+    monthly_income: Optional[str] = None
+    monthly_contribution: Optional[str] = None
     risk_tolerance: str
-    quiz_answers: dict
+    quiz_answers: Optional[dict] = None
     mentor: Optional[str] = None
     avatar_url: Optional[str] = None
     subscription_tier: str = "free"
@@ -58,8 +58,8 @@ class UserProfile(BaseModel):
     knowledge_level: Optional[str] = None
     terms_accepted_at: Optional[str] = None
     terms_version: Optional[str] = None
-    created_at: str
-    updated_at: str
+    created_at: Optional[str] = None
+    updated_at: Optional[str] = None
 
 
 class AvatarUpload(BaseModel):
