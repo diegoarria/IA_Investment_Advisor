@@ -89,8 +89,7 @@ export default function Home() {
         clearTimeout(fallback);
         const status = (err as { response?: { status?: number } })?.response?.status;
         if (status === 401 || status === 403) {
-          localStorage.removeItem("access_token");
-          localStorage.removeItem("refresh_token");
+          // Interceptor already attempted refresh and cleared tokens — just show login
           setChecking(false);
         } else {
           router.push("/home");

@@ -111,7 +111,7 @@ type FormState = {
 export default function OnboardingPage() {
   const router  = useRouter();
   const { setProfile }  = useProfileStore();
-  const { isAuthenticated, clearAuth } = useAuthStore();
+  const { isAuthenticated, authRestoring, clearAuth } = useAuthStore();
 
   const [step, setStep]     = useState(0);
   const [loading, setLoading] = useState(false);
@@ -126,8 +126,8 @@ export default function OnboardingPage() {
     investment_horizon: "", investment_goal: "", q1: "", q4: "",
   });
 
-  useEffect(() => { if (!isAuthenticated && !localStorage.getItem("access_token")) router.push("/"); }, [isAuthenticated]);
-  if (!isAuthenticated && (typeof window === "undefined" || !localStorage.getItem("access_token"))) return null;
+  useEffect(() => { if (!authRestoring && !isAuthenticated && !localStorage.getItem("access_token")) router.push("/"); }, [isAuthenticated, authRestoring]);
+  if (!authRestoring && !isAuthenticated && (typeof window === "undefined" || !localStorage.getItem("access_token"))) return null;
 
   // ── Derived values ───────────────────────────────────────────────────────────
   const firstName  = form.name.trim().split(" ")[0];

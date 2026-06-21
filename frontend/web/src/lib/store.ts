@@ -137,8 +137,10 @@ interface AuthState {
   token: string | null;
   userId: string | null;
   isAuthenticated: boolean;
+  authRestoring: boolean;
   setAuth: (token: string, userId: string) => void;
   clearAuth: () => void;
+  setAuthRestoring: (v: boolean) => void;
 }
 
 interface ProfileState {
@@ -212,15 +214,17 @@ export const useAuthStore = create<AuthState>()(
       token: null,
       userId: null,
       isAuthenticated: false,
+      authRestoring: true,
       setAuth: (token, userId) => {
         localStorage.setItem("access_token", token);
-        set({ token, userId, isAuthenticated: true });
+        set({ token, userId, isAuthenticated: true, authRestoring: false });
       },
       clearAuth: () => {
         localStorage.removeItem("access_token");
         localStorage.removeItem("refresh_token");
-        set({ token: null, userId: null, isAuthenticated: false });
+        set({ token: null, userId: null, isAuthenticated: false, authRestoring: false });
       },
+      setAuthRestoring: (v) => set({ authRestoring: v }),
     }),
     { name: "auth-store" }
   )

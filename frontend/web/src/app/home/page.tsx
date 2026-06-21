@@ -74,7 +74,7 @@ const DAILY_LESSONS = [
 
 export default function HomePage() {
   const router = useRouter();
-  const { isAuthenticated } = useAuthStore();
+  const { isAuthenticated, authRestoring } = useAuthStore();
   const { profile, setProfile } = useProfileStore();
   const { positions, portfolioCurrency } = usePortfolioStore();
   const streak = useLearnStore((s) => s.streak);
@@ -107,8 +107,8 @@ export default function HomePage() {
   const dailyLesson = DAILY_LESSONS[new Date().getDay() % DAILY_LESSONS.length];
 
   useEffect(() => {
-    if (!isAuthenticated && !localStorage.getItem("access_token")) { router.push("/"); return; }
-  }, [isAuthenticated]);
+    if (!authRestoring && !isAuthenticated && !localStorage.getItem("access_token")) { router.push("/"); return; }
+  }, [isAuthenticated, authRestoring]);
 
   const loadData = useCallback(async () => {
     setLoading(true);

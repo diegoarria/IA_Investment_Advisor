@@ -60,8 +60,6 @@ api.interceptors.response.use(
       flushQueue(refreshErr);
       localStorage.removeItem("access_token");
       localStorage.removeItem("refresh_token");
-      localStorage.removeItem("auth-store"); // clear Zustand persisted auth so isAuthenticated resets
-      window.location.href = "/";
       return Promise.reject(refreshErr);
     } finally {
       isRefreshing = false;

@@ -11,7 +11,7 @@ const BASE_URL =
 
 export default function ThemeProvider({ children }: { children: React.ReactNode }) {
   const { theme, loadThemeFromServer } = useThemeStore();
-  const { isAuthenticated, setAuth } = useAuthStore();
+  const { isAuthenticated, setAuth, setAuthRestoring } = useAuthStore();
   const lastSyncRef = useRef<number>(0);
   const pathname = usePathname();
   const isAuthPage = pathname === "/" || pathname?.startsWith("/auth") || pathname === "/join";
@@ -28,7 +28,7 @@ export default function ThemeProvider({ children }: { children: React.ReactNode 
 
     const accessToken  = localStorage.getItem("access_token");
     const refreshToken = localStorage.getItem("refresh_token");
-    if (!accessToken && !refreshToken) return;
+    if (!accessToken && !refreshToken) { setAuthRestoring(false); return; }
 
     async function restoreSession() {
       try {
@@ -71,9 +71,10 @@ export default function ThemeProvider({ children }: { children: React.ReactNode 
     function clearStored() {
       localStorage.removeItem("access_token");
       localStorage.removeItem("refresh_token");
+      setAuthRestoring(false);
     }
 
-    restoreSession();
+    restoreSession().finally(() => setAuthRestoring(false));
   }, []);
 
   // Keep tokens fresh: whenever Supabase silently refreshes the JWT, update localStorage
