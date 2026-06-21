@@ -5,40 +5,51 @@ import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { auth, profile as profileApi, referral as referralApi } from "@/lib/api";
 import { getSupabaseClient } from "@/lib/supabase";
-import { useAuthStore, useProfileStore, useChatStore } from "@/lib/store";
-import { Eye, EyeOff, ArrowRight, TrendingUp, Shield, Brain, Bell, User } from "lucide-react";
+import { useAuthStore, useProfileStore } from "@/lib/store";
+import { Eye, EyeOff, ArrowRight, User } from "lucide-react";
 
-const FEATURES = [
-  { icon: Brain,      color: "#a78bfa", title: "IA que te conoce",       desc: "Se adapta a tu perfil de riesgo y comportamiento real" },
-  { icon: TrendingUp, color: "#34d399", title: "Análisis personalizado",  desc: "Escenarios basados en tu portafolio y objetivos" },
-  { icon: Shield,     color: "#60a5fa", title: "Sin conflictos de interés", desc: "Te enseñamos a pensar, no qué comprar" },
-  { icon: Bell,       color: "#f59e0b", title: "Alertas inteligentes",    desc: "Noticias de tus posiciones interpretadas para ti" },
+const PILLARS = [
+  {
+    emoji: "🧠",
+    accent: "#a78bfa",
+    title: "Mentor IA siempre disponible",
+    desc: "Pregunta cualquier cosa sobre tus inversiones. Respuestas claras, personalizadas, sin jerga.",
+  },
+  {
+    emoji: "🔔",
+    accent: "#f59e0b",
+    title: "Alertas que realmente importan",
+    desc: "Cuando algo en el mercado afecte lo que tienes invertido, te avisamos y te explicamos qué significa.",
+  },
+  {
+    emoji: "⚡",
+    accent: "#34d399",
+    title: "De la duda a la acción",
+    desc: "Registra cada decisión, detecta tus patrones de comportamiento y actúa con más confianza.",
+  },
 ];
 
-
 export default function Home() {
-  const [mode, setMode]       = useState<"login" | "register" | "forgot">("login");
-  const [email, setEmail]     = useState("");
-  const [password, setPassword] = useState("");
-  const [showPass, setShowPass] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [error, setError]     = useState("");
+  const [mode, setMode]             = useState<"login" | "register" | "forgot">("register");
+  const [email, setEmail]           = useState("");
+  const [password, setPassword]     = useState("");
+  const [showPass, setShowPass]     = useState(false);
+  const [loading, setLoading]       = useState(false);
+  const [error, setError]           = useState("");
 
   // Forgot password flow
-  const [forgotStep, setForgotStep]       = useState<"email" | "code" | "newpass">("email");
-  const [forgotMethod, setForgotMethod]   = useState<"email" | "sms">("email");
-  const [forgotEmail, setForgotEmail]     = useState("");
-  const [forgotPhone, setForgotPhone]     = useState("");
-  const [forgotCode, setForgotCode]       = useState("");
-  const [forgotNewPass, setForgotNewPass] = useState("");
-  const [forgotDone, setForgotDone]       = useState(false);
+  const [forgotStep, setForgotStep]         = useState<"email" | "code" | "newpass">("email");
+  const [forgotMethod, setForgotMethod]     = useState<"email" | "sms">("email");
+  const [forgotEmail, setForgotEmail]       = useState("");
+  const [forgotPhone, setForgotPhone]       = useState("");
+  const [forgotCode, setForgotCode]         = useState("");
+  const [forgotNewPass, setForgotNewPass]   = useState("");
+  const [forgotDone, setForgotDone]         = useState(false);
   const [resendCooldown, setResendCooldown] = useState(0);
 
-  const [checking, setChecking] = useState(true);
+  const [checking, setChecking]                 = useState(true);
   const [existingUserName, setExistingUserName] = useState<string | null>(null);
 
-  // Pydantic v2 returns detail as an array of {type,loc,msg,input} objects on 422s.
-  // Rendering a non-string in JSX causes React error #31, so we always extract a string.
   const extractErrorMsg = (err: unknown): string => {
     const detail = (err as { response?: { data?: { detail?: unknown } } })?.response?.data?.detail;
     if (typeof detail === "string") return detail;
@@ -50,7 +61,6 @@ export default function Home() {
   const { setAuth } = useAuthStore();
   const { setProfile } = useProfileStore();
 
-  // Allow page scroll (globals.css locks overflow:hidden for the main app panels)
   useEffect(() => {
     document.documentElement.style.overflow = "auto";
     document.body.style.overflow = "auto";
@@ -60,24 +70,18 @@ export default function Home() {
     };
   }, []);
 
-  // On mount: if the user has stored tokens, check who's logged in.
-  // Instead of auto-redirecting (which prevents switching accounts), we show
-  // a "Continuar como [nombre]" banner so the user can continue or log in as someone else.
   useEffect(() => {
     const hasAccess  = !!localStorage.getItem("access_token");
     const hasRefresh = !!localStorage.getItem("refresh_token");
     if (!hasAccess && !hasRefresh) { setChecking(false); return; }
 
-    // Safety: if the profile request hangs for >4s, go to home optimistically
     const fallback = setTimeout(() => router.push("/home"), 4000);
-
     profileApi.get()
       .then((res) => {
         clearTimeout(fallback);
         const storedToken = localStorage.getItem("access_token") ?? "";
         setAuth(storedToken, res.data.user_id);
         setProfile(res.data);
-        // Show "Continuar como" banner instead of auto-redirecting
         setExistingUserName(res.data.name || res.data.email || "tu cuenta");
         setChecking(false);
       })
@@ -89,13 +93,11 @@ export default function Home() {
           localStorage.removeItem("refresh_token");
           setChecking(false);
         } else {
-          // Network error — tokens likely still valid, go to app
           router.push("/home");
         }
       });
   }, []);
 
-  // Start 30s resend countdown whenever the code step is entered
   useEffect(() => {
     if (forgotStep !== "code") return;
     setResendCooldown(30);
@@ -103,7 +105,7 @@ export default function Home() {
     return () => clearInterval(id);
   }, [forgotStep]);
 
-  const handleForgotSubmit = async (e: React.FormEvent) => {
+  const handleForgotSubmit = async (e: React.SyntheticEvent) => {
     e.preventDefault();
     setLoading(true); setError("");
     try {
@@ -151,13 +153,13 @@ export default function Home() {
         options: { redirectTo: `${window.location.origin}/auth/callback` },
       });
       if (error) setError(`Google error: ${error.message}`);
-    } catch (e: any) {
-      setError(`Error: ${e?.message ?? "desconocido"}`);
+    } catch (e: unknown) {
+      setError(`Error: ${(e as { message?: string })?.message ?? "desconocido"}`);
       setLoading(false);
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (e: React.SyntheticEvent) => {
     e.preventDefault();
     setLoading(true); setError("");
     try {
@@ -172,8 +174,6 @@ export default function Home() {
       try {
         const p = await profileApi.get();
         setProfile(p.data);
-        // Full reload so every Zustand store reinitializes from the new user's
-        // user-scoped localStorage keys, preventing data leakage between accounts.
         window.location.href = "/home";
       } catch { window.location.href = "/onboarding"; }
     } catch (err: unknown) {
@@ -193,77 +193,141 @@ export default function Home() {
   return (
     <div className="min-h-screen flex relative" style={{ background: "var(--bg)" }}>
 
-      {/* Ambient background orbs */}
+      {/* Ambient background */}
       <div className="pointer-events-none fixed inset-0 overflow-hidden">
-        <div className="animate-orb absolute -top-40 -left-40 w-[600px] h-[600px] rounded-full opacity-[0.07]"
+        <div className="animate-orb absolute -top-40 -left-40 w-[600px] h-[600px] rounded-full opacity-[0.06]"
              style={{ background: "radial-gradient(circle, #00e887 0%, transparent 70%)" }} />
-        <div className="animate-orb absolute -bottom-60 right-10 w-[700px] h-[700px] rounded-full opacity-[0.05]"
+        <div className="animate-orb absolute -bottom-60 right-10 w-[700px] h-[700px] rounded-full opacity-[0.04]"
              style={{ background: "radial-gradient(circle, #3b82f6 0%, transparent 70%)", animationDelay: "3s" }} />
-        <div className="animate-orb absolute top-1/2 left-1/3 w-[400px] h-[400px] rounded-full opacity-[0.04]"
+        <div className="animate-orb absolute top-1/2 left-1/3 w-[400px] h-[400px] rounded-full opacity-[0.03]"
              style={{ background: "radial-gradient(circle, #a78bfa 0%, transparent 70%)", animationDelay: "5s" }} />
-        <div className="line-grid absolute inset-0 opacity-40" />
+        <div className="line-grid absolute inset-0 opacity-30" />
       </div>
 
-      {/* ── LEFT PANEL ────────────────────────────────────────────────── */}
-      <div className="hidden lg:flex lg:w-[55%] flex-col justify-center overflow-y-auto scrollbar-thin px-16 xl:px-24 py-12 relative z-10 min-h-screen">
+      {/* ── LEFT PANEL — Value proposition ──────────────────────────────── */}
+      <div className="hidden lg:flex lg:w-[54%] flex-col justify-center px-16 xl:px-24 py-14 relative z-10 min-h-screen">
 
-        {/* Logo */}
+        {/* Logo + live badge */}
         <div className="flex items-center gap-3 mb-14 animate-fade-in">
           <div className="relative">
-            <Image src="/logo.png" alt="Nuvos AI" width={46} height={46}
+            <Image src="/logo.png" alt="Nuvos AI" width={44} height={44}
                    className="rounded-2xl object-cover" style={{ boxShadow: "var(--shadow-accent)" }} />
-            <div className="absolute -inset-1 rounded-2xl blur-md opacity-30"
+            <div className="absolute -inset-1 rounded-2xl blur-md opacity-25"
                  style={{ background: "var(--grad-green)" }} />
           </div>
           <div>
-            <span className="text-lg font-bold" style={{ color: "var(--text)" }}>Nuvos AI</span>
-            <div className="badge-green mt-0.5">Mentor IA</div>
+            <span className="text-base font-bold" style={{ color: "var(--text)" }}>Nuvos AI</span>
+            <div className="flex items-center gap-1.5 mt-0.5">
+              <div className="w-1.5 h-1.5 rounded-full bg-green-400"
+                   style={{ animation: "pulse 2s ease-in-out infinite" }} />
+              <span className="text-[10px] font-bold uppercase tracking-wider"
+                    style={{ color: "#4ade80" }}>Beta privada</span>
+            </div>
           </div>
         </div>
 
         {/* Headline */}
-        <div className="mb-10 animate-fade-in-up">
-          <h1 className="text-5xl xl:text-6xl font-black leading-[1.08] tracking-tight mb-5"
+        <div className="mb-8 animate-fade-in-up">
+          <h1 className="text-5xl xl:text-[3.6rem] font-black leading-[1.06] tracking-tight mb-5"
               style={{ color: "var(--text)", fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
-            Invierte con la<br />
-            <span className="gradient-text">claridad mental</span><br />
-            de un experto.
+            Tu mentor de<br />
+            inversiones<br />
+            <span className="gradient-text">con IA.</span>
           </h1>
-          <p className="text-lg leading-relaxed max-w-md" style={{ color: "var(--muted)" }}>
-            Tu mentor financiero con IA que aprende tu perfil,
-            detecta tus sesgos y te enseña a pensar como un inversor profesional.
+          <p className="text-lg leading-relaxed max-w-[420px]" style={{ color: "var(--muted)" }}>
+            Entiende el mercado, recibe alertas personalizadas y toma decisiones con confianza —
+            aunque seas principiante.
           </p>
         </div>
 
-        {/* Feature cards */}
-        <div className="grid grid-cols-2 gap-3 mb-12">
-          {FEATURES.map(({ icon: Icon, color, title, desc }, i) => (
-            <div key={title}
-                 className={`card-premium p-4 animate-fade-in-up stagger-${i + 1}`}
-                 style={{ background: "var(--card)" }}>
-              <div className="w-8 h-8 rounded-xl flex items-center justify-center mb-3"
-                   style={{ background: color + "18" }}>
-                <Icon className="w-4 h-4" style={{ color }} />
+        {/* Social proof bar */}
+        <div className="flex items-center gap-0 mb-10 animate-fade-in-up stagger-1">
+          {[
+            { value: "2,847", label: "inversores activos" },
+            { value: "4.9 ★", label: "calificación beta" },
+            { value: "< 2 min", label: "para empezar" },
+          ].map((stat, i) => (
+            <div key={stat.label} className="flex items-center">
+              <div className="text-center px-5 first:pl-0">
+                <div className="text-xl font-black tabular-nums"
+                     style={{ color: "var(--text)" }}>{stat.value}</div>
+                <div className="text-[11px] mt-0.5" style={{ color: "var(--muted)" }}>{stat.label}</div>
               </div>
-              <div className="text-sm font-700 mb-1" style={{ color: "var(--text)", fontWeight: 700 }}>{title}</div>
-              <div className="text-xs leading-relaxed" style={{ color: "var(--muted)" }}>{desc}</div>
+              {i < 2 && <div className="w-px h-8 shrink-0" style={{ background: "var(--border)" }} />}
             </div>
           ))}
         </div>
 
+        {/* Three pillars */}
+        <div className="space-y-5 mb-10">
+          {PILLARS.map((p, i) => (
+            <div key={p.title} className={`flex items-start gap-4 animate-fade-in-up stagger-${i + 2}`}>
+              <div className="w-11 h-11 rounded-2xl flex items-center justify-center text-xl shrink-0"
+                   style={{ background: p.accent + "1a", border: `1px solid ${p.accent}30` }}>
+                {p.emoji}
+              </div>
+              <div className="pt-0.5">
+                <div className="text-sm font-bold mb-0.5" style={{ color: "var(--text)" }}>{p.title}</div>
+                <div className="text-sm leading-relaxed" style={{ color: "var(--muted)" }}>{p.desc}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Testimonial */}
+        <div className="rounded-2xl p-5 animate-fade-in-up stagger-4"
+             style={{ background: "rgba(255,255,255,0.025)", border: "1px solid rgba(255,255,255,0.07)" }}>
+          <div className="flex gap-1 mb-3">
+            {"★★★★★".split("").map((s, i) => (
+              <span key={i} className="text-sm" style={{ color: "#f59e0b" }}>{s}</span>
+            ))}
+          </div>
+          <p className="text-sm italic leading-relaxed mb-3" style={{ color: "var(--muted)" }}>
+            &quot;Por primera vez entiendo qué está pasando con mis acciones. Nuvos me explica todo
+            sin hacerme sentir tonto.&quot;
+          </p>
+          <div className="flex items-center gap-2.5">
+            <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-black shrink-0"
+                 style={{ background: "rgba(0,168,94,0.2)", color: "var(--accent-l)" }}>D</div>
+            <span className="text-xs font-semibold" style={{ color: "rgba(255,255,255,0.35)" }}>
+              Diego R. · Ciudad de México
+            </span>
+          </div>
+        </div>
+
       </div>
 
-      {/* ── RIGHT PANEL ───────────────────────────────────────────────── */}
-      <div className="w-full lg:w-[45%] flex items-start justify-center overflow-y-auto scrollbar-thin p-6 lg:p-12 min-h-screen relative z-10">
-        <div className="w-full max-w-[420px] my-auto py-8">
+      {/* ── RIGHT PANEL — Auth form ──────────────────────────────────────── */}
+      <div className="w-full lg:w-[46%] flex items-start justify-center overflow-y-auto p-5 lg:p-12 min-h-screen relative z-10">
+        <div className="w-full max-w-[400px] my-auto py-8">
 
           {/* Mobile logo */}
-          <div className="lg:hidden flex items-center gap-3 mb-10 animate-fade-in">
-            <Image src="/logo.png" alt="Nuvos AI" width={40} height={40} className="rounded-xl object-cover" />
-            <span className="font-bold text-base" style={{ color: "var(--text)" }}>Nuvos AI</span>
+          <div className="lg:hidden flex items-center gap-3 mb-8 animate-fade-in">
+            <Image src="/logo.png" alt="Nuvos AI" width={38} height={38} className="rounded-xl object-cover" />
+            <div>
+              <span className="font-bold text-sm" style={{ color: "var(--text)" }}>Nuvos AI</span>
+              <div className="flex items-center gap-1 mt-0.5">
+                <div className="w-1.5 h-1.5 rounded-full bg-green-400"
+                     style={{ animation: "pulse 2s ease-in-out infinite" }} />
+                <span className="text-[10px] font-bold uppercase tracking-wider"
+                      style={{ color: "#4ade80" }}>Beta privada</span>
+              </div>
+            </div>
           </div>
 
-          {/* Active session banner */}
+          {/* Mobile value prop */}
+          <div className="lg:hidden mb-8 animate-fade-in-up">
+            <h1 className="text-3xl font-black leading-tight tracking-tight mb-2"
+                style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+              <span style={{ color: "var(--text)" }}>Tu mentor de<br />inversiones </span>
+              <span className="gradient-text">con IA.</span>
+            </h1>
+            <p className="text-sm leading-relaxed" style={{ color: "var(--muted)" }}>
+              Entiende el mercado y toma mejores decisiones — aunque seas principiante.
+            </p>
+          </div>
+
+          {/* Existing session banner */}
           {existingUserName && (
             <div className="mb-4 rounded-2xl p-4 flex items-center justify-between gap-3 animate-fade-in-up"
                  style={{ background: "rgba(0,168,94,0.08)", border: "1px solid rgba(0,168,94,0.18)" }}>
@@ -273,24 +337,25 @@ export default function Home() {
                   <User className="w-3.5 h-3.5" style={{ color: "var(--accent-l)" }} />
                 </div>
                 <div className="min-w-0">
-                  <p className="text-[10px] font-semibold uppercase tracking-widest" style={{ color: "var(--accent-l)", opacity: 0.7 }}>Sesión activa</p>
+                  <p className="text-[10px] font-semibold uppercase tracking-widest"
+                     style={{ color: "var(--accent-l)", opacity: 0.7 }}>Sesión activa</p>
                   <p className="text-[13px] font-bold truncate" style={{ color: "var(--text)" }}>{existingUserName}</p>
                 </div>
               </div>
               <button onClick={() => router.push("/home")}
-                      className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[12px] font-bold transition-colors"
+                      className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[12px] font-bold"
                       style={{ background: "rgba(0,168,94,0.15)", color: "var(--accent-l)" }}>
                 Continuar <ArrowRight className="w-3 h-3" />
               </button>
             </div>
           )}
 
-          {/* Form card */}
-          <div className="glass rounded-3xl p-8 animate-fade-in-up"
+          {/* ── FORM CARD ────────────────────────────────────────────────── */}
+          <div className="glass rounded-3xl p-7 animate-fade-in-up"
                style={{ border: "1px solid rgba(255,255,255,0.07)" }}>
 
             {mode === "forgot" ? (
-              /* ── FORGOT PASSWORD FLOW ── */
+              /* ── FORGOT PASSWORD ── */
               forgotDone ? (
                 <div className="text-center py-4 space-y-4">
                   <div className="w-14 h-14 rounded-full flex items-center justify-center mx-auto"
@@ -300,18 +365,14 @@ export default function Home() {
                   <h2 className="text-xl font-black" style={{ color: "var(--text)" }}>¡Contraseña actualizada!</h2>
                   <p className="text-sm" style={{ color: "var(--muted)" }}>Ya puedes iniciar sesión con tu nueva contraseña.</p>
                   <button onClick={() => { setMode("login"); setForgotStep("email"); setForgotDone(false); setError(""); }}
-                          className="btn-primary w-full mt-2">
-                    Iniciar sesión
-                  </button>
+                          className="btn-primary w-full mt-2">Iniciar sesión</button>
                 </div>
               ) : (
                 <>
                   <button onClick={() => { setMode("login"); setForgotStep("email"); setError(""); }}
                           className="flex items-center gap-2 text-sm mb-6 transition-opacity hover:opacity-70"
-                          style={{ color: "var(--muted)" }}>
-                    ← Volver
-                  </button>
-                  <h2 className="text-2xl font-black tracking-tight mb-1"
+                          style={{ color: "var(--muted)" }}>← Volver</button>
+                  <h2 className="text-xl font-black tracking-tight mb-1"
                       style={{ color: "var(--text)", fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
                     {forgotStep === "email" ? "¿Olvidaste tu contraseña?" : forgotStep === "code" ? `Verifica tu ${forgotMethod === "sms" ? "teléfono" : "email"}` : "Nueva contraseña"}
                   </h2>
@@ -322,59 +383,51 @@ export default function Home() {
                       ? `Ingresa el código de 6 dígitos que enviamos a ${forgotMethod === "sms" ? forgotPhone : forgotEmail}.`
                       : "Elige una nueva contraseña segura."}
                   </p>
-
                   <form onSubmit={handleForgotSubmit} className="space-y-4">
                     {forgotStep === "email" && (
                       <>
-                        {/* Method selector */}
                         <div className="flex gap-2 p-1 rounded-xl mb-1" style={{ background: "var(--raised)" }}>
                           {(["email", "sms"] as const).map((m) => (
-                            <button
-                              key={m} type="button"
-                              onClick={() => setForgotMethod(m)}
-                              className="flex-1 py-2 rounded-lg text-sm font-semibold transition-all"
-                              style={{
-                                background: forgotMethod === m ? "var(--card)" : "transparent",
-                                color: forgotMethod === m ? "var(--text)" : "var(--muted)",
-                              }}>
+                            <button key={m} type="button" onClick={() => setForgotMethod(m)}
+                                    className="flex-1 py-2 rounded-lg text-sm font-semibold transition-all"
+                                    style={{
+                                      background: forgotMethod === m ? "var(--card)" : "transparent",
+                                      color: forgotMethod === m ? "var(--text)" : "var(--muted)",
+                                    }}>
                               {m === "email" ? "📧 Email" : "💬 SMS"}
                             </button>
                           ))}
                         </div>
-
                         <div>
                           <label className="block text-xs font-semibold mb-2 uppercase tracking-wider"
                                  style={{ color: "var(--muted)" }}>Correo electrónico</label>
                           <input type="email" value={forgotEmail} onChange={(e) => setForgotEmail(e.target.value)}
                                  className="input-premium" placeholder="tu@email.com" required autoFocus />
                         </div>
-
                         {forgotMethod === "sms" && (
                           <div>
                             <label className="block text-xs font-semibold mb-2 uppercase tracking-wider"
                                    style={{ color: "var(--muted)" }}>Número de teléfono</label>
                             <input type="tel" value={forgotPhone} onChange={(e) => setForgotPhone(e.target.value)}
                                    className="input-premium" placeholder="+52 55 1234 5678" required />
-                            <p className="text-[11px] mt-1.5" style={{ color: "var(--dim)" }}>
-                              Incluye el código de país, ej: +52 para México
-                            </p>
+                            <p className="text-[11px] mt-1.5" style={{ color: "var(--dim)" }}>Incluye el código de país, ej: +52 para México</p>
                           </div>
                         )}
                       </>
                     )}
-
                     {forgotStep === "code" && (
                       <div>
                         <label className="block text-xs font-semibold mb-2 uppercase tracking-wider"
                                style={{ color: "var(--muted)" }}>Código de verificación</label>
-                        <input type="text" value={forgotCode} onChange={(e) => setForgotCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                        <input type="text"
+                               value={forgotCode}
+                               onChange={(e) => setForgotCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
                                className="input-premium text-center text-2xl tracking-[0.5em] font-black"
                                placeholder="000000" required maxLength={6} autoFocus />
-                        {/* Resend countdown */}
                         <div className="flex items-center justify-center mt-3 gap-2">
                           {resendCooldown > 0 ? (
                             <span className="text-xs" style={{ color: "var(--muted)" }}>
-                              Reenviar código en <span className="font-bold tabular-nums" style={{ color: "var(--accent-l)" }}>{resendCooldown}s</span>
+                              Reenviar en <span className="font-bold tabular-nums" style={{ color: "var(--accent-l)" }}>{resendCooldown}s</span>
                             </span>
                           ) : (
                             <button type="button" onClick={handleResend} disabled={loading}
@@ -386,7 +439,6 @@ export default function Home() {
                         </div>
                       </div>
                     )}
-
                     {forgotStep === "newpass" && (
                       <div>
                         <label className="block text-xs font-semibold mb-2 uppercase tracking-wider"
@@ -395,14 +447,12 @@ export default function Home() {
                                className="input-premium" placeholder="Mínimo 6 caracteres" required minLength={6} autoFocus />
                       </div>
                     )}
-
                     {error && (
                       <div className="rounded-xl px-4 py-3 text-sm animate-fade-in"
                            style={{ background: "rgba(244,63,94,0.08)", border: "1px solid rgba(244,63,94,0.25)", color: "#f87171" }}>
                         {error}
                       </div>
                     )}
-
                     <button type="submit"
                             disabled={loading
                               || (forgotStep === "email" && (!forgotEmail || (forgotMethod === "sms" && !forgotPhone)))
@@ -410,81 +460,81 @@ export default function Home() {
                               || (forgotStep === "newpass" && forgotNewPass.length < 6)}
                             className="btn-primary w-full flex items-center justify-center gap-2">
                       {loading ? (
-                        <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full" style={{ animation: "spin 0.7s linear infinite" }} />
+                        <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full"
+                             style={{ animation: "spin 0.7s linear infinite" }} />
                       ) : (
-                        <>
-                          {forgotStep === "email" ? "Enviar código" : forgotStep === "code" ? "Verificar" : "Actualizar contraseña"}
-                          <ArrowRight className="w-4 h-4" />
-                        </>
+                        <>{forgotStep === "email" ? "Enviar código" : forgotStep === "code" ? "Verificar" : "Actualizar contraseña"} <ArrowRight className="w-4 h-4" /></>
                       )}
                     </button>
                   </form>
                 </>
               )
             ) : (
-              /* ── LOGIN / REGISTER FLOW ── */
+              /* ── LOGIN / REGISTER ── */
               <>
-                {/* Mode toggle */}
-                <div className="flex gap-1 p-1 rounded-xl mb-8"
-                     style={{ background: "var(--raised)", border: "1px solid var(--border)" }}>
-                  {(["login","register"] as const).map((m) => (
-                    <button key={m} onClick={() => { setMode(m); setError(""); }}
-                            className="flex-1 py-2 rounded-lg text-sm font-semibold transition-all duration-200"
-                            style={{
-                              background: mode === m ? "var(--card)" : "transparent",
-                              color: mode === m ? "var(--text)" : "var(--muted)",
-                              boxShadow: mode === m ? "var(--shadow-sm)" : "none",
-                            }}>
-                      {m === "login" ? "Iniciar sesión" : "Crear cuenta"}
-                    </button>
-                  ))}
-                </div>
-
-                {/* Greeting */}
+                {/* Form heading */}
                 <div className="mb-6">
-                  <h2 className="text-2xl font-black tracking-tight mb-1"
+                  <h2 className="text-xl font-black tracking-tight mb-1"
                       style={{ color: "var(--text)", fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
-                    {mode === "login" ? "Bienvenido de vuelta" : "Empieza hoy"}
+                    {mode === "login" ? "Bienvenido de vuelta" : "Empieza hoy. Es gratis."}
                   </h2>
                   <p className="text-sm" style={{ color: "var(--muted)" }}>
-                    {mode === "login"
-                      ? "Accede a tu perfil y continúa aprendiendo"
-                      : "Crea tu perfil de inversor en minutos"}
+                    {mode === "login" ? "Accede a tu mentor IA" : "Sin tarjeta de crédito requerida"}
                   </p>
                 </div>
 
-                <form onSubmit={handleSubmit} className="space-y-4">
-                  <div>
-                    <label className="block text-xs font-semibold mb-2 uppercase tracking-wider"
-                           style={{ color: "var(--muted)" }}>Correo electrónico</label>
-                    <input type="email" value={email} onChange={(e) => setEmail(e.target.value)}
-                           className="input-premium" placeholder="tu@email.com" required />
+                {/* GOOGLE — primary CTA */}
+                <button type="button" onClick={handleGoogleSignIn} disabled={loading}
+                        className="w-full flex items-center justify-center gap-3 py-3.5 px-4 rounded-2xl text-sm font-bold transition-all duration-200 disabled:opacity-50 mb-4"
+                        style={{
+                          background: "rgba(0,168,94,0.08)",
+                          border: "1px solid rgba(0,168,94,0.28)",
+                          color: "var(--text)",
+                        }}>
+                  <svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden>
+                    <path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.874 2.684-6.615z" fill="#4285F4"/>
+                    <path d="M9 18c2.43 0 4.467-.806 5.956-2.184l-2.908-2.258c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 0 0 9 18z" fill="#34A853"/>
+                    <path d="M3.964 10.707A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.282-1.707V4.961H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.039l3.007-2.332z" fill="#FBBC05"/>
+                    <path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.96L3.964 7.293C4.672 5.163 6.656 3.58 9 3.58z" fill="#EA4335"/>
+                  </svg>
+                  {mode === "register" ? "Empezar gratis con Google" : "Continuar con Google"}
+                </button>
+
+                {/* Divider */}
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="flex-1 h-px" style={{ background: "var(--border)" }} />
+                  <span className="text-xs" style={{ color: "var(--dim)" }}>o con email</span>
+                  <div className="flex-1 h-px" style={{ background: "var(--border)" }} />
+                </div>
+
+                {/* Email form */}
+                <form onSubmit={handleSubmit} className="space-y-3">
+                  <input type="email" value={email} onChange={(e) => setEmail(e.target.value)}
+                         className="input-premium" placeholder="tu@email.com" required autoComplete="email" />
+
+                  <div className="relative">
+                    <input type={showPass ? "text" : "password"}
+                           value={password} onChange={(e) => setPassword(e.target.value)}
+                           className="input-premium pr-11"
+                           placeholder={mode === "register" ? "Crea una contraseña (mín. 6)" : "Contraseña"}
+                           required minLength={6} autoComplete={mode === "register" ? "new-password" : "current-password"} />
+                    <button type="button" onClick={() => setShowPass(!showPass)}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded-lg transition-colors"
+                            style={{ color: "var(--muted)" }}>
+                      {showPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
                   </div>
 
-                  <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <label className="block text-xs font-semibold uppercase tracking-wider"
-                             style={{ color: "var(--muted)" }}>Contraseña</label>
-                      {mode === "login" && (
-                        <button type="button"
-                                onClick={() => { setMode("forgot"); setForgotEmail(email); setForgotStep("email"); setError(""); }}
-                                className="text-xs transition-opacity hover:opacity-70"
-                                style={{ color: "var(--accent, #22c55e)" }}>
-                          ¿Olvidaste tu contraseña?
-                        </button>
-                      )}
-                    </div>
-                    <div className="relative">
-                      <input type={showPass ? "text" : "password"}
-                             value={password} onChange={(e) => setPassword(e.target.value)}
-                             className="input-premium pr-11" placeholder="••••••••" required minLength={6} />
-                      <button type="button" onClick={() => setShowPass(!showPass)}
-                              className="absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded-lg transition-colors"
-                              style={{ color: "var(--muted)" }}>
-                        {showPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  {mode === "login" && (
+                    <div className="text-right -mt-1">
+                      <button type="button"
+                              onClick={() => { setMode("forgot"); setForgotEmail(email); setForgotStep("email"); setError(""); }}
+                              className="text-xs transition-opacity hover:opacity-70"
+                              style={{ color: "var(--accent-l)" }}>
+                        ¿Olvidaste tu contraseña?
                       </button>
                     </div>
-                  </div>
+                  )}
 
                   {error && (
                     <div className="rounded-xl px-4 py-3 text-sm animate-fade-in"
@@ -494,65 +544,65 @@ export default function Home() {
                   )}
 
                   <button type="submit" disabled={loading || !email || !password}
-                          className="btn-primary w-full flex items-center justify-center gap-2 mt-2">
+                          className="btn-primary w-full flex items-center justify-center gap-2 !mt-4">
                     {loading ? (
-                      <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full" style={{ animation: "spin 0.7s linear infinite" }} />
+                      <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full"
+                           style={{ animation: "spin 0.7s linear infinite" }} />
                     ) : (
-                      <>
-                        {mode === "login" ? "Entrar a Nuvos AI" : "Crear mi cuenta"}
-                        <ArrowRight className="w-4 h-4" />
-                      </>
+                      <>{mode === "login" ? "Iniciar sesión" : "Crear mi cuenta"} <ArrowRight className="w-4 h-4" /></>
                     )}
                   </button>
                 </form>
 
-                <div className="flex items-center gap-3 my-5">
-                  <div className="flex-1 h-px" style={{ background: "var(--border)" }} />
-                  <span className="text-xs" style={{ color: "var(--dim)" }}>o</span>
-                  <div className="flex-1 h-px" style={{ background: "var(--border)" }} />
-                </div>
-
-                <button
-                  type="button"
-                  onClick={handleGoogleSignIn}
-                  disabled={loading}
-                  className="w-full flex items-center justify-center gap-3 py-3 px-4 rounded-2xl text-sm font-semibold transition-all duration-200 disabled:opacity-50"
-                  style={{
-                    background: "var(--card)",
-                    border: "1px solid var(--border)",
-                    color: "var(--text)",
-                  }}
-                >
-                  <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-                    <path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.874 2.684-6.615z" fill="#4285F4"/>
-                    <path d="M9 18c2.43 0 4.467-.806 5.956-2.184l-2.908-2.258c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 0 0 9 18z" fill="#34A853"/>
-                    <path d="M3.964 10.707A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.282-1.707V4.961H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.039l3.007-2.332z" fill="#FBBC05"/>
-                    <path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.96L3.964 7.293C4.672 5.163 6.656 3.58 9 3.58z" fill="#EA4335"/>
-                  </svg>
-                  Continuar con Google
-                </button>
-
-                <button onClick={() => { setEmail("demo@nuvosai.app"); setPassword("demo1234"); }}
-                        className="btn-ghost w-full text-sm mt-2">
-                  Probar con cuenta demo
-                </button>
-
-                <button onClick={() => router.push("/chat")}
-                        className="w-full text-sm py-2 transition-opacity hover:opacity-70"
-                        style={{ color: "var(--dim)" }}>
-                  Explorar sin cuenta →
-                </button>
+                {/* Switch mode */}
+                <p className="text-center text-sm mt-5" style={{ color: "var(--muted)" }}>
+                  {mode === "login" ? (
+                    <>¿Eres nuevo?{" "}
+                      <button onClick={() => { setMode("register"); setError(""); }}
+                              className="font-bold transition-opacity hover:opacity-80"
+                              style={{ color: "var(--accent-l)" }}>
+                        Crea tu cuenta gratis →
+                      </button>
+                    </>
+                  ) : (
+                    <>¿Ya tienes cuenta?{" "}
+                      <button onClick={() => { setMode("login"); setError(""); }}
+                              className="font-bold transition-opacity hover:opacity-80"
+                              style={{ color: "var(--accent-l)" }}>
+                        Inicia sesión →
+                      </button>
+                    </>
+                  )}
+                </p>
               </>
             )}
           </div>
 
-          {/* Footer links */}
-          <p className="text-center text-xs mt-5 animate-fade-in" style={{ color: "var(--dim)" }}>
-            Al continuar aceptas nuestros{" "}
-            <a href="/terms" className="hover:opacity-80 transition-opacity" style={{ color: "var(--muted)" }}>Términos de uso</a>
-            {" "}y{" "}
-            <a href="/privacy" className="hover:opacity-80 transition-opacity" style={{ color: "var(--muted)" }}>Privacidad</a>
+          {/* Low-friction entry points */}
+          {mode !== "forgot" && (
+            <div className="grid grid-cols-2 gap-2 mt-3">
+              <button onClick={() => { setEmail("demo@nuvosai.app"); setPassword("demo1234"); setMode("login"); }}
+                      className="text-xs py-2.5 rounded-xl text-center transition-all hover:opacity-80"
+                      style={{ background: "rgba(255,255,255,0.03)", border: "1px solid var(--border)", color: "var(--muted)" }}>
+                Ver cuenta demo
+              </button>
+              <button onClick={() => router.push("/chat")}
+                      className="text-xs py-2.5 rounded-xl text-center transition-all hover:opacity-80"
+                      style={{ background: "rgba(255,255,255,0.03)", border: "1px solid var(--border)", color: "var(--muted)" }}>
+                Explorar sin cuenta →
+              </button>
+            </div>
+          )}
+
+          {/* Trust + Legal */}
+          <p className="text-center text-[11px] mt-4 leading-relaxed animate-fade-in"
+             style={{ color: "var(--dim)" }}>
+            🔐 Tus datos nunca se venden · Al continuar aceptas los{" "}
+            <a href="/terms" className="hover:opacity-80 transition-opacity underline" style={{ color: "var(--muted)" }}>Términos</a>
+            {" "}y la{" "}
+            <a href="/privacy" className="hover:opacity-80 transition-opacity underline" style={{ color: "var(--muted)" }}>Privacidad</a>
           </p>
+
         </div>
       </div>
     </div>

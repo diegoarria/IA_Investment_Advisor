@@ -126,6 +126,48 @@ async def _get_memory_context(user_id: str) -> str | None:
         return None
 
 
+async def _get_mentor_deep_context(user_id: str) -> str | None:
+    """Fetch portfolio, decisions, watchlist and extended profile in parallel for the mentor."""
+    try:
+        db = get_supabase()
+        portfolio_res, decisions_res, watchlist_res, extended_res = await asyncio.gather(
+            run_query(db.table("user_portfolio").select("positions").eq("user_id", user_id)),
+            run_query(
+                db.table("investment_decisions")
+                .select("action, ticker, trigger, notes, created_at")
+                .eq("user_id", user_id)
+                .order("created_at", desc=True)
+                .limit(20)
+            ),
+            run_query(db.table("watchlist").select("ticker, name").eq("user_id", user_id).order("added_at")),
+            run_query(
+                db.table("user_profiles")
+                .select("behavioral_risk_score, maturity_score, streak_count, last_learn_date, investment_goal, investment_goal_amount, investment_horizon, knowledge_level")
+                .eq("user_id", user_id)
+            ),
+            return_exceptions=True,
+        )
+
+        # Parse positions
+        positions: list[dict] = []
+        if not isinstance(portfolio_res, Exception) and portfolio_res.data:
+            raw = portfolio_res.data[0].get("positions", [])
+            if isinstance(raw, list):
+                positions = raw
+            elif isinstance(raw, dict) and "_v" in raw:
+                positions = raw.get("positions", [])
+
+        decisions: list[dict] = [] if isinstance(decisions_res, Exception) else (decisions_res.data or [])
+        watchlist: list[dict] = [] if isinstance(watchlist_res, Exception) else (watchlist_res.data or [])
+        extended: dict = {}
+        if not isinstance(extended_res, Exception) and extended_res.data:
+            extended = extended_res.data[0]
+
+        return ai_service.build_deep_user_context(extended, positions, decisions, watchlist)
+    except Exception:
+        return None
+
+
 def _enrich_message(message: str) -> str:
     """Prepend global market context + append per-company context. Both fetched in parallel."""
     f_global  = _ENRICH_POOL.submit(get_global_market_context)
@@ -164,9 +206,9 @@ async def chat_stream(
     if not images and request.image_data:
         images = [{"data": request.image_data, "type": request.image_type or "image/jpeg"}]
 
-    memory, _ = await asyncio.gather(
+    memory, deep_ctx = await asyncio.gather(
         _get_memory_context(user_id),
-        asyncio.sleep(0),
+        _get_mentor_deep_context(user_id),
     )
 
     async def generate():
@@ -178,6 +220,7 @@ async def chat_stream(
             images=images,
             memory_context=memory,
             notification_context=request.notification_context,
+            deep_context=deep_ctx,
         ):
             yield chunk
 
@@ -200,7 +243,10 @@ async def chat_message(
     images = [{"data": img.data, "type": img.type} for img in body.images] if body.images else None
     if not images and body.image_data:
         images = [{"data": body.image_data, "type": body.image_type or "image/jpeg"}]
-    memory = await _get_memory_context(user_id)
+    memory, deep_ctx = await asyncio.gather(
+        _get_memory_context(user_id),
+        _get_mentor_deep_context(user_id),
+    )
     full = ""
     async for chunk in ai_service.chat_stream(
         message=enriched,
@@ -210,6 +256,7 @@ async def chat_message(
         images=images,
         memory_context=memory,
         notification_context=body.notification_context,
+        deep_context=deep_ctx,
     ):
         full += chunk
     clean_reply, bscore = _extract_bscore(full)

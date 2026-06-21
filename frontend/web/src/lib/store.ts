@@ -93,8 +93,14 @@ export function maturityLabel(score: number): { label: string; color: string } {
 
 // ─── Streak helpers ─────────────────────────────────────────────────────────
 
-function todayStr() { return new Date().toISOString().split("T")[0]; }
-function yesterdayStr() { return new Date(Date.now() - 86400000).toISOString().split("T")[0]; }
+function todayStr() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+function yesterdayStr() {
+  const d = new Date(Date.now() - 86400000);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
 
 export const STREAK_MILESTONES = [
   { days: 15, reward: "Modo Experto desbloqueado 🧠", bonus: "+5 mensajes/día" },
@@ -607,6 +613,8 @@ export const useLearnStore = create<LearnState>()(
             }
           }
         } catch {}
+        // Re-derive completedToday from lastLearnDate (whether from server or cache)
+        get().initStreak();
       },
     }),
     {

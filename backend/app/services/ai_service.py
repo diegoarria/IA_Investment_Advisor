@@ -570,6 +570,149 @@ def build_profile_context(profile: UserProfile) -> str:
 ADAPTA TODO tu análisis a este perfil específico."""
 
 
+def build_deep_user_context(
+    extended: dict,
+    positions: list[dict],
+    decisions: list[dict],
+    watchlist: list[dict],
+) -> str:
+    """Build a rich mentor context from all available user data."""
+    parts = ["\n## 🧬 LO QUE SABES DE ESTE USUARIO (úsalo en CADA respuesta — eres su mentor, no un chatbot):"]
+
+    # ── Portfolio real ─────────────────────────────────────────────────────────
+    if positions:
+        total_cost = sum(
+            float(p.get("shares", 0) or 0) * float(p.get("avg_price", 0) or 0)
+            for p in positions
+        )
+        pos_sorted = sorted(
+            positions,
+            key=lambda x: float(x.get("shares", 0) or 0) * float(x.get("avg_price", 0) or 0),
+            reverse=True,
+        )
+        parts.append(f"\n### 💼 PORTAFOLIO REAL ({len(positions)} posición{'es' if len(positions) != 1 else ''}, invertido ≈${total_cost:,.0f}):")
+        for p in pos_sorted:
+            ticker = p.get("ticker", "?")
+            shares = p.get("shares", 0)
+            avg    = p.get("avg_price", 0)
+            cost   = float(shares or 0) * float(avg or 0)
+            pct    = round(cost / total_cost * 100) if total_cost > 0 else 0
+            parts.append(f"  - {ticker}: {shares} acciones @ ${avg} ≈ ${cost:,.0f} ({pct}%)")
+        # Concentration flags
+        tech_set = {"NVDA","AAPL","MSFT","GOOGL","GOOG","META","AMZN","TSLA","AMD","INTC","QCOM","AVGO","CRM","ORCL","NFLX","UBER","SNAP","SPOT","PLTR","SQ","PYPL","COIN","RBLX","HOOD","SOFI","MSTR","SMCI","ARM","APP"}
+        tech_cost = sum(
+            float(p.get("shares", 0) or 0) * float(p.get("avg_price", 0) or 0)
+            for p in positions if p.get("ticker", "").upper() in tech_set
+        )
+        if len(positions) == 1:
+            parts.append("  ⚠️ Una sola posición — riesgo de concentración extremo")
+        elif len(positions) <= 3:
+            parts.append("  ⚠️ Portafolio muy concentrado (≤3 posiciones)")
+        if total_cost > 0 and tech_cost / total_cost > 0.65:
+            parts.append(f"  ⚠️ Concentración tecnológica alta ({round(tech_cost / total_cost * 100)}%)")
+    else:
+        parts.append("\n### 💼 PORTAFOLIO: Sin posiciones registradas (nuevo usuario o no ha empezado a invertir)")
+
+    # ── Watchlist ──────────────────────────────────────────────────────────────
+    if watchlist:
+        tickers_w = [w.get("ticker", "") for w in watchlist if w.get("ticker")]
+        parts.append(f"\n### 👀 WATCHLIST — monitoreando pero sin comprar ({len(tickers_w)}): {', '.join(tickers_w)}")
+        parts.append("  → Señal de lo que le llama la atención. Úsalo para anticipar sus intereses y preguntas.")
+    else:
+        parts.append("\n### 👀 WATCHLIST: Vacío")
+
+    # ── Diario de decisiones ──────────────────────────────────────────────────
+    if decisions:
+        trigger_map = {
+            "fomo":   "FOMO ⚠️",
+            "panic":  "PÁNICO ⚠️",
+            "mentor": "consejo del mentor",
+            "alert":  "alerta de precio",
+            "manual": "decisión propia",
+        }
+        panic_count = sum(1 for d in decisions if d.get("trigger") == "panic")
+        fomo_count  = sum(1 for d in decisions if d.get("trigger") == "fomo")
+
+        parts.append(f"\n### 📓 DIARIO DE DECISIONES (últimas {min(len(decisions), 10)}):")
+        for d in decisions[:10]:
+            date    = (d.get("created_at") or "")[:10]
+            action  = (d.get("action") or "").upper()
+            ticker  = d.get("ticker", "")
+            trigger = trigger_map.get(d.get("trigger") or "", d.get("trigger") or "")
+            notes   = (d.get("notes") or "")[:80]
+            line    = f"  - [{date}] {action} {ticker}"
+            if trigger:
+                line += f" — {trigger}"
+            if notes:
+                line += f": {notes}"
+            parts.append(line)
+
+        behavioral = []
+        if panic_count >= 2:
+            behavioral.append(f"vendió por PÁNICO {panic_count} veces → perfil real más conservador de lo declarado")
+        if fomo_count >= 2:
+            behavioral.append(f"compró por FOMO {fomo_count} veces → susceptible al hype y a seguir manadas")
+        if behavioral:
+            parts.append(f"  🔍 PATRÓN CONDUCTUAL DETECTADO: {' | '.join(behavioral)}")
+    else:
+        parts.append("\n### 📓 DIARIO DE DECISIONES: Sin decisiones registradas aún")
+
+    # ── Perfil conductual profundo ─────────────────────────────────────────────
+    ext_lines = []
+
+    b_score = extended.get("behavioral_risk_score")
+    if b_score is not None:
+        thresholds = [(80, "agresivo"), (65, "moderado-agresivo"), (50, "moderado"), (30, "conservador"), (0, "muy conservador")]
+        b_label = next(v for thr, v in thresholds if int(b_score) >= thr)
+        ext_lines.append(f"Score conductual: {b_score}/100 → perfil REAL: {b_label}")
+
+    maturity = extended.get("maturity_score")
+    if maturity:
+        m_label = "experto" if maturity >= 80 else "avanzado" if maturity >= 60 else "intermedio" if maturity >= 30 else "principiante"
+        ext_lines.append(f"Madurez financiera: {maturity}/100 ({m_label})")
+
+    streak = int(extended.get("streak_count") or 0)
+    if streak >= 3:
+        ext_lines.append(f"Racha de aprendizaje: {streak} días consecutivos {'🔥' if streak >= 7 else ''}")
+
+    goal        = extended.get("investment_goal")
+    goal_amount = extended.get("investment_goal_amount")
+    if goal:
+        gs = goal
+        try:
+            if goal_amount:
+                gs += f" (meta: ${float(goal_amount):,.0f})"
+        except Exception:
+            if goal_amount:
+                gs += f" (meta: {goal_amount})"
+        ext_lines.append(f"Meta de inversión: {gs}")
+
+    horizon = extended.get("investment_horizon")
+    if horizon:
+        ext_lines.append(f"Horizonte temporal: {horizon}")
+
+    knowledge = extended.get("knowledge_level")
+    if knowledge:
+        ext_lines.append(f"Nivel de conocimiento: {knowledge}")
+
+    if ext_lines:
+        parts.append("\n### 🧠 PERFIL CONDUCTUAL Y MADUREZ:")
+        for line in ext_lines:
+            parts.append(f"  - {line}")
+
+    # ── Instrucción final para el mentor ──────────────────────────────────────
+    parts.append(
+        "\n### 📌 INSTRUCCIÓN CRÍTICA:\n"
+        "Conoces a este usuario profundamente — úsalo en cada respuesta. Si pregunta por un ticker que ya tiene → menciona su posición. "
+        "Si su historial muestra FOMO o pánico → nómbralo en el momento que aparezca. "
+        "Si su perfil conductual contradice lo que dice → díselo con empatía. "
+        "Si su watchlist sugiere interés en algo → conéctalo. "
+        "No eres un chatbot genérico: eres su mentor que lo conoce mejor que él mismo."
+    )
+
+    return "\n".join(parts)
+
+
 MENTOR_CONTEXT: dict[str, str] = {
     "warren_buffett": """## 🧠 MENTOR SELECCIONADO: Warren Buffett — "El Oráculo de Omaha"
 Estilo: Value Investing · Largo plazo · Negocios excepcionales a precio justo
@@ -701,6 +844,7 @@ def build_system_prompt(
     mentor: str | None = None,
     memory_context: str | None = None,
     notification_context: str | None = None,
+    deep_context: str | None = None,
 ) -> str:
     from datetime import datetime as _dt
     today = _dt.now().strftime("%A %d de %B de %Y")
@@ -711,8 +855,11 @@ def build_system_prompt(
     else:
         core = base + mentor_section + "\n\n## NOTA: Usuario aún no ha completado su perfil. Invítalo a hacerlo para personalizar el análisis."
 
+    if deep_context:
+        core += deep_context
+
     if memory_context:
-        core += f"\n\n## 🧠 MEMORIA DE CONVERSACIONES ANTERIORES\n\nEstas son las últimas interacciones del usuario con Nuvos. Úsalas para dar continuidad y personalización — no las repitas explícitamente pero sí refléjalas en tu respuesta:\n\n{memory_context}"
+        core += f"\n\n## 🧠 CONTEXTO DE CONVERSACIONES RECIENTES\n\nÚltimas interacciones — dales continuidad, no las repitas explícitamente:\n\n{memory_context}"
 
     if notification_context:
         core += f"\n\n## 📩 CONTEXTO: EL USUARIO LLEGÓ DESDE UNA NOTIFICACIÓN\n\n{notification_context}\n\nEl usuario acaba de ver esta notificación y abrió el chat. Empieza reconociendo este contexto de forma natural y ofrece análisis relevante."
@@ -730,8 +877,9 @@ async def chat_stream(
     images: list[dict] | None = None,
     memory_context: str | None = None,
     notification_context: str | None = None,
+    deep_context: str | None = None,
 ):
-    system_prompt = build_system_prompt(profile, mentor, memory_context, notification_context)
+    system_prompt = build_system_prompt(profile, mentor, memory_context, notification_context, deep_context)
 
     messages = [{"role": m.role, "content": m.content} for m in conversation_history]
 

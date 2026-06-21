@@ -78,6 +78,7 @@ export default function HomePage() {
   const { profile, setProfile } = useProfileStore();
   const { positions, portfolioCurrency } = usePortfolioStore();
   const streak = useLearnStore((s) => s.streak);
+  const completedToday = useLearnStore((s) => s.completedToday);
   useSubscriptionStore();
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -664,17 +665,26 @@ export default function HomePage() {
                 </button>
 
                 {/* 📚 Lección del día */}
-                <button onClick={() => router.push("/academy")}
+                <button onClick={() => router.push("/learn")}
                         className="flex-1 flex items-center gap-3 px-4 py-4 rounded-xl border transition-all hover:border-[var(--accent)] text-left"
-                        style={{ background: "var(--card)", borderColor: "var(--border)" }}>
+                        style={{
+                          background: completedToday ? "rgba(34,197,94,0.06)" : "var(--card)",
+                          borderColor: completedToday ? "rgba(34,197,94,0.35)" : "var(--border)",
+                        }}>
                   <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl shrink-0"
-                       style={{ background: "rgba(124,58,237,0.1)" }}>
-                    {dailyLesson.emoji}
+                       style={{ background: completedToday ? "rgba(34,197,94,0.14)" : "rgba(124,58,237,0.1)" }}>
+                    {completedToday ? "✅" : dailyLesson.emoji}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-[10px] font-semibold uppercase tracking-wide mb-0.5" style={{ color: "var(--muted)" }}>Lección del día</p>
+                    <p className="text-[10px] font-semibold uppercase tracking-wide mb-0.5"
+                       style={{ color: completedToday ? "#22c55e" : "var(--muted)" }}>
+                      {completedToday ? "Completada hoy ✓" : "Lección del día"}
+                    </p>
                     <p className="text-sm font-black truncate" style={{ color: "var(--text)" }}>{dailyLesson.title}</p>
-                    <p className="text-[10px] mt-0.5 font-semibold" style={{ color: "var(--accent-l)" }}>Aprender →</p>
+                    <p className="text-[10px] mt-0.5 font-semibold"
+                       style={{ color: completedToday ? "#16a34a" : "var(--accent-l)" }}>
+                      {completedToday ? "Ver otra lección →" : "Aprender →"}
+                    </p>
                   </div>
                 </button>
               </div>
