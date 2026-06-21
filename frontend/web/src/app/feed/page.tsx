@@ -78,7 +78,7 @@ function FeedPageInner() {
   const [filterOpen, setFilterOpen] = useState(false);
   const [speaker, setSpeaker]       = useState<string | null>(null);
   const [tag, setTag]               = useState<string | null>(null);
-  const [sort, setSort]             = useState<"recent" | "trending" | "random">("recent");
+  const [sort, setSort]             = useState<"recent" | "trending" | "random">("random");
   const [refreshKey, setRefreshKey] = useState(0);
   const [spinning, setSpinning]     = useState(false);
 

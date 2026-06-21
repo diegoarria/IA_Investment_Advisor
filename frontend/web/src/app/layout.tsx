@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { DM_Sans, Inter } from "next/font/google";
 import "./globals.css";
 import ThemeProvider from "@/components/ThemeProvider";
+import NuvosGuide from "@/components/NuvosGuide";
 
 const dmSans = DM_Sans({
   subsets: ["latin"],
@@ -28,7 +29,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="es" suppressHydrationWarning className={`${dmSans.variable} ${inter.variable}`}>
       <body className="antialiased">
-        <ThemeProvider>{children}</ThemeProvider>
+        <ThemeProvider>
+          {children}
+          <NuvosGuide />
+        </ThemeProvider>
       </body>
     </html>
   );
