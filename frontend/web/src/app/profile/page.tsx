@@ -646,38 +646,63 @@ export default function ProfilePage() {
                 })()}
 
                 {/* Perfil psicológico */}
-                {profile.quiz_answers && (
-                  <div>
-                    <p className="text-[10px] font-bold uppercase tracking-widest mb-2 ml-0.5" style={{ color: "var(--dim)" }}>Perfil psicológico</p>
-                    <div className="rounded-2xl border overflow-hidden" style={{ background: "var(--card)", borderColor: "var(--border)" }}>
-                      {(["q1","q2","q3","q4","q5"] as const).map((key, i) => {
-                        const answer = profile.quiz_answers?.[key] as string;
-                        const aColor = answer ? (ANSWER_COLORS[answer] ?? "var(--accent)") : "var(--dim)";
-                        return (
-                          <div key={key} className={`flex items-center gap-3 px-4 py-3 ${i > 0 ? "border-t" : ""}`}
-                               style={{ borderColor: "var(--border)" }}>
-                            <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 text-sm"
-                                 style={{ background: aColor + "15" }}>
-                              {["📊","⏳","📚","🎲","⚙️"][i]}
-                            </div>
-                            <div className="flex-1">
-                              <div className="text-[9px] font-bold uppercase tracking-wider" style={{ color: "var(--dim)" }}>{QUIZ_CATEGORIES[i]}</div>
-                              <div className="text-sm font-semibold mt-0.5" style={{ color: "var(--text)" }}>
-                                {answer ? QUIZ_LABELS[key][answer] : "—"}
-                              </div>
-                            </div>
-                            {answer && (
-                              <div className="w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-black shrink-0"
-                                   style={{ background: aColor }}>
-                                {answer}
-                              </div>
-                            )}
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-widest mb-2 ml-0.5" style={{ color: "var(--dim)" }}>Perfil psicológico</p>
+                  <div className="rounded-2xl border overflow-hidden" style={{ background: "var(--card)", borderColor: "var(--border)" }}>
+                    {/* Horizonte */}
+                    {(() => {
+                      const q2 = profile.quiz_answers?.q2 as string | undefined;
+                      const horizonText = q2 ? QUIZ_LABELS.q2[q2] : null;
+                      return (
+                        <div className="flex items-center gap-3 px-4 py-3.5">
+                          <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 text-base"
+                               style={{ background: "rgba(34,197,94,0.12)" }}>
+                            🕐
                           </div>
-                        );
-                      })}
-                    </div>
+                          <div className="flex-1">
+                            <div className="text-[9px] font-bold uppercase tracking-wider mb-0.5" style={{ color: "var(--dim)" }}>Horizonte de inversión</div>
+                            <div className="text-sm font-semibold" style={{ color: horizonText ? "var(--text)" : "var(--dim)" }}>
+                              {horizonText ?? "No completado"}
+                            </div>
+                          </div>
+                          {horizonText && (
+                            <span className="text-xs font-bold px-2.5 py-1 rounded-full"
+                                  style={{ background: "rgba(34,197,94,0.12)", color: "#22c55e", border: "1px solid rgba(34,197,94,0.3)" }}>
+                              {horizonText}
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })()}
+                    {/* Comportamiento */}
+                    {(() => {
+                      const rt = profile.risk_tolerance;
+                      const COMP: Record<string, { label: string; color: string }> = {
+                        conservative: { label: "Conservador", color: "#3b82f6" },
+                        moderate:     { label: "Moderado",    color: "#f59e0b" },
+                        aggressive:   { label: "Agresivo",    color: "#ef4444" },
+                      };
+                      const cat = rt.startsWith("conservative") ? "conservative" : rt.startsWith("aggressive") || rt === "speculative" ? "aggressive" : "moderate";
+                      const comp = COMP[cat];
+                      return (
+                        <div className="flex items-center gap-3 px-4 py-3.5 border-t" style={{ borderColor: "var(--border)" }}>
+                          <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 text-base"
+                               style={{ background: comp.color + "18" }}>
+                            🧠
+                          </div>
+                          <div className="flex-1">
+                            <div className="text-[9px] font-bold uppercase tracking-wider mb-0.5" style={{ color: "var(--dim)" }}>Comportamiento</div>
+                            <div className="text-sm font-semibold" style={{ color: "var(--text)" }}>{comp.label}</div>
+                          </div>
+                          <span className="text-xs font-bold px-2.5 py-1 rounded-full"
+                                style={{ background: comp.color + "18", color: comp.color, border: `1px solid ${comp.color}44` }}>
+                            {comp.label}
+                          </span>
+                        </div>
+                      );
+                    })()}
                   </div>
-                )}
+                </div>
 
                 {/* Suscripción */}
                 <div>

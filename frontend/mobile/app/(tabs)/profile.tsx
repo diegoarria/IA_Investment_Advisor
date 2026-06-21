@@ -708,70 +708,51 @@ export default function ProfileScreen() {
           <View style={s.sectionHeader}>
             <Text style={[s.sectionTitle, { color: colors.text }]}>Perfil psicológico</Text>
           </View>
-          <View style={s.psyGrid}>
-            {quizKeys.map((key, i) => {
-              const answer = profile.quiz_answers?.[key];
-              let label = "—";
-              let badge = "";
-              let col   = colors.textDim as string;
-
-              if (key === "q1") {
-                if (answer) { label = QUIZ_LABELS.q1[answer]; badge = answer; col = ANSWER_COLORS[answer]; }
-              } else if (key === "q2") {
-                const h = profile.investment_horizon;
-                if (h && parseInt(h) > 0) {
-                  const yrs = parseInt(h);
-                  label = `${yrs} año${yrs === 1 ? "" : "s"}`;
-                  badge = `${yrs}a`;
-                  col   = "#22c55e";
-                } else if (answer) {
-                  label = QUIZ_LABELS.q2[answer]; badge = answer; col = ANSWER_COLORS[answer];
-                }
-              } else if (key === "q3") {
-                const kl = profile.knowledge_level as string | undefined;
-                if (kl && KL_LABEL[kl]) {
-                  label = KL_LABEL[kl]; badge = kl; col = KL_COLOR[kl];
-                } else if (answer) {
-                  label = QUIZ_LABELS.q3[answer]; badge = answer; col = ANSWER_COLORS[answer];
-                }
-              } else if (key === "q4") {
-                if (answer) { label = QUIZ_LABELS.q4[answer]; badge = answer; col = ANSWER_COLORS[answer]; }
-              } else if (key === "q5") {
-                const rt = profile.risk_tolerance;
-                if (rt && RT_LABEL[rt]) {
-                  label = RT_LABEL[rt];
-                  badge = RT_LABEL[rt].charAt(0);
-                  col   = RT_COLOR[rt];
-                } else if (answer) {
-                  label = QUIZ_LABELS.q5[answer]; badge = answer; col = ANSWER_COLORS[answer];
-                }
-              }
-
-              const isFullWidth = i === 4;
+          <View style={[s.psyTwoCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            {/* Horizonte */}
+            {(() => {
+              const q2 = profile.quiz_answers?.q2;
+              const horizonText = q2 ? QUIZ_LABELS.q2[q2] : null;
               return (
-                <View
-                  key={key}
-                  style={[
-                    s.psyCard,
-                    { backgroundColor: colors.card, borderColor: label === "—" ? colors.border : col + "32" },
-                    isFullWidth && s.psyCardFull,
-                  ]}
-                >
-                  <View style={[s.psyIconBox, { backgroundColor: col + "18" }]}>
-                    <Ionicons name={QUIZ_ICONS[key] as any} size={16} color={col} />
+                <View style={[s.psyRow, { borderBottomColor: colors.border }]}>
+                  <View style={[s.psyRowIcon, { backgroundColor: "rgba(34,197,94,0.12)" }]}>
+                    <Text style={{ fontSize: 18 }}>🕐</Text>
                   </View>
-                  <Text style={[s.psyCat, { color: colors.textDim }]}>{QUIZ_CATEGORIES[i]}</Text>
-                  <Text style={[s.psyAnswer, { color: label === "—" ? colors.textDim : colors.text }]} numberOfLines={2}>
-                    {label}
-                  </Text>
-                  {badge ? (
-                    <View style={[s.psyBadge, { backgroundColor: col }]}>
-                      <Text style={s.psyBadgeText}>{badge}</Text>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[s.psyRowCat, { color: colors.textDim }]}>Horizonte de inversión</Text>
+                    <Text style={[s.psyRowVal, { color: horizonText ? colors.text : colors.textDim }]}>
+                      {horizonText ?? "No completado"}
+                    </Text>
+                  </View>
+                  {horizonText && (
+                    <View style={{ backgroundColor: "rgba(34,197,94,0.12)", borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4, borderWidth: 1, borderColor: "rgba(34,197,94,0.3)" }}>
+                      <Text style={{ color: "#22c55e", fontSize: 11, fontWeight: "700" }}>{horizonText}</Text>
                     </View>
-                  ) : null}
+                  )}
                 </View>
               );
-            })}
+            })()}
+            {/* Comportamiento */}
+            {(() => {
+              const rt = profile.risk_tolerance;
+              const cat = rt === "aggressive" ? "aggressive" : rt === "conservative" ? "conservative" : "moderate";
+              const compLabel = RT_LABEL[cat] ?? RT_LABEL[rt] ?? rt;
+              const compColor = RT_COLOR[cat] ?? RT_COLOR[rt] ?? colors.accentLight;
+              return (
+                <View style={[s.psyRow, { borderBottomWidth: 0 }]}>
+                  <View style={[s.psyRowIcon, { backgroundColor: compColor + "18" }]}>
+                    <Text style={{ fontSize: 18 }}>🧠</Text>
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[s.psyRowCat, { color: colors.textDim }]}>Comportamiento</Text>
+                    <Text style={[s.psyRowVal, { color: colors.text }]}>{compLabel}</Text>
+                  </View>
+                  <View style={{ backgroundColor: compColor + "18", borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4, borderWidth: 1, borderColor: compColor + "44" }}>
+                    <Text style={{ color: compColor, fontSize: 11, fontWeight: "700" }}>{compLabel}</Text>
+                  </View>
+                </View>
+              );
+            })()}
           </View>
         </View>
 
@@ -1116,19 +1097,12 @@ function makeStyles(c: Colors) {
     principleDot: { width: 6, height: 6, borderRadius: 3, flexShrink: 0 },
     principleText: { fontSize: 13, flex: 1, lineHeight: 18 },
 
-    // ── Psychological profile grid ──
-    psyGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
-    psyCard: {
-      width: "47%", borderRadius: 16, borderWidth: 1, padding: 13,
-      shadowColor: "#000", shadowOpacity: 0.04, shadowRadius: 6, shadowOffset: { width: 0, height: 2 },
-      position: "relative",
-    },
-    psyCardFull: { width: "100%", flexDirection: "row", alignItems: "center", gap: 12 },
-    psyIconBox: { width: 36, height: 36, borderRadius: 11, alignItems: "center", justifyContent: "center", marginBottom: 8 },
-    psyCat: { fontSize: 9, fontWeight: "700", letterSpacing: 0.8, textTransform: "uppercase", marginBottom: 4 },
-    psyAnswer: { fontSize: 13, fontWeight: "700", lineHeight: 18 },
-    psyBadge: { position: "absolute", top: 10, right: 10, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 7 },
-    psyBadgeText: { color: "white", fontSize: 11, fontWeight: "800" },
+    // ── Psychological profile ──
+    psyTwoCard: { borderRadius: 16, borderWidth: 1, overflow: "hidden" },
+    psyRow: { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 14, paddingVertical: 14, borderBottomWidth: StyleSheet.hairlineWidth },
+    psyRowIcon: { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
+    psyRowCat: { fontSize: 9, fontWeight: "700", letterSpacing: 0.8, textTransform: "uppercase", marginBottom: 3 },
+    psyRowVal: { fontSize: 14, fontWeight: "700" },
 
     // ── Knowledge level ──
     levelCard: { borderWidth: 1, borderRadius: 18, padding: 12, flexDirection: "row", flexWrap: "wrap", gap: 0 },
