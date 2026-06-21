@@ -333,7 +333,8 @@ export default function HomeScreen() {
   const profile    = useAppStore((s) => s.profile);
   const setProfile = useAppStore((s) => s.setProfile);
   const maturity   = useAppStore((s) => s.maturityScore);
-  const streak   = useLearnStore((s) => s.streak);
+  const streak         = useLearnStore((s) => s.streak);
+  const completedToday = useLearnStore((s) => s.completedToday);
   const { positions, portfolioCurrency } = usePortfolioStore();
   const hasChatted = useChatStore((s) => s.sessions.some((sess) => sess.messages.length > 0));
   const watchlistItems = useWatchlistStore((s) => s.items);
@@ -1032,17 +1033,26 @@ export default function HomeScreen() {
         <TouchableOpacity
           activeOpacity={0.88}
           onPress={() => router.navigate({ pathname: "/(tabs)/learn", params: { topicId: dailyLesson.topicId } })}
-          style={[ss.lessonCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <View style={[ss.lessonIcon, { backgroundColor: "#7c3aed18" }]}>
-            <Text style={{ fontSize: 22 }}>{dailyLesson.emoji}</Text>
+          style={[ss.lessonCard, {
+            backgroundColor: completedToday ? "rgba(34,197,94,0.06)" : colors.card,
+            borderColor: completedToday ? "rgba(34,197,94,0.35)" : colors.border,
+          }]}>
+          <View style={[ss.lessonIcon, { backgroundColor: completedToday ? "rgba(34,197,94,0.14)" : "#7c3aed18" }]}>
+            <Text style={{ fontSize: 22 }}>{completedToday ? "✅" : dailyLesson.emoji}</Text>
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={{ fontSize: 11, fontWeight: "600", color: colors.textMuted, marginBottom: 2 }}>
-              Lección del día
+            <Text style={{ fontSize: 11, fontWeight: "600", marginBottom: 2,
+              color: completedToday ? "#22c55e" : colors.textMuted }}>
+              {completedToday ? "Completada hoy" : "Lección del día"}
             </Text>
             <Text style={{ fontSize: 15, fontWeight: "800", color: colors.text }}>{dailyLesson.title}</Text>
           </View>
-          <Text style={{ fontSize: 16, fontWeight: "700", color: colors.accentLight }}>→</Text>
+          {completedToday
+            ? <View style={{ backgroundColor: "rgba(34,197,94,0.14)", borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4, borderWidth: 1, borderColor: "rgba(34,197,94,0.3)" }}>
+                <Text style={{ color: "#22c55e", fontSize: 12, fontWeight: "700" }}>✓</Text>
+              </View>
+            : <Text style={{ fontSize: 16, fontWeight: "700", color: colors.accentLight }}>→</Text>
+          }
         </TouchableOpacity>
 
         {/* ── Quick Actions ────────────────────────────────────────────────── */}
