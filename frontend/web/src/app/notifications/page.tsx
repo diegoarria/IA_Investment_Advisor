@@ -665,30 +665,42 @@ export default function NotificationsPage() {
                       </span>
                     </div>
 
-                    {/* Summary text — rich paragraph */}
+                    {/* Summary text — block paragraphs */}
                     {(() => {
-                      const fullText = summaryText.split(/\n+/).filter(p => p.trim().length > 0).join(" ");
                       const SKIP = new Set(["THE","AND","FOR","BUT","INC","LLC","ETF","CEO","USD","SEC","IA","DE","EN","LA","EL","LOS","LAS","UNA","CON","SUS","QUE"]);
-                      const renderPlain = (text: string, prefix: string) =>
+                      const renderPlain = (text: string, pfx: string) =>
                         text.split(/(\$[\d,.]+[BMK]?|[+-]?\d+\.?\d*%|[A-Z]{2,5}(?=[\s,.]|$))/g).map((p, j) => {
-                          if (/^\$[\d,.]+/.test(p) || /[+-]?\d+\.?\d*%/.test(p)) {
-                            return <strong key={`${prefix}-${j}`} className="tabular-nums" style={{ fontWeight: 700, color: /^[-−]/.test(p) ? "#f87171" : "#4ade80" }}>{p}</strong>;
-                          }
-                          if (/^[A-Z]{2,5}$/.test(p) && !SKIP.has(p)) {
-                            return <strong key={`${prefix}-${j}`} style={{ fontWeight: 700, color: "#c084fc" }}>{p}</strong>;
-                          }
-                          return <span key={`${prefix}-${j}`}>{p}</span>;
+                          if (/^\$[\d,.]+/.test(p) || /[+-]?\d+\.?\d*%/.test(p))
+                            return <strong key={`${pfx}-${j}`} className="tabular-nums" style={{ fontWeight: 700, color: /^[-−]/.test(p) ? "#f87171" : "#4ade80" }}>{p}</strong>;
+                          if (/^[A-Z]{2,5}$/.test(p) && !SKIP.has(p))
+                            return <strong key={`${pfx}-${j}`} style={{ fontWeight: 700, color: "#c084fc" }}>{p}</strong>;
+                          return <span key={`${pfx}-${j}`}>{p}</span>;
                         });
-                      const rendered = fullText.split(/(\*\*[^*]+\*\*)/g).flatMap((part, i) => {
-                        if (part.startsWith("**") && part.endsWith("**")) {
-                          return [<strong key={i} style={{ fontWeight: 800, color: "var(--text)" }}>{part.slice(2, -2)}</strong>];
-                        }
-                        return renderPlain(part, String(i));
-                      });
+
+                      const paragraphs = summaryText.split(/\n+/).filter(p => p.trim().length > 0);
                       return (
-                        <div className="flex gap-3">
-                          <div className="w-0.5 rounded-full shrink-0 self-stretch" style={{ background: "linear-gradient(to bottom, rgba(168,85,247,0.8), rgba(168,85,247,0.1))" }} />
-                          <p className="text-[14px] leading-[1.85]" style={{ color: "var(--sub)" }}>{rendered}</p>
+                        <div className="space-y-4">
+                          {paragraphs.map((para, idx) => {
+                            const segs = para.trim().split(/(\*\*[^*]+\*\*)/g);
+                            const boldIdx = segs.findIndex(s => s.startsWith("**") && s.endsWith("**"));
+                            const prefix = boldIdx > 0 ? segs.slice(0, boldIdx).join("").trim() : "";
+                            const title  = boldIdx >= 0 ? segs[boldIdx].slice(2, -2) : "";
+                            const body   = boldIdx >= 0 ? segs.slice(boldIdx + 1).join("").trim() : para.trim();
+                            return (
+                              <div key={idx}>
+                                {title && (
+                                  <p className="font-black text-[13px] mb-1.5" style={{ color: "var(--text)" }}>
+                                    {prefix ? `${prefix} ` : ""}{title}
+                                  </p>
+                                )}
+                                {body && (
+                                  <p className="text-[13px] leading-[1.8]" style={{ color: "var(--sub)" }}>
+                                    {renderPlain(body, String(idx))}
+                                  </p>
+                                )}
+                              </div>
+                            );
+                          })}
                         </div>
                       );
                     })()}
