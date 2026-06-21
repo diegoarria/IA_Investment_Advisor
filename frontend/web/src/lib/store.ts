@@ -7,14 +7,17 @@ import { sync as syncApi } from "./api";
 // never leaks one user's watchlist, profile, or history to another.
 const userStorage = createJSONStorage(() => ({
   getItem: (name: string) => {
+    if (typeof window === "undefined") return null;
     const uid = useAuthStore.getState().userId ?? "guest";
     return localStorage.getItem(`${name}__${uid}`);
   },
   setItem: (name: string, value: string) => {
+    if (typeof window === "undefined") return;
     const uid = useAuthStore.getState().userId ?? "guest";
     localStorage.setItem(`${name}__${uid}`, value);
   },
   removeItem: (name: string) => {
+    if (typeof window === "undefined") return;
     const uid = useAuthStore.getState().userId ?? "guest";
     localStorage.removeItem(`${name}__${uid}`);
   },

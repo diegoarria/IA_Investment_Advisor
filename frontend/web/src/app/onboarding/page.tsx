@@ -127,7 +127,7 @@ export default function OnboardingPage() {
   });
 
   useEffect(() => { if (!isAuthenticated && !localStorage.getItem("access_token")) router.push("/"); }, [isAuthenticated]);
-  if (!isAuthenticated && !localStorage.getItem("access_token")) return null;
+  if (!isAuthenticated && (typeof window === "undefined" || !localStorage.getItem("access_token"))) return null;
 
   // ── Derived values ───────────────────────────────────────────────────────────
   const firstName  = form.name.trim().split(" ")[0];
