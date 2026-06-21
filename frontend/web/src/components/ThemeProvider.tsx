@@ -1,12 +1,16 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { usePathname } from "next/navigation";
 import { useThemeStore, useAuthStore, useWatchlistStore, useLearnStore } from "@/lib/store";
 
 export default function ThemeProvider({ children }: { children: React.ReactNode }) {
   const { theme, loadThemeFromServer } = useThemeStore();
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const lastSyncRef = useRef<number>(0);
+  const pathname = usePathname();
+  // Auth pages need to scroll freely — don't clip them
+  const isAuthPage = pathname === "/" || pathname?.startsWith("/auth") || pathname === "/join";
 
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", theme);
@@ -37,7 +41,7 @@ export default function ThemeProvider({ children }: { children: React.ReactNode 
   }, [isAuthenticated]);
 
   return (
-    <div style={{ height: "100vh", overflow: "hidden" }}>
+    <div style={isAuthPage ? {} : { height: "100vh", overflow: "hidden" }}>
       {children}
     </div>
   );
