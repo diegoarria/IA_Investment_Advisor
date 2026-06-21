@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import {
   View, Text, Modal, TouchableOpacity, ScrollView,
-  StyleSheet, ActivityIndicator, Alert,
+  StyleSheet, ActivityIndicator, Alert, Image,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "../lib/ThemeContext";
@@ -32,11 +32,31 @@ interface Props {
 }
 
 const BROKERS = [
-  { id: "ibkr",      name: "Interactive Brokers", logo: "🏛️", desc: "Acciones, opciones, futuros globales" },
-  { id: "schwab",    name: "Charles Schwab",      logo: "🟦", desc: "Broker líder en EE.UU." },
-  { id: "robinhood", name: "Robinhood",           logo: "🪶", desc: "Trading sin comisiones" },
-  { id: "iol",       name: "Invertir Online",     logo: "🇦🇷", desc: "Bolsa de Buenos Aires + NYSE" },
+  { id: "ibkr",      name: "Interactive Brokers", domain: "interactivebrokers.com", color: "#e8000d", fallback: "IB",  desc: "Acciones, opciones, futuros globales" },
+  { id: "schwab",    name: "Charles Schwab",       domain: "schwab.com",             color: "#00a2e0", fallback: "CS",  desc: "Broker líder en EE.UU." },
+  { id: "robinhood", name: "Robinhood",            domain: "robinhood.com",          color: "#00c805", fallback: "RH",  desc: "Trading sin comisiones" },
+  { id: "iol",       name: "Invertir Online",      domain: "invertironline.com",     color: "#003087", fallback: "IOL", desc: "Bolsa de Buenos Aires + NYSE" },
+  { id: "gbm",       name: "GBM",                  domain: "gbm.com.mx",             color: "#0033a0", fallback: "GBM", desc: "Broker líder en México" },
+  { id: "actinver",  name: "Actinver",             domain: "actinver.com",           color: "#c8102e", fallback: "ACT", desc: "Casa de bolsa mexicana" },
 ];
+
+function BrokerLogo({ domain, fallback, color }: { domain: string; fallback: string; color: string }) {
+  const [error, setError] = useState(false);
+  if (error) {
+    return (
+      <View style={{ width: 38, height: 38, borderRadius: 10, backgroundColor: color, alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+        <Text style={{ color: "white", fontWeight: "800", fontSize: 11 }}>{fallback}</Text>
+      </View>
+    );
+  }
+  return (
+    <Image
+      source={{ uri: `https://logo.clearbit.com/${domain}` }}
+      style={{ width: 38, height: 38, borderRadius: 10, backgroundColor: "white" }}
+      onError={() => setError(true)}
+    />
+  );
+}
 
 export default function MobileBrokerConnectModal({ visible, onClose, onPositionsImported: _ }: Props) {
   const { colors } = useTheme();
@@ -162,14 +182,16 @@ export default function MobileBrokerConnectModal({ visible, onClose, onPositions
                 onPress={() => { if (!isConnected) handleBrokerTap(broker.name); }}
                 activeOpacity={0.75}
               >
-                <Text style={m.brokerLogo}>{broker.logo}</Text>
+                <BrokerLogo domain={broker.domain} fallback={broker.fallback} color={broker.color} />
                 <View style={{ flex: 1, marginLeft: 12 }}>
                   <Text style={[m.brokerName, { color: colors.text }]}>{broker.name}</Text>
                   <Text style={[m.brokerDesc, { color: colors.textMuted }]}>{broker.desc}</Text>
                 </View>
                 {isConnected
                   ? <Ionicons name="checkmark-circle" size={18} color="#22c55e" />
-                  : <Text style={[m.comingSoon, { color: colors.textDim }]}>Próximamente</Text>
+                  : <View style={m.comingSoonBadge}>
+                      <Text style={[m.comingSoon, { color: colors.accentLight }]}>Próximamente</Text>
+                    </View>
                 }
               </TouchableOpacity>
             );
@@ -212,7 +234,7 @@ const m = StyleSheet.create({
     flexDirection: "row", alignItems: "center",
     padding: 14, borderRadius: 16, borderWidth: StyleSheet.hairlineWidth, marginBottom: 10,
   },
-  brokerLogo: { fontSize: 26 },
+  comingSoonBadge: { borderRadius: 20, borderWidth: 1, borderColor: "rgba(0,168,94,0.3)", backgroundColor: "rgba(0,168,94,0.08)", paddingHorizontal: 9, paddingVertical: 3 },
   brokerName: { fontSize: 14, fontWeight: "700" },
   brokerDesc: { fontSize: 12, marginTop: 1 },
   comingSoon: { fontSize: 11, fontWeight: "600" },

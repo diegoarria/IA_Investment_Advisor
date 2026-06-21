@@ -30,35 +30,35 @@ interface Props {
 type Screen = "home" | "iol-form" | "syncing";
 
 const BROKERS = [
-  {
-    id: "ibkr",
-    name: "Interactive Brokers",
-    logo: "🏛️",
-    provider: "plaid",
-    desc: "Acciones, opciones, futuros globales",
-  },
-  {
-    id: "schwab",
-    name: "Charles Schwab",
-    logo: "🟦",
-    provider: "plaid",
-    desc: "Broker líder en EE.UU.",
-  },
-  {
-    id: "robinhood",
-    name: "Robinhood",
-    logo: "🪶",
-    provider: "plaid",
-    desc: "Trading sin comisiones",
-  },
-  {
-    id: "iol",
-    name: "Invertir Online",
-    logo: "🇦🇷",
-    provider: "iol",
-    desc: "Bolsa de Buenos Aires + NYSE",
-  },
+  { id: "ibkr",      name: "Interactive Brokers", domain: "interactivebrokers.com", color: "#e8000d", fallback: "IB",  provider: "plaid", desc: "Acciones, opciones, futuros globales" },
+  { id: "schwab",    name: "Charles Schwab",       domain: "schwab.com",             color: "#00a2e0", fallback: "CS",  provider: "plaid", desc: "Broker líder en EE.UU." },
+  { id: "robinhood", name: "Robinhood",            domain: "robinhood.com",          color: "#00c805", fallback: "RH",  provider: "plaid", desc: "Trading sin comisiones" },
+  { id: "iol",       name: "Invertir Online",      domain: "invertironline.com",     color: "#003087", fallback: "IOL", provider: "iol",   desc: "Bolsa de Buenos Aires + NYSE" },
+  { id: "gbm",       name: "GBM",                  domain: "gbm.com.mx",             color: "#0033a0", fallback: "GBM", provider: "soon",  desc: "Broker líder en México" },
+  { id: "actinver",  name: "Actinver",             domain: "actinver.com",           color: "#c8102e", fallback: "ACT", provider: "soon",  desc: "Casa de bolsa mexicana" },
 ];
+
+function BrokerLogoWeb({ domain, fallback, color }: { domain: string; fallback: string; color: string }) {
+  const [err, setErr] = useState(false);
+  if (err) {
+    return (
+      <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
+           style={{ background: color }}>
+        <span className="text-white font-black text-[10px]">{fallback}</span>
+      </div>
+    );
+  }
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={`https://logo.clearbit.com/${domain}`}
+      alt={fallback}
+      onError={() => setErr(true)}
+      className="w-9 h-9 rounded-xl object-contain flex-shrink-0"
+      style={{ background: "white", padding: 2 }}
+    />
+  );
+}
 
 declare global {
   interface Window {
@@ -381,7 +381,7 @@ export default function BrokerConnectModal({ onClose, onPositionsImported }: Pro
                       className="flex items-center gap-3 px-4 py-3 rounded-xl text-left transition-all hover:scale-[1.01] disabled:opacity-50"
                       style={{ background: "var(--raised)", border: "1px solid var(--border)" }}
                     >
-                      <span className="text-2xl">{broker.logo}</span>
+                      <BrokerLogoWeb domain={broker.domain} fallback={broker.fallback} color={broker.color} />
                       <div className="flex-1">
                         <p className="text-sm font-bold" style={{ color: "var(--text)" }}>{broker.name}</p>
                         <p className="text-xs" style={{ color: "var(--muted)" }}>{broker.desc}</p>
@@ -389,7 +389,10 @@ export default function BrokerConnectModal({ onClose, onPositionsImported }: Pro
                       {isConnected ? (
                         <CheckCircle className="w-4 h-4 flex-shrink-0" style={{ color: "#22c55e" }} />
                       ) : (
-                        <span className="text-xs font-semibold" style={{ color: "var(--accent)" }}>Próximamente</span>
+                        <span className="text-xs font-semibold px-2 py-0.5 rounded-full border"
+                              style={{ color: "var(--accent-l)", borderColor: "rgba(0,168,94,0.3)", background: "rgba(0,168,94,0.08)", fontSize: 10 }}>
+                          Próximamente
+                        </span>
                       )}
                     </button>
                   );
