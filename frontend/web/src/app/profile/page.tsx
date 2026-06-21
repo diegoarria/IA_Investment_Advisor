@@ -112,6 +112,8 @@ export default function ProfilePage() {
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [riskExpanded, setRiskExpanded] = useState(false);
+  const [psyEditField, setPsyEditField] = useState<string | null>(null);
+  const [savingPsy, setSavingPsy] = useState(false);
   const [paywallOpen, setPaywallOpen] = useState(false);
   const [letterOpen, setLetterOpen] = useState(false);
   const [letter, setLetter] = useState<string | null>(null);
@@ -208,6 +210,29 @@ export default function ProfilePage() {
       setProfile(updated);
     } catch {}
     setSavingLevel(false);
+  };
+
+  const handlePsySave = async (field: string, value: string) => {
+    if (!profile) return;
+    setSavingPsy(true);
+    try {
+      let update: Record<string, unknown> = {};
+      if (field === "risk_tolerance") {
+        update = { risk_tolerance: value };
+      } else {
+        update = { quiz_answers: { ...profile.quiz_answers, [field]: value } };
+      }
+      await profileApi.update(update);
+      setProfile({
+        ...profile,
+        ...(field === "risk_tolerance" ? { risk_tolerance: value } : {}),
+        quiz_answers: field !== "risk_tolerance"
+          ? { ...profile.quiz_answers, [field]: value }
+          : profile.quiz_answers,
+      });
+      setPsyEditField(null);
+    } catch { /* ignore */ }
+    setSavingPsy(false);
   };
 
   const handleDeleteAccount = async () => {
@@ -647,62 +672,123 @@ export default function ProfilePage() {
 
                 {/* Perfil psicológico */}
                 <div>
-                  <p className="text-[10px] font-bold uppercase tracking-widest mb-2 ml-0.5" style={{ color: "var(--dim)" }}>Perfil psicológico</p>
+                  <div className="flex items-center gap-2 mb-2 ml-0.5">
+                    <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color: "var(--dim)" }}>Perfil psicológico</p>
+                    {savingPsy && <div className="w-3 h-3 border border-t-transparent rounded-full animate-spin" style={{ borderColor: "var(--accent-l)", borderTopColor: "transparent" }} />}
+                  </div>
                   <div className="rounded-2xl border overflow-hidden" style={{ background: "var(--card)", borderColor: "var(--border)" }}>
-                    {/* Horizonte */}
-                    {(() => {
-                      const q2 = profile.quiz_answers?.q2 as string | undefined;
-                      const horizonText = q2 ? QUIZ_LABELS.q2[q2] : null;
+                    {[
+                      { key: "q2", icon: "🕐", label: "Horizonte de inversión", color: "#22c55e",
+                        value: profile.quiz_answers?.q2 as string | undefined },
+                      { key: "rt", icon: "🧠", label: "Comportamiento", color:
+                          (profile.risk_tolerance ?? "").startsWith("conservative") ? "#3b82f6"
+                          : (profile.risk_tolerance ?? "").startsWith("aggressive") || profile.risk_tolerance === "speculative" ? "#ef4444"
+                          : "#f59e0b",
+                        value: (profile.risk_tolerance ?? "").startsWith("conservative") ? "conservative"
+                          : (profile.risk_tolerance ?? "").startsWith("aggressive") || profile.risk_tolerance === "speculative" ? "aggressive"
+                          : "moderate",
+                        displayOverride: (profile.risk_tolerance ?? "").startsWith("conservative") ? "Conservador"
+                          : (profile.risk_tolerance ?? "").startsWith("aggressive") || profile.risk_tolerance === "speculative" ? "Agresivo"
+                          : "Moderado",
+                      },
+                      { key: "q1", icon: "📉", label: "Reacción ante caídas", color: "#ef4444",
+                        value: profile.quiz_answers?.q1 as string | undefined },
+                      { key: "q5", icon: "⚙️", label: "Seguimiento del mercado", color: "#3b82f6",
+                        value: profile.quiz_answers?.q5 as string | undefined },
+                    ].map((row, idx) => {
+                      const displayText = row.displayOverride ?? (row.value ? QUIZ_LABELS[row.key]?.[row.value] : null);
                       return (
-                        <div className="flex items-center gap-3 px-4 py-3.5">
+                        <button key={row.key} onClick={() => setPsyEditField(row.key)}
+                          className={`w-full flex items-center gap-3 px-4 py-3.5 text-left hover:opacity-80 transition-opacity${idx > 0 ? " border-t" : ""}`}
+                          style={{ borderColor: "var(--border)" }}>
                           <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 text-base"
-                               style={{ background: "rgba(34,197,94,0.12)" }}>
-                            🕐
+                               style={{ background: row.color + "18" }}>
+                            {row.icon}
                           </div>
-                          <div className="flex-1">
-                            <div className="text-[9px] font-bold uppercase tracking-wider mb-0.5" style={{ color: "var(--dim)" }}>Horizonte de inversión</div>
-                            <div className="text-sm font-semibold" style={{ color: horizonText ? "var(--text)" : "var(--dim)" }}>
-                              {horizonText ?? "No completado"}
+                          <div className="flex-1 min-w-0">
+                            <div className="text-[9px] font-bold uppercase tracking-wider mb-0.5" style={{ color: "var(--dim)" }}>{row.label}</div>
+                            <div className="text-sm font-semibold truncate" style={{ color: displayText ? "var(--text)" : "var(--dim)" }}>
+                              {displayText ?? "No completado"}
                             </div>
                           </div>
-                          {horizonText && (
-                            <span className="text-xs font-bold px-2.5 py-1 rounded-full"
-                                  style={{ background: "rgba(34,197,94,0.12)", color: "#22c55e", border: "1px solid rgba(34,197,94,0.3)" }}>
-                              {horizonText}
-                            </span>
-                          )}
-                        </div>
-                      );
-                    })()}
-                    {/* Comportamiento */}
-                    {(() => {
-                      const rt = profile.risk_tolerance;
-                      const COMP: Record<string, { label: string; color: string }> = {
-                        conservative: { label: "Conservador", color: "#3b82f6" },
-                        moderate:     { label: "Moderado",    color: "#f59e0b" },
-                        aggressive:   { label: "Agresivo",    color: "#ef4444" },
-                      };
-                      const cat = rt.startsWith("conservative") ? "conservative" : rt.startsWith("aggressive") || rt === "speculative" ? "aggressive" : "moderate";
-                      const comp = COMP[cat];
-                      return (
-                        <div className="flex items-center gap-3 px-4 py-3.5 border-t" style={{ borderColor: "var(--border)" }}>
-                          <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 text-base"
-                               style={{ background: comp.color + "18" }}>
-                            🧠
-                          </div>
-                          <div className="flex-1">
-                            <div className="text-[9px] font-bold uppercase tracking-wider mb-0.5" style={{ color: "var(--dim)" }}>Comportamiento</div>
-                            <div className="text-sm font-semibold" style={{ color: "var(--text)" }}>{comp.label}</div>
-                          </div>
-                          <span className="text-xs font-bold px-2.5 py-1 rounded-full"
-                                style={{ background: comp.color + "18", color: comp.color, border: `1px solid ${comp.color}44` }}>
-                            {comp.label}
+                          <span className="text-xs font-bold px-2.5 py-1 rounded-full shrink-0"
+                                style={displayText
+                                  ? { background: row.color + "18", color: row.color, border: `1px solid ${row.color}44` }
+                                  : { background: "rgba(251,191,36,0.12)", color: "#fbbf24", border: "1px solid rgba(251,191,36,0.3)" }}>
+                            {displayText ?? "Completar"}
                           </span>
-                        </div>
+                        </button>
                       );
-                    })()}
+                    })}
                   </div>
                 </div>
+
+                {/* Modal edición perfil psicológico */}
+                {psyEditField && (
+                  <div className="fixed inset-0 z-50 flex items-end justify-center"
+                       style={{ background: "rgba(0,0,0,0.6)" }}
+                       onClick={() => setPsyEditField(null)}>
+                    <div className="w-full max-w-lg rounded-t-3xl p-6 pb-10 space-y-3"
+                         style={{ background: "var(--card)" }}
+                         onClick={(e) => e.stopPropagation()}>
+                      <div className="flex items-center justify-between mb-1">
+                        <p className="font-extrabold text-base" style={{ color: "var(--text)" }}>
+                          {psyEditField === "q2" ? "¿Cuál es tu horizonte de inversión?"
+                            : psyEditField === "rt" ? "¿Cuál es tu comportamiento inversor?"
+                            : psyEditField === "q1" ? "¿Qué haces cuando tu portafolio cae?"
+                            : "¿Con qué frecuencia revisas el mercado?"}
+                        </p>
+                        <button onClick={() => setPsyEditField(null)} className="p-1 rounded-full hover:opacity-70">
+                          <X className="w-5 h-5" style={{ color: "var(--muted)" }} />
+                        </button>
+                      </div>
+                      <p className="text-xs mb-2" style={{ color: "var(--muted)" }}>Toca una opción para guardar automáticamente</p>
+
+                      {psyEditField !== "rt" && Object.entries(QUIZ_LABELS[psyEditField] ?? {}).map(([key, text]) => {
+                        const currentVal = profile.quiz_answers?.[psyEditField] as string | undefined;
+                        const active = currentVal === key;
+                        const color = active ? "#22c55e" : undefined;
+                        return (
+                          <button key={key} onClick={() => handlePsySave(psyEditField, key)} disabled={savingPsy}
+                            className="w-full flex items-center gap-3 p-3.5 rounded-2xl border-2 text-left transition-all hover:opacity-90 disabled:opacity-50"
+                            style={{ borderColor: active ? "#22c55e" : "var(--border)", background: active ? "rgba(34,197,94,0.1)" : "var(--raised)" }}>
+                            <div className="w-7 h-7 rounded-lg flex items-center justify-center text-xs font-black shrink-0"
+                                 style={{ background: active ? "#22c55e" : "var(--border)", color: active ? "#fff" : "var(--muted)" }}>
+                              {key}
+                            </div>
+                            <span className="flex-1 text-sm font-semibold" style={{ color: color ?? "var(--text)" }}>{text}</span>
+                            {active && <Check className="w-4 h-4 shrink-0" style={{ color: "#22c55e" }} />}
+                          </button>
+                        );
+                      })}
+
+                      {psyEditField === "rt" && [
+                        { key: "conservative", label: "Conservador", color: "#3b82f6", desc: "Priorizo no perder dinero sobre ganar" },
+                        { key: "moderate",     label: "Moderado",    color: "#f59e0b", desc: "Balance entre crecimiento y estabilidad" },
+                        { key: "aggressive",   label: "Agresivo",    color: "#ef4444", desc: "Acepto alta volatilidad buscando mayor retorno" },
+                      ].map(({ key, label, color, desc }) => {
+                        const cat = (profile.risk_tolerance ?? "").startsWith("conservative") ? "conservative"
+                          : (profile.risk_tolerance ?? "").startsWith("aggressive") || profile.risk_tolerance === "speculative" ? "aggressive" : "moderate";
+                        const active = cat === key;
+                        return (
+                          <button key={key} onClick={() => handlePsySave("risk_tolerance", key)} disabled={savingPsy}
+                            className="w-full flex items-center gap-3 p-3.5 rounded-2xl border-2 text-left transition-all hover:opacity-90 disabled:opacity-50"
+                            style={{ borderColor: active ? color : "var(--border)", background: active ? color + "12" : "var(--raised)" }}>
+                            <div className="w-7 h-7 rounded-lg flex items-center justify-center text-xs font-black shrink-0"
+                                 style={{ background: active ? color : color + "30", color: active ? "#fff" : color }}>
+                              {key === "conservative" ? "C" : key === "moderate" ? "M" : "A"}
+                            </div>
+                            <div className="flex-1">
+                              <div className="text-sm font-bold" style={{ color: active ? color : "var(--text)" }}>{label}</div>
+                              <div className="text-xs" style={{ color: "var(--muted)" }}>{desc}</div>
+                            </div>
+                            {active && <Check className="w-4 h-4 shrink-0" style={{ color }} />}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
 
                 {/* Suscripción */}
                 <div>

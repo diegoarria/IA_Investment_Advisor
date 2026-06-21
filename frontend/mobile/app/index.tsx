@@ -299,7 +299,7 @@ export default function AuthScreen() {
   const handleGoogleSignIn = async () => {
     setLoading(true);
     try {
-      const redirectUrl = Linking.createURL("/auth/callback");
+  const redirectUrl = Linking.createURL("auth/callback");
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: { redirectTo: redirectUrl, skipBrowserRedirect: true },
