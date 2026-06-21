@@ -1349,7 +1349,16 @@ Usa los valores reales del portafolio para calcular estimaciones. Sin texto fuer
 
 async def analyze_portfolio_score(portfolio: list[dict], profile: "UserProfile | None" = None) -> dict:
     """Deep AI analysis of the user's real portfolio. Returns score 1-100 + structured breakdown."""
-    system_prompt = build_system_prompt(profile)
+    from datetime import datetime as _dt
+    today = _dt.now().strftime("%d de %B de %Y")
+    risk = profile.risk_tolerance if profile else "moderado"
+    # Minimal system prompt — intentionally avoids ACTION_TAG_INSTRUCTIONS so the
+    # response is pure JSON without chat-interface action blocks appended.
+    system_prompt = (
+        f"Eres un analista de portafolios institucional. Hoy es {today}. "
+        f"El perfil de riesgo del usuario es: {risk}. "
+        "Respondes ÚNICAMENTE con JSON estructurado válido. Sin texto adicional, sin markdown, sin comentarios."
+    )
     portfolio_str = json.dumps(portfolio, ensure_ascii=False)
 
     prompt = f"""Eres un analista de portafolios de inversión de nivel institucional. Analiza el siguiente portafolio y devuelve un JSON estructurado con una evaluación profunda.
@@ -1394,24 +1403,40 @@ Reglas estrictas:
 - Menciona tickers reales del portafolio, no genéricos.
 - Sin texto fuera del JSON. Sin markdown. Solo JSON puro."""
 
-    response = await _claude(
-        model=settings.claude_model,
-        max_tokens=1500,
-        system=[{"type": "text", "text": system_prompt, "cache_control": {"type": "ephemeral"}}],
-        messages=[{"role": "user", "content": prompt}],
-    )
-    raw = response.content[0].text.strip()
     try:
-        return json.loads(raw)
-    except Exception:
-        import re
-        m = re.search(r"\{.*\}", raw, re.DOTALL)
-        if m:
-            try:
+        response = await _claude(
+            model=settings.claude_model,
+            max_tokens=2000,
+            system=system_prompt,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        raw = response.content[0].text.strip()
+        # Strip potential markdown fences
+        if raw.startswith("```"):
+            raw = raw.split("```")[1]
+            if raw.startswith("json"):
+                raw = raw[4:]
+            raw = raw.strip()
+        try:
+            return json.loads(raw)
+        except Exception:
+            import re
+            m = re.search(r"\{[\s\S]*\}", raw)
+            if m:
                 return json.loads(m.group())
-            except Exception:
-                pass
-        return {"score": 0, "summary": raw, "sections": [], "strengths": [], "weaknesses": [], "recommendations": []}
+            raise
+    except Exception as exc:
+        return {
+            "error": str(exc),
+            "score": 0,
+            "score_label": "Error",
+            "score_color": "#6b7280",
+            "summary": "No se pudo completar el análisis. Intenta de nuevo en unos segundos.",
+            "sections": [],
+            "strengths": [],
+            "weaknesses": [],
+            "recommendations": [],
+        }
 
 
 # ──────────────────────────────────────────────────────────────

@@ -667,12 +667,13 @@ export default function PortfolioPage() {
 
   // Portfolio Analyzer
   const [portfolioAnalysis, setPortfolioAnalysis] = useState<{
-    score: number; score_label: string; score_color: string; summary: string;
+    error?: string; score: number; score_label: string; score_color: string; summary: string;
     sections: { title: string; score: number; detail: string; icon: string }[];
     strengths: string[]; weaknesses: string[];
     recommendations: { title: string; detail: string }[];
   } | null>(null);
   const [analysisLoading, setAnalysisLoading] = useState(false);
+  const [analysisError, setAnalysisError] = useState<string | null>(null);
 
   // Calculator
   const [calcCapital, setCalcCapital] = useState("");
@@ -1052,7 +1053,7 @@ export default function PortfolioPage() {
   // ── Portfolio Analyzer ───────────────────────────────────────────────────
   const runPortfolioAnalysis = async () => {
     if (positions.length === 0) return;
-    setAnalysisLoading(true); setPortfolioAnalysis(null);
+    setAnalysisLoading(true); setPortfolioAnalysis(null); setAnalysisError(null);
     try {
       const posPayload = positions.map((p) => ({
         ticker: p.ticker, shares: p.shares, avg_price: p.avgPrice, name: p.name,
@@ -1060,7 +1061,9 @@ export default function PortfolioPage() {
       }));
       const res = await marketApi.analyzePortfolio(posPayload);
       setPortfolioAnalysis(res.data);
-    } catch { /* silent */ }
+    } catch {
+      setAnalysisError("No se pudo completar el análisis. Intenta de nuevo en unos segundos.");
+    }
     setAnalysisLoading(false);
   };
 
@@ -2156,8 +2159,16 @@ export default function PortfolioPage() {
               </div>
             )}
 
+            {/* Error */}
+            {analysisError && (
+              <div className="mt-2 flex items-center gap-2 px-4 py-3 rounded-xl text-xs"
+                   style={{ background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.25)", color: "#ef4444" }}>
+                ⚠️ {analysisError}
+              </div>
+            )}
+
             {/* Results */}
-            {portfolioAnalysis && (
+            {portfolioAnalysis && !portfolioAnalysis.error && (
               <div className="mt-3 flex flex-col gap-3">
 
                 {/* Score hero */}
