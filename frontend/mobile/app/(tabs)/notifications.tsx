@@ -55,6 +55,15 @@ export default function NotificationsScreen() {
   const [unread, setUnread]         = useState(0);
   const [refreshing, setRefreshing] = useState(false);
 
+  // News tab
+  const [newsTab, setNewsTab] = useState<"general" | "portfolio">("general");
+
+  // General market news
+  const [generalNews, setGeneralNews]           = useState<NewsItem[]>([]);
+  const [generalNewsLoading, setGeneralNewsLoading] = useState(false);
+  const [generalNewsError, setGeneralNewsError] = useState(false);
+  const [generalNewsShown, setGeneralNewsShown] = useState(10);
+
   // Portfolio news
   const { positions } = usePortfolioStore();
   const [news, setNews]             = useState<NewsItem[]>([]);
@@ -132,6 +141,15 @@ export default function NotificationsScreen() {
     setPortPricesLoading(false);
   }, [positions.length]);
 
+  const loadGeneralNews = useCallback(async () => {
+    setGeneralNewsLoading(true); setGeneralNewsError(false);
+    try {
+      const res = await marketApi.getNews(["SPY", "QQQ", "AAPL", "NVDA", "MSFT", "AMZN", "META", "TSLA", "BTC-USD", "GLD"]);
+      setGeneralNews(res.data ?? []);
+    } catch { setGeneralNewsError(true); }
+    setGeneralNewsLoading(false);
+  }, []);
+
   const loadPortfolioNews = useCallback(async () => {
     if (positions.length === 0) return;
     setNewsLoading(true);
@@ -146,7 +164,7 @@ export default function NotificationsScreen() {
     setNewsLoading(false);
   }, [positions.length]);
 
-  useEffect(() => { loadNotifications(); }, []);
+  useEffect(() => { loadNotifications(); loadGeneralNews(); }, []);
 
   useFocusEffect(useCallback(() => {
     loadPortfolioNews();
@@ -291,88 +309,110 @@ export default function NotificationsScreen() {
     );
   };
 
-  const PortfolioNewsSection = () => {
+  const NewsSection = () => {
     const tickers = [...new Set(positions.map((p) => p.ticker))];
 
-    const body = () => {
-      if (positions.length === 0) {
-        return (
-          <View style={styles.newsEmptyState}>
-            <Ionicons name="briefcase-outline" size={28} color={colors.textDim} />
-            <Text style={[styles.newsEmptyText, { color: colors.textMuted }]}>
-              Importa acciones en Portafolio para ver sus noticias aquí
+    const renderNewsItem = (item: NewsItem) => (
+      <TouchableOpacity
+        key={item.uuid}
+        style={[styles.newsRow, { borderTopColor: colors.border }]}
+        onPress={() => openNewsSummary(item)}
+        activeOpacity={0.75}
+      >
+        {item.thumbnail ? (
+          <Image source={{ uri: item.thumbnail }} style={styles.newsThumbnail} />
+        ) : (
+          <View style={[styles.newsThumbnail, { backgroundColor: colors.border, alignItems: "center", justifyContent: "center" }]}>
+            <Ionicons name="newspaper-outline" size={18} color={colors.textDim} />
+          </View>
+        )}
+        <View style={{ flex: 1 }}>
+          <View style={styles.newsTickerRow}>
+            <View style={[styles.newsTickerBadge, { backgroundColor: colors.accentGlow }]}>
+              <Text style={[styles.newsTickerText, { color: colors.accentLight }]}>{item.symbol}</Text>
+            </View>
+            <Text style={[styles.newsDate, { color: colors.textDim }]}>
+              {new Date(item.timestamp * 1000).toLocaleDateString("es", { day: "numeric", month: "short" })}
             </Text>
           </View>
-        );
-      }
-      if (newsLoading) {
-        return (
-          <View style={styles.newsEmptyState}>
-            <ActivityIndicator color={colors.accentLight} />
-            <Text style={[styles.newsEmptyText, { color: colors.textDim }]}>
-              Buscando noticias de {tickers.join(", ")}…
-            </Text>
-          </View>
-        );
-      }
-      if (newsError) {
-        return (
-          <TouchableOpacity style={styles.newsEmptyState} onPress={loadPortfolioNews} activeOpacity={0.7}>
-            <Ionicons name="refresh-outline" size={24} color={colors.textDim} />
-            <Text style={[styles.newsEmptyText, { color: colors.textMuted }]}>
-              Error al cargar noticias. Toca para reintentar.
-            </Text>
-          </TouchableOpacity>
-        );
-      }
-      if (filteredNews.length === 0) {
-        return (
-          <View style={styles.newsEmptyState}>
-            <Ionicons name="newspaper-outline" size={28} color={colors.textDim} />
-            <Text style={[styles.newsEmptyText, { color: colors.textMuted }]}>
-              {newsFilter
-                ? `Sin noticias de ${newsFilter} en los últimos 7 días`
-                : `Sin noticias en los últimos 7 días para ${tickers.join(", ")}`}
-            </Text>
-          </View>
-        );
-      }
+          <Text style={[styles.newsTitle, { color: colors.text }]} numberOfLines={2}>{item.title}</Text>
+          <Text style={[styles.newsPublisher, { color: colors.textMuted }]}>{item.publisher}</Text>
+        </View>
+      </TouchableOpacity>
+    );
+
+    const generalBody = () => {
+      if (generalNewsLoading) return (
+        <View style={styles.newsEmptyState}>
+          <ActivityIndicator color={colors.accentLight} />
+          <Text style={[styles.newsEmptyText, { color: colors.textDim }]}>Cargando noticias del mercado…</Text>
+        </View>
+      );
+      if (generalNewsError) return (
+        <TouchableOpacity style={styles.newsEmptyState} onPress={loadGeneralNews} activeOpacity={0.7}>
+          <Ionicons name="refresh-outline" size={24} color={colors.textDim} />
+          <Text style={[styles.newsEmptyText, { color: colors.textMuted }]}>Error al cargar. Toca para reintentar.</Text>
+        </TouchableOpacity>
+      );
+      if (generalNews.length === 0) return (
+        <View style={styles.newsEmptyState}>
+          <Ionicons name="newspaper-outline" size={28} color={colors.textDim} />
+          <Text style={[styles.newsEmptyText, { color: colors.textMuted }]}>Sin noticias disponibles</Text>
+        </View>
+      );
+      const visible = generalNews.slice(0, generalNewsShown);
       return (
         <>
-          {visibleNews.map((item) => (
-            <TouchableOpacity
-              key={item.uuid}
-              style={[styles.newsRow, { borderTopColor: colors.border }]}
-              onPress={() => openNewsSummary(item)}
-              activeOpacity={0.75}
-            >
-              {item.thumbnail ? (
-                <Image source={{ uri: item.thumbnail }} style={styles.newsThumbnail} />
-              ) : (
-                <View style={[styles.newsThumbnail, { backgroundColor: colors.border, alignItems: "center", justifyContent: "center" }]}>
-                  <Ionicons name="newspaper-outline" size={18} color={colors.textDim} />
-                </View>
-              )}
-              <View style={{ flex: 1 }}>
-                <View style={styles.newsTickerRow}>
-                  <View style={[styles.newsTickerBadge, { backgroundColor: colors.accentGlow }]}>
-                    <Text style={[styles.newsTickerText, { color: colors.accentLight }]}>{item.symbol}</Text>
-                  </View>
-                  <Text style={[styles.newsDate, { color: colors.textDim }]}>
-                    {new Date(item.timestamp * 1000).toLocaleDateString("es", { day: "numeric", month: "short" })}
-                  </Text>
-                </View>
-                <Text style={[styles.newsTitle, { color: colors.text }]} numberOfLines={2}>{item.title}</Text>
-                <Text style={[styles.newsPublisher, { color: colors.textMuted }]}>{item.publisher}</Text>
-              </View>
+          {visible.map(renderNewsItem)}
+          {visible.length < generalNews.length && (
+            <TouchableOpacity style={[styles.newsShowMore, { borderTopColor: colors.border }]}
+              onPress={() => setGeneralNewsShown((n) => n + 10)} activeOpacity={0.7}>
+              <Text style={[styles.newsShowMoreText, { color: colors.accentLight }]}>
+                Ver {Math.min(10, generalNews.length - visible.length)} noticias más
+              </Text>
             </TouchableOpacity>
-          ))}
+          )}
+        </>
+      );
+    };
+
+    const portfolioBody = () => {
+      if (positions.length === 0) return (
+        <View style={styles.newsEmptyState}>
+          <Ionicons name="briefcase-outline" size={28} color={colors.textDim} />
+          <Text style={[styles.newsEmptyText, { color: colors.textMuted }]}>
+            Importa acciones en Portafolio para ver sus noticias aquí
+          </Text>
+        </View>
+      );
+      if (newsLoading) return (
+        <View style={styles.newsEmptyState}>
+          <ActivityIndicator color={colors.accentLight} />
+          <Text style={[styles.newsEmptyText, { color: colors.textDim }]}>
+            Buscando noticias de {tickers.join(", ")}…
+          </Text>
+        </View>
+      );
+      if (newsError) return (
+        <TouchableOpacity style={styles.newsEmptyState} onPress={loadPortfolioNews} activeOpacity={0.7}>
+          <Ionicons name="refresh-outline" size={24} color={colors.textDim} />
+          <Text style={[styles.newsEmptyText, { color: colors.textMuted }]}>Error al cargar. Toca para reintentar.</Text>
+        </TouchableOpacity>
+      );
+      if (filteredNews.length === 0) return (
+        <View style={styles.newsEmptyState}>
+          <Ionicons name="newspaper-outline" size={28} color={colors.textDim} />
+          <Text style={[styles.newsEmptyText, { color: colors.textMuted }]}>
+            {newsFilter ? `Sin noticias de ${newsFilter} en los últimos 7 días` : "Sin noticias en los últimos 7 días"}
+          </Text>
+        </View>
+      );
+      return (
+        <>
+          {visibleNews.map(renderNewsItem)}
           {visibleNews.length < filteredNews.length && (
-            <TouchableOpacity
-              style={[styles.newsShowMore, { borderTopColor: colors.border }]}
-              onPress={() => setNewsShown((n) => n + 10)}
-              activeOpacity={0.7}
-            >
+            <TouchableOpacity style={[styles.newsShowMore, { borderTopColor: colors.border }]}
+              onPress={() => setNewsShown((n) => n + 10)} activeOpacity={0.7}>
               <Text style={[styles.newsShowMoreText, { color: colors.accentLight }]}>
                 Ver {Math.min(10, filteredNews.length - visibleNews.length)} noticias más
               </Text>
@@ -387,36 +427,46 @@ export default function NotificationsScreen() {
         {/* Header */}
         <View style={[styles.sectionHeader, { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border }]}>
           <Ionicons name="newspaper-outline" size={14} color={colors.accentLight} />
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>Noticias de tu portafolio</Text>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>Noticias</Text>
           <Text style={[styles.sectionSubtitle, { color: colors.textDim }]}>últimos 7 días</Text>
         </View>
 
-        {/* Ticker filter chips */}
-        {positions.length > 0 && !newsLoading && news.length > 0 && (
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            style={styles.chipScroll}
-            contentContainerStyle={styles.chipScrollContent}
-          >
+        {/* Tab bar */}
+        <View style={[styles.newsTabs, { backgroundColor: colors.bgRaised, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border }]}>
+          {([
+            { key: "general"   as const, label: "🌍 Generales" },
+            { key: "portfolio" as const, label: "💼 Tu Portafolio" },
+          ]).map(({ key, label }) => (
             <TouchableOpacity
-              style={[styles.chip, newsFilter === null && styles.chipActive]}
-              onPress={() => { setNewsFilter(null); setNewsShown(10); }}
+              key={key}
+              style={[styles.newsTabBtn, newsTab === key && { backgroundColor: "rgba(0,168,94,0.14)", borderColor: "rgba(0,168,94,0.3)" }]}
+              onPress={() => setNewsTab(key)}
               activeOpacity={0.7}
             >
+              <Text style={[styles.newsTabText, { color: newsTab === key ? colors.accentLight : colors.textMuted }]}>
+                {label}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        {/* Ticker filter chips — only in portfolio tab */}
+        {newsTab === "portfolio" && positions.length > 0 && !newsLoading && news.length > 0 && (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}
+            style={styles.chipScroll} contentContainerStyle={styles.chipScrollContent}>
+            <TouchableOpacity style={[styles.chip, newsFilter === null && styles.chipActive]}
+              onPress={() => { setNewsFilter(null); setNewsShown(10); }} activeOpacity={0.7}>
               <Text style={[styles.chipText, newsFilter === null && styles.chipTextActive]}>Todas</Text>
             </TouchableOpacity>
-            {[...new Set(positions.map((p) => p.ticker))].map((ticker) => {
+            {tickers.map((ticker) => {
               const count = news.filter((n) => n.symbol === ticker).length;
               if (count === 0) return null;
               const active = newsFilter === ticker;
               return (
-                <TouchableOpacity
-                  key={ticker}
+                <TouchableOpacity key={ticker}
                   style={[styles.chip, active && styles.chipActive, !isPremiumAccess && { opacity: 0.7 }]}
                   onPress={() => isPremiumAccess ? (setNewsFilter(ticker), setNewsShown(10)) : setPaywallOpen(true)}
-                  activeOpacity={0.7}
-                >
+                  activeOpacity={0.7}>
                   <Text style={[styles.chipText, active && styles.chipTextActive]}>
                     {!isPremiumAccess ? "🔒 " : ""}{ticker} · {count}
                   </Text>
@@ -426,7 +476,7 @@ export default function NotificationsScreen() {
           </ScrollView>
         )}
 
-        {body()}
+        {newsTab === "general" ? generalBody() : portfolioBody()}
       </View>
     );
   };
@@ -449,13 +499,13 @@ export default function NotificationsScreen() {
             refreshing={refreshing}
             onRefresh={async () => {
               setRefreshing(true);
-              await Promise.all([loadNotifications(), loadPortfolioNews(), loadPortfolioPrices()]);
+              await Promise.all([loadNotifications(), loadGeneralNews(), loadPortfolioNews(), loadPortfolioPrices()]);
               setRefreshing(false);
             }}
             tintColor="#22c55e"
           />
         }
-        ListHeaderComponent={<><PortfolioNewsSection /><PortfolioTodaySection /></>}
+        ListHeaderComponent={<><NewsSection /><PortfolioTodaySection /></>}
         ListEmptyComponent={
           <View style={styles.empty}>
             <Ionicons name="notifications-outline" size={48} color={colors.textMuted} style={{ marginBottom: 16 }} />

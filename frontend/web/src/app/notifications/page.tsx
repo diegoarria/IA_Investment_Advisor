@@ -44,6 +44,15 @@ export default function NotificationsPage() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
+  // News tab
+  const [newsTab, setNewsTab] = useState<"general" | "portfolio">("general");
+
+  // General market news
+  const [generalNews, setGeneralNews] = useState<NewsItem[]>([]);
+  const [generalNewsLoading, setGeneralNewsLoading] = useState(false);
+  const [generalNewsError, setGeneralNewsError] = useState(false);
+  const [generalNewsShown, setGeneralNewsShown] = useState(10);
+
   // Portfolio news
   const [news, setNews] = useState<NewsItem[]>([]);
   const [newsLoading, setNewsLoading] = useState(false);
@@ -89,6 +98,15 @@ export default function NotificationsPage() {
     setPortPricesLoading(false);
   }, [positions.length]);
 
+  const loadGeneralNews = useCallback(async () => {
+    setGeneralNewsLoading(true); setGeneralNewsError(false);
+    try {
+      const res = await marketApi.getNews(["SPY", "QQQ", "AAPL", "NVDA", "MSFT", "AMZN", "META", "TSLA", "BTC-USD", "GLD"]);
+      setGeneralNews(res.data ?? []);
+    } catch { setGeneralNewsError(true); }
+    setGeneralNewsLoading(false);
+  }, []);
+
   const loadPortfolioNews = useCallback(async () => {
     if (positions.length === 0) return;
     setNewsLoading(true); setNewsError(false);
@@ -109,12 +127,13 @@ export default function NotificationsPage() {
 
   const handleRefresh = async () => {
     setRefreshing(true);
-    await Promise.all([loadNotifications(), loadPortfolioNews(), loadPortfolioPrices()]);
+    await Promise.all([loadNotifications(), loadGeneralNews(), loadPortfolioNews(), loadPortfolioPrices()]);
     setRefreshing(false);
   };
 
   useEffect(() => {
     loadNotifications();
+    loadGeneralNews();
     loadPortfolioPrices();
   }, [isAuthenticated]);
 
@@ -200,120 +219,216 @@ export default function NotificationsPage() {
               </button>
             )}
 
-            {/* Noticias — Mi portafolio */}
+            {/* ── Noticias con tabs ── */}
             <div className="rounded-2xl border overflow-hidden" style={{ background: "var(--card)", borderColor: "var(--border)" }}>
 
               {/* Header */}
               <div className="flex items-center gap-2 px-4 py-3 border-b" style={{ borderColor: "var(--border)" }}>
                 <Newspaper className="w-3.5 h-3.5" style={{ color: "var(--accent-l)" }} />
-                <span className="text-sm font-bold" style={{ color: "var(--text)" }}>Noticias de tu portafolio</span>
+                <span className="text-sm font-bold" style={{ color: "var(--text)" }}>Noticias</span>
                 <span className="text-xs" style={{ color: "var(--dim)" }}>últimos 7 días</span>
               </div>
 
-              {/* Ticker filter chips */}
-              {positions.length > 0 && !newsLoading && news.length > 0 && (
-                <div className="flex flex-wrap gap-1.5 px-4 py-3 border-b" style={{ borderColor: "var(--border)" }}>
-                  <button onClick={() => { setNewsFilter(null); setNewsShown(10); }}
-                          className="text-[10px] font-bold px-2.5 py-1 rounded-full border transition-all"
-                          style={{
-                            background: newsFilter === null ? "var(--accent)" : "var(--raised)",
-                            borderColor: newsFilter === null ? "var(--accent)" : "var(--border)",
-                            color: newsFilter === null ? "#fff" : "var(--muted)",
-                          }}>
-                    Todas
+              {/* Tab bar */}
+              <div className="flex gap-1.5 px-3 py-2.5 border-b" style={{ borderColor: "var(--border)", background: "var(--raised)" }}>
+                {([
+                  { key: "general",   label: "🌍 Generales" },
+                  { key: "portfolio", label: "💼 Tu Portafolio" },
+                ] as const).map(({ key, label }) => (
+                  <button
+                    key={key}
+                    onClick={() => setNewsTab(key)}
+                    className="px-3 py-1.5 rounded-full text-xs font-bold transition-all"
+                    style={{
+                      background: newsTab === key ? "rgba(0,168,94,0.14)" : "transparent",
+                      border: `1px solid ${newsTab === key ? "rgba(0,168,94,0.3)" : "transparent"}`,
+                      color: newsTab === key ? "var(--accent-l)" : "var(--muted)",
+                    }}
+                  >
+                    {label}
                   </button>
-                  {[...new Set(positions.map((p) => p.ticker))].map((ticker) => {
-                    const active = newsFilter === ticker;
-                    const count = news.filter((n) => n.symbol === ticker).length;
-                    if (count === 0) return null;
-                    return (
-                      <button key={ticker}
-                              onClick={() => isPremium ? (setNewsFilter(ticker), setNewsShown(10)) : setPaywallOpen(true)}
-                              className="text-[10px] font-bold px-2.5 py-1 rounded-full border transition-all flex items-center gap-1"
-                              style={{
-                                background: active ? "var(--accent)" : "var(--raised)",
-                                borderColor: active ? "var(--accent)" : "var(--border)",
-                                color: active ? "#fff" : "var(--muted)",
-                                opacity: isPremium ? 1 : 0.7,
-                              }}>
-                        {!isPremium && <span style={{ fontSize: 9 }}>🔒</span>}
-                        {ticker} <span style={{ opacity: 0.7 }}>·{count}</span>
-                      </button>
-                    );
-                  })}
-                </div>
+                ))}
+              </div>
+
+              {/* ── Tab: Generales ── */}
+              {newsTab === "general" && (
+                <>
+                  {generalNewsLoading ? (
+                    <div className="flex flex-col items-center gap-2 py-6">
+                      <Loader2 className="w-5 h-5 animate-spin" style={{ color: "var(--accent-l)" }} />
+                      <p className="text-xs" style={{ color: "var(--dim)" }}>Cargando noticias del mercado…</p>
+                    </div>
+                  ) : generalNewsError ? (
+                    <button onClick={loadGeneralNews} className="w-full flex flex-col items-center gap-2 py-6 hover:opacity-70">
+                      <RefreshCw className="w-5 h-5" style={{ color: "var(--dim)" }} />
+                      <p className="text-xs" style={{ color: "var(--muted)" }}>Error al cargar. Haz clic para reintentar.</p>
+                    </button>
+                  ) : generalNews.length === 0 ? (
+                    <div className="flex flex-col items-center gap-2 py-6 text-center px-4">
+                      <Newspaper className="w-6 h-6" style={{ color: "var(--dim)" }} />
+                      <p className="text-sm" style={{ color: "var(--muted)" }}>Sin noticias disponibles</p>
+                    </div>
+                  ) : (
+                    <>
+                      {generalNews.slice(0, generalNewsShown).map((item) => (
+                        <button
+                          key={item.uuid}
+                          onClick={() => {
+                            if (isPremium) { setSummaryText(null); setNewsModal(item); }
+                            else window.open(item.url, "_blank", "noopener,noreferrer");
+                          }}
+                          className="w-full flex items-start gap-3 px-4 py-3 border-t hover:bg-white/3 transition-colors text-left"
+                          style={{ borderColor: "var(--border)" }}
+                        >
+                          {item.thumbnail ? (
+                            <img src={item.thumbnail} alt="" className="w-14 h-14 rounded-xl object-cover shrink-0" />
+                          ) : (
+                            <div className="w-14 h-14 rounded-xl flex items-center justify-center shrink-0" style={{ background: "var(--border)" }}>
+                              <Newspaper className="w-5 h-5" style={{ color: "var(--dim)" }} />
+                            </div>
+                          )}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="text-[10px] font-black px-1.5 py-0.5 rounded"
+                                    style={{ background: "rgba(0,168,94,0.12)", color: "var(--accent-l)" }}>
+                                {item.symbol}
+                              </span>
+                              <span className="text-[10px]" style={{ color: "var(--dim)" }}>
+                                {new Date(item.timestamp * 1000).toLocaleDateString("es", { day: "numeric", month: "short" })}
+                              </span>
+                              {isPremium && (
+                                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full ml-auto"
+                                      style={{ background: "rgba(168,85,247,0.12)", color: "#a855f7" }}>
+                                  ✦ IA
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-sm font-semibold leading-snug line-clamp-2" style={{ color: "var(--text)" }}>{item.title}</p>
+                            <p className="text-xs mt-1" style={{ color: "var(--muted)" }}>{item.publisher}</p>
+                          </div>
+                        </button>
+                      ))}
+                      {generalNewsShown < generalNews.length && (
+                        <button onClick={() => setGeneralNewsShown((n) => n + 10)}
+                                className="w-full py-3 border-t text-xs font-semibold transition-colors hover:bg-white/5"
+                                style={{ borderColor: "var(--border)", color: "var(--accent-l)" }}>
+                          Ver {Math.min(10, generalNews.length - generalNewsShown)} noticias más
+                        </button>
+                      )}
+                    </>
+                  )}
+                </>
               )}
 
-              {positions.length === 0 ? (
-                <div className="flex flex-col items-center gap-2 py-6 px-4 text-center">
-                  <span className="text-2xl">💼</span>
-                  <p className="text-sm" style={{ color: "var(--muted)" }}>Importa posiciones en Portafolio para ver sus noticias aquí</p>
-                </div>
-              ) : newsLoading ? (
-                <div className="flex flex-col items-center gap-2 py-6">
-                  <Loader2 className="w-5 h-5 animate-spin" style={{ color: "var(--accent-l)" }} />
-                  <p className="text-xs" style={{ color: "var(--dim)" }}>
-                    Buscando noticias de {positions.map((p) => p.ticker).join(", ")}…
-                  </p>
-                </div>
-              ) : newsError ? (
-                <button onClick={loadPortfolioNews} className="w-full flex flex-col items-center gap-2 py-6 hover:opacity-70">
-                  <RefreshCw className="w-5 h-5" style={{ color: "var(--dim)" }} />
-                  <p className="text-xs" style={{ color: "var(--muted)" }}>Error al cargar. Toca para reintentar.</p>
-                </button>
-              ) : filteredNews.length === 0 ? (
-                <div className="flex flex-col items-center gap-2 py-6 text-center px-4">
-                  <Newspaper className="w-6 h-6" style={{ color: "var(--dim)" }} />
-                  <p className="text-sm" style={{ color: "var(--muted)" }}>
-                    {newsFilter ? `Sin noticias de ${newsFilter} en los últimos 7 días` : "Sin noticias en los últimos 7 días"}
-                  </p>
-                </div>
-              ) : (
+              {/* ── Tab: Tu Portafolio ── */}
+              {newsTab === "portfolio" && (
                 <>
-                  {visibleNews.map((item) => (
-                    <button
-                      key={item.uuid}
-                      onClick={() => {
-                        if (isPremium) { setSummaryText(null); setNewsModal(item); }
-                        else window.open(item.url, "_blank", "noopener,noreferrer");
-                      }}
-                      className="w-full flex items-start gap-3 px-4 py-3 border-t hover:bg-white/3 transition-colors text-left"
-                      style={{ borderColor: "var(--border)" }}
-                    >
-                      {item.thumbnail ? (
-                        <img src={item.thumbnail} alt="" className="w-14 h-14 rounded-xl object-cover shrink-0" />
-                      ) : (
-                        <div className="w-14 h-14 rounded-xl flex items-center justify-center shrink-0" style={{ background: "var(--border)" }}>
-                          <Newspaper className="w-5 h-5" style={{ color: "var(--dim)" }} />
-                        </div>
-                      )}
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="text-[10px] font-black px-1.5 py-0.5 rounded"
-                                style={{ background: "rgba(0,168,94,0.12)", color: "var(--accent-l)" }}>
-                            {item.symbol}
-                          </span>
-                          <span className="text-[10px]" style={{ color: "var(--dim)" }}>
-                            {new Date(item.timestamp * 1000).toLocaleDateString("es", { day: "numeric", month: "short" })}
-                          </span>
-                          {isPremium && (
-                            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full ml-auto"
-                                  style={{ background: "rgba(168,85,247,0.12)", color: "#a855f7" }}>
-                              ✦ IA
-                            </span>
+                  {/* Ticker filter chips */}
+                  {positions.length > 0 && !newsLoading && news.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 px-4 py-3 border-b" style={{ borderColor: "var(--border)" }}>
+                      <button onClick={() => { setNewsFilter(null); setNewsShown(10); }}
+                              className="text-[10px] font-bold px-2.5 py-1 rounded-full border transition-all"
+                              style={{
+                                background: newsFilter === null ? "var(--accent)" : "var(--raised)",
+                                borderColor: newsFilter === null ? "var(--accent)" : "var(--border)",
+                                color: newsFilter === null ? "#fff" : "var(--muted)",
+                              }}>
+                        Todas
+                      </button>
+                      {[...new Set(positions.map((p) => p.ticker))].map((ticker) => {
+                        const active = newsFilter === ticker;
+                        const count = news.filter((n) => n.symbol === ticker).length;
+                        if (count === 0) return null;
+                        return (
+                          <button key={ticker}
+                                  onClick={() => isPremium ? (setNewsFilter(ticker), setNewsShown(10)) : setPaywallOpen(true)}
+                                  className="text-[10px] font-bold px-2.5 py-1 rounded-full border transition-all flex items-center gap-1"
+                                  style={{
+                                    background: active ? "var(--accent)" : "var(--raised)",
+                                    borderColor: active ? "var(--accent)" : "var(--border)",
+                                    color: active ? "#fff" : "var(--muted)",
+                                    opacity: isPremium ? 1 : 0.7,
+                                  }}>
+                            {!isPremium && <span style={{ fontSize: 9 }}>🔒</span>}
+                            {ticker} <span style={{ opacity: 0.7 }}>·{count}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {positions.length === 0 ? (
+                    <div className="flex flex-col items-center gap-2 py-6 px-4 text-center">
+                      <span className="text-2xl">💼</span>
+                      <p className="text-sm" style={{ color: "var(--muted)" }}>Importa posiciones en Portafolio para ver sus noticias aquí</p>
+                    </div>
+                  ) : newsLoading ? (
+                    <div className="flex flex-col items-center gap-2 py-6">
+                      <Loader2 className="w-5 h-5 animate-spin" style={{ color: "var(--accent-l)" }} />
+                      <p className="text-xs" style={{ color: "var(--dim)" }}>
+                        Buscando noticias de {positions.map((p) => p.ticker).join(", ")}…
+                      </p>
+                    </div>
+                  ) : newsError ? (
+                    <button onClick={loadPortfolioNews} className="w-full flex flex-col items-center gap-2 py-6 hover:opacity-70">
+                      <RefreshCw className="w-5 h-5" style={{ color: "var(--dim)" }} />
+                      <p className="text-xs" style={{ color: "var(--muted)" }}>Error al cargar. Toca para reintentar.</p>
+                    </button>
+                  ) : filteredNews.length === 0 ? (
+                    <div className="flex flex-col items-center gap-2 py-6 text-center px-4">
+                      <Newspaper className="w-6 h-6" style={{ color: "var(--dim)" }} />
+                      <p className="text-sm" style={{ color: "var(--muted)" }}>
+                        {newsFilter ? `Sin noticias de ${newsFilter} en los últimos 7 días` : "Sin noticias en los últimos 7 días"}
+                      </p>
+                    </div>
+                  ) : (
+                    <>
+                      {visibleNews.map((item) => (
+                        <button
+                          key={item.uuid}
+                          onClick={() => {
+                            if (isPremium) { setSummaryText(null); setNewsModal(item); }
+                            else window.open(item.url, "_blank", "noopener,noreferrer");
+                          }}
+                          className="w-full flex items-start gap-3 px-4 py-3 border-t hover:bg-white/3 transition-colors text-left"
+                          style={{ borderColor: "var(--border)" }}
+                        >
+                          {item.thumbnail ? (
+                            <img src={item.thumbnail} alt="" className="w-14 h-14 rounded-xl object-cover shrink-0" />
+                          ) : (
+                            <div className="w-14 h-14 rounded-xl flex items-center justify-center shrink-0" style={{ background: "var(--border)" }}>
+                              <Newspaper className="w-5 h-5" style={{ color: "var(--dim)" }} />
+                            </div>
                           )}
-                        </div>
-                        <p className="text-sm font-semibold leading-snug line-clamp-2" style={{ color: "var(--text)" }}>{item.title}</p>
-                        <p className="text-xs mt-1" style={{ color: "var(--muted)" }}>{item.publisher}</p>
-                      </div>
-                    </button>
-                  ))}
-                  {visibleNews.length < filteredNews.length && (
-                    <button onClick={() => setNewsShown((n) => n + 10)}
-                            className="w-full py-3 border-t text-xs font-semibold transition-colors hover:bg-white/5"
-                            style={{ borderColor: "var(--border)", color: "var(--accent-l)" }}>
-                      Ver {Math.min(10, filteredNews.length - visibleNews.length)} noticias más
-                    </button>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="text-[10px] font-black px-1.5 py-0.5 rounded"
+                                    style={{ background: "rgba(0,168,94,0.12)", color: "var(--accent-l)" }}>
+                                {item.symbol}
+                              </span>
+                              <span className="text-[10px]" style={{ color: "var(--dim)" }}>
+                                {new Date(item.timestamp * 1000).toLocaleDateString("es", { day: "numeric", month: "short" })}
+                              </span>
+                              {isPremium && (
+                                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full ml-auto"
+                                      style={{ background: "rgba(168,85,247,0.12)", color: "#a855f7" }}>
+                                  ✦ IA
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-sm font-semibold leading-snug line-clamp-2" style={{ color: "var(--text)" }}>{item.title}</p>
+                            <p className="text-xs mt-1" style={{ color: "var(--muted)" }}>{item.publisher}</p>
+                          </div>
+                        </button>
+                      ))}
+                      {visibleNews.length < filteredNews.length && (
+                        <button onClick={() => setNewsShown((n) => n + 10)}
+                                className="w-full py-3 border-t text-xs font-semibold transition-colors hover:bg-white/5"
+                                style={{ borderColor: "var(--border)", color: "var(--accent-l)" }}>
+                          Ver {Math.min(10, filteredNews.length - visibleNews.length)} noticias más
+                        </button>
+                      )}
+                    </>
                   )}
                 </>
               )}
