@@ -131,7 +131,14 @@ def build_weekly_summary_html(name: str, summary: str, risk: str) -> str:
 </html>"""
 
 
-async def generate_and_send_weekly_summary(user_id: str, email: str, name: str, risk: str, chat_snippets: list[str]) -> bool:
+async def generate_and_send_weekly_summary(
+    user_id: str,
+    email: str,
+    name: str,
+    risk: str,
+    chat_snippets: list[str],
+    portfolio_data: dict | None = None,
+) -> bool:
     from app.services import ai_service
     import logging
     logger = logging.getLogger(__name__)
@@ -139,20 +146,34 @@ async def generate_and_send_weekly_summary(user_id: str, email: str, name: str, 
     is_premium = bool(chat_snippets)
     context = "\n".join(f"- {s}" for s in chat_snippets[:10]) if chat_snippets else ""
 
+    # Build portfolio context for the AI prompt
+    port_context = ""
+    if portfolio_data and portfolio_data.get("positions"):
+        positions = portfolio_data["positions"]
+        week_pct  = portfolio_data.get("week_pct")
+        week_usd  = portfolio_data.get("week_dollars")
+        total_val = portfolio_data.get("total_value")
+        lines = [f"  - {p['ticker']}: {p['shares']} acciones, {p['week_pct']:+.2f}% esta semana (${p['week_dollars']:+.0f})" for p in positions]
+        port_context = (
+            f"\nPortafolio real del usuario esta semana:\n"
+            + "\n".join(lines)
+            + (f"\n  Portafolio total: ${total_val:,.0f} | Cambio semanal: {week_pct:+.2f}% (${week_usd:+.0f})" if total_val else "")
+        )
+
     if is_premium:
         intro = f"""Eres Nuvos, mentor y educador de inversiones de {name}, con perfil {risk}.
 Esta semana tuvieron las siguientes conversaciones de inversión:
-{context}
+{context}{port_context}
 
 Escribe un resumen semanal PERSONALIZADO de máximo 220 palabras que incluya:"""
     else:
-        intro = f"""Eres Nuvos, mentor y educador de inversiones para {name}, inversor con perfil {risk}.
+        intro = f"""Eres Nuvos, mentor y educador de inversiones para {name}, inversor con perfil {risk}.{port_context}
 
-Escribe un resumen semanal GENERAL de los mercados de máximo 150 palabras que incluya:"""
+Escribe un resumen semanal de máximo 180 palabras que incluya:"""
 
     prompt = f"""{intro}
-1. Qué pasó en los mercados esta semana (menciona S&P 500, tasas o eventos relevantes de la semana actual)
-2. Cómo aplica eso al perfil {risk} de {name}
+1. Qué pasó en los mercados esta semana (menciona S&P 500 y eventos relevantes)
+2. {"Cómo afectó eso a su portafolio real (menciona sus posiciones específicas y el rendimiento)" if port_context else f"Cómo aplica eso al perfil {risk} de {name}"}
 3. Una reflexión o acción concreta para la próxima semana
 4. Una frase motivacional corta al final
 
@@ -165,7 +186,25 @@ Tono: cálido, profesional, directo. Como un mentor que se preocupa por el progr
         ):
             summary += chunk
 
-        html = build_weekly_summary_html(name, summary, risk)
+        if portfolio_data:
+            html = build_enhanced_weekly_html(
+                name=name,
+                is_premium=is_premium,
+                user_perf=portfolio_data.get("week_pct"),
+                sp500_perf=portfolio_data.get("sp500_pct"),
+                nasdaq_perf=portfolio_data.get("nasdaq_pct"),
+                top_ticker=portfolio_data.get("top_ticker"),
+                top_perf=portfolio_data.get("top_pct"),
+                sector=portfolio_data.get("best_sector"),
+                ai_summary=summary,
+                risk=risk,
+                positions=portfolio_data.get("positions"),
+                portfolio_total=portfolio_data.get("total_value"),
+                portfolio_week_dollars=portfolio_data.get("week_dollars"),
+            )
+        else:
+            html = build_weekly_summary_html(name, summary, risk)
+
         ok = await send_email(email, f"Tu resumen semanal de inversión, {name} 📈", html)
         if not ok:
             logger.error("send_email returned False for %s (%s)", email, user_id)
@@ -512,6 +551,56 @@ def _build_market_wrap_table(
     )
 
 
+def _build_positions_table(positions: list[dict], total_value: float | None, week_dollars: float | None) -> str:
+    if not positions:
+        return ""
+    rows = ""
+    for p in positions[:8]:
+        pct   = p.get("week_pct", 0) or 0
+        usd   = p.get("week_dollars", 0) or 0
+        val   = p.get("total_value", 0) or 0
+        color = "#22c55e" if pct >= 0 else "#ef4444"
+        sign  = "+" if pct >= 0 else ""
+        rows += (
+            f'<tr style="border-top:1px solid #2a2d3a">'
+            f'<td style="padding:10px 16px;color:#d1d5db;font-size:13px;font-weight:700">{p["ticker"]}</td>'
+            f'<td style="padding:10px 16px;color:#6b7280;font-size:12px;text-align:right">{p.get("shares","")}</td>'
+            f'<td style="padding:10px 16px;text-align:right;font-weight:700;font-size:13px;color:{color}">{sign}{pct:.2f}%</td>'
+            f'<td style="padding:10px 16px;text-align:right;font-size:12px;color:{color}">{sign}${abs(usd):,.0f}</td>'
+            f'<td style="padding:10px 16px;text-align:right;color:#9ca3af;font-size:12px">${val:,.0f}</td>'
+            f'</tr>'
+        )
+    footer = ""
+    if total_value is not None:
+        usd_color = "#22c55e" if (week_dollars or 0) >= 0 else "#ef4444"
+        usd_sign  = "+" if (week_dollars or 0) >= 0 else ""
+        footer = (
+            f'<tr style="border-top:2px solid #2a2d3a;background:#111318">'
+            f'<td colspan="2" style="padding:12px 16px;color:#fff;font-size:13px;font-weight:900">TOTAL</td>'
+            f'<td colspan="2" style="padding:12px 16px;text-align:right;color:{usd_color};font-size:13px;font-weight:900">'
+            f'{usd_sign}${abs(week_dollars or 0):,.0f} esta semana</td>'
+            f'<td style="padding:12px 16px;text-align:right;color:#fff;font-size:13px;font-weight:900">${total_value:,.0f}</td>'
+            f'</tr>'
+        )
+    return (
+        '<div style="border:1px solid #2a2d3a;border-radius:14px;overflow:hidden;margin-bottom:20px">'
+        '<div style="background:#111318;padding:10px 18px;border-bottom:1px solid #2a2d3a">'
+        '<p style="color:#22c55e;font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;margin:0">💼 TU PORTAFOLIO ESTA SEMANA</p>'
+        '</div>'
+        '<table style="width:100%;border-collapse:collapse;background:#1a1d27">'
+        '<tr style="background:#111318">'
+        '<th style="padding:8px 16px;text-align:left;color:#6b7280;font-size:10px;font-weight:700;letter-spacing:1px">ACTIVO</th>'
+        '<th style="padding:8px 16px;text-align:right;color:#6b7280;font-size:10px;font-weight:700;letter-spacing:1px">ACCIONES</th>'
+        '<th style="padding:8px 16px;text-align:right;color:#6b7280;font-size:10px;font-weight:700;letter-spacing:1px">SEMANA %</th>'
+        '<th style="padding:8px 16px;text-align:right;color:#6b7280;font-size:10px;font-weight:700;letter-spacing:1px">SEMANA $</th>'
+        '<th style="padding:8px 16px;text-align:right;color:#6b7280;font-size:10px;font-weight:700;letter-spacing:1px">VALOR</th>'
+        '</tr>'
+        f'{rows}{footer}'
+        '</table>'
+        '</div>'
+    )
+
+
 def build_enhanced_weekly_html(
     name: str,
     is_premium: bool,
@@ -523,6 +612,9 @@ def build_enhanced_weekly_html(
     sector: str | None,
     ai_summary: str,
     risk: str = "moderate",
+    positions: list[dict] | None = None,
+    portfolio_total: float | None = None,
+    portfolio_week_dollars: float | None = None,
 ) -> str:
     first  = name.split()[0] if name else "Inversor"
     header = _nuvos_email_header("Resumen Semanal de Inversión")
@@ -559,7 +651,10 @@ def build_enhanced_weekly_html(
         <p style="color:#00a85e;font-size:12px;margin:0;font-weight:600">🔒 Activa <strong>Premium</strong> para ver el rendimiento real de tu portafolio</p>
       </div>"""
 
-    # ── 3. AI analysis (behavioral context) ───────────────────────────────────
+    # ── 3. Portfolio positions table ───────────────────────────────────────────
+    positions_table = _build_positions_table(positions or [], portfolio_total, portfolio_week_dollars) if (is_premium and positions) else ""
+
+    # ── 4. AI analysis (behavioral context) ───────────────────────────────────
     rendered    = _render_md(ai_summary)
     sector_note = f'<p style="color:#9ca3af;font-size:12px;margin:16px 0 0">📍 Sector destacado esta semana: <strong style="color:#d1d5db">{sector}</strong></p>' if sector else ""
 
@@ -602,6 +697,7 @@ def build_enhanced_weekly_html(
 
       {market_wrap}
       {perf_hero}
+      {positions_table}
 
       <div style="background:#111318;border:1px solid #2a2d3a;border-radius:14px;padding:24px;margin-bottom:20px">
         <p style="color:#00a85e;font-size:11px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;margin:0 0 16px">ANÁLISIS DE LA SEMANA</p>

@@ -4,6 +4,163 @@ Complements the existing email_service.py templates.
 """
 
 
+def personalized_daily_email(name: str, market_data: dict, news: list, portfolio_day: dict | None = None) -> str:
+    """Daily close email personalized per user — includes their portfolio day performance."""
+    from app.services.email_service import _nuvos_email_header
+    indices = market_data.get("indices", {})
+    first   = name.split()[0] if name else "Inversor"
+    header  = _nuvos_email_header("Cierre del mercado")
+
+    def _idx_row(label: str) -> str:
+        d     = indices.get(label, {})
+        pct   = d.get("change_pct")
+        price = d.get("price")
+        if pct is None:
+            return ""
+        color = "#22c55e" if pct >= 0 else "#ef4444"
+        sign  = "+" if pct >= 0 else ""
+        return (
+            f'<tr style="border-bottom:1px solid #2a2d3a">'
+            f'<td style="padding:10px 16px;color:#d1d5db;font-size:14px">{label}</td>'
+            f'<td style="padding:10px 16px;color:#9ca3af;font-size:13px;text-align:right">${price:,.2f}</td>'
+            f'<td style="padding:10px 16px;font-weight:700;font-size:14px;text-align:right;color:{color}">'
+            f'{sign}{pct:.2f}%</td></tr>'
+        ) if price else ""
+
+    idx_rows = _idx_row("S&P 500") + _idx_row("NASDAQ") + _idx_row("DOW")
+
+    best      = market_data.get("best_sector", "—")
+    worst     = market_data.get("worst_sector", "—")
+    sectors   = market_data.get("sectors", {})
+    best_pct  = sectors.get(best,  0) if best  != "—" else 0
+    worst_pct = sectors.get(worst, 0) if worst != "—" else 0
+
+    # ── Portfolio hero section ─────────────────────────────────────────────────
+    portfolio_section = ""
+    if portfolio_day and portfolio_day.get("positions"):
+        day_pct  = portfolio_day.get("day_pct",     0) or 0
+        day_usd  = portfolio_day.get("day_dollars",  0) or 0
+        total    = portfolio_day.get("total_value",  0) or 0
+        top_t    = portfolio_day.get("top_ticker")
+        top_p    = portfolio_day.get("top_pct")
+        hero_color = "#22c55e" if day_pct >= 0 else "#ef4444"
+        hero_sign  = "+" if day_pct >= 0 else ""
+        usd_sign   = "+" if day_usd >= 0 else ""
+        top_note   = (
+            f'<p style="color:#9ca3af;font-size:12px;margin:6px 0 0">🏆 Mejor posición: '
+            f'<strong style="color:#d1d5db">{top_t}</strong> '
+            f'<span style="color:#22c55e">{("+" if top_p >= 0 else "")}{top_p:.2f}%</span></p>'
+        ) if top_t and top_p is not None else ""
+
+        pos_rows = ""
+        for p in sorted(portfolio_day["positions"], key=lambda x: x.get("day_pct", 0), reverse=True)[:6]:
+            pct   = p.get("day_pct", 0) or 0
+            usd   = p.get("day_dollars", 0) or 0
+            val   = p.get("total_value", 0) or 0
+            color = "#22c55e" if pct >= 0 else "#ef4444"
+            sign  = "+" if pct >= 0 else ""
+            pos_rows += (
+                f'<tr style="border-top:1px solid #2a2d3a">'
+                f'<td style="padding:9px 14px;color:#d1d5db;font-size:13px;font-weight:700">{p["ticker"]}</td>'
+                f'<td style="padding:9px 14px;text-align:right;color:{color};font-weight:700;font-size:13px">{sign}{pct:.2f}%</td>'
+                f'<td style="padding:9px 14px;text-align:right;color:{color};font-size:12px">{sign}${abs(usd):.2f}</td>'
+                f'<td style="padding:9px 14px;text-align:right;color:#6b7280;font-size:12px">${val:,.2f}</td>'
+                f'</tr>'
+            )
+
+        portfolio_section = f"""
+  <div style="background:#1a1d27;border:1px solid #2a2d3a;border-radius:16px;overflow:hidden;margin-bottom:20px">
+    <div style="padding:14px 16px;border-bottom:1px solid #2a2d3a;background:#111318">
+      <p style="color:#22c55e;font-size:11px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;margin:0">💼 Tu portafolio hoy</p>
+    </div>
+    <div style="padding:20px;text-align:center;border-bottom:1px solid #2a2d3a">
+      <div style="font-size:36px;font-weight:900;color:{hero_color}">{hero_sign}{day_pct:.2f}%</div>
+      <p style="color:{hero_color};font-size:14px;font-weight:700;margin:4px 0 0">{usd_sign}${abs(day_usd):.2f} hoy · Total ${total:,.2f}</p>
+      {top_note}
+    </div>
+    <table style="width:100%;border-collapse:collapse;background:#1a1d27">
+      <tr style="background:#111318">
+        <th style="padding:8px 14px;text-align:left;color:#6b7280;font-size:10px;font-weight:700;letter-spacing:1px">ACTIVO</th>
+        <th style="padding:8px 14px;text-align:right;color:#6b7280;font-size:10px;font-weight:700;letter-spacing:1px">HOY %</th>
+        <th style="padding:8px 14px;text-align:right;color:#6b7280;font-size:10px;font-weight:700;letter-spacing:1px">HOY $</th>
+        <th style="padding:8px 14px;text-align:right;color:#6b7280;font-size:10px;font-weight:700;letter-spacing:1px">VALOR</th>
+      </tr>
+      {pos_rows}
+    </table>
+  </div>"""
+
+    news_html = ""
+    for item in news[:3]:
+        news_html += (
+            f'<div style="padding:12px 0;border-bottom:1px solid #2a2d3a">'
+            f'<p style="color:#6b7280;font-size:11px;margin:0 0 4px;text-transform:uppercase;letter-spacing:1px">{item.get("publisher","")}</p>'
+            f'<p style="color:#d1d5db;font-size:13px;font-weight:600;margin:0;line-height:1.4">{item.get("title","")}</p>'
+            f'</div>'
+        )
+    news_section = (
+        f'<div style="background:#1a1d27;border:1px solid #2a2d3a;border-radius:16px;padding:20px;margin-bottom:20px">'
+        f'<p style="color:#22c55e;font-size:11px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;margin:0 0 12px">📰 Noticias del día</p>'
+        f'{news_html}</div>'
+    ) if news_html else ""
+
+    return f"""<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#0a0c12;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">
+<div style="max-width:600px;margin:0 auto;padding:32px 16px">
+  <div style="border-radius:20px;overflow:hidden;border:1px solid #2a2d3a">
+
+    {header}
+
+    <div style="background:#1a1d27;padding:28px">
+      <h1 style="color:#fff;font-size:20px;font-weight:900;margin:0 0 4px">Hola {first}, así cerraron los mercados hoy 📊</h1>
+      <p style="color:#9ca3af;font-size:13px;margin:0 0 24px">Actualización automática al cierre · Nuvos AI</p>
+
+      {portfolio_section}
+
+      <div style="background:#111318;border:1px solid #2a2d3a;border-radius:14px;overflow:hidden;margin-bottom:20px">
+        <div style="padding:10px 16px;border-bottom:1px solid #2a2d3a">
+          <p style="color:#6b7280;font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;margin:0">Índices principales</p>
+        </div>
+        <table style="width:100%;border-collapse:collapse">
+          <thead><tr style="background:#0f1117">
+            <th style="padding:8px 16px;color:#6b7280;font-size:10px;text-align:left;text-transform:uppercase">Índice</th>
+            <th style="padding:8px 16px;color:#6b7280;font-size:10px;text-align:right;text-transform:uppercase">Precio</th>
+            <th style="padding:8px 16px;color:#6b7280;font-size:10px;text-align:right;text-transform:uppercase">Cambio</th>
+          </tr></thead>
+          <tbody>{idx_rows}</tbody>
+        </table>
+      </div>
+
+      <div style="display:flex;gap:12px;margin-bottom:20px">
+        <div style="flex:1;background:#111318;border:1px solid rgba(34,197,94,0.2);border-radius:12px;padding:16px">
+          <p style="color:#22c55e;font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;margin:0 0 4px">Mejor sector</p>
+          <p style="color:#fff;font-size:16px;font-weight:800;margin:0">{best}</p>
+          <p style="color:#22c55e;font-size:13px;font-weight:700;margin:4px 0 0">+{best_pct:.1f}%</p>
+        </div>
+        <div style="flex:1;background:#111318;border:1px solid rgba(239,68,68,0.2);border-radius:12px;padding:16px">
+          <p style="color:#ef4444;font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;margin:0 0 4px">Peor sector</p>
+          <p style="color:#fff;font-size:16px;font-weight:800;margin:0">{worst}</p>
+          <p style="color:#ef4444;font-size:13px;font-weight:700;margin:4px 0 0">{worst_pct:.1f}%</p>
+        </div>
+      </div>
+
+      {news_section}
+
+      <div style="text-align:center;margin-bottom:8px">
+        <a href="https://nuvosai.com/portfolio" style="display:inline-block;background:#22c55e;color:#000;font-weight:800;font-size:14px;padding:12px 28px;border-radius:12px;text-decoration:none">Ver mi portafolio →</a>
+      </div>
+
+      <div style="border-top:1px solid #2a2d3a;padding-top:16px;margin-top:20px;text-align:center">
+        <p style="color:#4b5563;font-size:11px;margin:0">Nuvos AI — Solo educativo. No constituye asesoramiento financiero.</p>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>"""
+
+
 def daily_summary_email(market_data: dict, news: list) -> str:
     indices = market_data.get("indices", {})
 
