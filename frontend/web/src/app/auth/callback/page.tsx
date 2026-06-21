@@ -24,7 +24,12 @@ export default function AuthCallback() {
       try {
         const p = await profileApi.get();
         setProfile(p.data);
-        window.location.href = "/home";
+        // risk_tolerance is required during onboarding — if set, user already completed it
+        if (p.data?.risk_tolerance) {
+          window.location.href = "/home";
+        } else {
+          window.location.href = "/onboarding";
+        }
       } catch {
         window.location.href = "/onboarding";
       }
