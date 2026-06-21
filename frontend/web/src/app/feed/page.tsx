@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import React from "react";
 import { Loader2, Search, X, Shuffle } from "lucide-react";
@@ -66,7 +66,7 @@ const TAGS = [
   "deuda", "diversificación", "largo plazo", "crisis", "análisis",
 ];
 
-export default function FeedPage() {
+function FeedPageInner() {
   const searchParams = useSearchParams();
   const [clips, setClips]           = useState<Clip[]>([]);
   const [loading, setLoading]       = useState(true);
@@ -361,5 +361,13 @@ export default function FeedPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function FeedPage() {
+  return (
+    <Suspense fallback={null}>
+      <FeedPageInner />
+    </Suspense>
   );
 }
