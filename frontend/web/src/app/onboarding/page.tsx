@@ -126,8 +126,8 @@ export default function OnboardingPage() {
     investment_horizon: "", investment_goal: "", q1: "", q4: "",
   });
 
-  useEffect(() => { if (!isAuthenticated) router.push("/"); }, [isAuthenticated]);
-  if (!isAuthenticated) return null;
+  useEffect(() => { if (!isAuthenticated && !localStorage.getItem("access_token")) router.push("/"); }, [isAuthenticated]);
+  if (!isAuthenticated && !localStorage.getItem("access_token")) return null;
 
   // ── Derived values ───────────────────────────────────────────────────────────
   const firstName  = form.name.trim().split(" ")[0];

@@ -107,7 +107,7 @@ export default function HomePage() {
   const dailyLesson = DAILY_LESSONS[new Date().getDay() % DAILY_LESSONS.length];
 
   useEffect(() => {
-    if (!isAuthenticated) { router.push("/"); return; }
+    if (!isAuthenticated && !localStorage.getItem("access_token")) { router.push("/"); return; }
   }, [isAuthenticated]);
 
   const loadData = useCallback(async () => {
