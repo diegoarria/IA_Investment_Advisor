@@ -37,7 +37,11 @@
         "expo-notifications",
         {
           "icon": "./assets/notification-icon.png",
-          "color": "#22c55e"
+          "color": "#22c55e",
+          "sounds": [
+            "./assets/sounds/market_open.wav",
+            "./assets/sounds/market_close.wav"
+          ]
         }
       ],
       "expo-asset",

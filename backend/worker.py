@@ -442,7 +442,7 @@ async def job_market_open():
                 body  = "¡El mercado ha abierto! Entra a ver cómo se está comportando el día de hoy."
                 title = "🔔 Mercado Abierto"
 
-            await send_push(uid, "market_open", title, body, {"screen": "portfolio"}, db)
+            await send_push(uid, "market_open", title, body, {"screen": "portfolio"}, db, sound="market_open.wav")
             sent += 1
         logger.info("Market open push: %d sent", sent)
     except Exception as e:
@@ -541,7 +541,7 @@ async def job_market_close():
                 title = "📊 Mercados cerraron"
                 body  = comparison
 
-            await send_push(uid, "market_close", title, body, {"screen": "portfolio"}, db)
+            await send_push(uid, "market_close", title, body, {"screen": "portfolio"}, db, sound="market_close.wav")
             sent += 1
         logger.info("Market close push: %d sent", sent)
     except Exception as e:

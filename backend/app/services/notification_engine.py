@@ -100,7 +100,7 @@ async def can_send_push(user_id: str, category: str, db) -> bool:
 
 # ─── Push dispatch ────────────────────────────────────────────────────────────
 
-async def send_push(user_id: str, category: str, title: str, body: str, data: dict, db):
+async def send_push(user_id: str, category: str, title: str, body: str, data: dict, db, sound: str = "default"):
     from app.core.database import run_query
     from app.services.push_service import send_push as _push
 
@@ -119,7 +119,7 @@ async def send_push(user_id: str, category: str, title: str, body: str, data: di
     dedup_key = f"{user_id}:{category}:{today}"
     status, error_text = "sent", None
     try:
-        await _push(token, title=title, body=body, data={**data, "category": category})
+        await _push(token, title=title, body=body, data={**data, "category": category}, sound=sound)
     except Exception as e:
         status, error_text = "failed", str(e)
         logger.warning("Push failed for %s: %s", user_id, e)

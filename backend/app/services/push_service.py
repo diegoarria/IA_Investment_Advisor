@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 EXPO_PUSH_URL = "https://exp.host/--/api/v2/push/send"
 
 
-async def send_push(tokens: str | Sequence[str], title: str, body: str, data: dict | None = None) -> None:
+async def send_push(tokens: str | Sequence[str], title: str, body: str, data: dict | None = None, sound: str = "default") -> None:
     """Fire-and-forget push to one or many Expo push tokens."""
     if isinstance(tokens, str):
         tokens = [tokens]
@@ -20,7 +20,7 @@ async def send_push(tokens: str | Sequence[str], title: str, body: str, data: di
         return
 
     messages = [
-        {"to": token, "title": title, "body": body, "data": data or {}, "sound": "default"}
+        {"to": token, "title": title, "body": body, "data": data or {}, "sound": sound}
         for token in tokens
     ]
     try:
