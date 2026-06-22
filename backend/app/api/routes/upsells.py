@@ -68,12 +68,9 @@ def _is_eligible(offer: str, tier: str, account_days: int, sub_days: int, trigge
             return trigger_source in ("deep_chats", "stress_test_done", "month_1_premium")
 
     if offer == "annual_report":
-        if tier == "free":
-            # Month 3 of account OR when hitting chat limit (conversion argument)
-            return account_days >= 90 or trigger_source == "msg_limit_hit"
-        else:
-            # Month 11 of subscription (330+ days)
-            return sub_days >= 330 or trigger_source == "annual_renewal"
+        # Available at month 11 of account age (330+ days) OR every December
+        is_december = datetime.now(timezone.utc).month == 12
+        return account_days >= 330 or is_december or trigger_source == "annual_renewal"
 
     if offer == "family_plan":
         if tier != "premium":
