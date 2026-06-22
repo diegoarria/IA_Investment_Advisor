@@ -1,3 +1,4 @@
+import logging
 import stripe
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, Request, HTTPException
@@ -6,6 +7,8 @@ from typing import Literal
 from app.api.deps import get_current_user_id
 from app.core.config import settings
 from app.core.database import get_supabase, run_query
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/billing", tags=["billing"])
 
@@ -82,6 +85,12 @@ async def stripe_webhook(request: Request):
         session = event["data"]["object"]
         user_id = session.get("client_reference_id")
         customer_id = session.get("customer")
+        metadata = session.get("metadata") or {}
+
+        # Annual report one-time purchase: log for on-demand generation
+        if metadata.get("offer") == "annual_report" and user_id:
+            logger.info("annual_report purchased by %s", user_id)
+
         if user_id and session.get("mode") == "subscription":
             from datetime import datetime, timezone
             await run_query(
