@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
+import Image from "next/image";
 import {
   BrainCircuit, Wallet, Bell, User, GraduationCap,
   MessageSquare, ChevronLeft, ChevronRight, Plus, X, HeadphonesIcon, GripVertical, ArrowRight, Lock, LogOut, Home,
@@ -190,11 +191,25 @@ export default function AppSidebar({ open, onClose }: Props) {
 
       <aside className={`${open ? "flex" : "hidden"} ${desktopCollapsed ? "lg:hidden" : "lg:flex"} w-64 flex-col absolute lg:relative z-20 h-full sidebar-gradient`} style={{ zoom: 1.15 }}>
 
-        {/* Desktop collapse button — top right of sidebar */}
-        <div className="hidden lg:flex justify-end px-2 pt-1.5 shrink-0">
+        {/* Brand header: logo + name + collapse button */}
+        <div className="flex items-center gap-2.5 px-3 pb-2.5 pt-1 shrink-0"
+             style={{ borderBottom: "1px solid var(--border)", marginBottom: "6px" }}>
+          <Image src="/logo.png" alt="Nuvos AI" width={32} height={32}
+                 className="rounded-xl object-cover shrink-0"
+                 style={{ boxShadow: "0 0 8px rgba(0,212,126,0.2)" }} />
+          <div className="flex-1 min-w-0">
+            <span className="text-[13px] font-black leading-none" style={{ color: "var(--text)", fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+              Nuvos AI
+            </span>
+            <div className="flex items-center gap-1 mt-0.5">
+              <div className="w-1.5 h-1.5 rounded-full bg-green-400"
+                   style={{ animation: "pulse 2s ease-in-out infinite" }} />
+              <span className="text-[9px] font-bold uppercase tracking-wider" style={{ color: "#4ade80" }}>Beta</span>
+            </div>
+          </div>
           <button
             onClick={toggleDesktop}
-            className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-white/5 transition-colors"
+            className="hidden lg:flex w-7 h-7 items-center justify-center rounded-lg hover:bg-white/5 transition-colors shrink-0"
             style={{ color: "var(--dim)" }}
             title="Cerrar sidebar"
           >

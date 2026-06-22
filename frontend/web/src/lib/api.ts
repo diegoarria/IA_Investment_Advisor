@@ -58,8 +58,14 @@ api.interceptors.response.use(
       return api(original);
     } catch (refreshErr) {
       flushQueue(refreshErr);
-      localStorage.removeItem("access_token");
-      localStorage.removeItem("refresh_token");
+      // Only clear tokens when the server explicitly rejects them (expired/invalid).
+      // For network errors or server outages, preserve tokens so the user stays logged
+      // in and can retry when connectivity is restored.
+      const refreshStatus = (refreshErr as { response?: { status?: number } })?.response?.status;
+      if (refreshStatus === 401 || refreshStatus === 403) {
+        localStorage.removeItem("access_token");
+        localStorage.removeItem("refresh_token");
+      }
       return Promise.reject(refreshErr);
     } finally {
       isRefreshing = false;

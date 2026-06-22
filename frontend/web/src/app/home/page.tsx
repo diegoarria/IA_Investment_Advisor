@@ -109,7 +109,7 @@ export default function HomePage() {
   const dailyLesson = DAILY_LESSONS[new Date().getDay() % DAILY_LESSONS.length];
 
   useEffect(() => {
-    if (!authRestoring && !isAuthenticated && !localStorage.getItem("access_token")) { router.push("/"); return; }
+    if (!authRestoring && !isAuthenticated && !localStorage.getItem("access_token") && !localStorage.getItem("refresh_token")) { router.push("/"); return; }
   }, [isAuthenticated, authRestoring]);
 
   const loadData = useCallback(async () => {

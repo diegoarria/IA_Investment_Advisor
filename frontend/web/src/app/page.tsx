@@ -71,9 +71,8 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    const hasAccess  = !!localStorage.getItem("access_token");
-    const hasRefresh = !!localStorage.getItem("refresh_token");
-    if (!hasAccess && !hasRefresh) { setChecking(false); return; }
+    const hadTokens = !!localStorage.getItem("access_token") || !!localStorage.getItem("refresh_token");
+    if (!hadTokens) { setChecking(false); return; }
 
     const fallback = setTimeout(() => router.push("/home"), 4000);
     profileApi.get()
@@ -89,8 +88,15 @@ export default function Home() {
         clearTimeout(fallback);
         const status = (err as { response?: { status?: number } })?.response?.status;
         if (status === 401 || status === 403) {
-          // Interceptor already attempted refresh and cleared tokens — just show login
-          setChecking(false);
+          // Interceptor tried to refresh. If it cleared the tokens (session genuinely
+          // expired/revoked), show login. If tokens still exist (network error during
+          // refresh), redirect to home so the user can retry when connectivity returns.
+          const stillHasTokens = !!localStorage.getItem("access_token") || !!localStorage.getItem("refresh_token");
+          if (stillHasTokens) {
+            router.push("/home");
+          } else {
+            setChecking(false);
+          }
         } else {
           router.push("/home");
         }
