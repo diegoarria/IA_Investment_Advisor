@@ -3,12 +3,13 @@
 import { useState } from "react";
 import { X, Calendar, Users, Video, Star, ArrowRight, Check } from "lucide-react";
 import api from "@/lib/api";
+import { useSubscriptionStore } from "@/lib/store";
 
 export type UpsellOffer = "annual_report" | "family_plan" | "session";
 
 interface UpsellModalProps {
   offer: UpsellOffer | null;
-  userTier: "free" | "premium";
+  userTier?: "free" | "premium"; // kept for API compat but overridden by store
   prices: Record<string, number>;
   triggerSource?: string;
   onClose: () => void;
@@ -61,14 +62,14 @@ const OFFER_META = {
   },
 };
 
-export default function UpsellModal({ offer, userTier, prices, triggerSource, onClose }: UpsellModalProps) {
+export default function UpsellModal({ offer, prices, triggerSource, onClose }: UpsellModalProps) {
+  const { tier } = useSubscriptionStore();
   const [loading, setLoading] = useState(false);
   const [variant, setVariant] = useState<"default" | "bundle">("default");
 
   if (!offer) return null;
   const meta = OFFER_META[offer];
-  const Icon = meta.icon;
-  const isPremium = userTier === "premium";
+  const isPremium = tier === "premium";
 
   const displayPrice = offer === "family_plan"
     ? `$${prices.monthly ?? 19.99}/mes`
@@ -85,7 +86,7 @@ export default function UpsellModal({ offer, userTier, prices, triggerSource, on
     try {
       const res = await api.post("/api/upsells/checkout", {
         offer,
-        variant: variant === "bundle" ? "bundle" : userTier,
+        variant: variant === "bundle" ? "bundle" : tier,
         trigger_source: triggerSource,
       });
       window.location.href = res.data.url;
@@ -98,7 +99,7 @@ export default function UpsellModal({ offer, userTier, prices, triggerSource, on
     try {
       await api.post("/api/upsells/dismiss", {
         offer_type: offer,
-        user_tier: userTier,
+        user_tier: tier,
         trigger_source: triggerSource,
       });
     } catch {}
