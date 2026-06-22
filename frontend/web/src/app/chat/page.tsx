@@ -16,6 +16,7 @@ import { usePortfolioStore } from "@/lib/portfolioStore";
 import AppSidebar from "@/components/AppSidebar";
 import MarketTickerBar from "@/components/MarketTickerBar";
 import PaywallModal from "@/components/PaywallModal";
+import { useUpsellStore } from "@/lib/upsellStore";
 import TutorialModal from "@/components/TutorialModal";
 import GuidedSteps from "@/components/GuidedSteps";
 import PremiumBadge from "@/components/PremiumBadge";
@@ -173,6 +174,7 @@ export default function ChatPage() {
   const { theme, toggleTheme } = useThemeStore();
   const subStore = useSubscriptionStore();
   const { positions, loadFromServer: loadPortfolio } = usePortfolioStore();
+  const upsellTrigger = useUpsellStore((s) => s.trigger);
   const mentor = getMentorInfo(profile?.mentor);
   const cancelRef = useRef({ cancelled: false });
 
@@ -635,7 +637,7 @@ export default function ChatPage() {
       setStreaming(false);
       removeLastMessage();
       const status = (err as { response?: { status?: number } })?.response?.status;
-      if (status === 429) { await subStore.fetchStatus(); setPaywallOpen(true); }
+      if (status === 429) { await subStore.fetchStatus(); upsellTrigger("msg_limit_hit"); setPaywallOpen(true); }
       else { setSendError("No se pudo conectar con el asistente. Verifica tu conexión e intenta de nuevo."); }
     }
   };

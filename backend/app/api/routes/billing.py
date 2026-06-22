@@ -82,11 +82,13 @@ async def stripe_webhook(request: Request):
         session = event["data"]["object"]
         user_id = session.get("client_reference_id")
         customer_id = session.get("customer")
-        if user_id:
+        if user_id and session.get("mode") == "subscription":
+            from datetime import datetime, timezone
             await run_query(
                 db.table("user_profiles").update({
                     "subscription_tier": "premium",
                     "stripe_customer_id": customer_id,
+                    "subscription_started_at": datetime.now(timezone.utc).isoformat(),
                 }).eq("user_id", user_id)
             )
 

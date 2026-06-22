@@ -20,6 +20,8 @@ import { useChatStore, Message, BehavioralDiagnosis } from "../../src/lib/chatSt
 import { usePortfolioStore } from "../../src/lib/portfolioStore";
 import { useSubscriptionStore, msgsRemaining, resetMinutes, FREE_MSG_LIMIT, hasPremiumAccess } from "../../src/lib/subscriptionStore";
 import PaywallModal from "../../src/components/PaywallModal";
+import UpsellModal from "../../src/components/UpsellModal";
+import { useUpsellStore } from "../../src/lib/upsellStore";
 import StockChart from "../../src/components/StockChart";
 import FirstActionModal from "../../src/components/FirstActionModal";
 import TutorialModal from "../../src/components/TutorialModal";
@@ -172,6 +174,7 @@ export default function ChatScreen() {
   const positions = usePortfolioStore((s) => s.positions);
 
   const subStore = useSubscriptionStore();
+  const { activeOffer, userTier: upsellTier, prices: upsellPrices, triggerSource: upsellSource, trigger: upsellTrigger, dismiss: upsellDismiss } = useUpsellStore();
   const subTier = subStore.tier;
   const fetchSubStatus = subStore.fetchStatus;
   const incrementMsgCount = subStore.incrementMsgCount;
@@ -616,6 +619,7 @@ Instrucciones críticas:
         const detail = errObj.response.data?.detail;
         const serverMsg = (typeof detail === "object" ? detail?.message : String(detail)) ?? "Límite alcanzado";
         setMessages([...withAssistant.slice(0, -1)]);
+        upsellTrigger("msg_limit_hit");
         openPaywall(serverMsg);
       } else {
         const errMsg = errObj?.message ?? String(err);
@@ -1098,6 +1102,16 @@ Instrucciones críticas:
       onClose={() => setPaywallVisible(false)}
       reason={paywallReason}
     />
+    {activeOffer && (
+      <UpsellModal
+        visible={!!activeOffer}
+        offer={activeOffer}
+        userTier={upsellTier}
+        prices={upsellPrices}
+        triggerSource={upsellSource ?? undefined}
+        onClose={upsellDismiss}
+      />
+    )}
     <FirstActionModal />
     <TutorialModal
       visible={tutorialVisible}

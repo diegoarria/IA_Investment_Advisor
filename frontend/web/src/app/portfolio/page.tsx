@@ -24,6 +24,7 @@ import PremiumBadge from "@/components/PremiumBadge";
 import FirstStepsFlow from "@/components/FirstStepsFlow";
 import MarketTickerBar from "@/components/MarketTickerBar";
 import BrokerConnectModal from "@/components/BrokerConnectModal";
+import { useUpsellStore } from "@/lib/upsellStore";
 import {
   PieChart, Menu, X, Upload, Plus, Trash2,
   BarChart, Calculator, Shield, Sparkles, RefreshCw, AlertTriangle, FileText, Pencil, Eye,
@@ -599,6 +600,7 @@ export default function PortfolioPage() {
   const userLevel = getUserLevel(profile);
   const sub = useSubscriptionStore();
   const isPremium = sub.tier === "premium";
+  const upsellTrigger = useUpsellStore((s) => s.trigger);
   const [paywallOpen, setPaywallOpen] = useState(false);
   const {
     positions, addPosition, removePosition, updatePosition, setPositions,
@@ -1048,6 +1050,7 @@ export default function PortfolioPage() {
     const total = rows.reduce((a,r) => a+r.invested, 0);
     const stressedTotal = rows.reduce((a,r) => a+r.stressed, 0);
     setStressResult({ total, stressed:stressedTotal, diff:stressedTotal-total, pct:total>0?((stressedTotal-total)/total)*100:0, rows });
+    upsellTrigger("stress_test_done");
   };
 
   // ── Portfolio Analyzer ───────────────────────────────────────────────────

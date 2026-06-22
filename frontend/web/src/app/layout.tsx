@@ -3,6 +3,7 @@ import { DM_Sans, Inter } from "next/font/google";
 import "./globals.css";
 import ThemeProvider from "@/components/ThemeProvider";
 import NuvosGuide from "@/components/NuvosGuide";
+import UpsellProvider from "@/components/UpsellProvider";
 
 const dmSans = DM_Sans({
   subsets: ["latin"],
@@ -32,6 +33,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <ThemeProvider>
           {children}
           <NuvosGuide />
+          <UpsellProvider />
         </ThemeProvider>
       </body>
     </html>
