@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { CheckCircle, Calendar, ExternalLink, ArrowRight } from "lucide-react";
 
@@ -33,7 +33,7 @@ const OFFER_META = {
 
 type Offer = keyof typeof OFFER_META;
 
-export default function UpsellSuccessPage() {
+function UpsellSuccessContent() {
   const router = useRouter();
   const params = useSearchParams();
   const offer = (params.get("offer") ?? "session") as Offer;
@@ -235,5 +235,13 @@ export default function UpsellSuccessPage() {
 
       </div>
     </main>
+  );
+}
+
+export default function UpsellSuccessPage() {
+  return (
+    <Suspense>
+      <UpsellSuccessContent />
+    </Suspense>
   );
 }
