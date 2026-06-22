@@ -72,10 +72,6 @@ export default function UpsellModal({ visible, offer, userTier, prices, triggerS
   const meta = OFFER_META[offer];
   const isPremium = userTier === "premium";
 
-  const premiumSaving =
-    offer === "annual_report" ? (prices.free ?? 34.99) - (prices.premium ?? 19.99) :
-    offer === "session"       ? (prices.free ?? 149)  - (prices.premium ?? 99)    : 0;
-
   const displayPrice =
     offer === "family_plan"  ? `$${prices.monthly ?? 19.99}/mes` :
     variant === "bundle"     ? `$${prices.bundle ?? 247}` :
@@ -181,14 +177,6 @@ export default function UpsellModal({ visible, offer, userTier, prices, triggerS
 
             {/* Price callout */}
             <View style={[s.callout, { backgroundColor: meta.color + "0d", borderColor: meta.color + "25" }]}>
-              {!isPremium && premiumSaving > 0 && (
-                <Text style={[s.savingsText, { color: colors.textMuted }]}>
-                  Usuarios Premium pagan{" "}
-                  <Text style={{ color: meta.color, fontWeight: "700" }}>${prices.premium}</Text>.
-                  {" "}Cambia tu plan y ahorra{" "}
-                  <Text style={{ color: meta.color, fontWeight: "700" }}>${premiumSaving}</Text>.
-                </Text>
-              )}
               <Text style={[s.mainPrice, { color: colors.text }]}>{displayPrice}</Text>
               {isPremium && (
                 <View style={s.premiumBadge}>
@@ -200,7 +188,7 @@ export default function UpsellModal({ visible, offer, userTier, prices, triggerS
 
             {!isPremium && (
               <Text style={[s.nudge, { color: colors.textDim }]}>
-                ¿Aún no eres Premium? Por $12.99/mes accedes al precio reducido.
+                ¿Aún no eres Premium? Suscríbete y obtén precio especial.
               </Text>
             )}
           </ScrollView>

@@ -70,12 +70,6 @@ export default function UpsellModal({ offer, userTier, prices, triggerSource, on
   const Icon = meta.icon;
   const isPremium = userTier === "premium";
 
-  const premiumSaving = offer === "annual_report"
-    ? (prices.free ?? 34.99) - (prices.premium ?? 19.99)
-    : offer === "session"
-    ? (prices.free ?? 149) - (prices.premium ?? 99)
-    : 0;
-
   const displayPrice = offer === "family_plan"
     ? `$${prices.monthly ?? 19.99}/mes`
     : isPremium
@@ -208,16 +202,8 @@ export default function UpsellModal({ offer, userTier, prices, triggerSource, on
             </div>
           )}
 
-          {/* Price + savings callout */}
+          {/* Price callout */}
           <div className="rounded-xl p-3" style={{ background: `${meta.color}0d`, border: `1px solid ${meta.color}25` }}>
-            {!isPremium && premiumSaving > 0 && (
-              <p className="text-xs mb-1" style={{ color: "var(--muted)" }}>
-                Usuarios Premium pagan{" "}
-                <span style={{ color: meta.color, fontWeight: 700 }}>${prices.premium}</span>.
-                {" "}Cambia tu plan y ahorra{" "}
-                <span style={{ color: meta.color, fontWeight: 700 }}>${premiumSaving}</span>.
-              </p>
-            )}
             <div className="flex items-baseline gap-1.5">
               <span className="text-2xl font-black" style={{ color: "var(--text)" }}>{displayPrice}</span>
               {offer !== "family_plan" && (
@@ -234,10 +220,10 @@ export default function UpsellModal({ offer, userTier, prices, triggerSource, on
             )}
           </div>
 
-          {/* Premium conversion nudge for free users */}
+          {/* Premium conversion nudge for free users — no revealing premium price */}
           {!isPremium && (
             <p className="text-center text-xs" style={{ color: "var(--dim)" }}>
-              ¿Aún no eres Premium? Por $12.99/mes accedes al precio reducido.
+              ¿Aún no eres Premium? Suscríbete y obtén precio especial.
             </p>
           )}
         </div>
