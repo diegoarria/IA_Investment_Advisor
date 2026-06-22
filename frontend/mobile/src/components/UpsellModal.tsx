@@ -34,18 +34,18 @@ const OFFER_META = {
     ctaLabel: "Obtener mi reporte",
   },
   family_plan: {
-    emoji: "👨‍👩‍👧",
-    title: "Plan Familiar",
+    emoji: "👫",
+    title: "Plan Dúo",
     subtitle: "Dos cuentas Premium, una sola factura",
     color: "#3b82f6",
-    badge: "Solo Premium",
+    badge: "Disponible",
     features: [
       "Todo lo de Premium para dos cuentas independientes",
       "Una sola factura, perfiles y portafolios separados",
       "Seguimiento de sesgos independiente por cuenta",
       "Privacidad total — sin datos compartidos entre cuentas",
     ],
-    ctaLabel: "Contactar para activar",
+    ctaLabel: "Activar Plan Dúo",
   },
   session: {
     emoji: "🎯",
@@ -68,26 +68,24 @@ export default function UpsellModal({ visible, offer, userTier, prices, triggerS
   const { colors } = useTheme();
   const [loading, setLoading] = useState(false);
   const [variant, setVariant] = useState<"default" | "bundle">("default");
+  const [duoVariant, setDuoVariant] = useState<"monthly" | "yearly">("monthly");
 
   const meta = OFFER_META[offer];
   const isPremium = userTier === "premium";
 
   const displayPrice =
-    offer === "family_plan"  ? `$${prices.monthly ?? 19.99}/mes` :
-    variant === "bundle"     ? `$${prices.bundle ?? 247}` :
-    isPremium                ? `$${prices.premium ?? 0}` :
-                               `$${prices.free ?? 0}`;
+    offer === "family_plan"
+      ? duoVariant === "monthly" ? `$${prices.monthly ?? 19.99}/mes` : `$${prices.yearly ?? 199.99}/año`
+      : variant === "bundle" ? `$${prices.bundle ?? 247}`
+      : isPremium ? `$${prices.premium ?? 0}`
+      : `$${prices.free ?? 0}`;
 
   const handlePurchase = async () => {
-    if (offer === "family_plan") {
-      Linking.openURL("mailto:diego.arria19@gmail.com?subject=Plan%20Familiar%20Nuvos%20AI");
-      return;
-    }
     setLoading(true);
     try {
       const res = await api.post("/api/upsells/checkout", {
         offer,
-        variant: variant === "bundle" ? "bundle" : userTier,
+        variant: offer === "family_plan" ? duoVariant : variant === "bundle" ? "bundle" : userTier,
         trigger_source: triggerSource,
       });
       if (res.data?.url) Linking.openURL(res.data.url);
@@ -161,17 +159,28 @@ export default function UpsellModal({ visible, offer, userTier, prices, triggerS
               </View>
             )}
 
-            {/* Family plan prices */}
+            {/* Duo plan billing picker */}
             {offer === "family_plan" && (
-              <View style={[s.priceTable, { backgroundColor: colors.bgRaised, borderColor: colors.border }]}>
-                <View style={s.priceRow}>
-                  <Text style={[s.priceLabel, { color: colors.textSub }]}>Mensual</Text>
-                  <Text style={[s.priceVal, { color: colors.text }]}>${prices.monthly ?? 19.99}/mes</Text>
-                </View>
-                <View style={s.priceRow}>
-                  <Text style={[s.priceLabel, { color: colors.textSub }]}>Anual</Text>
-                  <Text style={[s.priceVal, { color: colors.text }]}>${prices.yearly ?? 199.99}/año</Text>
-                </View>
+              <View style={[s.picker, { backgroundColor: colors.bgRaised }]}>
+                {(["monthly", "yearly"] as const).map((v) => (
+                  <TouchableOpacity
+                    key={v}
+                    onPress={() => setDuoVariant(v)}
+                    style={[s.pickerOption, duoVariant === v && { backgroundColor: meta.color }]}
+                  >
+                    <Text style={[s.pickerLabel, { color: duoVariant === v ? "#fff" : colors.textMuted }]}>
+                      {v === "monthly" ? "Mensual" : "Anual"}
+                    </Text>
+                    <Text style={[s.pickerPrice, { color: duoVariant === v ? "#fff" : colors.textSub }]}>
+                      {v === "monthly" ? `$${prices.monthly ?? 19.99}/mes` : `$${prices.yearly ?? 199.99}/año`}
+                    </Text>
+                    {v === "yearly" && (
+                      <Text style={[s.pickerSave, { color: duoVariant === v ? "rgba(255,255,255,0.75)" : colors.textDim }]}>
+                        Ahorra ${Math.round(((prices.monthly ?? 19.99) * 12) - (prices.yearly ?? 199.99))}
+                      </Text>
+                    )}
+                  </TouchableOpacity>
+                ))}
               </View>
             )}
 
@@ -240,10 +249,7 @@ const s = StyleSheet.create({
   pickerOption: { flex: 1, borderRadius: 10, padding: 10, alignItems: "center" },
   pickerLabel:  { fontSize: 12, fontWeight: "700" },
   pickerPrice:  { fontSize: 14, fontWeight: "900", marginTop: 2 },
-  priceTable:   { borderRadius: 12, borderWidth: 1, padding: 12, gap: 6 },
-  priceRow:     { flexDirection: "row", justifyContent: "space-between" },
-  priceLabel:   { fontSize: 13 },
-  priceVal:     { fontSize: 13, fontWeight: "700" },
+  pickerSave:   { fontSize: 10, marginTop: 2 },
   callout:      { borderRadius: 14, borderWidth: 1, padding: 12 },
   savingsText:  { fontSize: 12, marginBottom: 4 },
   mainPrice:    { fontSize: 26, fontWeight: "900" },
