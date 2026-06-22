@@ -99,7 +99,7 @@ export default function MobilePortfolioLeaderboard({ isPremium, onUpgrade }: Pro
       </View>
 
       {/* Period tabs */}
-      <View style={[s.tabs, { backgroundColor: colors.background }]}>
+      <View style={[s.tabs, { backgroundColor: colors.bg }]}>
         {(Object.keys(PERIOD_LABELS) as Period[]).map((p) => (
           <TouchableOpacity
             key={p}
@@ -119,13 +119,13 @@ export default function MobilePortfolioLeaderboard({ isPremium, onUpgrade }: Pro
       {/* Stats */}
       {data && !loading && (
         <View style={s.statsRow}>
-          <View style={[s.statBox, { backgroundColor: colors.background, borderColor: colors.border }]}>
+          <View style={[s.statBox, { backgroundColor: colors.bg, borderColor: colors.border }]}>
             <Text style={[s.statLabel, { color: colors.textMuted }]}>Tu posición</Text>
             <Text style={[s.statValue, { color: colors.text }]}>
               {data.my_rank ? `#${data.my_rank}` : "—"}
             </Text>
           </View>
-          <View style={[s.statBox, { backgroundColor: colors.background, borderColor: colors.border }]}>
+          <View style={[s.statBox, { backgroundColor: colors.bg, borderColor: colors.border }]}>
             <Text style={[s.statLabel, { color: colors.textMuted }]}>Inversores</Text>
             <Text style={[s.statValue, { color: colors.text }]}>{data.total_users}</Text>
           </View>
@@ -154,7 +154,7 @@ export default function MobilePortfolioLeaderboard({ isPremium, onUpgrade }: Pro
             style={[
               s.row,
               {
-                backgroundColor: entry.is_me ? "rgba(139,92,246,0.08)" : colors.background,
+                backgroundColor: entry.is_me ? "rgba(139,92,246,0.08)" : colors.bg,
                 borderColor: entry.is_me ? "rgba(139,92,246,0.3)" : colors.border,
               },
             ]}

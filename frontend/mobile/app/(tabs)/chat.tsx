@@ -347,17 +347,17 @@ export default function ChatScreen() {
 
     return `[PERFIL DEL USUARIO — usa esta información para PERSONALIZAR y DETECTAR CONTRADICCIONES]
 Nombre: ${profile.name}
-Edad: ${getAge(profile.birth_date)} años
+Edad: ${profile.birth_date ? getAge(profile.birth_date) : "—"} años
 Ingresos mensuales: $${Number(profile.monthly_income).toLocaleString()} USD
 Aportación mensual: $${Number(profile.monthly_contribution).toLocaleString()} USD
 Perfil calculado: ${riskLabel}
 
 Diagnóstico de inversor (respuestas del cuestionario inicial):
-- Comportamiento declarado ante caídas: ${qa ? q1Labels[qa.q1] : "no disponible"}
-- Horizonte / objetivo: ${qa ? q2Labels[qa.q2] : "no disponible"}
-- Nivel de conocimiento: ${qa ? q3Labels[qa.q3] : "no disponible"}
-- Tolerancia al riesgo con dinero real: ${qa ? q4Labels[qa.q4] : "no disponible"}
-- Estilo de gestión: ${qa ? q5Labels[qa.q5] : "no disponible"}
+- Comportamiento declarado ante caídas: ${qa?.q1 ? q1Labels[qa.q1] : "no disponible"}
+- Horizonte / objetivo: ${qa?.q2 ? q2Labels[qa.q2] : "no disponible"}
+- Nivel de conocimiento: ${qa?.q3 ? q3Labels[qa.q3] : "no disponible"}
+- Tolerancia al riesgo con dinero real: ${qa?.q4 ? q4Labels[qa.q4] : "no disponible"}
+- Estilo de gestión: ${qa?.q5 ? q5Labels[qa.q5] : "no disponible"}
 ${panicFlag ? `\n⚠️ ${panicFlag}` : ""}${speculationFlag ? `\n⚠️ ${speculationFlag}` : ""}${portfolioBlock}
 
 Instrucciones críticas:
@@ -881,7 +881,7 @@ Instrucciones críticas:
 
               {/* ── Suggestions ── */}
               {(() => {
-                const obj = profile?.quiz_answers?.objective as string | undefined;
+                const obj = profile?.investment_goal as string | undefined;
                 const level = getUserLevel(profile);
                 const greeting = obj ? OBJECTIVE_GREETING[obj] : null;
                 const suggestions = obj && SUGGESTIONS_BY_OBJECTIVE[obj]
