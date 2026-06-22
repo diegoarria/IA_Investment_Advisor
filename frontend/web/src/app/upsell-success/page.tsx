@@ -2,7 +2,8 @@
 
 import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { CheckCircle, Calendar, ExternalLink, ArrowRight } from "lucide-react";
+import { CheckCircle, Calendar, ExternalLink, ArrowRight, Download, Loader2 } from "lucide-react";
+import api from "@/lib/api";
 
 // ← Reemplaza con tu link real de Calendly
 const CALENDLY_URL = "https://calendly.com/diego-arria19/sesion-1-1-con-diego-nuvos-ai";
@@ -40,12 +41,29 @@ function UpsellSuccessContent() {
   const meta = OFFER_META[offer] ?? OFFER_META.session;
 
   const [visible, setVisible] = useState(false);
+  const [downloading, setDownloading] = useState(false);
 
   useEffect(() => {
     // Fade in
     const t = setTimeout(() => setVisible(true), 100);
     return () => clearTimeout(t);
   }, []);
+
+  const handleDownload = async () => {
+    setDownloading(true);
+    try {
+      const res = await api.get("/api/annual-report/generate", { responseType: "blob" });
+      const url = window.URL.createObjectURL(new Blob([res.data], { type: "application/pdf" }));
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `reporte-anual-nuvos-${new Date().getFullYear()}.pdf`;
+      a.click();
+      window.URL.revokeObjectURL(url);
+    } catch {
+      // silent — user can retry
+    }
+    setDownloading(false);
+  };
 
   return (
     <main style={{
@@ -148,17 +166,45 @@ function UpsellSuccessContent() {
                 <CheckCircle size={18} color="#22c55e" />
                 <span style={{ color: "#d1fae5", fontSize: 14 }}>Certificado digital de Inversor Informado</span>
               </div>
-              <div style={{
-                marginTop: 4,
-                padding: "14px 16px",
-                background: `${meta.color}0d`,
-                border: `1px solid ${meta.color}25`,
-                borderRadius: 14,
-              }}>
-                <p style={{ color: "#e5e7eb", fontSize: 13, margin: 0, lineHeight: 1.5 }}>
-                  📬 Recibirás tu reporte en <strong style={{ color: "#fff" }}>3-5 días hábiles</strong> en el email de tu cuenta. Incluye tu evolución mensual, sesgos identificados y recomendaciones para el próximo año.
-                </p>
-              </div>
+
+              {/* Download button */}
+              <button
+                onClick={handleDownload}
+                disabled={downloading}
+                style={{
+                  marginTop: 8,
+                  width: "100%",
+                  padding: "14px 16px",
+                  borderRadius: 14,
+                  border: "none",
+                  background: downloading
+                    ? "rgba(0,212,126,0.15)"
+                    : "linear-gradient(135deg, #00d47ecc, #00d47e)",
+                  color: "#fff",
+                  fontWeight: 800,
+                  fontSize: 15,
+                  cursor: downloading ? "not-allowed" : "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 8,
+                  boxShadow: downloading ? "none" : "0 4px 20px #00d47e44",
+                  transition: "all 0.2s ease",
+                }}
+              >
+                {downloading ? (
+                  <>
+                    <Loader2 size={17} style={{ animation: "spin 1s linear infinite" }} />
+                    Generando tu reporte...
+                  </>
+                ) : (
+                  <>
+                    <Download size={17} />
+                    Descargar mi Reporte PDF
+                  </>
+                )}
+              </button>
+              <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
             </>
           )}
 
