@@ -1110,8 +1110,8 @@ if (!profile) {
               <Text style={{ fontSize: 22 }}>✨</Text>
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: 15, fontWeight: "900", color: colors.text }}>Nuvos Wrapped {new Date().getFullYear()}</Text>
-              <Text style={{ fontSize: 12, color: colors.textMuted, marginTop: 2 }}>Tu año como inversor en Nuvos AI</Text>
+              <Text style={{ fontSize: 15, fontWeight: "900", color: colors.text }}>Annual ScoreBoard {new Date().getFullYear()}</Text>
+              <Text style={{ fontSize: 12, color: colors.textMuted, marginTop: 2 }}>Tu resumen anual como inversor</Text>
             </View>
             <Text style={{ fontSize: 13, fontWeight: "900", color: "#00d47e" }}>Ver →</Text>
           </TouchableOpacity>

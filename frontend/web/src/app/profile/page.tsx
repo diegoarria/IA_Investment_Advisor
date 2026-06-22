@@ -978,7 +978,7 @@ export default function ProfilePage() {
                 >
                   <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl shrink-0" style={{ background: "#00d47e18" }}>✨</div>
                   <div className="flex-1">
-                    <p className="text-sm font-black" style={{ color: "var(--text)" }}>Nuvos Wrapped {new Date().getFullYear()}</p>
+                    <p className="text-sm font-black" style={{ color: "var(--text)" }}>Annual ScoreBoard {new Date().getFullYear()}</p>
                     <p className="text-xs" style={{ color: "var(--muted)" }}>Tu año como inversor en Nuvos AI</p>
                   </div>
                   <p className="text-xs font-black shrink-0" style={{ color: "#00d47e" }}>Ver →</p>
