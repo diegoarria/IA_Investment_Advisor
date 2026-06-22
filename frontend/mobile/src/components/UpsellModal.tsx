@@ -170,7 +170,7 @@ export default function UpsellModal({ visible, offer, userTier, prices, triggerS
                 </View>
                 <View style={s.priceRow}>
                   <Text style={[s.priceLabel, { color: colors.textSub }]}>Anual</Text>
-                  <Text style={[s.priceVal, { color: colors.text }]}>${prices.yearly ?? 149.99}/año</Text>
+                  <Text style={[s.priceVal, { color: colors.text }]}>${prices.yearly ?? 199.99}/año</Text>
                 </View>
               </View>
             )}

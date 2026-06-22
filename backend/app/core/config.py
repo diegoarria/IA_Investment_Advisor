@@ -22,7 +22,7 @@ class Settings(BaseSettings):
     stripe_price_session_premium: str = ""        # $99
     stripe_price_session_bundle: str = ""         # $247 (3 sessions, premium only)
     stripe_price_family_monthly: str = ""         # $19.99/month
-    stripe_price_family_yearly: str = ""          # $149.99/year
+    stripe_price_family_yearly: str = ""          # $199.99/year
     resend_api_key: str = ""
     redis_url: str = ""  # e.g. redis://localhost:6379 — optional, falls back to in-memory
     elevenlabs_api_key: str = ""   # for TTS

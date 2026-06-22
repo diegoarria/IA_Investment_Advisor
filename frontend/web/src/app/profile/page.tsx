@@ -1002,7 +1002,7 @@ export default function ProfilePage() {
                         subtitle: "Dos cuentas Premium",
                         color: "#3b82f6",
                         priceLabel: "desde $19.99/mes",
-                        prices: { monthly: 19.99, yearly: 149.99 } as Record<string, number>,
+                        prices: { monthly: 19.99, yearly: 199.99 } as Record<string, number>,
                         premiumOnly: false,
                       },
                     ]
