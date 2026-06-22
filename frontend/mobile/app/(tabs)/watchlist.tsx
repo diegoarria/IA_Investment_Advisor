@@ -16,7 +16,7 @@ import StockAvatar from "../../src/components/StockAvatar";
 import PaywallModal from "../../src/components/PaywallModal";
 import MobileEarningsCalendar from "../../src/components/MobileEarningsCalendar";
 
-const FREE_LIMIT = 30;
+const FREE_LIMIT = 25;
 
 interface ExtPrice {
   ticker: string;

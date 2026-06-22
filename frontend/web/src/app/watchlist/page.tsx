@@ -46,7 +46,7 @@ interface SearchResult {
   name: string;
 }
 
-const FREE_LIMIT = 30;
+const FREE_LIMIT = 25;
 
 // Cache keys are scoped per user so switching accounts never shows stale data.
 const cacheKey = () => `nuvos_watchlist_cache__${useAuthStore.getState().userId ?? "guest"}`;

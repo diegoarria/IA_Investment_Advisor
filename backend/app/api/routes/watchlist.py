@@ -31,7 +31,7 @@ _YF_HEADERS = {
     "Origin": "https://finance.yahoo.com",
 }
 
-FREE_LIMIT = 30
+FREE_LIMIT = 25
 _PRICES_CACHE_TTL = 60  # seconds
 
 

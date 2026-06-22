@@ -26,27 +26,27 @@ const PLANS = [
 ];
 
 const HERO_FEATURES = [
-  { icon: Brain,     text: "5 mentores IA: Buffett, Dalio, Burry, Lynch, Ackman" },
-  { icon: Zap,       text: "Mensajes ilimitados con tu mentor 24/7" },
-  { icon: BarChart2, text: "Portafolio ilimitado con análisis en tiempo real" },
-  { icon: TrendingUp,text: "Screener semanal personalizado a tu perfil" },
-  { icon: Shield,    text: "Stress test, Simulador What-If y Reporte mensual PDF" },
+  { icon: Brain,      text: "Mensajes ilimitados con tu mentor 24/7" },
+  { icon: BarChart2,  text: "Análisis IA profundo de portafolio + Stress test" },
+  { icon: TrendingUp, text: "Screener semanal: 5 oportunidades cada lunes" },
+  { icon: Shield,     text: "Importa desde PDF, screenshot o broker conectado" },
+  { icon: Zap,        text: "Resumen IA de noticias + reporte mensual de performance" },
 ];
 
 const ALL_FEATURES = [
-  { text: "Mensajes ilimitados", detail: "Sin límite de 20 mensajes al día. Habla con tu mentor cuando quieras sin restricciones." },
-  { text: "5 mentores de inversión", detail: "Elige entre Warren Buffett, Ray Dalio, Michael Burry, Bill Ackman y Peter Lynch. Cada uno responde desde su filosofía real." },
-  { text: "Portafolio ilimitado", detail: "Agrega más de 10 posiciones y da seguimiento completo con rendimientos en tiempo real." },
-  { text: "Screener semanal personalizado", detail: "Cada lunes la IA selecciona 5 oportunidades del mercado adaptadas a tu perfil de riesgo y mentor." },
-  { text: "Análisis de earnings automático", detail: "Cuando una empresa de tu portafolio reporta resultados, la IA los analiza al instante y calcula el impacto en tu inversión." },
-  { text: "Stress test de portafolio", detail: "Simula crisis del 2008, COVID-19, subida de tasas y otros escenarios extremos sobre tu portafolio actual." },
-  { text: "Simulador What-If", detail: "¿Qué pasa si vendo X y compro Y? Proyecta swaps, aportes mensuales y eventos macroeconómicos antes de ejecutarlos." },
-  { text: "Diario de decisiones + sesgos", detail: "Registra cada operación, detecta sesgos como FOMO y pánico, y recibe un score como inversor con retos semanales del mentor." },
-  { text: "Reporte mensual PDF", detail: "Descarga un análisis completo con rendimiento, Sharpe Ratio, comparativa vs S&P 500 y nota personalizada del mentor." },
-  { text: "Análisis de riesgo avanzado", detail: "Barra de riesgo detallada en cada respuesta para entender tu exposición real por sector y ticker." },
-  { text: "Noticias + filtros por empresa", detail: "Todas las noticias de tus posiciones en tiempo real, filtrables por ticker para enfocarte en lo que importa." },
-  { text: "Simulador sin límites", detail: "Practica estrategias con capital virtual sin restricciones de cantidad ni frecuencia." },
-  { text: "Emails semanales personalizados", detail: "Cada viernes recibes un resumen del mercado adaptado a tu perfil, tus conversaciones y tu portafolio." },
+  { text: "Mensajes ilimitados con el mentor", detail: "Sin límite de 20 mensajes al día. Habla con tu mentor cuando quieras, sin restricciones." },
+  { text: "Watchlist ilimitada", detail: "En el plan gratuito puedes seguir hasta 25 acciones. Premium elimina ese límite — sigue todas las empresas que quieras." },
+  { text: "Análisis IA profundo del portafolio", detail: "Fortalezas, debilidades y sugerencias concretas sobre tu portafolio generadas por IA. Incluye distribución por sector y score de riesgo 0-100." },
+  { text: "Stress test con 5 escenarios históricos", detail: "Simula cómo hubiera reaccionado tu portafolio en Crisis 2008, COVID-19, Tech Crash 2022, subida de tasas Fed y Bull Market." },
+  { text: "Gráfico interactivo + comparativa vs S&P 500", detail: "Evolución de tu portafolio desde 1D hasta MÁX, comparada con el índice de referencia. Visualiza en qué períodos ganaste o perdiste contra el mercado." },
+  { text: "Screener semanal personalizado", detail: "Cada lunes la IA selecciona 5 oportunidades con catalizador, score 0-100, análisis de riesgo y nota de tu mentor. Basado en tu perfil real." },
+  { text: "Importar portafolio desde PDF o screenshot", detail: "Sube tu estado de cuenta y la IA extrae tickers, cantidades y precios promedio automáticamente. Sin entrada manual." },
+  { text: "Conectar broker (Plaid, IOL, Fidelity, Schwab)", detail: "Sincroniza tu portafolio real automáticamente desde tu bróker. Sin errores manuales, siempre actualizado." },
+  { text: "Resumen IA de noticias", detail: "Cada noticia de tus posiciones viene con un resumen generado por IA. Lee el punto clave en segundos, no el artículo completo." },
+  { text: "Reporte mensual de performance", detail: "Al cierre de cada mes: retorno real, comparativa vs S&P 500, posiciones más rentables y nota personalizada de tu mentor." },
+  { text: "Evaluación conductual BSCORE", detail: "La IA analiza tus conversaciones y detecta sesgos de inversión (FOMO, pánico, sobreconfianza) con sugerencias concretas de mejora." },
+  { text: "Cambiar moneda del portafolio", detail: "Ve tu portafolio en USD, MXN, EUR u otras monedas. Útil si tu capital está en una moneda diferente a USD." },
+  { text: "Emails semanales personalizados", detail: "Cada viernes recibes un resumen del mercado adaptado a tu perfil, tus conversaciones y el estado de tu portafolio." },
 ];
 
 interface PaywallModalProps {
