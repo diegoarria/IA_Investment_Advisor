@@ -46,6 +46,21 @@ async def update_action(action_id: str, body: dict, user_id: str = Depends(get_c
     return {"ok": True}
 
 
+@router.post("/test-reminder")
+async def test_reminder(user_id: str = Depends(get_current_user_id)):
+    """Dev/QA — immediately sends a sample action follow-up push to the current user."""
+    from app.services.notification_engine import send_push
+    db = get_supabase()
+    await send_push(
+        user_id, "action_followup",
+        "¿Agregaste VTI a tu watchlist?",
+        "Ayer hablaste con tu mentor sobre diversificar con ETFs. ¿Ya lo hiciste?",
+        {"screen": "chat", "suggested_message": "¿Es buen momento para agregar VTI a mi portafolio?"},
+        db,
+    )
+    return {"ok": True, "message": "Push enviado — revisa tu dispositivo."}
+
+
 @router.get("/")
 async def list_actions(user_id: str = Depends(get_current_user_id)):
     """List user's pending committed actions."""
