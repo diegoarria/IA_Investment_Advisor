@@ -35,7 +35,13 @@ def _price_id_for(offer: str, tier: str, variant: str = "default") -> str:
         ("family_plan", "monthly"):   settings.stripe_price_family_monthly,
         ("family_plan", "yearly"):    settings.stripe_price_family_yearly,
     }
-    return mapping.get((offer, variant if offer == "family_plan" else tier), "")
+    if offer == "family_plan":
+        key = variant          # "monthly" or "yearly"
+    elif variant == "bundle":
+        key = "bundle"         # 3-session pack
+    else:
+        key = tier             # "free" or "premium"
+    return mapping.get((offer, key), "")
 
 
 def _account_days(created_at: str | None) -> int:
