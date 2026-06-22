@@ -20,9 +20,6 @@ FREE_DEBATE_DAILY     = 2
 FREE_DEBATE_MAX_ROUNDS = 5
 FREE_DIFFICULTIES     = {"principiante", "intermedio"}
 
-PREMIUM_SIM_DAILY     = 50
-PREMIUM_DEBATE_DAILY  = 20
-
 async def _get_profile_raw(user_id: str) -> dict | None:
     try:
         db = get_supabase()
@@ -329,9 +326,7 @@ async def get_scenario(request: Request, body: dict = None, user_id: str = Depen
             "code": "premium_required",
             "message": "Los niveles Difícil e Imposible son exclusivos de Premium.",
         })
-    if premium:
-        await _check_daily(user_id, "sim_count", PREMIUM_SIM_DAILY, "simulaciones")
-    else:
+    if not premium:
         await _check_daily(user_id, "sim_count", FREE_SIM_DAILY, "simulaciones")
 
     pool = SCENARIOS.get(difficulty, SCENARIOS["intermedio"])
@@ -387,9 +382,7 @@ async def start_debate(request: Request, body: dict, user_id: str = Depends(get_
             "code": "premium_required",
             "message": "Los niveles Difícil e Imposible son exclusivos de Premium.",
         })
-    if premium:
-        await _check_daily(user_id, "debate_count", PREMIUM_DEBATE_DAILY, "debates")
-    else:
+    if not premium:
         await _check_daily(user_id, "debate_count", FREE_DEBATE_DAILY, "debates")
 
     system_prompt = DIFFICULTY_DEBATE_PROMPTS.get(difficulty, DIFFICULTY_DEBATE_PROMPTS["intermedio"])

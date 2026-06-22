@@ -25,7 +25,6 @@ from app.core.cache import cache_delete
 router = APIRouter(prefix="/price-alerts", tags=["price-alerts"])
 
 FREE_LIMIT = 5
-PREMIUM_LIMIT = 50
 
 
 class PriceAlertCreate(BaseModel):
@@ -67,13 +66,13 @@ async def create_alert(
         db.table("user_profiles").select("subscription_tier").eq("user_id", user_id)
     )
     tier = (profile_res.data[0].get("subscription_tier") or "free") if profile_res.data else "free"
-    limit = PREMIUM_LIMIT if tier == "premium" else FREE_LIMIT
 
-    all_alerts = await run_query(
-        db.table("price_alerts").select("id").eq("user_id", user_id).is_("triggered_at", "null")
-    )
-    if not existing.data and len(all_alerts.data or []) >= limit:
-        raise HTTPException(status_code=403, detail=f"Límite de {limit} alertas alcanzado")
+    if tier != "premium":
+        all_alerts = await run_query(
+            db.table("price_alerts").select("id").eq("user_id", user_id).is_("triggered_at", "null")
+        )
+        if not existing.data and len(all_alerts.data or []) >= FREE_LIMIT:
+            raise HTTPException(status_code=403, detail=f"Límite de {FREE_LIMIT} alertas alcanzado. Activa Premium para alertas ilimitadas.")
 
     now = datetime.now(timezone.utc).isoformat()
     record = {

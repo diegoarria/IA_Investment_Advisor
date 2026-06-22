@@ -71,6 +71,10 @@ export default function AppSidebar({ open, onClose }: Props) {
   const { notifications } = useNotificationStore();
   const subStore = useSubscriptionStore();
   const { sessions, currentId, createSession, loadSession, deleteSession } = useChatStore();
+
+  // Always sync subscription tier on mount so premium granted via promo/webhook is picked up immediately
+  useEffect(() => { subStore.fetchStatus().catch(() => {}); }, []);
+
   const [historyOpen, setHistoryOpen] = useState(true);
   const [paywallOpen, setPaywallOpen] = useState(false);
   const [desktopCollapsed, setDesktopCollapsed] = useState(() => {
