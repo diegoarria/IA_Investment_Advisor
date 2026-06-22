@@ -12,6 +12,7 @@ import {
 import { auth as authApi, feedApi, insights as insightsApi, mentorLetter as mentorLetterApi, notifications as notifApi, profile as profileApi, referral as referralApi, sync as syncApi } from "@/lib/api";
 import { getMentorInfo } from "@/lib/mentorData";
 import PaywallModal from "@/components/PaywallModal";
+import UpsellModal, { type UpsellOffer } from "@/components/UpsellModal";
 import {
   User, LogOut, X, Sun, Moon, ChevronDown, ChevronUp, Star, BarChart,
   Loader2, Copy, Check, Gift, Users, Share2,
@@ -132,6 +133,8 @@ export default function ProfilePage() {
     ready: boolean; topics?: string[]; risk_match?: boolean;
     risk_note?: string; suggestion?: string;
   } | null>(null);
+  const [upsellOffer, setUpsellOffer] = useState<UpsellOffer | null>(null);
+  const [upsellPrices, setUpsellPrices] = useState<Record<string, number>>({});
 
   const isPremium = subStore.tier === "premium";
   const remaining = msgsRemaining(subStore);
@@ -965,6 +968,70 @@ export default function ProfilePage() {
                   </div>
                 )}
 
+                {/* Planes adicionales */}
+                <div className="space-y-3">
+                  <p className="text-xs font-black uppercase tracking-wider px-1" style={{ color: "var(--muted)" }}>
+                    Planes adicionales
+                  </p>
+                  {(
+                    [
+                      {
+                        offer: "session" as UpsellOffer,
+                        emoji: "🎯",
+                        title: "Sesión 1:1 con Diego",
+                        subtitle: "45 min con el fundador",
+                        color: "#00d47e",
+                        priceLabel: isPremium ? "desde $99" : "desde $149",
+                        prices: { free: 149, premium: 99, bundle: 247 } as Record<string, number>,
+                        premiumOnly: false,
+                      },
+                      {
+                        offer: "annual_report" as UpsellOffer,
+                        emoji: "📊",
+                        title: "Reporte Anual de Madurez",
+                        subtitle: "Tu evolución como inversor",
+                        color: "#8b5cf6",
+                        priceLabel: isPremium ? "$19.99" : "$34.99",
+                        prices: { free: 34.99, premium: 19.99 } as Record<string, number>,
+                        premiumOnly: false,
+                      },
+                      {
+                        offer: "family_plan" as UpsellOffer,
+                        emoji: "👨‍👩‍👧",
+                        title: "Plan Familiar",
+                        subtitle: "Dos cuentas Premium",
+                        color: "#3b82f6",
+                        priceLabel: "$19.99/mes",
+                        prices: { monthly: 19.99, yearly: 149.99 } as Record<string, number>,
+                        premiumOnly: true,
+                      },
+                    ]
+                  ).map(({ offer, emoji, title, subtitle, color, priceLabel, prices, premiumOnly }) => (
+                    <button
+                      key={offer}
+                      onClick={() => { setUpsellOffer(offer); setUpsellPrices(prices as Record<string, number>); }}
+                      disabled={premiumOnly && !isPremium}
+                      className="w-full flex items-center gap-3 p-3.5 rounded-2xl text-left transition-all hover:scale-[1.01] active:scale-[0.99] disabled:opacity-40 disabled:pointer-events-none"
+                      style={{ background: `${color}0d`, border: `1px solid ${color}25` }}
+                    >
+                      <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl shrink-0"
+                           style={{ background: `${color}18` }}>
+                        {emoji}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-black truncate" style={{ color: "var(--text)" }}>{title}</p>
+                        <p className="text-xs truncate" style={{ color: "var(--muted)" }}>
+                          {subtitle}{premiumOnly && !isPremium ? " · Solo Premium" : ""}
+                        </p>
+                      </div>
+                      <div className="shrink-0 text-right">
+                        <p className="text-sm font-black" style={{ color }}>{priceLabel}</p>
+                        <p className="text-[10px]" style={{ color: "var(--dim)" }}>Ver más →</p>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+
                 {/* Legal */}
                 <div className="flex justify-center gap-5 py-1">
                   <a href="/privacy" className="text-xs hover:opacity-80 transition-opacity" style={{ color: "var(--dim)" }}>Política de privacidad</a>
@@ -1019,6 +1086,15 @@ export default function ProfilePage() {
       )}
 
       <PaywallModal visible={paywallOpen} onClose={() => setPaywallOpen(false)} />
+      {upsellOffer && (
+        <UpsellModal
+          offer={upsellOffer}
+          userTier={isPremium ? "premium" : "free"}
+          prices={upsellPrices}
+          triggerSource="profile_page"
+          onClose={() => setUpsellOffer(null)}
+        />
+      )}
     </div>
   );
 }
