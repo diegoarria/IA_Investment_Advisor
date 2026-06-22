@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { CheckCircle, Calendar, ExternalLink, ArrowRight } from "lucide-react";
 
 // ← Reemplaza con tu link real de Calendly
-const CALENDLY_URL = "https://calendly.com/diego-arria/sesion-nuvos";
+const CALENDLY_URL = "https://calendly.com/diego-arria19/sesion-1-1-con-diego-nuvos-ai";
 
 const OFFER_META = {
   session: {
