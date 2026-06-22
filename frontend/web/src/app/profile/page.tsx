@@ -13,6 +13,7 @@ import { auth as authApi, feedApi, insights as insightsApi, mentorLetter as ment
 import { getMentorInfo } from "@/lib/mentorData";
 import PaywallModal from "@/components/PaywallModal";
 import UpsellModal, { type UpsellOffer } from "@/components/UpsellModal";
+import WrappedCard from "@/components/WrappedCard";
 import {
   User, LogOut, X, Sun, Moon, ChevronDown, ChevronUp, Star, BarChart,
   Loader2, Copy, Check, Gift, Users, Share2,
@@ -135,6 +136,7 @@ export default function ProfilePage() {
   } | null>(null);
   const [upsellOffer, setUpsellOffer] = useState<UpsellOffer | null>(null);
   const [upsellPrices, setUpsellPrices] = useState<Record<string, number>>({});
+  const [wrappedOpen, setWrappedOpen] = useState(false);
 
   const isPremium = subStore.tier === "premium";
   const remaining = msgsRemaining(subStore);
@@ -968,6 +970,20 @@ export default function ProfilePage() {
                   </div>
                 )}
 
+                {/* Nuvos Wrapped */}
+                <button
+                  onClick={() => setWrappedOpen(true)}
+                  className="w-full flex items-center gap-3 p-4 rounded-2xl text-left transition-all hover:scale-[1.01] active:scale-[0.99]"
+                  style={{ background: "linear-gradient(135deg, #00d47e18, #00d47e0a)", border: "1px solid #00d47e30" }}
+                >
+                  <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl shrink-0" style={{ background: "#00d47e18" }}>✨</div>
+                  <div className="flex-1">
+                    <p className="text-sm font-black" style={{ color: "var(--text)" }}>Nuvos Wrapped {new Date().getFullYear()}</p>
+                    <p className="text-xs" style={{ color: "var(--muted)" }}>Tu año como inversor en Nuvos AI</p>
+                  </div>
+                  <p className="text-xs font-black shrink-0" style={{ color: "#00d47e" }}>Ver →</p>
+                </button>
+
                 {/* Planes adicionales */}
                 <div className="space-y-3">
                   <p className="text-xs font-black uppercase tracking-wider px-1" style={{ color: "var(--muted)" }}>
@@ -1085,6 +1101,7 @@ export default function ProfilePage() {
         </div>
       )}
 
+      {wrappedOpen && <WrappedCard onClose={() => setWrappedOpen(false)} />}
       <PaywallModal visible={paywallOpen} onClose={() => setPaywallOpen(false)} />
       {upsellOffer && (
         <UpsellModal
