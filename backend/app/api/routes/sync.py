@@ -429,4 +429,27 @@ async def save_push_token(body: dict, user_id: str = Depends(get_current_user_id
         return {"ok": False}
     db = get_supabase()
     await run_query(db.table("user_profiles").update({"push_token": token}).eq("user_id", user_id))
+    # Ensure a notification_preferences row exists so scheduled jobs pick up this user.
+    # ignore_duplicates=True preserves existing user preferences on conflict.
+    await run_query(
+        db.table("notification_preferences").upsert(
+            {
+                "user_id": user_id,
+                "push_market_open": True,
+                "push_market_close": True,
+                "push_news_general": True,
+                "push_portfolio_alerts": True,
+                "push_watchlist_alerts": True,
+                "push_ai_recommendations": True,
+                "push_milestones": True,
+                "push_volatility": True,
+                "email_daily_summary": True,
+                "email_weekly_summary": True,
+                "max_push_per_day": 5,
+                "max_push_per_week": 20,
+            },
+            on_conflict="user_id",
+            ignore_duplicates=True,
+        )
+    )
     return {"ok": True}
