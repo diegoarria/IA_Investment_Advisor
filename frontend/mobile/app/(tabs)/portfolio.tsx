@@ -1270,26 +1270,6 @@ export default function PortfolioScreen() {
                 />
             }
 
-            {/* ── GRANDES INVERSORES ── */}
-            <TouchableOpacity
-              onPress={() => router.push("/(tabs)/investors")}
-              activeOpacity={0.75}
-              style={{
-                flexDirection: "row", alignItems: "center", gap: 14,
-                borderRadius: 18, borderWidth: 1, padding: 16,
-                borderColor: colors.border, backgroundColor: colors.card,
-              }}
-            >
-              <View style={{ width: 44, height: 44, borderRadius: 13, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(0,212,126,0.12)" }}>
-                <Ionicons name="people-outline" size={22} color={colors.accent} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={{ fontSize: 14, fontWeight: "800", color: colors.text, letterSpacing: -0.2 }}>Grandes Inversores</Text>
-                <Text style={{ fontSize: 11, color: colors.textMuted, marginTop: 2 }}>Burry · Buffett · Pelosi · Ackman · Wood</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={16} color={colors.textDim} />
-            </TouchableOpacity>
-
           </View>
         )}
 

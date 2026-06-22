@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState, useEffect } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import {
   View, Text, ScrollView, TouchableOpacity, Image,
   StyleSheet, Alert, Modal, ActivityIndicator, Platform, Linking, Share,
@@ -7,13 +7,10 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import * as SecureStore from "expo-secure-store";
-import { captureRef } from "react-native-view-shot";
-import * as Sharing from "expo-sharing";
 import * as ImagePicker from "expo-image-picker";
 import { useTheme, Colors } from "../../src/lib/ThemeContext";
 import { useAppStore, RISK_CONFIG, getAge, maturityLabel } from "../../src/lib/profileStore";
 import { getMentorInfo } from "../../src/lib/mentorData";
-import InvestorScorecard from "../../src/components/InvestorScorecard";
 import ProgressModal from "../../src/components/ProgressModal";
 import TutorialModal from "../../src/components/TutorialModal";
 import { insightsApi, mentorLetterApi, profileApi, authApi, referralApi, syncApi, feedApi } from "../../src/lib/api";
@@ -139,10 +136,7 @@ export default function ProfileScreen() {
   const setProfile = useAppStore((s) => s.setProfile);
   const setAvatarUri = useAppStore((s) => s.setAvatarUri);
 
-  const [scorecardOpen, setScorecardOpen] = useState(false);
   const [progressOpen, setProgressOpen] = useState(false);
-  const [sharing, setSharing] = useState(false);
-  const cardRef = useRef<View>(null);
 
   const [insights, setInsights] = useState<{ ready: boolean; topics?: string[]; risk_behavior?: string; risk_match?: boolean; risk_note?: string; suggestion?: string; interests?: string[] } | null>(null);
   const [referralCode, setReferralCode] = useState<string | null>(null);
@@ -221,20 +215,7 @@ export default function ProfileScreen() {
   const [psyEditField, setPsyEditField] = useState<string | null>(null);
   const [savingPsy, setSavingPsy] = useState(false);
 
-  const handleShare = async () => {
-    if (Platform.OS === "web") return;
-    setSharing(true);
-    try {
-      const uri = await captureRef(cardRef, { format: "png", quality: 1 });
-      const canShare = await Sharing.isAvailableAsync();
-      if (canShare) {
-        await Sharing.shareAsync(uri, { mimeType: "image/png", dialogTitle: "Mi perfil de inversión" });
-      }
-    } catch {}
-    setSharing(false);
-  };
-
-  if (!profile) {
+if (!profile) {
     return (
       <SafeAreaView style={s.container}>
         <View style={s.empty}>
@@ -360,12 +341,7 @@ export default function ProfileScreen() {
           >
             <Ionicons name="pencil-outline" size={17} color={colors.text} />
           </TouchableOpacity>
-          <TouchableOpacity
-            style={[s.iconBtn, { borderColor: colors.accentLight + "50", backgroundColor: colors.accentLight + "12" }]}
-            onPress={() => setScorecardOpen(true)}
-          >
-            <Ionicons name="share-social-outline" size={17} color={colors.accentLight} />
-          </TouchableOpacity>
+
         </View>
       </View>
 
@@ -452,28 +428,8 @@ export default function ProfileScreen() {
           </View>
         </View>
 
-        {/* ── SCORECARD MODAL ── */}
-        <Modal visible={scorecardOpen} transparent animationType="fade" onRequestClose={() => setScorecardOpen(false)}>
-          <View style={s.modalOverlay}>
-            <View style={{ position: "relative" }}>
-              <View ref={cardRef} collapsable={false}>
-                <InvestorScorecard />
-              </View>
-              <TouchableOpacity style={s.modalCloseBtn} onPress={() => setScorecardOpen(false)}>
-                <Ionicons name="close" size={18} color="white" />
-              </TouchableOpacity>
-            </View>
-            <Text style={s.modalHint}>Esta es la imagen que se compartirá</Text>
-            {Platform.OS !== "web" && (
-              <TouchableOpacity style={[s.modalShareBtn, sharing && { opacity: 0.6 }]} onPress={handleShare} disabled={sharing}>
-                {sharing ? <ActivityIndicator color="white" size="small" /> : <Ionicons name="share-social-outline" size={18} color="white" />}
-                <Text style={s.modalShareText}>{sharing ? "Generando imagen…" : "Compartir mi perfil"}</Text>
-              </TouchableOpacity>
-            )}
-          </View>
-        </Modal>
 
-        {/* ── META FINANCIERA ── */}
+{/* ── META FINANCIERA ── */}
         {goalInfo && (
           <View style={s.metaCard}>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 14 }}>

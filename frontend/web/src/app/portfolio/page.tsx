@@ -2468,23 +2468,6 @@ export default function PortfolioPage() {
 
               <WeeklyScreenerCard isPremium={isPremium} onUpgrade={() => setPaywallOpen(true)} tickers={positions.map(p => p.ticker)} />
 
-              {/* ── INVERSORES ── */}
-              <button
-                onClick={() => router.push("/investors")}
-                className="w-full text-left rounded-2xl border p-4 flex items-center gap-4 transition-colors hover:opacity-80"
-                style={{ borderColor: "var(--border)", backgroundColor: "var(--card)" }}
-              >
-                <div className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0" style={{ backgroundColor: "rgba(0,212,126,0.12)" }}>
-                  <Users size={20} style={{ color: "var(--accent)" }} />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="font-bold text-sm" style={{ color: "var(--text)" }}>Portafolios de Grandes Inversores</p>
-                  <p className="text-xs mt-0.5" style={{ color: "var(--muted)" }}>Burry, Buffett, Pelosi, Ackman, Tepper, Cathie Wood</p>
-                </div>
-                <span className="text-xs font-semibold px-2 py-1 rounded-full" style={{ backgroundColor: "rgba(0,212,126,0.12)", color: "var(--accent)" }}>
-                  Ver →
-                </span>
-              </button>
             </div>
           )}
 

@@ -345,10 +345,6 @@ export const decisionsApi = {
   getBiases: () => api.get("/api/decisions/biases"),
 };
 
-export const portfolioLeaderboardApi = {
-  get: (period: "ytd" | "1m" | "1w") =>
-    api.get("/api/leaderboard", { params: { period } }),
-};
 
 export const brokerageApi = {
   createLinkToken:      ()                              => api.post("/api/brokerage/plaid/link-token"),
@@ -363,9 +359,5 @@ export const brokerageApi = {
   syncAll:              ()                              => api.post("/api/brokerage/sync"),
 };
 
-export const investorsApi = {
-  list: () => api.get("/api/investors"),
-  getHoldings: (investorId: string) => api.get(`/api/investors/${investorId}`),
-};
 
 export default api;
