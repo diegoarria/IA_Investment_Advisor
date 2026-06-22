@@ -653,42 +653,105 @@ async def job_daily_email():
 
 
 async def job_portfolio_alerts():
-    """Every 30 min weekday market hours — check premium portfolios for ±4%/±8% moves."""
+    """Every 30 min weekday market hours — push price movers (≥3%) for portfolio + watchlist (premium only).
+    Batch-fetches all tickers once, then fans out per user. Each ticker deduplicates independently."""
     from app.core.database import get_supabase, run_query
-    from app.services.notification_engine import send_push, check_portfolio_alerts
+    from app.services.notification_engine import send_push
     import random
+
     db = get_supabase()
     try:
-        users_res = await run_query(
-            db.table("user_profiles").select("user_id").eq("subscription_tier", "premium")
+        # 1. Premium users with at least one price-alert pref enabled
+        prefs_res = await run_query(
+            db.table("notification_preferences")
+            .select("user_id,push_portfolio_alerts,push_watchlist_alerts")
+            .or_("push_portfolio_alerts.eq.true,push_watchlist_alerts.eq.true")
         )
-        processed = 0
-        for u in (users_res.data or []):
-            uid      = u["user_id"]
-            port_res = await run_query(db.table("user_portfolio").select("positions").eq("user_id", uid))
-            if not port_res.data:
-                continue
-            raw = port_res.data[0].get("positions") or {}
-            positions = raw.get("positions", []) if isinstance(raw, dict) else raw if isinstance(raw, list) else []
-            if not positions:
-                continue
-            alerts = await check_portfolio_alerts(uid, positions, db)
-            for alert in alerts:
-                ticker    = alert["ticker"]
-                pct       = alert["change_pct"]
+        if not prefs_res.data:
+            return
+        prefs_by_uid = {p["user_id"]: p for p in prefs_res.data}
+
+        # Keep only premium users
+        profiles_res = await run_query(
+            db.table("user_profiles").select("user_id")
+            .eq("subscription_tier", "premium")
+            .in_("user_id", list(prefs_by_uid.keys()))
+        )
+        premium_uids = {u["user_id"] for u in (profiles_res.data or [])}
+        if not premium_uids:
+            return
+
+        # 2. Collect tickers per user (portfolio + watchlist)
+        user_tickers: dict[str, dict] = {}  # uid → {"port": set, "watch": set}
+        all_tickers: set[str] = set()
+
+        for uid in premium_uids:
+            prefs      = prefs_by_uid[uid]
+            port_set:  set[str] = set()
+            watch_set: set[str] = set()
+
+            if prefs.get("push_portfolio_alerts"):
+                port_res = await run_query(
+                    db.table("user_portfolio").select("positions").eq("user_id", uid)
+                )
+                if port_res.data:
+                    raw  = port_res.data[0].get("positions") or {}
+                    pos  = raw.get("positions", []) if isinstance(raw, dict) else (raw if isinstance(raw, list) else [])
+                    port_set = {p["ticker"] for p in pos if p.get("ticker")}
+
+            if prefs.get("push_watchlist_alerts"):
+                watch_res = await run_query(
+                    db.table("watchlist").select("ticker").eq("user_id", uid)
+                )
+                watch_set = {r["ticker"] for r in (watch_res.data or [])} - port_set
+
+            if port_set or watch_set:
+                user_tickers[uid] = {"port": port_set, "watch": watch_set}
+                all_tickers |= port_set | watch_set
+
+        if not all_tickers:
+            return
+
+        # 3. Batch-fetch prices for every unique ticker (one yfinance call)
+        prices = await _batch_fetch_prices(list(all_tickers))
+        if not prices:
+            return
+
+        # 4. Pre-compute which tickers actually moved ≥3%
+        movers: dict[str, float] = {}
+        for ticker, px in prices.items():
+            if px.get("prev") and px["prev"] > 0:
+                pct = round((px["curr"] - px["prev"]) / px["prev"] * 100, 2)
+                if abs(pct) >= 3.0:
+                    movers[ticker] = pct
+
+        if not movers:
+            logger.info("Portfolio alerts: no movers ≥3%% today")
+            return
+
+        # 5. Fan out per user — one push per ticker (dedup key: price_mover_{ticker})
+        sent = 0
+        for uid, sets in user_tickers.items():
+            combined = (sets["port"] | sets["watch"]) & movers.keys()
+            # Sort by magnitude so the biggest move fires first
+            ranked = sorted(combined, key=lambda t: abs(movers[t]), reverse=True)
+            for ticker in ranked:
+                pct       = movers[ticker]
                 emoji     = "🚀" if pct > 0 else "📉"
                 direction = "subió" if pct > 0 else "cayó"
-                category  = "portfolio_extreme" if alert["level"] == "extreme" else "portfolio_alert"
+                source    = "tu portafolio" if ticker in sets["port"] else "tu watchlist"
                 await send_push(
-                    uid, category,
-                    f"{emoji} {ticker} {direction} {abs(pct):.1f}%",
-                    f"Tu posición en {ticker} tiene un movimiento significativo hoy.",
-                    {"ticker": ticker, "change_pct": pct, "screen": "portfolio"},
+                    uid,
+                    f"price_mover_{ticker}",  # per-ticker dedup: one alert per ticker per day
+                    f"{emoji} {ticker} {direction} un {abs(pct):.2f}%",
+                    f"Movimiento significativo en {source}. Precio actual: ${prices[ticker]['curr']:.2f}",
+                    {"ticker": ticker, "change_pct": pct, "screen": "portfolio" if ticker in sets["port"] else "watchlist"},
                     db,
                 )
-                await asyncio.sleep(random.uniform(0.05, 0.3))
-            processed += 1
-        logger.info("Portfolio alerts: %d premium users scanned", processed)
+                sent += 1
+                await asyncio.sleep(random.uniform(0.05, 0.2))
+
+        logger.info("Portfolio alerts: %d movers found, %d pushes sent", len(movers), sent)
     except Exception as e:
         logger.error("job_portfolio_alerts failed: %s", e)
 
