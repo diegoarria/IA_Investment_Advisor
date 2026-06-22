@@ -177,10 +177,10 @@ async def upsell_checkout(body: dict, user_id: str = Depends(get_current_user_id
     Family Plan uses /billing/family-plan endpoint (subscription upgrade).
     """
     offer = body.get("offer")
-    variant = body.get("variant", "default")  # 'bundle' for 3-session pack
+    variant = body.get("variant", "default")  # 'bundle' | 'monthly' | 'yearly' | tier
 
-    if offer not in ("annual_report", "session"):
-        return {"error": "Use /billing/family-plan for family plan"}
+    if offer not in ("annual_report", "session", "family_plan"):
+        return {"error": "Invalid offer"}
 
     if not settings.stripe_secret_key:
         return {"error": "Pagos no configurados"}
@@ -198,14 +198,20 @@ async def upsell_checkout(body: dict, user_id: str = Depends(get_current_user_id
     tier = _effective_tier(profile.get("subscription_tier", "free"), profile.get("trial_started_at"))
     customer_id = profile.get("stripe_customer_id")
 
-    key = variant if variant == "bundle" else tier
+    if offer == "family_plan":
+        key = variant if variant in ("monthly", "yearly") else "monthly"
+    elif variant == "bundle":
+        key = "bundle"
+    else:
+        key = tier
     price_id = _price_id_for(offer, tier, key)
     if not price_id:
         return {"error": "Precio no configurado en Stripe"}
 
     base = settings.frontend_url.rstrip("/") if settings.frontend_url not in ("*", "") else "https://nuvosai.com"
+    mode = "subscription" if offer == "family_plan" else "payment"
     params: dict = {
-        "mode": "payment",
+        "mode": mode,
         "payment_method_types": ["card"],
         "line_items": [{"price": price_id, "quantity": 1}],
         "client_reference_id": user_id,

@@ -33,8 +33,8 @@ const OFFER_META = {
   },
   family_plan: {
     icon: Users,
-    emoji: "👨‍👩‍👧",
-    title: "Plan Familiar",
+    emoji: "👫",
+    title: "Plan Dúo",
     subtitle: "Dos cuentas Premium, una sola factura",
     features: [
       "Todo lo de Premium para dos cuentas independientes",
@@ -43,7 +43,7 @@ const OFFER_META = {
       "Privacidad total — sin datos compartidos entre cuentas",
     ],
     color: "#3b82f6",
-    badge: "Solo Premium",
+    badge: "Disponible",
   },
   session: {
     icon: Video,
@@ -66,27 +66,24 @@ export default function UpsellModal({ offer, prices, triggerSource, onClose }: U
   const { tier } = useSubscriptionStore();
   const [loading, setLoading] = useState(false);
   const [variant, setVariant] = useState<"default" | "bundle">("default");
+  const [duoVariant, setDuoVariant] = useState<"monthly" | "yearly">("monthly");
 
   if (!offer) return null;
   const meta = OFFER_META[offer];
   const isPremium = tier === "premium";
 
   const displayPrice = offer === "family_plan"
-    ? `$${prices.monthly ?? 19.99}/mes`
+    ? duoVariant === "monthly" ? `$${prices.monthly ?? 19.99}/mes` : `$${prices.yearly ?? 149.99}/año`
     : isPremium
     ? `$${variant === "bundle" ? (prices.bundle ?? 247) : (prices.premium ?? 0)}`
     : `$${prices.free ?? 0}`;
 
   const handlePurchase = async () => {
-    if (offer === "family_plan") {
-      window.open("mailto:diego.arria19@gmail.com?subject=Plan%20Familiar%20Nuvos%20AI", "_blank");
-      return;
-    }
     setLoading(true);
     try {
       const res = await api.post("/api/upsells/checkout", {
         offer,
-        variant: variant === "bundle" ? "bundle" : tier,
+        variant: offer === "family_plan" ? duoVariant : variant === "bundle" ? "bundle" : tier,
         trigger_source: triggerSource,
       });
       window.location.href = res.data.url;
@@ -189,17 +186,32 @@ export default function UpsellModal({ offer, prices, triggerSource, onClose }: U
             </div>
           )}
 
-          {/* Family plan billing toggle */}
+          {/* Duo plan billing picker */}
           {offer === "family_plan" && (
-            <div className="rounded-xl p-3 space-y-1" style={{ background: "var(--raised)", border: "1px solid var(--border)" }}>
-              <div className="flex justify-between items-center">
-                <span className="text-sm" style={{ color: "var(--sub)" }}>Mensual</span>
-                <span className="font-bold" style={{ color: "var(--text)" }}>${prices.monthly ?? 19.99}/mes</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-sm" style={{ color: "var(--sub)" }}>Anual</span>
-                <span className="font-bold" style={{ color: "var(--text)" }}>${prices.yearly ?? 149.99}/año</span>
-              </div>
+            <div className="flex gap-2 p-1 rounded-xl" style={{ background: "var(--raised)" }}>
+              {(["monthly", "yearly"] as const).map((v) => (
+                <button
+                  key={v}
+                  onClick={() => setDuoVariant(v)}
+                  className="flex-1 rounded-lg py-2.5 px-2 text-center transition-all"
+                  style={{
+                    background: duoVariant === v ? `linear-gradient(135deg,${meta.color}cc,${meta.color})` : "transparent",
+                    boxShadow: duoVariant === v ? `0 4px 12px ${meta.color}44` : "none",
+                  }}
+                >
+                  <p className="text-xs font-black" style={{ color: duoVariant === v ? "#fff" : "var(--muted)" }}>
+                    {v === "monthly" ? "Mensual" : "Anual"}
+                  </p>
+                  <p className="text-sm font-black mt-0.5" style={{ color: duoVariant === v ? "#fff" : "var(--sub)" }}>
+                    {v === "monthly" ? `$${prices.monthly ?? 19.99}/mes` : `$${prices.yearly ?? 149.99}/año`}
+                  </p>
+                  {v === "yearly" && (
+                    <p className="text-[10px] mt-0.5" style={{ color: duoVariant === v ? "rgba(255,255,255,0.75)" : "var(--dim)" }}>
+                      Ahorra ${Math.round(((prices.monthly ?? 19.99) * 12) - (prices.yearly ?? 149.99))}
+                    </p>
+                  )}
+                </button>
+              ))}
             </div>
           )}
 
@@ -243,7 +255,7 @@ export default function UpsellModal({ offer, prices, triggerSource, onClose }: U
           >
             {loading ? "Redirigiendo…" : (
               <>
-                {offer === "session" ? "Reservar sesión" : offer === "family_plan" ? "Contactar para activar" : "Obtener mi reporte"}
+                {offer === "session" ? "Reservar sesión" : offer === "family_plan" ? "Activar Plan Dúo" : "Obtener mi reporte"}
                 <ArrowRight className="w-4 h-4" />
               </>
             )}

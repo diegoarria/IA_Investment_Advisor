@@ -23,9 +23,9 @@ const OFFER_META = {
     cta: false,
   },
   family_plan: {
-    emoji: "👨‍👩‍👧",
+    emoji: "👫",
     color: "#3b82f6",
-    title: "¡Plan Familiar activado!",
+    title: "¡Plan Dúo activado!",
     subtitle: "Tu pago fue procesado exitosamente.",
     cta: false,
   },
@@ -166,7 +166,7 @@ function UpsellSuccessContent() {
             <>
               <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                 <CheckCircle size={18} color="#22c55e" />
-                <span style={{ color: "#d1fae5", fontSize: 14 }}>Plan Familiar activado en tu cuenta</span>
+                <span style={{ color: "#d1fae5", fontSize: 14 }}>Plan Dúo activado en tu cuenta</span>
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                 <CheckCircle size={18} color="#22c55e" />

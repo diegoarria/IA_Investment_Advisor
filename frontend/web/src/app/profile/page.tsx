@@ -997,13 +997,13 @@ export default function ProfilePage() {
                       },
                       {
                         offer: "family_plan" as UpsellOffer,
-                        emoji: "👨‍👩‍👧",
-                        title: "Plan Familiar",
+                        emoji: "👫",
+                        title: "Plan Dúo",
                         subtitle: "Dos cuentas Premium",
                         color: "#3b82f6",
-                        priceLabel: "$19.99/mes",
+                        priceLabel: "desde $19.99/mes",
                         prices: { monthly: 19.99, yearly: 149.99 } as Record<string, number>,
-                        premiumOnly: true,
+                        premiumOnly: false,
                       },
                     ]
                   ).map(({ offer, emoji, title, subtitle, color, priceLabel, prices, premiumOnly }) => (
