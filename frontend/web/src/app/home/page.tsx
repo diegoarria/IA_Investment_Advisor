@@ -13,6 +13,7 @@ import StockAvatar from "@/components/StockAvatar";
 import { market as marketApi, notifications as notifApi, profile as profileApi, sync as syncApi, watchlist as watchlistApi } from "@/lib/api";
 import { useAuthStore, useProfileStore, useLearnStore, useSubscriptionStore, useChatStore } from "@/lib/store";
 import OnboardingChecklist, { type OnboardingStep } from "@/components/OnboardingChecklist";
+import HomeScreenPickerModal, { HOME_SCREEN_KEY } from "@/components/HomeScreenPickerModal";
 import { usePortfolioStore } from "@/lib/portfolioStore";
 import { isNYSEOpen } from "@/lib/marketHours";
 
@@ -82,6 +83,7 @@ export default function HomePage() {
   useSubscriptionStore();
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [showScreenPicker, setShowScreenPicker] = useState(false);
   const [prices, setPrices]       = useState<Record<string, any>>({});
   const [indices, setIndices]     = useState<any[]>([]);
   const [news, setNews]           = useState<any[]>([]);
@@ -284,10 +286,19 @@ export default function HomePage() {
   ];
   const allOnboardingDone = onboardingSteps.every((s) => s.completed);
 
-  // Redirect to portfolio once onboarding is fully complete
+  // Once onboarding is complete: redirect to saved preference, or ask to pick one
   useEffect(() => {
-    if (!loading && allOnboardingDone) {
-      router.replace("/portfolio");
+    if (loading || !allOnboardingDone) return;
+    const saved = localStorage.getItem(HOME_SCREEN_KEY);
+    if (saved) {
+      const routes: Record<string, string> = {
+        home: "/home", portfolio: "/portfolio",
+        chat: "/chat", learn: "/learn", notifications: "/notifications",
+      };
+      const href = routes[saved];
+      if (href && href !== "/home") router.replace(href);
+    } else {
+      setShowScreenPicker(true);
     }
   }, [loading, allOnboardingDone]);
 
@@ -917,6 +928,14 @@ export default function HomePage() {
           </div>
         </main>
       </div>
+      {showScreenPicker && (
+        <HomeScreenPickerModal
+          onDone={(href) => {
+            setShowScreenPicker(false);
+            router.replace(href);
+          }}
+        />
+      )}
     </div>
   );
 }
