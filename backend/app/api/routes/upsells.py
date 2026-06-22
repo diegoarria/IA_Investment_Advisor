@@ -16,6 +16,23 @@ logger = logging.getLogger(__name__)
 
 PRIORITY = ["session", "annual_report", "family_plan"]
 
+_PROMO_DAYS = 90
+
+
+def _effective_tier(raw_tier: str, trial_started_at: str | None) -> str:
+    """Return 'premium' if user is paid premium OR within 90-day promo trial."""
+    if raw_tier == "premium":
+        return "premium"
+    if not trial_started_at:
+        return raw_tier
+    try:
+        started = datetime.fromisoformat(trial_started_at.replace("Z", "+00:00"))
+        if (datetime.now(timezone.utc) - started).total_seconds() / 86400 < _PROMO_DAYS:
+            return "premium"
+    except Exception:
+        pass
+    return raw_tier
+
 PRICES = {
     "annual_report": {"free": 34.99, "premium": 19.99},
     "session":       {"free": 149.0, "premium": 99.0, "bundle": 247.0},
@@ -100,12 +117,12 @@ async def check_upsell(
 
     profile_res = await run_query(
         db.table("user_profiles")
-        .select("subscription_tier, created_at, subscription_started_at")
+        .select("subscription_tier, trial_started_at, created_at, subscription_started_at")
         .eq("user_id", user_id)
         .single()
     )
     profile = profile_res.data or {}
-    tier = profile.get("subscription_tier", "free")
+    tier = _effective_tier(profile.get("subscription_tier", "free"), profile.get("trial_started_at"))
     account_days = _account_days(profile.get("created_at"))
     sub_days = _subscription_days(profile.get("subscription_started_at"))
 
@@ -173,12 +190,12 @@ async def upsell_checkout(body: dict, user_id: str = Depends(get_current_user_id
 
     profile_res = await run_query(
         db.table("user_profiles")
-        .select("stripe_customer_id, subscription_tier")
+        .select("stripe_customer_id, subscription_tier, trial_started_at")
         .eq("user_id", user_id)
         .single()
     )
     profile = profile_res.data or {}
-    tier = profile.get("subscription_tier", "free")
+    tier = _effective_tier(profile.get("subscription_tier", "free"), profile.get("trial_started_at"))
     customer_id = profile.get("stripe_customer_id")
 
     key = variant if variant == "bundle" else tier
