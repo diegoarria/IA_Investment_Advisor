@@ -634,7 +634,7 @@ def _build_pdf(
 @router.get("/generate")
 @limiter.limit("3/hour")
 async def generate_annual_report(
-    req: Request,
+    request: Request,
     user: dict = Depends(get_current_user),
 ):
     """Generate a 7-page annual investor maturity PDF report for the authenticated user."""
