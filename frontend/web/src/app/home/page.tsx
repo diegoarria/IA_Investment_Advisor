@@ -284,6 +284,13 @@ export default function HomePage() {
   ];
   const allOnboardingDone = onboardingSteps.every((s) => s.completed);
 
+  // Redirect to portfolio once onboarding is fully complete
+  useEffect(() => {
+    if (!loading && allOnboardingDone) {
+      router.replace("/portfolio");
+    }
+  }, [loading, allOnboardingDone]);
+
   const handleOnboardingStep = (index: number) => {
     if (index === 1) { openGoalModal(); return; }
     const hrefs = ["/portfolio?tour=1", null, "/chat?tour=3", "/academy?tour=4", "/watchlist?tour=5"];
