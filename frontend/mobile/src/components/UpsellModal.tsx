@@ -157,7 +157,7 @@ export default function UpsellModal({ visible, offer, userTier, prices, triggerS
                     <Text style={[s.pickerLabel, { color: variant === v ? "#fff" : colors.textMuted }]}>
                       {v === "default" ? "1 sesión" : "Pack 3 sesiones"}
                     </Text>
-                    <Text style={[s.pickerPrice, { color: variant === v ? "#fff" : colors.sub }]}>
+                    <Text style={[s.pickerPrice, { color: variant === v ? "#fff" : colors.textSub }]}>
                       {v === "default" ? `$${prices.premium ?? 99}` : `$${prices.bundle ?? 247}`}
                     </Text>
                   </TouchableOpacity>

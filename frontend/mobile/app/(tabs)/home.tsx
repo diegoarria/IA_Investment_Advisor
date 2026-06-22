@@ -20,6 +20,8 @@ import { useChatStore } from "../../src/lib/chatStore";
 import { useWatchlistStore } from "../../src/lib/watchlistStore";
 import StockAvatar from "../../src/components/StockAvatar";
 import MobileOnboardingChecklist, { type OnboardingStep } from "../../src/components/MobileOnboardingChecklist";
+import MobileHomeScreenPickerModal, { HOME_SCREEN_KEY } from "../../src/components/MobileHomeScreenPickerModal";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 // ── Sparkline helpers ─────────────────────────────────────────────────────────
 function sparkPath(prices: number[], w: number, h: number, close = false): string {
@@ -355,6 +357,7 @@ export default function HomeScreen() {
   const [ytdGain,    setYtdGain]   = useState<number | null>(null);
   const [ytdPct,     setYtdPct]    = useState<number | null>(null);
   const [showGoalModal, setShowGoalModal] = useState(false);
+  const [showScreenPicker, setShowScreenPicker] = useState(false);
   const [goalDraft,     setGoalDraft]     = useState("");
   const [goalAmtDraft,  setGoalAmtDraft]  = useState("");
   const [savingGoal,    setSavingGoal]    = useState(false);
@@ -590,6 +593,26 @@ export default function HomeScreen() {
     { emoji: "👀", title: "Agrega una acción a tu watchlist", description: "Monitorea empresas que te interesan",             completed: watchlistItems.length > 0 },
   ];
   const allOnboardingDone = onboardingSteps.every((s) => s.completed);
+
+  // Once onboarding is complete: redirect to saved preference, or ask to pick one
+  useEffect(() => {
+    if (loading || !allOnboardingDone) return;
+    AsyncStorage.getItem(HOME_SCREEN_KEY).then((saved) => {
+      if (saved) {
+        const routes: Record<string, string> = {
+          home: "/(tabs)/home",
+          portfolio: "/(tabs)/portfolio",
+          chat: "/(tabs)/chat",
+          learn: "/(tabs)/learn",
+          notifications: "/(tabs)/notifications",
+        };
+        const route = routes[saved];
+        if (route && route !== "/(tabs)/home") router.replace(route as any);
+      } else {
+        setShowScreenPicker(true);
+      }
+    });
+  }, [loading, allOnboardingDone]);
 
   const handleOnboardingStep = (index: number) => {
     if (index === 1) { openGoalModal(); return; }
@@ -1313,6 +1336,16 @@ export default function HomeScreen() {
 
         <View style={{ height: 32 }} />
       </ScrollView>
+
+      <MobileHomeScreenPickerModal
+        visible={showScreenPicker}
+        onDone={async (route) => {
+          const key = route.replace("/(tabs)/", "");
+          await AsyncStorage.setItem(HOME_SCREEN_KEY, key);
+          setShowScreenPicker(false);
+          if (route !== "/(tabs)/home") router.replace(route as any);
+        }}
+      />
     </SafeAreaView>
   );
 }
