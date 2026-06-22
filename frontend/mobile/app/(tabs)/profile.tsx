@@ -15,7 +15,7 @@ import ProgressModal from "../../src/components/ProgressModal";
 import TutorialModal from "../../src/components/TutorialModal";
 import UpsellModal from "../../src/components/UpsellModal";
 import { insightsApi, mentorLetterApi, profileApi, authApi, referralApi, syncApi, feedApi } from "../../src/lib/api";
-import api from "../../src/lib/api";
+import { useSubscriptionStore, hasPremiumAccess } from "../../src/lib/subscriptionStore";
 import type { UpsellOffer } from "../../src/lib/upsellStore";
 
 const MENTOR_PHOTOS: Record<string, number> = {
@@ -146,18 +146,18 @@ export default function ProfileScreen() {
   const [referralStats, setReferralStats] = useState<{ referred_count: number; pending_reward: string } | null>(null);
   const [likedClips, setLikedClips] = useState<{ id: string; title: string; thumbnail_url: string; speaker: string; duration_sec: number }[]>([]);
 
-  const [planOffer, setPlanOffer] = useState<UpsellOffer | null>(null);
-  const [planTier, setPlanTier] = useState<"free" | "premium">("free");
-  const [planPrices, setPlanPrices] = useState<Record<string, number>>({});
+  const subStore = useSubscriptionStore();
+  const isPremium = hasPremiumAccess(subStore);
 
-  const handleOpenPlan = async (offer: UpsellOffer) => {
-    try {
-      const res = await api.get(`/api/upsells/check?trigger_source=profile_plans`);
-      setPlanTier(res.data.user_tier ?? "free");
-      setPlanPrices(res.data.prices ?? {});
-    } catch {}
-    setPlanOffer(offer);
+  const PLAN_PRICES: Record<UpsellOffer, Record<string, number>> = {
+    session:       { free: 149, premium: 99, bundle: 247 },
+    annual_report: { free: 34.99, premium: 19.99 },
+    family_plan:   { monthly: 19.99, yearly: 199.99 },
   };
+
+  const [planOffer, setPlanOffer] = useState<UpsellOffer | null>(null);
+
+  const handleOpenPlan = (offer: UpsellOffer) => setPlanOffer(offer);
 
   useEffect(() => {
     insightsApi.get().then((r) => setInsights(r.data)).catch(() => {});
@@ -1101,14 +1101,33 @@ if (!profile) {
 
         {/* ── PLANES ADICIONALES ── */}
         <View style={s.section}>
-          <View style={s.sectionHeader}>
-            <Text style={[s.sectionTitle, { color: colors.text }]}>Planes adicionales</Text>
-          </View>
+          <Text style={[s.plansSectionLabel, { color: colors.textMuted }]}>PLANES ADICIONALES</Text>
           {([
-            { offer: "annual_report" as UpsellOffer, emoji: "📊", title: "Reporte Anual de Madurez", sub: "Tu evolución como inversor", color: "#8b5cf6", price: "desde $19.99" },
-            { offer: "session"       as UpsellOffer, emoji: "🎯", title: "Sesión 1:1 con Diego",     sub: "45 min con el fundador",    color: "#00d47e", price: "desde $99" },
-            { offer: "family_plan"   as UpsellOffer, emoji: "👫", title: "Plan Dúo",                  sub: "Dos cuentas Premium",       color: "#3b82f6", price: "desde $19.99/mes" },
-          ]).map(({ offer, emoji, title, sub, color, price }) => (
+            {
+              offer: "session" as UpsellOffer,
+              emoji: "🎯",
+              title: "Sesión 1:1 con Diego",
+              sub: "45 min con el fundador",
+              color: "#00d47e",
+              priceLabel: isPremium ? "desde $99" : "desde $149",
+            },
+            {
+              offer: "annual_report" as UpsellOffer,
+              emoji: "📊",
+              title: "Reporte Anual de Madurez",
+              sub: "Tu evolución como inversor",
+              color: "#8b5cf6",
+              priceLabel: isPremium ? "$19.99" : "$34.99",
+            },
+            {
+              offer: "family_plan" as UpsellOffer,
+              emoji: "👫",
+              title: "Plan Dúo",
+              sub: "Dos cuentas Premium",
+              color: "#3b82f6",
+              priceLabel: "desde $19.99/mes",
+            },
+          ]).map(({ offer, emoji, title, sub, color, priceLabel }) => (
             <TouchableOpacity
               key={offer}
               onPress={() => handleOpenPlan(offer)}
@@ -1122,7 +1141,10 @@ if (!profile) {
                 <Text style={[s.planTitle, { color: colors.text }]}>{title}</Text>
                 <Text style={[s.planSub, { color: colors.textMuted }]}>{sub}</Text>
               </View>
-              <Text style={[s.planPrice, { color: color }]}>{price}</Text>
+              <View style={{ alignItems: "flex-end" }}>
+                <Text style={[s.planPrice, { color }]}>{priceLabel}</Text>
+                <Text style={[s.planSeeMore, { color: colors.textDim }]}>Ver más →</Text>
+              </View>
             </TouchableOpacity>
           ))}
         </View>
@@ -1168,8 +1190,8 @@ if (!profile) {
         <UpsellModal
           visible={true}
           offer={planOffer}
-          userTier={planTier}
-          prices={planPrices}
+          userTier={isPremium ? "premium" : "free"}
+          prices={PLAN_PRICES[planOffer]}
           triggerSource="profile_plans"
           onClose={() => setPlanOffer(null)}
         />
@@ -1393,10 +1415,12 @@ function makeStyles(c: Colors) {
       backgroundColor: "#16a34a", borderRadius: 14, paddingVertical: 15, width: 320,
     },
     modalShareText: { color: "white", fontWeight: "700", fontSize: 15 },
-    planCard:  { flexDirection: "row", alignItems: "center", gap: 12, padding: 14, borderRadius: 16, borderWidth: 1, marginBottom: 8 },
-    planIcon:  { width: 42, height: 42, borderRadius: 12, alignItems: "center", justifyContent: "center" },
-    planTitle: { fontSize: 14, fontWeight: "800", lineHeight: 18 },
-    planSub:   { fontSize: 12, marginTop: 2 },
-    planPrice: { fontSize: 13, fontWeight: "900" },
+    plansSectionLabel: { fontSize: 11, fontWeight: "900", letterSpacing: 0.8, textTransform: "uppercase", marginBottom: 10, paddingHorizontal: 2 },
+    planCard:    { flexDirection: "row", alignItems: "center", gap: 12, padding: 14, borderRadius: 16, borderWidth: 1, marginBottom: 8 },
+    planIcon:    { width: 42, height: 42, borderRadius: 12, alignItems: "center", justifyContent: "center" },
+    planTitle:   { fontSize: 14, fontWeight: "800", lineHeight: 18 },
+    planSub:     { fontSize: 12, marginTop: 2 },
+    planPrice:   { fontSize: 13, fontWeight: "900" },
+    planSeeMore: { fontSize: 10, marginTop: 2 },
   });
 }
