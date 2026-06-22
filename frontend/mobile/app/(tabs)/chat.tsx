@@ -207,6 +207,7 @@ export default function ChatScreen() {
   const [showScrollBtn, setShowScrollBtn] = useState(false);
   const [notificationContext, setNotificationContext] = useState<string | null>(null);
   const [pendingActions, setPendingActions] = useState<Array<{ type: string; label: string; data: Record<string, unknown> }> | null>(null);
+  const [committedActions, setCommittedActions] = useState<Set<number>>(new Set());
   const [decisionModal, setDecisionModal] = useState<{ action: string; ticker: string; notes: string } | null>(null);
   const [decisionSaved, setDecisionSaved] = useState(false);
 
@@ -606,7 +607,7 @@ Instrucciones críticas:
         null,
         imagesToSend.length > 0 ? imagesToSend.map((i) => ({ data: i.data, type: i.type })) : null,
         ctxToSend,
-        (actions) => setPendingActions(actions),
+        (actions) => { setPendingActions(actions); setCommittedActions(new Set()); },
       );
     } catch (err: unknown) {
       const errObj = err as { response?: { status?: number; data?: { detail?: { message?: string } } }; message?: string };
@@ -702,36 +703,61 @@ Instrucciones críticas:
         {isLastAssistant && pendingActions && !streaming && (
           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 6, marginLeft: 4 }}>
             {pendingActions.map((action, ai) => (
-              <TouchableOpacity
-                key={ai}
-                onPress={() => {
-                  if (action.type === "decision") {
-                    const d = action.data as Record<string, string>;
-                    setDecisionModal({ action: d.action ?? "hold", ticker: d.ticker ?? "", notes: d.notes ?? "" });
-                  } else if (action.type === "chat") {
-                    const d = action.data as Record<string, string>;
-                    sendMessage(d.message);
-                  }
-                }}
-                style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  gap: 4,
-                  paddingHorizontal: 12,
-                  paddingVertical: 7,
-                  borderRadius: 20,
-                  borderWidth: 1,
-                  borderColor: action.type === "decision" ? "rgba(0,185,109,0.4)" : colors.border,
-                  backgroundColor: action.type === "decision" ? "rgba(0,185,109,0.10)" : colors.bgRaised,
-                }}
-              >
-                <Text style={{ fontSize: 12 }}>
-                  {action.type === "decision" ? "📝" : action.type === "watchlist" ? "👁" : action.type === "alert" ? "🔔" : "→"}
-                </Text>
-                <Text style={{ fontSize: 12, fontWeight: "600", color: action.type === "decision" ? colors.accentLight : colors.textSub }}>
-                  {action.label}
-                </Text>
-              </TouchableOpacity>
+              <View key={ai} style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                <TouchableOpacity
+                  onPress={() => {
+                    if (action.type === "decision") {
+                      const d = action.data as Record<string, string>;
+                      setDecisionModal({ action: d.action ?? "hold", ticker: d.ticker ?? "", notes: d.notes ?? "" });
+                    } else if (action.type === "chat") {
+                      const d = action.data as Record<string, string>;
+                      sendMessage(d.message);
+                    }
+                  }}
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: 4,
+                    paddingHorizontal: 12,
+                    paddingVertical: 7,
+                    borderRadius: 20,
+                    borderWidth: 1,
+                    borderColor: action.type === "decision" ? "rgba(0,185,109,0.4)" : colors.border,
+                    backgroundColor: action.type === "decision" ? "rgba(0,185,109,0.10)" : colors.bgRaised,
+                  }}
+                >
+                  <Text style={{ fontSize: 12 }}>
+                    {action.type === "decision" ? "📝" : action.type === "watchlist" ? "👁" : action.type === "alert" ? "🔔" : "→"}
+                  </Text>
+                  <Text style={{ fontSize: 12, fontWeight: "600", color: action.type === "decision" ? colors.accentLight : colors.textSub }}>
+                    {action.label}
+                  </Text>
+                </TouchableOpacity>
+                {action.type !== "chat" && (
+                  <TouchableOpacity
+                    onPress={async () => {
+                      if (committedActions.has(ai)) return;
+                      try {
+                        const { default: api } = await import("../../src/lib/api");
+                        await api.post("/api/actions/commit", { type: action.type, label: action.label, data: action.data });
+                        setCommittedActions(prev => new Set([...prev, ai]));
+                      } catch { /* silent */ }
+                    }}
+                    style={{
+                      width: 26,
+                      height: 26,
+                      borderRadius: 13,
+                      borderWidth: 1,
+                      alignItems: "center",
+                      justifyContent: "center",
+                      borderColor: committedActions.has(ai) ? "rgba(0,185,109,0.4)" : colors.border,
+                      backgroundColor: committedActions.has(ai) ? "rgba(0,185,109,0.10)" : colors.bgRaised,
+                    }}
+                  >
+                    <Text style={{ fontSize: 11 }}>{committedActions.has(ai) ? "✓" : "🔔"}</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
             ))}
           </View>
         )}

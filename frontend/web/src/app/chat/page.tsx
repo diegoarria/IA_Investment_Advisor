@@ -179,6 +179,7 @@ export default function ChatPage() {
   const [isTour, setIsTour] = useState(false);
   const [notificationContext, setNotificationContext] = useState<string | null>(null);
   const [pendingActions, setPendingActions] = useState<Array<{ type: string; label: string; data: Record<string, unknown> }> | null>(null);
+  const [committedActions, setCommittedActions] = useState<Set<number>>(new Set());
   const [decisionModal, setDecisionModal] = useState<{ action: string; ticker: string; notes: string } | null>(null);
   const [decisionSaved, setDecisionSaved] = useState(false);
 
@@ -628,7 +629,7 @@ export default function ChatPage() {
         null,
         imagesToSend.length > 0 ? imagesToSend.map((i) => ({ data: i.data, type: i.type })) : null,
         ctxToSend,
-        (actions) => setPendingActions(actions),
+        (actions) => { setPendingActions(actions); setCommittedActions(new Set()); },
       );
     } catch (err: unknown) {
       setStreaming(false);
@@ -1073,38 +1074,60 @@ export default function ChatPage() {
                 {msg.role === "assistant" && i === messages.length - 1 && pendingActions && !isStreaming && (
                   <div className="flex flex-wrap gap-2 mt-2 ml-11">
                     {pendingActions.map((action, ai) => (
-                      <button
-                        key={ai}
-                        onClick={() => {
-                          if (action.type === "decision") {
-                            const d = action.data as Record<string, string>;
-                            setDecisionModal({ action: d.action ?? "hold", ticker: d.ticker ?? "", notes: d.notes ?? "" });
-                          } else if (action.type === "chat") {
-                            const d = action.data as Record<string, string>;
-                            sendMessage(d.message);
-                          } else if (action.type === "watchlist") {
-                            const d = action.data as Record<string, string>;
-                            router.push(`/portfolio?add=${d.ticker}`);
-                          } else if (action.type === "alert") {
-                            const d = action.data as Record<string, string>;
-                            router.push(`/portfolio?alert=${d.ticker}`);
-                          } else if (action.type === "learn") {
-                            const d = action.data as Record<string, string>;
-                            router.push(`/learn?topic=${d.topic}`);
-                          }
-                        }}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all hover:opacity-80 active:scale-95"
-                        style={{
-                          background: action.type === "decision" ? "rgba(0,185,109,0.10)" : "var(--raised)",
-                          borderColor: action.type === "decision" ? "rgba(0,185,109,0.35)" : "var(--border)",
-                          color: action.type === "decision" ? "var(--accent-l)" : "var(--sub)",
-                        }}
-                      >
-                        <span>
-                          {action.type === "decision" ? "📝" : action.type === "watchlist" ? "👁" : action.type === "alert" ? "🔔" : action.type === "learn" ? "📚" : "→"}
-                        </span>
-                        {action.label}
-                      </button>
+                      <div key={ai} className="flex items-center gap-1">
+                        <button
+                          onClick={() => {
+                            if (action.type === "decision") {
+                              const d = action.data as Record<string, string>;
+                              setDecisionModal({ action: d.action ?? "hold", ticker: d.ticker ?? "", notes: d.notes ?? "" });
+                            } else if (action.type === "chat") {
+                              const d = action.data as Record<string, string>;
+                              sendMessage(d.message);
+                            } else if (action.type === "watchlist") {
+                              const d = action.data as Record<string, string>;
+                              router.push(`/portfolio?add=${d.ticker}`);
+                            } else if (action.type === "alert") {
+                              const d = action.data as Record<string, string>;
+                              router.push(`/portfolio?alert=${d.ticker}`);
+                            } else if (action.type === "learn") {
+                              const d = action.data as Record<string, string>;
+                              router.push(`/learn?topic=${d.topic}`);
+                            }
+                          }}
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all hover:opacity-80 active:scale-95"
+                          style={{
+                            background: action.type === "decision" ? "rgba(0,185,109,0.10)" : "var(--raised)",
+                            borderColor: action.type === "decision" ? "rgba(0,185,109,0.35)" : "var(--border)",
+                            color: action.type === "decision" ? "var(--accent-l)" : "var(--sub)",
+                          }}
+                        >
+                          <span>
+                            {action.type === "decision" ? "📝" : action.type === "watchlist" ? "👁" : action.type === "alert" ? "🔔" : action.type === "learn" ? "📚" : "→"}
+                          </span>
+                          {action.label}
+                        </button>
+                        {action.type !== "chat" && (
+                          <button
+                            onClick={async () => {
+                              if (committedActions.has(ai)) return;
+                              try {
+                                const { default: api } = await import("@/lib/api");
+                                await api.post("/api/actions/commit", { type: action.type, label: action.label, data: action.data });
+                                setCommittedActions(prev => new Set([...prev, ai]));
+                              } catch { /* silent */ }
+                            }}
+                            title="Recordarme en 24 horas"
+                            className="flex items-center justify-center w-6 h-6 rounded-full border transition-all hover:opacity-80 active:scale-95 text-xs"
+                            style={{
+                              background: committedActions.has(ai) ? "rgba(0,185,109,0.12)" : "var(--raised)",
+                              borderColor: committedActions.has(ai) ? "rgba(0,185,109,0.4)" : "var(--border)",
+                              color: committedActions.has(ai) ? "var(--accent-l)" : "var(--muted)",
+                            }}
+                          >
+                            {committedActions.has(ai) ? "✓" : "🔔"}
+                          </button>
+                        )}
+                      </div>
                     ))}
                   </div>
                 )}

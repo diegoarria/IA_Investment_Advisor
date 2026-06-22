@@ -1731,6 +1731,138 @@ async def job_cleanup_analytics():
         logger.warning("Analytics cleanup failed: %s", e)
 
 
+async def job_action_followup():
+    """Every 4h — push reminder for committed actions that are overdue (basic/intermediate only)."""
+    from app.core.database import get_supabase, run_query
+    from app.services.notification_engine import send_push
+    db = get_supabase()
+    try:
+        now = datetime.now(timezone.utc)
+        res = await run_query(
+            db.table("pending_actions")
+            .select("id,user_id,action_type,action_label,action_data")
+            .eq("status", "committed")
+            .is_("notified_at", "null")
+            .lte("due_at", now.isoformat())
+            .limit(200)
+        )
+        if not res.data:
+            return
+
+        user_ids = list({r["user_id"] for r in res.data})
+        prof_res = await run_query(
+            db.table("user_profiles")
+            .select("user_id,knowledge_level")
+            .in_("user_id", user_ids)
+        )
+        allowed = {
+            p["user_id"] for p in (prof_res.data or [])
+            if p.get("knowledge_level") in ("A", "B", "C", None)
+        }
+
+        sent = 0
+        for action in res.data:
+            uid = action["user_id"]
+            if uid not in allowed:
+                continue
+            a_type  = action.get("action_type", "general")
+            label   = action.get("action_label", "")
+            a_data  = action.get("action_data") or {}
+            ticker  = a_data.get("ticker", "")
+            topic   = a_data.get("topic", "")
+
+            if a_type == "watchlist" and ticker:
+                title = "¿Agregaste la acción?"
+                body  = f"Dijiste que ibas a agregar {ticker} a tu watchlist. ¿Ya lo hiciste?"
+                data  = {"screen": "chat", "suggested_message": f"¿Debo agregar {ticker} a mi watchlist ahora?"}
+            elif a_type == "decision" and ticker:
+                title = "Tu decisión de inversión"
+                body  = f"Tenías pendiente una decisión sobre {ticker}. Tu mentor puede ayudarte."
+                data  = {"screen": "chat", "suggested_message": f"Necesito tomar una decisión sobre {ticker}. ¿Me ayudas?"}
+            elif a_type == "learn" and topic:
+                title = "Continúa aprendiendo"
+                body  = f"Querías explorar '{topic}'. Tu mentor te espera."
+                data  = {"screen": "learn", "topic": topic}
+            else:
+                title = "Acción pendiente con tu mentor"
+                body  = f"Tenías pendiente: {label}. ¿Lo completaste?"
+                data  = {"screen": "chat"}
+
+            await send_push(uid, "action_followup", title, body, data, db)
+            await run_query(
+                db.table("pending_actions")
+                .update({"notified_at": now.isoformat()})
+                .eq("id", action["id"])
+            )
+            sent += 1
+            await asyncio.sleep(random.uniform(0, 0.1))
+
+        logger.info("Action followup: %d reminders sent", sent)
+    except Exception as e:
+        logger.error("job_action_followup failed: %s", e)
+
+
+async def job_mentor_nudge():
+    """3:00 PM ET daily — mentor nudge for basic/intermediate users inactive for 3+ days."""
+    from app.core.database import get_supabase, run_query
+    from app.services.notification_engine import send_push
+    db = get_supabase()
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=3)).isoformat()
+    try:
+        prefs_res = await run_query(
+            db.table("notification_preferences")
+            .select("user_id,last_opened_app")
+            .eq("push_ai_recommendations", True)
+        )
+        inactive_uids = [
+            r["user_id"] for r in (prefs_res.data or [])
+            if not r.get("last_opened_app") or r["last_opened_app"] < cutoff
+        ]
+        if not inactive_uids:
+            return
+
+        prof_res = await run_query(
+            db.table("user_profiles")
+            .select("user_id,knowledge_level,name,mentor")
+            .in_("user_id", inactive_uids)
+        )
+        basic_intermediate = {
+            p["user_id"]: p for p in (prof_res.data or [])
+            if p.get("knowledge_level") in ("A", "B", "C", None)
+        }
+        if not basic_intermediate:
+            return
+
+        MENTOR_NAMES = {"warren_buffett": "Warren", "ray_dalio": "Ray", "bill_ackman": "Bill"}
+        SUGGESTED_MESSAGES = [
+            "¿Qué debería revisar en mi portafolio esta semana?",
+            "¿Hay alguna oportunidad interesante en el mercado ahora?",
+            "¿Estoy bien diversificado para el entorno actual?",
+            "¿Qué lección debería aprender hoy para mejorar como inversor?",
+        ]
+
+        sent = 0
+        for i, (uid, prof) in enumerate(basic_intermediate.items()):
+            if i % 50 == 0 and i > 0:
+                await asyncio.sleep(6)
+            mentor_key  = prof.get("mentor") or "warren_buffett"
+            mentor_name = MENTOR_NAMES.get(mentor_key, "tu mentor")
+            suggested   = SUGGESTED_MESSAGES[i % len(SUGGESTED_MESSAGES)]
+            await send_push(
+                uid, "mentor_nudge",
+                f"📬 {mentor_name} tiene algo para ti",
+                f"Llevas unos días sin hablar con tu mentor. ¿Tienes alguna duda sobre tus inversiones?",
+                {"screen": "chat", "suggested_message": suggested},
+                db,
+            )
+            sent += 1
+            await asyncio.sleep(random.uniform(0, 0.1))
+
+        logger.info("Mentor nudge: %d sent to basic/intermediate inactive users", sent)
+    except Exception as e:
+        logger.error("job_mentor_nudge failed: %s", e)
+
+
 async def main():
     scheduler = AsyncIOScheduler()
 
@@ -1769,6 +1901,10 @@ async def main():
     scheduler.add_job(send_reengagement_emails,    "cron", day_of_week="sat",  hour=12,      minute=0,     timezone="America/New_York")
     scheduler.add_job(send_birthday_emails,        "cron",                     hour=8,       minute=0,     timezone="America/New_York")
     scheduler.add_job(send_educational_emails,     "cron",                     hour=9,       minute=0,     timezone="America/New_York")
+
+    # ── Action follow-up + mentor nudge (basic/intermediate only) ────────────
+    scheduler.add_job(job_action_followup,      "interval", hours=4)
+    scheduler.add_job(job_mentor_nudge,         "cron",     hour=15, minute=0, timezone="America/New_York")
 
     # ── Cleanup ───────────────────────────────────────────────────────────────
     scheduler.add_job(job_cleanup_analytics,    "interval", hours=1)
