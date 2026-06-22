@@ -969,6 +969,15 @@ async def job_reengagement_push():
         if not inactive_uids:
             return
 
+        # Only send personalized portfolio movers to premium users
+        tier_res = await run_query(
+            db.table("user_profiles").select("user_id").eq("subscription_tier", "premium").in_("user_id", inactive_uids)
+        )
+        premium_set = {r["user_id"] for r in (tier_res.data or [])}
+        inactive_uids = [uid for uid in inactive_uids if uid in premium_set]
+        if not inactive_uids:
+            return
+
         # Collect tickers from each inactive user's portfolio
         all_tickers: set[str] = set()
         port_map: dict[str, list] = {}
@@ -1752,12 +1761,13 @@ async def job_action_followup():
         user_ids = list({r["user_id"] for r in res.data})
         prof_res = await run_query(
             db.table("user_profiles")
-            .select("user_id,knowledge_level")
+            .select("user_id,knowledge_level,subscription_tier")
             .in_("user_id", user_ids)
         )
         allowed = {
             p["user_id"] for p in (prof_res.data or [])
-            if p.get("knowledge_level") in ("A", "B", "C", None)
+            if p.get("subscription_tier") == "premium"
+            and p.get("knowledge_level") in ("A", "B", "C", None)
         }
 
         sent = 0
@@ -1823,12 +1833,13 @@ async def job_mentor_nudge():
 
         prof_res = await run_query(
             db.table("user_profiles")
-            .select("user_id,knowledge_level,name,mentor")
+            .select("user_id,knowledge_level,subscription_tier,name,mentor")
             .in_("user_id", inactive_uids)
         )
         basic_intermediate = {
             p["user_id"]: p for p in (prof_res.data or [])
-            if p.get("knowledge_level") in ("A", "B", "C", None)
+            if p.get("subscription_tier") == "premium"
+            and p.get("knowledge_level") in ("A", "B", "C", None)
         }
         if not basic_intermediate:
             return
