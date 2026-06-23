@@ -146,6 +146,47 @@ def _market_comparison_push(
     return f"{sp} | {nq}"
 
 
+# ── Company name map (ticker → short display name) ────────────────────────────
+# Fallback: if ticker not here, use the ticker symbol itself.
+
+_COMPANY_NAMES: dict[str, str] = {
+    "AAPL": "Apple",           "MSFT": "Microsoft",     "GOOGL": "Alphabet",
+    "GOOG": "Alphabet",        "AMZN": "Amazon",         "META": "Meta",
+    "TSLA": "Tesla",           "NVDA": "NVIDIA",         "AMD": "AMD",
+    "INTC": "Intel",           "ORCL": "Oracle",         "CRM": "Salesforce",
+    "ADBE": "Adobe",           "NFLX": "Netflix",        "DIS": "Disney",
+    "SBUX": "Starbucks",       "V": "Visa",              "MA": "Mastercard",
+    "JPM": "JPMorgan",         "BAC": "Bank of America", "GS": "Goldman Sachs",
+    "MS": "Morgan Stanley",    "WFC": "Wells Fargo",     "C": "Citigroup",
+    "JNJ": "Johnson & Johnson","PFE": "Pfizer",          "ABBV": "AbbVie",
+    "UNH": "UnitedHealth",     "MRK": "Merck",           "AMGN": "Amgen",
+    "XOM": "ExxonMobil",       "CVX": "Chevron",         "COP": "ConocoPhillips",
+    "KO": "Coca-Cola",         "PEP": "PepsiCo",         "WMT": "Walmart",
+    "COST": "Costco",          "HD": "Home Depot",       "MCD": "McDonald's",
+    "AMGN": "Amgen",           "BA": "Boeing",           "CAT": "Caterpillar",
+    "GE": "GE",                "MMM": "3M",              "NKE": "Nike",
+    "PG": "Procter & Gamble",  "VZ": "Verizon",          "T": "AT&T",
+    "NEE": "NextEra Energy",   "SO": "Southern Company", "O": "Realty Income",
+    "SPY": "S&P 500 ETF",      "QQQ": "NASDAQ ETF",      "IWM": "Russell 2000 ETF",
+    "VOO": "Vanguard S&P 500", "VTI": "Vanguard Total Market",
+    "PLTR": "Palantir",        "COIN": "Coinbase",       "SOFI": "SoFi",
+    "RKLB": "Rocket Lab",      "MSTR": "MicroStrategy",  "SMCI": "Super Micro",
+    "BE": "Bloom Energy",      "BRK-B": "Berkshire",     "BRK.B": "Berkshire",
+    "SHOP": "Shopify",         "SQ": "Block",            "PYPL": "PayPal",
+    "UBER": "Uber",            "ABNB": "Airbnb",         "HOOD": "Robinhood",
+    "RIVN": "Rivian",          "LCID": "Lucid",          "NIO": "NIO",
+    "BABA": "Alibaba",         "TSM": "TSMC",            "ASML": "ASML",
+    "SNOW": "Snowflake",       "DDOG": "Datadog",        "ZM": "Zoom",
+    "CRWD": "CrowdStrike",     "PANW": "Palo Alto",      "OKTA": "Okta",
+    "ARM": "Arm Holdings",     "AVGO": "Broadcom",       "QCOM": "Qualcomm",
+    "TXN": "Texas Instruments","MU": "Micron",           "AMAT": "Applied Materials",
+}
+
+
+def _company_name(ticker: str) -> str:
+    return _COMPANY_NAMES.get(ticker, ticker)
+
+
 # ── Risk-tiered ticker universes ───────────────────────────────────────────────
 
 _RISK_SUGGESTIONS: dict[str, list[str]] = {
@@ -653,15 +694,16 @@ async def job_daily_email():
 
 
 async def job_portfolio_alerts():
-    """Every 30 min weekday market hours — push price movers (≥3%) for portfolio + watchlist (premium only).
-    Batch-fetches all tickers once, then fans out per user. Each ticker deduplicates independently."""
+    """Every 30 min weekday market hours — push price movers (≥2%) for portfolio + watchlist.
+    All users (no premium gate). Batch-fetches all tickers once, fans out per user.
+    Each ticker deduplicates per-user per-day via dedup key price_mover_{ticker}."""
     from app.core.database import get_supabase, run_query
     from app.services.notification_engine import send_push
     import random
 
     db = get_supabase()
     try:
-        # 1. Premium users with at least one price-alert pref enabled
+        # 1. All users with at least one price-alert pref enabled (free + premium)
         prefs_res = await run_query(
             db.table("notification_preferences")
             .select("user_id,push_portfolio_alerts,push_watchlist_alerts")
@@ -671,22 +713,12 @@ async def job_portfolio_alerts():
             return
         prefs_by_uid = {p["user_id"]: p for p in prefs_res.data}
 
-        # Keep only premium users
-        profiles_res = await run_query(
-            db.table("user_profiles").select("user_id")
-            .eq("subscription_tier", "premium")
-            .in_("user_id", list(prefs_by_uid.keys()))
-        )
-        premium_uids = {u["user_id"] for u in (profiles_res.data or [])}
-        if not premium_uids:
-            return
-
         # 2. Collect tickers per user (portfolio + watchlist)
         user_tickers: dict[str, dict] = {}  # uid → {"port": set, "watch": set}
         all_tickers: set[str] = set()
 
-        for uid in premium_uids:
-            prefs      = prefs_by_uid[uid]
+        for uid in prefs_by_uid:
+            prefs     = prefs_by_uid[uid]
             port_set:  set[str] = set()
             watch_set: set[str] = set()
 
@@ -695,8 +727,8 @@ async def job_portfolio_alerts():
                     db.table("user_portfolio").select("positions").eq("user_id", uid)
                 )
                 if port_res.data:
-                    raw  = port_res.data[0].get("positions") or {}
-                    pos  = raw.get("positions", []) if isinstance(raw, dict) else (raw if isinstance(raw, list) else [])
+                    raw     = port_res.data[0].get("positions") or {}
+                    pos     = raw.get("positions", []) if isinstance(raw, dict) else (raw if isinstance(raw, list) else [])
                     port_set = {p["ticker"] for p in pos if p.get("ticker")}
 
             if prefs.get("push_watchlist_alerts"):
@@ -717,41 +749,44 @@ async def job_portfolio_alerts():
         if not prices:
             return
 
-        # 4. Pre-compute which tickers actually moved ≥3%
+        # 4. Filter tickers that moved ≥2% vs yesterday's close
         movers: dict[str, float] = {}
         for ticker, px in prices.items():
             if px.get("prev") and px["prev"] > 0:
                 pct = round((px["curr"] - px["prev"]) / px["prev"] * 100, 2)
-                if abs(pct) >= 3.0:
+                if abs(pct) >= 2.0:
                     movers[ticker] = pct
 
         if not movers:
-            logger.info("Portfolio alerts: no movers ≥3%% today")
+            logger.info("Portfolio alerts: no movers ≥2%% today")
             return
 
-        # 5. Fan out per user — one push per ticker (dedup key: price_mover_{ticker})
+        # 5. Fan out per user — one push per ticker per day (dedup prevents repeats)
         sent = 0
         for uid, sets in user_tickers.items():
             combined = (sets["port"] | sets["watch"]) & movers.keys()
-            # Sort by magnitude so the biggest move fires first
+            # Biggest move first so the most impactful notification fires if daily limit hit
             ranked = sorted(combined, key=lambda t: abs(movers[t]), reverse=True)
             for ticker in ranked:
                 pct       = movers[ticker]
-                emoji     = "🚀" if pct > 0 else "📉"
-                direction = "subió" if pct > 0 else "cayó"
+                name      = _company_name(ticker)
+                direction = "está subiendo" if pct > 0 else "está bajando"
+                emoji     = "🚀" if pct >= 3 else ("🟢" if pct > 0 else ("📉" if pct <= -3 else "🔴"))
                 source    = "tu portafolio" if ticker in sets["port"] else "tu watchlist"
+                title     = f"{emoji} {name} ({ticker}) hoy {direction} {abs(pct):.1f}%"
+                body      = f"Precio actual: ${prices[ticker]['curr']:.2f} — en {source}."
                 await send_push(
                     uid,
-                    f"price_mover_{ticker}",  # per-ticker dedup: one alert per ticker per day
-                    f"{emoji} {ticker} {direction} un {abs(pct):.2f}%",
-                    f"Movimiento significativo en {source}. Precio actual: ${prices[ticker]['curr']:.2f}",
+                    f"price_mover_{ticker}",  # per-ticker dedup key: fires at most once per day
+                    title,
+                    body,
                     {"ticker": ticker, "change_pct": pct, "screen": "portfolio" if ticker in sets["port"] else "watchlist"},
                     db,
                 )
                 sent += 1
                 await asyncio.sleep(random.uniform(0.05, 0.2))
 
-        logger.info("Portfolio alerts: %d movers found, %d pushes sent", len(movers), sent)
+        logger.info("Portfolio alerts: %d movers ≥2%%, %d pushes sent", len(movers), sent)
     except Exception as e:
         logger.error("job_portfolio_alerts failed: %s", e)
 
@@ -2069,6 +2104,7 @@ async def main():
     scheduler.add_job(job_market_close,         "cron", day_of_week="mon-fri", hour=16,      minute=0,     timezone="America/New_York")
     scheduler.add_job(job_daily_email,          "cron", day_of_week="mon-fri", hour=18,      minute=0,     timezone="America/New_York")
     scheduler.add_job(job_portfolio_alerts,     "cron", day_of_week="mon-fri", hour="9-15",  minute="0,30",timezone="America/New_York")
+    scheduler.add_job(job_portfolio_alerts,     "cron", day_of_week="mon-fri", hour=16,       minute=0,     timezone="America/New_York")
     scheduler.add_job(job_events_alerts,        "cron", day_of_week="mon-fri", hour=8,       minute=0,     timezone="America/New_York")
     scheduler.add_job(job_earnings_results,     "cron", day_of_week="mon-fri", hour=17,      minute=0,     timezone="America/New_York")
 
