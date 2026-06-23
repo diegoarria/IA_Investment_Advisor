@@ -233,17 +233,29 @@ async def get_market_summary_text() -> dict:
     def _fetch():
         try:
             import yfinance as yf
-            indices = {"S&P 500": "^GSPC", "NASDAQ": "^IXIC", "DOW": "^DJI"}
+            INDEX_MAP = {
+                "S&P 500":            "^GSPC",
+                "NASDAQ":             "^IXIC",
+                "Dow Jones":          "^DJI",
+                "México (IPC)":       "^MXX",
+                "Dólar (USD/MXN)":    "USDMXN=X",
+                "Europa (STOXX 50)":  "^STOXX50E",
+                "Japón (Nikkei)":     "^N225",
+                "China (CSI 300)":    "000300.SS",
+            }
             results = {}
-            for name, sym in indices.items():
+            for name, sym in INDEX_MAP.items():
                 try:
                     hist = yf.Ticker(sym).history(period="2d")
                     if len(hist) >= 2:
                         prev = float(hist["Close"].iloc[-2])
                         curr = float(hist["Close"].iloc[-1])
-                        results[name] = {"price": round(curr, 2), "change_pct": round((curr - prev) / prev * 100, 2)}
+                        results[name] = {
+                            "price":      round(curr, 2),
+                            "change_pct": round((curr - prev) / prev * 100, 2),
+                        }
                 except Exception:
-                    results[name] = {"price": None, "change_pct": None}
+                    pass  # silently skip — don't pollute dict with None values
 
             sectors = {"Tecnología": "XLK", "Salud": "XLV", "Finanzas": "XLF", "Energía": "XLE", "Consumo": "XLY"}
             sector_perf = {}
@@ -257,12 +269,13 @@ async def get_market_summary_text() -> dict:
                 except Exception:
                     pass
 
-            best  = max(sector_perf, key=sector_perf.get) if sector_perf else None
-            worst = min(sector_perf, key=sector_perf.get) if sector_perf else None
+            # Default to "—" (not None) so templates never render the word "None"
+            best  = max(sector_perf, key=sector_perf.get) if sector_perf else "—"
+            worst = min(sector_perf, key=sector_perf.get) if sector_perf else "—"
             return {"indices": results, "sectors": sector_perf, "best_sector": best, "worst_sector": worst}
         except Exception as e:
             logger.warning("Market summary fetch failed: %s", e)
-            return {}
+            return {"indices": {}, "sectors": {}, "best_sector": "—", "worst_sector": "—"}
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=1) as ex:
         return await asyncio.get_event_loop().run_in_executor(ex, _fetch)

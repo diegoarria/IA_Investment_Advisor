@@ -1,41 +1,204 @@
 """
-Email templates — dark theme, mobile-responsive.
-Complements the existing email_service.py templates.
+Email templates — dark theme, GBM-quality Market Wrap design.
+Table-based layout for maximum email client compatibility.
 """
 
+# Ordered list of indices shown in the Market Wrap table
+_INDEX_ORDER = [
+    "S&P 500",
+    "NASDAQ",
+    "Dow Jones",
+    "México (IPC)",
+    "Dólar (USD/MXN)",
+    "Europa (STOXX 50)",
+    "Japón (Nikkei)",
+    "China (CSI 300)",
+]
 
-def personalized_daily_email(name: str, market_data: dict, news: list, portfolio_day: dict | None = None) -> str:
-    """Daily close email personalized per user — includes their portfolio day performance."""
-    from app.services.email_service import _nuvos_email_header
-    indices = market_data.get("indices", {})
-    first   = name.split()[0] if name else "Inversor"
-    header  = _nuvos_email_header("Cierre del mercado")
+_SECTOR_ORDER = ["Tecnología", "Finanzas", "Salud", "Energía", "Consumo"]
 
-    def _idx_row(label: str) -> str:
-        d     = indices.get(label, {})
+
+def _format_level(label: str, price: float) -> str:
+    """Format the price/level column depending on the index type."""
+    if label == "Dólar (USD/MXN)":
+        return f"{price:,.2f}"
+    if price >= 10_000:
+        return f"{price:,.0f}"
+    if price >= 100:
+        return f"{price:,.2f}"
+    return f"{price:.4f}"
+
+
+def _idx_rows_html(indices: dict) -> str:
+    rows = ""
+    for label in _INDEX_ORDER:
+        d = indices.get(label)
+        if not d:
+            continue
         pct   = d.get("change_pct")
         price = d.get("price")
         if pct is None:
-            return ""
-        color = "#22c55e" if pct >= 0 else "#ef4444"
-        sign  = "+" if pct >= 0 else ""
-        return (
-            f'<tr style="border-bottom:1px solid #2a2d3a">'
-            f'<td style="padding:10px 16px;color:#d1d5db;font-size:14px">{label}</td>'
-            f'<td style="padding:10px 16px;color:#9ca3af;font-size:13px;text-align:right">${price:,.2f}</td>'
-            f'<td style="padding:10px 16px;font-weight:700;font-size:14px;text-align:right;color:{color}">'
-            f'{sign}{pct:.2f}%</td></tr>'
-        ) if price else ""
+            continue
+        up         = pct >= 0
+        arrow      = "▲" if up else "▼"
+        text_color = "#22c55e" if up else "#ef4444"
+        badge_bg   = "rgba(34,197,94,0.15)" if up else "rgba(239,68,68,0.15)"
+        sign       = "+" if up else ""
+        level_str  = _format_level(label, price) if price is not None else "—"
+        rows += f"""
+        <tr style="border-bottom:1px solid #1e2235">
+          <td style="padding:11px 16px;font-size:14px;white-space:nowrap">
+            <span style="color:{text_color};font-weight:700;margin-right:6px">{arrow}</span>
+            <span style="color:#d1d5db;font-weight:600">{label}</span>
+          </td>
+          <td style="padding:11px 16px;color:#9ca3af;font-size:14px;text-align:right;white-space:nowrap;font-weight:600">
+            {level_str}
+          </td>
+          <td style="padding:11px 16px;text-align:right;white-space:nowrap">
+            <span style="display:inline-block;background:{badge_bg};color:{text_color};font-weight:800;font-size:13px;padding:4px 12px;border-radius:20px">
+              {sign}{pct:.1f}%
+            </span>
+          </td>
+        </tr>"""
+    return rows or '<tr><td colspan="3" style="padding:20px;text-align:center;color:#4b5563;font-size:13px">Datos no disponibles</td></tr>'
 
-    idx_rows = _idx_row("S&P 500") + _idx_row("NASDAQ") + _idx_row("DOW")
 
-    best      = market_data.get("best_sector", "—")
-    worst     = market_data.get("worst_sector", "—")
-    sectors   = market_data.get("sectors", {})
-    best_pct  = sectors.get(best,  0) if best  != "—" else 0
-    worst_pct = sectors.get(worst, 0) if worst != "—" else 0
+def _market_wrap_table(indices: dict) -> str:
+    return f"""
+  <div style="background:#161b27;border:1px solid #2a2d3a;border-radius:16px;overflow:hidden;margin-bottom:20px">
+    <div style="padding:12px 16px;border-bottom:1px solid #2a2d3a;background:#111318">
+      <p style="color:#9ca3af;font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;margin:0">Market Wrap</p>
+    </div>
+    <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse">
+      <tr style="background:#0d1117">
+        <th style="padding:8px 16px;color:#4b5563;font-size:10px;font-weight:700;text-align:left;text-transform:uppercase;letter-spacing:1px">ÍNDICE</th>
+        <th style="padding:8px 16px;color:#4b5563;font-size:10px;font-weight:700;text-align:right;text-transform:uppercase;letter-spacing:1px">NIVEL</th>
+        <th style="padding:8px 16px;color:#4b5563;font-size:10px;font-weight:700;text-align:right;text-transform:uppercase;letter-spacing:1px">CAMBIO</th>
+      </tr>
+      {_idx_rows_html(indices)}
+    </table>
+    <p style="margin:0;padding:10px 16px;color:#374151;font-size:11px;border-top:1px solid #1e2235">
+      Actualizado a las 6:00&nbsp;pm&nbsp;ET&nbsp;·&nbsp;Datos al cierre de operaciones más reciente.
+    </p>
+  </div>"""
 
-    # ── Portfolio hero section ─────────────────────────────────────────────────
+
+def _sectors_html(sectors: dict, best: str, worst: str) -> str:
+    best_pct  = sectors.get(best,  0.0) if best  != "—" else 0.0
+    worst_pct = sectors.get(worst, 0.0) if worst != "—" else 0.0
+    if best == "—" and worst == "—":
+        return ""
+    b_sign = "+" if best_pct  >= 0 else ""
+    w_sign = "+" if worst_pct >= 0 else ""
+    return f"""
+  <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:20px">
+    <tr>
+      <td style="width:49%;vertical-align:top;padding-right:6px">
+        <div style="background:#161b27;border:1px solid rgba(34,197,94,0.2);border-radius:14px;padding:16px">
+          <p style="color:#22c55e;font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;margin:0 0 6px">Mejor sector</p>
+          <p style="color:#fff;font-size:17px;font-weight:800;margin:0 0 4px">{best}</p>
+          <p style="color:#22c55e;font-size:13px;font-weight:700;margin:0">{b_sign}{best_pct:.1f}%</p>
+        </div>
+      </td>
+      <td style="width:49%;vertical-align:top;padding-left:6px">
+        <div style="background:#161b27;border:1px solid rgba(239,68,68,0.2);border-radius:14px;padding:16px">
+          <p style="color:#ef4444;font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;margin:0 0 6px">Peor sector</p>
+          <p style="color:#fff;font-size:17px;font-weight:800;margin:0 0 4px">{worst}</p>
+          <p style="color:#ef4444;font-size:13px;font-weight:700;margin:0">{w_sign}{worst_pct:.1f}%</p>
+        </div>
+      </td>
+    </tr>
+  </table>"""
+
+
+def _nuvos_header(subtitle: str = "Resumen Diario del Mercado") -> str:
+    return f"""
+  <div style="text-align:center;margin-bottom:28px">
+    <table cellpadding="0" cellspacing="0" style="margin:0 auto 16px">
+      <tr>
+        <td style="background:#00d47e;border-radius:10px;width:34px;height:34px;text-align:center;vertical-align:middle">
+          <span style="color:#0d1117;font-size:17px;font-weight:900;line-height:34px">N</span>
+        </td>
+        <td style="padding-left:10px;color:#fff;font-size:16px;font-weight:900;vertical-align:middle">Nuvos AI</td>
+      </tr>
+    </table>
+    <div style="display:inline-block;background:rgba(0,212,126,0.1);border:1px solid rgba(0,212,126,0.3);border-radius:20px;padding:6px 18px;margin-bottom:14px">
+      <span style="color:#00d47e;font-weight:800;font-size:11px;letter-spacing:2px;text-transform:uppercase">{subtitle}</span>
+    </div>
+  </div>"""
+
+
+def _email_wrapper(body: str) -> str:
+    return f"""<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Nuvos AI</title>
+</head>
+<body style="margin:0;padding:0;background:#0d1117;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,sans-serif">
+<div style="max-width:580px;margin:0 auto;padding:28px 16px">
+{body}
+  <!-- Footer -->
+  <p style="text-align:center;color:#374151;font-size:11px;margin:24px 0 0">
+    <strong style="color:#4b5563">Nuvos AI</strong>&nbsp;·&nbsp;Solo educativo. No constituye asesoramiento financiero.
+  </p>
+</div>
+</body>
+</html>"""
+
+
+# ─── Free user daily email ────────────────────────────────────────────────────
+
+def daily_summary_email(market_data: dict, news: list) -> str:
+    """Free user daily email — GBM-style Market Wrap with all global indices."""
+    indices = market_data.get("indices", {})
+    sectors = market_data.get("sectors", {})
+    best    = market_data.get("best_sector") or "—"
+    worst   = market_data.get("worst_sector") or "—"
+
+    news_html = ""
+    for item in news[:3]:
+        news_html += (
+            f'<div style="padding:12px 0;border-bottom:1px solid #1e2235">'
+            f'<p style="color:#6b7280;font-size:11px;margin:0 0 4px;text-transform:uppercase;letter-spacing:1px">{item.get("publisher","")}</p>'
+            f'<p style="color:#d1d5db;font-size:13px;font-weight:600;margin:0;line-height:1.5">{item.get("title","")}</p>'
+            f'</div>'
+        )
+    news_section = (
+        f'<div style="background:#161b27;border:1px solid #2a2d3a;border-radius:16px;padding:20px;margin-bottom:20px">'
+        f'<p style="color:#9ca3af;font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;margin:0 0 12px">Noticias del día</p>'
+        f'{news_html}</div>'
+    ) if news_html else ""
+
+    body = f"""
+  {_nuvos_header()}
+  <h1 style="color:#fff;font-size:24px;font-weight:900;margin:0 0 6px;text-align:center;letter-spacing:-0.5px">Market Wrap</h1>
+  <p style="color:#6b7280;font-size:13px;margin:0 0 24px;text-align:center">Cierre del mercado · Actualización automática</p>
+
+  {_market_wrap_table(indices)}
+  {_sectors_html(sectors, best, worst)}
+  {news_section}
+
+  <div style="text-align:center;margin-bottom:8px">
+    <a href="https://nuvosai.com" style="display:inline-block;background:#00d47e;color:#0d1117;font-weight:900;font-size:14px;padding:13px 32px;border-radius:14px;text-decoration:none">
+      Ver mi portafolio en Nuvos AI →
+    </a>
+  </div>"""
+    return _email_wrapper(body)
+
+
+# ─── Premium user daily email ─────────────────────────────────────────────────
+
+def personalized_daily_email(name: str, market_data: dict, news: list, portfolio_day: dict | None = None) -> str:
+    """Premium daily email — portfolio vs indices comparison + full Market Wrap."""
+    indices = market_data.get("indices", {})
+    sectors = market_data.get("sectors", {})
+    best    = market_data.get("best_sector") or "—"
+    worst   = market_data.get("worst_sector") or "—"
+    first   = name.split()[0] if name else "Inversor"
+
+    # ── Portfolio hero (premium only) ─────────────────────────────────────────
     portfolio_section = ""
     if portfolio_day and portfolio_day.get("positions"):
         day_pct  = portfolio_day.get("day_pct",     0) or 0
@@ -43,47 +206,73 @@ def personalized_daily_email(name: str, market_data: dict, news: list, portfolio
         total    = portfolio_day.get("total_value",  0) or 0
         top_t    = portfolio_day.get("top_ticker")
         top_p    = portfolio_day.get("top_pct")
+
         hero_color = "#22c55e" if day_pct >= 0 else "#ef4444"
         hero_sign  = "+" if day_pct >= 0 else ""
         usd_sign   = "+" if day_usd >= 0 else ""
-        top_note   = (
-            f'<p style="color:#9ca3af;font-size:12px;margin:6px 0 0">🏆 Mejor posición: '
-            f'<strong style="color:#d1d5db">{top_t}</strong> '
-            f'<span style="color:#22c55e">{("+" if top_p >= 0 else "")}{top_p:.2f}%</span></p>'
-        ) if top_t and top_p is not None else ""
 
+        # Comparison line vs S&P 500 and NASDAQ
+        sp_d  = indices.get("S&P 500", {})
+        nq_d  = indices.get("NASDAQ",  {})
+        sp_pct  = sp_d.get("change_pct")
+        nq_pct  = nq_d.get("change_pct")
+
+        comparison_line = ""
+        if sp_pct is not None and nq_pct is not None:
+            sp_color = "#22c55e" if sp_pct >= 0 else "#ef4444"
+            nq_color = "#22c55e" if nq_pct >= 0 else "#ef4444"
+            beat     = day_pct > sp_pct
+            beat_label = (
+                '<span style="background:rgba(34,197,94,0.15);color:#22c55e;font-size:11px;font-weight:800;padding:3px 10px;border-radius:20px;margin-left:8px">🏆 Superaste al mercado</span>'
+                if beat else ""
+            )
+            comparison_line = f"""
+            <p style="color:#6b7280;font-size:12px;margin:10px 0 0;text-align:center">
+              S&amp;P 500&nbsp;<span style="color:{sp_color};font-weight:700">{('+' if sp_pct >= 0 else '')}{sp_pct:.1f}%</span>
+              &nbsp;·&nbsp;
+              NASDAQ&nbsp;<span style="color:{nq_color};font-weight:700">{('+' if nq_pct >= 0 else '')}{nq_pct:.1f}%</span>
+              {beat_label}
+            </p>"""
+
+        top_note = ""
+        if top_t and top_p is not None:
+            top_sign = "+" if top_p >= 0 else ""
+            top_note = f'<p style="color:#9ca3af;font-size:12px;margin:6px 0 0;text-align:center">🏆 Mejor posición: <strong style="color:#d1d5db">{top_t}</strong> <span style="color:#22c55e">{top_sign}{top_p:.2f}%</span></p>'
+
+        # Position rows — top 6 sorted by day %
         pos_rows = ""
         for p in sorted(portfolio_day["positions"], key=lambda x: x.get("day_pct", 0), reverse=True)[:6]:
-            pct   = p.get("day_pct", 0) or 0
+            pct   = p.get("day_pct",     0) or 0
             usd   = p.get("day_dollars", 0) or 0
             val   = p.get("total_value", 0) or 0
             color = "#22c55e" if pct >= 0 else "#ef4444"
             sign  = "+" if pct >= 0 else ""
             pos_rows += (
-                f'<tr style="border-top:1px solid #2a2d3a">'
+                f'<tr style="border-top:1px solid #1e2235">'
                 f'<td style="padding:9px 14px;color:#d1d5db;font-size:13px;font-weight:700">{p["ticker"]}</td>'
-                f'<td style="padding:9px 14px;text-align:right;color:{color};font-weight:700;font-size:13px">{sign}{pct:.2f}%</td>'
+                f'<td style="padding:9px 14px;text-align:right;color:{color};font-weight:800;font-size:13px">{sign}{pct:.2f}%</td>'
                 f'<td style="padding:9px 14px;text-align:right;color:{color};font-size:12px">{sign}${abs(usd):.2f}</td>'
                 f'<td style="padding:9px 14px;text-align:right;color:#6b7280;font-size:12px">${val:,.2f}</td>'
                 f'</tr>'
             )
 
         portfolio_section = f"""
-  <div style="background:#1a1d27;border:1px solid #2a2d3a;border-radius:16px;overflow:hidden;margin-bottom:20px">
-    <div style="padding:14px 16px;border-bottom:1px solid #2a2d3a;background:#111318">
-      <p style="color:#22c55e;font-size:11px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;margin:0">💼 Tu portafolio hoy</p>
+  <div style="background:#161b27;border:1px solid #2a2d3a;border-radius:16px;overflow:hidden;margin-bottom:20px">
+    <div style="padding:12px 16px;border-bottom:1px solid #2a2d3a;background:#111318">
+      <p style="color:#00d47e;font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;margin:0">💼 Tu portafolio hoy</p>
     </div>
-    <div style="padding:20px;text-align:center;border-bottom:1px solid #2a2d3a">
-      <div style="font-size:36px;font-weight:900;color:{hero_color}">{hero_sign}{day_pct:.2f}%</div>
-      <p style="color:{hero_color};font-size:14px;font-weight:700;margin:4px 0 0">{usd_sign}${abs(day_usd):.2f} hoy · Total ${total:,.2f}</p>
+    <div style="padding:24px 20px;border-bottom:1px solid #1e2235;text-align:center">
+      <div style="font-size:42px;font-weight:900;color:{hero_color};letter-spacing:-1px">{hero_sign}{day_pct:.2f}%</div>
+      <p style="color:{hero_color};font-size:14px;font-weight:700;margin:6px 0 0">{usd_sign}${abs(day_usd):,.2f} hoy&nbsp;·&nbsp;Total ${total:,.2f}</p>
+      {comparison_line}
       {top_note}
     </div>
-    <table style="width:100%;border-collapse:collapse;background:#1a1d27">
-      <tr style="background:#111318">
-        <th style="padding:8px 14px;text-align:left;color:#6b7280;font-size:10px;font-weight:700;letter-spacing:1px">ACTIVO</th>
-        <th style="padding:8px 14px;text-align:right;color:#6b7280;font-size:10px;font-weight:700;letter-spacing:1px">HOY %</th>
-        <th style="padding:8px 14px;text-align:right;color:#6b7280;font-size:10px;font-weight:700;letter-spacing:1px">HOY $</th>
-        <th style="padding:8px 14px;text-align:right;color:#6b7280;font-size:10px;font-weight:700;letter-spacing:1px">VALOR</th>
+    <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse">
+      <tr style="background:#0d1117">
+        <th style="padding:8px 14px;color:#4b5563;font-size:10px;font-weight:700;text-align:left;text-transform:uppercase;letter-spacing:1px">ACTIVO</th>
+        <th style="padding:8px 14px;color:#4b5563;font-size:10px;font-weight:700;text-align:right;text-transform:uppercase;letter-spacing:1px">HOY %</th>
+        <th style="padding:8px 14px;color:#4b5563;font-size:10px;font-weight:700;text-align:right;text-transform:uppercase;letter-spacing:1px">HOY $</th>
+        <th style="padding:8px 14px;color:#4b5563;font-size:10px;font-weight:700;text-align:right;text-transform:uppercase;letter-spacing:1px">VALOR</th>
       </tr>
       {pos_rows}
     </table>
@@ -92,176 +281,36 @@ def personalized_daily_email(name: str, market_data: dict, news: list, portfolio
     news_html = ""
     for item in news[:3]:
         news_html += (
-            f'<div style="padding:12px 0;border-bottom:1px solid #2a2d3a">'
+            f'<div style="padding:12px 0;border-bottom:1px solid #1e2235">'
             f'<p style="color:#6b7280;font-size:11px;margin:0 0 4px;text-transform:uppercase;letter-spacing:1px">{item.get("publisher","")}</p>'
-            f'<p style="color:#d1d5db;font-size:13px;font-weight:600;margin:0;line-height:1.4">{item.get("title","")}</p>'
+            f'<p style="color:#d1d5db;font-size:13px;font-weight:600;margin:0;line-height:1.5">{item.get("title","")}</p>'
             f'</div>'
         )
     news_section = (
-        f'<div style="background:#1a1d27;border:1px solid #2a2d3a;border-radius:16px;padding:20px;margin-bottom:20px">'
-        f'<p style="color:#22c55e;font-size:11px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;margin:0 0 12px">📰 Noticias del día</p>'
+        f'<div style="background:#161b27;border:1px solid #2a2d3a;border-radius:16px;padding:20px;margin-bottom:20px">'
+        f'<p style="color:#9ca3af;font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;margin:0 0 12px">Noticias del día</p>'
         f'{news_html}</div>'
     ) if news_html else ""
 
-    return f"""<!DOCTYPE html>
-<html>
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
-<body style="margin:0;padding:0;background:#0a0c12;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">
-<div style="max-width:600px;margin:0 auto;padding:32px 16px">
-  <div style="border-radius:20px;overflow:hidden;border:1px solid #2a2d3a">
+    body = f"""
+  {_nuvos_header("Resumen Diario · Premium")}
+  <h1 style="color:#fff;font-size:22px;font-weight:900;margin:0 0 4px;text-align:center;letter-spacing:-0.5px">Hola {first}, así cerró el mercado</h1>
+  <p style="color:#6b7280;font-size:13px;margin:0 0 24px;text-align:center">Cierre del mercado · Actualización automática</p>
 
-    {header}
-
-    <div style="background:#1a1d27;padding:28px">
-      <h1 style="color:#fff;font-size:20px;font-weight:900;margin:0 0 4px">Hola {first}, así cerraron los mercados hoy 📊</h1>
-      <p style="color:#9ca3af;font-size:13px;margin:0 0 24px">Actualización automática al cierre · Nuvos AI</p>
-
-      {portfolio_section}
-
-      <div style="background:#111318;border:1px solid #2a2d3a;border-radius:14px;overflow:hidden;margin-bottom:20px">
-        <div style="padding:10px 16px;border-bottom:1px solid #2a2d3a">
-          <p style="color:#6b7280;font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;margin:0">Índices principales</p>
-        </div>
-        <table style="width:100%;border-collapse:collapse">
-          <thead><tr style="background:#0f1117">
-            <th style="padding:8px 16px;color:#6b7280;font-size:10px;text-align:left;text-transform:uppercase">Índice</th>
-            <th style="padding:8px 16px;color:#6b7280;font-size:10px;text-align:right;text-transform:uppercase">Precio</th>
-            <th style="padding:8px 16px;color:#6b7280;font-size:10px;text-align:right;text-transform:uppercase">Cambio</th>
-          </tr></thead>
-          <tbody>{idx_rows}</tbody>
-        </table>
-      </div>
-
-      <div style="display:flex;gap:12px;margin-bottom:20px">
-        <div style="flex:1;background:#111318;border:1px solid rgba(34,197,94,0.2);border-radius:12px;padding:16px">
-          <p style="color:#22c55e;font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;margin:0 0 4px">Mejor sector</p>
-          <p style="color:#fff;font-size:16px;font-weight:800;margin:0">{best}</p>
-          <p style="color:#22c55e;font-size:13px;font-weight:700;margin:4px 0 0">+{best_pct:.1f}%</p>
-        </div>
-        <div style="flex:1;background:#111318;border:1px solid rgba(239,68,68,0.2);border-radius:12px;padding:16px">
-          <p style="color:#ef4444;font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;margin:0 0 4px">Peor sector</p>
-          <p style="color:#fff;font-size:16px;font-weight:800;margin:0">{worst}</p>
-          <p style="color:#ef4444;font-size:13px;font-weight:700;margin:4px 0 0">{worst_pct:.1f}%</p>
-        </div>
-      </div>
-
-      {news_section}
-
-      <div style="text-align:center;margin-bottom:8px">
-        <a href="https://nuvosai.com/portfolio" style="display:inline-block;background:#22c55e;color:#000;font-weight:800;font-size:14px;padding:12px 28px;border-radius:12px;text-decoration:none">Ver mi portafolio →</a>
-      </div>
-
-      <div style="border-top:1px solid #2a2d3a;padding-top:16px;margin-top:20px;text-align:center">
-        <p style="color:#4b5563;font-size:11px;margin:0">Nuvos AI — Solo educativo. No constituye asesoramiento financiero.</p>
-      </div>
-    </div>
-  </div>
-</div>
-</body>
-</html>"""
-
-
-def daily_summary_email(market_data: dict, news: list) -> str:
-    indices = market_data.get("indices", {})
-
-    def _idx_row(name: str) -> str:
-        d = indices.get(name, {})
-        pct = d.get("change_pct")
-        price = d.get("price")
-        if pct is None:
-            return ""
-        color = "#22c55e" if pct >= 0 else "#ef4444"
-        sign  = "+" if pct >= 0 else ""
-        price_fmt = f"${price:,.2f}" if price else "—"
-        return (
-            f'<tr style="border-bottom:1px solid #1e2235">'
-            f'<td style="padding:10px 16px;color:#d1d5db;font-size:14px">{name}</td>'
-            f'<td style="padding:10px 16px;color:#9ca3af;font-size:13px;text-align:right">{price_fmt}</td>'
-            f'<td style="padding:10px 16px;font-weight:700;font-size:14px;text-align:right;color:{color}">'
-            f'{sign}{pct:.2f}%</td></tr>'
-        )
-
-    idx_rows = _idx_row("S&P 500") + _idx_row("NASDAQ") + _idx_row("DOW")
-    best  = market_data.get("best_sector", "—")
-    worst = market_data.get("worst_sector", "—")
-    sectors   = market_data.get("sectors", {})
-    best_pct  = sectors.get(best,  0) if best  != "—" else 0
-    worst_pct = sectors.get(worst, 0) if worst != "—" else 0
-
-    news_html = ""
-    for item in news[:3]:
-        news_html += (
-            f'<div style="padding:14px 0;border-bottom:1px solid #1e2235">'
-            f'<p style="color:#9ca3af;font-size:11px;margin:0 0 4px;text-transform:uppercase;letter-spacing:1px">'
-            f'{item.get("publisher","")}</p>'
-            f'<p style="color:#d1d5db;font-size:14px;font-weight:600;margin:0;line-height:1.4">'
-            f'{item.get("title","")}</p>'
-            f'</div>'
-        )
-
-    news_section = (
-        f'<div style="background:#1a1d27;border:1px solid #2a2d3a;border-radius:16px;padding:20px;margin-bottom:20px">'
-        f'<p style="color:#22c55e;font-size:11px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;margin:0 0 12px">Noticias Destacadas</p>'
-        f'{news_html}</div>'
-    ) if news_html else ""
-
-    return f"""<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Resumen Diario — Nuvos AI</title>
-</head>
-<body style="margin:0;padding:0;background:#0f1117;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">
-<div style="max-width:600px;margin:0 auto;padding:32px 16px">
-
-  <div style="text-align:center;margin-bottom:24px">
-    <div style="display:inline-block;background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.3);border-radius:12px;padding:8px 20px;margin-bottom:16px">
-      <span style="color:#22c55e;font-weight:800;font-size:12px;letter-spacing:2px;text-transform:uppercase">Nuvos AI · Resumen Diario</span>
-    </div>
-    <h1 style="color:#fff;font-size:24px;font-weight:900;margin:0 0 6px">Tu resumen del mercado</h1>
-    <p style="color:#6b7280;font-size:14px;margin:0">Mercados cerrados · Actualización automática</p>
-  </div>
-
-  <div style="background:#1a1d27;border:1px solid #2a2d3a;border-radius:16px;overflow:hidden;margin-bottom:20px">
-    <div style="padding:14px 16px;border-bottom:1px solid #2a2d3a">
-      <p style="color:#22c55e;font-size:11px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;margin:0">Índices Principales</p>
-    </div>
-    <table style="width:100%;border-collapse:collapse">
-      <thead><tr style="background:#0f1117">
-        <th style="padding:8px 16px;color:#6b7280;font-size:11px;font-weight:600;text-align:left;text-transform:uppercase">Índice</th>
-        <th style="padding:8px 16px;color:#6b7280;font-size:11px;font-weight:600;text-align:right;text-transform:uppercase">Precio</th>
-        <th style="padding:8px 16px;color:#6b7280;font-size:11px;font-weight:600;text-align:right;text-transform:uppercase">Cambio</th>
-      </tr></thead>
-      <tbody>{idx_rows}</tbody>
-    </table>
-  </div>
-
-  <div style="display:flex;gap:12px;margin-bottom:20px;flex-wrap:wrap">
-    <div style="flex:1;min-width:220px;background:#1a1d27;border:1px solid rgba(34,197,94,0.2);border-radius:14px;padding:18px">
-      <p style="color:#22c55e;font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;margin:0 0 6px">Mejor Sector</p>
-      <p style="color:#fff;font-size:20px;font-weight:800;margin:0">{best}</p>
-      <p style="color:#22c55e;font-size:14px;font-weight:700;margin:4px 0 0">+{best_pct:.1f}%</p>
-    </div>
-    <div style="flex:1;min-width:220px;background:#1a1d27;border:1px solid rgba(239,68,68,0.2);border-radius:14px;padding:18px">
-      <p style="color:#ef4444;font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;margin:0 0 6px">Peor Sector</p>
-      <p style="color:#fff;font-size:20px;font-weight:800;margin:0">{worst}</p>
-      <p style="color:#ef4444;font-size:14px;font-weight:700;margin:4px 0 0">{worst_pct:.1f}%</p>
-    </div>
-  </div>
-
+  {portfolio_section}
+  {_market_wrap_table(indices)}
+  {_sectors_html(sectors, best, worst)}
   {news_section}
 
-  <div style="border-top:1px solid #2a2d3a;padding-top:20px;text-align:center">
-    <p style="color:#6b7280;font-size:12px;margin:0">
-      <strong style="color:#9ca3af">Nuvos AI</strong> — Solo educativo. No constituye asesoramiento financiero.
-    </p>
-  </div>
+  <div style="text-align:center;margin-bottom:8px">
+    <a href="https://nuvosai.com/portfolio" style="display:inline-block;background:#00d47e;color:#0d1117;font-weight:900;font-size:14px;padding:13px 32px;border-radius:14px;text-decoration:none">
+      Ver análisis completo →
+    </a>
+  </div>"""
+    return _email_wrapper(body)
 
-</div>
-</body>
-</html>"""
 
+# ─── Weekly premium email ─────────────────────────────────────────────────────
 
 def weekly_premium_email(user_name: str, portfolio_data: dict, ai_insights: str) -> str:
     perf       = portfolio_data.get("performance", {})
@@ -309,76 +358,64 @@ def weekly_premium_email(user_name: str, portfolio_data: dict, ai_insights: str)
     )
 
     first = user_name.split()[0] if user_name else "Inversor"
-    vs_line = f'<p style="color:#6b7280;font-size:13px;margin:0 0 16px">{vs_sp500}</p>' if vs_sp500 else '<div style="margin-bottom:16px"></div>'
+    vs_line = f'<p style="color:#6b7280;font-size:13px;margin:0 0 16px;text-align:center">{vs_sp500}</p>' if vs_sp500 else '<div style="margin-bottom:16px"></div>'
 
-    positions_section = f"""<div style="background:#1a1d27;border:1px solid #2a2d3a;border-radius:16px;overflow:hidden;margin-bottom:20px">
-    <div style="padding:14px 16px;border-bottom:1px solid #2a2d3a">
-      <p style="color:#22c55e;font-size:11px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;margin:0">Principales Posiciones</p>
+    positions_section = f"""
+  <div style="background:#161b27;border:1px solid #2a2d3a;border-radius:16px;overflow:hidden;margin-bottom:20px">
+    <div style="padding:12px 16px;border-bottom:1px solid #2a2d3a;background:#111318">
+      <p style="color:#9ca3af;font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;margin:0">Principales Posiciones</p>
     </div>
-    <table style="width:100%;border-collapse:collapse">
-      <thead><tr style="background:#0f1117">
-        <th style="padding:8px 12px;color:#6b7280;font-size:11px;text-align:left;text-transform:uppercase">Ticker</th>
-        <th style="padding:8px 12px;color:#6b7280;font-size:11px;text-align:left;text-transform:uppercase">Empresa</th>
-        <th style="padding:8px 12px;color:#6b7280;font-size:11px;text-align:right;text-transform:uppercase">Valor</th>
-        <th style="padding:8px 12px;color:#6b7280;font-size:11px;text-align:right;text-transform:uppercase">Retorno</th>
-      </tr></thead>
-      <tbody>{pos_rows}</tbody>
+    <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse">
+      <tr style="background:#0d1117">
+        <th style="padding:8px 12px;color:#4b5563;font-size:10px;font-weight:700;text-align:left;text-transform:uppercase;letter-spacing:1px">Ticker</th>
+        <th style="padding:8px 12px;color:#4b5563;font-size:10px;font-weight:700;text-align:left;text-transform:uppercase;letter-spacing:1px">Empresa</th>
+        <th style="padding:8px 12px;color:#4b5563;font-size:10px;font-weight:700;text-align:right;text-transform:uppercase;letter-spacing:1px">Valor</th>
+        <th style="padding:8px 12px;color:#4b5563;font-size:10px;font-weight:700;text-align:right;text-transform:uppercase;letter-spacing:1px">Retorno</th>
+      </tr>
+      {pos_rows}
     </table>
   </div>""" if pos_rows else ""
 
-    risks_section = f"""<div style="background:#1a1d27;border:1px solid rgba(245,158,11,0.2);border-radius:16px;padding:20px;margin-bottom:20px">
-    <p style="color:#f59e0b;font-size:11px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;margin:0 0 12px">Riesgos Detectados</p>
+    risks_section = f"""
+  <div style="background:#161b27;border:1px solid rgba(245,158,11,0.2);border-radius:16px;padding:20px;margin-bottom:20px">
+    <p style="color:#f59e0b;font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;margin:0 0 12px">Riesgos Detectados</p>
     <ul style="margin:0;padding-left:20px">{risks_html}</ul>
   </div>""" if risks_html else ""
 
-    return f"""<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Resumen Semanal Premium — Nuvos AI</title>
-</head>
-<body style="margin:0;padding:0;background:#0a0c12;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">
-<div style="max-width:620px;margin:0 auto;padding:32px 16px">
+    body = f"""
+  {_nuvos_header("Premium Semanal")}
+  <h1 style="color:#fff;font-size:24px;font-weight:900;margin:0 0 6px;text-align:center;letter-spacing:-0.5px">Hola {first}, esta fue tu semana</h1>
+  <p style="color:#6b7280;font-size:13px;margin:0 0 24px;text-align:center">Análisis personalizado de tu portafolio</p>
 
-  <div style="text-align:center;margin-bottom:28px">
-    <div style="display:inline-block;background:linear-gradient(135deg,rgba(34,197,94,0.12),rgba(59,130,246,0.08));border:1px solid rgba(34,197,94,0.3);border-radius:14px;padding:10px 24px;margin-bottom:16px">
-      <span style="color:#22c55e;font-weight:800;font-size:12px;letter-spacing:2px;text-transform:uppercase">Nuvos AI · Premium Semanal</span>
-    </div>
-    <h1 style="color:#fff;font-size:26px;font-weight:900;margin:0 0 8px">Hola {first}, esta fue tu semana</h1>
-    <p style="color:#6b7280;font-size:14px;margin:0">Análisis personalizado de tu portafolio</p>
-  </div>
-
-  <div style="background:linear-gradient(135deg,#1a1d27,#1e2235);border:1px solid #2a2d3a;border-radius:20px;padding:28px;margin-bottom:20px;text-align:center">
-    <p style="color:#9ca3af;font-size:12px;margin:0 0 8px;text-transform:uppercase;letter-spacing:1px">Rendimiento semanal</p>
-    <div style="font-size:46px;font-weight:900;color:{gain_color};margin:0 0 6px">{ret_sign}{ret_pct:.2f}%</div>
+  <div style="background:#161b27;border:1px solid #2a2d3a;border-radius:20px;padding:28px;margin-bottom:20px;text-align:center">
+    <p style="color:#9ca3af;font-size:11px;margin:0 0 8px;text-transform:uppercase;letter-spacing:1px">Rendimiento semanal</p>
+    <div style="font-size:48px;font-weight:900;color:{gain_color};margin:0 0 6px;letter-spacing:-1px">{ret_sign}{ret_pct:.2f}%</div>
     {vs_line}
-    <div style="display:flex;justify-content:center;gap:28px;flex-wrap:wrap">
-      <div>
-        <p style="color:#6b7280;font-size:11px;margin:0 0 4px;text-transform:uppercase;letter-spacing:1px">Valor total</p>
-        <p style="color:#fff;font-size:18px;font-weight:800;margin:0">{fmt_usd(total_val)}</p>
-      </div>
-      <div>
-        <p style="color:#6b7280;font-size:11px;margin:0 0 4px;text-transform:uppercase;letter-spacing:1px">Ganancia no realizada</p>
-        <p style="color:{unreal_color};font-size:18px;font-weight:800;margin:0">{fmt_usd(unrealized)}</p>
-      </div>
-    </div>
+    <table cellpadding="0" cellspacing="0" style="margin:0 auto">
+      <tr>
+        <td style="padding:0 20px;text-align:center;border-right:1px solid #2a2d3a">
+          <p style="color:#6b7280;font-size:11px;margin:0 0 4px;text-transform:uppercase;letter-spacing:1px">Valor total</p>
+          <p style="color:#fff;font-size:18px;font-weight:800;margin:0">{fmt_usd(total_val)}</p>
+        </td>
+        <td style="padding:0 20px;text-align:center">
+          <p style="color:#6b7280;font-size:11px;margin:0 0 4px;text-transform:uppercase;letter-spacing:1px">Ganancia no realizada</p>
+          <p style="color:{unreal_color};font-size:18px;font-weight:800;margin:0">{fmt_usd(unrealized)}</p>
+        </td>
+      </tr>
+    </table>
   </div>
 
-  <div style="background:#1a1d27;border:1px solid rgba(34,197,94,0.2);border-left:3px solid #22c55e;border-radius:0 16px 16px 0;padding:24px;margin-bottom:20px">
-    <p style="color:#22c55e;font-size:11px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;margin:0 0 14px">Análisis IA — Esta Semana</p>
+  <div style="background:#161b27;border-left:3px solid #00d47e;border-radius:0 16px 16px 0;padding:24px;margin-bottom:20px">
+    <p style="color:#00d47e;font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;margin:0 0 14px">Análisis IA — Esta Semana</p>
     {insights_paras}
   </div>
 
   {positions_section}
   {risks_section}
 
-  <div style="border-top:1px solid #2a2d3a;padding-top:24px;text-align:center">
-    <p style="color:#6b7280;font-size:12px;margin:0 0 6px">
-      <strong style="color:#9ca3af">Nuvos AI</strong> — Solo educativo. No constituye asesoramiento financiero profesional.
-    </p>
-  </div>
-
-</div>
-</body>
-</html>"""
+  <div style="text-align:center;margin-bottom:8px">
+    <a href="https://nuvosai.com/portfolio" style="display:inline-block;background:#00d47e;color:#0d1117;font-weight:900;font-size:14px;padding:13px 32px;border-radius:14px;text-decoration:none">
+      Ver análisis completo →
+    </a>
+  </div>"""
+    return _email_wrapper(body)
