@@ -290,6 +290,10 @@ export default function HomePage() {
   const firstName = profile?.name?.split(" ")[0] ?? "Inversor";
 
   // ── Onboarding checklist ─────────────────────────────────────────────────
+  const [checklistPermanentlyDone] = useState(
+    () => localStorage.getItem("nuvos_checklist_done") === "1"
+  );
+
   const onboardingSteps: OnboardingStep[] = [
     { emoji: "💼", title: "Agrega tu primera posición",       description: "Registra tus acciones y activa el análisis IA",   completed: positions.length > 0 },
     { emoji: "🎯", title: "Configura tu meta financiera",     description: "¿Para qué estás invirtiendo?",                    completed: !!profile?.investment_goal },
@@ -297,11 +301,13 @@ export default function HomePage() {
     { emoji: "📚", title: "Completa tu primera lección",      description: "Empieza tu racha de aprendizaje diario",          completed: streak > 0 },
     { emoji: "👀", title: "Agrega una acción a tu watchlist", description: "Monitorea empresas que te interesan",             completed: watchlistCount > 0 },
   ];
-  const allOnboardingDone = onboardingSteps.every((s) => s.completed);
+  const allOnboardingDone = checklistPermanentlyDone || onboardingSteps.every((s) => s.completed);
 
-  // Once onboarding is complete and no preference saved: ask to pick one
+  // Once onboarding is complete: persist the flag so it never shows again,
+  // and prompt the user to pick their preferred start screen.
   useEffect(() => {
     if (loading || !allOnboardingDone) return;
+    localStorage.setItem("nuvos_checklist_done", "1");
     const saved = localStorage.getItem(HOME_SCREEN_KEY);
     if (!saved) setShowScreenPicker(true);
   }, [loading, allOnboardingDone]);
