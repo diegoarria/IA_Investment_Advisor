@@ -77,15 +77,12 @@ async def get_wrapped(
     # ── 1. User profile ──────────────────────────────────────────────────────
     prof_res = await run_query(
         db.table("user_profiles")
-          .select("full_name, sim_count, debate_count, msg_count, created_at")
+          .select("full_name, created_at")
           .eq("user_id", user_id)
     )
     prof = prof_res.data[0] if prof_res.data else {}
 
-    full_name   = prof.get("full_name") or "Inversor"
-    sim_count   = prof.get("sim_count") or 0
-    debate_count= prof.get("debate_count") or 0
-    lessons     = sim_count + debate_count
+    full_name = prof.get("full_name") or "Inversor"
 
     created_raw = prof.get("created_at")
     if created_raw:
@@ -97,7 +94,19 @@ async def get_wrapped(
     else:
         days_active = 1
 
-    # ── 2. Portfolio positions ────────────────────────────────────────────────
+    # ── 2. Yearly lesson/sim counts from user_daily_usage ────────────────────
+    usage_res = await run_query(
+        db.table("user_daily_usage")
+          .select("sim_count, debate_count")
+          .eq("user_id", user_id)
+          .gte("date", f"{year}-01-01")
+          .lte("date", f"{year}-12-31")
+    )
+    sim_count   = sum(r.get("sim_count", 0) or 0 for r in (usage_res.data or []))
+    debate_count= sum(r.get("debate_count", 0) or 0 for r in (usage_res.data or []))
+    lessons     = sim_count + debate_count
+
+    # ── 3. Portfolio positions ────────────────────────────────────────────────
     port_res = await run_query(
         db.table("user_portfolio").select("positions").eq("user_id", user_id)
     )
@@ -105,7 +114,7 @@ async def get_wrapped(
     positions: list = raw.get("positions", []) if isinstance(raw, dict) else (raw if isinstance(raw, list) else [])
     tickers = [p["ticker"] for p in positions if p.get("ticker")]
 
-    # ── 3. Top 3 stocks by YTD return ────────────────────────────────────────
+    # ── 4. Top 3 stocks by YTD return ────────────────────────────────────────
     ytd_results: list[dict] = []
     if tickers:
         returns = await asyncio.gather(*[_ytd_return(t, year) for t in tickers])
@@ -115,7 +124,7 @@ async def get_wrapped(
         ytd_results.sort(key=lambda x: x["ytd_pct"], reverse=True)
     top3 = ytd_results[:3]
 
-    # ── 4. Dominant sector ───────────────────────────────────────────────────
+    # ── 5. Dominant sector ───────────────────────────────────────────────────
     top_sector = "Tecnología"
     if tickers:
         sector_tasks = await asyncio.gather(*[_ticker_sector(t) for t in tickers])
