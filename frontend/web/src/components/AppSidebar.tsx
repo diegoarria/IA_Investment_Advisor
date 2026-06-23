@@ -223,11 +223,6 @@ export default function AppSidebar({ open, onClose }: Props) {
             <span className="text-[13px] font-black leading-none" style={{ color: "var(--text)", fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
               Nuvos AI
             </span>
-            <div className="flex items-center gap-1 mt-0.5">
-              <div className="w-1.5 h-1.5 rounded-full bg-green-400"
-                   style={{ animation: "pulse 2s ease-in-out infinite" }} />
-              <span className="text-[9px] font-bold uppercase tracking-wider" style={{ color: "#4ade80" }}>Beta</span>
-            </div>
           </div>
           <button
             onClick={toggleDesktop}
