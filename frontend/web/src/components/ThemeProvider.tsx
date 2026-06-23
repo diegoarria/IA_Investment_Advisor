@@ -24,11 +24,13 @@ export default function ThemeProvider({ children }: { children: React.ReactNode 
   // is never logged out as long as their refresh_token is valid.
   useEffect(() => {
     if (typeof window === "undefined") return;
-    if (isAuthenticated) return;
 
     const accessToken  = localStorage.getItem("access_token");
     const refreshToken = localStorage.getItem("refresh_token");
     if (!accessToken && !refreshToken) { setAuthRestoring(false); return; }
+
+    // If already authenticated AND tokens look fresh, skip restore
+    if (isAuthenticated && accessToken) { setAuthRestoring(false); return; }
 
     async function restoreSession() {
       try {

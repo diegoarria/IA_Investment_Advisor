@@ -71,6 +71,20 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
+    // If the user was previously authenticated (Zustand persisted state), send them
+    // straight to /home without any network round-trip — they should never see the
+    // login page again once they've logged in.
+    try {
+      const stored = localStorage.getItem("auth-store");
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (parsed?.state?.isAuthenticated === true) {
+          router.replace("/home");
+          return;
+        }
+      }
+    } catch {}
+
     const hadTokens = !!localStorage.getItem("access_token") || !!localStorage.getItem("refresh_token");
     if (!hadTokens) { setChecking(false); return; }
 
@@ -84,22 +98,12 @@ export default function Home() {
         setExistingUserName(res.data.name || res.data.email || "tu cuenta");
         setChecking(false);
       })
-      .catch((err) => {
+      .catch(() => {
         clearTimeout(fallback);
-        const status = (err as { response?: { status?: number } })?.response?.status;
-        if (status === 401 || status === 403) {
-          // Interceptor tried to refresh. If it cleared the tokens (session genuinely
-          // expired/revoked), show login. If tokens still exist (network error during
-          // refresh), redirect to home so the user can retry when connectivity returns.
-          const stillHasTokens = !!localStorage.getItem("access_token") || !!localStorage.getItem("refresh_token");
-          if (stillHasTokens) {
-            router.push("/home");
-          } else {
-            setChecking(false);
-          }
-        } else {
-          router.push("/home");
-        }
+        // Regardless of why the profile call failed, redirect to home.
+        // Don't punish a network hiccup or transient refresh failure
+        // by showing the login form to someone who has tokens.
+        router.push("/home");
       });
   }, []);
 

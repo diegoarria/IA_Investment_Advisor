@@ -1,4 +1,5 @@
 import axios from "axios";
+import { getSupabaseClient } from "./supabase";
 
 const BASE_URL =
   process.env.NEXT_PUBLIC_API_URL ||
@@ -57,15 +58,29 @@ api.interceptors.response.use(
       flushQueue(null, access_token);
       return api(original);
     } catch (refreshErr) {
-      flushQueue(refreshErr);
       // Only clear tokens when the server explicitly rejects them (expired/invalid).
       // For network errors or server outages, preserve tokens so the user stays logged
       // in and can retry when connectivity is restored.
       const refreshStatus = (refreshErr as { response?: { status?: number } })?.response?.status;
       if (refreshStatus === 401 || refreshStatus === 403) {
+        // Before clearing tokens, try Supabase native session — handles multi-tab
+        // race condition where another tab already refreshed and stored new tokens.
+        try {
+          const { data: { session } } = await getSupabaseClient().auth.getSession();
+          if (session?.access_token) {
+            localStorage.setItem("access_token", session.access_token);
+            if (session.refresh_token) localStorage.setItem("refresh_token", session.refresh_token);
+            api.defaults.headers.common["Authorization"] = `Bearer ${session.access_token}`;
+            original.headers.Authorization = `Bearer ${session.access_token}`;
+            flushQueue(null, session.access_token);
+            return api(original);
+          }
+        } catch {}
+        // Supabase also has no session — truly expired, clear tokens
         localStorage.removeItem("access_token");
         localStorage.removeItem("refresh_token");
       }
+      flushQueue(refreshErr);
       return Promise.reject(refreshErr);
     } finally {
       isRefreshing = false;
