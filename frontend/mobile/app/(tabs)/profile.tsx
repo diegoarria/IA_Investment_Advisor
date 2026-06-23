@@ -17,6 +17,7 @@ import UpsellModal from "../../src/components/UpsellModal";
 import { insightsApi, mentorLetterApi, profileApi, authApi, referralApi, syncApi, feedApi } from "../../src/lib/api";
 import { useSubscriptionStore, hasPremiumAccess } from "../../src/lib/subscriptionStore";
 import type { UpsellOffer } from "../../src/lib/upsellStore";
+import { useStartScreenStore, START_SCREEN_OPTIONS } from "../../src/lib/startScreenStore";
 
 const MENTOR_PHOTOS: Record<string, number> = {
   "Warren Buffett": require("../../assets/images/mentors/warren_buffett.jpg"),
@@ -140,6 +141,9 @@ export default function ProfileScreen() {
   const setAvatarUri = useAppStore((s) => s.setAvatarUri);
 
   const [progressOpen, setProgressOpen] = useState(false);
+  const [startScreenPickerOpen, setStartScreenPickerOpen] = useState(false);
+  const startScreen = useStartScreenStore((s) => s.screen);
+  const setStartScreen = useStartScreenStore((s) => s.setScreen);
 
   const [insights, setInsights] = useState<{ ready: boolean; topics?: string[]; risk_behavior?: string; risk_match?: boolean; risk_note?: string; suggestion?: string; interests?: string[] } | null>(null);
   const [referralCode, setReferralCode] = useState<string | null>(null);
@@ -1099,6 +1103,26 @@ if (!profile) {
           </View>
         )}
 
+        {/* ── PANTALLA DE INICIO ── */}
+        <View style={s.section}>
+          <TouchableOpacity
+            onPress={() => setStartScreenPickerOpen(true)}
+            activeOpacity={0.85}
+            style={{ flexDirection: "row", alignItems: "center", gap: 14, padding: 16, borderRadius: 20, backgroundColor: colors.bgRaised, borderWidth: 1, borderColor: colors.border }}
+          >
+            <View style={{ width: 44, height: 44, borderRadius: 14, backgroundColor: "rgba(99,102,241,0.12)", alignItems: "center", justifyContent: "center" }}>
+              <Ionicons name="home-outline" size={22} color="#6366f1" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 15, fontWeight: "900", color: colors.text }}>Pantalla de inicio</Text>
+              <Text style={{ fontSize: 12, color: colors.textMuted, marginTop: 2 }}>
+                {START_SCREEN_OPTIONS.find((o) => o.key === (startScreen ?? "home"))?.label ?? "Inicio"}
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={16} color={colors.textDim} />
+          </TouchableOpacity>
+        </View>
+
         {/* ── NUVOS WRAPPED ── */}
         <View style={[s.section, { marginBottom: 0 }]}>
           <TouchableOpacity
@@ -1204,6 +1228,34 @@ if (!profile) {
 
       <ProgressModal visible={progressOpen} onClose={() => setProgressOpen(false)} />
       <TutorialModal visible={tutorialFromProfile} onClose={() => setTutorialFromProfile(false)} />
+
+      {/* ── Start Screen Picker ── */}
+      <Modal visible={startScreenPickerOpen} transparent animationType="slide" onRequestClose={() => setStartScreenPickerOpen(false)}>
+        <View style={{ flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.6)" }}>
+          <View style={{ backgroundColor: colors.card, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 24, paddingBottom: 40, gap: 12 }}>
+            <Text style={{ fontSize: 17, fontWeight: "900", color: colors.text, marginBottom: 4 }}>¿Qué pantalla ver primero?</Text>
+            <Text style={{ fontSize: 13, color: colors.textMuted, marginBottom: 8 }}>Cada vez que abras la app irás directo ahí.</Text>
+            {START_SCREEN_OPTIONS.map((opt) => {
+              const active = (startScreen ?? "home") === opt.key;
+              return (
+                <TouchableOpacity
+                  key={opt.key}
+                  onPress={() => { setStartScreen(opt.key); setStartScreenPickerOpen(false); }}
+                  activeOpacity={0.8}
+                  style={{ flexDirection: "row", alignItems: "center", gap: 14, padding: 14, borderRadius: 16, backgroundColor: active ? opt.color + "14" : colors.bgRaised, borderWidth: 1.5, borderColor: active ? opt.color : "transparent" }}
+                >
+                  <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: active ? opt.color + "22" : colors.border, alignItems: "center", justifyContent: "center" }}>
+                    <Ionicons name={opt.icon as any} size={20} color={active ? opt.color : colors.textMuted} />
+                  </View>
+                  <Text style={{ flex: 1, fontSize: 15, fontWeight: "700", color: active ? opt.color : colors.text }}>{opt.label}</Text>
+                  {active && <View style={{ width: 20, height: 20, borderRadius: 10, backgroundColor: opt.color, alignItems: "center", justifyContent: "center" }}><View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: "#fff" }} /></View>}
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </View>
+      </Modal>
+
       {planOffer && (
         <UpsellModal
           visible={true}

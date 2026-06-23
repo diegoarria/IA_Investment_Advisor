@@ -112,6 +112,19 @@ export default function HomePage() {
     if (!authRestoring && !isAuthenticated && !localStorage.getItem("access_token") && !localStorage.getItem("refresh_token")) { router.push("/"); return; }
   }, [isAuthenticated, authRestoring]);
 
+  // Redirect immediately to preferred start screen (before data loads)
+  useEffect(() => {
+    const saved = localStorage.getItem(HOME_SCREEN_KEY);
+    if (!saved || saved === "home") return;
+    const routes: Record<string, string> = {
+      portfolio: "/portfolio", patrimonio: "/patrimonio",
+      chat: "/chat", learn: "/learn", notifications: "/notifications",
+    };
+    const href = routes[saved];
+    if (href) router.replace(href);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
@@ -286,20 +299,11 @@ export default function HomePage() {
   ];
   const allOnboardingDone = onboardingSteps.every((s) => s.completed);
 
-  // Once onboarding is complete: redirect to saved preference, or ask to pick one
+  // Once onboarding is complete and no preference saved: ask to pick one
   useEffect(() => {
     if (loading || !allOnboardingDone) return;
     const saved = localStorage.getItem(HOME_SCREEN_KEY);
-    if (saved) {
-      const routes: Record<string, string> = {
-        home: "/home", portfolio: "/portfolio",
-        chat: "/chat", learn: "/learn", notifications: "/notifications",
-      };
-      const href = routes[saved];
-      if (href && href !== "/home") router.replace(href);
-    } else {
-      setShowScreenPicker(true);
-    }
+    if (!saved) setShowScreenPicker(true);
   }, [loading, allOnboardingDone]);
 
   const handleOnboardingStep = (index: number) => {

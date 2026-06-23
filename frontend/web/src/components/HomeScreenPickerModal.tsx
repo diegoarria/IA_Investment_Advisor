@@ -1,17 +1,16 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { Home, BarChart2, Bot, BookOpen, Bell, ArrowRight } from "lucide-react";
+import { Home, Wallet, Bot, Bell, BookOpen, ArrowRight } from "lucide-react";
 
 export const HOME_SCREEN_KEY = "nuvos_home_screen";
 
 const OPTIONS = [
-  { key: "home",          label: "Inicio",        sub: "Dashboard y resumen diario",          icon: Home,      color: "#00d47e", href: "/home" },
-  { key: "portfolio",     label: "Patrimonio",     sub: "Tu portafolio y rendimiento",          icon: BarChart2, color: "#3b82f6", href: "/portfolio" },
-  { key: "chat",          label: "Mentor IA",      sub: "Pregúntale lo que quieras",            icon: Bot,       color: "#8b5cf6", href: "/chat" },
-  { key: "learn",         label: "Aprendizaje",    sub: "Lecciones y racha diaria",             icon: BookOpen,  color: "#f59e0b", href: "/learn" },
-  { key: "notifications", label: "Notificaciones", sub: "Lo más importante de tus activos",     icon: Bell,      color: "#ef4444", href: "/notifications" },
+  { key: "home",          label: "Inicio",         sub: "Dashboard y resumen diario",       icon: Home,     color: "#00d47e", href: "/home" },
+  { key: "patrimonio",    label: "Patrimonio",      sub: "Tu patrimonio y portafolio",       icon: Wallet,   color: "#3b82f6", href: "/patrimonio" },
+  { key: "chat",          label: "Mentor IA",       sub: "Pregúntale lo que quieras",        icon: Bot,      color: "#8b5cf6", href: "/chat" },
+  { key: "notifications", label: "Notificaciones",  sub: "Lo más importante de tus activos", icon: Bell,     color: "#ef4444", href: "/notifications" },
+  { key: "learn",         label: "Aprendizaje",     sub: "Lecciones y racha diaria",         icon: BookOpen, color: "#f59e0b", href: "/learn" },
 ] as const;
 
 export type HomeScreenKey = (typeof OPTIONS)[number]["key"];
