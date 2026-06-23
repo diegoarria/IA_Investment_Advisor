@@ -1103,7 +1103,7 @@ export default function HomeScreen() {
         {positions.length > 0 && (
           <View style={ss.section}>
             <View style={ss.sectionHeader}>
-              <Text style={[ss.sectionTitle, { color: colors.text }]}>Hoy en tu portafolio</Text>
+              <Text style={[ss.sectionTitle, { color: colors.text }]}>Subiendo hoy</Text>
               <TouchableOpacity onPress={() => router.navigate("/(tabs)/portfolio")}>
                 <Text style={[ss.sectionLink, { color: colors.accentLight }]}>Ver todo →</Text>
               </TouchableOpacity>
