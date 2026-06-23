@@ -60,7 +60,15 @@ async def get_notification_settings(user_id: str = Depends(get_current_user_id))
         return cached
     db = get_supabase()
     res = await run_query(db.table("notification_preferences").select("*").eq("user_id", user_id))
-    prefs = res.data[0] if res.data else {**_DEFAULT_PREFS, "user_id": user_id}
+    if res.data:
+        prefs = res.data[0]
+    else:
+        # First time — insert defaults so the worker can find this user
+        prefs = {**_DEFAULT_PREFS, "user_id": user_id}
+        try:
+            await run_query(db.table("notification_preferences").insert(prefs))
+        except Exception:
+            pass
     cache_set(ck, prefs, ttl=300)
     return prefs
 

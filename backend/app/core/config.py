@@ -32,6 +32,10 @@ class Settings(BaseSettings):
     plaid_client_id: str = ""
     plaid_secret: str = ""
     plaid_env: str = "sandbox"     # sandbox | production
+    # Web Push (VAPID)
+    vapid_private_key: str = ""   # base64url-encoded private key
+    vapid_public_key: str = ""    # base64url-encoded public key (sent to browser)
+    vapid_claim_email: str = "mailto:diego.arria19@gmail.com"
 
     class Config:
         env_file = ".env"

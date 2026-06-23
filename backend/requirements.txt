@@ -22,3 +22,5 @@ numpy==2.2.1
 plaid-python==26.0.0
 openai>=1.0.0,<2.0.0
 fpdf2>=2.7.9
+pywebpush==2.0.0
+py_vapid==1.9.0

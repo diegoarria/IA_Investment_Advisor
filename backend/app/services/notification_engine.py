@@ -102,18 +102,43 @@ async def can_send_push(user_id: str, category: str, db) -> bool:
 
 async def send_push(user_id: str, category: str, title: str, body: str, data: dict, db, sound: str = "default"):
     from app.core.database import run_query
-    from app.services.push_service import send_push as _push
+    from app.services.push_service import send_push as _expo_push
+    from app.services.web_push_service import send_web_push_to_user
 
     if not await can_send_push(user_id, category, db):
         await _log_notification(db, user_id, "push", category, title, body, data, "skipped")
         return
 
+    today = _today_et()
+    dedup_key = f"{user_id}:{category}:{today}"
+    status, error_text = "sent", None
+    sent_any = False
+
+    # 1. Web push (browser — primary channel for web users)
+    try:
+        web_sent = await send_web_push_to_user(user_id, title, body, {**data, "category": category})
+        if web_sent > 0:
+            sent_any = True
+    except Exception as e:
+        logger.warning("Web push failed for %s: %s", user_id, e)
+
+    # 2. Expo push (mobile fallback — only if user has a mobile token)
     tok_res = await run_query(db.table("user_profiles").select("push_token").eq("user_id", user_id))
     token = (tok_res.data[0].get("push_token") or "") if tok_res.data else ""
-    if not token or not token.startswith("ExponentPushToken"):
-        logger.warning("No valid push token for user %s (category=%s) — skipping push", user_id, category)
-        await _log_notification(db, user_id, "push", category, title, body, data, "no_token")
-        return
+    if token and token.startswith("ExponentPushToken"):
+        try:
+            await _expo_push(token, title=title, body=body, data={**data, "category": category}, sound=sound)
+            sent_any = True
+        except Exception as e:
+            logger.warning("Expo push failed for %s: %s", user_id, e)
+
+    if not sent_any:
+        status = "no_token"
+        logger.info("No push channel for user %s (category=%s)", user_id, category)
+
+    log_id = await _log_notification(db, user_id, "push", category, title, body, data,
+                                     status, dedup_key=dedup_key, error_text=error_text)
+    await _track_analytics(db, "sent", category, user_id, log_id)
 
     today = _today_et()
     dedup_key = f"{user_id}:{category}:{today}"
@@ -168,8 +193,8 @@ async def _log_notification(db, user_id: str, type_: str, category: str,
     if error_text:
         record["error_text"] = error_text
     try:
-        res = await run_query(db.table("notification_log").insert(record).select("id"))
-        return res.data[0]["id"] if res.data else None
+        await run_query(db.table("notification_log").insert(record))
+        return None
     except Exception as e:
         logger.warning("Failed to log notification: %s", e)
         return None

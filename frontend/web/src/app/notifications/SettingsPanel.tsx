@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { X, Loader2 } from "lucide-react";
 import { useAuthStore } from "@/lib/store";
+import { registerAndSubscribe, unsubscribe as unsubPush, currentPermission, isSubscribed } from "@/lib/webPush";
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? "";
 
@@ -45,6 +46,11 @@ export default function NotificationSettingsPanel({ onClose }: Props) {
   const [saving, setSaving]   = useState(false);
   const [saved,  setSaved]    = useState(false);
 
+  // Web push state
+  const [pushPermission, setPushPermission] = useState<string>("default");
+  const [subscribed, setSubscribed]         = useState(false);
+  const [pushBusy, setPushBusy]             = useState(false);
+
   useEffect(() => {
     (async () => {
       try {
@@ -55,7 +61,32 @@ export default function NotificationSettingsPanel({ onClose }: Props) {
       } catch {}
       setLoading(false);
     })();
+
+    (async () => {
+      const perm = await currentPermission();
+      setPushPermission(perm);
+      if (perm === "granted") setSubscribed(await isSubscribed());
+    })();
   }, [token]);
+
+  const handlePushToggle = async () => {
+    if (!token) return;
+    setPushBusy(true);
+    if (subscribed) {
+      await unsubPush(token);
+      setSubscribed(false);
+      setPushPermission(await currentPermission());
+    } else {
+      const ok = await registerAndSubscribe(token);
+      if (ok) {
+        setSubscribed(true);
+        setPushPermission("granted");
+      } else {
+        setPushPermission(await currentPermission());
+      }
+    }
+    setPushBusy(false);
+  };
 
   const toggle = (key: string) =>
     setPrefs((p) => (p ? { ...p, [key]: !p[key] } : p));
@@ -110,6 +141,43 @@ export default function NotificationSettingsPanel({ onClose }: Props) {
             </p>
           ) : (
             <>
+              {/* Browser push permission banner */}
+              {pushPermission !== "denied" && (
+                <div
+                  className="flex items-center gap-3 p-4 rounded-xl"
+                  style={{ background: subscribed ? "rgba(34,197,94,0.08)" : "var(--raised)", border: `1px solid ${subscribed ? "rgba(34,197,94,0.3)" : "var(--border)"}` }}
+                >
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold" style={{ color: "var(--text)" }}>
+                      {subscribed ? "Notificaciones activadas" : "Activar notificaciones push"}
+                    </p>
+                    <p className="text-xs mt-0.5" style={{ color: "var(--dim, #6b7280)" }}>
+                      {subscribed
+                        ? "Recibirás alertas aunque la app esté cerrada"
+                        : "Alertas de portafolio en tiempo real en este navegador"}
+                    </p>
+                  </div>
+                  <button
+                    onClick={handlePushToggle}
+                    disabled={pushBusy || pushPermission === "denied"}
+                    className="shrink-0 px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5"
+                    style={{
+                      background: subscribed ? "transparent" : "var(--accent-l, #22c55e)",
+                      color: subscribed ? "var(--muted)" : "#fff",
+                      border: subscribed ? "1px solid var(--border)" : "none",
+                      opacity: pushBusy ? 0.6 : 1,
+                    }}
+                  >
+                    {pushBusy ? <Loader2 className="w-3 h-3 animate-spin" /> : subscribed ? "Desactivar" : "Activar"}
+                  </button>
+                </div>
+              )}
+              {pushPermission === "denied" && (
+                <div className="p-3 rounded-xl text-xs" style={{ background: "var(--raised)", color: "var(--muted)" }}>
+                  Las notificaciones están bloqueadas en este navegador. Actívalas desde la configuración del sitio.
+                </div>
+              )}
+
               {/* Push section */}
               <section>
                 <p className="text-xs font-black uppercase tracking-widest mb-3"

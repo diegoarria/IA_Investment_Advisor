@@ -2093,6 +2093,34 @@ async def job_annual_scoreboard():
         logger.error("job_annual_scoreboard failed: %s", e)
 
 
+async def _backfill_notification_prefs():
+    """Insert default notification_preferences for every user who doesn't have a row.
+    Called once on worker startup so job_portfolio_alerts can find all users."""
+    from app.core.database import get_supabase, run_query
+    from app.api.routes.notification_settings import _DEFAULT_PREFS
+    try:
+        db = get_supabase()
+        # All user_ids that already have prefs
+        existing = await run_query(db.table("notification_preferences").select("user_id"))
+        existing_ids = {r["user_id"] for r in (existing.data or [])}
+
+        # All user_ids from profiles
+        all_users = await run_query(db.table("user_profiles").select("user_id"))
+        missing = [r["user_id"] for r in (all_users.data or []) if r["user_id"] not in existing_ids]
+
+        if not missing:
+            logger.info("Notification prefs backfill: all users already have a row")
+            return
+
+        rows = [{**_DEFAULT_PREFS, "user_id": uid} for uid in missing]
+        # Insert in batches of 100 to avoid request size limits
+        for i in range(0, len(rows), 100):
+            await run_query(db.table("notification_preferences").insert(rows[i:i+100]))
+        logger.info("Notification prefs backfill: inserted %d rows", len(missing))
+    except Exception as e:
+        logger.warning("Notification prefs backfill failed: %s", e)
+
+
 async def main():
     scheduler = AsyncIOScheduler()
 
@@ -2142,6 +2170,10 @@ async def main():
 
     # ── Cleanup ───────────────────────────────────────────────────────────────
     scheduler.add_job(job_cleanup_analytics,    "interval", hours=1)
+
+    # Backfill notification_preferences for existing users who never opened settings.
+    # Without this row the worker can't find them and push never fires.
+    asyncio.create_task(_backfill_notification_prefs())
 
     scheduler.start()
     logger.info("Worker started — %d jobs scheduled", len(scheduler.get_jobs()))
