@@ -291,7 +291,7 @@ export default function HomePage() {
 
   // ── Onboarding checklist ─────────────────────────────────────────────────
   const [checklistPermanentlyDone] = useState(
-    () => localStorage.getItem("nuvos_checklist_done") === "1"
+    () => typeof window !== "undefined" && localStorage.getItem("nuvos_checklist_done") === "1"
   );
 
   const onboardingSteps: OnboardingStep[] = [
