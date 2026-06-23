@@ -3077,7 +3077,7 @@ def _compute_stock_score(detail: dict) -> dict:
             sector = p.get("sector", "")
             client_ant = anthropic.Anthropic(api_key=_ant_key)
             prompt = (
-                f"Eres un analista financiero experto. Analiza '{name}' ({sector}) con estos datos:\n"
+                f"Eres un asesor financiero que explica inversiones a personas sin experiencia en finanzas. Analiza '{name}' ({sector}) con estos datos internos (NO los menciones directamente):\n"
                 f"- Score general: {overall}/100 (Valoración:{val_score} Crecimiento:{grow_score} Calidad:{qual_score} Salud:{health_score})\n"
                 f"- P/E: {pe}, Forward P/E: {fpe}, EV/EBITDA: {ev_ebitda}\n"
                 f"- Margen bruto: {round((gm or 0)*100,1)}%, Margen operativo: {round((om or 0)*100,1)}%, Margen neto: {round((nm or 0)*100,1)}%\n"
@@ -3085,9 +3085,14 @@ def _compute_stock_score(detail: dict) -> dict:
                 f"- ROE: {round((roe or 0)*100,1)}%, ROA: {round((roa or 0)*100,1)}%\n"
                 f"- Deuda/Capital: {de}, Ratio corriente: {cr}\n"
                 f"- Recomendación: {signal}\n\n"
+                "REGLAS ESTRICTAS:\n"
+                "- Usa lenguaje simple que entienda alguien que nunca ha invertido\n"
+                "- PROHIBIDO mencionar: P/E, EV/EBITDA, ROE, ROA, ratio corriente, deuda/capital, márgenes operativos, ni ningún término técnico financiero\n"
+                "- Traduce los datos a ideas concretas: en vez de 'P/E alto' di 'la acción está cara comparada con lo que gana'; en vez de 'ROE alto' di 'la empresa es muy eficiente generando ganancias'\n"
+                "- Sé directo y conversacional, como si le explicaras a un amigo\n\n"
                 "Responde en español con exactamente DOS partes:\n"
-                "CORTO: Una sola oración de 15-20 palabras resumiendo la calidad del negocio (NO menciones el precio).\n"
-                "LARGO: Dos oraciones de análisis: primero los puntos fuertes, luego los riesgos o debilidades clave."
+                "CORTO: Una sola oración de máximo 20 palabras resumiendo si el negocio es bueno o no (sin mencionar precios ni términos técnicos).\n"
+                "LARGO: Dos oraciones en lenguaje simple: primero qué tiene de bueno la empresa, luego qué riesgo tiene o por qué hay que tener cuidado."
             )
             msg = client_ant.messages.create(
                 model="claude-haiku-4-5-20251001",
