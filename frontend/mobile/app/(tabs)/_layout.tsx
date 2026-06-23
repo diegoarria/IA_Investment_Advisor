@@ -10,7 +10,6 @@ import { router } from "expo-router";
 import { useTheme } from "../../src/lib/ThemeContext";
 import { useAppStore } from "../../src/lib/profileStore";
 import { useNavOrderStore } from "../../src/lib/navOrderStore";
-import { useStartScreenStore } from "../../src/lib/startScreenStore";
 import { useSubscriptionStore } from "../../src/lib/subscriptionStore";
 import { useWatchlistStore } from "../../src/lib/watchlistStore";
 import MarketTicker from "../../src/components/MarketTicker";
@@ -302,10 +301,8 @@ export default function TabsLayout() {
   const isWeb = Platform.OS === "web";
   const loadOrder = useNavOrderStore((s) => s.loadOrder);
   const loadWatchlist = useWatchlistStore((s) => s.loadFromServer);
-  const loadStartScreen = useStartScreenStore((s) => s.load);
   const appState = useRef(AppState.currentState);
   const lastForegroundSync = useRef<number>(0);
-  const hasRedirected = useRef(false);
 
   const syncAllFromServer = () => {
     const now = Date.now();
@@ -350,16 +347,6 @@ export default function TabsLayout() {
   };
 
   useEffect(() => {
-    // Redirect to preferred start screen on first mount
-    loadStartScreen().then(() => {
-      if (hasRedirected.current) return;
-      const screen = useStartScreenStore.getState().screen;
-      if (screen && screen !== "home") {
-        hasRedirected.current = true;
-        router.replace(`/(tabs)/${screen}` as any);
-      }
-    });
-
     syncAllFromServer();
 
     const sub = AppState.addEventListener("change", (nextState) => {

@@ -17,7 +17,16 @@ import UpsellModal from "../../src/components/UpsellModal";
 import { insightsApi, mentorLetterApi, profileApi, authApi, referralApi, syncApi, feedApi } from "../../src/lib/api";
 import { useSubscriptionStore, hasPremiumAccess } from "../../src/lib/subscriptionStore";
 import type { UpsellOffer } from "../../src/lib/upsellStore";
-import { useStartScreenStore, START_SCREEN_OPTIONS } from "../../src/lib/startScreenStore";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { HOME_SCREEN_KEY } from "../../src/components/MobileHomeScreenPickerModal";
+
+const START_SCREEN_OPTIONS = [
+  { key: "home",          label: "Inicio",         icon: "home-outline",          color: "#00d47e" },
+  { key: "patrimonio",    label: "Patrimonio",      icon: "wallet-outline",        color: "#3b82f6" },
+  { key: "chat",          label: "Mentor IA",       icon: "chatbubble-ellipses-outline", color: "#8b5cf6" },
+  { key: "notifications", label: "Notificaciones",  icon: "notifications-outline", color: "#ef4444" },
+  { key: "academy",       label: "Academy",         icon: "school-outline",        color: "#f59e0b" },
+] as const;
 
 const MENTOR_PHOTOS: Record<string, number> = {
   "Warren Buffett": require("../../assets/images/mentors/warren_buffett.jpg"),
@@ -142,8 +151,11 @@ export default function ProfileScreen() {
 
   const [progressOpen, setProgressOpen] = useState(false);
   const [startScreenPickerOpen, setStartScreenPickerOpen] = useState(false);
-  const startScreen = useStartScreenStore((s) => s.screen);
-  const setStartScreen = useStartScreenStore((s) => s.setScreen);
+  const [startScreen, setStartScreenState] = useState<string>("home");
+
+  useEffect(() => {
+    AsyncStorage.getItem(HOME_SCREEN_KEY).then((v) => { if (v) setStartScreenState(v); });
+  }, []);
 
   const [insights, setInsights] = useState<{ ready: boolean; topics?: string[]; risk_behavior?: string; risk_match?: boolean; risk_note?: string; suggestion?: string; interests?: string[] } | null>(null);
   const [referralCode, setReferralCode] = useState<string | null>(null);
@@ -1240,7 +1252,11 @@ if (!profile) {
               return (
                 <TouchableOpacity
                   key={opt.key}
-                  onPress={() => { setStartScreen(opt.key); setStartScreenPickerOpen(false); }}
+                  onPress={() => {
+                    AsyncStorage.setItem(HOME_SCREEN_KEY, opt.key).catch(() => {});
+                    setStartScreenState(opt.key);
+                    setStartScreenPickerOpen(false);
+                  }}
                   activeOpacity={0.8}
                   style={{ flexDirection: "row", alignItems: "center", gap: 14, padding: 14, borderRadius: 16, backgroundColor: active ? opt.color + "14" : colors.bgRaised, borderWidth: 1.5, borderColor: active ? opt.color : "transparent" }}
                 >

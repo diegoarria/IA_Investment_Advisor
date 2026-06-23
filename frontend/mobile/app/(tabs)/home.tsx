@@ -594,23 +594,33 @@ export default function HomeScreen() {
   ];
   const allOnboardingDone = onboardingSteps.every((s) => s.completed);
 
-  // Once onboarding is complete: redirect to saved preference, or ask to pick one
+  // Redirect to saved start-screen preference on first focus (before data loads)
+  const hasRedirected = useRef(false);
+  useFocusEffect(
+    useCallback(() => {
+      if (hasRedirected.current) return;
+      hasRedirected.current = true;
+      AsyncStorage.getItem(HOME_SCREEN_KEY).then((saved) => {
+        if (!saved) return; // picker will show once onboarding is done
+        const routes: Record<string, string> = {
+          patrimonio:    "/(tabs)/patrimonio",
+          chat:          "/(tabs)/chat",
+          notifications: "/(tabs)/notifications",
+          academy:       "/(tabs)/academy",
+          portfolio:     "/(tabs)/portfolio",
+          learn:         "/(tabs)/learn",
+        };
+        const route = routes[saved];
+        if (route) router.replace(route as any);
+      });
+    }, [])
+  );
+
+  // Show picker after onboarding is done (only if no preference saved yet)
   useEffect(() => {
     if (loading || !allOnboardingDone) return;
     AsyncStorage.getItem(HOME_SCREEN_KEY).then((saved) => {
-      if (saved) {
-        const routes: Record<string, string> = {
-          home: "/(tabs)/home",
-          portfolio: "/(tabs)/portfolio",
-          chat: "/(tabs)/chat",
-          learn: "/(tabs)/learn",
-          notifications: "/(tabs)/notifications",
-        };
-        const route = routes[saved];
-        if (route && route !== "/(tabs)/home") router.replace(route as any);
-      } else {
-        setShowScreenPicker(true);
-      }
+      if (!saved) setShowScreenPicker(true);
     });
   }, [loading, allOnboardingDone]);
 

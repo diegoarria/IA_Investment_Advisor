@@ -8,11 +8,11 @@ import { useTheme } from "../lib/ThemeContext";
 export const HOME_SCREEN_KEY = "nuvos_home_screen";
 
 const OPTIONS = [
-  { key: "home",          label: "Inicio",        sub: "Dashboard y resumen diario",      icon: "home-outline" as const,              color: "#00d47e", route: "/(tabs)/home" },
-  { key: "portfolio",     label: "Patrimonio",     sub: "Tu portafolio y rendimiento",      icon: "bar-chart-outline" as const,         color: "#3b82f6", route: "/(tabs)/portfolio" },
-  { key: "chat",          label: "Mentor IA",      sub: "Pregúntale lo que quieras",        icon: "chatbubble-ellipses-outline" as const, color: "#8b5cf6", route: "/(tabs)/chat" },
-  { key: "learn",         label: "Aprendizaje",    sub: "Lecciones y racha diaria",         icon: "book-outline" as const,              color: "#f59e0b", route: "/(tabs)/learn" },
-  { key: "notifications", label: "Notificaciones", sub: "Lo más importante de tus activos", icon: "notifications-outline" as const,     color: "#ef4444", route: "/(tabs)/notifications" },
+  { key: "home",          label: "Inicio",         sub: "Dashboard y resumen diario",        icon: "home-outline" as const,               color: "#00d47e", route: "/(tabs)/home" },
+  { key: "patrimonio",    label: "Patrimonio",      sub: "Tu patrimonio y portafolio",         icon: "wallet-outline" as const,             color: "#3b82f6", route: "/(tabs)/patrimonio" },
+  { key: "chat",          label: "Mentor IA",       sub: "Pregúntale lo que quieras",          icon: "chatbubble-ellipses-outline" as const, color: "#8b5cf6", route: "/(tabs)/chat" },
+  { key: "notifications", label: "Notificaciones",  sub: "Lo más importante de tus activos",   icon: "notifications-outline" as const,      color: "#ef4444", route: "/(tabs)/notifications" },
+  { key: "academy",       label: "Academy",         sub: "Aprende a invertir cada día",        icon: "school-outline" as const,             color: "#f59e0b", route: "/(tabs)/academy" },
 ];
 
 export type HomeScreenKey = (typeof OPTIONS)[number]["key"];
