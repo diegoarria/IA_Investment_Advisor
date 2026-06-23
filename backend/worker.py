@@ -1937,6 +1937,127 @@ async def job_mentor_nudge():
         logger.error("job_mentor_nudge failed: %s", e)
 
 
+async def job_annual_scoreboard():
+    """5 Dec every year, 9:00 AM ET — push + email: Annual ScoreBoard is live."""
+    from app.core.database import get_supabase, run_query
+    from app.services.notification_engine import send_push
+    from app.services.email_service import send_email
+
+    db = get_supabase()
+    year = datetime.now(timezone.utc).year
+
+    PUSH_TITLE = f"🏆 Tu Annual ScoreBoard {year} está listo"
+    PUSH_BODY  = (
+        f"Revisa tu resumen anual como inversor en Nuvos AI — "
+        f"tus top acciones, lecciones completadas y más. ¡Entra a verlo!"
+    )
+
+    def _scoreboard_email_html(name: str, year: int) -> str:
+        first = name.split()[0] if name else "Inversor"
+        return f"""<!DOCTYPE html>
+<html lang="es">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#0d1117;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#0d1117;padding:32px 0;">
+  <tr><td align="center">
+    <table width="560" cellpadding="0" cellspacing="0" style="background:#090f1f;border-radius:20px;border:1px solid rgba(0,212,126,0.2);overflow:hidden;max-width:560px;width:100%;">
+      <!-- Accent bar -->
+      <tr><td style="height:4px;background:linear-gradient(90deg,rgba(0,212,126,0.6),#00d47e);"></td></tr>
+      <tr><td style="padding:32px 36px 28px;">
+        <!-- Logo -->
+        <table cellpadding="0" cellspacing="0"><tr>
+          <td style="background:#00d47e;border-radius:10px;width:36px;height:36px;text-align:center;vertical-align:middle;">
+            <span style="color:#0d1117;font-size:18px;font-weight:900;line-height:36px;">N</span>
+          </td>
+          <td style="padding-left:10px;color:#fff;font-size:16px;font-weight:900;">Nuvos AI</td>
+        </tr></table>
+
+        <!-- Hero -->
+        <p style="margin:28px 0 6px;font-size:11px;font-weight:900;color:#00d47e;letter-spacing:1px;text-transform:uppercase;">Resumen Anual</p>
+        <h1 style="margin:0 0 4px;font-size:36px;font-weight:900;color:#fff;line-height:1.1;letter-spacing:-1px;">Annual ScoreBoard<br>{year}</h1>
+        <p style="margin:12px 0 0;font-size:15px;color:#8fa3c0;line-height:1.6;">Hola {first}, tu resumen anual como inversor ya está disponible en Nuvos AI.</p>
+
+        <!-- Card -->
+        <table width="100%" cellpadding="0" cellspacing="0" style="margin:28px 0 0;">
+          <tr><td style="background:rgba(0,212,126,0.06);border:1px solid rgba(0,212,126,0.18);border-radius:16px;padding:24px;">
+            <p style="margin:0 0 16px;font-size:22px;">🏆</p>
+            <p style="margin:0 0 10px;font-size:16px;font-weight:900;color:#fff;">Lo que encontrarás en tu ScoreBoard</p>
+            <table cellpadding="0" cellspacing="0">
+              <tr><td style="padding:5px 0;color:#8fa3c0;font-size:14px;">🚀&nbsp; Top 3 acciones de tu portafolio con mejor rendimiento YTD</td></tr>
+              <tr><td style="padding:5px 0;color:#8fa3c0;font-size:14px;">🧠&nbsp; Total de lecciones, simulaciones y debates completados</td></tr>
+              <tr><td style="padding:5px 0;color:#8fa3c0;font-size:14px;">🏆&nbsp; El sector donde más exposición tuviste este año</td></tr>
+              <tr><td style="padding:5px 0;color:#8fa3c0;font-size:14px;">📊&nbsp; Días activo en la plataforma durante {year}</td></tr>
+            </table>
+          </td></tr>
+        </table>
+
+        <!-- CTA -->
+        <table width="100%" cellpadding="0" cellspacing="0" style="margin:28px 0 0;">
+          <tr><td align="center">
+            <a href="https://nuvosai.app/profile" style="display:inline-block;background:#00d47e;color:#fff;font-size:15px;font-weight:900;text-decoration:none;padding:14px 40px;border-radius:14px;">Ver mi Annual ScoreBoard →</a>
+          </td></tr>
+        </table>
+
+        <p style="margin:28px 0 0;font-size:13px;color:#374151;text-align:center;">
+          Este es tu resumen de {year} como inversor en Nuvos AI.<br>
+          Gracias por confiar en nosotros para crecer como inversor informado.
+        </p>
+      </td></tr>
+
+      <!-- Footer -->
+      <tr><td style="border-top:1px solid rgba(255,255,255,0.06);padding:20px 36px;text-align:center;">
+        <p style="margin:0;font-size:12px;color:#374151;">Nuvos AI · Tu mentor de inversiones educativo</p>
+        <p style="margin:6px 0 0;font-size:11px;color:#1f2937;">NOTA: Esto no es asesoría financiera. Es educación inversora.</p>
+      </td></tr>
+    </table>
+  </td></tr>
+</table>
+</body>
+</html>"""
+
+    try:
+        # ── Push notifications ───────────────────────────────────────────────
+        prefs_res = await run_query(
+            db.table("notification_preferences").select("user_id").eq("push_milestones", True)
+        )
+        uids = [u["user_id"] for u in (prefs_res.data or [])]
+        push_sent = 0
+        for i, uid in enumerate(uids):
+            if i % 100 == 0 and i > 0:
+                await asyncio.sleep(12)
+            await asyncio.sleep(random.uniform(0, 0.12))
+            await send_push(
+                uid, "annual_scoreboard",
+                PUSH_TITLE, PUSH_BODY,
+                {"screen": "profile", "section": "scoreboard"},
+                db,
+            )
+            push_sent += 1
+        logger.info("Annual ScoreBoard push: %d sent", push_sent)
+
+        # ── Emails ───────────────────────────────────────────────────────────
+        if not settings.resend_api_key:
+            logger.info("RESEND_API_KEY not set — skipping Annual ScoreBoard emails")
+            return
+
+        users_res  = await run_query(db.table("user_profiles").select("user_id,name"))
+        auth_users = {u.id: u.email for u in await asyncio.to_thread(lambda: db.auth.admin.list_users())}
+        email_sent = 0
+        for u in (users_res.data or []):
+            email = auth_users.get(u["user_id"])
+            if not email:
+                continue
+            html = _scoreboard_email_html(u.get("name") or "Inversor", year)
+            ok   = await send_email(email, f"🏆 Tu Annual ScoreBoard {year} está listo — Nuvos AI", html)
+            if ok:
+                email_sent += 1
+            await asyncio.sleep(random.uniform(0.05, 0.15))
+        logger.info("Annual ScoreBoard email: %d sent", email_sent)
+
+    except Exception as e:
+        logger.error("job_annual_scoreboard failed: %s", e)
+
+
 async def main():
     scheduler = AsyncIOScheduler()
 
@@ -1975,6 +2096,9 @@ async def main():
     scheduler.add_job(send_reengagement_emails,    "cron", day_of_week="sat",  hour=12,      minute=0,     timezone="America/New_York")
     scheduler.add_job(send_birthday_emails,        "cron",                     hour=8,       minute=0,     timezone="America/New_York")
     scheduler.add_job(send_educational_emails,     "cron",                     hour=9,       minute=0,     timezone="America/New_York")
+
+    # ── Annual ScoreBoard — 5 Dec every year ─────────────────────────────────
+    scheduler.add_job(job_annual_scoreboard,    "cron", month=12, day=5, hour=9, minute=0, timezone="America/New_York")
 
     # ── Action follow-up + mentor nudge (basic/intermediate only) ────────────
     scheduler.add_job(job_action_followup,      "interval", hours=4)
