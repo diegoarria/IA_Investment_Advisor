@@ -57,16 +57,6 @@ const SECTIONS = [
     premium: false,
   },
   {
-    emoji: "🧪",
-    title: "Simulador Paper Trading",
-    subtitle: "Practica sin arriesgar dinero real",
-    description: "Compra y vende con capital virtual. Aprende cómo funciona el mercado sin consecuencias reales y compite en el leaderboard global.",
-    cta: "Empezar a simular",
-    href: "/paper",
-    tip: "Simula comprar NVIDIA o Tesla con $10,000 virtuales y ve cómo resulta.",
-    premium: false,
-  },
-  {
     emoji: "🧮",
     title: "Calculadora de riqueza",
     subtitle: "Proyecta tu futuro financiero",

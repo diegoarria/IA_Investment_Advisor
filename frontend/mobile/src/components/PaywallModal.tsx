@@ -47,7 +47,7 @@ const ALL_FEATURES = [
   { text: "Conectar broker (Plaid, IOL, Fidelity)",   detail: "Sincroniza tu portafolio real automáticamente desde tu bróker. Siempre actualizado." },
   { text: "Resumen IA de noticias",                   detail: "Cada noticia de tus posiciones viene con resumen generado por IA. El punto clave en segundos." },
   { text: "Reporte mensual de performance",           detail: "Al cierre de cada mes: retorno real, comparativa vs S&P 500 y nota personalizada de tu mentor." },
-  { text: "Evaluación conductual BSCORE",             detail: "La IA detecta tus sesgos de inversión (FOMO, pánico, sobreconfianza) con sugerencias de mejora." },
+  { text: "Evaluación conductual BSCORE",             detail: "La IA mide tu madurez inversora y te da sugerencias concretas para tomar mejores decisiones." },
   { text: "Cambiar moneda del portafolio",            detail: "Ve tu portafolio en USD, MXN, EUR u otras monedas." },
   { text: "Emails semanales personalizados",          detail: "Cada viernes: resumen del mercado adaptado a tu perfil, conversaciones y portafolio." },
 ];

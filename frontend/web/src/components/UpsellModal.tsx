@@ -23,7 +23,7 @@ const OFFER_META = {
     subtitle: "Tu evolución como inversor, documentada",
     features: [
       "Evolución mes a mes de tu Puntuación de Madurez (1-100)",
-      "Los 3 sesgos que más afectaron tus decisiones este año",
+      "Análisis de tu perfil de riesgo y comportamiento inversor",
       "Perfil de riesgo real vs. declarado al registrarte",
       "Recomendaciones de tu Mentor IA para el próximo año",
       'Certificado digital compartible: "Inversor Informado - Nuvos AI"',
@@ -39,7 +39,7 @@ const OFFER_META = {
     features: [
       "Todo lo de Premium para dos cuentas independientes",
       "Una sola factura, perfiles separados",
-      "Seguimiento de sesgos y portafolios independientes",
+      "Portafolios independientes con análisis separado",
       "Privacidad total — sin datos compartidos entre cuentas",
     ],
     color: "#3b82f6",
@@ -52,8 +52,8 @@ const OFFER_META = {
     subtitle: "45 minutos con el fundador de Nuvos AI",
     features: [
       "Videollamada de 45 min con Diego Arria, fundador de Nuvos AI",
-      "Revisión de tu historial de sesgos y puntuación de madurez",
-      "Análisis de tu portafolio simulado y estrategia de inversión",
+      "Revisión de tu puntuación de madurez inversora",
+      "Análisis de tu portafolio y estrategia de inversión",
       "3 próximos pasos concretos para tu situación específica",
       "Grabación de la sesión entregada después de la llamada",
     ],

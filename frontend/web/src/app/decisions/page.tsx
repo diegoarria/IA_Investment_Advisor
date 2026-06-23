@@ -153,7 +153,7 @@ export default function DecisionsPage() {
               {[
                 "Agrega tus primeras posiciones al portafolio",
                 "Explora el feed de noticias de tus acciones",
-                "Practica con paper trading sin riesgo",
+                "Revisa el análisis de tus posiciones en Patrimonio",
               ].map((tip) => (
                 <div key={tip} className="flex items-start gap-2">
                   <div className="w-1.5 h-1.5 rounded-full mt-1.5 shrink-0" style={{ background: "var(--accent-l)" }} />

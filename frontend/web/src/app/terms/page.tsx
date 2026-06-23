@@ -50,7 +50,7 @@ export default function TermsPage() {
             </div>
             <p className="text-sm">
               Ningún contenido generado dentro de la aplicación —incluyendo, sin limitación, perfiles de
-              riesgo, análisis de portafolios, comparativos con inversionistas reconocidos, simulaciones,
+              riesgo, análisis de portafolios, comparativos con inversionistas reconocidos,
               alertas, calendarios de resultados financieros o recomendaciones de tipo de activo— constituye
               una recomendación personalizada de inversión, una oferta, ni una invitación para comprar,
               vender o mantener algún instrumento financiero. Todo el contenido es de naturaleza general y
@@ -126,14 +126,12 @@ export default function TermsPage() {
             <div className="space-y-4 text-sm">
               <div>
                 <h3 className="text-white/90 font-semibold mb-2">Plan Gratuito</h3>
-                <p>Incluye acceso limitado a las funcionalidades de la app: 20 mensajes cada 24 horas,
-                5 simulaciones de decisiones por día, 2 debates con IA por día y funciones básicas de portafolio.</p>
+                <p>Incluye acceso limitado a las funcionalidades de la app: 20 mensajes cada 24 horas y funciones básicas de portafolio.</p>
               </div>
               <div>
                 <h3 className="text-white/90 font-semibold mb-2">Plan Premium</h3>
                 <p>Suscripción de pago que desbloquea mensajes ilimitados, 5 mentores de inversión,
-                stress test de portafolio, paper trading completo, noticias ilimitadas, 50 simulaciones
-                y 20 debates por día.</p>
+                stress test de portafolio, noticias ilimitadas, análisis avanzado de portafolio y más.</p>
               </div>
               <div>
                 <h3 className="text-white/90 font-semibold mb-2">Facturación</h3>

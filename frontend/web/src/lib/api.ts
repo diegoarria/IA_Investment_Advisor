@@ -215,10 +215,6 @@ export const learn = {
   getScenario: (difficulty: string) => api.post("/api/learn/scenario", { difficulty }),
   submitScenarioResult: (scenarioId: string, choice: string, difficulty: string) =>
     api.post("/api/learn/scenario/result", { scenario_id: scenarioId, choice, difficulty }),
-  startDebate: (thesis: string, difficulty: string) =>
-    api.post("/api/learn/debate", { thesis, difficulty }),
-  replyDebate: (thesis: string, previousDebate: string, userResponse: string, round: number, difficulty: string) =>
-    api.post("/api/learn/debate/reply", { thesis, previous_debate: previousDebate, user_response: userResponse, round, difficulty }),
   syncStreak: (streak: number, lastLearnDate: string) =>
     api.post("/api/learn/streak/sync", { streak, last_learn_date: lastLearnDate }),
   getHallOfFame: () => api.get("/api/learn/hall-of-fame"),

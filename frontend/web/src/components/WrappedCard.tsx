@@ -78,7 +78,7 @@ export default function WrappedCard({ onClose }: WrappedCardProps) {
                 Tu Annual ScoreBoard estará disponible en diciembre {year}
               </div>
               <div style={{ fontSize: 13, color: "#6b7280", marginTop: 8, lineHeight: 1.6 }}>
-                Sigue acumulando historial inversionista — cada simulación, debate y decisión que tomes este año quedará registrada en tu resumen anual.
+                Sigue acumulando historial inversionista — cada lección que tomes este año quedará registrada en tu resumen anual.
               </div>
             </div>
 
@@ -86,7 +86,7 @@ export default function WrappedCard({ onClose }: WrappedCardProps) {
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               {[
                 { icon: "🚀", text: "Top 3 acciones de tu portafolio con mejor rendimiento" },
-                { icon: "🧠", text: "Total de lecciones y simulaciones completadas" },
+                { icon: "🧠", text: "Total de lecciones completadas" },
                 { icon: "🏆", text: "Tu sector de mayor exposición" },
                 { icon: "📊", text: "Días activo en la plataforma" },
               ].map(({ icon, text }) => (

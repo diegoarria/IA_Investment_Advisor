@@ -635,7 +635,7 @@ export default function OnboardingScreen() {
             <Text style={[s.legalBody, { color: colors.textSub }]}>
               Nuvos AI es una plataforma de{" "}
               <Text style={{ color: colors.text, fontWeight: "700" }}>educación e información financiera</Text>.
-              El análisis de la IA, los portafolios simulados y el paper trading son{" "}
+              El análisis de la IA y los datos de mercado son{" "}
               <Text style={{ color: colors.text, fontWeight: "700" }}>únicamente educativos</Text> y no constituyen
               asesoramiento financiero, de inversión, legal ni fiscal regulado.
             </Text>

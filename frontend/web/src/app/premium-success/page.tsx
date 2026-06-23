@@ -70,7 +70,7 @@ export default function PremiumSuccessPage() {
               "Chat ilimitado con tu asesor IA",
               "Análisis avanzado de portafolio",
               "Screener premium sin límites",
-              "Simulador paper trading completo",
+              "Emails semanales personalizados",
             ].map((feat) => (
               <div key={feat} style={{ display: "flex", alignItems: "center", gap: "10px", color: "#d1fae5", fontSize: "14px" }}>
                 <CheckCircle size={16} color="#22c55e" />

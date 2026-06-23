@@ -25,7 +25,7 @@ const TAB_CONFIG: Record<string, { icon: IoniconName; iconFilled: IoniconName; l
   // ── Secondary screens (accessible from hub screens) ──
   portfolio:     { icon: "pie-chart-outline",       iconFilled: "pie-chart",       label: "Portafolio" },
   watchlist:     { icon: "pulse-outline",           iconFilled: "pulse",           label: "Watchlist" },
-  paper:         { icon: "bar-chart-outline",       iconFilled: "bar-chart",       label: "Simulador" },
+  paper:         { icon: "bar-chart-outline",       iconFilled: "bar-chart",       label: "Paper" },
   learn:         { icon: "book-outline",            iconFilled: "book",            label: "Aprendizaje" },
   videos:        { icon: "play-outline",            iconFilled: "play",            label: "Videos" },
   investors:     { icon: "people-outline",          iconFilled: "people",          label: "Inversores" },
@@ -375,7 +375,7 @@ export default function TabsLayout() {
       {/* ── Secondary screens (accessible from hub pages) ─────────────── */}
       <Tabs.Screen name="portfolio"     options={{ title: "Portafolio",    header: () => <MobileHeader title="Mi Portafolio" /> }} />
       <Tabs.Screen name="watchlist"     options={{ title: "Watchlist",     header: () => <MobileHeader title="Watchlist" /> }} />
-      <Tabs.Screen name="paper"         options={{ title: "Simulador",     header: () => <MobileHeader title="Simulador" /> }} />
+      <Tabs.Screen name="paper"         options={{ href: null }} />
       <Tabs.Screen name="learn"         options={{ title: "Aprendizaje",   header: () => <MobileHeader title="Aprendizaje" /> }} />
       <Tabs.Screen name="videos"        options={{ title: "Videos",        header: () => <MobileHeader title="Videos" /> }} />
       <Tabs.Screen name="investors"     options={{ title: "Inversores",    header: () => <MobileHeader title="Inversores" /> }} />

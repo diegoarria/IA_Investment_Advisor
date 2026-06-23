@@ -20,7 +20,7 @@ export const STREAK_MILESTONES = [
 
 export const STREAK_MILESTONES_PREMIUM = [
   { days: 15, reward: "Insignia Estratega 🎖️", bonus: "Análisis macro semanal exclusivo" },
-  { days: 30, reward: "Badge Inversor Élite ⭐", bonus: "Debates sin límite de rondas" },
+  { days: 30, reward: "Badge Inversor Élite ⭐", bonus: "Acceso prioritario a nuevas funciones" },
   { days: 60, reward: "Avatar Halcón de Mercado 🦅", bonus: "Escenarios históricos secretos desbloqueados" },
   { days: 90, reward: "Leyenda del Hall of Fame 👑", bonus: "Top 1% — mención permanente en el perfil" },
 ];

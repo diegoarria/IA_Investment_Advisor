@@ -47,7 +47,7 @@ function TrialExpiredModal() {
             <Text style={{ fontSize: 40, textAlign: "center", marginBottom: 12 }}>⏰</Text>
             <Text style={[s.title, { color: colors.text }]}>Tu prueba Premium terminó</Text>
             <Text style={[s.body, { color: colors.textMuted }]}>
-              Tuviste 7 días de acceso completo. Activa Premium para seguir usando el Simulador avanzado, Simulador ilimitado, Stress Test completo y más.
+              Tuviste 7 días de acceso completo. Activa Premium para seguir usando el Mentor IA ilimitado, análisis avanzado de portafolio, Stress Test completo y más.
             </Text>
             <TouchableOpacity
               style={[s.btn, { backgroundColor: "#f59e0b" }]}

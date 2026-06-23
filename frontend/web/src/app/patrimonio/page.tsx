@@ -9,8 +9,7 @@ import StockAvatar from "@/components/StockAvatar";
 import { market as marketApi } from "@/lib/api";
 import { usePortfolioStore } from "@/lib/portfolioStore";
 import { useWatchlistStore } from "@/lib/store";
-import { usePaperStore, PAPER_INITIAL_CASH } from "@/lib/paperStore";
-import { TrendingUp, TrendingDown, ArrowRight, Wallet, Eye, BarChart2 } from "lucide-react";
+import { TrendingUp, TrendingDown, ArrowRight, Eye, BarChart2 } from "lucide-react";
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
@@ -281,107 +280,11 @@ function WatchlistTab({ prices, loading }: { prices: PriceMap; loading: boolean 
   );
 }
 
-// ─── Simulador Tab ───────────────────────────────────────────────────────────
-
-function SimuladorTab({ prices, loading }: { prices: PriceMap; loading: boolean }) {
-  const router = useRouter();
-  const { cash, positions } = usePaperStore();
-
-  const positionsValue = positions.reduce((sum, pos) => {
-    const p = prices[pos.ticker]?.price ?? pos.avgPrice;
-    return sum + pos.shares * p;
-  }, 0);
-
-  const totalValue = cash + positionsValue;
-  const gain = totalValue - PAPER_INITIAL_CASH;
-
-  return (
-    <div className="space-y-4">
-      {/* Summary Cards */}
-      <div className="grid grid-cols-3 gap-3">
-        <SummaryCard label="Valor Total" value={fmtMoney(totalValue)} />
-        <SummaryCard label="Efectivo" value={fmtMoney(cash)} />
-        <SummaryCard
-          label="Ganancia"
-          value={fmtMoney(gain)}
-          sub={fmtPct((gain / PAPER_INITIAL_CASH) * 100)}
-          positive={gain >= 0}
-        />
-      </div>
-
-      {/* Paper Positions */}
-      <div
-        className="rounded-xl border overflow-hidden"
-        style={{ background: "var(--card)", borderColor: "var(--border)" }}
-      >
-        <div className="px-4 py-3 border-b flex items-center justify-between" style={{ borderColor: "var(--border)" }}>
-          <h3 className="font-bold text-sm" style={{ color: "var(--text)" }}>
-            Posiciones Paper ({positions.length})
-          </h3>
-          {loading && (
-            <span className="text-xs" style={{ color: "var(--muted)" }}>Actualizando...</span>
-          )}
-        </div>
-
-        {positions.length === 0 ? (
-          <div className="py-12 text-center">
-            <Wallet size={32} className="mx-auto mb-2 opacity-30" style={{ color: "var(--muted)" }} />
-            <p className="text-sm" style={{ color: "var(--muted)" }}>
-              No tienes posiciones paper. ¡Empieza a practicar!
-            </p>
-          </div>
-        ) : (
-          <div className="divide-y" style={{ borderColor: "var(--border)" }}>
-            {positions.map((pos) => {
-              const pr = prices[pos.ticker];
-              const currentPrice = pr?.price ?? pos.avgPrice;
-              const currentValue = pos.shares * currentPrice;
-              const cost = pos.shares * pos.avgPrice;
-              const gainAbs = currentValue - cost;
-              const gainPct = cost > 0 ? (gainAbs / cost) * 100 : 0;
-              const positive = gainAbs >= 0;
-
-              return (
-                <div key={pos.id} className="px-4 py-3 flex items-center gap-3">
-                  <StockAvatar ticker={pos.ticker} size="sm" />
-                  <div className="flex-1 min-w-0">
-                    <p className="font-bold text-sm" style={{ color: "var(--text)" }}>{pos.ticker}</p>
-                    <p className="text-xs truncate" style={{ color: "var(--muted)" }}>
-                      {pos.shares} acciones · ${pos.avgPrice.toFixed(2)} promedio
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <p className="font-bold text-sm" style={{ color: "var(--text)" }}>
-                      {fmtMoney(currentValue)}
-                    </p>
-                    <span className="text-xs font-semibold" style={{ color: positive ? "#10b981" : "#ef4444" }}>
-                      {fmtPct(gainPct)}
-                    </span>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
-
-      <button
-        onClick={() => router.push("/paper")}
-        className="w-full flex items-center justify-center gap-2 py-3 rounded-xl font-semibold text-sm transition-opacity hover:opacity-80"
-        style={{ background: "var(--accent)", color: "#fff" }}
-      >
-        Abrir simulador completo <ArrowRight size={16} />
-      </button>
-    </div>
-  );
-}
-
 // ─── Main Content ────────────────────────────────────────────────────────────
 
 const TABS = [
   { id: "portfolio", label: "Portafolio" },
   { id: "watchlist", label: "Watchlist" },
-  { id: "simulador", label: "Simulador" },
 ] as const;
 
 type TabId = (typeof TABS)[number]["id"];
@@ -398,14 +301,12 @@ function PatrimonioContent() {
 
   const { positions: portfolioPositions } = usePortfolioStore();
   const { items: watchItems } = useWatchlistStore();
-  const { positions: paperPositions } = usePaperStore();
 
   // Fetch prices on mount + refresh every 30s
   useEffect(() => {
     const allTickers = [
       ...portfolioPositions.map((p) => p.ticker),
       ...watchItems.map((w) => w.ticker),
-      ...paperPositions.map((p) => p.ticker),
     ];
     const unique = [...new Set(allTickers)];
     if (unique.length === 0) return;
@@ -480,9 +381,6 @@ function PatrimonioContent() {
             )}
             {activeTab === "watchlist" && (
               <WatchlistTab prices={prices} loading={pricesLoading} />
-            )}
-            {activeTab === "simulador" && (
-              <SimuladorTab prices={prices} loading={pricesLoading} />
             )}
           </main>
         </div>

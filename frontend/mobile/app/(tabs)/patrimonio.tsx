@@ -9,7 +9,6 @@ import { router } from "expo-router";
 import { useTheme } from "../../src/lib/ThemeContext";
 import { usePortfolioStore } from "../../src/lib/portfolioStore";
 import { useWatchlistStore } from "../../src/lib/watchlistStore";
-import { usePaperStore, PAPER_INITIAL_CASH } from "../../src/lib/paperStore";
 import { marketApi } from "../../src/lib/api";
 import StockAvatar from "../../src/components/StockAvatar";
 
@@ -45,7 +44,7 @@ function fmtPct(n: number): string {
 
 // ─── Sub-tabs ────────────────────────────────────────────────────────────────
 
-const TABS = ["Portafolio", "Watchlist", "Simulador"] as const;
+const TABS = ["Portafolio", "Watchlist"] as const;
 type TabId = (typeof TABS)[number];
 
 // ─── Portafolio Tab ──────────────────────────────────────────────────────────
@@ -239,102 +238,6 @@ function WatchlistTab({ prices, loading, colors }: { prices: PriceMap; loading: 
   );
 }
 
-// ─── Simulador Tab ───────────────────────────────────────────────────────────
-
-function SimuladorTab({ prices, loading, colors }: { prices: PriceMap; loading: boolean; colors: any }) {
-  const { cash, positions } = usePaperStore();
-
-  const positionsValue = positions.reduce((sum, pos) => {
-    const p = prices[pos.ticker]?.price ?? pos.avgPrice;
-    return sum + pos.shares * p;
-  }, 0);
-
-  const totalValue = cash + positionsValue;
-  const gain = totalValue - PAPER_INITIAL_CASH;
-  const gainPct = (gain / PAPER_INITIAL_CASH) * 100;
-
-  return (
-    <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: 16, gap: 12 }}>
-      {/* Summary Row */}
-      <View style={{ flexDirection: "row", gap: 8 }}>
-        <View style={[ss.statCard, { flex: 1, backgroundColor: colors.card, borderColor: colors.border }]}>
-          <Text style={[ss.statLabel, { color: colors.textMuted }]}>Valor Total</Text>
-          <Text style={[ss.statValue, { color: colors.text }]}>{fmtMoney(totalValue)}</Text>
-        </View>
-        <View style={[ss.statCard, { flex: 1, backgroundColor: colors.card, borderColor: colors.border }]}>
-          <Text style={[ss.statLabel, { color: colors.textMuted }]}>Efectivo</Text>
-          <Text style={[ss.statValue, { color: colors.text }]}>{fmtMoney(cash)}</Text>
-        </View>
-      </View>
-
-      <View style={[ss.statCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-        <Text style={[ss.statLabel, { color: colors.textMuted }]}>Ganancia vs capital inicial</Text>
-        <Text style={[ss.statValue, { color: gain >= 0 ? colors.up ?? "#10b981" : colors.down ?? "#ef4444" }]}>
-          {fmtMoney(gain)}{" "}
-          <Text style={ss.statSubValue}>{fmtPct(gainPct)}</Text>
-        </Text>
-      </View>
-
-      {/* Paper Positions */}
-      <View style={[ss.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-        <View style={[ss.cardHeader, { borderBottomColor: colors.border }]}>
-          <Text style={[ss.cardTitle, { color: colors.text }]}>Posiciones Paper ({positions.length})</Text>
-          {loading && <ActivityIndicator size="small" color={colors.accentLight} />}
-        </View>
-
-        {positions.length === 0 ? (
-          <View style={ss.emptyState}>
-            <Ionicons name="wallet-outline" size={32} color={colors.textMuted} style={{ opacity: 0.4 }} />
-            <Text style={[ss.emptyText, { color: colors.textMuted }]}>No tienes posiciones paper</Text>
-          </View>
-        ) : (
-          positions.map((pos, i) => {
-            const pr = prices[pos.ticker];
-            const currentPrice = pr?.price ?? pos.avgPrice;
-            const currentValue = pos.shares * currentPrice;
-            const cost = pos.shares * pos.avgPrice;
-            const gainAbs = currentValue - cost;
-            const gainPct2 = cost > 0 ? (gainAbs / cost) * 100 : 0;
-            const positive = gainAbs >= 0;
-
-            return (
-              <View
-                key={pos.id}
-                style={[
-                  ss.row,
-                  i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border },
-                ]}
-              >
-                <StockAvatar ticker={pos.ticker} size={36} />
-                <View style={ss.rowInfo}>
-                  <Text style={[ss.rowTicker, { color: colors.text }]}>{pos.ticker}</Text>
-                  <Text style={[ss.rowSub, { color: colors.textMuted }]}>
-                    {pos.shares} acc · ${pos.avgPrice.toFixed(2)} prom.
-                  </Text>
-                </View>
-                <View style={ss.rowRight}>
-                  <Text style={[ss.rowValue, { color: colors.text }]}>{fmtMoney(currentValue, "USD")}</Text>
-                  <Text style={[ss.rowBadge, { color: positive ? colors.up ?? "#10b981" : colors.down ?? "#ef4444" }]}>
-                    {fmtPct(gainPct2)}
-                  </Text>
-                </View>
-              </View>
-            );
-          })
-        )}
-      </View>
-
-      <TouchableOpacity
-        onPress={() => router.push("/(tabs)/paper")}
-        activeOpacity={0.8}
-        style={[ss.btn, { backgroundColor: colors.accent }]}
-      >
-        <Text style={ss.btnText}>Abrir simulador →</Text>
-      </TouchableOpacity>
-    </ScrollView>
-  );
-}
-
 // ─── Main Screen ─────────────────────────────────────────────────────────────
 
 export default function PatrimonioScreen() {
@@ -345,13 +248,11 @@ export default function PatrimonioScreen() {
 
   const { positions: portfolioPositions } = usePortfolioStore();
   const { items: watchItems } = useWatchlistStore();
-  const { positions: paperPositions } = usePaperStore();
 
   useEffect(() => {
     const allTickers = [
       ...portfolioPositions.map((p) => p.ticker),
       ...watchItems.map((w) => w.ticker),
-      ...paperPositions.map((p) => p.ticker),
     ];
     const unique = [...new Set(allTickers)];
     if (unique.length === 0) return;
@@ -410,9 +311,6 @@ export default function PatrimonioScreen() {
       )}
       {activeTab === "Watchlist" && (
         <WatchlistTab prices={prices} loading={pricesLoading} colors={colors} />
-      )}
-      {activeTab === "Simulador" && (
-        <SimuladorTab prices={prices} loading={pricesLoading} colors={colors} />
       )}
     </SafeAreaView>
   );

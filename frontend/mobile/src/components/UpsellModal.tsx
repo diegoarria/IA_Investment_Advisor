@@ -26,7 +26,7 @@ const OFFER_META = {
     badge: "Edición anual",
     features: [
       "Evolución mes a mes de tu Puntuación de Madurez (1-100)",
-      "Los 3 sesgos que más afectaron tus decisiones este año",
+      "Análisis de tu perfil de riesgo y comportamiento inversor",
       "Perfil de riesgo real vs. declarado al registrarte",
       "Recomendaciones de tu Mentor IA para el próximo año",
       'Certificado digital: "Inversor Informado — Nuvos AI"',
@@ -42,7 +42,7 @@ const OFFER_META = {
     features: [
       "Todo lo de Premium para dos cuentas independientes",
       "Una sola factura, perfiles separados",
-      "Seguimiento de sesgos y portafolios independientes",
+      "Portafolios independientes con análisis separado",
       "Privacidad total — sin datos compartidos entre cuentas",
     ],
     ctaLabel: "Activar Plan Dúo",
@@ -55,8 +55,8 @@ const OFFER_META = {
     badge: "Agenda disponible",
     features: [
       "Videollamada de 45 min con Diego Arria, fundador de Nuvos AI",
-      "Revisión de tu historial de sesgos y puntuación de madurez",
-      "Análisis de tu portafolio simulado y estrategia de inversión",
+      "Revisión de tu puntuación de madurez inversora",
+      "Análisis de tu portafolio y estrategia de inversión",
       "3 próximos pasos concretos para tu situación específica",
       "Grabación de la sesión entregada después de la llamada",
     ],
@@ -119,7 +119,6 @@ export default function UpsellModal({
           <View style={[s.accentBar, { backgroundColor: c }]} />
 
           <ScrollView
-            style={{ flex: 1 }}
             contentContainerStyle={s.scrollContent}
             showsVerticalScrollIndicator={false}
           >
@@ -271,7 +270,7 @@ export default function UpsellModal({
 
 const s = StyleSheet.create({
   backdrop:       { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.75)" },
-  sheet:          { borderTopLeftRadius: 28, borderTopRightRadius: 28, borderWidth: 1, maxHeight: "92%", overflow: "hidden" },
+  sheet:          { borderTopLeftRadius: 28, borderTopRightRadius: 28, borderWidth: 1, maxHeight: "92%", overflow: "hidden", width: "100%" },
   accentBar:      { height: 4 },
 
   scrollContent:  { padding: 20, paddingBottom: 8, gap: 16 },

@@ -47,7 +47,7 @@ export default function PrivacyPage() {
                 <h3 className="text-white/90 font-semibold mb-1">Datos que recopilamos automáticamente</h3>
                 <ul className="list-disc list-inside space-y-1 text-sm">
                   <li>Token de notificaciones push (para alertas de mercado)</li>
-                  <li>Actividad dentro de la app (simulaciones, debates, escenarios)</li>
+                  <li>Actividad dentro de la app (lecciones, escenarios de inversión)</li>
                   <li>Información del dispositivo necesaria para el funcionamiento de la app</li>
                 </ul>
               </div>

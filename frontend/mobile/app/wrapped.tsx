@@ -14,8 +14,6 @@ interface WrappedData {
   lessons: number;
   days_active: number;
   top_sector: string;
-  sim_count: number;
-  debate_count: number;
 }
 
 const SLIDES = ["cover", "stocks", "lessons", "sector"] as const;
@@ -173,7 +171,6 @@ export default function WrappedScreen() {
             <View style={[s.bigStatCard, { borderColor: "rgba(139,92,246,0.25)", backgroundColor: "rgba(139,92,246,0.08)" }]}>
               <Text style={[s.bigStatNum, { color: "#8b5cf6" }]}>{data.lessons}</Text>
               <Text style={s.bigStatLabel}>lecciones completadas</Text>
-              <Text style={s.bigStatSub}>{data.sim_count} simulaciones · {data.debate_count} debates</Text>
             </View>
 
             <View style={s.smallStatCard}>

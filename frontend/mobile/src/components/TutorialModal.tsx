@@ -55,14 +55,6 @@ const STEPS = [
     tip: "💡 Arrastra las tarjetas para reordenar tu watchlist. El orden se sincroniza automáticamente entre la app y la web.",
   },
   {
-    emoji: "🎮",
-    color: "#8b5cf6",
-    title: "Simulador Paper Trading",
-    subtitle: "Practica sin dinero real",
-    desc: "Opera con $10,000 virtuales a precios reales del mercado. Compra, vende y sigue tus rendimientos sin arriesgar capital. Puedes recargar el saldo virtual en cualquier momento y comparar tu desempeño en el Leaderboard.",
-    tip: "💡 El simulador usa los mismos precios en tiempo real que el portafolio — la práctica refleja condiciones reales del mercado.",
-  },
-  {
     emoji: "📚",
     color: "#06b6d4",
     title: "Aprendizaje & Herramientas",
