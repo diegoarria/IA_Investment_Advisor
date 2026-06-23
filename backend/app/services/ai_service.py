@@ -934,7 +934,7 @@ async def chat_stream(
 
     async with client.messages.stream(
         model=settings.claude_model,
-        max_tokens=4096,
+        max_tokens=8192,
         system=[
             {
                 "type": "text",
