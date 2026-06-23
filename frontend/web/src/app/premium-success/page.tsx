@@ -5,13 +5,22 @@ import { useRouter } from "next/navigation";
 import { useSubscriptionStore } from "@/lib/store";
 import { CheckCircle, Loader2 } from "lucide-react";
 
+const CALENDLY_URL = "https://calendly.com/diego-arria19/sesion-1-1-con-diego-nuvos-ai";
+
 export default function PremiumSuccessPage() {
   const router = useRouter();
   const fetchStatus = useSubscriptionStore((s) => s.fetchStatus);
   const tier = useSubscriptionStore((s) => s.tier);
   const [ready, setReady] = useState(false);
+  const [isSession, setIsSession] = useState(false);
 
   useEffect(() => {
+    const pendingSession = localStorage.getItem("nuvos_pending_session") === "1";
+    if (pendingSession) {
+      setIsSession(true);
+      localStorage.removeItem("nuvos_pending_session");
+    }
+
     // Poll until the webhook has been processed and tier flips to premium
     let attempts = 0;
     const poll = async () => {
@@ -20,7 +29,9 @@ export default function PremiumSuccessPage() {
       const current = useSubscriptionStore.getState().tier;
       if (current === "premium" || attempts >= 8) {
         setReady(true);
-        setTimeout(() => router.replace("/chat"), 2500);
+        if (!pendingSession) {
+          setTimeout(() => router.replace("/chat"), 2500);
+        }
       } else {
         setTimeout(poll, 1500);
       }
@@ -47,37 +58,61 @@ export default function PremiumSuccessPage() {
           <CheckCircle size={64} color="#22c55e" strokeWidth={1.5} />
           <div style={{ textAlign: "center" }}>
             <h1 style={{ color: "#fff", fontSize: "28px", fontWeight: 800, margin: "0 0 8px" }}>
-              ¡Bienvenido a Nuvos Premium!
+              {isSession ? "¡Sesión reservada con éxito!" : "¡Bienvenido a Nuvos Premium!"}
             </h1>
             <p style={{ color: "#9ca3af", fontSize: "15px", margin: 0 }}>
-              Tu cuenta ya está activa. Redirigiendo...
+              {isSession
+                ? "Tu pago fue procesado. Ahora elige el horario de tu sesión."
+                : "Tu cuenta ya está activa. Redirigiendo..."}
             </p>
           </div>
-          <div
-            style={{
-              background: "rgba(34,197,94,0.08)",
-              border: "1px solid rgba(34,197,94,0.3)",
-              borderRadius: "16px",
-              padding: "20px 28px",
-              display: "flex",
-              flexDirection: "column",
-              gap: "8px",
-              maxWidth: "360px",
-              width: "100%",
-            }}
-          >
-            {[
-              "Chat ilimitado con tu asesor IA",
-              "Análisis avanzado de portafolio",
-              "Screener premium sin límites",
-              "Emails semanales personalizados",
-            ].map((feat) => (
-              <div key={feat} style={{ display: "flex", alignItems: "center", gap: "10px", color: "#d1fae5", fontSize: "14px" }}>
-                <CheckCircle size={16} color="#22c55e" />
-                {feat}
-              </div>
-            ))}
-          </div>
+
+          {isSession ? (
+            <a
+              href={CALENDLY_URL}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "10px",
+                background: "#00d47e",
+                color: "#fff",
+                fontWeight: 800,
+                fontSize: "16px",
+                padding: "16px 32px",
+                borderRadius: "16px",
+                textDecoration: "none",
+                marginTop: "8px",
+              }}
+            >
+              Reservar mi horario en Calendly →
+            </a>
+          ) : (
+            <div
+              style={{
+                background: "rgba(34,197,94,0.08)",
+                border: "1px solid rgba(34,197,94,0.3)",
+                borderRadius: "16px",
+                padding: "20px 28px",
+                display: "flex",
+                flexDirection: "column",
+                gap: "8px",
+                maxWidth: "360px",
+                width: "100%",
+              }}
+            >
+              {[
+                "Chat ilimitado con tu asesor IA",
+                "Análisis avanzado de portafolio",
+                "Screener premium sin límites",
+                "Emails semanales personalizados",
+              ].map((feat) => (
+                <div key={feat} style={{ display: "flex", alignItems: "center", gap: "10px", color: "#d1fae5", fontSize: "14px" }}>
+                  <CheckCircle size={16} color="#22c55e" />
+                  {feat}
+                </div>
+              ))}
+            </div>
+          )}
         </>
       ) : (
         <>

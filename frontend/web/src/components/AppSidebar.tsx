@@ -35,6 +35,7 @@ function getAge(birthDate: string | null | undefined): number | null {
   return age > 0 ? age : null;
 }
 import PaywallModal from "@/components/PaywallModal";
+import api from "@/lib/api";
 
 type NavItem = { href: string; icon: React.ComponentType<{ className?: string; style?: React.CSSProperties }>; label: string; minLevel: UserLevel };
 
@@ -77,6 +78,23 @@ export default function AppSidebar({ open, onClose }: Props) {
 
   const [historyOpen, setHistoryOpen] = useState(true);
   const [paywallOpen, setPaywallOpen] = useState(false);
+  const [sessionLoading, setSessionLoading] = useState(false);
+
+  const handleSessionClick = async () => {
+    setSessionLoading(true);
+    try {
+      const res = await api.post("/api/upsells/checkout", {
+        offer: "session",
+        variant: "default",
+        trigger_source: "sidebar",
+      });
+      if (res.data?.url) {
+        localStorage.setItem("nuvos_pending_session", "1");
+        window.location.href = res.data.url;
+      }
+    } catch {}
+    setSessionLoading(false);
+  };
   const [desktopCollapsed, setDesktopCollapsed] = useState(() => {
     if (typeof window === "undefined") return false;
     return localStorage.getItem("nuvos_sidebar_collapsed") === "1";
@@ -452,19 +470,23 @@ export default function AppSidebar({ open, onClose }: Props) {
 
         {/* Bottom: 1:1 coaching CTA */}
         <div className="px-3 py-3 shrink-0 space-y-1.5">
-          <a href={COACHING_URL} target="_blank" rel="noopener noreferrer"
-             className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl transition-all hover:opacity-90 cursor-pointer"
-             style={{ background: "var(--raised)", border: "1px solid var(--border)" }}>
+          <button
+            onClick={handleSessionClick}
+            disabled={sessionLoading}
+            className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl transition-all hover:opacity-90 cursor-pointer disabled:opacity-60"
+            style={{ background: "var(--raised)", border: "1px solid var(--border)" }}>
             <div className="w-6 h-6 rounded flex items-center justify-center shrink-0"
                  style={{ background: "rgba(0,168,94,0.12)" }}>
               <ChevronRight className="w-3.5 h-3.5" style={{ color: "var(--accent-l)" }} />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-[11px] font-semibold leading-tight" style={{ color: "var(--text)" }}>Sesión 1:1 con Diego</p>
+              <p className="text-[11px] font-semibold leading-tight" style={{ color: "var(--text)" }}>
+                {sessionLoading ? "Cargando..." : "Sesión 1:1 con Diego"}
+              </p>
               <p className="text-[10px] leading-tight" style={{ color: "var(--dim)" }}>Guía personalizada · 45 min</p>
             </div>
             <ArrowRight className="w-3 h-3 shrink-0" style={{ color: "var(--muted)" }} />
-          </a>
+          </button>
 
           {/* Logout */}
           <button

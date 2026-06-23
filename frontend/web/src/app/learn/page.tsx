@@ -23,7 +23,7 @@ const CATEGORY_LEVEL: Record<string, UserLevel> = {
   analysis:    "avanzado",
   ratios:      "avanzado",
 };
-import { Search, Menu, X, Calendar } from "lucide-react";
+import { Search, Menu, X } from "lucide-react";
 import GuidedSteps from "@/components/GuidedSteps";
 
 const CATEGORIES = [
@@ -453,29 +453,6 @@ export default function LearnPage() {
             </div>
           </div>
 
-          {/* ── Sesión 1:1 CTA ── */}
-          <div className="px-4 pb-6 pt-2">
-            <a href="https://calendly.com/diego-arria19/sesion-1-1-con-diego-nuvos-ai" target="_blank" rel="noopener noreferrer"
-               className="flex items-center gap-4 rounded-2xl p-4 hover:opacity-90 transition-opacity"
-               style={{ background: "var(--card)", border: "1px solid rgba(0,168,94,0.3)" }}>
-              <div className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0"
-                   style={{ background: "rgba(0,168,94,0.12)" }}>
-                <Calendar className="w-5 h-5" style={{ color: "var(--accent-l)" }} />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-bold leading-tight" style={{ color: "var(--text)" }}>
-                  ¿Prefieres aprender con alguien?
-                </p>
-                <p className="text-xs mt-0.5 leading-snug" style={{ color: "var(--muted)" }}>
-                  Agenda una sesión 1:1 con Diego — 45 min para guiarte por la app y crear tu plan de inversión.
-                </p>
-              </div>
-              <div className="shrink-0 px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap"
-                   style={{ background: "rgba(0,168,94,0.12)", color: "var(--accent-l)" }}>
-                45 min →
-              </div>
-            </a>
-          </div>
         </main>
       </div>
       </div>
