@@ -76,9 +76,10 @@ api.interceptors.response.use(
             return api(original);
           }
         } catch {}
-        // Supabase also has no session — truly expired, clear tokens
+        // Supabase also has no session — truly expired, clear tokens and force logout
         localStorage.removeItem("access_token");
         localStorage.removeItem("refresh_token");
+        import("./store").then(({ useAuthStore }) => useAuthStore.getState().clearAuth()).catch(() => {});
       }
       flushQueue(refreshErr);
       return Promise.reject(refreshErr);

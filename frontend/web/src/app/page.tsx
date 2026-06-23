@@ -30,7 +30,7 @@ const PILLARS = [
 ];
 
 export default function Home() {
-  const [mode, setMode]             = useState<"login" | "register" | "forgot">("register");
+  const [mode, setMode]             = useState<"login" | "register" | "forgot">("login");
   const [email, setEmail]           = useState("");
   const [password, setPassword]     = useState("");
   const [showPass, setShowPass]     = useState(false);
