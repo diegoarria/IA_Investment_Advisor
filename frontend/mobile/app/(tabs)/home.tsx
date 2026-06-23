@@ -410,7 +410,7 @@ export default function HomeScreen() {
     return { total, dayGain, dayGainPct, totalGain, totalGainPct };
   }, [positions, prices]);
 
-  // ── Top movers (sorted by day % change) ──────────────────────────────────
+  // ── Top gainers today (positive movers only, sorted best first, max 4) ──────
   const movers = React.useMemo(() => {
     return [...positions]
       .map((p) => {
@@ -419,7 +419,8 @@ export default function HomeScreen() {
         const chg  = px?.change_pct ?? 0;
         return { ...p, curr, chg };
       })
-      .sort((a, b) => Math.abs(b.chg) - Math.abs(a.chg))
+      .filter((m) => m.chg > 0)
+      .sort((a, b) => b.chg - a.chg)
       .slice(0, 4);
   }, [positions, prices]);
 
@@ -1100,7 +1101,7 @@ export default function HomeScreen() {
         </View>
 
         {/* ── Top Movers ───────────────────────────────────────────────────── */}
-        {positions.length > 0 && (
+        {(loading || movers.length > 0) && (
           <View style={ss.section}>
             <View style={ss.sectionHeader}>
               <Text style={[ss.sectionTitle, { color: colors.text }]}>Subiendo hoy</Text>
