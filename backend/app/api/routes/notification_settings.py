@@ -290,14 +290,28 @@ async def trigger_price_alerts(
         for r in (prof_res.data or [])
     }
 
-    # 4. Fan out — personalized for premium, generic for free
+    # 4. Pre-generate WHY explanations via Claude — once per ticker, reused across users
+    import asyncio
+    from worker import _fetch_ticker_news, _generate_price_alert_why
+
+    ticker_why:   dict = {}
+    ticker_title: dict = {}
+    for ticker, mv in moves.items():
+        pct   = mv["pct"]
+        price = mv["price"]
+        news  = await asyncio.to_thread(_fetch_ticker_news, ticker)
+        why   = await _generate_price_alert_why(ticker, pct, price, news)
+        ticker_why[ticker]   = why
+        emoji = "📉" if pct <= -5 else "🔻" if pct < 0 else "🚀" if pct >= 5 else "📈"
+        ticker_title[ticker] = f"{emoji} {ticker} {pct:+.1f}% hoy"
+
+    # 5. Fan out — personalized for premium, generic for free
     sent_pushes = []
     for uid, sets in user_tickers.items():
         meta     = user_meta.get(uid, {"first": "Inversor", "is_premium": False})
         first    = meta["first"]
         is_prem  = meta["is_premium"]
         port_map = sets["port"]
-        # Portfolio movers ranked first (user owns them)
         port_movers  = sorted(set(port_map.keys()) & moves.keys(),
                               key=lambda t: abs(moves[t]["pct"]), reverse=True)
         watch_movers = sorted(sets["watch"] & moves.keys(),
@@ -308,30 +322,26 @@ async def trigger_price_alerts(
             price        = moves[ticker]["price"]
             is_portfolio = ticker in port_map
             screen       = "portfolio" if is_portfolio else "watchlist"
-            emoji        = "📉" if pct <= -5 else "🔻" if pct < 0 else "🚀" if pct >= 5 else "📈"
-            title        = f"{emoji} {ticker} {pct:+.1f}% hoy"
+            title        = ticker_title[ticker]
 
             if is_prem:
-                direction = "bajó" if pct < 0 else "subió"
+                why = ticker_why[ticker]
                 if is_portfolio:
                     shares         = port_map[ticker].get("shares", 0.0)
                     position_value = shares * price if shares else 0.0
                     dollar_delta   = position_value * pct / 100 if position_value else None
                     if position_value and dollar_delta is not None:
-                        gl   = "perdiste" if pct < 0 else "ganaste"
+                        gl         = "perdiste" if pct < 0 else "ganaste"
                         shares_fmt = f"{shares:.4f}".rstrip("0").rstrip(".") if shares < 1 else f"{shares:.2f}".rstrip("0").rstrip(".")
-                        body = (
-                            f"{ticker} {direction} {abs(pct):.1f}% a ${price:.2f}. "
-                            f"{first}, {gl} ~${abs(dollar_delta):,.0f} hoy "
-                            f"({shares_fmt} acciones × ${price:.2f})."
-                        )
+                        impact     = f" {first}, {gl} ~${abs(dollar_delta):,.0f} hoy ({shares_fmt} acciones × ${price:.2f})."
+                        max_b      = 230 - len(impact)
+                        body       = (why[:max_b] if len(why) > max_b else why) + impact
                     else:
-                        body = f"{ticker} {direction} {abs(pct):.1f}% a ${price:.2f}."
+                        body = why
                 else:
-                    body = (
-                        f"{ticker} {direction} {abs(pct):.1f}% a ${price:.2f}. "
-                        f"La tienes en tu watchlist."
-                    )
+                    suffix = " La tienes en tu watchlist."
+                    max_b  = 230 - len(suffix)
+                    body   = (why[:max_b] if len(why) > max_b else why) + suffix
             else:
                 direction = "bajó" if pct < 0 else "subió"
                 if is_portfolio:
