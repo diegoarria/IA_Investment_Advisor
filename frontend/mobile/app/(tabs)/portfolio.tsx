@@ -1362,17 +1362,23 @@ export default function PortfolioScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Conectar broker */}
+        {/* Conectar broker — Premium */}
         <TouchableOpacity
           style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 13, borderRadius: 16, backgroundColor: colors.bgRaised, borderWidth: 1, borderColor: colors.border, marginBottom: 10 }}
-          onPress={() => setBrokerModalOpen(true)}
+          onPress={() => isPremiumAccess ? setBrokerModalOpen(true) : setPaywallOpen(true)}
           activeOpacity={0.8}
         >
           <Text style={{ fontSize: 16 }}>🔗</Text>
           <Text style={{ fontSize: 13, fontWeight: "700", color: colors.textSub }}>Conectar broker</Text>
-          <View style={{ backgroundColor: "rgba(0,168,94,0.12)", borderRadius: 20, paddingHorizontal: 8, paddingVertical: 2 }}>
-            <Text style={{ fontSize: 10, fontWeight: "700", color: "#00a85e" }}>IBKR · IOL · Schwab</Text>
-          </View>
+          {isPremiumAccess ? (
+            <View style={{ backgroundColor: "rgba(0,168,94,0.12)", borderRadius: 20, paddingHorizontal: 8, paddingVertical: 2 }}>
+              <Text style={{ fontSize: 10, fontWeight: "700", color: "#00a85e" }}>IBKR · IOL · Schwab</Text>
+            </View>
+          ) : (
+            <View style={{ backgroundColor: "rgba(168,85,247,0.12)", borderRadius: 20, paddingHorizontal: 8, paddingVertical: 2 }}>
+              <Text style={{ fontSize: 10, fontWeight: "700", color: "#a855f7" }}>Premium</Text>
+            </View>
+          )}
         </TouchableOpacity>
 
         {/* ── PREVIEW DE CAPTURA ── */}

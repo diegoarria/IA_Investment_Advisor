@@ -1325,18 +1325,25 @@ export default function PortfolioPage() {
 
             <input ref={screenshotInputRef} type="file" accept="image/*,.pdf" multiple className="hidden" onChange={handleScreenshotChange} />
 
-            {/* Conectar broker */}
+            {/* Conectar broker — Premium */}
             <button
-              onClick={() => setBrokerModalOpen(true)}
+              onClick={() => isPremium ? setBrokerModalOpen(true) : setPaywallOpen(true)}
               className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl font-bold text-sm transition-all hover:opacity-80"
               style={{ background: "var(--raised)", border: "1px solid var(--border)", color: "var(--sub)" }}
             >
               <span>🔗</span>
               <span>Conectar broker</span>
-              <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full ml-1"
-                style={{ background: "rgba(0,168,94,0.12)", color: "var(--accent)" }}>
-                IBKR · Schwab · Robinhood · IOL
-              </span>
+              {isPremium ? (
+                <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full ml-1"
+                  style={{ background: "rgba(0,168,94,0.12)", color: "var(--accent)" }}>
+                  IBKR · Schwab · Robinhood · IOL
+                </span>
+              ) : (
+                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full ml-1"
+                  style={{ background: "rgba(168,85,247,0.12)", color: "#a855f7" }}>
+                  Premium
+                </span>
+              )}
             </button>
 
             {/* Hint pegado / arrastrar — sutil */}
