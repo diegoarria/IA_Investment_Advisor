@@ -122,6 +122,38 @@ async def stripe_webhook(request: Request):
     return {"received": True}
 
 
+# ── Broker call checkout ──────────────────────────────────────────────────────
+# price_1TlvyGRo7dTEppnh1uqgftWt → $49 USD (oferta 24h, default)
+# price_1TlvypRo7dTEppnh6ojeqUU7 → $89 USD (precio normal, post-expiración)
+_BROKER_CALL_PRICE_49 = "price_1TlvyGRo7dTEppnh1uqgftWt"
+_BROKER_CALL_PRICE_89 = "price_1TlvypRo7dTEppnh6ojeqUU7"
+
+
+@router.post("/broker-call-checkout")
+async def broker_call_checkout(
+    body: dict,
+    user_id: str = Depends(get_current_user_id),
+):
+    """Create a Stripe Checkout Session for the 1:1 broker onboarding call.
+    Body: { "offer": "49" | "89" }  — frontend sends based on countdown state.
+    """
+    s = _stripe()
+    offer = str(body.get("offer", "49"))
+    price_id = _BROKER_CALL_PRICE_49 if offer == "49" else _BROKER_CALL_PRICE_89
+
+    base = settings.frontend_url if settings.frontend_url not in ("*", "", None) else "https://nuvosai.com"
+    session = s.checkout.Session.create(
+        mode="payment",
+        payment_method_types=["card"],
+        line_items=[{"price": price_id, "quantity": 1}],
+        client_reference_id=user_id,
+        metadata={"offer": "broker_call", "price": offer},
+        success_url=f"{base}/broker-call-success?session_id={{CHECKOUT_SESSION_ID}}",
+        cancel_url=f"{base}/home",
+    )
+    return {"url": session.url}
+
+
 _PROMO_DAYS = 90
 
 

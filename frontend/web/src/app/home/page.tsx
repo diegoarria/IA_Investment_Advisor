@@ -10,7 +10,7 @@ import AppSidebar from "@/components/AppSidebar";
 import MarketTickerBar from "@/components/MarketTickerBar";
 import HomeMarketOverview from "@/components/HomeMarketOverview";
 import StockAvatar from "@/components/StockAvatar";
-import { market as marketApi, notifications as notifApi, profile as profileApi, sync as syncApi, watchlist as watchlistApi } from "@/lib/api";
+import { market as marketApi, notifications as notifApi, profile as profileApi, sync as syncApi, watchlist as watchlistApi, billing } from "@/lib/api";
 import { useAuthStore, useProfileStore, useLearnStore, useSubscriptionStore, useChatStore } from "@/lib/store";
 import OnboardingChecklist, { type OnboardingStep } from "@/components/OnboardingChecklist";
 import HomeScreenPickerModal, { HOME_SCREEN_KEY } from "@/components/HomeScreenPickerModal";
@@ -106,10 +106,17 @@ export default function HomePage() {
   const [goalError,     setGoalError]     = useState("");
 
   // ── Broker card ───────────────────────────────────────────────────────────
-  // Replace with your real Stripe Payment Link URLs once created in Stripe Dashboard
-  const STRIPE_LINK_49  = "https://buy.stripe.com/REEMPLAZAR_49";   // price oferta-24h
-  const STRIPE_LINK_89  = "https://buy.stripe.com/REEMPLAZAR_89";   // precio-normal
-  const brokerCallLink  = upsellCountdown === 0 ? STRIPE_LINK_89 : STRIPE_LINK_49;
+  const [brokerCheckoutLoading, setBrokerCheckoutLoading] = useState(false);
+  const handleBrokerCheckout = async () => {
+    setBrokerCheckoutLoading(true);
+    try {
+      const offer = upsellCountdown === 0 ? "89" : "49";
+      const res: any = await billing.brokerCallCheckout(offer);
+      if (res?.url) window.location.href = res.url;
+    } catch { /* silently fail */ } finally {
+      setBrokerCheckoutLoading(false);
+    }
+  };
 
   const BROKER_CATALOG: Record<string, { name: string; emoji: string; rating: number; tag: string; tagColor: string; desc: string; pros: string[] }[]> = {
     MX: [
@@ -559,11 +566,11 @@ export default function HomePage() {
                     <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full"
                           style={{ background: "rgba(239,68,68,0.12)", color: "#ef4444" }}>-45%</span>
                   </div>
-                  <a href={brokerCallLink} target="_blank" rel="noopener noreferrer"
-                     className="flex items-center justify-center w-full py-3.5 rounded-xl font-bold text-sm text-black transition-opacity hover:opacity-90"
-                     style={{ background: "#00d47e", textDecoration: "none" }}>
-                    {upsellCountdown === 0 ? "Contratar sesión — $89 USD" : "Agendar mi llamada — $49 USD"} →
-                  </a>
+                  <button onClick={handleBrokerCheckout} disabled={brokerCheckoutLoading}
+                          className="flex items-center justify-center w-full py-3.5 rounded-xl font-bold text-sm text-black transition-opacity hover:opacity-90 disabled:opacity-60"
+                          style={{ background: "#00d47e" }}>
+                    {brokerCheckoutLoading ? "Redirigiendo…" : upsellCountdown === 0 ? "Contratar sesión — $89 USD →" : "Agendar mi llamada — $49 USD →"}
+                  </button>
                 </div>
                 <button onClick={() => { setShowBrokerModal(false); setBrokerView("list"); }}
                         className="w-full py-3 rounded-xl font-bold text-sm border mb-2 transition-all hover:border-[var(--accent)]"

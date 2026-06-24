@@ -10,7 +10,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { router, useFocusEffect } from "expo-router";
 import { useTheme } from "../../src/lib/ThemeContext";
 import { useAppStore } from "../../src/lib/profileStore";
-import { profileApi, syncApi } from "../../src/lib/api";
+import { profileApi, syncApi, billingApi } from "../../src/lib/api";
 import { usePortfolioStore } from "../../src/lib/portfolioStore";
 import { useLearnStore } from "../../src/lib/learnStore";
 import { useSubscriptionStore } from "../../src/lib/subscriptionStore";
@@ -397,11 +397,18 @@ export default function HomeScreen() {
   const upsellTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const UPSELL_MS = 24 * 60 * 60 * 1000;
 
-  // Replace with real Stripe Payment Link URLs once created in Stripe Dashboard
-  const STRIPE_LINK_49 = "https://buy.stripe.com/REEMPLAZAR_49";
-  const STRIPE_LINK_89 = "https://buy.stripe.com/REEMPLAZAR_89";
-  const brokerCallLink = upsellCountdown === 0 ? STRIPE_LINK_89 : STRIPE_LINK_49;
-  const brokerCallLabel = upsellCountdown === 0 ? "Contratar sesión — $89 USD" : "Agendar mi llamada — $49 USD";
+  const [brokerCheckoutLoading, setBrokerCheckoutLoading] = useState(false);
+  const handleBrokerCheckout = async () => {
+    setBrokerCheckoutLoading(true);
+    try {
+      const offer = upsellCountdown === 0 ? "89" : "49";
+      const res: any = await billingApi.brokerCallCheckout(offer);
+      if (res?.url) await Linking.openURL(res.url);
+    } catch { /* silently fail */ } finally {
+      setBrokerCheckoutLoading(false);
+    }
+  };
+  const brokerCallLabel = brokerCheckoutLoading ? "Redirigiendo…" : upsellCountdown === 0 ? "Contratar sesión — $89 USD" : "Agendar mi llamada — $49 USD";
 
   useEffect(() => {
     // DEV: force-reset so broker card always shows during testing
@@ -918,8 +925,8 @@ export default function HomeScreen() {
                     </View>
                   </View>
 
-                  <TouchableOpacity onPress={() => Linking.openURL(brokerCallLink)} activeOpacity={0.85}
-                    style={{ paddingVertical: 16, borderRadius: 14, backgroundColor: "#00d47e", alignItems: "center" }}>
+                  <TouchableOpacity onPress={handleBrokerCheckout} disabled={brokerCheckoutLoading} activeOpacity={0.85}
+                    style={{ paddingVertical: 16, borderRadius: 14, backgroundColor: "#00d47e", alignItems: "center", opacity: brokerCheckoutLoading ? 0.6 : 1 }}>
                     <Text style={{ fontSize: 15, fontWeight: "900", color: "#000" }}>{brokerCallLabel}</Text>
                   </TouchableOpacity>
                 </View>

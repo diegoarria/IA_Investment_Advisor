@@ -285,6 +285,8 @@ export const billing = {
   getStatus: () => api.get("/api/billing/status"),
   createCheckout: (plan: "monthly" | "yearly" = "monthly") =>
     api.post("/api/billing/create-checkout", { plan }),
+  brokerCallCheckout: (offer: "49" | "89") =>
+    api.post("/api/billing/broker-call-checkout", { offer }),
 };
 
 export const paperApi = {

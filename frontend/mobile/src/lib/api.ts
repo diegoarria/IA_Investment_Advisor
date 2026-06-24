@@ -203,6 +203,7 @@ export const notificationsApi = {
 export const billingApi = {
   createCheckout: (plan: "monthly" | "yearly" = "monthly") => api.post("/api/billing/create-checkout", { plan }),
   getStatus: () => api.get("/api/billing/status"),
+  brokerCallCheckout: (offer: "49" | "89") => api.post("/api/billing/broker-call-checkout", { offer }),
 };
 
 export const learnApi = {
