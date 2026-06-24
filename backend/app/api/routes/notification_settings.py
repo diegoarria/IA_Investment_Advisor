@@ -177,3 +177,93 @@ async def send_test_notification(
         db,
     )
     return {"ok": True}
+
+
+@router.post("/admin/trigger-price-alerts")
+async def trigger_price_alerts(user_id: str = Depends(get_current_user_id)):
+    """Admin-only: run job_portfolio_alerts immediately and return results."""
+    if user_id != _ADMIN_UID:
+        raise HTTPException(status_code=403, detail="Admin only")
+    import yfinance as yf
+    import concurrent.futures
+    from app.core.database import run_query
+    from app.services.notification_engine import send_push
+
+    db = get_supabase()
+
+    # 1. Get all users' portfolio + watchlist tickers
+    prefs_res = await run_query(
+        db.table("notification_preferences")
+        .select("user_id,push_portfolio_alerts,push_watchlist_alerts")
+        .or_("push_portfolio_alerts.eq.true,push_watchlist_alerts.eq.true")
+    )
+    if not prefs_res.data:
+        return {"error": "no users with prefs"}
+
+    user_tickers: dict = {}
+    all_tickers: set = set()
+    for p in prefs_res.data:
+        uid = p["user_id"]
+        port_set: set = set()
+        watch_set: set = set()
+        if p.get("push_portfolio_alerts"):
+            port_res = await run_query(db.table("user_portfolio").select("positions").eq("user_id", uid))
+            if port_res.data:
+                raw = port_res.data[0].get("positions") or {}
+                pos = raw.get("positions", []) if isinstance(raw, dict) else (raw if isinstance(raw, list) else [])
+                port_set = {x["ticker"] for x in pos if x.get("ticker")}
+        if p.get("push_watchlist_alerts"):
+            w_res = await run_query(db.table("watchlist").select("ticker").eq("user_id", uid))
+            watch_set = {r["ticker"] for r in (w_res.data or [])} - port_set
+        if port_set or watch_set:
+            user_tickers[uid] = {"port": port_set, "watch": watch_set}
+            all_tickers |= port_set | watch_set
+
+    if not all_tickers:
+        return {"error": "no tickers found"}
+
+    # 2. Fetch real prices now
+    def _fetch():
+        prices = {}
+        for t in all_tickers:
+            try:
+                hist = yf.Ticker(t).history(period="2d")
+                if len(hist) >= 2:
+                    prices[t] = {"prev": float(hist["Close"].iloc[-2]), "curr": float(hist["Close"].iloc[-1])}
+            except Exception:
+                pass
+        return prices
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=4) as ex:
+        prices = await __import__("asyncio").get_event_loop().run_in_executor(ex, _fetch)
+
+    # 3. Compute moves — NO threshold filter for test (show everything)
+    moves = {}
+    for t, px in prices.items():
+        if px["prev"] > 0:
+            pct = round((px["curr"] - px["prev"]) / px["prev"] * 100, 2)
+            moves[t] = {"pct": pct, "price": px["curr"]}
+
+    # 4. Send real pushes for moves ≥3% and return full report
+    sent_pushes = []
+    for uid, sets in user_tickers.items():
+        combined = (sets["port"] | sets["watch"]) & moves.keys()
+        for ticker in sorted(combined, key=lambda t: abs(moves[t]["pct"]), reverse=True):
+            pct   = moves[ticker]["pct"]
+            price = moves[ticker]["price"]
+            if abs(pct) < 3.0:
+                continue
+            direction = "bajando" if pct < 0 else "subiendo"
+            title = f"{ticker} Price Alert"
+            body  = f"{ticker} está {direction} {pct:+.2f}% a ${price:.2f}"
+            band  = 15 if abs(pct) >= 15 else (10 if abs(pct) >= 10 else (8 if abs(pct) >= 8 else (5 if abs(pct) >= 5 else 3)))
+            await send_push(uid, f"price_mover_{ticker}_band{band}", title, body,
+                            {"ticker": ticker, "change_pct": pct, "price": price,
+                             "screen": "portfolio" if ticker in sets["port"] else "watchlist"}, db)
+            sent_pushes.append({"user": uid[:8], "ticker": ticker, "pct": pct, "price": price, "body": body})
+
+    return {
+        "tickers_checked": sorted(all_tickers),
+        "moves_today": {t: v for t, v in sorted(moves.items(), key=lambda x: abs(x[1]["pct"]), reverse=True)},
+        "pushes_sent": sent_pushes,
+    }
