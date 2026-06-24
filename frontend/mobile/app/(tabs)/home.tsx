@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback, useRef } from "react";
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
   Image, RefreshControl, Animated, Dimensions,
-  Modal, Pressable, ActivityIndicator, Linking, TextInput,
+  Modal, Pressable, ActivityIndicator, Linking, TextInput, Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Svg, { Path, Defs, LinearGradient, Stop } from "react-native-svg";
@@ -403,8 +403,14 @@ export default function HomeScreen() {
     try {
       const offer = upsellCountdown === 0 ? "89" : "49";
       const res: any = await billingApi.brokerCallCheckout(offer);
-      if (res?.url) await Linking.openURL(res.url);
-    } catch { /* silently fail */ } finally {
+      if (res?.url) {
+        await Linking.openURL(res.url);
+      } else {
+        Alert.alert("Error", `Respuesta inesperada del servidor: ${JSON.stringify(res)}`);
+      }
+    } catch (e: any) {
+      Alert.alert("Error al procesar pago", e?.message ?? JSON.stringify(e));
+    } finally {
       setBrokerCheckoutLoading(false);
     }
   };
