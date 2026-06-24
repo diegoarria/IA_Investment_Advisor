@@ -158,6 +158,27 @@ async def get_analytics(user_id: str = Depends(get_current_user_id)):
     }
 
 
+@router.post("/admin/send-notification")
+async def admin_send_notification(
+    body: dict,
+    user_id: str = Depends(get_current_user_id),
+):
+    """Admin-only: send a custom push notification to yourself."""
+    if user_id != _ADMIN_UID:
+        raise HTTPException(status_code=403, detail="Admin only")
+    from app.services.notification_engine import send_push
+    db = get_supabase()
+    await send_push(
+        user_id,
+        body.get("category", "admin_test"),
+        body.get("title", "Test"),
+        body.get("body", ""),
+        body.get("data", {}),
+        db,
+    )
+    return {"ok": True}
+
+
 @router.post("/notifications/send-test")
 async def send_test_notification(
     body: dict,
