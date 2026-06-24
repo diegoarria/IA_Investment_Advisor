@@ -522,69 +522,116 @@ async def job_market_open_reminder():
 
 
 async def job_market_close():
-    """4:00 PM ET weekdays — Market Wrap format: comparison block + 1-line key fact (hecho clave).
-    Premium: S&P vs NQ vs Tu Portfolio + best mover by dollar impact.
-    Free: comparison block only — brevedad absoluta."""
+    """4:00 PM ET weekdays — personalized market close summary per user.
+
+    Format (beating market):
+        Diego, el mercado ha cerrado. Este es el resumen:
+        - Tu Portafolio: +2.38%
+        - S&P 500: +1.70%
+        - Nasdaq: +2.21%
+
+        ¡Enhorabuena! Superaste al mercado el día de hoy.
+
+    Format (lagging market):
+        Diego, el mercado ha cerrado. Este es el resumen:
+        - Tu Portafolio: -0.54%
+        - S&P 500: +1.70%
+        - Nasdaq: +2.21%
+
+        El mercado tuvo mejor desempeño hoy. Mañana es otra oportunidad.
+
+    No premium gate — every user with push_market_close=True gets the personalized version.
+    """
     from app.core.database import get_supabase, run_query
-    from app.services.notification_engine import send_push, get_market_summary_text
+    from app.services.notification_engine import send_push
     db = get_supabase()
     try:
-        market     = await get_market_summary_text()
-        indices    = market.get("indices", {})
-        sp500_pct  = (indices.get("S&P 500") or {}).get("change_pct")
-        nasdaq_pct = (indices.get("NASDAQ")  or {}).get("change_pct")
+        # ── 1. Fetch S&P 500 and Nasdaq (single batch call) ───────────────────
+        index_prices = await _batch_fetch_prices(["^GSPC", "^IXIC"])
+        sp_px  = index_prices.get("^GSPC", {})
+        nq_px  = index_prices.get("^IXIC", {})
+        sp500_pct  = round((sp_px["curr"] - sp_px["prev"]) / sp_px["prev"] * 100, 2) if sp_px.get("prev") else None
+        nasdaq_pct = round((nq_px["curr"] - nq_px["prev"]) / nq_px["prev"] * 100, 2) if nq_px.get("prev") else None
 
+        # ── 2. All users with market-close push enabled ───────────────────────
         prefs_res = await run_query(
             db.table("notification_preferences").select("user_id").eq("push_market_close", True)
         )
         uids = [u["user_id"] for u in (prefs_res.data or [])]
         if not uids:
+            logger.warning("job_market_close: no users with push_market_close=True")
             return
 
-        tiers_res = await run_query(
-            db.table("user_profiles").select("user_id,subscription_tier").in_("user_id", uids)
+        # ── 3. First names in one query ───────────────────────────────────────
+        profiles_res = await run_query(
+            db.table("user_profiles").select("user_id,name").in_("user_id", uids)
         )
-        tier_map = {r["user_id"]: r.get("subscription_tier") for r in (tiers_res.data or [])}
+        name_map = {
+            r["user_id"]: (r.get("name") or "Inversor").split()[0]
+            for r in (profiles_res.data or [])
+        }
 
-        premium_uids = [uid for uid in uids if tier_map.get(uid) == "premium"]
-        all_tickers: set[str] = set()
+        # ── 4. Collect all portfolio positions (no premium gate) ──────────────
         portfolio_map: dict[str, list] = {}
-        for uid in premium_uids:
-            port_res = await run_query(db.table("user_portfolio").select("positions").eq("user_id", uid))
+        all_tickers: set[str] = set()
+        for uid in uids:
+            port_res = await run_query(
+                db.table("user_portfolio").select("positions").eq("user_id", uid)
+            )
             if port_res.data:
                 raw = port_res.data[0].get("positions") or {}
                 pos = raw.get("positions", []) if isinstance(raw, dict) else (raw if isinstance(raw, list) else [])
-                portfolio_map[uid] = pos
-                all_tickers.update(p["ticker"] for p in pos if p.get("ticker"))
+                if pos:
+                    portfolio_map[uid] = pos
+                    all_tickers.update(p["ticker"] for p in pos if p.get("ticker"))
 
+        # ── 5. Batch-fetch prices (one call for all tickers) ──────────────────
         prices = await _batch_fetch_prices(list(all_tickers)) if all_tickers else {}
 
+        # ── 6. Build index lines (used by all users) ──────────────────────────
+        sp_line  = f"- S&P 500: {sp500_pct:+.2f}%"  if sp500_pct  is not None else "- S&P 500: N/D"
+        nq_line  = f"- Nasdaq: {nasdaq_pct:+.2f}%"  if nasdaq_pct is not None else "- Nasdaq: N/D"
+
+        # ── 7. Fan out — one push per user ────────────────────────────────────
         sent = 0
         for i, uid in enumerate(uids):
             if i % 100 == 0 and i > 0:
                 await asyncio.sleep(12)
-            await asyncio.sleep(random.uniform(0, 0.12))
+            await asyncio.sleep(random.uniform(0, 0.1))
 
-            is_premium = tier_map.get(uid) == "premium"
-            if is_premium and uid in portfolio_map and prices:
+            first = name_map.get(uid, "Inversor")
+
+            if uid in portfolio_map and prices:
                 user_pct = _calc_portfolio_pct(portfolio_map[uid], prices)
-                # Hecho clave: ticker with highest absolute dollar impact today
-                key_ticker, key_pct = _top_performer_by_impact(portfolio_map[uid], prices)
-                comparison = _market_comparison_push(sp500_pct, nasdaq_pct, user_pct)
-                if key_ticker and key_pct is not None:
-                    key_line = f"Tu mejor activo: {key_ticker} {key_pct:+.1f}%"
-                    body = f"{comparison}\n{key_line}"
-                else:
-                    body = comparison
-                title = "🏆 ¡Superaste al mercado!" if (user_pct or 0) > (sp500_pct or 0) else "📊 Cierre del mercado"
             else:
-                comparison = _market_comparison_push(sp500_pct, nasdaq_pct)
-                title = "📊 Mercados cerraron"
-                body  = comparison
+                user_pct = None
 
-            await send_push(uid, "market_close", title, body, {"screen": "portfolio"}, db, sound="market_close.wav")
+            if user_pct is not None:
+                port_line = f"- Tu Portafolio: {user_pct:+.2f}%"
+                beating   = sp500_pct is not None and user_pct > sp500_pct
+
+                body = (
+                    f"{first}, el mercado ha cerrado. Este es el resumen:\n"
+                    f"{port_line}\n"
+                    f"{sp_line}\n"
+                    f"{nq_line}\n\n"
+                    + ("¡Enhorabuena! Superaste al mercado el día de hoy." if beating
+                       else "El mercado tuvo mejor desempeño hoy. Mañana es otra oportunidad.")
+                )
+                title = "🏆 Cerraste por encima del mercado" if beating else "📊 El mercado ha cerrado"
+            else:
+                # No portfolio data — still send a useful summary
+                body = (
+                    f"{first}, el mercado ha cerrado. Resumen del día:\n"
+                    f"{sp_line}\n"
+                    f"{nq_line}"
+                )
+                title = "📊 El mercado ha cerrado"
+
+            await send_push(uid, "market_close", title, body, {"screen": "portfolio"}, db)
             sent += 1
-        logger.info("Market close push: %d sent", sent)
+
+        logger.info("Market close push: %d sent | S&P %s | NQ %s", sent, sp500_pct, nasdaq_pct)
     except Exception as e:
         logger.error("job_market_close failed: %s", e)
 
