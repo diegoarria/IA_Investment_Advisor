@@ -637,24 +637,50 @@ async def job_market_close():
         sp_px  = index_prices.get("SPY", {}).get("curr")
         nq_px  = index_prices.get("QQQ", {}).get("curr")
 
-        # ── 2. All users with any push channel (Expo OR web push) ────────────
+        # ── 2. Discover users: start from portfolio (not push token) ─────────
+        # Gate: user must have at least one position imported.
+        # Push is best-effort (sent if they have a channel); email always goes.
+        port_uid_res = await run_query(db.table("user_portfolio").select("user_id,positions"))
+        port_rows    = [r for r in (port_uid_res.data or []) if r.get("positions")]
+
+        # Filter to users who actually have positions (not empty list/dict)
+        def _has_positions(raw) -> bool:
+            if not raw:
+                return False
+            pos = raw.get("positions", []) if isinstance(raw, dict) else raw
+            return isinstance(pos, list) and len(pos) > 0
+
+        portfolio_map: dict[str, list] = {}
+        all_tickers: set[str] = set()
+        for r in port_rows:
+            uid = r["user_id"]
+            raw = r["positions"] or {}
+            pos = raw.get("positions", []) if isinstance(raw, dict) else (raw if isinstance(raw, list) else [])
+            if pos:
+                portfolio_map[uid] = pos
+                all_tickers.update(p["ticker"] for p in pos if p.get("ticker"))
+
+        if not portfolio_map:
+            logger.warning("job_market_close: no users with imported portfolios")
+            return
+
+        uids = list(portfolio_map.keys())
+
+        # Users who opted out of market_close notifications
+        prefs_res = await run_query(
+            db.table("notification_preferences").select("user_id,push_market_close")
+        )
+        disabled = {p["user_id"] for p in (prefs_res.data or []) if p.get("push_market_close") is False}
+
+        # Push-capable users (Expo token OR web push subscription)
         token_res = await run_query(
             db.table("user_profiles").select("user_id,push_token")
             .neq("push_token", "").not_.is_("push_token", "null")
         )
         expo_uids = {r["user_id"] for r in (token_res.data or [])}
-        web_res = await run_query(db.table("web_push_subscriptions").select("user_id"))
-        web_uids = {r["user_id"] for r in (web_res.data or [])}
-        token_uids = expo_uids | web_uids
-
-        prefs_res = await run_query(
-            db.table("notification_preferences").select("user_id,push_market_close")
-        )
-        disabled = {p["user_id"] for p in (prefs_res.data or []) if p.get("push_market_close") is False}
-        uids = list(token_uids - disabled)
-        if not uids:
-            logger.warning("job_market_close: no eligible users")
-            return
+        web_res   = await run_query(db.table("web_push_subscriptions").select("user_id"))
+        web_uids  = {r["user_id"] for r in (web_res.data or [])}
+        push_capable = (expo_uids | web_uids) - disabled
 
         # ── 3. Profiles: name + email in one query ────────────────────────────
         profiles_res = await run_query(
@@ -668,64 +694,50 @@ async def job_market_close():
             for r in (profiles_res.data or [])
         }
 
-        # ── 4. Collect all portfolio positions ────────────────────────────────
-        portfolio_map: dict[str, list] = {}
-        all_tickers: set[str] = set()
-        for uid in uids:
-            port_res = await run_query(
-                db.table("user_portfolio").select("positions").eq("user_id", uid)
-            )
-            if port_res.data:
-                raw = port_res.data[0].get("positions") or {}
-                pos = raw.get("positions", []) if isinstance(raw, dict) else (raw if isinstance(raw, list) else [])
-                if pos:
-                    portfolio_map[uid] = pos
-                    all_tickers.update(p["ticker"] for p in pos if p.get("ticker"))
-
-        # ── 5. Batch-fetch all portfolio prices once ──────────────────────────
+        # ── 4. Batch-fetch all portfolio prices once ──────────────────────────
         prices = await _batch_fetch_prices(list(all_tickers)) if all_tickers else {}
 
-        # ── 6. Build shared index lines ───────────────────────────────────────
+        # ── 5. Build shared index lines ───────────────────────────────────────
         sp_line = f"S&P 500: {sp500_pct:+.2f}%"  if sp500_pct  is not None else "S&P 500: N/D"
         nq_line = f"Nasdaq: {nasdaq_pct:+.2f}%"   if nasdaq_pct is not None else "Nasdaq: N/D"
         indices  = f"{sp_line} · {nq_line}"
 
-        # ── 7. Fan out — push + email per user ───────────────────────────────
+        # ── 6. Fan out — push (if capable) + email per portfolio user ────────
         sent_push = sent_email = 0
         for i, uid in enumerate(uids):
+            if uid in disabled:
+                continue
             if i % 100 == 0 and i > 0:
                 await asyncio.sleep(12)
             await asyncio.sleep(random.uniform(0, 0.1))
 
             first = profile_map.get(uid, {}).get("first", "Inversor")
 
-            # Portfolio % change
-            user_pct    = None
-            total_curr  = None
-            top_gainers = []
-            top_losers  = []
-            if uid in portfolio_map and prices:
-                user_pct, total_curr, top_gainers, top_losers = _calc_portfolio_close_data(
-                    portfolio_map[uid], prices
-                )
+            user_pct, total_curr, top_gainers, top_losers = _calc_portfolio_close_data(
+                portfolio_map[uid], prices
+            )
 
-            # Push content
             if user_pct is not None:
-                beating = sp500_pct is not None and user_pct > sp500_pct
-                push_body = (
+                beating    = sp500_pct is not None and user_pct > sp500_pct
+                push_body  = (
                     f"Tu portafolio: {user_pct:+.2f}% · {indices}\n\n"
                     + ("¡Enhorabuena! Hoy superaste al mercado." if beating
                        else "El mercado tuvo mejor desempeño hoy. Mañana es otra oportunidad.")
                 )
                 push_title = "🏆 Superaste al mercado hoy" if beating else "📊 El mercado ha cerrado"
+                sign       = "+" if user_pct >= 0 else ""
+                subject    = f"Tu portafolio hoy: {sign}{user_pct:.2f}% — Nuvos AI"
             else:
                 push_body  = indices
                 push_title = "📊 El mercado ha cerrado"
+                subject    = "El mercado ha cerrado — Nuvos AI"
 
-            await send_push(uid, "market_close", push_title, push_body, {"screen": "portfolio"}, db)
-            sent_push += 1
+            # Push — only if user has a push channel
+            if uid in push_capable:
+                await send_push(uid, "market_close", push_title, push_body, {"screen": "portfolio"}, db)
+                sent_push += 1
 
-            # Email
+            # Email — every portfolio user regardless of push channel
             try:
                 html = daily_email_v2(
                     first_name=first,
@@ -739,19 +751,14 @@ async def job_market_close():
                     top_losers=top_losers[:3],
                     ai_summary=None,
                 )
-                sign    = "+" if user_pct and user_pct >= 0 else ""
-                subject = (
-                    f"Tu portafolio hoy: {sign}{user_pct:.2f}% — Nuvos AI"
-                    if user_pct is not None else "El mercado ha cerrado — Nuvos AI"
-                )
                 await send_email_notification(uid, "market_close", subject, html, db)
                 sent_email += 1
             except Exception as email_err:
                 logger.warning("market_close email failed for %s: %s", uid[:8], email_err)
 
         logger.info(
-            "Market close: %d push | %d email | S&P %s | NQ %s",
-            sent_push, sent_email, sp500_pct, nasdaq_pct,
+            "Market close: %d users | %d push | %d email | S&P %s | NQ %s",
+            len(uids), sent_push, sent_email, sp500_pct, nasdaq_pct,
         )
     except Exception as e:
         logger.error("job_market_close failed: %s", e)
