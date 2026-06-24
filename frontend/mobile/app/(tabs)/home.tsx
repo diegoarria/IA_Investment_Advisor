@@ -359,6 +359,7 @@ export default function HomeScreen() {
   const [ytdPct,     setYtdPct]    = useState<number | null>(null);
   const BROKER_PREVIEW_UID = "86961402-9072-4670-9f73-b2aa91930b04";
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [userIdLoaded, setUserIdLoaded] = useState(false);
   const [showGoalModal, setShowGoalModal] = useState(false);
   const [showScreenPicker, setShowScreenPicker] = useState(false);
   const [showBrokerModal, setShowBrokerModal] = useState(false);
@@ -409,7 +410,10 @@ export default function HomeScreen() {
   };
 
   useEffect(() => {
-    SecureStore.getItemAsync("user_id").then(id => { if (id) setCurrentUserId(id); });
+    SecureStore.getItemAsync("user_id").then(id => {
+      setCurrentUserId(id ?? "");
+      setUserIdLoaded(true);
+    });
   }, []);
 
   useEffect(() => {
@@ -651,7 +655,7 @@ export default function HomeScreen() {
     { emoji: "🤖", title: "Habla con Nuvos por primera vez",  description: "Pregunta cualquier cosa sobre inversiones",        completed: hasChatted },
     { emoji: "📚", title: "Completa tu primera lección",      description: "Empieza tu racha de aprendizaje diario",          completed: streak > 0 },
     { emoji: "👀", title: "Agrega una acción a tu watchlist", description: "Monitorea empresas que te interesan",             completed: watchlistItems.length > 0 },
-    { emoji: "🏦", title: "Abre tu cuenta en un broker",     description: "Invierte de verdad — te sugerimos el ideal para ti", completed: currentUserId !== BROKER_PREVIEW_UID },
+    { emoji: "🏦", title: "Abre tu cuenta en un broker",     description: "Invierte de verdad — te sugerimos el ideal para ti", completed: !userIdLoaded || currentUserId !== BROKER_PREVIEW_UID },
   ];
   const allOnboardingDone = onboardingSteps.every((s) => s.completed);
 
