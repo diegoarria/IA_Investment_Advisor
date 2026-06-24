@@ -379,3 +379,157 @@ async def trigger_price_alerts(
         "movers": {t: v for t, v in sorted(moves.items(), key=lambda x: abs(x[1]["pct"]), reverse=True)},
         "pushes_sent": sent_pushes,
     }
+
+
+@router.post("/admin/trigger-market-close-email")
+async def trigger_market_close_email(
+    user_id: str = Depends(get_current_user_id),
+):
+    """Admin-only: fire job_market_close for the calling admin user only,
+    sending the personalized market close email + push right now."""
+    if user_id != _ADMIN_UID:
+        raise HTTPException(status_code=403, detail="Admin only")
+
+    import asyncio
+    import yfinance as yf
+    from app.services.notification_engine import send_push, send_email_notification
+    from app.services.email_templates import daily_email_v2
+
+    db = get_supabase()
+
+    # ── Fetch real market data ──────────────────────────────────────────────────
+    def _fetch_indices():
+        result = {}
+        for sym in ["^GSPC", "^IXIC"]:
+            try:
+                hist = yf.Ticker(sym).history(period="2d")
+                if len(hist) >= 2:
+                    result[sym] = {"prev": float(hist["Close"].iloc[-2]),
+                                   "curr": float(hist["Close"].iloc[-1])}
+            except Exception:
+                pass
+        return result
+
+    index_px = await asyncio.to_thread(_fetch_indices)
+
+    def _pct(sym):
+        px = index_px.get(sym, {})
+        return round((px["curr"] - px["prev"]) / px["prev"] * 100, 2) if px.get("prev") else None
+
+    sp500_pct  = _pct("^GSPC")
+    nasdaq_pct = _pct("^IXIC")
+
+    # ── Fetch user portfolio ────────────────────────────────────────────────────
+    port_res = await run_query(
+        db.table("user_portfolio").select("positions").eq("user_id", user_id)
+    )
+    positions = []
+    all_tickers = set()
+    if port_res.data:
+        raw = port_res.data[0].get("positions") or {}
+        positions = raw.get("positions", []) if isinstance(raw, dict) else (raw if isinstance(raw, list) else [])
+        all_tickers = {p["ticker"] for p in positions if p.get("ticker")}
+
+    # ── Fetch current prices for portfolio tickers ──────────────────────────────
+    port_prices: dict = {}
+    if all_tickers:
+        def _fetch_port():
+            import time
+            result = {}
+            for t in all_tickers:
+                try:
+                    hist = yf.Ticker(t).history(period="2d")
+                    if len(hist) >= 2:
+                        result[t] = {"prev": float(hist["Close"].iloc[-2]),
+                                     "curr": float(hist["Close"].iloc[-1])}
+                    time.sleep(0.1)
+                except Exception:
+                    pass
+            return result
+        port_prices = await asyncio.to_thread(_fetch_port)
+
+    # ── Calculate portfolio % change ────────────────────────────────────────────
+    user_pct = None
+    total_curr = None
+    if positions and port_prices:
+        total_prev = 0.0
+        total_curr = 0.0
+        for p in positions:
+            t = p.get("ticker")
+            shares = float(p.get("shares") or 0)
+            if t and shares and t in port_prices:
+                total_prev += shares * port_prices[t]["prev"]
+                total_curr += shares * port_prices[t]["curr"]
+        if total_prev > 0:
+            user_pct = round((total_curr - total_prev) / total_prev * 100, 2)
+
+    # ── User name ───────────────────────────────────────────────────────────────
+    prof_res = await run_query(db.table("user_profiles").select("name").eq("user_id", user_id))
+    first = ((prof_res.data[0].get("name") or "Diego") if prof_res.data else "Diego").split()[0]
+
+    # ── Build notification content ──────────────────────────────────────────────
+    sp_line = f"S&P 500: {sp500_pct:+.2f}%" if sp500_pct is not None else "S&P 500: N/D"
+    nq_line = f"Nasdaq: {nasdaq_pct:+.2f}%"  if nasdaq_pct is not None else "Nasdaq: N/D"
+    indices  = f"{sp_line} · {nq_line}"
+
+    if user_pct is not None:
+        beating = sp500_pct is not None and user_pct > sp500_pct
+        push_body = (
+            f"Tu portafolio: {user_pct:+.2f}% · {indices}\n\n"
+            + ("¡Enhorabuena! Hoy superaste al mercado." if beating
+               else "El mercado tuvo mejor desempeño hoy. Mañana es otra oportunidad.")
+        )
+        push_title = "🏆 Superaste al mercado hoy" if beating else "📊 El mercado ha cerrado"
+    else:
+        push_body  = indices
+        push_title = "📊 El mercado ha cerrado"
+
+    # ── Send push notification ──────────────────────────────────────────────────
+    await send_push(user_id, "market_close_test", push_title, push_body, {"screen": "portfolio"}, db)
+
+    # ── Build and send email ────────────────────────────────────────────────────
+    # Collect top movers for email
+    top_gainers, top_losers = [], []
+    for p in positions:
+        t = p.get("ticker")
+        if t and t in port_prices:
+            px   = port_prices[t]
+            pct  = round((px["curr"] - px["prev"]) / px["prev"] * 100, 2) if px["prev"] else 0
+            shares = float(p.get("shares") or 0)
+            entry = {"ticker": t, "pct": pct, "price": px["curr"],
+                     "dollar_change": shares * px["curr"] * pct / 100 if shares else 0}
+            if pct >= 0:
+                top_gainers.append(entry)
+            else:
+                top_losers.append(entry)
+    top_gainers.sort(key=lambda x: x["pct"], reverse=True)
+    top_losers.sort(key=lambda x: x["pct"])
+
+    html = daily_email_v2(
+        first_name=first,
+        port_pct=user_pct,
+        port_usd=total_curr if positions else None,
+        sp_pct=sp500_pct,
+        sp_px=index_px.get("^GSPC", {}).get("curr"),
+        nq_pct=nasdaq_pct,
+        nq_px=index_px.get("^IXIC", {}).get("curr"),
+        top_gainers=top_gainers[:3],
+        top_losers=top_losers[:3],
+        ai_summary=None,
+    )
+    subject = (
+        f"Tu portafolio hoy: {'+' if user_pct and user_pct >= 0 else ''}{user_pct:.2f}% — Nuvos AI"
+        if user_pct is not None else "El mercado cerró hoy — Nuvos AI"
+    )
+    await send_email_notification(user_id, "market_close_test", subject, html, db)
+
+    return {
+        "ok": True,
+        "push_title": push_title,
+        "push_body": push_body,
+        "email_subject": subject,
+        "sp500_pct": sp500_pct,
+        "nasdaq_pct": nasdaq_pct,
+        "user_pct": user_pct,
+        "positions_count": len(positions),
+    }
