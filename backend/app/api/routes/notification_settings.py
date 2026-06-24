@@ -573,6 +573,7 @@ async def _earnings_ai_summary(
     unrealized_pct: float | None,
 ) -> str:
     """Generate a 2-3 sentence AI summary of earnings impact in Spanish."""
+    import asyncio
     from app.core.config import settings
     import anthropic as _anthropic
 
