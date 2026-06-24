@@ -263,15 +263,29 @@ async def trigger_price_alerts(
         if port_map or watch_set:
             user_tickers[uid] = {"port": port_map, "watch": watch_set}
 
-    # 3. Batch-fetch names + tiers
+    # 3. Batch-fetch names + tiers (including trial_started_at for trial detection)
+    def _check_premium(tier: str, trial_started: str | None) -> bool:
+        if tier in ("premium", "pro"):
+            return True
+        if trial_started:
+            try:
+                from datetime import datetime, timezone
+                started = datetime.fromisoformat(trial_started.replace("Z", "+00:00"))
+                return (datetime.now(timezone.utc) - started).days < 90
+            except Exception:
+                pass
+        return False
+
     all_uids = list(user_tickers.keys())
     prof_res = await run_query(
-        db.table("user_profiles").select("user_id,name,subscription_tier").in_("user_id", all_uids)
+        db.table("user_profiles")
+        .select("user_id,name,subscription_tier,trial_started_at")
+        .in_("user_id", all_uids)
     )
     user_meta = {
         r["user_id"]: {
             "first":      (r.get("name") or "Inversor").split()[0],
-            "is_premium": r.get("subscription_tier") in ("premium", "pro"),
+            "is_premium": _check_premium(r.get("subscription_tier", "free"), r.get("trial_started_at")),
         }
         for r in (prof_res.data or [])
     }

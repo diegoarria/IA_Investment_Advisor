@@ -1002,17 +1002,29 @@ async def job_portfolio_alerts():
             ticker_title[ticker] = f"{emoji} {ticker} {pct:+.1f}% hoy"
             await asyncio.sleep(0.05)
 
-        # 6. Batch-fetch user profiles (name + subscription tier) once
+        # 6. Batch-fetch user profiles (name + tier + trial) once
+        def _is_premium(tier: str, trial_started: str | None) -> bool:
+            if tier in ("premium", "pro"):
+                return True
+            if trial_started:
+                try:
+                    from datetime import datetime as _dt, timezone as _tz
+                    started = _dt.fromisoformat(trial_started.replace("Z", "+00:00"))
+                    return (_dt.now(_tz.utc) - started).days < 90
+                except Exception:
+                    pass
+            return False
+
         all_uids  = list(user_tickers.keys())
         prof_res  = await run_query(
             db.table("user_profiles")
-            .select("user_id,name,subscription_tier")
+            .select("user_id,name,subscription_tier,trial_started_at")
             .in_("user_id", all_uids)
         )
         user_meta: dict[str, dict] = {
             r["user_id"]: {
                 "first":      (r.get("name") or "Inversor").split()[0],
-                "is_premium": r.get("subscription_tier") in ("premium", "pro"),
+                "is_premium": _is_premium(r.get("subscription_tier", "free"), r.get("trial_started_at")),
             }
             for r in (prof_res.data or [])
         }
