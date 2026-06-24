@@ -228,11 +228,11 @@ async def trigger_price_alerts(
         curr = px.get("curr", 0)
         if prev and prev > 0:
             pct = round((curr - prev) / prev * 100, 2)
-            if abs(pct) >= 3.0:
+            if abs(pct) >= 2.0:
                 moves[t] = {"pct": pct, "price": curr}
 
     if not moves:
-        return {"error": "no movers ≥3% in provided prices", "prices_received": len(body.prices)}
+        return {"error": "no movers ≥2% in provided prices", "prices_received": len(body.prices)}
 
     # 2. Get all users' portfolio + watchlist tickers
     prefs_res = await run_query(
@@ -246,35 +246,83 @@ async def trigger_price_alerts(
     user_tickers: dict = {}
     for p in prefs_res.data:
         uid = p["user_id"]
-        port_set: set = set()
+        port_map: dict = {}  # ticker → {shares, avg_cost}
         watch_set: set = set()
         if p.get("push_portfolio_alerts"):
             port_res = await run_query(db.table("user_portfolio").select("positions").eq("user_id", uid))
             if port_res.data:
                 raw = port_res.data[0].get("positions") or {}
                 pos = raw.get("positions", []) if isinstance(raw, dict) else (raw if isinstance(raw, list) else [])
-                port_set = {x["ticker"] for x in pos if x.get("ticker")}
+                port_map = {
+                    x["ticker"]: {"shares": float(x.get("shares") or 0), "avg_cost": float(x.get("avg_cost") or 0)}
+                    for x in pos if x.get("ticker")
+                }
         if p.get("push_watchlist_alerts"):
             w_res = await run_query(db.table("watchlist").select("ticker").eq("user_id", uid))
-            watch_set = {r["ticker"] for r in (w_res.data or [])} - port_set
-        if port_set or watch_set:
-            user_tickers[uid] = {"port": port_set, "watch": watch_set}
+            watch_set = {r["ticker"] for r in (w_res.data or [])} - set(port_map.keys())
+        if port_map or watch_set:
+            user_tickers[uid] = {"port": port_map, "watch": watch_set}
 
-    # 3. Fan out — one push per ticker per band per user
+    # 3. Batch-fetch names + tiers
+    all_uids = list(user_tickers.keys())
+    prof_res = await run_query(
+        db.table("user_profiles").select("user_id,name,subscription_tier").in_("user_id", all_uids)
+    )
+    user_meta = {
+        r["user_id"]: {
+            "first":      (r.get("name") or "Inversor").split()[0],
+            "is_premium": r.get("subscription_tier") in ("premium", "pro"),
+        }
+        for r in (prof_res.data or [])
+    }
+
+    # 4. Fan out — personalized for premium, generic for free
+    def _band(pct: float) -> int:
+        a = abs(pct)
+        if a >= 15: return 15
+        if a >= 10: return 10
+        if a >= 8:  return 8
+        if a >= 5:  return 5
+        if a >= 3:  return 3
+        return 2
+
     sent_pushes = []
     for uid, sets in user_tickers.items():
-        combined = (sets["port"] | sets["watch"]) & moves.keys()
+        meta     = user_meta.get(uid, {"first": "Inversor", "is_premium": False})
+        first    = meta["first"]
+        is_prem  = meta["is_premium"]
+        port_map = sets["port"]
+        combined = (set(port_map.keys()) | sets["watch"]) & moves.keys()
+
         for ticker in sorted(combined, key=lambda t: abs(moves[t]["pct"]), reverse=True):
-            pct   = moves[ticker]["pct"]
-            price = moves[ticker]["price"]
-            direction = "bajando" if pct < 0 else "subiendo"
-            title = f"{ticker} Price Alert"
-            body  = f"{ticker} está {direction} {pct:+.2f}% a ${price:.2f}"
-            band  = 15 if abs(pct) >= 15 else (10 if abs(pct) >= 10 else (8 if abs(pct) >= 8 else (5 if abs(pct) >= 5 else 3)))
-            await send_push(uid, f"price_mover_{ticker}_band{band}", title, body,
-                            {"ticker": ticker, "change_pct": pct, "price": price,
-                             "screen": "portfolio" if ticker in sets["port"] else "watchlist"}, db)
-            sent_pushes.append({"user": uid[:8], "ticker": ticker, "pct": pct, "price": price, "body": body})
+            pct          = moves[ticker]["pct"]
+            price        = moves[ticker]["price"]
+            is_portfolio = ticker in port_map
+            screen       = "portfolio" if is_portfolio else "watchlist"
+            emoji        = "📉" if pct <= -5 else "🔻" if pct < 0 else "🚀" if pct >= 5 else "📈"
+            title        = f"{emoji} {ticker} {pct:+.1f}% hoy"
+
+            if is_prem:
+                direction = "bajó" if pct < 0 else "subió"
+                body = f"{ticker} {direction} {abs(pct):.1f}% a ${price:.2f}."
+                if is_portfolio:
+                    shares         = port_map[ticker].get("shares", 0.0)
+                    position_value = shares * price if shares else 0.0
+                    dollar_delta   = position_value * pct / 100 if position_value else None
+                    if position_value and dollar_delta is not None:
+                        gl   = "perdiste" if pct < 0 else "ganaste"
+                        body += f" {first}, {gl} ~${abs(dollar_delta):,.0f} hoy."
+            else:
+                direction = "bajó" if pct < 0 else "subió"
+                body = (
+                    f"{ticker} {direction} {abs(pct):.1f}% hoy a ${price:.2f}. "
+                    f"Activa Nuvos Premium para ver el impacto en tu portafolio."
+                )
+
+            await send_push(uid, f"price_mover_{ticker}_band{_band(pct)}", title, body,
+                            {"ticker": ticker, "change_pct": pct, "price": price, "screen": screen}, db)
+            sent_pushes.append({"user": uid[:8], "ticker": ticker, "pct": pct,
+                                 "price": price, "body": body, "premium": is_prem})
 
     return {
         "movers": {t: v for t, v in sorted(moves.items(), key=lambda x: abs(x[1]["pct"]), reverse=True)},
