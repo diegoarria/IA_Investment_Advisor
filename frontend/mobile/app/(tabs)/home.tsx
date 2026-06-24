@@ -881,19 +881,19 @@ export default function HomeScreen() {
 
                 {/* Countdown */}
                 {upsellCountdown !== null && upsellCountdown > 0 && (
-                  <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 9,
-                                 borderRadius: 12, backgroundColor: "rgba(239,68,68,0.08)", borderWidth: 1,
-                                 borderColor: "rgba(239,68,68,0.2)", marginBottom: 16 }}>
-                    <Ionicons name="time-outline" size={14} color="#ef4444" />
-                    <Text style={{ fontSize: 12, fontWeight: "700", color: "#ef4444" }}>
+                  <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 14,
+                                 borderRadius: 14, backgroundColor: "rgba(239,68,68,0.08)", borderWidth: 1,
+                                 borderColor: "rgba(239,68,68,0.25)", marginBottom: 16 }}>
+                    <Ionicons name="time-outline" size={20} color="#ef4444" />
+                    <Text style={{ fontSize: 20, fontWeight: "900", color: "#ef4444", letterSpacing: -0.5 }}>
                       Oferta expira en {fmtCountdown(upsellCountdown)}
                     </Text>
                   </View>
                 )}
                 {upsellCountdown === 0 && (
-                  <View style={{ paddingVertical: 9, borderRadius: 12, backgroundColor: "rgba(107,114,128,0.1)",
+                  <View style={{ paddingVertical: 12, borderRadius: 14, backgroundColor: "rgba(107,114,128,0.1)",
                                  borderWidth: 1, borderColor: colors.border, marginBottom: 16, alignItems: "center" }}>
-                    <Text style={{ fontSize: 12, fontWeight: "700", color: colors.textMuted }}>La oferta especial ha expirado</Text>
+                    <Text style={{ fontSize: 15, fontWeight: "700", color: colors.textMuted }}>La oferta especial ha expirado</Text>
                   </View>
                 )}
 
@@ -924,11 +924,11 @@ export default function HomeScreen() {
                   ))}
 
                   {/* Price */}
-                  <View style={{ flexDirection: "row", alignItems: "baseline", gap: 10, marginTop: 14, marginBottom: 16 }}>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginTop: 14, marginBottom: 16, flexWrap: "wrap" }}>
                     <Text style={{ fontSize: 28, fontWeight: "900", color: colors.text }}>$49 USD</Text>
                     <Text style={{ fontSize: 18, fontWeight: "700", color: colors.textDim, textDecorationLine: "line-through" }}>$89 USD</Text>
-                    <View style={{ backgroundColor: "rgba(239,68,68,0.12)", borderRadius: 20, paddingHorizontal: 7, paddingVertical: 3 }}>
-                      <Text style={{ fontSize: 10, fontWeight: "700", color: "#ef4444" }}>-45%</Text>
+                    <View style={{ backgroundColor: "rgba(239,68,68,0.15)", borderRadius: 20, paddingHorizontal: 12, paddingVertical: 5 }}>
+                      <Text style={{ fontSize: 16, fontWeight: "900", color: "#ef4444" }}>-45% OFF</Text>
                     </View>
                   </View>
 

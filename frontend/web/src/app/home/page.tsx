@@ -533,15 +533,18 @@ export default function HomePage() {
                   ← Volver
                 </button>
                 {upsellCountdown !== null && upsellCountdown > 0 && (
-                  <div className="flex items-center justify-center gap-2 py-2.5 rounded-xl mb-4 text-xs font-bold"
-                       style={{ background: "rgba(239,68,68,0.07)", border: "1px solid rgba(239,68,68,0.2)", color: "#ef4444" }}>
-                    ⏱ Oferta expira en {fmtCountdown(upsellCountdown)}
+                  <div className="flex items-center justify-center gap-2.5 py-3.5 rounded-xl mb-4"
+                       style={{ background: "rgba(239,68,68,0.07)", border: "1px solid rgba(239,68,68,0.2)" }}>
+                    <span className="text-lg">⏱</span>
+                    <span className="text-xl font-black" style={{ color: "#ef4444" }}>
+                      Oferta expira en {fmtCountdown(upsellCountdown)}
+                    </span>
                   </div>
                 )}
                 {upsellCountdown === 0 && (
-                  <div className="flex items-center justify-center py-2.5 rounded-xl mb-4 text-xs font-bold"
-                       style={{ background: "rgba(107,114,128,0.1)", border: "1px solid var(--border)", color: "var(--muted)" }}>
-                    La oferta especial ha expirado
+                  <div className="flex items-center justify-center py-3 rounded-xl mb-4"
+                       style={{ background: "rgba(107,114,128,0.1)", border: "1px solid var(--border)" }}>
+                    <span className="text-base font-bold" style={{ color: "var(--muted)" }}>La oferta especial ha expirado</span>
                   </div>
                 )}
                 <div className="rounded-2xl p-5 mb-4"
@@ -561,11 +564,11 @@ export default function HomePage() {
                       </div>
                     ))}
                   </div>
-                  <div className="flex items-baseline gap-2.5 mb-4">
+                  <div className="flex items-baseline gap-3 mb-4">
                     <span className="text-3xl font-black" style={{ color: "var(--text)" }}>$49 USD</span>
-                    <span className="text-lg font-bold line-through" style={{ color: "var(--dim)" }}>$89 USD</span>
-                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full"
-                          style={{ background: "rgba(239,68,68,0.12)", color: "#ef4444" }}>-45%</span>
+                    <span className="text-xl font-bold line-through" style={{ color: "var(--dim)" }}>$89 USD</span>
+                    <span className="text-base font-black px-2.5 py-1 rounded-full"
+                          style={{ background: "rgba(239,68,68,0.15)", color: "#ef4444" }}>-45% OFF</span>
                   </div>
                   <button onClick={handleBrokerCheckout} disabled={brokerCheckoutLoading}
                           className="flex items-center justify-center w-full py-3.5 rounded-xl font-bold text-sm text-black transition-opacity hover:opacity-90 disabled:opacity-60"

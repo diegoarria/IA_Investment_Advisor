@@ -148,7 +148,7 @@ async def broker_call_checkout(
         line_items=[{"price": price_id, "quantity": 1}],
         client_reference_id=user_id,
         metadata={"offer": "broker_call", "price": offer},
-        success_url=f"{base}/broker-call-success?session_id={{CHECKOUT_SESSION_ID}}",
+        success_url="https://calendly.com/nuvosai/onboarding",
         cancel_url=f"{base}/home",
     )
     return {"url": session.url}
