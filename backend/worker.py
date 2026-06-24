@@ -1029,15 +1029,19 @@ async def job_portfolio_alerts():
             for r in (prof_res.data or [])
         }
 
-        # 7. Fan out — premium gets WHY + dollar impact, free gets generic alert
+        # 7. Fan out — portfolio vs watchlist distinction + premium vs free
         sent = 0
         for uid, sets in user_tickers.items():
             meta      = user_meta.get(uid, {"first": "Inversor", "is_premium": False})
             first     = meta["first"]
             is_prem   = meta["is_premium"]
             port_map  = sets["port"]
-            combined  = (set(port_map.keys()) | sets["watch"]) & movers.keys()
-            ranked    = sorted(combined, key=lambda t: abs(movers[t]), reverse=True)
+            # Portfolio tickers ranked first (user owns them — higher priority)
+            port_movers  = sorted(set(port_map.keys()) & movers.keys(),
+                                  key=lambda t: abs(movers[t]), reverse=True)
+            watch_movers = sorted(sets["watch"] & movers.keys(),
+                                  key=lambda t: abs(movers[t]), reverse=True)
+            ranked = port_movers + watch_movers
 
             for ticker in ranked:
                 pct          = movers[ticker]
@@ -1048,24 +1052,39 @@ async def job_portfolio_alerts():
                 screen       = "portfolio" if is_portfolio else "watchlist"
 
                 if is_prem:
-                    # Premium: WHY explanation + dollar impact
-                    body = ticker_why[ticker]
+                    why = ticker_why[ticker]
                     if is_portfolio:
+                        # User OWNS this stock — show financial impact
                         shares         = port_map[ticker].get("shares", 0.0)
                         position_value = shares * price if shares else 0.0
                         dollar_delta   = position_value * pct / 100 if position_value else None
                         if position_value and dollar_delta is not None:
-                            gl      = "perdiste" if pct < 0 else "ganaste"
-                            suffix  = f" {first}, {gl} ~${abs(dollar_delta):,.0f} hoy."
-                            max_b   = 230 - len(suffix)
-                            body    = (body[:max_b] if len(body) > max_b else body) + suffix
+                            gl     = "perdiste" if pct < 0 else "ganaste"
+                            impact = f"{first}, {gl} ~${abs(dollar_delta):,.0f} hoy ({shares:.0f} acciones × ${price:.2f})."
+                        else:
+                            impact = ""
+                        max_b = 230 - len(impact) - 1
+                        body  = (why[:max_b] if len(why) > max_b else why)
+                        if impact:
+                            body += " " + impact
+                    else:
+                        # User WATCHES this stock — informational only
+                        suffix = " La tienes en tu watchlist."
+                        max_b  = 230 - len(suffix)
+                        body   = (why[:max_b] if len(why) > max_b else why) + suffix
                 else:
-                    # Free: generic alert, no Claude, no dollar impact
+                    # Free tier
                     direction = "bajó" if pct < 0 else "subió"
-                    body = (
-                        f"{ticker} {direction} {abs(pct):.1f}% hoy a ${price:.2f}. "
-                        f"Activa Nuvos Premium para ver el impacto en tu portafolio."
-                    )
+                    if is_portfolio:
+                        body = (
+                            f"{ticker} {direction} {abs(pct):.1f}% hoy a ${price:.2f}. "
+                            f"Activa Premium para ver el impacto en tu portafolio."
+                        )
+                    else:
+                        body = (
+                            f"{ticker} {direction} {abs(pct):.1f}% hoy a ${price:.2f}. "
+                            f"Activa Premium para ver el análisis completo."
+                        )
 
                 await send_push(
                     uid,
