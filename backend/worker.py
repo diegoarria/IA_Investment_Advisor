@@ -491,18 +491,49 @@ def _fetch_realtime_pct(symbols: list[str]) -> dict[str, float | None]:
     return result
 
 
+def _finnhub_quote(symbol: str) -> dict | None:
+    """Fetch real-time quote from Finnhub. Returns {curr, prev, pct} or None.
+    Works on Railway (no IP block). Supports indices like ^VIX."""
+    import requests as _req
+    key = os.getenv("FINNHUB_API_KEY", "")
+    if not key:
+        return None
+    try:
+        r = _req.get(
+            "https://finnhub.io/api/v1/quote",
+            params={"symbol": symbol, "token": key},
+            timeout=8,
+        )
+        d = r.json()
+        curr = d.get("c")
+        prev = d.get("pc")
+        if curr and prev and prev > 0:
+            return {"curr": float(curr), "prev": float(prev),
+                    "pct": round((float(curr) - float(prev)) / float(prev) * 100, 2)}
+    except Exception:
+        pass
+    return None
+
+
 async def job_market_open():
     """9:30 AM ET weekdays — personalized open alert for ALL users.
-    Shows real-time portfolio change vs S&P 500 and Nasdaq at open."""
+    Uses SPY/QQQ as S&P 500/Nasdaq proxies (^GSPC/^IXIC blocked on Railway).
+    Uses _batch_fetch_prices (Nasdaq API) for all prices — works at open."""
+    if not _is_market_open_today():
+        logger.info("job_market_open: market closed today — skipping")
+        return
+
     from app.core.database import get_supabase, run_query
     from app.services.notification_engine import send_push
     db = get_supabase()
     try:
-        # fast_info gives regularMarketPrice vs previousClose — works at 9:30 AM
-        # before any daily candle closes, unlike _batch_fetch_prices (needs 2 closed days)
-        idx = await asyncio.to_thread(_fetch_realtime_pct, ["^GSPC", "^IXIC"])
-        sp500_pct  = idx.get("^GSPC")
-        nasdaq_pct = idx.get("^IXIC")
+        # SPY ≈ S&P 500, QQQ ≈ Nasdaq 100 — both accessible via Nasdaq API
+        idx = await _batch_fetch_prices(["SPY", "QQQ"])
+        def _pct(sym):
+            px = idx.get(sym, {})
+            return round((px["curr"] - px["prev"]) / px["prev"] * 100, 2) if px.get("prev") else None
+        sp500_pct  = _pct("SPY")
+        nasdaq_pct = _pct("QQQ")
 
         prefs_res = await run_query(
             db.table("notification_preferences").select("user_id").eq("push_market_open", True)
@@ -511,13 +542,12 @@ async def job_market_open():
         if not uids:
             return
 
-        # First names
         profiles_res = await run_query(
             db.table("user_profiles").select("user_id,name").in_("user_id", uids)
         )
         name_map = {r["user_id"]: (r.get("name") or "Inversor").split()[0] for r in (profiles_res.data or [])}
 
-        # ALL users' portfolios (no premium gate)
+        # Bulk-load all portfolios
         portfolio_map: dict[str, list] = {}
         all_tickers: set[str] = set()
         for uid in uids:
@@ -529,10 +559,8 @@ async def job_market_open():
                     portfolio_map[uid] = pos
                     all_tickers.update(p["ticker"] for p in pos if p.get("ticker"))
 
-        # Also use fast_info for portfolio stocks — same reason as indices
-        port_pcts: dict[str, float | None] = {}
-        if all_tickers:
-            port_pcts = await asyncio.to_thread(_fetch_realtime_pct, list(all_tickers))
+        # Batch-fetch all portfolio prices via Nasdaq API (one call)
+        prices = await _batch_fetch_prices(list(all_tickers)) if all_tickers else {}
 
         sent = 0
         for i, uid in enumerate(uids):
@@ -540,41 +568,25 @@ async def job_market_open():
                 await asyncio.sleep(12)
             await asyncio.sleep(random.uniform(0, 0.1))
 
-            first = name_map.get(uid, "Inversor")
-
-            # Calculate portfolio % using real-time fast_info prices
-            user_pct: float | None = None
-            if uid in portfolio_map:
-                positions = portfolio_map[uid]
-                total_w = total_pct = 0.0
-                for p in positions:
-                    ticker = p.get("ticker")
-                    shares = float(p.get("shares") or 0)
-                    avg_cost = float(p.get("avg_cost") or 0)
-                    if not ticker or not shares or ticker not in port_pcts or port_pcts[ticker] is None:
-                        continue
-                    weight = shares * avg_cost
-                    total_w   += weight
-                    total_pct += weight * port_pcts[ticker]
-                if total_w > 0:
-                    user_pct = round(total_pct / total_w, 2)
+            first    = name_map.get(uid, "Inversor")
+            user_pct = _calc_portfolio_pct(portfolio_map.get(uid, []), prices)
 
             if user_pct is not None and sp500_pct is not None:
                 sp_str = f"{sp500_pct:+.1f}%"
                 nq_str = f"{nasdaq_pct:+.1f}%" if nasdaq_pct is not None else "—"
                 if user_pct > sp500_pct:
-                    body  = f"{first}, el mercado acaba de abrir. Tu portafolio va {user_pct:+.1f}% vs S&P 500 ({sp_str}) y Nasdaq ({nq_str}). ¡Arriba!"
+                    body = f"{first}, el mercado acaba de abrir. Tu portafolio va {user_pct:+.1f}% vs S&P 500 ({sp_str}) y Nasdaq ({nq_str}). ¡Arriba!"
                 else:
-                    body  = f"{first}, el mercado acaba de abrir. Tu portafolio va {user_pct:+.1f}% frente al S&P 500 ({sp_str}) y Nasdaq ({nq_str})."
+                    body = f"{first}, el mercado acaba de abrir. Tu portafolio va {user_pct:+.1f}% frente al S&P 500 ({sp_str}) y Nasdaq ({nq_str})."
             elif sp500_pct is not None:
                 nq_str = f"{nasdaq_pct:+.1f}%" if nasdaq_pct is not None else "—"
                 body   = f"{first}, el mercado acaba de abrir. S&P 500 {sp500_pct:+.1f}%, Nasdaq {nq_str}."
             else:
-                body   = f"{first}, ¡el mercado acaba de abrir! Entra a ver cómo se está comportando."
+                body   = f"{first}, ¡el mercado acaba de abrir! Entra a ver cómo está tu portafolio."
 
             await send_push(uid, "market_open", "🔔 Mercado Abierto", body, {"screen": "portfolio"}, db)
             sent += 1
-        logger.info("Market open push: %d sent | S&P %s | NQ %s", sent, sp500_pct, nasdaq_pct)
+        logger.info("Market open push: %d sent | SPY %s | QQQ %s", sent, sp500_pct, nasdaq_pct)
     except Exception as e:
         logger.error("job_market_open failed: %s", e)
 
@@ -1627,7 +1639,12 @@ async def _generate_price_alert_why(ticker: str, change_pct: float, price: float
 
 
 async def job_events_alerts():
-    """8:00 AM ET weekdays — push for today/tomorrow ex-div, dividend payment, and earnings dates."""
+    """8:00 AM ET weekdays — push for today/tomorrow ex-div, dividend payment, and earnings dates.
+    Skips weekends and NYSE holidays."""
+    if not _is_market_open_today():
+        logger.info("job_events_alerts: market closed today — skipping")
+        return
+
     from app.core.database import get_supabase, run_query
     from app.services.notification_engine import send_push
     from app.api.routes.earnings import _fetch_events_for_symbol
@@ -1695,12 +1712,9 @@ async def job_events_alerts():
                         shares       = float(pos.get("shares", 0) or 0)
                         avg_cost     = float(pos.get("avg_cost", 0) or 0) or None
 
-                        # Get current price for position value
-                        try:
-                            import yfinance as yf
-                            curr_price = float(yf.Ticker(ticker).fast_info.get("lastPrice") or 0)
-                        except Exception:
-                            curr_price = 0.0
+                        # Get current price for position value via Finnhub
+                        q = await asyncio.to_thread(_finnhub_quote, ticker)
+                        curr_price = q["curr"] if q else 0.0
                         position_value = shares * curr_price if shares and curr_price else 0.0
 
                         # Fetch historical earnings reactions (cached implicitly via thread)
@@ -1986,23 +2000,14 @@ async def job_social_proof_push():
 
 
 async def job_risk_mgmt_push():
-    """3:00 PM ET Friday — push VIX spike warning + stop loss reminder when VIX > 20."""
+    """3:00 PM ET Friday — push VIX spike warning + stop loss reminder when VIX > 20.
+    Uses Finnhub /quote for ^VIX (yfinance blocked on Railway)."""
     from app.core.database import get_supabase, run_query
     from app.services.notification_engine import send_push
     db = get_supabase()
     try:
-        def _fetch_vix():
-            try:
-                import yfinance as yf
-                hist = yf.Ticker("^VIX").history(period="2d")
-                if not hist.empty:
-                    return float(hist["Close"].iloc[-1])
-            except Exception:
-                pass
-            return None
-
-        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as ex:
-            vix = await asyncio.get_event_loop().run_in_executor(ex, _fetch_vix)
+        vix_data = await asyncio.to_thread(_finnhub_quote, "^VIX")
+        vix = vix_data["curr"] if vix_data else None
 
         if vix is None or vix < 20:
             logger.info("Risk mgmt push skipped: VIX=%.1f (threshold 20)", vix or 0)
@@ -2934,20 +2939,20 @@ async def job_annual_scoreboard():
 async def job_portfolio_snapshot(slot: str):
     """Personalized portfolio snapshot vs S&P 500 & NASDAQ — sent 4x per trading day.
     slot: 'opening' (9:35 AM) | 'midday' (11:35 AM) | 'afternoon' (1:35 PM) | 'preclose' (3:35 PM)
-
-    Format: "Diego, hoy tu portafolio está cayendo -2.69%, el S&P 500 y el Nasdaq
-    están cayendo -1.12% y -1.91% respectivamente."
-
-    Each slot uses a different category key so dedup lets all 4 through per day.
+    Uses SPY/QQQ proxies (^GSPC/^IXIC blocked on Railway). Skips holidays.
     """
+    if not _is_market_open_today():
+        logger.info("job_portfolio_snapshot[%s]: market closed today — skipping", slot)
+        return
+
     from app.core.database import get_supabase, run_query
     from app.services.notification_engine import send_push
     db = get_supabase()
     try:
-        # ── 1. Fetch index prices (single batch call) ─────────────────────────
-        index_prices = await _batch_fetch_prices(["^GSPC", "^IXIC"])
-        sp_px  = index_prices.get("^GSPC", {})
-        nq_px  = index_prices.get("^IXIC", {})
+        # ── 1. Fetch index prices via ETF proxies ─────────────────────────────
+        index_prices = await _batch_fetch_prices(["SPY", "QQQ"])
+        sp_px  = index_prices.get("SPY", {})
+        nq_px  = index_prices.get("QQQ", {})
         sp500_pct  = round((sp_px["curr"] - sp_px["prev"]) / sp_px["prev"] * 100, 2) if sp_px.get("prev") else None
         nasdaq_pct = round((nq_px["curr"] - nq_px["prev"]) / nq_px["prev"] * 100, 2) if nq_px.get("prev") else None
 
