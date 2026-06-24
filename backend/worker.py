@@ -749,44 +749,71 @@ async def job_portfolio_alerts():
         if not prices:
             return
 
-        # 4. Filter tickers that moved ≥2% vs yesterday's close
+        # 4. Filter tickers that moved ≥3% vs yesterday's close
         movers: dict[str, float] = {}
         for ticker, px in prices.items():
             if px.get("prev") and px["prev"] > 0:
                 pct = round((px["curr"] - px["prev"]) / px["prev"] * 100, 2)
-                if abs(pct) >= 2.0:
+                if abs(pct) >= 3.0:
                     movers[ticker] = pct
 
         if not movers:
-            logger.info("Portfolio alerts: no movers ≥2%% today")
+            logger.info("Portfolio alerts: no movers ≥3%% this run")
             return
 
-        # 5. Fan out per user — one push per ticker per day (dedup prevents repeats)
+        def _alert_band(pct: float) -> int:
+            """Return threshold band (3, 5, 8, 10, 15...) for dedup.
+            Each band fires a separate notification so users get escalating alerts
+            as a stock keeps moving — like Yahoo Finance price alerts."""
+            a = abs(pct)
+            if a >= 15: return 15
+            if a >= 10: return 10
+            if a >= 8:  return 8
+            if a >= 5:  return 5
+            return 3
+
+        # 5. Fan out per user — one push per ticker per threshold band per day
         sent = 0
         for uid, sets in user_tickers.items():
             combined = (sets["port"] | sets["watch"]) & movers.keys()
-            # Biggest move first so the most impactful notification fires if daily limit hit
-            ranked = sorted(combined, key=lambda t: abs(movers[t]), reverse=True)
+            ranked   = sorted(combined, key=lambda t: abs(movers[t]), reverse=True)
             for ticker in ranked:
-                pct       = movers[ticker]
-                name      = _company_name(ticker)
-                direction = "está subiendo" if pct > 0 else "está bajando"
-                emoji     = "🚀" if pct >= 3 else ("🟢" if pct > 0 else ("📉" if pct <= -3 else "🔴"))
-                source    = "tu portafolio" if ticker in sets["port"] else "tu watchlist"
-                title     = f"{emoji} {name} ({ticker}) hoy {direction} {abs(pct):.1f}%"
-                body      = f"Precio actual: ${prices[ticker]['curr']:.2f} — en {source}."
+                pct   = movers[ticker]
+                band  = _alert_band(pct)
+                name  = _company_name(ticker)
+                price = prices[ticker]["curr"]
+
+                if pct <= -10:
+                    emoji = "🔴"
+                elif pct <= -5:
+                    emoji = "📉"
+                elif pct < 0:
+                    emoji = "🔻"
+                elif pct >= 10:
+                    emoji = "🚀"
+                elif pct >= 5:
+                    emoji = "📈"
+                else:
+                    emoji = "🟢"
+
+                direction = "bajando" if pct < 0 else "subiendo"
+                source    = "portafolio" if ticker in sets["port"] else "watchlist"
+                title     = f"{ticker} Price Alert"
+                body      = f"{name} está {direction} {pct:+.2f}% a ${price:.2f}"
+
                 await send_push(
                     uid,
-                    f"price_mover_{ticker}",  # per-ticker dedup key: fires at most once per day
+                    f"price_mover_{ticker}_band{band}",  # new band per ticker: escalates with moves
                     title,
                     body,
-                    {"ticker": ticker, "change_pct": pct, "screen": "portfolio" if ticker in sets["port"] else "watchlist"},
+                    {"ticker": ticker, "change_pct": pct, "price": price,
+                     "screen": "portfolio" if ticker in sets["port"] else "watchlist"},
                     db,
                 )
                 sent += 1
                 await asyncio.sleep(random.uniform(0.05, 0.2))
 
-        logger.info("Portfolio alerts: %d movers ≥2%%, %d pushes sent", len(movers), sent)
+        logger.info("Portfolio alerts: %d movers ≥3%%, %d pushes sent", len(movers), sent)
     except Exception as e:
         logger.error("job_portfolio_alerts failed: %s", e)
 
@@ -2131,8 +2158,7 @@ async def main():
     scheduler.add_job(job_market_open_reminder, "cron", day_of_week="mon-fri", hour=11,      minute=30,    timezone="America/New_York")
     scheduler.add_job(job_market_close,         "cron", day_of_week="mon-fri", hour=16,      minute=0,     timezone="America/New_York")
     scheduler.add_job(job_daily_email,          "cron", day_of_week="mon-fri", hour=18,      minute=0,     timezone="America/New_York")
-    scheduler.add_job(job_portfolio_alerts,     "cron", day_of_week="mon-fri", hour="9-15",  minute="0,30",timezone="America/New_York")
-    scheduler.add_job(job_portfolio_alerts,     "cron", day_of_week="mon-fri", hour=16,       minute=0,     timezone="America/New_York")
+    scheduler.add_job(job_portfolio_alerts,     "cron", day_of_week="mon-fri", hour="9-16",  minute="*/5", timezone="America/New_York")
     scheduler.add_job(job_events_alerts,        "cron", day_of_week="mon-fri", hour=8,       minute=0,     timezone="America/New_York")
     scheduler.add_job(job_earnings_results,     "cron", day_of_week="mon-fri", hour=17,      minute=0,     timezone="America/New_York")
 

@@ -27,7 +27,7 @@ async def _get_prefs(user_id: str, db) -> dict:
         "push_watchlist_alerts": True, "push_ai_recommendations": True,
         "push_milestones": True, "push_volatility": True,
         "email_daily_summary": True, "email_weekly_summary": True,
-        "max_push_per_day": 5, "max_push_per_week": 20,
+        "max_push_per_day": 15, "max_push_per_week": 60,
         "quiet_hours_start": 22, "quiet_hours_end": 8,
         "consecutive_ignores": 0, "snooze_until": None,
     }
@@ -135,19 +135,6 @@ async def send_push(user_id: str, category: str, title: str, body: str, data: di
     if not sent_any:
         status = "no_token"
         logger.info("No push channel for user %s (category=%s)", user_id, category)
-
-    log_id = await _log_notification(db, user_id, "push", category, title, body, data,
-                                     status, dedup_key=dedup_key, error_text=error_text)
-    await _track_analytics(db, "sent", category, user_id, log_id)
-
-    today = _today_et()
-    dedup_key = f"{user_id}:{category}:{today}"
-    status, error_text = "sent", None
-    try:
-        await _push(token, title=title, body=body, data={**data, "category": category}, sound=sound)
-    except Exception as e:
-        status, error_text = "failed", str(e)
-        logger.warning("Push failed for %s: %s", user_id, e)
 
     log_id = await _log_notification(db, user_id, "push", category, title, body, data,
                                      status, dedup_key=dedup_key, error_text=error_text)

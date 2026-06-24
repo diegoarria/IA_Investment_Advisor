@@ -23,7 +23,7 @@ _DEFAULT_PREFS = {
     "push_watchlist_alerts": True, "push_ai_recommendations": True,
     "push_milestones": True, "push_volatility": True,
     "email_daily_summary": True, "email_weekly_summary": True,
-    "max_push_per_day": 5, "max_push_per_week": 20,
+    "max_push_per_day": 15, "max_push_per_week": 60,
     "quiet_hours_start": 22, "quiet_hours_end": 8,
     "consecutive_ignores": 0, "snooze_until": None,
 }
