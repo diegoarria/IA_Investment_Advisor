@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import {
   TrendingUp, TrendingDown, Sparkles, BookOpen,
-  Bell, ChevronRight, GraduationCap, Newspaper, Target, Flame,
+  Bell, ChevronRight, GraduationCap, Newspaper, Target, Flame, Building2,
 } from "lucide-react";
 import AppSidebar from "@/components/AppSidebar";
 import MarketTickerBar from "@/components/MarketTickerBar";
@@ -104,6 +104,80 @@ export default function HomePage() {
   const [goalAmtDraft,  setGoalAmtDraft]  = useState("");
   const [savingGoal,    setSavingGoal]    = useState(false);
   const [goalError,     setGoalError]     = useState("");
+
+  // ── Broker card ───────────────────────────────────────────────────────────
+  const BROKER_CATALOG: Record<string, { name: string; emoji: string; rating: number; tag: string; tagColor: string; desc: string; pros: string[] }[]> = {
+    MX: [
+      { name: "GBM+",                   emoji: "🥇", rating: 4.8, tag: "Recomendado #1",  tagColor: "#00d47e", desc: "El broker más popular de México. App excelente, comisiones bajas.",         pros: ["App móvil de las mejores", "Sin comisión en acciones MX", "ETFs globales fáciles"] },
+      { name: "Interactive Brokers MX", emoji: "🌐", rating: 4.5, tag: "Para avanzados",   tagColor: "#3b82f6", desc: "Acceso a 150+ mercados globales. Ideal si quieres diversificar.",            pros: ["150+ bolsas del mundo",    "Tasas institucionales",        "Opciones y futuros"] },
+      { name: "Actinver",               emoji: "🏛️", rating: 4.0, tag: "Institucional",    tagColor: "#8b5cf6", desc: "Respaldo bancario. Perfecto para fondos y perfiles conservadores.",         pros: ["Respaldo bancario sólido", "Asesoría personal disponible", "Fondos de inversión"] },
+    ],
+    AR: [
+      { name: "Invertir Online (IOL)",  emoji: "🥇", rating: 4.7, tag: "Recomendado #1",  tagColor: "#00d47e", desc: "Líder en Argentina. Acceso a bonos, CEDEARs y acciones locales.",           pros: ["Líder del mercado AR",     "Acceso a CEDEARs (ADRs)",     "Sin costo de mantenimiento"] },
+      { name: "Balanz",                 emoji: "🥈", rating: 4.4, tag: "Muy popular",       tagColor: "#f59e0b", desc: "Plataforma moderna con fondos, bonos y acciones.",                          pros: ["Fondos de money market",   "Acciones locales e internac.", "App moderna e intuitiva"] },
+    ],
+    US: [
+      { name: "Interactive Brokers",    emoji: "🥇", rating: 4.9, tag: "Recomendado #1",  tagColor: "#00d47e", desc: "El broker más completo del mundo. 0 comisiones en acciones US.",             pros: ["0 comisiones en acciones", "Acceso a 150+ mercados",      "Intereses sobre efectivo"] },
+      { name: "Robinhood",              emoji: "🥈", rating: 4.3, tag: "Más fácil",         tagColor: "#3b82f6", desc: "La app más simple para empezar. Ideal para principiantes.",                 pros: ["App más simple",           "Acciones fraccionadas",       "Sin mínimo de inversión"] },
+      { name: "Charles Schwab",         emoji: "🏦", rating: 4.6, tag: "Más confiable",     tagColor: "#8b5cf6", desc: "Uno de los más confiables de EE.UU. Ideal para largo plazo.",              pros: ["Sin comisiones",           "Atención al cliente 24/7",    "Amplia variedad de ETFs"] },
+    ],
+    CO: [
+      { name: "Acciones & Valores",     emoji: "🥇", rating: 4.5, tag: "Recomendado #1",  tagColor: "#00d47e", desc: "El broker referente en Colombia. Acceso a BVC y mercados internac.",        pros: ["Acceso a la BVC",          "Acciones internacionales",    "Asesoría local experta"] },
+      { name: "Interactive Brokers",    emoji: "🌐", rating: 4.8, tag: "Para avanzados",   tagColor: "#3b82f6", desc: "El mejor acceso global. Ideal si quieres invertir fuera de Colombia.",      pros: ["Mercados globales",         "0 comisiones acciones US",    "Muy bien regulado"] },
+    ],
+    DEFAULT: [
+      { name: "Interactive Brokers",    emoji: "🥇", rating: 4.9, tag: "Mejor global",     tagColor: "#00d47e", desc: "El broker con mejor acceso global. Disponible en +200 países.",             pros: ["200+ países",              "150+ bolsas del mundo",       "Tasas institucionales"] },
+    ],
+  };
+
+  const [hasBroker,       setHasBroker]       = useState<boolean>(() => {
+    if (typeof window === "undefined") return true;
+    return localStorage.getItem("nuvos_has_broker") === "1";
+  });
+  const [showBrokerModal, setShowBrokerModal] = useState(false);
+  const [brokerView,      setBrokerView]      = useState<"list" | "detail" | "upsell">("list");
+  const [selectedBroker,  setSelectedBroker]  = useState<(typeof BROKER_CATALOG.MX)[0] | null>(null);
+  const [brokerCountry,   setBrokerCountry]   = useState<{ label: string; brokers: typeof BROKER_CATALOG.MX }>({ label: "Internacional", brokers: BROKER_CATALOG.DEFAULT });
+  const [upsellCountdown, setUpsellCountdown] = useState<number | null>(null);
+
+  const openBrokerModal = () => {
+    setBrokerView("list");
+    setSelectedBroker(null);
+    setShowBrokerModal(true);
+    fetch("https://ipapi.co/json/")
+      .then(r => r.json())
+      .then(d => {
+        const code = d.country_code as string;
+        const labels: Record<string,string> = { MX: "México", AR: "Argentina", US: "Estados Unidos", CO: "Colombia" };
+        setBrokerCountry({ label: labels[code] ?? "Internacional", brokers: BROKER_CATALOG[code] ?? BROKER_CATALOG.DEFAULT });
+      })
+      .catch(() => {});
+  };
+
+  const dismissBrokerCard = () => {
+    localStorage.setItem("nuvos_has_broker", "1");
+    setHasBroker(true);
+    setShowBrokerModal(false);
+  };
+
+  useEffect(() => {
+    if (brokerView !== "upsell") return;
+    const KEY = "nuvos_broker_upsell_seen_at";
+    let seenAt = localStorage.getItem(KEY);
+    if (!seenAt) { seenAt = String(Date.now()); localStorage.setItem(KEY, seenAt); }
+    const DURATION = 24 * 60 * 60 * 1000;
+    const tick = () => { const r = DURATION - (Date.now() - Number(seenAt)); setUpsellCountdown(r > 0 ? r : 0); };
+    tick();
+    const t = setInterval(tick, 1000);
+    return () => clearInterval(t);
+  }, [brokerView]);
+
+  const fmtCountdown = (ms: number) => {
+    const h = Math.floor(ms / 3_600_000);
+    const m = Math.floor((ms % 3_600_000) / 60_000);
+    const s = Math.floor((ms % 60_000) / 1_000);
+    return `${String(h).padStart(2,"0")}:${String(m).padStart(2,"0")}:${String(s).padStart(2,"0")}`;
+  };
 
   const sym = CURRENCY_SYM[portfolioCurrency] ?? "$";
   const dailyLesson = DAILY_LESSONS[new Date().getDay() % DAILY_LESSONS.length];
@@ -332,6 +406,176 @@ export default function HomePage() {
     <div className="flex h-screen overflow-hidden" style={{ background: "var(--bg)" }}>
       <AppSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
+      {/* ── Broker Modal ── */}
+      {showBrokerModal && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4"
+             style={{ background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)" }}
+             onClick={() => { setShowBrokerModal(false); setBrokerView("list"); }}>
+          <div className="w-full max-w-lg rounded-2xl overflow-hidden shadow-2xl"
+               style={{ background: "var(--card)", border: "1px solid var(--border)", maxHeight: "85vh", overflowY: "auto" }}
+               onClick={e => e.stopPropagation()}>
+
+            {/* ── List view ── */}
+            {brokerView === "list" && (
+              <div className="p-6">
+                <p className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: "#f59e0b" }}>
+                  Brokers en {brokerCountry.label}
+                </p>
+                <h2 className="text-xl font-black mb-5" style={{ color: "var(--text)" }}>¿Con cuál quieres empezar?</h2>
+                <div className="flex flex-col gap-3 mb-4">
+                  {brokerCountry.brokers.map(b => (
+                    <button key={b.name} onClick={() => { setSelectedBroker(b); setBrokerView("detail"); }}
+                            className="flex items-start gap-3 p-4 rounded-xl border text-left transition-all hover:border-[var(--accent)]"
+                            style={{ background: "var(--bg)", borderColor: "var(--border)" }}>
+                      <div className="w-11 h-11 rounded-xl shrink-0 flex items-center justify-center text-xl"
+                           style={{ background: b.tagColor + "15", border: `1px solid ${b.tagColor}30` }}>
+                        {b.emoji}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-0.5">
+                          <span className="text-sm font-black" style={{ color: "var(--text)" }}>{b.name}</span>
+                          <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full"
+                                style={{ background: b.tagColor + "18", color: b.tagColor }}>{b.tag}</span>
+                        </div>
+                        <p className="text-[11px] mb-1.5" style={{ color: "var(--muted)" }}>{b.desc}</p>
+                        <div className="flex items-center gap-1">
+                          <span className="text-xs" style={{ color: "#f59e0b" }}>{"★".repeat(Math.round(b.rating))}</span>
+                          <span className="text-xs font-bold" style={{ color: "var(--text)" }}>{b.rating}</span>
+                          <span className="text-xs" style={{ color: "var(--muted)" }}>/5</span>
+                        </div>
+                      </div>
+                      <ChevronRight className="w-4 h-4 mt-1 shrink-0" style={{ color: "var(--muted)" }} />
+                    </button>
+                  ))}
+                </div>
+                <button onClick={dismissBrokerCard}
+                        className="w-full py-2.5 text-sm text-center transition-colors hover:opacity-70"
+                        style={{ color: "var(--muted)" }}>
+                  Ya tengo cuenta de broker
+                </button>
+              </div>
+            )}
+
+            {/* ── Detail view ── */}
+            {brokerView === "detail" && selectedBroker && (
+              <div className="p-6">
+                <button onClick={() => setBrokerView("list")}
+                        className="flex items-center gap-1.5 text-xs mb-5 hover:opacity-70 transition-opacity"
+                        style={{ color: "var(--muted)" }}>
+                  ← Todos los brokers
+                </button>
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-3xl shrink-0"
+                       style={{ background: selectedBroker.tagColor + "15", border: `1px solid ${selectedBroker.tagColor}30` }}>
+                    {selectedBroker.emoji}
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-black" style={{ color: "var(--text)" }}>{selectedBroker.name}</h2>
+                    <div className="flex items-center gap-1 mt-0.5">
+                      <span className="text-sm" style={{ color: "#f59e0b" }}>{"★".repeat(Math.round(selectedBroker.rating))}</span>
+                      <span className="text-sm font-bold" style={{ color: "var(--text)" }}>{selectedBroker.rating}/5</span>
+                    </div>
+                  </div>
+                </div>
+                <span className="inline-block text-[10px] font-bold px-2 py-1 rounded-lg mb-3"
+                      style={{ background: selectedBroker.tagColor + "15", color: selectedBroker.tagColor }}>
+                  {selectedBroker.tag}
+                </span>
+                <p className="text-sm mb-4 leading-relaxed" style={{ color: "var(--muted)" }}>{selectedBroker.desc}</p>
+                <p className="text-[10px] font-bold uppercase tracking-widest mb-3" style={{ color: "var(--sub)" }}>Por qué lo recomendamos</p>
+                <div className="flex flex-col gap-2.5 mb-6">
+                  {selectedBroker.pros.map((p, i) => (
+                    <div key={i} className="flex items-center gap-2.5">
+                      <div className="w-5 h-5 rounded-md shrink-0 flex items-center justify-center text-xs"
+                           style={{ background: "rgba(0,212,126,0.12)", color: "#00d47e" }}>✓</div>
+                      <span className="text-sm" style={{ color: "var(--text)" }}>{p}</span>
+                    </div>
+                  ))}
+                </div>
+                <div style={{ height: 1, background: "var(--border)", margin: "0 0 20px" }} />
+                <button onClick={() => setBrokerView("upsell")}
+                        className="w-full py-3.5 rounded-xl font-bold text-sm text-black mb-2.5 transition-opacity hover:opacity-90"
+                        style={{ background: "#00d47e" }}>
+                  Crear cuenta con ayuda de Nuvos
+                </button>
+                <button onClick={() => { setShowBrokerModal(false); setBrokerView("list"); }}
+                        className="w-full py-3.5 rounded-xl font-bold text-sm border mb-3 transition-all hover:border-[var(--accent)]"
+                        style={{ borderColor: "var(--border)", color: "var(--text)" }}>
+                  Crear cuenta solo
+                </button>
+                <button onClick={dismissBrokerCard}
+                        className="w-full py-2 text-xs text-center hover:opacity-70 transition-opacity"
+                        style={{ color: "var(--muted)" }}>
+                  Ya tengo cuenta de broker
+                </button>
+              </div>
+            )}
+
+            {/* ── Upsell view ── */}
+            {brokerView === "upsell" && (
+              <div className="p-6">
+                <button onClick={() => setBrokerView("detail")}
+                        className="flex items-center gap-1.5 text-xs mb-4 hover:opacity-70 transition-opacity"
+                        style={{ color: "var(--muted)" }}>
+                  ← Volver
+                </button>
+                {upsellCountdown !== null && upsellCountdown > 0 && (
+                  <div className="flex items-center justify-center gap-2 py-2.5 rounded-xl mb-4 text-xs font-bold"
+                       style={{ background: "rgba(239,68,68,0.07)", border: "1px solid rgba(239,68,68,0.2)", color: "#ef4444" }}>
+                    ⏱ Oferta expira en {fmtCountdown(upsellCountdown)}
+                  </div>
+                )}
+                {upsellCountdown === 0 && (
+                  <div className="flex items-center justify-center py-2.5 rounded-xl mb-4 text-xs font-bold"
+                       style={{ background: "rgba(107,114,128,0.1)", border: "1px solid var(--border)", color: "var(--muted)" }}>
+                    La oferta especial ha expirado
+                  </div>
+                )}
+                <div className="rounded-2xl p-5 mb-4"
+                     style={{ background: "rgba(0,212,126,0.04)", border: "1px solid rgba(0,212,126,0.2)" }}>
+                  <p className="text-[10px] font-bold uppercase tracking-widest mb-2" style={{ color: "#00d47e" }}>
+                    Sesión 1:1 con Nuvos AI
+                  </p>
+                  <h3 className="text-lg font-black mb-2 leading-snug" style={{ color: "var(--text)" }}>
+                    Te acompañamos a abrir tu cuenta en {selectedBroker?.name ?? "tu broker"}
+                  </h3>
+                  <div className="flex flex-col gap-2.5 mb-5">
+                    {["Crear tu cuenta paso a paso","Navegar por la plataforma del broker","Buscar acciones, ETFs e instrumentos","Depositar dinero de forma segura"].map((item, i) => (
+                      <div key={i} className="flex items-center gap-2.5">
+                        <div className="w-5 h-5 rounded-md shrink-0 flex items-center justify-center text-xs"
+                             style={{ background: "rgba(0,212,126,0.12)", color: "#00d47e" }}>✓</div>
+                        <span className="text-sm" style={{ color: "var(--text)" }}>{item}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="flex items-baseline gap-2.5 mb-4">
+                    <span className="text-3xl font-black" style={{ color: "var(--text)" }}>$49 USD</span>
+                    <span className="text-lg font-bold line-through" style={{ color: "var(--dim)" }}>$89 USD</span>
+                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full"
+                          style={{ background: "rgba(239,68,68,0.12)", color: "#ef4444" }}>-45%</span>
+                  </div>
+                  <a href="https://calendly.com/nuvosai/onboarding" target="_blank" rel="noopener noreferrer"
+                     className="flex items-center justify-center w-full py-3.5 rounded-xl font-bold text-sm text-black transition-opacity hover:opacity-90"
+                     style={{ background: "#00d47e", textDecoration: "none" }}>
+                    Agendar mi llamada ahora →
+                  </a>
+                </div>
+                <button onClick={() => { setShowBrokerModal(false); setBrokerView("list"); }}
+                        className="w-full py-3 rounded-xl font-bold text-sm border mb-2 transition-all hover:border-[var(--accent)]"
+                        style={{ borderColor: "var(--border)", color: "var(--text)" }}>
+                  Prefiero hacerlo solo
+                </button>
+                <button onClick={dismissBrokerCard}
+                        className="w-full py-2 text-xs text-center hover:opacity-70 transition-opacity"
+                        style={{ color: "var(--muted)" }}>
+                  Ya tengo cuenta de broker
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* ── Goal Modal ── */}
       {showGoalModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
@@ -456,7 +700,7 @@ export default function HomePage() {
             )}
 
             {/* ── Stat Strip ──────────────────────────────────────────────── */}
-            <div className="grid grid-cols-4 gap-3">
+            <div className={`grid gap-3 ${hasBroker ? "grid-cols-4" : "grid-cols-5"}`}>
               {/* Portfolio day */}
               <button onClick={() => router.push("/patrimonio")}
                       className="flex items-center gap-2.5 px-4 py-3 rounded-xl border transition-all hover:border-[var(--accent)]"
@@ -473,6 +717,21 @@ export default function HomePage() {
                   <p className="text-[10px] mt-0.5" style={{ color: "var(--muted)" }}>Portafolio hoy</p>
                 </div>
               </button>
+
+              {/* Broker chip — hidden once user has a broker */}
+              {!hasBroker && (
+                <button onClick={openBrokerModal}
+                        className="flex items-center gap-2.5 px-4 py-3 rounded-xl border transition-all hover:opacity-90"
+                        style={{ background: "rgba(245,158,11,0.07)", borderColor: "rgba(245,158,11,0.35)" }}>
+                  <span className="text-lg shrink-0">🏦</span>
+                  <div className="text-left min-w-0">
+                    <p className="text-sm font-black leading-none truncate" style={{ color: "#f59e0b" }}>
+                      Abre tu broker
+                    </p>
+                    <p className="text-[10px] mt-0.5" style={{ color: "var(--muted)" }}>Crea tu cuenta</p>
+                  </div>
+                </button>
+              )}
 
               {/* Racha */}
               <button onClick={() => router.push("/academy")}
