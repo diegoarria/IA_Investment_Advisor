@@ -398,7 +398,8 @@ export default function HomeScreen() {
   const UPSELL_MS = 24 * 60 * 60 * 1000;
 
   useEffect(() => {
-    AsyncStorage.getItem("nuvos_has_broker").then(v => setHasBroker(v === "1"));
+    // DEV: force-reset so broker card always shows during testing
+    AsyncStorage.removeItem("nuvos_has_broker").then(() => setHasBroker(false));
   }, []);
 
   const openBrokerModal = () => {
