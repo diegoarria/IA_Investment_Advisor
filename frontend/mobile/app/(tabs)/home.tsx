@@ -363,6 +363,90 @@ export default function HomeScreen() {
   const [savingGoal,    setSavingGoal]    = useState(false);
   const [goalError,     setGoalError]     = useState("");
 
+  // ── Broker card ───────────────────────────────────────────────────────────
+  const BROKER_CATALOG: Record<string, { name: string; emoji: string; rating: number; tag: string; tagColor: string; desc: string; pros: string[] }[]> = {
+    MX: [
+      { name: "GBM+",                   emoji: "🥇", rating: 4.8, tag: "Recomendado #1",  tagColor: "#00d47e", desc: "El broker más popular de México. App excelente, comisiones bajas.",   pros: ["App móvil de las mejores", "Sin comisión en acciones MX", "ETFs globales fáciles"] },
+      { name: "Interactive Brokers MX", emoji: "🌐", rating: 4.5, tag: "Para avanzados",  tagColor: "#3b82f6", desc: "Acceso a 150+ mercados globales. Ideal si quieres diversificar.",      pros: ["150+ bolsas del mundo",    "Tasas institucionales",        "Opciones y futuros"] },
+      { name: "Actinver",               emoji: "🏛️", rating: 4.0, tag: "Institucional",   tagColor: "#8b5cf6", desc: "Respaldo bancario. Perfecto para fondos y perfiles conservadores.",   pros: ["Respaldo bancario sólido", "Asesoría personal disponible", "Fondos de inversión"] },
+    ],
+    AR: [
+      { name: "Invertir Online (IOL)",  emoji: "🥇", rating: 4.7, tag: "Recomendado #1",  tagColor: "#00d47e", desc: "Líder en Argentina. Fácil de usar, con acceso a bonos y acciones locales.", pros: ["Líder del mercado AR",    "Acceso a CEDEARs (ADRs)",     "Sin costo de mantenimiento"] },
+      { name: "Balanz",                 emoji: "🥈", rating: 4.4, tag: "Muy popular",      tagColor: "#f59e0b", desc: "Plataforma moderna con acceso a fondos, bonos y acciones.",             pros: ["Fondos de money market", "Acciones locales e internac.", "App moderna e intuitiva"] },
+    ],
+    US: [
+      { name: "Interactive Brokers",    emoji: "🥇", rating: 4.9, tag: "Recomendado #1",  tagColor: "#00d47e", desc: "El broker más completo del mundo. 0 comisiones en acciones US.",        pros: ["0 comisiones en acciones", "Acceso a 150+ mercados",      "Tasas de interés en efectivo"] },
+      { name: "Robinhood",              emoji: "🥈", rating: 4.3, tag: "Más fácil",        tagColor: "#3b82f6", desc: "La app más simple para empezar. Perfecto para principiantes.",          pros: ["App más simple del mercado", "Acciones fraccionadas",       "Sin mínimo de inversión"] },
+      { name: "Charles Schwab",         emoji: "🏦", rating: 4.6, tag: "Más confiable",    tagColor: "#8b5cf6", desc: "Uno de los más confiables de EE.UU. Ideal para largo plazo.",           pros: ["Sin comisiones",           "Atención al cliente 24/7",    "Amplia variedad de ETFs"] },
+    ],
+    CO: [
+      { name: "Acciones & Valores",     emoji: "🥇", rating: 4.5, tag: "Recomendado #1",  tagColor: "#00d47e", desc: "El broker referente en Colombia. Acceso a BVC y mercados internac.",   pros: ["Acceso a la BVC",          "Acciones internacionales",    "Asesoría local experta"] },
+      { name: "Interactive Brokers",    emoji: "🌐", rating: 4.8, tag: "Para avanzados",   tagColor: "#3b82f6", desc: "El mejor acceso global. Ideal si quieres invertir fuera de Colombia.", pros: ["Mercados globales",         "0 comisiones acciones US",    "Muy bien regulado"] },
+    ],
+    DEFAULT: [
+      { name: "Interactive Brokers",    emoji: "🥇", rating: 4.9, tag: "Mejor global",     tagColor: "#00d47e", desc: "El broker con mejor acceso global. Disponible en +200 países.",        pros: ["200+ países",              "150+ bolsas del mundo",       "Tasas institucionales"] },
+    ],
+  };
+
+  const [hasBroker,        setHasBroker]        = useState<boolean | null>(null);
+  const [showBrokerModal,  setShowBrokerModal]   = useState(false);
+  const [brokerView,       setBrokerView]        = useState<"list" | "detail" | "upsell">("list");
+  const [selectedBroker,   setSelectedBroker]    = useState<(typeof BROKER_CATALOG.MX)[0] | null>(null);
+  const [brokerCountry,    setBrokerCountry]     = useState<{ code: string; label: string; brokers: typeof BROKER_CATALOG.MX }>({ code: "DEFAULT", label: "Internacional", brokers: BROKER_CATALOG.DEFAULT });
+  const [upsellCountdown,  setUpsellCountdown]   = useState<number | null>(null);
+  const upsellTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const UPSELL_MS = 24 * 60 * 60 * 1000;
+
+  useEffect(() => {
+    AsyncStorage.getItem("nuvos_has_broker").then(v => setHasBroker(v === "1"));
+  }, []);
+
+  const openBrokerModal = () => {
+    setBrokerView("list");
+    setSelectedBroker(null);
+    setShowBrokerModal(true);
+    fetch("https://ipapi.co/json/")
+      .then(r => r.json())
+      .then(d => {
+        const code = d.country_code as string;
+        const brokers = BROKER_CATALOG[code] ?? BROKER_CATALOG.DEFAULT;
+        const labels: Record<string,string> = { MX: "México", AR: "Argentina", US: "Estados Unidos", CO: "Colombia" };
+        setBrokerCountry({ code, label: labels[code] ?? "Internacional", brokers });
+      })
+      .catch(() => {});
+  };
+
+  const dismissBrokerCard = async () => {
+    await AsyncStorage.setItem("nuvos_has_broker", "1");
+    setHasBroker(true);
+    setShowBrokerModal(false);
+  };
+
+  const startUpsellTimer = async () => {
+    const KEY = "nuvos_broker_upsell_seen_at";
+    let seenAt = await AsyncStorage.getItem(KEY);
+    if (!seenAt) { seenAt = String(Date.now()); await AsyncStorage.setItem(KEY, seenAt); }
+    const tick = () => {
+      const rem = UPSELL_MS - (Date.now() - Number(seenAt));
+      setUpsellCountdown(rem > 0 ? rem : 0);
+    };
+    tick();
+    upsellTimerRef.current = setInterval(tick, 1000);
+  };
+
+  useEffect(() => {
+    if (brokerView !== "upsell") { if (upsellTimerRef.current) clearInterval(upsellTimerRef.current); return; }
+    startUpsellTimer();
+    return () => { if (upsellTimerRef.current) clearInterval(upsellTimerRef.current); };
+  }, [brokerView]);
+
+  const fmtCountdown = (ms: number) => {
+    const h = Math.floor(ms / 3_600_000);
+    const m = Math.floor((ms % 3_600_000) / 60_000);
+    const s = Math.floor((ms % 60_000) / 1_000);
+    return `${String(h).padStart(2,"0")}:${String(m).padStart(2,"0")}:${String(s).padStart(2,"0")}`;
+  };
+
   const DAILY_LESSONS = [
     { emoji: "🥧", title: "Diversificación",       topicId: "diversif"  },
     { emoji: "📅", title: "Dollar Cost Averaging",  topicId: "dca"       },
@@ -641,6 +725,213 @@ export default function HomeScreen() {
   return (
     <SafeAreaView style={[ss.root, { backgroundColor: colors.bg }]} edges={["top"]}>
 
+      {/* ── Broker Modal ─────────────────────────────────────────────────────── */}
+      <Modal visible={showBrokerModal} transparent animationType="slide"
+             onRequestClose={() => { setShowBrokerModal(false); setBrokerView("list"); }}>
+        <Pressable style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "flex-end" }}
+                   onPress={() => { setShowBrokerModal(false); setBrokerView("list"); }}>
+          <Pressable onPress={e => e.stopPropagation()}
+                     style={{ backgroundColor: colors.card, borderTopLeftRadius: 28, borderTopRightRadius: 28,
+                              paddingHorizontal: 20, paddingTop: 12, paddingBottom: 36, maxHeight: "88%" }}>
+
+            {/* Handle */}
+            <View style={{ width: 36, height: 4, borderRadius: 2, backgroundColor: colors.border, alignSelf: "center", marginBottom: 16 }} />
+
+            {/* ── VIEW: Broker list ── */}
+            {brokerView === "list" && (
+              <ScrollView showsVerticalScrollIndicator={false}>
+                <Text style={{ fontSize: 10, fontWeight: "700", color: "#f59e0b", letterSpacing: 1.5, textTransform: "uppercase", marginBottom: 4 }}>
+                  Brokers en {brokerCountry.label}
+                </Text>
+                <Text style={{ fontSize: 18, fontWeight: "900", color: colors.text, marginBottom: 16 }}>
+                  ¿Con cuál quieres empezar?
+                </Text>
+
+                {brokerCountry.brokers.map((b) => (
+                  <TouchableOpacity key={b.name} activeOpacity={0.85}
+                    onPress={() => { setSelectedBroker(b); setBrokerView("detail"); }}
+                    style={{ flexDirection: "row", alignItems: "flex-start", padding: 14, borderRadius: 16, borderWidth: 1,
+                             borderColor: colors.border, backgroundColor: colors.bg ?? colors.card, marginBottom: 10, gap: 12 }}>
+                    {/* Emoji */}
+                    <View style={{ width: 44, height: 44, borderRadius: 12, backgroundColor: b.tagColor + "15",
+                                   borderWidth: 1, borderColor: b.tagColor + "30", alignItems: "center", justifyContent: "center" }}>
+                      <Text style={{ fontSize: 22 }}>{b.emoji}</Text>
+                    </View>
+                    {/* Info */}
+                    <View style={{ flex: 1 }}>
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 2 }}>
+                        <Text style={{ fontSize: 15, fontWeight: "800", color: colors.text }}>{b.name}</Text>
+                        <View style={{ backgroundColor: b.tagColor + "18", borderRadius: 8, paddingHorizontal: 6, paddingVertical: 2 }}>
+                          <Text style={{ fontSize: 9, fontWeight: "700", color: b.tagColor }}>{b.tag}</Text>
+                        </View>
+                      </View>
+                      <Text style={{ fontSize: 12, color: colors.textMuted, lineHeight: 17, marginBottom: 6 }}>{b.desc}</Text>
+                      {/* Stars */}
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                        <Text style={{ fontSize: 11, color: "#f59e0b" }}>{"★".repeat(Math.round(b.rating))}</Text>
+                        <Text style={{ fontSize: 11, fontWeight: "700", color: colors.text }}>{b.rating}</Text>
+                        <Text style={{ fontSize: 11, color: colors.textMuted }}>/5</Text>
+                      </View>
+                    </View>
+                    <Ionicons name="chevron-forward" size={16} color={colors.textMuted} style={{ marginTop: 4 }} />
+                  </TouchableOpacity>
+                ))}
+
+                {/* Already have broker */}
+                <TouchableOpacity onPress={dismissBrokerCard} activeOpacity={0.7}
+                  style={{ alignItems: "center", paddingVertical: 14, marginTop: 4 }}>
+                  <Text style={{ fontSize: 13, color: colors.textMuted, fontWeight: "600" }}>Ya tengo cuenta de broker</Text>
+                </TouchableOpacity>
+              </ScrollView>
+            )}
+
+            {/* ── VIEW: Broker detail ── */}
+            {brokerView === "detail" && selectedBroker && (
+              <ScrollView showsVerticalScrollIndicator={false}>
+                {/* Back */}
+                <TouchableOpacity onPress={() => setBrokerView("list")} style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 16 }}>
+                  <Ionicons name="chevron-back" size={16} color={colors.textMuted} />
+                  <Text style={{ fontSize: 13, color: colors.textMuted }}>Todos los brokers</Text>
+                </TouchableOpacity>
+
+                {/* Header */}
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 16 }}>
+                  <View style={{ width: 56, height: 56, borderRadius: 16, backgroundColor: selectedBroker.tagColor + "15",
+                                 borderWidth: 1, borderColor: selectedBroker.tagColor + "30", alignItems: "center", justifyContent: "center" }}>
+                    <Text style={{ fontSize: 28 }}>{selectedBroker.emoji}</Text>
+                  </View>
+                  <View>
+                    <Text style={{ fontSize: 20, fontWeight: "900", color: colors.text }}>{selectedBroker.name}</Text>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 3 }}>
+                      <Text style={{ fontSize: 13, color: "#f59e0b" }}>{"★".repeat(Math.round(selectedBroker.rating))}</Text>
+                      <Text style={{ fontSize: 13, fontWeight: "700", color: colors.text }}>{selectedBroker.rating}/5</Text>
+                    </View>
+                  </View>
+                </View>
+
+                {/* Tag */}
+                <View style={{ backgroundColor: selectedBroker.tagColor + "15", borderRadius: 10, paddingHorizontal: 10, paddingVertical: 6,
+                               alignSelf: "flex-start", marginBottom: 12 }}>
+                  <Text style={{ fontSize: 11, fontWeight: "700", color: selectedBroker.tagColor }}>{selectedBroker.tag}</Text>
+                </View>
+
+                {/* Description */}
+                <Text style={{ fontSize: 14, color: colors.textMuted, lineHeight: 20, marginBottom: 16 }}>{selectedBroker.desc}</Text>
+
+                {/* Pros */}
+                <Text style={{ fontSize: 12, fontWeight: "700", color: colors.textSub, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>Por qué lo recomendamos</Text>
+                {selectedBroker.pros.map((p, i) => (
+                  <View key={i} style={{ flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 10 }}>
+                    <View style={{ width: 24, height: 24, borderRadius: 8, backgroundColor: "#00d47e18",
+                                   alignItems: "center", justifyContent: "center" }}>
+                      <Text style={{ fontSize: 12, color: "#00d47e" }}>✓</Text>
+                    </View>
+                    <Text style={{ fontSize: 13, color: colors.text, flex: 1 }}>{p}</Text>
+                  </View>
+                ))}
+
+                {/* Divider */}
+                <View style={{ height: 1, backgroundColor: colors.border, marginVertical: 20 }} />
+
+                {/* CTAs */}
+                <TouchableOpacity onPress={() => setBrokerView("upsell")} activeOpacity={0.85}
+                  style={{ paddingVertical: 15, borderRadius: 14, backgroundColor: "#00d47e", alignItems: "center", marginBottom: 10 }}>
+                  <Text style={{ fontSize: 14, fontWeight: "900", color: "#000" }}>Crear cuenta con ayuda de Nuvos</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => { setShowBrokerModal(false); setBrokerView("list"); }} activeOpacity={0.8}
+                  style={{ paddingVertical: 14, borderRadius: 14, borderWidth: 1, borderColor: colors.border, alignItems: "center", marginBottom: 12 }}>
+                  <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text }}>Crear cuenta solo</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={dismissBrokerCard} activeOpacity={0.7}
+                  style={{ alignItems: "center", paddingVertical: 10 }}>
+                  <Text style={{ fontSize: 12, color: colors.textMuted }}>Ya tengo cuenta de broker</Text>
+                </TouchableOpacity>
+              </ScrollView>
+            )}
+
+            {/* ── VIEW: Upsell ── */}
+            {brokerView === "upsell" && (
+              <ScrollView showsVerticalScrollIndicator={false}>
+                {/* Back */}
+                <TouchableOpacity onPress={() => setBrokerView("detail")} style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 16 }}>
+                  <Ionicons name="chevron-back" size={16} color={colors.textMuted} />
+                  <Text style={{ fontSize: 13, color: colors.textMuted }}>Volver</Text>
+                </TouchableOpacity>
+
+                {/* Countdown */}
+                {upsellCountdown !== null && upsellCountdown > 0 && (
+                  <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 9,
+                                 borderRadius: 12, backgroundColor: "rgba(239,68,68,0.08)", borderWidth: 1,
+                                 borderColor: "rgba(239,68,68,0.2)", marginBottom: 16 }}>
+                    <Ionicons name="time-outline" size={14} color="#ef4444" />
+                    <Text style={{ fontSize: 12, fontWeight: "700", color: "#ef4444" }}>
+                      Oferta expira en {fmtCountdown(upsellCountdown)}
+                    </Text>
+                  </View>
+                )}
+                {upsellCountdown === 0 && (
+                  <View style={{ paddingVertical: 9, borderRadius: 12, backgroundColor: "rgba(107,114,128,0.1)",
+                                 borderWidth: 1, borderColor: colors.border, marginBottom: 16, alignItems: "center" }}>
+                    <Text style={{ fontSize: 12, fontWeight: "700", color: colors.textMuted }}>La oferta especial ha expirado</Text>
+                  </View>
+                )}
+
+                {/* Offer card */}
+                <View style={{ borderRadius: 20, borderWidth: 1, borderColor: "rgba(0,212,126,0.25)",
+                               backgroundColor: "rgba(0,212,126,0.04)", padding: 18, marginBottom: 16 }}>
+                  <Text style={{ fontSize: 10, fontWeight: "700", color: "#00d47e", letterSpacing: 1.5, textTransform: "uppercase", marginBottom: 8 }}>
+                    Sesión 1:1 con Nuvos AI
+                  </Text>
+                  <Text style={{ fontSize: 18, fontWeight: "900", color: colors.text, lineHeight: 24, marginBottom: 10 }}>
+                    Te acompañamos a abrir tu cuenta en {selectedBroker?.name ?? "tu broker"}
+                  </Text>
+
+                  {/* What's included */}
+                  {[
+                    "Crear tu cuenta paso a paso",
+                    "Navegar por la plataforma del broker",
+                    "Buscar acciones, ETFs e instrumentos",
+                    "Depositar dinero de forma segura",
+                  ].map((item, i) => (
+                    <View key={i} style={{ flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 10 }}>
+                      <View style={{ width: 22, height: 22, borderRadius: 6, backgroundColor: "#00d47e18",
+                                     alignItems: "center", justifyContent: "center" }}>
+                        <Text style={{ fontSize: 11, color: "#00d47e" }}>✓</Text>
+                      </View>
+                      <Text style={{ fontSize: 13, color: colors.text }}>{item}</Text>
+                    </View>
+                  ))}
+
+                  {/* Price */}
+                  <View style={{ flexDirection: "row", alignItems: "baseline", gap: 10, marginTop: 14, marginBottom: 16 }}>
+                    <Text style={{ fontSize: 28, fontWeight: "900", color: colors.text }}>$49 USD</Text>
+                    <Text style={{ fontSize: 18, fontWeight: "700", color: colors.textDim, textDecorationLine: "line-through" }}>$89 USD</Text>
+                    <View style={{ backgroundColor: "rgba(239,68,68,0.12)", borderRadius: 20, paddingHorizontal: 7, paddingVertical: 3 }}>
+                      <Text style={{ fontSize: 10, fontWeight: "700", color: "#ef4444" }}>-45%</Text>
+                    </View>
+                  </View>
+
+                  <TouchableOpacity onPress={() => Linking.openURL("https://calendly.com/nuvosai/onboarding")} activeOpacity={0.85}
+                    style={{ paddingVertical: 16, borderRadius: 14, backgroundColor: "#00d47e", alignItems: "center" }}>
+                    <Text style={{ fontSize: 15, fontWeight: "900", color: "#000" }}>Agendar mi llamada ahora</Text>
+                  </TouchableOpacity>
+                </View>
+
+                <TouchableOpacity onPress={() => { setShowBrokerModal(false); setBrokerView("list"); }} activeOpacity={0.7}
+                  style={{ paddingVertical: 14, borderRadius: 14, borderWidth: 1, borderColor: colors.border, alignItems: "center", marginBottom: 10 }}>
+                  <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text }}>Prefiero hacerlo solo</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={dismissBrokerCard} activeOpacity={0.7}
+                  style={{ alignItems: "center", paddingVertical: 10 }}>
+                  <Text style={{ fontSize: 12, color: colors.textMuted }}>Ya tengo cuenta de broker</Text>
+                </TouchableOpacity>
+              </ScrollView>
+            )}
+
+          </Pressable>
+        </Pressable>
+      </Modal>
+
       {/* ── Goal Modal ───────────────────────────────────────────────────────── */}
       <Modal visible={showGoalModal} transparent animationType="fade" onRequestClose={() => setShowGoalModal(false)}>
         <Pressable style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.55)", justifyContent: "center", alignItems: "center", padding: 20 }}
@@ -759,11 +1050,21 @@ export default function HomeScreen() {
           <MobileOnboardingChecklist steps={onboardingSteps} onStepPress={handleOnboardingStep} />
         )}
 
+        {/* ── Hero cards row (portfolio + broker) ─────────────────────────── */}
+        <ScrollView
+          horizontal
+          pagingEnabled={false}
+          showsHorizontalScrollIndicator={false}
+          decelerationRate="fast"
+          snapToInterval={W - 16}
+          snapToAlignment="start"
+          contentContainerStyle={{ paddingLeft: 16, paddingRight: 8, gap: 10, flexDirection: "row", marginTop: 16 }}
+        >
         {/* ── Portfolio Hero Card ──────────────────────────────────────────── */}
         <TouchableOpacity
           activeOpacity={0.92}
           onPress={() => router.navigate("/(tabs)/portfolio")}
-          style={[ss.heroCard, { backgroundColor: colors.card, borderColor: colors.border }]}
+          style={[ss.heroCard, { backgroundColor: colors.card, borderColor: colors.border, marginHorizontal: 0, marginTop: 0, width: W - 48 }]}
         >
           <View style={ss.heroTop}>
             <View>
@@ -872,6 +1173,65 @@ export default function HomeScreen() {
             <Ionicons name="chevron-forward" size={14} color={colors.textDim} />
           </View>
         </TouchableOpacity>
+
+        {/* ── Broker card ──────────────────────────────────────────────────── */}
+        {hasBroker === false && (
+          <TouchableOpacity
+            activeOpacity={0.92}
+            onPress={openBrokerModal}
+            style={{ width: W - 48, borderRadius: 20, borderWidth: 1, padding: 20,
+                     backgroundColor: colors.card, borderColor: "rgba(245,158,11,0.35)",
+                     justifyContent: "space-between" }}
+          >
+            {/* Header */}
+            <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" }}>
+              <View>
+                <Text style={{ fontSize: 13, fontWeight: "500", color: colors.textMuted, marginBottom: 6 }}>
+                  Siguiente paso
+                </Text>
+                <Text style={{ fontSize: 22, fontWeight: "800", color: colors.text, letterSpacing: -0.5 }}>
+                  Abre tu broker
+                </Text>
+              </View>
+              <View style={{ backgroundColor: "rgba(245,158,11,0.12)", borderRadius: 12, padding: 10 }}>
+                <Text style={{ fontSize: 22 }}>🏦</Text>
+              </View>
+            </View>
+
+            {/* Description */}
+            <Text style={{ fontSize: 12, color: colors.textMuted, lineHeight: 18, marginTop: 10, marginBottom: 14 }}>
+              Invierte dinero real en acciones y ETFs. Te mostramos los mejores brokers para tu país con calificaciones y una guía paso a paso.
+            </Text>
+
+            {/* Broker avatars preview */}
+            <View style={{ flexDirection: "row", gap: 6, marginBottom: 16 }}>
+              {["🥇", "🌐", "🏛️"].map((e, i) => (
+                <View key={i} style={{ width: 34, height: 34, borderRadius: 10, backgroundColor: "rgba(245,158,11,0.10)",
+                                       borderWidth: 1, borderColor: "rgba(245,158,11,0.2)", alignItems: "center", justifyContent: "center" }}>
+                  <Text style={{ fontSize: 16 }}>{e}</Text>
+                </View>
+              ))}
+              <View style={{ justifyContent: "center", marginLeft: 4 }}>
+                <Text style={{ fontSize: 11, color: "#f59e0b", fontWeight: "700" }}>Ver brokers →</Text>
+              </View>
+            </View>
+
+            {/* CTA row */}
+            <View style={{ flexDirection: "row", gap: 8 }}>
+              <View style={{ flex: 1, backgroundColor: "#f59e0b", borderRadius: 12,
+                             paddingVertical: 10, alignItems: "center" }}>
+                <Text style={{ fontSize: 12, fontWeight: "900", color: "#000" }}>Explorar brokers</Text>
+              </View>
+              <TouchableOpacity onPress={(e) => { e.stopPropagation(); dismissBrokerCard(); }}
+                style={{ paddingHorizontal: 12, paddingVertical: 10, borderRadius: 12, borderWidth: 1,
+                         borderColor: colors.border, alignItems: "center", justifyContent: "center" }}>
+                <Text style={{ fontSize: 11, color: colors.textMuted }}>Ya tengo</Text>
+              </TouchableOpacity>
+            </View>
+          </TouchableOpacity>
+        )}
+
+        </ScrollView>
 
         {/* ── Stat Strip ───────────────────────────────────────────────────── */}
         <ScrollView horizontal showsHorizontalScrollIndicator={false}
