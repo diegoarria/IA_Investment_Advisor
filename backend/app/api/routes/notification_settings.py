@@ -821,3 +821,117 @@ async def trigger_earnings_test(
         "unrealized_pct": unrealized_pct,
         "ai_summary": ai_summary,
     }
+
+
+# ── Admin: test dividend notification ────────────────────────────────────────
+
+class DividendTestPayload(BaseModel):
+    ticker: str
+    event_type: str = "ex_dividend"   # "ex_dividend" | "dividend"
+    event_date: str = ""              # "mañana", "hoy", ISO date — displayed in push body
+
+
+def _finnhub_dividend_amount_sync(ticker: str) -> tuple[float | None, str | None]:
+    """Fetch the most recent per-share dividend amount + ex-date from Finnhub.
+    Returns (amount_per_share, ex_date_str) or (None, None)."""
+    import os, requests as req_lib
+    from datetime import date, timedelta
+    key = os.getenv("FINNHUB_API_KEY", "")
+    if not key:
+        return None, None
+    try:
+        today     = date.today()
+        from_date = (today - timedelta(days=365)).strftime("%Y-%m-%d")
+        to_date   = (today + timedelta(days=180)).strftime("%Y-%m-%d")
+        r = req_lib.get(
+            "https://finnhub.io/api/v1/stock/dividend2",
+            params={"symbol": ticker, "from": from_date, "to": to_date, "token": key},
+            timeout=8,
+        )
+        data = r.json()
+        divs = data.get("data") or []
+        if not divs:
+            return None, None
+        # Sort by exDate descending — most recent (or upcoming) first
+        divs_sorted = sorted(divs, key=lambda d: d.get("exDate", ""), reverse=True)
+        latest = divs_sorted[0]
+        amount  = latest.get("amount")
+        ex_date = latest.get("exDate")
+        return (float(amount) if amount is not None else None), ex_date
+    except Exception:
+        return None, None
+
+
+@router.post("/admin/trigger-dividend-test")
+async def trigger_dividend_test(
+    body: DividendTestPayload,
+    user_id: str = Depends(get_current_user_id),
+):
+    """Admin-only: send a test dividend push to the admin with real per-share payout
+    fetched from Finnhub /stock/dividend2, personalized by portfolio shares."""
+    if user_id != _ADMIN_UID:
+        raise HTTPException(status_code=403, detail="Admin only")
+
+    import asyncio, time
+    from app.services.notification_engine import send_push
+
+    db     = get_supabase()
+    ticker = body.ticker.upper()
+
+    # ── Portfolio shares ──────────────────────────────────────────────────────
+    port_res = await run_query(db.table("user_portfolio").select("positions").eq("user_id", user_id))
+    positions: list = []
+    if port_res.data:
+        raw = port_res.data[0].get("positions") or {}
+        positions = raw.get("positions", []) if isinstance(raw, dict) else (raw if isinstance(raw, list) else [])
+
+    pos_match   = next((p for p in positions if p.get("ticker") == ticker), None)
+    shares_held = float(pos_match.get("shares") or 0) if pos_match else 0.0
+
+    # ── Finnhub dividend data ─────────────────────────────────────────────────
+    amt, ex_date = await asyncio.to_thread(_finnhub_dividend_amount_sync, ticker)
+
+    # Resolve display date: use body.event_date if set, else Finnhub exDate, else "próximamente"
+    when = body.event_date or ex_date or "próximamente"
+
+    # ── Build notification ────────────────────────────────────────────────────
+    if body.event_type == "ex_dividend":
+        title = f"✂️ Ex-Dividendo: {ticker}"
+        if amt and shares_held:
+            pago  = shares_held * amt
+            notif_body = (
+                f"Fecha ex-dividendo de {ticker} es {when}. "
+                f"Tienes {shares_held:.4f} acciones — "
+                f"tu pago estimado: ${pago:.2f} USD (${amt:.4f}/acción)."
+            )
+        elif amt:
+            notif_body = f"Fecha ex-dividendo de {ticker} es {when}. ${amt:.4f}/acción."
+        else:
+            notif_body = f"Fecha ex-dividendo de {ticker} es {when}."
+    else:
+        title = f"💰 Pago de Dividendo: {ticker}"
+        if amt and shares_held:
+            pago  = shares_held * amt
+            notif_body = (
+                f"{ticker} paga dividendo {when}. "
+                f"Con tus {shares_held:.4f} acciones recibirás "
+                f"${pago:.2f} USD (${amt:.4f}/acción)."
+            )
+        elif amt:
+            notif_body = f"{ticker} paga dividendo {when}. ${amt:.4f}/acción."
+        else:
+            notif_body = f"{ticker} paga dividendo {when}."
+
+    category = f"dividend_test_{ticker.lower()}_{int(time.time())}"
+    await send_push(user_id, category, title, notif_body, {"ticker": ticker, "screen": "portfolio"}, db)
+
+    return {
+        "ok": True,
+        "ticker": ticker,
+        "shares_held": shares_held,
+        "dividend_per_share": amt,
+        "ex_date_finnhub": ex_date,
+        "push_title": title,
+        "push_body": notif_body,
+        "pago_total": round(shares_held * amt, 4) if amt and shares_held else None,
+    }
