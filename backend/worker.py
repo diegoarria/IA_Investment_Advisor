@@ -898,21 +898,37 @@ async def job_portfolio_alerts():
         if not all_tickers:
             return
 
-        # 3. Batch-fetch prices for every unique ticker (one yfinance call)
-        prices = await _batch_fetch_prices(list(all_tickers))
+        # 3. Fetch real-time intraday prices via fast_info (lastPrice vs previousClose).
+        #    This is more reliable than _batch_fetch_prices (daily candles) which requires
+        #    a closed candle to exist — not guaranteed during early market hours.
+        def _fetch_realtime_prices(tickers_list: list[str]) -> dict[str, dict]:
+            import yfinance as yf
+            result: dict[str, dict] = {}
+            for sym in tickers_list:
+                try:
+                    fi   = yf.Ticker(sym).fast_info
+                    curr = fi.get("lastPrice") or fi.get("regularMarketPrice")
+                    prev = fi.get("previousClose")
+                    if curr and prev and prev > 0:
+                        result[sym] = {"curr": float(curr), "prev": float(prev)}
+                except Exception:
+                    pass
+            return result
+
+        prices = await asyncio.to_thread(_fetch_realtime_prices, list(all_tickers))
         if not prices:
+            logger.warning("Portfolio alerts: price fetch returned empty")
             return
 
-        # 4. Filter tickers that moved ≥3% vs yesterday's close
+        # 4. Filter tickers that moved ≥2% vs yesterday's close
         movers: dict[str, float] = {}
         for ticker, px in prices.items():
-            if px.get("prev") and px["prev"] > 0:
-                pct = round((px["curr"] - px["prev"]) / px["prev"] * 100, 2)
-                if abs(pct) >= 3.0:
-                    movers[ticker] = pct
+            pct = round((px["curr"] - px["prev"]) / px["prev"] * 100, 2)
+            if abs(pct) >= 2.0:
+                movers[ticker] = pct
 
         if not movers:
-            logger.info("Portfolio alerts: no movers ≥3%% this run")
+            logger.info("Portfolio alerts: no movers ≥2%% this run")
             return
 
         def _alert_band(pct: float) -> int:
@@ -921,7 +937,8 @@ async def job_portfolio_alerts():
             if a >= 10: return 10
             if a >= 8:  return 8
             if a >= 5:  return 5
-            return 3
+            if a >= 3:  return 3
+            return 2
 
         # 5. Pre-generate WHY explanations: exactly 1 Claude call + 1 news fetch per mover.
         #    Results are cached by ticker and reused for all users — never called per user.
@@ -936,9 +953,20 @@ async def job_portfolio_alerts():
             ticker_title[ticker] = f"{emoji} {ticker} {pct:+.1f}% hoy"
             await asyncio.sleep(0.05)
 
-        # 6. Fan out per user — personalize by appending their dollar impact (no extra Claude call)
+        # 6. Fan out per user — personalize with name + dollar impact (no extra Claude call)
+        # Batch fetch first names once
+        all_uids = list(user_tickers.keys())
+        names_res = await run_query(
+            db.table("user_profiles").select("user_id,name").in_("user_id", all_uids)
+        )
+        name_map = {
+            r["user_id"]: (r.get("name") or "Inversor").split()[0]
+            for r in (names_res.data or [])
+        }
+
         sent = 0
         for uid, sets in user_tickers.items():
+            first    = name_map.get(uid, "Inversor")
             port_map = sets["port"]   # {ticker: {shares, avg_cost}}
             combined = (set(port_map.keys()) | sets["watch"]) & movers.keys()
             ranked   = sorted(combined, key=lambda t: abs(movers[t]), reverse=True)
@@ -954,11 +982,10 @@ async def job_portfolio_alerts():
                     pos_data       = port_map[ticker]
                     shares         = pos_data.get("shares", 0.0)
                     position_value = shares * price if shares else 0.0
-                    dollar_delta   = abs(position_value * pct / 100) if position_value else None
-                    if position_value and dollar_delta:
-                        gl      = "perdiste" if pct < 0 else "ganaste"
-                        suffix  = f" {gl.capitalize()} ~${dollar_delta:,.0f} hoy."
-                        # Trim base body if needed to fit suffix
+                    dollar_delta   = position_value * pct / 100 if position_value else None
+                    if position_value and dollar_delta is not None:
+                        gl     = "perdiste" if pct < 0 else "ganaste"
+                        suffix = f" {first}, {gl} ~${abs(dollar_delta):,.0f} hoy."
                         max_base = 230 - len(suffix)
                         body = (body[:max_base] if len(body) > max_base else body) + suffix
                     screen = "portfolio"
@@ -975,7 +1002,7 @@ async def job_portfolio_alerts():
                 sent += 1
                 await asyncio.sleep(random.uniform(0.05, 0.2))
 
-        logger.info("Portfolio alerts: %d movers ≥3%%, %d pushes sent", len(movers), sent)
+        logger.info("Portfolio alerts: %d movers ≥2%%, %d pushes sent", len(movers), sent)
     except Exception as e:
         logger.error("job_portfolio_alerts failed: %s", e)
 
