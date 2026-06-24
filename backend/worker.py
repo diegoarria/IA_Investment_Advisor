@@ -1970,123 +1970,193 @@ async def job_diversification_push():
         logger.error("job_diversification_push failed: %s", e)
 
 
-async def job_earnings_results():
-    """5:00 PM ET weekdays — detect tickers that reported earnings today and push/email results."""
+def _finnhub_earnings_today(hour_filter: str | None = None) -> dict[str, dict]:
+    """Fetch today's earnings from Finnhub calendar.
+
+    Args:
+        hour_filter: "BMO" | "AMC" | None (all). Finnhub values: BMO, AMC, DMT.
+
+    Returns:
+        {ticker: {eps_actual, eps_estimate, rev_actual_b, rev_estimate_b, beat_eps, beat_rev, hour}}
+    """
+    import pytz
+    import requests as req_lib
+
+    fh_key = os.getenv("FINNHUB_API_KEY", "")
+    if not fh_key:
+        return {}
+
+    today_str = datetime.now(pytz.timezone("America/New_York")).strftime("%Y-%m-%d")
+    try:
+        resp = req_lib.get(
+            "https://finnhub.io/api/v1/calendar/earnings",
+            params={"from": today_str, "to": today_str, "token": fh_key},
+            timeout=10,
+        )
+        resp.raise_for_status()
+        events = resp.json().get("earningsCalendar") or []
+    except Exception as e:
+        logger.warning("Finnhub earnings calendar failed: %s", e)
+        return {}
+
+    out: dict[str, dict] = {}
+    for ev in events:
+        hour = (ev.get("hour") or "").upper()
+        if hour_filter and hour != hour_filter:
+            continue
+        eps_actual   = ev.get("epsActual")
+        eps_estimate = ev.get("epsEstimate")
+        # Finnhub revenue is in raw USD — convert to billions for display
+        rev_a = ev.get("revenueActual")
+        rev_e = ev.get("revenueEstimate")
+        beat_eps = (
+            eps_actual is not None and eps_estimate is not None and eps_actual >= eps_estimate
+        )
+        beat_rev = (
+            rev_a is not None and rev_e is not None and rev_e > 0 and rev_a >= rev_e
+        )
+        out[ev["symbol"]] = {
+            "eps_actual":     round(float(eps_actual),   2) if eps_actual   is not None else None,
+            "eps_estimate":   round(float(eps_estimate), 2) if eps_estimate is not None else None,
+            "rev_actual_b":   round(float(rev_a) / 1e9, 2) if rev_a        is not None else None,
+            "rev_estimate_b": round(float(rev_e) / 1e9, 2) if rev_e        is not None else None,
+            "beat_eps":  beat_eps,
+            "beat_rev":  beat_rev,
+            "hour":      hour,
+        }
+    return out
+
+
+def _earnings_push_content(
+    ticker: str,
+    res: dict,
+    positions: list,       # user's portfolio positions (may be empty list)
+    is_watchlist: bool,
+    is_premium: bool,
+) -> tuple[str, str]:
+    """Return (title, body) for an earnings push notification."""
+    eps_a = res.get("eps_actual")
+    eps_e = res.get("eps_estimate")
+    beat  = res.get("beat_eps", False)
+    hour  = res.get("hour", "")
+
+    result_emoji = "✅" if beat else "❌"
+    result_word  = "Beat" if beat else "Miss"
+    eps_str = f"EPS ${eps_a:.2f}" if eps_a is not None else ""
+    est_str = f"vs ${eps_e:.2f} est." if eps_e is not None else ""
+
+    timing_tag = ""
+    if hour == "BMO":
+        timing_tag = " · Pre-market"
+    elif hour == "AMC":
+        timing_tag = " · After-hours"
+
+    title = f"{ticker} {result_emoji} {result_word}{timing_tag}"
+
+    # Base body
+    parts = []
+    if eps_str:
+        parts.append(f"{eps_str} {est_str}".strip())
+
+    # Premium personalization: show position context if user holds the stock
+    if is_premium and positions:
+        pos_match = next((p for p in positions if p.get("ticker") == ticker), None)
+        if pos_match:
+            shares = float(pos_match.get("shares", 0))
+            avg_px = float(pos_match.get("avg_price") or 0)
+            if shares and avg_px:
+                cost_basis = shares * avg_px
+                parts.append(f"Tienes {shares:.0f} acc. (${cost_basis:,.0f} en posición)")
+
+    if is_watchlist and not any(p.get("ticker") == ticker for p in positions):
+        parts.append("En tu watchlist")
+
+    body = " · ".join(parts) if parts else f"{ticker} acaba de reportar resultados"
+    return title, body
+
+
+async def _job_earnings_dispatch(hour_filter: str):
+    """Shared logic for BMO + AMC earnings jobs."""
     from app.core.database import get_supabase, run_query
     from app.services.notification_engine import send_push
+
+    if not _is_market_open_today():
+        return
+
     db = get_supabase()
-    today = datetime.now(timezone.utc).date()
 
-    def _fetch_earnings_results(ticker: str):
-        try:
-            import yfinance as yf
-            t = yf.Ticker(ticker)
-            cal = t.get_earnings_dates(limit=4)
-            if cal is None or cal.empty:
-                return None
-            # Find a row with today's date
-            cal.index = cal.index.tz_convert("UTC")
-            today_rows = cal[cal.index.date == today]
-            if today_rows.empty:
-                return None
-            row = today_rows.iloc[0]
-            eps_real  = row.get("Reported EPS")
-            eps_est   = row.get("EPS Estimate")
-            # Revenue from quarterly financials
-            info = t.info
-            hist = t.history(period="5d")
-            change_pct = None
-            if len(hist) >= 2:
-                prev = float(hist["Close"].iloc[-2])
-                curr = float(hist["Close"].iloc[-1])
-                if prev > 0:
-                    change_pct = (curr - prev) / prev * 100
-            return {
-                "eps_real": float(eps_real) if eps_real is not None else None,
-                "eps_est":  float(eps_est)  if eps_est  is not None else None,
-                "change_pct": change_pct,
-                "company_name": info.get("shortName", ticker),
-            }
-        except Exception:
-            return None
+    # 1. Fetch today's earnings from Finnhub for the given session
+    results_map = await asyncio.to_thread(_finnhub_earnings_today, hour_filter)
+    if not results_map:
+        logger.info("job_earnings [%s]: no earnings reported today", hour_filter)
+        return
 
+    reported_tickers = set(results_map.keys())
+    logger.info("job_earnings [%s]: %d tickers reported: %s", hour_filter, len(reported_tickers), reported_tickers)
+
+    # 2. Load all users
+    users_res = await run_query(db.table("user_profiles").select("user_id,name,subscription_tier"))
+    users = users_res.data or []
+    if not users:
+        return
+
+    # 3. For efficiency: bulk load all portfolios + watchlists
+    port_res  = await run_query(db.table("user_portfolio").select("user_id,positions"))
+    watch_res = await run_query(db.table("watchlist").select("user_id,ticker"))
+
+    port_by_uid: dict[str, list] = {}
+    for r in (port_res.data or []):
+        raw = r.get("positions") or {}
+        pos = raw.get("positions", []) if isinstance(raw, dict) else (raw if isinstance(raw, list) else [])
+        if pos:
+            port_by_uid[r["user_id"]] = pos
+
+    # watchlist: {user_id: set(tickers)}
+    watch_by_uid: dict[str, set] = {}
+    for r in (watch_res.data or []):
+        watch_by_uid.setdefault(r["user_id"], set()).add(r["ticker"])
+
+    # 4. Fan out
+    notified = 0
+    for u in users:
+        uid       = u["user_id"]
+        positions = port_by_uid.get(uid, [])
+        watchlist = watch_by_uid.get(uid, set())
+        is_premium = (u.get("subscription_tier") or "free") == "premium"
+
+        port_tickers  = {p["ticker"] for p in positions if p.get("ticker")}
+        relevant      = (port_tickers | watchlist) & reported_tickers
+        if not relevant:
+            continue
+
+        await asyncio.sleep(random.uniform(0, 0.05))
+        for ticker in relevant:
+            res  = results_map[ticker]
+            is_wl = ticker in watchlist
+            title, body = _earnings_push_content(ticker, res, positions, is_wl, is_premium)
+            await send_push(
+                uid, f"earnings_{ticker.lower()}",
+                title, body,
+                {"ticker": ticker, "screen": "stock_detail"},
+                db,
+            )
+            notified += 1
+
+    logger.info("job_earnings [%s]: %d notifications sent", hour_filter, notified)
+
+
+async def job_earnings_bmo():
+    """9:15 AM ET — notify users about pre-market earnings (BMO)."""
     try:
-        users_res = await run_query(
-            db.table("user_profiles").select("user_id,name,subscription_tier")
-        )
-        auth_users = {u.id: u.email for u in await asyncio.to_thread(lambda: db.auth.admin.list_users())}
+        await _job_earnings_dispatch("BMO")
+    except Exception as e:
+        logger.error("job_earnings_bmo failed: %s", e)
 
-        # Gather all unique portfolio tickers
-        all_tickers: set[str] = set()
-        port_by_uid: dict[str, list] = {}
-        for u in (users_res.data or []):
-            uid = u["user_id"]
-            port_res = await run_query(db.table("user_portfolio").select("positions").eq("user_id", uid))
-            if port_res.data:
-                raw = port_res.data[0].get("positions") or {}
-                pos = raw.get("positions", []) if isinstance(raw, dict) else (raw if isinstance(raw, list) else [])
-                port_by_uid[uid] = pos
-                all_tickers.update(p["ticker"] for p in pos if p.get("ticker"))
 
-        if not all_tickers:
-            return
-
-        # Fetch earnings results for all tickers (only today's reporters)
-        results_map: dict[str, dict] = {}
-        with concurrent.futures.ThreadPoolExecutor(max_workers=4) as ex:
-            futures = {ticker: ex.submit(_fetch_earnings_results, ticker) for ticker in all_tickers}
-            for ticker, fut in futures.items():
-                try:
-                    result = fut.result(timeout=15)
-                    if result:
-                        results_map[ticker] = result
-                except Exception:
-                    pass
-
-        if not results_map:
-            logger.info("Earnings results job: no reports found for today (%s)", today)
-            return
-
-        notified = 0
-        for u in (users_res.data or []):
-            uid   = u["user_id"]
-            email = auth_users.get(uid)
-            pos   = port_by_uid.get(uid, [])
-            held  = {p["ticker"] for p in pos if p.get("ticker")}
-            for ticker, res in results_map.items():
-                if ticker not in held:
-                    continue
-                eps_real    = res.get("eps_real")
-                eps_est     = res.get("eps_est")
-                change_pct  = res.get("change_pct")
-                beat_eps    = (eps_real is not None and eps_est is not None and eps_real >= eps_est)
-                emoji       = "✅" if beat_eps else "❌"
-                eps_str     = f"${eps_real:.2f}" if eps_real is not None else "—"
-                est_str     = f"${eps_est:.2f}"  if eps_est  is not None else "—"
-                pct_str     = f"{change_pct:+.1f}%" if change_pct is not None else "—"
-                push_body   = f"{emoji} EPS {eps_str} (est. {est_str}). Precio {pct_str} post-earnings. Entra a analizar."
-                await send_push(
-                    uid, "earnings_results",
-                    f"📊 {ticker} reportó resultados",
-                    push_body,
-                    {"ticker": ticker, "screen": "portfolio"},
-                    db,
-                )
-                if email and settings.resend_api_key:
-                    html = build_earnings_results_html(
-                        name=u.get("name") or "Inversor",
-                        ticker=ticker,
-                        eps_real=eps_real,
-                        eps_est=eps_est,
-                        rev_real_b=None,
-                        rev_est_b=None,
-                        change_pct=change_pct,
-                    )
-                    await send_email(email, f"📊 {ticker} acaba de reportar resultados", html)
-                notified += 1
-                await asyncio.sleep(random.uniform(0.05, 0.2))
-
-        logger.info("Earnings results: %d notifications sent for tickers: %s", notified, list(results_map.keys()))
+async def job_earnings_results():
+    """4:30 PM ET — notify users about after-hours earnings (AMC)."""
+    try:
+        await _job_earnings_dispatch("AMC")
     except Exception as e:
         logger.error("job_earnings_results failed: %s", e)
 
@@ -2939,7 +3009,8 @@ async def main():
     scheduler.add_job(job_daily_email,          "cron", day_of_week="mon-fri", hour=18,      minute=0,     timezone="America/New_York")
     scheduler.add_job(job_portfolio_alerts,     "cron", day_of_week="mon-fri", hour="9-15",  minute="*/5", timezone="America/New_York")
     scheduler.add_job(job_events_alerts,        "cron", day_of_week="mon-fri", hour=8,       minute=0,     timezone="America/New_York")
-    scheduler.add_job(job_earnings_results,     "cron", day_of_week="mon-fri", hour=17,      minute=0,     timezone="America/New_York")
+    scheduler.add_job(job_earnings_bmo,         "cron", day_of_week="mon-fri", hour=9,       minute=15,    timezone="America/New_York")
+    scheduler.add_job(job_earnings_results,     "cron", day_of_week="mon-fri", hour=16,      minute=30,    timezone="America/New_York")
 
     # ── Weekly jobs ───────────────────────────────────────────────────────────
     scheduler.add_job(job_weekly_summary_push,  "cron", day_of_week="sat",     hour=9,       minute=30,    timezone="America/New_York")
