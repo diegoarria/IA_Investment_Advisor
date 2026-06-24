@@ -1736,16 +1736,41 @@ async def job_events_alerts():
                         )
 
                     elif event_type == "ex_dividend":
-                        title    = f"✂️ Ex-Dividendo: {ticker}"
-                        amt      = evt.get("dividend_amount")
-                        body     = f"Fecha ex-dividendo de {ticker} es {when}." + (f" ${amt:.4f}/acción." if amt else "")
+                        is_portfolio = ticker in port_tickers
+                        amt          = evt.get("dividend_amount")
+                        pos          = positions_map.get(ticker, {})
+                        shares_held  = float(pos.get("shares") or 0) if is_portfolio else 0.0
+                        title        = f"✂️ Ex-Dividendo: {ticker}"
+                        if amt and shares_held:
+                            pago = shares_held * float(amt)
+                            body = (
+                                f"Fecha ex-dividendo de {ticker} es {when}. "
+                                f"Tienes {shares_held:.4f} acciones — "
+                                f"tu pago estimado: ${pago:.2f} USD (${float(amt):.4f}/acción)."
+                            )
+                        elif amt:
+                            body = f"Fecha ex-dividendo de {ticker} es {when}. ${float(amt):.4f}/acción."
+                        else:
+                            body = f"Fecha ex-dividendo de {ticker} es {when}."
                         category = "ex_dividend"
-                        is_portfolio = ticker in port_tickers
                     elif event_type == "dividend":
-                        title    = f"💰 Dividendo: {ticker}"
-                        body     = f"{ticker} paga dividendo {when}."
-                        category = "dividend_payment"
                         is_portfolio = ticker in port_tickers
+                        amt          = evt.get("dividend_amount")
+                        pos          = positions_map.get(ticker, {})
+                        shares_held  = float(pos.get("shares") or 0) if is_portfolio else 0.0
+                        title        = f"💰 Pago de Dividendo: {ticker}"
+                        if amt and shares_held:
+                            pago = shares_held * float(amt)
+                            body = (
+                                f"{ticker} paga dividendo {when}. "
+                                f"Con tus {shares_held:.4f} acciones recibirás "
+                                f"${pago:.2f} USD (${float(amt):.4f}/acción)."
+                            )
+                        elif amt:
+                            body = f"{ticker} paga dividendo {when}. ${float(amt):.4f}/acción."
+                        else:
+                            body = f"{ticker} paga dividendo {when}."
+                        category = "dividend_payment"
                     else:
                         continue
 
