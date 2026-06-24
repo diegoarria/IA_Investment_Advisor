@@ -226,12 +226,6 @@ export default function Home() {
           </div>
           <div>
             <span className="text-base font-bold" style={{ color: "var(--text)" }}>Nuvos AI</span>
-            <div className="flex items-center gap-1.5 mt-0.5">
-              <div className="w-1.5 h-1.5 rounded-full bg-green-400"
-                   style={{ animation: "pulse 2s ease-in-out infinite" }} />
-              <span className="text-[10px] font-bold uppercase tracking-wider"
-                    style={{ color: "#4ade80" }}>Beta privada</span>
-            </div>
           </div>
         </div>
 
@@ -253,7 +247,7 @@ export default function Home() {
         <div className="flex items-center gap-0 mb-10 animate-fade-in-up stagger-1">
           {[
             { value: "2,847", label: "inversores activos" },
-            { value: "4.9 ★", label: "calificación beta" },
+            { value: "4.9 ★", label: "calificación" },
             { value: "< 2 min", label: "para empezar" },
           ].map((stat, i) => (
             <div key={stat.label} className="flex items-center">
@@ -315,12 +309,6 @@ export default function Home() {
             <Image src="/logo.png" alt="Nuvos AI" width={38} height={38} className="rounded-xl object-cover" />
             <div>
               <span className="font-bold text-sm" style={{ color: "var(--text)" }}>Nuvos AI</span>
-              <div className="flex items-center gap-1 mt-0.5">
-                <div className="w-1.5 h-1.5 rounded-full bg-green-400"
-                     style={{ animation: "pulse 2s ease-in-out infinite" }} />
-                <span className="text-[10px] font-bold uppercase tracking-wider"
-                      style={{ color: "#4ade80" }}>Beta privada</span>
-              </div>
             </div>
           </div>
 
