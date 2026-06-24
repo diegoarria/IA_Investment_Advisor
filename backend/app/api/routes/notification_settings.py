@@ -833,33 +833,71 @@ class DividendTestPayload(BaseModel):
 
 def _finnhub_dividend_amount_sync(ticker: str) -> tuple[float | None, str | None]:
     """Fetch the most recent per-share dividend amount + ex-date from Finnhub.
+    Tries three endpoints in order (free plan coverage increases with fallbacks):
+      1. /stock/dividend2  — exact per-payment amounts (premium, may be empty)
+      2. /stock/dividend   — basic dividend history (free, broader coverage)
+      3. /stock/metric     — indicated annual dividend / 4 (free, always available)
     Returns (amount_per_share, ex_date_str) or (None, None)."""
     import os, requests as req_lib
     from datetime import date, timedelta
     key = os.getenv("FINNHUB_API_KEY", "")
     if not key:
         return None, None
+
+    today     = date.today()
+    from_date = (today - timedelta(days=365)).strftime("%Y-%m-%d")
+    to_date   = (today + timedelta(days=180)).strftime("%Y-%m-%d")
+
+    # ── 1. /stock/dividend2 (premium, exact per-payment) ─────────────────────
     try:
-        today     = date.today()
-        from_date = (today - timedelta(days=365)).strftime("%Y-%m-%d")
-        to_date   = (today + timedelta(days=180)).strftime("%Y-%m-%d")
         r = req_lib.get(
             "https://finnhub.io/api/v1/stock/dividend2",
             params={"symbol": ticker, "from": from_date, "to": to_date, "token": key},
             timeout=8,
         )
-        data = r.json()
-        divs = data.get("data") or []
-        if not divs:
-            return None, None
-        # Sort by exDate descending — most recent (or upcoming) first
-        divs_sorted = sorted(divs, key=lambda d: d.get("exDate", ""), reverse=True)
-        latest = divs_sorted[0]
-        amount  = latest.get("amount")
-        ex_date = latest.get("exDate")
-        return (float(amount) if amount is not None else None), ex_date
+        divs = (r.json().get("data") or [])
+        if divs:
+            divs.sort(key=lambda d: d.get("exDate", ""), reverse=True)
+            amt = divs[0].get("amount")
+            ex  = divs[0].get("exDate")
+            if amt is not None:
+                return float(amt), ex
     except Exception:
-        return None, None
+        pass
+
+    # ── 2. /stock/dividend (free, historical payments) ────────────────────────
+    try:
+        r = req_lib.get(
+            "https://finnhub.io/api/v1/stock/dividend",
+            params={"symbol": ticker, "from": from_date, "to": to_date, "token": key},
+            timeout=8,
+        )
+        divs = r.json() if isinstance(r.json(), list) else []
+        if divs:
+            divs.sort(key=lambda d: d.get("date", ""), reverse=True)
+            amt = divs[0].get("amount")
+            ex  = divs[0].get("date")
+            if amt is not None:
+                return float(amt), ex
+    except Exception:
+        pass
+
+    # ── 3. /stock/metric → indicatedAnnualDividend / 4 (free, always present) ─
+    try:
+        r = req_lib.get(
+            "https://finnhub.io/api/v1/stock/metric",
+            params={"symbol": ticker, "metric": "all", "token": key},
+            timeout=8,
+        )
+        metrics = (r.json().get("metric") or {})
+        # dividendPerShareAnnual or dividendPerShareTTM divided by 4 (quarterly assumed)
+        annual = metrics.get("dividendPerShareAnnual") or metrics.get("dividendPerShareTTM")
+        if annual and float(annual) > 0:
+            return round(float(annual) / 4, 4), None
+    except Exception:
+        pass
+
+    return None, None
 
 
 @router.post("/admin/trigger-dividend-test")

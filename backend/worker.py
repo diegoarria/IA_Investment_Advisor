@@ -516,33 +516,60 @@ def _finnhub_quote(symbol: str) -> dict | None:
 
 
 def _finnhub_dividend_amount(ticker: str) -> float | None:
-    """Return the most recent declared dividend per share for a ticker via Finnhub.
-    Uses /stock/dividend2 which has exact per-payment amounts (not annual rate ÷ 4).
-    Falls back to None if unavailable or ticker doesn't pay dividends."""
+    """Return the most recent per-share dividend for a ticker via Finnhub.
+    Three-level fallback so free-plan keys still return usable data:
+      1. /stock/dividend2  — exact per-payment (premium)
+      2. /stock/dividend   — historical payments (free, broader coverage)
+      3. /stock/metric     — indicatedAnnualDividend / 4 (free, always present)"""
     import requests as _req
     from datetime import date, timedelta
     key = os.getenv("FINNHUB_API_KEY", "")
     if not key:
         return None
+
+    today     = date.today()
+    from_date = (today - timedelta(days=365)).strftime("%Y-%m-%d")
+    to_date   = (today + timedelta(days=180)).strftime("%Y-%m-%d")
+
+    # 1. /stock/dividend2 (premium, exact per-payment)
     try:
-        today     = date.today()
-        from_date = (today - timedelta(days=180)).strftime("%Y-%m-%d")
-        to_date   = (today + timedelta(days=180)).strftime("%Y-%m-%d")
-        r = _req.get(
-            "https://finnhub.io/api/v1/stock/dividend2",
-            params={"symbol": ticker, "from": from_date, "to": to_date, "token": key},
-            timeout=8,
-        )
-        data = r.json()
-        divs = data.get("data") or []
-        if not divs:
-            return None
-        # Sort by exDate descending, return most recent amount
-        divs_sorted = sorted(divs, key=lambda d: d.get("exDate", ""), reverse=True)
-        amount = divs_sorted[0].get("amount")
-        return float(amount) if amount is not None else None
+        r = _req.get("https://finnhub.io/api/v1/stock/dividend2",
+                     params={"symbol": ticker, "from": from_date, "to": to_date, "token": key}, timeout=8)
+        divs = (r.json().get("data") or [])
+        if divs:
+            divs.sort(key=lambda d: d.get("exDate", ""), reverse=True)
+            amt = divs[0].get("amount")
+            if amt is not None:
+                return float(amt)
     except Exception:
-        return None
+        pass
+
+    # 2. /stock/dividend (free, historical payments)
+    try:
+        r = _req.get("https://finnhub.io/api/v1/stock/dividend",
+                     params={"symbol": ticker, "from": from_date, "to": to_date, "token": key}, timeout=8)
+        resp = r.json()
+        divs = resp if isinstance(resp, list) else []
+        if divs:
+            divs.sort(key=lambda d: d.get("date", ""), reverse=True)
+            amt = divs[0].get("amount")
+            if amt is not None:
+                return float(amt)
+    except Exception:
+        pass
+
+    # 3. /stock/metric → indicatedAnnualDividend / 4
+    try:
+        r = _req.get("https://finnhub.io/api/v1/stock/metric",
+                     params={"symbol": ticker, "metric": "all", "token": key}, timeout=8)
+        metrics = (r.json().get("metric") or {})
+        annual = metrics.get("dividendPerShareAnnual") or metrics.get("dividendPerShareTTM")
+        if annual and float(annual) > 0:
+            return round(float(annual) / 4, 4)
+    except Exception:
+        pass
+
+    return None
 
 
 async def job_market_open():
