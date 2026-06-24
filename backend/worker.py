@@ -579,14 +579,12 @@ async def job_market_close():
     db = get_supabase()
     try:
         # ── 1. Fetch market indices ────────────────────────────────────────────
-        index_prices = await _batch_fetch_prices(["^GSPC", "^IXIC", "^DJI", "^RUT"])
+        index_prices = await _batch_fetch_prices(["^GSPC", "^IXIC"])
         def _idx_pct(sym: str) -> float | None:
             px = index_prices.get(sym, {})
             return round((px["curr"] - px["prev"]) / px["prev"] * 100, 2) if px.get("prev") else None
         sp500_pct  = _idx_pct("^GSPC")
         nasdaq_pct = _idx_pct("^IXIC")
-        dji_pct    = _idx_pct("^DJI")
-        rut_pct    = _idx_pct("^RUT")
 
         # ── 2. All users with a push token (default: market_close ON) ──────────
         # Don't gate on notification_preferences — users who never opened settings still get it
@@ -633,11 +631,9 @@ async def job_market_close():
         prices = await _batch_fetch_prices(list(all_tickers)) if all_tickers else {}
 
         # ── 6. Build index lines (used by all users) ──────────────────────────
-        sp_line  = f"S&P 500: {sp500_pct:+.2f}%"   if sp500_pct  is not None else "S&P 500: N/D"
-        nq_line  = f"Nasdaq: {nasdaq_pct:+.2f}%"   if nasdaq_pct is not None else "Nasdaq: N/D"
-        dj_line  = f"Dow Jones: {dji_pct:+.2f}%"   if dji_pct    is not None else "Dow Jones: N/D"
-        ru_line  = f"Russell: {rut_pct:+.2f}%"     if rut_pct    is not None else "Russell: N/D"
-        indices  = " · ".join([sp_line, nq_line, dj_line, ru_line])
+        sp_line = f"S&P 500: {sp500_pct:+.2f}%"  if sp500_pct  is not None else "S&P 500: N/D"
+        nq_line = f"Nasdaq: {nasdaq_pct:+.2f}%"  if nasdaq_pct is not None else "Nasdaq: N/D"
+        indices = f"{sp_line} · {nq_line}"
 
         # ── 7. Fan out — one push per user ────────────────────────────────────
         sent = 0
