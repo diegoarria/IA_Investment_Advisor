@@ -83,19 +83,7 @@ async def can_send_push(user_id: str, category: str, db) -> bool:
     if dup_res.data:
         return False
 
-    # 4. Daily cap (reduced if user habitually ignores)
-    today_start = f"{today}T00:00:00+00:00"
-    count_res = await run_query(
-        db.table("notification_log").select("id", count="exact")
-        .eq("user_id", user_id).eq("type", "push").gte("sent_at", today_start)
-    )
-    today_count = count_res.count or 0
-    ignores = prefs.get("consecutive_ignores", 0)
-    max_per_day = prefs.get("max_push_per_day", 5)
-    if ignores >= 5:
-        max_per_day = min(max_per_day, 2)
-
-    return today_count < max_per_day
+    return True
 
 
 # ─── Push dispatch ────────────────────────────────────────────────────────────
