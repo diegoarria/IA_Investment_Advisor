@@ -460,7 +460,10 @@ async def trigger_market_close_email(
         push_title = "📊 El mercado ha cerrado"
 
     # ── Send push notification ──────────────────────────────────────────────────
-    await send_push(user_id, "market_close_test", push_title, push_body, {"screen": "portfolio"}, db)
+    # Use timestamp suffix to bypass per-day dedup on repeated test calls
+    import time as _time
+    test_category = f"market_close_test_{int(_time.time())}"
+    await send_push(user_id, test_category, push_title, push_body, {"screen": "portfolio"}, db)
 
     # ── Build and send email ────────────────────────────────────────────────────
     # Collect top movers for email
