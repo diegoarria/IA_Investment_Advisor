@@ -18,6 +18,7 @@ python-multipart==0.0.20
 apscheduler==3.10.4
 websockets==14.1
 pandas==2.2.3
+lxml==5.3.0
 numpy==2.2.1
 plaid-python==26.0.0
 openai>=1.0.0,<2.0.0

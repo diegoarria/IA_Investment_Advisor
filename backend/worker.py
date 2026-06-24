@@ -772,52 +772,46 @@ async def job_portfolio_alerts():
             if a >= 5:  return 5
             return 3
 
-        # 5. Pre-generate WHY explanations: 1 Claude call per mover (not per user)
-        #    Fetch news and generate explanation once, reuse for all users with that ticker.
-        ticker_push_cache: dict[str, tuple[str, str]] = {}
+        # 5. Pre-generate WHY explanations: exactly 1 Claude call + 1 news fetch per mover.
+        #    Results are cached by ticker and reused for all users — never called per user.
+        ticker_why:   dict[str, str] = {}   # ticker → WHY explanation body
+        ticker_title: dict[str, str] = {}   # ticker → push title
         for ticker, pct in movers.items():
-            name  = _company_name(ticker)
             price = prices[ticker]["curr"]
             news  = await asyncio.to_thread(_fetch_ticker_news, ticker)
-            # Generic explanation (no position data) — we'll personalize per user below
-            base_title, base_body = await _generate_price_alert_push(
-                ticker, name, pct, price, news, shares=0.0, position_value=0.0
-            )
-            ticker_push_cache[ticker] = (base_title, base_body)
-            await asyncio.sleep(0.1)  # avoid hammering Claude
+            why   = await _generate_price_alert_why(ticker, pct, price, news)
+            ticker_why[ticker]   = why
+            emoji = "📉" if pct <= -5 else "🔻" if pct < 0 else "🚀" if pct >= 5 else "📈"
+            ticker_title[ticker] = f"{emoji} {ticker} {pct:+.1f}% hoy"
+            await asyncio.sleep(0.05)
 
-        # 6. Fan out per user — personalized with their position value
+        # 6. Fan out per user — personalize by appending their dollar impact (no extra Claude call)
         sent = 0
         for uid, sets in user_tickers.items():
-            port_map = sets["port"]  # {ticker: {shares, avg_cost}}
+            port_map = sets["port"]   # {ticker: {shares, avg_cost}}
             combined = (set(port_map.keys()) | sets["watch"]) & movers.keys()
             ranked   = sorted(combined, key=lambda t: abs(movers[t]), reverse=True)
             for ticker in ranked:
                 pct   = movers[ticker]
                 band  = _alert_band(pct)
                 price = prices[ticker]["curr"]
-                name  = _company_name(ticker)
+                title = ticker_title[ticker]
+                body  = ticker_why[ticker]
                 is_portfolio = ticker in port_map
 
                 if is_portfolio:
-                    pos_data      = port_map[ticker]
-                    shares        = pos_data.get("shares", 0.0)
-                    avg_cost      = pos_data.get("avg_cost", 0.0)
+                    pos_data       = port_map[ticker]
+                    shares         = pos_data.get("shares", 0.0)
                     position_value = shares * price if shares else 0.0
-                    dollar_delta  = abs(position_value * pct / 100) if position_value else None
-                    gained_lost   = "perdiste" if pct < 0 else "ganaste"
-
+                    dollar_delta   = abs(position_value * pct / 100) if position_value else None
                     if position_value and dollar_delta:
-                        # Re-generate personalized push with position context
-                        news = await asyncio.to_thread(_fetch_ticker_news, ticker)
-                        title, body = await _generate_price_alert_push(
-                            ticker, name, pct, price, news, shares=shares, position_value=position_value
-                        )
-                    else:
-                        title, body = ticker_push_cache.get(ticker, (f"📊 {ticker} {pct:+.1f}%", f"{name} movió {pct:+.1f}%"))
+                        gl      = "perdiste" if pct < 0 else "ganaste"
+                        suffix  = f" {gl.capitalize()} ~${dollar_delta:,.0f} hoy."
+                        # Trim base body if needed to fit suffix
+                        max_base = 230 - len(suffix)
+                        body = (body[:max_base] if len(body) > max_base else body) + suffix
                     screen = "portfolio"
                 else:
-                    title, body = ticker_push_cache.get(ticker, (f"📊 {ticker} {pct:+.1f}%", f"{name} movió {pct:+.1f}%"))
                     screen = "watchlist"
 
                 await send_push(
@@ -1069,7 +1063,7 @@ REGLAS:
 
 
 def _fetch_ticker_news(ticker: str) -> list[str]:
-    """Fetch 3 recent news headlines for a ticker to explain price moves."""
+    """Fetch up to 3 recent news headlines for a ticker to explain price moves."""
     try:
         import yfinance as yf
         news = yf.Ticker(ticker).news or []
@@ -1085,70 +1079,54 @@ def _fetch_ticker_news(ticker: str) -> list[str]:
         return []
 
 
-async def _generate_price_alert_push(
+async def _generate_price_alert_why(
     ticker: str,
-    company: str,
     change_pct: float,
     price: float,
     news_headlines: list[str],
-    shares: float = 0.0,
-    position_value: float = 0.0,
-) -> tuple[str, str]:
-    """Generate a price alert push that explains WHY the stock is moving.
-    Falls back to a static template on Claude failure."""
+) -> str:
+    """Generate the WHY explanation for a price move — called ONCE per ticker,
+    shared across all users. Returns a body string without position-specific data."""
     import anthropic
 
-    direction    = "está cayendo" if change_pct < 0 else "está subiendo"
-    verb         = "cayó" if change_pct < 0 else "subió"
-    dollar_delta = abs(position_value * change_pct / 100) if position_value else None
-    gained_lost  = "perdiste" if change_pct < 0 else "ganaste"
-
-    position_str = ""
-    if position_value and shares and dollar_delta:
-        position_str = f"El usuario tiene {shares:.1f} acciones (${position_value:,.0f} en total). Su posición {gained_lost} ~${dollar_delta:,.0f} hoy."
-
-    news_str = "\n".join(f"- {h}" for h in news_headlines) if news_headlines else ""
+    direction = "está cayendo" if change_pct < 0 else "está subiendo"
+    news_str  = "\n".join(f"- {h}" for h in news_headlines) if news_headlines else ""
 
     prompt = f"""Eres el asistente de Nuvos AI. Escribe el body de una notificación push en español.
 
 DATOS:
-- Acción: {company} ({ticker})
+- Ticker: {ticker}
 - Movimiento: {change_pct:+.2f}% hoy, precio actual ${price:.2f}
-{position_str}
-- Noticias recientes sobre {ticker}:
-{news_str or "Sin noticias disponibles."}
+- Noticias recientes:
+{news_str or "Sin noticias recientes disponibles."}
 
 INSTRUCCIONES:
-- Empieza directamente con "Hoy {company} ({ticker}) {direction} {abs(change_pct):.1f}%"
-- Explica el PORQUÉ del movimiento en términos simples usando las noticias. Si no hay noticias, explica el contexto del sector.
-- Si el usuario tiene posición, menciona cuánto ganó/perdió hoy en dólares.
-- Tono: como un amigo que te explica qué pasó, sin términos técnicos complicados
-- Máximo 220 caracteres
+- Si conoces el nombre completo de la empresa para "{ticker}", úsalo. Si no, usa solo "{ticker}".
+- Empieza con: "Hoy [nombre] ({ticker}) {direction} {abs(change_pct):.1f}%"
+- Explica el PORQUÉ en 1 oración simple usando las noticias. Si no hay noticias, deduce el contexto del sector o la empresa.
+- Tono: como un amigo explicándote qué pasó, sin jerga financiera
+- Máximo 180 caracteres
 - Sin emojis, sin mencionar Nuvos AI
-- Solo el body, nada más"""
+- Solo el texto, nada más"""
 
     try:
         client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
         resp   = await asyncio.wait_for(
             client.messages.create(
                 model=settings.claude_model,
-                max_tokens=180,
+                max_tokens=160,
                 messages=[{"role": "user", "content": prompt}],
             ),
             timeout=8.0,
         )
-        body = resp.content[0].text.strip().strip('"').strip("'")
-        if len(body) > 250:
-            body = body[:247] + "..."
+        why = resp.content[0].text.strip().strip('"').strip("'")
+        if len(why) > 200:
+            why = why[:197] + "..."
+        return why
     except Exception as e:
-        logger.warning("Claude price alert push failed for %s: %s", ticker, e)
-        body = f"{company} ({ticker}) {verb} {abs(change_pct):.1f}% a ${price:.2f}"
-        if dollar_delta and position_value:
-            body += f". {gained_lost.capitalize()} ~${dollar_delta:,.0f} hoy."
-
-    emoji = "📉" if change_pct <= -5 else "🔻" if change_pct < 0 else "🚀" if change_pct >= 5 else "📈"
-    title = f"{emoji} {ticker} {change_pct:+.1f}% hoy"
-    return title, body
+        logger.warning("Claude price alert why failed for %s: %s", ticker, e)
+        verb = "cayó" if change_pct < 0 else "subió"
+        return f"{ticker} {verb} {abs(change_pct):.1f}% a ${price:.2f} hoy."
 
 
 async def job_events_alerts():
