@@ -29,6 +29,7 @@ import {
   PieChart, Menu, X, Upload, Plus, Trash2,
   BarChart, Calculator, Shield, Sparkles, RefreshCw, AlertTriangle, FileText, Pencil, Eye,
   Cloud, CloudOff, Check, BarChart2, TrendingUp, TrendingDown, GraduationCap, CheckSquare, Bell, Users, Share2,
+  ChevronDown, ChevronUp,
 } from "lucide-react";
 
 // ─── Stress Test data ──────────────────────────────────────────────────────
@@ -643,6 +644,7 @@ export default function PortfolioPage() {
 
   // Currency picker
   const [showCurrencyPicker, setShowCurrencyPicker] = useState(false);
+  const [showImportSteps, setShowImportSteps] = useState(false);
 
   // Edit position modal
   const [editingPos, setEditingPos] = useState<{ id: string; shares: string; avgPrice: string; purchaseDate: string } | null>(null);
@@ -1237,6 +1239,38 @@ export default function PortfolioPage() {
                   style={{ color: "#ef4444", background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.2)" }}>
                   <Trash2 className="w-3 h-3" /> Vaciar
                 </button>
+              )}
+            </div>
+
+            {/* Pasos para importar portafolio por captura */}
+            <div className="mb-3 rounded-2xl overflow-hidden" style={{ border: "1px solid var(--border)", background: "var(--card)" }}>
+              <button
+                onClick={() => setShowImportSteps(v => !v)}
+                className="w-full flex items-center justify-between px-3 py-2.5 text-left transition-colors"
+                style={{ background: "transparent" }}>
+                <span className="text-xs font-bold" style={{ color: "var(--muted)" }}>¿Cómo importar tu portafolio por captura?</span>
+                {showImportSteps
+                  ? <ChevronUp className="w-3.5 h-3.5 shrink-0" style={{ color: "var(--muted)" }} />
+                  : <ChevronDown className="w-3.5 h-3.5 shrink-0" style={{ color: "var(--muted)" }} />}
+              </button>
+              {showImportSteps && (
+                <div className="px-3 pb-3" style={{ borderTop: "1px solid var(--border)" }}>
+                  {[
+                    "Ve a tu broker (Robinhood, IBKR, Schwab, etc.)",
+                    "Ingresa a la sección de tu portafolio",
+                    "Toma una captura de pantalla de todas tus posiciones",
+                    'Toca "Importar captura" aquí en Nuvos AI y selecciona la imagen',
+                    "¡Listo! Tu portafolio quedará sincronizado en todos tus dispositivos",
+                  ].map((step, i) => (
+                    <div key={i} className="flex items-start gap-2.5 pt-2.5">
+                      <div className="w-5 h-5 rounded-full flex items-center justify-center shrink-0 mt-px"
+                           style={{ background: "rgba(0,212,126,0.15)", color: "#00d47e" }}>
+                        <span className="text-[10px] font-black">{i + 1}</span>
+                      </div>
+                      <p className="text-xs leading-snug" style={{ color: "var(--text)" }}>{step}</p>
+                    </div>
+                  ))}
+                </div>
               )}
             </div>
 

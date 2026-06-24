@@ -648,6 +648,7 @@ export default function PortfolioScreen() {
   const [priceError, setPriceError] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [fxRate, setFxRate] = useState(1);
+  const [showImportSteps, setShowImportSteps] = useState(false);
 
   // Currency symbol for display
   const currencySymbol = portfolioCurrency === "USD" ? "$"
@@ -1306,6 +1307,35 @@ export default function PortfolioScreen() {
               </TouchableOpacity>
             )}
           </View>
+        </View>
+
+        {/* ── Pasos para importar portafolio por captura ── */}
+        <View style={{ borderRadius: 14, overflow: "hidden", borderWidth: 1, borderColor: colors.border, marginBottom: 12 }}>
+          <TouchableOpacity
+            onPress={() => setShowImportSteps(v => !v)}
+            activeOpacity={0.7}
+            style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 12, paddingVertical: 10 }}>
+            <Text style={{ fontSize: 11, fontWeight: "700", color: colors.textMuted }}>¿Cómo importar tu portafolio por captura?</Text>
+            <Ionicons name={showImportSteps ? "chevron-up" : "chevron-down"} size={14} color={colors.textMuted} />
+          </TouchableOpacity>
+          {showImportSteps && (
+            <View style={{ paddingHorizontal: 12, paddingBottom: 12, borderTopWidth: 1, borderTopColor: colors.border }}>
+              {[
+                "Ve a tu broker (Robinhood, IBKR, Schwab, etc.)",
+                "Ingresa a la sección de tu portafolio",
+                "Toma una captura de pantalla de todas tus posiciones",
+                'Toca "Importar captura" aquí en Nuvos AI y selecciona la imagen',
+                "¡Listo! Tu portafolio quedará sincronizado en todos tus dispositivos",
+              ].map((step, i) => (
+                <View key={i} style={{ flexDirection: "row", alignItems: "flex-start", gap: 8, marginTop: 10 }}>
+                  <View style={{ width: 20, height: 20, borderRadius: 10, backgroundColor: "rgba(0,212,126,0.15)", alignItems: "center", justifyContent: "center" }}>
+                    <Text style={{ fontSize: 10, fontWeight: "900", color: "#00d47e" }}>{i + 1}</Text>
+                  </View>
+                  <Text style={{ fontSize: 12, color: colors.text, flex: 1, lineHeight: 17 }}>{step}</Text>
+                </View>
+              ))}
+            </View>
+          )}
         </View>
 
         {/* ── Botones principales: Agregar posición + Importar captura ── */}
