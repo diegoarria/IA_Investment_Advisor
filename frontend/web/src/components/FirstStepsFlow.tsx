@@ -3,10 +3,14 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Plus, TrendingUp, MessageSquare, X, ChevronRight, ExternalLink, Clock } from "lucide-react";
+import { useAuthStore } from "@/lib/store";
 
 const STORAGE_KEY        = "nuvos_first_steps_active";
 const UPSELL_SEEN_KEY    = "nuvos_broker_upsell_seen_at";
 const UPSELL_DURATION_MS = 24 * 60 * 60 * 1000; // 24 h
+
+// Preview gate — broker step visible only to this UID while in testing
+const BROKER_PREVIEW_UID = "86961402-9072-4670-9f73-b2aa91930b04";
 
 // Country → broker list
 const BROKERS: Record<string, { label: string; items: string[] }> = {
@@ -45,7 +49,8 @@ const BASE_STEPS = [
   },
 ] as const;
 
-const TOTAL_STEPS = BASE_STEPS.length + 1; // +1 for broker step
+// Broker step only counts toward total for users who can see it
+const TOTAL_STEPS = BASE_STEPS.length + 1;
 
 interface Props {
   onOpenAddPosition: () => void;
@@ -60,6 +65,7 @@ function fmt(ms: number) {
 
 export default function FirstStepsFlow({ onOpenAddPosition }: Props) {
   const router = useRouter();
+  const userId = useAuthStore((s) => s.userId);
   const [active, setActive]           = useState(false);
   const [step, setStep]               = useState(0);
   const [showUpsell, setShowUpsell]   = useState(false);
@@ -68,10 +74,15 @@ export default function FirstStepsFlow({ onOpenAddPosition }: Props) {
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
-    if (typeof window !== "undefined" && localStorage.getItem(STORAGE_KEY) === "1") {
+    if (typeof window === "undefined") return;
+    if (localStorage.getItem(STORAGE_KEY) === "1") {
+      setActive(true);
+    } else if (userId === BROKER_PREVIEW_UID) {
+      // Show broker step directly for preview UID
+      setStep(3);
       setActive(true);
     }
-  }, []);
+  }, [userId]);
 
   // Detect country via IP (only when broker step becomes visible)
   useEffect(() => {

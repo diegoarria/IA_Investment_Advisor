@@ -22,6 +22,7 @@ import StockAvatar from "../../src/components/StockAvatar";
 import MobileOnboardingChecklist, { type OnboardingStep } from "../../src/components/MobileOnboardingChecklist";
 import MobileHomeScreenPickerModal, { HOME_SCREEN_KEY } from "../../src/components/MobileHomeScreenPickerModal";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as SecureStore from "expo-secure-store";
 
 // ── Sparkline helpers ─────────────────────────────────────────────────────────
 function sparkPath(prices: number[], w: number, h: number, close = false): string {
@@ -356,6 +357,8 @@ export default function HomeScreen() {
   const [loading,    setLoading]   = useState(true);
   const [ytdGain,    setYtdGain]   = useState<number | null>(null);
   const [ytdPct,     setYtdPct]    = useState<number | null>(null);
+  const BROKER_PREVIEW_UID = "86961402-9072-4670-9f73-b2aa91930b04";
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [showGoalModal, setShowGoalModal] = useState(false);
   const [showScreenPicker, setShowScreenPicker] = useState(false);
   const [showBrokerModal, setShowBrokerModal] = useState(false);
@@ -404,6 +407,10 @@ export default function HomeScreen() {
     const s = Math.floor((ms % 60_000) / 1_000);
     return `${String(h).padStart(2,"0")}:${String(m).padStart(2,"0")}:${String(s).padStart(2,"0")}`;
   };
+
+  useEffect(() => {
+    SecureStore.getItemAsync("user_id").then(id => { if (id) setCurrentUserId(id); });
+  }, []);
 
   useEffect(() => {
     if (!showBrokerUpsell) return;
@@ -644,7 +651,7 @@ export default function HomeScreen() {
     { emoji: "🤖", title: "Habla con Nuvos por primera vez",  description: "Pregunta cualquier cosa sobre inversiones",        completed: hasChatted },
     { emoji: "📚", title: "Completa tu primera lección",      description: "Empieza tu racha de aprendizaje diario",          completed: streak > 0 },
     { emoji: "👀", title: "Agrega una acción a tu watchlist", description: "Monitorea empresas que te interesan",             completed: watchlistItems.length > 0 },
-    { emoji: "🏦", title: "Abre tu cuenta en un broker",     description: "Invierte de verdad — te sugerimos el ideal para ti", completed: false },
+    { emoji: "🏦", title: "Abre tu cuenta en un broker",     description: "Invierte de verdad — te sugerimos el ideal para ti", completed: currentUserId !== BROKER_PREVIEW_UID },
   ];
   const allOnboardingDone = onboardingSteps.every((s) => s.completed);
 
