@@ -2121,29 +2121,37 @@ async def job_annual_scoreboard():
 
 
 async def _backfill_notification_prefs():
-    """Insert default notification_preferences for every user who doesn't have a row.
-    Called once on worker startup so job_portfolio_alerts can find all users."""
+    """Insert default prefs for users who don't have a row, and bump the daily
+    push cap for existing users who still have the old limit of 5."""
     from app.core.database import get_supabase, run_query
     from app.api.routes.notification_settings import _DEFAULT_PREFS
     try:
         db = get_supabase()
-        # All user_ids that already have prefs
-        existing = await run_query(db.table("notification_preferences").select("user_id"))
-        existing_ids = {r["user_id"] for r in (existing.data or [])}
+        existing = await run_query(db.table("notification_preferences").select("user_id,max_push_per_day"))
+        existing_rows = existing.data or []
+        existing_ids  = {r["user_id"] for r in existing_rows}
 
-        # All user_ids from profiles
         all_users = await run_query(db.table("user_profiles").select("user_id"))
         missing = [r["user_id"] for r in (all_users.data or []) if r["user_id"] not in existing_ids]
 
-        if not missing:
+        if missing:
+            rows = [{**_DEFAULT_PREFS, "user_id": uid} for uid in missing]
+            for i in range(0, len(rows), 100):
+                await run_query(db.table("notification_preferences").insert(rows[i:i+100]))
+            logger.info("Notification prefs backfill: inserted %d rows", len(missing))
+        else:
             logger.info("Notification prefs backfill: all users already have a row")
-            return
 
-        rows = [{**_DEFAULT_PREFS, "user_id": uid} for uid in missing]
-        # Insert in batches of 100 to avoid request size limits
-        for i in range(0, len(rows), 100):
-            await run_query(db.table("notification_preferences").insert(rows[i:i+100]))
-        logger.info("Notification prefs backfill: inserted %d rows", len(missing))
+        # Bump cap from old default (5) to new default (15) for existing users
+        stale = [r["user_id"] for r in existing_rows if (r.get("max_push_per_day") or 0) < 15]
+        if stale:
+            for uid in stale:
+                await run_query(
+                    db.table("notification_preferences")
+                    .update({"max_push_per_day": 15, "max_push_per_week": 60})
+                    .eq("user_id", uid)
+                )
+            logger.info("Notification prefs backfill: bumped push cap for %d users", len(stale))
     except Exception as e:
         logger.warning("Notification prefs backfill failed: %s", e)
 
