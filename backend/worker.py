@@ -1379,70 +1379,13 @@ REGLAS:
 
 
 def _fetch_ticker_news(ticker: str) -> list[str]:
-    """Fetch up to 3 recent news headlines for a ticker to explain price moves."""
-    try:
-        import yfinance as yf
-        news = yf.Ticker(ticker).news or []
-        headlines = []
-        for item in news[:6]:
-            title = (item.get("title") or item.get("headline") or "").strip()
-            if title and len(title) > 10:
-                headlines.append(title)
-            if len(headlines) >= 3:
-                break
-        return headlines
-    except Exception:
-        return []
+    from app.services.price_alert_service import fetch_ticker_news
+    return fetch_ticker_news(ticker)
 
 
-async def _generate_price_alert_why(
-    ticker: str,
-    change_pct: float,
-    price: float,
-    news_headlines: list[str],
-) -> str:
-    """Generate the WHY explanation for a price move — called ONCE per ticker,
-    shared across all users. Returns a body string without position-specific data."""
-    import anthropic
-
-    direction = "está cayendo" if change_pct < 0 else "está subiendo"
-    news_str  = "\n".join(f"- {h}" for h in news_headlines) if news_headlines else ""
-
-    prompt = f"""Eres el asistente de Nuvos AI. Escribe el body de una notificación push en español.
-
-DATOS:
-- Ticker: {ticker}
-- Movimiento: {change_pct:+.2f}% hoy, precio actual ${price:.2f}
-- Noticias recientes:
-{news_str or "Sin noticias recientes disponibles."}
-
-INSTRUCCIONES:
-- Si conoces el nombre completo de la empresa para "{ticker}", úsalo. Si no, usa solo "{ticker}".
-- Empieza con: "Hoy [nombre] ({ticker}) {direction} {abs(change_pct):.1f}%"
-- Explica el PORQUÉ en 1 oración simple usando las noticias. Si no hay noticias, deduce el contexto del sector o la empresa.
-- Tono: como un amigo explicándote qué pasó, sin jerga financiera
-- Máximo 180 caracteres
-- Sin emojis, sin mencionar Nuvos AI
-- Solo el texto, nada más"""
-
-    try:
-        client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
-        resp   = await asyncio.wait_for(
-            client.messages.create(
-                model=settings.claude_model,
-                max_tokens=160,
-                messages=[{"role": "user", "content": prompt}],
-            ),
-            timeout=8.0,
-        )
-        why = resp.content[0].text.strip().strip('"').strip("'")
-        if len(why) > 200:
-            why = why[:197] + "..."
-        return why
-    except Exception as e:
-        logger.warning("Claude price alert why failed for %s: %s", ticker, e)
-        verb = "cayó" if change_pct < 0 else "subió"
-        return f"{ticker} {verb} {abs(change_pct):.1f}% a ${price:.2f} hoy."
+async def _generate_price_alert_why(ticker: str, change_pct: float, price: float, news_headlines: list[str]) -> str:
+    from app.services.price_alert_service import generate_price_alert_why
+    return await generate_price_alert_why(ticker, change_pct, price, news_headlines)
 
 
 async def job_events_alerts():
