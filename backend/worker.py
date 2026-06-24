@@ -515,6 +515,36 @@ def _finnhub_quote(symbol: str) -> dict | None:
     return None
 
 
+def _finnhub_dividend_amount(ticker: str) -> float | None:
+    """Return the most recent declared dividend per share for a ticker via Finnhub.
+    Uses /stock/dividend2 which has exact per-payment amounts (not annual rate ÷ 4).
+    Falls back to None if unavailable or ticker doesn't pay dividends."""
+    import requests as _req
+    from datetime import date, timedelta
+    key = os.getenv("FINNHUB_API_KEY", "")
+    if not key:
+        return None
+    try:
+        today     = date.today()
+        from_date = (today - timedelta(days=180)).strftime("%Y-%m-%d")
+        to_date   = (today + timedelta(days=180)).strftime("%Y-%m-%d")
+        r = _req.get(
+            "https://finnhub.io/api/v1/stock/dividend2",
+            params={"symbol": ticker, "from": from_date, "to": to_date, "token": key},
+            timeout=8,
+        )
+        data = r.json()
+        divs = data.get("data") or []
+        if not divs:
+            return None
+        # Sort by exDate descending, return most recent amount
+        divs_sorted = sorted(divs, key=lambda d: d.get("exDate", ""), reverse=True)
+        amount = divs_sorted[0].get("amount")
+        return float(amount) if amount is not None else None
+    except Exception:
+        return None
+
+
 async def job_market_open():
     """9:30 AM ET weekdays — personalized open alert for ALL users.
     Uses SPY/QQQ as S&P 500/Nasdaq proxies (^GSPC/^IXIC blocked on Railway).
@@ -1735,42 +1765,46 @@ async def job_events_alerts():
                             avg_cost     = avg_cost if is_portfolio else None,
                         )
 
-                    elif event_type == "ex_dividend":
+                    elif event_type in ("ex_dividend", "dividend"):
                         is_portfolio = ticker in port_tickers
-                        amt          = evt.get("dividend_amount")
                         pos          = positions_map.get(ticker, {})
                         shares_held  = float(pos.get("shares") or 0) if is_portfolio else 0.0
-                        title        = f"✂️ Ex-Dividendo: {ticker}"
-                        if amt and shares_held:
-                            pago = shares_held * float(amt)
-                            body = (
-                                f"Fecha ex-dividendo de {ticker} es {when}. "
-                                f"Tienes {shares_held:.4f} acciones — "
-                                f"tu pago estimado: ${pago:.2f} USD (${float(amt):.4f}/acción)."
-                            )
-                        elif amt:
-                            body = f"Fecha ex-dividendo de {ticker} es {when}. ${float(amt):.4f}/acción."
+
+                        # Use Finnhub for exact per-share amount (accurate for any pay frequency)
+                        # Fall back to Yahoo-derived estimate only if Finnhub has nothing
+                        amt = await asyncio.to_thread(_finnhub_dividend_amount, ticker)
+                        if amt is None:
+                            raw_amt = evt.get("dividend_amount")
+                            amt = float(raw_amt) if raw_amt else None
+
+                        if event_type == "ex_dividend":
+                            title    = f"✂️ Ex-Dividendo: {ticker}"
+                            category = "ex_dividend"
+                            if amt and shares_held:
+                                pago = shares_held * amt
+                                body = (
+                                    f"Fecha ex-dividendo de {ticker} es {when}. "
+                                    f"Tienes {shares_held:.4f} acciones — "
+                                    f"tu pago estimado: ${pago:.2f} USD (${amt:.4f}/acción)."
+                                )
+                            elif amt:
+                                body = f"Fecha ex-dividendo de {ticker} es {when}. ${amt:.4f}/acción."
+                            else:
+                                body = f"Fecha ex-dividendo de {ticker} es {when}."
                         else:
-                            body = f"Fecha ex-dividendo de {ticker} es {when}."
-                        category = "ex_dividend"
-                    elif event_type == "dividend":
-                        is_portfolio = ticker in port_tickers
-                        amt          = evt.get("dividend_amount")
-                        pos          = positions_map.get(ticker, {})
-                        shares_held  = float(pos.get("shares") or 0) if is_portfolio else 0.0
-                        title        = f"💰 Pago de Dividendo: {ticker}"
-                        if amt and shares_held:
-                            pago = shares_held * float(amt)
-                            body = (
-                                f"{ticker} paga dividendo {when}. "
-                                f"Con tus {shares_held:.4f} acciones recibirás "
-                                f"${pago:.2f} USD (${float(amt):.4f}/acción)."
-                            )
-                        elif amt:
-                            body = f"{ticker} paga dividendo {when}. ${float(amt):.4f}/acción."
-                        else:
-                            body = f"{ticker} paga dividendo {when}."
-                        category = "dividend_payment"
+                            title    = f"💰 Pago de Dividendo: {ticker}"
+                            category = "dividend_payment"
+                            if amt and shares_held:
+                                pago = shares_held * amt
+                                body = (
+                                    f"{ticker} paga dividendo {when}. "
+                                    f"Con tus {shares_held:.4f} acciones recibirás "
+                                    f"${pago:.2f} USD (${amt:.4f}/acción)."
+                                )
+                            elif amt:
+                                body = f"{ticker} paga dividendo {when}. ${amt:.4f}/acción."
+                            else:
+                                body = f"{ticker} paga dividendo {when}."
                     else:
                         continue
 
