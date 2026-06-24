@@ -498,6 +498,10 @@ async def trigger_market_close_email(
     )
     await send_email_notification(user_id, "market_close_test", subject, html, db)
 
+    tickers_in_portfolio = [p["ticker"] for p in positions if p.get("ticker")]
+    tickers_with_price   = [t for t in tickers_in_portfolio if t in all_prices]
+    tickers_missing      = [t for t in tickers_in_portfolio if t not in all_prices]
+
     return {
         "ok": True,
         "push_title": push_title,
@@ -507,4 +511,7 @@ async def trigger_market_close_email(
         "nasdaq_pct": nasdaq_pct,
         "user_pct": user_pct,
         "positions_count": len(positions),
+        "tickers_in_portfolio": tickers_in_portfolio,
+        "tickers_with_price": tickers_with_price,
+        "tickers_missing_price": tickers_missing,
     }
