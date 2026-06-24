@@ -166,17 +166,20 @@ async def admin_send_notification(
     """Admin-only: send a custom push notification to yourself."""
     if user_id != _ADMIN_UID:
         raise HTTPException(status_code=403, detail="Admin only")
-    from app.services.notification_engine import send_push
+    from app.services.push_service import send_push as expo_push
+    from app.core.database import run_query
     db = get_supabase()
-    await send_push(
-        user_id,
-        body.get("category", "admin_test"),
-        body.get("title", "Test"),
-        body.get("body", ""),
-        body.get("data", {}),
-        db,
+    tok_res = await run_query(db.table("user_profiles").select("push_token").eq("user_id", user_id))
+    token = (tok_res.data[0].get("push_token") or "") if tok_res.data else ""
+    if not token:
+        return {"ok": False, "error": "no push token"}
+    await expo_push(
+        token,
+        title=body.get("title", "Test"),
+        body=body.get("body", ""),
+        data=body.get("data", {}),
     )
-    return {"ok": True}
+    return {"ok": True, "token": token[:30] + "..."}
 
 
 @router.post("/notifications/send-test")
