@@ -670,11 +670,13 @@ async def job_market_close():
 
 
 async def _generate_daily_ai_summary(tickers_with_moves: list[dict], sp_pct: float | None, nq_pct: float | None) -> str:
-    """Claude Haiku: 2-3 sentence summary of the day's key events for the user's positions."""
+    """Claude: 2-3 sentence market close summary with real news context."""
     if not tickers_with_moves:
         return ""
     try:
         import anthropic
+        from app.services.price_alert_service import fetch_ticker_news
+
         moves_str = "\n".join(
             f"- {x['ticker']}: {x['day_pct']:+.2f}% hoy"
             for x in sorted(tickers_with_moves, key=lambda x: abs(x["day_pct"]), reverse=True)[:6]
@@ -683,29 +685,41 @@ async def _generate_daily_ai_summary(tickers_with_moves: list[dict], sp_pct: flo
         if sp_pct is not None and nq_pct is not None:
             market_str = f"S&P 500: {sp_pct:+.2f}%, Nasdaq: {nq_pct:+.2f}%"
 
-        prompt = f"""Eres un analista financiero para inversores latinoamericanos.
-Genera un resumen del cierre del mercado de HOY en máximo 3 oraciones cortas.
+        # Fetch news for top 3 movers to give Claude real context
+        top_movers = sorted(tickers_with_moves, key=lambda x: abs(x["day_pct"]), reverse=True)[:3]
+        news_lines = []
+        for m in top_movers:
+            headlines = await asyncio.to_thread(fetch_ticker_news, m["ticker"])
+            for h in headlines[:2]:
+                news_lines.append(f"- [{m['ticker']}] {h}")
+        news_str = "\n".join(news_lines) if news_lines else "Sin noticias disponibles."
 
-Movimientos del portafolio del usuario:
+        prompt = f"""Eres un analista financiero para inversores latinoamericanos.
+Genera un resumen del cierre del mercado de HOY. Máximo 3 oraciones.
+
+Índices: {market_str}
+
+Movimientos del portafolio:
 {moves_str}
 
-Índices del mercado hoy: {market_str}
+Noticias relevantes del día:
+{news_str}
 
 Instrucciones:
-- Empieza mencionando la tendencia general del día
-- Menciona el mayor movimiento positivo y/o negativo del portafolio con su causa si la conoces
-- Termina con una perspectiva muy breve
-- Español, tono profesional pero accesible
-- Máximo 3 oraciones, sin viñetas"""
+- Explica QUÉ PASÓ hoy en el mercado usando las noticias (Fed, resultados, geopolítica, macro, etc.)
+- Menciona el mayor movimiento del portafolio y su causa
+- Termina con una perspectiva breve para mañana
+- Español, tono de analista amigable
+- Máximo 3 oraciones seguidas, sin viñetas, sin asteriscos"""
 
         client = anthropic.AsyncAnthropic()
         resp = await asyncio.wait_for(
             client.messages.create(
                 model="claude-haiku-4-5-20251001",
-                max_tokens=200,
+                max_tokens=250,
                 messages=[{"role": "user", "content": prompt}],
             ),
-            timeout=10,
+            timeout=12,
         )
         return (resp.content[0].text or "").strip()
     except Exception:
@@ -740,11 +754,14 @@ async def job_daily_email():
         sp_px   = index_raw.get("^GSPC", {}).get("curr")
         nq_px   = index_raw.get("^IXIC", {}).get("curr")
 
-        # ── 2. All users with email_daily_summary enabled ─────────────────────
+        # ── 2. All users with portfolio data, excluding explicit opt-outs ────────
         prefs_res = await run_query(
-            db.table("notification_preferences").select("user_id").eq("email_daily_summary", True)
+            db.table("notification_preferences").select("user_id,email_daily_summary")
         )
-        opted_ids = [u["user_id"] for u in (prefs_res.data or [])]
+        disabled = {p["user_id"] for p in (prefs_res.data or []) if p.get("email_daily_summary") is False}
+
+        port_uid_res = await run_query(db.table("user_portfolio").select("user_id"))
+        opted_ids = [r["user_id"] for r in (port_uid_res.data or []) if r["user_id"] not in disabled]
         if not opted_ids:
             return
 
