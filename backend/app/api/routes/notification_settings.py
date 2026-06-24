@@ -531,6 +531,199 @@ class EarningsTestPayload(BaseModel):
     rev_estimate_b: float | None = None
 
 
+def _get_pos_field(pos: dict, *keys: str) -> float:
+    """Read a field from a position dict supporting both camelCase and snake_case keys."""
+    for k in keys:
+        v = pos.get(k)
+        if v is not None:
+            return float(v)
+    return 0.0
+
+
+def _finnhub_current_price(ticker: str) -> float | None:
+    """Fetch real-time price from Finnhub /quote."""
+    import os, requests as req_lib
+    key = os.getenv("FINNHUB_API_KEY", "")
+    if not key:
+        return None
+    try:
+        r = req_lib.get(
+            "https://finnhub.io/api/v1/quote",
+            params={"symbol": ticker, "token": key},
+            timeout=8,
+        )
+        data = r.json()
+        price = data.get("c")
+        return float(price) if price else None
+    except Exception:
+        return None
+
+
+async def _earnings_ai_summary(
+    ticker: str,
+    eps_actual: float,
+    eps_estimate: float,
+    beat: bool,
+    beat_pct: float | None,
+    rev_actual_b: float | None,
+    rev_estimate_b: float | None,
+    shares: float | None,
+    cost_basis: float | None,
+    current_value: float | None,
+    unrealized_pct: float | None,
+) -> str:
+    """Generate a 2-3 sentence AI summary of earnings impact in Spanish."""
+    from app.core.config import settings
+    import anthropic as _anthropic
+
+    if not settings.anthropic_api_key:
+        return ""
+
+    beat_str  = f"superó (+{beat_pct:.1f}%)" if beat and beat_pct else "no alcanzó"
+    rev_str   = (f" Los ingresos fueron ${rev_actual_b:.2f}B vs ${rev_estimate_b:.2f}B est." if rev_actual_b and rev_estimate_b else "")
+    pos_str   = (f" El inversor tiene {shares:.4f} acciones con un valor actual de ${current_value:,.2f} ({unrealized_pct:+.1f}% vs costo promedio)." if shares and current_value and unrealized_pct is not None else "")
+
+    prompt = (
+        f"{ticker} {beat_str} el consenso de EPS: reportó ${eps_actual:.2f} vs ${eps_estimate:.2f} estimado.{rev_str}{pos_str}\n\n"
+        "Escribe en español un análisis breve (2-3 oraciones) explicando qué significa esto para el inversor: "
+        "¿es un resultado positivo o negativo, qué lo impulsó probablemente, y qué podría implicar para la acción? "
+        "Sé específico, conciso y usa lenguaje financiero claro. No uses markdown."
+    )
+
+    try:
+        client = _anthropic.Anthropic(api_key=settings.anthropic_api_key)
+        msg = await asyncio.to_thread(
+            client.messages.create,
+            model="claude-haiku-4-5-20251001",
+            max_tokens=220,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        return msg.content[0].text.strip()
+    except Exception:
+        return ""
+
+
+def _build_earnings_email(
+    first: str,
+    ticker: str,
+    push_title: str,
+    eps_actual: float,
+    eps_estimate: float,
+    beat: bool,
+    beat_pct: float | None,
+    rev_actual_b: float | None,
+    rev_estimate_b: float | None,
+    hour: str,
+    # position data (all optional)
+    shares: float | None,
+    avg_px: float | None,
+    current_px: float | None,
+    cost_basis: float | None,
+    current_value: float | None,
+    unrealized_pnl: float | None,
+    unrealized_pct: float | None,
+    ai_summary: str,
+) -> str:
+    accent = "#22c55e" if beat else "#ef4444"
+    timing = "Pre-market" if hour == "BMO" else "After-hours"
+
+    # Position block HTML
+    pos_html = ""
+    if shares and avg_px:
+        gain_color = "#22c55e" if (unrealized_pct or 0) >= 0 else "#ef4444"
+        gain_sign  = "+" if (unrealized_pct or 0) >= 0 else ""
+        pos_html = f"""
+        <div style="background:#141414;border:1px solid #2a2a2a;border-radius:10px;padding:18px;margin:20px 0">
+          <p style="margin:0 0 12px;color:#999;font-size:12px;text-transform:uppercase;letter-spacing:.08em">Tu posición en {ticker}</p>
+          <div style="display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:8px">
+            <div>
+              <p style="margin:0;font-size:28px;font-weight:800;color:#fff">{shares:.4f} <span style="font-size:14px;font-weight:400;color:#666">acciones</span></p>
+              {'<p style="margin:4px 0 0;font-size:13px;color:#666">Precio actual: $' + f'{current_px:,.2f}' + '</p>' if current_px else ''}
+            </div>
+            <div style="text-align:right">
+              <p style="margin:0;font-size:22px;font-weight:700;color:#fff">${current_value:,.2f}</p>
+              <p style="margin:4px 0 0;font-size:13px;color:{gain_color}">{gain_sign}{unrealized_pnl:,.2f} ({gain_sign}{unrealized_pct:.1f}%)</p>
+            </div>
+          </div>
+          <div style="display:flex;gap:24px;margin-top:14px;padding-top:14px;border-top:1px solid #2a2a2a">
+            <div><p style="margin:0;color:#666;font-size:11px">PRECIO PROMEDIO</p><p style="margin:4px 0 0;font-size:14px;font-weight:600">${avg_px:,.2f}</p></div>
+            <div><p style="margin:0;color:#666;font-size:11px">COSTO TOTAL</p><p style="margin:4px 0 0;font-size:14px;font-weight:600">${cost_basis:,.2f}</p></div>
+          </div>
+        </div>"""
+
+    # AI insight block
+    ai_html = ""
+    if ai_summary:
+        ai_html = f"""
+        <div style="background:#0d1f17;border:1px solid #1a3a28;border-radius:10px;padding:16px;margin:16px 0">
+          <p style="margin:0 0 8px;color:#4ade80;font-size:11px;text-transform:uppercase;letter-spacing:.08em">✦ Análisis Nuvos AI</p>
+          <p style="margin:0;color:#d1fae5;font-size:14px;line-height:1.6">{ai_summary}</p>
+        </div>"""
+
+    rev_row = ""
+    if rev_actual_b and rev_estimate_b:
+        rev_beat     = rev_actual_b >= rev_estimate_b
+        rev_color    = "#22c55e" if rev_beat else "#ef4444"
+        rev_diff_pct = round((rev_actual_b - rev_estimate_b) / rev_estimate_b * 100, 1)
+        rev_sign     = "+" if rev_diff_pct >= 0 else ""
+        rev_row = f"""
+        <tr style="border-bottom:1px solid #222">
+          <td style="padding:10px 0;color:#888;font-size:13px">Ingresos</td>
+          <td style="padding:10px 0;text-align:right;font-size:13px">${rev_actual_b:.2f}B <span style="color:#555">vs ${rev_estimate_b:.2f}B est.</span></td>
+          <td style="padding:10px 0;text-align:right;color:{rev_color};font-size:13px;padding-left:12px">{rev_sign}{rev_diff_pct:.1f}%</td>
+        </tr>"""
+
+    beat_pct_str = f"+{beat_pct:.1f}%" if beat and beat_pct else (f"{beat_pct:.1f}%" if beat_pct else "")
+
+    return f"""<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#0a0a0a;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">
+<div style="max-width:580px;margin:0 auto;padding:24px 16px">
+
+  <!-- Header -->
+  <div style="text-align:center;padding:28px 24px;background:linear-gradient(135deg,#0f1f0f,#111);border:1px solid #1e3a1e;border-radius:14px;margin-bottom:20px">
+    <p style="margin:0 0 6px;font-size:12px;color:#4ade80;letter-spacing:.12em;text-transform:uppercase">{timing} · Earnings Alert</p>
+    <h1 style="margin:0;font-size:32px;font-weight:900;color:#fff">{ticker}</h1>
+    <div style="display:inline-block;margin-top:10px;padding:6px 18px;background:{accent}22;border:1px solid {accent}44;border-radius:20px">
+      <span style="color:{accent};font-size:18px;font-weight:800">{'✅ Beat' if beat else '❌ Miss'}{f'  {beat_pct_str}' if beat_pct_str else ''}</span>
+    </div>
+  </div>
+
+  <!-- EPS Table -->
+  <div style="background:#111;border:1px solid #222;border-radius:10px;padding:16px 20px;margin-bottom:16px">
+    <p style="margin:0 0 12px;color:#666;font-size:11px;text-transform:uppercase;letter-spacing:.08em">Resultados del trimestre</p>
+    <table style="width:100%;border-collapse:collapse">
+      <tr style="border-bottom:1px solid #222">
+        <td style="padding:10px 0;color:#888;font-size:13px">EPS Reportado</td>
+        <td style="padding:10px 0;text-align:right;font-size:13px"></td>
+        <td style="padding:10px 0;text-align:right;font-size:20px;font-weight:800;color:{accent}">${eps_actual:.2f}</td>
+      </tr>
+      <tr style="border-bottom:1px solid #222">
+        <td style="padding:10px 0;color:#888;font-size:13px">Consenso analistas</td>
+        <td style="padding:10px 0;text-align:right;font-size:13px"></td>
+        <td style="padding:10px 0;text-align:right;font-size:15px;color:#aaa">${eps_estimate:.2f}</td>
+      </tr>
+      {rev_row}
+    </table>
+  </div>
+
+  <!-- Position block -->
+  {pos_html}
+
+  <!-- AI insight -->
+  {ai_html}
+
+  <!-- Footer -->
+  <p style="text-align:center;color:#333;font-size:11px;margin-top:28px">
+    Nuvos AI · {timing} Earnings · {ticker}<br>
+    <span style="color:#222">Hola {first}, este análisis es solo informativo.</span>
+  </p>
+</div>
+</body>
+</html>"""
+
+
 @router.post("/admin/trigger-earnings-test")
 async def trigger_earnings_test(
     body: EarningsTestPayload,
@@ -540,65 +733,75 @@ async def trigger_earnings_test(
     if user_id != _ADMIN_UID:
         raise HTTPException(status_code=403, detail="Admin only")
 
+    import asyncio, time
     from app.services.notification_engine import send_push, send_email_notification
 
-    db  = get_supabase()
+    db     = get_supabase()
     ticker = body.ticker.upper()
     beat   = body.eps_actual >= body.eps_estimate
+    beat_pct = round((body.eps_actual - body.eps_estimate) / abs(body.eps_estimate) * 100, 1) if body.eps_estimate else None
 
     result_emoji = "✅" if beat else "❌"
     result_word  = "Beat" if beat else "Miss"
     timing_tag   = " · Pre-market" if body.hour == "BMO" else " · After-hours"
+    push_title   = f"{ticker} {result_emoji} {result_word}{timing_tag}"
 
-    push_title = f"{ticker} {result_emoji} {result_word}{timing_tag}"
-
-    eps_str  = f"EPS ${body.eps_actual:.2f} vs ${body.eps_estimate:.2f} est."
-    push_body = eps_str
-
-    # Check if user has portfolio position for personalization
+    # ── Portfolio position ────────────────────────────────────────────────────
     port_res  = await run_query(db.table("user_portfolio").select("positions").eq("user_id", user_id))
-    positions = []
+    positions: list = []
     if port_res.data:
         raw = port_res.data[0].get("positions") or {}
         positions = raw.get("positions", []) if isinstance(raw, dict) else (raw if isinstance(raw, list) else [])
 
     pos_match = next((p for p in positions if p.get("ticker") == ticker), None)
-    if pos_match:
-        shares = float(pos_match.get("shares") or 0)
-        avg_px = float(pos_match.get("avg_price") or 0)
-        if shares and avg_px:
-            push_body += f" · Tienes {shares:.0f} acc. (${shares * avg_px:,.0f} en posición)"
 
-    # Push (bypass dedup with unique category)
-    import time
-    category = f"earnings_test_{ticker.lower()}_{int(time.time())}"
-    await send_push(user_id, category, push_title, push_body, {"ticker": ticker, "screen": "stock_detail"}, db)
+    shares       = _get_pos_field(pos_match, "shares")       if pos_match else None
+    avg_px       = _get_pos_field(pos_match, "avgPrice", "avg_price") if pos_match else None
+    cost_basis   = round(shares * avg_px, 2)                 if shares and avg_px else None
 
-    # Email
+    # Current price from Finnhub
+    current_px    = await asyncio.to_thread(_finnhub_current_price, ticker)
+    current_value = round(shares * current_px, 2) if shares and current_px else None
+    unrealized_pnl = round(current_value - cost_basis, 2)    if current_value and cost_basis else None
+    unrealized_pct = round(unrealized_pnl / cost_basis * 100, 1) if unrealized_pnl and cost_basis else None
+
+    # ── Push body (short, with position if available) ─────────────────────────
+    push_body = f"EPS ${body.eps_actual:.2f} vs ${body.eps_estimate:.2f} est."
+    if shares and current_value:
+        push_body += f" · {shares:.4f} acc. · ${current_value:,.2f} actual"
+    elif shares and avg_px and cost_basis:
+        push_body += f" · {shares:.4f} acc. · ${cost_basis:,.2f} invertido"
+
+    # ── AI summary ────────────────────────────────────────────────────────────
+    ai_summary = await _earnings_ai_summary(
+        ticker=ticker,
+        eps_actual=body.eps_actual, eps_estimate=body.eps_estimate,
+        beat=beat, beat_pct=beat_pct,
+        rev_actual_b=body.rev_actual_b, rev_estimate_b=body.rev_estimate_b,
+        shares=shares, cost_basis=cost_basis,
+        current_value=current_value, unrealized_pct=unrealized_pct,
+    )
+
+    # ── Profile name ──────────────────────────────────────────────────────────
     profile_res = await run_query(db.table("user_profiles").select("name").eq("user_id", user_id).single())
     first = ((profile_res.data or {}).get("name") or "Inversor").split()[0]
 
-    beat_pct = round((body.eps_actual - body.eps_estimate) / abs(body.eps_estimate) * 100, 1) if body.eps_estimate else None
-    html = f"""
-    <div style="font-family:sans-serif;max-width:600px;margin:auto;padding:24px;background:#0f0f0f;color:#e5e5e5;border-radius:12px">
-      <h2 style="color:#fff">{push_title}</h2>
-      <p style="font-size:18px">{ticker} acaba de reportar resultados</p>
-      <table style="width:100%;border-collapse:collapse;margin:16px 0">
-        <tr style="border-bottom:1px solid #333">
-          <td style="padding:10px 0;color:#999">EPS Reportado</td>
-          <td style="padding:10px 0;text-align:right;font-weight:bold;color:{'#22c55e' if beat else '#ef4444'}">${body.eps_actual:.2f}</td>
-        </tr>
-        <tr style="border-bottom:1px solid #333">
-          <td style="padding:10px 0;color:#999">EPS Estimado (consenso)</td>
-          <td style="padding:10px 0;text-align:right">${body.eps_estimate:.2f}</td>
-        </tr>
-        {'<tr style="border-bottom:1px solid #333"><td style="padding:10px 0;color:#999">Ingresos</td><td style="padding:10px 0;text-align:right">${:.2f}B vs ${:.2f}B est.</td></tr>'.format(body.rev_actual_b, body.rev_estimate_b) if body.rev_actual_b and body.rev_estimate_b else ''}
-        {'<tr><td style="padding:10px 0;color:#999">Vs. consenso</td><td style="padding:10px 0;text-align:right;color:#22c55e">+{:.1f}% beat</td></tr>'.format(beat_pct) if beat and beat_pct else ''}
-      </table>
-      {'<div style="background:#1a1a1a;border-radius:8px;padding:14px;margin-top:16px"><p style="margin:0;color:#999;font-size:13px">Tu posición en {}</p><p style="margin:4px 0 0;font-size:18px;font-weight:bold">{:.0f} acciones · ${:,.0f} en posición</p></div>'.format(ticker, pos_match.get("shares",0) if pos_match else 0, (pos_match.get("shares",0) or 0)*(pos_match.get("avg_price",0) or 0) if pos_match else 0) if pos_match else ''}
-      <p style="margin-top:24px;color:#666;font-size:12px">Nuvos AI · Earnings Alert · {body.hour}</p>
-    </div>
-    """
+    # ── Send push ─────────────────────────────────────────────────────────────
+    category = f"earnings_test_{ticker.lower()}_{int(time.time())}"
+    await send_push(user_id, category, push_title, push_body, {"ticker": ticker, "screen": "stock_detail"}, db)
+
+    # ── Send email ────────────────────────────────────────────────────────────
+    html = _build_earnings_email(
+        first=first, ticker=ticker, push_title=push_title,
+        eps_actual=body.eps_actual, eps_estimate=body.eps_estimate,
+        beat=beat, beat_pct=beat_pct,
+        rev_actual_b=body.rev_actual_b, rev_estimate_b=body.rev_estimate_b,
+        hour=body.hour,
+        shares=shares, avg_px=avg_px, current_px=current_px,
+        cost_basis=cost_basis, current_value=current_value,
+        unrealized_pnl=unrealized_pnl, unrealized_pct=unrealized_pct,
+        ai_summary=ai_summary,
+    )
     subject = f"{ticker} {result_emoji} {result_word} · EPS ${body.eps_actual:.2f} vs ${body.eps_estimate:.2f} est. — Nuvos AI"
     await send_email_notification(user_id, category, subject, html, db)
 
@@ -608,5 +811,12 @@ async def trigger_earnings_test(
         "push_body": push_body,
         "email_subject": subject,
         "beat": beat,
-        "has_position": pos_match is not None,
+        "beat_pct": beat_pct,
+        "shares": shares,
+        "avg_px": avg_px,
+        "current_px": current_px,
+        "cost_basis": cost_basis,
+        "current_value": current_value,
+        "unrealized_pct": unrealized_pct,
+        "ai_summary": ai_summary,
     }

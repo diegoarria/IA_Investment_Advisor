@@ -2062,11 +2062,11 @@ def _earnings_push_content(
     if is_premium and positions:
         pos_match = next((p for p in positions if p.get("ticker") == ticker), None)
         if pos_match:
-            shares = float(pos_match.get("shares", 0))
-            avg_px = float(pos_match.get("avg_price") or 0)
+            shares = float(pos_match.get("shares") or 0)
+            avg_px = float(pos_match.get("avgPrice") or pos_match.get("avg_price") or 0)
             if shares and avg_px:
                 cost_basis = shares * avg_px
-                parts.append(f"Tienes {shares:.0f} acc. (${cost_basis:,.0f} en posición)")
+                parts.append(f"Tienes {shares:.4f} acc. (${cost_basis:,.2f} invertido)")
 
     if is_watchlist and not any(p.get("ticker") == ticker for p in positions):
         parts.append("En tu watchlist")
