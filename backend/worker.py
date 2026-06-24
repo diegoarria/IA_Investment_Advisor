@@ -578,20 +578,32 @@ async def job_market_close():
     from app.services.notification_engine import send_push
     db = get_supabase()
     try:
-        # ── 1. Fetch S&P 500 and Nasdaq (single batch call) ───────────────────
-        index_prices = await _batch_fetch_prices(["^GSPC", "^IXIC"])
-        sp_px  = index_prices.get("^GSPC", {})
-        nq_px  = index_prices.get("^IXIC", {})
-        sp500_pct  = round((sp_px["curr"] - sp_px["prev"]) / sp_px["prev"] * 100, 2) if sp_px.get("prev") else None
-        nasdaq_pct = round((nq_px["curr"] - nq_px["prev"]) / nq_px["prev"] * 100, 2) if nq_px.get("prev") else None
+        # ── 1. Fetch market indices ────────────────────────────────────────────
+        index_prices = await _batch_fetch_prices(["^GSPC", "^IXIC", "^DJI", "^RUT"])
+        def _idx_pct(sym: str) -> float | None:
+            px = index_prices.get(sym, {})
+            return round((px["curr"] - px["prev"]) / px["prev"] * 100, 2) if px.get("prev") else None
+        sp500_pct  = _idx_pct("^GSPC")
+        nasdaq_pct = _idx_pct("^IXIC")
+        dji_pct    = _idx_pct("^DJI")
+        rut_pct    = _idx_pct("^RUT")
 
-        # ── 2. All users with market-close push enabled ───────────────────────
-        prefs_res = await run_query(
-            db.table("notification_preferences").select("user_id").eq("push_market_close", True)
+        # ── 2. All users with a push token (default: market_close ON) ──────────
+        # Don't gate on notification_preferences — users who never opened settings still get it
+        # unless they explicitly disabled it.
+        token_res = await run_query(
+            db.table("user_profiles").select("user_id,push_token")
+            .neq("push_token", "").not_.is_("push_token", "null")
         )
-        uids = [u["user_id"] for u in (prefs_res.data or [])]
+        token_uids = {r["user_id"] for r in (token_res.data or [])}
+
+        prefs_res = await run_query(
+            db.table("notification_preferences").select("user_id,push_market_close")
+        )
+        disabled = {p["user_id"] for p in (prefs_res.data or []) if p.get("push_market_close") is False}
+        uids = list(token_uids - disabled)
         if not uids:
-            logger.warning("job_market_close: no users with push_market_close=True")
+            logger.warning("job_market_close: no eligible users")
             return
 
         # ── 3. First names in one query ───────────────────────────────────────
@@ -621,8 +633,11 @@ async def job_market_close():
         prices = await _batch_fetch_prices(list(all_tickers)) if all_tickers else {}
 
         # ── 6. Build index lines (used by all users) ──────────────────────────
-        sp_line  = f"- S&P 500: {sp500_pct:+.2f}%"  if sp500_pct  is not None else "- S&P 500: N/D"
-        nq_line  = f"- Nasdaq: {nasdaq_pct:+.2f}%"  if nasdaq_pct is not None else "- Nasdaq: N/D"
+        sp_line  = f"S&P 500: {sp500_pct:+.2f}%"   if sp500_pct  is not None else "S&P 500: N/D"
+        nq_line  = f"Nasdaq: {nasdaq_pct:+.2f}%"   if nasdaq_pct is not None else "Nasdaq: N/D"
+        dj_line  = f"Dow Jones: {dji_pct:+.2f}%"   if dji_pct    is not None else "Dow Jones: N/D"
+        ru_line  = f"Russell: {rut_pct:+.2f}%"     if rut_pct    is not None else "Russell: N/D"
+        indices  = " · ".join([sp_line, nq_line, dj_line, ru_line])
 
         # ── 7. Fan out — one push per user ────────────────────────────────────
         sent = 0
@@ -639,25 +654,15 @@ async def job_market_close():
                 user_pct = None
 
             if user_pct is not None:
-                port_line = f"- Tu Portafolio: {user_pct:+.2f}%"
-                beating   = sp500_pct is not None and user_pct > sp500_pct
-
+                beating = sp500_pct is not None and user_pct > sp500_pct
                 body = (
-                    f"{first}, el mercado ha cerrado. Este es el resumen:\n"
-                    f"{port_line}\n"
-                    f"{sp_line}\n"
-                    f"{nq_line}\n\n"
-                    + ("¡Enhorabuena! Superaste al mercado el día de hoy." if beating
+                    f"Tu portafolio: {user_pct:+.2f}% · {indices}\n\n"
+                    + ("¡Enhorabuena! Hoy superaste al mercado." if beating
                        else "El mercado tuvo mejor desempeño hoy. Mañana es otra oportunidad.")
                 )
-                title = "🏆 Cerraste por encima del mercado" if beating else "📊 El mercado ha cerrado"
+                title = "🏆 Superaste al mercado hoy" if beating else "📊 El mercado ha cerrado"
             else:
-                # No portfolio data — still send a useful summary
-                body = (
-                    f"{first}, el mercado ha cerrado. Resumen del día:\n"
-                    f"{sp_line}\n"
-                    f"{nq_line}"
-                )
+                body  = indices
                 title = "📊 El mercado ha cerrado"
 
             await send_push(uid, "market_close", title, body, {"screen": "portfolio"}, db)
