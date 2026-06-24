@@ -518,3 +518,95 @@ async def trigger_market_close_email(
         "tickers_with_price": tickers_with_price,
         "tickers_missing_price": tickers_missing,
     }
+
+
+# ── Admin: test earnings notification ────────────────────────────────────────
+
+class EarningsTestPayload(BaseModel):
+    ticker: str
+    eps_actual: float
+    eps_estimate: float
+    hour: str = "AMC"          # "BMO" | "AMC"
+    rev_actual_b: float | None = None
+    rev_estimate_b: float | None = None
+
+
+@router.post("/admin/trigger-earnings-test")
+async def trigger_earnings_test(
+    body: EarningsTestPayload,
+    user_id: str = Depends(get_current_user_id),
+):
+    """Send a test earnings push + email to the admin user with real data."""
+    if user_id != _ADMIN_UID:
+        raise HTTPException(status_code=403, detail="Admin only")
+
+    from app.services.notification_engine import send_push, send_email_notification
+
+    db  = get_supabase()
+    ticker = body.ticker.upper()
+    beat   = body.eps_actual >= body.eps_estimate
+
+    result_emoji = "✅" if beat else "❌"
+    result_word  = "Beat" if beat else "Miss"
+    timing_tag   = " · Pre-market" if body.hour == "BMO" else " · After-hours"
+
+    push_title = f"{ticker} {result_emoji} {result_word}{timing_tag}"
+
+    eps_str  = f"EPS ${body.eps_actual:.2f} vs ${body.eps_estimate:.2f} est."
+    push_body = eps_str
+
+    # Check if user has portfolio position for personalization
+    port_res  = await run_query(db.table("user_portfolio").select("positions").eq("user_id", user_id))
+    positions = []
+    if port_res.data:
+        raw = port_res.data[0].get("positions") or {}
+        positions = raw.get("positions", []) if isinstance(raw, dict) else (raw if isinstance(raw, list) else [])
+
+    pos_match = next((p for p in positions if p.get("ticker") == ticker), None)
+    if pos_match:
+        shares = float(pos_match.get("shares") or 0)
+        avg_px = float(pos_match.get("avg_price") or 0)
+        if shares and avg_px:
+            push_body += f" · Tienes {shares:.0f} acc. (${shares * avg_px:,.0f} en posición)"
+
+    # Push (bypass dedup with unique category)
+    import time
+    category = f"earnings_test_{ticker.lower()}_{int(time.time())}"
+    await send_push(user_id, category, push_title, push_body, {"ticker": ticker, "screen": "stock_detail"}, db)
+
+    # Email
+    profile_res = await run_query(db.table("user_profiles").select("name").eq("user_id", user_id).single())
+    first = ((profile_res.data or {}).get("name") or "Inversor").split()[0]
+
+    beat_pct = round((body.eps_actual - body.eps_estimate) / abs(body.eps_estimate) * 100, 1) if body.eps_estimate else None
+    html = f"""
+    <div style="font-family:sans-serif;max-width:600px;margin:auto;padding:24px;background:#0f0f0f;color:#e5e5e5;border-radius:12px">
+      <h2 style="color:#fff">{push_title}</h2>
+      <p style="font-size:18px">{ticker} acaba de reportar resultados</p>
+      <table style="width:100%;border-collapse:collapse;margin:16px 0">
+        <tr style="border-bottom:1px solid #333">
+          <td style="padding:10px 0;color:#999">EPS Reportado</td>
+          <td style="padding:10px 0;text-align:right;font-weight:bold;color:{'#22c55e' if beat else '#ef4444'}">${body.eps_actual:.2f}</td>
+        </tr>
+        <tr style="border-bottom:1px solid #333">
+          <td style="padding:10px 0;color:#999">EPS Estimado (consenso)</td>
+          <td style="padding:10px 0;text-align:right">${body.eps_estimate:.2f}</td>
+        </tr>
+        {'<tr style="border-bottom:1px solid #333"><td style="padding:10px 0;color:#999">Ingresos</td><td style="padding:10px 0;text-align:right">${:.2f}B vs ${:.2f}B est.</td></tr>'.format(body.rev_actual_b, body.rev_estimate_b) if body.rev_actual_b and body.rev_estimate_b else ''}
+        {'<tr><td style="padding:10px 0;color:#999">Vs. consenso</td><td style="padding:10px 0;text-align:right;color:#22c55e">+{:.1f}% beat</td></tr>'.format(beat_pct) if beat and beat_pct else ''}
+      </table>
+      {'<div style="background:#1a1a1a;border-radius:8px;padding:14px;margin-top:16px"><p style="margin:0;color:#999;font-size:13px">Tu posición en {}</p><p style="margin:4px 0 0;font-size:18px;font-weight:bold">{:.0f} acciones · ${:,.0f} en posición</p></div>'.format(ticker, pos_match.get("shares",0) if pos_match else 0, (pos_match.get("shares",0) or 0)*(pos_match.get("avg_price",0) or 0) if pos_match else 0) if pos_match else ''}
+      <p style="margin-top:24px;color:#666;font-size:12px">Nuvos AI · Earnings Alert · {body.hour}</p>
+    </div>
+    """
+    subject = f"{ticker} {result_emoji} {result_word} · EPS ${body.eps_actual:.2f} vs ${body.eps_estimate:.2f} est. — Nuvos AI"
+    await send_email_notification(user_id, category, subject, html, db)
+
+    return {
+        "ok": True,
+        "push_title": push_title,
+        "push_body": push_body,
+        "email_subject": subject,
+        "beat": beat,
+        "has_position": pos_match is not None,
+    }
