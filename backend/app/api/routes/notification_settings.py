@@ -328,10 +328,11 @@ async def trigger_price_alerts(
                     dollar_delta   = position_value * pct / 100 if position_value else None
                     if position_value and dollar_delta is not None:
                         gl   = "perdiste" if pct < 0 else "ganaste"
+                        shares_fmt = f"{shares:.4f}".rstrip("0").rstrip(".") if shares < 1 else f"{shares:.2f}".rstrip("0").rstrip(".")
                         body = (
                             f"{ticker} {direction} {abs(pct):.1f}% a ${price:.2f}. "
                             f"{first}, {gl} ~${abs(dollar_delta):,.0f} hoy "
-                            f"({shares:.0f} acciones × ${price:.2f})."
+                            f"({shares_fmt} acciones × ${price:.2f})."
                         )
                     else:
                         body = f"{ticker} {direction} {abs(pct):.1f}% a ${price:.2f}."

@@ -1065,8 +1065,9 @@ async def job_portfolio_alerts():
                         position_value = shares * price if shares else 0.0
                         dollar_delta   = position_value * pct / 100 if position_value else None
                         if position_value and dollar_delta is not None:
-                            gl     = "perdiste" if pct < 0 else "ganaste"
-                            impact = f"{first}, {gl} ~${abs(dollar_delta):,.0f} hoy ({shares:.0f} acciones × ${price:.2f})."
+                            gl         = "perdiste" if pct < 0 else "ganaste"
+                            shares_fmt = f"{shares:.4f}".rstrip("0").rstrip(".") if shares < 1 else f"{shares:.2f}".rstrip("0").rstrip(".")
+                            impact = f"{first}, {gl} ~${abs(dollar_delta):,.0f} hoy ({shares_fmt} acciones × ${price:.2f})."
                         else:
                             impact = ""
                         max_b = 230 - len(impact) - 1
@@ -1305,7 +1306,8 @@ async def _generate_earnings_push(
     has_position = shares > 0 and position_value > 0
 
     if has_position:
-        prompt = f"""Eres el asistente de Nuvos AI. Escribe el body de una notificación push en español para un inversor que tiene {shares:.0f} acciones de {company} ({ticker}) valoradas en ${position_value:,.2f}.
+        shares_disp = f"{shares:.4f}".rstrip("0").rstrip(".") if shares < 1 else f"{shares:.2f}".rstrip("0").rstrip(".")
+        prompt = f"""Eres el asistente de Nuvos AI. Escribe el body de una notificación push en español para un inversor que tiene {shares_disp} acciones de {company} ({ticker}) valoradas en ${position_value:,.2f}.
 
 DATOS:
 - Posición actual: ${position_value:,.2f} | {pnl_str}
