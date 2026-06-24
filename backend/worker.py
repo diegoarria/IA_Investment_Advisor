@@ -898,9 +898,10 @@ async def job_portfolio_alerts():
         if not all_tickers:
             return
 
-        # 3. Fetch intraday prices. Strategy (in order):
-        #    A) Yahoo Finance with proper browser session (cookie + crumb) — works from cloud IPs
-        #    B) yfinance download — fallback for any tickers that A missed
+        # 3. Fetch intraday prices via Nasdaq API (real-time, no API key, works from cloud IPs).
+        #    Primary: api.nasdaq.com/api/quote/{sym}/info — returns lastSalePrice + netChange.
+        #    prev = curr - netChange (official previous close equivalent).
+        #    Fallback: yfinance download for any tickers the Nasdaq API doesn't cover.
         def _fetch_prices_for_alerts(tickers_list: list[str]) -> dict[str, dict]:
             import requests
             import time
@@ -910,57 +911,38 @@ async def job_portfolio_alerts():
             if not tickers_clean:
                 return result
 
-            # ── A. Browser-session approach ──────────────────────────────────────
-            try:
-                session = requests.Session()
-                session.headers.update({
-                    "User-Agent": (
-                        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-                        "AppleWebKit/537.36 (KHTML, like Gecko) "
-                        "Chrome/124.0.0.0 Safari/537.36"
-                    ),
-                    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-                    "Accept-Language": "en-US,en;q=0.9",
-                })
-                # Warm up cookie jar — mandatory for crumb to work
-                session.get("https://finance.yahoo.com", timeout=8)
-                time.sleep(0.3)
+            HEADERS = {
+                "User-Agent": (
+                    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                    "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+                ),
+                "Accept": "application/json",
+                "Accept-Language": "en-US,en;q=0.9",
+            }
 
-                crumb_r = session.get(
-                    "https://query1.finance.yahoo.com/v1/test/getcrumb", timeout=6
-                )
-                crumb = crumb_r.text.strip() if crumb_r.status_code == 200 else None
-                logger.info("Portfolio alerts: Yahoo crumb=%r", crumb[:10] if crumb else None)
+            for sym in tickers_clean:
+                for assetclass in ("stocks", "etf"):
+                    try:
+                        r = requests.get(
+                            f"https://api.nasdaq.com/api/quote/{sym}/info",
+                            params={"assetclass": assetclass},
+                            headers=HEADERS,
+                            timeout=8,
+                        )
+                        if r.status_code != 200:
+                            continue
+                        d    = r.json()["data"]["primaryData"]
+                        curr = float(d["lastSalePrice"].replace("$", "").replace(",", ""))
+                        net  = float(d["netChange"].replace("+", "").replace(",", ""))
+                        prev = curr - net
+                        if curr > 0 and prev > 0:
+                            result[sym] = {"curr": curr, "prev": prev}
+                        break  # got data — stop trying asset classes
+                    except Exception:
+                        pass
+                time.sleep(0.15)  # respectful rate limit
 
-                session.headers["Accept"] = "application/json"
-                CHUNK = 20
-                for i in range(0, len(tickers_clean), CHUNK):
-                    chunk = tickers_clean[i : i + CHUNK]
-                    params: dict = {
-                        "symbols": ",".join(chunk),
-                        "fields": "regularMarketPrice,regularMarketPreviousClose,symbol",
-                    }
-                    if crumb:
-                        params["crumb"] = crumb
-                    r = session.get(
-                        "https://query1.finance.yahoo.com/v7/finance/quote",
-                        params=params,
-                        timeout=12,
-                    )
-                    if r.status_code == 200:
-                        for item in r.json().get("quoteResponse", {}).get("result", []):
-                            sym  = item.get("symbol")
-                            curr = item.get("regularMarketPrice")
-                            prev = item.get("regularMarketPreviousClose")
-                            if sym and curr and prev and prev > 0:
-                                result[sym] = {"curr": float(curr), "prev": float(prev)}
-                    else:
-                        logger.warning("Yahoo quote chunk status=%d", r.status_code)
-                    time.sleep(0.2)
-            except Exception as e:
-                logger.warning("Yahoo browser-session fetch failed: %s", e)
-
-            # ── B. yfinance fallback for any missed tickers ───────────────────────
+            # yfinance fallback for tickers Nasdaq API missed (e.g. BRK-B, indices)
             missing = [t for t in tickers_clean if t not in result]
             if missing:
                 try:
