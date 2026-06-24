@@ -586,14 +586,17 @@ async def job_market_close():
         sp500_pct  = _idx_pct("^GSPC")
         nasdaq_pct = _idx_pct("^IXIC")
 
-        # ── 2. All users with a push token (default: market_close ON) ──────────
+        # ── 2. All users with any push channel (Expo mobile OR web push) ─────
         # Don't gate on notification_preferences — users who never opened settings still get it
         # unless they explicitly disabled it.
         token_res = await run_query(
             db.table("user_profiles").select("user_id,push_token")
             .neq("push_token", "").not_.is_("push_token", "null")
         )
-        token_uids = {r["user_id"] for r in (token_res.data or [])}
+        expo_uids = {r["user_id"] for r in (token_res.data or [])}
+        web_res = await run_query(db.table("web_push_subscriptions").select("user_id"))
+        web_uids = {r["user_id"] for r in (web_res.data or [])}
+        token_uids = expo_uids | web_uids
 
         prefs_res = await run_query(
             db.table("notification_preferences").select("user_id,push_market_close")
@@ -881,11 +884,14 @@ async def job_portfolio_alerts():
         )
         explicit_prefs: dict[str, dict] = {p["user_id"]: p for p in (prefs_res.data or [])}
 
-        # All users who have a push token (mobile Expo or web subscription)
+        # All users who have any push channel (Expo mobile OR web push browser)
         token_res = await run_query(
             db.table("user_profiles").select("user_id,push_token").neq("push_token", "").not_.is_("push_token", "null")
         )
-        token_uids: set[str] = {r["user_id"] for r in (token_res.data or [])} if token_res.data else set()
+        expo_uids_pa: set[str] = {r["user_id"] for r in (token_res.data or [])} if token_res.data else set()
+        web_res_pa = await run_query(db.table("web_push_subscriptions").select("user_id"))
+        web_uids_pa: set[str] = {r["user_id"] for r in (web_res_pa.data or [])}
+        token_uids: set[str] = expo_uids_pa | web_uids_pa
 
         # All users who have watchlist entries
         watch_uid_res = await run_query(db.table("watchlist").select("user_id"))
