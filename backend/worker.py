@@ -702,63 +702,77 @@ async def job_market_close():
         nq_line = f"Nasdaq: {nasdaq_pct:+.2f}%"   if nasdaq_pct is not None else "Nasdaq: N/D"
         indices  = f"{sp_line} · {nq_line}"
 
-        # ── 6. Fan out — push (if capable) + email per portfolio user ────────
+        # ── 6. Fan out ────────────────────────────────────────────────────────
+        # • Has portfolio  → personalized push (if capable) + personalized email
+        # • No portfolio   → generic push only (if capable), no email
+        generic_push_uids = (push_capable - set(portfolio_map.keys())) - disabled
+        all_uids          = (set(portfolio_map.keys()) | generic_push_uids) - disabled
+
         sent_push = sent_email = 0
-        for i, uid in enumerate(uids):
-            if uid in disabled:
-                continue
+        for i, uid in enumerate(sorted(all_uids)):
             if i % 100 == 0 and i > 0:
                 await asyncio.sleep(12)
             await asyncio.sleep(random.uniform(0, 0.1))
 
-            first = profile_map.get(uid, {}).get("first", "Inversor")
+            has_portfolio = uid in portfolio_map
 
-            user_pct, total_curr, top_gainers, top_losers = _calc_portfolio_close_data(
-                portfolio_map[uid], prices
-            )
-
-            if user_pct is not None:
-                beating    = sp500_pct is not None and user_pct > sp500_pct
-                push_body  = (
-                    f"Tu portafolio: {user_pct:+.2f}% · {indices}\n\n"
-                    + ("¡Enhorabuena! Hoy superaste al mercado." if beating
-                       else "El mercado tuvo mejor desempeño hoy. Mañana es otra oportunidad.")
+            if has_portfolio:
+                first = profile_map.get(uid, {}).get("first", "Inversor")
+                user_pct, total_curr, top_gainers, top_losers = _calc_portfolio_close_data(
+                    portfolio_map[uid], prices
                 )
-                push_title = "🏆 Superaste al mercado hoy" if beating else "📊 El mercado ha cerrado"
-                sign       = "+" if user_pct >= 0 else ""
-                subject    = f"Tu portafolio hoy: {sign}{user_pct:.2f}% — Nuvos AI"
-            else:
-                push_body  = indices
-                push_title = "📊 El mercado ha cerrado"
-                subject    = "El mercado ha cerrado — Nuvos AI"
+                if user_pct is not None:
+                    beating    = sp500_pct is not None and user_pct > sp500_pct
+                    push_title = "🏆 Superaste al mercado hoy" if beating else "📊 El mercado ha cerrado"
+                    push_body  = (
+                        f"Tu portafolio: {user_pct:+.2f}% · {indices}\n\n"
+                        + ("¡Enhorabuena! Hoy superaste al mercado." if beating
+                           else "El mercado tuvo mejor desempeño hoy. Mañana es otra oportunidad.")
+                    )
+                    sign    = "+" if user_pct >= 0 else ""
+                    subject = f"Tu portafolio hoy: {sign}{user_pct:.2f}% — Nuvos AI"
+                else:
+                    push_title = "📊 El mercado ha cerrado"
+                    push_body  = indices
+                    subject    = "El mercado ha cerrado — Nuvos AI"
 
-            # Push — only if user has a push channel
-            if uid in push_capable:
-                await send_push(uid, "market_close", push_title, push_body, {"screen": "portfolio"}, db)
+                # Push
+                if uid in push_capable:
+                    await send_push(uid, "market_close", push_title, push_body, {"screen": "portfolio"}, db)
+                    sent_push += 1
+
+                # Email (portfolio users always)
+                try:
+                    html = daily_email_v2(
+                        first_name=first,
+                        port_pct=user_pct,
+                        port_usd=total_curr,
+                        sp_pct=sp500_pct,
+                        sp_px=sp_px,
+                        nq_pct=nasdaq_pct,
+                        nq_px=nq_px,
+                        top_gainers=(top_gainers or [])[:3],
+                        top_losers=(top_losers or [])[:3],
+                        ai_summary=None,
+                    )
+                    await send_email_notification(uid, "market_close", subject, html, db)
+                    sent_email += 1
+                except Exception as email_err:
+                    logger.warning("market_close email failed for %s: %s", uid[:8], email_err)
+
+            else:
+                # No portfolio — generic push only
+                await send_push(
+                    uid, "market_close",
+                    "📊 El mercado cerró",
+                    indices,
+                    {"screen": "portfolio"}, db,
+                )
                 sent_push += 1
 
-            # Email — every portfolio user regardless of push channel
-            try:
-                html = daily_email_v2(
-                    first_name=first,
-                    port_pct=user_pct,
-                    port_usd=total_curr,
-                    sp_pct=sp500_pct,
-                    sp_px=sp_px,
-                    nq_pct=nasdaq_pct,
-                    nq_px=nq_px,
-                    top_gainers=top_gainers[:3],
-                    top_losers=top_losers[:3],
-                    ai_summary=None,
-                )
-                await send_email_notification(uid, "market_close", subject, html, db)
-                sent_email += 1
-            except Exception as email_err:
-                logger.warning("market_close email failed for %s: %s", uid[:8], email_err)
-
         logger.info(
-            "Market close: %d users | %d push | %d email | S&P %s | NQ %s",
-            len(uids), sent_push, sent_email, sp500_pct, nasdaq_pct,
+            "Market close: %d total | %d push | %d email | S&P %s | NQ %s",
+            len(all_uids), sent_push, sent_email, sp500_pct, nasdaq_pct,
         )
     except Exception as e:
         logger.error("job_market_close failed: %s", e)
