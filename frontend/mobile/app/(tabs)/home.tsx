@@ -665,8 +665,13 @@ export default function HomeScreen() {
     useCallback(() => {
       if (hasRedirected.current) return;
       hasRedirected.current = true;
-      AsyncStorage.getItem(HOME_SCREEN_KEY).then((saved) => {
-        if (!saved) return; // picker will show once onboarding is done
+      Promise.all([
+        AsyncStorage.getItem(HOME_SCREEN_KEY),
+        SecureStore.getItemAsync("user_id"),
+      ]).then(([saved, uid]) => {
+        if (!saved) return;
+        // Don't redirect if this is the preview UID — keep them on Home to see the checklist
+        if (uid === BROKER_PREVIEW_UID) return;
         const routes: Record<string, string> = {
           patrimonio:    "/(tabs)/patrimonio",
           chat:          "/(tabs)/chat",
