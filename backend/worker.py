@@ -898,45 +898,90 @@ async def job_portfolio_alerts():
         if not all_tickers:
             return
 
-        # 3. Batch-fetch prices (one yfinance download for ALL tickers — rate-limit safe).
-        #    Primary: period="2d" daily download (works during market hours too — yfinance
-        #    includes the partial day's latest price as the last candle).
-        #    Fallback: fast_info only for any ticker that didn't return 2 data points.
-        def _fetch_prices_batch(tickers_list: list[str]) -> dict[str, dict]:
-            import yfinance as yf
+        # 3. Fetch intraday prices. Strategy (in order):
+        #    A) Yahoo Finance with proper browser session (cookie + crumb) — works from cloud IPs
+        #    B) yfinance download — fallback for any tickers that A missed
+        def _fetch_prices_for_alerts(tickers_list: list[str]) -> dict[str, dict]:
+            import requests
+            import time
+
             result: dict[str, dict] = {}
             tickers_clean = list(set(tickers_list))
             if not tickers_clean:
                 return result
-            try:
-                data   = yf.download(tickers_clean, period="2d", progress=False,
-                                     group_by="ticker", auto_adjust=True)
-                single = len(tickers_clean) == 1
-                for t in tickers_clean:
-                    try:
-                        closes = (data["Close"] if single else data[t]["Close"]).dropna()
-                        if len(closes) >= 2:
-                            result[t] = {"prev": float(closes.iloc[-2]),
-                                         "curr": float(closes.iloc[-1])}
-                    except Exception:
-                        pass
-            except Exception as e:
-                logger.warning("Portfolio alerts batch download failed: %s", e)
 
-            # fast_info fallback only for tickers the batch missed
+            # ── A. Browser-session approach ──────────────────────────────────────
+            try:
+                session = requests.Session()
+                session.headers.update({
+                    "User-Agent": (
+                        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                        "AppleWebKit/537.36 (KHTML, like Gecko) "
+                        "Chrome/124.0.0.0 Safari/537.36"
+                    ),
+                    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                    "Accept-Language": "en-US,en;q=0.9",
+                })
+                # Warm up cookie jar — mandatory for crumb to work
+                session.get("https://finance.yahoo.com", timeout=8)
+                time.sleep(0.3)
+
+                crumb_r = session.get(
+                    "https://query1.finance.yahoo.com/v1/test/getcrumb", timeout=6
+                )
+                crumb = crumb_r.text.strip() if crumb_r.status_code == 200 else None
+                logger.info("Portfolio alerts: Yahoo crumb=%r", crumb[:10] if crumb else None)
+
+                session.headers["Accept"] = "application/json"
+                CHUNK = 20
+                for i in range(0, len(tickers_clean), CHUNK):
+                    chunk = tickers_clean[i : i + CHUNK]
+                    params: dict = {
+                        "symbols": ",".join(chunk),
+                        "fields": "regularMarketPrice,regularMarketPreviousClose,symbol",
+                    }
+                    if crumb:
+                        params["crumb"] = crumb
+                    r = session.get(
+                        "https://query1.finance.yahoo.com/v7/finance/quote",
+                        params=params,
+                        timeout=12,
+                    )
+                    if r.status_code == 200:
+                        for item in r.json().get("quoteResponse", {}).get("result", []):
+                            sym  = item.get("symbol")
+                            curr = item.get("regularMarketPrice")
+                            prev = item.get("regularMarketPreviousClose")
+                            if sym and curr and prev and prev > 0:
+                                result[sym] = {"curr": float(curr), "prev": float(prev)}
+                    else:
+                        logger.warning("Yahoo quote chunk status=%d", r.status_code)
+                    time.sleep(0.2)
+            except Exception as e:
+                logger.warning("Yahoo browser-session fetch failed: %s", e)
+
+            # ── B. yfinance fallback for any missed tickers ───────────────────────
             missing = [t for t in tickers_clean if t not in result]
-            for sym in missing:
+            if missing:
                 try:
-                    fi   = yf.Ticker(sym).fast_info
-                    curr = fi.get("lastPrice") or fi.get("regularMarketPrice")
-                    prev = fi.get("previousClose")
-                    if curr and prev and prev > 0:
-                        result[sym] = {"curr": float(curr), "prev": float(prev)}
-                except Exception:
-                    pass
+                    import yfinance as yf
+                    data   = yf.download(missing, period="2d", progress=False,
+                                         group_by="ticker", auto_adjust=True)
+                    single = len(missing) == 1
+                    for t in missing:
+                        try:
+                            closes = (data["Close"] if single else data[t]["Close"]).dropna()
+                            if len(closes) >= 2:
+                                result[t] = {"prev": float(closes.iloc[-2]),
+                                             "curr": float(closes.iloc[-1])}
+                        except Exception:
+                            pass
+                except Exception as e:
+                    logger.warning("yfinance fallback: %s", e)
+
             return result
 
-        prices = await asyncio.to_thread(_fetch_prices_batch, list(all_tickers))
+        prices = await asyncio.to_thread(_fetch_prices_for_alerts, list(all_tickers))
         logger.info("Portfolio alerts: fetched %d/%d tickers", len(prices), len(all_tickers))
         if not prices:
             logger.warning("Portfolio alerts: price fetch returned empty")
