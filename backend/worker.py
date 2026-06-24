@@ -416,45 +416,43 @@ async def run_league_notifications():
 # ── Notification engine jobs ──────────────────────────────────────────────────
 
 async def job_market_open():
-    """9:30 AM ET weekdays — Free: generic open alert. Premium: portfolio vs S&P/NASDAQ."""
+    """9:30 AM ET weekdays — personalized open alert for ALL users.
+    Shows portfolio pre-market change vs S&P 500 and Nasdaq when available."""
     from app.core.database import get_supabase, run_query
-    from app.services.notification_engine import send_push, get_market_summary_text
+    from app.services.notification_engine import send_push
     db = get_supabase()
     try:
-        market   = await get_market_summary_text()
-        indices  = market.get("indices", {})
-        sp500_d  = indices.get("S&P 500", {})
-        nasdaq_d = indices.get("NASDAQ",  {})
-        sp500_pct  = sp500_d.get("change_pct")
-        nasdaq_pct = nasdaq_d.get("change_pct")
+        # Use _batch_fetch_prices (reliable) instead of get_market_summary_text
+        index_raw  = await _batch_fetch_prices(["^GSPC", "^IXIC"])
+        sp_px      = index_raw.get("^GSPC", {})
+        nq_px      = index_raw.get("^IXIC", {})
+        sp500_pct  = round((sp_px["curr"] - sp_px["prev"]) / sp_px["prev"] * 100, 2) if sp_px.get("prev") else None
+        nasdaq_pct = round((nq_px["curr"] - nq_px["prev"]) / nq_px["prev"] * 100, 2) if nq_px.get("prev") else None
 
         prefs_res = await run_query(
-            db.table("notification_preferences")
-            .select("user_id")
-            .eq("push_market_open", True)
+            db.table("notification_preferences").select("user_id").eq("push_market_open", True)
         )
-        users_data = prefs_res.data or []
-        uids = [u["user_id"] for u in users_data]
+        uids = [u["user_id"] for u in (prefs_res.data or [])]
         if not uids:
             return
 
-        # Fetch subscription tiers
-        tiers_res = await run_query(
-            db.table("user_profiles").select("user_id,subscription_tier").in_("user_id", uids)
+        # First names
+        profiles_res = await run_query(
+            db.table("user_profiles").select("user_id,name").in_("user_id", uids)
         )
-        tier_map = {r["user_id"]: r.get("subscription_tier") for r in (tiers_res.data or [])}
+        name_map = {r["user_id"]: (r.get("name") or "Inversor").split()[0] for r in (profiles_res.data or [])}
 
-        # Fetch all premium portfolio positions to batch-price later
-        premium_uids = [uid for uid in uids if tier_map.get(uid) == "premium"]
-        all_tickers: set[str] = set()
+        # ALL users' portfolios (no premium gate)
         portfolio_map: dict[str, list] = {}
-        for uid in premium_uids:
+        all_tickers: set[str] = set()
+        for uid in uids:
             port_res = await run_query(db.table("user_portfolio").select("positions").eq("user_id", uid))
             if port_res.data:
                 raw = port_res.data[0].get("positions") or {}
                 pos = raw.get("positions", []) if isinstance(raw, dict) else (raw if isinstance(raw, list) else [])
-                portfolio_map[uid] = pos
-                all_tickers.update(p["ticker"] for p in pos if p.get("ticker"))
+                if pos:
+                    portfolio_map[uid] = pos
+                    all_tickers.update(p["ticker"] for p in pos if p.get("ticker"))
 
         prices = await _batch_fetch_prices(list(all_tickers)) if all_tickers else {}
 
@@ -462,30 +460,27 @@ async def job_market_open():
         for i, uid in enumerate(uids):
             if i % 100 == 0 and i > 0:
                 await asyncio.sleep(12)
-            await asyncio.sleep(random.uniform(0, 0.12))
+            await asyncio.sleep(random.uniform(0, 0.1))
 
-            is_premium = tier_map.get(uid) == "premium"
-            if is_premium and uid in portfolio_map and prices:
-                user_pct = _calc_portfolio_pct(portfolio_map[uid], prices)
-                if user_pct is not None and sp500_pct is not None:
-                    sp_str = f"{sp500_pct:+.1f}%"
-                    nq_str = f"{nasdaq_pct:+.1f}%" if nasdaq_pct is not None else "—"
-                    if user_pct > sp500_pct:
-                        body = f"¡Mercado abierto! Tu portafolio {user_pct:+.1f}%, S&P 500 ({sp_str}) y NASDAQ ({nq_str}). ¡Los estás superando!"
-                        title = "🚀 Mercado Abierto"
-                    else:
-                        body = f"¡Mercado abierto! Tu portafolio {user_pct:+.1f}%, frente al S&P 500 ({sp_str}). Entra a revisar tu estrategia."
-                        title = "🚀 Mercado Abierto"
+            first = name_map.get(uid, "Inversor")
+            user_pct = _calc_portfolio_pct(portfolio_map.get(uid, []), prices) if uid in portfolio_map and prices else None
+
+            if user_pct is not None and sp500_pct is not None:
+                sp_str = f"{sp500_pct:+.1f}%"
+                nq_str = f"{nasdaq_pct:+.1f}%" if nasdaq_pct is not None else "—"
+                if user_pct > sp500_pct:
+                    body  = f"{first}, el mercado acaba de abrir. Tu portafolio va {user_pct:+.1f}% vs S&P 500 ({sp_str}) y Nasdaq ({nq_str}). ¡Arriba!"
                 else:
-                    body = "¡El mercado ha abierto! Entra a ver cómo se está comportando el día de hoy."
-                    title = "🚀 Mercado Abierto"
+                    body  = f"{first}, el mercado acaba de abrir. Tu portafolio va {user_pct:+.1f}% frente al S&P 500 ({sp_str}) y Nasdaq ({nq_str})."
+            elif sp500_pct is not None:
+                nq_str = f"{nasdaq_pct:+.1f}%" if nasdaq_pct is not None else "—"
+                body   = f"{first}, el mercado acaba de abrir. S&P 500 {sp500_pct:+.1f}%, Nasdaq {nq_str}."
             else:
-                body  = "¡El mercado ha abierto! Entra a ver cómo se está comportando el día de hoy."
-                title = "🔔 Mercado Abierto"
+                body   = f"{first}, ¡el mercado acaba de abrir! Entra a ver cómo se está comportando."
 
-            await send_push(uid, "market_open", title, body, {"screen": "portfolio"}, db, sound="market_open.wav")
+            await send_push(uid, "market_open", "🔔 Mercado Abierto", body, {"screen": "portfolio"}, db)
             sent += 1
-        logger.info("Market open push: %d sent", sent)
+        logger.info("Market open push: %d sent | S&P %s | NQ %s", sent, sp500_pct, nasdaq_pct)
     except Exception as e:
         logger.error("job_market_open failed: %s", e)
 
