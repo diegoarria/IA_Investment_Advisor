@@ -593,7 +593,7 @@ function PortfolioHistoryChart({
 
 export default function PortfolioPage() {
   const router = useRouter();
-  const { isAuthenticated, userId } = useAuthStore();
+  const { isAuthenticated } = useAuthStore();
   const [isTour, setIsTour] = useState(false);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { setIsTour(new URLSearchParams(window.location.search).get("tour") === "1"); }, []);
@@ -2604,7 +2604,7 @@ export default function PortfolioPage() {
       )}
 
       {/* First Steps guided flow — basico only, post-onboarding */}
-      {(userLevel === "basico" || userId === "86961402-9072-4670-9f73-b2aa91930b04") && (
+      {userLevel === "basico" && (
         <FirstStepsFlow onOpenAddPosition={() => setShowForm(true)} />
       )}
 

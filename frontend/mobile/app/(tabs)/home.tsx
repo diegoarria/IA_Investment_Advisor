@@ -22,7 +22,6 @@ import StockAvatar from "../../src/components/StockAvatar";
 import MobileOnboardingChecklist, { type OnboardingStep } from "../../src/components/MobileOnboardingChecklist";
 import MobileHomeScreenPickerModal, { HOME_SCREEN_KEY } from "../../src/components/MobileHomeScreenPickerModal";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import * as SecureStore from "expo-secure-store";
 
 // ── Sparkline helpers ─────────────────────────────────────────────────────────
 function sparkPath(prices: number[], w: number, h: number, close = false): string {
@@ -357,70 +356,8 @@ export default function HomeScreen() {
   const [loading,    setLoading]   = useState(true);
   const [ytdGain,    setYtdGain]   = useState<number | null>(null);
   const [ytdPct,     setYtdPct]    = useState<number | null>(null);
-  const BROKER_PREVIEW_UID = "86961402-9072-4670-9f73-b2aa91930b04";
-  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
-  const [userIdLoaded, setUserIdLoaded] = useState(false);
   const [showGoalModal, setShowGoalModal] = useState(false);
   const [showScreenPicker, setShowScreenPicker] = useState(false);
-  const [showBrokerModal, setShowBrokerModal] = useState(false);
-  const [showBrokerUpsell, setShowBrokerUpsell] = useState(false);
-  const [brokerCountry, setBrokerCountry] = useState<{ label: string; items: string[] }>({ label: "Internacional", items: ["Interactive Brokers"] });
-  const [upsellCountdown, setUpsellCountdown] = useState<number | null>(null);
-  const upsellTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  const BROKER_MAP: Record<string, { label: string; items: string[] }> = {
-    MX: { label: "México",         items: ["GBM+", "Actinver", "Interactive Brokers México"] },
-    AR: { label: "Argentina",      items: ["Invertir Online (IOL)", "Balanz"] },
-    US: { label: "Estados Unidos", items: ["Interactive Brokers", "Robinhood", "Charles Schwab"] },
-    CO: { label: "Colombia",       items: ["Acciones & Valores", "Davivienda Corredores", "Interactive Brokers"] },
-    VE: { label: "Venezuela",      items: ["Interactive Brokers", "Charles Schwab"] },
-    CL: { label: "Chile",          items: ["Fintual", "Banchile Inversiones", "Interactive Brokers"] },
-    PE: { label: "Perú",           items: ["Credicorp Capital", "Renta 4", "Interactive Brokers"] },
-    BR: { label: "Brasil",         items: ["XP Investimentos", "BTG Pactual", "Interactive Brokers"] },
-  };
-
-  const openBrokerModal = () => {
-    fetch("https://ipapi.co/json/")
-      .then(r => r.json())
-      .then(d => { setBrokerCountry(BROKER_MAP[d.country_code] ?? { label: "Internacional", items: ["Interactive Brokers"] }); })
-      .catch(() => {});
-    setShowBrokerModal(true);
-  };
-
-  const startUpsellCountdown = async () => {
-    const DURATION = 24 * 60 * 60 * 1000;
-    let seenAt = await AsyncStorage.getItem("nuvos_broker_upsell_seen_at");
-    if (!seenAt) {
-      seenAt = String(Date.now());
-      await AsyncStorage.setItem("nuvos_broker_upsell_seen_at", seenAt);
-    }
-    const tick = () => {
-      const remaining = DURATION - (Date.now() - Number(seenAt));
-      setUpsellCountdown(remaining > 0 ? remaining : 0);
-    };
-    tick();
-    upsellTimerRef.current = setInterval(tick, 1000);
-  };
-
-  const fmtCountdown = (ms: number) => {
-    const h = Math.floor(ms / 3_600_000);
-    const m = Math.floor((ms % 3_600_000) / 60_000);
-    const s = Math.floor((ms % 60_000) / 1_000);
-    return `${String(h).padStart(2,"0")}:${String(m).padStart(2,"0")}:${String(s).padStart(2,"0")}`;
-  };
-
-  useEffect(() => {
-    SecureStore.getItemAsync("user_id").then(id => {
-      setCurrentUserId(id ?? "");
-      setUserIdLoaded(true);
-    });
-  }, []);
-
-  useEffect(() => {
-    if (!showBrokerUpsell) return;
-    startUpsellCountdown();
-    return () => { if (upsellTimerRef.current) clearInterval(upsellTimerRef.current); };
-  }, [showBrokerUpsell]);
   const [goalDraft,     setGoalDraft]     = useState("");
   const [goalAmtDraft,  setGoalAmtDraft]  = useState("");
   const [savingGoal,    setSavingGoal]    = useState(false);
@@ -655,7 +592,6 @@ export default function HomeScreen() {
     { emoji: "🤖", title: "Habla con Nuvos por primera vez",  description: "Pregunta cualquier cosa sobre inversiones",        completed: hasChatted },
     { emoji: "📚", title: "Completa tu primera lección",      description: "Empieza tu racha de aprendizaje diario",          completed: streak > 0 },
     { emoji: "👀", title: "Agrega una acción a tu watchlist", description: "Monitorea empresas que te interesan",             completed: watchlistItems.length > 0 },
-    { emoji: "🏦", title: "Abre tu cuenta en un broker",     description: "Invierte de verdad — te sugerimos el ideal para ti", completed: !userIdLoaded || currentUserId !== BROKER_PREVIEW_UID },
   ];
   const allOnboardingDone = onboardingSteps.every((s) => s.completed);
 
@@ -665,13 +601,8 @@ export default function HomeScreen() {
     useCallback(() => {
       if (hasRedirected.current) return;
       hasRedirected.current = true;
-      Promise.all([
-        AsyncStorage.getItem(HOME_SCREEN_KEY),
-        SecureStore.getItemAsync("user_id"),
-      ]).then(([saved, uid]) => {
-        if (!saved) return;
-        // Don't redirect if this is the preview UID — keep them on Home to see the checklist
-        if (uid === BROKER_PREVIEW_UID) return;
+      AsyncStorage.getItem(HOME_SCREEN_KEY).then((saved) => {
+        if (!saved) return; // picker will show once onboarding is done
         const routes: Record<string, string> = {
           patrimonio:    "/(tabs)/patrimonio",
           chat:          "/(tabs)/chat",
@@ -696,7 +627,6 @@ export default function HomeScreen() {
 
   const handleOnboardingStep = (index: number) => {
     if (index === 1) { openGoalModal(); return; }
-    if (index === 5) { openBrokerModal(); return; }
     const routes: (string | null)[] = [
       "/(tabs)/portfolio",
       null,
@@ -769,95 +699,6 @@ export default function HomeScreen() {
                 </Text>
               </TouchableOpacity>
             </View>
-          </Pressable>
-        </Pressable>
-      </Modal>
-
-      {/* ── Broker Modal ─────────────────────────────────────────────────────── */}
-      <Modal visible={showBrokerModal} transparent animationType="slide" onRequestClose={() => { setShowBrokerModal(false); setShowBrokerUpsell(false); }}>
-        <Pressable style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.55)", justifyContent: "flex-end" }}
-                   onPress={() => { setShowBrokerModal(false); setShowBrokerUpsell(false); }}>
-          <Pressable onPress={e => e.stopPropagation()}
-                     style={{ backgroundColor: colors.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingBottom: 36 }}>
-
-            {/* Handle */}
-            <View style={{ width: 36, height: 4, borderRadius: 2, backgroundColor: colors.border, alignSelf: "center", marginBottom: 16 }} />
-
-            {!showBrokerUpsell ? (
-              <>
-                <Text style={{ fontSize: 22 }}>🏦</Text>
-                <Text style={{ fontSize: 17, fontWeight: "900", color: colors.text, marginTop: 8, marginBottom: 4 }}>
-                  Abre tu cuenta en un broker
-                </Text>
-                <Text style={{ fontSize: 12, color: colors.textMuted, marginBottom: 16 }}>
-                  Detectamos que estás en{" "}
-                  <Text style={{ fontWeight: "700", color: "#f59e0b" }}>{brokerCountry.label}</Text>.{" "}
-                  Estas son tus mejores opciones:
-                </Text>
-
-                {brokerCountry.items.map(b => (
-                  <View key={b} style={{ flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 14, paddingVertical: 12, borderRadius: 14, backgroundColor: "rgba(245,158,11,0.07)", borderWidth: 1, borderColor: "rgba(245,158,11,0.2)", marginBottom: 8 }}>
-                    <Text style={{ color: "#f59e0b", fontSize: 13 }}>✦</Text>
-                    <Text style={{ fontSize: 14, fontWeight: "600", color: colors.text }}>{b}</Text>
-                  </View>
-                ))}
-
-                <TouchableOpacity onPress={() => { setShowBrokerModal(false); setShowBrokerUpsell(false); }} activeOpacity={0.8}
-                  style={{ marginTop: 12, paddingVertical: 14, borderRadius: 14, backgroundColor: "#f59e0b", alignItems: "center" }}>
-                  <Text style={{ fontSize: 14, fontWeight: "900", color: "#000" }}>Ya tengo una cuenta, ¡listo!</Text>
-                </TouchableOpacity>
-                <TouchableOpacity onPress={() => setShowBrokerUpsell(true)} activeOpacity={0.7}
-                  style={{ marginTop: 10, alignItems: "center", paddingVertical: 10 }}>
-                  <Text style={{ fontSize: 12, color: colors.textMuted }}>No sé cómo abrirla / quiero ayuda</Text>
-                </TouchableOpacity>
-              </>
-            ) : (
-              <>
-                {/* Countdown */}
-                {upsellCountdown !== null && upsellCountdown > 0 && (
-                  <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 8, paddingHorizontal: 14, borderRadius: 12, backgroundColor: "rgba(239,68,68,0.08)", borderWidth: 1, borderColor: "rgba(239,68,68,0.2)", marginBottom: 16 }}>
-                    <Text style={{ fontSize: 12, color: "#ef4444" }}>⏱</Text>
-                    <Text style={{ fontSize: 12, fontWeight: "700", color: "#ef4444" }}>
-                      Oferta expira en {fmtCountdown(upsellCountdown)}
-                    </Text>
-                  </View>
-                )}
-                {upsellCountdown === 0 && (
-                  <View style={{ paddingVertical: 8, paddingHorizontal: 14, borderRadius: 12, backgroundColor: "rgba(107,114,128,0.1)", borderWidth: 1, borderColor: colors.border, marginBottom: 16, alignItems: "center" }}>
-                    <Text style={{ fontSize: 12, fontWeight: "700", color: colors.textMuted }}>La oferta especial ha expirado</Text>
-                  </View>
-                )}
-
-                <View style={{ borderRadius: 16, overflow: "hidden", borderWidth: 1, borderColor: "rgba(0,212,126,0.25)", backgroundColor: "rgba(0,212,126,0.04)", padding: 16, marginBottom: 12 }}>
-                  <Text style={{ fontSize: 10, fontWeight: "700", color: "#00d47e", letterSpacing: 1.5, textTransform: "uppercase", marginBottom: 8 }}>Sesión 1:1 con Nuvos AI</Text>
-                  <Text style={{ fontSize: 16, fontWeight: "900", color: colors.text, lineHeight: 22, marginBottom: 8 }}>
-                    Te acompañamos a abrir tu cuenta en el broker ideal para ti
-                  </Text>
-                  <Text style={{ fontSize: 12, color: colors.textMuted, lineHeight: 18, marginBottom: 14 }}>
-                    Un experto de Nuvos te guía paso a paso: qué broker elegir, cómo depositar tu primer dinero y cómo conectarlo a la app.
-                  </Text>
-
-                  {/* Price */}
-                  <View style={{ flexDirection: "row", alignItems: "baseline", gap: 8, marginBottom: 14 }}>
-                    <Text style={{ fontSize: 24, fontWeight: "900", color: colors.text }}>$49 USD</Text>
-                    <Text style={{ fontSize: 16, fontWeight: "700", color: colors.textDim, textDecorationLine: "line-through" }}>$89 USD</Text>
-                    <View style={{ backgroundColor: "rgba(239,68,68,0.12)", borderRadius: 20, paddingHorizontal: 6, paddingVertical: 2 }}>
-                      <Text style={{ fontSize: 10, fontWeight: "700", color: "#ef4444" }}>-45%</Text>
-                    </View>
-                  </View>
-
-                  <TouchableOpacity onPress={() => Linking.openURL("https://calendly.com/nuvosai/onboarding")} activeOpacity={0.8}
-                    style={{ paddingVertical: 14, borderRadius: 14, backgroundColor: "#00d47e", alignItems: "center" }}>
-                    <Text style={{ fontSize: 14, fontWeight: "900", color: "#000" }}>Agendar mi llamada ahora</Text>
-                  </TouchableOpacity>
-                </View>
-
-                <TouchableOpacity onPress={() => { setShowBrokerModal(false); setShowBrokerUpsell(false); }} activeOpacity={0.7}
-                  style={{ alignItems: "center", paddingVertical: 10 }}>
-                  <Text style={{ fontSize: 12, color: colors.textMuted }}>Lo haré yo solo, gracias</Text>
-                </TouchableOpacity>
-              </>
-            )}
           </Pressable>
         </Pressable>
       </Modal>
