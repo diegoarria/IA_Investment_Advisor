@@ -916,6 +916,132 @@ async def job_weekly_summary_push():
         logger.error("job_weekly_summary_push failed: %s", e)
 
 
+def _fetch_historical_earnings_reactions(ticker: str) -> dict:
+    """Compute avg stock reaction (%) the day after each of the last 4 earnings reports.
+    Returns {beat_avg, miss_avg, n_beats, n_misses} or empty dict on failure."""
+    try:
+        import yfinance as yf
+        import pandas as pd
+
+        t    = yf.Ticker(ticker)
+        eddf = t.earnings_dates  # index = datetime, cols include 'Surprise(%)'
+        hist = t.history(period="2y", interval="1d")
+        if eddf is None or hist.empty or len(eddf) < 2:
+            return {}
+
+        beats, misses = [], []
+        for dt_idx, row in eddf.head(6).iterrows():
+            try:
+                surprise = row.get("Surprise(%)")
+                if surprise is None or pd.isna(surprise):
+                    continue
+                # Find the trading day before and after this earnings date
+                ts = pd.Timestamp(dt_idx).tz_localize(None) if dt_idx.tzinfo else pd.Timestamp(dt_idx)
+                hist_naive = hist.copy()
+                hist_naive.index = hist_naive.index.tz_localize(None) if hist_naive.index.tzinfo else hist_naive.index
+                pos = hist_naive.index.searchsorted(ts)
+                if pos < 1 or pos >= len(hist_naive):
+                    continue
+                prev_close = float(hist_naive["Close"].iloc[pos - 1])
+                next_close = float(hist_naive["Close"].iloc[min(pos + 1, len(hist_naive) - 1)])
+                reaction   = round((next_close - prev_close) / prev_close * 100, 1)
+                if float(surprise) >= 0:
+                    beats.append(reaction)
+                else:
+                    misses.append(reaction)
+            except Exception:
+                continue
+
+        return {
+            "beat_avg":  round(sum(beats)  / len(beats),  1) if beats  else None,
+            "miss_avg":  round(sum(misses) / len(misses), 1) if misses else None,
+            "n_beats":   len(beats),
+            "n_misses":  len(misses),
+        }
+    except Exception:
+        return {}
+
+
+async def _generate_earnings_push(
+    ticker: str,
+    company: str,
+    when: str,                   # "hoy" | "mañana"
+    eps_estimate: float | None,
+    eps_range: str | None,
+    revenue_estimate: str | None,
+    reactions: dict,             # from _fetch_historical_earnings_reactions
+    shares: float,
+    position_value: float,
+    avg_cost: float | None,
+) -> tuple[str, str]:
+    """Call Claude to generate a personalized earnings push (title, body).
+    Falls back to a static template if Claude fails or times out."""
+    import anthropic
+
+    beat_str = f"+{reactions['beat_avg']}%" if reactions.get("beat_avg") is not None else None
+    miss_str = f"{reactions['miss_avg']}%"  if reactions.get("miss_avg") is not None else None
+    hist_str = ""
+    if beat_str and miss_str:
+        hist_str = f"En los últimos {reactions.get('n_beats',0)+reactions.get('n_misses',0)} reportes, cuando superó estimados el stock reaccionó {beat_str} en promedio; cuando decepcionó, {miss_str}."
+    elif beat_str:
+        hist_str = f"Cuando supera estimados históricamente reacciona {beat_str}."
+    elif miss_str:
+        hist_str = f"Cuando decepciona históricamente cae {miss_str}."
+
+    cost_str = f"Tu costo promedio fue ${avg_cost:.2f}." if avg_cost else ""
+
+    prompt = f"""Eres el asistente de Nuvos AI. Escribe una notificación push en español para un usuario que tiene acciones de {company} ({ticker}).
+
+DATOS DEL USUARIO:
+- Acciones: {shares:.0f} acciones
+- Valor actual en portafolio: ${position_value:,.2f}
+- {cost_str}
+
+EARNINGS {when.upper()}:
+- EPS estimado: {"$" + str(eps_estimate) if eps_estimate else "no disponible"}
+- Rango analistas: {eps_range or "no disponible"}
+- Ingresos estimados: {revenue_estimate or "no disponible"}
+- {hist_str}
+
+INSTRUCCIONES:
+- Escribe SOLO el campo "body" de la notificación (no el título)
+- Máximo 130 caracteres
+- Menciona cuánto tiene el usuario en juego (${position_value:,.0f})
+- Incluye el estimado de EPS si está disponible
+- Si hay historial, menciona qué puede pasar
+- Tono: directo, claro, sin jerga, como si se lo explicaras a un amigo
+- NO uses emojis
+- NO menciones "Nuvos AI"
+
+Responde SOLO con el texto del body, nada más."""
+
+    try:
+        client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
+        resp   = await asyncio.wait_for(
+            client.messages.create(
+                model=settings.claude_model,
+                max_tokens=100,
+                messages=[{"role": "user", "content": prompt}],
+            ),
+            timeout=8.0,
+        )
+        body = resp.content[0].text.strip().strip('"').strip("'")
+        # Safety cap
+        if len(body) > 150:
+            body = body[:147] + "..."
+    except Exception as e:
+        logger.warning("Claude earnings push failed for %s: %s — using fallback", ticker, e)
+        # Fallback: static but still personalized
+        eps_part  = f" EPS est. ${eps_estimate}" if eps_estimate else ""
+        hist_part = f" Históricamente {beat_str} en beat." if beat_str else ""
+        body = f"{shares:.0f} acciones (${position_value:,.0f} en juego).{eps_part}.{hist_part}"
+        if len(body) > 150:
+            body = body[:147] + "..."
+
+    title = f"📊 {ticker} reporta {when}"
+    return title, body
+
+
 async def job_events_alerts():
     """8:00 AM ET weekdays — push for today/tomorrow ex-div, dividend payment, and earnings dates."""
     from app.core.database import get_supabase, run_query
@@ -947,14 +1073,16 @@ async def job_events_alerts():
             port_tickers: set = set()
             watch_tickers: set = set()
 
+            positions_map: dict[str, dict] = {}
             if prefs.get("push_portfolio_alerts"):
                 port_res = await run_query(
                     db.table("user_portfolio").select("positions").eq("user_id", uid)
                 )
                 if port_res.data:
-                    raw = port_res.data[0].get("positions") or {}
-                    positions = raw.get("positions", []) if isinstance(raw, dict) else raw if isinstance(raw, list) else []
-                    port_tickers = {p["ticker"] for p in positions if p.get("ticker")}
+                    raw      = port_res.data[0].get("positions") or {}
+                    pos_list = raw.get("positions", []) if isinstance(raw, dict) else (raw if isinstance(raw, list) else [])
+                    port_tickers  = {p["ticker"] for p in pos_list if p.get("ticker")}
+                    positions_map = {p["ticker"]: p for p in pos_list if p.get("ticker")}
 
             if prefs.get("push_watchlist_alerts"):
                 watch_res = await run_query(
@@ -977,23 +1105,52 @@ async def job_events_alerts():
                     event_type = evt.get("event_type")
 
                     if event_type == "earnings":
-                        title    = f"📊 Resultados: {ticker}"
-                        eps      = evt.get("eps_estimate")
-                        body     = f"{ticker} reporta ganancias {when}." + (f" EPS est. ${eps:.2f}." if eps else "")
-                        category = "earnings_report"
+                        category     = "earnings_report"
+                        is_portfolio = ticker in port_tickers
+                        pos          = positions_map.get(ticker, {})
+                        shares       = float(pos.get("shares", 0) or 0)
+                        avg_cost     = float(pos.get("avg_cost", 0) or 0) or None
+
+                        # Get current price for position value
+                        try:
+                            import yfinance as yf
+                            curr_price = float(yf.Ticker(ticker).fast_info.get("lastPrice") or 0)
+                        except Exception:
+                            curr_price = 0.0
+                        position_value = shares * curr_price if shares and curr_price else 0.0
+
+                        # Fetch historical earnings reactions (cached implicitly via thread)
+                        reactions = await asyncio.to_thread(
+                            _fetch_historical_earnings_reactions, ticker
+                        )
+
+                        title, body = await _generate_earnings_push(
+                            ticker       = ticker,
+                            company      = _company_name(ticker),
+                            when         = when,
+                            eps_estimate = evt.get("eps_estimate"),
+                            eps_range    = evt.get("eps_range"),
+                            revenue_estimate = evt.get("revenue_estimate"),
+                            reactions    = reactions,
+                            shares       = shares if is_portfolio else 0,
+                            position_value = position_value if is_portfolio else 0,
+                            avg_cost     = avg_cost if is_portfolio else None,
+                        )
+
                     elif event_type == "ex_dividend":
                         title    = f"✂️ Ex-Dividendo: {ticker}"
                         amt      = evt.get("dividend_amount")
                         body     = f"Fecha ex-dividendo de {ticker} es {when}." + (f" ${amt:.4f}/acción." if amt else "")
                         category = "ex_dividend"
+                        is_portfolio = ticker in port_tickers
                     elif event_type == "dividend":
                         title    = f"💰 Dividendo: {ticker}"
                         body     = f"{ticker} paga dividendo {when}."
                         category = "dividend_payment"
+                        is_portfolio = ticker in port_tickers
                     else:
                         continue
 
-                    is_portfolio = ticker in port_tickers
                     await send_push(
                         uid, category, title, body,
                         {"ticker": ticker, "screen": "portfolio" if is_portfolio else "watchlist"},
