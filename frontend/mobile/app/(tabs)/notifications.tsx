@@ -95,7 +95,11 @@ export default function NotificationsScreen() {
   const openNewsSummary = (item: NewsItem) => {
     setNewsModal(item);
     setNewsSummary(null);
-    setNewsSummaryLoading(false);
+    setNewsSummaryLoading(true);
+    marketApi.summarizeNews(item.title, item.url)
+      .then((res) => setNewsSummary(res.data.summary ?? null))
+      .catch(() => setNewsSummary("No se pudo generar el resumen. Toca el enlace para leer la nota completa."))
+      .finally(() => setNewsSummaryLoading(false));
   };
 
   const handleRequestSummary = async () => {
@@ -529,7 +533,7 @@ export default function NotificationsScreen() {
           <View style={[styles.modalCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <View style={styles.modalHandle} />
 
-            {/* Article header */}
+            {/* Article header — fixed, never scrolls */}
             <View style={styles.modalHeader}>
               <View style={{ flex: 1 }}>
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 4 }}>
@@ -547,53 +551,10 @@ export default function NotificationsScreen() {
 
             <View style={[styles.nsDivider, { backgroundColor: colors.border }]} />
 
-            {/* State 1: Initial choice */}
-            {!newsSummary && !newsSummaryLoading && (
-              <View style={{ gap: 10 }}>
-                {/* Hero — AI summary */}
-                <TouchableOpacity
-                  style={[styles.nsHeroBtn, { borderColor: "rgba(168,85,247,0.3)", backgroundColor: "rgba(168,85,247,0.08)" }]}
-                  activeOpacity={0.8}
-                  onPress={handleRequestSummary}
-                >
-                  <View style={styles.nsShimmerLine} />
-                  <View style={{ flexDirection: "row", alignItems: "center", gap: 12, padding: 14 }}>
-                    <View style={[styles.nsHeroIcon, { backgroundColor: "rgba(168,85,247,0.2)", borderColor: "rgba(168,85,247,0.4)" }]}>
-                      <Text style={{ fontSize: 22 }}>✦</Text>
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.nsHeroTitle}>Resumen IA</Text>
-                      <Text style={[styles.nsHeroSub, { color: colors.textMuted }]}>Claude lee y extrae lo esencial</Text>
-                      <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 5 }}>
-                        <View style={[styles.nsPremiumBadge, { backgroundColor: "rgba(168,85,247,0.15)", borderColor: "rgba(168,85,247,0.25)" }]}>
-                          <Text style={styles.nsPremiumText}>Premium</Text>
-                        </View>
-                        <Text style={[{ fontSize: 10, color: colors.textDim }]}>4–8 líneas · en segundos</Text>
-                      </View>
-                    </View>
-                    <Ionicons name="chevron-forward" size={18} color="#c084fc" style={{ opacity: 0.7 }} />
-                  </View>
-                </TouchableOpacity>
+            {/* Scrollable body — summary can be long */}
+            <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
 
-                {/* Secondary — article link */}
-                <TouchableOpacity
-                  style={[styles.nsSecondaryBtn, { backgroundColor: colors.bgRaised, borderColor: colors.border }]}
-                  activeOpacity={0.75}
-                  onPress={() => { setNewsModal(null); Linking.openURL(newsModal?.url ?? "").catch(() => {}); }}
-                >
-                  <View style={[styles.nsSecondaryIcon, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                    <Text style={{ fontSize: 18 }}>🌐</Text>
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={[styles.nsSecondaryTitle, { color: colors.text }]}>Ver artículo completo</Text>
-                    <Text style={[styles.nsSecondarySub, { color: colors.textDim }]}>Abre el original en {newsModal?.publisher}</Text>
-                  </View>
-                  <Ionicons name="chevron-forward" size={16} color={colors.textDim} />
-                </TouchableOpacity>
-              </View>
-            )}
-
-            {/* State 2: Loading */}
+            {/* State 1: Loading — auto-starts on open */}
             {newsSummaryLoading && (
               <View style={styles.nsLoadingContainer}>
                 <View style={[styles.nsLoadingIcon, { backgroundColor: "rgba(168,85,247,0.15)", borderColor: "rgba(168,85,247,0.3)" }]}>
@@ -601,10 +562,16 @@ export default function NotificationsScreen() {
                 </View>
                 <Text style={[styles.nsLoadingTitle, { color: colors.text }]}>Claude está leyendo el artículo</Text>
                 <Text style={[styles.nsLoadingSub, { color: colors.textMuted }]}>Extrayendo lo más importante…</Text>
-                {/* Skeleton lines */}
                 {[1, 0.88, 0.94, 0.72].map((w, i) => (
                   <View key={i} style={[styles.nsSkeletonLine, { width: `${w * 100}%` as any, opacity: 0.8 - i * 0.12 }]} />
                 ))}
+                <TouchableOpacity
+                  style={[styles.nsSecondaryBtn, { backgroundColor: colors.bgRaised, borderColor: colors.border, marginTop: 8 }]}
+                  activeOpacity={0.75}
+                  onPress={() => { setNewsModal(null); setNewsSummary(null); Linking.openURL(newsModal?.url ?? "").catch(() => {}); }}
+                >
+                  <Text style={[styles.nsSecondaryTitle, { color: colors.textSub, fontSize: 12 }]}>🌐 Ver artículo completo</Text>
+                </TouchableOpacity>
               </View>
             )}
 
@@ -689,6 +656,8 @@ export default function NotificationsScreen() {
                 </>
               );
             })()}
+
+            </ScrollView>
           </View>
         </View>
       </Modal>
@@ -919,6 +888,7 @@ function makeStyles(c: Colors) {
       borderTopLeftRadius: 24, borderTopRightRadius: 24,
       borderWidth: 1, borderBottomWidth: 0,
       padding: 22, paddingTop: 14,
+      minHeight: "55%",
     },
     modalHandle: { width: 36, height: 4, borderRadius: 2, backgroundColor: c.borderStrong, alignSelf: "center", marginBottom: 18 },
     modalHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 16 },
