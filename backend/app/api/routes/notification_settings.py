@@ -234,30 +234,44 @@ async def trigger_price_alerts(
     if not moves:
         return {"error": "no movers ≥2% in provided prices", "prices_received": len(body.prices)}
 
-    # 2. Get all users' portfolio + watchlist tickers
+    # 2. Discover all eligible users — don't gate on notification_preferences
     prefs_res = await run_query(
-        db.table("notification_preferences")
-        .select("user_id,push_portfolio_alerts,push_watchlist_alerts")
-        .or_("push_portfolio_alerts.eq.true,push_watchlist_alerts.eq.true")
+        db.table("notification_preferences").select("user_id,push_portfolio_alerts,push_watchlist_alerts")
     )
-    if not prefs_res.data:
-        return {"error": "no users with prefs"}
+    explicit_prefs: dict = {p["user_id"]: p for p in (prefs_res.data or [])}
+
+    token_res = await run_query(
+        db.table("user_profiles").select("user_id,push_token").neq("push_token", "").not_.is_("push_token", "null")
+    )
+    token_uids = {r["user_id"] for r in (token_res.data or [])}
+    watch_uid_res = await run_query(db.table("watchlist").select("user_id"))
+    watch_uids = {r["user_id"] for r in (watch_uid_res.data or [])}
+    port_uid_res = await run_query(db.table("user_portfolio").select("user_id"))
+    port_uids_all = {r["user_id"] for r in (port_uid_res.data or [])}
+
+    all_candidate_uids = (token_uids & (watch_uids | port_uids_all)) | (set(explicit_prefs.keys()) & (watch_uids | port_uids_all))
+    if not all_candidate_uids:
+        return {"error": "no eligible users found"}
 
     user_tickers: dict = {}
-    for p in prefs_res.data:
-        uid = p["user_id"]
-        port_map: dict = {}  # ticker → {shares, avg_cost}
+    for uid in all_candidate_uids:
+        port_map: dict = {}
         watch_set: set = set()
-        if p.get("push_portfolio_alerts"):
+        wants_port  = explicit_prefs.get(uid, {}).get("push_portfolio_alerts", True)
+        wants_watch = explicit_prefs.get(uid, {}).get("push_watchlist_alerts", True)
+        if wants_port and uid in port_uids_all:
             port_res = await run_query(db.table("user_portfolio").select("positions").eq("user_id", uid))
             if port_res.data:
                 raw = port_res.data[0].get("positions") or {}
                 pos = raw.get("positions", []) if isinstance(raw, dict) else (raw if isinstance(raw, list) else [])
                 port_map = {
-                    x["ticker"]: {"shares": float(x.get("shares") or 0), "avg_cost": float(x.get("avg_cost") or 0)}
+                    x["ticker"]: {
+                        "shares": float(x.get("shares") or 0),
+                        "avg_cost": float(x.get("avg_cost") or x.get("avg_price") or x.get("avgPrice") or 0),
+                    }
                     for x in pos if x.get("ticker")
                 }
-        if p.get("push_watchlist_alerts"):
+        if wants_watch and uid in watch_uids:
             w_res = await run_query(db.table("watchlist").select("ticker").eq("user_id", uid))
             watch_set = {r["ticker"] for r in (w_res.data or [])} - set(port_map.keys())
         if port_map or watch_set:

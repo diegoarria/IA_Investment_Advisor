@@ -854,26 +854,52 @@ async def job_portfolio_alerts():
 
     db = get_supabase()
     try:
-        # 1. All users with at least one price-alert pref enabled (free + premium)
+        # 1. Discover all eligible users: anyone with a push token OR watchlist/portfolio data.
+        # Don't gate on notification_preferences — users who never opened settings still deserve alerts.
+        # Pull explicit prefs where they exist; default everything to ON for users without a prefs row.
         prefs_res = await run_query(
             db.table("notification_preferences")
             .select("user_id,push_portfolio_alerts,push_watchlist_alerts")
-            .or_("push_portfolio_alerts.eq.true,push_watchlist_alerts.eq.true")
         )
-        if not prefs_res.data:
+        explicit_prefs: dict[str, dict] = {p["user_id"]: p for p in (prefs_res.data or [])}
+
+        # All users who have a push token (mobile Expo or web subscription)
+        token_res = await run_query(
+            db.table("user_profiles").select("user_id,push_token").neq("push_token", "").not_.is_("push_token", "null")
+        )
+        token_uids: set[str] = {r["user_id"] for r in (token_res.data or [])} if token_res.data else set()
+
+        # All users who have watchlist entries
+        watch_uid_res = await run_query(db.table("watchlist").select("user_id"))
+        watch_uids: set[str] = {r["user_id"] for r in (watch_uid_res.data or [])}
+
+        # All users who have portfolio data
+        port_uid_res = await run_query(db.table("user_portfolio").select("user_id"))
+        port_uids: set[str] = {r["user_id"] for r in (port_uid_res.data or [])}
+
+        # Union: every user who has something to alert on and a way to receive it
+        all_candidate_uids = token_uids & (watch_uids | port_uids)
+        # Also include users from explicit prefs even without a token (they may have web push sub)
+        all_candidate_uids |= set(explicit_prefs.keys()) & (watch_uids | port_uids)
+
+        if not all_candidate_uids:
             return
-        prefs_by_uid = {p["user_id"]: p for p in prefs_res.data}
+
+        def _wants_portfolio(uid: str) -> bool:
+            return explicit_prefs.get(uid, {}).get("push_portfolio_alerts", True)
+
+        def _wants_watchlist(uid: str) -> bool:
+            return explicit_prefs.get(uid, {}).get("push_watchlist_alerts", True)
 
         # 2. Collect tickers + position details per user (portfolio + watchlist)
         user_tickers: dict[str, dict] = {}  # uid → {"port": {ticker: {shares, avg_cost}}, "watch": set}
         all_tickers: set[str] = set()
 
-        for uid in prefs_by_uid:
-            prefs      = prefs_by_uid[uid]
+        for uid in all_candidate_uids:
             port_positions: dict[str, dict] = {}
             watch_set:  set[str] = set()
 
-            if prefs.get("push_portfolio_alerts"):
+            if _wants_portfolio(uid) and uid in port_uids:
                 port_res = await run_query(
                     db.table("user_portfolio").select("positions").eq("user_id", uid)
                 )
@@ -883,7 +909,6 @@ async def job_portfolio_alerts():
                     port_positions = {
                         p["ticker"]: {
                             "shares": float(p.get("shares") or 0),
-                            # frontend stores as avgPrice (camelCase); backend as avg_cost or avg_price
                             "avg_cost": float(
                                 p.get("avg_cost") or p.get("avg_price") or p.get("avgPrice") or 0
                             ),
@@ -891,7 +916,7 @@ async def job_portfolio_alerts():
                         for p in pos if p.get("ticker")
                     }
 
-            if prefs.get("push_watchlist_alerts"):
+            if _wants_watchlist(uid) and uid in watch_uids:
                 watch_res = await run_query(
                     db.table("watchlist").select("ticker").eq("user_id", uid)
                 )
