@@ -987,15 +987,6 @@ async def job_portfolio_alerts():
         if not movers:
             return
 
-        def _alert_band(pct: float) -> int:
-            a = abs(pct)
-            if a >= 15: return 15
-            if a >= 10: return 10
-            if a >= 8:  return 8
-            if a >= 5:  return 5
-            if a >= 3:  return 3
-            return 2
-
         # 5. Pre-generate WHY explanations for premium — 1 Claude call per mover, reused across users.
         ticker_why:   dict[str, str] = {}
         ticker_title: dict[str, str] = {}
@@ -1051,7 +1042,6 @@ async def job_portfolio_alerts():
 
             for ticker in ranked:
                 pct          = movers[ticker]
-                band         = _alert_band(pct)
                 price        = prices[ticker]["curr"]
                 title        = ticker_title[ticker]
                 is_portfolio = ticker in port_map
@@ -1095,7 +1085,7 @@ async def job_portfolio_alerts():
 
                 await send_push(
                     uid,
-                    f"price_mover_{ticker}_band{band}",
+                    f"price_mover_{ticker}",
                     title, body,
                     {"ticker": ticker, "change_pct": pct, "price": price, "screen": screen},
                     db,

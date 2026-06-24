@@ -291,15 +291,6 @@ async def trigger_price_alerts(
     }
 
     # 4. Fan out — personalized for premium, generic for free
-    def _band(pct: float) -> int:
-        a = abs(pct)
-        if a >= 15: return 15
-        if a >= 10: return 10
-        if a >= 8:  return 8
-        if a >= 5:  return 5
-        if a >= 3:  return 3
-        return 2
-
     sent_pushes = []
     for uid, sets in user_tickers.items():
         meta     = user_meta.get(uid, {"first": "Inversor", "is_premium": False})
@@ -354,7 +345,7 @@ async def trigger_price_alerts(
                         f"Activa Premium para ver el análisis completo."
                     )
 
-            await send_push(uid, f"price_mover_{ticker}_band{_band(pct)}", title, body,
+            await send_push(uid, f"price_mover_{ticker}", title, body,
                             {"ticker": ticker, "change_pct": pct, "price": price, "screen": screen}, db)
             sent_pushes.append({"user": uid[:8], "ticker": ticker, "pct": pct,
                                  "price": price, "body": body, "premium": is_prem,
