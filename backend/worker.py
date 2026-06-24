@@ -1002,16 +1002,24 @@ async def _generate_earnings_push(
     pnl_pct = round((curr_price - avg_cost) / avg_cost * 100, 1) if curr_price and avg_cost else None
 
     scenarios_str = ""
+    def _scenario_verb(pct):
+        return "subiría" if pct and pct > 0 else "caería" if pct and pct < 0 else "quedaría igual"
+
     if beat_value and miss_value and position_value:
         scenarios_str = (
             f"Si supera estimados (históricamente {'+' if beat_avg > 0 else ''}{beat_avg}% en {n_total} reportes): "
-            f"tu posición de ${position_value:,.2f} subiría a ${beat_value:,.2f}. "
-            f"Si decepciona (históricamente {miss_avg}%): bajaría a ${miss_value:,.2f}."
+            f"tu posición de ${position_value:,.2f} {_scenario_verb(beat_avg)} a ${beat_value:,.2f}. "
+            f"Si decepciona (históricamente {miss_avg}%): {_scenario_verb(miss_avg)} a ${miss_value:,.2f}."
         )
     elif beat_value and position_value:
-        scenarios_str = f"Si supera estimados: tu posición de ${position_value:,.2f} subiría a ${beat_value:,.2f} (+{beat_avg}%)."
+        scenarios_str = (
+            f"Históricamente siempre ha superado estimados ({n_total} reportes), "
+            f"con reacción promedio de {'+' if beat_avg > 0 else ''}{beat_avg}%. "
+            f"Basado en eso, tu posición de ${position_value:,.2f} {_scenario_verb(beat_avg)} a ${beat_value:,.2f}. "
+            f"Importante: la reacción varía mucho — puede subir o bajar aunque bata."
+        )
     elif miss_value and position_value:
-        scenarios_str = f"Si decepciona: tu posición de ${position_value:,.2f} bajaría a ${miss_value:,.2f} ({miss_avg}%)."
+        scenarios_str = f"Si decepciona: tu posición de ${position_value:,.2f} {_scenario_verb(miss_avg)} a ${miss_value:,.2f} ({miss_avg}%)."
 
     eps_str = f"${eps_estimate:.2f}" if eps_estimate else "no disponible"
     pnl_str = f"Actualmente {'ganando' if (pnl_pct or 0) >= 0 else 'perdiendo'} {abs(pnl_pct):.1f}% desde tu entrada." if pnl_pct is not None else ""
