@@ -179,19 +179,38 @@ async def send_test_notification(
     return {"ok": True}
 
 
+class PricePayload(BaseModel):
+    prices: dict  # {ticker: {curr: float, prev: float}}
+
 @router.post("/admin/trigger-price-alerts")
-async def trigger_price_alerts(user_id: str = Depends(get_current_user_id)):
-    """Admin-only: run job_portfolio_alerts immediately and return results."""
+async def trigger_price_alerts(
+    body: PricePayload,
+    user_id: str = Depends(get_current_user_id),
+):
+    """Admin-only: fan out push notifications using caller-provided prices.
+    Prices are fetched locally (yfinance works there) and POSTed here,
+    bypassing Railway IP blocks on Yahoo Finance."""
     if user_id != _ADMIN_UID:
         raise HTTPException(status_code=403, detail="Admin only")
-    import yfinance as yf
-    import concurrent.futures
     from app.core.database import run_query
     from app.services.notification_engine import send_push
 
     db = get_supabase()
 
-    # 1. Get all users' portfolio + watchlist tickers
+    # 1. Compute moves from provided prices
+    moves: dict = {}
+    for t, px in body.prices.items():
+        prev = px.get("prev", 0)
+        curr = px.get("curr", 0)
+        if prev and prev > 0:
+            pct = round((curr - prev) / prev * 100, 2)
+            if abs(pct) >= 3.0:
+                moves[t] = {"pct": pct, "price": curr}
+
+    if not moves:
+        return {"error": "no movers ≥3% in provided prices", "prices_received": len(body.prices)}
+
+    # 2. Get all users' portfolio + watchlist tickers
     prefs_res = await run_query(
         db.table("notification_preferences")
         .select("user_id,push_portfolio_alerts,push_watchlist_alerts")
@@ -201,7 +220,6 @@ async def trigger_price_alerts(user_id: str = Depends(get_current_user_id)):
         return {"error": "no users with prefs"}
 
     user_tickers: dict = {}
-    all_tickers: set = set()
     for p in prefs_res.data:
         uid = p["user_id"]
         port_set: set = set()
@@ -217,42 +235,14 @@ async def trigger_price_alerts(user_id: str = Depends(get_current_user_id)):
             watch_set = {r["ticker"] for r in (w_res.data or [])} - port_set
         if port_set or watch_set:
             user_tickers[uid] = {"port": port_set, "watch": watch_set}
-            all_tickers |= port_set | watch_set
 
-    if not all_tickers:
-        return {"error": "no tickers found"}
-
-    # 2. Fetch real prices now
-    def _fetch():
-        prices = {}
-        for t in all_tickers:
-            try:
-                hist = yf.Ticker(t).history(period="2d")
-                if len(hist) >= 2:
-                    prices[t] = {"prev": float(hist["Close"].iloc[-2]), "curr": float(hist["Close"].iloc[-1])}
-            except Exception:
-                pass
-        return prices
-
-    with concurrent.futures.ThreadPoolExecutor(max_workers=4) as ex:
-        prices = await __import__("asyncio").get_event_loop().run_in_executor(ex, _fetch)
-
-    # 3. Compute moves — NO threshold filter for test (show everything)
-    moves = {}
-    for t, px in prices.items():
-        if px["prev"] > 0:
-            pct = round((px["curr"] - px["prev"]) / px["prev"] * 100, 2)
-            moves[t] = {"pct": pct, "price": px["curr"]}
-
-    # 4. Send real pushes for moves ≥3% and return full report
+    # 3. Fan out — one push per ticker per band per user
     sent_pushes = []
     for uid, sets in user_tickers.items():
         combined = (sets["port"] | sets["watch"]) & moves.keys()
         for ticker in sorted(combined, key=lambda t: abs(moves[t]["pct"]), reverse=True):
             pct   = moves[ticker]["pct"]
             price = moves[ticker]["price"]
-            if abs(pct) < 3.0:
-                continue
             direction = "bajando" if pct < 0 else "subiendo"
             title = f"{ticker} Price Alert"
             body  = f"{ticker} está {direction} {pct:+.2f}% a ${price:.2f}"
@@ -263,7 +253,6 @@ async def trigger_price_alerts(user_id: str = Depends(get_current_user_id)):
             sent_pushes.append({"user": uid[:8], "ticker": ticker, "pct": pct, "price": price, "body": body})
 
     return {
-        "tickers_checked": sorted(all_tickers),
-        "moves_today": {t: v for t, v in sorted(moves.items(), key=lambda x: abs(x[1]["pct"]), reverse=True)},
+        "movers": {t: v for t, v in sorted(moves.items(), key=lambda x: abs(x[1]["pct"]), reverse=True)},
         "pushes_sent": sent_pushes,
     }
