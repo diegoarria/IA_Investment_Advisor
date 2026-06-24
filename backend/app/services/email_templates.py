@@ -114,14 +114,9 @@ def _sectors_html(sectors: dict, best: str, worst: str) -> str:
 def _nuvos_header(subtitle: str = "Resumen Diario del Mercado") -> str:
     return f"""
   <div style="text-align:center;margin-bottom:28px">
-    <table cellpadding="0" cellspacing="0" style="margin:0 auto 16px">
-      <tr>
-        <td style="background:#00d47e;border-radius:10px;width:34px;height:34px;text-align:center;vertical-align:middle">
-          <span style="color:#0d1117;font-size:17px;font-weight:900;line-height:34px">N</span>
-        </td>
-        <td style="padding-left:10px;color:#fff;font-size:16px;font-weight:900;vertical-align:middle">Nuvos AI</td>
-      </tr>
-    </table>
+    <img src="https://www.nuvosai.com/logo.png" alt="Nuvos AI" width="56" height="56"
+         style="display:block;margin:0 auto 10px;border-radius:14px" />
+    <div style="color:#fff;font-size:18px;font-weight:900;margin-bottom:14px;letter-spacing:-0.3px">Nuvos AI</div>
     <div style="display:inline-block;background:rgba(0,212,126,0.1);border:1px solid rgba(0,212,126,0.3);border-radius:20px;padding:6px 18px;margin-bottom:14px">
       <span style="color:#00d47e;font-weight:800;font-size:11px;letter-spacing:2px;text-transform:uppercase">{subtitle}</span>
     </div>
