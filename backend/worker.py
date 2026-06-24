@@ -2372,6 +2372,138 @@ async def job_annual_scoreboard():
         logger.error("job_annual_scoreboard failed: %s", e)
 
 
+async def job_portfolio_snapshot(slot: str):
+    """Personalized portfolio snapshot vs S&P 500 & NASDAQ — sent 4x per trading day.
+    slot: 'opening' (9:35 AM) | 'midday' (11:35 AM) | 'afternoon' (1:35 PM) | 'preclose' (3:35 PM)
+
+    Format: "Diego, hoy tu portafolio está cayendo -2.69%, el S&P 500 y el Nasdaq
+    están cayendo -1.12% y -1.91% respectivamente."
+
+    Each slot uses a different category key so dedup lets all 4 through per day.
+    """
+    from app.core.database import get_supabase, run_query
+    from app.services.notification_engine import send_push
+    db = get_supabase()
+    try:
+        # ── 1. Fetch index prices (single batch call) ─────────────────────────
+        index_prices = await _batch_fetch_prices(["^GSPC", "^IXIC"])
+        sp_px  = index_prices.get("^GSPC", {})
+        nq_px  = index_prices.get("^IXIC", {})
+        sp500_pct  = round((sp_px["curr"] - sp_px["prev"]) / sp_px["prev"] * 100, 2) if sp_px.get("prev") else None
+        nasdaq_pct = round((nq_px["curr"] - nq_px["prev"]) / nq_px["prev"] * 100, 2) if nq_px.get("prev") else None
+
+        # ── 2. Users with portfolio alerts enabled ────────────────────────────
+        prefs_res = await run_query(
+            db.table("notification_preferences").select("user_id").eq("push_portfolio_alerts", True)
+        )
+        uids = [u["user_id"] for u in (prefs_res.data or [])]
+        if not uids:
+            return
+
+        # ── 3. First names in one query ───────────────────────────────────────
+        profiles_res = await run_query(
+            db.table("user_profiles").select("user_id,name").in_("user_id", uids)
+        )
+        name_map = {
+            r["user_id"]: (r.get("name") or "Inversor").split()[0]
+            for r in (profiles_res.data or [])
+        }
+
+        # ── 4. Collect portfolio positions per user ───────────────────────────
+        portfolio_map: dict[str, list] = {}
+        all_tickers: set[str] = set()
+        for uid in uids:
+            port_res = await run_query(
+                db.table("user_portfolio").select("positions").eq("user_id", uid)
+            )
+            if port_res.data:
+                raw = port_res.data[0].get("positions") or {}
+                pos = raw.get("positions", []) if isinstance(raw, dict) else (raw if isinstance(raw, list) else [])
+                if pos:
+                    portfolio_map[uid] = pos
+                    all_tickers.update(p["ticker"] for p in pos if p.get("ticker"))
+
+        if not all_tickers:
+            return
+
+        # ── 5. Batch-fetch portfolio prices (one call for all tickers) ────────
+        prices = await _batch_fetch_prices(list(all_tickers))
+
+        # ── 6. Build per-slot message template ───────────────────────────────
+        slot_intro = {
+            "opening":  "hoy",
+            "midday":   "a mitad del día",
+            "afternoon":"esta tarde",
+            "preclose": "antes del cierre",
+        }.get(slot, "ahora")
+
+        # ── 7. Fan out — one push per user ────────────────────────────────────
+        sent = 0
+        for i, uid in enumerate(uids):
+            if i % 100 == 0 and i > 0:
+                await asyncio.sleep(12)
+            await asyncio.sleep(random.uniform(0, 0.1))
+
+            if uid not in portfolio_map:
+                continue
+
+            user_pct = _calc_portfolio_pct(portfolio_map[uid], prices)
+            if user_pct is None:
+                continue
+
+            first = name_map.get(uid, "Inversor")
+
+            # ── Compose body matching Diego's requested format ────────────────
+            port_str = f"{user_pct:+.2f}%"
+            sp_str   = f"{sp500_pct:+.2f}%" if sp500_pct is not None else "N/D"
+            nq_str   = f"{nasdaq_pct:+.2f}%" if nasdaq_pct is not None else "N/D"
+
+            port_verb = "cayendo" if user_pct < 0 else "subiendo"
+            sp_verb   = "cayendo" if (sp500_pct or 0) < 0 else "subiendo"
+            nq_verb   = "subiendo" if (nasdaq_pct or 0) >= 0 else "cayendo"
+
+            # All three moving same direction → shorter "X, Y y Z respectivamente"
+            if sp500_pct is not None and nasdaq_pct is not None:
+                if (sp500_pct < 0) == (nasdaq_pct < 0):
+                    idx_dir   = "cayendo" if sp500_pct < 0 else "subiendo"
+                    idx_block = f"el S&P 500 y el Nasdaq están {idx_dir} {sp_str} y {nq_str} respectivamente"
+                else:
+                    idx_block = f"S&P 500 {sp_str} | Nasdaq {nq_str}"
+            else:
+                idx_block = f"S&P 500 {sp_str}"
+
+            if slot == "opening":
+                body = f"{first}, hoy tu portafolio está {port_verb} {port_str}, {idx_block}."
+            elif slot == "preclose":
+                body = f"{first}, media hora para el cierre. Tu portafolio lleva {port_str} hoy. {idx_block.capitalize()}."
+            else:
+                body = f"{first}, actualización {slot_intro}: tu portafolio va {port_str}. {idx_block.capitalize()}."
+
+            # ── Title: reflect whether user is beating the market ─────────────
+            beating = sp500_pct is not None and user_pct > sp500_pct
+            if user_pct >= 0:
+                emoji = "🚀" if user_pct >= 1.5 else "🟢"
+                title = f"{emoji} Portafolio {port_str} hoy" + (" — superando al mercado" if beating else "")
+            else:
+                emoji = "🔴" if user_pct <= -1.5 else "🔻"
+                title = f"{emoji} Portafolio {port_str} hoy"
+
+            await send_push(
+                uid, f"portfolio_snapshot_{slot}",
+                title, body,
+                {"screen": "portfolio"},
+                db,
+            )
+            sent += 1
+
+        logger.info(
+            "Portfolio snapshot (%s): %d sent | Portfolio avg=N/A | S&P %s | NQ %s",
+            slot, sent, sp500_pct, nasdaq_pct,
+        )
+    except Exception as e:
+        logger.error("job_portfolio_snapshot(%s) failed: %s", slot, e)
+
+
 async def _backfill_notification_prefs():
     """Insert default prefs for users who don't have a row, and bump the daily
     push cap for existing users who still have the old limit of 5."""
@@ -2417,6 +2549,12 @@ async def main():
     scheduler.add_job(job_market_open,          "cron", day_of_week="mon-fri", hour=9,       minute=30,    timezone="America/New_York")
     scheduler.add_job(job_market_open_reminder, "cron", day_of_week="mon-fri", hour=11,      minute=30,    timezone="America/New_York")
     scheduler.add_job(job_market_close,         "cron", day_of_week="mon-fri", hour=16,      minute=0,     timezone="America/New_York")
+
+    # ── Portfolio snapshots: 5 min after open, then every 2 h ────────────────
+    scheduler.add_job(lambda: asyncio.create_task(job_portfolio_snapshot("opening")),   "cron", day_of_week="mon-fri", hour=9,  minute=35, timezone="America/New_York")
+    scheduler.add_job(lambda: asyncio.create_task(job_portfolio_snapshot("midday")),    "cron", day_of_week="mon-fri", hour=11, minute=35, timezone="America/New_York")
+    scheduler.add_job(lambda: asyncio.create_task(job_portfolio_snapshot("afternoon")), "cron", day_of_week="mon-fri", hour=13, minute=35, timezone="America/New_York")
+    scheduler.add_job(lambda: asyncio.create_task(job_portfolio_snapshot("preclose")),  "cron", day_of_week="mon-fri", hour=15, minute=35, timezone="America/New_York")
     scheduler.add_job(job_daily_email,          "cron", day_of_week="mon-fri", hour=18,      minute=0,     timezone="America/New_York")
     scheduler.add_job(job_portfolio_alerts,     "cron", day_of_week="mon-fri", hour="9-16",  minute="*/5", timezone="America/New_York")
     scheduler.add_job(job_events_alerts,        "cron", day_of_week="mon-fri", hour=8,       minute=0,     timezone="America/New_York")
