@@ -381,72 +381,47 @@ async def trigger_price_alerts(
     }
 
 
+class MarketClosePayload(BaseModel):
+    # caller fetches locally (Railway is IP-blocked by Yahoo Finance) and sends here
+    prices: dict  # {"^GSPC": {"prev": float, "curr": float}, "AAPL": {...}, ...}
+
 @router.post("/admin/trigger-market-close-email")
 async def trigger_market_close_email(
+    body: MarketClosePayload,
     user_id: str = Depends(get_current_user_id),
 ):
-    """Admin-only: fire job_market_close for the calling admin user only,
-    sending the personalized market close email + push right now."""
+    """Admin-only: fire the market close email + push for the admin user.
+    Caller must supply pre-fetched prices (Railway blocks Yahoo Finance):
+      prices: { "^GSPC": {prev, curr}, "^IXIC": {prev, curr}, "<TICKER>": {prev, curr}, ... }
+    """
     if user_id != _ADMIN_UID:
         raise HTTPException(status_code=403, detail="Admin only")
 
-    import asyncio
-    import yfinance as yf
     from app.services.notification_engine import send_push, send_email_notification
     from app.services.email_templates import daily_email_v2
 
     db = get_supabase()
-
-    # ── Fetch real market data ──────────────────────────────────────────────────
-    def _fetch_indices():
-        result = {}
-        for sym in ["^GSPC", "^IXIC"]:
-            try:
-                hist = yf.Ticker(sym).history(period="2d")
-                if len(hist) >= 2:
-                    result[sym] = {"prev": float(hist["Close"].iloc[-2]),
-                                   "curr": float(hist["Close"].iloc[-1])}
-            except Exception:
-                pass
-        return result
-
-    index_px = await asyncio.to_thread(_fetch_indices)
+    all_prices = body.prices  # pre-fetched by caller
 
     def _pct(sym):
-        px = index_px.get(sym, {})
+        px = all_prices.get(sym, {})
         return round((px["curr"] - px["prev"]) / px["prev"] * 100, 2) if px.get("prev") else None
 
     sp500_pct  = _pct("^GSPC")
     nasdaq_pct = _pct("^IXIC")
+    index_px   = all_prices
 
-    # ── Fetch user portfolio ────────────────────────────────────────────────────
+    # ── Fetch user portfolio from DB ────────────────────────────────────────────
     port_res = await run_query(
         db.table("user_portfolio").select("positions").eq("user_id", user_id)
     )
     positions = []
-    all_tickers = set()
     if port_res.data:
         raw = port_res.data[0].get("positions") or {}
         positions = raw.get("positions", []) if isinstance(raw, dict) else (raw if isinstance(raw, list) else [])
-        all_tickers = {p["ticker"] for p in positions if p.get("ticker")}
 
-    # ── Fetch current prices for portfolio tickers ──────────────────────────────
-    port_prices: dict = {}
-    if all_tickers:
-        def _fetch_port():
-            import time
-            result = {}
-            for t in all_tickers:
-                try:
-                    hist = yf.Ticker(t).history(period="2d")
-                    if len(hist) >= 2:
-                        result[t] = {"prev": float(hist["Close"].iloc[-2]),
-                                     "curr": float(hist["Close"].iloc[-1])}
-                    time.sleep(0.1)
-                except Exception:
-                    pass
-            return result
-        port_prices = await asyncio.to_thread(_fetch_port)
+    # Use caller-supplied prices for portfolio tickers
+    port_prices = all_prices
 
     # ── Calculate portfolio % change ────────────────────────────────────────────
     user_pct = None
