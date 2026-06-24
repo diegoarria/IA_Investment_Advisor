@@ -112,7 +112,8 @@ export default function HomePage() {
     try {
       const offer = upsellCountdown === 0 ? "89" : "49";
       const res: any = await billing.brokerCallCheckout(offer);
-      if (res?.url) window.location.href = res.url;
+      const url = res?.data?.url ?? res?.url;
+      if (url) window.location.href = url;
     } catch { /* silently fail */ } finally {
       setBrokerCheckoutLoading(false);
     }

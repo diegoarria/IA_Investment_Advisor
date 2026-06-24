@@ -403,10 +403,11 @@ export default function HomeScreen() {
     try {
       const offer = upsellCountdown === 0 ? "89" : "49";
       const res: any = await billingApi.brokerCallCheckout(offer);
-      if (res?.url) {
-        await Linking.openURL(res.url);
+      const url = res?.data?.url ?? res?.url;
+      if (url) {
+        await Linking.openURL(url);
       } else {
-        Alert.alert("Error", `Respuesta inesperada del servidor: ${JSON.stringify(res)}`);
+        Alert.alert("Error", `Sin URL: ${JSON.stringify(res?.data ?? res)}`);
       }
     } catch (e: any) {
       Alert.alert("Error al procesar pago", e?.message ?? JSON.stringify(e));
