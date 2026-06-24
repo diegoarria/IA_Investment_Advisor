@@ -106,6 +106,11 @@ export default function HomePage() {
   const [goalError,     setGoalError]     = useState("");
 
   // ── Broker card ───────────────────────────────────────────────────────────
+  // Replace with your real Stripe Payment Link URLs once created in Stripe Dashboard
+  const STRIPE_LINK_49  = "https://buy.stripe.com/REEMPLAZAR_49";   // price oferta-24h
+  const STRIPE_LINK_89  = "https://buy.stripe.com/REEMPLAZAR_89";   // precio-normal
+  const brokerCallLink  = upsellCountdown === 0 ? STRIPE_LINK_89 : STRIPE_LINK_49;
+
   const BROKER_CATALOG: Record<string, { name: string; emoji: string; rating: number; tag: string; tagColor: string; desc: string; pros: string[] }[]> = {
     MX: [
       { name: "GBM+",                   emoji: "🥇", rating: 4.8, tag: "Recomendado #1",  tagColor: "#00d47e", desc: "El broker más popular de México. App excelente, comisiones bajas.",         pros: ["App móvil de las mejores", "Sin comisión en acciones MX", "ETFs globales fáciles"] },
@@ -554,10 +559,10 @@ export default function HomePage() {
                     <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full"
                           style={{ background: "rgba(239,68,68,0.12)", color: "#ef4444" }}>-45%</span>
                   </div>
-                  <a href="https://calendly.com/nuvosai/onboarding" target="_blank" rel="noopener noreferrer"
+                  <a href={brokerCallLink} target="_blank" rel="noopener noreferrer"
                      className="flex items-center justify-center w-full py-3.5 rounded-xl font-bold text-sm text-black transition-opacity hover:opacity-90"
                      style={{ background: "#00d47e", textDecoration: "none" }}>
-                    Agendar mi llamada ahora →
+                    {upsellCountdown === 0 ? "Contratar sesión — $89 USD" : "Agendar mi llamada — $49 USD"} →
                   </a>
                 </div>
                 <button onClick={() => { setShowBrokerModal(false); setBrokerView("list"); }}
