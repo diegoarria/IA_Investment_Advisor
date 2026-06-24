@@ -898,13 +898,34 @@ async def job_portfolio_alerts():
         if not all_tickers:
             return
 
-        # 3. Fetch real-time intraday prices via fast_info (lastPrice vs previousClose).
-        #    This is more reliable than _batch_fetch_prices (daily candles) which requires
-        #    a closed candle to exist — not guaranteed during early market hours.
-        def _fetch_realtime_prices(tickers_list: list[str]) -> dict[str, dict]:
+        # 3. Batch-fetch prices (one yfinance download for ALL tickers — rate-limit safe).
+        #    Primary: period="2d" daily download (works during market hours too — yfinance
+        #    includes the partial day's latest price as the last candle).
+        #    Fallback: fast_info only for any ticker that didn't return 2 data points.
+        def _fetch_prices_batch(tickers_list: list[str]) -> dict[str, dict]:
             import yfinance as yf
             result: dict[str, dict] = {}
-            for sym in tickers_list:
+            tickers_clean = list(set(tickers_list))
+            if not tickers_clean:
+                return result
+            try:
+                data   = yf.download(tickers_clean, period="2d", progress=False,
+                                     group_by="ticker", auto_adjust=True)
+                single = len(tickers_clean) == 1
+                for t in tickers_clean:
+                    try:
+                        closes = (data["Close"] if single else data[t]["Close"]).dropna()
+                        if len(closes) >= 2:
+                            result[t] = {"prev": float(closes.iloc[-2]),
+                                         "curr": float(closes.iloc[-1])}
+                    except Exception:
+                        pass
+            except Exception as e:
+                logger.warning("Portfolio alerts batch download failed: %s", e)
+
+            # fast_info fallback only for tickers the batch missed
+            missing = [t for t in tickers_clean if t not in result]
+            for sym in missing:
                 try:
                     fi   = yf.Ticker(sym).fast_info
                     curr = fi.get("lastPrice") or fi.get("regularMarketPrice")
@@ -915,7 +936,8 @@ async def job_portfolio_alerts():
                     pass
             return result
 
-        prices = await asyncio.to_thread(_fetch_realtime_prices, list(all_tickers))
+        prices = await asyncio.to_thread(_fetch_prices_batch, list(all_tickers))
+        logger.info("Portfolio alerts: fetched %d/%d tickers", len(prices), len(all_tickers))
         if not prices:
             logger.warning("Portfolio alerts: price fetch returned empty")
             return
@@ -927,8 +949,9 @@ async def job_portfolio_alerts():
             if abs(pct) >= 2.0:
                 movers[ticker] = pct
 
+        logger.info("Portfolio alerts: %d movers ≥2%%: %s",
+                    len(movers), {t: f"{p:+.1f}%" for t, p in movers.items()})
         if not movers:
-            logger.info("Portfolio alerts: no movers ≥2%% this run")
             return
 
         def _alert_band(pct: float) -> int:
@@ -940,10 +963,9 @@ async def job_portfolio_alerts():
             if a >= 3:  return 3
             return 2
 
-        # 5. Pre-generate WHY explanations: exactly 1 Claude call + 1 news fetch per mover.
-        #    Results are cached by ticker and reused for all users — never called per user.
-        ticker_why:   dict[str, str] = {}   # ticker → WHY explanation body
-        ticker_title: dict[str, str] = {}   # ticker → push title
+        # 5. Pre-generate WHY explanations for premium — 1 Claude call per mover, reused across users.
+        ticker_why:   dict[str, str] = {}
+        ticker_title: dict[str, str] = {}
         for ticker, pct in movers.items():
             price = prices[ticker]["curr"]
             news  = await asyncio.to_thread(_fetch_ticker_news, ticker)
@@ -953,44 +975,58 @@ async def job_portfolio_alerts():
             ticker_title[ticker] = f"{emoji} {ticker} {pct:+.1f}% hoy"
             await asyncio.sleep(0.05)
 
-        # 6. Fan out per user — personalize with name + dollar impact (no extra Claude call)
-        # Batch fetch first names once
-        all_uids = list(user_tickers.keys())
-        names_res = await run_query(
-            db.table("user_profiles").select("user_id,name").in_("user_id", all_uids)
+        # 6. Batch-fetch user profiles (name + subscription tier) once
+        all_uids  = list(user_tickers.keys())
+        prof_res  = await run_query(
+            db.table("user_profiles")
+            .select("user_id,name,subscription_tier")
+            .in_("user_id", all_uids)
         )
-        name_map = {
-            r["user_id"]: (r.get("name") or "Inversor").split()[0]
-            for r in (names_res.data or [])
+        user_meta: dict[str, dict] = {
+            r["user_id"]: {
+                "first":      (r.get("name") or "Inversor").split()[0],
+                "is_premium": r.get("subscription_tier") in ("premium", "pro"),
+            }
+            for r in (prof_res.data or [])
         }
 
+        # 7. Fan out — premium gets WHY + dollar impact, free gets generic alert
         sent = 0
         for uid, sets in user_tickers.items():
-            first    = name_map.get(uid, "Inversor")
-            port_map = sets["port"]   # {ticker: {shares, avg_cost}}
-            combined = (set(port_map.keys()) | sets["watch"]) & movers.keys()
-            ranked   = sorted(combined, key=lambda t: abs(movers[t]), reverse=True)
-            for ticker in ranked:
-                pct   = movers[ticker]
-                band  = _alert_band(pct)
-                price = prices[ticker]["curr"]
-                title = ticker_title[ticker]
-                body  = ticker_why[ticker]
-                is_portfolio = ticker in port_map
+            meta      = user_meta.get(uid, {"first": "Inversor", "is_premium": False})
+            first     = meta["first"]
+            is_prem   = meta["is_premium"]
+            port_map  = sets["port"]
+            combined  = (set(port_map.keys()) | sets["watch"]) & movers.keys()
+            ranked    = sorted(combined, key=lambda t: abs(movers[t]), reverse=True)
 
-                if is_portfolio:
-                    pos_data       = port_map[ticker]
-                    shares         = pos_data.get("shares", 0.0)
-                    position_value = shares * price if shares else 0.0
-                    dollar_delta   = position_value * pct / 100 if position_value else None
-                    if position_value and dollar_delta is not None:
-                        gl     = "perdiste" if pct < 0 else "ganaste"
-                        suffix = f" {first}, {gl} ~${abs(dollar_delta):,.0f} hoy."
-                        max_base = 230 - len(suffix)
-                        body = (body[:max_base] if len(body) > max_base else body) + suffix
-                    screen = "portfolio"
+            for ticker in ranked:
+                pct          = movers[ticker]
+                band         = _alert_band(pct)
+                price        = prices[ticker]["curr"]
+                title        = ticker_title[ticker]
+                is_portfolio = ticker in port_map
+                screen       = "portfolio" if is_portfolio else "watchlist"
+
+                if is_prem:
+                    # Premium: WHY explanation + dollar impact
+                    body = ticker_why[ticker]
+                    if is_portfolio:
+                        shares         = port_map[ticker].get("shares", 0.0)
+                        position_value = shares * price if shares else 0.0
+                        dollar_delta   = position_value * pct / 100 if position_value else None
+                        if position_value and dollar_delta is not None:
+                            gl      = "perdiste" if pct < 0 else "ganaste"
+                            suffix  = f" {first}, {gl} ~${abs(dollar_delta):,.0f} hoy."
+                            max_b   = 230 - len(suffix)
+                            body    = (body[:max_b] if len(body) > max_b else body) + suffix
                 else:
-                    screen = "watchlist"
+                    # Free: generic alert, no Claude, no dollar impact
+                    direction = "bajó" if pct < 0 else "subió"
+                    body = (
+                        f"{ticker} {direction} {abs(pct):.1f}% hoy a ${price:.2f}. "
+                        f"Activa Nuvos Premium para ver el impacto en tu portafolio."
+                    )
 
                 await send_push(
                     uid,
@@ -1002,7 +1038,7 @@ async def job_portfolio_alerts():
                 sent += 1
                 await asyncio.sleep(random.uniform(0.05, 0.2))
 
-        logger.info("Portfolio alerts: %d movers ≥2%%, %d pushes sent", len(movers), sent)
+        logger.info("Portfolio alerts: %d movers, %d pushes sent", len(movers), sent)
     except Exception as e:
         logger.error("job_portfolio_alerts failed: %s", e)
 
