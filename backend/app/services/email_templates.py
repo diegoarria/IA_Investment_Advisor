@@ -318,11 +318,14 @@ def daily_email_v2(
     top_gainers: list[dict],
     top_losers: list[dict],
     ai_summary: str,
+    market_wrap: str = "",
+    earnings_items: list = [],
 ) -> str:
-    """Daily email — 3-table structure:
+    """Daily email — 4-section structure:
     1. Tu portafolio vs S&P 500 vs Nasdaq
-    2. AI summary of the day
-    3. Top 3 gainers / Top 3 losers
+    2. Top 3 subidas / Top 3 caídas del portafolio
+    3. Market Wrap (AI narrative of the day)
+    4. Earnings del día (portfolio + watchlist, if any)
     """
     def _pct_badge(pct, big=False):
         if pct is None:
@@ -413,18 +416,21 @@ def daily_email_v2(
     {paras}
   </div>"""
 
-    # ── Table 3: Top 3 up / Top 3 down ────────────────────────────────────────
-    def _mover_rows(items, direction):
+    # ── Section 2: Top 3 up / Top 3 down ─────────────────────────────────────
+    def _mover_rows(items):
         if not items:
-            return '<tr><td colspan="2" style="padding:14px;text-align:center;color:#4b5563;font-size:12px">Sin datos</td></tr>'
+            return '<tr><td colspan="3" style="padding:14px;text-align:center;color:#4b5563;font-size:12px">Sin datos</td></tr>'
         rows = ""
         for item in items:
-            pct   = item.get("day_pct", 0) or 0
+            pct   = item.get("pct") or item.get("day_pct") or 0
+            dollar = item.get("dollar_change")
             color = "#22c55e" if pct >= 0 else "#ef4444"
             sign  = "+" if pct >= 0 else ""
+            dollar_str = f'<span style="color:#4b5563;font-size:11px">{sign}${abs(dollar):,.2f}</span>' if dollar is not None else ""
             rows += (
                 f'<tr style="border-top:1px solid #1e2235">'
                 f'<td style="padding:10px 14px;color:#d1d5db;font-size:13px;font-weight:700">{item["ticker"]}</td>'
+                f'<td style="padding:10px 14px;text-align:right">{dollar_str}</td>'
                 f'<td style="padding:10px 14px;text-align:right;color:{color};font-weight:800;font-size:13px">{sign}{pct:.2f}%</td>'
                 f'</tr>'
             )
@@ -435,7 +441,7 @@ def daily_email_v2(
         movers_section = f"""
   <div style="background:#161b27;border:1px solid #2a2d3a;border-radius:16px;overflow:hidden;margin-bottom:20px">
     <div style="padding:12px 16px;border-bottom:1px solid #2a2d3a;background:#111318">
-      <p style="color:#9ca3af;font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;margin:0">Movimientos de tu portafolio</p>
+      <p style="color:#9ca3af;font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;margin:0">📈 Movimientos de tu portafolio hoy</p>
     </div>
     <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse">
       <tr>
@@ -444,7 +450,7 @@ def daily_email_v2(
             <span style="color:#22c55e;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px">▲ Top subidas</span>
           </div>
           <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse">
-            {_mover_rows(top_gainers, "up")}
+            {_mover_rows(top_gainers)}
           </table>
         </td>
         <td style="width:50%;vertical-align:top">
@@ -452,11 +458,95 @@ def daily_email_v2(
             <span style="color:#ef4444;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px">▼ Top caídas</span>
           </div>
           <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse">
-            {_mover_rows(top_losers, "down")}
+            {_mover_rows(top_losers)}
           </table>
         </td>
       </tr>
     </table>
+  </div>"""
+
+    # ── Section 3: Market Wrap ─────────────────────────────────────────────────
+    wrap_section = ""
+    if market_wrap:
+        paras = "".join(
+            f'<p style="margin:0 0 10px;color:#d1d5db;font-size:14px;line-height:1.7">{p}</p>'
+            for p in market_wrap.split("\n") if p.strip()
+        )
+        wrap_section = f"""
+  <div style="background:#161b27;border:1px solid #2a2d3a;border-radius:16px;overflow:hidden;margin-bottom:20px">
+    <div style="padding:12px 16px;border-bottom:1px solid #2a2d3a;background:#111318">
+      <p style="color:#9ca3af;font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;margin:0">🌐 Market Wrap — Qué pasó hoy</p>
+    </div>
+    <div style="padding:18px 20px">
+      {paras}
+    </div>
+  </div>"""
+
+    # ── Section 4: Earnings del día ────────────────────────────────────────────
+    earnings_section = ""
+    if earnings_items:
+        cards = ""
+        for e in earnings_items:
+            t         = e.get("ticker", "")
+            name      = e.get("company_name", t)
+            eps_a     = e.get("eps_actual")
+            eps_e     = e.get("eps_estimate")
+            rev_a     = e.get("rev_actual_b")
+            rev_e     = e.get("rev_estimate_b")
+            beat_eps  = e.get("beat_eps", False)
+            beat_rev  = e.get("beat_rev", False)
+            analysis  = e.get("ai_analysis", "")
+            hour      = e.get("hour", "")
+            timing    = "Pre-market" if hour == "BMO" else ("After-hours" if hour == "AMC" else "")
+
+            eps_color  = "#22c55e" if beat_eps else "#ef4444"
+            eps_badge  = "✅ Beat" if beat_eps else "❌ Miss"
+            eps_beat_pct = round((eps_a - eps_e) / abs(eps_e) * 100, 1) if eps_a is not None and eps_e and eps_e != 0 else None
+
+            rev_row = ""
+            if rev_a is not None and rev_e is not None:
+                rev_color = "#22c55e" if beat_rev else "#ef4444"
+                rev_diff  = round((rev_a - rev_e) / abs(rev_e) * 100, 1) if rev_e != 0 else 0
+                rev_sign  = "+" if rev_diff >= 0 else ""
+                rev_row = f"""
+                <tr style="border-top:1px solid #1e2235">
+                  <td style="padding:8px 14px;color:#9ca3af;font-size:12px">Ingresos</td>
+                  <td style="padding:8px 14px;text-align:right;color:#d1d5db;font-size:12px">${rev_a:.2f}B <span style="color:#4b5563">vs ${rev_e:.2f}B</span></td>
+                  <td style="padding:8px 14px;text-align:right;color:{rev_color};font-size:12px;font-weight:700">{rev_sign}{rev_diff:.1f}%</td>
+                </tr>"""
+
+            beat_pct_str = f" (+{eps_beat_pct:.1f}%)" if beat_eps and eps_beat_pct else (f" ({eps_beat_pct:.1f}%)" if eps_beat_pct else "")
+            analysis_html = f'<div style="background:#0d1f17;border-left:2px solid #22c55e;padding:10px 14px;margin-top:10px"><p style="margin:0;color:#d1fae5;font-size:12px;line-height:1.6">{analysis}</p></div>' if analysis else ""
+
+            cards += f"""
+            <div style="border-bottom:1px solid #1e2235;padding:16px 20px">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:6px">
+                <div>
+                  <span style="font-size:16px;font-weight:900;color:#fff">{t}</span>
+                  <span style="font-size:12px;color:#6b7280;margin-left:8px">{name}</span>
+                </div>
+                <div>
+                  <span style="background:{eps_color}22;color:{eps_color};font-size:11px;font-weight:800;padding:3px 10px;border-radius:12px">{eps_badge}{beat_pct_str}</span>
+                  {'<span style="color:#4b5563;font-size:11px;margin-left:8px">' + timing + '</span>' if timing else ''}
+                </div>
+              </div>
+              <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse">
+                <tr>
+                  <td style="padding:8px 14px;color:#9ca3af;font-size:12px">EPS</td>
+                  <td style="padding:8px 14px;text-align:right;font-size:14px;font-weight:800;color:{eps_color}">${eps_a:.2f}</td>
+                  <td style="padding:8px 14px;text-align:right;color:#4b5563;font-size:12px">est. ${eps_e:.2f}</td>
+                </tr>
+                {rev_row}
+              </table>
+              {analysis_html}
+            </div>"""
+
+        earnings_section = f"""
+  <div style="background:#161b27;border:1px solid #2a2d3a;border-radius:16px;overflow:hidden;margin-bottom:20px">
+    <div style="padding:12px 16px;border-bottom:1px solid #2a2d3a;background:#111318">
+      <p style="color:#9ca3af;font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;margin:0">📣 Ganancias del día — Tu portafolio & watchlist</p>
+    </div>
+    {cards}
   </div>"""
 
     body = f"""
@@ -467,8 +557,9 @@ def daily_email_v2(
   <p style="color:#6b7280;font-size:13px;margin:0 0 24px;text-align:center">Cierre del mercado · Actualización automática</p>
 
   {table1}
-  {ai_section}
   {movers_section}
+  {wrap_section}
+  {earnings_section}
 
   <div style="text-align:center;margin-bottom:8px">
     <a href="https://nuvosai.com/portfolio" style="display:inline-block;background:#00d47e;color:#0d1117;font-weight:900;font-size:14px;padding:13px 32px;border-radius:14px;text-decoration:none">

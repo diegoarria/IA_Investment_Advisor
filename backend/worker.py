@@ -778,61 +778,104 @@ async def job_market_close():
         logger.error("job_market_close failed: %s", e)
 
 
-async def _generate_daily_ai_summary(tickers_with_moves: list[dict], sp_pct: float | None, nq_pct: float | None) -> str:
-    """Claude: 2-3 sentence market close summary with real news context."""
-    if not tickers_with_moves:
-        return ""
+async def _generate_market_wrap(sp_pct: float | None, nq_pct: float | None, top_movers: list[dict]) -> str:
+    """Generate a 2-3 paragraph market wrap narrative, shared across all users."""
     try:
         import anthropic
         from app.services.price_alert_service import fetch_ticker_news
 
-        moves_str = "\n".join(
-            f"- {x['ticker']}: {x['day_pct']:+.2f}% hoy"
-            for x in sorted(tickers_with_moves, key=lambda x: abs(x["day_pct"]), reverse=True)[:6]
-        )
         market_str = ""
-        if sp_pct is not None and nq_pct is not None:
-            market_str = f"S&P 500: {sp_pct:+.2f}%, Nasdaq: {nq_pct:+.2f}%"
+        if sp_pct is not None:
+            market_str += f"S&P 500: {sp_pct:+.2f}%"
+        if nq_pct is not None:
+            market_str += f", Nasdaq: {nq_pct:+.2f}%"
 
-        # Fetch news for top 3 movers to give Claude real context
-        top_movers = sorted(tickers_with_moves, key=lambda x: abs(x["day_pct"]), reverse=True)[:3]
-        news_lines = []
-        for m in top_movers:
-            headlines = await asyncio.to_thread(fetch_ticker_news, m["ticker"])
-            for h in headlines[:2]:
-                news_lines.append(f"- [{m['ticker']}] {h}")
+        # Fetch news for top 5 movers for context
+        news_lines: list[str] = []
+        for m in top_movers[:5]:
+            try:
+                headlines = await asyncio.to_thread(fetch_ticker_news, m["ticker"])
+                for h in (headlines or [])[:2]:
+                    news_lines.append(f"- [{m['ticker']} {m.get('pct', m.get('day_pct', 0)):+.1f}%] {h}")
+            except Exception:
+                pass
         news_str = "\n".join(news_lines) if news_lines else "Sin noticias disponibles."
 
-        prompt = f"""Eres un analista financiero para inversores latinoamericanos.
-Genera un resumen del cierre del mercado de HOY. Máximo 3 oraciones.
+        moves_str = "\n".join(
+            f"- {x['ticker']}: {x.get('pct', x.get('day_pct', 0)):+.2f}%"
+            for x in top_movers[:8]
+        )
 
-Índices: {market_str}
+        prompt = f"""Eres un analista financiero escribiendo el Market Wrap del día para inversores latinoamericanos.
 
-Movimientos del portafolio:
-{moves_str}
+Datos del mercado hoy:
+{market_str}
 
-Noticias relevantes del día:
+Noticias y movimientos relevantes:
 {news_str}
 
-Instrucciones:
-- Explica QUÉ PASÓ hoy en el mercado usando las noticias (Fed, resultados, geopolítica, macro, etc.)
-- Menciona el mayor movimiento del portafolio y su causa
-- Termina con una perspectiva breve para mañana
-- Español, tono de analista amigable
-- Máximo 3 oraciones seguidas, sin viñetas, sin asteriscos"""
+Principales movimientos:
+{moves_str}
+
+Escribe un resumen narrativo del día en 2 párrafos cortos (3-4 oraciones cada uno):
+- Párrafo 1: Qué pasó hoy en el mercado y por qué (macro, Fed, resultados, sector, etc.)
+- Párrafo 2: Qué vigilar mañana o qué significa esto para los inversores
+
+Español, tono analítico pero accesible. Sin viñetas, sin markdown, sin asteriscos. Solo párrafos."""
 
         client = anthropic.AsyncAnthropic()
         resp = await asyncio.wait_for(
             client.messages.create(
                 model="claude-haiku-4-5-20251001",
-                max_tokens=250,
+                max_tokens=400,
                 messages=[{"role": "user", "content": prompt}],
             ),
-            timeout=12,
+            timeout=15,
         )
         return (resp.content[0].text or "").strip()
     except Exception:
         return ""
+
+
+async def _generate_earnings_ai_for_email(
+    ticker: str,
+    eps_actual: float | None,
+    eps_estimate: float | None,
+    beat: bool,
+    rev_actual_b: float | None,
+    rev_estimate_b: float | None,
+) -> str:
+    """1-2 sentence earnings analysis for the daily email earnings section."""
+    try:
+        import anthropic
+        eps_str = f"EPS ${eps_actual:.2f} vs ${eps_estimate:.2f} estimado" if eps_actual is not None and eps_estimate is not None else ""
+        rev_str = f"Ingresos ${rev_actual_b:.2f}B vs ${rev_estimate_b:.2f}B" if rev_actual_b and rev_estimate_b else ""
+        result  = "superó" if beat else "no alcanzó"
+        beat_pct = round((eps_actual - eps_estimate) / abs(eps_estimate) * 100, 1) if eps_actual is not None and eps_estimate else None
+        beat_str = f" (+{beat_pct:.1f}% vs consenso)" if beat and beat_pct else (f" ({beat_pct:.1f}% vs consenso)" if beat_pct else "")
+
+        prompt = (
+            f"{ticker} {result} las expectativas: {eps_str}. {rev_str}. "
+            f"En 1-2 oraciones en español, explica qué impulsó estos resultados y qué implican para la acción. "
+            f"Sin markdown, sin asteriscos, lenguaje de analista accesible."
+        )
+        client = anthropic.AsyncAnthropic()
+        resp = await asyncio.wait_for(
+            client.messages.create(
+                model="claude-haiku-4-5-20251001",
+                max_tokens=150,
+                messages=[{"role": "user", "content": prompt}],
+            ),
+            timeout=10,
+        )
+        return (resp.content[0].text or "").strip()
+    except Exception:
+        return ""
+
+
+async def _generate_daily_ai_summary(tickers_with_moves: list[dict], sp_pct: float | None, nq_pct: float | None) -> str:
+    """Kept for backward compatibility — wraps _generate_market_wrap."""
+    return await _generate_market_wrap(sp_pct, nq_pct, tickers_with_moves)
 
 
 async def job_daily_email():
@@ -897,18 +940,65 @@ async def job_daily_email():
         # ── 5. Batch-fetch all portfolio prices (one call) ────────────────────
         day_prices = await _batch_fetch_prices(list(all_tickers)) if all_tickers else {}
 
-        # ── 6. Build and send per-user email ──────────────────────────────────
+        # ── 6. Collect all unique tickers + watchlist for market wrap context ─
+        watch_res   = await run_query(db.table("watchlist").select("user_id,ticker"))
+        watch_by_uid: dict[str, set] = {}
+        all_watch_tickers: set[str] = set()
+        for r in (watch_res.data or []):
+            watch_by_uid.setdefault(r["user_id"], set()).add(r["ticker"])
+            all_watch_tickers.add(r["ticker"])
+
+        # ── 7. Compute global top movers (all portfolio tickers combined) ─────
+        global_movers: list[dict] = []
+        for ticker, px in day_prices.items():
+            if px.get("prev") and px["prev"] > 0:
+                pct = round((px["curr"] - px["prev"]) / px["prev"] * 100, 2)
+                global_movers.append({"ticker": ticker, "pct": pct})
+        global_movers.sort(key=lambda x: abs(x["pct"]), reverse=True)
+
+        # ── 8. Market Wrap — generated ONCE for all users ─────────────────────
+        market_wrap = await _generate_market_wrap(sp_pct, nq_pct, global_movers)
+
+        # ── 9. Today's earnings from Finnhub — fetched ONCE ──────────────────
+        # At 6 PM both BMO (pre-market) and AMC (after-hours early) have likely reported
+        all_today_earnings = await asyncio.to_thread(_finnhub_earnings_today, None)
+
+        # Generate AI analysis per unique ticker that reported today (concurrent)
+        earning_tickers = list(all_today_earnings.keys())
+        if earning_tickers:
+            analyses = await asyncio.gather(
+                *[
+                    _generate_earnings_ai_for_email(
+                        ticker=t,
+                        eps_actual=all_today_earnings[t].get("eps_actual"),
+                        eps_estimate=all_today_earnings[t].get("eps_estimate"),
+                        beat=all_today_earnings[t].get("beat_eps", False),
+                        rev_actual_b=all_today_earnings[t].get("rev_actual_b"),
+                        rev_estimate_b=all_today_earnings[t].get("rev_estimate_b"),
+                    )
+                    for t in earning_tickers
+                ],
+                return_exceptions=True,
+            )
+            earnings_ai_map: dict[str, str] = {
+                t: (a if isinstance(a, str) else "")
+                for t, a in zip(earning_tickers, analyses)
+            }
+        else:
+            earnings_ai_map = {}
+
+        # ── 10. Build and send per-user email ─────────────────────────────────
         sent = 0
         for i, uid in enumerate(opted_ids):
             if i % 100 == 0 and i > 0:
                 await asyncio.sleep(12)
             await asyncio.sleep(random.uniform(0, 0.1))
 
-            name  = name_map.get(uid, "Inversor")
-            first = name.split()[0]
+            first     = name_map.get(uid, "Inversor").split()[0]
             positions = portfolio_map.get(uid, [])
+            watchlist = watch_by_uid.get(uid, set())
 
-            # Calculate enriched positions
+            # Enriched positions
             enriched: list[dict] = []
             total_val  = 0.0
             total_prev = 0.0
@@ -920,29 +1010,42 @@ async def job_daily_email():
                 px    = day_prices[ticker]
                 cv    = px["curr"] * shares
                 pv    = px["prev"] * shares
-                d_pct = (px["curr"] - px["prev"]) / px["prev"] * 100 if px["prev"] else 0.0
+                pct   = (px["curr"] - px["prev"]) / px["prev"] * 100 if px["prev"] else 0.0
                 d_usd = cv - pv
                 total_val  += cv
                 total_prev += pv
                 enriched.append({
-                    "ticker":      ticker,
-                    "day_pct":     round(d_pct, 2),
-                    "day_dollars": round(d_usd, 2),
-                    "total_value": round(cv, 2),
+                    "ticker":        ticker,
+                    "pct":           round(pct, 2),
+                    "dollar_change": round(d_usd, 2),
+                    "total_value":   round(cv, 2),
                 })
 
             port_pct = round((total_val - total_prev) / total_prev * 100, 2) if total_prev > 0 else None
             port_usd = round(total_val - total_prev, 2) if total_prev > 0 else None
 
-            # Top 3 up / Top 3 down
-            sorted_pos = sorted(enriched, key=lambda x: x["day_pct"], reverse=True)
+            sorted_pos  = sorted(enriched, key=lambda x: x["pct"], reverse=True)
             top_gainers = sorted_pos[:3]
             top_losers  = list(reversed(sorted_pos))[:3]
 
-            # AI summary (generated once if user has positions)
-            ai_summary = ""
-            if enriched:
-                ai_summary = await _generate_daily_ai_summary(enriched, sp_pct, nq_pct)
+            # Earnings items: portfolio tickers + watchlist tickers that reported today
+            port_tickers = {p["ticker"] for p in positions if p.get("ticker")}
+            relevant_earnings = (port_tickers | watchlist) & set(all_today_earnings.keys())
+            earnings_items: list[dict] = []
+            for t in sorted(relevant_earnings):
+                e = all_today_earnings[t]
+                earnings_items.append({
+                    "ticker":         t,
+                    "company_name":   t,
+                    "eps_actual":     e.get("eps_actual"),
+                    "eps_estimate":   e.get("eps_estimate"),
+                    "beat_eps":       e.get("beat_eps", False),
+                    "rev_actual_b":   e.get("rev_actual_b"),
+                    "rev_estimate_b": e.get("rev_estimate_b"),
+                    "beat_rev":       e.get("beat_rev", False),
+                    "hour":           e.get("hour", ""),
+                    "ai_analysis":    earnings_ai_map.get(t, ""),
+                })
 
             html = daily_email_v2(
                 first_name=first,
@@ -954,7 +1057,9 @@ async def job_daily_email():
                 nq_px=nq_px,
                 top_gainers=top_gainers,
                 top_losers=top_losers,
-                ai_summary=ai_summary,
+                ai_summary="",
+                market_wrap=market_wrap,
+                earnings_items=earnings_items,
             )
 
             sign    = "+" if port_pct and port_pct >= 0 else ""
@@ -966,7 +1071,10 @@ async def job_daily_email():
             await send_email_notification(uid, "daily_summary", subject, html, db)
             sent += 1
 
-        logger.info("Daily email v2: %d sent | S&P %s | NQ %s", sent, sp_pct, nq_pct)
+        logger.info(
+            "Daily email: %d sent | wrap=%s | earnings=%d tickers | S&P %s | NQ %s",
+            sent, bool(market_wrap), len(earning_tickers), sp_pct, nq_pct,
+        )
     except Exception as e:
         logger.error("job_daily_email failed: %s", e)
 
