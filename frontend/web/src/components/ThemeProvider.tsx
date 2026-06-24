@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react";
 import { usePathname } from "next/navigation";
 import { useThemeStore, useAuthStore, useWatchlistStore, useLearnStore } from "@/lib/store";
+import { usePortfolioStore } from "@/lib/portfolioStore";
 import { getSupabaseClient } from "@/lib/supabase";
 
 const BASE_URL =
@@ -103,6 +104,7 @@ export default function ThemeProvider({ children }: { children: React.ReactNode 
       loadThemeFromServer();
       useWatchlistStore.getState().loadFromServer();
       useLearnStore.getState().restoreFromServer();
+      usePortfolioStore.getState().loadFromServer();
     };
 
     syncAll();

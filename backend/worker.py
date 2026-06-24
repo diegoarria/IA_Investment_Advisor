@@ -881,7 +881,13 @@ async def job_portfolio_alerts():
                     raw  = port_res.data[0].get("positions") or {}
                     pos  = raw.get("positions", []) if isinstance(raw, dict) else (raw if isinstance(raw, list) else [])
                     port_positions = {
-                        p["ticker"]: {"shares": float(p.get("shares") or 0), "avg_cost": float(p.get("avg_cost") or 0)}
+                        p["ticker"]: {
+                            "shares": float(p.get("shares") or 0),
+                            # frontend stores as avgPrice (camelCase); backend as avg_cost or avg_price
+                            "avg_cost": float(
+                                p.get("avg_cost") or p.get("avg_price") or p.get("avgPrice") or 0
+                            ),
+                        }
                         for p in pos if p.get("ticker")
                     }
 
