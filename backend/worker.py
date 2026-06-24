@@ -415,19 +415,37 @@ async def run_league_notifications():
 
 # ── Notification engine jobs ──────────────────────────────────────────────────
 
+def _fetch_realtime_pct(symbols: list[str]) -> dict[str, float | None]:
+    """Use fast_info to get real-time % change vs previous close.
+    Works at any time of day including market open (no closed-candle needed)."""
+    import yfinance as yf
+    result: dict[str, float | None] = {}
+    for sym in symbols:
+        try:
+            fi = yf.Ticker(sym).fast_info
+            curr = fi.get("lastPrice") or fi.get("regularMarketPrice")
+            prev = fi.get("previousClose")
+            if curr and prev:
+                result[sym] = round((curr - prev) / prev * 100, 2)
+            else:
+                result[sym] = None
+        except Exception:
+            result[sym] = None
+    return result
+
+
 async def job_market_open():
     """9:30 AM ET weekdays — personalized open alert for ALL users.
-    Shows portfolio pre-market change vs S&P 500 and Nasdaq when available."""
+    Shows real-time portfolio change vs S&P 500 and Nasdaq at open."""
     from app.core.database import get_supabase, run_query
     from app.services.notification_engine import send_push
     db = get_supabase()
     try:
-        # Use _batch_fetch_prices (reliable) instead of get_market_summary_text
-        index_raw  = await _batch_fetch_prices(["^GSPC", "^IXIC"])
-        sp_px      = index_raw.get("^GSPC", {})
-        nq_px      = index_raw.get("^IXIC", {})
-        sp500_pct  = round((sp_px["curr"] - sp_px["prev"]) / sp_px["prev"] * 100, 2) if sp_px.get("prev") else None
-        nasdaq_pct = round((nq_px["curr"] - nq_px["prev"]) / nq_px["prev"] * 100, 2) if nq_px.get("prev") else None
+        # fast_info gives regularMarketPrice vs previousClose — works at 9:30 AM
+        # before any daily candle closes, unlike _batch_fetch_prices (needs 2 closed days)
+        idx = await asyncio.to_thread(_fetch_realtime_pct, ["^GSPC", "^IXIC"])
+        sp500_pct  = idx.get("^GSPC")
+        nasdaq_pct = idx.get("^IXIC")
 
         prefs_res = await run_query(
             db.table("notification_preferences").select("user_id").eq("push_market_open", True)
@@ -454,7 +472,10 @@ async def job_market_open():
                     portfolio_map[uid] = pos
                     all_tickers.update(p["ticker"] for p in pos if p.get("ticker"))
 
-        prices = await _batch_fetch_prices(list(all_tickers)) if all_tickers else {}
+        # Also use fast_info for portfolio stocks — same reason as indices
+        port_pcts: dict[str, float | None] = {}
+        if all_tickers:
+            port_pcts = await asyncio.to_thread(_fetch_realtime_pct, list(all_tickers))
 
         sent = 0
         for i, uid in enumerate(uids):
@@ -463,7 +484,23 @@ async def job_market_open():
             await asyncio.sleep(random.uniform(0, 0.1))
 
             first = name_map.get(uid, "Inversor")
-            user_pct = _calc_portfolio_pct(portfolio_map.get(uid, []), prices) if uid in portfolio_map and prices else None
+
+            # Calculate portfolio % using real-time fast_info prices
+            user_pct: float | None = None
+            if uid in portfolio_map:
+                positions = portfolio_map[uid]
+                total_w = total_pct = 0.0
+                for p in positions:
+                    ticker = p.get("ticker")
+                    shares = float(p.get("shares") or 0)
+                    avg_cost = float(p.get("avg_cost") or 0)
+                    if not ticker or not shares or ticker not in port_pcts or port_pcts[ticker] is None:
+                        continue
+                    weight = shares * avg_cost
+                    total_w   += weight
+                    total_pct += weight * port_pcts[ticker]
+                if total_w > 0:
+                    user_pct = round(total_pct / total_w, 2)
 
             if user_pct is not None and sp500_pct is not None:
                 sp_str = f"{sp500_pct:+.1f}%"
@@ -1138,24 +1175,37 @@ async def _generate_earnings_push(
     eps_str = f"${eps_estimate:.2f}" if eps_estimate else "no disponible"
     pnl_str = f"Actualmente {'ganando' if (pnl_pct or 0) >= 0 else 'perdiendo'} {abs(pnl_pct):.1f}% desde tu entrada." if pnl_pct is not None else ""
 
-    prompt = f"""Eres el asistente de Nuvos AI. Escribe el body de una notificación push en español para un usuario con {shares:.0f} acciones de {company} ({ticker}).
+    has_position = shares > 0 and position_value > 0
+
+    if has_position:
+        prompt = f"""Eres el asistente de Nuvos AI. Escribe el body de una notificación push en español para un inversor que tiene {shares:.0f} acciones de {company} ({ticker}) valoradas en ${position_value:,.2f}.
 
 DATOS:
 - Posición actual: ${position_value:,.2f} | {pnl_str}
 - Reporta {when} | EPS estimado: {eps_str}
 - {scenarios_str}
 
-FORMATO REQUERIDO (sigue este estilo exactamente):
+FORMATO REQUERIDO:
 "{company} ({ticker}) reporta {when}. EPS: {eps_str}. {"Si supera: tu posición sube a $" + f"{beat_value:,.0f}" + f" (+{beat_avg}%)" if beat_value else ""}{"." if beat_value else ""} {"Si decepciona: baja a $" + f"{miss_value:,.0f}" + f" ({miss_avg}%)" if miss_value else ""}."
 
 REGLAS:
-- Menciona el nombre completo de la empresa y el ticker
+- Menciona la empresa y el ticker
+- Incluye EPS estimado y escenarios en dólares si están disponibles
+- Español claro, máximo 250 caracteres, sin emojis, sin mencionar Nuvos AI
+- Solo el texto"""
+    else:
+        prompt = f"""Eres el asistente de Nuvos AI. Escribe el body de una notificación push en español para un inversor que sigue {company} ({ticker}) en su watchlist.
+
+DATOS:
+- Reporta {when} | EPS estimado: {eps_str}
+- Reacción histórica: {f"beat promedio {beat_avg:+.1f}% en {n_total} reportes" if beat_avg is not None else "datos limitados"}
+
+REGLAS:
+- Menciona la empresa, el ticker y cuándo reporta
 - Incluye EPS estimado
-- Incluye ambos escenarios en dólares exactos si están disponibles
-- Español claro, como explicarle a un amigo sin experiencia financiera
-- Máximo 250 caracteres
-- Sin emojis, sin mencionar Nuvos AI
-- Solo el texto, nada más"""
+- Menciona brevemente qué suele pasar históricamente si hay datos
+- Español claro, máximo 200 caracteres, sin emojis, sin mencionar Nuvos AI
+- Solo el texto"""
 
     try:
         client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
