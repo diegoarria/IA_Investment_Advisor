@@ -310,6 +310,179 @@ def personalized_daily_email(name: str, market_data: dict, news: list, portfolio
     return _email_wrapper(body)
 
 
+# ─── Daily email v2 ──────────────────────────────────────────────────────────
+
+def daily_email_v2(
+    first_name: str,
+    port_pct: float | None,
+    port_usd: float | None,
+    sp_pct: float | None,
+    sp_px: float | None,
+    nq_pct: float | None,
+    nq_px: float | None,
+    top_gainers: list[dict],
+    top_losers: list[dict],
+    ai_summary: str,
+) -> str:
+    """Daily email — 3-table structure:
+    1. Tu portafolio vs S&P 500 vs Nasdaq
+    2. AI summary of the day
+    3. Top 3 gainers / Top 3 losers
+    """
+    def _pct_badge(pct, big=False):
+        if pct is None:
+            return '<span style="color:#6b7280">N/D</span>'
+        up     = pct >= 0
+        color  = "#22c55e" if up else "#ef4444"
+        bg     = "rgba(34,197,94,0.12)" if up else "rgba(239,68,68,0.12)"
+        sign   = "+" if up else ""
+        size   = "22px" if big else "14px"
+        pad    = "6px 14px" if big else "3px 10px"
+        return (
+            f'<span style="display:inline-block;background:{bg};color:{color};'
+            f'font-weight:800;font-size:{size};padding:{pad};border-radius:20px">'
+            f'{sign}{pct:.2f}%</span>'
+        )
+
+    def _px_str(px):
+        if px is None:
+            return "—"
+        if px >= 1000:
+            return f"{px:,.0f}"
+        return f"{px:,.2f}"
+
+    # ── Table 1: Portfolio vs S&P 500 vs Nasdaq ───────────────────────────────
+    beating    = port_pct is not None and sp_pct is not None and port_pct > sp_pct
+    beat_badge = (
+        '<div style="display:inline-block;background:rgba(0,212,126,0.1);border:1px solid rgba(0,212,126,0.3);'
+        'border-radius:20px;padding:4px 14px;margin-top:10px">'
+        '<span style="color:#00d47e;font-size:11px;font-weight:800;letter-spacing:1px">🏆 SUPERASTE AL MERCADO</span></div>'
+    ) if beating else ""
+
+    port_usd_line = ""
+    if port_usd is not None:
+        sign  = "+" if port_usd >= 0 else ""
+        color = "#22c55e" if port_usd >= 0 else "#ef4444"
+        port_usd_line = f'<div style="color:{color};font-size:13px;font-weight:700;margin-top:4px">{sign}${abs(port_usd):,.2f} hoy</div>'
+
+    def _col(label, pct, px_val=None):
+        up    = pct is not None and pct >= 0
+        color = "#22c55e" if up else "#ef4444"
+        sign  = "+" if up else ""
+        pct_s = f"{sign}{pct:.2f}%" if pct is not None else "N/D"
+        px_s  = _px_str(px_val)
+        return (
+            f'<td style="padding:20px 12px;text-align:center;border-right:1px solid #1e2235;vertical-align:top">'
+            f'<div style="color:#9ca3af;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin-bottom:10px">{label}</div>'
+            f'<div style="font-size:26px;font-weight:900;color:{color};letter-spacing:-0.5px">{pct_s}</div>'
+            f'<div style="color:#4b5563;font-size:12px;margin-top:6px">{px_s}</div>'
+            f'</td>'
+        )
+
+    port_pct_color = "#22c55e" if (port_pct or 0) >= 0 else "#ef4444"
+    port_pct_sign  = "+" if (port_pct or 0) >= 0 else ""
+    port_pct_str   = f"{port_pct_sign}{port_pct:.2f}%" if port_pct is not None else "—"
+
+    table1 = f"""
+  <div style="background:#161b27;border:1px solid #2a2d3a;border-radius:16px;overflow:hidden;margin-bottom:20px">
+    <div style="padding:12px 16px;border-bottom:1px solid #2a2d3a;background:#111318">
+      <p style="color:#9ca3af;font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;margin:0">📊 Rendimiento del día</p>
+    </div>
+    <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse">
+      <tr>
+        <td style="padding:20px 12px;text-align:center;border-right:1px solid #1e2235;vertical-align:top">
+          <div style="color:#9ca3af;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin-bottom:10px">Tu Portafolio</div>
+          <div style="font-size:26px;font-weight:900;color:{port_pct_color};letter-spacing:-0.5px">{port_pct_str}</div>
+          {port_usd_line}
+        </td>
+        {_col("S&amp;P 500", sp_pct, sp_px)}
+        {_col("Nasdaq", nq_pct, nq_px).replace("border-right:1px solid #1e2235;", "")}
+      </tr>
+    </table>
+    <div style="padding:12px 16px;border-top:1px solid #1e2235;text-align:center">
+      {beat_badge}
+      {"" if beating else ('<span style="color:#6b7280;font-size:12px">Mañana es otra oportunidad</span>' if port_pct is not None else "")}
+    </div>
+  </div>"""
+
+    # ── Table 2: AI Summary ────────────────────────────────────────────────────
+    ai_section = ""
+    if ai_summary:
+        paras = "".join(
+            f'<p style="margin:0 0 10px;color:#d1d5db;font-size:14px;line-height:1.7">{p}</p>'
+            for p in ai_summary.split("\n") if p.strip()
+        )
+        ai_section = f"""
+  <div style="background:#161b27;border-left:3px solid #00d47e;border-radius:0 16px 16px 0;padding:20px 20px 10px;margin-bottom:20px">
+    <p style="color:#00d47e;font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;margin:0 0 12px">🤖 Resumen IA del día</p>
+    {paras}
+  </div>"""
+
+    # ── Table 3: Top 3 up / Top 3 down ────────────────────────────────────────
+    def _mover_rows(items, direction):
+        if not items:
+            return '<tr><td colspan="2" style="padding:14px;text-align:center;color:#4b5563;font-size:12px">Sin datos</td></tr>'
+        rows = ""
+        for item in items:
+            pct   = item.get("day_pct", 0) or 0
+            color = "#22c55e" if pct >= 0 else "#ef4444"
+            sign  = "+" if pct >= 0 else ""
+            rows += (
+                f'<tr style="border-top:1px solid #1e2235">'
+                f'<td style="padding:10px 14px;color:#d1d5db;font-size:13px;font-weight:700">{item["ticker"]}</td>'
+                f'<td style="padding:10px 14px;text-align:right;color:{color};font-weight:800;font-size:13px">{sign}{pct:.2f}%</td>'
+                f'</tr>'
+            )
+        return rows
+
+    movers_section = ""
+    if top_gainers or top_losers:
+        movers_section = f"""
+  <div style="background:#161b27;border:1px solid #2a2d3a;border-radius:16px;overflow:hidden;margin-bottom:20px">
+    <div style="padding:12px 16px;border-bottom:1px solid #2a2d3a;background:#111318">
+      <p style="color:#9ca3af;font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;margin:0">Movimientos de tu portafolio</p>
+    </div>
+    <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse">
+      <tr>
+        <td style="width:50%;vertical-align:top;border-right:1px solid #1e2235">
+          <div style="padding:10px 14px;background:#0d1117;border-bottom:1px solid #1e2235">
+            <span style="color:#22c55e;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px">▲ Top subidas</span>
+          </div>
+          <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse">
+            {_mover_rows(top_gainers, "up")}
+          </table>
+        </td>
+        <td style="width:50%;vertical-align:top">
+          <div style="padding:10px 14px;background:#0d1117;border-bottom:1px solid #1e2235">
+            <span style="color:#ef4444;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px">▼ Top caídas</span>
+          </div>
+          <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse">
+            {_mover_rows(top_losers, "down")}
+          </table>
+        </td>
+      </tr>
+    </table>
+  </div>"""
+
+    body = f"""
+  {_nuvos_header("Resumen Diario del Mercado")}
+  <h1 style="color:#fff;font-size:22px;font-weight:900;margin:0 0 4px;text-align:center;letter-spacing:-0.5px">
+    Hola {first_name}, así cerró el mercado
+  </h1>
+  <p style="color:#6b7280;font-size:13px;margin:0 0 24px;text-align:center">Cierre del mercado · Actualización automática</p>
+
+  {table1}
+  {ai_section}
+  {movers_section}
+
+  <div style="text-align:center;margin-bottom:8px">
+    <a href="https://nuvosai.com/portfolio" style="display:inline-block;background:#00d47e;color:#0d1117;font-weight:900;font-size:14px;padding:13px 32px;border-radius:14px;text-decoration:none">
+      Ver mi portafolio en Nuvos AI →
+    </a>
+  </div>"""
+    return _email_wrapper(body)
+
+
 # ─── Weekly premium email ─────────────────────────────────────────────────────
 
 def weekly_premium_email(user_name: str, portfolio_data: dict, ai_insights: str) -> str:

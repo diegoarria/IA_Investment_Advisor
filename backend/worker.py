@@ -636,106 +636,178 @@ async def job_market_close():
         logger.error("job_market_close failed: %s", e)
 
 
+async def _generate_daily_ai_summary(tickers_with_moves: list[dict], sp_pct: float | None, nq_pct: float | None) -> str:
+    """Claude Haiku: 2-3 sentence summary of the day's key events for the user's positions."""
+    if not tickers_with_moves:
+        return ""
+    try:
+        import anthropic
+        moves_str = "\n".join(
+            f"- {x['ticker']}: {x['day_pct']:+.2f}% hoy"
+            for x in sorted(tickers_with_moves, key=lambda x: abs(x["day_pct"]), reverse=True)[:6]
+        )
+        market_str = ""
+        if sp_pct is not None and nq_pct is not None:
+            market_str = f"S&P 500: {sp_pct:+.2f}%, Nasdaq: {nq_pct:+.2f}%"
+
+        prompt = f"""Eres un analista financiero para inversores latinoamericanos.
+Genera un resumen del cierre del mercado de HOY en máximo 3 oraciones cortas.
+
+Movimientos del portafolio del usuario:
+{moves_str}
+
+Índices del mercado hoy: {market_str}
+
+Instrucciones:
+- Empieza mencionando la tendencia general del día
+- Menciona el mayor movimiento positivo y/o negativo del portafolio con su causa si la conoces
+- Termina con una perspectiva muy breve
+- Español, tono profesional pero accesible
+- Máximo 3 oraciones, sin viñetas"""
+
+        client = anthropic.AsyncAnthropic()
+        resp = await asyncio.wait_for(
+            client.messages.create(
+                model="claude-haiku-4-5-20251001",
+                max_tokens=200,
+                messages=[{"role": "user", "content": prompt}],
+            ),
+            timeout=10,
+        )
+        return (resp.content[0].text or "").strip()
+    except Exception:
+        return ""
+
+
 async def job_daily_email():
-    """6:00 PM ET weekdays — personalized daily email (premium) or generic (free)."""
+    """6:00 PM ET weekdays — personalized daily email for ALL users.
+
+    Structure:
+      1. Tu portafolio vs S&P 500 vs Nasdaq (comparison table)
+      2. AI summary of the day's key events for user's positions
+      3. Top 3 up + Top 3 down from the user's portfolio
+    """
     if not settings.resend_api_key:
         return
     from app.core.database import get_supabase, run_query
-    from app.services.notification_engine import send_email_notification, get_market_summary_text
-    from app.services.email_templates import daily_summary_email, personalized_daily_email
+    from app.services.notification_engine import send_email_notification
+    from app.services.email_templates import daily_email_v2
     db = get_supabase()
     try:
-        market = await get_market_summary_text()
-        generic_html = daily_summary_email(market, [])
+        # ── 1. Fetch index prices via _batch_fetch_prices (reliable) ──────────
+        index_raw = await _batch_fetch_prices(["^GSPC", "^IXIC", "^DJI"])
+        def _idx_pct(sym):
+            px = index_raw.get(sym, {})
+            if px.get("prev"):
+                return round((px["curr"] - px["prev"]) / px["prev"] * 100, 2)
+            return None
+        sp_pct  = _idx_pct("^GSPC")
+        nq_pct  = _idx_pct("^IXIC")
+        dj_pct  = _idx_pct("^DJI")
+        sp_px   = index_raw.get("^GSPC", {}).get("curr")
+        nq_px   = index_raw.get("^IXIC", {}).get("curr")
 
-        # Fetch opted-in users with profile data
+        # ── 2. All users with email_daily_summary enabled ─────────────────────
         prefs_res = await run_query(
             db.table("notification_preferences").select("user_id").eq("email_daily_summary", True)
         )
-        opted_ids = {u["user_id"] for u in (prefs_res.data or [])}
+        opted_ids = [u["user_id"] for u in (prefs_res.data or [])]
         if not opted_ids:
             return
 
+        # ── 3. First names in one query ───────────────────────────────────────
         profiles_res = await run_query(
-            db.table("user_profiles").select("user_id,name,subscription_tier").in_("user_id", list(opted_ids))
+            db.table("user_profiles").select("user_id,name").in_("user_id", opted_ids)
         )
-        profiles = {p["user_id"]: p for p in (profiles_res.data or [])}
+        name_map = {r["user_id"]: r.get("name") or "Inversor" for r in (profiles_res.data or [])}
 
-        # Batch fetch portfolios for premium users
-        premium_ids = [uid for uid, p in profiles.items() if p.get("subscription_tier") == "premium"]
+        # ── 4. All portfolios (no premium gate) ───────────────────────────────
         portfolio_map: dict[str, list] = {}
-        if premium_ids:
+        all_tickers: set[str] = set()
+        for uid in opted_ids:
             port_res = await run_query(
-                db.table("user_portfolio").select("user_id,positions").in_("user_id", premium_ids)
+                db.table("user_portfolio").select("positions").eq("user_id", uid)
             )
-            for row in (port_res.data or []):
-                raw = row.get("positions") or {}
+            if port_res.data:
+                raw = port_res.data[0].get("positions") or {}
                 pos = raw.get("positions", []) if isinstance(raw, dict) else (raw if isinstance(raw, list) else [])
                 if pos:
-                    portfolio_map[row["user_id"]] = pos
+                    portfolio_map[uid] = pos
+                    all_tickers.update(p["ticker"] for p in pos if p.get("ticker"))
 
-        # Batch fetch today's prices for all premium portfolio tickers
-        all_tickers = list({p["ticker"] for positions in portfolio_map.values() for p in positions if p.get("ticker")})
-        day_prices = await _batch_fetch_prices(all_tickers) if all_tickers else {}
+        # ── 5. Batch-fetch all portfolio prices (one call) ────────────────────
+        day_prices = await _batch_fetch_prices(list(all_tickers)) if all_tickers else {}
 
+        # ── 6. Build and send per-user email ──────────────────────────────────
         sent = 0
         for i, uid in enumerate(opted_ids):
             if i % 100 == 0 and i > 0:
                 await asyncio.sleep(12)
-            profile  = profiles.get(uid, {})
-            name     = profile.get("name", "Inversor")
-            is_prem  = profile.get("subscription_tier") == "premium"
+            await asyncio.sleep(random.uniform(0, 0.1))
 
-            if is_prem and uid in portfolio_map and day_prices:
-                # Build per-user day portfolio stats
-                positions   = portfolio_map[uid]
-                enriched    = []
-                total_val   = 0.0
-                total_prev  = 0.0
-                best_t, best_p = None, None
-                for p in positions:
-                    ticker = p.get("ticker")
-                    shares = float(p.get("shares") or 0)
-                    if not ticker or not shares or ticker not in day_prices:
-                        continue
-                    px     = day_prices[ticker]
-                    cv     = px["curr"] * shares
-                    pv     = px["prev"] * shares
-                    d_pct  = (px["curr"] - px["prev"]) / px["prev"] * 100 if px["prev"] else 0.0
-                    d_usd  = cv - pv
-                    total_val  += cv
-                    total_prev += pv
-                    enriched.append({
-                        "ticker":      ticker,
-                        "shares":      round(shares, 4),
-                        "day_pct":     round(d_pct, 2),
-                        "day_dollars": round(d_usd, 2),
-                        "total_value": round(cv, 2),
-                    })
-                    if best_p is None or d_pct > best_p:
-                        best_t, best_p = ticker, d_pct
+            name  = name_map.get(uid, "Inversor")
+            first = name.split()[0]
+            positions = portfolio_map.get(uid, [])
 
-                portfolio_day = None
-                if enriched and total_prev > 0:
-                    portfolio_day = {
-                        "positions":    enriched,
-                        "total_value":  round(total_val, 2),
-                        "day_dollars":  round(total_val - total_prev, 2),
-                        "day_pct":      round((total_val - total_prev) / total_prev * 100, 2),
-                        "top_ticker":   best_t,
-                        "top_pct":      round(best_p, 2) if best_p is not None else None,
-                    }
+            # Calculate enriched positions
+            enriched: list[dict] = []
+            total_val  = 0.0
+            total_prev = 0.0
+            for p in positions:
+                ticker = p.get("ticker")
+                shares = float(p.get("shares") or 0)
+                if not ticker or not shares or ticker not in day_prices:
+                    continue
+                px    = day_prices[ticker]
+                cv    = px["curr"] * shares
+                pv    = px["prev"] * shares
+                d_pct = (px["curr"] - px["prev"]) / px["prev"] * 100 if px["prev"] else 0.0
+                d_usd = cv - pv
+                total_val  += cv
+                total_prev += pv
+                enriched.append({
+                    "ticker":      ticker,
+                    "day_pct":     round(d_pct, 2),
+                    "day_dollars": round(d_usd, 2),
+                    "total_value": round(cv, 2),
+                })
 
-                html = personalized_daily_email(name, market, [], portfolio_day)
-                subject = f"Tu portafolio hoy: {('+' if portfolio_day and portfolio_day['day_pct'] >= 0 else '')}{portfolio_day['day_pct']:.2f}% — Nuvos AI" if portfolio_day else f"Cierre del mercado — Nuvos AI"
-            else:
-                html    = generic_html
-                subject = "Tu resumen diario del mercado — Nuvos AI"
+            port_pct = round((total_val - total_prev) / total_prev * 100, 2) if total_prev > 0 else None
+            port_usd = round(total_val - total_prev, 2) if total_prev > 0 else None
 
+            # Top 3 up / Top 3 down
+            sorted_pos = sorted(enriched, key=lambda x: x["day_pct"], reverse=True)
+            top_gainers = sorted_pos[:3]
+            top_losers  = list(reversed(sorted_pos))[:3]
+
+            # AI summary (generated once if user has positions)
+            ai_summary = ""
+            if enriched:
+                ai_summary = await _generate_daily_ai_summary(enriched, sp_pct, nq_pct)
+
+            html = daily_email_v2(
+                first_name=first,
+                port_pct=port_pct,
+                port_usd=port_usd,
+                sp_pct=sp_pct,
+                sp_px=sp_px,
+                nq_pct=nq_pct,
+                nq_px=nq_px,
+                top_gainers=top_gainers,
+                top_losers=top_losers,
+                ai_summary=ai_summary,
+            )
+
+            sign    = "+" if port_pct and port_pct >= 0 else ""
+            subject = (
+                f"Tu portafolio hoy: {sign}{port_pct:.2f}% — Nuvos AI"
+                if port_pct is not None
+                else "Tu resumen diario del mercado — Nuvos AI"
+            )
             await send_email_notification(uid, "daily_summary", subject, html, db)
             sent += 1
 
-        logger.info("Daily email: %d sent (%d premium personalized)", sent, len(premium_ids))
+        logger.info("Daily email v2: %d sent | S&P %s | NQ %s", sent, sp_pct, nq_pct)
     except Exception as e:
         logger.error("job_daily_email failed: %s", e)
 
