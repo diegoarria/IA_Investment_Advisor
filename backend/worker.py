@@ -14,8 +14,33 @@ import asyncio
 import logging
 import random
 import concurrent.futures
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone, timedelta, date
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
+
+# ── NYSE holiday calendar (observed dates) ────────────────────────────────────
+_NYSE_HOLIDAYS: set[date] = {
+    # 2025
+    date(2025, 1, 1), date(2025, 1, 20), date(2025, 2, 17), date(2025, 4, 18),
+    date(2025, 5, 26), date(2025, 6, 19), date(2025, 7, 4), date(2025, 9, 1),
+    date(2025, 11, 27), date(2025, 12, 25),
+    # 2026
+    date(2026, 1, 1), date(2026, 1, 19), date(2026, 2, 16), date(2026, 4, 3),
+    date(2026, 5, 25), date(2026, 6, 19), date(2026, 7, 3), date(2026, 9, 7),
+    date(2026, 11, 26), date(2026, 12, 25),
+    # 2027
+    date(2027, 1, 1), date(2027, 1, 18), date(2027, 2, 15), date(2027, 3, 26),
+    date(2027, 5, 31), date(2027, 6, 18), date(2027, 7, 5), date(2027, 9, 6),
+    date(2027, 11, 25), date(2027, 12, 24),
+}
+
+
+def _is_market_open_today() -> bool:
+    """True if NYSE is open right now (ET). Excludes weekends and observed holidays."""
+    import pytz
+    today = datetime.now(pytz.timezone("America/New_York")).date()
+    if today.weekday() >= 5:          # Saturday=5, Sunday=6
+        return False
+    return today not in _NYSE_HOLIDAYS
 from app.core.config import settings
 from app.services.notification_service import scan_and_notify_all_users
 from app.services.email_service import (
@@ -83,6 +108,38 @@ def _calc_portfolio_pct(positions: list, prices: dict) -> float | None:
     if total_prev > 0:
         return ((total_val - total_prev) / total_prev) * 100
     return None
+
+
+def _calc_portfolio_close_data(
+    positions: list, prices: dict
+) -> tuple[float | None, float | None, list, list]:
+    """Return (pct, total_curr, top_gainers, top_losers) for email building."""
+    total_curr = total_prev = 0.0
+    movers = []
+    for p in positions:
+        ticker = p.get("ticker")
+        shares = float(p.get("shares") or 0)
+        if not ticker or not shares or ticker not in prices:
+            continue
+        px  = prices[ticker]
+        val = px["curr"] * shares
+        prv = px["prev"] * shares
+        total_curr += val
+        total_prev += prv
+        if px["prev"] > 0:
+            pct = round((px["curr"] - px["prev"]) / px["prev"] * 100, 2)
+            movers.append({
+                "ticker": ticker,
+                "pct": pct,
+                "price": px["curr"],
+                "dollar_change": round(val - prv, 2),
+            })
+    if total_prev <= 0:
+        return None, None, [], []
+    port_pct    = round((total_curr - total_prev) / total_prev * 100, 2)
+    gainers     = sorted([m for m in movers if m["pct"] >= 0], key=lambda x: x["pct"], reverse=True)
+    losers      = sorted([m for m in movers if m["pct"] < 0],  key=lambda x: x["pct"])
+    return port_pct, round(total_curr, 2), gainers, losers
 
 
 def _top_performer(positions: list, prices: dict) -> tuple[str | None, float | None]:
@@ -554,41 +611,33 @@ async def job_market_open_reminder():
 
 
 async def job_market_close():
-    """4:00 PM ET weekdays — personalized market close summary per user.
-
-    Format (beating market):
-        Diego, el mercado ha cerrado. Este es el resumen:
-        - Tu Portafolio: +2.38%
-        - S&P 500: +1.70%
-        - Nasdaq: +2.21%
-
-        ¡Enhorabuena! Superaste al mercado el día de hoy.
-
-    Format (lagging market):
-        Diego, el mercado ha cerrado. Este es el resumen:
-        - Tu Portafolio: -0.54%
-        - S&P 500: +1.70%
-        - Nasdaq: +2.21%
-
-        El mercado tuvo mejor desempeño hoy. Mañana es otra oportunidad.
-
-    No premium gate — every user with push_market_close=True gets the personalized version.
+    """4:00 PM ET weekdays — personalized market close push + email per user.
+    Skips weekends and NYSE holidays via _is_market_open_today().
+    Uses SPY/QQQ as S&P 500/Nasdaq proxies (^GSPC/^IXIC are IP-blocked on Railway).
     """
     from app.core.database import get_supabase, run_query
-    from app.services.notification_engine import send_push
+    from app.services.notification_engine import send_push, send_email_notification
+    from app.services.email_templates import daily_email_v2
+
+    # ── 0. Holiday / weekend guard ────────────────────────────────────────────
+    if not _is_market_open_today():
+        logger.info("job_market_close: market closed today (holiday or weekend) — skipping")
+        return
+
     db = get_supabase()
     try:
-        # ── 1. Fetch market indices ────────────────────────────────────────────
-        index_prices = await _batch_fetch_prices(["^GSPC", "^IXIC"])
+        # ── 1. Fetch indices via ETF proxies (work via Nasdaq API on Railway) ──
+        # SPY ≈ S&P 500, QQQ ≈ Nasdaq 100
+        index_prices = await _batch_fetch_prices(["SPY", "QQQ"])
         def _idx_pct(sym: str) -> float | None:
             px = index_prices.get(sym, {})
             return round((px["curr"] - px["prev"]) / px["prev"] * 100, 2) if px.get("prev") else None
-        sp500_pct  = _idx_pct("^GSPC")
-        nasdaq_pct = _idx_pct("^IXIC")
+        sp500_pct  = _idx_pct("SPY")
+        nasdaq_pct = _idx_pct("QQQ")
+        sp_px  = index_prices.get("SPY", {}).get("curr")
+        nq_px  = index_prices.get("QQQ", {}).get("curr")
 
-        # ── 2. All users with any push channel (Expo mobile OR web push) ─────
-        # Don't gate on notification_preferences — users who never opened settings still get it
-        # unless they explicitly disabled it.
+        # ── 2. All users with any push channel (Expo OR web push) ────────────
         token_res = await run_query(
             db.table("user_profiles").select("user_id,push_token")
             .neq("push_token", "").not_.is_("push_token", "null")
@@ -607,16 +656,19 @@ async def job_market_close():
             logger.warning("job_market_close: no eligible users")
             return
 
-        # ── 3. First names in one query ───────────────────────────────────────
+        # ── 3. Profiles: name + email in one query ────────────────────────────
         profiles_res = await run_query(
-            db.table("user_profiles").select("user_id,name").in_("user_id", uids)
+            db.table("user_profiles").select("user_id,name,email").in_("user_id", uids)
         )
-        name_map = {
-            r["user_id"]: (r.get("name") or "Inversor").split()[0]
+        profile_map = {
+            r["user_id"]: {
+                "first": (r.get("name") or "Inversor").split()[0],
+                "email": r.get("email") or "",
+            }
             for r in (profiles_res.data or [])
         }
 
-        # ── 4. Collect all portfolio positions (no premium gate) ──────────────
+        # ── 4. Collect all portfolio positions ────────────────────────────────
         portfolio_map: dict[str, list] = {}
         all_tickers: set[str] = set()
         for uid in uids:
@@ -630,44 +682,77 @@ async def job_market_close():
                     portfolio_map[uid] = pos
                     all_tickers.update(p["ticker"] for p in pos if p.get("ticker"))
 
-        # ── 5. Batch-fetch prices (one call for all tickers) ──────────────────
+        # ── 5. Batch-fetch all portfolio prices once ──────────────────────────
         prices = await _batch_fetch_prices(list(all_tickers)) if all_tickers else {}
 
-        # ── 6. Build index lines (used by all users) ──────────────────────────
+        # ── 6. Build shared index lines ───────────────────────────────────────
         sp_line = f"S&P 500: {sp500_pct:+.2f}%"  if sp500_pct  is not None else "S&P 500: N/D"
-        nq_line = f"Nasdaq: {nasdaq_pct:+.2f}%"  if nasdaq_pct is not None else "Nasdaq: N/D"
-        indices = f"{sp_line} · {nq_line}"
+        nq_line = f"Nasdaq: {nasdaq_pct:+.2f}%"   if nasdaq_pct is not None else "Nasdaq: N/D"
+        indices  = f"{sp_line} · {nq_line}"
 
-        # ── 7. Fan out — one push per user ────────────────────────────────────
-        sent = 0
+        # ── 7. Fan out — push + email per user ───────────────────────────────
+        sent_push = sent_email = 0
         for i, uid in enumerate(uids):
             if i % 100 == 0 and i > 0:
                 await asyncio.sleep(12)
             await asyncio.sleep(random.uniform(0, 0.1))
 
-            first = name_map.get(uid, "Inversor")
+            first = profile_map.get(uid, {}).get("first", "Inversor")
 
+            # Portfolio % change
+            user_pct    = None
+            total_curr  = None
+            top_gainers = []
+            top_losers  = []
             if uid in portfolio_map and prices:
-                user_pct = _calc_portfolio_pct(portfolio_map[uid], prices)
-            else:
-                user_pct = None
+                user_pct, total_curr, top_gainers, top_losers = _calc_portfolio_close_data(
+                    portfolio_map[uid], prices
+                )
 
+            # Push content
             if user_pct is not None:
                 beating = sp500_pct is not None and user_pct > sp500_pct
-                body = (
+                push_body = (
                     f"Tu portafolio: {user_pct:+.2f}% · {indices}\n\n"
                     + ("¡Enhorabuena! Hoy superaste al mercado." if beating
                        else "El mercado tuvo mejor desempeño hoy. Mañana es otra oportunidad.")
                 )
-                title = "🏆 Superaste al mercado hoy" if beating else "📊 El mercado ha cerrado"
+                push_title = "🏆 Superaste al mercado hoy" if beating else "📊 El mercado ha cerrado"
             else:
-                body  = indices
-                title = "📊 El mercado ha cerrado"
+                push_body  = indices
+                push_title = "📊 El mercado ha cerrado"
 
-            await send_push(uid, "market_close", title, body, {"screen": "portfolio"}, db)
-            sent += 1
+            await send_push(uid, "market_close", push_title, push_body, {"screen": "portfolio"}, db)
+            sent_push += 1
 
-        logger.info("Market close push: %d sent | S&P %s | NQ %s", sent, sp500_pct, nasdaq_pct)
+            # Email
+            try:
+                html = daily_email_v2(
+                    first_name=first,
+                    port_pct=user_pct,
+                    port_usd=total_curr,
+                    sp_pct=sp500_pct,
+                    sp_px=sp_px,
+                    nq_pct=nasdaq_pct,
+                    nq_px=nq_px,
+                    top_gainers=top_gainers[:3],
+                    top_losers=top_losers[:3],
+                    ai_summary=None,
+                )
+                sign    = "+" if user_pct and user_pct >= 0 else ""
+                subject = (
+                    f"Tu portafolio hoy: {sign}{user_pct:.2f}% — Nuvos AI"
+                    if user_pct is not None else "El mercado ha cerrado — Nuvos AI"
+                )
+                await send_email_notification(uid, "market_close", subject, html, db)
+                sent_email += 1
+            except Exception as email_err:
+                logger.warning("market_close email failed for %s: %s", uid[:8], email_err)
+
+        logger.info(
+            "Market close: %d push | %d email | S&P %s | NQ %s",
+            sent_push, sent_email, sp500_pct, nasdaq_pct,
+        )
     except Exception as e:
         logger.error("job_market_close failed: %s", e)
 
