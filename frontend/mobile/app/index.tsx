@@ -655,34 +655,13 @@ export default function AuthScreen() {
               </Text>
             </TouchableOpacity>
 
-            {/* Demo account for App Store review */}
-            {mode === "login" && (
-              <View style={styles.demoBox}>
-                <Text style={styles.demoTitle}>Cuenta de demostración</Text>
-                <Text style={styles.demoCredential}>
-                  demo@nuvosai.app{"\n"}Demo1234!
-                </Text>
-                <TouchableOpacity
-                  style={styles.demoBtn}
-                  onPress={() => {
-                    setEmail("demo@nuvosai.app");
-                    setPassword("Demo1234!");
-                  }}
-                >
-                  <Text style={styles.demoBtnText}>Usar cuenta demo</Text>
-                </TouchableOpacity>
-              </View>
-            )}
-
             {/* Guest access */}
             <TouchableOpacity
-              onPress={() => router.replace("/(tabs)/chat")}
-              style={{ alignItems: "center", paddingVertical: 12 }}
+              onPress={() => router.replace("/(tabs)/home")}
+              style={styles.guestBtn}
               activeOpacity={0.6}
             >
-              <Text style={{ fontSize: 13, color: "#6b7280" }}>
-                Explorar sin cuenta →
-              </Text>
+              <Text style={styles.guestBtnText}>Explorar sin cuenta</Text>
             </TouchableOpacity>
           </View>
           )}
@@ -733,18 +712,12 @@ function makeStyles(c: Colors) {
     switchLink: { color: "#22c55e", fontWeight: "500" },
     devSkip: { marginTop: 20, alignItems: "center", flexDirection: "row" },
     devSkipText: { color: c.textDim, fontSize: 12 },
-    demoBox: {
-      marginTop: 24, borderWidth: 1, borderColor: c.border,
-      borderRadius: 12, padding: 14, alignItems: "center", gap: 6,
-      backgroundColor: c.card,
+    guestBtn: {
+      marginTop: 8, alignItems: "center", paddingVertical: 14,
+      borderWidth: 1, borderColor: c.border, borderRadius: 14,
+      backgroundColor: "transparent",
     },
-    demoTitle: { color: c.textMuted, fontSize: 11, fontWeight: "700", letterSpacing: 0.5 },
-    demoCredential: { color: c.textSub, fontSize: 12, textAlign: "center", lineHeight: 20 },
-    demoBtn: {
-      marginTop: 4, backgroundColor: c.border, borderRadius: 8,
-      paddingHorizontal: 16, paddingVertical: 8,
-    },
-    demoBtnText: { color: c.textSub, fontSize: 12, fontWeight: "700" },
+    guestBtnText: { color: c.textMuted, fontSize: 14, fontWeight: "600" },
 
     socialGroup: { gap: 10, marginBottom: 20 },
     appleBtn: { width: "100%", height: 52 },
