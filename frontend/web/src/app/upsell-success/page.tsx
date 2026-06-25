@@ -2,8 +2,9 @@
 
 import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { CheckCircle, Calendar, ExternalLink, ArrowRight, Download, Loader2 } from "lucide-react";
-import api from "@/lib/api";
+import { CheckCircle, Calendar, ExternalLink, ArrowRight, Download, Loader2, Users } from "lucide-react";
+import api, { billing } from "@/lib/api";
+import { getSupabaseClient } from "@/lib/supabase";
 
 // ← Reemplaza con tu link real de Calendly
 const CALENDLY_URL = "https://calendly.com/diego-arria19/sesion-1-1-con-diego-nuvos-ai";
@@ -42,12 +43,40 @@ function UpsellSuccessContent() {
 
   const [visible, setVisible] = useState(false);
   const [downloading, setDownloading] = useState(false);
+  // Duo plan setup state
+  const [myEmail, setMyEmail] = useState("");
+  const [secondaryEmail, setSecondaryEmail] = useState("");
+  const [duoSaving, setDuoSaving] = useState(false);
+  const [duoSaved, setDuoSaved] = useState(false);
 
   useEffect(() => {
-    // Fade in
     const t = setTimeout(() => setVisible(true), 100);
+    // If duo plan, pre-fill user email from Supabase session
+    if (offer === "family_plan") {
+      getSupabaseClient().auth.getUser().then(({ data }) => {
+        if (data?.user?.email) setMyEmail(data.user.email);
+      });
+    }
     return () => clearTimeout(t);
-  }, []);
+  }, [offer]);
+
+  const handleDuoSave = async () => {
+    if (!secondaryEmail || !secondaryEmail.includes("@")) return;
+    const confirmed = window.confirm(
+      `¿Seguro que quieres guardar estas 2 cuentas?\n\n1. ${myEmail}\n2. ${secondaryEmail}`
+    );
+    if (!confirmed) return;
+    setDuoSaving(true);
+    try {
+      await billing.duoSetup(secondaryEmail);
+      setDuoSaved(true);
+      setTimeout(() => router.replace("/profile"), 2000);
+    } catch {
+      alert("Error al guardar. Intenta de nuevo.");
+    } finally {
+      setDuoSaving(false);
+    }
+  };
 
   const handleDownload = async () => {
     setDownloading(true);
@@ -209,27 +238,100 @@ function UpsellSuccessContent() {
           )}
 
           {offer === "family_plan" && (
-            <>
-              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                <CheckCircle size={18} color="#22c55e" />
-                <span style={{ color: "#d1fae5", fontSize: 14 }}>Plan Dúo activado en tu cuenta</span>
-              </div>
-              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                <CheckCircle size={18} color="#22c55e" />
-                <span style={{ color: "#d1fae5", fontSize: 14 }}>Dos cuentas Premium independientes</span>
-              </div>
-              <div style={{
-                marginTop: 4,
-                padding: "14px 16px",
-                background: `${meta.color}0d`,
-                border: `1px solid ${meta.color}25`,
-                borderRadius: 14,
-              }}>
-                <p style={{ color: "#e5e7eb", fontSize: 13, margin: 0, lineHeight: 1.5 }}>
-                  📧 Te contactaremos en las próximas <strong style={{ color: "#fff" }}>24 horas</strong> para configurar la segunda cuenta.
+            duoSaved ? (
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12, padding: "8px 0" }}>
+                <CheckCircle size={40} color="#22c55e" />
+                <p style={{ color: "#d1fae5", fontSize: 15, fontWeight: 700, margin: 0, textAlign: "center" }}>
+                  ¡Cuentas guardadas exitosamente!
                 </p>
+                <p style={{ color: "#9ca3af", fontSize: 13, margin: 0 }}>Redirigiendo a tu perfil...</p>
               </div>
-            </>
+            ) : (
+              <>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
+                  <Users size={16} color={meta.color} />
+                  <span style={{ color: meta.color, fontSize: 13, fontWeight: 700 }}>¿Qué cuentas quieres agregar?</span>
+                </div>
+
+                {/* Account 1 — owner (readonly) */}
+                <div>
+                  <p style={{ color: "#6b7280", fontSize: 11, fontWeight: 600, margin: "0 0 6px", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                    Cuenta 1 — Tu cuenta
+                  </p>
+                  <div style={{
+                    padding: "12px 14px",
+                    background: "rgba(255,255,255,0.04)",
+                    border: "1px solid rgba(255,255,255,0.1)",
+                    borderRadius: 12,
+                    color: "#9ca3af",
+                    fontSize: 14,
+                  }}>
+                    {myEmail || "Cargando..."}
+                  </div>
+                </div>
+
+                {/* Account 2 — secondary (input) */}
+                <div>
+                  <p style={{ color: "#6b7280", fontSize: 11, fontWeight: 600, margin: "0 0 6px", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                    Cuenta 2 — Usuario con quien compartes
+                  </p>
+                  <input
+                    type="email"
+                    placeholder="email@ejemplo.com"
+                    value={secondaryEmail}
+                    onChange={(e) => setSecondaryEmail(e.target.value)}
+                    style={{
+                      width: "100%",
+                      padding: "12px 14px",
+                      background: "rgba(255,255,255,0.06)",
+                      border: `1px solid ${secondaryEmail && secondaryEmail.includes("@") ? meta.color + "60" : "rgba(255,255,255,0.12)"}`,
+                      borderRadius: 12,
+                      color: "#fff",
+                      fontSize: 14,
+                      outline: "none",
+                      boxSizing: "border-box",
+                      transition: "border-color 0.2s",
+                    }}
+                  />
+                </div>
+
+                {/* Save button */}
+                <button
+                  onClick={handleDuoSave}
+                  disabled={duoSaving || !secondaryEmail.includes("@")}
+                  style={{
+                    marginTop: 4,
+                    width: "100%",
+                    padding: "14px",
+                    borderRadius: 14,
+                    border: "none",
+                    background: duoSaving || !secondaryEmail.includes("@")
+                      ? "rgba(59,130,246,0.2)"
+                      : "linear-gradient(135deg, #3b82f6cc, #3b82f6)",
+                    color: duoSaving || !secondaryEmail.includes("@") ? "#6b7280" : "#fff",
+                    fontWeight: 800,
+                    fontSize: 15,
+                    cursor: duoSaving || !secondaryEmail.includes("@") ? "not-allowed" : "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: 8,
+                    boxShadow: duoSaving || !secondaryEmail.includes("@") ? "none" : "0 4px 20px #3b82f644",
+                    transition: "all 0.2s ease",
+                  }}
+                >
+                  {duoSaving ? (
+                    <>
+                      <Loader2 size={17} style={{ animation: "spin 1s linear infinite" }} />
+                      Guardando...
+                    </>
+                  ) : (
+                    "Guardar cuentas"
+                  )}
+                </button>
+                <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
+              </>
+            )
           )}
         </div>
 

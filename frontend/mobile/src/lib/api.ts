@@ -204,6 +204,8 @@ export const billingApi = {
   createCheckout: (plan: "monthly" | "yearly" = "monthly") => api.post("/api/billing/create-checkout", { plan }),
   getStatus: () => api.get("/api/billing/status"),
   brokerCallCheckout: (offer: "49" | "89") => api.post("/api/billing/broker-call-checkout", { offer }),
+  brokerOfferSeen: () => api.post("/api/billing/broker-offer-seen"),
+  duoSetup: (secondary_email: string) => api.post("/api/billing/duo-setup", { secondary_email }),
 };
 
 export const learnApi = {

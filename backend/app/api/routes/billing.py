@@ -93,12 +93,15 @@ async def stripe_webhook(request: Request):
 
         if user_id and session.get("mode") == "subscription":
             from datetime import datetime, timezone
+            update = {
+                "subscription_tier": "premium",
+                "stripe_customer_id": customer_id,
+                "subscription_started_at": datetime.now(timezone.utc).isoformat(),
+            }
+            if metadata.get("offer") == "family_plan":
+                update["duo_plan_purchased_at"] = datetime.now(timezone.utc).isoformat()
             await run_query(
-                db.table("user_profiles").update({
-                    "subscription_tier": "premium",
-                    "stripe_customer_id": customer_id,
-                    "subscription_started_at": datetime.now(timezone.utc).isoformat(),
-                }).eq("user_id", user_id)
+                db.table("user_profiles").update(update).eq("user_id", user_id)
             )
 
     elif event["type"] in ("customer.subscription.deleted", "customer.subscription.paused"):
@@ -162,7 +165,7 @@ async def get_status(user_id: str = Depends(get_current_user_id)):
     db = get_supabase()
     result = await run_query(
         db.table("user_profiles").select(
-            "subscription_tier, msg_count, msg_window_start, trial_started_at, stripe_customer_id, broker_offer_seen_at"
+            "subscription_tier, msg_count, msg_window_start, trial_started_at, stripe_customer_id, broker_offer_seen_at, duo_plan_purchased_at, duo_secondary_email"
         ).eq("user_id", user_id).single()
     )
 
@@ -199,6 +202,9 @@ async def get_status(user_id: str = Depends(get_current_user_id)):
         except Exception:
             pass
 
+    duo_purchased = data.get("duo_plan_purchased_at")
+    duo_secondary = data.get("duo_secondary_email")
+
     return {
         "tier":                  effective_tier,
         "is_trial":              is_trial,
@@ -207,6 +213,8 @@ async def get_status(user_id: str = Depends(get_current_user_id)):
         "msg_window_start":      data.get("msg_window_start"),
         "trial_started_at":      trial_started,
         "broker_offer_seen_at":  data.get("broker_offer_seen_at"),
+        "duo_setup_pending":     bool(duo_purchased and not duo_secondary),
+        "duo_secondary_email":   duo_secondary,
     }
 
 
@@ -231,3 +239,27 @@ async def broker_offer_seen(user_id: str = Depends(get_current_user_id)):
             .eq("user_id", user_id)
         )
     return {"broker_offer_seen_at": seen_at}
+
+
+@router.post("/duo-setup")
+async def duo_setup(body: dict, user_id: str = Depends(get_current_user_id)):
+    """Save the secondary account email for a Duo plan.
+    Primary email is derived from the authenticated user — only secondary is provided by client."""
+    secondary_email = (body.get("secondary_email") or "").strip().lower()
+    if not secondary_email or "@" not in secondary_email:
+        raise HTTPException(status_code=422, detail="Email del segundo usuario inválido")
+
+    db = get_supabase()
+    # Verify duo plan was actually purchased before saving
+    check = await run_query(
+        db.table("user_profiles").select("duo_plan_purchased_at").eq("user_id", user_id).single()
+    )
+    if not (check.data and check.data.get("duo_plan_purchased_at")):
+        raise HTTPException(status_code=403, detail="No tienes un plan Dúo activo")
+
+    await run_query(
+        db.table("user_profiles")
+        .update({"duo_secondary_email": secondary_email})
+        .eq("user_id", user_id)
+    )
+    return {"ok": True, "duo_secondary_email": secondary_email}

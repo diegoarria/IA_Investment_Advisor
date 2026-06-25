@@ -22,6 +22,7 @@ import StockAvatar from "../../src/components/StockAvatar";
 import MobileOnboardingChecklist, { type OnboardingStep } from "../../src/components/MobileOnboardingChecklist";
 import MobileHomeScreenPickerModal, { HOME_SCREEN_KEY } from "../../src/components/MobileHomeScreenPickerModal";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { supabase } from "../../src/lib/supabase";
 
 // ── Sparkline helpers ─────────────────────────────────────────────────────────
 function sparkPath(prices: number[], w: number, h: number, close = false): string {
@@ -358,6 +359,11 @@ export default function HomeScreen() {
   const [ytdPct,     setYtdPct]    = useState<number | null>(null);
   const [showGoalModal, setShowGoalModal] = useState(false);
   const [showScreenPicker, setShowScreenPicker] = useState(false);
+  // Duo plan setup
+  const [showDuoModal, setShowDuoModal] = useState(false);
+  const [duoSecondaryEmail, setDuoSecondaryEmail] = useState("");
+  const [duoSaving, setDuoSaving] = useState(false);
+  const [duoMyEmail, setDuoMyEmail] = useState("");
   const [goalDraft,     setGoalDraft]     = useState("");
   const [goalAmtDraft,  setGoalAmtDraft]  = useState("");
   const [savingGoal,    setSavingGoal]    = useState(false);
@@ -437,6 +443,32 @@ export default function HomeScreen() {
       .catch(() => {});
   };
 
+  const handleDuoSave = () => {
+    if (!duoSecondaryEmail.includes("@")) return;
+    Alert.alert(
+      "¿Guardar estas 2 cuentas?",
+      `1. ${duoMyEmail || "Tu cuenta"}\n2. ${duoSecondaryEmail}`,
+      [
+        { text: "Cancelar", style: "cancel" },
+        {
+          text: "Guardar",
+          onPress: async () => {
+            setDuoSaving(true);
+            try {
+              await billingApi.duoSetup(duoSecondaryEmail);
+              setShowDuoModal(false);
+              Alert.alert("¡Listo!", "Las cuentas del Plan Dúo han sido guardadas.");
+            } catch {
+              Alert.alert("Error", "No se pudo guardar. Intenta de nuevo.");
+            } finally {
+              setDuoSaving(false);
+            }
+          },
+        },
+      ]
+    );
+  };
+
   const dismissBrokerCard = async () => {
     await AsyncStorage.setItem("nuvos_has_broker", "1");
     setHasBroker(true);
@@ -444,11 +476,19 @@ export default function HomeScreen() {
   };
 
   const startUpsellTimer = async () => {
-    const KEY = "nuvos_broker_upsell_seen_at";
-    let seenAt = await AsyncStorage.getItem(KEY);
-    if (!seenAt) { seenAt = String(Date.now()); await AsyncStorage.setItem(KEY, seenAt); }
+    let seenMs: number;
+    try {
+      const res: any = await billingApi.brokerOfferSeen();
+      seenMs = new Date(res.data.broker_offer_seen_at).getTime();
+    } catch {
+      // Fallback to AsyncStorage if backend unreachable
+      const KEY = "nuvos_broker_upsell_seen_at";
+      let stored = await AsyncStorage.getItem(KEY);
+      if (!stored) { stored = String(Date.now()); await AsyncStorage.setItem(KEY, stored); }
+      seenMs = Number(stored);
+    }
     const tick = () => {
-      const rem = UPSELL_MS - (Date.now() - Number(seenAt));
+      const rem = UPSELL_MS - (Date.now() - seenMs);
       setUpsellCountdown(rem > 0 ? rem : 0);
     };
     tick();
@@ -460,6 +500,7 @@ export default function HomeScreen() {
     startUpsellTimer();
     return () => { if (upsellTimerRef.current) clearInterval(upsellTimerRef.current); };
   }, [brokerView]);
+
 
   const fmtCountdown = (ms: number) => {
     const h = Math.floor(ms / 3_600_000);
@@ -590,6 +631,18 @@ export default function HomeScreen() {
         }).catch(() => {});
       }
     } catch {}
+
+    // Check duo plan setup pending (only on first load, not silent refresh)
+    if (!silent) {
+      billingApi.getStatus().then(async (res: any) => {
+        if (res?.data?.duo_setup_pending) {
+          const { data: { user } } = await supabase.auth.getUser();
+          if (user?.email) setDuoMyEmail(user.email);
+          setShowDuoModal(true);
+        }
+      }).catch(() => {});
+    }
+
     // Full sync from server: maturity + investment goal
     syncApi.getAll().then((res: any) => {
       const d = res.data;
@@ -1738,6 +1791,71 @@ export default function HomeScreen() {
           if (route !== "/(tabs)/home") router.replace(route as any);
         }}
       />
+
+      {/* ── Duo Plan Setup Modal ──────────────────────────────────────── */}
+      <Modal visible={showDuoModal} transparent animationType="fade" onRequestClose={() => {}}>
+        <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.65)", justifyContent: "center", alignItems: "center", padding: 20 }}>
+          <View style={{ width: "100%", maxWidth: 400, backgroundColor: colors.card, borderRadius: 22, padding: 24, borderWidth: 1, borderColor: colors.border }}>
+            <Text style={{ fontSize: 22, textAlign: "center", marginBottom: 4 }}>👫</Text>
+            <Text style={{ fontSize: 17, fontWeight: "900", color: colors.text, textAlign: "center", marginBottom: 6 }}>
+              ¿Qué cuentas quieres agregar?
+            </Text>
+            <Text style={{ fontSize: 12, color: colors.textMuted, textAlign: "center", marginBottom: 20 }}>
+              Plan Dúo — 2 cuentas Premium independientes
+            </Text>
+
+            {/* Account 1 */}
+            <Text style={{ fontSize: 11, fontWeight: "700", color: colors.textMuted, textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 6 }}>
+              Cuenta 1 — Tu cuenta
+            </Text>
+            <View style={{ padding: 13, backgroundColor: colors.bgRaised, borderRadius: 12, borderWidth: 1, borderColor: colors.border, marginBottom: 16 }}>
+              <Text style={{ color: colors.textSub, fontSize: 14 }}>
+                {duoMyEmail || "Cargando..."}
+              </Text>
+            </View>
+
+            {/* Account 2 */}
+            <Text style={{ fontSize: 11, fontWeight: "700", color: colors.textMuted, textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 6 }}>
+              Cuenta 2 — Usuario con quien compartes
+            </Text>
+            <TextInput
+              value={duoSecondaryEmail}
+              onChangeText={setDuoSecondaryEmail}
+              placeholder="email@ejemplo.com"
+              placeholderTextColor={colors.textDim}
+              keyboardType="email-address"
+              autoCapitalize="none"
+              style={{
+                padding: 13,
+                backgroundColor: colors.bgRaised,
+                borderRadius: 12,
+                borderWidth: 1,
+                borderColor: duoSecondaryEmail.includes("@") ? "rgba(0,212,126,0.5)" : colors.border,
+                color: colors.text,
+                fontSize: 14,
+                marginBottom: 20,
+              }}
+            />
+
+            {/* Save button */}
+            <TouchableOpacity
+              onPress={handleDuoSave}
+              disabled={duoSaving || !duoSecondaryEmail.includes("@")}
+              activeOpacity={0.8}
+              style={{
+                backgroundColor: duoSaving || !duoSecondaryEmail.includes("@") ? "rgba(0,212,126,0.2)" : "#00d47e",
+                borderRadius: 14,
+                paddingVertical: 14,
+                alignItems: "center",
+              }}
+            >
+              <Text style={{ color: "#fff", fontWeight: "900", fontSize: 15 }}>
+                {duoSaving ? "Guardando..." : "Guardar"}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
