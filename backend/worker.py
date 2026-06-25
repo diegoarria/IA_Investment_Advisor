@@ -1887,8 +1887,9 @@ async def job_events_alerts():
                     else:
                         continue
 
+                    # Include ticker in category so each stock dedups independently
                     await send_push(
-                        uid, category, title, body,
+                        uid, f"{category}:{ticker}", title, body,
                         {"ticker": ticker, "screen": "portfolio" if is_portfolio else "watchlist"},
                         db,
                     )
