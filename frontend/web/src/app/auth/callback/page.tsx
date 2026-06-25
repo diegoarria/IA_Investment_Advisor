@@ -25,8 +25,8 @@ export default function AuthCallback() {
         const p = await profileApi.get();
         setProfile(p.data);
         window.location.href = "/home";
-      } catch {
-        window.location.href = "/onboarding";
+      } catch (err: any) {
+        window.location.href = err?.response?.status === 404 ? "/onboarding" : "/home";
       }
     }
 

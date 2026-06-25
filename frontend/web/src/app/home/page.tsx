@@ -175,14 +175,24 @@ export default function HomePage() {
 
   useEffect(() => {
     if (brokerView !== "upsell") return;
-    const KEY = "nuvos_broker_upsell_seen_at";
-    let seenAt = localStorage.getItem(KEY);
-    if (!seenAt) { seenAt = String(Date.now()); localStorage.setItem(KEY, seenAt); }
+    let intervalId: ReturnType<typeof setInterval>;
     const DURATION = 24 * 60 * 60 * 1000;
-    const tick = () => { const r = DURATION - (Date.now() - Number(seenAt)); setUpsellCountdown(r > 0 ? r : 0); };
-    tick();
-    const t = setInterval(tick, 1000);
-    return () => clearInterval(t);
+    const startTick = (seenAtIso: string) => {
+      const seenMs = new Date(seenAtIso).getTime();
+      const tick = () => { const r = DURATION - (Date.now() - seenMs); setUpsellCountdown(r > 0 ? r : 0); };
+      tick();
+      intervalId = setInterval(tick, 1000);
+    };
+    billing.brokerOfferSeen()
+      .then((res: any) => { startTick(res.data.broker_offer_seen_at); })
+      .catch(() => {
+        // Fallback to localStorage if backend unreachable
+        const KEY = "nuvos_broker_upsell_seen_at";
+        let seenAt = localStorage.getItem(KEY);
+        if (!seenAt) { seenAt = new Date().toISOString(); localStorage.setItem(KEY, seenAt); }
+        startTick(seenAt);
+      });
+    return () => clearInterval(intervalId);
   }, [brokerView]);
 
   const fmtCountdown = (ms: number) => {

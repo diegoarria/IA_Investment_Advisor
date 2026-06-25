@@ -184,7 +184,12 @@ export default function Home() {
         const p = await profileApi.get();
         setProfile(p.data);
         window.location.href = "/home";
-      } catch { window.location.href = "/onboarding"; }
+      } catch (err: any) {
+        // Only send to onboarding if profile truly doesn't exist (new user).
+        // Any other error (network, 5xx, token timing) sends to home to avoid
+        // showing onboarding to users who already completed it.
+        window.location.href = err?.response?.status === 404 ? "/onboarding" : "/home";
+      }
     } catch (err: unknown) {
       setError(extractErrorMsg(err) || "Verifica tus credenciales e inténtalo de nuevo.");
     } finally { setLoading(false); }

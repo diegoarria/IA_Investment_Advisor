@@ -13,11 +13,29 @@ import Constants, { ExecutionEnvironment } from "expo-constants";
 
 // Face ID no funciona en Expo Go — requiere build nativo
 const IS_EXPO_GO = Constants.executionEnvironment === ExecutionEnvironment.StoreClient;
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { authApi, profileApi, syncApi, referralApi } from "../src/lib/api";
 import { useTheme, Colors } from "../src/lib/ThemeContext";
 import { useAppStore } from "../src/lib/profileStore";
 import type { UserProfile } from "../src/lib/profileStore";
 import { usePortfolioStore } from "../src/lib/portfolioStore";
+
+const HOME_SCREEN_KEY = "nuvos_home_screen";
+const SCREEN_ROUTES: Record<string, string> = {
+  home:          "/(tabs)/home",
+  chat:          "/(tabs)/chat",
+  patrimonio:    "/(tabs)/patrimonio",
+  notifications: "/(tabs)/notifications",
+  academy:       "/(tabs)/academy",
+};
+async function getStartRoute(): Promise<string> {
+  try {
+    const key = await AsyncStorage.getItem(HOME_SCREEN_KEY);
+    return (key && SCREEN_ROUTES[key]) ? SCREEN_ROUTES[key] : "/(tabs)/home";
+  } catch {
+    return "/(tabs)/home";
+  }
+}
 import { usePaperStore } from "../src/lib/paperStore";
 import { useSubscriptionStore } from "../src/lib/subscriptionStore";
 import { useChatStore } from "../src/lib/chatStore";
@@ -121,7 +139,7 @@ export default function AuthScreen() {
         // Restore chat history from server in background
         useChatStore.getState().restoreFromServer().catch(() => {});
 
-        router.replace("/(tabs)/chat");
+        router.replace(await getStartRoute() as any);
       } catch {
         await SecureStore.deleteItemAsync("access_token").catch(() => {});
         await SecureStore.deleteItemAsync("refresh_token").catch(() => {});
@@ -194,9 +212,17 @@ export default function AuthScreen() {
       // Restore chat history from server (always — server is source of truth)
       useChatStore.getState().restoreFromServer().catch(() => {});
 
-      router.replace(profileRes.status === "fulfilled" ? "/(tabs)/chat" : "/onboarding");
-    } catch {
-      router.replace("/onboarding");
+      if (profileRes.status === "fulfilled") {
+        router.replace(await getStartRoute() as any);
+      } else {
+        // Only send to onboarding if profile truly doesn't exist (new user, 404).
+        // Any other error sends to home to avoid showing onboarding to existing users.
+        const status = (profileRes as PromiseRejectedResult).reason?.response?.status;
+        router.replace(status === 404 ? "/onboarding" : await getStartRoute() as any);
+      }
+    } catch (err: any) {
+      const status = err?.response?.status;
+      router.replace(status === 404 ? "/onboarding" : await getStartRoute() as any);
     }
   };
 
