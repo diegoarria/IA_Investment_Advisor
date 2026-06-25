@@ -572,6 +572,46 @@ def _finnhub_dividend_amount(ticker: str) -> float | None:
     return None
 
 
+async def _finnhub_prices_batch(tickers: list[str]) -> dict:
+    """Fetch {curr, prev} for multiple tickers concurrently via Finnhub. Railway-safe.
+    Replaces _batch_fetch_prices (yfinance) for all daily jobs."""
+    if not tickers:
+        return {}
+    async def _fq(t: str):
+        q = await asyncio.to_thread(_finnhub_quote, t)
+        return t, q
+    results = await asyncio.gather(*[_fq(t) for t in tickers], return_exceptions=True)
+    return {
+        t: {"curr": q["curr"], "prev": q["prev"]}
+        for t, q in results
+        if isinstance(q, dict) and q
+    }
+
+
+def _finnhub_closes(ticker: str, days: int = 35) -> list[float]:
+    """Fetch daily close prices for the last N days via Finnhub /stock/candle.
+    Returns list of floats (oldest→newest). Used for RSI calculation."""
+    import requests as _req, time as _time
+    key = os.getenv("FINNHUB_API_KEY", "")
+    if not key:
+        return []
+    try:
+        to_ts   = int(_time.time())
+        from_ts = to_ts - days * 86400
+        r = _req.get(
+            "https://finnhub.io/api/v1/stock/candle",
+            params={"symbol": ticker, "resolution": "D",
+                    "from": from_ts, "to": to_ts, "token": key},
+            timeout=8,
+        )
+        d = r.json()
+        if d.get("s") == "ok" and d.get("c"):
+            return [float(c) for c in d["c"]]
+    except Exception:
+        pass
+    return []
+
+
 async def job_market_open():
     """9:30 AM ET weekdays — personalized open alert for ALL users.
     Uses SPY/QQQ as S&P 500/Nasdaq proxies (^GSPC/^IXIC blocked on Railway).
@@ -584,13 +624,11 @@ async def job_market_open():
     from app.services.notification_engine import send_push
     db = get_supabase()
     try:
-        # SPY ≈ S&P 500, QQQ ≈ Nasdaq 100 — both accessible via Nasdaq API
-        idx = await _batch_fetch_prices(["SPY", "QQQ"])
-        def _pct(sym):
-            px = idx.get(sym, {})
-            return round((px["curr"] - px["prev"]) / px["prev"] * 100, 2) if px.get("prev") else None
-        sp500_pct  = _pct("SPY")
-        nasdaq_pct = _pct("QQQ")
+        # SPY ≈ S&P 500, QQQ ≈ Nasdaq 100 — via Finnhub (Railway-safe)
+        spy_q = await asyncio.to_thread(_finnhub_quote, "SPY")
+        qqq_q = await asyncio.to_thread(_finnhub_quote, "QQQ")
+        sp500_pct  = spy_q["pct"] if spy_q else None
+        nasdaq_pct = qqq_q["pct"] if qqq_q else None
 
         prefs_res = await run_query(
             db.table("notification_preferences").select("user_id").eq("push_market_open", True)
@@ -616,8 +654,8 @@ async def job_market_open():
                     portfolio_map[uid] = pos
                     all_tickers.update(p["ticker"] for p in pos if p.get("ticker"))
 
-        # Batch-fetch all portfolio prices via Nasdaq API (one call)
-        prices = await _batch_fetch_prices(list(all_tickers)) if all_tickers else {}
+        # Fetch all portfolio prices concurrently via Finnhub (Railway-safe)
+        prices = await _finnhub_prices_batch(list(all_tickers)) if all_tickers else {}
 
         sent = 0
         for i, uid in enumerate(uids):
@@ -695,16 +733,13 @@ async def job_market_close():
 
     db = get_supabase()
     try:
-        # ── 1. Fetch indices via ETF proxies (work via Nasdaq API on Railway) ──
-        # SPY ≈ S&P 500, QQQ ≈ Nasdaq 100
-        index_prices = await _batch_fetch_prices(["SPY", "QQQ"])
-        def _idx_pct(sym: str) -> float | None:
-            px = index_prices.get(sym, {})
-            return round((px["curr"] - px["prev"]) / px["prev"] * 100, 2) if px.get("prev") else None
-        sp500_pct  = _idx_pct("SPY")
-        nasdaq_pct = _idx_pct("QQQ")
-        sp_px  = index_prices.get("SPY", {}).get("curr")
-        nq_px  = index_prices.get("QQQ", {}).get("curr")
+        # ── 1. Fetch indices via Finnhub (Railway-safe, no yfinance) ────────────
+        spy_q = await asyncio.to_thread(_finnhub_quote, "SPY")
+        qqq_q = await asyncio.to_thread(_finnhub_quote, "QQQ")
+        sp500_pct  = spy_q["pct"]  if spy_q else None
+        nasdaq_pct = qqq_q["pct"]  if qqq_q else None
+        sp_px      = spy_q["curr"] if spy_q else None
+        nq_px      = qqq_q["curr"] if qqq_q else None
 
         # ── 2. Discover users: start from portfolio (not push token) ─────────
         # Gate: user must have at least one position imported.
@@ -763,8 +798,8 @@ async def job_market_close():
             for r in (profiles_res.data or [])
         }
 
-        # ── 4. Batch-fetch all portfolio prices once ──────────────────────────
-        prices = await _batch_fetch_prices(list(all_tickers)) if all_tickers else {}
+        # ── 4. Fetch all portfolio prices concurrently via Finnhub ───────────────
+        prices = await _finnhub_prices_batch(list(all_tickers)) if all_tickers else {}
 
         # ── 5. Build shared index lines ───────────────────────────────────────
         sp_line = f"S&P 500: {sp500_pct:+.2f}%"  if sp500_pct  is not None else "S&P 500: N/D"
@@ -1883,7 +1918,7 @@ async def job_monthly_report_push():
                 portfolio_map[uid] = pos
                 all_tickers.update(p["ticker"] for p in pos if p.get("ticker"))
 
-        prices = await _batch_fetch_prices(list(all_tickers)) if all_tickers else {}
+        prices = await _finnhub_prices_batch(list(all_tickers)) if all_tickers else {}
         month_name = now.strftime("%B")
 
         sent = 0
@@ -1957,7 +1992,7 @@ async def job_reengagement_push():
                 port_map[uid] = pos
                 all_tickers.update(p["ticker"] for p in pos if p.get("ticker"))
 
-        prices = await _batch_fetch_prices(list(all_tickers)) if all_tickers else {}
+        prices = await _finnhub_prices_batch(list(all_tickers)) if all_tickers else {}
 
         sent = 0
         for i, uid in enumerate(inactive_uids):
@@ -2398,7 +2433,7 @@ async def send_enhanced_weekly_emails():
                 port_map[uid] = pos
                 all_tickers.update(p["ticker"] for p in pos if p.get("ticker"))
 
-        prices = await _batch_fetch_prices(list(all_tickers)) if all_tickers else {}
+        prices = await _finnhub_prices_batch(list(all_tickers)) if all_tickers else {}
 
         # Pre-compute AI summaries per risk profile variant: 3 profiles × 2 scenarios (beat/lag) = 6 blurbs
         # Each blurb: market context + behavioral analysis (why the portfolio moved that way)
@@ -2561,7 +2596,7 @@ async def send_reengagement_emails():
                 port_map[uid] = pos
                 all_tickers.update(p["ticker"] for p in pos if p.get("ticker"))
 
-        prices = await _batch_fetch_prices(list(all_tickers)) if all_tickers else {}
+        prices = await _finnhub_prices_batch(list(all_tickers)) if all_tickers else {}
 
         sent = 0
         for u in (users_res.data or []):
@@ -2691,14 +2726,12 @@ async def job_opportunity_push():
         return round(100 - 100 / (1 + rs), 2)
 
     def _scan_signals(tickers):
-        import yfinance as yf
         signals = []
         for ticker in tickers:
             try:
-                hist = yf.Ticker(ticker).history(period="30d")
-                if len(hist) < 16:
+                closes = _finnhub_closes(ticker, days=35)
+                if len(closes) < 16:
                     continue
-                closes = [float(c) for c in hist["Close"]]
                 rsi = _compute_rsi(closes)
                 if rsi is not None and rsi <= RSI_OVERSOLD:
                     curr_pct = (closes[-1] - closes[-2]) / closes[-2] * 100 if closes[-2] else 0
@@ -2714,7 +2747,7 @@ async def job_opportunity_push():
         if not users_res.data:
             return
 
-        # Pre-compute signals per risk level (3 yfinance batch calls total)
+        # Pre-compute signals per risk level (3 concurrent Finnhub candle batches)
         signals_by_risk: dict[str, list] = {}
         with concurrent.futures.ThreadPoolExecutor(max_workers=3) as ex:
             futures = {
@@ -3037,12 +3070,11 @@ async def job_portfolio_snapshot(slot: str):
     from app.services.notification_engine import send_push
     db = get_supabase()
     try:
-        # ── 1. Fetch index prices via ETF proxies ─────────────────────────────
-        index_prices = await _batch_fetch_prices(["SPY", "QQQ"])
-        sp_px  = index_prices.get("SPY", {})
-        nq_px  = index_prices.get("QQQ", {})
-        sp500_pct  = round((sp_px["curr"] - sp_px["prev"]) / sp_px["prev"] * 100, 2) if sp_px.get("prev") else None
-        nasdaq_pct = round((nq_px["curr"] - nq_px["prev"]) / nq_px["prev"] * 100, 2) if nq_px.get("prev") else None
+        # ── 1. Fetch index prices via Finnhub (Railway-safe) ─────────────────────
+        spy_q = await asyncio.to_thread(_finnhub_quote, "SPY")
+        qqq_q = await asyncio.to_thread(_finnhub_quote, "QQQ")
+        sp500_pct  = spy_q["pct"] if spy_q else None
+        nasdaq_pct = qqq_q["pct"] if qqq_q else None
 
         # ── 2. Users with portfolio alerts enabled ────────────────────────────
         prefs_res = await run_query(
@@ -3078,8 +3110,8 @@ async def job_portfolio_snapshot(slot: str):
         if not all_tickers:
             return
 
-        # ── 5. Batch-fetch portfolio prices (one call for all tickers) ────────
-        prices = await _batch_fetch_prices(list(all_tickers))
+        # ── 5. Fetch portfolio prices concurrently via Finnhub ───────────────────
+        prices = await _finnhub_prices_batch(list(all_tickers))
 
         # ── 6. Build per-slot message template ───────────────────────────────
         slot_intro = {
