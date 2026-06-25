@@ -10,9 +10,6 @@ import { profileApi } from "../../src/lib/api";
 import { useTheme, Colors } from "../../src/lib/ThemeContext";
 import { useAppStore, RISK_CONFIG } from "../../src/lib/profileStore";
 import type { QuizAnswer } from "../../src/lib/profileStore";
-import { MENTORS, RECOMMENDED_MENTOR } from "../../src/lib/mentorData";
-import { useSubscriptionStore } from "../../src/lib/subscriptionStore";
-import PaywallModal from "../../src/components/PaywallModal";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type RiskTolerance = "conservative" | "moderate" | "aggressive";
@@ -72,11 +69,6 @@ const QUIZ_LABELS = {
   q4: { A: "$5K seguro", B: "$15K/riesgo $5K",C: "$40K/riesgo $20K",  D: "$120K/riesgo total"  } as Record<QuizAnswer, string>,
 };
 
-const MENTOR_PHOTOS: Record<string, number> = {
-  "Warren Buffett": require("../../assets/images/mentors/warren_buffett.jpg"),
-  "Ray Dalio":      require("../../assets/images/mentors/ray_dalio.jpg"),
-  "Bill Ackman":    require("../../assets/images/mentors/bill_ackman.jpg"),
-};
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function calculateRisk(q1: string, q4: string): RiskTolerance {
@@ -114,7 +106,6 @@ type FormState = {
   investment_goal: string;
   q1: QuizAnswer | "";
   q4: QuizAnswer | "";
-  mentor: string;
 };
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -122,19 +113,17 @@ export default function OnboardingScreen() {
   const { colors, isDark, toggle } = useTheme();
   const s = useMemo(() => makeStyles(colors), [colors]);
   const setProfile = useAppStore((state) => state.setProfile);
-  const isPremium  = useSubscriptionStore((st) => st.tier === "premium");
 
   const [step, setStep]       = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError]     = useState("");
-  const [paywallOpen, setPaywallOpen]               = useState(false);
   const [acceptedTerms, setAcceptedTerms]           = useState(false);
   const [acceptedDisclaimer, setAcceptedDisclaimer] = useState(false);
 
   const [form, setForm] = useState<FormState>({
     name: "", birth_day: "", birth_month: "", birth_year: "",
     knowledge_level: "", monthly_contribution: "", investment_goal_amount: "",
-    investment_horizon: "", investment_goal: "", q1: "", q4: "", mentor: "",
+    investment_horizon: "", investment_goal: "", q1: "", q4: "",
   });
 
   // ── Derived ─────────────────────────────────────────────────────────────────
@@ -537,94 +526,7 @@ export default function OnboardingScreen() {
       })(),
     },
 
-    // 8 — Mentor (mobile exclusive)
-    {
-      title: "¿Con qué estilo quieres que te asesore?",
-      isValid: () => true,
-      content: (
-        <View style={s.fields}>
-          <Text style={[s.hint, { color: colors.textMuted, marginBottom: 4 }]}>
-            La IA adoptará el marco de pensamiento de tu mentor. Puedes cambiarlo después desde tu perfil.
-          </Text>
-          <View style={s.mentorGrid}>
-            {MENTORS.map((m) => {
-              const isSelected = form.mentor === m.id;
-              const isRec      = RECOMMENDED_MENTOR[calculated] === m.id;
-              return (
-                <TouchableOpacity key={m.id} activeOpacity={0.75}
-                                  style={[s.mentorCard, { borderColor: isSelected ? m.color : colors.border },
-                                          isSelected && { backgroundColor: m.color + "18" },
-                                          !isPremium && { opacity: 0.6 }]}
-                                  onPress={() => {
-                                    if (!isPremium) { setPaywallOpen(true); return; }
-                                    setForm(f => ({ ...f, mentor: m.id }));
-                                  }}>
-                  {isRec && (
-                    <View style={[s.recBadge, { backgroundColor: m.color }]}>
-                      <Text style={s.recBadgeText}>⭐ RECOMENDADO</Text>
-                    </View>
-                  )}
-                  {!isPremium && (
-                    <View style={s.mentorLockBadge}>
-                      <Ionicons name="star" size={9} color="#f59e0b" />
-                      <Text style={s.mentorLockText}>Premium</Text>
-                    </View>
-                  )}
-                  {MENTOR_PHOTOS[m.id] ? (
-                    <Image source={MENTOR_PHOTOS[m.id]} style={s.mentorPhoto} />
-                  ) : (
-                    <View style={[s.mentorAvatarBox, { backgroundColor: m.color + "22" }]}>
-                      <Text style={s.mentorEmoji}>{m.emoji}</Text>
-                    </View>
-                  )}
-                  <Text style={[s.mentorName, { color: colors.text }]}>{m.name}</Text>
-                  <Text style={[s.mentorTitle, { color: colors.textMuted }]}>{m.title}</Text>
-                  <View style={[s.mentorBadgePill, { backgroundColor: m.color + "22" }]}>
-                    <Text style={[s.mentorBadgeLabel, { color: m.color }]}>{m.badge}</Text>
-                  </View>
-                  {m.principles.map((p, i) => (
-                    <Text key={i} style={[s.mentorPrinciple, { color: colors.textSub }]}>• {p}</Text>
-                  ))}
-                  {isSelected && (
-                    <View style={[s.selectedCheck, { backgroundColor: m.color }]}>
-                      <Ionicons name="checkmark" size={12} color="white" />
-                    </View>
-                  )}
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-
-          <TouchableOpacity activeOpacity={0.75}
-                            style={[s.noMentorCard, { borderColor: form.mentor === "none" ? "#6b7280" : colors.border },
-                                    form.mentor === "none" && { backgroundColor: "rgba(107,114,128,0.1)" }]}
-                            onPress={() => setForm(f => ({ ...f, mentor: "none" }))}>
-            <View style={s.noMentorLeft}>
-              <Text style={{ fontSize: 22 }}>🤖</Text>
-              <View>
-                <Text style={[s.noMentorTitle, { color: colors.text }]}>Sin mentor</Text>
-                <Text style={[s.noMentorSub, { color: colors.textMuted }]}>IA neutral — análisis imparcial sin estilo fijo</Text>
-              </View>
-            </View>
-            {form.mentor === "none" && (
-              <View style={{ width: 20, height: 20, borderRadius: 10, backgroundColor: "#6b7280",
-                             alignItems: "center", justifyContent: "center" }}>
-                <Ionicons name="checkmark" size={12} color="white" />
-              </View>
-            )}
-          </TouchableOpacity>
-
-          <Text style={s.label}>¿Prefieres otro inversor?</Text>
-          <TextInput style={s.input}
-                     value={MENTORS.some(m => m.id === form.mentor) || form.mentor === "none" ? "" : form.mentor}
-                     onChangeText={(v) => setForm(f => ({ ...f, mentor: v }))}
-                     placeholder="Ej. Charlie Munger, Benjamin Graham…"
-                     placeholderTextColor={colors.placeholder} />
-        </View>
-      ),
-    },
-
-    // 9 — Disclaimer legal
+    // 8 — Disclaimer legal
     {
       title: "Antes de empezar",
       isValid: () => acceptedTerms && acceptedDisclaimer,
@@ -692,7 +594,7 @@ export default function OnboardingScreen() {
         knowledge_level:        form.knowledge_level,
         risk_tolerance:         calculated,
         quiz_answers:           { q1: form.q1, q4: form.q4 },
-        mentor:                 form.mentor === "none" || !form.mentor.trim() ? null : form.mentor.trim(),
+        mentor:                 null,
       };
       setProfile(profileData as unknown as import("../../src/lib/profileStore").UserProfile);
       profileApi.create(profileData as Record<string, unknown>).catch(() => {});
@@ -747,8 +649,6 @@ export default function OnboardingScreen() {
         </TouchableOpacity>
       </View>
 
-      <PaywallModal visible={paywallOpen} onClose={() => setPaywallOpen(false)}
-                    reason="Los mentores de inversión son exclusivos de Premium" />
     </SafeAreaView>
   );
 }
@@ -811,31 +711,6 @@ function makeStyles(c: Colors) {
     factorValue:  { fontSize: 12, fontWeight: "700", textAlign: "right", flexShrink: 1 },
     featureRow:   { flexDirection: "row", alignItems: "center", gap: 14, padding: 14,
                     borderRadius: 16, borderWidth: StyleSheet.hairlineWidth },
-    // Mentor
-    mentorGrid:       { flexDirection: "row", flexWrap: "wrap", gap: 10, marginTop: 6 },
-    mentorCard:       { width: "47%", borderWidth: 2, borderRadius: 18, backgroundColor: c.card,
-                        padding: 14, gap: 5, position: "relative", overflow: "hidden" },
-    recBadge:         { position: "absolute", top: 0, right: 0, paddingHorizontal: 9, paddingVertical: 4, borderBottomLeftRadius: 12 },
-    recBadgeText:     { color: "white", fontSize: 9, fontWeight: "800", letterSpacing: 0.3 },
-    mentorPhoto:      { width: 56, height: 56, borderRadius: 28, marginBottom: 6, backgroundColor: c.border },
-    mentorAvatarBox:  { width: 56, height: 56, borderRadius: 28, alignItems: "center", justifyContent: "center", marginBottom: 6 },
-    mentorEmoji:      { fontSize: 26 },
-    mentorName:       { fontSize: 13, fontWeight: "800", lineHeight: 18, letterSpacing: -0.2 },
-    mentorTitle:      { fontSize: 10, lineHeight: 15, marginBottom: 3 },
-    mentorBadgePill:  { alignSelf: "flex-start", borderRadius: 7, paddingHorizontal: 7, paddingVertical: 3, marginBottom: 5 },
-    mentorBadgeLabel: { fontSize: 9, fontWeight: "800", letterSpacing: 0.2 },
-    mentorPrinciple:  { fontSize: 10, lineHeight: 16 },
-    selectedCheck:    { position: "absolute", bottom: 9, right: 9, width: 22, height: 22,
-                        borderRadius: 11, alignItems: "center", justifyContent: "center" },
-    mentorLockBadge:  { position: "absolute", top: 9, right: 9, flexDirection: "row", alignItems: "center",
-                        gap: 3, backgroundColor: "#f59e0b18", borderWidth: 1, borderColor: "#f59e0b44",
-                        borderRadius: 20, paddingHorizontal: 7, paddingVertical: 3 },
-    mentorLockText:   { color: "#f59e0b", fontSize: 9, fontWeight: "700" },
-    noMentorCard:     { flexDirection: "row", alignItems: "center", justifyContent: "space-between",
-                        borderWidth: 2, borderRadius: 18, padding: 16 },
-    noMentorLeft:     { flexDirection: "row", alignItems: "center", gap: 14, flex: 1 },
-    noMentorTitle:    { fontSize: 14, fontWeight: "800", letterSpacing: -0.2 },
-    noMentorSub:      { fontSize: 11, marginTop: 3, lineHeight: 16 },
     // Legal
     legalBox:   { borderWidth: 1, borderRadius: 16, padding: 16, gap: 6 },
     legalBadge: { fontSize: 11, fontWeight: "700", letterSpacing: 0.5, marginBottom: 4 },
