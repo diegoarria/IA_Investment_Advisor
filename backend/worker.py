@@ -3225,7 +3225,9 @@ async def _backfill_notification_prefs():
 
 
 async def main():
-    scheduler = AsyncIOScheduler()
+    # misfire_grace_time: if Railway restarts the worker near a job's fire time,
+    # APScheduler will still run the job if it missed by less than this window.
+    scheduler = AsyncIOScheduler(job_defaults={"misfire_grace_time": 600})
 
     # ── Core market jobs ──────────────────────────────────────────────────────
     scheduler.add_job(run_notifications,        "cron", day_of_week="mon-fri", hour="9,16",  minute=0,     timezone="America/New_York")

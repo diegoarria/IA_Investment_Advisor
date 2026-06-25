@@ -20,6 +20,62 @@ _TTL_ANALYSIS  = 1800   # 30 minutes
 _WINDOW_DAYS   = 180    # look forward 6 months
 
 
+def _finnhub_dividend_events(symbol: str, window_start, window_end, today) -> list[dict]:
+    """Fallback: fetch ex-dividend and payment dates from Finnhub when Yahoo returns nothing."""
+    import os, httpx as _hx
+    key = os.getenv("FINNHUB_API_KEY", "")
+    if not key:
+        return []
+    events: list[dict] = []
+    from_s = (today - timedelta(days=365)).strftime("%Y-%m-%d")
+    to_s   = window_end.strftime("%Y-%m-%d")
+    for endpoint in ("dividend2", "dividend"):
+        try:
+            r = _hx.get(
+                f"https://finnhub.io/api/v1/stock/{endpoint}",
+                params={"symbol": symbol, "from": from_s, "to": to_s, "token": key},
+                timeout=8,
+            )
+            raw = r.json()
+            divs = raw.get("data") or raw if isinstance(raw, list) else []
+            if not divs:
+                continue
+            # most recent first
+            divs.sort(key=lambda d: d.get("exDate") or d.get("date") or "", reverse=True)
+            d = divs[0]
+            ex_str  = d.get("exDate") or d.get("date") or ""
+            pay_str = d.get("payDate") or ""
+            amt     = d.get("amount")
+            try:
+                ex_dt = datetime.strptime(ex_str, "%Y-%m-%d").date() if ex_str else None
+            except ValueError:
+                ex_dt = None
+            try:
+                pay_dt = datetime.strptime(pay_str, "%Y-%m-%d").date() if pay_str else None
+            except ValueError:
+                pay_dt = None
+
+            if ex_dt and window_start <= ex_dt <= window_end:
+                events.append({
+                    "ticker":          symbol,
+                    "event_date":      str(ex_dt),
+                    "event_type":      "ex_dividend",
+                    "status":          "past" if ex_dt < today else "today" if ex_dt == today else "upcoming",
+                    "dividend_amount": round(float(amt), 4) if amt else None,
+                })
+            if pay_dt and window_start <= pay_dt <= window_end:
+                events.append({
+                    "ticker":     symbol,
+                    "event_date": str(pay_dt),
+                    "event_type": "dividend",
+                    "status":     "past" if pay_dt < today else "today" if pay_dt == today else "upcoming",
+                })
+            if events:
+                return events
+        except Exception:
+            continue
+    return events
+
 
 def _fetch_events_for_symbol(symbol: str) -> list[dict]:
     """Return all calendar events (earnings + dividends) for one symbol.
@@ -27,7 +83,7 @@ def _fetch_events_for_symbol(symbol: str) -> list[dict]:
     Uses the same Yahoo Finance quoteSummary API as quote-details (reliable)
     instead of yfinance t.calendar (unreliable).
     """
-    key = f"events:cal2:{symbol}"  # new key to bust old empty cache
+    key = f"events:cal3:{symbol}"  # cal3 = bust cal2 cached empty results (added Finnhub fallback)
     cached = cache_get(key)
     if cached is not None:
         return cached
@@ -118,6 +174,15 @@ def _fetch_events_for_symbol(symbol: str) -> list[dict]:
 
     except Exception as e:
         logger.warning("events fetch failed for %s: %s", symbol, e)
+
+    # ── Finnhub fallback for dividend dates when Yahoo returns nothing ────────
+    has_div = any(e["event_type"] in ("ex_dividend", "dividend") for e in events)
+    if not has_div:
+        try:
+            fh_events = _finnhub_dividend_events(symbol, window_start, window_end, today)
+            events.extend(fh_events)
+        except Exception as e:
+            logger.warning("Finnhub dividend fallback failed for %s: %s", symbol, e)
 
     if not events:
         events.append({"ticker": symbol, "event_date": None, "event_type": "earnings", "status": "unknown"})
