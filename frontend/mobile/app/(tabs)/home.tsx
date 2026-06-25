@@ -10,7 +10,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { router, useFocusEffect } from "expo-router";
 import { useTheme } from "../../src/lib/ThemeContext";
 import { useAppStore } from "../../src/lib/profileStore";
-import { profileApi, syncApi, billingApi } from "../../src/lib/api";
+import { profileApi, syncApi, billingApi, feedbackApi } from "../../src/lib/api";
 import { usePortfolioStore } from "../../src/lib/portfolioStore";
 import { useLearnStore } from "../../src/lib/learnStore";
 import { useSubscriptionStore } from "../../src/lib/subscriptionStore";
@@ -364,6 +364,12 @@ export default function HomeScreen() {
   const [duoSecondaryEmail, setDuoSecondaryEmail] = useState("");
   const [duoSaving, setDuoSaving] = useState(false);
   const [duoMyEmail, setDuoMyEmail] = useState("");
+
+  const [showFeedbackModal, setShowFeedbackModal] = useState(false);
+  const [feedbackRating, setFeedbackRating]       = useState(0);
+  const [feedbackMessage, setFeedbackMessage]     = useState("");
+  const [feedbackSaving, setFeedbackSaving]       = useState(false);
+  const [feedbackDone, setFeedbackDone]           = useState(false);
   const [goalDraft,     setGoalDraft]     = useState("");
   const [goalAmtDraft,  setGoalAmtDraft]  = useState("");
   const [savingGoal,    setSavingGoal]    = useState(false);
@@ -639,6 +645,13 @@ export default function HomeScreen() {
           const { data: { user } } = await supabase.auth.getUser();
           if (user?.email) setDuoMyEmail(user.email);
           setShowDuoModal(true);
+        }
+      }).catch(() => {});
+
+      // Check if feedback prompt should be shown
+      feedbackApi.status().then((res: any) => {
+        if (res?.data?.should_show) {
+          setTimeout(() => setShowFeedbackModal(true), 3000);
         }
       }).catch(() => {});
     }
@@ -1856,6 +1869,109 @@ export default function HomeScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* ── Feedback Modal ─────────────────────────────────────── */}
+      <Modal
+        visible={showFeedbackModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => {
+          setShowFeedbackModal(false);
+          feedbackApi.seen().catch(() => {});
+        }}
+      >
+        <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "center", alignItems: "center", padding: 24 }}>
+          <View style={{ backgroundColor: colors.card, borderRadius: 24, padding: 24, width: "100%", maxWidth: 360, gap: 16 }}>
+            {feedbackDone ? (
+              <View style={{ alignItems: "center", paddingVertical: 8, gap: 10 }}>
+                <Text style={{ fontSize: 40 }}>🙌</Text>
+                <Text style={{ color: colors.text, fontWeight: "800", fontSize: 17, textAlign: "center" }}>¡Gracias por tu feedback!</Text>
+                <Text style={{ color: colors.textSub, fontSize: 14, textAlign: "center" }}>Nos ayuda a mejorar Nuvos.</Text>
+              </View>
+            ) : (
+              <>
+                {/* Header */}
+                <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" }}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ color: colors.text, fontWeight: "800", fontSize: 17 }}>¿Cómo va tu experiencia?</Text>
+                    <Text style={{ color: colors.textSub, fontSize: 13, marginTop: 3 }}>Solo toma 10 segundos</Text>
+                  </View>
+                  <TouchableOpacity onPress={() => {
+                    setShowFeedbackModal(false);
+                    feedbackApi.seen().catch(() => {});
+                  }}>
+                    <Text style={{ color: colors.textSub, fontSize: 22, lineHeight: 24 }}>×</Text>
+                  </TouchableOpacity>
+                </View>
+
+                {/* Stars */}
+                <View style={{ flexDirection: "row", justifyContent: "center", gap: 8 }}>
+                  {[1, 2, 3, 4, 5].map((s) => (
+                    <TouchableOpacity key={s} onPress={() => setFeedbackRating(s)}>
+                      <Text style={{ fontSize: 36, opacity: s <= feedbackRating ? 1 : 0.3 }}>⭐</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+
+                {/* Text input — shown once a star is tapped */}
+                {feedbackRating > 0 && (
+                  <TextInput
+                    placeholder="¿Qué podríamos mejorar? (opcional)"
+                    placeholderTextColor={colors.textDim}
+                    value={feedbackMessage}
+                    onChangeText={setFeedbackMessage}
+                    multiline
+                    numberOfLines={3}
+                    style={{
+                      backgroundColor: colors.raised,
+                      borderRadius: 12,
+                      padding: 12,
+                      color: colors.text,
+                      fontSize: 14,
+                      minHeight: 80,
+                      textAlignVertical: "top",
+                    }}
+                  />
+                )}
+
+                {/* Buttons */}
+                <View style={{ flexDirection: "row", gap: 10 }}>
+                  <TouchableOpacity
+                    onPress={() => {
+                      setShowFeedbackModal(false);
+                      feedbackApi.seen().catch(() => {});
+                    }}
+                    style={{ flex: 1, paddingVertical: 12, borderRadius: 12, borderWidth: 1, borderColor: colors.border, alignItems: "center" }}
+                  >
+                    <Text style={{ color: colors.textSub, fontWeight: "600", fontSize: 14 }}>Ahora no</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    disabled={!feedbackRating || feedbackSaving}
+                    onPress={async () => {
+                      if (!feedbackRating) return;
+                      setFeedbackSaving(true);
+                      try {
+                        await feedbackApi.submit(feedbackRating, feedbackMessage.trim() || undefined);
+                        setFeedbackDone(true);
+                        setTimeout(() => { setShowFeedbackModal(false); setFeedbackDone(false); setFeedbackRating(0); setFeedbackMessage(""); }, 2500);
+                      } catch {} finally { setFeedbackSaving(false); }
+                    }}
+                    style={{
+                      flex: 2, paddingVertical: 12, borderRadius: 12, alignItems: "center",
+                      backgroundColor: feedbackRating ? "#00d47e" : "rgba(0,212,126,0.2)",
+                    }}
+                  >
+                    <Text style={{ color: feedbackRating ? "#fff" : colors.textSub, fontWeight: "800", fontSize: 14 }}>
+                      {feedbackSaving ? "Enviando..." : "Enviar feedback"}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </>
+            )}
+          </View>
+        </View>
+      </Modal>
+
     </SafeAreaView>
   );
 }

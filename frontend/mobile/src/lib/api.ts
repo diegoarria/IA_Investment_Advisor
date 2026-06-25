@@ -257,6 +257,13 @@ export const referralApi = {
   applyCode: (code: string) => api.post("/api/referral/apply", { code }),
 };
 
+export const feedbackApi = {
+  status: () => api.get("/api/feedback/status"),
+  seen:   () => api.post("/api/feedback/seen"),
+  submit: (rating: number, message?: string) =>
+    api.post("/api/feedback/submit", { rating, message }),
+};
+
 export const paperApi = {
   analyze: (
     positions: unknown[], trades: unknown[],

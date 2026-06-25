@@ -4,6 +4,7 @@ import "./globals.css";
 import ThemeProvider from "@/components/ThemeProvider";
 import NuvosGuide from "@/components/NuvosGuide";
 import UpsellProvider from "@/components/UpsellProvider";
+import FeedbackBanner from "@/components/FeedbackBanner";
 
 const dmSans = DM_Sans({
   subsets: ["latin"],
@@ -34,6 +35,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           {children}
           <NuvosGuide />
           <UpsellProvider />
+          <FeedbackBanner />
         </ThemeProvider>
       </body>
     </html>

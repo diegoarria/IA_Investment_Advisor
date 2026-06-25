@@ -291,6 +291,13 @@ export const billing = {
   duoSetup: (secondary_email: string) => api.post("/api/billing/duo-setup", { secondary_email }),
 };
 
+export const feedbackApi = {
+  status: () => api.get("/api/feedback/status"),
+  seen:   () => api.post("/api/feedback/seen"),
+  submit: (rating: number, message?: string) =>
+    api.post("/api/feedback/submit", { rating, message }),
+};
+
 export const paperApi = {
   getLeaderboard: () => api.get("/api/paper/leaderboard"),
   setAlias: (alias: string) => api.post("/api/paper/alias", { alias }),
