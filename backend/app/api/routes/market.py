@@ -3023,6 +3023,47 @@ def _compute_stock_score(detail: dict) -> dict:
     roe_score = _score_val(roe, [(-1,10),(0,25),(0.05,40),(0.1,55),(0.15,65),(0.2,78),(0.25,88),(0.35,95),(1,100)])
     roa_score = _score_val(roa, [(-1,10),(0,25),(0.03,40),(0.05,55),(0.08,65),(0.12,78),(0.18,90),(1,100)])
 
+    # ── ROIC — must be computed before qual_scores ────────────────────────────
+    _bal_annual_q = fin.get("balance", {}).get("annual", [])
+    roic: float | None = None
+    roic_pct: float | None = None
+    roic_trend: list[dict] = []
+    roic_score: int | None = None
+    is_financial = "Financial" in sector or "Insurance" in sector or "Bank" in sector
+    if not is_financial and income_annual and _bal_annual_q:
+        inc_rows = list(reversed(income_annual[-5:]))
+        bal_rows = list(reversed(_bal_annual_q[-5:]))
+        for i, inc_row in enumerate(inc_rows):
+            if i >= len(bal_rows):
+                break
+            bal_row = bal_rows[i]
+            period  = str(inc_row.get("period", ""))[:7]
+            op_inc  = _parse_fin(inc_row.get("Operating Income"))
+            tax_p   = _parse_fin(inc_row.get("Tax Provision"))
+            net_inc = _parse_fin(inc_row.get("Net Income"))
+            equity  = _parse_fin(bal_row.get("Total Stockholder Equity") or bal_row.get("Stockholders Equity"))
+            t_debt  = _parse_fin(bal_row.get("Total Debt") or bal_row.get("Long Term Debt"))
+            cash    = _parse_fin(bal_row.get("Cash And Cash Equivalents") or bal_row.get("Cash And Short Term Investments"))
+            if op_inc is None or equity is None:
+                continue
+            pretax = (net_inc or 0) + (tax_p or 0) if net_inc is not None else None
+            if pretax and pretax > 0 and tax_p is not None and tax_p >= 0:
+                tax_rate = min(max(tax_p / pretax, 0.0), 0.40)
+            else:
+                tax_rate = 0.21
+            nopat   = op_inc * (1 - tax_rate)
+            inv_cap = equity + (t_debt or 0) - (cash or 0)
+            if inv_cap > 0:
+                r = round(nopat / inv_cap * 100, 1)
+                roic_trend.append({"year": period, "value": r})
+                if i == 0:
+                    roic     = nopat / inv_cap
+                    roic_pct = r
+        if roic is not None:
+            roic_score = _score_val(roic, [
+                (0.04,12),(0.07,28),(0.10,48),(0.12,62),(0.15,74),(0.20,86),(0.25,94),(999,100)
+            ])
+
     qual_scores = [s for s in [gm_score, om_score, nm_score, roe_score, roa_score, roic_score] if s is not None]
     qual_score  = round(sum(qual_scores) / len(qual_scores)) if qual_scores else 50
 
@@ -3088,50 +3129,6 @@ def _compute_stock_score(detail: dict) -> dict:
                     roe_trend.append({"year": period, "value": round(ni_raw / eq_raw * 100, 1)})
             except Exception:
                 pass
-
-    # ── ROIC — Return on Invested Capital ────────────────────────────────────
-    # ROIC = NOPAT / Invested Capital
-    # NOPAT = Operating Income × (1 − effective tax rate)
-    # Invested Capital = Equity + Total Debt − Cash
-    # Skipped for banks/insurance: their balance sheets make IC meaningless
-    roic: float | None = None
-    roic_pct: float | None = None
-    roic_trend: list[dict] = []
-    roic_score: int | None = None
-    is_financial = "Financial" in sector or "Insurance" in sector or "Bank" in sector
-    if not is_financial and income_annual and balance_annual:
-        inc_rows = list(reversed(income_annual[-5:]))
-        bal_rows = list(reversed(balance_annual[-5:]))
-        for i, inc_row in enumerate(inc_rows):
-            if i >= len(bal_rows):
-                break
-            bal_row = bal_rows[i]
-            period  = str(inc_row.get("period", ""))[:7]
-            op_inc  = _parse_fin(inc_row.get("Operating Income"))
-            tax_p   = _parse_fin(inc_row.get("Tax Provision"))
-            net_inc = _parse_fin(inc_row.get("Net Income"))
-            equity  = _parse_fin(bal_row.get("Total Stockholder Equity") or bal_row.get("Stockholders Equity"))
-            t_debt  = _parse_fin(bal_row.get("Total Debt") or bal_row.get("Long Term Debt"))
-            cash    = _parse_fin(bal_row.get("Cash And Cash Equivalents") or bal_row.get("Cash And Short Term Investments"))
-            if op_inc is None or equity is None:
-                continue
-            pretax = (net_inc or 0) + (tax_p or 0) if net_inc is not None else None
-            if pretax and pretax > 0 and tax_p is not None and tax_p >= 0:
-                tax_rate = min(max(tax_p / pretax, 0.0), 0.40)
-            else:
-                tax_rate = 0.21
-            nopat = op_inc * (1 - tax_rate)
-            inv_cap = equity + (t_debt or 0) - (cash or 0)
-            if inv_cap > 0:
-                r = round(nopat / inv_cap * 100, 1)
-                roic_trend.append({"year": period, "value": r})
-                if i == 0:
-                    roic     = nopat / inv_cap
-                    roic_pct = r
-        if roic is not None:
-            roic_score = _score_val(roic, [
-                (0.04,12),(0.07,28),(0.10,48),(0.12,62),(0.15,74),(0.20,86),(0.25,94),(999,100)
-            ])
 
     # ── Shares dilution score ──────────────────────────────────────────────────
     shares_now  = p.get("shares_outstanding") or p.get("float_shares")
