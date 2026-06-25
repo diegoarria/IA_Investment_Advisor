@@ -962,18 +962,14 @@ async def job_daily_email():
     from app.services.email_templates import daily_email_v2
     db = get_supabase()
     try:
-        # ── 1. Fetch index prices via _batch_fetch_prices (reliable) ──────────
-        index_raw = await _batch_fetch_prices(["^GSPC", "^IXIC", "^DJI"])
-        def _idx_pct(sym):
-            px = index_raw.get(sym, {})
-            if px.get("prev"):
-                return round((px["curr"] - px["prev"]) / px["prev"] * 100, 2)
-            return None
-        sp_pct  = _idx_pct("^GSPC")
-        nq_pct  = _idx_pct("^IXIC")
-        dj_pct  = _idx_pct("^DJI")
-        sp_px   = index_raw.get("^GSPC", {}).get("curr")
-        nq_px   = index_raw.get("^IXIC", {}).get("curr")
+        # ── 1. Index prices via Finnhub (SPY/QQQ proxies — Railway-safe) ──────
+        # ^GSPC/^IXIC are IP-blocked on Railway via yfinance; use SPY/QQQ instead
+        spy_q = await asyncio.to_thread(_finnhub_quote, "SPY")
+        qqq_q = await asyncio.to_thread(_finnhub_quote, "QQQ")
+        sp_pct = spy_q["pct"] if spy_q else None
+        nq_pct = qqq_q["pct"] if qqq_q else None
+        sp_px  = spy_q["curr"] if spy_q else None
+        nq_px  = qqq_q["curr"] if qqq_q else None
 
         # ── 2. All users with portfolio data, excluding explicit opt-outs ────────
         prefs_res = await run_query(
@@ -1006,8 +1002,14 @@ async def job_daily_email():
                     portfolio_map[uid] = pos
                     all_tickers.update(p["ticker"] for p in pos if p.get("ticker"))
 
-        # ── 5. Batch-fetch all portfolio prices (one call) ────────────────────
-        day_prices = await _batch_fetch_prices(list(all_tickers)) if all_tickers else {}
+        # ── 5. Fetch stock prices via Finnhub (Railway-safe, no IP block) ─────
+        # Fetch each ticker concurrently; _finnhub_quote returns {curr, prev, pct}
+        async def _fq(t: str):
+            q = await asyncio.to_thread(_finnhub_quote, t)
+            return t, q
+
+        price_results = await asyncio.gather(*[_fq(t) for t in all_tickers]) if all_tickers else []
+        day_prices = {t: {"curr": q["curr"], "prev": q["prev"]} for t, q in price_results if q}
 
         # ── 6. Collect all unique tickers + watchlist for market wrap context ─
         watch_res   = await run_query(db.table("watchlist").select("user_id,ticker"))
