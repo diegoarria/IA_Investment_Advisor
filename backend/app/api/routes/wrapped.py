@@ -6,7 +6,6 @@ import asyncio
 import logging
 from datetime import datetime, timezone
 
-import yfinance as yf
 from fastapi import APIRouter, Depends, Request
 from app.api.deps import get_current_user
 from app.core.database import get_supabase, run_query
@@ -18,28 +17,35 @@ router = APIRouter(prefix="/api/wrapped", tags=["wrapped"])
 
 async def _ytd_return(ticker: str, year: int) -> float | None:
     """Return YTD % gain for ticker in given year. None if unavailable."""
+    import calendar
+    import time as _time
     try:
-        start = f"{year}-01-01"
-        end   = f"{year}-12-31"
-        data  = await asyncio.to_thread(
-            lambda: yf.download(ticker, start=start, end=end, progress=False, auto_adjust=True)
-        )
-        if data.empty or len(data) < 2:
+        from app.core.finnhub import fh_candles
+
+        from datetime import datetime, timezone
+        from_dt = datetime(year, 1, 1, tzinfo=timezone.utc)
+        to_dt   = datetime(year, 12, 31, 23, 59, 59, tzinfo=timezone.utc)
+        from_ts = int(from_dt.timestamp())
+        to_ts   = int(to_dt.timestamp())
+
+        candles = await asyncio.to_thread(fh_candles, ticker, "W", from_ts, to_ts)
+        if not candles or len(candles) < 2:
             return None
-        first = float(data["Close"].dropna().iloc[0])
-        last  = float(data["Close"].dropna().iloc[-1])
-        if first == 0:
+        first = candles[0].get("c")
+        last  = candles[-1].get("c")
+        if not first or first == 0:
             return None
-        return round((last - first) / first * 100, 2)
+        return round((float(last) - float(first)) / float(first) * 100, 2)
     except Exception:
         return None
 
 
 async def _ticker_sector(ticker: str) -> str:
-    """Return sector string from yfinance, 'Otro' on failure."""
+    """Return industry string from Finnhub profile, 'Otro' on failure."""
     try:
-        info = await asyncio.to_thread(lambda: yf.Ticker(ticker).info)
-        return info.get("sector") or "Otro"
+        from app.core.finnhub import fh_profile
+        profile = await asyncio.to_thread(fh_profile, ticker)
+        return (profile or {}).get("finnhubIndustry") or "Otro"
     except Exception:
         return "Otro"
 

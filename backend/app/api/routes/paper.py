@@ -13,7 +13,6 @@ from concurrent.futures import ThreadPoolExecutor
 
 _PRICES_POOL = ThreadPoolExecutor(max_workers=12, thread_name_prefix="paper-prices")
 
-import yfinance as yf
 from fastapi import APIRouter, Depends, HTTPException
 
 from app.api.deps import get_current_user_id
@@ -68,13 +67,15 @@ def _fetch_price(ticker: str) -> tuple[str, float | None]:
         except Exception:
             pass
 
-    # yfinance fallback
+    # Finnhub fallback
     try:
-        fi = yf.Ticker(ticker).fast_info
-        price = float(fi.last_price) if fi.last_price else None
-        return ticker, price
+        from app.core.finnhub import fh_quote as _fh_quote
+        q = _fh_quote(ticker)
+        if q and q.get("price"):
+            return ticker, float(q["price"])
     except Exception:
-        return ticker, None
+        pass
+    return ticker, None
 
 
 def _batch_prices(tickers: set[str]) -> dict[str, float | None]:

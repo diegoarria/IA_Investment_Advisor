@@ -170,14 +170,12 @@ def _fetch_one_index(symbol: str) -> tuple[float | None, float | None]:
             except Exception:
                 pass
 
-    # Last resort: yfinance fast_info
+    # Last resort: Finnhub quote
     try:
-        t = yf.Ticker(symbol)
-        fi = t.fast_info
-        price = float(fi.last_price) if fi.last_price else None
-        prev  = float(fi.previous_close) if fi.previous_close else None
-        if price:
-            return price, prev
+        from app.core.finnhub import fh_quote as _fh_quote
+        q = _fh_quote(symbol)
+        if q and q.get("price"):
+            return q["price"], q.get("prev_close")
     except Exception:
         pass
 
@@ -238,6 +236,23 @@ async def search_tickers(q: str = Query(""), user_id: str = Depends(get_current_
     if cached is not None:
         return {"results": cached}
 
+    # Primary: Finnhub search
+    try:
+        from app.core.finnhub import fh_search
+        fh_results = fh_search(q)
+        if fh_results:
+            results = [
+                {"ticker": item["symbol"], "name": item.get("name") or item["symbol"]}
+                for item in fh_results
+                if item.get("symbol") and item.get("type", "") in ("", "Common Stock", "ETP", "ETF")
+            ][:6]
+            if results:
+                cache_set(ck, results, ttl=_SEARCH_CACHE_TTL)
+                return {"results": results}
+    except Exception:
+        pass
+
+    # Fallback: Yahoo Finance search
     try:
         url = "https://query2.finance.yahoo.com/v1/finance/search"
         params = {"q": q, "lang": "en-US", "region": "US", "quotesCount": 8, "newsCount": 0, "listsCount": 0}
@@ -289,13 +304,14 @@ async def get_prices(request: dict, user_id: str = Depends(get_current_user_id))
             if price:
                 break
 
-        # Fallback: yfinance fast_info
+        # Fallback: Finnhub quote
         if not price:
             try:
-                fi = yf.Ticker(symbol).fast_info
-                price    = float(fi.last_price) if fi.last_price else None
-                prev     = float(fi.previous_close) if fi.previous_close else None
-                currency = fi.currency or "USD"
+                from app.core.finnhub import fh_quote as _fh_quote
+                q = _fh_quote(symbol)
+                if q and q.get("price"):
+                    price = q["price"]
+                    prev  = q.get("prev_close")
             except Exception:
                 pass
 
@@ -371,26 +387,11 @@ def _fetch_position_data(positions: list) -> list[dict]:
             "recommendation": None,
         }
         try:
-            t = yf.Ticker(ticker)
-            fi = t.fast_info
-            entry["current_price"] = round(float(fi.last_price), 2) if fi.last_price else None
-            targets = t.analyst_price_targets
-            if targets is not None and not targets.empty:
-                entry["analyst_target"] = round(float(targets.get("mean", 0) or 0), 2) or None
-                entry["analyst_low"]    = round(float(targets.get("low",  0) or 0), 2) or None
-                entry["analyst_high"]   = round(float(targets.get("high", 0) or 0), 2) or None
-            rec = t.recommendations_summary
-            if rec is not None and not rec.empty:
-                cols = rec.columns.tolist()
-                row = rec.iloc[0]
-                buy_cols  = [c for c in cols if "buy"  in c.lower() and "strong" not in c.lower()]
-                sbuy_cols = [c for c in cols if "strongbuy"   in c.lower() or "strong buy" in c.lower()]
-                hold_cols = [c for c in cols if "hold" in c.lower()]
-                sell_cols = [c for c in cols if "sell" in c.lower() and "strong" not in c.lower()]
-                buys  = int(sum(row[c] for c in sbuy_cols + buy_cols  if c in row.index) or 0)
-                holds = int(sum(row[c] for c in hold_cols if c in row.index) or 0)
-                sells = int(sum(row[c] for c in sell_cols if c in row.index) or 0)
-                entry["recommendation"] = f"{buys} buy / {holds} hold / {sells} sell"
+            from app.core.finnhub import fh_quote as _fh_quote
+            q = _fh_quote(ticker)
+            if q and q.get("price"):
+                entry["current_price"] = round(float(q["price"]), 2)
+            # analyst targets not available via Finnhub free plan — keep as None
         except Exception:
             pass
         enriched.append(entry)
@@ -2837,15 +2838,15 @@ async def get_peers(
                     tickers = [t for t in r.json() if t != sym][:7]
                     for t in tickers:
                         try:
-                            info = yf.Ticker(t).fast_info
-                            price = getattr(info, "last_price", None)
-                            prev  = getattr(info, "previous_close", None)
-                            chg   = ((price - prev) / prev * 100) if price and prev else None
+                            from app.core.finnhub import fh_quote as _fh_q, fh_profile as _fh_p
+                            q = _fh_q(t)
+                            pr = _fh_p(t)
+                            name = (pr or {}).get("name") or t
                             peers.append({
                                 "ticker": t,
-                                "name":   getattr(info, "short_name", t),
-                                "price":  round(price, 2) if price else None,
-                                "change_pct": round(chg, 2) if chg is not None else None,
+                                "name":   name,
+                                "price":  round(q["price"], 2) if q and q.get("price") else None,
+                                "change_pct": q["change_pct"] if q else None,
                             })
                         except Exception:
                             peers.append({"ticker": t, "name": t, "price": None, "change_pct": None})

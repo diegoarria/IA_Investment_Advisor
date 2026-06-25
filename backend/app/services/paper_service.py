@@ -10,8 +10,6 @@ from concurrent.futures import ThreadPoolExecutor
 
 _PRICES_POOL = ThreadPoolExecutor(max_workers=12, thread_name_prefix="paper-svc-prices")
 
-import yfinance as yf
-
 from app.core.cache import cache_get, cache_set
 from app.core.database import get_supabase, run_query
 from app.services.notification_service import create_notification
@@ -47,10 +45,13 @@ def _fetch_price(ticker: str) -> tuple[str, float | None]:
         except Exception:
             pass
     try:
-        fi = yf.Ticker(ticker).fast_info
-        return ticker, float(fi.last_price) if fi.last_price else None
+        from app.core.finnhub import fh_quote as _fh_quote
+        q = _fh_quote(ticker)
+        if q and q.get("price"):
+            return ticker, float(q["price"])
     except Exception:
-        return ticker, None
+        pass
+    return ticker, None
 
 
 async def build_global_leaderboard() -> list[dict]:

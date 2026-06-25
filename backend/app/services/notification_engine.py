@@ -228,44 +228,43 @@ async def track_event(notification_id: str, event_type: str, db):
 # ─── Market data helpers ──────────────────────────────────────────────────────
 
 async def get_market_summary_text() -> dict:
-    import concurrent.futures
-
     def _fetch():
         try:
-            import yfinance as yf
+            from app.core.finnhub import fh_quote
             INDEX_MAP = {
-                "S&P 500":            "^GSPC",
-                "NASDAQ":             "^IXIC",
-                "Dow Jones":          "^DJI",
-                "México (IPC)":       "^MXX",
-                "Dólar (USD/MXN)":    "USDMXN=X",
-                "Europa (STOXX 50)":  "^STOXX50E",
-                "Japón (Nikkei)":     "^N225",
-                "China (CSI 300)":    "000300.SS",
+                "S&P 500":           "SPY",
+                "NASDAQ":            "QQQ",
+                "Dow Jones":         "DIA",
+                "México (IPC)":      "EWW",
+                "Europa (STOXX 50)": "FEZ",
+                "Japón (Nikkei)":    "EWJ",
+                "China (CSI 300)":   "MCHI",
             }
             results = {}
             for name, sym in INDEX_MAP.items():
                 try:
-                    hist = yf.Ticker(sym).history(period="2d")
-                    if len(hist) >= 2:
-                        prev = float(hist["Close"].iloc[-2])
-                        curr = float(hist["Close"].iloc[-1])
+                    q = fh_quote(sym)
+                    if q and q.get("price"):
                         results[name] = {
-                            "price":      round(curr, 2),
-                            "change_pct": round((curr - prev) / prev * 100, 2),
+                            "price":      q["price"],
+                            "change_pct": q["change_pct"],
                         }
                 except Exception:
-                    pass  # silently skip — don't pollute dict with None values
+                    pass  # silently skip
 
-            sectors = {"Tecnología": "XLK", "Salud": "XLV", "Finanzas": "XLF", "Energía": "XLE", "Consumo": "XLY"}
+            SECTOR_MAP = {
+                "Tecnología": "XLK",
+                "Salud":      "XLV",
+                "Finanzas":   "XLF",
+                "Energía":    "XLE",
+                "Consumo":    "XLY",
+            }
             sector_perf = {}
-            for sname, sym in sectors.items():
+            for sname, sym in SECTOR_MAP.items():
                 try:
-                    hist = yf.Ticker(sym).history(period="2d")
-                    if len(hist) >= 2:
-                        prev = float(hist["Close"].iloc[-2])
-                        curr = float(hist["Close"].iloc[-1])
-                        sector_perf[sname] = round((curr - prev) / prev * 100, 2)
+                    q = fh_quote(sym)
+                    if q and q.get("price"):
+                        sector_perf[sname] = q["change_pct"]
                 except Exception:
                     pass
 
@@ -277,13 +276,10 @@ async def get_market_summary_text() -> dict:
             logger.warning("Market summary fetch failed: %s", e)
             return {"indices": {}, "sectors": {}, "best_sector": "—", "worst_sector": "—"}
 
-    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as ex:
-        return await asyncio.get_event_loop().run_in_executor(ex, _fetch)
+    return await asyncio.to_thread(_fetch)
 
 
 async def check_portfolio_alerts(user_id: str, positions: list, db) -> list[dict]:
-    import concurrent.futures
-
     tickers = []
     for p in positions:
         t = p.get("ticker") if isinstance(p, dict) else str(p)
@@ -293,31 +289,26 @@ async def check_portfolio_alerts(user_id: str, positions: list, db) -> list[dict
         return []
 
     def _fetch():
-        try:
-            import yfinance as yf
-            alerts = []
-            for ticker in tickers[:10]:
-                try:
-                    hist = yf.Ticker(ticker).history(period="2d")
-                    if len(hist) < 2:
-                        continue
-                    prev = float(hist["Close"].iloc[-2])
-                    curr = float(hist["Close"].iloc[-1])
-                    pct  = round((curr - prev) / prev * 100, 2)
-                    if abs(pct) >= 3.0:
-                        alerts.append({
-                            "ticker": ticker, "change_pct": pct,
-                            "price": round(curr, 2),
-                            "level": "extreme" if abs(pct) >= 8.0 else "significant",
-                        })
-                except Exception:
-                    pass
-            return alerts
-        except Exception:
-            return []
+        from app.core.finnhub import fh_quote
+        alerts = []
+        for ticker in tickers[:10]:
+            try:
+                q = fh_quote(ticker)
+                if not q or not q.get("price"):
+                    continue
+                pct = q["change_pct"]
+                if abs(pct) >= 3.0:
+                    alerts.append({
+                        "ticker":     ticker,
+                        "change_pct": pct,
+                        "price":      q["price"],
+                        "level":      "extreme" if abs(pct) >= 8.0 else "significant",
+                    })
+            except Exception:
+                pass
+        return alerts
 
-    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as ex:
-        return await asyncio.get_event_loop().run_in_executor(ex, _fetch)
+    return await asyncio.to_thread(_fetch)
 
 
 async def check_watchlist_alerts(user_id: str, tickers: list, db) -> list[dict]:

@@ -35,14 +35,41 @@ FREE_LIMIT = 25
 _PRICES_CACHE_TTL = 60  # seconds
 
 
+def _fetch_finnhub_quote(ticker: str) -> dict | None:
+    """Fetch reliable real-time price + daily % change from Finnhub."""
+    import os
+    key = os.getenv("FINNHUB_API_KEY", "")
+    if not key:
+        return None
+    try:
+        r = httpx.get(
+            "https://finnhub.io/api/v1/quote",
+            params={"symbol": ticker, "token": key},
+            timeout=6,
+        )
+        if r.status_code != 200:
+            return None
+        d = r.json()
+        price = d.get("c")
+        prev  = d.get("pc")
+        dp    = d.get("dp")  # daily % change — Finnhub calculates this correctly
+        if not price:
+            return None
+        change = round(float(price) - float(prev), 4) if prev else 0.0
+        pct    = round(float(dp), 2) if dp is not None else (
+            round(change / float(prev) * 100, 2) if prev and float(prev) != 0 else 0.0
+        )
+        return {"price": round(float(price), 4), "prev_close": round(float(prev), 4) if prev else None,
+                "change": change, "change_pct": pct}
+    except Exception:
+        return None
+
+
 def _fetch_extended_price(ticker: str) -> dict:
-    """Fetch price + pre/post market data from Yahoo Finance V8 chart API."""
+    """Fetch price + pre/post market data.
+    Price / change_pct come from Finnhub (reliable, no adjusted-price bug).
+    Pre/post market data comes from Yahoo Finance."""
     encoded = ticker.replace(".", "-").replace("^", "%5E")
-    params = {
-        "range": "5d",
-        "interval": "1d",
-        "includePrePost": "true",
-    }
     result = {
         "ticker": ticker,
         "name": ticker,
@@ -58,10 +85,21 @@ def _fetch_extended_price(ticker: str) -> dict:
         "post_market_change_pct": None,
     }
 
+    # ── Step 1: Finnhub for reliable price + % change ──────────────────────
+    fq = _fetch_finnhub_quote(ticker)
+    if fq:
+        result["price"]      = fq["price"]
+        result["prev_close"] = fq["prev_close"]
+        result["change"]     = fq["change"]
+        result["change_pct"] = fq["change_pct"]
+
+    # ── Step 2: Yahoo for name, market state, pre/post market data ─────────
     for domain in ("query1", "query2"):
         try:
             url = f"https://{domain}.finance.yahoo.com/v8/finance/chart/{encoded}"
-            r = httpx.get(url, headers=_YF_HEADERS, params=params, timeout=10, follow_redirects=True)
+            r = httpx.get(url, headers=_YF_HEADERS,
+                          params={"range": "1d", "interval": "1d", "includePrePost": "true"},
+                          timeout=10, follow_redirects=True)
             if r.status_code != 200:
                 continue
             data = r.json()
@@ -69,65 +107,45 @@ def _fetch_extended_price(ticker: str) -> dict:
             if not chart_result:
                 continue
 
-            res = chart_result[0]
-            meta = res.get("meta", {})
-
-            # Basic price info
-            result["name"] = meta.get("shortName") or meta.get("longName") or ticker
-            result["currency"] = meta.get("currency", "USD")
+            meta = chart_result[0].get("meta", {})
+            result["name"]         = meta.get("shortName") or meta.get("longName") or ticker
+            result["currency"]     = meta.get("currency", "USD")
             result["market_state"] = meta.get("marketState", "REGULAR")
 
-            # Regular prices from close data
-            closes = res.get("indicators", {}).get("quote", [{}])[0].get("close") or []
-            closes = [c for c in closes if c is not None]
-            if len(closes) >= 2:
-                result["price"] = round(closes[-1], 4)
-                result["prev_close"] = round(closes[-2], 4)
-            elif len(closes) == 1:
-                result["price"] = round(closes[0], 4)
+            # Fallback price from Yahoo if Finnhub returned nothing
+            if not result["price"]:
+                reg_price = meta.get("regularMarketPrice")
+                if reg_price:
+                    result["price"] = round(float(reg_price), 4)
+                prev = (meta.get("regularMarketPreviousClose")
+                        or meta.get("chartPreviousClose")
+                        or meta.get("previousClose"))
+                if prev:
+                    result["prev_close"] = round(float(prev), 4)
+                reg_chg     = meta.get("regularMarketChange")
+                reg_chg_pct = meta.get("regularMarketChangePercent")
+                if reg_chg is not None and reg_chg_pct is not None:
+                    result["change"]     = round(float(reg_chg), 4)
+                    result["change_pct"] = round(float(reg_chg_pct), 2)
 
-            # Prefer regularMarketPrice from meta when available
-            reg_price = meta.get("regularMarketPrice")
-            if reg_price:
-                result["price"] = round(float(reg_price), 4)
-
-            prev_close = (
-                meta.get("regularMarketPreviousClose")
-                or meta.get("chartPreviousClose")
-                or meta.get("previousClose")
-            )
-            if prev_close:
-                result["prev_close"] = round(float(prev_close), 4)
-
-            # Use Yahoo's own change values when available (avoids off-by-one from daily closes array)
-            reg_chg = meta.get("regularMarketChange")
-            reg_chg_pct = meta.get("regularMarketChangePercent")
-            if reg_chg is not None and reg_chg_pct is not None:
-                result["change"] = round(float(reg_chg), 4)
-                result["change_pct"] = round(float(reg_chg_pct), 2)
-            elif result["price"] and result["prev_close"] and result["prev_close"] != 0:
-                result["change"] = round(result["price"] - result["prev_close"], 4)
-                result["change_pct"] = round(
-                    (result["price"] - result["prev_close"]) / result["prev_close"] * 100, 2
-                )
-
-            # Pre-market price
+            # Pre-market
             pre_price = meta.get("preMarketPrice")
             if pre_price:
                 result["pre_market_price"] = round(float(pre_price), 4)
-                if result["prev_close"] and result["prev_close"] != 0:
+                base = result["prev_close"] or result["price"]
+                if base and float(base) != 0:
                     result["pre_market_change_pct"] = round(
-                        (float(pre_price) - result["prev_close"]) / result["prev_close"] * 100, 2
+                        (float(pre_price) - float(base)) / float(base) * 100, 2
                     )
 
-            # Post-market price
+            # Post-market
             post_price = meta.get("postMarketPrice")
             if post_price:
                 result["post_market_price"] = round(float(post_price), 4)
                 base = result["price"] or result["prev_close"]
-                if base and base != 0:
+                if base and float(base) != 0:
                     result["post_market_change_pct"] = round(
-                        (float(post_price) - base) / base * 100, 2
+                        (float(post_price) - float(base)) / float(base) * 100, 2
                     )
 
             return result
@@ -138,28 +156,22 @@ def _fetch_extended_price(ticker: str) -> dict:
 
 
 def _fetch_logo_url(ticker: str) -> str | None:
-    """Fetch company logo URL via Yahoo Finance quoteSummary → Clearbit CDN."""
+    """Fetch company logo URL via Finnhub profile2 (logo field or weburl → Clearbit CDN)."""
     from urllib.parse import urlparse
-    encoded = ticker.replace(".", "-").replace("^", "%5E")
+    from app.core.finnhub import fh_profile
 
-    # Try quoteSummary assetProfile for company website
-    for domain in ("query1", "query2"):
-        try:
-            url = (
-                f"https://{domain}.finance.yahoo.com/v10/finance/quoteSummary/{encoded}"
-                f"?modules=assetProfile"
-            )
-            r = httpx.get(url, headers=_YF_HEADERS, timeout=8, follow_redirects=True)
-            if r.status_code == 200:
-                data = r.json().get("quoteSummary", {}).get("result") or []
-                if data:
-                    website = (data[0].get("assetProfile") or {}).get("website", "")
-                    if website:
-                        netloc = urlparse(website).netloc.replace("www.", "")
-                        if netloc:
-                            return f"https://logo.clearbit.com/{netloc}"
-        except Exception:
-            continue
+    profile = fh_profile(ticker)
+    if profile:
+        # Finnhub returns a direct logo URL
+        logo = profile.get("logo")
+        if logo:
+            return logo
+        # Fall back to Clearbit from weburl
+        weburl = profile.get("weburl", "")
+        if weburl:
+            netloc = urlparse(weburl).netloc.replace("www.", "")
+            if netloc:
+                return f"https://logo.clearbit.com/{netloc}"
 
     return None
 

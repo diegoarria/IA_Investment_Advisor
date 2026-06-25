@@ -61,33 +61,21 @@ _PRICE_CACHE_TTL = 300  # seconds
 
 
 async def _batch_fetch_prices(tickers: list[str]) -> dict:
-    """Fetch last-2-close prices for a list of tickers via yfinance (one batch call)."""
+    """Fetch current price + prev_close for a list of tickers via Finnhub."""
     if not tickers:
         return {}
 
     def _fetch():
-        try:
-            import yfinance as yf
-            data = yf.download(list(set(tickers)), period="2d", progress=False, group_by="ticker")
-            result = {}
-            if len(tickers) == 1:
-                # Single ticker: data is a plain DataFrame
-                t = tickers[0]
-                closes = data["Close"].dropna()
-                if len(closes) >= 2:
-                    result[t] = {"prev": float(closes.iloc[-2]), "curr": float(closes.iloc[-1])}
-            else:
-                for t in tickers:
-                    try:
-                        closes = data[t]["Close"].dropna()
-                        if len(closes) >= 2:
-                            result[t] = {"prev": float(closes.iloc[-2]), "curr": float(closes.iloc[-1])}
-                    except Exception:
-                        pass
-            return result
-        except Exception as e:
-            logger.warning("_batch_fetch_prices failed: %s", e)
-            return {}
+        from app.core.finnhub import fh_quote
+        result = {}
+        for t in set(tickers):
+            try:
+                q = fh_quote(t)
+                if q and q.get("price") and q.get("prev_close"):
+                    result[t] = {"prev": q["prev_close"], "curr": q["price"]}
+            except Exception:
+                pass
+        return result
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=1) as ex:
         return await asyncio.get_event_loop().run_in_executor(ex, _fetch)
@@ -265,32 +253,27 @@ def get_risk_filtered_suggestions(risk_tolerance: str) -> list[str]:
 
 
 async def _batch_fetch_weekly_prices(tickers: list[str]) -> dict:
-    """Fetch Mon→Fri performance for weekly % comparison (period='5d')."""
+    """Fetch Mon→Fri performance for weekly % comparison via Finnhub candles."""
     if not tickers:
         return {}
 
     def _fetch():
-        try:
-            import yfinance as yf
-            data = yf.download(list(set(tickers)), period="5d", progress=False, group_by="ticker")
-            result = {}
-            if len(tickers) == 1:
-                t = tickers[0]
-                closes = data["Close"].dropna()
-                if len(closes) >= 2:
-                    result[t] = {"prev": float(closes.iloc[0]), "curr": float(closes.iloc[-1])}
-            else:
-                for t in tickers:
-                    try:
-                        closes = data[t]["Close"].dropna()
-                        if len(closes) >= 2:
-                            result[t] = {"prev": float(closes.iloc[0]), "curr": float(closes.iloc[-1])}
-                    except Exception:
-                        pass
-            return result
-        except Exception as e:
-            logger.warning("_batch_fetch_weekly_prices failed: %s", e)
-            return {}
+        import time as _time
+        from app.core.finnhub import fh_candles
+        result = {}
+        now_ts  = int(_time.time())
+        from_ts = now_ts - 7 * 86400  # 7 days back to cover a full trading week
+        for t in set(tickers):
+            try:
+                candles = fh_candles(t, "D", from_ts, now_ts)
+                if candles and len(candles) >= 2:
+                    result[t] = {
+                        "prev": float(candles[0]["c"]),
+                        "curr": float(candles[-1]["c"]),
+                    }
+            except Exception:
+                pass
+        return result
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=1) as ex:
         return await asyncio.get_event_loop().run_in_executor(ex, _fetch)
@@ -302,7 +285,6 @@ async def send_weekly_emails():
         logger.info("RESEND_API_KEY not set — skipping weekly emails")
         return
     from app.core.database import get_supabase, run_query
-    import yfinance as yf
     db = get_supabase()
     try:
         users_res = await run_query(
@@ -322,16 +304,16 @@ async def send_weekly_emails():
 
         # Collect all tickers across all portfolios + market indices
         all_tickers = list({p["ticker"] for positions in portfolio_map.values() for p in positions if p.get("ticker")})
-        all_tickers += ["^GSPC", "^IXIC"]
+        all_tickers += ["SPY", "QQQ"]
         weekly_prices = await _batch_fetch_weekly_prices(all_tickers)
 
         sp500_pct  = None
         nasdaq_pct = None
-        if "^GSPC" in weekly_prices:
-            px = weekly_prices["^GSPC"]
+        if "SPY" in weekly_prices:
+            px = weekly_prices["SPY"]
             sp500_pct = (px["curr"] - px["prev"]) / px["prev"] * 100 if px["prev"] else None
-        if "^IXIC" in weekly_prices:
-            px = weekly_prices["^IXIC"]
+        if "QQQ" in weekly_prices:
+            px = weekly_prices["QQQ"]
             nasdaq_pct = (px["curr"] - px["prev"]) / px["prev"] * 100 if px["prev"] else None
 
         sent = 0
@@ -473,17 +455,15 @@ async def run_league_notifications():
 # ── Notification engine jobs ──────────────────────────────────────────────────
 
 def _fetch_realtime_pct(symbols: list[str]) -> dict[str, float | None]:
-    """Use fast_info to get real-time % change vs previous close.
-    Works at any time of day including market open (no closed-candle needed)."""
-    import yfinance as yf
+    """Get real-time % change vs previous close via Finnhub.
+    Works at any time of day including market open."""
+    from app.core.finnhub import fh_quote
     result: dict[str, float | None] = {}
     for sym in symbols:
         try:
-            fi = yf.Ticker(sym).fast_info
-            curr = fi.get("lastPrice") or fi.get("regularMarketPrice")
-            prev = fi.get("previousClose")
-            if curr and prev:
-                result[sym] = round((curr - prev) / prev * 100, 2)
+            q = fh_quote(sym)
+            if q and q.get("price") and q.get("prev_close"):
+                result[sym] = q["change_pct"]
             else:
                 result[sym] = None
         except Exception:
@@ -1317,24 +1297,20 @@ async def job_portfolio_alerts():
                         pass
                 time.sleep(0.15)  # respectful rate limit
 
-            # yfinance fallback for tickers Nasdaq API missed (e.g. BRK-B, indices)
+            # Finnhub fallback for tickers Nasdaq API missed (e.g. BRK-B, ETFs)
             missing = [t for t in tickers_clean if t not in result]
             if missing:
                 try:
-                    import yfinance as yf
-                    data   = yf.download(missing, period="2d", progress=False,
-                                         group_by="ticker", auto_adjust=True)
-                    single = len(missing) == 1
+                    from app.core.finnhub import fh_quote as _fh_q
                     for t in missing:
                         try:
-                            closes = (data["Close"] if single else data[t]["Close"]).dropna()
-                            if len(closes) >= 2:
-                                result[t] = {"prev": float(closes.iloc[-2]),
-                                             "curr": float(closes.iloc[-1])}
+                            q = _fh_q(t)
+                            if q and q.get("price") and q.get("prev_close"):
+                                result[t] = {"prev": q["prev_close"], "curr": q["price"]}
                         except Exception:
                             pass
                 except Exception as e:
-                    logger.warning("yfinance fallback: %s", e)
+                    logger.warning("Finnhub fallback: %s", e)
 
             return result
 
@@ -1567,33 +1543,72 @@ async def job_weekly_summary_push():
 
 def _fetch_historical_earnings_reactions(ticker: str) -> dict:
     """Compute avg stock reaction (%) the day after each of the last 4 earnings reports.
+    Uses Finnhub /stock/earnings for EPS surprises and /stock/candle for price reactions.
     Returns {beat_avg, miss_avg, n_beats, n_misses} or empty dict on failure."""
     try:
-        import yfinance as yf
-        import pandas as pd
+        import time as _time
+        from app.core.finnhub import fh_candles
+        import requests as _req
 
-        t    = yf.Ticker(ticker)
-        eddf = t.earnings_dates  # index = datetime, cols include 'Surprise(%)'
-        hist = t.history(period="2y", interval="1d")
-        if eddf is None or hist.empty or len(eddf) < 2:
+        key = os.getenv("FINNHUB_API_KEY", "")
+        if not key:
             return {}
 
+        # Fetch EPS earnings history from Finnhub
+        r = _req.get(
+            "https://finnhub.io/api/v1/stock/earnings",
+            params={"symbol": ticker, "token": key},
+            timeout=8,
+        )
+        if r.status_code != 200:
+            return {}
+        earnings_list = r.json()
+        if not earnings_list or not isinstance(earnings_list, list):
+            return {}
+
+        # Fetch 2 years of daily candles
+        now_ts  = int(_time.time())
+        from_ts = now_ts - 2 * 365 * 86400
+        candles = fh_candles(ticker, "D", from_ts, now_ts)
+        if not candles or len(candles) < 5:
+            return {}
+
+        # Build a timestamp → close dict for binary search
+        ts_list = [c["t"] for c in candles]
+        c_list  = [c["c"] for c in candles]
+
+        def _find_closest_idx(target_ts: int) -> int:
+            """Return index of candle closest to target_ts (but not after it)."""
+            lo, hi = 0, len(ts_list) - 1
+            while lo < hi:
+                mid = (lo + hi + 1) // 2
+                if ts_list[mid] <= target_ts:
+                    lo = mid
+                else:
+                    hi = mid - 1
+            return lo
+
         beats, misses = [], []
-        for dt_idx, row in eddf.head(6).iterrows():
+        for e in earnings_list[:8]:
             try:
-                surprise = row.get("Surprise(%)")
-                if surprise is None or pd.isna(surprise):
+                surprise = e.get("surprisePercent")
+                period   = e.get("period", "")  # "2024-03-31"
+                if surprise is None or not period:
                     continue
-                # Find the trading day before and after this earnings date
-                ts = pd.Timestamp(dt_idx).tz_localize(None) if dt_idx.tzinfo else pd.Timestamp(dt_idx)
-                hist_naive = hist.copy()
-                hist_naive.index = hist_naive.index.tz_localize(None) if hist_naive.index.tzinfo else hist_naive.index
-                pos = hist_naive.index.searchsorted(ts)
-                if pos < 1 or pos >= len(hist_naive):
+                # Convert period to unix timestamp (approximate — end of quarter)
+                from datetime import datetime, timezone
+                report_dt = datetime.strptime(period, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+                report_ts = int(report_dt.timestamp())
+
+                idx = _find_closest_idx(report_ts)
+                # prev_close = candle before earnings date, next_close = candle after
+                if idx < 1 or idx + 1 >= len(ts_list):
                     continue
-                prev_close = float(hist_naive["Close"].iloc[pos - 1])
-                next_close = float(hist_naive["Close"].iloc[min(pos + 1, len(hist_naive) - 1)])
-                reaction   = round((next_close - prev_close) / prev_close * 100, 1)
+                prev_close = float(c_list[idx - 1])
+                next_close = float(c_list[min(idx + 1, len(c_list) - 1)])
+                if prev_close == 0:
+                    continue
+                reaction = round((next_close - prev_close) / prev_close * 100, 1)
                 if float(surprise) >= 0:
                     beats.append(reaction)
                 else:

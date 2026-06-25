@@ -1,10 +1,10 @@
 import asyncio
 from fastapi import APIRouter, Depends
-import yfinance as yf
 from app.api.deps import get_current_user_id
 from app.services import ai_service
 from app.api.routes.market import _get_user_profile
 from app.core.cache import cache_get, cache_set
+from app.core.finnhub import fh_quote, fh_metrics
 
 router = APIRouter(prefix="/market/screener", tags=["screener"])
 
@@ -253,19 +253,25 @@ def _fetch_one(entry: dict) -> dict:
     if cached:
         return cached
     try:
-        t  = yf.Ticker(ticker)
-        fi = t.fast_info
-        info = t.info or {}
-        price    = float(fi.last_price)   if fi.last_price    else None
-        prev     = float(fi.previous_close) if fi.previous_close else None
-        chg_pct  = round((price - prev) / prev * 100, 2) if price and prev else None
-        mkt_cap  = info.get("marketCap")
-        pe       = info.get("trailingPE")
-        fwd_pe   = info.get("forwardPE")
-        rev_gr   = info.get("revenueGrowth")      # e.g. 0.15 = 15%
-        margin   = info.get("profitMargins")
-        div_yield= info.get("dividendYield")
-        recom    = info.get("recommendationKey", "")
+        q       = fh_quote(ticker)
+        metrics = fh_metrics(ticker)
+
+        price   = q["price"]     if q else None
+        chg_pct = q["change_pct"] if q else None
+
+        # market cap: Finnhub returns in millions — convert to units
+        mkt_cap_m = metrics.get("marketCapitalization")
+        mkt_cap   = mkt_cap_m * 1_000_000 if mkt_cap_m else None
+
+        pe      = metrics.get("peBasicExclExtraTTM") or metrics.get("peNormalizedAnnual")
+        fwd_pe  = metrics.get("peForwardTTM")
+        # revenueGrowthTTMYoy is already in % (e.g. 15.3 = 15.3%), convert to ratio for score logic
+        rev_gr_pct = metrics.get("revenueGrowthTTMYoy")
+        rev_gr     = rev_gr_pct / 100.0 if rev_gr_pct is not None else None
+        # netProfitMarginTTM is already in % (e.g. 21.5), convert to ratio for score logic
+        margin_pct = metrics.get("netProfitMarginTTM")
+        margin     = margin_pct / 100.0 if margin_pct is not None else None
+        div_yield  = metrics.get("dividendYieldIndicatedAnnual")
 
         # Simple composite score 0-100
         score = 50
@@ -274,27 +280,25 @@ def _fetch_one(entry: dict) -> dict:
         if margin   and margin   > 0.20: score += 15
         elif margin and margin   > 0.10: score += 8
         if fwd_pe:
-            if fwd_pe < 20:  score += 15
+            if fwd_pe < 20:   score += 15
             elif fwd_pe < 30: score += 8
             elif fwd_pe > 50: score -= 10
-        if recom in ("strong_buy", "buy"): score += 10
-        elif recom in ("sell", "strong_sell"): score -= 15
         score = max(0, min(100, score))
 
         data = {
-            "ticker":    ticker,
-            "name":      entry["name"],
-            "sector":    entry["sector"],
-            "industry":  entry.get("industry", ""),
-            "price":     round(price, 2) if price else None,
+            "ticker":     ticker,
+            "name":       entry["name"],
+            "sector":     entry["sector"],
+            "industry":   entry.get("industry", ""),
+            "price":      round(price, 2)    if price     else None,
             "change_pct": chg_pct,
             "market_cap": mkt_cap,
-            "pe":         round(pe, 1)     if pe     else None,
-            "fwd_pe":     round(fwd_pe, 1) if fwd_pe else None,
-            "rev_growth": round(rev_gr * 100, 1) if rev_gr else None,
-            "margin":     round(margin * 100, 1)  if margin else None,
-            "div_yield":  round(div_yield * 100, 2) if div_yield else None,
-            "recom":      recom,
+            "pe":         round(pe, 1)       if pe        else None,
+            "fwd_pe":     round(fwd_pe, 1)   if fwd_pe    else None,
+            "rev_growth": round(rev_gr_pct, 1) if rev_gr_pct is not None else None,
+            "margin":     round(margin_pct, 1) if margin_pct is not None else None,
+            "div_yield":  round(div_yield, 2)  if div_yield  else None,
+            "recom":      "",
             "score":      score,
         }
         cache_set(f"screener:{ticker}", data, ttl=_TTL)
