@@ -144,6 +144,7 @@ export default function AppSidebar({ open, onClose }: Props) {
   const [dragOver, setDragOver] = useState<string | null>(null);
   const [dragging, setDragging] = useState<string | null>(null);
   const dragItem = useRef<string | null>(null);
+  const draggingFromGrip = useRef(false);
 
   const orderedNav = navOrder.map((href) => MAIN_NAV.find((n) => n.href === href)!).filter(Boolean);
   const userLevel  = getUserLevel(profile);
@@ -357,10 +358,16 @@ export default function AppSidebar({ open, onClose }: Props) {
                 <button
                   key={href}
                   draggable={!locked}
-                  onDragStart={() => !locked && handleDragStart(href)}
+                  onDragStart={(e) => {
+                    // Safari fix: draggable={true} on a button blocks click events in Safari
+                    // because Safari captures mousedown to track potential drag motion.
+                    // Only allow drag when the user explicitly grabbed the grip handle.
+                    if (!draggingFromGrip.current) { e.preventDefault(); return; }
+                    if (!locked) handleDragStart(href);
+                  }}
                   onDragOver={(e) => !locked && handleDragOver(e, href)}
                   onDrop={(e) => !locked && handleDrop(e, href)}
-                  onDragEnd={handleDragEnd}
+                  onDragEnd={() => { draggingFromGrip.current = false; handleDragEnd(); }}
                   onClick={() => locked ? navigate("/profile") : navigate(href)}
                   className={`nav-item ${active ? "active" : ""} group transition-opacity`}
                   style={{
@@ -371,6 +378,7 @@ export default function AppSidebar({ open, onClose }: Props) {
                   <GripVertical
                     className="w-2.5 h-2.5 shrink-0 opacity-0 group-hover:opacity-40 cursor-grab active:cursor-grabbing transition-opacity"
                     style={{ color: "var(--muted)" }}
+                    onPointerDown={(e) => { if (!locked) { e.stopPropagation(); draggingFromGrip.current = true; } }}
                   />
                   <Icon className="w-3.5 h-3.5 shrink-0" style={{ color: locked ? "var(--dim)" : undefined }} />
                   <span style={{ color: locked ? "var(--dim)" : undefined }}>{label}</span>
