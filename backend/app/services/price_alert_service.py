@@ -9,13 +9,13 @@ logger = logging.getLogger(__name__)
 
 
 def fetch_ticker_news(ticker: str) -> list[str]:
-    """Return up to 3 recent news headlines for a ticker."""
+    """Return up to 3 recent news headlines for a ticker via Yahoo Finance."""
     try:
-        from app.core.finnhub import fh_news
-        items = fh_news(ticker, days=3) or []
+        import yfinance as yf
+        news = yf.Ticker(ticker).news or []
         headlines = []
-        for item in items[:6]:
-            title = (item.get("headline") or "").strip()
+        for item in news[:6]:
+            title = (item.get("title") or item.get("headline") or "").strip()
             if title and len(title) > 10:
                 headlines.append(title)
             if len(headlines) >= 3:

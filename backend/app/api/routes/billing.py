@@ -162,7 +162,7 @@ async def get_status(user_id: str = Depends(get_current_user_id)):
     db = get_supabase()
     result = await run_query(
         db.table("user_profiles").select(
-            "subscription_tier, msg_count, msg_window_start, trial_started_at, stripe_customer_id"
+            "subscription_tier, msg_count, msg_window_start, trial_started_at, stripe_customer_id, broker_offer_seen_at"
         ).eq("user_id", user_id).single()
     )
 
@@ -200,10 +200,34 @@ async def get_status(user_id: str = Depends(get_current_user_id)):
             pass
 
     return {
-        "tier":             effective_tier,
-        "is_trial":         is_trial,
-        "trial_days_left":  days_left,
-        "msg_count":        data.get("msg_count", 0),
-        "msg_window_start": data.get("msg_window_start"),
-        "trial_started_at": trial_started,
+        "tier":                  effective_tier,
+        "is_trial":              is_trial,
+        "trial_days_left":       days_left,
+        "msg_count":             data.get("msg_count", 0),
+        "msg_window_start":      data.get("msg_window_start"),
+        "trial_started_at":      trial_started,
+        "broker_offer_seen_at":  data.get("broker_offer_seen_at"),
     }
+
+
+@router.post("/broker-offer-seen")
+async def broker_offer_seen(user_id: str = Depends(get_current_user_id)):
+    """Mark the first time a user sees the broker call offer.
+    Idempotent — only sets the timestamp once; never overwrites.
+    Returns the canonical seen_at so all clients use the same clock."""
+    db = get_supabase()
+    result = await run_query(
+        db.table("user_profiles")
+        .select("broker_offer_seen_at")
+        .eq("user_id", user_id)
+        .single()
+    )
+    seen_at = result.data.get("broker_offer_seen_at") if result.data else None
+    if not seen_at:
+        seen_at = datetime.now(timezone.utc).isoformat()
+        await run_query(
+            db.table("user_profiles")
+            .update({"broker_offer_seen_at": seen_at})
+            .eq("user_id", user_id)
+        )
+    return {"broker_offer_seen_at": seen_at}
