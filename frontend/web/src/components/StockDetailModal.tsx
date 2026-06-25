@@ -74,9 +74,16 @@ interface ScoreMetric {
   label: string; trend: ScoreTrendPoint[]; chart_type: string; lower_is_better: boolean;
 }
 interface ScoreCategory { key: string; name: string; score: number; metrics: ScoreMetric[] }
+interface EntryRange {
+  label: string; signal: string; color: string;
+  min: number | null; max: number | null; is_current: boolean;
+}
+interface EntryRangesMeta { fair_value: number; fair_value_src: string; current_price: number; }
 interface ScoreData {
   overall_score: number; grade: string; signal: string;
   verdict_short: string; verdict_long: string;
+  entry_ranges?: EntryRange[];
+  entry_ranges_meta?: EntryRangesMeta | null;
   categories: ScoreCategory[];
 }
 
@@ -1024,6 +1031,53 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
                       </div>
                     );
                   })()}
+
+                  {/* ── Entry Range ── */}
+                  {score.entry_ranges && score.entry_ranges.length > 0 && score.entry_ranges_meta && (
+                    <div className="rounded-3xl p-5" style={{ background: "var(--raised)", border: "1px solid var(--border)" }}>
+                      <div className="flex items-center justify-between mb-4">
+                        <span className="text-xs font-black uppercase tracking-widest" style={{ color: "var(--muted)" }}>
+                          ¿Cuándo entrar?
+                        </span>
+                        <span className="text-[10px] px-2 py-0.5 rounded-full" style={{ background: "var(--border)", color: "var(--muted)" }}>
+                          Valor justo ${score.entry_ranges_meta.fair_value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} · {score.entry_ranges_meta.fair_value_src}
+                        </span>
+                      </div>
+                      <div className="flex flex-col gap-2">
+                        {score.entry_ranges.map((range) => {
+                          const rangeLabel = range.min !== null && range.max !== null
+                            ? `$${range.min.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} – $${range.max.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                            : range.min !== null
+                            ? `> $${range.min.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                            : `< $${range.max!.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+                          return (
+                            <div key={range.signal}
+                                 className="flex items-center gap-3 rounded-2xl px-4 py-3 transition-all"
+                                 style={{
+                                   background: range.is_current ? range.color + "18" : "transparent",
+                                   border: range.is_current ? `1.5px solid ${range.color}50` : "1px solid transparent",
+                                 }}>
+                              <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: range.color, opacity: range.is_current ? 1 : 0.35 }} />
+                              <div className="flex-1 flex items-center justify-between gap-2">
+                                <span className="text-xs font-semibold" style={{ color: range.is_current ? range.color : "var(--sub)", opacity: range.is_current ? 1 : 0.6 }}>
+                                  {range.label}
+                                </span>
+                                <span className="text-[11px] font-mono" style={{ color: range.is_current ? "var(--text)" : "var(--muted)", opacity: range.is_current ? 1 : 0.6 }}>
+                                  {rangeLabel}
+                                </span>
+                              </div>
+                              {range.is_current && (
+                                <span className="text-[9px] font-black px-2 py-0.5 rounded-full shrink-0"
+                                      style={{ background: range.color + "30", color: range.color }}>
+                                  AHORA
+                                </span>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
 
                   {/* ── Category grid ── */}
                   <div className="grid grid-cols-4 gap-2">

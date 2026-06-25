@@ -12,6 +12,7 @@ Railway setup:
 
 import asyncio
 import logging
+import os
 import random
 import concurrent.futures
 from datetime import datetime, timezone, timedelta, date
@@ -610,10 +611,20 @@ async def job_market_open():
         sp500_pct  = spy_q["pct"] if spy_q else None
         nasdaq_pct = qqq_q["pct"] if qqq_q else None
 
+        # Opt-out model: send to all push-capable users unless push_market_open = False
         prefs_res = await run_query(
-            db.table("notification_preferences").select("user_id").eq("push_market_open", True)
+            db.table("notification_preferences").select("user_id,push_market_open")
         )
-        uids = [u["user_id"] for u in (prefs_res.data or [])]
+        disabled = {p["user_id"] for p in (prefs_res.data or []) if p.get("push_market_open") is False}
+
+        token_res = await run_query(
+            db.table("user_profiles").select("user_id,push_token")
+            .neq("push_token", "").not_.is_("push_token", "null")
+        )
+        expo_uids = {r["user_id"] for r in (token_res.data or [])}
+        web_res   = await run_query(db.table("web_push_subscriptions").select("user_id"))
+        web_uids  = {r["user_id"] for r in (web_res.data or [])}
+        uids = list((expo_uids | web_uids) - disabled)
         if not uids:
             return
 

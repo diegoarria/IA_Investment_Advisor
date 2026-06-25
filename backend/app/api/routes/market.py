@@ -3126,12 +3126,82 @@ def _compute_stock_score(detail: dict) -> dict:
     if not verdict_long:
         verdict_long = f"Score de calidad {qual_score}/100. Crecimiento {grow_score}/100. Salud financiera {health_score}/100. Valoración {val_score}/100."
 
+    # ── Entry range ───────────────────────────────────────────────────────────
+    _SECTOR_PE = {
+        "Technology": 28, "Communication Services": 22, "Healthcare": 22,
+        "Consumer Cyclical": 20, "Consumer Defensive": 19, "Industrials": 20,
+        "Financial Services": 14, "Basic Materials": 15, "Real Estate": 20,
+        "Utilities": 16, "Energy": 14,
+    }
+    entry_ranges: list[dict] = []
+    try:
+        analyst_target = analyst.get("price_target", {}).get("mean") if isinstance(analyst.get("price_target"), dict) else None
+        if not analyst_target:
+            analyst_target = analyst.get("target_mean")
+
+        if analyst_target:
+            try:
+                analyst_target = float(str(analyst_target).replace("$", "").replace(",", ""))
+            except Exception:
+                analyst_target = None
+
+        # Fair value: analyst target > Forward PE model > trailing PE model
+        fair_value = analyst_target
+        if not fair_value and fpe and fpe > 0 and price:
+            sector_pe = _SECTOR_PE.get(p.get("sector", ""), 20)
+            fair_value = round(price * (sector_pe / fpe), 2)
+        elif not fair_value and pe and pe > 0 and price:
+            sector_pe = _SECTOR_PE.get(p.get("sector", ""), 20)
+            fair_value = round(price * (sector_pe / pe), 2)
+
+        if fair_value and fair_value > 0 and price:
+            fv = fair_value
+            price_ratio = price / fv
+
+            def _rng(lo, hi):
+                return (None if lo is None else round(lo, 2),
+                        None if hi is None else round(hi, 2))
+
+            tiers = [
+                {"label": "Muy cara",              "signal": "avoid",   "color": "#ef4444", "lo": fv * 1.15, "hi": None},
+                {"label": "Cara, esperar bajada",  "signal": "wait",    "color": "#f97316", "lo": fv * 1.05, "hi": fv * 1.15},
+                {"label": "Precio justo",          "signal": "neutral", "color": "#f59e0b", "lo": fv * 0.95, "hi": fv * 1.05},
+                {"label": "Buen rango para entrar","signal": "good",    "color": "#22c55e", "lo": fv * 0.80, "hi": fv * 0.95},
+                {"label": "Barata, oportunidad",   "signal": "strong",  "color": "#10b981", "lo": None,      "hi": fv * 0.80},
+            ]
+            for t in tiers:
+                lo, hi = t["lo"], t["hi"]
+                is_current = (
+                    (lo is None or price >= lo) and
+                    (hi is None or price < hi)
+                )
+                entry_ranges.append({
+                    "label":      t["label"],
+                    "signal":     t["signal"],
+                    "color":      t["color"],
+                    "min":        round(lo, 2) if lo is not None else None,
+                    "max":        round(hi, 2) if hi is not None else None,
+                    "is_current": is_current,
+                })
+
+            entry_ranges_meta = {
+                "fair_value":     round(fair_value, 2),
+                "fair_value_src": "analyst" if analyst_target else "modelo P/E",
+                "current_price":  round(price, 2),
+            }
+        else:
+            entry_ranges_meta = None
+    except Exception:
+        entry_ranges_meta = None
+
     return {
         "overall_score": overall,
         "grade": grade,
         "signal": signal,
         "verdict_short": verdict_short,
         "verdict_long": verdict_long,
+        "entry_ranges": entry_ranges,
+        "entry_ranges_meta": entry_ranges_meta,
         "categories": [
             {
                 "key": "valuation",
