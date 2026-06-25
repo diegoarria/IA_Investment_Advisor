@@ -3230,14 +3230,33 @@ def _compute_stock_score(detail: dict) -> dict:
             except Exception:
                 analyst_target = None
 
-        # Fair value: analyst target > Forward PE model > trailing PE model
+        # Fair value calculation
+        # 1. Analyst consensus target — most reliable, use directly
+        # 2. PEG-adjusted intrinsic value:
+        #    fair_pe = sector_pe × growth_mult × quality_mult
+        #    growth_mult: companies growing faster than market (10%) deserve higher P/E
+        #    quality_mult: high ROIC/margins deserve a premium
+        #    This prevents "everything is cheap" when P/E < sector median
         fair_value = analyst_target
-        if not fair_value and fpe and fpe > 0 and price:
-            sector_pe = _SECTOR_PE.get(p.get("sector", ""), 20)
-            fair_value = round(price * (sector_pe / fpe), 2)
-        elif not fair_value and pe and pe > 0 and price:
-            sector_pe = _SECTOR_PE.get(p.get("sector", ""), 20)
-            fair_value = round(price * (sector_pe / pe), 2)
+        fair_value_src = "analyst"
+        if not fair_value and price:
+            base_pe = _SECTOR_PE.get(sector, 20)
+            # Growth premium/discount vs 10% market norm (capped at ±100%)
+            eg = earn_growth if earn_growth is not None else 0.0
+            growth_mult = max(0.5, min(2.0, 1.0 + (eg - 0.10) * 3))
+            # Quality premium: score 75+ adds 10%, score <45 subtracts 15%
+            qual_mult = 1.10 if qual_score >= 75 else (0.85 if qual_score < 45 else 1.0)
+            fair_pe = base_pe * growth_mult * qual_mult
+
+            if fpe and fpe > 0:
+                # Forward earnings already priced in — compare fair_pe vs actual fpe
+                eps_fwd = price / fpe
+                fair_value = round(eps_fwd * fair_pe, 2)
+                fair_value_src = "P/E ajustado (fwd)"
+            elif pe and pe > 0:
+                eps = price / pe
+                fair_value = round(eps * fair_pe, 2)
+                fair_value_src = "P/E ajustado"
 
         if fair_value and fair_value > 0 and price:
             fv = fair_value
@@ -3271,7 +3290,7 @@ def _compute_stock_score(detail: dict) -> dict:
 
             entry_ranges_meta = {
                 "fair_value":     round(fair_value, 2),
-                "fair_value_src": "analyst" if analyst_target else "modelo P/E",
+                "fair_value_src": fair_value_src,
                 "current_price":  round(price, 2),
             }
         else:
