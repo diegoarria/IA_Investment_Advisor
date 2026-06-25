@@ -2802,7 +2802,7 @@ async def get_stock_detail(
     result = await asyncio.to_thread(_fetch_stock_detail, symbol.upper())
     if include_score:
         sym = symbol.upper()
-        score_cache_key = f"score4:{sym}"
+        score_cache_key = f"score5:{sym}"
         cached_score = cache_get(score_cache_key)
         if cached_score:
             return {**result, "score": cached_score}
@@ -2871,10 +2871,53 @@ def _score_val(v, tiers):
     return tiers[-1][1]
 
 
+def _parse_fin(val) -> float | None:
+    """Parse formatted financial number (e.g. '$1.2B', '450M') to float."""
+    if val is None:
+        return None
+    try:
+        return float(
+            str(val).replace("$","").replace(",","")
+                    .replace("B","e9").replace("M","e6")
+                    .replace("T","e12").replace("K","e3")
+        )
+    except Exception:
+        return None
+
+
+# Sector-specific P/E tiers: (threshold, score) — lower P/E → higher score within each sector's norms
+_SECTOR_PE_TIERS: dict[str, list] = {
+    # Tech & growth: higher P/E is normal; 25-35 is "fair"
+    "Technology":             [(12,96),(18,88),(25,80),(30,72),(38,60),(50,44),(70,28),(999,14)],
+    "Communication Services": [(12,95),(18,87),(24,78),(30,68),(38,55),(50,38),(70,22),(999,12)],
+    # Healthcare: moderate-high P/E acceptable; 20-28 fair
+    "Healthcare":             [(12,95),(16,87),(22,78),(28,68),(35,55),(45,38),(60,22),(999,12)],
+    # Consumer Cyclical: 15-22 fair
+    "Consumer Cyclical":      [(10,96),(14,88),(18,80),(22,70),(28,56),(36,38),(50,22),(999,12)],
+    # Consumer Defensive / Staples: 14-20 fair
+    "Consumer Defensive":     [(10,96),(14,90),(18,82),(22,72),(27,57),(35,38),(999,18)],
+    # Industrials: 14-20 fair
+    "Industrials":            [(10,96),(14,88),(18,80),(22,70),(28,55),(36,36),(999,15)],
+    # Financials: P/E 8-14 normal; use P/B too
+    "Financial Services":     [(7,97),(10,90),(13,82),(16,70),(20,55),(26,36),(999,15)],
+    # Materials: 10-16 fair, cyclical
+    "Basic Materials":        [(8,96),(12,88),(16,80),(20,68),(25,52),(32,34),(999,14)],
+    # Real Estate: 20-30 fair (FFO-based)
+    "Real Estate":            [(12,94),(18,86),(24,77),(30,66),(40,48),(55,28),(999,12)],
+    # Utilities: 12-18 fair, stable
+    "Utilities":              [(10,96),(14,90),(18,82),(23,70),(28,53),(36,32),(999,12)],
+    # Energy: cyclical, 8-14 fair
+    "Energy":                 [(7,96),(10,88),(14,80),(18,68),(23,52),(30,32),(999,12)],
+}
+_DEFAULT_PE_TIERS = [(10,95),(15,85),(20,75),(25,65),(30,55),(40,40),(50,28),(999,15)]
+
+
 def _compute_stock_score(detail: dict) -> dict:
     p = detail.get("profile", {})
     fin = detail.get("financials", {})
     analyst = detail.get("analyst", {})
+
+    sector = p.get("sector", "") or ""
 
     # ── Valuation metrics ──────────────────────────────────────────────────────
     pe = p.get("pe_ratio")
@@ -2883,12 +2926,13 @@ def _compute_stock_score(detail: dict) -> dict:
     ps = p.get("ps_ratio")
     pb = p.get("pb_ratio")
 
-    # P/E score (lower is better; negative = unprofitable)
+    # P/E score — sector-adjusted tiers (tech P/E 30 ≠ bank P/E 30)
+    pe_tiers = _SECTOR_PE_TIERS.get(sector, _DEFAULT_PE_TIERS)
     if pe is not None and pe < 0:
         pe_score = 20
     else:
-        pe_score = _score_val(pe, [(10,95),(15,85),(20,75),(25,65),(30,55),(40,40),(50,28),(999,15)])
-    fpe_score = _score_val(fpe, [(10,95),(15,85),(20,75),(25,65),(30,55),(40,40),(50,28),(999,15)]) if fpe and fpe > 0 else pe_score
+        pe_score = _score_val(pe, pe_tiers)
+    fpe_score = _score_val(fpe, pe_tiers) if fpe and fpe > 0 else pe_score
     ev_score  = _score_val(ev_ebitda, [(8,95),(12,85),(16,75),(20,60),(25,45),(35,28),(999,15)])
     ps_score  = _score_val(ps,  [(1,95),(2,85),(4,70),(8,55),(15,35),(999,20)])
     pb_score  = _score_val(pb,  [(1,90),(2,85),(3,75),(5,60),(10,40),(999,25)])
@@ -2979,7 +3023,7 @@ def _compute_stock_score(detail: dict) -> dict:
     roe_score = _score_val(roe, [(-1,10),(0,25),(0.05,40),(0.1,55),(0.15,65),(0.2,78),(0.25,88),(0.35,95),(1,100)])
     roa_score = _score_val(roa, [(-1,10),(0,25),(0.03,40),(0.05,55),(0.08,65),(0.12,78),(0.18,90),(1,100)])
 
-    qual_scores = [s for s in [gm_score, om_score, nm_score, roe_score, roa_score] if s is not None]
+    qual_scores = [s for s in [gm_score, om_score, nm_score, roe_score, roa_score, roic_score] if s is not None]
     qual_score  = round(sum(qual_scores) / len(qual_scores)) if qual_scores else 50
 
     # Margin trend from income annual
@@ -3044,6 +3088,50 @@ def _compute_stock_score(detail: dict) -> dict:
                     roe_trend.append({"year": period, "value": round(ni_raw / eq_raw * 100, 1)})
             except Exception:
                 pass
+
+    # ── ROIC — Return on Invested Capital ────────────────────────────────────
+    # ROIC = NOPAT / Invested Capital
+    # NOPAT = Operating Income × (1 − effective tax rate)
+    # Invested Capital = Equity + Total Debt − Cash
+    # Skipped for banks/insurance: their balance sheets make IC meaningless
+    roic: float | None = None
+    roic_pct: float | None = None
+    roic_trend: list[dict] = []
+    roic_score: int | None = None
+    is_financial = "Financial" in sector or "Insurance" in sector or "Bank" in sector
+    if not is_financial and income_annual and balance_annual:
+        inc_rows = list(reversed(income_annual[-5:]))
+        bal_rows = list(reversed(balance_annual[-5:]))
+        for i, inc_row in enumerate(inc_rows):
+            if i >= len(bal_rows):
+                break
+            bal_row = bal_rows[i]
+            period  = str(inc_row.get("period", ""))[:7]
+            op_inc  = _parse_fin(inc_row.get("Operating Income"))
+            tax_p   = _parse_fin(inc_row.get("Tax Provision"))
+            net_inc = _parse_fin(inc_row.get("Net Income"))
+            equity  = _parse_fin(bal_row.get("Total Stockholder Equity") or bal_row.get("Stockholders Equity"))
+            t_debt  = _parse_fin(bal_row.get("Total Debt") or bal_row.get("Long Term Debt"))
+            cash    = _parse_fin(bal_row.get("Cash And Cash Equivalents") or bal_row.get("Cash And Short Term Investments"))
+            if op_inc is None or equity is None:
+                continue
+            pretax = (net_inc or 0) + (tax_p or 0) if net_inc is not None else None
+            if pretax and pretax > 0 and tax_p is not None and tax_p >= 0:
+                tax_rate = min(max(tax_p / pretax, 0.0), 0.40)
+            else:
+                tax_rate = 0.21
+            nopat = op_inc * (1 - tax_rate)
+            inv_cap = equity + (t_debt or 0) - (cash or 0)
+            if inv_cap > 0:
+                r = round(nopat / inv_cap * 100, 1)
+                roic_trend.append({"year": period, "value": r})
+                if i == 0:
+                    roic     = nopat / inv_cap
+                    roic_pct = r
+        if roic is not None:
+            roic_score = _score_val(roic, [
+                (0.04,12),(0.07,28),(0.10,48),(0.12,62),(0.15,74),(0.20,86),(0.25,94),(999,100)
+            ])
 
     # ── Shares dilution score ──────────────────────────────────────────────────
     shares_now  = p.get("shares_outstanding") or p.get("float_shares")
@@ -3212,7 +3300,7 @@ def _compute_stock_score(detail: dict) -> dict:
                         "name": "Múltiplo de Ganancias (P/E)",
                         "value": f"{pe:.1f}x" if pe else "—",
                         "score": pe_score,
-                        "label": _pe_label(pe),
+                        "label": _pe_label(pe, sector),
                         "trend": pe_trend,
                         "chart_type": "line",
                         "lower_is_better": True,
@@ -3276,6 +3364,15 @@ def _compute_stock_score(detail: dict) -> dict:
                         "chart_type": "line",
                         "lower_is_better": False,
                     },
+                    *([{
+                        "name": "Retorno sobre Capital Invertido (ROIC)",
+                        "value": f"{roic_pct:.1f}%" if roic_pct is not None else "—",
+                        "score": roic_score,
+                        "label": _roic_label(roic),
+                        "trend": roic_trend,
+                        "chart_type": "line",
+                        "lower_is_better": False,
+                    }] if roic_score is not None else []),
                 ],
             },
             {
@@ -3307,15 +3404,42 @@ def _compute_stock_score(detail: dict) -> dict:
     }
 
 
-def _pe_label(v):
+def _pe_label(v, sector: str = "") -> str:
     if v is None: return "Sin datos"
     if v < 0:     return "Empresa no rentable"
+    # Use sector-aware thresholds for descriptive labels
+    tech_like = sector in ("Technology", "Communication Services")
+    fin_like  = "Financial" in sector
+    if fin_like:
+        if v < 8:   return "Muy barato para el sector"
+        if v < 12:  return "Valoración atractiva"
+        if v < 16:  return "Valoración razonable"
+        if v < 22:  return "Ligeramente elevado"
+        return "Caro para el sector financiero"
+    if tech_like:
+        if v < 15:  return "Muy barato para tecnología"
+        if v < 25:  return "Valoración razonable"
+        if v < 35:  return "Prima de crecimiento normal"
+        if v < 50:  return "Valoración exigente"
+        return "Muy caro, descuenta mucho crecimiento"
+    # Default
     if v < 10:    return "Valoración muy atractiva"
     if v < 15:    return "Por debajo de 15x, atractivo"
     if v < 20:    return "Valoración razonable"
     if v < 25:    return "Ligeramente elevado"
     if v < 35:    return "Prima de crecimiento"
     return "Valoración exigente"
+
+
+def _roic_label(v: float | None) -> str:
+    if v is None: return "Sin datos"
+    if v >= 0.25: return "Excepcional — ventaja competitiva clara"
+    if v >= 0.20: return "Muy alto — negocio de alta calidad"
+    if v >= 0.15: return "Sólido — genera valor por encima del costo de capital"
+    if v >= 0.12: return "Bueno — por encima del promedio del mercado"
+    if v >= 0.08: return "Aceptable — cerca del costo de capital"
+    if v >= 0.04: return "Bajo — destruye poco o nada de valor"
+    return "Negativo — destruye valor para los accionistas"
 
 
 def _ev_label(v):
@@ -3370,7 +3494,7 @@ async def get_stock_score(
 ):
     """AI quality score + verdict for a stock (0-100, 8 metrics, 4 categories)."""
     sym = _yf_symbol(symbol.upper())
-    cache_key = f"score4:{sym}"
+    cache_key = f"score5:{sym}"
     cached = cache_get(cache_key)
     if cached:
         return cached
