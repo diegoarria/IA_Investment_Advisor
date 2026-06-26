@@ -129,11 +129,14 @@ function UpsellSuccessContent() {
 
         {/* Title */}
         <div style={{ textAlign: "center" }}>
-          <h1 style={{ color: "#fff", fontSize: 26, fontWeight: 900, margin: "0 0 8px" }}>
+          <h1 style={{ color: "#fff", fontSize: 26, fontWeight: 900, margin: "0 0 6px" }}>
             {meta.title}
           </h1>
-          <p style={{ color: "#9ca3af", fontSize: 14, margin: 0 }}>
+          <p style={{ color: "#9ca3af", fontSize: 14, margin: "0 0 8px" }}>
             {meta.subtitle}
+          </p>
+          <p style={{ color: "#00d47e", fontSize: 13, fontWeight: 600, margin: 0, letterSpacing: "0.02em" }}>
+            Con Nuvos, construye tu futuro.
           </p>
         </div>
 

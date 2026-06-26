@@ -122,6 +122,7 @@ def build_weekly_summary_html(name: str, summary: str, risk: str) -> str:
       </div>
 
       <div style="border-top:1px solid #2a2d3a;padding-top:18px;text-align:center">
+        <p style="color:#00a85e;font-size:12px;font-weight:700;margin:0 0 6px;letter-spacing:0.03em">Con Nuvos, construye tu futuro.</p>
         <p style="color:#4b5563;font-size:11px;margin:0">Nuvos AI — Solo educativo. No constituye asesoramiento financiero profesional.</p>
       </div>
     </div>
@@ -714,6 +715,7 @@ def build_enhanced_weekly_html(
       </div>
 
       <div style="border-top:1px solid #2a2d3a;padding-top:16px;text-align:center">
+        <p style="color:#00a85e;font-size:12px;font-weight:700;margin:0 0 6px;letter-spacing:0.03em">Con Nuvos, construye tu futuro.</p>
         <p style="color:#4b5563;font-size:11px;margin:0">Nuvos AI — Solo educativo. No constituye asesoramiento financiero profesional.</p>
       </div>
     </div>
@@ -816,6 +818,7 @@ def build_earnings_results_html(
       </div>
 
       <div style="border-top:1px solid #2a2d3a;padding-top:16px;text-align:center">
+        <p style="color:#00a85e;font-size:12px;font-weight:700;margin:0 0 6px;letter-spacing:0.03em">Con Nuvos, construye tu futuro.</p>
         <p style="color:#4b5563;font-size:11px;margin:0">Nuvos AI — Solo educativo. No constituye asesoramiento financiero profesional.</p>
       </div>
     </div>
@@ -858,6 +861,7 @@ def build_birthday_html(name: str) -> str:
       <p style="color:#6b7280;font-size:14px;margin:0 0 0;line-height:1.7">¡A disfrutar! 🥂<br><strong style="color:#d1d5db">El equipo de Nuvos AI</strong></p>
 
       <div style="border-top:1px solid #2a2d3a;padding-top:16px;margin-top:24px">
+        <p style="color:#00a85e;font-size:12px;font-weight:700;margin:0 0 6px;letter-spacing:0.03em">Con Nuvos, construye tu futuro.</p>
         <p style="color:#4b5563;font-size:11px;margin:0">Nuvos AI — Solo educativo. No constituye asesoramiento financiero profesional.</p>
       </div>
     </div>
@@ -920,6 +924,7 @@ def build_reengagement_html(name: str, movers: list[dict]) -> str:
       </div>
 
       <div style="border-top:1px solid #2a2d3a;padding-top:16px;text-align:center">
+        <p style="color:#00a85e;font-size:12px;font-weight:700;margin:0 0 6px;letter-spacing:0.03em">Con Nuvos, construye tu futuro.</p>
         <p style="color:#4b5563;font-size:11px;margin:0">Nuvos AI — Solo educativo. No constituye asesoramiento financiero profesional.</p>
       </div>
     </div>
@@ -970,6 +975,61 @@ def build_educational_email_html(name: str, concept: str, explanation: str, exam
       </div>
 
       <div style="border-top:1px solid #2a2d3a;padding-top:16px;text-align:center">
+        <p style="color:#00a85e;font-size:12px;font-weight:700;margin:0 0 6px;letter-spacing:0.03em">Con Nuvos, construye tu futuro.</p>
+        <p style="color:#4b5563;font-size:11px;margin:0">Nuvos AI — Solo educativo. No constituye asesoramiento financiero profesional.</p>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>"""
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Welcome Email (sent after onboarding completion)
+# ─────────────────────────────────────────────────────────────────────────────
+
+def build_welcome_html(name: str) -> str:
+    first   = name.split()[0] if name else "Inversor"
+    header  = _nuvos_email_header("Bienvenido a Nuvos AI 🎉")
+    cta_url = "https://nuvosai.com/home"
+    features = [
+        ("🤖", "Mentor IA personalizado", "Pregúntale cualquier cosa sobre inversiones. Conoce tu perfil y tu portafolio."),
+        ("📊", "Portafolio en tiempo real", "Registra tus posiciones y ve su rendimiento con precios actualizados."),
+        ("📈", "Alertas inteligentes", "Notificaciones cuando tus acciones se muevan o haya eventos importantes."),
+        ("📚", "Academia Nuvos", "Aprende un concepto nuevo cada día y construye tu racha de aprendizaje."),
+    ]
+    features_html = "".join(f"""
+      <div style="background:#111318;border:1px solid #2a2d3a;border-radius:14px;padding:16px;display:flex;align-items:flex-start;gap:14px;margin-bottom:10px">
+        <div style="font-size:24px;line-height:1;flex-shrink:0">{icon}</div>
+        <div>
+          <p style="color:#fff;font-size:14px;font-weight:700;margin:0 0 3px">{title}</p>
+          <p style="color:#9ca3af;font-size:12px;margin:0;line-height:1.55">{desc}</p>
+        </div>
+      </div>""" for icon, title, desc in features)
+    return f"""<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#0a0c12;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">
+<div style="max-width:600px;margin:0 auto;padding:32px 16px">
+  <div style="border-radius:20px;overflow:hidden;border:1px solid #2a2d3a">
+    {header}
+    <div style="background:#1a1d27;padding:32px;text-align:center">
+      <div style="font-size:56px;margin-bottom:16px">🚀</div>
+      <h1 style="color:#fff;font-size:28px;font-weight:900;margin:0 0 8px">¡Bienvenido, {first}!</h1>
+      <p style="color:#00a85e;font-size:14px;font-weight:700;margin:0 0 20px;letter-spacing:0.03em">Con Nuvos, construye tu futuro.</p>
+      <p style="color:#9ca3af;font-size:15px;margin:0 0 28px;line-height:1.7">
+        Tu cuenta está lista. Ahora tienes acceso a tu mentor de inversiones con IA —
+        personalizado para tu perfil, tu ritmo y tus metas.
+      </p>
+      <div style="text-align:left;margin-bottom:28px">
+        {features_html}
+      </div>
+      <a href="{cta_url}" style="display:inline-block;background:linear-gradient(135deg,#00a85e,#00d47e);color:#000;font-weight:900;font-size:16px;padding:16px 40px;border-radius:14px;text-decoration:none;margin-bottom:28px">
+        Empezar ahora →
+      </a>
+      <div style="border-top:1px solid #2a2d3a;padding-top:18px">
+        <p style="color:#00a85e;font-size:12px;font-weight:700;margin:0 0 6px;letter-spacing:0.03em">Con Nuvos, construye tu futuro.</p>
         <p style="color:#4b5563;font-size:11px;margin:0">Nuvos AI — Solo educativo. No constituye asesoramiento financiero profesional.</p>
       </div>
     </div>

@@ -201,6 +201,9 @@ export default function OnboardingScreen() {
       isValid: () => form.name.trim().length >= 2 && birthDateValid,
       content: (
         <View style={s.fields}>
+          <Text style={{ fontSize: 13, fontWeight: "600", color: colors.accentLight, textAlign: "center", marginBottom: 16, letterSpacing: 0.3 }}>
+            Con Nuvos, construye tu futuro.
+          </Text>
           <Text style={s.label}>Tu nombre completo</Text>
           <TextInput style={s.input} value={form.name}
                      onChangeText={(v) => setForm(f => ({ ...f, name: v }))}
@@ -506,6 +509,9 @@ export default function OnboardingScreen() {
             </View>
 
             {/* Features */}
+            <Text style={{ fontSize: 13, fontWeight: "700", color: colors.accentLight, textAlign: "center", marginBottom: 4, letterSpacing: 0.3 }}>
+              Con Nuvos, construye tu futuro.
+            </Text>
             <Text style={[s.factorsTitle, { color: colors.textSub }]}>Nuvos AI trabaja contigo</Text>
             {[
               { icon: "🤖", title: "IA que conoce tu perfil",     sub: "Análisis personalizado según tu nivel y tolerancia al riesgo" },

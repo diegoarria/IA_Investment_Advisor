@@ -88,6 +88,17 @@ async def create_profile(
     else:
         record = {"user_id": user_id, **db_data, "created_at": now, "updated_at": now}
         result = await run_query(db.table("user_profiles").insert(record))
+        # Send welcome email to new users (fire-and-forget)
+        try:
+            from app.services.email_service import build_welcome_html, send_email
+            auth_res = await asyncio.to_thread(lambda: db.auth.admin.get_user_by_id(user_id))
+            email_addr = getattr(getattr(auth_res, "user", None), "email", None)
+            if email_addr:
+                name_val = db_data.get("name", "Inversor")
+                html = build_welcome_html(name_val)
+                asyncio.create_task(send_email(email_addr, "🚀 ¡Bienvenido a Nuvos AI! Con Nuvos, construye tu futuro.", html))
+        except Exception:
+            pass
         # Create default notification preferences for new users
         existing_prefs = await run_query(
             db.table("notification_preferences").select("user_id").eq("user_id", user_id)

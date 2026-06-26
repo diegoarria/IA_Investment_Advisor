@@ -218,6 +218,17 @@ export default function RootLayout() {
     }
   }, [fontsLoaded]);
 
+  if (!fontsLoaded) {
+    return (
+      <View style={{ flex: 1, backgroundColor: "#0f1117", alignItems: "center", justifyContent: "center", gap: 16 }}>
+        <Text style={{ color: "#fff", fontSize: 26, fontWeight: "900", letterSpacing: -0.5 }}>Nuvos AI</Text>
+        <Text style={{ color: "#00d47e", fontSize: 14, fontWeight: "600", letterSpacing: 0.3 }}>
+          Con Nuvos, construye tu futuro.
+        </Text>
+      </View>
+    );
+  }
+
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <ThemeProvider>
