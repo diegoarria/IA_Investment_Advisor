@@ -1454,102 +1454,134 @@ async def job_portfolio_alerts():
         logger.error("job_portfolio_alerts failed: %s", e)
 
 
-async def job_weekly_summary_push():
-    """9:30 AM ET Saturday — Market Wrap + AI storytelling (causas del rendimiento semanal).
-    Uses weekly prices (5d). Pre-generates 2 AI blurbs (beat / lag) to avoid per-user API calls."""
+async def job_weekly_screener_push():
+    """9:30 AM ET Saturday — personalized weekly screener: 4 picks per user based on
+    risk profile, investment horizon, mentor, and existing portfolio (excluded).
+    Strategy: 1 Haiku call per risk group (~6 total) → cheap regardless of user count."""
+    import anthropic
     from app.core.database import get_supabase, run_query
-    from app.services.notification_engine import send_push, get_market_summary_text
+    from app.services.notification_engine import send_push
+    from app.core.config import settings as cfg
+
     db = get_supabase()
     try:
-        market     = await get_market_summary_text()
-        indices    = market.get("indices", {})
-        sp500_pct  = (indices.get("S&P 500") or {}).get("change_pct")
-        nasdaq_pct = (indices.get("NASDAQ")  or {}).get("change_pct")
-
         prefs_res = await run_query(
-            db.table("notification_preferences").select("user_id").eq("email_weekly_summary", True)
+            db.table("notification_preferences").select("user_id").eq("push_ai_recommendations", True)
         )
         uids = [u["user_id"] for u in (prefs_res.data or [])]
         if not uids:
             return
 
         profiles_res = await run_query(
-            db.table("user_profiles").select("user_id,subscription_tier,risk_tolerance").in_("user_id", uids)
+            db.table("user_profiles")
+            .select("user_id,name,risk_tolerance,quiz_answers,mentor")
+            .in_("user_id", uids)
         )
         profile_map = {r["user_id"]: r for r in (profiles_res.data or [])}
 
-        premium_uids = [uid for uid in uids if profile_map.get(uid, {}).get("subscription_tier") == "premium"]
-        all_tickers: set[str] = set()
-        portfolio_map: dict[str, list] = {}
-        for uid in premium_uids:
+        portfolio_map: dict[str, set] = {}
+        for uid in uids:
             port_res = await run_query(db.table("user_portfolio").select("positions").eq("user_id", uid))
             if port_res.data:
                 raw = port_res.data[0].get("positions") or {}
                 pos = raw.get("positions", []) if isinstance(raw, dict) else (raw if isinstance(raw, list) else [])
-                portfolio_map[uid] = pos
-                all_tickers.update(p["ticker"] for p in pos if p.get("ticker"))
+                portfolio_map[uid] = {p["ticker"] for p in pos if p.get("ticker")}
 
-        # Weekly prices (Mon→Fri) for accurate weekly % change
-        weekly_prices = await _batch_fetch_weekly_prices(list(all_tickers)) if all_tickers else {}
+        RISK_LABELS = {
+            "conservative": "conservador", "conservative_moderate": "conservador-moderado",
+            "moderate": "moderado", "moderate_growth": "moderado con enfoque en crecimiento",
+            "growth": "de crecimiento", "aggressive": "agresivo",
+            "aggressive_speculative": "agresivo-especulativo", "speculative": "especulativo",
+        }
+        HORIZON_MAP = {"A": "corto plazo", "B": "mediano plazo", "C": "largo plazo", "D": "muy largo plazo"}
 
-        # Pre-generate 2 AI storytelling blurbs (beat vs. lag) — shared across users
-        ai_beat = "Tu portafolio superó al mercado. Las posiciones de crecimiento lideraron en un contexto de apetito de riesgo."
-        ai_lag  = "El mercado tuvo una semana positiva. Rotar hacia activos de calidad puede mejorar el alfa en las próximas semanas."
-        try:
-            import anthropic
-            from app.core.config import settings as cfg
-            client = anthropic.Anthropic(api_key=cfg.anthropic_api_key)
-            sp_label = f"{sp500_pct:+.1f}%" if sp500_pct is not None else "plano"
-            nq_label = f"{nasdaq_pct:+.1f}%" if nasdaq_pct is not None else "plano"
-            resp = await asyncio.to_thread(
-                lambda: client.messages.create(
-                    model="claude-haiku-4-5-20251001",
-                    max_tokens=120,
-                    messages=[{"role": "user", "content": (
-                        f"S&P 500 {sp_label}, NASDAQ {nq_label} esta semana. "
-                        "Escribe DOS frases ultra-cortas separadas por '|||': "
-                        "1) causa de por qué un portafolio diversificado pudo SUPERAR al S&P esta semana (max 18 palabras), "
-                        "2) causa de por qué pudo QUEDAR DEBAJO (max 18 palabras). "
-                        "Solo las dos frases, sin más texto."
-                    )}],
+        RISK_UNIVERSES = {
+            "conservative":           "BRK-B, KO, PG, JNJ, O, NEE, WMT, PEP, V, MA, ABT, MCD, CVX, T, VZ",
+            "conservative_moderate":  "BRK-B, MSFT, AAPL, V, COST, UNH, ABT, KO, GOOGL, HD, LOW, JPM, PG, TGT",
+            "moderate":               "MSFT, GOOGL, AMZN, V, UNH, COST, NVDA, META, AAPL, JPM, MA, ADBE, CRM, NOW",
+            "moderate_growth":        "NVDA, META, AMZN, NOW, DDOG, NET, SHOP, PLTR, ABNB, UBER, SNOW, ZS, MDB",
+            "growth":                 "NVDA, META, DDOG, NET, SHOP, PLTR, APP, DUOL, CELH, HIMS, RDDT, IOT, TTD",
+            "aggressive":             "PLTR, APP, SMCI, AFRM, SOFI, HIMS, CELH, RDDT, RKLB, BE, MELI, NU, DLO, GLOB",
+            "aggressive_speculative": "BE, PLUG, IONQ, RKLB, JOBY, RXRX, BEAM, UPST, MSTR, AI, SNDK, SOUN, BBAI",
+            "speculative":            "IONQ, RGTI, JOBY, ACHR, RKLB, RXRX, BEAM, NTLA, MARA, BBAI, LUNR, RDW, ASTS",
+        }
+
+        # Pre-generate 8 picks per risk group — 1 Haiku call per group, reused across all users of that group
+        client = anthropic.Anthropic(api_key=cfg.anthropic_api_key)
+        picks_by_risk: dict[str, list[dict]] = {}
+
+        risk_groups: dict[str, list] = {}
+        for uid in uids:
+            r = (profile_map.get(uid) or {}).get("risk_tolerance") or "moderate"
+            risk_groups.setdefault(r, []).append(uid)
+
+        for risk, group_uids in risk_groups.items():
+            universe = RISK_UNIVERSES.get(risk, RISK_UNIVERSES["moderate"])
+            try:
+                resp = await asyncio.to_thread(
+                    lambda r=risk, u=universe: client.messages.create(
+                        model="claude-haiku-4-5-20251001",
+                        max_tokens=280,
+                        messages=[{"role": "user", "content": (
+                            f"Eres un screener de inversiones. Perfil del inversor: {r}.\n"
+                            f"Universo de acciones candidatas: {u}\n\n"
+                            "Elige exactamente 8 acciones para que este inversor investigue esta semana. "
+                            "Considera el contexto actual de mercado y elige las más relevantes para este perfil.\n"
+                            "Responde SOLO con este formato JSON, sin texto adicional:\n"
+                            '[{"ticker":"XX","name":"Nombre completo"},{"ticker":"XX","name":"Nombre completo"},...]'
+                        )}],
+                    )
                 )
-            )
-            raw_blurbs = resp.content[0].text.strip() if resp.content else ""
-            parts = raw_blurbs.split("|||")
-            if len(parts) == 2:
-                ai_beat, ai_lag = parts[0].strip(), parts[1].strip()
-        except Exception:
-            pass
+                raw = resp.content[0].text.strip() if resp.content else "[]"
+                import json as _json
+                parsed = _json.loads(raw)
+                if isinstance(parsed, list):
+                    picks_by_risk[risk] = parsed[:8]
+            except Exception as e:
+                logger.warning("Weekly screener Haiku call failed for risk=%s: %s", risk, e)
+                picks_by_risk[risk] = []
 
         sent = 0
         for i, uid in enumerate(uids):
             if i % 100 == 0 and i > 0:
                 await asyncio.sleep(12)
-            await asyncio.sleep(random.uniform(0, 0.12))
+            await asyncio.sleep(random.uniform(0, 0.1))
 
-            p = profile_map.get(uid, {})
-            is_premium = p.get("subscription_tier") == "premium"
+            p       = profile_map.get(uid) or {}
+            name    = (p.get("name") or "Inversor").split()[0]
+            risk    = p.get("risk_tolerance") or "moderate"
+            quiz    = (p.get("quiz_answers") or {})
+            horizon = HORIZON_MAP.get(str(quiz.get("q2", "")), "largo plazo")
+            risk_label = RISK_LABELS.get(risk, "moderado")
+            owned   = portfolio_map.get(uid, set())
 
-            if is_premium and uid in portfolio_map and weekly_prices:
-                user_pct   = _calc_portfolio_pct(portfolio_map[uid], weekly_prices)
-                comparison = _market_comparison_push(sp500_pct, nasdaq_pct, user_pct)
-                beats      = (user_pct is not None and sp500_pct is not None and user_pct > sp500_pct)
-                if beats:
-                    title = "🏆 Semana ganadora"
-                    body  = f"{comparison}\n{ai_beat}"
-                else:
-                    title = "📊 Tu resumen semanal"
-                    body  = f"{comparison}\n{ai_lag}"
-            else:
-                comparison = _market_comparison_push(sp500_pct, nasdaq_pct)
-                title = "📊 Resumen Semanal"
-                body  = comparison
+            all_picks = picks_by_risk.get(risk, [])
+            # Exclude tickers the user already owns
+            picks = [pk for pk in all_picks if pk.get("ticker") not in owned][:4]
 
-            await send_push(uid, "weekly_summary", title, body, {"screen": "portfolio"}, db)
+            if len(picks) < 2:
+                continue  # not enough picks after exclusions — skip silently
+
+            lines = "\n".join(f"{idx+1}. {pk['ticker']} ({pk['name']})" for idx, pk in enumerate(picks))
+            body = (
+                f"¡Hola {name}! Basado en tu perfil {risk_label} y mentalidad de {horizon} "
+                f"quiero sugerirte algunas posiciones que deberías echarles un ojo:\n\n"
+                f"{lines}\n\n"
+                f"¡Habla con tu mentor para analizarlas! 💬"
+            )
+
+            await send_push(
+                uid, "weekly_screener",
+                "📊 Tus 4 ideas para esta semana",
+                body,
+                {"screen": "chat", "picks": [pk["ticker"] for pk in picks]},
+                db,
+            )
             sent += 1
-        logger.info("Weekly summary push: %d sent", sent)
+
+        logger.info("Weekly screener push: %d sent across %d risk groups", sent, len(picks_by_risk))
     except Exception as e:
-        logger.error("job_weekly_summary_push failed: %s", e)
+        logger.error("job_weekly_screener_push failed: %s", e)
 
 
 def _fetch_historical_earnings_reactions(ticker: str) -> dict:
@@ -3273,14 +3305,13 @@ async def main():
     scheduler.add_job(job_earnings_results,     "cron", day_of_week="mon-fri", hour=16,      minute=30,    timezone="America/New_York")
 
     # ── Weekly jobs ───────────────────────────────────────────────────────────
-    scheduler.add_job(job_weekly_summary_push,  "cron", day_of_week="sat",     hour=9,       minute=30,    timezone="America/New_York")
+    scheduler.add_job(job_weekly_screener_push, "cron", day_of_week="sat",     hour=9,       minute=30,    timezone="America/New_York")
 
     # ── Monthly jobs ──────────────────────────────────────────────────────────
     scheduler.add_job(job_monthly_report_push,  "cron", day=1,                 hour=9,       minute=0,     timezone="America/New_York")
     scheduler.add_job(send_monthly_reports,     "cron", day=1,                 hour=9,       minute=0,     timezone="America/New_York")
 
     # ── Email jobs ────────────────────────────────────────────────────────────
-    scheduler.add_job(send_enhanced_weekly_emails, "cron", day_of_week="sat",  hour=10,      minute=0,     timezone="America/New_York")
     scheduler.add_job(send_birthday_emails,        "cron",                     hour=8,       minute=0,     timezone="America/New_York")
 
     # ── Annual ScoreBoard — 5 Dec every year ─────────────────────────────────
