@@ -914,6 +914,38 @@ def build_system_prompt(
     return core + ACTION_TAG_INSTRUCTIONS + SECURITY_GUARDRAILS
 
 
+def _build_static_system_prompt(
+    profile: UserProfile | None = None,
+    mentor: str | None = None,
+    deep_context: str | None = None,
+) -> str:
+    """Static part of the system prompt — eligible for Anthropic prompt caching."""
+    from datetime import datetime as _dt
+    today = _dt.now().strftime("%A %d de %B de %Y")
+    base = SYSTEM_PROMPT_BASE.replace("{TODAY_DATE}", today)
+    mentor_section = build_mentor_context(mentor)
+    if profile:
+        core = base + mentor_section + "\n\n" + build_profile_context(profile)
+    else:
+        core = base + mentor_section + "\n\n## NOTA: Usuario aún no ha completado su perfil. Invítalo a hacerlo para personalizar el análisis."
+    if deep_context:
+        core += deep_context
+    return core + ACTION_TAG_INSTRUCTIONS + SECURITY_GUARDRAILS
+
+
+def _build_dynamic_system_addendum(
+    memory_context: str | None = None,
+    notification_context: str | None = None,
+) -> str | None:
+    """Dynamic (per-request) addendum — NOT cached to avoid cache key churn."""
+    parts: list[str] = []
+    if memory_context:
+        parts.append(f"## 🧠 CONTEXTO DE CONVERSACIONES RECIENTES\n\nÚltimas interacciones — dales continuidad, no las repitas explícitamente:\n\n{memory_context}")
+    if notification_context:
+        parts.append(f"## 📩 CONTEXTO: EL USUARIO LLEGÓ DESDE UNA NOTIFICACIÓN\n\n{notification_context}\n\nEl usuario acaba de ver esta notificación y abrió el chat. Empieza reconociendo este contexto de forma natural y ofrece análisis relevante.")
+    return "\n\n".join(parts) if parts else None
+
+
 async def chat_stream(
     message: str,
     conversation_history: list[ChatMessage],
@@ -926,9 +958,21 @@ async def chat_stream(
     notification_context: str | None = None,
     deep_context: str | None = None,
 ):
-    system_prompt = build_system_prompt(profile, mentor, memory_context, notification_context, deep_context)
+    # Static part cached by Anthropic (base + profile + mentor + guardrails).
+    # Dynamic context (memory, notifications) goes in a separate uncached block so
+    # it doesn't bust the cache every message and inflate input token costs.
+    static_prompt  = _build_static_system_prompt(profile, mentor, deep_context)
+    dynamic_addend = _build_dynamic_system_addendum(memory_context, notification_context)
 
-    messages = [{"role": m.role, "content": m.content} for m in conversation_history]
+    system_blocks: list[dict] = [{"type": "text", "text": static_prompt, "cache_control": {"type": "ephemeral"}}]
+    if dynamic_addend:
+        system_blocks.append({"type": "text", "text": dynamic_addend})
+
+    # Cap history to the last 20 exchanges (40 turns) to prevent token costs from
+    # growing quadratically as conversations get long.
+    _MAX_HISTORY = 40
+    trimmed_history = conversation_history[-_MAX_HISTORY:] if len(conversation_history) > _MAX_HISTORY else conversation_history
+    messages = [{"role": m.role, "content": m.content} for m in trimmed_history]
 
     # Build the list of image blocks from either multi-image array or legacy single image
     image_blocks: list[dict] = []
@@ -966,14 +1010,8 @@ async def chat_stream(
 
     async with client.messages.stream(
         model=settings.claude_model,
-        max_tokens=8192,
-        system=[
-            {
-                "type": "text",
-                "text": system_prompt,
-                "cache_control": {"type": "ephemeral"}
-            }
-        ],
+        max_tokens=4096,
+        system=system_blocks,
         messages=messages,
     ) as stream:
         async for text in stream.text_stream:
