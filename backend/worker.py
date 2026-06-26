@@ -670,14 +670,16 @@ async def job_market_open():
             return
 
         profiles_res = await run_query(
-            db.table("user_profiles").select("user_id,name").in_("user_id", uids)
+            db.table("user_profiles").select("user_id,name,subscription_tier").in_("user_id", uids)
         )
         name_map = {r["user_id"]: (r.get("name") or "Inversor").split()[0] for r in (profiles_res.data or [])}
+        tier_map = {r["user_id"]: (r.get("subscription_tier") or "free") for r in (profiles_res.data or [])}
 
-        # Bulk-load all portfolios
+        # Bulk-load portfolios only for premium users
+        premium_uids = {uid for uid in uids if tier_map.get(uid) == "premium"}
         portfolio_map: dict[str, list] = {}
         all_tickers: set[str] = set()
-        for uid in uids:
+        for uid in premium_uids:
             port_res = await run_query(db.table("user_portfolio").select("positions").eq("user_id", uid))
             if port_res.data:
                 raw = port_res.data[0].get("positions") or {}
@@ -686,8 +688,10 @@ async def job_market_open():
                     portfolio_map[uid] = pos
                     all_tickers.update(p["ticker"] for p in pos if p.get("ticker"))
 
-        # Fetch all portfolio prices concurrently via Finnhub (Railway-safe)
         prices = await _finnhub_prices_batch(list(all_tickers)) if all_tickers else {}
+
+        sp_str = f"{sp500_pct:+.1f}%" if sp500_pct is not None else "—"
+        nq_str = f"{nasdaq_pct:+.1f}%" if nasdaq_pct is not None else "—"
 
         sent = 0
         for i, uid in enumerate(uids):
@@ -695,21 +699,20 @@ async def job_market_open():
                 await asyncio.sleep(12)
             await asyncio.sleep(random.uniform(0, 0.1))
 
-            first    = name_map.get(uid, "Inversor")
-            user_pct = _calc_portfolio_pct(portfolio_map.get(uid, []), prices)
+            first      = name_map.get(uid, "Inversor")
+            is_premium = tier_map.get(uid) == "premium"
 
-            if user_pct is not None and sp500_pct is not None:
-                sp_str = f"{sp500_pct:+.1f}%"
-                nq_str = f"{nasdaq_pct:+.1f}%" if nasdaq_pct is not None else "—"
-                if user_pct > sp500_pct:
-                    body = f"{first}, el mercado acaba de abrir. Tu portafolio va {user_pct:+.1f}% vs S&P 500 ({sp_str}) y Nasdaq ({nq_str}). ¡Arriba!"
+            if is_premium:
+                user_pct = _calc_portfolio_pct(portfolio_map.get(uid, []), prices)
+                if user_pct is not None and sp500_pct is not None:
+                    if user_pct > sp500_pct:
+                        body = f"{first}, el mercado acaba de abrir. Tu portafolio va {user_pct:+.1f}% vs S&P 500 ({sp_str}) y Nasdaq ({nq_str}). ¡Arriba!"
+                    else:
+                        body = f"{first}, el mercado acaba de abrir. Tu portafolio va {user_pct:+.1f}% frente al S&P 500 ({sp_str}) y Nasdaq ({nq_str})."
                 else:
-                    body = f"{first}, el mercado acaba de abrir. Tu portafolio va {user_pct:+.1f}% frente al S&P 500 ({sp_str}) y Nasdaq ({nq_str})."
-            elif sp500_pct is not None:
-                nq_str = f"{nasdaq_pct:+.1f}%" if nasdaq_pct is not None else "—"
-                body   = f"{first}, el mercado acaba de abrir. S&P 500 {sp500_pct:+.1f}%, Nasdaq {nq_str}."
+                    body = f"{first}, el mercado acaba de abrir. S&P 500 {sp_str}, Nasdaq {nq_str}. Entra a revisar tu portafolio."
             else:
-                body   = f"{first}, ¡el mercado acaba de abrir! Entra a ver cómo está tu portafolio."
+                body = f"Buenos días {first}! S&P 500 {sp_str}, Nasdaq {nq_str}. Activa Premium para ver el rendimiento de tu portafolio. 📈"
 
             await send_push(uid, "market_open", "🔔 Mercado Abierto", body, {"screen": "portfolio"}, db)
             sent += 1
@@ -818,14 +821,15 @@ async def job_market_close():
         web_uids  = {r["user_id"] for r in (web_res.data or [])}
         push_capable = (expo_uids | web_uids) - disabled
 
-        # ── 3. Profiles: name + email in one query ────────────────────────────
+        # ── 3. Profiles: name + email + tier in one query ────────────────────────────
         profiles_res = await run_query(
-            db.table("user_profiles").select("user_id,name,email").in_("user_id", uids)
+            db.table("user_profiles").select("user_id,name,email,subscription_tier").in_("user_id", uids)
         )
         profile_map = {
             r["user_id"]: {
                 "first": (r.get("name") or "Inversor").split()[0],
                 "email": r.get("email") or "",
+                "is_premium": (r.get("subscription_tier") or "free") == "premium",
             }
             for r in (profiles_res.data or [])
         }
@@ -851,9 +855,12 @@ async def job_market_close():
             await asyncio.sleep(random.uniform(0, 0.1))
 
             has_portfolio = uid in portfolio_map
+            p             = profile_map.get(uid, {})
+            first         = p.get("first", "Inversor")
+            is_premium    = p.get("is_premium", False)
 
-            if has_portfolio:
-                first = profile_map.get(uid, {}).get("first", "Inversor")
+            if is_premium and has_portfolio:
+                # Premium: personalized push + email with portfolio data
                 user_pct, total_curr, top_gainers, top_losers = _calc_portfolio_close_data(
                     portfolio_map[uid], prices
                 )
@@ -872,12 +879,10 @@ async def job_market_close():
                     push_body  = indices
                     subject    = "El mercado ha cerrado — Nuvos AI"
 
-                # Push
                 if uid in push_capable:
                     await send_push(uid, "market_close", push_title, push_body, {"screen": "portfolio"}, db)
                     sent_push += 1
 
-                # Email (portfolio users always)
                 try:
                     html = daily_email_v2(
                         first_name=first,
@@ -896,14 +901,10 @@ async def job_market_close():
                 except Exception as email_err:
                     logger.warning("market_close email failed for %s: %s", uid[:8], email_err)
 
-            else:
-                # No portfolio — generic push only
-                await send_push(
-                    uid, "market_close",
-                    "📊 El mercado cerró",
-                    indices,
-                    {"screen": "portfolio"}, db,
-                )
+            elif uid in push_capable:
+                # Free: generic push only, no portfolio data, subtle upgrade nudge
+                body = f"El mercado cerró. {indices}. Con Premium puedes ver el rendimiento exacto de tu portafolio. 📊"
+                await send_push(uid, "market_close", "📊 El mercado ha cerrado", body, {"screen": "portfolio"}, db)
                 sent_push += 1
 
         logger.info(
@@ -1918,6 +1919,12 @@ async def job_events_alerts():
             return
         prefs_by_uid = {p["user_id"]: p for p in prefs_res.data}
 
+        # Load tiers once
+        tier_res = await run_query(
+            db.table("user_profiles").select("user_id,subscription_tier").in_("user_id", list(prefs_by_uid.keys()))
+        )
+        tier_map = {r["user_id"]: (r.get("subscription_tier") or "free") for r in (tier_res.data or [])}
+
         processed = notified = 0
         for i, (uid, prefs) in enumerate(prefs_by_uid.items()):
             if i % 100 == 0 and i > 0:
@@ -1948,6 +1955,8 @@ async def job_events_alerts():
                 processed += 1
                 continue
 
+            is_premium = tier_map.get(uid) == "premium"
+
             for ticker in all_tickers:
                 events = await asyncio.to_thread(_fetch_events_for_symbol, ticker)
                 for evt in events:
@@ -1960,40 +1969,33 @@ async def job_events_alerts():
                     if event_type == "earnings":
                         category     = "earnings_report"
                         is_portfolio = ticker in port_tickers
-                        pos          = positions_map.get(ticker, {})
-                        shares       = float(pos.get("shares", 0) or 0)
-                        avg_cost     = float(pos.get("avg_cost", 0) or 0) or None
 
-                        # Get current price for position value via Finnhub
-                        q = await asyncio.to_thread(_finnhub_quote, ticker)
-                        curr_price = q["curr"] if q else 0.0
-                        position_value = shares * curr_price if shares and curr_price else 0.0
-
-                        # Fetch historical earnings reactions (cached implicitly via thread)
-                        reactions = await asyncio.to_thread(
-                            _fetch_historical_earnings_reactions, ticker
-                        )
-
-                        title, body = await _generate_earnings_push(
-                            ticker       = ticker,
-                            company      = _company_name(ticker),
-                            when         = when,
-                            eps_estimate = evt.get("eps_estimate"),
-                            eps_range    = evt.get("eps_range"),
-                            revenue_estimate = evt.get("revenue_estimate"),
-                            reactions    = reactions,
-                            shares       = shares if is_portfolio else 0,
-                            position_value = position_value if is_portfolio else 0,
-                            avg_cost     = avg_cost if is_portfolio else None,
-                        )
+                        if is_premium:
+                            pos            = positions_map.get(ticker, {})
+                            shares         = float(pos.get("shares", 0) or 0)
+                            avg_cost       = float(pos.get("avg_cost", 0) or 0) or None
+                            q              = await asyncio.to_thread(_finnhub_quote, ticker)
+                            curr_price     = q["curr"] if q else 0.0
+                            position_value = shares * curr_price if shares and curr_price else 0.0
+                            reactions      = await asyncio.to_thread(_fetch_historical_earnings_reactions, ticker)
+                            title, body = await _generate_earnings_push(
+                                ticker           = ticker,
+                                company          = _company_name(ticker),
+                                when             = when,
+                                eps_estimate     = evt.get("eps_estimate"),
+                                eps_range        = evt.get("eps_range"),
+                                revenue_estimate = evt.get("revenue_estimate"),
+                                reactions        = reactions,
+                                shares           = shares if is_portfolio else 0,
+                                position_value   = position_value if is_portfolio else 0,
+                                avg_cost         = avg_cost if is_portfolio else None,
+                            )
+                        else:
+                            title = f"📅 Earnings: {ticker}"
+                            body  = f"{_company_name(ticker)} reporta resultados {when}. Activa Premium para ver el impacto en tu portafolio."
 
                     elif event_type in ("ex_dividend", "dividend"):
                         is_portfolio = ticker in port_tickers
-                        pos          = positions_map.get(ticker, {})
-                        shares_held  = float(pos.get("shares") or 0) if is_portfolio else 0.0
-
-                        # Use Finnhub for exact per-share amount (accurate for any pay frequency)
-                        # Fall back to Yahoo-derived estimate only if Finnhub has nothing
                         amt = await asyncio.to_thread(_finnhub_dividend_amount, ticker)
                         if amt is None:
                             raw_amt = evt.get("dividend_amount")
@@ -2002,31 +2004,41 @@ async def job_events_alerts():
                         if event_type == "ex_dividend":
                             title    = f"✂️ Ex-Dividendo: {ticker}"
                             category = "ex_dividend"
-                            if amt and shares_held:
-                                pago = shares_held * amt
-                                body = (
-                                    f"Fecha ex-dividendo de {ticker} es {when}. "
-                                    f"Tienes {shares_held:.4f} acciones — "
-                                    f"tu pago estimado: ${pago:.2f} USD (${amt:.4f}/acción)."
-                                )
-                            elif amt:
-                                body = f"Fecha ex-dividendo de {ticker} es {when}. ${amt:.4f}/acción."
+                            if is_premium and is_portfolio:
+                                pos         = positions_map.get(ticker, {})
+                                shares_held = float(pos.get("shares") or 0)
+                                if amt and shares_held:
+                                    pago = shares_held * amt
+                                    body = (
+                                        f"Fecha ex-dividendo de {ticker} es {when}. "
+                                        f"Tienes {shares_held:.4f} acciones — "
+                                        f"tu pago estimado: ${pago:.2f} USD (${amt:.4f}/acción)."
+                                    )
+                                elif amt:
+                                    body = f"Fecha ex-dividendo de {ticker} es {when}. ${amt:.4f}/acción."
+                                else:
+                                    body = f"Fecha ex-dividendo de {ticker} es {when}."
                             else:
-                                body = f"Fecha ex-dividendo de {ticker} es {when}."
+                                body = f"Fecha ex-dividendo de {ticker} es {when}." + (f" ${amt:.4f}/acción." if amt else "")
                         else:
                             title    = f"💰 Pago de Dividendo: {ticker}"
                             category = "dividend_payment"
-                            if amt and shares_held:
-                                pago = shares_held * amt
-                                body = (
-                                    f"{ticker} paga dividendo {when}. "
-                                    f"Con tus {shares_held:.4f} acciones recibirás "
-                                    f"${pago:.2f} USD (${amt:.4f}/acción)."
-                                )
-                            elif amt:
-                                body = f"{ticker} paga dividendo {when}. ${amt:.4f}/acción."
+                            if is_premium and is_portfolio:
+                                pos         = positions_map.get(ticker, {})
+                                shares_held = float(pos.get("shares") or 0)
+                                if amt and shares_held:
+                                    pago = shares_held * amt
+                                    body = (
+                                        f"{ticker} paga dividendo {when}. "
+                                        f"Con tus {shares_held:.4f} acciones recibirás "
+                                        f"${pago:.2f} USD (${amt:.4f}/acción)."
+                                    )
+                                elif amt:
+                                    body = f"{ticker} paga dividendo {when}. ${amt:.4f}/acción."
+                                else:
+                                    body = f"{ticker} paga dividendo {when}."
                             else:
-                                body = f"{ticker} paga dividendo {when}."
+                                body = f"{ticker} paga dividendo {when}." + (f" ${amt:.4f}/acción." if amt else "")
                     else:
                         continue
 
