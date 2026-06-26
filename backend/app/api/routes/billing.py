@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import stripe
 from datetime import datetime, timezone
@@ -112,6 +113,7 @@ async def stripe_webhook(request: Request):
                     "subscription_tier": "free",
                 }).eq("stripe_customer_id", customer_id)
             )
+            await _revoke_duo_secondary(customer_id, db)
 
     elif event["type"] == "invoice.payment_failed":
         customer_id = event["data"]["object"].get("customer")
@@ -121,6 +123,7 @@ async def stripe_webhook(request: Request):
                     "subscription_tier": "free",
                 }).eq("stripe_customer_id", customer_id)
             )
+            await _revoke_duo_secondary(customer_id, db)
 
     elif event["type"] == "invoice.payment_succeeded":
         # Restore premium if a previously failed payment recovered
@@ -252,25 +255,81 @@ async def broker_offer_seen(user_id: str = Depends(get_current_user_id)):
     return {"broker_offer_seen_at": seen_at}
 
 
+async def _find_user_id_by_email(email: str, db) -> str | None:
+    """Return Supabase user_id for a given email, or None if not found."""
+    try:
+        users = await asyncio.to_thread(lambda: db.auth.admin.list_users())
+        for u in users:
+            if (u.email or "").lower() == email.lower():
+                return u.id
+    except Exception as e:
+        logger.warning("_find_user_id_by_email failed: %s", e)
+    return None
+
+
+async def _revoke_duo_secondary(primary_customer_id: str, db):
+    """When a duo subscription ends, revoke premium from the linked secondary account."""
+    try:
+        primary_res = await run_query(
+            db.table("user_profiles")
+            .select("duo_secondary_email")
+            .eq("stripe_customer_id", primary_customer_id)
+        )
+        secondary_email = (primary_res.data[0].get("duo_secondary_email") or "") if primary_res.data else ""
+        if not secondary_email:
+            return
+        secondary_id = await _find_user_id_by_email(secondary_email, db)
+        if secondary_id:
+            await run_query(
+                db.table("user_profiles")
+                .update({"subscription_tier": "free"})
+                .eq("user_id", secondary_id)
+            )
+            logger.info("Duo secondary %s reverted to free", secondary_email)
+    except Exception as e:
+        logger.warning("_revoke_duo_secondary failed: %s", e)
+
+
 @router.post("/duo-setup")
 async def duo_setup(body: dict, user_id: str = Depends(get_current_user_id)):
-    """Save the secondary account email for a Duo plan.
-    Primary email is derived from the authenticated user — only secondary is provided by client."""
+    """Save the secondary account email for a Duo plan and grant them premium access.
+    Validates that the secondary email belongs to an existing Nuvos account."""
     secondary_email = (body.get("secondary_email") or "").strip().lower()
     if not secondary_email or "@" not in secondary_email:
         raise HTTPException(status_code=422, detail="Email del segundo usuario inválido")
 
     db = get_supabase()
-    # Verify duo plan was actually purchased before saving
+
+    # 1. Verify duo plan was purchased
     check = await run_query(
         db.table("user_profiles").select("duo_plan_purchased_at").eq("user_id", user_id).single()
     )
     if not (check.data and check.data.get("duo_plan_purchased_at")):
         raise HTTPException(status_code=403, detail="No tienes un plan Dúo activo")
 
+    # 2. Validate secondary email exists in Nuvos
+    secondary_id = await _find_user_id_by_email(secondary_email, db)
+    if not secondary_id:
+        raise HTTPException(
+            status_code=404,
+            detail="Ese email no tiene cuenta en Nuvos AI. El segundo usuario debe registrarse primero.",
+        )
+    if secondary_id == user_id:
+        raise HTTPException(status_code=422, detail="No puedes agregar tu propia cuenta como segundo usuario")
+
+    # 3. Grant premium to secondary account
+    await run_query(
+        db.table("user_profiles")
+        .update({"subscription_tier": "premium"})
+        .eq("user_id", secondary_id)
+    )
+
+    # 4. Save secondary email on primary profile
     await run_query(
         db.table("user_profiles")
         .update({"duo_secondary_email": secondary_email})
         .eq("user_id", user_id)
     )
+
+    logger.info("Duo setup: primary=%s granted premium to secondary=%s (%s)", user_id, secondary_email, secondary_id)
     return {"ok": True, "duo_secondary_email": secondary_email}

@@ -48,6 +48,7 @@ function UpsellSuccessContent() {
   const [secondaryEmail, setSecondaryEmail] = useState("");
   const [duoSaving, setDuoSaving] = useState(false);
   const [duoSaved, setDuoSaved] = useState(false);
+  const [duoError, setDuoError] = useState("");
 
   useEffect(() => {
     const t = setTimeout(() => setVisible(true), 100);
@@ -62,17 +63,16 @@ function UpsellSuccessContent() {
 
   const handleDuoSave = async () => {
     if (!secondaryEmail || !secondaryEmail.includes("@")) return;
-    const confirmed = window.confirm(
-      `¿Seguro que quieres guardar estas 2 cuentas?\n\n1. ${myEmail}\n2. ${secondaryEmail}`
-    );
-    if (!confirmed) return;
+    setDuoError("");
     setDuoSaving(true);
     try {
       await billing.duoSetup(secondaryEmail);
       setDuoSaved(true);
       setTimeout(() => router.replace("/profile"), 2000);
-    } catch {
-      alert("Error al guardar. Intenta de nuevo.");
+    } catch (err: any) {
+      const msg = err?.response?.data?.detail
+        ?? "Error al guardar. Intenta de nuevo.";
+      setDuoError(msg);
     } finally {
       setDuoSaving(false);
     }
@@ -294,6 +294,13 @@ function UpsellSuccessContent() {
                     }}
                   />
                 </div>
+
+                {/* Error message */}
+                {duoError && (
+                  <p style={{ margin: "0", fontSize: 13, color: "#f87171", lineHeight: 1.5 }}>
+                    ⚠️ {duoError}
+                  </p>
+                )}
 
                 {/* Save button */}
                 <button
