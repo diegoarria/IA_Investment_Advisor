@@ -193,20 +193,49 @@ export const usePortfolioStore = create<PortfolioStore>()(
             const { syncApi } = await import("./api");
             const { pendingSync } = get();
             if (pendingSync) { const a = getActive(); push(a.positions, a.currency, a.id, a.name); return; }
-            const res = await syncApi.getAllPortfolios();
-            const serverPortfolios: Portfolio[] = (res.data.portfolios ?? []).map((p: any, _i: number) => ({
-              id: p.portfolio_id,
-              name: p.portfolio_name,
-              positions: (p.positions ?? []).map((pos: any, i: number) => ({ ...pos, id: pos.id ?? `${pos.ticker}-${i}` })),
-              currency: p.currency ?? "USD",
-            }));
-            if (serverPortfolios.length > 0) get()._setPortfolios(serverPortfolios, get().activePortfolioId);
+            try {
+              // Try new multi-portfolio endpoint first (requires migration 018)
+              const res = await syncApi.getAllPortfolios();
+              const serverPortfolios: Portfolio[] = (res.data.portfolios ?? []).map((p: any, _i: number) => ({
+                id: p.portfolio_id,
+                name: p.portfolio_name,
+                positions: (p.positions ?? []).map((pos: any, i: number) => ({ ...pos, id: pos.id ?? `${pos.ticker}-${i}` })),
+                currency: p.currency ?? "USD",
+              }));
+              if (serverPortfolios.length > 0) get()._setPortfolios(serverPortfolios, get().activePortfolioId);
+            } catch {
+              // Fallback: old single-portfolio endpoint (pre-migration)
+              const res = await syncApi.getPortfolio();
+              const positions: Position[] = (res.data.positions ?? []).map((pos: any, i: number) => ({ ...pos, id: pos.id ?? `${pos.ticker}-${i}` }));
+              const currency: string = res.data.currency ?? "USD";
+              if (positions.length > 0) {
+                const current = get();
+                const updated = current.portfolios.map(p => p.id === "default" ? { ...p, positions, currency } : p);
+                set({ portfolios: updated, positions, portfolioCurrency: currency });
+              }
+            }
           } catch {}
         },
       };
     },
     {
-      name: "portfolio-v2-mobile",
+      name: "portfolio-positions",
+      version: 2,
+      migrate: (persisted: any, version: number) => {
+        if (version < 2) {
+          // v1 had flat positions[] + portfolioCurrency — wrap in portfolios array
+          const positions = (persisted?.positions ?? []).map((p: any, i: number) => ({ ...p, id: p.id ?? `${p.ticker}-${i}` }));
+          const currency = persisted?.portfolioCurrency ?? "USD";
+          return {
+            ...persisted,
+            portfolios: [{ id: "default", name: "Mi portafolio", positions, currency }],
+            activePortfolioId: "default",
+            positions,
+            portfolioCurrency: currency,
+          };
+        }
+        return persisted;
+      },
       storage: createJSONStorage(() => AsyncStorage),
       partialize: (state) => ({
         portfolios: state.portfolios,
