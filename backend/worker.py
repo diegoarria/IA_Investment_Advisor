@@ -3305,7 +3305,7 @@ async def main():
     scheduler.add_job(job_earnings_results,     "cron", day_of_week="mon-fri", hour=16,      minute=30,    timezone="America/New_York")
 
     # ── Weekly jobs ───────────────────────────────────────────────────────────
-    scheduler.add_job(job_weekly_screener_push, "cron", day_of_week="sat",     hour=9,       minute=30,    timezone="America/New_York")
+    scheduler.add_job(job_weekly_screener_push, "cron", day_of_week="sat",     hour=11,      minute=0,     timezone="America/New_York")
 
     # ── Monthly jobs ──────────────────────────────────────────────────────────
     scheduler.add_job(job_monthly_report_push,  "cron", day=1,                 hour=9,       minute=0,     timezone="America/New_York")
