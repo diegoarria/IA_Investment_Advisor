@@ -35,6 +35,30 @@ _NYSE_HOLIDAYS: set[date] = {
 }
 
 
+def _agg_positions(rows: list[dict]) -> list:
+    """Aggregate positions from multiple portfolio rows (multi-broker support)."""
+    result = []
+    for row in rows:
+        raw = row.get("positions") or {}
+        pos = raw.get("positions", []) if isinstance(raw, dict) else (raw if isinstance(raw, list) else [])
+        result.extend(pos)
+    return result
+
+
+def _build_portfolio_map(rows: list[dict]) -> dict:
+    """Build {user_id: [positions]} from multi-portfolio rows, aggregating per user."""
+    mapping: dict[str, list] = {}
+    for row in rows:
+        uid = row.get("user_id")
+        if not uid:
+            continue
+        raw = row.get("positions") or {}
+        pos = raw.get("positions", []) if isinstance(raw, dict) else (raw if isinstance(raw, list) else [])
+        if pos:
+            mapping.setdefault(uid, []).extend(pos)
+    return mapping
+
+
 def _is_market_open_today() -> bool:
     """True if NYSE is open right now (ET). Excludes weekends and observed holidays."""
     import pytz
@@ -294,14 +318,9 @@ async def send_weekly_emails():
         users = users_res.data
         auth_users = {u.id: u.email for u in await asyncio.to_thread(lambda: db.auth.admin.list_users())}
 
-        # Fetch all portfolios at once
+        # Fetch all portfolios at once (multiple rows per user for multi-broker)
         port_res = await run_query(db.table("user_portfolio").select("user_id,positions"))
-        portfolio_map: dict[str, list] = {}
-        for row in (port_res.data or []):
-            raw = row.get("positions") or {}
-            pos = raw.get("positions", []) if isinstance(raw, dict) else (raw if isinstance(raw, list) else [])
-            if pos:
-                portfolio_map[row["user_id"]] = pos
+        portfolio_map: dict[str, list] = _build_portfolio_map(port_res.data or [])
 
         # Collect all tickers across all portfolios + market indices
         all_tickers = list({p["ticker"] for positions in portfolio_map.values() for p in positions if p.get("ticker")})
@@ -681,12 +700,10 @@ async def job_market_open():
         all_tickers: set[str] = set()
         for uid in premium_uids:
             port_res = await run_query(db.table("user_portfolio").select("positions").eq("user_id", uid))
-            if port_res.data:
-                raw = port_res.data[0].get("positions") or {}
-                pos = raw.get("positions", []) if isinstance(raw, dict) else (raw if isinstance(raw, list) else [])
-                if pos:
-                    portfolio_map[uid] = pos
-                    all_tickers.update(p["ticker"] for p in pos if p.get("ticker"))
+            pos = _agg_positions(port_res.data or [])
+            if pos:
+                portfolio_map[uid] = pos
+                all_tickers.update(p["ticker"] for p in pos if p.get("ticker"))
 
         prices = await _finnhub_prices_batch(list(all_tickers)) if all_tickers else {}
 
@@ -789,15 +806,8 @@ async def job_market_close():
             pos = raw.get("positions", []) if isinstance(raw, dict) else raw
             return isinstance(pos, list) and len(pos) > 0
 
-        portfolio_map: dict[str, list] = {}
-        all_tickers: set[str] = set()
-        for r in port_rows:
-            uid = r["user_id"]
-            raw = r["positions"] or {}
-            pos = raw.get("positions", []) if isinstance(raw, dict) else (raw if isinstance(raw, list) else [])
-            if pos:
-                portfolio_map[uid] = pos
-                all_tickers.update(p["ticker"] for p in pos if p.get("ticker"))
+        portfolio_map: dict[str, list] = _build_portfolio_map(port_uid_res.data or [])
+        all_tickers: set[str] = {p["ticker"] for pos in portfolio_map.values() for p in pos if p.get("ticker")}
 
         if not portfolio_map:
             logger.warning("job_market_close: no users with imported portfolios")
@@ -1042,8 +1052,7 @@ async def job_daily_email():
                 db.table("user_portfolio").select("positions").eq("user_id", uid)
             )
             if port_res.data:
-                raw = port_res.data[0].get("positions") or {}
-                pos = raw.get("positions", []) if isinstance(raw, dict) else (raw if isinstance(raw, list) else [])
+                pos = _agg_positions(port_res.data or [])
                 if pos:
                     portfolio_map[uid] = pos
                     all_tickers.update(p["ticker"] for p in pos if p.get("ticker"))
@@ -1309,8 +1318,7 @@ async def job_portfolio_alerts():
                     db.table("user_portfolio").select("positions").eq("user_id", uid)
                 )
                 if port_res.data:
-                    raw  = port_res.data[0].get("positions") or {}
-                    pos  = raw.get("positions", []) if isinstance(raw, dict) else (raw if isinstance(raw, list) else [])
+                    pos = _agg_positions(port_res.data or [])
                     port_positions = {
                         p["ticker"]: {
                             "shares": float(p.get("shares") or 0),
@@ -1561,8 +1569,7 @@ async def job_weekly_screener_push():
         for uid in uids:
             port_res = await run_query(db.table("user_portfolio").select("positions").eq("user_id", uid))
             if port_res.data:
-                raw = port_res.data[0].get("positions") or {}
-                pos = raw.get("positions", []) if isinstance(raw, dict) else (raw if isinstance(raw, list) else [])
+                pos = _agg_positions(port_res.data or [])
                 portfolio_map[uid] = {p["ticker"] for p in pos if p.get("ticker")}
 
         RISK_LABELS = {
@@ -1967,8 +1974,7 @@ async def job_events_alerts():
                     db.table("user_portfolio").select("positions").eq("user_id", uid)
                 )
                 if port_res.data:
-                    raw      = port_res.data[0].get("positions") or {}
-                    pos_list = raw.get("positions", []) if isinstance(raw, dict) else (raw if isinstance(raw, list) else [])
+                    pos_list = _agg_positions(port_res.data or [])
                     port_tickers  = {p["ticker"] for p in pos_list if p.get("ticker")}
                     positions_map = {p["ticker"]: p for p in pos_list if p.get("ticker")}
 
@@ -2112,8 +2118,7 @@ async def job_monthly_report_push():
         for uid in premium_uids:
             port_res = await run_query(db.table("user_portfolio").select("positions").eq("user_id", uid))
             if port_res.data:
-                raw = port_res.data[0].get("positions") or {}
-                pos = raw.get("positions", []) if isinstance(raw, dict) else (raw if isinstance(raw, list) else [])
+                pos = _agg_positions(port_res.data or [])
                 portfolio_map[uid] = pos
                 all_tickers.update(p["ticker"] for p in pos if p.get("ticker"))
 
@@ -2186,8 +2191,7 @@ async def job_reengagement_push():
         for uid in inactive_uids:
             port_res = await run_query(db.table("user_portfolio").select("positions").eq("user_id", uid))
             if port_res.data:
-                raw = port_res.data[0].get("positions") or {}
-                pos = raw.get("positions", []) if isinstance(raw, dict) else (raw if isinstance(raw, list) else [])
+                pos = _agg_positions(port_res.data or [])
                 port_map[uid] = pos
                 all_tickers.update(p["ticker"] for p in pos if p.get("ticker"))
 
@@ -2383,8 +2387,7 @@ async def job_diversification_push():
             port_res = await run_query(db.table("user_portfolio").select("positions").eq("user_id", uid))
             if not port_res.data:
                 continue
-            raw = port_res.data[0].get("positions") or {}
-            pos = raw.get("positions", []) if isinstance(raw, dict) else (raw if isinstance(raw, list) else [])
+            pos = _agg_positions(port_res.data or [])
             sectors = {SECTOR_MAP[p["ticker"]] for p in pos if p.get("ticker") in SECTOR_MAP}
             missing = GOAL_SECTORS - len(sectors)
             if missing <= 0 or missing > 2:
@@ -2627,8 +2630,7 @@ async def send_enhanced_weekly_emails():
                 continue
             port_res = await run_query(db.table("user_portfolio").select("positions").eq("user_id", uid))
             if port_res.data:
-                raw = port_res.data[0].get("positions") or {}
-                pos = raw.get("positions", []) if isinstance(raw, dict) else (raw if isinstance(raw, list) else [])
+                pos = _agg_positions(port_res.data or [])
                 port_map[uid] = pos
                 all_tickers.update(p["ticker"] for p in pos if p.get("ticker"))
 
@@ -2790,8 +2792,7 @@ async def send_reengagement_emails():
             uid = u["user_id"]
             port_res = await run_query(db.table("user_portfolio").select("positions").eq("user_id", uid))
             if port_res.data:
-                raw = port_res.data[0].get("positions") or {}
-                pos = raw.get("positions", []) if isinstance(raw, dict) else (raw if isinstance(raw, list) else [])
+                pos = _agg_positions(port_res.data or [])
                 port_map[uid] = pos
                 all_tickers.update(p["ticker"] for p in pos if p.get("ticker"))
 
@@ -3300,8 +3301,7 @@ async def job_portfolio_snapshot(slot: str):
                 db.table("user_portfolio").select("positions").eq("user_id", uid)
             )
             if port_res.data:
-                raw = port_res.data[0].get("positions") or {}
-                pos = raw.get("positions", []) if isinstance(raw, dict) else (raw if isinstance(raw, list) else [])
+                pos = _agg_positions(port_res.data or [])
                 if pos:
                     portfolio_map[uid] = pos
                     all_tickers.update(p["ticker"] for p in pos if p.get("ticker"))

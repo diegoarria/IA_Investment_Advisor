@@ -635,7 +635,11 @@ export default function PortfolioScreen() {
     positions, addPosition, removePosition, updatePosition, setPositions,
     clearPortfolio, portfolioCurrency, setCurrency,
     loadFromServer, syncStatus, lastSaved,
+    portfolios, activePortfolioId, switchPortfolio, createPortfolio, deletePortfolio, renamePortfolio,
   } = usePortfolioStore();
+  const [portfolioCreating, setPortfolioCreating] = useState(false);
+  const [showNewPortfolioModal, setShowNewPortfolioModal] = useState(false);
+  const [newPortfolioName, setNewPortfolioName] = useState("");
   const profile = useAppStore((s) => s.profile);
   const subStore = useSubscriptionStore();
   const isPremiumAccess = hasPremiumAccess(subStore);
@@ -1186,6 +1190,64 @@ export default function PortfolioScreen() {
         contentContainerStyle={s.content}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#22c55e" />}
       >
+
+        {/* ── PORTFOLIO SWITCHER ── */}
+        <View style={{ flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingTop: 12, paddingBottom: 4, gap: 8, flexWrap: "wrap" }}>
+          {portfolios.map(p => (
+            <TouchableOpacity
+              key={p.id}
+              onPress={() => switchPortfolio(p.id)}
+              onLongPress={() => { if (isPremiumAccess) { Alert.alert("Renombrar portafolio", "", [{ text: "Cancelar", style: "cancel" }, { text: "Renombrar", onPress: () => { /* handled via prompt */ } }]); } }}
+              style={{ paddingHorizontal: 14, paddingVertical: 5, borderRadius: 20, borderWidth: 1.5, borderColor: p.id === activePortfolioId ? colors.accent : colors.border, backgroundColor: p.id === activePortfolioId ? colors.accent + "22" : "transparent", flexDirection: "row", alignItems: "center", gap: 6 }}
+            >
+              <Text style={{ fontSize: 12, fontWeight: "700", color: p.id === activePortfolioId ? colors.accent : colors.textMuted }}>{p.name}</Text>
+              {isPremiumAccess && p.id !== "default" && (
+                <TouchableOpacity onPress={() => Alert.alert(`Eliminar "${p.name}"`, "¿Estás seguro?", [{ text: "Cancelar", style: "cancel" }, { text: "Eliminar", style: "destructive", onPress: () => deletePortfolio(p.id) }])} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                  <Text style={{ fontSize: 10, color: colors.textMuted }}>✕</Text>
+                </TouchableOpacity>
+              )}
+            </TouchableOpacity>
+          ))}
+          {isPremiumAccess && portfolios.length < 3 && (
+            <TouchableOpacity
+              onPress={() => setShowNewPortfolioModal(true)}
+              style={{ paddingHorizontal: 12, paddingVertical: 5, borderRadius: 20, borderWidth: 1.5, borderColor: colors.border, borderStyle: "dashed" }}
+            >
+              <Text style={{ fontSize: 12, fontWeight: "700", color: colors.textMuted }}>+ Nuevo</Text>
+            </TouchableOpacity>
+          )}
+          {!isPremiumAccess && (
+            <TouchableOpacity onPress={() => setPaywallOpen(true)} style={{ paddingHorizontal: 12, paddingVertical: 5, borderRadius: 20, borderWidth: 1.5, borderColor: colors.border, borderStyle: "dashed", opacity: 0.6 }}>
+              <Text style={{ fontSize: 12, fontWeight: "700", color: colors.textMuted }}>🔒 + Portafolio</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+
+        {/* New portfolio modal */}
+        <Modal visible={showNewPortfolioModal} transparent animationType="fade" onRequestClose={() => setShowNewPortfolioModal(false)}>
+          <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "center", alignItems: "center", padding: 24 }}>
+            <View style={{ backgroundColor: colors.card, borderRadius: 20, padding: 24, width: "100%", gap: 16 }}>
+              <Text style={{ color: colors.text, fontSize: 17, fontWeight: "800" }}>Nuevo portafolio</Text>
+              <TextInput
+                autoFocus placeholder="Ej. Fidelity, Schwab, GBM…" placeholderTextColor={colors.textMuted}
+                value={newPortfolioName} onChangeText={setNewPortfolioName}
+                style={{ backgroundColor: colors.bgRaised, color: colors.text, borderRadius: 12, padding: 12, fontSize: 15, borderWidth: 1, borderColor: colors.border }}
+              />
+              <View style={{ flexDirection: "row", gap: 10 }}>
+                <TouchableOpacity onPress={() => setShowNewPortfolioModal(false)} style={{ flex: 1, padding: 14, borderRadius: 12, backgroundColor: colors.bgRaised, alignItems: "center" }}>
+                  <Text style={{ color: colors.textMuted, fontWeight: "700" }}>Cancelar</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  disabled={portfolioCreating || !newPortfolioName.trim()}
+                  onPress={async () => { if (!newPortfolioName.trim()) return; setPortfolioCreating(true); try { await createPortfolio(newPortfolioName.trim()); setShowNewPortfolioModal(false); setNewPortfolioName(""); } finally { setPortfolioCreating(false); } }}
+                  style={{ flex: 1, padding: 14, borderRadius: 12, backgroundColor: colors.accent, alignItems: "center", opacity: portfolioCreating || !newPortfolioName.trim() ? 0.5 : 1 }}
+                >
+                  <Text style={{ color: "#000", fontWeight: "800" }}>{portfolioCreating ? "Creando…" : "Crear"}</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
 
         {/* ── TAB SWITCHER ── */}
         <View style={[s.subTabBar, { backgroundColor: colors.bg }]}>

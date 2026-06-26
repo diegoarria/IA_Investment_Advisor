@@ -280,9 +280,18 @@ export const support = {
 };
 
 export const sync = {
-  getPortfolio: () => api.get("/api/sync/portfolio"),
-  pushPortfolio: (positions: unknown[], currency?: string) =>
-    api.post("/api/sync/portfolio", { positions, currency: currency ?? "USD" }),
+  getPortfolio: (portfolioId?: string) =>
+    api.get("/api/sync/portfolio", { params: portfolioId ? { portfolio_id: portfolioId } : undefined }),
+  pushPortfolio: (positions: unknown[], currency?: string, portfolioId?: string, portfolioName?: string) =>
+    api.post("/api/sync/portfolio", {
+      positions,
+      currency: currency ?? "USD",
+      ...(portfolioId ? { portfolio_id: portfolioId, portfolio_name: portfolioName ?? "Mi portafolio" } : {}),
+    }),
+  getAllPortfolios: () => api.get("/api/sync/portfolios"),
+  createPortfolio: (name: string) => api.post("/api/sync/portfolios", { name }),
+  renamePortfolio: (portfolioId: string, name: string) => api.put(`/api/sync/portfolios/${portfolioId}`, { name }),
+  deletePortfolio: (portfolioId: string) => api.delete(`/api/sync/portfolios/${portfolioId}`),
   getAll: () => api.get("/api/sync/all"),
   pushTheme: (theme: "dark" | "light") => api.post("/api/sync/theme", { theme }),
   pushMaturity: (score: number, history: unknown[]) =>

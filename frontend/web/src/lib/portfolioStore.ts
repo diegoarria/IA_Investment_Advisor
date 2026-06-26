@@ -8,51 +8,90 @@ export interface Position {
   name?: string;
   shares: number;
   avgPrice: number;
-  purchaseDate?: string; // ISO "YYYY-MM-DD"
+  purchaseDate?: string;
+}
+
+export interface Portfolio {
+  id: string;
+  name: string;
+  positions: Position[];
+  currency: string;
 }
 
 export type SyncStatus = "idle" | "syncing" | "saved" | "error";
 
 interface PortfolioStore {
+  // Multi-portfolio state
+  portfolios: Portfolio[];
+  activePortfolioId: string;
+
+  // Active portfolio convenience accessors (backward compat)
   positions: Position[];
   portfolioCurrency: string;
+
   syncStatus: SyncStatus;
   lastSaved: string | null;
-  pendingSync: boolean; // true = local changes not yet confirmed by server
+  pendingSync: boolean;
 
+  // Active portfolio mutations (same API as before)
   setCurrency: (currency: string) => void;
   addPosition: (p: Omit<Position, "id">) => void;
   removePosition: (id: string) => void;
   updatePosition: (id: string, updates: { shares?: number; avgPrice?: number; purchaseDate?: string }) => void;
   setPositions: (positions: Omit<Position, "id">[]) => void;
   clearPortfolio: () => void;
-  loadFromServer: () => Promise<void>;
   retrySync: () => void;
+  loadFromServer: () => Promise<void>;
+
+  // Multi-portfolio management
+  switchPortfolio: (portfolioId: string) => void;
+  createPortfolio: (name: string) => Promise<string>;
+  deletePortfolio: (portfolioId: string) => Promise<void>;
+  renamePortfolio: (portfolioId: string, name: string) => Promise<void>;
+  _setPortfolios: (portfolios: Portfolio[], activeId?: string) => void;
 }
+
+const DEFAULT_PORTFOLIO: Portfolio = { id: "default", name: "Mi portafolio", positions: [], currency: "USD" };
 
 export const usePortfolioStore = create<PortfolioStore>()(
   persist(
     (set, get) => {
-      const push = (positions: Position[], currency: string) => {
-        // Mark pending BEFORE the request so if the process exits mid-flight
-        // the flag is already persisted in localStorage.
+      /** Push active portfolio to server */
+      const push = (positions: Position[], currency: string, portfolioId: string, portfolioName: string) => {
         set({ syncStatus: "syncing", pendingSync: true });
         import("./api").then(({ sync }) => {
-          sync.pushPortfolio(positions, currency)
+          sync.pushPortfolio(positions, currency, portfolioId, portfolioName)
             .then(() => {
               set({ syncStatus: "saved", lastSaved: new Date().toISOString(), pendingSync: false });
-              setTimeout(() => {
-                if (get().syncStatus === "saved") set({ syncStatus: "idle" });
-              }, 4000);
+              setTimeout(() => { if (get().syncStatus === "saved") set({ syncStatus: "idle" }); }, 4000);
             })
-            .catch(() => {
-              // pendingSync stays true — will be retried on next loadFromServer
-              set({ syncStatus: "error" });
-            });
+            .catch(() => { set({ syncStatus: "error" }); });
         });
       };
 
+      /** Get the active portfolio object */
+      const getActive = () => {
+        const { portfolios, activePortfolioId } = get();
+        return portfolios.find(p => p.id === activePortfolioId) ?? portfolios[0] ?? DEFAULT_PORTFOLIO;
+      };
+
+      /** Update positions in the active portfolio and sync */
+      const updateActive = (newPositions: Position[], newCurrency?: string) => {
+        const { portfolios, activePortfolioId } = get();
+        const activeId = activePortfolioId || "default";
+        const updated = portfolios.map(p =>
+          p.id === activeId
+            ? { ...p, positions: newPositions, currency: newCurrency ?? p.currency }
+            : p
+        );
+        const active = updated.find(p => p.id === activeId) ?? updated[0] ?? DEFAULT_PORTFOLIO;
+        set({ portfolios: updated, positions: active.positions, portfolioCurrency: active.currency });
+        push(active.positions, active.currency, active.id, active.name);
+      };
+
       return {
+        portfolios: [DEFAULT_PORTFOLIO],
+        activePortfolioId: "default",
         positions: [],
         portfolioCurrency: "USD",
         syncStatus: "idle",
@@ -60,85 +99,109 @@ export const usePortfolioStore = create<PortfolioStore>()(
         pendingSync: false,
 
         setCurrency: (currency) => {
-          set({ portfolioCurrency: currency });
-          push(get().positions, currency);
+          const active = getActive();
+          const updated = get().portfolios.map(p => p.id === active.id ? { ...p, currency } : p);
+          set({ portfolios: updated, portfolioCurrency: currency });
+          push(active.positions, currency, active.id, active.name);
         },
 
         addPosition: (p) => {
-          const { positions, portfolioCurrency } = get();
-          const newPositions = [...positions, { ...p, id: `${p.ticker}-${Date.now()}` }];
-          set({ positions: newPositions });
-          push(newPositions, portfolioCurrency);
+          const active = getActive();
+          const newPositions = [...active.positions, { ...p, id: `${p.ticker}-${Date.now()}` }];
+          updateActive(newPositions);
         },
 
         removePosition: (id) => {
-          const { positions, portfolioCurrency } = get();
-          const newPositions = positions.filter((pos) => pos.id !== id);
-          set({ positions: newPositions });
-          push(newPositions, portfolioCurrency);
+          const active = getActive();
+          updateActive(active.positions.filter(p => p.id !== id));
         },
 
         updatePosition: (id, updates) => {
-          const { positions, portfolioCurrency } = get();
-          const newPositions = positions.map((pos) =>
-            pos.id === id ? { ...pos, ...updates } : pos
-          );
-          set({ positions: newPositions });
-          push(newPositions, portfolioCurrency);
+          const active = getActive();
+          updateActive(active.positions.map(p => p.id === id ? { ...p, ...updates } : p));
         },
 
         setPositions: (list) => {
-          const positions = list.map((p, i) => ({
-            ...p,
-            id: `${p.ticker}-${i}-${Date.now()}`,
-          }));
-          set({ positions });
-          push(positions, get().portfolioCurrency);
+          const positions = list.map((p, i) => ({ ...p, id: `${p.ticker}-${i}-${Date.now()}` }));
+          updateActive(positions);
         },
 
-        clearPortfolio: () => {
-          set({ positions: [] });
-          push([], get().portfolioCurrency);
-        },
+        clearPortfolio: () => updateActive([]),
 
         retrySync: () => {
-          const { positions, portfolioCurrency } = get();
-          push(positions, portfolioCurrency);
+          const active = getActive();
+          push(active.positions, active.currency, active.id, active.name);
+        },
+
+        switchPortfolio: (portfolioId) => {
+          const { portfolios } = get();
+          const target = portfolios.find(p => p.id === portfolioId);
+          if (!target) return;
+          set({ activePortfolioId: portfolioId, positions: target.positions, portfolioCurrency: target.currency });
+        },
+
+        createPortfolio: async (name) => {
+          const { sync } = await import("./api");
+          const res = await sync.createPortfolio(name);
+          const newPortfolio: Portfolio = { id: res.data.portfolio_id, name: res.data.portfolio_name, positions: [], currency: "USD" };
+          const { portfolios } = get();
+          set({
+            portfolios: [...portfolios, newPortfolio],
+            activePortfolioId: newPortfolio.id,
+            positions: [],
+            portfolioCurrency: "USD",
+          });
+          return newPortfolio.id;
+        },
+
+        deletePortfolio: async (portfolioId) => {
+          const { sync } = await import("./api");
+          await sync.deletePortfolio(portfolioId);
+          const { portfolios, activePortfolioId } = get();
+          const remaining = portfolios.filter(p => p.id !== portfolioId);
+          const newActive = activePortfolioId === portfolioId ? (remaining[0] ?? DEFAULT_PORTFOLIO) : remaining.find(p => p.id === activePortfolioId) ?? remaining[0] ?? DEFAULT_PORTFOLIO;
+          set({ portfolios: remaining.length ? remaining : [DEFAULT_PORTFOLIO], activePortfolioId: newActive.id, positions: newActive.positions, portfolioCurrency: newActive.currency });
+        },
+
+        renamePortfolio: async (portfolioId, name) => {
+          const { sync } = await import("./api");
+          await sync.renamePortfolio(portfolioId, name);
+          const updated = get().portfolios.map(p => p.id === portfolioId ? { ...p, name } : p);
+          set({ portfolios: updated });
+        },
+
+        _setPortfolios: (portfolios, activeId) => {
+          const list = portfolios.length ? portfolios : [DEFAULT_PORTFOLIO];
+          const id = activeId ?? get().activePortfolioId;
+          const active = list.find(p => p.id === id) ?? list[0];
+          set({ portfolios: list, activePortfolioId: active.id, positions: active.positions, portfolioCurrency: active.currency });
         },
 
         loadFromServer: async () => {
           try {
             const { sync } = await import("./api");
-            const { pendingSync, positions: localPositions, portfolioCurrency } = get();
-
-            // Local has unconfirmed changes → push them; server may have stale data.
-            // Never overwrite local with stale server state.
+            const { pendingSync } = get();
             if (pendingSync) {
-              push(localPositions, portfolioCurrency);
+              const active = getActive();
+              push(active.positions, active.currency, active.id, active.name);
               return;
             }
-
-            const res = await sync.getPortfolio();
-            const serverPositions: (Omit<Position, "id"> & { id?: string })[] =
-              res.data.positions ?? [];
-            const serverCurrency: string = res.data.currency ?? "USD";
-
-            if (serverPositions.length > 0) {
-              const positions = serverPositions.map((p, i) => ({
-                ...p,
-                id: p.id ?? `${p.ticker}-${i}`,
-              }));
-              set({ positions, portfolioCurrency: serverCurrency });
-            } else if (localPositions.length > 0) {
-              // Server is empty but we have local data → upload
-              push(localPositions, portfolioCurrency);
+            const res = await sync.getAllPortfolios();
+            const serverPortfolios: Portfolio[] = (res.data.portfolios ?? []).map((p: any) => ({
+              id: p.portfolio_id,
+              name: p.portfolio_name,
+              positions: (p.positions ?? []).map((pos: any, i: number) => ({ ...pos, id: pos.id ?? `${pos.ticker}-${i}` })),
+              currency: p.currency ?? "USD",
+            }));
+            if (serverPortfolios.length > 0) {
+              get()._setPortfolios(serverPortfolios, get().activePortfolioId);
             }
           } catch {}
         },
       };
     },
     {
-      name: "portfolio-positions-web",
+      name: "portfolio-v2-web",
       storage: createJSONStorage(() => ({
         getItem: (key) => {
           const uid = useAuthStore.getState().userId ?? "guest";
@@ -154,6 +217,8 @@ export const usePortfolioStore = create<PortfolioStore>()(
         },
       })),
       partialize: (state) => ({
+        portfolios: state.portfolios,
+        activePortfolioId: state.activePortfolioId,
         positions: state.positions,
         portfolioCurrency: state.portfolioCurrency,
         pendingSync: state.pendingSync,

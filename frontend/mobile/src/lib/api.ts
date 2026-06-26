@@ -247,8 +247,16 @@ export const syncApi = {
   // Single call to restore everything after login
   getAll: () => api.get("/api/sync/all"),
   // Individual push endpoints (fire-and-forget)
-  pushPortfolio: (positions: unknown[], currency?: string) =>
-    api.post("/api/sync/portfolio", { positions, currency }),
+  pushPortfolio: (positions: unknown[], currency?: string, portfolioId?: string, portfolioName?: string) =>
+    api.post("/api/sync/portfolio", {
+      positions,
+      currency,
+      ...(portfolioId ? { portfolio_id: portfolioId, portfolio_name: portfolioName ?? "Mi portafolio" } : {}),
+    }),
+  getAllPortfolios: () => api.get("/api/sync/portfolios"),
+  createPortfolio: (name: string) => api.post("/api/sync/portfolios", { name }),
+  renamePortfolio: (portfolioId: string, name: string) => api.put(`/api/sync/portfolios/${portfolioId}`, { name }),
+  deletePortfolio: (portfolioId: string) => api.delete(`/api/sync/portfolios/${portfolioId}`),
   pushPaper: (state: { cash: number; positions: unknown[]; trades: unknown[]; freeTradeMonth: string | null; freeTradeCount: number }) =>
     api.post("/api/sync/paper", state),
   pushMaturity: (score: number, history: unknown[]) =>

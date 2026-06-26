@@ -12,10 +12,12 @@ Scalability notes:
   - updated_at is returned on all reads so clients can detect stale local state.
 """
 from datetime import datetime, timezone, timedelta
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from app.api.deps import get_current_user_id
 from app.core.database import get_supabase, run_query
 from app.core.cache import cache_get, cache_set, cache_delete
+
+MAX_PORTFOLIOS = 3
 
 router = APIRouter(prefix="/sync", tags=["sync"])
 
@@ -31,25 +33,6 @@ _TTL_MISC      = 60    # nav-order, theme, behavioral-risk
 
 # ─── Portfolio ────────────────────────────────────────────────────────────────
 
-@router.post("/portfolio")
-async def sync_portfolio(body: dict, user_id: str = Depends(get_current_user_id)):
-    """Upsert portfolio positions + currency. body: { positions: [...], currency: 'USD' }"""
-    positions = body.get("positions", [])
-    currency = body.get("currency", "USD")
-    # Store as versioned wrapper object inside the JSONB field (no schema migration needed)
-    portfolio_state = {"_v": 2, "currency": currency, "positions": positions}
-    db = get_supabase()
-    await run_query(db.table("user_portfolio").upsert({
-        "user_id": user_id,
-        "positions": portfolio_state,
-        "updated_at": _NOW(),
-    }, on_conflict="user_id"))
-    # Invalidate cached reads so the next GET returns fresh data
-    cache_delete(f"sync:portfolio:{user_id}")
-    cache_delete(f"sync:all:{user_id}")
-    return {"ok": True}
-
-
 def _parse_portfolio(raw) -> dict:
     """Parse portfolio data regardless of storage format (v1 array or v2 object)."""
     if isinstance(raw, list):
@@ -59,23 +42,144 @@ def _parse_portfolio(raw) -> dict:
     return {"currency": "USD", "positions": []}
 
 
+@router.post("/portfolio")
+async def sync_portfolio(body: dict, user_id: str = Depends(get_current_user_id)):
+    """Upsert portfolio positions + currency.
+    body: { positions: [...], currency: 'USD', portfolio_id?: 'default', portfolio_name?: '...' }
+    """
+    positions     = body.get("positions", [])
+    currency      = body.get("currency", "USD")
+    portfolio_id  = body.get("portfolio_id", "default") or "default"
+    portfolio_name = body.get("portfolio_name", "Mi portafolio") or "Mi portafolio"
+    portfolio_state = {"_v": 2, "currency": currency, "positions": positions}
+    db = get_supabase()
+    await run_query(db.table("user_portfolio").upsert({
+        "user_id":        user_id,
+        "portfolio_id":   portfolio_id,
+        "portfolio_name": portfolio_name,
+        "positions":      portfolio_state,
+        "updated_at":     _NOW(),
+    }, on_conflict="user_id,portfolio_id"))
+    cache_delete(f"sync:portfolio:{user_id}:{portfolio_id}")
+    cache_delete(f"sync:portfolios:{user_id}")
+    cache_delete(f"sync:all:{user_id}")
+    return {"ok": True}
+
+
 @router.get("/portfolio")
-async def get_portfolio(user_id: str = Depends(get_current_user_id)):
-    ck = f"sync:portfolio:{user_id}"
+async def get_portfolio(portfolio_id: str = "default", user_id: str = Depends(get_current_user_id)):
+    ck = f"sync:portfolio:{user_id}:{portfolio_id}"
     cached = cache_get(ck)
     if cached is not None:
         return cached
     db = get_supabase()
     result = await run_query(
-        db.table("user_portfolio").select("positions, updated_at").eq("user_id", user_id)
+        db.table("user_portfolio")
+        .select("positions, portfolio_name, updated_at")
+        .eq("user_id", user_id)
+        .eq("portfolio_id", portfolio_id)
     )
     if result.data:
         parsed = _parse_portfolio(result.data[0]["positions"])
-        resp = {**parsed, "updated_at": result.data[0]["updated_at"]}
+        resp = {**parsed, "portfolio_name": result.data[0]["portfolio_name"], "updated_at": result.data[0]["updated_at"]}
     else:
-        resp = {"positions": [], "currency": "USD", "updated_at": None}
+        resp = {"positions": [], "currency": "USD", "portfolio_name": "Mi portafolio", "updated_at": None}
     cache_set(ck, resp, ttl=_TTL_PORTFOLIO)
     return resp
+
+
+# ─── Multi-portfolio management (Premium) ─────────────────────────────────────
+
+@router.get("/portfolios")
+async def list_portfolios(user_id: str = Depends(get_current_user_id)):
+    """List all portfolios for this user (id, name, position count, updated_at)."""
+    ck = f"sync:portfolios:{user_id}"
+    cached = cache_get(ck)
+    if cached is not None:
+        return cached
+    db = get_supabase()
+    result = await run_query(
+        db.table("user_portfolio")
+        .select("portfolio_id, portfolio_name, positions, updated_at")
+        .eq("user_id", user_id)
+        .order("updated_at")
+    )
+    portfolios = []
+    for row in (result.data or []):
+        parsed = _parse_portfolio(row["positions"])
+        portfolios.append({
+            "portfolio_id":   row["portfolio_id"],
+            "portfolio_name": row["portfolio_name"],
+            "positions":      parsed["positions"],
+            "currency":       parsed["currency"],
+            "updated_at":     row["updated_at"],
+        })
+    resp = {"portfolios": portfolios}
+    cache_set(ck, resp, ttl=_TTL_PORTFOLIO)
+    return resp
+
+
+@router.post("/portfolios")
+async def create_portfolio(body: dict, user_id: str = Depends(get_current_user_id)):
+    """Create a new empty portfolio. Premium only, max 3 total."""
+    db = get_supabase()
+    profile_res = await run_query(
+        db.table("user_profiles").select("subscription_tier").eq("user_id", user_id)
+    )
+    tier = (profile_res.data[0].get("subscription_tier") or "free") if profile_res.data else "free"
+    if tier != "premium":
+        raise HTTPException(status_code=403, detail="Los portafolios múltiples son exclusivos para usuarios Premium.")
+    existing = await run_query(
+        db.table("user_portfolio").select("portfolio_id").eq("user_id", user_id)
+    )
+    if len(existing.data or []) >= MAX_PORTFOLIOS:
+        raise HTTPException(status_code=400, detail=f"Máximo {MAX_PORTFOLIOS} portafolios por cuenta.")
+    portfolio_id   = f"p_{int(datetime.now(timezone.utc).timestamp() * 1000)}"
+    portfolio_name = (body.get("name") or "Nuevo portafolio").strip()[:50]
+    await run_query(db.table("user_portfolio").insert({
+        "user_id":        user_id,
+        "portfolio_id":   portfolio_id,
+        "portfolio_name": portfolio_name,
+        "positions":      {"_v": 2, "currency": "USD", "positions": []},
+        "updated_at":     _NOW(),
+    }))
+    cache_delete(f"sync:portfolios:{user_id}")
+    cache_delete(f"sync:all:{user_id}")
+    return {"portfolio_id": portfolio_id, "portfolio_name": portfolio_name}
+
+
+@router.put("/portfolios/{portfolio_id}")
+async def rename_portfolio(portfolio_id: str, body: dict, user_id: str = Depends(get_current_user_id)):
+    """Rename a portfolio."""
+    name = (body.get("name") or "").strip()[:50]
+    if not name:
+        raise HTTPException(status_code=400, detail="El nombre no puede estar vacío.")
+    db = get_supabase()
+    await run_query(
+        db.table("user_portfolio")
+        .update({"portfolio_name": name, "updated_at": _NOW()})
+        .eq("user_id", user_id)
+        .eq("portfolio_id", portfolio_id)
+    )
+    cache_delete(f"sync:portfolios:{user_id}")
+    return {"ok": True}
+
+
+@router.delete("/portfolios/{portfolio_id}")
+async def delete_portfolio(portfolio_id: str, user_id: str = Depends(get_current_user_id)):
+    """Delete a portfolio. Cannot delete 'default'."""
+    if portfolio_id == "default":
+        raise HTTPException(status_code=400, detail="No puedes eliminar el portafolio principal.")
+    db = get_supabase()
+    await run_query(
+        db.table("user_portfolio")
+        .delete()
+        .eq("user_id", user_id)
+        .eq("portfolio_id", portfolio_id)
+    )
+    cache_delete(f"sync:portfolios:{user_id}")
+    cache_delete(f"sync:all:{user_id}")
+    return {"ok": True}
 
 
 # ─── Paper Trading ────────────────────────────────────────────────────────────
@@ -240,7 +344,10 @@ async def get_all(user_id: str = Depends(get_current_user_id)):
     db = get_supabase()
 
     portfolio_res = await run_query(
-        db.table("user_portfolio").select("positions").eq("user_id", user_id)
+        db.table("user_portfolio")
+        .select("portfolio_id, portfolio_name, positions, updated_at")
+        .eq("user_id", user_id)
+        .order("updated_at")
     )
     paper_res = await run_query(
         db.table("user_paper_trading")
@@ -266,8 +373,26 @@ async def get_all(user_id: str = Depends(get_current_user_id)):
         .order("added_at")
     )
 
-    raw_portfolio = portfolio_res.data[0]["positions"] if portfolio_res.data else []
-    portfolio_parsed = _parse_portfolio(raw_portfolio)
+    # Build per-portfolio list and default portfolio for backward compat
+    all_portfolios = []
+    default_positions, default_currency = [], "USD"
+    for row in (portfolio_res.data or []):
+        parsed = _parse_portfolio(row["positions"])
+        all_portfolios.append({
+            "portfolio_id":   row["portfolio_id"],
+            "portfolio_name": row["portfolio_name"],
+            "positions":      parsed["positions"],
+            "currency":       parsed["currency"],
+            "updated_at":     row["updated_at"],
+        })
+        if row["portfolio_id"] == "default":
+            default_positions = parsed["positions"]
+            default_currency  = parsed["currency"]
+    # Fallback: if no default row, use first available
+    if not default_positions and all_portfolios:
+        default_positions = all_portfolios[0]["positions"]
+        default_currency  = all_portfolios[0]["currency"]
+    portfolio_parsed = {"positions": default_positions, "currency": default_currency}
     paper = paper_res.data[0] if paper_res.data else {
         "cash": 10000, "positions": [], "trades": [],
         "free_trade_month": None, "free_trade_count": 0,
@@ -288,6 +413,7 @@ async def get_all(user_id: str = Depends(get_current_user_id)):
             "positions": portfolio_parsed["positions"],
             "currency":  portfolio_parsed["currency"],
         },
+        "portfolios": all_portfolios,
         "paper": {
             "cash":           paper["cash"],
             "positions":      paper["positions"],

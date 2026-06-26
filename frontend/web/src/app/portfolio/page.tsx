@@ -607,7 +607,13 @@ export default function PortfolioPage() {
     positions, addPosition, removePosition, updatePosition, setPositions,
     clearPortfolio, portfolioCurrency, setCurrency,
     loadFromServer, syncStatus, lastSaved, pendingSync, retrySync,
+    portfolios, activePortfolioId, switchPortfolio, createPortfolio, deletePortfolio, renamePortfolio,
   } = usePortfolioStore();
+  const [portfolioCreating, setPortfolioCreating] = useState(false);
+  const [newPortfolioName, setNewPortfolioName] = useState("");
+  const [showNewPortfolioInput, setShowNewPortfolioInput] = useState(false);
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState("");
   const [sidebarOpen, setSidebarOpen]   = useState(false);
   const [activeTab, setActiveTab] = useState<"portfolio" | "herramientas">("portfolio");
 
@@ -1121,9 +1127,79 @@ export default function PortfolioPage() {
         {/* Sticky Header */}
         <div className="sticky top-0 z-10 px-6 py-4 flex items-center justify-between border-b shrink-0"
              style={{ background: "var(--bg)", borderColor: "var(--border)" }}>
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--muted)" }}>Mis inversiones</p>
-            <h1 className="text-2xl font-black tracking-tight" style={{ color: "var(--text)" }}>Mi Portafolio</h1>
+          <div className="flex flex-col gap-2 flex-1 min-w-0">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--muted)" }}>Mis inversiones</p>
+              <h1 className="text-2xl font-black tracking-tight" style={{ color: "var(--text)" }}>
+                {portfolios.find(p => p.id === activePortfolioId)?.name ?? "Mi Portafolio"}
+              </h1>
+            </div>
+            {/* ── Portfolio switcher ── */}
+            <div className="flex items-center gap-2 flex-wrap">
+              {portfolios.map(p => (
+                <button
+                  key={p.id}
+                  onClick={() => { if (renamingId === p.id) return; switchPortfolio(p.id); }}
+                  onDoubleClick={() => { setRenamingId(p.id); setRenameValue(p.name); }}
+                  title={isPremium ? "Doble click para renombrar" : undefined}
+                  style={{
+                    padding: "4px 14px",
+                    borderRadius: 20,
+                    fontSize: 12,
+                    fontWeight: 700,
+                    cursor: "pointer",
+                    border: p.id === activePortfolioId ? "1.5px solid var(--accent-l)" : "1.5px solid var(--border)",
+                    background: p.id === activePortfolioId ? "rgba(0,212,126,0.12)" : "transparent",
+                    color: p.id === activePortfolioId ? "var(--accent-l)" : "var(--muted)",
+                    display: "flex", alignItems: "center", gap: 6, position: "relative",
+                  }}
+                >
+                  {renamingId === p.id ? (
+                    <input
+                      autoFocus
+                      value={renameValue}
+                      onChange={e => setRenameValue(e.target.value)}
+                      onBlur={() => { if (renameValue.trim()) renamePortfolio(p.id, renameValue.trim()); setRenamingId(null); }}
+                      onKeyDown={e => { if (e.key === "Enter") { if (renameValue.trim()) renamePortfolio(p.id, renameValue.trim()); setRenamingId(null); } if (e.key === "Escape") setRenamingId(null); }}
+                      onClick={e => e.stopPropagation()}
+                      style={{ background: "transparent", border: "none", outline: "none", width: 100, color: "var(--accent-l)", fontWeight: 700, fontSize: 12 }}
+                    />
+                  ) : p.name}
+                  {isPremium && p.id !== "default" && (
+                    <span
+                      onClick={e => { e.stopPropagation(); if (confirm(`¿Eliminar "${p.name}"?`)) deletePortfolio(p.id); }}
+                      style={{ fontSize: 10, opacity: 0.5, cursor: "pointer", marginLeft: 2 }}
+                      title="Eliminar portafolio"
+                    >✕</span>
+                  )}
+                </button>
+              ))}
+              {/* Add portfolio button */}
+              {isPremium && portfolios.length < 3 && !showNewPortfolioInput && (
+                <button
+                  onClick={() => { setShowNewPortfolioInput(true); setNewPortfolioName(""); }}
+                  style={{ padding: "4px 12px", borderRadius: 20, fontSize: 12, fontWeight: 700, border: "1.5px dashed var(--border)", background: "transparent", color: "var(--muted)", cursor: "pointer" }}
+                >
+                  + Nuevo
+                </button>
+              )}
+              {showNewPortfolioInput && (
+                <form onSubmit={async e => { e.preventDefault(); if (!newPortfolioName.trim()) return; setPortfolioCreating(true); try { await createPortfolio(newPortfolioName.trim()); } finally { setPortfolioCreating(false); setShowNewPortfolioInput(false); } }} style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                  <input autoFocus placeholder="Nombre del broker…" value={newPortfolioName} onChange={e => setNewPortfolioName(e.target.value)} onKeyDown={e => { if (e.key === "Escape") setShowNewPortfolioInput(false); }}
+                    style={{ padding: "4px 10px", borderRadius: 10, border: "1px solid var(--accent-l)", background: "rgba(0,212,126,0.08)", color: "var(--text)", fontSize: 12, outline: "none", width: 140 }} />
+                  <button type="submit" disabled={portfolioCreating || !newPortfolioName.trim()} style={{ padding: "4px 12px", borderRadius: 10, background: "var(--accent-l)", color: "#000", fontSize: 12, fontWeight: 800, border: "none", cursor: "pointer" }}>
+                    {portfolioCreating ? "…" : "Crear"}
+                  </button>
+                  <button type="button" onClick={() => setShowNewPortfolioInput(false)} style={{ background: "none", border: "none", color: "var(--muted)", cursor: "pointer", fontSize: 12 }}>✕</button>
+                </form>
+              )}
+              {!isPremium && portfolios.length < 2 && (
+                <button onClick={() => setPaywallOpen(true)} title="Función Premium"
+                  style={{ padding: "4px 12px", borderRadius: 20, fontSize: 12, fontWeight: 700, border: "1.5px dashed var(--border)", background: "transparent", color: "var(--muted)", cursor: "pointer", opacity: 0.6 }}>
+                  🔒 + Portafolio
+                </button>
+              )}
+            </div>
           </div>
           <div className="flex items-center gap-2">
             {/* Sync status */}
