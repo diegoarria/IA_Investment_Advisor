@@ -387,6 +387,7 @@ export default function AuthScreen() {
             <Image source={require("../assets/images/logo_new.png")} style={styles.logo} />
             <Text style={styles.title}>Nuvos AI</Text>
             <Text style={styles.subtitle}>Tu mentor de inversiones inteligente</Text>
+            <Text style={styles.slogan}>Con Nuvos, construye tu futuro.</Text>
           </View>
 
           {/* Face ID button — always visible when hardware exists */}
@@ -681,6 +682,7 @@ function makeStyles(c: Colors) {
     logo: { width: 90, height: 90, borderRadius: 22, marginBottom: 16 },
     title: { fontSize: 24, fontWeight: "700", color: c.text, marginBottom: 8 },
     subtitle: { fontSize: 14, color: c.textMuted, textAlign: "center" },
+    slogan: { fontSize: 13, fontWeight: "600", color: c.accentLight, textAlign: "center", marginTop: 6, letterSpacing: 0.3 },
 
     biometricBtn: {
       flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10,
