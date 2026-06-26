@@ -26,7 +26,8 @@ export default function AuthCallback() {
         setProfile(p.data);
         window.location.href = "/home";
       } catch (err: any) {
-        window.location.href = err?.response?.status === 404 ? "/onboarding" : "/home";
+        const alreadyOnboarded = localStorage.getItem("nuvos_ob") === "1";
+        window.location.href = (!alreadyOnboarded && err?.response?.status === 404) ? "/onboarding" : "/home";
       }
     }
 

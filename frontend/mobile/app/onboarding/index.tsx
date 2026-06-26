@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import {
   View, Text, TextInput, TouchableOpacity, ScrollView,
   StyleSheet, Image,
@@ -113,6 +113,14 @@ export default function OnboardingScreen() {
   const { colors, isDark, toggle } = useTheme();
   const s = useMemo(() => makeStyles(colors), [colors]);
   const setProfile = useAppStore((state) => state.setProfile);
+  const existingProfile = useAppStore((state) => state.profile);
+
+  // Guard: if user already has a profile in the store, block onboarding forever
+  useEffect(() => {
+    if (existingProfile?.name) { router.replace("/(tabs)/home"); return; }
+    // Also check via API in case store was cleared
+    profileApi.get().then(() => router.replace("/(tabs)/home")).catch(() => {});
+  }, []);
 
   const [step, setStep]       = useState(0);
   const [loading, setLoading] = useState(false);
@@ -604,6 +612,7 @@ export default function OnboardingScreen() {
       };
       setProfile(profileData as unknown as import("../../src/lib/profileStore").UserProfile);
       profileApi.create(profileData as Record<string, unknown>).catch(() => {});
+      // El perfil en el store persiste con AsyncStorage — el guard lo detecta en futuros accesos
       router.replace("/(tabs)/chat");
     } catch {
       setError("Error al guardar el perfil. Intenta de nuevo.");

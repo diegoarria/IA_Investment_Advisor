@@ -212,17 +212,22 @@ export default function AuthScreen() {
       // Restore chat history from server (always — server is source of truth)
       useChatStore.getState().restoreFromServer().catch(() => {});
 
+      const hasLocalProfile = !!useAppStore.getState().profile?.name;
       if (profileRes.status === "fulfilled") {
         router.replace(await getStartRoute() as any);
       } else {
-        // Only send to onboarding if profile truly doesn't exist (new user, 404).
-        // Any other error sends to home to avoid showing onboarding to existing users.
+        // Only send to onboarding if profile truly doesn't exist (new user, 404)
+        // AND there's no local profile in the store (extra safety against sending
+        // existing users to onboarding due to network errors or token timing).
         const status = (profileRes as PromiseRejectedResult).reason?.response?.status;
-        router.replace(status === 404 ? "/onboarding" : await getStartRoute() as any);
+        const isNewUser = status === 404 && !hasLocalProfile;
+        router.replace(isNewUser ? "/onboarding" : await getStartRoute() as any);
       }
     } catch (err: any) {
+      const hasLocalProfile = !!useAppStore.getState().profile?.name;
       const status = err?.response?.status;
-      router.replace(status === 404 ? "/onboarding" : await getStartRoute() as any);
+      const isNewUser = status === 404 && !hasLocalProfile;
+      router.replace(isNewUser ? "/onboarding" : await getStartRoute() as any);
     }
   };
 

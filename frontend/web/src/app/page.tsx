@@ -188,7 +188,8 @@ export default function Home() {
         // Only send to onboarding if profile truly doesn't exist (new user).
         // Any other error (network, 5xx, token timing) sends to home to avoid
         // showing onboarding to users who already completed it.
-        window.location.href = err?.response?.status === 404 ? "/onboarding" : "/home";
+        const alreadyOnboarded = localStorage.getItem("nuvos_ob") === "1";
+        window.location.href = (!alreadyOnboarded && err?.response?.status === 404) ? "/onboarding" : "/home";
       }
     } catch (err: unknown) {
       setError(extractErrorMsg(err) || "Verifica tus credenciales e inténtalo de nuevo.");

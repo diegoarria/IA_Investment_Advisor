@@ -127,6 +127,12 @@ export default function OnboardingPage() {
   });
 
   useEffect(() => { if (!authRestoring && !isAuthenticated && !localStorage.getItem("access_token") && !localStorage.getItem("refresh_token")) router.push("/"); }, [isAuthenticated, authRestoring]);
+
+  // Guard: if user already completed onboarding, never show it again
+  useEffect(() => {
+    if (localStorage.getItem("nuvos_ob") === "1") { window.location.href = "/home"; return; }
+    profileApi.get().then(() => { window.location.href = "/home"; }).catch(() => {});
+  }, []);
   if (!authRestoring && !isAuthenticated && (typeof window === "undefined" || (!localStorage.getItem("access_token") && !localStorage.getItem("refresh_token")))) return null;
 
   // ── Derived values ───────────────────────────────────────────────────────────
@@ -792,6 +798,8 @@ export default function OnboardingPage() {
       _chat.createSession();
       _chat.addMessage({ role: "assistant", content: _welcomeMsg });
 
+      // Marcar onboarding como completado — bloquea re-entrada para siempre
+      localStorage.setItem("nuvos_ob", "1");
       // Marcar tour guiado activo
       localStorage.setItem("nuvos_guided_tour", "1");
       localStorage.setItem("nuvos_guided_step", "1");
