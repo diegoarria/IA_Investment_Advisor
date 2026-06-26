@@ -3268,7 +3268,7 @@ async def main():
     scheduler.add_job(lambda: asyncio.create_task(job_portfolio_snapshot("midday")),    "cron", day_of_week="mon-fri", hour=11, minute=35, timezone="America/New_York")
     scheduler.add_job(lambda: asyncio.create_task(job_portfolio_snapshot("afternoon")), "cron", day_of_week="mon-fri", hour=13, minute=35, timezone="America/New_York")
     scheduler.add_job(lambda: asyncio.create_task(job_portfolio_snapshot("preclose")),  "cron", day_of_week="mon-fri", hour=15, minute=35, timezone="America/New_York")
-    scheduler.add_job(job_daily_email,          "cron", day_of_week="mon-fri", hour=18,      minute=0,     timezone="America/New_York")
+    scheduler.add_job(job_daily_email,          "cron", day_of_week="fri",     hour=18,      minute=0,     timezone="America/New_York")
     scheduler.add_job(job_portfolio_alerts,     "cron", day_of_week="mon-fri", hour="9-15",  minute="*/5", timezone="America/New_York")
     scheduler.add_job(job_events_alerts,        "cron", day_of_week="mon-fri", hour=8,       minute=0,     timezone="America/New_York")
     scheduler.add_job(job_earnings_bmo,         "cron", day_of_week="mon-fri", hour=9,       minute=15,    timezone="America/New_York")
