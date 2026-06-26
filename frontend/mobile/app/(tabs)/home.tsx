@@ -1866,6 +1866,17 @@ export default function HomeScreen() {
                 {duoSaving ? "Guardando..." : "Guardar"}
               </Text>
             </TouchableOpacity>
+
+            {/* Skip — can add from profile later */}
+            <TouchableOpacity
+              onPress={() => setShowDuoModal(false)}
+              activeOpacity={0.7}
+              style={{ alignItems: "center", paddingTop: 4 }}
+            >
+              <Text style={{ fontSize: 13, color: colors.textMuted, textDecorationLine: "underline" }}>
+                Agregar segundo email después
+              </Text>
+            </TouchableOpacity>
           </View>
         </View>
       </Modal>

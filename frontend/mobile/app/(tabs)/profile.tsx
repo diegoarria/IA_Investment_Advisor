@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useEffect } from "react";
 import {
-  View, Text, ScrollView, TouchableOpacity, Image,
+  View, Text, ScrollView, TouchableOpacity, Image, TextInput,
   StyleSheet, Alert, Modal, ActivityIndicator, Platform, Linking, Share,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -14,7 +14,7 @@ import { getMentorInfo } from "../../src/lib/mentorData";
 import ProgressModal from "../../src/components/ProgressModal";
 import TutorialModal from "../../src/components/TutorialModal";
 import UpsellModal from "../../src/components/UpsellModal";
-import { insightsApi, mentorLetterApi, profileApi, authApi, referralApi, syncApi, feedApi } from "../../src/lib/api";
+import { insightsApi, mentorLetterApi, profileApi, authApi, referralApi, syncApi, feedApi, billingApi } from "../../src/lib/api";
 import { useSubscriptionStore, hasPremiumAccess } from "../../src/lib/subscriptionStore";
 import type { UpsellOffer } from "../../src/lib/upsellStore";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -180,6 +180,11 @@ export default function ProfileScreen() {
     referralApi.getCode().then((r) => setReferralCode(r.data.code ?? null)).catch(() => {});
     feedApi.getLiked().then((r: any) => setLikedClips(r.data.clips || [])).catch(() => {});
     referralApi.getStats().then((r) => setReferralStats(r.data)).catch(() => {});
+    billingApi.getStatus().then((res: any) => {
+      setDuoPending(!!res?.data?.duo_setup_pending);
+      setDuoSecondaryEmail(res?.data?.duo_secondary_email ?? null);
+      setDuoInput(res?.data?.duo_secondary_email ?? "");
+    }).catch(() => {});
     // Sync full profile from server to keep birth_date and other fields up to date
     profileApi.get().then((r: any) => {
       const current = useAppStore.getState().profile;
@@ -246,6 +251,12 @@ export default function ProfileScreen() {
   const [savingLevel, setSavingLevel] = useState(false);
   const [psyEditField, setPsyEditField] = useState<string | null>(null);
   const [savingPsy, setSavingPsy] = useState(false);
+  const [duoSecondaryEmail, setDuoSecondaryEmail] = useState<string | null>(null);
+  const [duoPending, setDuoPending] = useState(false);
+  const [duoInput, setDuoInput] = useState("");
+  const [duoSaving, setDuoSaving] = useState(false);
+  const [duoError, setDuoError] = useState("");
+  const [duoEditing, setDuoEditing] = useState(false);
 
 if (!profile) {
     return (
@@ -1152,6 +1163,93 @@ if (!profile) {
             <Text style={{ fontSize: 13, fontWeight: "900", color: "#00d47e" }}>Ver →</Text>
           </TouchableOpacity>
         </View>
+
+        {/* ── PLAN DÚO — secondary account management ── */}
+        {isPremium && (duoPending || duoSecondaryEmail) && (
+          <View style={s.section}>
+            <Text style={[s.plansSectionLabel, { color: colors.textMuted }]}>PLAN DÚO</Text>
+            <View style={{ backgroundColor: "rgba(59,130,246,0.08)", borderRadius: 20, borderWidth: 1, borderColor: "rgba(59,130,246,0.3)", padding: 16, gap: 12 }}>
+              {/* Header */}
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                <Text style={{ fontSize: 22 }}>👫</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 15, fontWeight: "900", color: colors.text }}>Cuenta secundaria</Text>
+                  <Text style={{ fontSize: 12, color: colors.textMuted, marginTop: 2 }}>
+                    {duoSecondaryEmail
+                      ? `Compartiendo con ${duoSecondaryEmail}`
+                      : "Aún no has agregado la segunda cuenta"}
+                  </Text>
+                </View>
+                {duoSecondaryEmail && !duoEditing && (
+                  <TouchableOpacity
+                    onPress={() => { setDuoInput(duoSecondaryEmail); setDuoEditing(true); setDuoError(""); }}
+                    activeOpacity={0.8}
+                    style={{ paddingHorizontal: 12, paddingVertical: 7, borderRadius: 12, backgroundColor: "rgba(59,130,246,0.14)", borderWidth: 1, borderColor: "rgba(59,130,246,0.3)" }}
+                  >
+                    <Text style={{ fontSize: 12, fontWeight: "700", color: "#3b82f6" }}>Editar</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+
+              {/* Input area — shown when pending or editing */}
+              {(duoEditing || !duoSecondaryEmail) && (
+                <>
+                  <TextInput
+                    value={duoInput}
+                    onChangeText={(t) => { setDuoInput(t); setDuoError(""); }}
+                    placeholder="email@ejemplo.com"
+                    placeholderTextColor={colors.textDim}
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                    style={{
+                      padding: 13,
+                      backgroundColor: colors.bgRaised,
+                      borderRadius: 12,
+                      borderWidth: 1,
+                      borderColor: duoInput.includes("@") ? "rgba(59,130,246,0.5)" : colors.border,
+                      color: colors.text,
+                      fontSize: 14,
+                    }}
+                  />
+                  {!!duoError && (
+                    <Text style={{ fontSize: 12, color: "#f87171" }}>⚠️ {duoError}</Text>
+                  )}
+                  <View style={{ flexDirection: "row", gap: 10 }}>
+                    {duoEditing && (
+                      <TouchableOpacity
+                        onPress={() => { setDuoEditing(false); setDuoInput(duoSecondaryEmail ?? ""); setDuoError(""); }}
+                        activeOpacity={0.8}
+                        style={{ flex: 1, paddingVertical: 12, borderRadius: 14, alignItems: "center", backgroundColor: colors.bgRaised, borderWidth: 1, borderColor: colors.border }}
+                      >
+                        <Text style={{ fontWeight: "700", fontSize: 14, color: colors.textMuted }}>Cancelar</Text>
+                      </TouchableOpacity>
+                    )}
+                    <TouchableOpacity
+                      disabled={duoSaving || !duoInput.includes("@")}
+                      onPress={async () => {
+                        setDuoSaving(true); setDuoError("");
+                        try {
+                          await billingApi.duoSetup(duoInput.trim().toLowerCase());
+                          setDuoSecondaryEmail(duoInput.trim().toLowerCase());
+                          setDuoPending(false);
+                          setDuoEditing(false);
+                        } catch (err: any) {
+                          setDuoError(err?.response?.data?.detail ?? "Error al guardar. Intenta de nuevo.");
+                        } finally { setDuoSaving(false); }
+                      }}
+                      activeOpacity={0.8}
+                      style={{ flex: 1, paddingVertical: 12, borderRadius: 14, alignItems: "center", backgroundColor: duoSaving || !duoInput.includes("@") ? "rgba(59,130,246,0.2)" : "#3b82f6" }}
+                    >
+                      <Text style={{ fontWeight: "900", fontSize: 14, color: duoSaving || !duoInput.includes("@") ? colors.textMuted : "#fff" }}>
+                        {duoSaving ? "Guardando..." : "Guardar"}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                </>
+              )}
+            </View>
+          </View>
+        )}
 
         {/* ── PLANES ADICIONALES ── */}
         <View style={s.section}>

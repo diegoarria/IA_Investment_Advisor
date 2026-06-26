@@ -9,7 +9,7 @@ import {
   useAuthStore, useProfileStore, useSubscriptionStore,
   useThemeStore, msgsRemaining, FREE_MSG_LIMIT, maturityLabel,
 } from "@/lib/store";
-import { auth as authApi, feedApi, insights as insightsApi, mentorLetter as mentorLetterApi, notifications as notifApi, profile as profileApi, referral as referralApi, sync as syncApi } from "@/lib/api";
+import { auth as authApi, billing, feedApi, insights as insightsApi, mentorLetter as mentorLetterApi, notifications as notifApi, profile as profileApi, referral as referralApi, sync as syncApi } from "@/lib/api";
 import { getMentorInfo } from "@/lib/mentorData";
 import PaywallModal from "@/components/PaywallModal";
 import UpsellModal, { type UpsellOffer } from "@/components/UpsellModal";
@@ -137,6 +137,10 @@ export default function ProfilePage() {
   const [upsellOffer, setUpsellOffer] = useState<UpsellOffer | null>(null);
   const [upsellPrices, setUpsellPrices] = useState<Record<string, number>>({});
   const [wrappedOpen, setWrappedOpen] = useState(false);
+  const [duoEmail, setDuoEmail] = useState("");
+  const [duoSaving, setDuoSaving] = useState(false);
+  const [duoError, setDuoError] = useState("");
+  const [duoEditing, setDuoEditing] = useState(false);
 
   const isPremium = subStore.tier === "premium";
   const remaining = msgsRemaining(subStore);
@@ -844,6 +848,84 @@ export default function ProfilePage() {
                     </div>
                   )}
                 </div>
+
+                {/* Plan Dúo — secondary account management */}
+                {isPremium && (subStore.duoSetupPending || subStore.duoSecondaryEmail) && (
+                  <div>
+                    <p className="text-[10px] font-bold uppercase tracking-widest mb-2 ml-0.5" style={{ color: "var(--dim)" }}>Plan Dúo</p>
+                    <div className="rounded-2xl border p-4 flex flex-col gap-3" style={{ background: "var(--card)", borderColor: "rgba(59,130,246,0.4)" }}>
+                      <div className="flex items-center gap-2">
+                        <span className="text-lg">👫</span>
+                        <div className="flex-1">
+                          <p className="text-sm font-bold" style={{ color: "var(--text)" }}>Cuenta secundaria</p>
+                          <p className="text-xs" style={{ color: "var(--muted)" }}>
+                            {subStore.duoSecondaryEmail
+                              ? `Compartiendo con ${subStore.duoSecondaryEmail}`
+                              : "Aún no has agregado la segunda cuenta"}
+                          </p>
+                        </div>
+                        {subStore.duoSecondaryEmail && !duoEditing && (
+                          <button
+                            onClick={() => { setDuoEmail(subStore.duoSecondaryEmail ?? ""); setDuoEditing(true); setDuoError(""); }}
+                            className="text-xs font-bold px-3 py-1.5 rounded-xl"
+                            style={{ background: "rgba(59,130,246,0.12)", color: "#3b82f6", border: "1px solid rgba(59,130,246,0.3)" }}
+                          >
+                            Editar
+                          </button>
+                        )}
+                      </div>
+
+                      {(duoEditing || !subStore.duoSecondaryEmail) && (
+                        <div className="flex flex-col gap-2">
+                          <input
+                            type="email"
+                            placeholder="email@ejemplo.com"
+                            value={duoEmail}
+                            onChange={(e) => { setDuoEmail(e.target.value); setDuoError(""); }}
+                            className="w-full px-3 py-2.5 rounded-xl text-sm outline-none"
+                            style={{
+                              background: "var(--raised)",
+                              border: `1px solid ${duoEmail.includes("@") ? "rgba(59,130,246,0.5)" : "var(--border)"}`,
+                              color: "var(--text)",
+                            }}
+                          />
+                          {duoError && <p className="text-xs" style={{ color: "#f87171" }}>⚠️ {duoError}</p>}
+                          <div className="flex gap-2">
+                            {duoEditing && (
+                              <button
+                                onClick={() => { setDuoEditing(false); setDuoError(""); }}
+                                className="flex-1 py-2.5 rounded-xl text-sm font-bold"
+                                style={{ background: "var(--raised)", color: "var(--muted)", border: "1px solid var(--border)" }}
+                              >
+                                Cancelar
+                              </button>
+                            )}
+                            <button
+                              disabled={duoSaving || !duoEmail.includes("@")}
+                              onClick={async () => {
+                                setDuoSaving(true); setDuoError("");
+                                try {
+                                  await billing.duoSetup(duoEmail);
+                                  await subStore.fetchStatus();
+                                  setDuoEditing(false);
+                                } catch (err: any) {
+                                  setDuoError(err?.response?.data?.detail ?? "Error al guardar. Intenta de nuevo.");
+                                } finally { setDuoSaving(false); }
+                              }}
+                              className="flex-1 py-2.5 rounded-xl text-sm font-bold text-white"
+                              style={{
+                                background: duoSaving || !duoEmail.includes("@") ? "rgba(59,130,246,0.2)" : "#3b82f6",
+                                color: duoSaving || !duoEmail.includes("@") ? "var(--muted)" : "#fff",
+                              }}
+                            >
+                              {duoSaving ? "Guardando..." : "Guardar"}
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
 
                 {/* Referral program */}
                 <div>

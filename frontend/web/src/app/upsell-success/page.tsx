@@ -336,6 +336,23 @@ function UpsellSuccessContent() {
                     "Guardar cuentas"
                   )}
                 </button>
+
+                {/* Skip — add later from profile */}
+                <button
+                  onClick={() => router.replace("/profile")}
+                  style={{
+                    background: "transparent",
+                    border: "none",
+                    color: "#6b7280",
+                    fontSize: 13,
+                    cursor: "pointer",
+                    padding: "4px 0",
+                    textDecoration: "underline",
+                    textDecorationColor: "rgba(107,114,128,0.4)",
+                  }}
+                >
+                  Agregar segundo email después
+                </button>
                 <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
               </>
             )

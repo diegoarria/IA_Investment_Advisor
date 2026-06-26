@@ -454,6 +454,8 @@ interface SubscriptionState {
   trialDaysLeft: number;
   msgCount: number;
   msgWindowStart: string | null;
+  duoSetupPending: boolean;
+  duoSecondaryEmail: string | null;
   fetchStatus: () => Promise<void>;
   setTier: (tier: SubscriptionTier) => void;
   incrementMsgCount: () => void;
@@ -468,17 +470,21 @@ export const useSubscriptionStore = create<SubscriptionState>()(
       trialDaysLeft: 0,
       msgCount: 0,
       msgWindowStart: null,
+      duoSetupPending: false,
+      duoSecondaryEmail: null,
       fetchStatus: async () => {
         try {
           const { billing } = await import("./api");
           const res = await billing.getStatus();
           set({
-            tier:           res.data.tier ?? "free",
-            trialStartedAt: res.data.trial_started_at ?? get().trialStartedAt ?? null,
-            isTrialPremium: res.data.is_trial ?? false,
-            trialDaysLeft:  res.data.trial_days_left ?? 0,
-            msgCount:       res.data.msg_count ?? 0,
-            msgWindowStart: res.data.msg_window_start ?? null,
+            tier:              res.data.tier ?? "free",
+            trialStartedAt:    res.data.trial_started_at ?? get().trialStartedAt ?? null,
+            isTrialPremium:    res.data.is_trial ?? false,
+            trialDaysLeft:     res.data.trial_days_left ?? 0,
+            msgCount:          res.data.msg_count ?? 0,
+            msgWindowStart:    res.data.msg_window_start ?? null,
+            duoSetupPending:   res.data.duo_setup_pending ?? false,
+            duoSecondaryEmail: res.data.duo_secondary_email ?? null,
           });
         } catch {}
       },
