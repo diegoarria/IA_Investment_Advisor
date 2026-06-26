@@ -1455,12 +1455,14 @@ async def job_portfolio_alerts():
 
 
 async def job_weekly_screener_push():
-    """9:30 AM ET Saturday — personalized weekly screener: 4 picks per user based on
+    """11:00 AM ET Saturday — personalized weekly screener: 4 picks per user based on
     risk profile, investment horizon, mentor, and existing portfolio (excluded).
-    Strategy: 1 Haiku call per risk group (~6 total) → cheap regardless of user count."""
+    Strategy: 1 Haiku call per risk group (~6 total) → cheap regardless of user count.
+    Sends both push notification and email."""
     import anthropic
     from app.core.database import get_supabase, run_query
     from app.services.notification_engine import send_push
+    from app.services.email_service import send_email
     from app.core.config import settings as cfg
 
     db = get_supabase()
@@ -1477,6 +1479,8 @@ async def job_weekly_screener_push():
             .select("user_id,name,risk_tolerance,quiz_answers,mentor")
             .in_("user_id", uids)
         )
+
+        auth_users = {u.id: u.email for u in await asyncio.to_thread(lambda: db.auth.admin.list_users())}
         profile_map = {r["user_id"]: r for r in (profiles_res.data or [])}
 
         portfolio_map: dict[str, set] = {}
@@ -1577,9 +1581,60 @@ async def job_weekly_screener_push():
                 {"screen": "chat", "picks": [pk["ticker"] for pk in picks]},
                 db,
             )
+
+            # Email
+            email_addr = auth_users.get(uid)
+            if email_addr:
+                pick_rows = "".join(
+                    f"""<tr>
+                      <td style="padding:10px 0;font-size:18px;font-weight:700;color:#6c63ff;width:32px;">{idx+1}.</td>
+                      <td style="padding:10px 0;">
+                        <span style="font-size:17px;font-weight:700;color:#1a1a2e;">{pk['ticker']}</span>
+                        <span style="font-size:14px;color:#666;margin-left:8px;">{pk['name']}</span>
+                      </td>
+                    </tr>"""
+                    for idx, pk in enumerate(picks)
+                )
+                html = f"""<!DOCTYPE html><html><head><meta charset="utf-8"></head>
+<body style="margin:0;padding:0;background:#f4f6ff;font-family:'Helvetica Neue',Arial,sans-serif;">
+<div style="max-width:560px;margin:32px auto;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(108,99,255,0.08);">
+  <div style="background:linear-gradient(135deg,#6c63ff,#4f46e5);padding:32px 36px;">
+    <p style="margin:0;font-size:13px;color:rgba(255,255,255,0.75);letter-spacing:1px;text-transform:uppercase;">Screener Semanal</p>
+    <h1 style="margin:8px 0 0;font-size:26px;font-weight:800;color:#fff;">Tus 4 ideas para esta semana</h1>
+  </div>
+  <div style="padding:32px 36px;">
+    <p style="margin:0 0 24px;font-size:16px;color:#333;line-height:1.6;">
+      ¡Hola <strong>{name}</strong>! Basado en tu perfil <strong>{risk_label}</strong> y mentalidad de <strong>{horizon}</strong>,
+      quiero sugerirte algunas posiciones que deberías echarles un ojo esta semana:
+    </p>
+    <table style="width:100%;border-collapse:collapse;border-top:2px solid #f0f0f0;">
+      {pick_rows}
+    </table>
+    <div style="margin-top:28px;padding:20px;background:#f8f7ff;border-radius:12px;border-left:4px solid #6c63ff;">
+      <p style="margin:0;font-size:14px;color:#555;line-height:1.6;">
+        💡 <strong>¿Qué hago con estas ideas?</strong> Habla con tu mentor para analizarlas:
+        ¿encajan en tu portafolio? ¿cuál es el riesgo? ¿cuándo entrar?
+      </p>
+    </div>
+    <div style="margin-top:28px;text-align:center;">
+      <a href="https://nuvosai.com/chat" style="display:inline-block;background:#6c63ff;color:#fff;padding:14px 32px;border-radius:50px;font-size:15px;font-weight:700;text-decoration:none;">
+        Hablar con mi mentor →
+      </a>
+    </div>
+  </div>
+  <div style="padding:20px 36px;background:#f9f9fb;border-top:1px solid #eee;text-align:center;">
+    <p style="margin:0;font-size:12px;color:#aaa;">Nuvos AI · Tu mentor de inversiones · <a href="https://nuvosai.com" style="color:#6c63ff;text-decoration:none;">nuvosai.com</a></p>
+  </div>
+</div>
+</body></html>"""
+                try:
+                    await send_email(email_addr, "📊 Tus 4 ideas de inversión para esta semana — Nuvos AI", html)
+                except Exception as e:
+                    logger.warning("Weekly screener email failed for %s: %s", uid, e)
+
             sent += 1
 
-        logger.info("Weekly screener push: %d sent across %d risk groups", sent, len(picks_by_risk))
+        logger.info("Weekly screener push+email: %d sent across %d risk groups", sent, len(picks_by_risk))
     except Exception as e:
         logger.error("job_weekly_screener_push failed: %s", e)
 
