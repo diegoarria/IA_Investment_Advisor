@@ -20,13 +20,15 @@ from app.services.market_data_service import (
 )
 from app.core.limiter import limiter
 
-FREE_MSG_LIMIT = 20
-FREE_MSG_WINDOW_HOURS = 24
+FREE_MSG_LIMIT    = 20
+PREMIUM_MSG_LIMIT = 80
+MSG_WINDOW_HOURS  = 24
 
 
 async def _check_and_increment_msg_limit(user_id: str, profile: UserProfile) -> None:
-    if profile.subscription_tier == "premium":
-        return
+    is_premium = profile.subscription_tier == "premium"
+    limit = PREMIUM_MSG_LIMIT if is_premium else FREE_MSG_LIMIT
+
     db = get_supabase()
     now = datetime.now(timezone.utc)
     window_start = None
@@ -36,7 +38,7 @@ async def _check_and_increment_msg_limit(user_id: str, profile: UserProfile) -> 
         except Exception:
             pass
 
-    if window_start is None or (now - window_start) >= timedelta(hours=FREE_MSG_WINDOW_HOURS):
+    if window_start is None or (now - window_start) >= timedelta(hours=MSG_WINDOW_HOURS):
         await run_query(
             db.table("user_profiles").update({
                 "msg_count": 1,
@@ -45,17 +47,27 @@ async def _check_and_increment_msg_limit(user_id: str, profile: UserProfile) -> 
         )
         return
 
-    if profile.msg_count >= FREE_MSG_LIMIT:
-        reset_at = window_start + timedelta(hours=FREE_MSG_WINDOW_HOURS)
+    if profile.msg_count >= limit:
+        reset_at = window_start + timedelta(hours=MSG_WINDOW_HOURS)
         mins = max(1, int((reset_at - now).total_seconds() / 60))
-        raise HTTPException(
-            status_code=429,
-            detail={
-                "code": "msg_limit",
-                "message": f"Alcanzaste el límite de {FREE_MSG_LIMIT} mensajes. Vuelve en {mins} min o activa Premium.",
-                "reset_in_minutes": mins,
-            },
-        )
+        if is_premium:
+            raise HTTPException(
+                status_code=429,
+                detail={
+                    "code": "msg_limit",
+                    "message": "Has alcanzado tu límite diario con el mentor. Tu acceso se renueva mañana.",
+                    "reset_in_minutes": mins,
+                },
+            )
+        else:
+            raise HTTPException(
+                status_code=429,
+                detail={
+                    "code": "msg_limit",
+                    "message": f"Alcanzaste el límite de {FREE_MSG_LIMIT} mensajes. Vuelve en {mins} min o activa Premium.",
+                    "reset_in_minutes": mins,
+                },
+            )
 
     await run_query(
         db.table("user_profiles").update({"msg_count": profile.msg_count + 1}).eq("user_id", user_id)

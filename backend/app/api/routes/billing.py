@@ -122,6 +122,17 @@ async def stripe_webhook(request: Request):
                 }).eq("stripe_customer_id", customer_id)
             )
 
+    elif event["type"] == "invoice.payment_succeeded":
+        # Restore premium if a previously failed payment recovered
+        customer_id = event["data"]["object"].get("customer")
+        billing_reason = event["data"]["object"].get("billing_reason", "")
+        if customer_id and billing_reason in ("subscription_cycle", "subscription_update"):
+            await run_query(
+                db.table("user_profiles").update({
+                    "subscription_tier": "premium",
+                }).eq("stripe_customer_id", customer_id)
+            )
+
     return {"received": True}
 
 
