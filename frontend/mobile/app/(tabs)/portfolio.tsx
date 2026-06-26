@@ -716,15 +716,20 @@ export default function PortfolioScreen() {
   // Period returns
   type PeriodReturn = { pct: number; avg_pct?: number; amount: number; date?: string; breakdown?: Record<string, number>; spy_pct?: number };
   const PERIODS = [
-    { key: "since_purchase", label: "Compra" },
-    { key: "1d",  label: "1D"  }, { key: "5d",  label: "5D"  },
-    { key: "1mo", label: "1M"  }, { key: "3mo", label: "3M"  },
-    { key: "6mo", label: "6M"  }, { key: "ytd", label: "YTD" },
-    { key: "1y",  label: "1A"  }, { key: "3y",  label: "3A"  },
-    { key: "5y",  label: "5A"  }, { key: "max", label: "MÁX" },
+    { key: "since_purchase", label: "Compra", premium: false },
+    { key: "1d",  label: "1D",   premium: false },
+    { key: "5d",  label: "5D",   premium: false },
+    { key: "1mo", label: "1M",   premium: false },
+    { key: "3mo", label: "3M",   premium: true  },
+    { key: "6mo", label: "6M",   premium: true  },
+    { key: "ytd", label: "YTD",  premium: true  },
+    { key: "1y",  label: "1A",   premium: true  },
+    { key: "3y",  label: "3A",   premium: true  },
+    { key: "5y",  label: "5A",   premium: true  },
+    { key: "max", label: "MÁX",  premium: true  },
   ] as const;
   type PeriodKey = typeof PERIODS[number]["key"];
-  const [selectedPeriod, setSelectedPeriod] = useState<PeriodKey>("1y");
+  const [selectedPeriod, setSelectedPeriod] = useState<PeriodKey>("1mo");
   const [periodReturns, setPeriodReturns] = useState<Record<string, PeriodReturn>>({});
   const [loadingReturns, setLoadingReturns] = useState(false);
 
@@ -1688,26 +1693,32 @@ export default function PortfolioScreen() {
                   {/* Period pills — below chart, inside card */}
                   <View style={{ borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border, marginTop: 4 }}>
                     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 12, paddingVertical: 10, gap: 6 }}>
-                      {PERIODS.map(({ key, label }) => {
-                        const ret = periodReturns[key];
+                      {PERIODS.map(({ key, label, premium: needsPremium }) => {
+                        const locked = needsPremium && !isPremiumAccess;
+                        const ret = locked ? null : periodReturns[key];
                         const isSel = selectedPeriod === key;
                         const isUp = ret ? ret.pct >= 0 : null;
-                        const pillColor = isUp === true ? "#22c55e" : isUp === false ? "#ef4444" : colors.accentLight;
+                        const pillColor = locked ? colors.textMuted : (isUp === true ? "#22c55e" : isUp === false ? "#ef4444" : colors.accentLight);
                         return (
                           <TouchableOpacity
                             key={key}
-                            onPress={() => setSelectedPeriod(key)}
+                            onPress={() => locked ? setPaywallOpen(true) : setSelectedPeriod(key)}
                             style={{
                               alignItems: "center", paddingHorizontal: 12, paddingVertical: 7,
                               borderRadius: 10,
-                              backgroundColor: isSel ? pillColor + "18" : "transparent",
+                              backgroundColor: locked ? colors.surface : isSel ? pillColor + "18" : "transparent",
                               borderWidth: 1,
-                              borderColor: isSel ? pillColor + "55" : "transparent",
+                              borderColor: locked ? colors.border : isSel ? pillColor + "55" : "transparent",
+                              opacity: locked ? 0.75 : 1,
                             }}>
-                            <Text style={{ fontSize: 12, fontWeight: isSel ? "800" : "600", color: isSel ? pillColor : colors.textMuted }}>
-                              {label}
+                            <Text style={{ fontSize: 12, fontWeight: isSel ? "800" : "600", color: locked ? colors.textMuted : isSel ? pillColor : colors.textMuted }}>
+                              {locked ? `🔒 ${label}` : label}
                             </Text>
-                            {ret && !loadingReturns ? (
+                            {locked ? (
+                              <Text style={{ fontSize: 9, fontWeight: "700", color: "#22c55e", marginTop: 1, opacity: 0.15 }}>
+                                +9.9%
+                              </Text>
+                            ) : ret && !loadingReturns ? (
                               <Text style={{ fontSize: 9, fontWeight: "700", color: isUp ? "#22c55e" : "#ef4444", marginTop: 1 }}>
                                 {isUp ? "+" : ""}{ret.pct.toFixed(1)}%
                               </Text>

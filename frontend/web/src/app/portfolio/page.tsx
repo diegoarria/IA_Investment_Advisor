@@ -744,12 +744,17 @@ export default function PortfolioPage() {
   // Period returns
   type PeriodReturn = { pct: number; avg_pct?: number; amount: number; date?: string; breakdown?: Record<string, number>; spy_pct?: number };
   const PERIODS = [
-    { key: "since_purchase", label: "Compra" },
-    { key: "1d",  label: "1D"  }, { key: "5d",  label: "5D"  },
-    { key: "1mo", label: "1M"  }, { key: "3mo", label: "3M"  },
-    { key: "6mo", label: "6M"  }, { key: "ytd", label: "YTD" },
-    { key: "1y",  label: "1A"  }, { key: "3y",  label: "3A"  },
-    { key: "5y",  label: "5A"  }, { key: "max", label: "MÁX" },
+    { key: "since_purchase", label: "Compra", premium: false },
+    { key: "1d",  label: "1D",   premium: false },
+    { key: "5d",  label: "5D",   premium: false },
+    { key: "1mo", label: "1M",   premium: false },
+    { key: "3mo", label: "3M",   premium: true  },
+    { key: "6mo", label: "6M",   premium: true  },
+    { key: "ytd", label: "YTD",  premium: true  },
+    { key: "1y",  label: "1A",   premium: true  },
+    { key: "3y",  label: "3A",   premium: true  },
+    { key: "5y",  label: "5A",   premium: true  },
+    { key: "max", label: "MÁX",  premium: true  },
   ] as const;
   type PeriodKey = typeof PERIODS[number]["key"];
   const [selectedPeriod, setSelectedPeriod] = useState<PeriodKey>("since_purchase");
@@ -1707,23 +1712,32 @@ export default function PortfolioPage() {
                     {/* ── PERIOD TABS ── */}
                     <div className="border-t px-4 py-3" style={{ borderColor: "var(--border)" }}>
                       <div className="flex gap-1 overflow-x-auto scrollbar-none">
-                        {PERIODS.map(({ key, label }) => {
-                          const ret  = periodReturns[key];
-                          const isSel = selectedPeriod === key;
-                          const isUp  = ret ? ret.pct >= 0 : null;
-                          const tc    = isUp === null ? "#22c55e" : isUp ? "#22c55e" : "#ef4444";
+                        {PERIODS.map(({ key, label, premium: needsPremium }) => {
+                          const locked = needsPremium && !isPremium;
+                          const ret    = locked ? null : periodReturns[key];
+                          const isSel  = selectedPeriod === key;
+                          const isUp   = ret ? ret.pct >= 0 : null;
+                          const tc     = locked ? "var(--muted)" : (isUp === null ? "#22c55e" : isUp ? "#22c55e" : "#ef4444");
                           return (
-                            <button key={key} onClick={() => setSelectedPeriod(key)}
-                                    className="flex-none flex flex-col items-center gap-0.5 px-2.5 py-1.5 rounded-xl transition-all"
-                                    style={{
-                                      background: isSel ? `${tc}14` : "transparent",
-                                      border: `1.5px solid ${isSel ? `${tc}55` : "transparent"}`,
-                                    }}>
-                              <span className="text-[10px] font-bold whitespace-nowrap leading-tight"
-                                    style={{ color: isSel ? tc : "var(--muted)" }}>
+                            <button
+                              key={key}
+                              onClick={() => locked ? setPaywallOpen(true) : setSelectedPeriod(key)}
+                              className="flex-none flex flex-col items-center gap-0.5 px-2.5 py-1.5 rounded-xl transition-all relative"
+                              style={{
+                                background: locked ? "var(--surface)" : isSel ? `${tc}14` : "transparent",
+                                border: `1.5px solid ${locked ? "var(--border)" : isSel ? `${tc}55` : "transparent"}`,
+                                opacity: locked ? 0.7 : 1,
+                              }}
+                            >
+                              <span className="text-[10px] font-bold whitespace-nowrap leading-tight flex items-center gap-0.5"
+                                    style={{ color: locked ? "var(--muted)" : isSel ? tc : "var(--muted)" }}>
+                                {locked && <span className="text-[9px]">🔒</span>}
                                 {key === "since_purchase" ? "Compra" : label}
                               </span>
-                              {loadingReturns ? (
+                              {locked ? (
+                                <span className="text-[9px] font-black leading-tight blur-[3px] select-none"
+                                      style={{ color: "#22c55e" }}>+9.9%</span>
+                              ) : loadingReturns ? (
                                 <span className="text-[9px]" style={{ color: "var(--dim)" }}>···</span>
                               ) : ret ? (
                                 <span className="text-[10px] font-black leading-tight" style={{ color: tc }}>
