@@ -105,28 +105,35 @@ function yesterdayStr() {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
-export const STREAK_MILESTONES = [
-  { days: 15, reward: "Modo Experto desbloqueado 🧠", bonus: "+5 mensajes/día" },
-  { days: 30, reward: "+5 mensajes diarios activados 🎁", bonus: "Acceso a escenarios imposibles" },
-  { days: 60, reward: "Insignia Inversor Consistente 🏅", bonus: "1 semana Premium gratis" },
-  { days: 90, reward: "Hall of Fame — Top Inversor 🏆", bonus: "Mención especial" },
+export type StreakMilestone = {
+  days: number;
+  emoji: string;
+  title: string;
+  reward: string;
+  description: string;
+  premiumBonus?: number;
+  msgReset?: boolean;
+};
+
+export const STREAK_MILESTONES: StreakMilestone[] = [
+  { days: 3,  emoji: "🔥", title: "Arranque",            reward: "Badge Arranque",          description: "¡Llevas 3 días aprendiendo seguidos! Tu mentor tiene un mensaje especial para ti." },
+  { days: 7,  emoji: "⚡", title: "Primera Semana",      reward: "Día de mensajes gratis",   description: "Una semana completa. Tu límite de mensajes de hoy se ha reiniciado.", msgReset: true },
+  { days: 14, emoji: "🎯", title: "Dos Semanas",         reward: "Badge Estratega",          description: "14 días consecutivos. Estás construyendo un hábito real de inversión." },
+  { days: 30, emoji: "🎁", title: "Mes Completo",        reward: "3 días Premium gratis",    description: "¡Un mes entero! Hemos agregado 3 días de Premium a tu cuenta.", premiumBonus: 3 },
+  { days: 60, emoji: "🏅", title: "Inversor Consistente",reward: "7 días Premium gratis",    description: "60 días sin parar. Disciplina de nivel élite. Tienes 7 días de Premium.", premiumBonus: 7 },
+  { days: 90, emoji: "👑", title: "Hall of Fame",        reward: "1 mes Premium gratis",     description: "90 días consecutivos. Top 1% de inversores en Nuvos. Disfruta 1 mes de Premium.", premiumBonus: 30 },
 ];
 
-export const STREAK_MILESTONES_PREMIUM = [
-  { days: 15, reward: "Insignia Estratega 🎖️", bonus: "Análisis macro semanal exclusivo" },
-  { days: 30, reward: "Badge Inversor Élite ⭐", bonus: "Acceso prioritario a nuevas funciones" },
-  { days: 60, reward: "Avatar Halcón de Mercado 🦅", bonus: "Escenarios históricos secretos desbloqueados" },
-  { days: 90, reward: "Leyenda del Hall of Fame 👑", bonus: "Top 1% — mención permanente en el perfil" },
-];
-
-export function getMilestoneForStreak(streak: number, premium = false) {
-  const milestones = premium ? STREAK_MILESTONES_PREMIUM : STREAK_MILESTONES;
-  return [...milestones].reverse().find((m) => streak >= m.days) ?? null;
+export function getMilestoneForStreak(streak: number): StreakMilestone | null {
+  return [...STREAK_MILESTONES].reverse().find((m) => streak >= m.days) ?? null;
 }
 
-export function getNextMilestone(streak: number, premium = false) {
-  const milestones = premium ? STREAK_MILESTONES_PREMIUM : STREAK_MILESTONES;
-  return milestones.find((m) => streak < m.days) ?? null;
+export function getNextMilestone(streak: number): StreakMilestone | null {
+  return STREAK_MILESTONES.find((m) => streak < m.days) ?? null;
+}
+
+export function getUnclaimedMilestones(streak: number, claimed: number[]): StreakMilestone[] {
+  return STREAK_MILESTONES.filter((m) => streak >= m.days && !claimed.includes(m.days));
 }
 
 export type SubscriptionTier = "free" | "premium";
@@ -567,9 +574,12 @@ interface LearnState {
   lastLearnDate: string | null;
   totalCompleted: number;
   completedToday: boolean;
+  claimedMilestones: number[];
   markTopicCompleted: () => void;
   initStreak: () => void;
   restoreFromServer: () => Promise<void>;
+  setClaimedMilestones: (milestones: number[]) => void;
+  markMilestoneClaimed: (days: number) => void;
 }
 
 export const useLearnStore = create<LearnState>()(
@@ -579,6 +589,15 @@ export const useLearnStore = create<LearnState>()(
       lastLearnDate: null,
       totalCompleted: 0,
       completedToday: false,
+      claimedMilestones: [],
+
+      setClaimedMilestones: (milestones) => set({ claimedMilestones: milestones }),
+      markMilestoneClaimed: (days) =>
+        set((s) => ({
+          claimedMilestones: s.claimedMilestones.includes(days)
+            ? s.claimedMilestones
+            : [...s.claimedMilestones, days],
+        })),
 
       initStreak: () => {
         const { lastLearnDate, streak } = get();
@@ -625,6 +644,13 @@ export const useLearnStore = create<LearnState>()(
               });
             }
           }
+        } catch {}
+        // Sync claimed milestones from billing status
+        try {
+          const { billing } = await import("./api");
+          const res = await billing.getStatus();
+          const claimed: number[] = res.data?.claimed_streak_milestones ?? [];
+          set({ claimedMilestones: claimed });
         } catch {}
         // Re-derive completedToday from lastLearnDate (whether from server or cache)
         get().initStreak();

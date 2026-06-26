@@ -2,12 +2,17 @@ import random
 import re
 import json
 import anthropic
-from datetime import date
+from datetime import date, datetime, timezone, timedelta
 from fastapi import APIRouter, Depends, HTTPException, Request
 from app.api.deps import get_current_user_id
 from app.core.config import settings
 from app.core.database import get_supabase, run_query
 from app.core.limiter import limiter
+
+# Days that grant premium bonus (free users only)
+_PREMIUM_BONUS_DAYS = {30: 3, 60: 7, 90: 30}
+# Days that grant message reset
+_MSG_RESET_DAYS = {7}
 
 _debate_client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
 
@@ -437,6 +442,70 @@ RESPUESTA DEL USUARIO: "{user_response}"
 
 
 # ─── Streak & Hall of Fame ─────────────────────────────────────────────────
+
+@router.post("/streak/milestone-claim")
+async def claim_streak_milestone(body: dict, user_id: str = Depends(get_current_user_id)):
+    """Claim a streak milestone reward. Idempotent — safe to call multiple times."""
+    milestone_days = int(body.get("days", 0))
+    valid_milestones = {3, 7, 14, 30, 60, 90}
+    if milestone_days not in valid_milestones:
+        raise HTTPException(status_code=422, detail="Hito inválido")
+
+    db = get_supabase()
+    result = await run_query(
+        db.table("user_profiles")
+        .select("subscription_tier, streak_count, claimed_streak_milestones, streak_bonus_premium_until, msg_count")
+        .eq("user_id", user_id)
+        .single()
+    )
+    if not result.data:
+        raise HTTPException(status_code=404, detail="Perfil no encontrado")
+
+    data = result.data
+    streak = int(data.get("streak_count") or 0)
+    claimed = list(data.get("claimed_streak_milestones") or [])
+    tier = data.get("subscription_tier", "free")
+
+    # Must have reached the milestone
+    if streak < milestone_days:
+        raise HTTPException(status_code=403, detail="Aún no alcanzas este hito")
+
+    # Already claimed — idempotent OK
+    if milestone_days in claimed:
+        return {"ok": True, "already_claimed": True, "milestone_days": milestone_days}
+
+    update: dict = {"claimed_streak_milestones": claimed + [milestone_days]}
+
+    # Free users: grant premium bonus days
+    if tier != "premium" and milestone_days in _PREMIUM_BONUS_DAYS:
+        bonus = _PREMIUM_BONUS_DAYS[milestone_days]
+        # Extend from existing bonus if still active, else from now
+        current_bonus = data.get("streak_bonus_premium_until")
+        if current_bonus:
+            try:
+                base = datetime.fromisoformat(current_bonus.replace("Z", "+00:00"))
+                if base < datetime.now(timezone.utc):
+                    base = datetime.now(timezone.utc)
+            except Exception:
+                base = datetime.now(timezone.utc)
+        else:
+            base = datetime.now(timezone.utc)
+        update["streak_bonus_premium_until"] = (base + timedelta(days=bonus)).isoformat()
+
+    # Day-7 reward: reset message count so they get a free day
+    if milestone_days in _MSG_RESET_DAYS:
+        update["msg_count"] = 0
+
+    await run_query(db.table("user_profiles").update(update).eq("user_id", user_id))
+
+    return {
+        "ok": True,
+        "already_claimed": False,
+        "milestone_days": milestone_days,
+        "premium_bonus_days": _PREMIUM_BONUS_DAYS.get(milestone_days) if tier != "premium" else None,
+        "msg_reset": milestone_days in _MSG_RESET_DAYS,
+    }
+
 
 @router.post("/streak/sync")
 async def sync_streak(request: dict, user_id: str = Depends(get_current_user_id)):

@@ -179,7 +179,7 @@ async def get_status(user_id: str = Depends(get_current_user_id)):
     db = get_supabase()
     result = await run_query(
         db.table("user_profiles").select(
-            "subscription_tier, msg_count, msg_window_start, trial_started_at, stripe_customer_id, broker_offer_seen_at, duo_plan_purchased_at, duo_secondary_email"
+            "subscription_tier, msg_count, msg_window_start, trial_started_at, stripe_customer_id, broker_offer_seen_at, duo_plan_purchased_at, duo_secondary_email, streak_bonus_premium_until, claimed_streak_milestones"
         ).eq("user_id", user_id).single()
     )
 
@@ -200,7 +200,7 @@ async def get_status(user_id: str = Depends(get_current_user_id)):
             .eq("user_id", user_id)
         )
 
-    # Compute effective tier: premium if paid OR within 90-day promo window
+    # Compute effective tier: premium if paid OR within 90-day promo window OR streak bonus active
     effective_tier = tier
     is_trial       = False
     days_left      = 0
@@ -216,19 +216,34 @@ async def get_status(user_id: str = Depends(get_current_user_id)):
         except Exception:
             pass
 
+    # Streak bonus premium (free users who earned days via streaks)
+    streak_bonus_until = data.get("streak_bonus_premium_until")
+    streak_bonus_active = False
+    if effective_tier != "premium" and streak_bonus_until:
+        try:
+            bonus_end = datetime.fromisoformat(streak_bonus_until.replace("Z", "+00:00"))
+            if bonus_end > datetime.now(timezone.utc):
+                effective_tier = "premium"
+                streak_bonus_active = True
+        except Exception:
+            pass
+
     duo_purchased = data.get("duo_plan_purchased_at")
     duo_secondary = data.get("duo_secondary_email")
 
     return {
-        "tier":                  effective_tier,
-        "is_trial":              is_trial,
-        "trial_days_left":       days_left,
-        "msg_count":             data.get("msg_count", 0),
-        "msg_window_start":      data.get("msg_window_start"),
-        "trial_started_at":      trial_started,
-        "broker_offer_seen_at":  data.get("broker_offer_seen_at"),
-        "duo_setup_pending":     bool(duo_purchased and not duo_secondary),
-        "duo_secondary_email":   duo_secondary,
+        "tier":                      effective_tier,
+        "is_trial":                  is_trial,
+        "trial_days_left":           days_left,
+        "msg_count":                 data.get("msg_count", 0),
+        "msg_window_start":          data.get("msg_window_start"),
+        "trial_started_at":          trial_started,
+        "broker_offer_seen_at":      data.get("broker_offer_seen_at"),
+        "duo_setup_pending":         bool(duo_purchased and not duo_secondary),
+        "duo_secondary_email":       duo_secondary,
+        "streak_bonus_premium_until": streak_bonus_until,
+        "streak_bonus_active":       streak_bonus_active,
+        "claimed_streak_milestones": list(data.get("claimed_streak_milestones") or []),
     }
 
 

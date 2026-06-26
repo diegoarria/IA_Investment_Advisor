@@ -8,8 +8,8 @@ import { useRouter } from "next/navigation";
 import Image from "next/image";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { chat as chatApi } from "@/lib/api";
-import { useAuthStore, useLearnStore, useProfileStore } from "@/lib/store";
+import { chat as chatApi, learn as learnApi } from "@/lib/api";
+import { useAuthStore, useLearnStore, useProfileStore, getNextMilestone, getUnclaimedMilestones, type StreakMilestone } from "@/lib/store";
 import { getUserLevel, LEVEL_COLOR, LEVEL_LABEL, type UserLevel } from "@/lib/userLevel";
 
 const CATEGORY_LEVEL: Record<string, UserLevel> = {
@@ -245,8 +245,31 @@ const COMPANY_LOGOS: Record<string, string> = {
 export default function LearnPage() {
   const router = useRouter();
   const { isAuthenticated } = useAuthStore();
-  const { streak, completedToday, markTopicCompleted, initStreak } = useLearnStore();
+  const { streak, completedToday, markTopicCompleted, initStreak, claimedMilestones, markMilestoneClaimed } = useLearnStore();
   const { profile } = useProfileStore();
+  const [pendingMilestone, setPendingMilestone] = useState<StreakMilestone | null>(null);
+  const [claiming, setClaiming] = useState(false);
+
+  // Show celebration when a new milestone is reached
+  useEffect(() => {
+    const unclaimed = getUnclaimedMilestones(streak, claimedMilestones);
+    if (unclaimed.length > 0 && !pendingMilestone) setPendingMilestone(unclaimed[0]);
+  }, [streak, claimedMilestones]);
+
+  const handleClaimMilestone = async () => {
+    if (!pendingMilestone) return;
+    setClaiming(true);
+    try {
+      await learnApi.claimMilestone(pendingMilestone.days);
+      markMilestoneClaimed(pendingMilestone.days);
+    } catch {}
+    setClaiming(false);
+    const next = getUnclaimedMilestones(streak, [...claimedMilestones, pendingMilestone.days]);
+    setPendingMilestone(null);
+    if (next.length > 0) setTimeout(() => setPendingMilestone(next[0]), 400);
+  };
+
+  const nextMilestone = getNextMilestone(streak);
   const userLevel = getUserLevel(profile);
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
@@ -324,10 +347,10 @@ export default function LearnPage() {
         {/* Main */}
         <main className="flex-1 flex flex-col overflow-hidden">
           <GuidedSteps currentPage="learn" />
-          {/* Streak banner */}
+          {/* Streak banner + milestone progress */}
           <div className="px-4 pt-3 pb-1 shrink-0">
-            <div className="flex items-center rounded-xl border px-3 py-2.5"
-                 style={{ background: "var(--card)", borderColor: completedToday ? "rgba(34,197,94,0.4)" : "var(--border)" }}>
+            <div className="flex items-center justify-between rounded-xl border px-3 py-2.5"
+                 style={{ background: "var(--card)", borderColor: completedToday ? "rgba(245,158,11,0.4)" : "var(--border)" }}>
               <div className="flex items-center gap-2">
                 <span className="text-xl">{completedToday ? "🔥" : "🌑"}</span>
                 <div>
@@ -339,6 +362,21 @@ export default function LearnPage() {
                   </p>
                 </div>
               </div>
+              {nextMilestone ? (
+                <div className="flex flex-col items-end gap-1">
+                  <span className="text-[10px]" style={{ color: "var(--muted)" }}>
+                    {streak}/{nextMilestone.days}d → {nextMilestone.emoji} {nextMilestone.title}
+                  </span>
+                  <div className="w-24 h-1.5 rounded-full overflow-hidden" style={{ background: "var(--border)" }}>
+                    <div className="h-full rounded-full" style={{
+                      width: `${Math.min(100, (streak / nextMilestone.days) * 100)}%`,
+                      background: "#f59e0b",
+                    }} />
+                  </div>
+                </div>
+              ) : streak > 0 ? (
+                <span className="text-lg">👑</span>
+              ) : null}
             </div>
           </div>
 
@@ -519,7 +557,57 @@ export default function LearnPage() {
         .learn-markdown ul { margin: 8px 0; padding-left: 18px; }
         .learn-markdown li { margin: 4px 0; color: var(--sub); }
         .learn-markdown li::marker { color: var(--accent-l); }
+        @keyframes milestone-pop { from { opacity:0; transform:scale(0.8); } to { opacity:1; transform:scale(1); } }
+        @keyframes milestone-pulse { 0%,100% { transform:scale(1); } 50% { transform:scale(1.08); } }
       `}</style>
+
+      {/* ── Streak Milestone Celebration Modal ─────────────────────────────── */}
+      {pendingMilestone && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.72)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+          <div style={{
+            width: "100%", maxWidth: 380, background: "var(--card)",
+            border: "1.5px solid rgba(245,158,11,0.4)", borderRadius: 28, padding: 32,
+            display: "flex", flexDirection: "column", alignItems: "center", gap: 12,
+            animation: "milestone-pop 0.3s ease",
+          }}>
+            <div style={{ fontSize: 68, animation: "milestone-pulse 1.4s ease-in-out infinite" }}>
+              {pendingMilestone.emoji}
+            </div>
+            <p style={{ fontSize: 13, color: "#f59e0b80", letterSpacing: "0.15em" }}>✨ ✨ ✨</p>
+            <h2 style={{ margin: 0, fontSize: 26, fontWeight: 900, color: "var(--text)", textAlign: "center" }}>
+              {pendingMilestone.title}
+            </h2>
+            <p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: "#f59e0b" }}>
+              {pendingMilestone.days} días de racha
+            </p>
+            <div style={{
+              border: `1px solid ${pendingMilestone.premiumBonus ? "rgba(245,158,11,0.5)" : "rgba(0,212,126,0.4)"}`,
+              background: pendingMilestone.premiumBonus ? "rgba(245,158,11,0.08)" : "rgba(0,212,126,0.08)",
+              borderRadius: 14, padding: "8px 18px",
+            }}>
+              <p style={{ margin: 0, fontSize: 15, fontWeight: 800, textAlign: "center",
+                color: pendingMilestone.premiumBonus ? "#f59e0b" : "#00d47e" }}>
+                🎁 {pendingMilestone.reward}
+              </p>
+            </div>
+            <p style={{ margin: 0, fontSize: 13, color: "var(--muted)", textAlign: "center", lineHeight: 1.55 }}>
+              {pendingMilestone.description}
+            </p>
+            <button
+              onClick={handleClaimMilestone}
+              disabled={claiming}
+              style={{
+                marginTop: 8, width: "100%", padding: "14px", borderRadius: 18, border: "none",
+                background: claiming ? "rgba(245,158,11,0.2)" : "#f59e0b",
+                color: claiming ? "rgba(0,0,0,0.3)" : "#000",
+                fontSize: 15, fontWeight: 900, cursor: claiming ? "not-allowed" : "pointer",
+              }}
+            >
+              {claiming ? "Reclamando..." : "¡Reclamar recompensa!"}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

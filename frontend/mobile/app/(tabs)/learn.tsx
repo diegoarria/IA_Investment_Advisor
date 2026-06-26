@@ -8,8 +8,9 @@ import { Ionicons } from "@expo/vector-icons";
 import Markdown from "react-native-markdown-display";
 import { router, useLocalSearchParams } from "expo-router";
 import { useTheme, Colors } from "../../src/lib/ThemeContext";
-import { chatApi } from "../../src/lib/api";
-import { useLearnStore } from "../../src/lib/learnStore";
+import { chatApi, learnApi } from "../../src/lib/api";
+import { useLearnStore, getNextMilestone, getUnclaimedMilestones } from "../../src/lib/learnStore";
+import StreakMilestoneModal from "../../src/components/StreakMilestoneModal";
 
 // ─── Data ──────────────────────────────────────────────────────────────────
 
@@ -242,8 +243,35 @@ export default function LearnScreen() {
   const s = useMemo(() => makeStyles(colors), [colors]);
   const markdownStyles = useMemo(() => makeMarkdownStyles(colors), [colors]);
 
-  const { streak, completedToday, markTopicCompleted, initStreak } = useLearnStore();
+  const { streak, completedToday, markTopicCompleted, initStreak, claimedMilestones, markMilestoneClaimed } = useLearnStore();
   useEffect(() => { initStreak(); }, []);
+
+  const [pendingMilestone, setPendingMilestone] = useState<ReturnType<typeof getNextMilestone>>(null);
+  const [claiming, setClaiming] = useState(false);
+
+  // Check for newly reached milestones every time streak changes
+  useEffect(() => {
+    const unclaimed = getUnclaimedMilestones(streak, claimedMilestones);
+    if (unclaimed.length > 0 && !pendingMilestone) {
+      setPendingMilestone(unclaimed[0]);
+    }
+  }, [streak, claimedMilestones]);
+
+  const handleClaimMilestone = async () => {
+    if (!pendingMilestone) return;
+    setClaiming(true);
+    try {
+      await learnApi.claimMilestone(pendingMilestone.days);
+      markMilestoneClaimed(pendingMilestone.days);
+    } catch {}
+    setClaiming(false);
+    setPendingMilestone(null);
+    // Show next unclaimed if any
+    const remaining = getUnclaimedMilestones(streak, [...claimedMilestones, pendingMilestone.days]);
+    if (remaining.length > 0) setTimeout(() => setPendingMilestone(remaining[0]), 400);
+  };
+
+  const nextMilestone = getNextMilestone(streak);
 
 const { topicId } = useLocalSearchParams<{ topicId?: string }>();
 
@@ -305,17 +333,38 @@ const { topicId } = useLocalSearchParams<{ topicId?: string }>();
       {/* ── Aprender content ── */}
       <View style={{ flex: 1 }}>
 
-      {/* Streak banner — simple, games moved to Arena tab */}
-      <View style={[s.streakBanner, { backgroundColor: colors.card, borderColor: completedToday ? "#22c55e44" : colors.border }]}>
-        <Text style={s.streakFire}>{completedToday ? "🔥" : "🌑"}</Text>
-        <View>
-          <Text style={[s.streakNum, { color: completedToday ? "#f59e0b" : colors.textMuted }]}>
-            {streak} {streak === 1 ? "día" : "días"} de racha
-          </Text>
-          <Text style={[s.streakSub, { color: colors.textDim }]}>
-            {completedToday ? "¡Racha activa hoy!" : "Lee un tema para mantener tu racha"}
-          </Text>
+      {/* Streak banner + milestone progress */}
+      <View style={[s.streakBanner, { backgroundColor: colors.card, borderColor: completedToday ? "#f59e0b44" : colors.border }]}>
+        <View style={s.streakLeft}>
+          <Text style={s.streakFire}>{completedToday ? "🔥" : "🌑"}</Text>
+          <View>
+            <Text style={[s.streakNum, { color: completedToday ? "#f59e0b" : colors.textMuted }]}>
+              {streak} {streak === 1 ? "día" : "días"} de racha
+            </Text>
+            <Text style={[s.streakSub, { color: colors.textDim }]}>
+              {completedToday ? "¡Racha activa hoy!" : "Lee un tema para mantener tu racha"}
+            </Text>
+          </View>
         </View>
+        {nextMilestone && (
+          <View style={{ alignItems: "flex-end", gap: 3 }}>
+            <Text style={{ fontSize: 11, color: colors.textMuted }}>
+              {streak}/{nextMilestone.days}d → {nextMilestone.emoji}
+            </Text>
+            <View style={{ width: 80, height: 5, borderRadius: 3, backgroundColor: colors.border, overflow: "hidden" }}>
+              <View style={{
+                height: "100%",
+                borderRadius: 3,
+                backgroundColor: "#f59e0b",
+                width: `${Math.min(100, (streak / nextMilestone.days) * 100)}%`,
+              }} />
+            </View>
+            <Text style={{ fontSize: 10, color: colors.textDim }}>{nextMilestone.title}</Text>
+          </View>
+        )}
+        {!nextMilestone && streak > 0 && (
+          <Text style={{ fontSize: 20 }}>👑</Text>
+        )}
       </View>
 
       {/* Barra de búsqueda */}
@@ -492,6 +541,13 @@ const { topicId } = useLocalSearchParams<{ topicId?: string }>();
       </Modal>
 
       </View>
+
+      {/* Milestone celebration */}
+      <StreakMilestoneModal
+        milestone={pendingMilestone ?? null}
+        onClaim={handleClaimMilestone}
+        claiming={claiming}
+      />
 
     </SafeAreaView>
   );

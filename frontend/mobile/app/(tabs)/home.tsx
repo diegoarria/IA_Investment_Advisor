@@ -10,9 +10,10 @@ import { Ionicons } from "@expo/vector-icons";
 import { router, useFocusEffect } from "expo-router";
 import { useTheme } from "../../src/lib/ThemeContext";
 import { useAppStore } from "../../src/lib/profileStore";
-import { profileApi, syncApi, billingApi, feedbackApi } from "../../src/lib/api";
+import { profileApi, syncApi, billingApi, feedbackApi, learnApi } from "../../src/lib/api";
 import { usePortfolioStore } from "../../src/lib/portfolioStore";
-import { useLearnStore } from "../../src/lib/learnStore";
+import { useLearnStore, getUnclaimedMilestones, type StreakMilestone } from "../../src/lib/learnStore";
+import StreakMilestoneModal from "../../src/components/StreakMilestoneModal";
 import { useSubscriptionStore } from "../../src/lib/subscriptionStore";
 import { hasPremiumAccess } from "../../src/lib/subscriptionStore";
 import { marketApi, notificationsApi } from "../../src/lib/api";
@@ -336,8 +337,13 @@ export default function HomeScreen() {
   const profile    = useAppStore((s) => s.profile);
   const setProfile = useAppStore((s) => s.setProfile);
   const maturity   = useAppStore((s) => s.maturityScore);
-  const streak         = useLearnStore((s) => s.streak);
-  const completedToday = useLearnStore((s) => s.completedToday);
+  const streak              = useLearnStore((s) => s.streak);
+  const completedToday      = useLearnStore((s) => s.completedToday);
+  const claimedMilestones   = useLearnStore((s) => s.claimedMilestones);
+  const setClaimedMilestones = useLearnStore((s) => s.setClaimedMilestones);
+  const markMilestoneClaimed = useLearnStore((s) => s.markMilestoneClaimed);
+  const [pendingMilestone, setPendingMilestone] = React.useState<StreakMilestone | null>(null);
+  const [claimingMilestone, setClaimingMilestone] = React.useState(false);
   const { positions, portfolioCurrency } = usePortfolioStore();
   const hasChatted = useChatStore((s) => s.sessions.some((sess) => sess.messages.length > 0));
   const watchlistItems = useWatchlistStore((s) => s.items);
@@ -638,13 +644,21 @@ export default function HomeScreen() {
       }
     } catch {}
 
-    // Check duo plan setup pending (only on first load, not silent refresh)
+    // Check duo plan setup pending + sync claimed milestones (only on first load, not silent refresh)
     if (!silent) {
       billingApi.getStatus().then(async (res: any) => {
         if (res?.data?.duo_setup_pending) {
           const { data: { user } } = await supabase.auth.getUser();
           if (user?.email) setDuoMyEmail(user.email);
           setShowDuoModal(true);
+        }
+        // Sync claimed milestones from server and show celebration for any unclaimed
+        const serverClaimed: number[] = res?.data?.claimed_streak_milestones ?? [];
+        setClaimedMilestones(serverClaimed);
+        const currentStreak = useLearnStore.getState().streak;
+        const unclaimed = getUnclaimedMilestones(currentStreak, serverClaimed);
+        if (unclaimed.length > 0) {
+          setTimeout(() => setPendingMilestone(unclaimed[0]), 1200);
         }
       }).catch(() => {});
 
@@ -1880,6 +1894,26 @@ export default function HomeScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* ── Streak Milestone Celebration ─────────────────────── */}
+      <StreakMilestoneModal
+        milestone={pendingMilestone}
+        claiming={claimingMilestone}
+        onClaim={async () => {
+          if (!pendingMilestone) return;
+          setClaimingMilestone(true);
+          try {
+            await learnApi.claimMilestone(pendingMilestone.days);
+            markMilestoneClaimed(pendingMilestone.days);
+          } catch {}
+          setClaimingMilestone(false);
+          setPendingMilestone(null);
+          // Show next unclaimed if any
+          const updated = [...claimedMilestones, pendingMilestone.days];
+          const remaining = getUnclaimedMilestones(streak, updated);
+          if (remaining.length > 0) setTimeout(() => setPendingMilestone(remaining[0]), 400);
+        }}
+      />
 
       {/* ── Feedback Modal ─────────────────────────────────────── */}
       <Modal

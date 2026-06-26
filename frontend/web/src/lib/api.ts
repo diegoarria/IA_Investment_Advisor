@@ -233,6 +233,8 @@ export const learn = {
     api.post("/api/learn/scenario/result", { scenario_id: scenarioId, choice, difficulty }),
   syncStreak: (streak: number, lastLearnDate: string) =>
     api.post("/api/learn/streak/sync", { streak, last_learn_date: lastLearnDate }),
+  claimMilestone: (days: number) =>
+    api.post("/api/learn/streak/milestone-claim", { days }),
   getHallOfFame: () => api.get("/api/learn/hall-of-fame"),
 };
 
