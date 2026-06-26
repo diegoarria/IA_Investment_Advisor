@@ -193,26 +193,26 @@ def _enrich_message(message: str) -> str:
 @router.post("/stream")
 @limiter.limit("20/minute")
 async def chat_stream(
-    req: Request,
-    request: ChatRequest,
+    request: Request,
+    body: ChatRequest,
     user_id: str = Depends(get_current_user_id)
 ):
-    has_images = bool(request.images or request.image_data)
+    has_images = bool(body.images or body.image_data)
 
     # Normalize: merge legacy single-image into the images list
-    images = [{"data": img.data, "type": img.type} for img in request.images] if request.images else None
-    if not images and request.image_data:
-        images = [{"data": request.image_data, "type": request.image_type or "image/jpeg"}]
+    images = [{"data": img.data, "type": img.type} for img in body.images] if body.images else None
+    if not images and body.image_data:
+        images = [{"data": body.image_data, "type": body.image_type or "image/jpeg"}]
 
     # Run all pre-AI work in parallel; cap market enrichment at 1s so it never blocks
     async def _safe_enrich():
         try:
             return await asyncio.wait_for(
-                asyncio.to_thread(_enrich_message, request.message),
+                asyncio.to_thread(_enrich_message, body.message),
                 timeout=1.0,
             )
         except Exception:
-            return request.message
+            return body.message
 
     if has_images:
         profile, memory, deep_ctx = await asyncio.gather(
@@ -220,7 +220,7 @@ async def chat_stream(
             _get_memory_context(user_id),
             _get_mentor_deep_context(user_id),
         )
-        enriched = request.message
+        enriched = body.message
     else:
         profile, memory, deep_ctx, enriched = await asyncio.gather(
             _get_user_profile(user_id),
@@ -232,12 +232,12 @@ async def chat_stream(
     async def generate():
         async for chunk in ai_service.chat_stream(
             message=enriched,
-            conversation_history=request.conversation_history,
+            conversation_history=body.conversation_history,
             profile=profile,
-            mentor=request.mentor,
+            mentor=body.mentor,
             images=images,
             memory_context=memory,
-            notification_context=request.notification_context,
+            notification_context=body.notification_context,
             deep_context=deep_ctx,
         ):
             yield chunk
@@ -333,12 +333,12 @@ async def transcribe_audio(
 @router.post("/speak")
 @limiter.limit("30/minute")
 async def speak_text(
-    req: Request,
-    request: dict,
+    request: Request,
+    body: dict,
     user_id: str = Depends(get_current_user_id),
 ):
     """Convert text to speech. Uses ElevenLabs if configured, else OpenAI TTS."""
-    text = (request.get("text") or "").strip()[:2000]
+    text = (body.get("text") or "").strip()[:2000]
     if not text:
         raise HTTPException(status_code=400, detail="text requerido")
 

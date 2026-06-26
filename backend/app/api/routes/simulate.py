@@ -13,13 +13,13 @@ router = APIRouter(prefix="/simulate", tags=["simulate"])
 @router.post("")
 @limiter.limit("10/minute")
 async def whatif_simulate(
-    req: Request,
-    request: dict,
+    request: Request,
+    body: dict,
     user_id: str = Depends(get_current_user_id),
 ):
-    scenario_type   = request.get("scenario_type", "custom")
-    scenario_params = request.get("scenario_params", {})
-    portfolio       = request.get("portfolio", [])
+    scenario_type   = body.get("scenario_type", "custom")
+    scenario_params = body.get("scenario_params", {})
+    portfolio       = body.get("portfolio", [])
 
     if not portfolio:
         return {"error": "Se requiere el portafolio actual para simular."}
@@ -32,8 +32,8 @@ async def whatif_simulate(
 @router.post("/analyze-portfolio")
 @limiter.limit("20/minute")
 async def analyze_portfolio(
-    req: Request,
-    request: dict,
+    request: Request,
+    body: dict,
     user_id: str = Depends(get_current_user_id),
 ):
     """
@@ -41,7 +41,7 @@ async def analyze_portfolio(
     Body: { positions: [{ ticker, shares, avg_price, name?, current_price? }] }
     """
     try:
-        positions = request.get("positions", [])
+        positions = body.get("positions", [])
         if not positions:
             return {"error": "No hay posiciones para analizar."}
 

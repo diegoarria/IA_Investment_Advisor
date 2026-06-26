@@ -73,12 +73,12 @@ def _compute_performance(portfolio: list[dict]) -> dict:
 @router.post("/monthly")
 @limiter.limit("5/hour")
 async def generate_monthly_report(
-    req: Request,
-    request: dict,
+    request: Request,
+    body: dict,
     user_id: str = Depends(get_current_user_id),
 ):
     """Generate a monthly portfolio report with AI narrative."""
-    portfolio = request.get("portfolio", [])
+    portfolio = body.get("portfolio", [])
     if not portfolio:
         return {"error": "Se requiere el portafolio para generar el reporte."}
 
