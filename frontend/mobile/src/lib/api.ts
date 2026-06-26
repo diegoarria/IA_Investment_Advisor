@@ -2,6 +2,11 @@ import axios from "axios";
 import * as SecureStore from "expo-secure-store";
 import { router } from "expo-router";
 
+// Global network error handler — registered by NetworkToast in _layout
+let _networkErrorHandler: ((offline: boolean) => void) | null = null;
+export function setNetworkErrorHandler(cb: (offline: boolean) => void) { _networkErrorHandler = cb; }
+export function clearNetworkErrorHandler() { _networkErrorHandler = null; }
+
 const BASE_URL =
   process.env.EXPO_PUBLIC_API_URL || "https://iainvestmentadvisor-production.up.railway.app";
 
@@ -28,7 +33,18 @@ api.interceptors.response.use(
   (res) => res,
   async (error) => {
     const original = error.config;
-    if (error.response?.status !== 401 || original._retry) return Promise.reject(error);
+
+    // Fire global network error toast for connectivity/server issues
+    const status = error.response?.status;
+    const isNetworkErr = !error.response;
+    const isServerErr = status && status >= 500;
+    if ((isNetworkErr || isServerErr) && _networkErrorHandler) {
+      // expo-network not imported to keep this file light — use axios code hint
+      const offline = error.code === "ERR_NETWORK" || error.message === "Network Error";
+      _networkErrorHandler(offline);
+    }
+
+    if (status !== 401 || original._retry) return Promise.reject(error);
 
     if (isRefreshing) {
       return new Promise((resolve, reject) => {
