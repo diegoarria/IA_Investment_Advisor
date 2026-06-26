@@ -860,46 +860,23 @@ async def job_market_close():
             is_premium    = p.get("is_premium", False)
 
             if is_premium and has_portfolio:
-                # Premium: personalized push + email with portfolio data
+                # Premium: personalized push only (email goes out Fridays via job_daily_email)
                 user_pct, total_curr, top_gainers, top_losers = _calc_portfolio_close_data(
                     portfolio_map[uid], prices
                 )
-                if user_pct is not None:
-                    beating    = sp500_pct is not None and user_pct > sp500_pct
-                    push_title = "🏆 Superaste al mercado hoy" if beating else "📊 El mercado ha cerrado"
-                    push_body  = (
-                        f"Tu portafolio: {user_pct:+.2f}% · {indices}\n\n"
-                        + ("¡Enhorabuena! Hoy superaste al mercado." if beating
-                           else "El mercado tuvo mejor desempeño hoy. Mañana es otra oportunidad.")
-                    )
-                    sign    = "+" if user_pct >= 0 else ""
-                    subject = f"Tu portafolio hoy: {sign}{user_pct:.2f}% — Nuvos AI"
-                else:
-                    push_title = "📊 El mercado ha cerrado"
-                    push_body  = indices
-                    subject    = "El mercado ha cerrado — Nuvos AI"
-
                 if uid in push_capable:
+                    if user_pct is not None:
+                        beating    = sp500_pct is not None and user_pct > sp500_pct
+                        push_title = "🏆 Superaste al mercado hoy" if beating else "📊 El mercado ha cerrado"
+                        push_body  = (
+                            f"Tu portafolio: {user_pct:+.2f}% · {indices}"
+                            + (" ¡Lo superaste!" if beating else " Mañana es otra oportunidad.")
+                        )
+                    else:
+                        push_title = "📊 El mercado ha cerrado"
+                        push_body  = indices
                     await send_push(uid, "market_close", push_title, push_body, {"screen": "portfolio"}, db)
                     sent_push += 1
-
-                try:
-                    html = daily_email_v2(
-                        first_name=first,
-                        port_pct=user_pct,
-                        port_usd=total_curr,
-                        sp_pct=sp500_pct,
-                        sp_px=sp_px,
-                        nq_pct=nasdaq_pct,
-                        nq_px=nq_px,
-                        top_gainers=(top_gainers or [])[:3],
-                        top_losers=(top_losers or [])[:3],
-                        ai_summary=None,
-                    )
-                    await send_email_notification(uid, "market_close", subject, html, db)
-                    sent_email += 1
-                except Exception as email_err:
-                    logger.warning("market_close email failed for %s: %s", uid[:8], email_err)
 
             elif uid in push_capable:
                 # Free: generic push only, no portfolio data, subtle upgrade nudge
@@ -1039,27 +1016,28 @@ async def job_daily_email():
         sp_px  = spy_q["curr"] if spy_q else None
         nq_px  = qqq_q["curr"] if qqq_q else None
 
-        # ── 2. All users with portfolio data, excluding explicit opt-outs ────────
+        # ── 2. All users, excluding explicit opt-outs ─────────────────────────
         prefs_res = await run_query(
             db.table("notification_preferences").select("user_id,email_daily_summary")
         )
         disabled = {p["user_id"] for p in (prefs_res.data or []) if p.get("email_daily_summary") is False}
 
-        port_uid_res = await run_query(db.table("user_portfolio").select("user_id"))
-        opted_ids = [r["user_id"] for r in (port_uid_res.data or []) if r["user_id"] not in disabled]
+        profiles_res = await run_query(
+            db.table("user_profiles").select("user_id,name,subscription_tier")
+        )
+        all_profile_data = [r for r in (profiles_res.data or []) if r["user_id"] not in disabled]
+        opted_ids = [r["user_id"] for r in all_profile_data]
         if not opted_ids:
             return
 
-        # ── 3. First names in one query ───────────────────────────────────────
-        profiles_res = await run_query(
-            db.table("user_profiles").select("user_id,name").in_("user_id", opted_ids)
-        )
-        name_map = {r["user_id"]: r.get("name") or "Inversor" for r in (profiles_res.data or [])}
+        name_map = {r["user_id"]: r.get("name") or "Inversor" for r in all_profile_data}
+        tier_map = {r["user_id"]: (r.get("subscription_tier") or "free") for r in all_profile_data}
 
-        # ── 4. All portfolios (no premium gate) ───────────────────────────────
+        # ── 4. Portfolios — premium users only ────────────────────────────────
+        premium_uids = {uid for uid in opted_ids if tier_map.get(uid) == "premium"}
         portfolio_map: dict[str, list] = {}
         all_tickers: set[str] = set()
-        for uid in opted_ids:
+        for uid in premium_uids:
             port_res = await run_query(
                 db.table("user_portfolio").select("positions").eq("user_id", uid)
             )
@@ -1127,92 +1105,142 @@ async def job_daily_email():
             earnings_ai_map = {}
 
         # ── 10. Build and send per-user email ─────────────────────────────────
+        from datetime import datetime as _dt
+        week_label = _dt.now().strftime("semana del %d de %B")
+        sp_str = f"{sp_pct:+.1f}%" if sp_pct is not None else "—"
+        nq_str = f"{nq_pct:+.1f}%" if nq_pct is not None else "—"
+
         sent = 0
         for i, uid in enumerate(opted_ids):
             if i % 100 == 0 and i > 0:
                 await asyncio.sleep(12)
             await asyncio.sleep(random.uniform(0, 0.1))
 
-            first     = name_map.get(uid, "Inversor").split()[0]
-            positions = portfolio_map.get(uid, [])
-            watchlist = watch_by_uid.get(uid, set())
+            first      = name_map.get(uid, "Inversor").split()[0]
+            is_premium = tier_map.get(uid) == "premium"
+            positions  = portfolio_map.get(uid, [])
+            watchlist  = watch_by_uid.get(uid, set())
 
-            # Enriched positions
-            enriched: list[dict] = []
-            total_val  = 0.0
-            total_prev = 0.0
-            for p in positions:
-                ticker = p.get("ticker")
-                shares = float(p.get("shares") or 0)
-                if not ticker or not shares or ticker not in day_prices:
-                    continue
-                px    = day_prices[ticker]
-                cv    = px["curr"] * shares
-                pv    = px["prev"] * shares
-                pct   = (px["curr"] - px["prev"]) / px["prev"] * 100 if px["prev"] else 0.0
-                d_usd = cv - pv
-                total_val  += cv
-                total_prev += pv
-                enriched.append({
-                    "ticker":        ticker,
-                    "pct":           round(pct, 2),
-                    "dollar_change": round(d_usd, 2),
-                    "total_value":   round(cv, 2),
-                })
+            if is_premium and positions:
+                # ── Premium: personalized portfolio summary ────────────────────
+                enriched: list[dict] = []
+                total_val  = 0.0
+                total_prev = 0.0
+                for p in positions:
+                    ticker = p.get("ticker")
+                    shares = float(p.get("shares") or 0)
+                    if not ticker or not shares or ticker not in day_prices:
+                        continue
+                    px    = day_prices[ticker]
+                    cv    = px["curr"] * shares
+                    pv    = px["prev"] * shares
+                    pct   = (px["curr"] - px["prev"]) / px["prev"] * 100 if px["prev"] else 0.0
+                    d_usd = cv - pv
+                    total_val  += cv
+                    total_prev += pv
+                    enriched.append({
+                        "ticker":        ticker,
+                        "pct":           round(pct, 2),
+                        "dollar_change": round(d_usd, 2),
+                        "total_value":   round(cv, 2),
+                    })
 
-            port_pct = round((total_val - total_prev) / total_prev * 100, 2) if total_prev > 0 else None
-            port_usd = round(total_val - total_prev, 2) if total_prev > 0 else None
+                port_pct = round((total_val - total_prev) / total_prev * 100, 2) if total_prev > 0 else None
+                port_usd = round(total_val - total_prev, 2) if total_prev > 0 else None
 
-            sorted_pos  = sorted(enriched, key=lambda x: x["pct"], reverse=True)
-            top_gainers = sorted_pos[:3]
-            top_losers  = list(reversed(sorted_pos))[:3]
+                sorted_pos  = sorted(enriched, key=lambda x: x["pct"], reverse=True)
+                top_gainers = sorted_pos[:3]
+                top_losers  = list(reversed(sorted_pos))[:3]
 
-            # Earnings items: portfolio tickers + watchlist tickers that reported today
-            port_tickers = {p["ticker"] for p in positions if p.get("ticker")}
-            relevant_earnings = (port_tickers | watchlist) & set(all_today_earnings.keys())
-            earnings_items: list[dict] = []
-            for t in sorted(relevant_earnings):
-                e = all_today_earnings[t]
-                earnings_items.append({
-                    "ticker":         t,
-                    "company_name":   t,
-                    "eps_actual":     e.get("eps_actual"),
-                    "eps_estimate":   e.get("eps_estimate"),
-                    "beat_eps":       e.get("beat_eps", False),
-                    "rev_actual_b":   e.get("rev_actual_b"),
-                    "rev_estimate_b": e.get("rev_estimate_b"),
-                    "beat_rev":       e.get("beat_rev", False),
-                    "hour":           e.get("hour", ""),
-                    "ai_analysis":    earnings_ai_map.get(t, ""),
-                })
+                port_tickers = {p["ticker"] for p in positions if p.get("ticker")}
+                relevant_earnings = (port_tickers | watchlist) & set(all_today_earnings.keys())
+                earnings_items: list[dict] = []
+                for t in sorted(relevant_earnings):
+                    e = all_today_earnings[t]
+                    earnings_items.append({
+                        "ticker":         t,
+                        "company_name":   t,
+                        "eps_actual":     e.get("eps_actual"),
+                        "eps_estimate":   e.get("eps_estimate"),
+                        "beat_eps":       e.get("beat_eps", False),
+                        "rev_actual_b":   e.get("rev_actual_b"),
+                        "rev_estimate_b": e.get("rev_estimate_b"),
+                        "beat_rev":       e.get("beat_rev", False),
+                        "hour":           e.get("hour", ""),
+                        "ai_analysis":    earnings_ai_map.get(t, ""),
+                    })
 
-            html = daily_email_v2(
-                first_name=first,
-                port_pct=port_pct,
-                port_usd=port_usd,
-                sp_pct=sp_pct,
-                sp_px=sp_px,
-                nq_pct=nq_pct,
-                nq_px=nq_px,
-                top_gainers=top_gainers,
-                top_losers=top_losers,
-                ai_summary="",
-                market_wrap=market_wrap,
-                earnings_items=earnings_items,
-            )
+                html = daily_email_v2(
+                    first_name=first,
+                    port_pct=port_pct,
+                    port_usd=port_usd,
+                    sp_pct=sp_pct,
+                    sp_px=sp_px,
+                    nq_pct=nq_pct,
+                    nq_px=nq_px,
+                    top_gainers=top_gainers,
+                    top_losers=top_losers,
+                    ai_summary="",
+                    market_wrap=market_wrap,
+                    earnings_items=earnings_items,
+                )
+                sign    = "+" if port_pct and port_pct >= 0 else ""
+                subject = (
+                    f"Tu portafolio esta semana: {sign}{port_pct:.2f}% — Nuvos AI"
+                    if port_pct is not None
+                    else "Tu resumen semanal del mercado — Nuvos AI"
+                )
+            else:
+                # ── Free: general market summary for the week ──────────────────
+                market_body = f"<p style='margin:0 0 16px;font-size:15px;color:#444;line-height:1.7;'>{market_wrap}</p>" if market_wrap else ""
+                html = f"""<!DOCTYPE html><html><head><meta charset="utf-8"></head>
+<body style="margin:0;padding:0;background:#f4f6ff;font-family:'Helvetica Neue',Arial,sans-serif;">
+<div style="max-width:560px;margin:32px auto;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(108,99,255,0.08);">
+  <div style="background:linear-gradient(135deg,#6c63ff,#4f46e5);padding:32px 36px;">
+    <p style="margin:0;font-size:13px;color:rgba(255,255,255,0.75);letter-spacing:1px;text-transform:uppercase;">Resumen Semanal</p>
+    <h1 style="margin:8px 0 0;font-size:24px;font-weight:800;color:#fff;">Lo que pasó en el mercado esta semana</h1>
+  </div>
+  <div style="padding:32px 36px;">
+    <p style="margin:0 0 20px;font-size:16px;color:#333;">¡Hola <strong>{first}</strong>! Aquí está el resumen de la {week_label}:</p>
+    <table style="width:100%;border-collapse:collapse;margin-bottom:24px;">
+      <tr>
+        <td style="padding:14px;background:#f8f7ff;border-radius:10px 0 0 10px;text-align:center;">
+          <p style="margin:0;font-size:12px;color:#888;text-transform:uppercase;letter-spacing:1px;">S&P 500</p>
+          <p style="margin:4px 0 0;font-size:22px;font-weight:800;color:{'#16a34a' if sp_pct and sp_pct >= 0 else '#dc2626'};">{sp_str}</p>
+        </td>
+        <td style="width:8px;"></td>
+        <td style="padding:14px;background:#f8f7ff;border-radius:0 10px 10px 0;text-align:center;">
+          <p style="margin:0;font-size:12px;color:#888;text-transform:uppercase;letter-spacing:1px;">Nasdaq</p>
+          <p style="margin:4px 0 0;font-size:22px;font-weight:800;color:{'#16a34a' if nq_pct and nq_pct >= 0 else '#dc2626'};">{nq_str}</p>
+        </td>
+      </tr>
+    </table>
+    {market_body}
+    <div style="padding:20px;background:#f8f7ff;border-radius:12px;border-left:4px solid #6c63ff;margin-bottom:24px;">
+      <p style="margin:0;font-size:14px;color:#555;line-height:1.6;">
+        💡 <strong>¿Sabes cuánto rindió tu portafolio esta semana?</strong><br>
+        Con Premium puedes ver el rendimiento exacto de tus inversiones, recibir alertas cuando algo se mueve ±3.5%, y hablar con tu mentor IA para analizar cualquier acción.
+      </p>
+    </div>
+    <div style="text-align:center;">
+      <a href="https://nuvosai.com/profile" style="display:inline-block;background:#6c63ff;color:#fff;padding:14px 32px;border-radius:50px;font-size:15px;font-weight:700;text-decoration:none;">Activar Premium →</a>
+    </div>
+  </div>
+  <div style="padding:20px 36px;background:#f9f9fb;border-top:1px solid #eee;text-align:center;">
+    <p style="margin:0;font-size:12px;color:#aaa;">Nuvos AI · Tu mentor de inversiones · <a href="https://nuvosai.com" style="color:#6c63ff;text-decoration:none;">nuvosai.com</a></p>
+  </div>
+</div>
+</body></html>"""
+                subject = f"📊 El mercado esta semana: S&P 500 {sp_str}, Nasdaq {nq_str} — Nuvos AI"
 
-            sign    = "+" if port_pct and port_pct >= 0 else ""
-            subject = (
-                f"Tu portafolio hoy: {sign}{port_pct:.2f}% — Nuvos AI"
-                if port_pct is not None
-                else "Tu resumen diario del mercado — Nuvos AI"
-            )
-            await send_email_notification(uid, "daily_summary", subject, html, db)
+            await send_email_notification(uid, "weekly_summary", subject, html, db)
             sent += 1
 
         logger.info(
-            "Daily email: %d sent | wrap=%s | earnings=%d tickers | S&P %s | NQ %s",
-            sent, bool(market_wrap), len(earning_tickers), sp_pct, nq_pct,
+            "Friday email: %d sent (%d premium, %d free) | S&P %s | NQ %s",
+            sent, len([u for u in opted_ids if tier_map.get(u) == "premium"]),
+            len([u for u in opted_ids if tier_map.get(u) != "premium"]),
+            sp_pct, nq_pct,
         )
     except Exception as e:
         logger.error("job_daily_email failed: %s", e)
