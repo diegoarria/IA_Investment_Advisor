@@ -297,7 +297,7 @@ async def check_portfolio_alerts(user_id: str, positions: list, db) -> list[dict
                 if not q or not q.get("price"):
                     continue
                 pct = q["change_pct"]
-                if abs(pct) >= 3.0:
+                if abs(pct) >= 3.5:
                     alerts.append({
                         "ticker":     ticker,
                         "change_pct": pct,

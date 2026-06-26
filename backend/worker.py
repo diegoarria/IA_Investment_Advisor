@@ -1331,14 +1331,14 @@ async def job_portfolio_alerts():
             logger.warning("Portfolio alerts: price fetch returned empty")
             return
 
-        # 4. Filter tickers that moved ≥2% vs yesterday's close
+        # 4. Filter tickers that moved ≥3.5% vs yesterday's close
         movers: dict[str, float] = {}
         for ticker, px in prices.items():
             pct = round((px["curr"] - px["prev"]) / px["prev"] * 100, 2)
-            if abs(pct) >= 2.0:
+            if abs(pct) >= 3.5:
                 movers[ticker] = pct
 
-        logger.info("Portfolio alerts: %d movers ≥2%%: %s",
+        logger.info("Portfolio alerts: %d movers ≥3.5%%: %s",
                     len(movers), {t: f"{p:+.1f}%" for t, p in movers.items()})
         if not movers:
             return
@@ -3258,12 +3258,10 @@ async def main():
 
     # ── Core market jobs ──────────────────────────────────────────────────────
     scheduler.add_job(run_notifications,        "cron", day_of_week="mon-fri", hour="9,16",  minute=0,     timezone="America/New_York")
-    scheduler.add_job(run_league_notifications, "interval", hours=2)
     scheduler.add_job(job_market_open,          "cron", day_of_week="mon-fri", hour=9,       minute=30,    timezone="America/New_York")
-    scheduler.add_job(job_market_open_reminder, "cron", day_of_week="mon-fri", hour=11,      minute=30,    timezone="America/New_York")
     scheduler.add_job(job_market_close,         "cron", day_of_week="mon-fri", hour=16,      minute=0,     timezone="America/New_York")
 
-    # ── Portfolio snapshots: 5 min after open, then every 2 h ────────────────
+    # ── Portfolio snapshots ───────────────────────────────────────────────────
     scheduler.add_job(lambda: asyncio.create_task(job_portfolio_snapshot("opening")),   "cron", day_of_week="mon-fri", hour=9,  minute=35, timezone="America/New_York")
     scheduler.add_job(lambda: asyncio.create_task(job_portfolio_snapshot("midday")),    "cron", day_of_week="mon-fri", hour=11, minute=35, timezone="America/New_York")
     scheduler.add_job(lambda: asyncio.create_task(job_portfolio_snapshot("afternoon")), "cron", day_of_week="mon-fri", hour=13, minute=35, timezone="America/New_York")
@@ -3276,35 +3274,17 @@ async def main():
 
     # ── Weekly jobs ───────────────────────────────────────────────────────────
     scheduler.add_job(job_weekly_summary_push,  "cron", day_of_week="sat",     hour=9,       minute=30,    timezone="America/New_York")
-    scheduler.add_job(job_social_proof_push,    "cron", day_of_week="sat",     hour=15,      minute=0,     timezone="America/New_York")
-    scheduler.add_job(job_diversification_push, "cron", day_of_week="sat",     hour=11,      minute=0,     timezone="America/New_York")
-    scheduler.add_job(job_risk_mgmt_push,       "cron", day_of_week="fri",     hour=15,      minute=0,     timezone="America/New_York")
-
-    # ── M/W/F education push ──────────────────────────────────────────────────
-    scheduler.add_job(job_education_push,       "cron", day_of_week="mon,wed,fri", hour=14,  minute=0,     timezone="America/New_York")
-
-    # ── Daily re-engagement push ──────────────────────────────────────────────
-    scheduler.add_job(job_reengagement_push,    "cron", hour=11,               minute=0,                   timezone="America/New_York")
 
     # ── Monthly jobs ──────────────────────────────────────────────────────────
     scheduler.add_job(job_monthly_report_push,  "cron", day=1,                 hour=9,       minute=0,     timezone="America/New_York")
     scheduler.add_job(send_monthly_reports,     "cron", day=1,                 hour=9,       minute=0,     timezone="America/New_York")
 
-    # ── Opportunity Detection push ────────────────────────────────────────────
-    scheduler.add_job(job_opportunity_push,        "cron", day_of_week="wed,fri", hour=13,   minute=0,     timezone="America/New_York")
-
     # ── Email jobs ────────────────────────────────────────────────────────────
     scheduler.add_job(send_enhanced_weekly_emails, "cron", day_of_week="sat",  hour=10,      minute=0,     timezone="America/New_York")
-    scheduler.add_job(send_reengagement_emails,    "cron", day_of_week="sat",  hour=12,      minute=0,     timezone="America/New_York")
     scheduler.add_job(send_birthday_emails,        "cron",                     hour=8,       minute=0,     timezone="America/New_York")
-    scheduler.add_job(send_educational_emails,     "cron",                     hour=9,       minute=0,     timezone="America/New_York")
 
     # ── Annual ScoreBoard — 5 Dec every year ─────────────────────────────────
     scheduler.add_job(job_annual_scoreboard,    "cron", month=12, day=5, hour=9, minute=0, timezone="America/New_York")
-
-    # ── Action follow-up + mentor nudge (basic/intermediate only) ────────────
-    scheduler.add_job(job_action_followup,      "interval", hours=4)
-    scheduler.add_job(job_mentor_nudge,         "cron",     hour=15, minute=0, timezone="America/New_York")
 
     # ── Cleanup ───────────────────────────────────────────────────────────────
     scheduler.add_job(job_cleanup_analytics,    "interval", hours=1)
