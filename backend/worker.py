@@ -406,11 +406,14 @@ async def run_notifications():
 
 
 async def send_monthly_reports():
-    """Generate and email monthly portfolio report to all premium users — 1st of each month."""
+    """Email monthly report — 1st of each month.
+    Premium: full AI portfolio analysis. Free: general market summary + upgrade CTA."""
     if not settings.resend_api_key:
         logger.info("RESEND_API_KEY not set — skipping monthly reports")
         return
     from app.core.database import get_supabase, run_query
+    from app.services.email_service import send_email
+    from datetime import datetime, timezone
     db = get_supabase()
     try:
         users_res = await run_query(
@@ -418,25 +421,63 @@ async def send_monthly_reports():
         )
         users = users_res.data
         auth_users = {u.id: u.email for u in await asyncio.to_thread(lambda: db.auth.admin.list_users())}
+        month_name = datetime.now(timezone.utc).strftime("%B %Y")
         sent = errors = skipped = 0
         for u in users:
-            if u.get("subscription_tier") != "premium":
-                skipped += 1
-                continue
             email = auth_users.get(u["user_id"])
             if not email:
                 skipped += 1
                 continue
+            name = (u.get("name") or "Inversor").split()[0]
+            is_premium = u.get("subscription_tier") == "premium"
             try:
-                ok = await generate_and_send_monthly_report(
-                    user_id=u["user_id"],
-                    email=email,
-                    name=u.get("name") or "Inversor",
-                )
-                if ok:
-                    sent += 1
+                if is_premium:
+                    ok = await generate_and_send_monthly_report(
+                        user_id=u["user_id"],
+                        email=email,
+                        name=u.get("name") or "Inversor",
+                    )
+                    if ok:
+                        sent += 1
+                    else:
+                        skipped += 1
                 else:
-                    skipped += 1  # no portfolio or empty
+                    html = f"""<!DOCTYPE html><html><head><meta charset="utf-8"></head>
+<body style="margin:0;padding:0;background:#f4f6ff;font-family:'Helvetica Neue',Arial,sans-serif;">
+<div style="max-width:560px;margin:32px auto;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(108,99,255,0.08);">
+  <div style="background:linear-gradient(135deg,#6c63ff,#4f46e5);padding:32px 36px;">
+    <p style="margin:0;font-size:13px;color:rgba(255,255,255,0.75);letter-spacing:1px;text-transform:uppercase;">Resumen Mensual</p>
+    <h1 style="margin:8px 0 0;font-size:26px;font-weight:800;color:#fff;">{month_name}</h1>
+  </div>
+  <div style="padding:32px 36px;">
+    <p style="margin:0 0 20px;font-size:16px;color:#333;line-height:1.6;">¡Hola <strong>{name}</strong>! Ya terminó otro mes en los mercados.</p>
+    <p style="margin:0 0 24px;font-size:15px;color:#555;line-height:1.7;">
+      Los usuarios <strong>Premium</strong> de Nuvos AI recibieron hoy su reporte mensual completo: rendimiento de su portafolio vs S&P 500 y NASDAQ, análisis de sus mejores y peores posiciones, y recomendaciones personalizadas de su mentor IA para el próximo mes.
+    </p>
+    <div style="margin:0 0 28px;padding:20px;background:#f8f7ff;border-radius:12px;border-left:4px solid #6c63ff;">
+      <p style="margin:0;font-size:14px;color:#444;line-height:1.6;">
+        Con Premium también tienes acceso a:<br>
+        📊 Screener semanal de 4 ideas de inversión personalizadas<br>
+        🤖 Mentor IA ilimitado para analizar cualquier acción<br>
+        🔔 Alertas inteligentes cuando tu portafolio se mueve
+      </p>
+    </div>
+    <div style="text-align:center;">
+      <a href="https://nuvosai.com/profile" style="display:inline-block;background:#6c63ff;color:#fff;padding:14px 32px;border-radius:50px;font-size:15px;font-weight:700;text-decoration:none;">
+        Activar Premium →
+      </a>
+    </div>
+  </div>
+  <div style="padding:20px 36px;background:#f9f9fb;border-top:1px solid #eee;text-align:center;">
+    <p style="margin:0;font-size:12px;color:#aaa;">Nuvos AI · Tu mentor de inversiones · <a href="https://nuvosai.com" style="color:#6c63ff;text-decoration:none;">nuvosai.com</a></p>
+  </div>
+</div>
+</body></html>"""
+                    ok = await send_email(email, f"📊 Tu resumen mensual {month_name} — Nuvos AI", html)
+                    if ok:
+                        sent += 1
+                    else:
+                        skipped += 1
             except Exception as e:
                 logger.error("Monthly report failed for %s: %s", u["user_id"], e)
                 errors += 1
@@ -1470,18 +1511,22 @@ async def job_weekly_screener_push():
         prefs_res = await run_query(
             db.table("notification_preferences").select("user_id").eq("push_ai_recommendations", True)
         )
-        uids = [u["user_id"] for u in (prefs_res.data or [])]
+        pref_uids = {u["user_id"] for u in (prefs_res.data or [])}
+        if not pref_uids:
+            return
+
+        # Premium-only
+        profiles_res = await run_query(
+            db.table("user_profiles")
+            .select("user_id,name,risk_tolerance,quiz_answers,mentor,subscription_tier")
+            .in_("user_id", list(pref_uids))
+        )
+        uids = [r["user_id"] for r in (profiles_res.data or []) if r.get("subscription_tier") == "premium"]
         if not uids:
             return
 
-        profiles_res = await run_query(
-            db.table("user_profiles")
-            .select("user_id,name,risk_tolerance,quiz_answers,mentor")
-            .in_("user_id", uids)
-        )
-
         auth_users = {u.id: u.email for u in await asyncio.to_thread(lambda: db.auth.admin.list_users())}
-        profile_map = {r["user_id"]: r for r in (profiles_res.data or [])}
+        profile_map = {r["user_id"]: r for r in (profiles_res.data or []) if r["user_id"] in set(uids)}
 
         portfolio_map: dict[str, set] = {}
         for uid in uids:
@@ -3343,34 +3388,25 @@ async def main():
     # APScheduler will still run the job if it missed by less than this window.
     scheduler = AsyncIOScheduler(job_defaults={"misfire_grace_time": 600})
 
-    # ── Core market jobs ──────────────────────────────────────────────────────
-    scheduler.add_job(run_notifications,        "cron", day_of_week="mon-fri", hour="9,16",  minute=0,     timezone="America/New_York")
-    scheduler.add_job(job_market_open,          "cron", day_of_week="mon-fri", hour=9,       minute=30,    timezone="America/New_York")
-    scheduler.add_job(job_market_close,         "cron", day_of_week="mon-fri", hour=16,      minute=0,     timezone="America/New_York")
-
-    # ── Portfolio snapshots ───────────────────────────────────────────────────
-    scheduler.add_job(lambda: asyncio.create_task(job_portfolio_snapshot("opening")),   "cron", day_of_week="mon-fri", hour=9,  minute=35, timezone="America/New_York")
-    scheduler.add_job(lambda: asyncio.create_task(job_portfolio_snapshot("midday")),    "cron", day_of_week="mon-fri", hour=11, minute=35, timezone="America/New_York")
-    scheduler.add_job(lambda: asyncio.create_task(job_portfolio_snapshot("afternoon")), "cron", day_of_week="mon-fri", hour=13, minute=35, timezone="America/New_York")
-    scheduler.add_job(lambda: asyncio.create_task(job_portfolio_snapshot("preclose")),  "cron", day_of_week="mon-fri", hour=15, minute=35, timezone="America/New_York")
-    scheduler.add_job(job_daily_email,          "cron", day_of_week="fri",     hour=18,      minute=0,     timezone="America/New_York")
-    scheduler.add_job(job_portfolio_alerts,     "cron", day_of_week="mon-fri", hour="9-15",  minute="*/5", timezone="America/New_York")
+    # ── Mon-Fri: core daily jobs ──────────────────────────────────────────────
     scheduler.add_job(job_events_alerts,        "cron", day_of_week="mon-fri", hour=8,       minute=0,     timezone="America/New_York")
     scheduler.add_job(job_earnings_bmo,         "cron", day_of_week="mon-fri", hour=9,       minute=15,    timezone="America/New_York")
+    scheduler.add_job(job_market_open,          "cron", day_of_week="mon-fri", hour=9,       minute=30,    timezone="America/New_York")
+    scheduler.add_job(job_portfolio_alerts,     "cron", day_of_week="mon-fri", hour="9-15",  minute="*/5", timezone="America/New_York")
+    scheduler.add_job(job_market_close,         "cron", day_of_week="mon-fri", hour=16,      minute=0,     timezone="America/New_York")
     scheduler.add_job(job_earnings_results,     "cron", day_of_week="mon-fri", hour=16,      minute=30,    timezone="America/New_York")
+    scheduler.add_job(job_daily_email,          "cron", day_of_week="fri",     hour=18,      minute=0,     timezone="America/New_York")
 
-    # ── Weekly jobs ───────────────────────────────────────────────────────────
+    # ── Saturday: weekly screener (premium only) ──────────────────────────────
     scheduler.add_job(job_weekly_screener_push, "cron", day_of_week="sat",     hour=11,      minute=0,     timezone="America/New_York")
 
-    # ── Monthly jobs ──────────────────────────────────────────────────────────
+    # ── Monthly: day 1 (premium personalized, free general) ──────────────────
     scheduler.add_job(job_monthly_report_push,  "cron", day=1,                 hour=9,       minute=0,     timezone="America/New_York")
     scheduler.add_job(send_monthly_reports,     "cron", day=1,                 hour=9,       minute=0,     timezone="America/New_York")
 
-    # ── Email jobs ────────────────────────────────────────────────────────────
-    scheduler.add_job(send_birthday_emails,        "cron",                     hour=8,       minute=0,     timezone="America/New_York")
-
-    # ── Annual ScoreBoard — 5 Dec every year ─────────────────────────────────
-    scheduler.add_job(job_annual_scoreboard,    "cron", month=12, day=5, hour=9, minute=0, timezone="America/New_York")
+    # ── Specials ──────────────────────────────────────────────────────────────
+    scheduler.add_job(send_birthday_emails,     "cron",                     hour=8,       minute=0,     timezone="America/New_York")
+    scheduler.add_job(job_annual_scoreboard,    "cron", month=12, day=5,   hour=9,       minute=0,     timezone="America/New_York")
 
     # ── Cleanup ───────────────────────────────────────────────────────────────
     scheduler.add_job(job_cleanup_analytics,    "interval", hours=1)
