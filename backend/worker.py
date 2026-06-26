@@ -1886,7 +1886,7 @@ REGLAS:
         client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
         resp   = await asyncio.wait_for(
             client.messages.create(
-                model=settings.claude_model,
+                model="claude-haiku-4-5-20251001",
                 max_tokens=200,
                 messages=[{"role": "user", "content": prompt}],
             ),

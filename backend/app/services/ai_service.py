@@ -976,7 +976,7 @@ async def chat_stream(
 
     # Cap history to the last 20 exchanges (40 turns) to prevent token costs from
     # growing quadratically as conversations get long.
-    _MAX_HISTORY = 40
+    _MAX_HISTORY = 25
     trimmed_history = conversation_history[-_MAX_HISTORY:] if len(conversation_history) > _MAX_HISTORY else conversation_history
     messages = [{"role": m.role, "content": m.content} for m in trimmed_history]
 
@@ -1176,7 +1176,7 @@ Selecciona las 5 que mejor coincidan. Para cada una, una línea con: emoji + tic
 Formato visual y compacto. Termina con una línea de insight general."""
 
     response = await _claude(
-        model=settings.claude_model,
+        model="claude-haiku-4-5-20251001",
         max_tokens=500,
         system=[{"type": "text", "text": system_prompt, "cache_control": {"type": "ephemeral"}}],
         messages=[{"role": "user", "content": prompt}],
@@ -1198,7 +1198,7 @@ En máximo 4 bullets visuales:
 Formato con emojis. Sin introducciones."""
 
     response = await _claude(
-        model=settings.claude_model,
+        model="claude-haiku-4-5-20251001",
         max_tokens=400,
         system=[{"type": "text", "text": system_prompt, "cache_control": {"type": "ephemeral"}}],
         messages=[{"role": "user", "content": prompt}],
@@ -1228,7 +1228,7 @@ El mensaje debe:
 NO alarmes innecesariamente. Contextualiza con perspectiva histórica."""
 
     response = await _claude(
-        model=settings.claude_model,
+        model="claude-haiku-4-5-20251001",
         max_tokens=600,
         system=[{"type": "text", "text": system_prompt, "cache_control": {"type": "ephemeral"}}],
         messages=[{"role": "user", "content": prompt}]
