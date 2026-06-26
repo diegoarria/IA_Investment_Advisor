@@ -640,6 +640,9 @@ export default function PortfolioScreen() {
   const [portfolioCreating, setPortfolioCreating] = useState(false);
   const [showNewPortfolioModal, setShowNewPortfolioModal] = useState(false);
   const [newPortfolioName, setNewPortfolioName] = useState("");
+  const [showRenameModal, setShowRenameModal] = useState(false);
+  const [renamingPortfolioId, setRenamingPortfolioId] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState("");
   const profile = useAppStore((s) => s.profile);
   const subStore = useSubscriptionStore();
   const isPremiumAccess = hasPremiumAccess(subStore);
@@ -1197,10 +1200,18 @@ export default function PortfolioScreen() {
             <TouchableOpacity
               key={p.id}
               onPress={() => switchPortfolio(p.id)}
-              onLongPress={() => { if (isPremiumAccess) { Alert.alert("Renombrar portafolio", "", [{ text: "Cancelar", style: "cancel" }, { text: "Renombrar", onPress: () => { /* handled via prompt */ } }]); } }}
+              onLongPress={() => { if (isPremiumAccess) { setRenamingPortfolioId(p.id); setRenameValue(p.name); setShowRenameModal(true); } }}
               style={{ paddingHorizontal: 14, paddingVertical: 5, borderRadius: 20, borderWidth: 1.5, borderColor: p.id === activePortfolioId ? colors.accent : colors.border, backgroundColor: p.id === activePortfolioId ? colors.accent + "22" : "transparent", flexDirection: "row", alignItems: "center", gap: 6 }}
             >
               <Text style={{ fontSize: 12, fontWeight: "700", color: p.id === activePortfolioId ? colors.accent : colors.textMuted }}>{p.name}</Text>
+              {isPremiumAccess && (
+                <TouchableOpacity
+                  onPress={() => { setRenamingPortfolioId(p.id); setRenameValue(p.name); setShowRenameModal(true); }}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
+                  <Text style={{ fontSize: 10, color: p.id === activePortfolioId ? colors.accent : colors.textMuted, opacity: 0.6 }}>✏️</Text>
+                </TouchableOpacity>
+              )}
               {isPremiumAccess && p.id !== "default" && (
                 <TouchableOpacity onPress={() => Alert.alert(`Eliminar "${p.name}"`, "¿Estás seguro?", [{ text: "Cancelar", style: "cancel" }, { text: "Eliminar", style: "destructive", onPress: () => deletePortfolio(p.id) }])} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
                   <Text style={{ fontSize: 10, color: colors.textMuted }}>✕</Text>
@@ -1229,7 +1240,7 @@ export default function PortfolioScreen() {
             <View style={{ backgroundColor: colors.card, borderRadius: 20, padding: 24, width: "100%", gap: 16 }}>
               <Text style={{ color: colors.text, fontSize: 17, fontWeight: "800" }}>Nuevo portafolio</Text>
               <TextInput
-                autoFocus placeholder="Ej. Fidelity, Schwab, GBM…" placeholderTextColor={colors.textMuted}
+                autoFocus placeholder="Nombre del portafolio…" placeholderTextColor={colors.textMuted}
                 value={newPortfolioName} onChangeText={setNewPortfolioName}
                 style={{ backgroundColor: colors.bgRaised, color: colors.text, borderRadius: 12, padding: 12, fontSize: 15, borderWidth: 1, borderColor: colors.border }}
               />
@@ -1243,6 +1254,32 @@ export default function PortfolioScreen() {
                   style={{ flex: 1, padding: 14, borderRadius: 12, backgroundColor: colors.accent, alignItems: "center", opacity: portfolioCreating || !newPortfolioName.trim() ? 0.5 : 1 }}
                 >
                   <Text style={{ color: "#000", fontWeight: "800" }}>{portfolioCreating ? "Creando…" : "Crear"}</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
+
+        {/* Rename portfolio modal */}
+        <Modal visible={showRenameModal} transparent animationType="fade" onRequestClose={() => setShowRenameModal(false)}>
+          <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "center", alignItems: "center", padding: 24 }}>
+            <View style={{ backgroundColor: colors.card, borderRadius: 20, padding: 24, width: "100%", gap: 16 }}>
+              <Text style={{ color: colors.text, fontSize: 17, fontWeight: "800" }}>Editar nombre</Text>
+              <TextInput
+                autoFocus placeholder="Nombre del portafolio…" placeholderTextColor={colors.textMuted}
+                value={renameValue} onChangeText={setRenameValue}
+                style={{ backgroundColor: colors.bgRaised, color: colors.text, borderRadius: 12, padding: 12, fontSize: 15, borderWidth: 1, borderColor: colors.border }}
+              />
+              <View style={{ flexDirection: "row", gap: 10 }}>
+                <TouchableOpacity onPress={() => setShowRenameModal(false)} style={{ flex: 1, padding: 14, borderRadius: 12, backgroundColor: colors.bgRaised, alignItems: "center" }}>
+                  <Text style={{ color: colors.textMuted, fontWeight: "700" }}>Cancelar</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  disabled={!renameValue.trim()}
+                  onPress={async () => { if (!renameValue.trim() || !renamingPortfolioId) return; await renamePortfolio(renamingPortfolioId, renameValue.trim()); setShowRenameModal(false); }}
+                  style={{ flex: 1, padding: 14, borderRadius: 12, backgroundColor: colors.accent, alignItems: "center", opacity: !renameValue.trim() ? 0.5 : 1 }}
+                >
+                  <Text style={{ color: "#000", fontWeight: "800" }}>Guardar</Text>
                 </TouchableOpacity>
               </View>
             </View>

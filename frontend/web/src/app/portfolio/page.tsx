@@ -614,6 +614,7 @@ export default function PortfolioPage() {
   const [showNewPortfolioInput, setShowNewPortfolioInput] = useState(false);
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
+  const [hoveredPortfolioId, setHoveredPortfolioId] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen]   = useState(false);
   const [activeTab, setActiveTab] = useState<"portfolio" | "herramientas">("portfolio");
 
@@ -1140,8 +1141,8 @@ export default function PortfolioPage() {
                 <button
                   key={p.id}
                   onClick={() => { if (renamingId === p.id) return; switchPortfolio(p.id); }}
-                  onDoubleClick={() => { setRenamingId(p.id); setRenameValue(p.name); }}
-                  title={isPremium ? "Doble click para renombrar" : undefined}
+                  onMouseEnter={() => setHoveredPortfolioId(p.id)}
+                  onMouseLeave={() => setHoveredPortfolioId(null)}
                   style={{
                     padding: "4px 14px",
                     borderRadius: 20,
@@ -1162,10 +1163,21 @@ export default function PortfolioPage() {
                       onBlur={() => { if (renameValue.trim()) renamePortfolio(p.id, renameValue.trim()); setRenamingId(null); }}
                       onKeyDown={e => { if (e.key === "Enter") { if (renameValue.trim()) renamePortfolio(p.id, renameValue.trim()); setRenamingId(null); } if (e.key === "Escape") setRenamingId(null); }}
                       onClick={e => e.stopPropagation()}
-                      style={{ background: "transparent", border: "none", outline: "none", width: 100, color: "var(--accent-l)", fontWeight: 700, fontSize: 12 }}
+                      style={{ background: "transparent", border: "none", outline: "none", width: 110, color: "var(--accent-l)", fontWeight: 700, fontSize: 12 }}
                     />
-                  ) : p.name}
-                  {isPremium && p.id !== "default" && (
+                  ) : (
+                    <>
+                      {p.name}
+                      {isPremium && (
+                        <span
+                          onClick={e => { e.stopPropagation(); setRenamingId(p.id); setRenameValue(p.name); }}
+                          title="Editar nombre"
+                          style={{ fontSize: 10, opacity: hoveredPortfolioId === p.id ? 0.6 : 0, cursor: "pointer", transition: "opacity 0.15s" }}
+                        >✏️</span>
+                      )}
+                    </>
+                  )}
+                  {isPremium && p.id !== "default" && renamingId !== p.id && (
                     <span
                       onClick={e => { e.stopPropagation(); if (confirm(`¿Eliminar "${p.name}"?`)) deletePortfolio(p.id); }}
                       style={{ fontSize: 10, opacity: 0.5, cursor: "pointer", marginLeft: 2 }}
@@ -1185,7 +1197,7 @@ export default function PortfolioPage() {
               )}
               {showNewPortfolioInput && (
                 <form onSubmit={async e => { e.preventDefault(); if (!newPortfolioName.trim()) return; setPortfolioCreating(true); try { await createPortfolio(newPortfolioName.trim()); } finally { setPortfolioCreating(false); setShowNewPortfolioInput(false); } }} style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                  <input autoFocus placeholder="Nombre del broker…" value={newPortfolioName} onChange={e => setNewPortfolioName(e.target.value)} onKeyDown={e => { if (e.key === "Escape") setShowNewPortfolioInput(false); }}
+                  <input autoFocus placeholder="Nombre del portafolio…" value={newPortfolioName} onChange={e => setNewPortfolioName(e.target.value)} onKeyDown={e => { if (e.key === "Escape") setShowNewPortfolioInput(false); }}
                     style={{ padding: "4px 10px", borderRadius: 10, border: "1px solid var(--accent-l)", background: "rgba(0,212,126,0.08)", color: "var(--text)", fontSize: 12, outline: "none", width: 140 }} />
                   <button type="submit" disabled={portfolioCreating || !newPortfolioName.trim()} style={{ padding: "4px 12px", borderRadius: 10, background: "var(--accent-l)", color: "#000", fontSize: 12, fontWeight: 800, border: "none", cursor: "pointer" }}>
                     {portfolioCreating ? "…" : "Crear"}
