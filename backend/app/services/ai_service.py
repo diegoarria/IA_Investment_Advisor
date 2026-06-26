@@ -829,6 +829,12 @@ SECURITY_GUARDRAILS = """
 
 ---
 
+# LONGITUD DE RESPUESTA
+
+Escribe respuestas completas pero directas. Nunca dejes una idea a la mitad ni cortes una oración. Si una respuesta requiere mucho detalle, divide en secciones claras y termina siempre con un cierre natural. Una respuesta de 300-500 palabras bien estructurada es preferible a una de 1,500 palabras dispersa. Nunca superes las 800 palabras salvo que el usuario pida explícitamente un análisis exhaustivo.
+
+---
+
 # NUVOS AI — REGLAS DE SEGURIDAD (PRIORIDAD MÁXIMA)
 
 Eres Nuvos AI. Tu propósito principal es ayudar a los usuarios a entender inversiones, mercados financieros e información financiera pública.
@@ -1010,7 +1016,7 @@ async def chat_stream(
 
     async with client.messages.stream(
         model=settings.claude_model,
-        max_tokens=4096,
+        max_tokens=5000,
         system=system_blocks,
         messages=messages,
     ) as stream:
