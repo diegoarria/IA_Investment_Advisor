@@ -55,17 +55,20 @@ export default function PricingModal({ visible, onClose }: Props) {
 
   return (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.75)", backdropFilter: "blur(6px)" }}>
-      <div className="w-full max-w-2xl rounded-3xl overflow-hidden shadow-2xl" style={{ background: "var(--bg)", border: "1px solid var(--border)" }}>
+      <div className="w-full max-w-2xl rounded-3xl shadow-2xl flex flex-col" style={{ background: "var(--bg)", border: "1px solid var(--border)", maxHeight: "90vh" }}>
 
-        {/* Header */}
-        <div className="relative flex items-center justify-center py-6 px-6 border-b" style={{ borderColor: "var(--border)" }}>
+        {/* Header — sticky, always visible */}
+        <div className="relative flex items-center justify-center py-5 px-6 border-b shrink-0" style={{ borderColor: "var(--border)" }}>
           <h1 className="text-xl font-black" style={{ color: "var(--text)" }}>
             Prueba Premium gratis por 1 mes
           </h1>
-          <button onClick={onClose} className="absolute right-5 top-5 p-1 rounded-xl hover:bg-white/5 transition-colors" style={{ color: "var(--muted)" }}>
+          <button onClick={onClose} className="absolute right-5 top-1/2 -translate-y-1/2 p-2 rounded-xl hover:bg-white/5 transition-colors" style={{ color: "var(--muted)" }}>
             <X className="w-5 h-5" />
           </button>
         </div>
+
+        {/* Scrollable body */}
+        <div className="overflow-y-auto flex-1">
 
         {/* Plan toggle */}
         <div className="flex justify-center gap-2 py-4 px-6">
@@ -162,6 +165,8 @@ export default function PricingModal({ visible, onClose }: Props) {
           Prueba gratis 30 días. Cancela cuando quieras antes de que termine y no se te cobra nada.
           Después del primer mes: {monthlyPrice}/mes{plan === "yearly" ? " facturado anualmente" : ""}.
         </p>
+
+        </div>{/* end scrollable body */}
       </div>
     </div>
   );
