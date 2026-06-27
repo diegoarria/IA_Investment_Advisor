@@ -363,9 +363,9 @@ export default function AuthScreen() {
                 <Image source={require("../assets/images/logo_new.png")} style={S.logo} />
               </View>
               <Text style={S.brandName}>Nuvos AI</Text>
-              <Text style={S.tagline}>Tu mentor de inversiones inteligente</Text>
+              <Text style={S.tagline}>Con Nuvos, construye tu futuro.</Text>
               <View style={S.pill}>
-                <Text style={S.pillText}>Con Nuvos, construye tu futuro.</Text>
+                <Text style={S.pillText}>La plataforma que conoce tu portafolio y transforma la información financiera compleja en explicaciones claras y personalizadas para ayudarte a invertir con confianza.</Text>
               </View>
             </View>
 
@@ -649,13 +649,13 @@ const S = StyleSheet.create({
   },
   logo: { width: 88, height: 88, borderRadius: 22 },
   brandName: { fontSize: 38, fontWeight: "900", color: "#fff", letterSpacing: -1.2, marginBottom: 10 },
-  tagline: { fontSize: 15, color: "#6b7280", textAlign: "center", lineHeight: 22, marginBottom: 16 },
+  tagline: { fontSize: 17, fontWeight: "800", color: "#fff", textAlign: "center", lineHeight: 24, marginBottom: 12 },
   pill: {
-    backgroundColor: "rgba(0,212,126,0.08)", borderWidth: 1,
-    borderColor: "rgba(0,212,126,0.22)", borderRadius: 20,
-    paddingHorizontal: 16, paddingVertical: 7,
+    backgroundColor: "rgba(255,255,255,0.04)", borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)", borderRadius: 14,
+    paddingHorizontal: 18, paddingVertical: 10, marginHorizontal: 8,
   },
-  pillText: { color: "#00d47e", fontSize: 12, fontWeight: "700", letterSpacing: 0.5 },
+  pillText: { color: "#9ca3af", fontSize: 13, lineHeight: 20, textAlign: "center" },
 
   // ── Face ID card ──
   biometricCard: {

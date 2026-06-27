@@ -239,16 +239,11 @@ export default function Home() {
         <div className="mb-8 animate-fade-in-up">
           <h1 className="text-5xl xl:text-[3.6rem] font-black leading-[1.06] tracking-tight mb-3"
               style={{ color: "var(--text)", fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
-            Tu mentor de<br />
-            inversiones<br />
-            <span className="gradient-text">con IA.</span>
+            Con Nuvos,<br />
+            <span className="gradient-text">construye tu futuro.</span>
           </h1>
-          <p className="text-base font-semibold mb-4 tracking-wide" style={{ color: "var(--accent-l)" }}>
-            Con Nuvos, construye tu futuro.
-          </p>
           <p className="text-lg leading-relaxed max-w-[420px]" style={{ color: "var(--muted)" }}>
-            Entiende el mercado, recibe alertas personalizadas y toma decisiones con confianza —
-            aunque seas principiante.
+            La plataforma que conoce tu portafolio y transforma la información financiera compleja en explicaciones claras y personalizadas para ayudarte a invertir con confianza.
           </p>
         </div>
 
@@ -323,16 +318,13 @@ export default function Home() {
 
           {/* Mobile value prop */}
           <div className="lg:hidden mb-8 animate-fade-in-up">
-            <h1 className="text-3xl font-black leading-tight tracking-tight mb-1"
+            <h1 className="text-3xl font-black leading-tight tracking-tight mb-2"
                 style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
-              <span style={{ color: "var(--text)" }}>Tu mentor de<br />inversiones </span>
-              <span className="gradient-text">con IA.</span>
+              <span style={{ color: "var(--text)" }}>Con Nuvos,<br /></span>
+              <span className="gradient-text">construye tu futuro.</span>
             </h1>
-            <p className="text-xs font-semibold mb-2 tracking-wide" style={{ color: "var(--accent-l)" }}>
-              Con Nuvos, construye tu futuro.
-            </p>
             <p className="text-sm leading-relaxed" style={{ color: "var(--muted)" }}>
-              Entiende el mercado y toma mejores decisiones — aunque seas principiante.
+              La plataforma que conoce tu portafolio y transforma la información financiera compleja en explicaciones claras y personalizadas para ayudarte a invertir con confianza.
             </p>
           </div>
 
