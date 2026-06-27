@@ -3462,10 +3462,30 @@ async def _backfill_notification_prefs():
         logger.warning("Notification prefs backfill failed: %s", e)
 
 
+async def _send_mobile_push(uid: str, category: str, title: str, body: str, data: dict, db) -> bool:
+    """Send push notification to mobile (Expo) only — skips web push entirely."""
+    from app.core.database import run_query
+    from app.services.notification_engine import can_send_push, _log_notification, _today_et
+    from app.services.push_service import send_push as _expo_push
+    if not await can_send_push(uid, category, db):
+        return False
+    tok_res = await run_query(db.table("user_profiles").select("push_token").eq("user_id", uid))
+    token = (tok_res.data[0].get("push_token") or "") if tok_res.data else ""
+    if not token or not token.startswith("ExponentPushToken"):
+        return False
+    try:
+        await _expo_push(token, title=title, body=body, data={**data, "category": category})
+        dedup_key = f"{uid}:{category}:{_today_et()}"
+        await _log_notification(db, uid, "push", category, title, body, data, "sent", dedup_key=dedup_key)
+        return True
+    except Exception as e:
+        logger.warning("_send_mobile_push failed for %s: %s", uid, e)
+        return False
+
+
 async def job_proactive_vs_market():
     """4:45 PM ET Mon-Fri — alert users whose portfolio moved significantly vs S&P today."""
     from app.core.database import get_supabase, run_query
-    from app.services.notification_engine import send_push
     import httpx
     db = get_supabase()
     try:
@@ -3551,14 +3571,15 @@ async def job_proactive_vs_market():
                 msg = f"Tu portafolio bajó {port_pct:.1f}% vs S&P {sp_sign}{sp_pct:.1f}%. ¿Quieres que te explique la diferencia?"
 
             encoded_msg = msg.replace("&", "%26").replace("?", "%3F")
-            await send_push(
+            ok = await _send_mobile_push(
                 uid, "proactive_vs_market",
                 "📊 Tu portafolio vs el mercado hoy",
                 msg,
                 {"screen": "chat", "msg": encoded_msg},
                 db,
             )
-            sent += 1
+            if ok:
+                sent += 1
             await asyncio.sleep(0.05)
 
         logger.info("job_proactive_vs_market: %d notifications sent (S&P %.2f%%)", sent, sp_pct)
@@ -3569,7 +3590,6 @@ async def job_proactive_vs_market():
 async def job_proactive_earnings_preview():
     """8:30 AM ET Mon-Fri — warn users about earnings TODAY or TOMORROW for their holdings."""
     from app.core.database import get_supabase, run_query
-    from app.services.notification_engine import send_push
     from app.api.routes.earnings import _fetch_events_for_symbol
     db = get_supabase()
     today     = datetime.now(timezone.utc).date()
@@ -3622,14 +3642,15 @@ async def job_proactive_earnings_preview():
                 eps_str = f" · EPS est. ${hit['eps_est']}" if hit.get("eps_est") else ""
                 msg = f"{hit['ticker']} reporta earnings {when}{shares_str}{eps_str}. ¿Quieres que te explique qué vigilar?"
                 encoded = msg.replace("&", "%26").replace("?", "%3F")
-                await send_push(
+                ok = await _send_mobile_push(
                     uid, "earnings_preview",
                     f"📅 {hit['ticker']} reporta {when}",
                     msg,
                     {"screen": "chat", "msg": encoded},
                     db,
                 )
-                sent += 1
+                if ok:
+                    sent += 1
                 await asyncio.sleep(0.05)
 
         logger.info("job_proactive_earnings_preview: %d sent", sent)
@@ -3640,7 +3661,6 @@ async def job_proactive_earnings_preview():
 async def job_proactive_rebalancing():
     """Every Sunday 10 AM ET — detect sector concentration drift and suggest rebalancing."""
     from app.core.database import get_supabase, run_query
-    from app.services.notification_engine import send_push
     db = get_supabase()
 
     SECTOR_MAP: dict[str, str] = {
@@ -3707,14 +3727,15 @@ async def job_proactive_rebalancing():
                 f"¿Quieres que revisemos opciones de diversificación?"
             )
             encoded = msg.replace("&", "%26").replace("?", "%3F")
-            await send_push(
+            ok = await _send_mobile_push(
                 uid, "rebalancing_alert",
                 f"⚖️ {top_pct:.0f}% en {top_sector} — ¿diversificamos?",
                 msg,
                 {"screen": "chat", "msg": encoded},
                 db,
             )
-            sent += 1
+            if ok:
+                sent += 1
             await asyncio.sleep(0.05)
 
         logger.info("job_proactive_rebalancing: %d notifications sent", sent)
