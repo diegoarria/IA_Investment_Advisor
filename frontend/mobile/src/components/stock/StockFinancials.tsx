@@ -1,24 +1,32 @@
 import React, { useState, useMemo, useEffect, useRef } from "react";
 import {
-  View,
-  Text,
-  TouchableOpacity,
-  ScrollView,
-  StyleSheet,
-  Dimensions,
-  ActivityIndicator,
+  View, Text, TouchableOpacity, ScrollView, StyleSheet, Dimensions, ActivityIndicator,
 } from "react-native";
 import Svg, { Rect, G, Text as SvgText, Line } from "react-native-svg";
-import { useTheme } from "../../lib/ThemeContext";
 import { marketApi } from "../../lib/api";
 import type { Financials, FinancialPeriod, RichFinancials } from "../../hooks/useStockDetail";
 
 const { width: SCREEN_W } = Dimensions.get("window");
 const PAD = 16;
 const CHART_W = SCREEN_W - PAD * 2;
-const CHART_H = 160;
+const CHART_H = 150;
 const LABEL_H = 18;
 const DRAW_H  = CHART_H - LABEL_H;
+
+const D = {
+  bg:     "#0a0d12",
+  card:   "#111318",
+  raised: "#1a1d27",
+  border: "#1f2330",
+  text:   "#fff",
+  sub:    "#9ca3af",
+  muted:  "#6b7280",
+  dim:    "#4b5563",
+  green:  "#00d47e",
+  red:    "#ef4444",
+  amber:  "#f59e0b",
+  purple: "#a855f7",
+};
 
 // ─── Formatters ───────────────────────────────────────────────────────────────
 
@@ -38,8 +46,7 @@ function fmtPct(n: number | null | undefined): string {
 }
 
 function yearLabel(period: string): string {
-  const y = period.slice(0, 4);
-  return `'${y.slice(2)}`;
+  return `'${period.slice(2, 4)}`;
 }
 
 function yoyChange(curr: number | null | undefined, prev: number | null | undefined): number | null {
@@ -47,13 +54,12 @@ function yoyChange(curr: number | null | undefined, prev: number | null | undefi
   return ((curr - prev) / Math.abs(prev)) * 100;
 }
 
-// ─── Mini Bar Chart ───────────────────────────────────────────────────────────
+// ─── Bar Chart ────────────────────────────────────────────────────────────────
 
-function MiniBarChart({ periods, field, accent, muted }: {
+function MiniBarChart({ periods, field, accent }: {
   periods: FinancialPeriod[];
   field: keyof FinancialPeriod;
   accent: string;
-  muted: string;
 }) {
   const data = periods.slice(-5).map((p) => ({
     label: yearLabel(p.period),
@@ -64,26 +70,34 @@ function MiniBarChart({ periods, field, accent, muted }: {
 
   const maxAbs = Math.max(...valid.map((d) => Math.abs(d.value!)));
   const n = data.length;
-  const gap = 6;
+  const gap = 8;
   const barW = (CHART_W - gap * (n - 1)) / n;
 
   return (
     <Svg width={CHART_W} height={CHART_H}>
-      <Line x1={0} y1={DRAW_H} x2={CHART_W} y2={DRAW_H} stroke={muted} strokeWidth={0.5} opacity={0.4} />
+      <Line x1={0} y1={DRAW_H} x2={CHART_W} y2={DRAW_H} stroke="#2a3040" strokeWidth={1} />
       {data.map((d, i) => {
         const x = i * (barW + gap);
         const val = d.value ?? 0;
-        const barH = maxAbs > 0 ? (Math.abs(val) / maxAbs) * (DRAW_H - 4) : 0;
+        const barH = maxAbs > 0 ? (Math.abs(val) / maxAbs) * (DRAW_H - 8) : 0;
         const y = DRAW_H - barH;
-        const color = val < 0 ? "#ef4444" : accent;
+        const color = val < 0 ? D.red : accent;
+        const isLast = i === n - 1;
         return (
           <G key={i}>
-            {barH > 0 && <Rect x={x} y={y} width={barW} height={barH} rx={3} fill={color} opacity={0.85} />}
-            <SvgText x={x + barW / 2} y={CHART_H - 2} textAnchor="middle" fontSize={9} fill={muted} fontWeight="600">
+            {barH > 0 && (
+              <Rect
+                x={x} y={y} width={barW} height={barH}
+                rx={4}
+                fill={color}
+                opacity={isLast ? 1 : 0.6}
+              />
+            )}
+            <SvgText x={x + barW / 2} y={CHART_H - 2} textAnchor="middle" fontSize={10} fill={isLast ? "#c4c9d4" : "#7a8494"} fontWeight="600">
               {d.label}
             </SvgText>
             {barH > 14 && (
-              <SvgText x={x + barW / 2} y={y - 3} textAnchor="middle" fontSize={8} fill={color} fontWeight="700">
+              <SvgText x={x + barW / 2} y={y - 4} textAnchor="middle" fontSize={8} fill={color} fontWeight="700">
                 {fmtBig(val)}
               </SvgText>
             )}
@@ -97,16 +111,15 @@ function MiniBarChart({ periods, field, accent, muted }: {
 // ─── Metric Row ───────────────────────────────────────────────────────────────
 
 function MetricRow({
-  label, periods, field, isMargin = false, indent = false, colors,
+  label, periods, field, isMargin = false, indent = false,
 }: {
   label: string;
   periods: FinancialPeriod[];
   field: keyof FinancialPeriod;
   isMargin?: boolean;
   indent?: boolean;
-  colors: ReturnType<typeof useTheme>["colors"];
 }) {
-  const last5 = periods.slice(-5);
+  const last5  = periods.slice(-5);
   const latest = last5[last5.length - 1]?.[field] as number | null | undefined;
   const prev   = last5[last5.length - 2]?.[field] as number | null | undefined;
   if (latest == null && !isMargin) return null;
@@ -115,24 +128,24 @@ function MetricRow({
     ? (latest != null && prev != null ? latest - prev : null)
     : yoyChange(latest, prev);
   const isUp = (change ?? 0) >= 0;
-  const changeColor = isUp ? colors.up : colors.down;
+  const changeColor = isUp ? "#22c55e" : D.red;
+  const valueColor = indent
+    ? (latest != null && latest >= 0 ? "#22c55e" : D.red)
+    : "#ffffff";
 
   return (
-    <View style={[
-      mrow.row,
-      { borderTopColor: colors.border },
-      indent && { paddingLeft: 20, backgroundColor: "rgba(0,0,0,0.015)" },
-    ]}>
-      <Text style={[mrow.label, { color: indent ? colors.textMuted : colors.text, fontSize: indent ? 12 : 13 }]}>
-        {label}
+    <View style={[mr.row, indent && mr.indented]}>
+      {indent && <View style={mr.indentBar} />}
+      <Text style={[mr.label, { color: indent ? D.muted : "#c4c9d4", fontSize: indent ? 12 : 13 }]}>
+        {label.replace(/^\s+/, "")}
       </Text>
-      <View style={mrow.right}>
-        <Text style={[mrow.value, { color: indent ? (latest != null && latest >= 0 ? colors.up : colors.down) : colors.text, fontSize: indent ? 12 : 13 }]}>
+      <View style={mr.right}>
+        <Text style={[mr.value, { color: valueColor, fontSize: indent ? 12 : 14 }]}>
           {latest == null ? "—" : isMargin ? fmtPct(latest) : fmtBig(latest)}
         </Text>
         {change != null && (
-          <View style={[mrow.pill, { backgroundColor: changeColor + "18" }]}>
-            <Text style={[mrow.pillText, { color: changeColor }]}>
+          <View style={[mr.pill, { backgroundColor: changeColor + "22" }]}>
+            <Text style={[mr.pillText, { color: changeColor }]}>
               {isUp ? "▲" : "▼"} {Math.abs(change).toFixed(1)}{isMargin ? "pp" : "%"}
             </Text>
           </View>
@@ -142,29 +155,20 @@ function MetricRow({
   );
 }
 
-const mrow = StyleSheet.create({
-  row:      { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: 10, borderTopWidth: StyleSheet.hairlineWidth },
-  label:    { flex: 1, fontWeight: "500" },
-  right:    { flexDirection: "row", alignItems: "center", gap: 6 },
-  value:    { fontWeight: "700" },
-  pill:     { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
-  pillText: { fontSize: 10, fontWeight: "700" },
-});
-
-// ─── Section Header ───────────────────────────────────────────────────────────
-
-function SectionLabel({ title, colors }: { title: string; colors: ReturnType<typeof useTheme>["colors"] }) {
-  return (
-    <Text style={[sl.text, { color: colors.textMuted }]}>{title}</Text>
-  );
-}
-const sl = StyleSheet.create({
-  text: { fontSize: 10, fontWeight: "700", letterSpacing: 0.8, textTransform: "uppercase", paddingHorizontal: PAD, paddingTop: 14, paddingBottom: 6 },
+const mr = StyleSheet.create({
+  row:       { flexDirection: "row", alignItems: "center", paddingVertical: 12, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: "#1f2330", gap: 10 },
+  indented:  { paddingLeft: 16 },
+  indentBar: { width: 2, height: 16, borderRadius: 1, backgroundColor: "#2a3040", marginRight: 2 },
+  label:     { flex: 1, fontWeight: "500" },
+  right:     { flexDirection: "row", alignItems: "center", gap: 8 },
+  value:     { fontWeight: "700" },
+  pill:      { paddingHorizontal: 7, paddingVertical: 3, borderRadius: 8 },
+  pillText:  { fontSize: 10, fontWeight: "700" },
 });
 
 // ─── AI Analysis ──────────────────────────────────────────────────────────────
 
-function AIAnalysis({ ticker, colors }: { ticker: string; colors: ReturnType<typeof useTheme>["colors"] }) {
+function AIAnalysis({ ticker }: { ticker: string }) {
   const [text, setText] = useState("");
   const [loading, setLoading] = useState(false);
   const loaded = useRef(false);
@@ -180,86 +184,101 @@ function AIAnalysis({ ticker, colors }: { ticker: string; colors: ReturnType<typ
   }, [ticker]);
 
   return (
-    <View style={[ai.card, { borderColor: colors.border, backgroundColor: colors.bgRaised }]}>
+    <View style={ai.card}>
       <View style={ai.header}>
-        <Text style={[ai.sparkle, { color: colors.accentLight }]}>✦</Text>
-        <Text style={[ai.title, { color: colors.accentLight }]}>Análisis IA</Text>
+        <View style={ai.iconBox}>
+          <Text style={{ fontSize: 11 }}>✦</Text>
+        </View>
+        <Text style={ai.title}>Análisis IA</Text>
       </View>
       {loading
-        ? <ActivityIndicator size="small" color={colors.accentLight} style={{ marginTop: 4 }} />
+        ? <ActivityIndicator size="small" color={D.purple} style={{ marginTop: 4 }} />
         : text
-          ? <Text style={[ai.body, { color: colors.textMuted }]}>{text}</Text>
-          : <Text style={[ai.body, { color: colors.textMuted, opacity: 0.5 }]}>Sin análisis disponible</Text>
+          ? <Text style={ai.body}>{text}</Text>
+          : <Text style={[ai.body, { opacity: 0.45 }]}>Sin análisis disponible</Text>
       }
     </View>
   );
 }
+
 const ai = StyleSheet.create({
-  card:    { marginHorizontal: PAD, marginTop: 16, borderRadius: 14, borderWidth: 1, padding: 14 },
-  header:  { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 8 },
-  sparkle: { fontSize: 11, fontWeight: "800" },
-  title:   { fontSize: 10, fontWeight: "800", letterSpacing: 0.8, textTransform: "uppercase" },
-  body:    { fontSize: 13, lineHeight: 20 },
+  card:    { marginTop: 16, borderRadius: 18, borderWidth: 1, borderColor: "rgba(168,85,247,0.25)", padding: 16, backgroundColor: "rgba(168,85,247,0.05)" },
+  header:  { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 10 },
+  iconBox: { width: 24, height: 24, borderRadius: 7, backgroundColor: "rgba(168,85,247,0.15)", alignItems: "center", justifyContent: "center" },
+  title:   { fontSize: 10, fontFamily: "DMSans_800ExtraBold", letterSpacing: 0.8, textTransform: "uppercase", color: D.purple },
+  body:    { fontSize: 13, fontFamily: "DMSans_400Regular", lineHeight: 21, color: D.sub },
+});
+
+// ─── Section label ────────────────────────────────────────────────────────────
+
+function SectionLabel({ title }: { title: string }) {
+  return (
+    <Text style={sl.text}>{title}</Text>
+  );
+}
+
+const sl = StyleSheet.create({
+  text: { fontSize: 9, fontFamily: "DMSans_800ExtraBold", letterSpacing: 0.8, textTransform: "uppercase", color: D.green, paddingHorizontal: PAD, paddingTop: 18, paddingBottom: 8 },
 });
 
 // ─── Tab content ──────────────────────────────────────────────────────────────
 
-function IncomeTab({ periods, ticker, colors }: { periods: FinancialPeriod[]; ticker?: string; colors: ReturnType<typeof useTheme>["colors"] }) {
+function IncomeTab({ periods, ticker }: { periods: FinancialPeriod[]; ticker?: string }) {
   return (
     <View>
-      <SectionLabel title="Ingresos Totales" colors={colors} />
+      <SectionLabel title="Ingresos Totales" />
       <View style={{ paddingHorizontal: PAD }}>
-        <MiniBarChart periods={periods} field="Total Revenue" accent={colors.accentLight} muted={colors.textMuted} />
+        <MiniBarChart periods={periods} field="Total Revenue" accent={D.green} />
       </View>
-      <View style={{ paddingHorizontal: PAD, paddingTop: 4 }}>
-        <MetricRow label="Ingresos Totales"    periods={periods} field="Total Revenue"       colors={colors} />
-        <MetricRow label="Costo de Ventas"     periods={periods} field="Cost Of Revenue"      colors={colors} />
-        <MetricRow label="Utilidad Bruta"      periods={periods} field="Gross Profit"         colors={colors} />
-        <MetricRow label="  Margen Bruto"      periods={periods} field="Gross Margin %"       isMargin indent colors={colors} />
-        <MetricRow label="Gastos Operativos"   periods={periods} field="Operating Expenses"   colors={colors} />
-        <MetricRow label="Utilidad Operativa"  periods={periods} field="Operating Income"     colors={colors} />
-        <MetricRow label="  Margen Operativo"  periods={periods} field="Operating Margin %"   isMargin indent colors={colors} />
-        <MetricRow label="EBITDA"              periods={periods} field="EBITDA"               colors={colors} />
-        <MetricRow label="Utilidad Neta"       periods={periods} field="Net Income"           colors={colors} />
-        <MetricRow label="  Margen Neto"       periods={periods} field="Net Margin %"         isMargin indent colors={colors} />
-        <MetricRow label="EPS Diluido"         periods={periods} field="Diluted EPS"          colors={colors} />
+      <View style={{ paddingHorizontal: PAD, paddingTop: 6 }}>
+        <MetricRow label="Ingresos Totales"    periods={periods} field="Total Revenue" />
+        <MetricRow label="Costo de Ventas"     periods={periods} field="Cost Of Revenue" />
+        <MetricRow label="Utilidad Bruta"      periods={periods} field="Gross Profit" />
+        <MetricRow label="  Margen Bruto"      periods={periods} field="Gross Margin %" isMargin indent />
+        <MetricRow label="Gastos Operativos"   periods={periods} field="Operating Expenses" />
+        <MetricRow label="Utilidad Operativa"  periods={periods} field="Operating Income" />
+        <MetricRow label="  Margen Operativo"  periods={periods} field="Operating Margin %" isMargin indent />
+        <MetricRow label="EBITDA"              periods={periods} field="EBITDA" />
+        <MetricRow label="Utilidad Neta"       periods={periods} field="Net Income" />
+        <MetricRow label="  Margen Neto"       periods={periods} field="Net Margin %" isMargin indent />
+        <MetricRow label="EPS Diluido"         periods={periods} field="Diluted EPS" />
       </View>
-      {ticker && <AIAnalysis ticker={ticker} colors={colors} />}
+      {ticker && <AIAnalysis ticker={ticker} />}
       <View style={{ height: 16 }} />
     </View>
   );
 }
 
-function BalanceTab({ periods, colors }: { periods: FinancialPeriod[]; colors: ReturnType<typeof useTheme>["colors"] }) {
+function BalanceTab({ periods }: { periods: FinancialPeriod[] }) {
   return (
     <View>
-      <SectionLabel title="Activos Totales" colors={colors} />
+      <SectionLabel title="Activos Totales" />
       <View style={{ paddingHorizontal: PAD }}>
-        <MiniBarChart periods={periods} field="Total Assets" accent={colors.accentLight} muted={colors.textMuted} />
+        <MiniBarChart periods={periods} field="Total Assets" accent="#3b82f6" />
       </View>
-      <View style={{ paddingHorizontal: PAD, paddingTop: 4 }}>
-        <MetricRow label="Activos Totales"    periods={periods} field="Total Assets"                           colors={colors} />
-        <MetricRow label="Activos Corrientes" periods={periods} field="Current Assets"                         colors={colors} />
-        <MetricRow label="Pasivos Totales"    periods={periods} field="Total Liabilities Net Minority Interest" colors={colors} />
-        <MetricRow label="Patrimonio Neto"    periods={periods} field="Stockholders Equity"                    colors={colors} />
-        <MetricRow label="Deuda Total"        periods={periods} field="Total Debt"                             colors={colors} />
+      <View style={{ paddingHorizontal: PAD, paddingTop: 6 }}>
+        <MetricRow label="Activos Totales"    periods={periods} field="Total Assets" />
+        <MetricRow label="Activos Corrientes" periods={periods} field="Current Assets" />
+        <MetricRow label="Pasivos Totales"    periods={periods} field="Total Liabilities Net Minority Interest" />
+        <MetricRow label="Patrimonio Neto"    periods={periods} field="Stockholders Equity" />
+        <MetricRow label="Deuda Total"        periods={periods} field="Total Debt" />
       </View>
       <View style={{ height: 16 }} />
     </View>
   );
 }
 
-function CashFlowTab({ periods, colors }: { periods: FinancialPeriod[]; colors: ReturnType<typeof useTheme>["colors"] }) {
+function CashFlowTab({ periods }: { periods: FinancialPeriod[] }) {
   return (
     <View>
-      <SectionLabel title="Flujo Operativo" colors={colors} />
+      <SectionLabel title="Flujo Operativo" />
       <View style={{ paddingHorizontal: PAD }}>
-        <MiniBarChart periods={periods} field="Operating Cash Flow" accent={colors.accentLight} muted={colors.textMuted} />
+        <MiniBarChart periods={periods} field="Operating Cash Flow" accent={D.amber} />
       </View>
-      <View style={{ paddingHorizontal: PAD, paddingTop: 4 }}>
-        <MetricRow label="Flujo Operativo"     periods={periods} field="Operating Cash Flow" colors={colors} />
-        <MetricRow label="Flujo de Caja Libre" periods={periods} field="Free Cash Flow"      colors={colors} />
-        <MetricRow label="CapEx"               periods={periods} field="Capital Expenditure" colors={colors} />
+      <View style={{ paddingHorizontal: PAD, paddingTop: 6 }}>
+        <MetricRow label="Flujo Operativo"     periods={periods} field="Operating Cash Flow" />
+        <MetricRow label="Flujo de Caja Libre" periods={periods} field="Free Cash Flow" />
+        <MetricRow label="CapEx"               periods={periods} field="Capital Expenditure" />
       </View>
       <View style={{ height: 16 }} />
     </View>
@@ -272,8 +291,8 @@ type SubTab = "income" | "balance" | "cashflow";
 type Period = "annual" | "quarterly";
 
 const SUB_TABS: { key: SubTab; label: string }[] = [
-  { key: "income",   label: "Est. Resultados" },
-  { key: "balance",  label: "Balance" },
+  { key: "income",   label: "Estado de Resultados" },
+  { key: "balance",  label: "Balance General" },
   { key: "cashflow", label: "Flujo de Caja" },
 ];
 
@@ -290,11 +309,9 @@ interface Props {
 }
 
 export default function StockFinancials({ financials, richFin, ticker }: Props) {
-  const { colors } = useTheme();
-  const [subTab, setSubTab]   = useState<SubTab>("income");
-  const [period, setPeriod]   = useState<Period>("annual");
+  const [subTab, setSubTab] = useState<SubTab>("income");
+  const [period, setPeriod] = useState<Period>("annual");
 
-  // Prefer rich fiscal.ai data; fall back to basic stock-detail data
   const income = useMemo(() => {
     const rich = richFin?.incomeStatement?.[period] ?? [];
     const basic = financials.income?.annual ?? [];
@@ -317,41 +334,39 @@ export default function StockFinancials({ financials, richFin, ticker }: Props) 
 
   if (!hasData) {
     return (
-      <View style={{ alignItems: "center", paddingVertical: 48 }}>
-        <Text style={{ color: colors.textMuted, fontSize: 13 }}>Sin estados financieros</Text>
+      <View style={{ alignItems: "center", paddingVertical: 56 }}>
+        <Text style={{ color: D.muted, fontSize: 13 }}>Sin estados financieros</Text>
       </View>
     );
   }
 
   return (
-    <View style={{ paddingTop: 12 }}>
-      {/* ── Controls row ── */}
+    <View style={{ paddingTop: 16 }}>
+
+      {/* ── Controls ── */}
       <View style={s.controls}>
-        {/* Annual / Quarterly */}
-        <View style={[s.toggle, { backgroundColor: colors.bgRaised, borderColor: colors.border }]}>
+        <View style={s.periodToggle}>
           {(["annual", "quarterly"] as Period[]).map((p) => (
             <TouchableOpacity
               key={p}
               onPress={() => setPeriod(p)}
-              style={[s.toggleBtn, period === p && { backgroundColor: colors.accentGlow }]}
+              style={[s.periodBtn, period === p && s.periodBtnActive]}
               activeOpacity={0.7}
             >
-              <Text style={[s.toggleText, { color: period === p ? colors.accentLight : colors.textMuted }]}>
-                {p === "annual" ? "Anual" : "Trim."}
+              <Text style={[s.periodText, { color: period === p ? D.green : D.muted }]}>
+                {p === "annual" ? "Anual" : "Trimestral"}
               </Text>
             </TouchableOpacity>
           ))}
         </View>
-        <Text style={[s.source, { color: colors.textMuted }]}>
-          {providerLabel(richFin?.provider ?? financials.source)}
-        </Text>
+        <Text style={s.source}>{providerLabel(richFin?.provider ?? financials.source)}</Text>
       </View>
 
-      {/* ── Sub-tab pills ── */}
+      {/* ── Sub-tabs ── */}
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
-        contentContainerStyle={{ paddingHorizontal: PAD, gap: 8, paddingBottom: 12 }}
+        contentContainerStyle={{ paddingHorizontal: PAD, gap: 8, paddingBottom: 14 }}
       >
         {SUB_TABS.map((t) => {
           const active = t.key === subTab;
@@ -359,10 +374,10 @@ export default function StockFinancials({ financials, richFin, ticker }: Props) 
             <TouchableOpacity
               key={t.key}
               onPress={() => setSubTab(t.key)}
-              style={[s.pill, { backgroundColor: active ? colors.accentGlow : colors.bgRaised, borderColor: active ? colors.accentLight : colors.border }]}
+              style={[s.pill, active && s.pillActive]}
               activeOpacity={0.7}
             >
-              <Text style={[s.pillText, { color: active ? colors.accentLight : colors.textMuted }]}>
+              <Text style={[s.pillText, { color: active ? D.green : D.muted }]}>
                 {t.label}
               </Text>
             </TouchableOpacity>
@@ -371,9 +386,9 @@ export default function StockFinancials({ financials, richFin, ticker }: Props) 
       </ScrollView>
 
       {/* ── Content ── */}
-      {subTab === "income"   && <IncomeTab   periods={income}   ticker={ticker} colors={colors} />}
-      {subTab === "balance"  && <BalanceTab  periods={balance}  colors={colors} />}
-      {subTab === "cashflow" && <CashFlowTab periods={cashflow} colors={colors} />}
+      {subTab === "income"   && <IncomeTab   periods={income}   ticker={ticker} />}
+      {subTab === "balance"  && <BalanceTab  periods={balance} />}
+      {subTab === "cashflow" && <CashFlowTab periods={cashflow} />}
     </View>
   );
 }
@@ -384,35 +399,47 @@ const s = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: PAD,
-    paddingBottom: 10,
+    paddingBottom: 14,
     gap: 8,
   },
-  toggle: {
+  periodToggle: {
     flexDirection: "row",
-    borderRadius: 10,
+    borderRadius: 12,
     borderWidth: 1,
+    borderColor: D.border,
     overflow: "hidden",
+    backgroundColor: D.card,
   },
-  toggleBtn: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+  periodBtn: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
   },
-  toggleText: {
-    fontSize: 11,
-    fontWeight: "700",
+  periodBtnActive: {
+    backgroundColor: "rgba(0,212,126,0.1)",
+  },
+  periodText: {
+    fontSize: 12,
+    fontFamily: "DMSans_700Bold",
   },
   source: {
     fontSize: 9,
-    fontWeight: "500",
+    fontFamily: "DMSans_500Medium",
+    color: D.dim,
   },
   pill: {
-    paddingHorizontal: 14,
-    paddingVertical: 7,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
     borderRadius: 20,
     borderWidth: 1,
+    borderColor: D.border,
+    backgroundColor: D.card,
+  },
+  pillActive: {
+    backgroundColor: "rgba(0,212,126,0.1)",
+    borderColor: "rgba(0,212,126,0.3)",
   },
   pillText: {
     fontSize: 12,
-    fontWeight: "700",
+    fontFamily: "DMSans_700Bold",
   },
 });

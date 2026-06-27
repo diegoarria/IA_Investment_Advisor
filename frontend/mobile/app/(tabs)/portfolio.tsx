@@ -13,7 +13,7 @@ import Svg, { Path, Defs, Stop, LinearGradient, Circle, Line as SvgLine } from "
 import * as ImagePicker from "expo-image-picker";
 
 import { marketApi } from "../../src/lib/api";
-import { useTheme, Colors } from "../../src/lib/ThemeContext";
+import { useTheme } from "../../src/lib/ThemeContext";
 import { usePortfolioStore, Position } from "../../src/lib/portfolioStore";
 import MobileMonthlyReport from "../../src/components/MobileMonthlyReport";
 import MobileWeeklyScreener from "../../src/components/MobileWeeklyScreener";
@@ -544,7 +544,7 @@ function PortfolioHistoryChart({
             {yTicks.map((g, i) => (
               <Text key={i} pointerEvents="none" style={{
                 position: "absolute", left: 6, top: g.y - 7,
-                fontSize: 9, fontWeight: "600", color: colors.textDim, opacity: 0.65,
+                fontSize: 9, fontWeight: "600", color: "#4b5563", opacity: 0.65,
               }}>
                 {currencySymbol}{fmtY(g.v)}
               </Text>
@@ -601,8 +601,8 @@ function PortfolioHistoryChart({
                 position: "absolute", bottom: 4,
                 left: Math.min(Math.max(hovX - 40, 0), W - 90),
               }}>
-                <Text style={{ fontSize: 9, fontWeight: "600", color: colors.textDim,
-                  backgroundColor: colors.bgRaised, borderRadius: 4, paddingHorizontal: 5, paddingVertical: 2 }}>
+                <Text style={{ fontSize: 9, fontWeight: "600", color: "#4b5563",
+                  backgroundColor: "#1a1d27", borderRadius: 4, paddingHorizontal: 5, paddingVertical: 2 }}>
                   {fmtChartDate(hovPt.date, true)}
                 </Text>
               </View>
@@ -612,7 +612,7 @@ function PortfolioHistoryChart({
           {/* X-axis date labels */}
           <View style={{ flexDirection: "row", justifyContent: "space-between", marginTop: 2, paddingHorizontal: 2 }}>
             {xIdxs.map(idx => (
-              <Text key={idx} style={{ fontSize: 9, fontWeight: "500", color: colors.textDim }}>
+              <Text key={idx} style={{ fontSize: 9, fontWeight: "500", color: "#4b5563" }}>
                 {fmtChartDate(history[idx].date)}
               </Text>
             ))}
@@ -627,7 +627,7 @@ function PortfolioHistoryChart({
 
 export default function PortfolioScreen() {
   const { colors } = useTheme();
-  const s = useMemo(() => makeStyles(colors), [colors]);
+  const s = portfolioStyles;
   const { tour } = useLocalSearchParams<{ tour?: string }>();
   const isTour = tour === "1";
 
@@ -1201,20 +1201,20 @@ export default function PortfolioScreen() {
               key={p.id}
               onPress={() => switchPortfolio(p.id)}
               onLongPress={() => { if (isPremiumAccess) { setRenamingPortfolioId(p.id); setRenameValue(p.name); setShowRenameModal(true); } }}
-              style={{ paddingHorizontal: 14, paddingVertical: 5, borderRadius: 20, borderWidth: 1.5, borderColor: p.id === activePortfolioId ? colors.accent : colors.border, backgroundColor: p.id === activePortfolioId ? colors.accent + "22" : "transparent", flexDirection: "row", alignItems: "center", gap: 6 }}
+              style={{ paddingHorizontal: 14, paddingVertical: 5, borderRadius: 20, borderWidth: 1.5, borderColor: p.id === activePortfolioId ? "#00d47e" : "#1f2330", backgroundColor: p.id === activePortfolioId ? "#00d47e" + "22" : "transparent", flexDirection: "row", alignItems: "center", gap: 6 }}
             >
-              <Text style={{ fontSize: 12, fontWeight: "700", color: p.id === activePortfolioId ? colors.accent : colors.textMuted }}>{p.name}</Text>
+              <Text style={{ fontSize: 12, fontWeight: "700", color: p.id === activePortfolioId ? "#00d47e" : "#6b7280" }}>{p.name}</Text>
               {isPremiumAccess && (
                 <TouchableOpacity
                   onPress={() => { setRenamingPortfolioId(p.id); setRenameValue(p.name); setShowRenameModal(true); }}
                   hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                 >
-                  <Text style={{ fontSize: 10, color: p.id === activePortfolioId ? colors.accent : colors.textMuted, opacity: 0.6 }}>✏️</Text>
+                  <Text style={{ fontSize: 10, color: p.id === activePortfolioId ? "#00d47e" : "#6b7280", opacity: 0.6 }}>✏️</Text>
                 </TouchableOpacity>
               )}
               {isPremiumAccess && p.id !== "default" && (
                 <TouchableOpacity onPress={() => Alert.alert(`Eliminar "${p.name}"`, "¿Estás seguro?", [{ text: "Cancelar", style: "cancel" }, { text: "Eliminar", style: "destructive", onPress: () => deletePortfolio(p.id) }])} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                  <Text style={{ fontSize: 10, color: colors.textMuted }}>✕</Text>
+                  <Text style={{ fontSize: 10, color: "#6b7280" }}>✕</Text>
                 </TouchableOpacity>
               )}
             </TouchableOpacity>
@@ -1222,14 +1222,14 @@ export default function PortfolioScreen() {
           {isPremiumAccess && portfolios.length < 3 && (
             <TouchableOpacity
               onPress={() => setShowNewPortfolioModal(true)}
-              style={{ paddingHorizontal: 12, paddingVertical: 5, borderRadius: 20, borderWidth: 1.5, borderColor: colors.border, borderStyle: "dashed" }}
+              style={{ paddingHorizontal: 12, paddingVertical: 5, borderRadius: 20, borderWidth: 1.5, borderColor: "#1f2330", borderStyle: "dashed" }}
             >
-              <Text style={{ fontSize: 12, fontWeight: "700", color: colors.textMuted }}>+ Nuevo</Text>
+              <Text style={{ fontSize: 12, fontWeight: "700", color: "#6b7280" }}>+ Nuevo</Text>
             </TouchableOpacity>
           )}
           {!isPremiumAccess && (
-            <TouchableOpacity onPress={() => setPaywallOpen(true)} style={{ paddingHorizontal: 12, paddingVertical: 5, borderRadius: 20, borderWidth: 1.5, borderColor: colors.border, borderStyle: "dashed", opacity: 0.6 }}>
-              <Text style={{ fontSize: 12, fontWeight: "700", color: colors.textMuted }}>🔒 + Portafolio</Text>
+            <TouchableOpacity onPress={() => setPaywallOpen(true)} style={{ paddingHorizontal: 12, paddingVertical: 5, borderRadius: 20, borderWidth: 1.5, borderColor: "#1f2330", borderStyle: "dashed", opacity: 0.6 }}>
+              <Text style={{ fontSize: 12, fontWeight: "700", color: "#6b7280" }}>🔒 + Portafolio</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -1237,21 +1237,21 @@ export default function PortfolioScreen() {
         {/* New portfolio modal */}
         <Modal visible={showNewPortfolioModal} transparent animationType="fade" onRequestClose={() => setShowNewPortfolioModal(false)}>
           <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "center", alignItems: "center", padding: 24 }}>
-            <View style={{ backgroundColor: colors.card, borderRadius: 20, padding: 24, width: "100%", gap: 16 }}>
-              <Text style={{ color: colors.text, fontSize: 17, fontWeight: "800" }}>Nuevo portafolio</Text>
+            <View style={{ backgroundColor: "#111318", borderRadius: 20, padding: 24, width: "100%", gap: 16 }}>
+              <Text style={{ color: "#fff", fontSize: 17, fontWeight: "800" }}>Nuevo portafolio</Text>
               <TextInput
-                autoFocus placeholder="Nombre del portafolio…" placeholderTextColor={colors.textMuted}
+                autoFocus placeholder="Nombre del portafolio…" placeholderTextColor={"#6b7280"}
                 value={newPortfolioName} onChangeText={setNewPortfolioName}
-                style={{ backgroundColor: colors.bgRaised, color: colors.text, borderRadius: 12, padding: 12, fontSize: 15, borderWidth: 1, borderColor: colors.border }}
+                style={{ backgroundColor: "#1a1d27", color: "#fff", borderRadius: 12, padding: 12, fontSize: 15, borderWidth: 1, borderColor: "#1f2330" }}
               />
               <View style={{ flexDirection: "row", gap: 10 }}>
-                <TouchableOpacity onPress={() => setShowNewPortfolioModal(false)} style={{ flex: 1, padding: 14, borderRadius: 12, backgroundColor: colors.bgRaised, alignItems: "center" }}>
-                  <Text style={{ color: colors.textMuted, fontWeight: "700" }}>Cancelar</Text>
+                <TouchableOpacity onPress={() => setShowNewPortfolioModal(false)} style={{ flex: 1, padding: 14, borderRadius: 12, backgroundColor: "#1a1d27", alignItems: "center" }}>
+                  <Text style={{ color: "#6b7280", fontWeight: "700" }}>Cancelar</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   disabled={portfolioCreating || !newPortfolioName.trim()}
                   onPress={async () => { if (!newPortfolioName.trim()) return; setPortfolioCreating(true); try { await createPortfolio(newPortfolioName.trim()); setShowNewPortfolioModal(false); setNewPortfolioName(""); } finally { setPortfolioCreating(false); } }}
-                  style={{ flex: 1, padding: 14, borderRadius: 12, backgroundColor: colors.accent, alignItems: "center", opacity: portfolioCreating || !newPortfolioName.trim() ? 0.5 : 1 }}
+                  style={{ flex: 1, padding: 14, borderRadius: 12, backgroundColor: "#00d47e", alignItems: "center", opacity: portfolioCreating || !newPortfolioName.trim() ? 0.5 : 1 }}
                 >
                   <Text style={{ color: "#000", fontWeight: "800" }}>{portfolioCreating ? "Creando…" : "Crear"}</Text>
                 </TouchableOpacity>
@@ -1263,21 +1263,21 @@ export default function PortfolioScreen() {
         {/* Rename portfolio modal */}
         <Modal visible={showRenameModal} transparent animationType="fade" onRequestClose={() => setShowRenameModal(false)}>
           <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "center", alignItems: "center", padding: 24 }}>
-            <View style={{ backgroundColor: colors.card, borderRadius: 20, padding: 24, width: "100%", gap: 16 }}>
-              <Text style={{ color: colors.text, fontSize: 17, fontWeight: "800" }}>Editar nombre</Text>
+            <View style={{ backgroundColor: "#111318", borderRadius: 20, padding: 24, width: "100%", gap: 16 }}>
+              <Text style={{ color: "#fff", fontSize: 17, fontWeight: "800" }}>Editar nombre</Text>
               <TextInput
-                autoFocus placeholder="Nombre del portafolio…" placeholderTextColor={colors.textMuted}
+                autoFocus placeholder="Nombre del portafolio…" placeholderTextColor={"#6b7280"}
                 value={renameValue} onChangeText={setRenameValue}
-                style={{ backgroundColor: colors.bgRaised, color: colors.text, borderRadius: 12, padding: 12, fontSize: 15, borderWidth: 1, borderColor: colors.border }}
+                style={{ backgroundColor: "#1a1d27", color: "#fff", borderRadius: 12, padding: 12, fontSize: 15, borderWidth: 1, borderColor: "#1f2330" }}
               />
               <View style={{ flexDirection: "row", gap: 10 }}>
-                <TouchableOpacity onPress={() => setShowRenameModal(false)} style={{ flex: 1, padding: 14, borderRadius: 12, backgroundColor: colors.bgRaised, alignItems: "center" }}>
-                  <Text style={{ color: colors.textMuted, fontWeight: "700" }}>Cancelar</Text>
+                <TouchableOpacity onPress={() => setShowRenameModal(false)} style={{ flex: 1, padding: 14, borderRadius: 12, backgroundColor: "#1a1d27", alignItems: "center" }}>
+                  <Text style={{ color: "#6b7280", fontWeight: "700" }}>Cancelar</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   disabled={!renameValue.trim()}
                   onPress={async () => { if (!renameValue.trim() || !renamingPortfolioId) return; await renamePortfolio(renamingPortfolioId, renameValue.trim()); setShowRenameModal(false); }}
-                  style={{ flex: 1, padding: 14, borderRadius: 12, backgroundColor: colors.accent, alignItems: "center", opacity: !renameValue.trim() ? 0.5 : 1 }}
+                  style={{ flex: 1, padding: 14, borderRadius: 12, backgroundColor: "#00d47e", alignItems: "center", opacity: !renameValue.trim() ? 0.5 : 1 }}
                 >
                   <Text style={{ color: "#000", fontWeight: "800" }}>Guardar</Text>
                 </TouchableOpacity>
@@ -1287,33 +1287,33 @@ export default function PortfolioScreen() {
         </Modal>
 
         {/* ── TAB SWITCHER ── */}
-        <View style={[s.subTabBar, { backgroundColor: colors.bg }]}>
-          <View style={[s.subTabInner, { backgroundColor: colors.bgRaised }]}>
+        <View style={[s.subTabBar, { backgroundColor: "#0a0d12" }]}>
+          <View style={[s.subTabInner, { backgroundColor: "#1a1d27" }]}>
             <TouchableOpacity
-              style={[s.subTab, activeSection === "portafolio" && [s.subTabActive, { backgroundColor: colors.card }]]}
+              style={[s.subTab, activeSection === "portafolio" && [s.subTabActive, { backgroundColor: "#111318" }]]}
               onPress={() => setActiveSection("portafolio")}
               activeOpacity={0.75}
             >
               <Ionicons
                 name="briefcase-outline"
                 size={14}
-                color={activeSection === "portafolio" ? colors.accent : colors.textMuted}
+                color={activeSection === "portafolio" ? "#00d47e" : "#6b7280"}
               />
-              <Text style={[s.subTabText, { color: activeSection === "portafolio" ? colors.text : colors.textMuted }]}>
+              <Text style={[s.subTabText, { color: activeSection === "portafolio" ? "#fff" : "#6b7280" }]}>
                 Mi Portafolio
               </Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[s.subTab, activeSection === "herramientas" && [s.subTabActive, { backgroundColor: colors.card }]]}
+              style={[s.subTab, activeSection === "herramientas" && [s.subTabActive, { backgroundColor: "#111318" }]]}
               onPress={() => setActiveSection("herramientas")}
               activeOpacity={0.75}
             >
               <Ionicons
                 name="sparkles-outline"
                 size={14}
-                color={activeSection === "herramientas" ? colors.accent : colors.textMuted}
+                color={activeSection === "herramientas" ? "#00d47e" : "#6b7280"}
               />
-              <Text style={[s.subTabText, { color: activeSection === "herramientas" ? colors.accent : colors.textMuted }]}>
+              <Text style={[s.subTabText, { color: activeSection === "herramientas" ? "#00d47e" : "#6b7280" }]}>
                 Herramientas
               </Text>
             </TouchableOpacity>
@@ -1326,11 +1326,11 @@ export default function PortfolioScreen() {
             <View style={{ paddingHorizontal: 2, paddingBottom: 4 }}>
               <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 6 }}>
                 <View style={{ width: 36, height: 36, borderRadius: 12, backgroundColor: "rgba(0,168,94,0.15)", alignItems: "center", justifyContent: "center" }}>
-                  <Ionicons name="sparkles" size={18} color={colors.accent} />
+                  <Ionicons name="sparkles" size={18} color={"#00d47e"} />
                 </View>
                 <View>
-                  <Text style={{ fontSize: 18, fontWeight: "900", color: colors.text, letterSpacing: -0.4 }}>Herramientas Premium</Text>
-                  <Text style={{ fontSize: 11, color: colors.textMuted, marginTop: 1 }}>Análisis avanzado de tu portafolio</Text>
+                  <Text style={{ fontSize: 18, fontWeight: "900", color: "#fff", letterSpacing: -0.4 }}>Herramientas Premium</Text>
+                  <Text style={{ fontSize: 11, color: "#6b7280", marginTop: 1 }}>Análisis avanzado de tu portafolio</Text>
                 </View>
               </View>
             </View>
@@ -1387,15 +1387,15 @@ export default function PortfolioScreen() {
               <Ionicons name="cloud-outline" size={16} color="#22c55e" />
             </View>
             <View>
-              <Text style={{ fontSize: 12, fontWeight: "700", color: colors.text }}>Portafolio en la nube</Text>
-              <Text style={{ fontSize: 10, color: colors.textMuted }}>
+              <Text style={{ fontSize: 12, fontWeight: "700", color: "#fff" }}>Portafolio en la nube</Text>
+              <Text style={{ fontSize: 10, color: "#6b7280" }}>
                 {syncStatus === "syncing" ? "Guardando..." : syncStatus === "saved" ? "✓ Guardado" : syncStatus === "error" ? "⚠ Error al guardar" : lastSaved ? "Sincronizado" : "Sincronizado en todos tus dispositivos"}
               </Text>
             </View>
           </View>
           <View style={{ flexDirection: "row", gap: 6, alignItems: "center" }}>
             {!isPremiumAccess && (
-              <Text style={{ fontSize: 10, color: positions.length >= FREE_POSITION_LIMIT ? "#ef4444" : colors.textDim }}>
+              <Text style={{ fontSize: 10, color: positions.length >= FREE_POSITION_LIMIT ? "#ef4444" : "#4b5563" }}>
                 {positions.length}/{FREE_POSITION_LIMIT}
               </Text>
             )}
@@ -1414,16 +1414,16 @@ export default function PortfolioScreen() {
         </View>
 
         {/* ── Pasos para importar portafolio por captura ── */}
-        <View style={{ borderRadius: 14, overflow: "hidden", borderWidth: 1, borderColor: colors.border, marginBottom: 12 }}>
+        <View style={{ borderRadius: 14, overflow: "hidden", borderWidth: 1, borderColor: "#1f2330", marginBottom: 12 }}>
           <TouchableOpacity
             onPress={() => setShowImportSteps(v => !v)}
             activeOpacity={0.7}
             style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 12, paddingVertical: 10 }}>
-            <Text style={{ fontSize: 11, fontWeight: "700", color: colors.textMuted }}>¿Cómo importar tu portafolio por captura?</Text>
-            <Ionicons name={showImportSteps ? "chevron-up" : "chevron-down"} size={14} color={colors.textMuted} />
+            <Text style={{ fontSize: 11, fontWeight: "700", color: "#6b7280" }}>¿Cómo importar tu portafolio por captura?</Text>
+            <Ionicons name={showImportSteps ? "chevron-up" : "chevron-down"} size={14} color={"#6b7280"} />
           </TouchableOpacity>
           {showImportSteps && (
-            <View style={{ paddingHorizontal: 12, paddingBottom: 12, borderTopWidth: 1, borderTopColor: colors.border }}>
+            <View style={{ paddingHorizontal: 12, paddingBottom: 12, borderTopWidth: 1, borderTopColor: "#1f2330" }}>
               {[
                 "Ve a tu broker (Robinhood, IBKR, Schwab, etc.)",
                 "Ingresa a la sección de tu portafolio",
@@ -1435,7 +1435,7 @@ export default function PortfolioScreen() {
                   <View style={{ width: 20, height: 20, borderRadius: 10, backgroundColor: "rgba(0,212,126,0.15)", alignItems: "center", justifyContent: "center" }}>
                     <Text style={{ fontSize: 10, fontWeight: "900", color: "#00d47e" }}>{i + 1}</Text>
                   </View>
-                  <Text style={{ fontSize: 12, color: colors.text, flex: 1, lineHeight: 17 }}>{step}</Text>
+                  <Text style={{ fontSize: 12, color: "#fff", flex: 1, lineHeight: 17 }}>{step}</Text>
                 </View>
               ))}
             </View>
@@ -1455,25 +1455,25 @@ export default function PortfolioScreen() {
 
           {/* Importar captura — acción secundaria */}
           <TouchableOpacity
-            style={{ flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 14, borderRadius: 16, backgroundColor: colors.bgRaised, borderWidth: 1, borderColor: colors.border, opacity: screenshotAnalyzing ? 0.7 : 1 }}
+            style={{ flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 14, borderRadius: 16, backgroundColor: "#1a1d27", borderWidth: 1, borderColor: "#1f2330", opacity: screenshotAnalyzing ? 0.7 : 1 }}
             onPress={handleScreenshotImport}
             disabled={screenshotAnalyzing}
             activeOpacity={0.8}>
             {screenshotAnalyzing
-              ? <><ActivityIndicator size="small" color={colors.textSub} /><Text style={{ fontSize: 13, fontWeight: "700", color: colors.textSub }}>{screenshotProgress || "Analizando..."}</Text></>
-              : <><Ionicons name="images-outline" size={18} color={colors.textSub} /><Text style={{ fontSize: 13, fontWeight: "700", color: colors.textSub }}>Importar captura</Text></>
+              ? <><ActivityIndicator size="small" color={"#9ca3af"} /><Text style={{ fontSize: 13, fontWeight: "700", color: "#9ca3af" }}>{screenshotProgress || "Analizando..."}</Text></>
+              : <><Ionicons name="images-outline" size={18} color={"#9ca3af"} /><Text style={{ fontSize: 13, fontWeight: "700", color: "#9ca3af" }}>Importar captura</Text></>
             }
           </TouchableOpacity>
         </View>
 
         {/* Conectar broker — Premium */}
         <TouchableOpacity
-          style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 13, borderRadius: 16, backgroundColor: colors.bgRaised, borderWidth: 1, borderColor: colors.border, marginBottom: 10 }}
+          style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 13, borderRadius: 16, backgroundColor: "#1a1d27", borderWidth: 1, borderColor: "#1f2330", marginBottom: 10 }}
           onPress={() => isPremiumAccess ? setBrokerModalOpen(true) : setPaywallOpen(true)}
           activeOpacity={0.8}
         >
           <Text style={{ fontSize: 16 }}>🔗</Text>
-          <Text style={{ fontSize: 13, fontWeight: "700", color: colors.textSub }}>Conectar broker</Text>
+          <Text style={{ fontSize: 13, fontWeight: "700", color: "#9ca3af" }}>Conectar broker</Text>
           {isPremiumAccess ? (
             <View style={{ backgroundColor: "rgba(0,168,94,0.12)", borderRadius: 20, paddingHorizontal: 8, paddingVertical: 2 }}>
               <Text style={{ fontSize: 10, fontWeight: "700", color: "#00a85e" }}>IBKR · IOL · Schwab</Text>
@@ -1487,13 +1487,13 @@ export default function PortfolioScreen() {
 
         {/* ── PREVIEW DE CAPTURA ── */}
         {screenshotPreview && (
-          <View style={[s.previewCard, { backgroundColor: colors.card, borderColor: "#22c55e" }]}>
+          <View style={[s.previewCard, { backgroundColor: "#111318", borderColor: "#22c55e" }]}>
             <View style={s.previewHeader}>
               <View style={{ flex: 1 }}>
-                <Text style={[s.previewTitle, { color: colors.text }]}>
+                <Text style={[s.previewTitle, { color: "#fff" }]}>
                   {screenshotPreview.length} posiciones detectadas
                 </Text>
-                <Text style={[s.previewSub, { color: colors.textMuted }]}>
+                <Text style={[s.previewSub, { color: "#6b7280" }]}>
                   {screenshotUris.length > 1 ? `De ${screenshotUris.length} capturas · ` : ""}Revisa y elimina las incorrectas antes de confirmar
                 </Text>
               </View>
@@ -1503,8 +1503,8 @@ export default function PortfolioScreen() {
                     <Image key={i} source={{ uri }} style={[s.previewThumb, i > 0 && { marginLeft: -12 }]} />
                   ))}
                   {screenshotUris.length > 3 && (
-                    <View style={[s.previewThumbMore, { backgroundColor: colors.bg, borderColor: colors.border }]}>
-                      <Text style={[s.previewThumbMoreText, { color: colors.textSub }]}>+{screenshotUris.length - 3}</Text>
+                    <View style={[s.previewThumbMore, { backgroundColor: "#0a0d12", borderColor: "#1f2330" }]}>
+                      <Text style={[s.previewThumbMoreText, { color: "#9ca3af" }]}>+{screenshotUris.length - 3}</Text>
                     </View>
                   )}
                 </View>
@@ -1512,18 +1512,18 @@ export default function PortfolioScreen() {
             </View>
 
             {screenshotPreview.map((p) => (
-              <View key={p.id} style={[s.previewRow, { borderColor: colors.border }]}>
+              <View key={p.id} style={[s.previewRow, { borderColor: "#1f2330" }]}>
                 <View style={s.previewRowLeft}>
-                  <Text style={[s.previewTicker, { color: colors.text }]}>{p.ticker}</Text>
+                  <Text style={[s.previewTicker, { color: "#fff" }]}>{p.ticker}</Text>
                   {p.name !== p.ticker && (
-                    <Text style={[s.previewName, { color: colors.textMuted }]}>{p.name}</Text>
+                    <Text style={[s.previewName, { color: "#6b7280" }]}>{p.name}</Text>
                   )}
                 </View>
                 <View style={s.previewRowMid}>
-                  <Text style={[s.previewDetail, { color: colors.textSub }]}>
+                  <Text style={[s.previewDetail, { color: "#9ca3af" }]}>
                     {p.shares.toLocaleString("en-US")} acc
                   </Text>
-                  <Text style={[s.previewDetail, { color: colors.textSub }]}>
+                  <Text style={[s.previewDetail, { color: "#9ca3af" }]}>
                     @ ${p.avg_price > 0 ? p.avg_price.toLocaleString("en-US", { minimumFractionDigits: 2 }) : "—"}
                   </Text>
                 </View>
@@ -1535,10 +1535,10 @@ export default function PortfolioScreen() {
 
             <View style={s.previewActions}>
               <TouchableOpacity
-                style={[s.previewCancel, { borderColor: colors.border }]}
+                style={[s.previewCancel, { borderColor: "#1f2330" }]}
                 onPress={() => { setScreenshotPreview(null); setScreenshotUris([]); }}
               >
-                <Text style={[s.previewCancelText, { color: colors.textMuted }]}>Cancelar</Text>
+                <Text style={[s.previewCancelText, { color: "#6b7280" }]}>Cancelar</Text>
               </TouchableOpacity>
               <TouchableOpacity style={s.previewConfirm} onPress={confirmScreenshotImport}>
                 <Text style={s.previewConfirmText}>✓ Agregar {screenshotPreview.length} posiciones</Text>
@@ -1549,34 +1549,34 @@ export default function PortfolioScreen() {
 
         {/* ── FORMULARIO MANUAL ── */}
         {showForm && (
-          <View style={[s.formCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <Text style={[s.formTitle, { color: colors.text }]}>Nueva posición manual</Text>
+          <View style={[s.formCard, { backgroundColor: "#111318", borderColor: "#1f2330" }]}>
+            <Text style={[s.formTitle, { color: "#fff" }]}>Nueva posición manual</Text>
             <TextInput
-              style={[s.formInput, { color: colors.text, backgroundColor: colors.bg, borderColor: colors.border }]}
+              style={[s.formInput, { color: "#fff", backgroundColor: "#0a0d12", borderColor: "#1f2330" }]}
               value={form.ticker}
               onChangeText={(v) => setForm({ ...form, ticker: v.toUpperCase() })}
-              placeholder="Ticker (ej. AAPL)" placeholderTextColor={colors.placeholder}
+              placeholder="Ticker (ej. AAPL)" placeholderTextColor={"#374151"}
               autoCapitalize="characters"
             />
             <View style={s.formRow}>
               <TextInput
-                style={[s.formInput, { color: colors.text, backgroundColor: colors.bg, borderColor: colors.border, flex: 1 }]}
+                style={[s.formInput, { color: "#fff", backgroundColor: "#0a0d12", borderColor: "#1f2330", flex: 1 }]}
                 value={form.shares}
                 onChangeText={(v) => setForm({ ...form, shares: v })}
-                placeholder="Acciones" placeholderTextColor={colors.placeholder}
+                placeholder="Acciones" placeholderTextColor={"#374151"}
                 keyboardType="decimal-pad"
               />
               <TextInput
-                style={[s.formInput, { color: colors.text, backgroundColor: colors.bg, borderColor: colors.border, flex: 1, marginLeft: 8 }]}
+                style={[s.formInput, { color: "#fff", backgroundColor: "#0a0d12", borderColor: "#1f2330", flex: 1, marginLeft: 8 }]}
                 value={form.avgPrice}
                 onChangeText={(v) => setForm({ ...form, avgPrice: v })}
-                placeholder="Precio promedio" placeholderTextColor={colors.placeholder}
+                placeholder="Precio promedio" placeholderTextColor={"#374151"}
                 keyboardType="decimal-pad"
               />
             </View>
             <View style={s.formRow}>
-              <TouchableOpacity style={[s.cancelBtn, { borderColor: colors.border }]} onPress={() => setShowForm(false)}>
-                <Text style={[s.cancelBtnText, { color: colors.textMuted }]}>Cancelar</Text>
+              <TouchableOpacity style={[s.cancelBtn, { borderColor: "#1f2330" }]} onPress={() => setShowForm(false)}>
+                <Text style={[s.cancelBtnText, { color: "#6b7280" }]}>Cancelar</Text>
               </TouchableOpacity>
               <TouchableOpacity style={s.addBtn} onPress={handleAdd} disabled={addingLoading}>
                 {addingLoading ? <ActivityIndicator color="white" size="small" /> : <Text style={s.addBtnText}>Agregar</Text>}
@@ -1587,10 +1587,10 @@ export default function PortfolioScreen() {
 
         {/* ── LISTA DE POSICIONES ── */}
         {positions.length === 0 && !screenshotPreview ? (
-          <View style={[s.emptyCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <Ionicons name="folder-open-outline" size={40} color={colors.textMuted} style={{ marginBottom: 10 }} />
-            <Text style={[s.emptyTitle, { color: colors.text }]}>Sin posiciones todavía</Text>
-            <Text style={[s.emptyDesc, { color: colors.textMuted }]}>
+          <View style={[s.emptyCard, { backgroundColor: "#111318", borderColor: "#1f2330" }]}>
+            <Ionicons name="folder-open-outline" size={40} color={"#6b7280"} style={{ marginBottom: 10 }} />
+            <Text style={[s.emptyTitle, { color: "#fff" }]}>Sin posiciones todavía</Text>
+            <Text style={[s.emptyDesc, { color: "#6b7280" }]}>
               Toma una captura de tu portafolio y la IA lo importa automáticamente
             </Text>
           </View>
@@ -1612,7 +1612,7 @@ export default function PortfolioScreen() {
               const up = histPct !== undefined ? histPct >= 0 : totals.diff >= 0;
               const color = up ? "#22c55e" : "#ef4444";
               return (
-                <View style={[s.totalsCard, { backgroundColor: colors.card, borderColor: color + "30" }]}>
+                <View style={[s.totalsCard, { backgroundColor: "#111318", borderColor: color + "30" }]}>
                   {/* Colored accent top line */}
                   <View style={{ height: 3, backgroundColor: color, marginHorizontal: -20, marginTop: -20, marginBottom: 16, borderTopLeftRadius: 20, borderTopRightRadius: 20 }} />
                   {loadingPrices ? (
@@ -1620,7 +1620,7 @@ export default function PortfolioScreen() {
                   ) : (
                     <>
                       <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-                        <Text style={[s.totalsLabel, { color: colors.textMuted }]}>Valor actual del portafolio</Text>
+                        <Text style={[s.totalsLabel, { color: "#6b7280" }]}>Valor actual del portafolio</Text>
                         <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
                           <TouchableOpacity
                             onPress={() => {
@@ -1630,19 +1630,19 @@ export default function PortfolioScreen() {
                               });
                             }}
                             activeOpacity={0.7}>
-                            <Ionicons name="share-social-outline" size={17} color={colors.textMuted} />
+                            <Ionicons name="share-social-outline" size={17} color={"#6b7280"} />
                           </TouchableOpacity>
                           <TouchableOpacity
                             onPress={() => setShowCurrencyPicker(true)}
-                            style={{ flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: colors.bgRaised, borderRadius: 10, paddingHorizontal: 8, paddingVertical: 4, borderWidth: 1, borderColor: colors.border }}
+                            style={{ flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: "#1a1d27", borderRadius: 10, paddingHorizontal: 8, paddingVertical: 4, borderWidth: 1, borderColor: "#1f2330" }}
                             activeOpacity={0.7}>
-                            <Text style={{ fontSize: 11, fontWeight: "800", color: colors.text }}>{portfolioCurrency}</Text>
-                            <Ionicons name="chevron-down" size={10} color={colors.textDim} />
+                            <Text style={{ fontSize: 11, fontWeight: "800", color: "#fff" }}>{portfolioCurrency}</Text>
+                            <Ionicons name="chevron-down" size={10} color={"#4b5563"} />
                           </TouchableOpacity>
                         </View>
                       </View>
                       <View style={{ flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 12 }}>
-                        <Text style={[s.totalsValue, { color: colors.text }]}>
+                        <Text style={[s.totalsValue, { color: "#fff" }]}>
                           {currencySymbol}{totals.current.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </Text>
                         {histPct !== undefined ? (
@@ -1667,10 +1667,10 @@ export default function PortfolioScreen() {
                           </View>
                         )}
                       </View>
-                      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingTop: 10, borderTopWidth: 1, borderTopColor: colors.border }}>
-                        <Text style={{ fontSize: 11, color: colors.textMuted }}>
+                      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingTop: 10, borderTopWidth: 1, borderTopColor: "#1f2330" }}>
+                        <Text style={{ fontSize: 11, color: "#6b7280" }}>
                           Total Invertido{" "}
-                          <Text style={{ fontWeight: "700", color: colors.textSub }}>{currencySymbol}{totals.invested.toLocaleString("en-US", { minimumFractionDigits: 2 })}</Text>
+                          <Text style={{ fontWeight: "700", color: "#9ca3af" }}>{currencySymbol}{totals.invested.toLocaleString("en-US", { minimumFractionDigits: 2 })}</Text>
                           {histDate ? `  ·  desde ${histDate}` : ""}
                         </Text>
                         {spyPct !== undefined && histPct !== undefined && (() => {
@@ -1678,7 +1678,7 @@ export default function PortfolioScreen() {
                           const beats = diff >= 0;
                           return (
                             <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
-                              <Text style={{ fontSize: 10, color: colors.textMuted }}>vs S&P</Text>
+                              <Text style={{ fontSize: 10, color: "#6b7280" }}>vs S&P</Text>
                               <View style={{ backgroundColor: beats ? "rgba(34,197,94,0.12)" : "rgba(239,68,68,0.12)", borderRadius: 20, paddingHorizontal: 7, paddingVertical: 2 }}>
                                 <Text style={{ fontSize: 10, fontWeight: "800", color: beats ? "#22c55e" : "#ef4444" }}>
                                   {beats ? "▲" : "▼"} {Math.abs(diff).toFixed(2)}%
@@ -1702,7 +1702,7 @@ export default function PortfolioScreen() {
               const up = displayPct !== undefined ? displayPct >= 0 : true;
               const color = up ? "#22c55e" : "#ef4444";
               return (
-                <View style={{ borderRadius: 20, overflow: "hidden", borderWidth: 1, borderColor: `${color}28`, backgroundColor: colors.card, marginBottom: 12 }}>
+                <View style={{ borderRadius: 20, overflow: "hidden", borderWidth: 1, borderColor: `${color}28`, backgroundColor: "#111318", marginBottom: 12 }}>
                   {/* Top accent line */}
                   <View style={{ height: 2.5, backgroundColor: color }} />
 
@@ -1710,13 +1710,13 @@ export default function PortfolioScreen() {
                   <View style={{ paddingHorizontal: 16, paddingTop: 14, paddingBottom: 10 }}>
                     <View style={{ flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between" }}>
                       <View>
-                        <Text style={{ fontSize: 9, fontWeight: "800", color: colors.textDim, letterSpacing: 1, textTransform: "uppercase", marginBottom: 4 }}>
+                        <Text style={{ fontSize: 9, fontWeight: "800", color: "#4b5563", letterSpacing: 1, textTransform: "uppercase", marginBottom: 4 }}>
                           {hovData ? "En esta fecha" : "Rendimiento histórico"}
                         </Text>
                         {hovData ? (
-                          <Text style={{ fontSize: 9, color: colors.textDim }}>{fmtChartDate(hovData.date, true)}</Text>
+                          <Text style={{ fontSize: 9, color: "#4b5563" }}>{fmtChartDate(hovData.date, true)}</Text>
                         ) : r?.date ? (
-                          <Text style={{ fontSize: 9, color: colors.textDim }}>desde {r.date}</Text>
+                          <Text style={{ fontSize: 9, color: "#4b5563" }}>desde {r.date}</Text>
                         ) : null}
                       </View>
                       <View style={{ alignItems: "flex-end" }}>
@@ -1741,7 +1741,7 @@ export default function PortfolioScreen() {
                             )}
                           </>
                         ) : chartLoading ? (
-                          <Text style={{ fontSize: 18, color: colors.textMuted }}>···</Text>
+                          <Text style={{ fontSize: 18, color: "#6b7280" }}>···</Text>
                         ) : null}
                       </View>
                     </View>
@@ -1749,7 +1749,7 @@ export default function PortfolioScreen() {
                     {/* vs S&P 500 */}
                     {r?.spy_pct !== undefined && displayPct !== undefined && (
                       <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginTop: 8 }}>
-                        <Text style={{ fontSize: 10, fontWeight: "600", color: colors.textMuted }}>vs S&P 500</Text>
+                        <Text style={{ fontSize: 10, fontWeight: "600", color: "#6b7280" }}>vs S&P 500</Text>
                         <Text style={{ fontSize: 11, fontWeight: "800", color: r.spy_pct >= 0 ? "#22c55e" : "#ef4444" }}>
                           {r.spy_pct >= 0 ? "+" : ""}{r.spy_pct.toFixed(2)}%
                         </Text>
@@ -1772,8 +1772,8 @@ export default function PortfolioScreen() {
                   <View style={{ paddingHorizontal: 10, paddingBottom: 4 }}>
                     {chartLoading ? (
                       <View style={{ height: 230, alignItems: "center", justifyContent: "center", flexDirection: "row", gap: 8 }}>
-                        <ActivityIndicator size="small" color={colors.textMuted} />
-                        <Text style={{ fontSize: 11, color: colors.textMuted }}>Cargando datos históricos...</Text>
+                        <ActivityIndicator size="small" color={"#6b7280"} />
+                        <Text style={{ fontSize: 11, color: "#6b7280" }}>Cargando datos históricos...</Text>
                       </View>
                     ) : chartData && chartData.history.length >= 2 ? (
                       <PortfolioHistoryChart
@@ -1784,20 +1784,20 @@ export default function PortfolioScreen() {
                       />
                     ) : !chartLoading ? (
                       <View style={{ height: 230, alignItems: "center", justifyContent: "center" }}>
-                        <Text style={{ fontSize: 11, color: colors.textDim }}>Sin datos históricos para este período</Text>
+                        <Text style={{ fontSize: 11, color: "#4b5563" }}>Sin datos históricos para este período</Text>
                       </View>
                     ) : null}
                   </View>
 
                   {/* Period pills — below chart, inside card */}
-                  <View style={{ borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border, marginTop: 4 }}>
+                  <View style={{ borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: "#1f2330", marginTop: 4 }}>
                     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 12, paddingVertical: 10, gap: 6 }}>
                       {PERIODS.map(({ key, label, premium: needsPremium }) => {
                         const locked = needsPremium && !isPremiumAccess;
                         const ret = locked ? null : periodReturns[key];
                         const isSel = selectedPeriod === key;
                         const isUp = ret ? ret.pct >= 0 : null;
-                        const pillColor = locked ? colors.textMuted : (isUp === true ? "#22c55e" : isUp === false ? "#ef4444" : colors.accentLight);
+                        const pillColor = locked ? "#6b7280" : (isUp === true ? "#22c55e" : isUp === false ? "#ef4444" : "#00d47e");
                         return (
                           <TouchableOpacity
                             key={key}
@@ -1805,12 +1805,12 @@ export default function PortfolioScreen() {
                             style={{
                               alignItems: "center", paddingHorizontal: 12, paddingVertical: 7,
                               borderRadius: 10,
-                              backgroundColor: locked ? colors.surface : isSel ? pillColor + "18" : "transparent",
+                              backgroundColor: locked ? "#1a1d27" : isSel ? pillColor + "18" : "transparent",
                               borderWidth: 1,
-                              borderColor: locked ? colors.border : isSel ? pillColor + "55" : "transparent",
+                              borderColor: locked ? "#1f2330" : isSel ? pillColor + "55" : "transparent",
                               opacity: locked ? 0.75 : 1,
                             }}>
-                            <Text style={{ fontSize: 12, fontWeight: isSel ? "800" : "600", color: locked ? colors.textMuted : isSel ? pillColor : colors.textMuted }}>
+                            <Text style={{ fontSize: 12, fontWeight: isSel ? "800" : "600", color: locked ? "#6b7280" : isSel ? pillColor : "#6b7280" }}>
                               {locked ? `🔒 ${label}` : label}
                             </Text>
                             {locked ? (
@@ -1822,9 +1822,9 @@ export default function PortfolioScreen() {
                                 {isUp ? "+" : ""}{ret.pct.toFixed(1)}%
                               </Text>
                             ) : loadingReturns ? (
-                              <Text style={{ fontSize: 9, color: colors.textDim, marginTop: 1 }}>···</Text>
+                              <Text style={{ fontSize: 9, color: "#4b5563", marginTop: 1 }}>···</Text>
                             ) : (
-                              <Text style={{ fontSize: 9, color: colors.textDim, marginTop: 1 }}>—</Text>
+                              <Text style={{ fontSize: 9, color: "#4b5563", marginTop: 1 }}>—</Text>
                             )}
                           </TouchableOpacity>
                         );
@@ -1833,7 +1833,7 @@ export default function PortfolioScreen() {
                   </View>
 
                   {/* Source */}
-                  <Text style={{ fontSize: 9, color: colors.textDim, paddingHorizontal: 16, paddingBottom: 10, opacity: 0.7 }}>
+                  <Text style={{ fontSize: 9, color: "#4b5563", paddingHorizontal: 16, paddingBottom: 10, opacity: 0.7 }}>
                     Yahoo Finance · ajustado por splits y dividendos
                   </Text>
                 </View>
@@ -1872,42 +1872,42 @@ export default function PortfolioScreen() {
               return (
                 <View style={{
                   borderRadius: 20, borderWidth: 1, padding: 16, marginBottom: 12,
-                  backgroundColor: colors.card,
-                  borderColor: reached ? "rgba(34,197,94,0.35)" : colors.border,
+                  backgroundColor: "#111318",
+                  borderColor: reached ? "rgba(34,197,94,0.35)" : "#1f2330",
                 }}>
                   {/* Header row */}
                   <View style={{ flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 14 }}>
                     <View style={{ flex: 1 }}>
-                      <Text style={{ fontSize: 10, fontWeight: "800", letterSpacing: 1.2, textTransform: "uppercase", color: colors.accentLight, marginBottom: 3 }}>
+                      <Text style={{ fontSize: 10, fontWeight: "800", letterSpacing: 1.2, textTransform: "uppercase", color: "#00d47e", marginBottom: 3 }}>
                         META FINANCIERA
                       </Text>
-                      <Text style={{ fontSize: 15, fontFamily: "DMSans_800ExtraBold", color: colors.text }}>
+                      <Text style={{ fontSize: 15, fontFamily: "DMSans_800ExtraBold", color: "#fff" }}>
                         {goalLabel}
                       </Text>
                     </View>
                     <View style={{ alignItems: "flex-end" }}>
-                      <Text style={{ fontSize: 26, fontFamily: "DMSans_800ExtraBold", lineHeight: 28, color: reached ? "#22c55e" : colors.text }}>
+                      <Text style={{ fontSize: 26, fontFamily: "DMSans_800ExtraBold", lineHeight: 28, color: reached ? "#22c55e" : "#fff" }}>
                         {progressPct.toFixed(1)}%
                       </Text>
-                      <Text style={{ fontSize: 10, color: colors.textMuted, marginTop: 2 }}>
+                      <Text style={{ fontSize: 10, color: "#6b7280", marginTop: 2 }}>
                         {reached ? "¡Alcanzada!" : "completado"}
                       </Text>
                     </View>
                   </View>
 
                   {/* Progress bar */}
-                  <View style={{ height: 8, borderRadius: 4, backgroundColor: colors.bgRaised, overflow: "hidden", marginBottom: 12 }}>
+                  <View style={{ height: 8, borderRadius: 4, backgroundColor: "#1a1d27", overflow: "hidden", marginBottom: 12 }}>
                     <View style={{
                       height: 8, borderRadius: 4,
                       width: `${progressPct}%`,
-                      backgroundColor: reached ? "#22c55e" : colors.accentLight,
+                      backgroundColor: reached ? "#22c55e" : "#00d47e",
                     }} />
                   </View>
 
                   {/* Amount row */}
                   <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-                    <Text style={{ fontSize: 12, color: colors.textMuted }}>
-                      <Text style={{ fontFamily: "DMSans_600SemiBold", color: colors.textSub }}>
+                    <Text style={{ fontSize: 12, color: "#6b7280" }}>
+                      <Text style={{ fontFamily: "DMSans_600SemiBold", color: "#9ca3af" }}>
                         {currencySymbol}{totals.current.toLocaleString("en-US", { maximumFractionDigits: 0 })}
                       </Text>
                       {" "}acumulados
@@ -1917,9 +1917,9 @@ export default function PortfolioScreen() {
                         Meta alcanzada 🎉
                       </Text>
                     ) : (
-                      <Text style={{ fontSize: 12, color: colors.textMuted }}>
+                      <Text style={{ fontSize: 12, color: "#6b7280" }}>
                         Faltan{" "}
-                        <Text style={{ fontFamily: "DMSans_600SemiBold", color: colors.textSub }}>
+                        <Text style={{ fontFamily: "DMSans_600SemiBold", color: "#9ca3af" }}>
                           {currencySymbol}{remaining.toLocaleString("en-US", { maximumFractionDigits: 0 })}
                         </Text>
                       </Text>
@@ -1927,15 +1927,15 @@ export default function PortfolioScreen() {
                   </View>
 
                   {/* Footer */}
-                  <View style={{ borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border, paddingTop: 10, gap: 3 }}>
-                    <Text style={{ fontSize: 10, color: colors.textDim }}>
+                  <View style={{ borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: "#1f2330", paddingTop: 10, gap: 3 }}>
+                    <Text style={{ fontSize: 10, color: "#4b5563" }}>
                       Meta:{" "}
                       <Text style={{ fontFamily: "DMSans_600SemiBold" }}>
                         {currencySymbol}{goalAmt.toLocaleString("en-US", { maximumFractionDigits: 0 })}
                       </Text>
                     </Text>
                     {timeLabel && !reached && (
-                      <Text style={{ fontSize: 10, color: colors.textDim }}>
+                      <Text style={{ fontSize: 10, color: "#4b5563" }}>
                         A tasa del {rateLabel}/año (histórico), llegas en {timeLabel}
                       </Text>
                     )}
@@ -1945,11 +1945,11 @@ export default function PortfolioScreen() {
             })()}
 
             {/* ── TABLA DE POSICIONES (estilo broker) ── */}
-            <View style={{ borderRadius: 18, overflow: "hidden", borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card, marginBottom: 12 }}>
+            <View style={{ borderRadius: 18, overflow: "hidden", borderWidth: 1, borderColor: "#1f2330", backgroundColor: "#111318", marginBottom: 12 }}>
 
               {/* Table toolbar */}
-              <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 14, paddingVertical: 10, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border, backgroundColor: colors.bgRaised }}>
-                <Text style={{ fontSize: 10, fontWeight: "800", color: colors.textDim, letterSpacing: 1, textTransform: "uppercase" }}>
+              <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 14, paddingVertical: 10, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: "#1f2330", backgroundColor: "#1a1d27" }}>
+                <Text style={{ fontSize: 10, fontWeight: "800", color: "#4b5563", letterSpacing: 1, textTransform: "uppercase" }}>
                   {sortedPositions.length} posicion{sortedPositions.length !== 1 ? "es" : ""}
                 </Text>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false}>
@@ -1964,9 +1964,9 @@ export default function PortfolioScreen() {
                         <TouchableOpacity key={field} onPress={() => handleSort(field)}
                           style={{ flexDirection: "row", alignItems: "center", gap: 3,
                             paddingHorizontal: 9, paddingVertical: 4, borderRadius: 8,
-                            backgroundColor: active ? "rgba(0,212,126,0.13)" : colors.bg,
-                            borderWidth: 1, borderColor: active ? "rgba(0,212,126,0.4)" : colors.border }}>
-                          <Text style={{ fontSize: 10, fontWeight: "700", color: active ? colors.accentLight : colors.textMuted }}>
+                            backgroundColor: active ? "rgba(0,212,126,0.13)" : "#0a0d12",
+                            borderWidth: 1, borderColor: active ? "rgba(0,212,126,0.4)" : "#1f2330" }}>
+                          <Text style={{ fontSize: 10, fontWeight: "700", color: active ? "#00d47e" : "#6b7280" }}>
                             {label}{active ? (sortDir === "desc" ? " ↓" : " ↑") : ""}
                           </Text>
                         </TouchableOpacity>
@@ -1977,10 +1977,10 @@ export default function PortfolioScreen() {
               </View>
 
               {/* Column headers */}
-              <View style={{ flexDirection: "row", alignItems: "center", paddingHorizontal: 14, paddingVertical: 6, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border }}>
-                <Text style={{ flex: 5, fontSize: 9, fontWeight: "700", color: colors.textDim, letterSpacing: 0.6, textTransform: "uppercase" }}>Acción</Text>
-                <Text style={{ flex: 3, fontSize: 9, fontWeight: "700", color: colors.textDim, letterSpacing: 0.6, textTransform: "uppercase", textAlign: "right" }}>Valor</Text>
-                <Text style={{ flex: 3, fontSize: 9, fontWeight: "700", color: colors.textDim, letterSpacing: 0.6, textTransform: "uppercase", textAlign: "right" }}>Ganancia</Text>
+              <View style={{ flexDirection: "row", alignItems: "center", paddingHorizontal: 14, paddingVertical: 6, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: "#1f2330" }}>
+                <Text style={{ flex: 5, fontSize: 9, fontWeight: "700", color: "#4b5563", letterSpacing: 0.6, textTransform: "uppercase" }}>Acción</Text>
+                <Text style={{ flex: 3, fontSize: 9, fontWeight: "700", color: "#4b5563", letterSpacing: 0.6, textTransform: "uppercase", textAlign: "right" }}>Valor</Text>
+                <Text style={{ flex: 3, fontSize: 9, fontWeight: "700", color: "#4b5563", letterSpacing: 0.6, textTransform: "uppercase", textAlign: "right" }}>Ganancia</Text>
                 <View style={{ width: 52 }} />
               </View>
 
@@ -1995,7 +1995,7 @@ export default function PortfolioScreen() {
                 const diff = currentVal !== null && investedVal !== null ? currentVal - investedVal : null;
                 const pct = diff !== null && investedVal! > 0 ? (diff / investedVal!) * 100 : null;
                 const isUp = diff !== null ? diff >= 0 : null;
-                const rowColor = isUp === true ? "#22c55e" : isUp === false ? "#ef4444" : colors.border;
+                const rowColor = isUp === true ? "#22c55e" : isUp === false ? "#ef4444" : "#1f2330";
 
                 const fmtCompact = (v: number) => {
                   const abs = Math.abs(v);
@@ -2018,8 +2018,8 @@ export default function PortfolioScreen() {
                       <View style={{ flex: 5, flexDirection: "row", alignItems: "center", gap: 9 }}>
                         <StockAvatar ticker={pos.ticker} size={34} />
                         <View style={{ flexShrink: 1 }}>
-                          <Text style={{ fontSize: 13, fontWeight: "800", color: colors.text }} numberOfLines={1}>{pos.ticker}</Text>
-                          <Text style={{ fontSize: 10, color: colors.textMuted, marginTop: 1 }} numberOfLines={1}>
+                          <Text style={{ fontSize: 13, fontWeight: "800", color: "#fff" }} numberOfLines={1}>{pos.ticker}</Text>
+                          <Text style={{ fontSize: 10, color: "#6b7280", marginTop: 1 }} numberOfLines={1}>
                             {pos.shares % 1 === 0 ? pos.shares : pos.shares.toFixed(3)} acc{hasCost ? ` · ${currencySymbol}${(pos.avgPrice * fxRate).toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}/acc` : ""}
                           </Text>
                         </View>
@@ -2027,11 +2027,11 @@ export default function PortfolioScreen() {
 
                       {/* Current value + cost */}
                       <View style={{ flex: 3, alignItems: "flex-end" }}>
-                        <Text style={{ fontSize: 13, fontWeight: "700", color: colors.text }}>
+                        <Text style={{ fontSize: 13, fontWeight: "700", color: "#fff" }}>
                           {currentVal != null ? fmtCompact(currentVal) : "—"}
                         </Text>
                         {investedVal != null && (
-                          <Text style={{ fontSize: 10, color: colors.textMuted, marginTop: 1 }}>
+                          <Text style={{ fontSize: 10, color: "#6b7280", marginTop: 1 }}>
                             {fmtCompact(investedVal)} inv.
                           </Text>
                         )}
@@ -2051,7 +2051,7 @@ export default function PortfolioScreen() {
                             </Text>
                           </>
                         ) : (
-                          <Text style={{ fontSize: 11, color: colors.textDim }}>—</Text>
+                          <Text style={{ fontSize: 11, color: "#4b5563" }}>—</Text>
                         )}
                       </View>
 
@@ -2061,7 +2061,7 @@ export default function PortfolioScreen() {
                           onPress={(e) => { e.stopPropagation(); setEditingPos({ id: pos.id, shares: String(pos.shares), avgPrice: String(pos.avgPrice), purchaseDate: pos.purchaseDate ?? new Date().toISOString().split("T")[0] }); }}
                           hitSlop={{ top: 8, bottom: 8, left: 8, right: 4 }}
                           activeOpacity={0.7}>
-                          <Ionicons name="pencil-outline" size={14} color={colors.textDim} />
+                          <Ionicons name="pencil-outline" size={14} color={"#4b5563"} />
                         </TouchableOpacity>
                         <TouchableOpacity
                           onPress={(e) => { e.stopPropagation(); removePosition(pos.id); }}
@@ -2073,7 +2073,7 @@ export default function PortfolioScreen() {
                     </TouchableOpacity>
 
                     {idx < sortedPositions.length - 1 && (
-                      <View style={{ height: StyleSheet.hairlineWidth, backgroundColor: colors.border, marginLeft: 58 }} />
+                      <View style={{ height: StyleSheet.hairlineWidth, backgroundColor: "#1f2330", marginLeft: 58 }} />
                     )}
                   </View>
                 );
@@ -2085,7 +2085,7 @@ export default function PortfolioScreen() {
         {/* ── STRESS TEST ── */}
         {positions.length > 0 && (
           <>
-            <View style={[s.divider, { borderTopColor: colors.border }]} />
+            <View style={[s.divider, { borderTopColor: "#1f2330" }]} />
             <View style={s.simHeader}>
               <Ionicons name="shield-half-outline" size={20} color="#ef4444" />
               <View style={{ flex: 1 }}>
@@ -2098,10 +2098,10 @@ export default function PortfolioScreen() {
                     </View>
                   )}
                 </View>
-                <Text style={[s.simSubtitle, { color: colors.textMuted }]}>
+                <Text style={[s.simSubtitle, { color: "#6b7280" }]}>
                   ¿Cuánto aguantaría tu portafolio en una crisis histórica?
                   {!isPremiumAccess && (
-                    <Text style={{ color: colors.textDim }}> COVID-19 gratis · el resto con Premium.</Text>
+                    <Text style={{ color: "#4b5563" }}> COVID-19 gratis · el resto con Premium.</Text>
                   )}
                 </Text>
               </View>
@@ -2114,13 +2114,13 @@ export default function PortfolioScreen() {
                 return (
                   <TouchableOpacity
                     key={sc.id}
-                    style={[s.stressChip, { borderColor: stressScenario === sc.id ? sc.color : colors.border, backgroundColor: stressScenario === sc.id ? sc.color + "18" : "transparent", opacity: canRun ? 1 : 0.45 }]}
+                    style={[s.stressChip, { borderColor: stressScenario === sc.id ? sc.color : "#1f2330", backgroundColor: stressScenario === sc.id ? sc.color + "18" : "transparent", opacity: canRun ? 1 : 0.45 }]}
                     onPress={() => canRun ? runStressTest(sc.id) : setPaywallOpen(true)}
                   >
                     <Text style={s.stressChipIcon}>{sc.icon}</Text>
                     <View>
-                      <Text style={[s.stressChipName, { color: stressScenario === sc.id ? sc.color : colors.textSub }]}>{sc.name}</Text>
-                      <Text style={[s.stressChipYear, { color: colors.textDim }]}>
+                      <Text style={[s.stressChipName, { color: stressScenario === sc.id ? sc.color : "#9ca3af" }]}>{sc.name}</Text>
+                      <Text style={[s.stressChipYear, { color: "#4b5563" }]}>
                         {!isPremiumAccess && !isFreeScenario ? "🔒 " : ""}{sc.year}
                       </Text>
                     </View>
@@ -2132,24 +2132,24 @@ export default function PortfolioScreen() {
             {stressResult && stressScenario && (() => {
               const sc = STRESS_SCENARIOS.find((x) => x.id === stressScenario)!;
               return (
-                <View style={[s.stressResultCard, { backgroundColor: colors.card, borderColor: sc.color + "50" }]}>
-                  <Text style={[s.stressResultTitle, { color: colors.text }]}>{sc.icon} {sc.name} — {sc.desc}</Text>
+                <View style={[s.stressResultCard, { backgroundColor: "#111318", borderColor: sc.color + "50" }]}>
+                  <Text style={[s.stressResultTitle, { color: "#fff" }]}>{sc.icon} {sc.name} — {sc.desc}</Text>
 
                   <View style={[s.stressSummary, { backgroundColor: stressResult.diff >= 0 ? "#22c55e14" : "#ef444414" }]}>
-                    <Text style={[s.stressSummaryLabel, { color: colors.textMuted }]}>Impacto total estimado</Text>
+                    <Text style={[s.stressSummaryLabel, { color: "#6b7280" }]}>Impacto total estimado</Text>
                     <Text style={[s.stressSummaryVal, { color: stressResult.diff >= 0 ? "#22c55e" : "#ef4444" }]}>
                       {stressResult.diff >= 0 ? "+" : ""}{fmtMoney(Math.abs(stressResult.diff))} ({stressResult.pct >= 0 ? "+" : ""}{stressResult.pct.toFixed(1)}%)
                     </Text>
-                    <Text style={{ color: colors.textDim, fontSize: 11, marginTop: 2 }}>
+                    <Text style={{ color: "#4b5563", fontSize: 11, marginTop: 2 }}>
                       {fmtMoney(stressResult.total)} → {fmtMoney(stressResult.stressed)}
                     </Text>
                   </View>
 
                   {stressResult.rows.map((row) => (
-                    <View key={row.ticker} style={[s.stressRow, { borderTopColor: colors.border }]}>
+                    <View key={row.ticker} style={[s.stressRow, { borderTopColor: "#1f2330" }]}>
                       <View style={{ flex: 1 }}>
-                        <Text style={[s.stressRowTicker, { color: colors.text }]}>{row.ticker}</Text>
-                        <Text style={[s.stressRowSector, { color: colors.textDim }]}>{row.sector}</Text>
+                        <Text style={[s.stressRowTicker, { color: "#fff" }]}>{row.ticker}</Text>
+                        <Text style={[s.stressRowSector, { color: "#4b5563" }]}>{row.sector}</Text>
                       </View>
                       <View style={{ alignItems: "flex-end" }}>
                         <Text style={[s.stressRowPct, { color: row.pct >= 0 ? "#22c55e" : "#ef4444" }]}>
@@ -2182,7 +2182,7 @@ export default function PortfolioScreen() {
                   <View style={[s.diagBadgeDot, { backgroundColor: level.color }]} />
                   <Text style={[s.diagBadgeText, { color: level.color }]}>{level.label}</Text>
                 </View>
-                <Text style={[s.diagScore, { color: colors.textMuted }]}>{diagnosis.score}/100</Text>
+                <Text style={[s.diagScore, { color: "#6b7280" }]}>{diagnosis.score}/100</Text>
               </View>
               <View style={s.diagBarRow}>
                 {PORTFOLIO_LEVELS.map((l, i) => (
@@ -2194,8 +2194,8 @@ export default function PortfolioScreen() {
                 ))}
               </View>
               <View style={s.diagBarLabels}>
-                <Text style={[s.diagBarLabel, { color: colors.textDim }]}>Conservador</Text>
-                <Text style={[s.diagBarLabel, { color: colors.textDim }]}>Especulativo</Text>
+                <Text style={[s.diagBarLabel, { color: "#4b5563" }]}>Conservador</Text>
+                <Text style={[s.diagBarLabel, { color: "#4b5563" }]}>Especulativo</Text>
               </View>
               {Object.keys(diagnosis.sectorPcts).length > 0 && (
                 <>
@@ -2222,7 +2222,7 @@ export default function PortfolioScreen() {
                         <View style={s.sectorDrillHeader}>
                           <Text style={[s.sectorDrillTitle, { color: col }]}>Posiciones · {selectedSector}</Text>
                           <TouchableOpacity onPress={() => setSelectedSector(null)}>
-                            <Text style={[s.sectorDrillClose, { color: colors.textMuted }]}>✕ cerrar</Text>
+                            <Text style={[s.sectorDrillClose, { color: "#6b7280" }]}>✕ cerrar</Text>
                           </TouchableOpacity>
                         </View>
                         {sectorPos.map((p) => {
@@ -2233,11 +2233,11 @@ export default function PortfolioScreen() {
                           return (
                             <View key={p.id} style={[s.sectorDrillRow, { backgroundColor: col + "12" }]}>
                               <View style={s.sectorDrillLeft}>
-                                <Text style={[s.sectorDrillTicker, { color: colors.text }]}>{p.ticker}</Text>
-                                <Text style={[s.sectorDrillName, { color: colors.textMuted }]} numberOfLines={1}>{p.name}</Text>
+                                <Text style={[s.sectorDrillTicker, { color: "#fff" }]}>{p.ticker}</Text>
+                                <Text style={[s.sectorDrillName, { color: "#6b7280" }]} numberOfLines={1}>{p.name}</Text>
                               </View>
                               <View style={s.sectorDrillRight}>
-                                <Text style={[s.sectorDrillVal, { color: colors.text }]}>{currencySymbol}{val.toLocaleString("en-US", { maximumFractionDigits: 0 })}</Text>
+                                <Text style={[s.sectorDrillVal, { color: "#fff" }]}>{currencySymbol}{val.toLocaleString("en-US", { maximumFractionDigits: 0 })}</Text>
                                 <Text style={[s.sectorDrillPct, { color: gainPct >= 0 ? "#22c55e" : "#ef4444" }]}>{gainPct >= 0 ? "+" : ""}{gainPct.toFixed(1)}%</Text>
                               </View>
                             </View>
@@ -2253,12 +2253,12 @@ export default function PortfolioScreen() {
         })()}
 
         {/* ── ANALIZA TU PORTAFOLIO ── */}
-        <View style={[s.divider, { borderTopColor: colors.border }]} />
+        <View style={[s.divider, { borderTopColor: "#1f2330" }]} />
         <View style={s.simHeader}>
           <Ionicons name="sparkles-outline" size={20} color="#22c55e" />
           <View style={{ flex: 1 }}>
             <Text style={[s.sectionTitle, { marginBottom: 2 }]}>Analiza tu Portafolio</Text>
-            <Text style={[s.simSubtitle, { color: colors.textMuted }]}>
+            <Text style={[s.simSubtitle, { color: "#6b7280" }]}>
               IA evalúa tus {positions.length} posiciones y da una calificación detallada
             </Text>
           </View>
@@ -2281,8 +2281,8 @@ export default function PortfolioScreen() {
             )}
           </TouchableOpacity>
         ) : (
-          <View style={[s.resultCard, { backgroundColor: colors.card, borderColor: colors.border, alignItems: "center", paddingVertical: 20 }]}>
-            <Text style={{ color: colors.textMuted, fontSize: 12 }}>Agrega posiciones para analizar tu portafolio</Text>
+          <View style={[s.resultCard, { backgroundColor: "#111318", borderColor: "#1f2330", alignItems: "center", paddingVertical: 20 }]}>
+            <Text style={{ color: "#6b7280", fontSize: 12 }}>Agrega posiciones para analizar tu portafolio</Text>
           </View>
         )}
 
@@ -2300,7 +2300,7 @@ export default function PortfolioScreen() {
                 {/* SVG ring */}
                 <View style={{ width: 88, height: 88, alignItems: "center", justifyContent: "center" }}>
                   <Svg width={88} height={88} style={{ transform: [{ rotate: "-90deg" }] }}>
-                    <Circle cx={44} cy={44} r={R} stroke={colors.border} strokeWidth={8} fill="none" />
+                    <Circle cx={44} cy={44} r={R} stroke={"#1f2330"} strokeWidth={8} fill="none" />
                     <Circle cx={44} cy={44} r={R} stroke={scoreCol} strokeWidth={8} fill="none"
                       strokeLinecap="round"
                       strokeDasharray={`${CIRC}`}
@@ -2309,29 +2309,29 @@ export default function PortfolioScreen() {
                   </Svg>
                   <View style={{ position: "absolute", alignItems: "center" }}>
                     <Text style={{ color: scoreCol, fontSize: 22, fontWeight: "900", lineHeight: 26 }}>{portfolioAnalysis.score}</Text>
-                    <Text style={{ color: colors.textMuted, fontSize: 9, fontWeight: "700" }}>/ 100</Text>
+                    <Text style={{ color: "#6b7280", fontSize: 9, fontWeight: "700" }}>/ 100</Text>
                   </View>
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={{ color: scoreCol, fontSize: 16, fontWeight: "900", marginBottom: 4 }}>{portfolioAnalysis.score_label}</Text>
-                  <Text style={{ color: colors.textSub, fontSize: 11, lineHeight: 17 }}>{portfolioAnalysis.summary}</Text>
+                  <Text style={{ color: "#9ca3af", fontSize: 11, lineHeight: 17 }}>{portfolioAnalysis.summary}</Text>
                 </View>
               </View>
 
               {/* Dimension bars */}
-              <View style={{ borderRadius: 20, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card, overflow: "hidden" }}>
+              <View style={{ borderRadius: 20, borderWidth: 1, borderColor: "#1f2330", backgroundColor: "#111318", overflow: "hidden" }}>
                 {portfolioAnalysis.sections.map((sec, i) => {
                   const barCol = sec.score >= 70 ? "#22c55e" : sec.score >= 50 ? "#f59e0b" : "#ef4444";
                   return (
-                    <View key={sec.title} style={{ paddingHorizontal: 16, paddingVertical: 12, borderTopWidth: i > 0 ? StyleSheet.hairlineWidth : 0, borderTopColor: colors.border }}>
+                    <View key={sec.title} style={{ paddingHorizontal: 16, paddingVertical: 12, borderTopWidth: i > 0 ? StyleSheet.hairlineWidth : 0, borderTopColor: "#1f2330" }}>
                       <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 6 }}>
-                        <Text style={{ color: colors.text, fontSize: 12, fontWeight: "700" }}>{sec.title}</Text>
+                        <Text style={{ color: "#fff", fontSize: 12, fontWeight: "700" }}>{sec.title}</Text>
                         <Text style={{ color: barCol, fontSize: 12, fontWeight: "900" }}>{sec.score}/100</Text>
                       </View>
-                      <View style={{ height: 5, backgroundColor: colors.border, borderRadius: 3 }}>
+                      <View style={{ height: 5, backgroundColor: "#1f2330", borderRadius: 3 }}>
                         <View style={{ width: `${sec.score}%` as any, height: 5, backgroundColor: barCol, borderRadius: 3 }} />
                       </View>
-                      <Text style={{ color: colors.textMuted, fontSize: 10, lineHeight: 15, marginTop: 5 }}>{sec.detail}</Text>
+                      <Text style={{ color: "#6b7280", fontSize: 10, lineHeight: 15, marginTop: 5 }}>{sec.detail}</Text>
                     </View>
                   );
                 })}
@@ -2344,7 +2344,7 @@ export default function PortfolioScreen() {
                   {portfolioAnalysis.strengths.map((str, i) => (
                     <View key={i} style={{ flexDirection: "row", gap: 6, marginBottom: 5 }}>
                       <Text style={{ color: "#22c55e", fontSize: 10, marginTop: 1 }}>✓</Text>
-                      <Text style={{ color: colors.textSub, fontSize: 10, lineHeight: 15, flex: 1 }}>{str}</Text>
+                      <Text style={{ color: "#9ca3af", fontSize: 10, lineHeight: 15, flex: 1 }}>{str}</Text>
                     </View>
                   ))}
                 </View>
@@ -2353,26 +2353,26 @@ export default function PortfolioScreen() {
                   {portfolioAnalysis.weaknesses.map((w, i) => (
                     <View key={i} style={{ flexDirection: "row", gap: 6, marginBottom: 5 }}>
                       <Text style={{ color: "#ef4444", fontSize: 10, marginTop: 1 }}>!</Text>
-                      <Text style={{ color: colors.textSub, fontSize: 10, lineHeight: 15, flex: 1 }}>{w}</Text>
+                      <Text style={{ color: "#9ca3af", fontSize: 10, lineHeight: 15, flex: 1 }}>{w}</Text>
                     </View>
                   ))}
                 </View>
               </View>
 
               {/* Recommendations */}
-              <View style={{ borderRadius: 20, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card, overflow: "hidden" }}>
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 8, padding: 14, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border }}>
+              <View style={{ borderRadius: 20, borderWidth: 1, borderColor: "#1f2330", backgroundColor: "#111318", overflow: "hidden" }}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8, padding: 14, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: "#1f2330" }}>
                   <Ionicons name="bulb-outline" size={15} color="#6366f1" />
-                  <Text style={{ color: colors.text, fontSize: 13, fontWeight: "800" }}>Recomendaciones</Text>
+                  <Text style={{ color: "#fff", fontSize: 13, fontWeight: "800" }}>Recomendaciones</Text>
                 </View>
                 {portfolioAnalysis.recommendations.map((rec, i) => (
-                  <View key={i} style={{ flexDirection: "row", gap: 12, padding: 14, borderTopWidth: i > 0 ? StyleSheet.hairlineWidth : 0, borderTopColor: colors.border }}>
+                  <View key={i} style={{ flexDirection: "row", gap: 12, padding: 14, borderTopWidth: i > 0 ? StyleSheet.hairlineWidth : 0, borderTopColor: "#1f2330" }}>
                     <View style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: "rgba(99,102,241,0.15)", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: 1 }}>
                       <Text style={{ color: "#818cf8", fontSize: 10, fontWeight: "900" }}>{i + 1}</Text>
                     </View>
                     <View style={{ flex: 1 }}>
-                      <Text style={{ color: colors.text, fontSize: 12, fontWeight: "700", marginBottom: 3 }}>{rec.title}</Text>
-                      <Text style={{ color: colors.textMuted, fontSize: 11, lineHeight: 16 }}>{rec.detail}</Text>
+                      <Text style={{ color: "#fff", fontSize: 12, fontWeight: "700", marginBottom: 3 }}>{rec.title}</Text>
+                      <Text style={{ color: "#6b7280", fontSize: 11, lineHeight: 16 }}>{rec.detail}</Text>
                     </View>
                   </View>
                 ))}
@@ -2389,39 +2389,39 @@ export default function PortfolioScreen() {
         })()}
 
         {/* ── SIMULADOR 2: CALCULADORA DE INTERÉS COMPUESTO ── */}
-        <View style={[s.divider, { borderTopColor: colors.border }]} />
+        <View style={[s.divider, { borderTopColor: "#1f2330" }]} />
         <View style={s.simHeader}>
           <Ionicons name="calculator-outline" size={20} color="#6366f1" />
           <View style={{ flex: 1 }}>
             <Text style={[s.sectionTitle, { marginBottom: 2 }]}>Calculadora de Inversión</Text>
-            <Text style={[s.simSubtitle, { color: colors.textMuted }]}>
+            <Text style={[s.simSubtitle, { color: "#6b7280" }]}>
               ¿Cuánto tendrás si inviertes X a Y% por Z años?
             </Text>
           </View>
         </View>
 
-        <View style={[s.calcCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        <View style={[s.calcCard, { backgroundColor: "#111318", borderColor: "#1f2330" }]}>
           <View style={s.calcRow}>
             <View style={s.calcField}>
-              <Text style={[s.calcLabel, { color: colors.textMuted }]}>Capital inicial (USD)</Text>
-              <View style={[s.calcInputWrap, { backgroundColor: colors.bg, borderColor: colors.border }]}>
-                <Text style={[s.calcInputPrefix, { color: colors.textMuted }]}>$</Text>
+              <Text style={[s.calcLabel, { color: "#6b7280" }]}>Capital inicial (USD)</Text>
+              <View style={[s.calcInputWrap, { backgroundColor: "#0a0d12", borderColor: "#1f2330" }]}>
+                <Text style={[s.calcInputPrefix, { color: "#6b7280" }]}>$</Text>
                 <TextInput
-                  style={[s.calcInputInner, { color: colors.text }]}
+                  style={[s.calcInputInner, { color: "#fff" }]}
                   value={calcCapital} onChangeText={setCalcCapital}
-                  placeholder="10,000" placeholderTextColor={colors.placeholder}
+                  placeholder="10,000" placeholderTextColor={"#374151"}
                   keyboardType="numeric"
                 />
               </View>
             </View>
             <View style={s.calcField}>
-              <Text style={[s.calcLabel, { color: colors.textMuted }]}>Aportación mensual (USD)</Text>
-              <View style={[s.calcInputWrap, { backgroundColor: colors.bg, borderColor: colors.border }]}>
-                <Text style={[s.calcInputPrefix, { color: colors.textMuted }]}>$</Text>
+              <Text style={[s.calcLabel, { color: "#6b7280" }]}>Aportación mensual (USD)</Text>
+              <View style={[s.calcInputWrap, { backgroundColor: "#0a0d12", borderColor: "#1f2330" }]}>
+                <Text style={[s.calcInputPrefix, { color: "#6b7280" }]}>$</Text>
                 <TextInput
-                  style={[s.calcInputInner, { color: colors.text }]}
+                  style={[s.calcInputInner, { color: "#fff" }]}
                   value={calcMonthly} onChangeText={setCalcMonthly}
-                  placeholder="500 (opcional)" placeholderTextColor={colors.placeholder}
+                  placeholder="500 (opcional)" placeholderTextColor={"#374151"}
                   keyboardType="numeric"
                 />
               </View>
@@ -2429,20 +2429,20 @@ export default function PortfolioScreen() {
           </View>
           <View style={s.calcRow}>
             <View style={s.calcField}>
-              <Text style={[s.calcLabel, { color: colors.textMuted }]}>Rendimiento anual (%)</Text>
+              <Text style={[s.calcLabel, { color: "#6b7280" }]}>Rendimiento anual (%)</Text>
               <TextInput
-                style={[s.calcInput, { color: colors.text, backgroundColor: colors.bg, borderColor: colors.border }]}
+                style={[s.calcInput, { color: "#fff", backgroundColor: "#0a0d12", borderColor: "#1f2330" }]}
                 value={calcReturn} onChangeText={setCalcReturn}
-                placeholder="10" placeholderTextColor={colors.placeholder}
+                placeholder="10" placeholderTextColor={"#374151"}
                 keyboardType="numeric"
               />
             </View>
             <View style={s.calcField}>
-              <Text style={[s.calcLabel, { color: colors.textMuted }]}>Plazo (años)</Text>
+              <Text style={[s.calcLabel, { color: "#6b7280" }]}>Plazo (años)</Text>
               <TextInput
-                style={[s.calcInput, { color: colors.text, backgroundColor: colors.bg, borderColor: colors.border }]}
+                style={[s.calcInput, { color: "#fff", backgroundColor: "#0a0d12", borderColor: "#1f2330" }]}
                 value={calcYears} onChangeText={setCalcYears}
-                placeholder="20" placeholderTextColor={colors.placeholder}
+                placeholder="20" placeholderTextColor={"#374151"}
                 keyboardType="numeric"
               />
             </View>
@@ -2461,11 +2461,11 @@ export default function PortfolioScreen() {
           const BAR_MAX_H = 150;
           const yrs = parseFloat(calcYears) || 0;
           return (
-            <View style={[s.calcResultCard, { backgroundColor: colors.card, borderColor: "#6366f130" }]}>
+            <View style={[s.calcResultCard, { backgroundColor: "#111318", borderColor: "#6366f130" }]}>
 
               {/* ── Hero: valor final ── */}
               <View style={[s.calcHero, { backgroundColor: "#6366f110" }]}>
-                <Text style={[s.calcHeroLabel, { color: colors.textMuted }]}>
+                <Text style={[s.calcHeroLabel, { color: "#6b7280" }]}>
                   Valor final en {calcYears} {parseInt(calcYears) === 1 ? "año" : "años"}
                 </Text>
                 <Text style={[s.calcHeroValue, { color: "#6366f1" }]}>
@@ -2486,14 +2486,14 @@ export default function PortfolioScreen() {
               </View>
 
               {/* ── Stats row ── */}
-              <View style={[s.calcStatsRow, { borderColor: colors.border }]}>
+              <View style={[s.calcStatsRow, { borderColor: "#1f2330" }]}>
                 {[
-                  { label: "Invertido",    val: `$${fmtMoney(calcResult.invested)}`,  col: colors.textSub },
+                  { label: "Invertido",    val: `$${fmtMoney(calcResult.invested)}`,  col: "#9ca3af" },
                   { label: "Ganancias",    val: `+$${fmtMoney(calcResult.gain)}`,      col: "#22c55e"      },
                   { label: "Valor real*",  val: `$${fmtMoney(calcResult.realFinal)}`,  col: "#f59e0b"      },
                 ].map((st, i) => (
-                  <View key={st.label} style={[s.calcStatItem, i > 0 && { borderLeftWidth: StyleSheet.hairlineWidth, borderLeftColor: colors.border }]}>
-                    <Text style={[s.calcStatLabel, { color: colors.textMuted }]}>{st.label}</Text>
+                  <View key={st.label} style={[s.calcStatItem, i > 0 && { borderLeftWidth: StyleSheet.hairlineWidth, borderLeftColor: "#1f2330" }]}>
+                    <Text style={[s.calcStatLabel, { color: "#6b7280" }]}>{st.label}</Text>
                     <Text style={[s.calcStatVal, { color: st.col }]}>{st.val}</Text>
                   </View>
                 ))}
@@ -2501,7 +2501,7 @@ export default function PortfolioScreen() {
 
               {/* ── Bar chart ── */}
               <View style={s.chartSection}>
-                <Text style={[s.chartTitle, { color: colors.textMuted }]}>Invertido vs Retorno por año</Text>
+                <Text style={[s.chartTitle, { color: "#6b7280" }]}>Invertido vs Retorno por año</Text>
 
                 <View style={s.chartBars}>
                   {calcResult.bars.map((bar) => {
@@ -2512,7 +2512,7 @@ export default function PortfolioScreen() {
                     return (
                       <View key={bar.year} style={s.barCol}>
                         {/* value label */}
-                        <Text style={[s.barTopLabel, { color: isBeyond ? colors.textDim : colors.textSub }]}
+                        <Text style={[s.barTopLabel, { color: isBeyond ? "#4b5563" : "#9ca3af" }]}
                           numberOfLines={1} adjustsFontSizeToFit>
                           ${fmtMoney(bar.total)}
                         </Text>
@@ -2525,7 +2525,7 @@ export default function PortfolioScreen() {
                             <View style={[s.barSegInvested, { height: invH }]} />
                           </View>
                         </View>
-                        <Text style={[s.barYearLabel, { color: isBeyond ? colors.textDim : colors.textMuted }]}>
+                        <Text style={[s.barYearLabel, { color: isBeyond ? "#4b5563" : "#6b7280" }]}>
                           {bar.year}a
                         </Text>
                       </View>
@@ -2537,15 +2537,15 @@ export default function PortfolioScreen() {
                 <View style={s.chartLegend}>
                   <View style={s.legendItem}>
                     <View style={[s.legendDot, { backgroundColor: "#6366f1" }]} />
-                    <Text style={[s.legendText, { color: colors.textMuted }]}>Invertido</Text>
+                    <Text style={[s.legendText, { color: "#6b7280" }]}>Invertido</Text>
                   </View>
                   <View style={s.legendItem}>
                     <View style={[s.legendDot, { backgroundColor: "#22c55e" }]} />
-                    <Text style={[s.legendText, { color: colors.textMuted }]}>Retorno</Text>
+                    <Text style={[s.legendText, { color: "#6b7280" }]}>Retorno</Text>
                   </View>
                   <View style={s.legendItem}>
                     <View style={[s.legendDot, { backgroundColor: "#f59e0b", width: 8, height: 8, borderRadius: 2 }]} />
-                    <Text style={[s.legendText, { color: colors.textMuted }]}>Opaco = proyección</Text>
+                    <Text style={[s.legendText, { color: "#6b7280" }]}>Opaco = proyección</Text>
                   </View>
                 </View>
               </View>
@@ -2590,40 +2590,40 @@ export default function PortfolioScreen() {
       {/* Edit position modal */}
       <Modal visible={!!editingPos} transparent animationType="fade" onRequestClose={() => setEditingPos(null)}>
         <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.7)", justifyContent: "center", alignItems: "center", padding: 20 }}>
-          <View style={{ backgroundColor: colors.card, borderRadius: 20, width: "100%", maxWidth: 360, overflow: "hidden" }}>
+          <View style={{ backgroundColor: "#111318", borderRadius: 20, width: "100%", maxWidth: 360, overflow: "hidden" }}>
             <View style={{ height: 4, backgroundColor: "#00a85e" }} />
             <View style={{ padding: 20 }}>
               <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-                <Text style={{ color: colors.text, fontWeight: "800", fontSize: 15 }}>Editar posición</Text>
+                <Text style={{ color: "#fff", fontWeight: "800", fontSize: 15 }}>Editar posición</Text>
                 <TouchableOpacity onPress={() => setEditingPos(null)}>
-                  <Ionicons name="close" size={20} color={colors.textMuted} />
+                  <Ionicons name="close" size={20} color={"#6b7280"} />
                 </TouchableOpacity>
               </View>
-              <Text style={{ fontSize: 10, color: colors.textMuted, fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>Acciones / unidades</Text>
+              <Text style={{ fontSize: 10, color: "#6b7280", fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>Acciones / unidades</Text>
               <TextInput
-                style={{ backgroundColor: colors.bgRaised, borderWidth: 1, borderColor: colors.border, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: colors.text, marginBottom: 12 }}
+                style={{ backgroundColor: "#1a1d27", borderWidth: 1, borderColor: "#1f2330", borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: "#fff", marginBottom: 12 }}
                 keyboardType="decimal-pad"
                 value={editingPos?.shares ?? ""}
                 onChangeText={(v) => setEditingPos((p) => p ? { ...p, shares: v } : p)}
-                placeholderTextColor={colors.textDim}
+                placeholderTextColor={"#4b5563"}
                 placeholder="Ej: 10"
               />
-              <Text style={{ fontSize: 10, color: colors.textMuted, fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>Precio promedio de compra ($)</Text>
+              <Text style={{ fontSize: 10, color: "#6b7280", fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>Precio promedio de compra ($)</Text>
               <TextInput
-                style={{ backgroundColor: colors.bgRaised, borderWidth: 1, borderColor: colors.border, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: colors.text, marginBottom: 12 }}
+                style={{ backgroundColor: "#1a1d27", borderWidth: 1, borderColor: "#1f2330", borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: "#fff", marginBottom: 12 }}
                 keyboardType="decimal-pad"
                 value={editingPos?.avgPrice ?? ""}
                 onChangeText={(v) => setEditingPos((p) => p ? { ...p, avgPrice: v } : p)}
-                placeholderTextColor={colors.textDim}
+                placeholderTextColor={"#4b5563"}
                 placeholder="Ej: 150.00"
               />
-              <Text style={{ fontSize: 10, color: colors.textMuted, fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>Fecha de compra (YYYY-MM-DD)</Text>
+              <Text style={{ fontSize: 10, color: "#6b7280", fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>Fecha de compra (YYYY-MM-DD)</Text>
               <TextInput
-                style={{ backgroundColor: colors.bgRaised, borderWidth: 1, borderColor: colors.border, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: colors.text, marginBottom: 16 }}
+                style={{ backgroundColor: "#1a1d27", borderWidth: 1, borderColor: "#1f2330", borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: "#fff", marginBottom: 16 }}
                 keyboardType="default"
                 value={editingPos?.purchaseDate ?? ""}
                 onChangeText={(v) => setEditingPos((p) => p ? { ...p, purchaseDate: v } : p)}
-                placeholderTextColor={colors.textDim}
+                placeholderTextColor={"#4b5563"}
                 placeholder={new Date().toISOString().split("T")[0]}
               />
               <TouchableOpacity
@@ -2658,10 +2658,10 @@ export default function PortfolioScreen() {
       {/* ── Currency picker (standalone) ── */}
       <Modal visible={showCurrencyPicker} transparent animationType="slide" onRequestClose={() => setShowCurrencyPicker(false)}>
         <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "flex-end" }}>
-          <View style={{ backgroundColor: colors.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingBottom: 36 }}>
-            <View style={{ width: 36, height: 4, borderRadius: 2, backgroundColor: colors.border, alignSelf: "center", marginBottom: 16 }} />
-            <Text style={{ color: colors.text, fontWeight: "800", fontSize: 16, marginBottom: 4 }}>Moneda del portafolio</Text>
-            <Text style={{ color: colors.textMuted, fontSize: 12, marginBottom: 20 }}>
+          <View style={{ backgroundColor: "#111318", borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingBottom: 36 }}>
+            <View style={{ width: 36, height: 4, borderRadius: 2, backgroundColor: "#1f2330", alignSelf: "center", marginBottom: 16 }} />
+            <Text style={{ color: "#fff", fontWeight: "800", fontSize: 16, marginBottom: 4 }}>Moneda del portafolio</Text>
+            <Text style={{ color: "#6b7280", fontSize: 12, marginBottom: 20 }}>
               Los precios de mercado se convierten automáticamente en tiempo real.
             </Text>
             <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 20 }}>
@@ -2687,22 +2687,22 @@ export default function PortfolioScreen() {
                     style={{
                       width: "22%", alignItems: "center", paddingVertical: 10, paddingHorizontal: 4,
                       borderRadius: 14, borderWidth: 1.5,
-                      borderColor: active ? "#00a85e" : colors.border,
-                      backgroundColor: active ? "rgba(0,168,94,0.12)" : colors.bgRaised,
+                      borderColor: active ? "#00a85e" : "#1f2330",
+                      backgroundColor: active ? "rgba(0,168,94,0.12)" : "#1a1d27",
                     }}
                     activeOpacity={0.75}>
                     <Text style={{ fontSize: 20, marginBottom: 2 }}>{flag}</Text>
-                    <Text style={{ fontSize: 11, fontWeight: "800", color: active ? "#00d47e" : colors.text }}>{code}</Text>
-                    <Text style={{ fontSize: 9, color: colors.textMuted, textAlign: "center" }}>{name}</Text>
+                    <Text style={{ fontSize: 11, fontWeight: "800", color: active ? "#00d47e" : "#fff" }}>{code}</Text>
+                    <Text style={{ fontSize: 9, color: "#6b7280", textAlign: "center" }}>{name}</Text>
                   </TouchableOpacity>
                 );
               })}
             </View>
             <TouchableOpacity
               onPress={() => setShowCurrencyPicker(false)}
-              style={{ borderWidth: 1, borderColor: colors.border, borderRadius: 14, paddingVertical: 13, alignItems: "center" }}
+              style={{ borderWidth: 1, borderColor: "#1f2330", borderRadius: 14, paddingVertical: 13, alignItems: "center" }}
               activeOpacity={0.7}>
-              <Text style={{ color: colors.textSub, fontWeight: "700", fontSize: 14 }}>Cerrar</Text>
+              <Text style={{ color: "#9ca3af", fontWeight: "700", fontSize: 14 }}>Cerrar</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -2711,11 +2711,11 @@ export default function PortfolioScreen() {
       {/* Currency modal */}
       <Modal visible={!!pendingImport} transparent animationType="fade" onRequestClose={() => setPendingImport(null)}>
         <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "center", alignItems: "center", padding: 20 }}>
-          <View style={{ backgroundColor: colors.card, borderRadius: 24, padding: 20, width: "100%", maxWidth: 400 }}>
-            <Text style={{ color: colors.text, fontWeight: "800", fontSize: 16, marginBottom: 4 }}>
+          <View style={{ backgroundColor: "#111318", borderRadius: 24, padding: 20, width: "100%", maxWidth: 400 }}>
+            <Text style={{ color: "#fff", fontWeight: "800", fontSize: 16, marginBottom: 4 }}>
               ¿En qué moneda está tu portafolio?
             </Text>
-            <Text style={{ color: colors.textMuted, fontSize: 12, marginBottom: 16 }}>
+            <Text style={{ color: "#6b7280", fontSize: 12, marginBottom: 16 }}>
               Los precios se mostrarán en la moneda que elijas. Los precios de mercado en tiempo real se convierten automáticamente.
             </Text>
 
@@ -2745,13 +2745,13 @@ export default function PortfolioScreen() {
                       paddingVertical: 10,
                       borderRadius: 14,
                       borderWidth: 1.5,
-                      borderColor: active ? colors.accent : colors.border,
-                      backgroundColor: active ? colors.accent + "18" : colors.bgRaised,
+                      borderColor: active ? "#00d47e" : "#1f2330",
+                      backgroundColor: active ? "#00d47e" + "18" : "#1a1d27",
                     }}
                   >
                     <Text style={{ fontSize: 20 }}>{flag}</Text>
-                    <Text style={{ color: active ? colors.accentLight : colors.text, fontSize: 11, fontWeight: "700" }}>{code}</Text>
-                    <Text style={{ color: colors.textDim, fontSize: 9 }}>{cname}</Text>
+                    <Text style={{ color: active ? "#00d47e" : "#fff", fontSize: 11, fontWeight: "700" }}>{code}</Text>
+                    <Text style={{ color: "#4b5563", fontSize: 9 }}>{cname}</Text>
                   </TouchableOpacity>
                 );
               })}
@@ -2760,14 +2760,14 @@ export default function PortfolioScreen() {
             <View style={{ flexDirection: "row", gap: 10 }}>
               <TouchableOpacity
                 onPress={() => setPendingImport(null)}
-                style={{ flex: 1, paddingVertical: 12, borderRadius: 14, borderWidth: 1, borderColor: colors.border, alignItems: "center" }}
+                style={{ flex: 1, paddingVertical: 12, borderRadius: 14, borderWidth: 1, borderColor: "#1f2330", alignItems: "center" }}
               >
-                <Text style={{ color: colors.textMuted, fontWeight: "600" }}>Cancelar</Text>
+                <Text style={{ color: "#6b7280", fontWeight: "600" }}>Cancelar</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 onPress={() => applyImport(importCurrency)}
                 disabled={convertingCurrency}
-                style={{ flex: 2, paddingVertical: 12, borderRadius: 14, backgroundColor: colors.accent, alignItems: "center", opacity: convertingCurrency ? 0.6 : 1 }}
+                style={{ flex: 2, paddingVertical: 12, borderRadius: 14, backgroundColor: "#00d47e", alignItems: "center", opacity: convertingCurrency ? 0.6 : 1 }}
               >
                 <Text style={{ color: "#fff", fontWeight: "700" }}>
                   {convertingCurrency ? "Convirtiendo..." : `Importar en ${importCurrency}`}
@@ -2789,9 +2789,8 @@ export default function PortfolioScreen() {
   );
 }
 
-function makeStyles(c: Colors) {
-  return StyleSheet.create({
-    container: { flex: 1, backgroundColor: c.bg },
+const portfolioStyles = StyleSheet.create({
+    container: { flex: 1, backgroundColor: "#0a0d12" },
     subTabBar: {
       paddingHorizontal: 16, paddingVertical: 10,
     },
@@ -2818,16 +2817,16 @@ function makeStyles(c: Colors) {
     unlockBtnText: { color: "white", fontWeight: "800", fontSize: 14 },
     content: { padding: 16, paddingBottom: 48 },
     sectionHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 },
-    sectionTitle: { fontSize: 17, fontWeight: "800", color: c.text, marginBottom: 12, letterSpacing: -0.3 },
+    sectionTitle: { fontSize: 17, fontWeight: "800", color: "#fff", marginBottom: 12, letterSpacing: -0.3 },
     headerButtons: { flexDirection: "row", gap: 8 },
     btnSmall: { borderRadius: 10, paddingHorizontal: 13, paddingVertical: 7 },
 
     btnSmallText: { color: "white", fontSize: 12, fontWeight: "700", letterSpacing: 0.1 },
     // Screenshot primary button
     screenshotBtn: {
-      backgroundColor: c.accent, borderRadius: 18, padding: 18,
+      backgroundColor: "#00d47e", borderRadius: 18, padding: 18,
       marginBottom: 14,
-      shadowColor: c.accentLight, shadowOpacity: 0.35, shadowRadius: 12, shadowOffset: { width: 0, height: 4 },
+      shadowColor: "#00d47e", shadowOpacity: 0.35, shadowRadius: 12, shadowOffset: { width: 0, height: 4 },
     },
     screenshotBtnInner: { flexDirection: "row", alignItems: "center", gap: 16 },
     screenshotBtnText: { color: "white", fontSize: 16, fontWeight: "800", letterSpacing: -0.2 },
@@ -2857,7 +2856,7 @@ function makeStyles(c: Colors) {
     },
     previewCancelText: { fontWeight: "600", fontSize: 14 },
     previewConfirm: {
-      flex: 2, backgroundColor: c.accent, borderRadius: 12,
+      flex: 2, backgroundColor: "#00d47e", borderRadius: 12,
       paddingVertical: 13, alignItems: "center",
     },
     previewConfirmText: { color: "white", fontWeight: "700", fontSize: 14 },
@@ -2868,7 +2867,7 @@ function makeStyles(c: Colors) {
     formInput: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 14, marginBottom: 10, width: "100%" },
     cancelBtn: { flex: 1, borderRadius: 12, paddingVertical: 13, alignItems: "center", borderWidth: 1 },
     cancelBtnText: { fontWeight: "600", fontSize: 14 },
-    addBtn: { flex: 1, backgroundColor: c.accent, borderRadius: 12, paddingVertical: 13, alignItems: "center", marginLeft: 8 },
+    addBtn: { flex: 1, backgroundColor: "#00d47e", borderRadius: 12, paddingVertical: 13, alignItems: "center", marginLeft: 8 },
     addBtnText: { color: "white", fontWeight: "700", fontSize: 14 },
     // Empty
     emptyCard: { borderRadius: 18, borderWidth: 1, padding: 32, alignItems: "center", marginBottom: 16 },
@@ -2903,13 +2902,13 @@ function makeStyles(c: Colors) {
     // Simulator
     scenarioRow: { flexDirection: "row", gap: 8, marginBottom: 14 },
     scenarioCard: { flex: 1, borderWidth: 1, borderRadius: 14, padding: 12, alignItems: "center", gap: 4 },
-    scenarioActive: { borderColor: c.accentLight, backgroundColor: c.accentLight + "12" },
+    scenarioActive: { borderColor: "#00d47e", backgroundColor: "#00d47e" + "12" },
     scenarioLabel: { fontSize: 12, fontWeight: "700", letterSpacing: 0.1 },
     simInput: { borderWidth: 1, borderRadius: 14, paddingHorizontal: 16, paddingVertical: 13, fontSize: 14, marginBottom: 14 },
     simBtn: {
-      backgroundColor: c.accent, borderRadius: 16, paddingVertical: 16,
+      backgroundColor: "#00d47e", borderRadius: 16, paddingVertical: 16,
       alignItems: "center", justifyContent: "center", marginBottom: 16,
-      shadowColor: c.accentLight, shadowOpacity: 0.3, shadowRadius: 10, shadowOffset: { width: 0, height: 4 },
+      shadowColor: "#00d47e", shadowOpacity: 0.3, shadowRadius: 10, shadowOffset: { width: 0, height: 4 },
     },
     btnDisabled: { opacity: 0.45 },
     simBtnText: { color: "white", fontWeight: "700", fontSize: 15, letterSpacing: 0.1 },
@@ -2966,7 +2965,7 @@ function makeStyles(c: Colors) {
     // Risk Diagnosis card
     diagCard: {
       borderRadius: 18, borderWidth: 1.5, padding: 16, marginBottom: 16,
-      backgroundColor: c.card,
+      backgroundColor: "#111318",
     },
     diagHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 14 },
     diagBadge: { flexDirection: "row", alignItems: "center", gap: 7, borderWidth: 1, borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6 },
@@ -3043,10 +3042,10 @@ function makeStyles(c: Colors) {
     paperPosVal: { fontSize: 14, fontWeight: "700" },
     paperPosPct: { fontSize: 11, fontWeight: "700" },
     paperSellBtn: {
-      borderWidth: 1, borderColor: c.down, borderRadius: 9,
+      borderWidth: 1, borderColor: "#ef4444", borderRadius: 9,
       paddingHorizontal: 10, paddingVertical: 5,
     },
-    paperSellBtnText: { color: c.down, fontSize: 11, fontWeight: "700" },
+    paperSellBtnText: { color: "#ef4444", fontSize: 11, fontWeight: "700" },
     paperHistoryBtn: {
       flexDirection: "row", alignItems: "center", gap: 5,
       borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10,
@@ -3054,10 +3053,10 @@ function makeStyles(c: Colors) {
     paperHistoryBtnText: { fontSize: 12, fontWeight: "600" },
     paperResetBtn: {
       flexDirection: "row", alignItems: "center", gap: 5,
-      borderWidth: 1, borderColor: c.down + "60", borderRadius: 12,
+      borderWidth: 1, borderColor: "#ef4444" + "60", borderRadius: 12,
       paddingHorizontal: 14, paddingVertical: 10,
     },
-    paperResetBtnText: { color: c.down, fontSize: 12, fontWeight: "600" },
+    paperResetBtnText: { color: "#ef4444", fontSize: 12, fontWeight: "600" },
     paperHistoryCard: { borderRadius: 14, borderWidth: 1, padding: 12, marginTop: 10 },
     paperTradeRow: {
       flexDirection: "row", alignItems: "center", gap: 8,
@@ -3068,5 +3067,4 @@ function makeStyles(c: Colors) {
     paperTradeTicker: { fontSize: 13, fontWeight: "800", width: 46, letterSpacing: -0.2 },
     paperTradeDetail: { fontSize: 12 },
     paperTradeTotal: { fontSize: 12, fontWeight: "700" },
-  });
-}
+});

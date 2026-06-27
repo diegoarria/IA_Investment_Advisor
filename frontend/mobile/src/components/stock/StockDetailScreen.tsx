@@ -1,17 +1,3 @@
-/**
- * StockDetailScreen — diseño scroll único estilo Google Finance.
- * Enfoque: inversor de largo plazo. Sin gráficas de trading.
- *
- * Secciones:
- *   1. Gráfica (línea simple)
- *   2. Métricas Clave
- *   3. Acerca de
- *   4. Financiero
- *   5. Analistas
- *   6. Noticias
- *   7. Empresas Similares
- */
-
 import React, { useState } from "react";
 import {
   View,
@@ -26,14 +12,30 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, { Circle } from "react-native-svg";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { useTheme } from "../../lib/ThemeContext";
-import { useStockDetail, useStockScore, useRichFinancials } from "../../hooks/useStockDetail";
+import { useStockDetail, useStockScore, useRichFinancials, type EntryRange, type EntryRangesMeta } from "../../hooks/useStockDetail";
 import StockChart from "../StockChart";
 import StockNews from "./StockNews";
 import StockCompetitors from "./StockCompetitors";
 import StockFinancials from "./StockFinancials";
 import StockAnalysts from "./StockAnalysts";
 import StockAvatar from "../StockAvatar";
+
+// ─── Palette ─────────────────────────────────────────────────────────────────
+const D = {
+  bg:       "#0a0d12",
+  card:     "#111318",
+  raised:   "#1a1d27",
+  border:   "#1f2330",
+  text:     "#fff",
+  sub:      "#9ca3af",
+  muted:    "#6b7280",
+  dim:      "#4b5563",
+  green:    "#00d47e",
+  greenDim: "rgba(0,212,126,0.12)",
+  greenBdr: "rgba(0,212,126,0.25)",
+  red:      "#ef4444",
+  amber:    "#f59e0b",
+};
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -54,6 +56,103 @@ function fmtPct(n?: number | null): string {
   return n != null ? `${(n * 100).toFixed(1)}%` : "—";
 }
 
+// ─── Entry Ranges (¿Cuándo entrar?) ──────────────────────────────────────────
+
+function fmtP(n: number) {
+  return n >= 1000
+    ? `$${n.toLocaleString("en-US", { maximumFractionDigits: 0 })}`
+    : `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+function EntryRangesCard({ ranges, meta }: { ranges: EntryRange[]; meta: EntryRangesMeta }) {
+  return (
+    <View style={er.card}>
+      {/* Header */}
+      <View style={er.header}>
+        <View style={er.headerLeft}>
+          <View style={er.iconBox}>
+            <Ionicons name="layers-outline" size={13} color={D.green} />
+          </View>
+          <Text style={er.title}>¿Cuándo entrar?</Text>
+        </View>
+        <View style={er.fairValuePill}>
+          <Text style={er.fairValueText}>
+            Valor justo {fmtP(meta.fair_value)}
+          </Text>
+          <Text style={er.fairValueSrc}>{meta.fair_value_src}</Text>
+        </View>
+      </View>
+
+      {/* Range rows */}
+      <View style={er.rangeList}>
+        {ranges.map((range) => {
+          const rangeStr =
+            range.min !== null && range.max !== null
+              ? `${fmtP(range.min)} – ${fmtP(range.max)}`
+              : range.min !== null
+              ? `> ${fmtP(range.min)}`
+              : `< ${fmtP(range.max!)}`;
+
+          return (
+            <View
+              key={range.signal}
+              style={[
+                er.rangeRow,
+                range.is_current && {
+                  backgroundColor: range.color + "18",
+                  borderColor: range.color + "45",
+                  borderWidth: 1,
+                },
+              ]}
+            >
+              <View style={[er.dot, { backgroundColor: range.color, opacity: range.is_current ? 1 : 0.3 }]} />
+              <Text
+                style={[
+                  er.rangeLabel,
+                  { color: range.is_current ? range.color : D.muted, opacity: range.is_current ? 1 : 0.65 },
+                ]}
+              >
+                {range.label}
+              </Text>
+              <Text
+                style={[
+                  er.rangePrice,
+                  { color: range.is_current ? D.text : D.muted, opacity: range.is_current ? 1 : 0.55 },
+                ]}
+              >
+                {rangeStr}
+              </Text>
+              {range.is_current && (
+                <View style={[er.nowBadge, { backgroundColor: range.color + "28" }]}>
+                  <Text style={[er.nowText, { color: range.color }]}>AHORA</Text>
+                </View>
+              )}
+            </View>
+          );
+        })}
+      </View>
+    </View>
+  );
+}
+
+const er = StyleSheet.create({
+  card:          { borderRadius: 20, borderWidth: 1, borderColor: D.border, backgroundColor: D.card, padding: 16 },
+  header:        { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 14, gap: 10 },
+  headerLeft:    { flexDirection: "row", alignItems: "center", gap: 8 },
+  iconBox:       { width: 26, height: 26, borderRadius: 8, backgroundColor: D.greenDim, alignItems: "center", justifyContent: "center" },
+  title:         { fontSize: 12, fontFamily: "DMSans_800ExtraBold", letterSpacing: 0.4, textTransform: "uppercase", color: D.sub },
+  fairValuePill: { alignItems: "flex-end", gap: 2 },
+  fairValueText: { fontSize: 11, fontFamily: "DMSans_700Bold", color: D.text },
+  fairValueSrc:  { fontSize: 9, fontFamily: "DMSans_500Medium", color: D.dim, textTransform: "uppercase", letterSpacing: 0.3 },
+  rangeList:     { gap: 4 },
+  rangeRow:      { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 12, paddingVertical: 10, borderRadius: 14, borderWidth: 1, borderColor: "transparent" },
+  dot:           { width: 9, height: 9, borderRadius: 5, flexShrink: 0 },
+  rangeLabel:    { flex: 1, fontSize: 13, fontFamily: "DMSans_600SemiBold" },
+  rangePrice:    { fontSize: 12, fontFamily: "DMSans_700Bold", letterSpacing: -0.2 },
+  nowBadge:      { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 20, marginLeft: 4 },
+  nowText:       { fontSize: 9, fontFamily: "DMSans_800ExtraBold", letterSpacing: 0.5 },
+});
+
 // ─── Verdict ──────────────────────────────────────────────────────────────────
 
 const SIGNAL_COLOR: Record<string, string> = {
@@ -65,22 +164,20 @@ const SIGNAL_COLOR: Record<string, string> = {
 };
 
 function VerdictSection({ ticker }: { ticker: string }) {
-  const { colors } = useTheme();
   const { data, loading } = useStockScore(ticker);
 
   if (loading) {
     return (
       <View style={vd.loadRow}>
-        <ActivityIndicator size="small" color={colors.accentLight} />
-        <Text style={[vd.loadText, { color: colors.textMuted }]}>Calculando veredicto IA…</Text>
+        <ActivityIndicator size="small" color={D.green} />
+        <Text style={[vd.loadText, { color: D.muted }]}>Calculando veredicto IA…</Text>
       </View>
     );
   }
   if (!data) return null;
 
-  const sigColor = SIGNAL_COLOR[data.signal] ?? "#f59e0b";
+  const sigColor = SIGNAL_COLOR[data.signal] ?? D.amber;
 
-  // Parse CORTO/LARGO from verdict_long
   const text = data.verdict_long ?? "";
   const cortoIdx = text.indexOf("**CORTO:**");
   const largoIdx = text.indexOf("**LARGO:**");
@@ -101,23 +198,23 @@ function VerdictSection({ ticker }: { ticker: string }) {
     });
   } else { preText = text; }
 
-  // Ring geometry
-  const R = 48, STROKE = 10, SIZE = (R + STROKE) * 2;
+  const R = 46, STROKE = 9, SIZE = (R + STROKE) * 2;
   const circ = 2 * Math.PI * R;
   const dash = (data.overall_score / 100) * circ;
 
   return (
-    <View style={{ paddingHorizontal: 16, paddingVertical: 12, gap: 12 }}>
+    <View style={vd.container}>
 
-      {/* ── Score Hero Card ── */}
-      <View style={[vd.heroCard, { backgroundColor: sigColor + "14", borderColor: sigColor + "30" }]}>
-        <View style={[vd.deco1, { backgroundColor: sigColor + "10" }]} />
-        <View style={[vd.deco2, { backgroundColor: sigColor + "08" }]} />
+      {/* ── Hero Card ── */}
+      <View style={[vd.heroCard, { borderColor: sigColor + "28" }]}>
+        {/* background glow orb */}
+        <View style={[vd.glowOrb, { backgroundColor: sigColor + "0a" }]} />
+
         <View style={vd.heroRow}>
-          {/* Big ring */}
+          {/* Ring */}
           <View style={{ width: SIZE, height: SIZE, alignItems: "center", justifyContent: "center" }}>
             <Svg width={SIZE} height={SIZE} style={StyleSheet.absoluteFill}>
-              <Circle cx={SIZE / 2} cy={SIZE / 2} r={R} stroke={sigColor + "25"} strokeWidth={STROKE} fill="none" />
+              <Circle cx={SIZE / 2} cy={SIZE / 2} r={R} stroke={sigColor + "1e"} strokeWidth={STROKE} fill="none" />
               <Circle
                 cx={SIZE / 2} cy={SIZE / 2} r={R}
                 stroke={sigColor} strokeWidth={STROKE} fill="none"
@@ -127,64 +224,73 @@ function VerdictSection({ ticker }: { ticker: string }) {
               />
             </Svg>
             <View style={vd.ringCenter}>
-              <Text style={[vd.scoreNum, { color: colors.text }]}>{data.overall_score}</Text>
-              <Text style={[vd.scoreDenom, { color: colors.textMuted }]}>/ 100</Text>
+              <Text style={[vd.scoreNum, { color: D.text }]}>{data.overall_score}</Text>
+              <Text style={[vd.scoreSub, { color: D.muted }]}>/ 100</Text>
             </View>
           </View>
 
-          <View style={{ flex: 1, gap: 8 }}>
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          {/* Grade + signal + short verdict */}
+          <View style={{ flex: 1, gap: 10 }}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
               {data.grade ? (
                 <Text style={[vd.gradeText, { color: sigColor }]}>{data.grade}</Text>
               ) : null}
-              <View style={[vd.signalBadge, { backgroundColor: sigColor + "18", borderColor: sigColor + "44" }]}>
+              <View style={[vd.signalBadge, { backgroundColor: sigColor + "1a", borderColor: sigColor + "44" }]}>
+                <View style={[vd.signalDot, { backgroundColor: sigColor }]} />
                 <Text style={[vd.signalText, { color: sigColor }]}>{data.signal}</Text>
               </View>
             </View>
-            <Text style={[vd.shortVerdict, { color: colors.textSub }]} numberOfLines={4}>
+            <Text style={[vd.shortVerdict, { color: D.sub }]} numberOfLines={4}>
               {data.verdict_short}
             </Text>
           </View>
         </View>
       </View>
 
+      {/* ── Entry Ranges ── */}
+      {data.entry_ranges && data.entry_ranges.length > 0 && data.entry_ranges_meta && (
+        <EntryRangesCard ranges={data.entry_ranges} meta={data.entry_ranges_meta} />
+      )}
+
       {/* ── CORTO / LARGO outlook ── */}
       {(cortoText || largoText) ? (
         <View style={vd.outlookRow}>
           {cortoText ? (
-            <View style={[vd.outlookCard, { flex: 1, backgroundColor: "rgba(245,158,11,0.06)", borderColor: "rgba(245,158,11,0.2)" }]}>
+            <View style={[vd.outlookCard, { backgroundColor: "rgba(245,158,11,0.05)", borderColor: "rgba(245,158,11,0.18)" }]}>
               <View style={vd.outlookHeader}>
-                <View style={[vd.outlookDot, { backgroundColor: "#f59e0b" }]} />
-                <Text style={[vd.outlookLabel, { color: "#f59e0b" }]}>Corto plazo</Text>
+                <View style={[vd.outlookDot, { backgroundColor: D.amber }]} />
+                <Text style={[vd.outlookLabel, { color: D.amber }]}>Corto plazo</Text>
               </View>
-              <Text style={[vd.outlookText, { color: colors.textSub }]}>{cortoText}</Text>
+              <Text style={[vd.outlookText, { color: D.sub }]}>{cortoText}</Text>
             </View>
           ) : null}
           {largoText ? (
-            <View style={[vd.outlookCard, { flex: 1, backgroundColor: "rgba(34,197,94,0.06)", borderColor: "rgba(34,197,94,0.2)" }]}>
+            <View style={[vd.outlookCard, { backgroundColor: "rgba(34,197,94,0.05)", borderColor: "rgba(34,197,94,0.18)" }]}>
               <View style={vd.outlookHeader}>
                 <View style={[vd.outlookDot, { backgroundColor: "#22c55e" }]} />
                 <Text style={[vd.outlookLabel, { color: "#22c55e" }]}>Largo plazo</Text>
               </View>
-              <Text style={[vd.outlookText, { color: colors.textSub }]}>{largoText}</Text>
+              <Text style={[vd.outlookText, { color: D.sub }]}>{largoText}</Text>
             </View>
           ) : null}
         </View>
       ) : preText ? (
-        <Text style={[vd.outlookText, { color: colors.textSub }]}>{preText}</Text>
+        <View style={[vd.outlookCard, { backgroundColor: D.card, borderColor: D.border, flex: undefined }]}>
+          <Text style={[vd.outlookText, { color: D.sub }]}>{preText}</Text>
+        </View>
       ) : null}
 
       {/* ── Category grid ── */}
       <View style={vd.catGrid}>
         {data.categories.map((cat) => {
-          const c = cat.score >= 75 ? "#22c55e" : cat.score >= 55 ? "#f59e0b" : "#ef4444";
+          const c = cat.score >= 75 ? "#22c55e" : cat.score >= 55 ? D.amber : D.red;
           return (
-            <View key={cat.key} style={[vd.catTile, { backgroundColor: colors.bgRaised, borderColor: c + "30" }]}>
+            <View key={cat.key} style={[vd.catTile, { borderColor: c + "28" }]}>
               <View style={vd.catTileTop}>
-                <Text style={[vd.catName, { color: colors.textMuted }]} numberOfLines={1}>{cat.name}</Text>
+                <Text style={vd.catName} numberOfLines={1}>{cat.name}</Text>
                 <Text style={[vd.catScore, { color: c }]}>{cat.score}</Text>
               </View>
-              <View style={[vd.catTrack, { backgroundColor: colors.border }]}>
+              <View style={vd.catTrack}>
                 <View style={[vd.catFill, { width: `${cat.score}%` as any, backgroundColor: c }]} />
               </View>
             </View>
@@ -196,124 +302,145 @@ function VerdictSection({ ticker }: { ticker: string }) {
 }
 
 const vd = StyleSheet.create({
-  loadRow:      { flexDirection: "row", alignItems: "center", gap: 10, padding: 16 },
+  container:    { padding: 16, gap: 12 },
+  loadRow:      { flexDirection: "row", alignItems: "center", gap: 10, padding: 24 },
   loadText:     { fontSize: 13 },
-  // Hero card
-  heroCard:     { borderRadius: 20, borderWidth: 1, overflow: "hidden", padding: 16 },
-  deco1:        { position: "absolute", top: -24, right: -20, width: 120, height: 120, borderRadius: 60 },
-  deco2:        { position: "absolute", bottom: -28, left: -16, width: 80, height: 80, borderRadius: 40 },
-  heroRow:      { flexDirection: "row", gap: 14, alignItems: "center" },
+  heroCard:     { borderRadius: 22, borderWidth: 1, overflow: "hidden", padding: 18, backgroundColor: D.card },
+  glowOrb:      { position: "absolute", top: -40, right: -30, width: 160, height: 160, borderRadius: 80 },
+  heroRow:      { flexDirection: "row", gap: 16, alignItems: "center" },
   ringCenter:   { position: "absolute", alignItems: "center", justifyContent: "center" },
-  scoreNum:     { fontSize: 30, fontFamily: "DMSans_800ExtraBold", lineHeight: 34 },
-  scoreDenom:   { fontSize: 10, fontFamily: "DMSans_600SemiBold", marginTop: 2 },
-  gradeText:    { fontSize: 44, fontFamily: "DMSans_800ExtraBold", lineHeight: 48 },
-  signalBadge:  { alignSelf: "flex-start", paddingHorizontal: 12, paddingVertical: 5, borderRadius: 20, borderWidth: 1 },
-  signalText:   { fontSize: 12, fontFamily: "DMSans_800ExtraBold", letterSpacing: 0.5 },
+  scoreNum:     { fontSize: 28, fontFamily: "DMSans_800ExtraBold", lineHeight: 32 },
+  scoreSub:     { fontSize: 10, fontFamily: "DMSans_600SemiBold", marginTop: 1 },
+  gradeText:    { fontSize: 42, fontFamily: "DMSans_800ExtraBold", lineHeight: 46 },
+  signalBadge:  { flexDirection: "row", alignItems: "center", gap: 6, alignSelf: "flex-start", paddingHorizontal: 12, paddingVertical: 5, borderRadius: 20, borderWidth: 1 },
+  signalDot:    { width: 6, height: 6, borderRadius: 3 },
+  signalText:   { fontSize: 12, fontFamily: "DMSans_800ExtraBold", letterSpacing: 0.3 },
   shortVerdict: { fontSize: 13, fontFamily: "DMSans_400Regular", lineHeight: 19 },
-  // Outlook cards
   outlookRow:   { flexDirection: "row", gap: 8 },
-  outlookCard:  { borderRadius: 16, borderWidth: 1, padding: 12 },
-  outlookHeader:{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 6 },
-  outlookDot:   { width: 6, height: 6, borderRadius: 3 },
+  outlookCard:  { flex: 1, borderRadius: 16, borderWidth: 1, padding: 14 },
+  outlookHeader:{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 7 },
+  outlookDot:   { width: 5, height: 5, borderRadius: 3 },
   outlookLabel: { fontSize: 9, fontFamily: "DMSans_800ExtraBold", letterSpacing: 1, textTransform: "uppercase" },
-  outlookText:  { fontSize: 12, fontFamily: "DMSans_400Regular", lineHeight: 17 },
-  // Category grid
+  outlookText:  { fontSize: 12, fontFamily: "DMSans_400Regular", lineHeight: 17, color: D.sub },
   catGrid:      { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  catTile:      { width: "47%", borderRadius: 14, borderWidth: 1, padding: 10 },
-  catTileTop:   { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 6 },
-  catName:      { fontSize: 9, fontFamily: "DMSans_600SemiBold", textTransform: "uppercase", letterSpacing: 0.5, flex: 1 },
-  catScore:     { fontSize: 14, fontFamily: "DMSans_800ExtraBold" },
-  catTrack:     { height: 4, borderRadius: 2, overflow: "hidden" },
-  catFill:      { height: 4, borderRadius: 2 },
+  catTile:      { width: "47%", borderRadius: 16, borderWidth: 1, padding: 12, backgroundColor: D.card },
+  catTileTop:   { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8 },
+  catName:      { fontSize: 10, fontFamily: "DMSans_600SemiBold", textTransform: "uppercase", letterSpacing: 0.4, flex: 1, color: D.muted },
+  catScore:     { fontSize: 18, fontFamily: "DMSans_800ExtraBold" },
+  catTrack:     { height: 3, borderRadius: 2, overflow: "hidden", backgroundColor: D.border },
+  catFill:      { height: 3, borderRadius: 2 },
 });
 
 // ─── Section Header ───────────────────────────────────────────────────────────
 
-function SectionHeader({ title, emoji, colors }: { title: string; emoji?: string; colors: ReturnType<typeof useTheme>["colors"] }) {
+function SectionHeader({ title, icon }: { title: string; icon?: React.ComponentProps<typeof Ionicons>["name"] }) {
   return (
     <View style={sh.row}>
-      <View style={[sh.bar, { backgroundColor: colors.accentLight }]} />
-      {emoji ? <Text style={sh.emoji}>{emoji}</Text> : null}
-      <Text style={[sh.title, { color: colors.textMuted }]}>{title}</Text>
+      {icon && (
+        <View style={sh.iconBox}>
+          <Ionicons name={icon} size={13} color={D.green} />
+        </View>
+      )}
+      <Text style={sh.title}>{title}</Text>
     </View>
   );
 }
 
 const sh = StyleSheet.create({
-  row:   { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 16, paddingTop: 22, paddingBottom: 10 },
-  bar:   { width: 3, height: 16, borderRadius: 2 },
-  emoji: { fontSize: 14 },
-  title: { fontSize: 11, fontFamily: "DMSans_800ExtraBold", letterSpacing: 0.5, textTransform: "uppercase", flex: 1 },
+  row:    { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 16, paddingTop: 28, paddingBottom: 12 },
+  iconBox:{ width: 26, height: 26, borderRadius: 8, backgroundColor: D.greenDim, alignItems: "center", justifyContent: "center" },
+  title:  { fontSize: 12, fontFamily: "DMSans_800ExtraBold", letterSpacing: 0.4, textTransform: "uppercase", color: D.sub },
 });
 
-// ─── 1. Métricas Clave ────────────────────────────────────────────────────────
+// ─── Key Metrics ─────────────────────────────────────────────────────────────
 
-function KeyMetrics({ profile }: { profile?: ReturnType<typeof useStockDetail>["data"] extends { profile: infer P } | null ? P | undefined : never }) {
-  const { colors } = useTheme();
+type ProfileData = ReturnType<typeof useStockDetail>["data"] extends { profile: infer P } | null ? P | undefined : never;
+
+function KeyMetrics({ profile }: { profile?: ProfileData }) {
   if (!profile) return null;
 
-  const stats = [
-    { label: "Market Cap",    value: fmtBig(profile.market_cap) },
-    { label: "P/E Ratio",     value: fmtNum(profile.pe_ratio) },
-    { label: "P/E Fwd",       value: fmtNum(profile.forward_pe) },
-    { label: "EPS (TTM)",     value: profile.eps != null ? `$${profile.eps.toFixed(2)}` : "—" },
-    { label: "Div. Yield",    value: profile.dividend_yield ? `${profile.dividend_yield.toFixed(2)}%` : "—" },
-    { label: "Beta",          value: fmtNum(profile.beta) },
-    { label: "52s Máx",       value: profile.week_52_high ? `$${profile.week_52_high.toFixed(0)}` : "—" },
-    { label: "52s Mín",       value: profile.week_52_low  ? `$${profile.week_52_low.toFixed(0)}`  : "—" },
-    { label: "ROE",           value: fmtPct(profile.return_on_equity) },
-    { label: "Margen Neto",   value: fmtPct(profile.profit_margins) },
-    { label: "Deuda/Equity",  value: fmtNum(profile.debt_to_equity) },
-    { label: "FCF",           value: fmtBig(profile.free_cashflow) },
+  const groups = [
+    {
+      label: "Valoración",
+      items: [
+        { label: "Market Cap",   value: fmtBig(profile.market_cap) },
+        { label: "P/E (TTM)",    value: fmtNum(profile.pe_ratio) },
+        { label: "P/E Fwd",      value: fmtNum(profile.forward_pe) },
+        { label: "EPS (TTM)",    value: profile.eps != null ? `$${profile.eps.toFixed(2)}` : "—" },
+      ],
+    },
+    {
+      label: "Rentabilidad",
+      items: [
+        { label: "ROE",          value: fmtPct(profile.return_on_equity) },
+        { label: "Margen Neto",  value: fmtPct(profile.profit_margins) },
+        { label: "Div. Yield",   value: profile.dividend_yield ? `${profile.dividend_yield.toFixed(2)}%` : "—" },
+        { label: "FCF",          value: fmtBig(profile.free_cashflow) },
+      ],
+    },
+    {
+      label: "Riesgo",
+      items: [
+        { label: "Beta",         value: fmtNum(profile.beta) },
+        { label: "Deuda/Equity", value: fmtNum(profile.debt_to_equity) },
+        { label: "52s Máx",      value: profile.week_52_high ? `$${profile.week_52_high.toFixed(0)}` : "—" },
+        { label: "52s Mín",      value: profile.week_52_low  ? `$${profile.week_52_low.toFixed(0)}`  : "—" },
+      ],
+    },
   ];
 
   return (
-    <View style={{ paddingHorizontal: 16, paddingVertical: 4 }}>
-      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-        {stats.map((s) => (
-          <View key={s.label} style={[km.card, { backgroundColor: colors.bgRaised, borderColor: colors.border }]}>
-            <Text style={[km.label, { color: colors.textMuted }]}>{s.label}</Text>
-            <Text style={[km.value, { color: colors.text }]}>{s.value}</Text>
+    <View style={{ paddingHorizontal: 16, gap: 10 }}>
+      {groups.map((group) => (
+        <View key={group.label} style={km.groupCard}>
+          <Text style={km.groupLabel}>{group.label}</Text>
+          <View style={km.grid}>
+            {group.items.map((item) => (
+              <View key={item.label} style={km.cell}>
+                <Text style={km.cellLabel}>{item.label}</Text>
+                <Text style={km.cellValue}>{item.value}</Text>
+              </View>
+            ))}
           </View>
-        ))}
-      </View>
+        </View>
+      ))}
     </View>
   );
 }
 
 const km = StyleSheet.create({
-  card:  { width: "47%", borderRadius: 14, borderWidth: 1, padding: 12 },
-  label: { fontSize: 10, fontFamily: "DMSans_600SemiBold", textTransform: "uppercase", letterSpacing: 0.4, color: "#888", marginBottom: 4 },
-  value: { fontSize: 17, fontFamily: "DMSans_800ExtraBold" },
+  groupCard:  { borderRadius: 18, borderWidth: 1, borderColor: D.border, backgroundColor: D.card, overflow: "hidden" },
+  groupLabel: { fontSize: 9, fontFamily: "DMSans_800ExtraBold", textTransform: "uppercase", letterSpacing: 0.8, color: D.green, paddingHorizontal: 16, paddingTop: 14, paddingBottom: 10 },
+  grid:       { flexDirection: "row", flexWrap: "wrap" },
+  cell:       { width: "50%", padding: 14, paddingTop: 10, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: D.border },
+  cellLabel:  { fontSize: 10, fontFamily: "DMSans_500Medium", color: D.muted, marginBottom: 5, textTransform: "uppercase", letterSpacing: 0.3 },
+  cellValue:  { fontSize: 19, fontFamily: "DMSans_800ExtraBold", color: D.text },
 });
 
-// ─── 2. Acerca de ─────────────────────────────────────────────────────────────
+// ─── About Section ────────────────────────────────────────────────────────────
 
-function AboutSection({ profile }: { profile?: ReturnType<typeof useStockDetail>["data"] extends { profile: infer P } | null ? P | undefined : never }) {
-  const { colors } = useTheme();
+function AboutSection({ profile }: { profile?: ProfileData }) {
   const [expanded, setExpanded] = useState(false);
   if (!profile) return null;
 
   const desc = profile.description ?? "";
-  const short = desc.length > 240 && !expanded ? desc.slice(0, 240) + "…" : desc;
+  const short = desc.length > 260 && !expanded ? desc.slice(0, 260) + "…" : desc;
 
   const tags = [
-    profile.sector    && { icon: "🏭", text: profile.sector },
-    profile.industry  && { icon: "⚙️",  text: profile.industry },
-    profile.country   && { icon: "🌍", text: profile.city ? `${profile.city}, ${profile.country}` : profile.country },
-    profile.employees && { icon: "👥", text: profile.employees.toLocaleString() + " emp." },
-  ].filter(Boolean) as { icon: string; text: string }[];
+    profile.sector   && { icon: "business-outline" as const,  text: profile.sector },
+    profile.industry && { icon: "construct-outline" as const,  text: profile.industry },
+    profile.country  && { icon: "location-outline" as const,   text: profile.city ? `${profile.city}, ${profile.country}` : profile.country },
+    profile.employees&& { icon: "people-outline" as const,     text: profile.employees.toLocaleString() + " emp." },
+  ].filter(Boolean) as { icon: React.ComponentProps<typeof Ionicons>["name"]; text: string }[];
 
   return (
-    <View style={{ paddingHorizontal: 16, paddingVertical: 8 }}>
+    <View style={{ paddingHorizontal: 16, gap: 10 }}>
       {desc.length > 0 && (
-        <View style={[ab.descCard, { backgroundColor: colors.bgRaised, borderColor: colors.border }]}>
-          <Text style={[ab.desc, { color: colors.textSub }]}>{short}</Text>
-          {desc.length > 240 && (
-            <TouchableOpacity onPress={() => setExpanded(!expanded)} style={{ marginTop: 6 }}>
-              <Text style={[ab.toggle, { color: colors.accentLight }]}>
-                {expanded ? "Ver menos" : "Ver más"}
-              </Text>
+        <View style={ab.descCard}>
+          <Text style={ab.desc}>{short}</Text>
+          {desc.length > 260 && (
+            <TouchableOpacity onPress={() => setExpanded(!expanded)} style={{ marginTop: 10 }}>
+              <Text style={ab.toggle}>{expanded ? "Ver menos ↑" : "Ver más ↓"}</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -322,9 +449,9 @@ function AboutSection({ profile }: { profile?: ReturnType<typeof useStockDetail>
       {tags.length > 0 && (
         <View style={ab.tagsRow}>
           {tags.map((tag, i) => (
-            <View key={i} style={[ab.tag, { backgroundColor: colors.bgRaised, borderColor: colors.border }]}>
-              <Text style={{ fontSize: 12 }}>{tag.icon}</Text>
-              <Text style={[ab.tagText, { color: colors.textSub }]}>{tag.text}</Text>
+            <View key={i} style={ab.tag}>
+              <Ionicons name={tag.icon} size={11} color={D.muted} />
+              <Text style={ab.tagText}>{tag.text}</Text>
             </View>
           ))}
         </View>
@@ -333,13 +460,13 @@ function AboutSection({ profile }: { profile?: ReturnType<typeof useStockDetail>
       {profile.website && (
         <TouchableOpacity
           onPress={() => Linking.openURL(profile.website!)}
-          style={[ab.websiteBtn, { backgroundColor: "rgba(0,168,94,0.08)", borderColor: "rgba(0,168,94,0.2)" }]}
+          style={ab.websiteBtn}
         >
-          <Ionicons name="globe-outline" size={14} color={colors.accentLight} />
-          <Text style={[ab.websiteText, { color: colors.accentLight }]} numberOfLines={1}>
+          <Ionicons name="globe-outline" size={14} color={D.green} />
+          <Text style={ab.websiteText} numberOfLines={1}>
             {profile.website.replace(/^https?:\/\//, "")}
           </Text>
-          <Ionicons name="chevron-forward" size={14} color={colors.accentLight} style={{ marginLeft: "auto" }} />
+          <Ionicons name="arrow-forward" size={13} color={D.green} style={{ marginLeft: "auto" }} />
         </TouchableOpacity>
       )}
     </View>
@@ -347,33 +474,24 @@ function AboutSection({ profile }: { profile?: ReturnType<typeof useStockDetail>
 }
 
 const ab = StyleSheet.create({
-  descCard:   { borderRadius: 16, borderWidth: 1, padding: 14, marginBottom: 12 },
-  desc:       { fontSize: 13, fontFamily: "DMSans_400Regular", lineHeight: 20 },
-  toggle:     { fontSize: 12, fontFamily: "DMSans_600SemiBold" },
-  tagsRow:    { flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: 12 },
-  tag:        { flexDirection: "row", alignItems: "center", gap: 5, borderRadius: 20, borderWidth: 1, paddingHorizontal: 10, paddingVertical: 5 },
-  tagText:    { fontSize: 11, fontFamily: "DMSans_600SemiBold" },
-  websiteBtn: { flexDirection: "row", alignItems: "center", gap: 6, borderRadius: 14, borderWidth: 1, paddingHorizontal: 14, paddingVertical: 10 },
-  websiteText:{ fontSize: 12, fontFamily: "DMSans_600SemiBold", flex: 1 },
+  descCard:   { borderRadius: 18, borderWidth: 1, borderColor: D.border, padding: 16, backgroundColor: D.card },
+  desc:       { fontSize: 13, fontFamily: "DMSans_400Regular", lineHeight: 21, color: D.sub },
+  toggle:     { fontSize: 12, fontFamily: "DMSans_700Bold", color: D.green },
+  tagsRow:    { flexDirection: "row", flexWrap: "wrap", gap: 7 },
+  tag:        { flexDirection: "row", alignItems: "center", gap: 5, borderRadius: 20, borderWidth: 1, borderColor: D.border, paddingHorizontal: 12, paddingVertical: 6, backgroundColor: D.card },
+  tagText:    { fontSize: 11, fontFamily: "DMSans_600SemiBold", color: D.sub },
+  websiteBtn: { flexDirection: "row", alignItems: "center", gap: 8, borderRadius: 14, borderWidth: 1, borderColor: D.greenBdr, paddingHorizontal: 16, paddingVertical: 12, backgroundColor: D.greenDim },
+  websiteText:{ fontSize: 12, fontFamily: "DMSans_700Bold", flex: 1, color: D.green },
 });
-
-// ─── 3. Financiero — gráfica de barras simple ─────────────────────────────────
-
-
-// ─── Divider ─────────────────────────────────────────────────────────────────
-
-function Divider({ color }: { color: string }) {
-  return <View style={{ height: 8, backgroundColor: color }} />;
-}
 
 // ─── Tabs ─────────────────────────────────────────────────────────────────────
 
 const TABS = [
-  { id: "veredicto",   label: "Veredicto" },
-  { id: "grafica",     label: "Gráfica" },
-  { id: "financieros", label: "Financieros" },
-  { id: "analistas",   label: "Analistas" },
-  { id: "empresa",     label: "Empresa" },
+  { id: "veredicto",   label: "Veredicto",    icon: "sparkles-outline" as const },
+  { id: "grafica",     label: "Gráfica",      icon: "stats-chart-outline" as const },
+  { id: "financieros", label: "Financieros",  icon: "bar-chart-outline" as const },
+  { id: "analistas",   label: "Analistas",    icon: "people-outline" as const },
+  { id: "empresa",     label: "Empresa",      icon: "business-outline" as const },
 ] as const;
 
 type TabId = typeof TABS[number]["id"];
@@ -381,7 +499,6 @@ type TabId = typeof TABS[number]["id"];
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 export default function StockDetailScreen({ ticker }: { ticker: string }) {
-  const { colors } = useTheme();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { data, loading, error, refetch } = useStockDetail(ticker);
@@ -392,11 +509,17 @@ export default function StockDetailScreen({ ticker }: { ticker: string }) {
     ? ((data.profile.current_price - data.profile.prev_close) / data.profile.prev_close) * 100
     : null;
   const priceUp = (pricePct ?? 0) >= 0;
+  const priceColor = priceUp ? "#22c55e" : D.red;
+
+  const fmtDisplayPrice = (p: number) =>
+    p >= 1000
+      ? p.toLocaleString("en-US", { maximumFractionDigits: 0 })
+      : p.toFixed(2);
 
   function renderContent() {
     if (activeTab === "grafica") {
       return (
-        <View style={{ marginHorizontal: 12, marginTop: 12 }}>
+        <View style={{ marginHorizontal: 12, marginTop: 16 }}>
           <StockChart ticker={ticker} />
         </View>
       );
@@ -405,10 +528,8 @@ export default function StockDetailScreen({ ticker }: { ticker: string }) {
     if (loading && !data) {
       return (
         <View style={s.centered}>
-          <ActivityIndicator color={colors.accentLight} />
-          <Text style={{ color: colors.textMuted, fontSize: 13, marginTop: 8 }}>
-            Cargando análisis…
-          </Text>
+          <ActivityIndicator size="large" color={D.green} />
+          <Text style={s.loadingText}>Cargando análisis…</Text>
         </View>
       );
     }
@@ -416,16 +537,12 @@ export default function StockDetailScreen({ ticker }: { ticker: string }) {
     if (error) {
       return (
         <View style={s.centered}>
-          <Text style={{ color: colors.textMuted, fontSize: 14 }}>
-            No se pudieron cargar los datos
-          </Text>
-          <TouchableOpacity
-            onPress={refetch}
-            style={[s.retryBtn, { backgroundColor: colors.accentGlow, borderColor: colors.accentLight }]}
-          >
-            <Text style={{ color: colors.accentLight, fontSize: 13, fontWeight: "700" }}>
-              Reintentar
-            </Text>
+          <View style={s.errorIcon}>
+            <Ionicons name="alert-circle-outline" size={28} color={D.red} />
+          </View>
+          <Text style={s.errorText}>No se pudieron cargar los datos</Text>
+          <TouchableOpacity onPress={refetch} style={s.retryBtn}>
+            <Text style={s.retryText}>Reintentar</Text>
           </TouchableOpacity>
         </View>
       );
@@ -439,7 +556,8 @@ export default function StockDetailScreen({ ticker }: { ticker: string }) {
       if (!data?.financials) {
         return (
           <View style={s.centered}>
-            <Text style={{ color: colors.textMuted, fontSize: 13 }}>Sin datos financieros</Text>
+            <Ionicons name="bar-chart-outline" size={28} color={D.dim} />
+            <Text style={s.emptyText}>Sin datos financieros</Text>
           </View>
         );
       }
@@ -450,7 +568,8 @@ export default function StockDetailScreen({ ticker }: { ticker: string }) {
       if (!data?.analyst) {
         return (
           <View style={s.centered}>
-            <Text style={{ color: colors.textMuted, fontSize: 13 }}>Sin datos de analistas</Text>
+            <Ionicons name="people-outline" size={28} color={D.dim} />
+            <Text style={s.emptyText}>Sin datos de analistas</Text>
           </View>
         );
       }
@@ -459,19 +578,19 @@ export default function StockDetailScreen({ ticker }: { ticker: string }) {
 
     if (activeTab === "empresa") {
       return (
-        <>
-          <SectionHeader title="Métricas Clave" emoji="📊" colors={colors} />
-          <KeyMetrics profile={data?.profile} />
-          <Divider color={colors.bgRaised} />
-          <SectionHeader title={`Acerca de ${data?.profile?.name ?? ticker}`} emoji="🏢" colors={colors} />
+        <View style={{ paddingBottom: 48 }}>
+          <SectionHeader title={`Acerca de ${data?.profile?.name ?? ticker}`} icon="business-outline" />
           <AboutSection profile={data?.profile} />
-          <Divider color={colors.bgRaised} />
-          <SectionHeader title="Noticias" emoji="📰" colors={colors} />
+
+          <SectionHeader title="Métricas Clave" icon="stats-chart-outline" />
+          <KeyMetrics profile={data?.profile} />
+
+          <SectionHeader title="Noticias" icon="newspaper-outline" />
           <StockNews ticker={ticker} />
-          <Divider color={colors.bgRaised} />
-          <SectionHeader title="Empresas Similares" emoji="🔎" colors={colors} />
+
+          <SectionHeader title="Empresas Similares" icon="git-compare-outline" />
           <StockCompetitors ticker={ticker} />
-        </>
+        </View>
       );
     }
 
@@ -479,39 +598,46 @@ export default function StockDetailScreen({ ticker }: { ticker: string }) {
   }
 
   return (
-    <View style={{ flex: 1, backgroundColor: colors.bg, paddingTop: insets.top }}>
-      {/* ── Top bar ── */}
-      <View style={[tb.topBar, { borderBottomColor: colors.border, backgroundColor: colors.bg }]}>
-        <TouchableOpacity onPress={() => router.back()} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
-          <Ionicons name="chevron-back" size={24} color={colors.text} />
+    <View style={{ flex: 1, backgroundColor: D.bg, paddingTop: insets.top }}>
+
+      {/* ── Top Bar ── */}
+      <View style={[tb.topBar, { borderBottomColor: priceColor + "22" }]}>
+        <TouchableOpacity
+          onPress={() => router.back()}
+          hitSlop={{ top: 14, bottom: 14, left: 14, right: 14 }}
+          style={tb.backBtn}
+        >
+          <Ionicons name="chevron-back" size={22} color={D.sub} />
         </TouchableOpacity>
-        <View style={{ marginLeft: 10 }}>
-          <StockAvatar ticker={ticker} size={38} />
+
+        <View style={tb.avatarWrap}>
+          <StockAvatar ticker={ticker} size={36} />
         </View>
-        <View style={{ flex: 1, marginLeft: 10 }}>
-          <Text style={[tb.topTicker, { color: colors.text }]}>{ticker}</Text>
+
+        <View style={{ flex: 1 }}>
+          <Text style={tb.tickerText}>{ticker}</Text>
           {data?.profile?.name && (
-            <Text style={[tb.topName, { color: colors.textMuted }]} numberOfLines={1}>
-              {data.profile.name}
-            </Text>
+            <Text style={tb.nameText} numberOfLines={1}>{data.profile.name}</Text>
           )}
         </View>
-        <View style={{ alignItems: "flex-end" }}>
-          {data?.profile?.current_price != null && (
-            <Text style={[tb.topPrice, { color: colors.text }]}>
-              ${data.profile.current_price >= 1000
-                ? data.profile.current_price.toLocaleString("en-US", { maximumFractionDigits: 0 })
-                : data.profile.current_price.toFixed(2)}
+
+        {/* Price block */}
+        <View style={tb.priceBlock}>
+          {data?.profile?.current_price != null ? (
+            <Text style={tb.priceText}>
+              ${fmtDisplayPrice(data.profile.current_price)}
             </Text>
-          )}
+          ) : loading ? (
+            <ActivityIndicator size="small" color={D.green} />
+          ) : null}
           {pricePct != null && (
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 3, marginTop: 2 }}>
+            <View style={[tb.changeBadge, { backgroundColor: priceColor + "18" }]}>
               <Ionicons
                 name={priceUp ? "trending-up" : "trending-down"}
                 size={11}
-                color={priceUp ? colors.up : colors.down}
+                color={priceColor}
               />
-              <Text style={{ fontSize: 12, fontFamily: "DMSans_600SemiBold", color: priceUp ? colors.up : colors.down }}>
+              <Text style={[tb.changeText, { color: priceColor }]}>
                 {priceUp ? "+" : ""}{pricePct.toFixed(2)}%
               </Text>
             </View>
@@ -520,42 +646,41 @@ export default function StockDetailScreen({ ticker }: { ticker: string }) {
       </View>
 
       {/* ── Tab Bar ── */}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={[tb.barWrap, { borderBottomColor: colors.border, backgroundColor: colors.bg }]}
-        contentContainerStyle={tb.bar}
-      >
-        {TABS.map((tab) => {
-          const active = activeTab === tab.id;
-          return (
-            <TouchableOpacity
-              key={tab.id}
-              onPress={() => setActiveTab(tab.id)}
-              style={[
-                tb.tab,
-                active
-                  ? { backgroundColor: "rgba(0,168,94,0.12)", borderRadius: 20, borderWidth: 1, borderColor: "rgba(0,168,94,0.3)" }
-                  : { borderWidth: 0 },
-              ]}
-            >
-              <Text style={[tb.label, {
-                color: active ? colors.accentLight : colors.textMuted,
-                fontFamily: active ? "DMSans_800ExtraBold" : "DMSans_400Regular",
-              }]}>
-                {tab.label}
-              </Text>
-            </TouchableOpacity>
-          );
-        })}
-      </ScrollView>
+      <View style={tb.tabBarOuter}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={tb.tabBarInner}
+        >
+          {TABS.map((tab) => {
+            const active = activeTab === tab.id;
+            return (
+              <TouchableOpacity
+                key={tab.id}
+                onPress={() => setActiveTab(tab.id)}
+                style={[tb.tab, active && tb.tabActive]}
+                activeOpacity={0.7}
+              >
+                <Ionicons
+                  name={tab.icon}
+                  size={13}
+                  color={active ? D.green : D.dim}
+                />
+                <Text style={[tb.tabLabel, { color: active ? D.green : D.muted, fontFamily: active ? "DMSans_800ExtraBold" : "DMSans_500Medium" }]}>
+                  {tab.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+      </View>
 
-      {/* ── Tab Content ── */}
+      {/* ── Content ── */}
       <ScrollView
         key={activeTab}
         style={{ flex: 1 }}
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 48 }}
+        contentContainerStyle={{ paddingBottom: 56 }}
       >
         {renderContent()}
       </ScrollView>
@@ -564,68 +689,54 @@ export default function StockDetailScreen({ ticker }: { ticker: string }) {
 }
 
 const s = StyleSheet.create({
-  chartCard: {
-    marginHorizontal: 16,
-    marginTop: 12,
-    borderRadius: 16,
-    borderWidth: 1,
-    overflow: "hidden",
-    marginBottom: 4,
-  },
   centered: {
-    paddingVertical: 48,
+    paddingVertical: 64,
     alignItems: "center",
-    gap: 12,
+    gap: 14,
   },
-  retryBtn: {
-    paddingHorizontal: 20,
-    paddingVertical: 9,
-    borderRadius: 20,
-    borderWidth: 1,
-    marginTop: 4,
-  },
+  loadingText: { color: D.muted, fontSize: 13, fontFamily: "DMSans_500Medium" },
+  errorIcon:   { width: 56, height: 56, borderRadius: 18, backgroundColor: "rgba(239,68,68,0.1)", alignItems: "center", justifyContent: "center" },
+  errorText:   { color: D.sub, fontSize: 14, fontFamily: "DMSans_500Medium" },
+  retryBtn:    { paddingHorizontal: 22, paddingVertical: 10, borderRadius: 20, borderWidth: 1, borderColor: D.greenBdr, backgroundColor: D.greenDim },
+  retryText:   { color: D.green, fontSize: 13, fontFamily: "DMSans_700Bold" },
+  emptyText:   { color: D.muted, fontSize: 13, fontFamily: "DMSans_500Medium" },
 });
 
 const tb = StyleSheet.create({
   topBar: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    gap: 4,
-  },
-  topTicker: {
-    fontSize: 16,
-    fontWeight: "800",
-    letterSpacing: -0.3,
-  },
-  topName: {
-    fontSize: 11,
-    fontWeight: "500",
-    marginTop: 1,
-  },
-  topPrice: {
-    fontSize: 16,
-    fontWeight: "700",
-    letterSpacing: -0.3,
-  },
-  barWrap: {
-    flexGrow: 0,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-  },
-  bar: {
-    flexDirection: "row",
-    paddingHorizontal: 4,
-  },
-  tab: {
     paddingHorizontal: 14,
-    paddingVertical: 11,
-    borderBottomWidth: 2,
-    borderBottomColor: "transparent",
+    paddingVertical: 12,
+    gap: 10,
+    borderBottomWidth: 1,
+    backgroundColor: D.bg,
   },
-  label: {
-    fontSize: 13,
-    fontFamily: "DMSans_600SemiBold",
+  backBtn:    { width: 34, height: 34, borderRadius: 10, backgroundColor: D.card, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: D.border },
+  avatarWrap: {},
+  tickerText: { fontSize: 16, fontFamily: "DMSans_800ExtraBold", color: D.text, letterSpacing: -0.3 },
+  nameText:   { fontSize: 11, fontFamily: "DMSans_500Medium", color: D.muted, marginTop: 1 },
+  priceBlock: { alignItems: "flex-end", gap: 4 },
+  priceText:  { fontSize: 18, fontFamily: "DMSans_800ExtraBold", color: D.text, letterSpacing: -0.5 },
+  changeBadge:{ flexDirection: "row", alignItems: "center", gap: 3, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 20 },
+  changeText: { fontSize: 11, fontFamily: "DMSans_700Bold" },
+
+  tabBarOuter: { backgroundColor: D.bg, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: D.border },
+  tabBarInner: { paddingHorizontal: 12, paddingVertical: 10, gap: 6, flexDirection: "row" },
+  tab: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "transparent",
+    backgroundColor: D.card,
   },
+  tabActive: {
+    backgroundColor: D.greenDim,
+    borderColor: D.greenBdr,
+  },
+  tabLabel: { fontSize: 12 },
 });

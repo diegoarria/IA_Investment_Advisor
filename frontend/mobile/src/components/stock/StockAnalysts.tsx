@@ -1,11 +1,24 @@
 import React from "react";
 import { View, Text, StyleSheet, Dimensions } from "react-native";
 import Svg, { Circle, Rect, Text as SvgText } from "react-native-svg";
-import { useTheme } from "../../lib/ThemeContext";
 import type { Analyst } from "../../hooks/useStockDetail";
 
 const { width: SCREEN_W } = Dimensions.get("window");
-const RANGE_W = SCREEN_W - 32 - 32; // outer padding + card padding
+const RANGE_W = SCREEN_W - 32 - 36;
+
+const D = {
+  bg:     "#0a0d12",
+  card:   "#111318",
+  raised: "#1a1d27",
+  border: "#1f2330",
+  text:   "#fff",
+  sub:    "#9ca3af",
+  muted:  "#6b7280",
+  dim:    "#4b5563",
+  green:  "#00d47e",
+  red:    "#ef4444",
+  amber:  "#f59e0b",
+};
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -19,11 +32,12 @@ function consensusLabel(rec?: string | null): string {
   return "Neutral";
 }
 
-function consensusColor(label: string, colors: ReturnType<typeof useTheme>["colors"]): string {
-  if (label.includes("Fuerte")) return label.includes("Compra") ? colors.up : colors.down;
-  if (label === "Comprar") return colors.up;
-  if (label === "Vender")  return colors.down;
-  return colors.warning;
+function consensusColor(label: string): string {
+  if (label === "Compra Fuerte") return D.green;
+  if (label === "Comprar")       return "#22c55e";
+  if (label === "Venta Fuerte")  return D.red;
+  if (label === "Vender")        return "#f97316";
+  return D.amber;
 }
 
 function fmtPrice(p?: number | null): string {
@@ -31,66 +45,50 @@ function fmtPrice(p?: number | null): string {
   return p >= 1000 ? `$${p.toFixed(0)}` : `$${p.toFixed(2)}`;
 }
 
-// ─── Rating Bar ───────────────────────────────────────────────────────────────
+// ─── Rating Row ───────────────────────────────────────────────────────────────
 
-function RatingBar({
-  label,
-  count,
-  total,
-  color,
-  textColor,
-  bgColor,
+function RatingRow({
+  label, count, total, color, isTop = false,
 }: {
   label: string;
   count: number;
   total: number;
   color: string;
-  textColor: string;
-  bgColor: string;
+  isTop?: boolean;
 }) {
   const pct = total > 0 ? (count / total) * 100 : 0;
   return (
-    <View style={rb.row}>
-      <Text style={[rb.label, { color: textColor }]}>{label}</Text>
-      <View style={[rb.track, { backgroundColor: bgColor }]}>
-        <View style={[rb.fill, { width: `${pct}%`, backgroundColor: color }]} />
+    <View style={rr.row}>
+      <Text style={rr.label}>{label}</Text>
+      <View style={rr.barTrack}>
+        <View style={[rr.barFill, { width: `${pct}%` as any, backgroundColor: color }]} />
       </View>
-      <Text style={[rb.count, { color: textColor }]}>{count}</Text>
-      <Text style={[rb.pct, { color: textColor, opacity: 0.6 }]}>
-        {pct.toFixed(0)}%
-      </Text>
+      <Text style={[rr.count, { color: count > 0 ? D.sub : D.dim }]}>{count}</Text>
+      {pct > 0 && (
+        <View style={[rr.pctBadge, { backgroundColor: color + "18" }]}>
+          <Text style={[rr.pctText, { color }]}>{pct.toFixed(0)}%</Text>
+        </View>
+      )}
     </View>
   );
 }
 
-const rb = StyleSheet.create({
-  row: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    paddingVertical: 5,
-  },
-  label: { fontSize: 12, fontWeight: "500", width: 88 },
-  track: { flex: 1, height: 6, borderRadius: 3, overflow: "hidden" },
-  fill:  { height: 6, borderRadius: 3 },
-  count: { fontSize: 12, fontWeight: "700", width: 26, textAlign: "right" },
-  pct:   { fontSize: 11, width: 32, textAlign: "right" },
+const rr = StyleSheet.create({
+  row:      { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 7 },
+  label:    { fontSize: 12, fontFamily: "DMSans_500Medium", color: D.sub, width: 90 },
+  barTrack: { flex: 1, height: 7, borderRadius: 4, backgroundColor: D.border, overflow: "hidden" },
+  barFill:  { height: 7, borderRadius: 4 },
+  count:    { fontSize: 13, fontFamily: "DMSans_700Bold", width: 22, textAlign: "right" },
+  pctBadge: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 8, minWidth: 36, alignItems: "center" },
+  pctText:  { fontSize: 10, fontFamily: "DMSans_700Bold" },
 });
 
 // ─── Price Target SVG ────────────────────────────────────────────────────────
 
 function PriceTargetBar({
-  low,
-  mean,
-  high,
-  current,
-  colors,
+  low, mean, high, current,
 }: {
-  low: number;
-  mean: number;
-  high: number;
-  current: number;
-  colors: ReturnType<typeof useTheme>["colors"];
+  low: number; mean: number; high: number; current: number;
 }) {
   const range = high - low || 1;
   const toX = (p: number) => Math.max(0, Math.min(((p - low) / range) * RANGE_W, RANGE_W));
@@ -102,146 +100,105 @@ function PriceTargetBar({
 
   const upside = current > 0 ? ((mean - current) / current) * 100 : 0;
   const isUp   = upside >= 0;
+  const col    = isUp ? "#22c55e" : D.red;
 
   return (
     <View>
-      {/* Upside headline */}
       <View style={pt.headline}>
         <View>
-          <Text style={[pt.targetPrice, { color: colors.text }]}>{fmtPrice(mean)}</Text>
-          <Text style={[pt.targetLabel, { color: colors.textMuted }]}>Precio objetivo</Text>
+          <Text style={pt.targetPrice}>{fmtPrice(mean)}</Text>
+          <Text style={pt.targetLabel}>Precio objetivo medio</Text>
         </View>
-        <View style={[pt.upsidePill, { backgroundColor: isUp ? `${colors.up}20` : `${colors.down}20` }]}>
-          <Text style={[pt.upsidePct, { color: isUp ? colors.up : colors.down }]}>
-            {isUp ? "+" : ""}{upside.toFixed(1)}% potencial
+        <View style={[pt.upsidePill, { backgroundColor: col + "18", borderColor: col + "30" }]}>
+          <Text style={[pt.upsidePct, { color: col }]}>
+            {isUp ? "+" : ""}{upside.toFixed(1)}%
           </Text>
+          <Text style={[pt.upsideLabel, { color: col, opacity: 0.7 }]}>potencial</Text>
         </View>
       </View>
 
-      {/* SVG range bar */}
-      <Svg width={RANGE_W} height={44} style={{ marginTop: 8 }}>
-        {/* Gradient track from low to high */}
-        <Rect x={xLow} y={18} width={xHigh - xLow} height={5} rx={2.5} fill={colors.border} />
-        {/* Target zone: current → mean */}
+      <Svg width={RANGE_W} height={48} style={{ marginTop: 12 }}>
+        {/* Track */}
+        <Rect x={xLow} y={20} width={xHigh - xLow} height={5} rx={2.5} fill={D.border} />
+        {/* Highlighted zone */}
         <Rect
-          x={Math.min(xCur, xMean)}
-          y={18}
-          width={Math.abs(xMean - xCur)}
-          height={5}
-          rx={2.5}
-          fill={isUp ? colors.up : colors.down}
-          opacity={0.35}
+          x={Math.min(xCur, xMean)} y={20}
+          width={Math.abs(xMean - xCur)} height={5}
+          rx={2.5} fill={col} opacity={0.3}
         />
-
-        {/* Low marker */}
-        <Circle cx={xLow} cy={20.5} r={4} fill={colors.textMuted} opacity={0.6} />
-
-        {/* High marker */}
-        <Circle cx={xHigh} cy={20.5} r={4} fill={colors.textMuted} opacity={0.6} />
-
-        {/* Current price marker */}
-        <Circle cx={xCur} cy={20.5} r={6} fill={colors.card} stroke={colors.text} strokeWidth={2} />
-
-        {/* Mean target marker */}
-        <Circle cx={xMean} cy={20.5} r={6} fill={isUp ? colors.up : colors.down} />
-
-        {/* Labels below */}
-        {/* Low */}
-        <SvgText x={xLow} y={42} textAnchor="middle" fontSize={9} fill={colors.textMuted} fontWeight="600">
-          {fmtPrice(low)}
-        </SvgText>
+        {/* Low dot */}
+        <Circle cx={xLow} cy={22.5} r={4} fill={D.dim} />
+        {/* High dot */}
+        <Circle cx={xHigh} cy={22.5} r={4} fill={D.dim} />
         {/* Current */}
-        <SvgText x={xCur} y={42} textAnchor="middle" fontSize={9} fill={colors.text} fontWeight="700">
-          {fmtPrice(current)}
-        </SvgText>
-        {/* Mean */}
-        <SvgText
-          x={xMean}
-          y={42}
-          textAnchor="middle"
-          fontSize={9}
-          fill={isUp ? colors.up : colors.down}
-          fontWeight="700"
-        >
-          {fmtPrice(mean)}
-        </SvgText>
-        {/* High */}
-        <SvgText x={xHigh} y={42} textAnchor="middle" fontSize={9} fill={colors.textMuted} fontWeight="600">
-          {fmtPrice(high)}
-        </SvgText>
+        <Circle cx={xCur} cy={22.5} r={7} fill={D.card} stroke={D.text} strokeWidth={2} />
+        {/* Mean target */}
+        <Circle cx={xMean} cy={22.5} r={7} fill={col} />
+        {/* Labels */}
+        <SvgText x={xLow} y={46} textAnchor="middle" fontSize={9} fill={D.dim} fontWeight="600">{fmtPrice(low)}</SvgText>
+        <SvgText x={xCur} y={46} textAnchor="middle" fontSize={9} fill={D.text} fontWeight="700">{fmtPrice(current)}</SvgText>
+        <SvgText x={xMean} y={46} textAnchor="middle" fontSize={9} fill={col} fontWeight="700">{fmtPrice(mean)}</SvgText>
+        <SvgText x={xHigh} y={46} textAnchor="middle" fontSize={9} fill={D.dim} fontWeight="600">{fmtPrice(high)}</SvgText>
       </Svg>
 
-      {/* Legend */}
       <View style={pt.legend}>
         <View style={pt.legendItem}>
-          <View style={[pt.legendDot, { backgroundColor: colors.text, borderWidth: 2, borderColor: colors.text }]} />
-          <Text style={[pt.legendText, { color: colors.textMuted }]}>Actual</Text>
+          <View style={[pt.dot, { backgroundColor: D.card, borderWidth: 2, borderColor: D.text }]} />
+          <Text style={pt.legendText}>Precio actual</Text>
         </View>
         <View style={pt.legendItem}>
-          <View style={[pt.legendDot, { backgroundColor: isUp ? colors.up : colors.down }]} />
-          <Text style={[pt.legendText, { color: colors.textMuted }]}>Objetivo</Text>
+          <View style={[pt.dot, { backgroundColor: col }]} />
+          <Text style={pt.legendText}>Objetivo analistas</Text>
         </View>
+      </View>
+
+      <View style={pt.statsRow}>
+        {[
+          { label: "Mínimo",   value: fmtPrice(low),  color: D.sub },
+          { label: "Objetivo", value: fmtPrice(mean), color: col },
+          { label: "Máximo",   value: fmtPrice(high), color: D.sub },
+        ].map((item) => (
+          <View key={item.label} style={pt.statCell}>
+            <Text style={pt.statLabel}>{item.label}</Text>
+            <Text style={[pt.statValue, { color: item.color }]}>{item.value}</Text>
+          </View>
+        ))}
       </View>
     </View>
   );
 }
 
 const pt = StyleSheet.create({
-  headline: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-  },
-  targetPrice: { fontSize: 24, fontWeight: "800", letterSpacing: -0.5 },
-  targetLabel: { fontSize: 11, marginTop: 2 },
-  upsidePill: {
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 20,
-    alignSelf: "flex-start",
-    marginTop: 4,
-  },
-  upsidePct:  { fontSize: 13, fontWeight: "700" },
-  legend: {
-    flexDirection: "row",
-    gap: 16,
-    marginTop: 6,
-  },
-  legendItem: { flexDirection: "row", alignItems: "center", gap: 5 },
-  legendDot:  { width: 8, height: 8, borderRadius: 4 },
-  legendText: { fontSize: 11 },
+  headline:    { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" },
+  targetPrice: { fontSize: 26, fontFamily: "DMSans_800ExtraBold", color: D.text, letterSpacing: -0.5 },
+  targetLabel: { fontSize: 11, fontFamily: "DMSans_500Medium", color: D.muted, marginTop: 2 },
+  upsidePill:  { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 14, borderWidth: 1, alignItems: "center" },
+  upsidePct:   { fontSize: 16, fontFamily: "DMSans_800ExtraBold" },
+  upsideLabel: { fontSize: 9, fontFamily: "DMSans_600SemiBold", marginTop: 1 },
+  legend:      { flexDirection: "row", gap: 16, marginTop: 10 },
+  legendItem:  { flexDirection: "row", alignItems: "center", gap: 6 },
+  dot:         { width: 9, height: 9, borderRadius: 5 },
+  legendText:  { fontSize: 11, fontFamily: "DMSans_500Medium", color: D.muted },
+  statsRow:    { flexDirection: "row", justifyContent: "space-around", marginTop: 16, paddingTop: 14, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: D.border },
+  statCell:    { alignItems: "center", gap: 4 },
+  statLabel:   { fontSize: 10, fontFamily: "DMSans_600SemiBold", color: D.muted, textTransform: "uppercase", letterSpacing: 0.3 },
+  statValue:   { fontSize: 16, fontFamily: "DMSans_800ExtraBold" },
 });
 
-// ─── Section Card ─────────────────────────────────────────────────────────────
+// ─── Card wrapper ─────────────────────────────────────────────────────────────
 
-function Card({ title, children, colors }: {
-  title: string;
-  children: React.ReactNode;
-  colors: ReturnType<typeof useTheme>["colors"];
-}) {
+function Card({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <View style={[card.wrap, { backgroundColor: colors.card, borderColor: colors.border }]}>
-      <Text style={[card.title, { color: colors.textMuted }]}>{title}</Text>
+    <View style={c.wrap}>
+      <Text style={c.title}>{title}</Text>
       {children}
     </View>
   );
 }
 
-const card = StyleSheet.create({
-  wrap: {
-    borderRadius: 16,
-    borderWidth: 1,
-    padding: 16,
-    marginHorizontal: 16,
-    marginBottom: 12,
-  },
-  title: {
-    fontSize: 10,
-    fontWeight: "700",
-    letterSpacing: 1,
-    textTransform: "uppercase",
-    marginBottom: 12,
-  },
+const c = StyleSheet.create({
+  wrap:  { borderRadius: 20, borderWidth: 1, borderColor: D.border, padding: 18, marginHorizontal: 16, marginBottom: 12, backgroundColor: D.card },
+  title: { fontSize: 9, fontFamily: "DMSans_800ExtraBold", letterSpacing: 1, textTransform: "uppercase", color: D.green, marginBottom: 16 },
 });
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
@@ -253,139 +210,89 @@ export default function StockAnalysts({
   analyst: Analyst;
   currentPrice?: number;
 }) {
-  const { colors } = useTheme();
-
   const ratings = analyst.ratings ?? { strong_buy: 0, buy: 0, hold: 0, sell: 0, strong_sell: 0 };
   const total   = Object.values(ratings).reduce((s, v) => s + (v ?? 0), 0);
 
-  const pt = analyst.price_target ?? {};
-  const hasPriceTarget = pt.low != null && pt.mean != null && pt.high != null;
-  const curPrice = currentPrice ?? pt.current ?? 0;
+  const priceTarget = analyst.price_target ?? {};
+  const hasPriceTarget = priceTarget.low != null && priceTarget.mean != null && priceTarget.high != null;
+  const curPrice = currentPrice ?? priceTarget.current ?? 0;
 
-  const rec    = analyst.recommendation ?? "";
-  const label  = consensusLabel(rec);
-  const cColor = consensusColor(label, colors);
+  const label  = consensusLabel(analyst.recommendation);
+  const cColor = consensusColor(label);
+
+  const bullCount = (ratings.strong_buy ?? 0) + (ratings.buy ?? 0);
+  const bearCount = (ratings.sell ?? 0) + (ratings.strong_sell ?? 0);
+  const bullPct = total > 0 ? Math.round((bullCount / total) * 100) : 0;
 
   return (
-    <View style={{ paddingVertical: 12 }}>
+    <View style={{ paddingVertical: 16, gap: 0 }}>
 
       {/* ── Consenso ── */}
-      <Card title="CONSENSO DE ANALISTAS" colors={colors}>
+      <Card title="Consenso de Analistas">
         {total === 0 ? (
-          <Text style={{ color: colors.textMuted, fontSize: 13 }}>Sin datos de analistas</Text>
+          <Text style={{ color: D.muted, fontSize: 13 }}>Sin datos de analistas</Text>
         ) : (
           <>
-            {/* Headline pill */}
-            <View style={s.consensusRow}>
-              <View style={[s.consensusPill, { backgroundColor: `${cColor}20`, borderColor: `${cColor}40` }]}>
+            {/* Hero consensus row */}
+            <View style={s.consensusHero}>
+              <View style={[s.consensusPill, { backgroundColor: cColor + "18", borderColor: cColor + "35" }]}>
+                <View style={[s.consensusDot, { backgroundColor: cColor }]} />
                 <Text style={[s.consensusLabel, { color: cColor }]}>{label}</Text>
               </View>
-              {analyst.n_analysts != null && (
-                <Text style={[s.analystCount, { color: colors.textMuted }]}>
-                  {analyst.n_analysts} analistas
-                </Text>
-              )}
+              <View style={{ alignItems: "flex-end" }}>
+                {analyst.n_analysts != null && (
+                  <Text style={s.analystCount}>{analyst.n_analysts} analistas</Text>
+                )}
+                <Text style={[s.bullPct, { color: cColor }]}>{bullPct}% alcista</Text>
+              </View>
             </View>
 
-            {/* Rating bars */}
-            <View style={{ marginTop: 12, gap: 0 }}>
-              <RatingBar
-                label="Compra Fuerte"
-                count={ratings.strong_buy}
-                total={total}
-                color={colors.up}
-                textColor={colors.textSub}
-                bgColor={colors.bgRaised}
-              />
-              <RatingBar
-                label="Comprar"
-                count={ratings.buy}
-                total={total}
-                color={`${colors.up}99`}
-                textColor={colors.textSub}
-                bgColor={colors.bgRaised}
-              />
-              <RatingBar
-                label="Neutral"
-                count={ratings.hold}
-                total={total}
-                color={colors.warning}
-                textColor={colors.textSub}
-                bgColor={colors.bgRaised}
-              />
-              <RatingBar
-                label="Vender"
-                count={ratings.sell}
-                total={total}
-                color={`${colors.down}99`}
-                textColor={colors.textSub}
-                bgColor={colors.bgRaised}
-              />
-              <RatingBar
-                label="Venta Fuerte"
-                count={ratings.strong_sell}
-                total={total}
-                color={colors.down}
-                textColor={colors.textSub}
-                bgColor={colors.bgRaised}
-              />
+            {/* Bull/bear mini bar */}
+            <View style={s.bbTrack}>
+              <View style={[s.bbBull, { flex: bullPct }]} />
+              <View style={[s.bbBear, { flex: 100 - bullPct }]} />
+            </View>
+            <View style={s.bbLabels}>
+              <Text style={{ fontSize: 10, color: D.green, fontFamily: "DMSans_600SemiBold" }}>Compra {bullCount}</Text>
+              <Text style={{ fontSize: 10, color: D.red, fontFamily: "DMSans_600SemiBold" }}>Venta {bearCount}</Text>
+            </View>
+
+            <View style={s.barsSection}>
+              <RatingRow label="Compra Fuerte" count={ratings.strong_buy}  total={total} color={D.green} />
+              <RatingRow label="Comprar"        count={ratings.buy}         total={total} color="#22c55e" />
+              <RatingRow label="Neutral"         count={ratings.hold}        total={total} color={D.amber} />
+              <RatingRow label="Vender"          count={ratings.sell}        total={total} color="#f97316" />
+              <RatingRow label="Venta Fuerte"    count={ratings.strong_sell} total={total} color={D.red} />
             </View>
           </>
         )}
       </Card>
 
       {/* ── Precio Objetivo ── */}
-      {hasPriceTarget ? (
-        <Card title="PRECIO OBJETIVO 12 MESES" colors={colors}>
+      {hasPriceTarget && (
+        <Card title="Precio Objetivo · 12 meses">
           <PriceTargetBar
-            low={pt.low!}
-            mean={pt.mean!}
-            high={pt.high!}
+            low={priceTarget.low!}
+            mean={priceTarget.mean!}
+            high={priceTarget.high!}
             current={curPrice}
-            colors={colors}
           />
-
-          {/* Min / Mean / Max table */}
-          <View style={[s.ptTable, { borderTopColor: colors.border }]}>
-            {[
-              { label: "Mínimo",  value: pt.low!,  color: colors.textSub },
-              { label: "Promedio", value: pt.mean!, color: colors.up },
-              { label: "Máximo",  value: pt.high!, color: colors.textSub },
-            ].map((item) => (
-              <View key={item.label} style={s.ptCell}>
-                <Text style={[s.ptCellLabel, { color: colors.textMuted }]}>{item.label}</Text>
-                <Text style={[s.ptCellValue, { color: item.color }]}>{fmtPrice(item.value)}</Text>
-              </View>
-            ))}
-          </View>
         </Card>
-      ) : null}
+      )}
     </View>
   );
 }
 
 const s = StyleSheet.create({
-  consensusRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-  },
-  consensusPill: {
-    paddingHorizontal: 12,
-    paddingVertical: 5,
-    borderRadius: 20,
-    borderWidth: 1,
-  },
-  consensusLabel: { fontSize: 14, fontWeight: "800" },
-  analystCount:   { fontSize: 12 },
-  ptTable: {
-    flexDirection: "row",
-    justifyContent: "space-around",
-    marginTop: 16,
-    paddingTop: 12,
-    borderTopWidth: StyleSheet.hairlineWidth,
-  },
-  ptCell:      { alignItems: "center" },
-  ptCellLabel: { fontSize: 10, fontWeight: "600", marginBottom: 3 },
-  ptCellValue: { fontSize: 15, fontWeight: "800" },
+  consensusHero:  { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 16 },
+  consensusPill:  { flexDirection: "row", alignItems: "center", gap: 7, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, borderWidth: 1 },
+  consensusDot:   { width: 7, height: 7, borderRadius: 4 },
+  consensusLabel: { fontSize: 15, fontFamily: "DMSans_800ExtraBold" },
+  analystCount:   { fontSize: 11, fontFamily: "DMSans_500Medium", color: D.muted },
+  bullPct:        { fontSize: 13, fontFamily: "DMSans_700Bold", marginTop: 2 },
+  bbTrack:        { flexDirection: "row", height: 6, borderRadius: 3, overflow: "hidden", marginBottom: 6 },
+  bbBull:         { backgroundColor: D.green },
+  bbBear:         { backgroundColor: D.red },
+  bbLabels:       { flexDirection: "row", justifyContent: "space-between", marginBottom: 16 },
+  barsSection:    { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: D.border, paddingTop: 12, gap: 0 },
 });

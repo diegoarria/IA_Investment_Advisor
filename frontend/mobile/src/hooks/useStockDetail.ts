@@ -120,6 +120,21 @@ export interface CategoryScore {
   score: number;
 }
 
+export interface EntryRange {
+  label: string;
+  signal: string;
+  color: string;
+  min: number | null;
+  max: number | null;
+  is_current: boolean;
+}
+
+export interface EntryRangesMeta {
+  fair_value: number;
+  fair_value_src: string;
+  current_price: number;
+}
+
 export interface StockScore {
   overall_score: number;
   grade: string;
@@ -127,6 +142,8 @@ export interface StockScore {
   verdict_short: string;
   verdict_long: string;
   categories: CategoryScore[];
+  entry_ranges?: EntryRange[];
+  entry_ranges_meta?: EntryRangesMeta | null;
 }
 
 export function useStockDetail(ticker: string) {

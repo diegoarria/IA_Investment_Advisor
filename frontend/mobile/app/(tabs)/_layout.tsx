@@ -375,7 +375,7 @@ export default function TabsLayout() {
       {/* ── Secondary screens (accessible from hub pages) ─────────────── */}
       <Tabs.Screen name="portfolio"     options={{ title: "Portafolio",    header: () => <MobileHeader title="Mi Portafolio" /> }} />
       <Tabs.Screen name="watchlist"     options={{ title: "Watchlist",     header: () => <MobileHeader title="Watchlist" /> }} />
-      <Tabs.Screen name="paper"         options={{ href: null }} />
+      <Tabs.Screen name="paper"         options={{ href: null, title: "Simulador", header: () => <MobileHeader title="Simulador" /> }} />
       <Tabs.Screen name="learn"         options={{ title: "Aprendizaje",   header: () => <MobileHeader title="Aprendizaje" /> }} />
       <Tabs.Screen name="videos"        options={{ title: "Videos",        header: () => <MobileHeader title="Videos" /> }} />
       <Tabs.Screen name="investors"     options={{ title: "Inversores",    header: () => <MobileHeader title="Inversores" /> }} />
