@@ -6,7 +6,6 @@ import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "../lib/ThemeContext";
 import { useSubscriptionStore } from "../lib/subscriptionStore";
 import { getOfferings, purchasePackage, restorePurchases } from "../lib/purchases";
-import type { PurchasesPackage } from "react-native-purchases";
 
 const FREE_FEATURES = [
   "Hasta 20 mensajes/día con el mentor IA",
@@ -42,15 +41,15 @@ export default function PricingModal({ visible, onClose }: Props) {
   const fetchStatus = useSubscriptionStore((s) => s.fetchStatus);
   const [plan, setPlan] = useState<"monthly" | "yearly">("monthly");
   const [loading, setLoading] = useState(false);
-  const [monthlyPkg, setMonthlyPkg] = useState<PurchasesPackage | null>(null);
-  const [yearlyPkg,  setYearlyPkg]  = useState<PurchasesPackage | null>(null);
+  const [monthlyPkg, setMonthlyPkg] = useState<any>(null);
+  const [yearlyPkg,  setYearlyPkg]  = useState<any>(null);
 
   useEffect(() => {
     if (!visible) return;
     getOfferings().then((offering) => {
       if (!offering) return;
-      setMonthlyPkg(offering.monthly ?? null);
-      setYearlyPkg(offering.annual  ?? null);
+      setMonthlyPkg((offering as any).monthly ?? null);
+      setYearlyPkg((offering as any).annual  ?? null);
     });
   }, [visible]);
 

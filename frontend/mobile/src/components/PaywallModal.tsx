@@ -8,7 +8,6 @@ import { Ionicons } from "@expo/vector-icons";
 import { useSubscriptionStore } from "../lib/subscriptionStore";
 import { useTheme } from "../lib/ThemeContext";
 import { getOfferings, purchasePackage, restorePurchases } from "../lib/purchases";
-import type { PurchasesPackage } from "react-native-purchases";
 
 const PLANS = [
   {
@@ -65,15 +64,15 @@ export default function PaywallModal({ visible, onClose, reason }: Props) {
   const [expanded, setExpanded] = useState<string | null>(null);
   const [loading, setLoading]   = useState(false);
   const [error, setError]       = useState("");
-  const [monthlyPkg, setMonthlyPkg] = useState<PurchasesPackage | null>(null);
-  const [yearlyPkg,  setYearlyPkg]  = useState<PurchasesPackage | null>(null);
+  const [monthlyPkg, setMonthlyPkg] = useState<any>(null);
+  const [yearlyPkg,  setYearlyPkg]  = useState<any>(null);
 
   useEffect(() => {
     if (!visible) return;
     getOfferings().then((offering) => {
       if (!offering) return;
-      setMonthlyPkg(offering.monthly ?? null);
-      setYearlyPkg(offering.annual  ?? null);
+      setMonthlyPkg((offering as any).monthly ?? null);
+      setYearlyPkg((offering as any).annual  ?? null);
     });
   }, [visible]);
 
