@@ -17,6 +17,7 @@ import { useTheme } from "../../src/lib/ThemeContext";
 import { usePortfolioStore, Position } from "../../src/lib/portfolioStore";
 import MobileMonthlyReport from "../../src/components/MobileMonthlyReport";
 import MobileWeeklyScreener from "../../src/components/MobileWeeklyScreener";
+import EarningsCalendar from "../../src/components/EarningsCalendar";
 import PremiumToolCard from "../../src/components/PremiumToolCard";
 import { useAppStore, getAge, UserProfile } from "../../src/lib/profileStore";
 import { useSubscriptionStore, hasPremiumAccess } from "../../src/lib/subscriptionStore";
@@ -2081,6 +2082,18 @@ export default function PortfolioScreen() {
             </View>
           </>
         ) : null}
+
+        {/* ── EARNINGS CALENDAR ── */}
+        {positions.length > 0 && (
+          <>
+            <View style={[s.divider, { borderTopColor: "#1f2330" }]} />
+            <EarningsCalendar
+              positions={positions.map(p => ({ ticker: p.ticker, shares: p.shares, avg_cost: p.avgPrice }))}
+              isPremium={isPremiumAccess}
+              onUpgrade={() => setPaywallOpen(true)}
+            />
+          </>
+        )}
 
         {/* ── STRESS TEST ── */}
         {positions.length > 0 && (

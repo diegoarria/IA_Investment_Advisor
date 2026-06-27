@@ -11,6 +11,7 @@ import MarketTickerBar from "@/components/MarketTickerBar";
 import HomeMarketOverview from "@/components/HomeMarketOverview";
 import StockAvatar from "@/components/StockAvatar";
 import { market as marketApi, notifications as notifApi, profile as profileApi, sync as syncApi, watchlist as watchlistApi, billing } from "@/lib/api";
+import EarningsPanel from "@/components/EarningsPanel";
 import { useAuthStore, useProfileStore, useLearnStore, useSubscriptionStore, useChatStore } from "@/lib/store";
 import OnboardingChecklist, { type OnboardingStep } from "@/components/OnboardingChecklist";
 import HomeScreenPickerModal, { HOME_SCREEN_KEY } from "@/components/HomeScreenPickerModal";
@@ -1174,6 +1175,15 @@ export default function HomePage() {
                   ))}
                 </div>
               </div>
+            )}
+
+            {/* ── Earnings Calendar ───────────────────────────────────────── */}
+            {positions.length > 0 && (
+              <EarningsPanel
+                positions={positions.map(p => ({ ticker: p.ticker, shares: p.shares, avg_cost: p.avgPrice }))}
+                isPremium={isPremium}
+                onUpgrade={() => router.push("/portfolio")}
+              />
             )}
 
             {/* ── Portfolio news ───────────────────────────────────────────── */}
