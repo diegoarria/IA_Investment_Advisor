@@ -64,6 +64,7 @@ export default function AppSidebar({ open, onClose }: Props) {
   const { isAuthenticated, clearAuth } = useAuthStore();
 
   const handleLogout = () => {
+    sessionStorage.removeItem("nuvos_chat_active");
     clearAuth();
     // Full page reload so Zustand stores reinitialize empty for the next user.
     window.location.href = "/";

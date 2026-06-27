@@ -454,17 +454,22 @@ export default function ChatPage() {
   useEffect(() => {
     if (!hasSeenTutorial) setTimeout(() => openTutorial(), 800);
 
+    // Fresh browser session (tab closed+reopened) or logout: always start with a new empty chat.
+    // sessionStorage is cleared automatically when the browser tab/window closes.
+    const isNewBrowserSession = !sessionStorage.getItem("nuvos_chat_active");
+    sessionStorage.setItem("nuvos_chat_active", "1");
+
     // Load all sessions from server (grouped by session_id) then set polling cursor
     loadFromServer().finally(() => {
       chatApi.getHistory()
         .then((res) => {
           const msgs: { created_at?: string }[] = res.data?.messages ?? [];
           syncCursorRef.current = msgs[msgs.length - 1]?.created_at ?? new Date().toISOString();
-          if (useChatStore.getState().sessions.length === 0) createSession();
+          if (isNewBrowserSession || useChatStore.getState().sessions.length === 0) createSession();
         })
         .catch(() => {
           syncCursorRef.current = new Date().toISOString();
-          if (useChatStore.getState().sessions.length === 0) createSession();
+          if (isNewBrowserSession || useChatStore.getState().sessions.length === 0) createSession();
         });
     });
 

@@ -6,7 +6,7 @@ import { Audio } from "expo-av";
 import * as FileSystem from "expo-file-system/legacy";
 import {
   View, Text, TextInput, TouchableOpacity, FlatList, ScrollView,
-  StyleSheet, KeyboardAvoidingView, Platform, Image, Animated, Alert, Modal,
+  StyleSheet, KeyboardAvoidingView, Platform, Image, Animated, Alert, Modal, AppState,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -225,11 +225,20 @@ export default function ChatScreen() {
   const localFingerprintsRef = useRef<Set<string>>(new Set());
   const fp = (role: string, content: string) => `${role}:${content.slice(0, 60)}`;
 
-  // On first load: restore history from server, set sync cursor, then start polling
+  // On first load: restore history from server then always open a fresh empty session.
+  // Also open a fresh session whenever the app returns from background (treat as a new visit).
   useEffect(() => {
+    const appStateRef = { current: AppState.currentState };
+    const appStateSub = AppState.addEventListener("change", (nextState) => {
+      if (appStateRef.current.match(/inactive|background/) && nextState === "active") {
+        createSession();
+      }
+      appStateRef.current = nextState;
+    });
+
     const init = async () => {
-      if (sessions.length === 0) await restoreFromServer();
-      if (!useChatStore.getState().currentId) createSession();
+      await restoreFromServer();
+      createSession();
       try {
         const res = await chatApi.getHistory();
         const msgs: { created_at?: string }[] = res.data?.messages ?? [];
@@ -268,7 +277,7 @@ export default function ChatScreen() {
       } catch {}
     }, 8000);
 
-    return () => clearInterval(poll);
+    return () => { clearInterval(poll); appStateSub.remove(); };
   }, []);
 
   // Refresh subscription status on mount

@@ -321,6 +321,7 @@ function useLogout() {
   return () => {
     // Do NOT clear portfolio or watchlist — data belongs to the user and must
     // survive logout. Server sync on next login will restore the correct state.
+    useChatStore.getState().createSession();
     logout();
     router.replace("/");
     SecureStore.deleteItemAsync("access_token").catch(() => {});
