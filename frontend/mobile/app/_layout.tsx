@@ -1,8 +1,7 @@
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { Stack, usePathname, router } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { View, Platform, Modal, Text, TouchableOpacity, StyleSheet, Alert, Animated } from "react-native";
-import { setNetworkErrorHandler, clearNetworkErrorHandler } from "../src/lib/api";
+import { View, Platform, Modal, Text, TouchableOpacity, StyleSheet, Alert } from "react-native";
 import { useEffect, useRef, useState } from "react";
 import { useFonts } from "expo-font";
 import {
@@ -26,37 +25,6 @@ import * as Notifications from "expo-notifications";
 
 const HIDE_SIDEBAR_ROUTES = ["/", "/onboarding"];
 
-function NetworkToast() {
-  const [msg, setMsg] = useState<string | null>(null);
-  const opacity = useState(() => new Animated.Value(0))[0];
-
-  useEffect(() => {
-    const show = (offline: boolean) => {
-      setMsg(offline
-        ? "Sin conexión a internet. Verifica tu red."
-        : "Algo salió mal. Inténtalo de nuevo.");
-    };
-    setNetworkErrorHandler(show);
-    return () => clearNetworkErrorHandler();
-  }, []);
-
-  useEffect(() => {
-    if (!msg) return;
-    Animated.sequence([
-      Animated.timing(opacity, { toValue: 1, duration: 200, useNativeDriver: true }),
-      Animated.delay(3200),
-      Animated.timing(opacity, { toValue: 0, duration: 300, useNativeDriver: true }),
-    ]).start(() => setMsg(null));
-  }, [msg]);
-
-  if (!msg) return null;
-  return (
-    <Animated.View style={{ position: "absolute", bottom: 32, left: 16, right: 16, zIndex: 9999, opacity, borderRadius: 14, backgroundColor: "#1e2130", borderWidth: 1, borderColor: "rgba(255,255,255,0.1)", flexDirection: "row", alignItems: "center", padding: 14, gap: 10, shadowColor: "#000", shadowOpacity: 0.4, shadowRadius: 12, elevation: 8 }}>
-      <Text style={{ fontSize: 18 }}>📡</Text>
-      <Text style={{ color: "#e5e7eb", fontSize: 14, fontWeight: "500", flex: 1 }}>{msg}</Text>
-    </Animated.View>
-  );
-}
 
 function TrialExpiredModal() {
   const { colors } = useTheme();
@@ -266,7 +234,6 @@ export default function RootLayout() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <ThemeProvider>
         <AppStack />
-        <NetworkToast />
       </ThemeProvider>
     </GestureHandlerRootView>
   );

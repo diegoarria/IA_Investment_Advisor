@@ -1,10 +1,6 @@
 import axios from "axios";
 import { getSupabaseClient } from "./supabase";
 
-// Global network error handler — registered by NetworkToast component in layout
-let _networkErrorHandler: ((offline: boolean) => void) | null = null;
-export function setNetworkErrorHandler(cb: (offline: boolean) => void) { _networkErrorHandler = cb; }
-export function clearNetworkErrorHandler() { _networkErrorHandler = null; }
 
 const BASE_URL =
   process.env.NEXT_PUBLIC_API_URL ||
@@ -34,16 +30,7 @@ api.interceptors.response.use(
   async (error) => {
     const original = error.config;
 
-    // Fire global network error toast for connectivity/server issues
-    // Skip: 401 (auth handled below), 4xx client errors (screen handles them)
     const status = error.response?.status;
-    const isNetworkErr = !error.response; // no response = can't reach server
-    const isServerErr = status && status >= 500;
-    if ((isNetworkErr || isServerErr) && _networkErrorHandler) {
-      const offline = typeof navigator !== "undefined" && !navigator.onLine;
-      _networkErrorHandler(offline);
-    }
-
     if (status !== 401 || original._retry) return Promise.reject(error);
 
     if (isRefreshing) {

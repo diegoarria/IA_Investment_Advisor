@@ -5,7 +5,6 @@ import ThemeProvider from "@/components/ThemeProvider";
 import NuvosGuide from "@/components/NuvosGuide";
 import UpsellProvider from "@/components/UpsellProvider";
 import FeedbackBanner from "@/components/FeedbackBanner";
-import NetworkToast from "@/components/NetworkToast";
 
 const dmSans = DM_Sans({
   subsets: ["latin"],
@@ -37,7 +36,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <NuvosGuide />
           <UpsellProvider />
           <FeedbackBanner />
-          <NetworkToast />
         </ThemeProvider>
       </body>
     </html>
