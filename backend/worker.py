@@ -461,34 +461,36 @@ async def send_monthly_reports():
                     else:
                         skipped += 1
                 else:
-                    html = f"""<!DOCTYPE html><html><head><meta charset="utf-8"></head>
-<body style="margin:0;padding:0;background:#f4f6ff;font-family:'Helvetica Neue',Arial,sans-serif;">
-<div style="max-width:560px;margin:32px auto;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(108,99,255,0.08);">
-  <div style="background:linear-gradient(135deg,#6c63ff,#4f46e5);padding:32px 36px;">
-    <p style="margin:0;font-size:13px;color:rgba(255,255,255,0.75);letter-spacing:1px;text-transform:uppercase;">Resumen Mensual</p>
-    <h1 style="margin:8px 0 0;font-size:26px;font-weight:800;color:#fff;">{month_name}</h1>
-  </div>
-  <div style="padding:32px 36px;">
-    <p style="margin:0 0 20px;font-size:16px;color:#333;line-height:1.6;">¡Hola <strong>{name}</strong>! Ya terminó otro mes en los mercados.</p>
-    <p style="margin:0 0 24px;font-size:15px;color:#555;line-height:1.7;">
-      Los usuarios <strong>Premium</strong> de Nuvos AI recibieron hoy su reporte mensual completo: rendimiento de su portafolio vs S&P 500 y NASDAQ, análisis de sus mejores y peores posiciones, y recomendaciones personalizadas de su mentor IA para el próximo mes.
-    </p>
-    <div style="margin:0 0 28px;padding:20px;background:#f8f7ff;border-radius:12px;border-left:4px solid #6c63ff;">
-      <p style="margin:0;font-size:14px;color:#444;line-height:1.6;">
-        Con Premium también tienes acceso a:<br>
-        📊 Screener semanal de 4 ideas de inversión personalizadas<br>
-        🤖 Mentor IA ilimitado para analizar cualquier acción<br>
-        🔔 Alertas inteligentes cuando tu portafolio se mueve
-      </p>
+                    html = f"""<!DOCTYPE html>
+<html lang="es">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Nuvos AI</title></head>
+<body style="margin:0;padding:0;background:#0d1117;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,sans-serif">
+<div style="max-width:580px;margin:0 auto;padding:28px 16px">
+  <div style="border-radius:20px;overflow:hidden;border:1px solid #2a2d3a">
+    <div style="background:linear-gradient(135deg,#0d1f14,#0f2a1a);padding:28px 32px;text-align:center;border-bottom:1px solid #1e3a28">
+      <img src="https://www.nuvosai.com/logo.png" alt="Nuvos AI" width="48" height="48" style="display:block;margin:0 auto 10px;border-radius:12px"/>
+      <p style="margin:0;color:#00d47e;font-size:11px;font-weight:800;letter-spacing:2px;text-transform:uppercase">Nuvos AI · Reporte Mensual</p>
     </div>
-    <div style="text-align:center;">
-      <a href="https://nuvosai.com/profile" style="display:inline-block;background:#6c63ff;color:#fff;padding:14px 32px;border-radius:50px;font-size:15px;font-weight:700;text-decoration:none;">
-        Activar Premium →
-      </a>
+    <div style="background:#161b27;padding:28px 32px">
+      <h1 style="color:#fff;font-size:20px;font-weight:900;margin:0 0 4px;letter-spacing:-0.3px">Hola {name}, así fue {month_name} 📅</h1>
+      <p style="color:#6b7280;font-size:13px;margin:0 0 24px">Cerramos otro mes. Los usuarios Premium ya tienen su análisis completo.</p>
+      <div style="background:#111318;border:1px solid rgba(0,212,126,0.2);border-radius:14px;padding:20px;margin-bottom:20px">
+        <p style="color:#00d47e;font-size:10px;font-weight:800;letter-spacing:1.5px;text-transform:uppercase;margin:0 0 12px">📊 Reporte Premium incluye:</p>
+        <p style="color:#d1d5db;font-size:13px;line-height:1.75;margin:0">
+          ✅ Tu portafolio vs S&amp;P 500 y NASDAQ — rendimiento real del mes<br>
+          ✅ Análisis IA de tus mejores y peores posiciones<br>
+          ✅ 4 ideas de inversión personalizadas para el próximo mes<br>
+          ✅ Mentor IA ilimitado para analizar cualquier acción
+        </p>
+      </div>
+      <div style="text-align:center;margin-bottom:20px">
+        <a href="https://nuvosai.com/portfolio" style="display:inline-block;background:#00d47e;color:#000;font-weight:900;font-size:14px;padding:13px 28px;border-radius:12px;text-decoration:none">Activar Premium →</a>
+      </div>
+      <div style="border-top:1px solid #2a2d3a;padding-top:16px;text-align:center">
+        <p style="color:#00a85e;font-size:12px;font-weight:700;margin:0 0 4px">Con Nuvos, construye tu futuro.</p>
+        <p style="color:#374151;font-size:11px;margin:0">Nuvos AI · Solo educativo. No constituye asesoramiento financiero profesional.</p>
+      </div>
     </div>
-  </div>
-  <div style="padding:20px 36px;background:#f9f9fb;border-top:1px solid #eee;text-align:center;">
-    <p style="margin:0;font-size:12px;color:#aaa;">Nuvos AI · Tu mentor de inversiones · <a href="https://nuvosai.com" style="color:#6c63ff;text-decoration:none;">nuvosai.com</a></p>
   </div>
 </div>
 </body></html>"""
@@ -956,7 +958,13 @@ Español, tono analítico pero accesible. Sin viñetas, sin markdown, sin asteri
             ),
             timeout=15,
         )
-        return (resp.content[0].text or "").strip()
+        raw = (resp.content[0].text or "").strip()
+        # Strip any accidental markdown (model sometimes ignores the no-markdown instruction)
+        import re as _re
+        raw = _re.sub(r"#+ ?", "", raw)
+        raw = _re.sub(r"\*\*(.+?)\*\*", r"\1", raw)
+        raw = _re.sub(r"\*(.+?)\*", r"\1", raw)
+        return raw
     except Exception:
         return ""
 
@@ -1201,42 +1209,77 @@ async def job_daily_email():
                 )
             else:
                 # ── Free: general market summary for the week ──────────────────
-                market_body = f"<p style='margin:0 0 16px;font-size:15px;color:#444;line-height:1.7;'>{market_wrap}</p>" if market_wrap else ""
-                html = f"""<!DOCTYPE html><html><head><meta charset="utf-8"></head>
-<body style="margin:0;padding:0;background:#f4f6ff;font-family:'Helvetica Neue',Arial,sans-serif;">
-<div style="max-width:560px;margin:32px auto;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(108,99,255,0.08);">
-  <div style="background:linear-gradient(135deg,#6c63ff,#4f46e5);padding:32px 36px;">
-    <p style="margin:0;font-size:13px;color:rgba(255,255,255,0.75);letter-spacing:1px;text-transform:uppercase;">Resumen Semanal</p>
-    <h1 style="margin:8px 0 0;font-size:24px;font-weight:800;color:#fff;">Lo que pasó en el mercado esta semana</h1>
-  </div>
-  <div style="padding:32px 36px;">
-    <p style="margin:0 0 20px;font-size:16px;color:#333;">¡Hola <strong>{first}</strong>! Aquí está el resumen de la {week_label}:</p>
-    <table style="width:100%;border-collapse:collapse;margin-bottom:24px;">
-      <tr>
-        <td style="padding:14px;background:#f8f7ff;border-radius:10px 0 0 10px;text-align:center;">
-          <p style="margin:0;font-size:12px;color:#888;text-transform:uppercase;letter-spacing:1px;">S&P 500</p>
-          <p style="margin:4px 0 0;font-size:22px;font-weight:800;color:{'#16a34a' if sp_pct and sp_pct >= 0 else '#dc2626'};">{sp_str}</p>
-        </td>
-        <td style="width:8px;"></td>
-        <td style="padding:14px;background:#f8f7ff;border-radius:0 10px 10px 0;text-align:center;">
-          <p style="margin:0;font-size:12px;color:#888;text-transform:uppercase;letter-spacing:1px;">Nasdaq</p>
-          <p style="margin:4px 0 0;font-size:22px;font-weight:800;color:{'#16a34a' if nq_pct and nq_pct >= 0 else '#dc2626'};">{nq_str}</p>
-        </td>
-      </tr>
-    </table>
-    {market_body}
-    <div style="padding:20px;background:#f8f7ff;border-radius:12px;border-left:4px solid #6c63ff;margin-bottom:24px;">
-      <p style="margin:0;font-size:14px;color:#555;line-height:1.6;">
-        💡 <strong>¿Sabes cuánto rindió tu portafolio esta semana?</strong><br>
-        Con Premium puedes ver el rendimiento exacto de tus inversiones, recibir alertas cuando algo se mueve ±3.5%, y hablar con tu mentor IA para analizar cualquier acción.
-      </p>
+                # Convert plain-text paragraphs to HTML (AI sometimes ignores no-markdown instruction)
+                def _plain_to_html(text: str) -> str:
+                    import re
+                    text = re.sub(r"#+ ?", "", text)           # strip any markdown headers
+                    text = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", text)
+                    paras = [p.strip() for p in text.split("\n\n") if p.strip()]
+                    if not paras:
+                        paras = [p.strip() for p in text.split("\n") if p.strip()]
+                    return "".join(f'<p style="color:#d1d5db;font-size:14px;line-height:1.75;margin:0 0 14px">{p}</p>' for p in paras)
+
+                market_body = _plain_to_html(market_wrap) if market_wrap else ""
+                sp_color  = "#22c55e" if sp_pct is not None and sp_pct >= 0 else "#ef4444"
+                nq_color  = "#22c55e" if nq_pct is not None and nq_pct >= 0 else "#ef4444"
+                sp_border = "rgba(34,197,94,0.25)"  if sp_pct is not None and sp_pct >= 0 else "rgba(239,68,68,0.25)"
+                nq_border = "rgba(34,197,94,0.25)"  if nq_pct is not None and nq_pct >= 0 else "rgba(239,68,68,0.25)"
+                html = f"""<!DOCTYPE html>
+<html lang="es">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Nuvos AI</title></head>
+<body style="margin:0;padding:0;background:#0d1117;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,sans-serif">
+<div style="max-width:580px;margin:0 auto;padding:28px 16px">
+  <div style="border-radius:20px;overflow:hidden;border:1px solid #2a2d3a">
+
+    <!-- Header -->
+    <div style="background:linear-gradient(135deg,#0d1f14,#0f2a1a);padding:28px 32px;text-align:center;border-bottom:1px solid #1e3a28">
+      <img src="https://www.nuvosai.com/logo.png" alt="Nuvos AI" width="48" height="48" style="display:block;margin:0 auto 10px;border-radius:12px"/>
+      <p style="margin:0;color:#00d47e;font-size:11px;font-weight:800;letter-spacing:2px;text-transform:uppercase">Nuvos AI · Resumen Semanal</p>
     </div>
-    <div style="text-align:center;">
-      <a href="https://nuvosai.com/profile" style="display:inline-block;background:#6c63ff;color:#fff;padding:14px 32px;border-radius:50px;font-size:15px;font-weight:700;text-decoration:none;">Activar Premium →</a>
+
+    <!-- Body -->
+    <div style="background:#161b27;padding:28px 32px">
+      <h1 style="color:#fff;font-size:20px;font-weight:900;margin:0 0 4px;letter-spacing:-0.3px">Hola {first}, ¿cómo estuvo la semana? 👋</h1>
+      <p style="color:#6b7280;font-size:13px;margin:0 0 24px">El mercado cerró. Aquí está lo que pasó en la {week_label}.</p>
+
+      <!-- Index cards -->
+      <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin-bottom:24px">
+        <tr>
+          <td style="width:49%;vertical-align:top;padding-right:6px">
+            <div style="background:#111318;border:1px solid {sp_border};border-radius:14px;padding:18px;text-align:center">
+              <p style="color:#9ca3af;font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;margin:0 0 8px">S&amp;P 500</p>
+              <p style="color:{sp_color};font-size:26px;font-weight:900;margin:0;letter-spacing:-0.5px">{sp_str}</p>
+              <p style="color:#4b5563;font-size:11px;margin:4px 0 0">esta semana</p>
+            </div>
+          </td>
+          <td style="width:49%;vertical-align:top;padding-left:6px">
+            <div style="background:#111318;border:1px solid {nq_border};border-radius:14px;padding:18px;text-align:center">
+              <p style="color:#9ca3af;font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;margin:0 0 8px">NASDAQ</p>
+              <p style="color:{nq_color};font-size:26px;font-weight:900;margin:0;letter-spacing:-0.5px">{nq_str}</p>
+              <p style="color:#4b5563;font-size:11px;margin:4px 0 0">esta semana</p>
+            </div>
+          </td>
+        </tr>
+      </table>
+
+      <!-- Market wrap narrative -->
+      {'<div style="background:#111318;border:1px solid #2a2d3a;border-radius:14px;padding:22px;margin-bottom:20px"><p style="color:#00d47e;font-size:10px;font-weight:800;letter-spacing:1.5px;text-transform:uppercase;margin:0 0 14px">ANÁLISIS DE LA SEMANA</p>' + market_body + '</div>' if market_body else ''}
+
+      <!-- Premium upsell -->
+      <div style="background:linear-gradient(135deg,rgba(0,168,94,0.08),rgba(0,212,126,0.04));border:1px solid rgba(0,212,126,0.2);border-radius:14px;padding:20px;margin-bottom:20px">
+        <p style="color:#00d47e;font-size:13px;font-weight:800;margin:0 0 6px">🔒 ¿Cuánto rindió tu portafolio esta semana?</p>
+        <p style="color:#9ca3af;font-size:13px;line-height:1.6;margin:0 0 16px">Con Premium ves el rendimiento exacto de tus inversiones vs S&P 500, recibes alertas de movimientos y hablas con tu mentor IA sin límites.</p>
+        <div style="text-align:center">
+          <a href="https://nuvosai.com/portfolio" style="display:inline-block;background:#00d47e;color:#000;font-weight:900;font-size:14px;padding:13px 28px;border-radius:12px;text-decoration:none">Activar Premium →</a>
+        </div>
+      </div>
+
+      <!-- Footer -->
+      <div style="border-top:1px solid #2a2d3a;padding-top:16px;text-align:center">
+        <p style="color:#00a85e;font-size:12px;font-weight:700;margin:0 0 4px">Con Nuvos, construye tu futuro.</p>
+        <p style="color:#374151;font-size:11px;margin:0">Nuvos AI · Solo educativo. No constituye asesoramiento financiero profesional.</p>
+      </div>
     </div>
-  </div>
-  <div style="padding:20px 36px;background:#f9f9fb;border-top:1px solid #eee;text-align:center;">
-    <p style="margin:0;font-size:12px;color:#aaa;">Nuvos AI · Tu mentor de inversiones · <a href="https://nuvosai.com" style="color:#6c63ff;text-decoration:none;">nuvosai.com</a></p>
   </div>
 </div>
 </body></html>"""
@@ -1667,44 +1710,40 @@ async def job_weekly_screener_push():
             email_addr = auth_users.get(uid)
             if email_addr:
                 pick_rows = "".join(
-                    f"""<tr>
-                      <td style="padding:10px 0;font-size:18px;font-weight:700;color:#6c63ff;width:32px;">{idx+1}.</td>
-                      <td style="padding:10px 0;">
-                        <span style="font-size:17px;font-weight:700;color:#1a1a2e;">{pk['ticker']}</span>
-                        <span style="font-size:14px;color:#666;margin-left:8px;">{pk['name']}</span>
-                      </td>
-                    </tr>"""
+                    f'<div style="display:flex;align-items:center;gap:14px;padding:14px 0;border-bottom:1px solid #1e2235">'
+                    f'<span style="background:#00d47e22;color:#00d47e;font-size:13px;font-weight:900;width:28px;height:28px;border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0">{idx+1}</span>'
+                    f'<div><span style="color:#fff;font-size:16px;font-weight:800">{pk["ticker"]}</span>'
+                    f'<span style="color:#6b7280;font-size:13px;margin-left:8px">{pk["name"]}</span></div>'
+                    f'</div>'
                     for idx, pk in enumerate(picks)
                 )
-                html = f"""<!DOCTYPE html><html><head><meta charset="utf-8"></head>
-<body style="margin:0;padding:0;background:#f4f6ff;font-family:'Helvetica Neue',Arial,sans-serif;">
-<div style="max-width:560px;margin:32px auto;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(108,99,255,0.08);">
-  <div style="background:linear-gradient(135deg,#6c63ff,#4f46e5);padding:32px 36px;">
-    <p style="margin:0;font-size:13px;color:rgba(255,255,255,0.75);letter-spacing:1px;text-transform:uppercase;">Screener Semanal</p>
-    <h1 style="margin:8px 0 0;font-size:26px;font-weight:800;color:#fff;">Tus 4 ideas para esta semana</h1>
-  </div>
-  <div style="padding:32px 36px;">
-    <p style="margin:0 0 24px;font-size:16px;color:#333;line-height:1.6;">
-      ¡Hola <strong>{name}</strong>! Basado en tu perfil <strong>{risk_label}</strong> y mentalidad de <strong>{horizon}</strong>,
-      quiero sugerirte algunas posiciones que deberías echarles un ojo esta semana:
-    </p>
-    <table style="width:100%;border-collapse:collapse;border-top:2px solid #f0f0f0;">
-      {pick_rows}
-    </table>
-    <div style="margin-top:28px;padding:20px;background:#f8f7ff;border-radius:12px;border-left:4px solid #6c63ff;">
-      <p style="margin:0;font-size:14px;color:#555;line-height:1.6;">
-        💡 <strong>¿Qué hago con estas ideas?</strong> Habla con tu mentor para analizarlas:
-        ¿encajan en tu portafolio? ¿cuál es el riesgo? ¿cuándo entrar?
-      </p>
+                html = f"""<!DOCTYPE html>
+<html lang="es">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Nuvos AI</title></head>
+<body style="margin:0;padding:0;background:#0d1117;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,sans-serif">
+<div style="max-width:580px;margin:0 auto;padding:28px 16px">
+  <div style="border-radius:20px;overflow:hidden;border:1px solid #2a2d3a">
+    <div style="background:linear-gradient(135deg,#0d1f14,#0f2a1a);padding:28px 32px;text-align:center;border-bottom:1px solid #1e3a28">
+      <img src="https://www.nuvosai.com/logo.png" alt="Nuvos AI" width="48" height="48" style="display:block;margin:0 auto 10px;border-radius:12px"/>
+      <p style="margin:0;color:#00d47e;font-size:11px;font-weight:800;letter-spacing:2px;text-transform:uppercase">Nuvos AI · Screener Semanal</p>
     </div>
-    <div style="margin-top:28px;text-align:center;">
-      <a href="https://nuvosai.com/chat" style="display:inline-block;background:#6c63ff;color:#fff;padding:14px 32px;border-radius:50px;font-size:15px;font-weight:700;text-decoration:none;">
-        Hablar con mi mentor →
-      </a>
+    <div style="background:#161b27;padding:28px 32px">
+      <h1 style="color:#fff;font-size:20px;font-weight:900;margin:0 0 4px;letter-spacing:-0.3px">Tus 4 ideas para esta semana 📊</h1>
+      <p style="color:#6b7280;font-size:13px;margin:0 0 20px">Seleccionadas para tu perfil <strong style="color:#d1d5db">{risk_label}</strong> — visión de {horizon}</p>
+      <div style="background:#111318;border:1px solid #2a2d3a;border-radius:14px;padding:8px 16px;margin-bottom:20px">
+        {pick_rows}
+      </div>
+      <div style="background:#111318;border:1px solid rgba(0,212,126,0.2);border-radius:14px;padding:18px;margin-bottom:20px">
+        <p style="color:#d1d5db;font-size:13px;line-height:1.7;margin:0">💬 <strong style="color:#00d47e">¿Qué hago con estas ideas?</strong> Habla con tu mentor IA para analizarlas: ¿encajan en tu portafolio? ¿cuál es el riesgo real? ¿cuándo conviene entrar?</p>
+      </div>
+      <div style="text-align:center;margin-bottom:20px">
+        <a href="https://nuvosai.com/chat" style="display:inline-block;background:#00d47e;color:#000;font-weight:900;font-size:14px;padding:13px 28px;border-radius:12px;text-decoration:none">Hablar con mi mentor →</a>
+      </div>
+      <div style="border-top:1px solid #2a2d3a;padding-top:16px;text-align:center">
+        <p style="color:#00a85e;font-size:12px;font-weight:700;margin:0 0 4px">Con Nuvos, construye tu futuro.</p>
+        <p style="color:#374151;font-size:11px;margin:0">Nuvos AI · Solo educativo. No constituye asesoramiento financiero profesional.</p>
+      </div>
     </div>
-  </div>
-  <div style="padding:20px 36px;background:#f9f9fb;border-top:1px solid #eee;text-align:center;">
-    <p style="margin:0;font-size:12px;color:#aaa;">Nuvos AI · Tu mentor de inversiones · <a href="https://nuvosai.com" style="color:#6c63ff;text-decoration:none;">nuvosai.com</a></p>
   </div>
 </div>
 </body></html>"""
