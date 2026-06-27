@@ -10,6 +10,7 @@ import { router, useLocalSearchParams } from "expo-router";
 import { useTheme, Colors } from "../../src/lib/ThemeContext";
 import { chatApi, learnApi } from "../../src/lib/api";
 import { useLearnStore, getNextMilestone, getUnclaimedMilestones } from "../../src/lib/learnStore";
+import { useSubscriptionStore } from "../../src/lib/subscriptionStore";
 import StreakMilestoneModal from "../../src/components/StreakMilestoneModal";
 
 // ─── Data ──────────────────────────────────────────────────────────────────
@@ -244,10 +245,12 @@ export default function LearnScreen() {
   const markdownStyles = useMemo(() => makeMarkdownStyles(colors), [colors]);
 
   const { streak, completedToday, markTopicCompleted, markTopicId, completedTopicIds, initStreak, claimedMilestones, markMilestoneClaimed } = useLearnStore();
+  const { fetchSubStatus } = useSubscriptionStore();
   useEffect(() => { initStreak(); }, []);
 
   const [pendingMilestone, setPendingMilestone] = useState<ReturnType<typeof getNextMilestone>>(null);
   const [claiming, setClaiming] = useState(false);
+  const [claimSuccess, setClaimSuccess] = useState<string | null>(null);
 
   // Check for newly reached milestones every time streak changes
   useEffect(() => {
@@ -260,15 +263,33 @@ export default function LearnScreen() {
   const handleClaimMilestone = async () => {
     if (!pendingMilestone) return;
     setClaiming(true);
+    let success = false;
     try {
-      await learnApi.claimMilestone(pendingMilestone.days);
+      const res = await learnApi.claimMilestone(pendingMilestone.days);
       markMilestoneClaimed(pendingMilestone.days);
+      success = true;
+      // Refresh subscription if premium bonus was granted
+      if (pendingMilestone.premiumBonus || res?.data?.msg_reset) {
+        fetchSubStatus().catch(() => {});
+      }
     } catch {}
     setClaiming(false);
-    setPendingMilestone(null);
-    // Show next unclaimed if any
-    const remaining = getUnclaimedMilestones(streak, [...claimedMilestones, pendingMilestone.days]);
-    if (remaining.length > 0) setTimeout(() => setPendingMilestone(remaining[0]), 400);
+    if (success) {
+      const msg = pendingMilestone.premiumBonus
+        ? `¡${pendingMilestone.premiumBonus} días Premium activados! 🎉`
+        : pendingMilestone.msgReset
+        ? "¡Mensajes del día reiniciados! ⚡"
+        : "¡Recompensa canjeada! 🏆";
+      setClaimSuccess(msg);
+      setTimeout(() => {
+        setClaimSuccess(null);
+        setPendingMilestone(null);
+        const remaining = getUnclaimedMilestones(streak, [...claimedMilestones, pendingMilestone!.days]);
+        if (remaining.length > 0) setTimeout(() => setPendingMilestone(remaining[0]), 400);
+      }, 2000);
+    } else {
+      setPendingMilestone(null);
+    }
   };
 
   const nextMilestone = getNextMilestone(streak);
@@ -630,6 +651,7 @@ const { topicId } = useLocalSearchParams<{ topicId?: string }>();
         milestone={pendingMilestone ?? null}
         onClaim={handleClaimMilestone}
         claiming={claiming}
+        successMessage={claimSuccess}
       />
 
     </SafeAreaView>

@@ -9,7 +9,7 @@ import Image from "next/image";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { chat as chatApi, learn as learnApi } from "@/lib/api";
-import { useAuthStore, useLearnStore, useProfileStore, getNextMilestone, getUnclaimedMilestones, type StreakMilestone } from "@/lib/store";
+import { useAuthStore, useLearnStore, useSubscriptionStore, useProfileStore, getNextMilestone, getUnclaimedMilestones, type StreakMilestone } from "@/lib/store";
 import { getUserLevel, LEVEL_COLOR, LEVEL_LABEL, type UserLevel } from "@/lib/userLevel";
 
 const CATEGORY_LEVEL: Record<string, UserLevel> = {
@@ -246,9 +246,11 @@ export default function LearnPage() {
   const router = useRouter();
   const { isAuthenticated } = useAuthStore();
   const { streak, completedToday, markTopicCompleted, markTopicId, completedTopicIds, initStreak, claimedMilestones, markMilestoneClaimed } = useLearnStore();
+  const { fetchStatus: fetchSubStatus } = useSubscriptionStore();
   const { profile } = useProfileStore();
   const [pendingMilestone, setPendingMilestone] = useState<StreakMilestone | null>(null);
   const [claiming, setClaiming] = useState(false);
+  const [claimSuccess, setClaimSuccess] = useState<string | null>(null);
 
   // Show celebration when a new milestone is reached
   useEffect(() => {
@@ -259,14 +261,33 @@ export default function LearnPage() {
   const handleClaimMilestone = async () => {
     if (!pendingMilestone) return;
     setClaiming(true);
+    let success = false;
     try {
-      await learnApi.claimMilestone(pendingMilestone.days);
+      const res = await learnApi.claimMilestone(pendingMilestone.days);
       markMilestoneClaimed(pendingMilestone.days);
+      success = true;
+      if (pendingMilestone.premiumBonus || res?.data?.msg_reset) {
+        fetchSubStatus().catch(() => {});
+      }
     } catch {}
     setClaiming(false);
-    const next = getUnclaimedMilestones(streak, [...claimedMilestones, pendingMilestone.days]);
-    setPendingMilestone(null);
-    if (next.length > 0) setTimeout(() => setPendingMilestone(next[0]), 400);
+    if (success) {
+      const msg = pendingMilestone.premiumBonus
+        ? `¡${pendingMilestone.premiumBonus} días Premium activados! 🎉`
+        : pendingMilestone.msgReset
+        ? "¡Mensajes del día reiniciados! ⚡"
+        : "¡Recompensa canjeada! 🏆";
+      setClaimSuccess(msg);
+      const snap = pendingMilestone;
+      setTimeout(() => {
+        setClaimSuccess(null);
+        setPendingMilestone(null);
+        const next = getUnclaimedMilestones(streak, [...claimedMilestones, snap.days]);
+        if (next.length > 0) setTimeout(() => setPendingMilestone(next[0]), 400);
+      }, 2000);
+    } else {
+      setPendingMilestone(null);
+    }
   };
 
   const nextMilestone = getNextMilestone(streak);
@@ -676,18 +697,28 @@ export default function LearnPage() {
             <p style={{ margin: 0, fontSize: 13, color: "var(--muted)", textAlign: "center", lineHeight: 1.55 }}>
               {pendingMilestone.description}
             </p>
-            <button
-              onClick={handleClaimMilestone}
-              disabled={claiming}
-              style={{
-                marginTop: 8, width: "100%", padding: "14px", borderRadius: 18, border: "none",
-                background: claiming ? "rgba(245,158,11,0.2)" : "#f59e0b",
-                color: claiming ? "rgba(0,0,0,0.3)" : "#000",
-                fontSize: 15, fontWeight: 900, cursor: claiming ? "not-allowed" : "pointer",
-              }}
-            >
-              {claiming ? "Reclamando..." : "¡Reclamar recompensa!"}
-            </button>
+            {claimSuccess ? (
+              <div style={{
+                marginTop: 8, width: "100%", padding: "14px", borderRadius: 18,
+                background: "rgba(0,212,126,0.12)", border: "1px solid rgba(0,212,126,0.4)",
+                textAlign: "center", fontSize: 15, fontWeight: 900, color: "#00d47e",
+              }}>
+                {claimSuccess}
+              </div>
+            ) : (
+              <button
+                onClick={handleClaimMilestone}
+                disabled={claiming}
+                style={{
+                  marginTop: 8, width: "100%", padding: "14px", borderRadius: 18, border: "none",
+                  background: claiming ? "rgba(245,158,11,0.2)" : "#f59e0b",
+                  color: claiming ? "rgba(0,0,0,0.3)" : "#000",
+                  fontSize: 15, fontWeight: 900, cursor: claiming ? "not-allowed" : "pointer",
+                }}
+              >
+                {claiming ? "Reclamando..." : "¡Reclamar recompensa!"}
+              </button>
+            )}
           </div>
         </div>
       )}

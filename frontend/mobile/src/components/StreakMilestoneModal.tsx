@@ -9,9 +9,10 @@ interface Props {
   milestone: StreakMilestone | null;
   onClaim: () => void;
   claiming?: boolean;
+  successMessage?: string | null;
 }
 
-export default function StreakMilestoneModal({ milestone, onClaim, claiming }: Props) {
+export default function StreakMilestoneModal({ milestone, onClaim, claiming, successMessage }: Props) {
   const { colors } = useTheme();
   const scale  = useRef(new Animated.Value(0.7)).current;
   const opacity = useRef(new Animated.Value(0)).current;
@@ -62,16 +63,22 @@ export default function StreakMilestoneModal({ milestone, onClaim, claiming }: P
 
           <Text style={[s.description, { color: colors.textMuted }]}>{milestone.description}</Text>
 
-          <TouchableOpacity
-            onPress={onClaim}
-            disabled={claiming}
-            activeOpacity={0.85}
-            style={[s.btn, { backgroundColor: claiming ? "rgba(245,158,11,0.2)" : "#f59e0b" }]}
-          >
-            <Text style={[s.btnText, { color: claiming ? "rgba(255,255,255,0.4)" : "#000" }]}>
-              {claiming ? "Reclamando..." : "¡Reclamar recompensa!"}
-            </Text>
-          </TouchableOpacity>
+          {successMessage ? (
+            <View style={[s.btn, { backgroundColor: "rgba(0,212,126,0.15)", borderWidth: 1, borderColor: "rgba(0,212,126,0.4)" }]}>
+              <Text style={[s.btnText, { color: "#00d47e" }]}>{successMessage}</Text>
+            </View>
+          ) : (
+            <TouchableOpacity
+              onPress={onClaim}
+              disabled={claiming}
+              activeOpacity={0.85}
+              style={[s.btn, { backgroundColor: claiming ? "rgba(245,158,11,0.2)" : "#f59e0b" }]}
+            >
+              <Text style={[s.btnText, { color: claiming ? "rgba(255,255,255,0.4)" : "#000" }]}>
+                {claiming ? "Reclamando..." : "¡Reclamar recompensa!"}
+              </Text>
+            </TouchableOpacity>
+          )}
         </Animated.View>
       </View>
     </Modal>
