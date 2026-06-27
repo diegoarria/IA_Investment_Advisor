@@ -80,7 +80,8 @@ export default function HomePage() {
   const { positions, portfolioCurrency } = usePortfolioStore();
   const streak = useLearnStore((s) => s.streak);
   const completedToday = useLearnStore((s) => s.completedToday);
-  useSubscriptionStore();
+  const { tier: subTier } = useSubscriptionStore();
+  const isPremium = subTier === "premium";
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showScreenPicker, setShowScreenPicker] = useState(false);
@@ -94,6 +95,8 @@ export default function HomePage() {
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
   const [ytdGain, setYtdGain]     = useState<number | null>(null);
   const [ytdPct,  setYtdPct]      = useState<number | null>(null);
+  const [shortGain, setShortGain] = useState<number | null>(null);
+  const [shortPct,  setShortPct]  = useState<number | null>(null);
   const [watchlistCount, setWatchlistCount] = useState(0);
   const marketOpen = useMemo(() => isNYSEOpen(), []);
   const hasChatted = useChatStore((s) => s.sessions.some((sess) => sess.messages.length > 0));
@@ -248,15 +251,19 @@ export default function HomePage() {
         const newsRes = await marketApi.getNews(tickers.slice(0, 6)).catch(() => null);
         if (newsRes) setNews((newsRes.data?.articles ?? newsRes.data?.news ?? []).slice(0, 6));
 
-        marketApi.getPortfolioChart(
-          positions.map((p) => ({ ticker: p.ticker, shares: p.shares, avg_price: p.avgPrice })),
-          "ytd"
-        ).then((res) => {
-          if (res?.data) {
-            setYtdGain(res.data.period_amount ?? null);
-            setYtdPct(res.data.period_pct ?? null);
-          }
-        }).catch(() => {});
+        const posPayload = positions.map((p) => ({ ticker: p.ticker, shares: p.shares, avg_price: p.avgPrice }));
+        if (isPremium) {
+          marketApi.getPortfolioChart(posPayload, "ytd").then((res) => {
+            if (res?.data) { setYtdGain(res.data.period_amount ?? null); setYtdPct(res.data.period_pct ?? null); }
+          }).catch(() => {});
+        } else {
+          marketApi.getPortfolioChart(posPayload, "5d").then((res) => {
+            if (res?.data) { setYtdGain(res.data.period_amount ?? null); setYtdPct(res.data.period_pct ?? null); }
+          }).catch(() => {});
+          marketApi.getPortfolioChart(posPayload, "1m").then((res) => {
+            if (res?.data) { setShortGain(res.data.period_amount ?? null); setShortPct(res.data.period_pct ?? null); }
+          }).catch(() => {});
+        }
       }
     } catch {}
     setLoading(false);
@@ -865,16 +872,16 @@ export default function HomePage() {
                     </div>
                     {/* Divider */}
                     <div className="w-px self-stretch" style={{ background: "var(--border)" }} />
-                    {/* YTD */}
+                    {/* YTD (premium) / 5D (free) */}
                     <div className="flex-1 px-4">
-                      <p className="text-[11px] font-medium mb-1" style={{ color: "var(--muted)" }}>YTD</p>
+                      <p className="text-[11px] font-medium mb-1" style={{ color: "var(--muted)" }}>{isPremium ? "YTD" : "5D"}</p>
                       {ytdGain !== null ? (
                         <>
                           <p className="text-xl font-black tracking-tight leading-none" style={{ color: (ytdPct ?? 0) >= 0 ? "#22c55e" : "#ef4444" }}>
                             {fmtPct(ytdPct ?? 0)}
                           </p>
                           <p className="text-[11px] mt-1" style={{ color: "var(--sub)" }}>
-                            Rendimiento YTD ({ytdGain >= 0 ? "+" : ""}{fmt(ytdGain, portfolioCurrency)})
+                            {isPremium ? "Rendimiento YTD" : "Últimos 5 días"} ({ytdGain >= 0 ? "+" : ""}{fmt(ytdGain, portfolioCurrency)})
                           </p>
                         </>
                       ) : (
@@ -883,16 +890,31 @@ export default function HomePage() {
                     </div>
                     {/* Divider */}
                     <div className="w-px self-stretch" style={{ background: "var(--border)" }} />
-                    {/* Total */}
+                    {/* Total (premium) / 1M (free) */}
                     <div className="flex-1 pl-4">
-                      <p className="text-[11px] font-medium mb-1" style={{ color: "var(--muted)" }}>Total</p>
-                      <p className="text-xl font-black tracking-tight leading-none" style={{ color: totalGain >= 0 ? "#22c55e" : "#ef4444" }}>
-                        {fmtPct(totalGainPct)}
-                        <span className="text-sm font-semibold ml-1">
-                          ({totalGain >= 0 ? "+" : ""}{fmt(totalGain, portfolioCurrency)})
-                        </span>
-                      </p>
-                      <p className="text-[11px] mt-1" style={{ color: "var(--sub)" }}>Rendimiento Total</p>
+                      <p className="text-[11px] font-medium mb-1" style={{ color: "var(--muted)" }}>{isPremium ? "Total" : "1M"}</p>
+                      {isPremium ? (
+                        <>
+                          <p className="text-xl font-black tracking-tight leading-none" style={{ color: totalGain >= 0 ? "#22c55e" : "#ef4444" }}>
+                            {fmtPct(totalGainPct)}
+                            <span className="text-sm font-semibold ml-1">
+                              ({totalGain >= 0 ? "+" : ""}{fmt(totalGain, portfolioCurrency)})
+                            </span>
+                          </p>
+                          <p className="text-[11px] mt-1" style={{ color: "var(--sub)" }}>Rendimiento Total</p>
+                        </>
+                      ) : shortGain !== null ? (
+                        <>
+                          <p className="text-xl font-black tracking-tight leading-none" style={{ color: (shortPct ?? 0) >= 0 ? "#22c55e" : "#ef4444" }}>
+                            {fmtPct(shortPct ?? 0)}
+                          </p>
+                          <p className="text-[11px] mt-1" style={{ color: "var(--sub)" }}>
+                            Último mes ({shortGain >= 0 ? "+" : ""}{fmt(shortGain, portfolioCurrency)})
+                          </p>
+                        </>
+                      ) : (
+                        <p className="text-xl font-black" style={{ color: "var(--muted)" }}>—</p>
+                      )}
                     </div>
                   </div>
                 )}

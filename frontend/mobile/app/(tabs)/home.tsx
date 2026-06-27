@@ -363,6 +363,8 @@ export default function HomeScreen() {
   const [loading,    setLoading]   = useState(true);
   const [ytdGain,    setYtdGain]   = useState<number | null>(null);
   const [ytdPct,     setYtdPct]    = useState<number | null>(null);
+  const [shortGain,  setShortGain] = useState<number | null>(null);
+  const [shortPct,   setShortPct]  = useState<number | null>(null);
   const [showGoalModal, setShowGoalModal] = useState(false);
   const [showScreenPicker, setShowScreenPicker] = useState(false);
   // Duo plan setup
@@ -632,15 +634,19 @@ export default function HomeScreen() {
         const newsRes = await marketApi.getNews(tickers.slice(0, 6)).catch(() => null);
         if (newsRes) setNews((newsRes.data?.articles ?? newsRes.data?.news ?? []).slice(0, 6));
 
-        marketApi.getPortfolioChart(
-          positions.map((p) => ({ ticker: p.ticker, shares: p.shares, avg_price: p.avgPrice })),
-          "ytd"
-        ).then((res: any) => {
-          if (res?.data) {
-            setYtdGain(res.data.period_amount ?? null);
-            setYtdPct(res.data.period_pct ?? null);
-          }
-        }).catch(() => {});
+        const posPayload = positions.map((p) => ({ ticker: p.ticker, shares: p.shares, avg_price: p.avgPrice }));
+        if (isPremium) {
+          marketApi.getPortfolioChart(posPayload, "ytd").then((res: any) => {
+            if (res?.data) { setYtdGain(res.data.period_amount ?? null); setYtdPct(res.data.period_pct ?? null); }
+          }).catch(() => {});
+        } else {
+          marketApi.getPortfolioChart(posPayload, "5d").then((res: any) => {
+            if (res?.data) { setYtdGain(res.data.period_amount ?? null); setYtdPct(res.data.period_pct ?? null); }
+          }).catch(() => {});
+          marketApi.getPortfolioChart(posPayload, "1m").then((res: any) => {
+            if (res?.data) { setShortGain(res.data.period_amount ?? null); setShortPct(res.data.period_pct ?? null); }
+          }).catch(() => {});
+        }
       }
     } catch {}
 
@@ -1212,9 +1218,9 @@ export default function HomeScreen() {
                 </Text>
               </View>
               <View style={[ss.heroDivider, { backgroundColor: colors.border }]} />
-              {/* YTD */}
+              {/* YTD (premium) / 5D (free) */}
               <View style={ss.heroStat}>
-                <Text style={[ss.heroStatLabel, { color: colors.textMuted }]}>YTD</Text>
+                <Text style={[ss.heroStatLabel, { color: colors.textMuted }]}>{isPremium ? "YTD" : "5D"}</Text>
                 {ytdGain !== null ? (
                   <>
                     <Text style={{ fontSize: 15, fontWeight: "800", color: (ytdPct ?? 0) >= 0 ? colors.up : colors.down }}>
@@ -1229,15 +1235,30 @@ export default function HomeScreen() {
                 )}
               </View>
               <View style={[ss.heroDivider, { backgroundColor: colors.border }]} />
-              {/* Total */}
+              {/* Total (premium) / 1M (free) */}
               <View style={ss.heroStat}>
-                <Text style={[ss.heroStatLabel, { color: colors.textMuted }]}>Total</Text>
-                <Text style={{ fontSize: 15, fontWeight: "800", color: totalGain >= 0 ? colors.up : colors.down }}>
-                  {fmtPct(totalGainPct)}
-                </Text>
-                <Text style={[ss.heroStatVal, { color: totalGain >= 0 ? colors.up : colors.down }]}>
-                  {totalGain >= 0 ? "+" : ""}{fmt(totalGain, portfolioCurrency)}
-                </Text>
+                <Text style={[ss.heroStatLabel, { color: colors.textMuted }]}>{isPremium ? "Total" : "1M"}</Text>
+                {isPremium ? (
+                  <>
+                    <Text style={{ fontSize: 15, fontWeight: "800", color: totalGain >= 0 ? colors.up : colors.down }}>
+                      {fmtPct(totalGainPct)}
+                    </Text>
+                    <Text style={[ss.heroStatVal, { color: totalGain >= 0 ? colors.up : colors.down }]}>
+                      {totalGain >= 0 ? "+" : ""}{fmt(totalGain, portfolioCurrency)}
+                    </Text>
+                  </>
+                ) : shortGain !== null ? (
+                  <>
+                    <Text style={{ fontSize: 15, fontWeight: "800", color: (shortPct ?? 0) >= 0 ? colors.up : colors.down }}>
+                      {fmtPct(shortPct ?? 0)}
+                    </Text>
+                    <Text style={[ss.heroStatVal, { color: (shortGain ?? 0) >= 0 ? colors.up : colors.down }]}>
+                      {(shortGain ?? 0) >= 0 ? "+" : ""}{fmt(shortGain ?? 0, portfolioCurrency)}
+                    </Text>
+                  </>
+                ) : (
+                  <Text style={[ss.heroStatVal, { color: colors.textMuted }]}>—</Text>
+                )}
               </View>
             </View>
           )}
