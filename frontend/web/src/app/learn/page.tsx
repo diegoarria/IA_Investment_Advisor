@@ -245,7 +245,7 @@ const COMPANY_LOGOS: Record<string, string> = {
 export default function LearnPage() {
   const router = useRouter();
   const { isAuthenticated } = useAuthStore();
-  const { streak, completedToday, markTopicCompleted, initStreak, claimedMilestones, markMilestoneClaimed } = useLearnStore();
+  const { streak, completedToday, markTopicCompleted, markTopicId, completedTopicIds, initStreak, claimedMilestones, markMilestoneClaimed } = useLearnStore();
   const { profile } = useProfileStore();
   const [pendingMilestone, setPendingMilestone] = useState<StreakMilestone | null>(null);
   const [claiming, setClaiming] = useState(false);
@@ -290,11 +290,25 @@ export default function LearnPage() {
     });
   }, [search, selectedCat]);
 
-  const openTopic = async (title: string, _prompt: string, emoji = "📚") => {
+  // Progress per category (excluding "all")
+  const categoryProgress = useMemo(() => {
+    return CATEGORIES.filter((c) => c.id !== "all").map((cat) => {
+      const total = TOPICS.filter((t) => t.category === cat.id).length;
+      const done = TOPICS.filter((t) => t.category === cat.id && completedTopicIds.includes(t.id)).length;
+      return { ...cat, total, done };
+    }).filter((c) => c.total > 0);
+  }, [completedTopicIds]);
+
+  const totalTopics = TOPICS.length;
+  const totalDone = completedTopicIds.filter((id) => TOPICS.some((t) => t.id === id)).length;
+  const [objectivesOpen, setObjectivesOpen] = useState(false);
+
+  const openTopic = async (title: string, _prompt: string, emoji = "📚", topicId?: string) => {
     setModal({ title, emoji });
     setContent("");
     setStreaming(true);
     markTopicCompleted();
+    if (topicId) markTopicId(topicId);
     // Prompt flashcard: breve, estructurado, ~70 palabras → respuesta en <3 seg
     const flashcard = `Eres un mentor de finanzas. Explica "${title}" en formato FLASHCARD — exactamente esta estructura, máximo 70 palabras en total, en español:
 
@@ -380,6 +394,69 @@ export default function LearnPage() {
             </div>
           </div>
 
+          {/* Mis Objetivos */}
+          <div className="px-4 pt-2 pb-1 shrink-0">
+            <button
+              onClick={() => setObjectivesOpen((o) => !o)}
+              className="w-full flex items-center justify-between rounded-xl border px-3 py-2.5 transition-all"
+              style={{ background: "var(--card)", borderColor: totalDone > 0 ? "rgba(0,212,126,0.3)" : "var(--border)" }}
+            >
+              <div className="flex items-center gap-2.5">
+                <div className="w-7 h-7 rounded-lg flex items-center justify-center text-sm"
+                     style={{ background: "rgba(0,212,126,0.12)" }}>🎯</div>
+                <div className="text-left">
+                  <p className="text-xs font-bold" style={{ color: "var(--text)" }}>Mis Objetivos</p>
+                  <p className="text-[10px]" style={{ color: "var(--muted)" }}>
+                    {totalDone} de {totalTopics} temas completados
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-20 h-1.5 rounded-full overflow-hidden" style={{ background: "var(--border)" }}>
+                  <div className="h-full rounded-full transition-all" style={{
+                    width: `${totalTopics > 0 ? Math.round((totalDone / totalTopics) * 100) : 0}%`,
+                    background: "#00d47e",
+                  }} />
+                </div>
+                <span className="text-[10px] font-bold" style={{ color: "#00d47e" }}>
+                  {totalTopics > 0 ? Math.round((totalDone / totalTopics) * 100) : 0}%
+                </span>
+                <span className="text-[10px]" style={{ color: "var(--muted)" }}>{objectivesOpen ? "▲" : "▼"}</span>
+              </div>
+            </button>
+
+            {objectivesOpen && (
+              <div className="mt-2 rounded-xl border p-3 grid grid-cols-2 gap-2"
+                   style={{ background: "var(--card)", borderColor: "var(--border)" }}>
+                {categoryProgress.map((cat) => (
+                  <button key={cat.id}
+                          onClick={() => { setSelectedCat(cat.id); setObjectivesOpen(false); }}
+                          className="flex items-center gap-2 p-2 rounded-lg transition-all hover:bg-[#00d47e]/5"
+                          style={{ background: cat.done === cat.total && cat.total > 0 ? "rgba(0,212,126,0.06)" : "transparent" }}>
+                    <span className="text-base">{cat.emoji}</span>
+                    <div className="flex-1 min-w-0 text-left">
+                      <p className="text-[11px] font-semibold truncate" style={{ color: cat.done === cat.total && cat.total > 0 ? "#00d47e" : "var(--text)" }}>
+                        {cat.title}
+                      </p>
+                      <div className="flex items-center gap-1.5 mt-0.5">
+                        <div className="flex-1 h-1 rounded-full overflow-hidden" style={{ background: "var(--border)" }}>
+                          <div className="h-full rounded-full" style={{
+                            width: `${cat.total > 0 ? Math.round((cat.done / cat.total) * 100) : 0}%`,
+                            background: cat.done === cat.total && cat.total > 0 ? "#00d47e" : "rgba(0,212,126,0.5)",
+                          }} />
+                        </div>
+                        <span className="text-[9px] font-bold shrink-0" style={{ color: "var(--muted)" }}>
+                          {cat.done}/{cat.total}
+                        </span>
+                      </div>
+                    </div>
+                    {cat.done === cat.total && cat.total > 0 && <span className="text-xs">✅</span>}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
           {/* Search bar */}
           <div className="px-4 pt-2 pb-2 shrink-0">
             <div className="flex items-center gap-2 rounded-xl border px-3 py-2.5"
@@ -434,10 +511,16 @@ export default function LearnPage() {
                 const tc = LEVEL_COLOR[topicLevel];
                 return (
                   <button key={topic.id}
-                          onClick={() => openTopic(topic.title, topic.prompt, topic.emoji)}
+                          onClick={() => openTopic(topic.title, topic.prompt, topic.emoji, topic.id)}
                           className="text-left p-3 rounded-2xl border transition-all hover:border-[#00d47e]/40 hover:bg-[#00d47e]/5 relative"
-                          style={{ background: "var(--card)", borderColor: isMyLevel ? `${tc}40` : "var(--border)" }}>
-                    {isMyLevel && (
+                          style={{ background: completedTopicIds.includes(topic.id) ? "rgba(0,212,126,0.04)" : "var(--card)", borderColor: completedTopicIds.includes(topic.id) ? "rgba(0,212,126,0.3)" : isMyLevel ? `${tc}40` : "var(--border)" }}>
+                    {completedTopicIds.includes(topic.id) && (
+                      <div className="absolute top-2 right-2 w-5 h-5 rounded-full flex items-center justify-center"
+                           style={{ background: "rgba(0,212,126,0.2)" }}>
+                        <span className="text-[10px]" style={{ color: "#00d47e" }}>✓</span>
+                      </div>
+                    )}
+                    {!completedTopicIds.includes(topic.id) && isMyLevel && (
                       <div className="absolute top-2 right-2 text-[9px] font-bold px-1.5 py-0.5 rounded-full"
                            style={{ background: `${tc}20`, color: tc }}>
                         Para ti

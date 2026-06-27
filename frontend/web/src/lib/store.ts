@@ -575,7 +575,10 @@ interface LearnState {
   totalCompleted: number;
   completedToday: boolean;
   claimedMilestones: number[];
+  completedTopicIds: string[];
   markTopicCompleted: () => void;
+  markTopicId: (id: string) => void;
+  setCompletedTopicIds: (ids: string[]) => void;
   initStreak: () => void;
   restoreFromServer: () => Promise<void>;
   setClaimedMilestones: (milestones: number[]) => void;
@@ -590,6 +593,21 @@ export const useLearnStore = create<LearnState>()(
       totalCompleted: 0,
       completedToday: false,
       claimedMilestones: [],
+      completedTopicIds: [],
+
+      setCompletedTopicIds: (ids) =>
+        set((s) => ({ completedTopicIds: [...new Set([...s.completedTopicIds, ...ids])] })),
+
+      markTopicId: (id) => {
+        const current = get().completedTopicIds;
+        if (current.includes(id)) return;
+        const updated = [...current, id];
+        set({ completedTopicIds: updated });
+        const { streak, lastLearnDate } = get();
+        import("./api").then(({ learn }) => {
+          learn.syncStreak(streak, lastLearnDate ?? "", updated).catch(() => {});
+        });
+      },
 
       setClaimedMilestones: (milestones) => set({ claimedMilestones: milestones }),
       markMilestoneClaimed: (days) =>
@@ -644,6 +662,9 @@ export const useLearnStore = create<LearnState>()(
               });
             }
           }
+          // Merge server-completed topics with local (union across devices)
+          const serverIds: string[] = res.data?.completed_topic_ids ?? [];
+          if (serverIds.length > 0) get().setCompletedTopicIds(serverIds);
         } catch {}
         // Sync claimed milestones from billing status
         try {

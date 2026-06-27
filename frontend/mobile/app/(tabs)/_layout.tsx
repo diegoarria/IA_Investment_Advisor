@@ -333,15 +333,16 @@ export default function TabsLayout() {
           }).catch(() => {});
         }
 
-        // Streak
-        if (data.streak && data.streak.count > 0) {
-          import("../../src/lib/learnStore").then(({ useLearnStore }) => {
-            const store = useLearnStore.getState();
-            if (data.streak.count >= store.streak) {
-              store.setStreakFromServer?.(data.streak.count, data.streak.last_learn_date);
-            }
-          }).catch(() => {});
-        }
+        // Streak + completed topics
+        import("../../src/lib/learnStore").then(({ useLearnStore }) => {
+          const store = useLearnStore.getState();
+          if (data.streak?.count > 0 && data.streak.count >= store.streak) {
+            store.setStreakFromServer?.(data.streak.count, data.streak.last_learn_date);
+          }
+          if (Array.isArray(data.completed_topic_ids) && data.completed_topic_ids.length > 0) {
+            store.setCompletedTopicIds(data.completed_topic_ids);
+          }
+        }).catch(() => {});
       }).catch(() => {});
     }).catch(() => {});
   };

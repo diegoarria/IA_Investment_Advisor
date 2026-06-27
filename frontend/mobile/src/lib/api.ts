@@ -215,8 +215,8 @@ export const learnApi = {
   getScenario: (difficulty: string) => api.post("/api/learn/scenario", { difficulty }),
   submitScenarioResult: (scenarioId: string, choice: string, difficulty: string) =>
     api.post("/api/learn/scenario/result", { scenario_id: scenarioId, choice, difficulty }),
-  syncStreak: (streak: number, lastLearnDate: string) =>
-    api.post("/api/learn/streak/sync", { streak, last_learn_date: lastLearnDate }),
+  syncStreak: (streak: number, lastLearnDate: string, completedTopicIds?: string[]) =>
+    api.post("/api/learn/streak/sync", { streak, last_learn_date: lastLearnDate, completed_topic_ids: completedTopicIds }),
   claimMilestone: (days: number) =>
     api.post("/api/learn/streak/milestone-claim", { days }),
   getHallOfFame: () => api.get("/api/learn/hall-of-fame"),

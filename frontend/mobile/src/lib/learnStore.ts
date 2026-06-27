@@ -89,7 +89,10 @@ interface LearnStore {
   totalCompleted: number;
   completedToday: boolean;
   claimedMilestones: number[];
+  completedTopicIds: string[];
   markTopicCompleted: () => void;
+  markTopicId: (id: string) => void;
+  setCompletedTopicIds: (ids: string[]) => void;
   initStreak: () => void;
   setStreakFromServer: (count: number, lastLearnDate: string | null) => void;
   setClaimedMilestones: (milestones: number[]) => void;
@@ -104,6 +107,19 @@ export const useLearnStore = create<LearnStore>()(
       totalCompleted: 0,
       completedToday: false,
       claimedMilestones: [],
+      completedTopicIds: [],
+
+      setCompletedTopicIds: (ids) =>
+        set((s) => ({ completedTopicIds: [...new Set([...s.completedTopicIds, ...ids])] })),
+
+      markTopicId: (id) => {
+        const current = get().completedTopicIds;
+        if (current.includes(id)) return;
+        const updated = [...current, id];
+        set({ completedTopicIds: updated });
+        const { streak, lastLearnDate } = get();
+        _syncStreak(streak, lastLearnDate ?? "", updated);
+      },
 
       initStreak: () => {
         const { lastLearnDate, streak } = get();
@@ -161,8 +177,8 @@ export const useLearnStore = create<LearnStore>()(
   )
 );
 
-function _syncStreak(streak: number, lastLearnDate: string) {
+function _syncStreak(streak: number, lastLearnDate: string, completedTopicIds?: string[]) {
   import("../lib/api").then(({ learnApi }) => {
-    learnApi.syncStreak(streak, lastLearnDate).catch(() => {});
+    learnApi.syncStreak(streak, lastLearnDate, completedTopicIds).catch(() => {});
   });
 }

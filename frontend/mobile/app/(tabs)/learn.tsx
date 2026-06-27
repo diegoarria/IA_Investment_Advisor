@@ -243,7 +243,7 @@ export default function LearnScreen() {
   const s = useMemo(() => makeStyles(colors), [colors]);
   const markdownStyles = useMemo(() => makeMarkdownStyles(colors), [colors]);
 
-  const { streak, completedToday, markTopicCompleted, initStreak, claimedMilestones, markMilestoneClaimed } = useLearnStore();
+  const { streak, completedToday, markTopicCompleted, markTopicId, completedTopicIds, initStreak, claimedMilestones, markMilestoneClaimed } = useLearnStore();
   useEffect(() => { initStreak(); }, []);
 
   const [pendingMilestone, setPendingMilestone] = useState<ReturnType<typeof getNextMilestone>>(null);
@@ -290,11 +290,27 @@ const { topicId } = useLocalSearchParams<{ topicId?: string }>();
     });
   }, [search, selectedCat]);
 
-  const openTopic = async (title: string, _topicContext: string, icon: IoniconName = "book-outline") => {
+  const [objectivesOpen, setObjectivesOpen] = useState(false);
+  const totalTopics = TOPICS.length;
+  const totalDone = useMemo(
+    () => completedTopicIds.filter((id) => TOPICS.some((t) => t.id === id)).length,
+    [completedTopicIds]
+  );
+  const categoryProgress = useMemo(
+    () => CATEGORIES.filter((c) => c.id !== "all").map((cat) => {
+      const total = TOPICS.filter((t) => t.category === cat.id).length;
+      const done = TOPICS.filter((t) => t.category === cat.id && completedTopicIds.includes(t.id)).length;
+      return { ...cat, total, done };
+    }).filter((c) => c.total > 0),
+    [completedTopicIds]
+  );
+
+  const openTopic = async (title: string, _topicContext: string, icon: IoniconName = "book-outline", topicId?: string) => {
     setModal({ title, icon });
     setContent("");
     setStreaming(true);
     markTopicCompleted();
+    if (topicId) markTopicId(topicId);
     // Prompt flashcard: máximo 70 palabras → respuesta en <3 segundos
     const flashcard = `Eres un mentor de finanzas. Explica "${title}" en formato FLASHCARD — exactamente esta estructura, máximo 70 palabras en total, en español:
 
@@ -366,6 +382,61 @@ const { topicId } = useLocalSearchParams<{ topicId?: string }>();
           <Text style={{ fontSize: 20 }}>👑</Text>
         )}
       </View>
+
+      {/* Mis Objetivos */}
+      <TouchableOpacity
+        style={[s.searchBar, { backgroundColor: colors.card, borderColor: totalDone > 0 ? "rgba(0,212,126,0.3)" : colors.border, marginBottom: 8 }]}
+        onPress={() => setObjectivesOpen((o) => !o)}
+        activeOpacity={0.75}
+      >
+        <View style={{ width: 28, height: 28, borderRadius: 8, backgroundColor: "rgba(0,212,126,0.12)", alignItems: "center", justifyContent: "center", marginRight: 10 }}>
+          <Text style={{ fontSize: 14 }}>🎯</Text>
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={{ fontSize: 12, fontWeight: "800", color: colors.text }}>Mis Objetivos</Text>
+          <Text style={{ fontSize: 10, color: colors.textMuted }}>{totalDone} de {totalTopics} temas completados</Text>
+        </View>
+        <View style={{ alignItems: "flex-end", gap: 2 }}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+            <View style={{ width: 56, height: 4, borderRadius: 2, backgroundColor: colors.border, overflow: "hidden" }}>
+              <View style={{ height: "100%", borderRadius: 2, backgroundColor: "#00d47e", width: `${totalTopics > 0 ? Math.round((totalDone / totalTopics) * 100) : 0}%` }} />
+            </View>
+            <Text style={{ fontSize: 10, fontWeight: "800", color: "#00d47e" }}>
+              {totalTopics > 0 ? Math.round((totalDone / totalTopics) * 100) : 0}%
+            </Text>
+          </View>
+          <Text style={{ fontSize: 10, color: colors.textMuted }}>{objectivesOpen ? "▲" : "▼"}</Text>
+        </View>
+      </TouchableOpacity>
+
+      {objectivesOpen && (
+        <View style={{ marginHorizontal: 16, marginBottom: 8, borderRadius: 16, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card, padding: 10, flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
+          {categoryProgress.map((cat) => {
+            const pct = cat.total > 0 ? Math.round((cat.done / cat.total) * 100) : 0;
+            const allDone = cat.done === cat.total && cat.total > 0;
+            return (
+              <TouchableOpacity
+                key={cat.id}
+                onPress={() => { setSelectedCat(cat.id); setObjectivesOpen(false); }}
+                style={{ width: "47%", flexDirection: "row", alignItems: "center", gap: 6, paddingVertical: 6, paddingHorizontal: 8, borderRadius: 10, backgroundColor: allDone ? "rgba(0,212,126,0.06)" : "transparent" }}
+                activeOpacity={0.7}
+              >
+                <Ionicons name={cat.icon as any} size={16} color={allDone ? "#00d47e" : colors.textMuted} />
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 10, fontWeight: "700", color: allDone ? "#00d47e" : colors.text }} numberOfLines={1}>{cat.title}</Text>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 2 }}>
+                    <View style={{ flex: 1, height: 3, borderRadius: 2, backgroundColor: colors.border, overflow: "hidden" }}>
+                      <View style={{ height: "100%", borderRadius: 2, backgroundColor: allDone ? "#00d47e" : "rgba(0,212,126,0.5)", width: `${pct}%` }} />
+                    </View>
+                    <Text style={{ fontSize: 9, fontWeight: "700", color: colors.textMuted }}>{cat.done}/{cat.total}</Text>
+                  </View>
+                </View>
+                {allDone && <Text style={{ fontSize: 12 }}>✅</Text>}
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      )}
 
       {/* Barra de búsqueda */}
       <View style={[s.searchBar, { backgroundColor: colors.card, borderColor: colors.border }]}>
@@ -468,27 +539,39 @@ const { topicId } = useLocalSearchParams<{ topicId?: string }>();
             </TouchableOpacity>
           </View>
         }
-        renderItem={({ item }) => (
-          <TouchableOpacity
-            style={[s.topicCard, { backgroundColor: colors.card, borderColor: colors.border }]}
-            onPress={() => openTopic(item.title, item.prompt, item.icon)}
-            activeOpacity={0.75}
-          >
-            {COMPANY_LOGOS[item.id] ? (
-              <Image source={{ uri: COMPANY_LOGOS[item.id] }} style={s.companyLogo} resizeMode="contain" />
-            ) : (
-              <View style={[s.topicIconBox, { backgroundColor: colors.accentLight + "15" }]}>
-                <Ionicons name={item.icon} size={20} color={colors.accentLight} />
+        renderItem={({ item }) => {
+          const isDone = completedTopicIds.includes(item.id);
+          return (
+            <TouchableOpacity
+              style={[
+                s.topicCard,
+                { backgroundColor: isDone ? "rgba(0,212,126,0.05)" : colors.card,
+                  borderColor: isDone ? "rgba(0,212,126,0.3)" : colors.border },
+              ]}
+              onPress={() => openTopic(item.title, item.prompt, item.icon, item.id)}
+              activeOpacity={0.75}
+            >
+              {isDone && (
+                <View style={{ position: "absolute", top: 8, right: 8, width: 18, height: 18, borderRadius: 9, backgroundColor: "rgba(0,212,126,0.2)", alignItems: "center", justifyContent: "center" }}>
+                  <Text style={{ fontSize: 9, color: "#00d47e", fontWeight: "800" }}>✓</Text>
+                </View>
+              )}
+              {COMPANY_LOGOS[item.id] ? (
+                <Image source={{ uri: COMPANY_LOGOS[item.id] }} style={s.companyLogo} resizeMode="contain" />
+              ) : (
+                <View style={[s.topicIconBox, { backgroundColor: colors.accentLight + "15" }]}>
+                  <Ionicons name={item.icon} size={20} color={colors.accentLight} />
+                </View>
+              )}
+              <Text style={[s.topicTitle, { color: colors.text }]}>{item.title}</Text>
+              <View style={[s.topicCatPill, { backgroundColor: colors.border }]}>
+                <Text style={[s.topicCat, { color: colors.textMuted }]}>
+                  {CATEGORIES.find((c) => c.id === item.category)?.title}
+                </Text>
               </View>
-            )}
-            <Text style={[s.topicTitle, { color: colors.text }]}>{item.title}</Text>
-            <View style={[s.topicCatPill, { backgroundColor: colors.border }]}>
-              <Text style={[s.topicCat, { color: colors.textMuted }]}>
-                {CATEGORIES.find((c) => c.id === item.category)?.title}
-              </Text>
-            </View>
-          </TouchableOpacity>
-        )}
+            </TouchableOpacity>
+          );
+        }}
       />
 
       {/* Flashcard modal — centrado, breve */}

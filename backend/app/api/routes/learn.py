@@ -511,13 +511,25 @@ async def claim_streak_milestone(body: dict, user_id: str = Depends(get_current_
 async def sync_streak(request: dict, user_id: str = Depends(get_current_user_id)):
     streak = request.get("streak", 0)
     last_learn_date = request.get("last_learn_date", "")
+    incoming_ids: list[str] | None = request.get("completed_topic_ids")
     try:
         db = get_supabase()
+        update: dict = {
+            "streak_count": streak,
+            "last_learn_date": last_learn_date,
+        }
+        if incoming_ids is not None:
+            # Merge incoming IDs with existing to handle multi-device sync
+            existing_res = await run_query(
+                db.table("user_profiles")
+                .select("completed_topic_ids")
+                .eq("user_id", user_id)
+            )
+            existing = existing_res.data[0].get("completed_topic_ids") or [] if existing_res.data else []
+            merged = list(set(existing) | set(incoming_ids))
+            update["completed_topic_ids"] = merged
         await run_query(
-            db.table("user_profiles").update({
-                "streak_count": streak,
-                "last_learn_date": last_learn_date,
-            }).eq("user_id", user_id)
+            db.table("user_profiles").update(update).eq("user_id", user_id)
         )
     except Exception:
         pass
