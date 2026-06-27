@@ -25,6 +25,7 @@ import MobileOnboardingChecklist, { type OnboardingStep } from "../../src/compon
 import MobileHomeScreenPickerModal, { HOME_SCREEN_KEY } from "../../src/components/MobileHomeScreenPickerModal";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { supabase } from "../../src/lib/supabase";
+import PricingModal from "../../src/components/PricingModal";
 
 // ── Sparkline helpers ─────────────────────────────────────────────────────────
 function sparkPath(prices: number[], w: number, h: number, close = false): string {
@@ -368,6 +369,7 @@ export default function HomeScreen() {
   const [shortPct,   setShortPct]  = useState<number | null>(null);
   const [showGoalModal, setShowGoalModal] = useState(false);
   const [showScreenPicker, setShowScreenPicker] = useState(false);
+  const [showPricing, setShowPricing] = useState(false);
   // Duo plan setup
   const [showDuoModal, setShowDuoModal] = useState(false);
   const [duoSecondaryEmail, setDuoSecondaryEmail] = useState("");
@@ -815,6 +817,15 @@ export default function HomeScreen() {
     AsyncStorage.getItem(HOME_SCREEN_KEY).then((saved) => {
       if (!saved) setShowScreenPicker(true);
     });
+    // Show pricing modal once after checklist completion (free users only)
+    if (!isPremium) {
+      AsyncStorage.getItem("nuvos_pricing_shown").then((shown) => {
+        if (!shown) {
+          AsyncStorage.setItem("nuvos_pricing_shown", "1");
+          setTimeout(() => setShowPricing(true), 1200);
+        }
+      });
+    }
   }, [loading, allOnboardingDone]);
 
   const handleOnboardingStep = (index: number) => {
@@ -1851,6 +1862,8 @@ export default function HomeScreen() {
           if (route !== "/(tabs)/home") router.replace(route as any);
         }}
       />
+
+      <PricingModal visible={showPricing} onClose={() => setShowPricing(false)} />
 
       {/* ── Duo Plan Setup Modal ──────────────────────────────────────── */}
       <Modal visible={showDuoModal} transparent animationType="fade" onRequestClose={() => {}}>

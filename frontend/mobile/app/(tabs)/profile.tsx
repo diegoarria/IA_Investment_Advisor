@@ -1146,6 +1146,24 @@ if (!profile) {
           </TouchableOpacity>
         </View>
 
+        {/* ── PRODUCTOS ── */}
+        <View style={s.section}>
+          <TouchableOpacity
+            onPress={() => router.push("/products")}
+            activeOpacity={0.85}
+            style={{ flexDirection: "row", alignItems: "center", gap: 14, padding: 16, borderRadius: 20, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border }}
+          >
+            <View style={{ width: 44, height: 44, borderRadius: 14, backgroundColor: "rgba(0,212,126,0.1)", alignItems: "center", justifyContent: "center" }}>
+              <Text style={{ fontSize: 22 }}>🛍️</Text>
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 15, fontWeight: "900", color: colors.text }}>Productos y Servicios</Text>
+              <Text style={{ fontSize: 12, color: colors.textMuted, marginTop: 2 }}>Planes, sesiones 1:1 y más</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={16} color={colors.textDim} />
+          </TouchableOpacity>
+        </View>
+
         {/* ── NUVOS WRAPPED ── */}
         <View style={[s.section, { marginBottom: 0 }]}>
           <TouchableOpacity

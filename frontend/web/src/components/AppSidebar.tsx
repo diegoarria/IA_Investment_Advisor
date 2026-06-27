@@ -5,7 +5,7 @@ import { useRouter, usePathname } from "next/navigation";
 import Image from "next/image";
 import {
   BrainCircuit, Wallet, Bell, User, GraduationCap,
-  MessageSquare, ChevronLeft, ChevronRight, Plus, X, HeadphonesIcon, GripVertical, ArrowRight, Lock, LogOut, Home,
+  MessageSquare, ChevronLeft, ChevronRight, Plus, X, HeadphonesIcon, GripVertical, ArrowRight, Lock, LogOut, Home, ShoppingBag,
 } from "lucide-react";
 
 const COACHING_URL = "https://calendly.com/diego-arria19/sesion-1-1-con-diego-nuvos-ai"; // ← actualiza con tu link real
@@ -49,6 +49,7 @@ const MAIN_NAV: NavItem[] = [
 const SECONDARY_NAV: NavItem[] = [
   { href: "/notifications", icon: Bell,           label: "Notificaciones", minLevel: "basico" },
   { href: "/profile",       icon: User,           label: "Perfil",         minLevel: "basico" },
+  { href: "/products",      icon: ShoppingBag,    label: "Productos",      minLevel: "basico" },
   { href: "/support",       icon: HeadphonesIcon, label: "Soporte",        minLevel: "basico" },
 ];
 

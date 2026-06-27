@@ -12,6 +12,7 @@ import HomeMarketOverview from "@/components/HomeMarketOverview";
 import StockAvatar from "@/components/StockAvatar";
 import { market as marketApi, notifications as notifApi, profile as profileApi, sync as syncApi, watchlist as watchlistApi, billing } from "@/lib/api";
 import EarningsPanel from "@/components/EarningsPanel";
+import PricingModal from "@/components/PricingModal";
 import { useAuthStore, useProfileStore, useLearnStore, useSubscriptionStore, useChatStore } from "@/lib/store";
 import OnboardingChecklist, { type OnboardingStep } from "@/components/OnboardingChecklist";
 import HomeScreenPickerModal, { HOME_SCREEN_KEY } from "@/components/HomeScreenPickerModal";
@@ -86,6 +87,7 @@ export default function HomePage() {
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showScreenPicker, setShowScreenPicker] = useState(false);
+  const [showPricing, setShowPricing] = useState(false);
   const [prices, setPrices]       = useState<Record<string, any>>({});
   const [indices, setIndices]     = useState<any[]>([]);
   const [news, setNews]           = useState<any[]>([]);
@@ -415,6 +417,11 @@ export default function HomePage() {
     localStorage.setItem("nuvos_checklist_done", "1");
     const saved = localStorage.getItem(HOME_SCREEN_KEY);
     if (!saved) setShowScreenPicker(true);
+    // Show pricing modal once after checklist completion (free users only)
+    if (!isPremium && !localStorage.getItem("nuvos_pricing_shown")) {
+      localStorage.setItem("nuvos_pricing_shown", "1");
+      setTimeout(() => setShowPricing(true), 1200);
+    }
   }, [loading, allOnboardingDone]);
 
   const handleOnboardingStep = (index: number) => {
@@ -1263,6 +1270,7 @@ export default function HomePage() {
           }}
         />
       )}
+      <PricingModal visible={showPricing} onClose={() => setShowPricing(false)} />
     </div>
   );
 }
