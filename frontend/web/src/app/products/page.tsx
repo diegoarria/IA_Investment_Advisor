@@ -97,7 +97,7 @@ export default function ProductsPage() {
       <AppSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
       <div className="flex-1 flex flex-col overflow-hidden">
-        <MarketTickerBar onMenuClick={() => setSidebarOpen(true)} />
+        <MarketTickerBar />
 
         <main className="flex-1 overflow-y-auto">
           <div className="max-w-3xl mx-auto px-4 py-8 space-y-10">
