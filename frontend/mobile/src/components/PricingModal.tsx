@@ -8,7 +8,7 @@ import { billingApi } from "../lib/api";
 
 const FREE_FEATURES = [
   "Hasta 20 mensajes/día con el mentor IA",
-  "Portafolio de hasta 5 acciones",
+  "Portafolio de hasta 10 acciones",
   "Watchlist de hasta 25 acciones",
   "Academia completa + quizzes",
   "Gráfico básico (5D y 1M)",

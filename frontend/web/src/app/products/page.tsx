@@ -15,7 +15,7 @@ import {
 const SUBSCRIPTION_FEATURES = {
   free: [
     { icon: Brain,       text: "Hasta 20 mensajes/día con el mentor IA" },
-    { icon: BarChart2,   text: "Portafolio de hasta 5 acciones" },
+    { icon: BarChart2,   text: "Portafolio de hasta 10 acciones" },
     { icon: TrendingUp,  text: "Gráfico básico de portafolio (5D y 1M)" },
     { icon: Bell,        text: "Noticias generales del mercado" },
     { icon: BookOpen,    text: "25 acciones en watchlist" },

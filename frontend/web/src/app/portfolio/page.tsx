@@ -1032,11 +1032,14 @@ export default function PortfolioPage() {
 
 
   // ── Manual add ─────────────────────────────────────────────────────────
+  const FREE_POSITION_LIMIT = 10;
+
   const handleAdd = async () => {
     const ticker = form.ticker.trim().toUpperCase();
     const shares = parseFloat(form.shares);
     const avgPrice = parseFloat(form.avgPrice);
     if (!ticker || !shares || !avgPrice) { alert("Completa todos los campos"); return; }
+    if (!isPremium && positions.length >= FREE_POSITION_LIMIT) { setPaywallOpen(true); return; }
     setAddingLoading(true);
     try {
       const res = await marketApi.getPrices([ticker]);
@@ -1383,6 +1386,11 @@ export default function PortfolioPage() {
                 }}>
                 <Plus className="w-4 h-4" />
                 Agregar posición
+                {!isPremium && (
+                  <span className="ml-1 text-xs font-black opacity-80">
+                    {positions.length}/{FREE_POSITION_LIMIT}
+                  </span>
+                )}
               </button>
 
               {/* Importar captura — con drag-drop integrado */}
