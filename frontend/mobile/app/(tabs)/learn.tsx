@@ -8,9 +8,10 @@ import { Ionicons } from "@expo/vector-icons";
 import Markdown from "react-native-markdown-display";
 import { router, useLocalSearchParams } from "expo-router";
 import { useTheme, Colors } from "../../src/lib/ThemeContext";
-import { chatApi, learnApi } from "../../src/lib/api";
+import { chatApi, learnApi, earningsApi } from "../../src/lib/api";
 import { useLearnStore, getNextMilestone, getUnclaimedMilestones, STREAK_MILESTONES } from "../../src/lib/learnStore";
 import { useSubscriptionStore } from "../../src/lib/subscriptionStore";
+import { usePortfolioStore } from "../../src/lib/portfolioStore";
 import StreakMilestoneModal from "../../src/components/StreakMilestoneModal";
 
 // ─── Data ──────────────────────────────────────────────────────────────────
@@ -246,9 +247,36 @@ export default function LearnScreen() {
 
   const { streak, completedToday, markTopicCompleted, markTopicId, completedTopicIds, initStreak, claimedMilestones, markMilestoneClaimed } = useLearnStore();
   const { fetchStatus: fetchSubStatus } = useSubscriptionStore();
+  const { positions } = usePortfolioStore();
   useEffect(() => { initStreak(); }, []);
 
   const [pendingMilestone, setPendingMilestone] = useState<ReturnType<typeof getNextMilestone>>(null);
+
+  const TICKER_TO_TOPIC: Record<string, string> = {
+    AAPL: "apple", MSFT: "microsoft", AMZN: "amazon", NVDA: "nvidia",
+    TSLA: "tesla", GOOGL: "alphabet", META: "meta_co",
+  };
+  const [portfolioLessons, setPortfolioLessons] = useState<{ ticker: string; date: string; topicId: string; topicTitle: string; topicIcon: string; daysUntil: number }[]>([]);
+  useEffect(() => {
+    if (!positions.length) return;
+    const tickers = positions.map((p: any) => p.ticker).filter(Boolean);
+    earningsApi.getCalendar(tickers).then((res: any) => {
+      const today = new Date();
+      const events: Array<{ ticker: string; event_date: string; event_type: string; status: string }> =
+        (res.data?.earnings || []).filter((e: any) => e.event_type === "earnings" && e.event_date && e.status !== "past");
+      const suggestions = events
+        .map((ev) => {
+          const diff = Math.ceil((new Date(ev.event_date).getTime() - today.getTime()) / 86400000);
+          if (diff < 0 || diff > 14) return null;
+          const companyTopicId = TICKER_TO_TOPIC[ev.ticker];
+          const topic = TOPICS.find(t => t.id === (companyTopicId || "earnings"));
+          if (!topic || completedTopicIds.includes(topic.id)) return null;
+          return { ticker: ev.ticker, date: ev.event_date, topicId: topic.id, topicTitle: topic.title, topicIcon: topic.icon as string, daysUntil: diff };
+        })
+        .filter(Boolean) as typeof portfolioLessons;
+      setPortfolioLessons(suggestions.slice(0, 3));
+    }).catch(() => {});
+  }, [positions.length, completedTopicIds.length]);
   const [claiming, setClaiming] = useState(false);
   const [claimSuccess, setClaimSuccess] = useState<string | null>(null);
   const [streakModalOpen, setStreakModalOpen] = useState(false);
@@ -485,6 +513,40 @@ const { topicId } = useLocalSearchParams<{ topicId?: string }>();
           </TouchableOpacity>
         )}
       </View>
+
+      {/* Aprende con tu portafolio */}
+      {portfolioLessons.length > 0 && (
+        <View style={{ marginHorizontal: 12, marginBottom: 10, borderRadius: 16, borderWidth: 1, borderColor: "rgba(0,212,126,0.25)", backgroundColor: "rgba(0,212,126,0.04)", overflow: "hidden" }}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: "rgba(0,212,126,0.15)" }}>
+            <Text style={{ fontSize: 14 }}>🎓</Text>
+            <Text style={{ fontSize: 11, fontWeight: "800", color: colors.accent }}>Aprende antes de que reporten</Text>
+          </View>
+          {portfolioLessons.map((lesson, i) => (
+            <TouchableOpacity
+              key={lesson.topicId}
+              onPress={() => {
+                const topic = TOPICS.find(t => t.id === lesson.topicId);
+                if (topic) openTopic(topic.title, topic.prompt, topic.icon as IoniconName, topic.id);
+              }}
+              style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 12, paddingVertical: 10, borderBottomWidth: i < portfolioLessons.length - 1 ? 1 : 0, borderBottomColor: "rgba(0,212,126,0.1)" }}
+              activeOpacity={0.7}
+            >
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flex: 1 }}>
+                <Ionicons name={lesson.topicIcon as any} size={18} color={colors.accent} />
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 12, fontWeight: "800", color: colors.text }}>{lesson.topicTitle}</Text>
+                  <Text style={{ fontSize: 10, color: colors.textMuted }}>
+                    {lesson.ticker} reporta {lesson.daysUntil === 0 ? "hoy" : lesson.daysUntil === 1 ? "mañana" : `en ${lesson.daysUntil} días`}
+                  </Text>
+                </View>
+              </View>
+              <View style={{ backgroundColor: "rgba(0,212,126,0.12)", paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 }}>
+                <Text style={{ fontSize: 10, fontWeight: "700", color: colors.accent }}>Ver →</Text>
+              </View>
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
 
       {/* Categorías */}
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.catsScroll} contentContainerStyle={s.catsContent}>

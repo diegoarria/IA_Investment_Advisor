@@ -8,8 +8,9 @@ import { useRouter } from "next/navigation";
 import Image from "next/image";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { chat as chatApi, learn as learnApi } from "@/lib/api";
+import { chat as chatApi, learn as learnApi, earningsApi } from "@/lib/api";
 import { useAuthStore, useLearnStore, useSubscriptionStore, useProfileStore, getNextMilestone, getUnclaimedMilestones, STREAK_MILESTONES, type StreakMilestone } from "@/lib/store";
+import { usePortfolioStore } from "@/lib/portfolioStore";
 import { getUserLevel, LEVEL_COLOR, LEVEL_LABEL, type UserLevel } from "@/lib/userLevel";
 
 const CATEGORY_LEVEL: Record<string, UserLevel> = {
@@ -246,8 +247,11 @@ export default function LearnPage() {
   const router = useRouter();
   const { isAuthenticated } = useAuthStore();
   const { streak, completedToday, markTopicCompleted, markTopicId, completedTopicIds, initStreak, claimedMilestones, markMilestoneClaimed } = useLearnStore();
-  const { fetchStatus: fetchSubStatus } = useSubscriptionStore();
+  const { fetchStatus: fetchSubStatus, tier: subTier } = useSubscriptionStore();
+  const isPremium = subTier === "premium";
   const { profile } = useProfileStore();
+  const { positions } = usePortfolioStore();
+  const [portfolioLessons, setPortfolioLessons] = useState<{ ticker: string; date: string; topicId: string; topicTitle: string; topicEmoji: string; daysUntil: number }[]>([]);
   const [pendingMilestone, setPendingMilestone] = useState<StreakMilestone | null>(null);
   const [claiming, setClaiming] = useState(false);
   const [claimSuccess, setClaimSuccess] = useState<string | null>(null);
@@ -258,6 +262,41 @@ export default function LearnPage() {
     const unclaimed = getUnclaimedMilestones(streak, claimedMilestones);
     if (unclaimed.length > 0 && !pendingMilestone) setPendingMilestone(unclaimed[0]);
   }, [streak, claimedMilestones]);
+
+  // Map portfolio earnings events → relevant lessons
+  const TICKER_TO_TOPIC: Record<string, string> = {
+    AAPL: "apple", MSFT: "microsoft", AMZN: "amazon", NVDA: "nvidia",
+    TSLA: "tesla", GOOGL: "alphabet", META: "meta_co",
+  };
+  useEffect(() => {
+    if (!positions.length) return;
+    const tickers = positions.map(p => p.ticker).filter(Boolean);
+    earningsApi.getCalendar(tickers).then((res: any) => {
+      const today = new Date();
+      const events: Array<{ ticker: string; event_date: string }> = (res.data?.earnings || [])
+        .filter((e: any) => e.event_type === "earnings" && e.event_date && e.status !== "past");
+
+      const suggestions = events
+        .map((ev) => {
+          const diff = Math.ceil((new Date(ev.event_date).getTime() - today.getTime()) / 86400000);
+          if (diff < 0 || diff > 14) return null;
+
+          // Find a relevant lesson: company-specific first, then earnings basics
+          const companyTopicId = TICKER_TO_TOPIC[ev.ticker];
+          const companyTopic = companyTopicId ? TOPICS.find(t => t.id === companyTopicId) : null;
+          const earningsTopic = TOPICS.find(t => t.id === "earnings");
+          const topic = companyTopic || earningsTopic;
+          if (!topic) return null;
+          const alreadyDone = completedTopicIds.includes(topic.id);
+          if (alreadyDone) return null;
+
+          return { ticker: ev.ticker, date: ev.event_date, topicId: topic.id, topicTitle: topic.title, topicEmoji: topic.emoji, daysUntil: diff };
+        })
+        .filter(Boolean) as typeof portfolioLessons;
+
+      setPortfolioLessons(suggestions.slice(0, 3));
+    }).catch(() => {});
+  }, [positions.length, completedTopicIds.length]);
 
   const handleClaimMilestone = async () => {
     if (!pendingMilestone) return;
@@ -508,6 +547,45 @@ export default function LearnPage() {
             </div>
           </div>
 
+          {/* ── Aprende con tu portafolio ── */}
+          {portfolioLessons.length > 0 && (
+            <div className="px-4 pb-3 shrink-0">
+              <div className="rounded-2xl border overflow-hidden" style={{ borderColor: "rgba(0,212,126,0.25)", background: "rgba(0,212,126,0.04)" }}>
+                <div className="flex items-center gap-2 px-3 py-2 border-b" style={{ borderColor: "rgba(0,212,126,0.15)" }}>
+                  <span className="text-sm">🎓</span>
+                  <span className="text-xs font-black" style={{ color: "var(--accent-l)" }}>Aprende antes de que reporten</span>
+                </div>
+                {portfolioLessons.map((s) => (
+                  <button
+                    key={s.topicId}
+                    onClick={() => {
+                      const topic = TOPICS.find(t => t.id === s.topicId);
+                      if (topic) {
+                        setSelectedCat("all");
+                        // scroll to and open the topic
+                        const el = document.getElementById(`topic-${s.topicId}`);
+                        if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+                      }
+                    }}
+                    className="w-full flex items-center justify-between px-3 py-2 text-left hover:bg-white/5 transition-colors border-b last:border-b-0"
+                    style={{ borderColor: "rgba(0,212,126,0.1)" }}
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className="text-base">{s.topicEmoji}</span>
+                      <div>
+                        <p className="text-xs font-bold" style={{ color: "var(--text)" }}>{s.topicTitle}</p>
+                        <p className="text-[10px]" style={{ color: "var(--muted)" }}>
+                          {s.ticker} reporta {s.daysUntil === 0 ? "hoy" : s.daysUntil === 1 ? "mañana" : `en ${s.daysUntil} días`}
+                        </p>
+                      </div>
+                    </div>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: "rgba(0,212,126,0.12)", color: "var(--accent-l)" }}>Ver lección →</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Category chips */}
           <div className="flex gap-2 px-4 pb-3 overflow-x-auto scrollbar-none shrink-0">
             {CATEGORIES.map((cat) => {
@@ -539,6 +617,7 @@ export default function LearnPage() {
                 const tc = LEVEL_COLOR[topicLevel];
                 return (
                   <button key={topic.id}
+                          id={`topic-${topic.id}`}
                           onClick={() => openTopic(topic.title, topic.prompt, topic.emoji, topic.id)}
                           className="text-left p-3 rounded-2xl border transition-all hover:border-[#00d47e]/40 hover:bg-[#00d47e]/5 relative"
                           style={{ background: completedTopicIds.includes(topic.id) ? "rgba(0,212,126,0.04)" : "var(--card)", borderColor: completedTopicIds.includes(topic.id) ? "rgba(0,212,126,0.3)" : isMyLevel ? `${tc}40` : "var(--border)" }}>
