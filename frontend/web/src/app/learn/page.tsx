@@ -9,7 +9,7 @@ import Image from "next/image";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { chat as chatApi, learn as learnApi } from "@/lib/api";
-import { useAuthStore, useLearnStore, useSubscriptionStore, useProfileStore, getNextMilestone, getUnclaimedMilestones, type StreakMilestone } from "@/lib/store";
+import { useAuthStore, useLearnStore, useSubscriptionStore, useProfileStore, getNextMilestone, getUnclaimedMilestones, STREAK_MILESTONES, type StreakMilestone } from "@/lib/store";
 import { getUserLevel, LEVEL_COLOR, LEVEL_LABEL, type UserLevel } from "@/lib/userLevel";
 
 const CATEGORY_LEVEL: Record<string, UserLevel> = {
@@ -251,6 +251,7 @@ export default function LearnPage() {
   const [pendingMilestone, setPendingMilestone] = useState<StreakMilestone | null>(null);
   const [claiming, setClaiming] = useState(false);
   const [claimSuccess, setClaimSuccess] = useState<string | null>(null);
+  const [streakModalOpen, setStreakModalOpen] = useState(false);
 
   // Show celebration when a new milestone is reached
   useEffect(() => {
@@ -384,11 +385,14 @@ export default function LearnPage() {
           <GuidedSteps currentPage="learn" />
           {/* Streak banner + milestone progress */}
           <div className="px-4 pt-3 pb-1 shrink-0">
-            <div className="flex items-center justify-between rounded-xl border px-3 py-2.5"
-                 style={{ background: "var(--card)", borderColor: completedToday ? "rgba(245,158,11,0.4)" : "var(--border)" }}>
+            <button
+              onClick={() => setStreakModalOpen(true)}
+              className="w-full flex items-center justify-between rounded-xl border px-3 py-2.5 transition-all hover:border-amber-500/40"
+              style={{ background: "var(--card)", borderColor: completedToday ? "rgba(245,158,11,0.4)" : "var(--border)" }}
+            >
               <div className="flex items-center gap-2">
                 <span className="text-xl">{completedToday ? "🔥" : "🌑"}</span>
-                <div>
+                <div className="text-left">
                   <span className="text-sm font-bold" style={{ color: completedToday ? "#f59e0b" : "var(--muted)" }}>
                     {streak} {streak === 1 ? "día" : "días"} de racha
                   </span>
@@ -397,22 +401,25 @@ export default function LearnPage() {
                   </p>
                 </div>
               </div>
-              {nextMilestone ? (
-                <div className="flex flex-col items-end gap-1">
-                  <span className="text-[10px]" style={{ color: "var(--muted)" }}>
-                    {streak}/{nextMilestone.days}d → {nextMilestone.emoji} {nextMilestone.title}
-                  </span>
-                  <div className="w-24 h-1.5 rounded-full overflow-hidden" style={{ background: "var(--border)" }}>
-                    <div className="h-full rounded-full" style={{
-                      width: `${Math.min(100, (streak / nextMilestone.days) * 100)}%`,
-                      background: "#f59e0b",
-                    }} />
+              <div className="flex items-center gap-3">
+                {nextMilestone ? (
+                  <div className="flex flex-col items-end gap-1">
+                    <span className="text-[10px]" style={{ color: "var(--muted)" }}>
+                      {streak}/{nextMilestone.days}d → {nextMilestone.emoji} {nextMilestone.title}
+                    </span>
+                    <div className="w-24 h-1.5 rounded-full overflow-hidden" style={{ background: "var(--border)" }}>
+                      <div className="h-full rounded-full" style={{
+                        width: `${Math.min(100, (streak / nextMilestone.days) * 100)}%`,
+                        background: "#f59e0b",
+                      }} />
+                    </div>
                   </div>
-                </div>
-              ) : streak > 0 ? (
-                <span className="text-lg">👑</span>
-              ) : null}
-            </div>
+                ) : streak > 0 ? (
+                  <span className="text-lg">👑</span>
+                ) : null}
+                <span className="text-[10px]" style={{ color: "var(--dim)" }}>›</span>
+              </div>
+            </button>
           </div>
 
           {/* Mis Objetivos */}
@@ -719,6 +726,94 @@ export default function LearnPage() {
                 {claiming ? "Reclamando..." : "¡Reclamar recompensa!"}
               </button>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Modal: todos los objetivos de racha */}
+      {streakModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center"
+             style={{ background: "rgba(0,0,0,0.65)", backdropFilter: "blur(6px)" }}
+             onClick={() => setStreakModalOpen(false)}>
+          <div className="w-full max-w-md rounded-t-3xl sm:rounded-3xl overflow-hidden"
+               style={{ background: "var(--card)", border: "1px solid var(--border)", maxHeight: "85vh", display: "flex", flexDirection: "column" }}
+               onClick={(e) => e.stopPropagation()}>
+
+            {/* Handle (mobile) */}
+            <div className="flex justify-center pt-3 pb-1 sm:hidden">
+              <div className="w-9 h-1 rounded-full" style={{ background: "var(--border)" }} />
+            </div>
+
+            {/* Header */}
+            <div className="flex items-start justify-between px-5 pt-4 pb-3 shrink-0">
+              <div>
+                <h2 className="text-lg font-black" style={{ color: "var(--text)" }}>Objetivos de Racha</h2>
+                <p className="text-xs mt-0.5" style={{ color: "var(--muted)" }}>
+                  {streak} {streak === 1 ? "día" : "días"} consecutivos · {claimedMilestones.length}/{STREAK_MILESTONES.length} reclamados
+                </p>
+              </div>
+              <button onClick={() => setStreakModalOpen(false)} className="text-xl leading-none p-1" style={{ color: "var(--muted)" }}>✕</button>
+            </div>
+
+            {/* Barra de progreso global */}
+            <div className="mx-5 mb-4 h-1.5 rounded-full overflow-hidden shrink-0" style={{ background: "var(--border)" }}>
+              <div className="h-full rounded-full transition-all" style={{
+                width: `${Math.min(100, (streak / STREAK_MILESTONES[STREAK_MILESTONES.length - 1].days) * 100)}%`,
+                background: "#f59e0b",
+              }} />
+            </div>
+
+            {/* Lista de hitos */}
+            <div className="overflow-y-auto px-4 pb-6 flex flex-col gap-2.5">
+              {STREAK_MILESTONES.map((m) => {
+                const reached = streak >= m.days;
+                const claimed = claimedMilestones.includes(m.days);
+                const canClaim = reached && !claimed;
+                return (
+                  <div key={m.days}
+                       className="flex items-center gap-3 p-3.5 rounded-2xl border transition-all"
+                       style={{
+                         background: claimed ? "rgba(0,212,126,0.05)" : canClaim ? "rgba(245,158,11,0.06)" : "var(--bg)",
+                         borderColor: claimed ? "rgba(0,212,126,0.3)" : canClaim ? "rgba(245,158,11,0.4)" : "var(--border)",
+                         opacity: reached ? 1 : 0.5,
+                       }}>
+                    <span className="text-3xl w-10 text-center shrink-0">{m.emoji}</span>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-0.5">
+                        <span className="text-sm font-extrabold" style={{ color: claimed ? "#00d47e" : canClaim ? "#f59e0b" : "var(--text)" }}>
+                          {m.title}
+                        </span>
+                        <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-md"
+                              style={{ background: claimed ? "rgba(0,212,126,0.15)" : canClaim ? "rgba(245,158,11,0.15)" : "var(--border)", color: claimed ? "#00d47e" : canClaim ? "#f59e0b" : "var(--muted)" }}>
+                          {m.days}d
+                        </span>
+                      </div>
+                      <p className="text-[11px]" style={{ color: "var(--muted)" }}>🎁 {m.reward}</p>
+                      {!reached && (
+                        <p className="text-[10px] mt-0.5" style={{ color: "var(--dim)" }}>
+                          Faltan {m.days - streak} {m.days - streak === 1 ? "día" : "días"}
+                        </p>
+                      )}
+                    </div>
+                    {claimed && (
+                      <div className="w-7 h-7 rounded-full flex items-center justify-center shrink-0" style={{ background: "rgba(0,212,126,0.2)" }}>
+                        <span className="text-xs" style={{ color: "#00d47e" }}>✓</span>
+                      </div>
+                    )}
+                    {canClaim && (
+                      <button
+                        onClick={() => { setStreakModalOpen(false); setTimeout(() => setPendingMilestone(m), 300); }}
+                        className="shrink-0 px-3 py-1.5 rounded-xl text-xs font-black"
+                        style={{ background: "#f59e0b", color: "#000" }}
+                      >
+                        Reclamar
+                      </button>
+                    )}
+                    {!reached && <span className="text-sm shrink-0" style={{ color: "var(--dim)" }}>🔒</span>}
+                  </div>
+                );
+              })}
+            </div>
           </div>
         </div>
       )}

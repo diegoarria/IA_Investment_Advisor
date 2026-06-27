@@ -9,7 +9,7 @@ import Markdown from "react-native-markdown-display";
 import { router, useLocalSearchParams } from "expo-router";
 import { useTheme, Colors } from "../../src/lib/ThemeContext";
 import { chatApi, learnApi } from "../../src/lib/api";
-import { useLearnStore, getNextMilestone, getUnclaimedMilestones } from "../../src/lib/learnStore";
+import { useLearnStore, getNextMilestone, getUnclaimedMilestones, STREAK_MILESTONES } from "../../src/lib/learnStore";
 import { useSubscriptionStore } from "../../src/lib/subscriptionStore";
 import StreakMilestoneModal from "../../src/components/StreakMilestoneModal";
 
@@ -245,12 +245,13 @@ export default function LearnScreen() {
   const markdownStyles = useMemo(() => makeMarkdownStyles(colors), [colors]);
 
   const { streak, completedToday, markTopicCompleted, markTopicId, completedTopicIds, initStreak, claimedMilestones, markMilestoneClaimed } = useLearnStore();
-  const { fetchSubStatus } = useSubscriptionStore();
+  const { fetchStatus: fetchSubStatus } = useSubscriptionStore();
   useEffect(() => { initStreak(); }, []);
 
   const [pendingMilestone, setPendingMilestone] = useState<ReturnType<typeof getNextMilestone>>(null);
   const [claiming, setClaiming] = useState(false);
   const [claimSuccess, setClaimSuccess] = useState<string | null>(null);
+  const [streakModalOpen, setStreakModalOpen] = useState(false);
 
   // Check for newly reached milestones every time streak changes
   useEffect(() => {
@@ -371,7 +372,11 @@ const { topicId } = useLocalSearchParams<{ topicId?: string }>();
       <View style={{ flex: 1 }}>
 
       {/* Streak banner + milestone progress */}
-      <View style={[s.streakBanner, { backgroundColor: colors.card, borderColor: completedToday ? "#f59e0b44" : colors.border }]}>
+      <TouchableOpacity
+        activeOpacity={0.75}
+        onPress={() => setStreakModalOpen(true)}
+        style={[s.streakBanner, { backgroundColor: colors.card, borderColor: completedToday ? "#f59e0b44" : colors.border }]}
+      >
         <View style={s.streakLeft}>
           <Text style={s.streakFire}>{completedToday ? "🔥" : "🌑"}</Text>
           <View>
@@ -383,26 +388,29 @@ const { topicId } = useLocalSearchParams<{ topicId?: string }>();
             </Text>
           </View>
         </View>
-        {nextMilestone && (
-          <View style={{ alignItems: "flex-end", gap: 3 }}>
-            <Text style={{ fontSize: 11, color: colors.textMuted }}>
-              {streak}/{nextMilestone.days}d → {nextMilestone.emoji}
-            </Text>
-            <View style={{ width: 80, height: 5, borderRadius: 3, backgroundColor: colors.border, overflow: "hidden" }}>
-              <View style={{
-                height: "100%",
-                borderRadius: 3,
-                backgroundColor: "#f59e0b",
-                width: `${Math.min(100, (streak / nextMilestone.days) * 100)}%`,
-              }} />
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+          {nextMilestone && (
+            <View style={{ alignItems: "flex-end", gap: 3 }}>
+              <Text style={{ fontSize: 11, color: colors.textMuted }}>
+                {streak}/{nextMilestone.days}d → {nextMilestone.emoji}
+              </Text>
+              <View style={{ width: 80, height: 5, borderRadius: 3, backgroundColor: colors.border, overflow: "hidden" }}>
+                <View style={{
+                  height: "100%",
+                  borderRadius: 3,
+                  backgroundColor: "#f59e0b",
+                  width: `${Math.min(100, (streak / nextMilestone.days) * 100)}%` as any,
+                }} />
+              </View>
+              <Text style={{ fontSize: 10, color: colors.textDim }}>{nextMilestone.title}</Text>
             </View>
-            <Text style={{ fontSize: 10, color: colors.textDim }}>{nextMilestone.title}</Text>
-          </View>
-        )}
-        {!nextMilestone && streak > 0 && (
-          <Text style={{ fontSize: 20 }}>👑</Text>
-        )}
-      </View>
+          )}
+          {!nextMilestone && streak > 0 && (
+            <Text style={{ fontSize: 20 }}>👑</Text>
+          )}
+          <Ionicons name="chevron-forward-outline" size={14} color={colors.textDim} />
+        </View>
+      </TouchableOpacity>
 
       {/* Mis Objetivos */}
       <TouchableOpacity
@@ -645,6 +653,97 @@ const { topicId } = useLocalSearchParams<{ topicId?: string }>();
       </Modal>
 
       </View>
+
+      {/* Modal: todos los objetivos de racha */}
+      <Modal visible={streakModalOpen} animationType="slide" transparent onRequestClose={() => setStreakModalOpen(false)}>
+        <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "flex-end" }}>
+          <View style={{ backgroundColor: colors.card, borderTopLeftRadius: 28, borderTopRightRadius: 28, paddingBottom: 32 }}>
+            {/* Handle */}
+            <View style={{ alignItems: "center", paddingTop: 12, paddingBottom: 4 }}>
+              <View style={{ width: 36, height: 4, borderRadius: 2, backgroundColor: colors.border }} />
+            </View>
+            {/* Header */}
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingVertical: 12 }}>
+              <View>
+                <Text style={{ fontSize: 18, fontWeight: "900", color: colors.text }}>Objetivos de Racha</Text>
+                <Text style={{ fontSize: 12, color: colors.textMuted, marginTop: 2 }}>
+                  {streak} {streak === 1 ? "día" : "días"} consecutivos · {claimedMilestones.length}/{STREAK_MILESTONES.length} reclamados
+                </Text>
+              </View>
+              <TouchableOpacity onPress={() => setStreakModalOpen(false)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                <Ionicons name="close-circle" size={26} color={colors.textMuted} />
+              </TouchableOpacity>
+            </View>
+
+            {/* Línea de progreso global */}
+            <View style={{ marginHorizontal: 20, marginBottom: 16, height: 6, borderRadius: 3, backgroundColor: colors.border, overflow: "hidden" }}>
+              <View style={{
+                height: "100%", borderRadius: 3, backgroundColor: "#f59e0b",
+                width: `${STREAK_MILESTONES.length > 0 ? (streak / STREAK_MILESTONES[STREAK_MILESTONES.length - 1].days) * 100 : 0}%` as any,
+              }} />
+            </View>
+
+            {/* Lista de hitos */}
+            <ScrollView style={{ maxHeight: 420 }} contentContainerStyle={{ paddingHorizontal: 16, gap: 10 }}>
+              {STREAK_MILESTONES.map((m) => {
+                const reached = streak >= m.days;
+                const claimed = claimedMilestones.includes(m.days);
+                const canClaim = reached && !claimed;
+                return (
+                  <View key={m.days} style={{
+                    flexDirection: "row", alignItems: "center", gap: 14,
+                    padding: 14, borderRadius: 18, borderWidth: 1,
+                    backgroundColor: claimed ? "rgba(0,212,126,0.05)" : canClaim ? "rgba(245,158,11,0.06)" : colors.bg,
+                    borderColor: claimed ? "rgba(0,212,126,0.3)" : canClaim ? "rgba(245,158,11,0.4)" : colors.border,
+                    opacity: reached ? 1 : 0.5,
+                  }}>
+                    {/* Emoji */}
+                    <Text style={{ fontSize: 32, width: 44, textAlign: "center" }}>{m.emoji}</Text>
+
+                    {/* Info */}
+                    <View style={{ flex: 1 }}>
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 2 }}>
+                        <Text style={{ fontSize: 14, fontWeight: "800", color: claimed ? "#00d47e" : canClaim ? "#f59e0b" : colors.text }}>
+                          {m.title}
+                        </Text>
+                        <View style={{ paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, backgroundColor: claimed ? "rgba(0,212,126,0.15)" : canClaim ? "rgba(245,158,11,0.15)" : colors.border }}>
+                          <Text style={{ fontSize: 9, fontWeight: "800", color: claimed ? "#00d47e" : canClaim ? "#f59e0b" : colors.textMuted }}>
+                            {m.days}d
+                          </Text>
+                        </View>
+                      </View>
+                      <Text style={{ fontSize: 11, color: colors.textMuted, marginBottom: 4 }}>🎁 {m.reward}</Text>
+                      {!reached && (
+                        <Text style={{ fontSize: 10, color: colors.textDim }}>
+                          Faltan {m.days - streak} {m.days - streak === 1 ? "día" : "días"}
+                        </Text>
+                      )}
+                    </View>
+
+                    {/* Estado */}
+                    {claimed && (
+                      <View style={{ width: 30, height: 30, borderRadius: 15, backgroundColor: "rgba(0,212,126,0.2)", alignItems: "center", justifyContent: "center" }}>
+                        <Text style={{ fontSize: 14 }}>✓</Text>
+                      </View>
+                    )}
+                    {canClaim && (
+                      <TouchableOpacity
+                        onPress={() => { setStreakModalOpen(false); setTimeout(() => setPendingMilestone(m), 300); }}
+                        style={{ paddingHorizontal: 12, paddingVertical: 7, borderRadius: 12, backgroundColor: "#f59e0b" }}
+                      >
+                        <Text style={{ fontSize: 11, fontWeight: "900", color: "#000" }}>Reclamar</Text>
+                      </TouchableOpacity>
+                    )}
+                    {!reached && (
+                      <Ionicons name="lock-closed-outline" size={18} color={colors.textDim} />
+                    )}
+                  </View>
+                );
+              })}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
 
       {/* Milestone celebration */}
       <StreakMilestoneModal
