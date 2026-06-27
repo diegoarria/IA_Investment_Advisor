@@ -1,7 +1,0 @@
-{
-  "name": "nuvos-ai",
-  "private": true,
-  "workspaces": [
-    "frontend/mobile"
-  ]
-}
