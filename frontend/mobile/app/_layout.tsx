@@ -99,7 +99,8 @@ function AppStack() {
       if (data.screen === "chat") {
         const params: Record<string, string> = {};
         if (data.chat_context) params.ctx = encodeURIComponent(data.chat_context);
-        if (data.suggested_message) params.msg = encodeURIComponent(data.suggested_message);
+        const autoMsg = data.suggested_message || data.msg;
+        if (autoMsg) params.msg = encodeURIComponent(decodeURIComponent(autoMsg));
         router.navigate({ pathname: "/(tabs)/chat", params });
       }
     });

@@ -3462,6 +3462,266 @@ async def _backfill_notification_prefs():
         logger.warning("Notification prefs backfill failed: %s", e)
 
 
+async def job_proactive_vs_market():
+    """4:45 PM ET Mon-Fri — alert users whose portfolio moved significantly vs S&P today."""
+    from app.core.database import get_supabase, run_query
+    from app.services.notification_engine import send_push
+    import httpx
+    db = get_supabase()
+    try:
+        # Fetch S&P 500 daily change
+        sp_pct: float | None = None
+        try:
+            r = httpx.get(
+                "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC",
+                params={"interval": "1d", "range": "2d"},
+                headers={"User-Agent": "Mozilla/5.0"},
+                timeout=10,
+            )
+            data = r.json()
+            closes = data["chart"]["result"][0]["indicators"]["quote"][0]["close"]
+            closes = [c for c in closes if c is not None]
+            if len(closes) >= 2:
+                sp_pct = (closes[-1] - closes[-2]) / closes[-2] * 100
+        except Exception:
+            pass
+
+        if sp_pct is None:
+            return
+
+        users_res = await run_query(
+            db.table("notification_preferences")
+            .select("user_id")
+            .eq("push_ai_recommendations", True)
+        )
+        user_ids = [r["user_id"] for r in (users_res.data or [])]
+        if not user_ids:
+            return
+
+        prof_res = await run_query(
+            db.table("user_profiles")
+            .select("user_id,name,subscription_tier,mentor")
+            .in_("user_id", user_ids)
+        )
+        premium_ids = {p["user_id"] for p in (prof_res.data or []) if p.get("subscription_tier") == "premium"}
+
+        sent = 0
+        for uid in premium_ids:
+            port_res = await run_query(db.table("user_portfolio").select("positions").eq("user_id", uid))
+            if not port_res.data:
+                continue
+            positions = _agg_positions(port_res.data)
+            if not positions:
+                continue
+
+            # Compute portfolio daily change
+            tickers = [p["ticker"] for p in positions if p.get("ticker")]
+            if not tickers:
+                continue
+            try:
+                prices = await asyncio.to_thread(_batch_prices, tickers[:20])
+            except Exception:
+                continue
+
+            total_val = day_gain_val = 0.0
+            for p in positions:
+                t = p.get("ticker", "")
+                q = prices.get(t) or {}
+                price = q.get("price") or 0
+                prev  = q.get("prev_close") or price
+                shares = p.get("shares") or 0
+                val   = price * shares
+                total_val   += val
+                day_gain_val += (price - prev) * shares
+
+            if total_val == 0:
+                continue
+            port_pct = (day_gain_val / total_val) * 100
+            diff = port_pct - sp_pct
+
+            # Only notify if divergence > 1.5%
+            if abs(diff) < 1.5:
+                continue
+
+            sign = "+" if day_gain_val >= 0 else ""
+            sp_sign = "+" if sp_pct >= 0 else ""
+            if diff > 0:
+                msg = f"Tu portafolio subió {sign}{port_pct:.1f}% hoy vs S&P {sp_sign}{sp_pct:.1f}%. ¿Quieres que analice qué lo impulsó?"
+            else:
+                msg = f"Tu portafolio bajó {port_pct:.1f}% vs S&P {sp_sign}{sp_pct:.1f}%. ¿Quieres que te explique la diferencia?"
+
+            encoded_msg = msg.replace("&", "%26").replace("?", "%3F")
+            await send_push(
+                uid, "proactive_vs_market",
+                "📊 Tu portafolio vs el mercado hoy",
+                msg,
+                {"screen": "chat", "msg": encoded_msg},
+                db,
+            )
+            sent += 1
+            await asyncio.sleep(0.05)
+
+        logger.info("job_proactive_vs_market: %d notifications sent (S&P %.2f%%)", sent, sp_pct)
+    except Exception as e:
+        logger.error("job_proactive_vs_market failed: %s", e)
+
+
+async def job_proactive_earnings_preview():
+    """8:30 AM ET Mon-Fri — warn users about earnings TODAY or TOMORROW for their holdings."""
+    from app.core.database import get_supabase, run_query
+    from app.services.notification_engine import send_push
+    from app.api.routes.earnings import _fetch_events_for_symbol
+    db = get_supabase()
+    today     = datetime.now(timezone.utc).date()
+    tomorrow  = today + timedelta(days=1)
+    target_dates = {str(today), str(tomorrow)}
+    try:
+        users_res = await run_query(
+            db.table("notification_preferences")
+            .select("user_id")
+            .eq("push_portfolio_alerts", True)
+        )
+        user_ids = [r["user_id"] for r in (users_res.data or [])]
+
+        prof_res = await run_query(
+            db.table("user_profiles")
+            .select("user_id,subscription_tier")
+            .in_("user_id", user_ids)
+        )
+        premium_ids = {p["user_id"] for p in (prof_res.data or []) if p.get("subscription_tier") == "premium"}
+
+        sent = 0
+        for uid in premium_ids:
+            port_res = await run_query(db.table("user_portfolio").select("positions").eq("user_id", uid))
+            if not port_res.data:
+                continue
+            positions = _agg_positions(port_res.data)
+            tickers = [p["ticker"] for p in positions if p.get("ticker")]
+            if not tickers:
+                continue
+
+            hits: list[dict] = []
+            for ticker in tickers[:20]:
+                events = await asyncio.to_thread(_fetch_events_for_symbol, ticker)
+                for ev in events:
+                    if ev.get("event_type") == "earnings" and ev.get("event_date") in target_dates:
+                        pos = next((p for p in positions if p["ticker"] == ticker), {})
+                        hits.append({
+                            "ticker": ticker,
+                            "date": ev["event_date"],
+                            "shares": pos.get("shares", 0),
+                            "eps_est": ev.get("eps_estimate"),
+                        })
+
+            if not hits:
+                continue
+
+            for hit in hits[:3]:
+                when = "hoy" if hit["date"] == str(today) else "mañana"
+                shares_str = f" · Tienes {hit['shares']:.0f} acciones" if hit["shares"] else ""
+                eps_str = f" · EPS est. ${hit['eps_est']}" if hit.get("eps_est") else ""
+                msg = f"{hit['ticker']} reporta earnings {when}{shares_str}{eps_str}. ¿Quieres que te explique qué vigilar?"
+                encoded = msg.replace("&", "%26").replace("?", "%3F")
+                await send_push(
+                    uid, "earnings_preview",
+                    f"📅 {hit['ticker']} reporta {when}",
+                    msg,
+                    {"screen": "chat", "msg": encoded},
+                    db,
+                )
+                sent += 1
+                await asyncio.sleep(0.05)
+
+        logger.info("job_proactive_earnings_preview: %d sent", sent)
+    except Exception as e:
+        logger.error("job_proactive_earnings_preview failed: %s", e)
+
+
+async def job_proactive_rebalancing():
+    """Every Sunday 10 AM ET — detect sector concentration drift and suggest rebalancing."""
+    from app.core.database import get_supabase, run_query
+    from app.services.notification_engine import send_push
+    db = get_supabase()
+
+    SECTOR_MAP: dict[str, str] = {
+        "AAPL":"Tech","MSFT":"Tech","GOOGL":"Tech","META":"Tech","NVDA":"Tech",
+        "AMZN":"Tech","TSLA":"Tech","AMD":"Tech","INTC":"Tech","ORCL":"Tech",
+        "JPM":"Finanzas","BAC":"Finanzas","GS":"Finanzas","V":"Finanzas","MA":"Finanzas",
+        "UNH":"Salud","JNJ":"Salud","PFE":"Salud","ABBV":"Salud","MRK":"Salud",
+        "XOM":"Energía","CVX":"Energía","COP":"Energía",
+        "WMT":"Consumo","COST":"Consumo","PG":"Consumo","KO":"Consumo",
+    }
+
+    try:
+        users_res = await run_query(
+            db.table("notification_preferences")
+            .select("user_id")
+            .eq("push_ai_recommendations", True)
+        )
+        user_ids = [r["user_id"] for r in (users_res.data or [])]
+
+        prof_res = await run_query(
+            db.table("user_profiles")
+            .select("user_id,subscription_tier")
+            .in_("user_id", user_ids)
+        )
+        premium_ids = {p["user_id"] for p in (prof_res.data or []) if p.get("subscription_tier") == "premium"}
+
+        sent = 0
+        for uid in premium_ids:
+            port_res = await run_query(db.table("user_portfolio").select("positions").eq("user_id", uid))
+            if not port_res.data:
+                continue
+            positions = _agg_positions(port_res.data)
+            if len(positions) < 3:
+                continue
+
+            tickers = [p["ticker"] for p in positions if p.get("ticker")]
+            try:
+                prices = await asyncio.to_thread(_batch_prices, tickers[:20])
+            except Exception:
+                continue
+
+            sector_vals: dict[str, float] = {}
+            total = 0.0
+            for p in positions:
+                t = p.get("ticker", "")
+                q = prices.get(t) or {}
+                val = (q.get("price") or 0) * (p.get("shares") or 0)
+                sector = SECTOR_MAP.get(t, "Otro")
+                sector_vals[sector] = sector_vals.get(sector, 0) + val
+                total += val
+
+            if total == 0:
+                continue
+
+            top_sector = max(sector_vals, key=lambda k: sector_vals[k])
+            top_pct = sector_vals[top_sector] / total * 100
+
+            if top_pct < 45:
+                continue
+
+            msg = (
+                f"Tu portafolio tiene {top_pct:.0f}% concentrado en {top_sector}. "
+                f"Históricamente, superar el 40% en un sector aumenta la volatilidad. "
+                f"¿Quieres que revisemos opciones de diversificación?"
+            )
+            encoded = msg.replace("&", "%26").replace("?", "%3F")
+            await send_push(
+                uid, "rebalancing_alert",
+                f"⚖️ {top_pct:.0f}% en {top_sector} — ¿diversificamos?",
+                msg,
+                {"screen": "chat", "msg": encoded},
+                db,
+            )
+            sent += 1
+            await asyncio.sleep(0.05)
+
+        logger.info("job_proactive_rebalancing: %d notifications sent", sent)
+    except Exception as e:
+        logger.error("job_proactive_rebalancing failed: %s", e)
+
+
 async def main():
     # misfire_grace_time: if Railway restarts the worker near a job's fire time,
     # APScheduler will still run the job if it missed by less than this window.
@@ -3486,6 +3746,11 @@ async def main():
     # ── Specials ──────────────────────────────────────────────────────────────
     scheduler.add_job(send_birthday_emails,     "cron",                     hour=8,       minute=0,     timezone="America/New_York")
     scheduler.add_job(job_annual_scoreboard,    "cron", month=12, day=5,   hour=9,       minute=0,     timezone="America/New_York")
+
+    # ── Proactive Mentor IA ───────────────────────────────────────────────────
+    scheduler.add_job(job_proactive_vs_market,        "cron", day_of_week="mon-fri", hour=16, minute=45, timezone="America/New_York")
+    scheduler.add_job(job_proactive_earnings_preview, "cron", day_of_week="mon-fri", hour=8,  minute=30, timezone="America/New_York")
+    scheduler.add_job(job_proactive_rebalancing,      "cron", day_of_week="sun",     hour=10, minute=0,  timezone="America/New_York")
 
     # ── Cleanup ───────────────────────────────────────────────────────────────
     scheduler.add_job(job_cleanup_analytics,    "interval", hours=1)
