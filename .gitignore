@@ -37,6 +37,6 @@ frontend/web/tsconfig.tsbuildinfo
 # Claude Code internal
 .claude/worktrees/
 
-# Loose files (only at repo root — use /prefix to avoid blocking subdirectory files)
-*.jpg
-*.png
+# Loose files at repo root only
+/*.jpg
+/*.png
