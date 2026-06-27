@@ -2,6 +2,8 @@ import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { billingApi } from "./api";
+import { identifyUser, getCustomerInfo, isPremium as rcIsPremium } from "./purchases";
+import { supabase } from "./supabase";
 
 export type SubscriptionTier = "free" | "premium";
 
@@ -36,9 +38,22 @@ export const useSubscriptionStore = create<SubscriptionStore>()(
 
       fetchStatus: async () => {
         try {
+          // Identify user in RevenueCat so purchases are tied to their account
+          const { data: { user } } = await supabase.auth.getUser();
+          if (user?.id) await identifyUser(user.id);
+
+          // Check RevenueCat first — source of truth for IAP on iOS
+          const customerInfo = await getCustomerInfo();
+          const rcPremium = customerInfo ? rcIsPremium(customerInfo) : false;
+
           const res = await billingApi.getStatus();
+          const backendTier = res.data.tier ?? "free";
+
+          // RevenueCat premium overrides backend if it says premium
+          const effectiveTier = (rcPremium || backendTier === "premium") ? "premium" : "free";
+
           set({
-            tier:                res.data.tier ?? "free",
+            tier:                effectiveTier,
             msgCount:            res.data.msg_count ?? 0,
             msgWindowStart:      res.data.msg_window_start ?? null,
             isTrialPremium:      res.data.is_trial ?? false,

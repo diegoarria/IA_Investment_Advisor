@@ -348,3 +348,53 @@ async def duo_setup(body: dict, user_id: str = Depends(get_current_user_id)):
 
     logger.info("Duo setup: primary=%s granted premium to secondary=%s (%s)", user_id, secondary_email, secondary_id)
     return {"ok": True, "duo_secondary_email": secondary_email}
+
+
+# ── RevenueCat webhook ────────────────────────────────────────────────────────
+# Configure in RevenueCat dashboard → Project → Integrations → Webhooks
+# URL: https://api.nuvosai.com/api/billing/revenuecat-webhook
+# Set a secret token in RC and match it in REVENUECAT_WEBHOOK_SECRET env var
+
+EVENTS_GRANT  = {"INITIAL_PURCHASE", "RENEWAL", "UNCANCELLATION", "BILLING_ISSUE_RESOLVED"}
+EVENTS_REVOKE = {"CANCELLATION", "EXPIRATION"}
+
+@router.post("/revenuecat-webhook")
+async def revenuecat_webhook(request: Request):
+    # Validate shared secret (set REVENUECAT_WEBHOOK_SECRET in env)
+    rc_secret = getattr(settings, "revenuecat_webhook_secret", None)
+    if rc_secret:
+        auth_header = request.headers.get("Authorization", "")
+        if auth_header != rc_secret:
+            raise HTTPException(status_code=401, detail="Unauthorized")
+
+    payload = await request.json()
+    event   = payload.get("event", {})
+    etype   = event.get("type", "")
+    # RevenueCat sends app_user_id = your internal user_id (set via Purchases.logIn)
+    user_id = event.get("app_user_id")
+
+    if not user_id:
+        return {"received": True}
+
+    db = get_supabase()
+
+    if etype in EVENTS_GRANT:
+        await run_query(
+            db.table("user_profiles")
+            .update({
+                "subscription_tier": "premium",
+                "subscription_started_at": datetime.now(timezone.utc).isoformat(),
+            })
+            .eq("user_id", user_id)
+        )
+        logger.info("RevenueCat GRANT premium → user=%s event=%s", user_id, etype)
+
+    elif etype in EVENTS_REVOKE:
+        await run_query(
+            db.table("user_profiles")
+            .update({"subscription_tier": "free"})
+            .eq("user_id", user_id)
+        )
+        logger.info("RevenueCat REVOKE premium → user=%s event=%s", user_id, etype)
+
+    return {"received": True}

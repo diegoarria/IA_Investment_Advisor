@@ -1,10 +1,12 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
-  View, Text, TouchableOpacity, Modal, ScrollView, StyleSheet, Linking,
+  View, Text, TouchableOpacity, Modal, ScrollView, Alert,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "../lib/ThemeContext";
-import { billingApi } from "../lib/api";
+import { useSubscriptionStore } from "../lib/subscriptionStore";
+import { getOfferings, purchasePackage, restorePurchases } from "../lib/purchases";
+import type { PurchasesPackage } from "react-native-purchases";
 
 const FREE_FEATURES = [
   "Hasta 20 mensajes/día con el mentor IA",
@@ -37,16 +39,39 @@ interface Props {
 
 export default function PricingModal({ visible, onClose }: Props) {
   const { colors } = useTheme();
+  const fetchStatus = useSubscriptionStore((s) => s.fetchStatus);
   const [plan, setPlan] = useState<"monthly" | "yearly">("monthly");
   const [loading, setLoading] = useState(false);
+  const [monthlyPkg, setMonthlyPkg] = useState<PurchasesPackage | null>(null);
+  const [yearlyPkg,  setYearlyPkg]  = useState<PurchasesPackage | null>(null);
+
+  useEffect(() => {
+    if (!visible) return;
+    getOfferings().then((offering) => {
+      if (!offering) return;
+      setMonthlyPkg(offering.monthly ?? null);
+      setYearlyPkg(offering.annual  ?? null);
+    });
+  }, [visible]);
 
   async function handleUpgrade() {
+    const pkg = plan === "monthly" ? monthlyPkg : yearlyPkg;
+    if (!pkg) { Alert.alert("No disponible", "Productos no cargados. Intenta de nuevo."); return; }
     setLoading(true);
     try {
-      const res = await billingApi.createCheckout(plan);
-      const url = res?.data?.url;
-      if (url) await Linking.openURL(url);
-    } catch {}
+      const ok = await purchasePackage(pkg);
+      if (ok) { await fetchStatus(); onClose(); }
+    } catch (e: any) {
+      Alert.alert("Error", e?.message ?? "No se pudo completar la compra.");
+    }
+    setLoading(false);
+  }
+
+  async function handleRestore() {
+    setLoading(true);
+    const ok = await restorePurchases();
+    if (ok) { await fetchStatus(); onClose(); }
+    else Alert.alert("Sin compras", "No encontramos compras anteriores para restaurar.");
     setLoading(false);
   }
 
@@ -141,7 +166,7 @@ export default function PricingModal({ visible, onClose }: Props) {
                   activeOpacity={0.85}
                 >
                   <Text style={{ fontSize: 14, fontWeight: "900", color: "#000" }}>
-                    {loading ? "Abriendo..." : "Reclamar oferta gratis"}
+                    {loading ? "Procesando..." : "Reclamar oferta gratis"}
                   </Text>
                 </TouchableOpacity>
 
@@ -157,6 +182,10 @@ export default function PricingModal({ visible, onClose }: Props) {
             <Text style={{ fontSize: 10, textAlign: "center", marginTop: 16, color: colors.textDim, lineHeight: 16 }}>
               Prueba gratis 30 días. Cancela antes de que termine y no se te cobra nada.
             </Text>
+
+            <TouchableOpacity onPress={handleRestore} style={{ alignItems: "center", paddingVertical: 12 }} activeOpacity={0.7}>
+              <Text style={{ fontSize: 11, color: colors.textMuted, textDecorationLine: "underline" }}>Restaurar compras anteriores</Text>
+            </TouchableOpacity>
           </ScrollView>
         </View>
       </View>

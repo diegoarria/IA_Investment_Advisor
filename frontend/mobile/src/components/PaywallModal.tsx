@@ -1,13 +1,14 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View, Text, TouchableOpacity, Modal, StyleSheet,
-  ActivityIndicator, Linking, ScrollView,
+  ActivityIndicator, Alert, ScrollView,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
-import { billingApi } from "../lib/api";
 import { useSubscriptionStore } from "../lib/subscriptionStore";
 import { useTheme } from "../lib/ThemeContext";
+import { getOfferings, purchasePackage, restorePurchases } from "../lib/purchases";
+import type { PurchasesPackage } from "react-native-purchases";
 
 const PLANS = [
   {
@@ -29,53 +30,74 @@ const PLANS = [
 ];
 
 const HERO_FEATURES = [
-  { icon: "chatbubbles-outline" as const, text: "Mensajes ilimitados con tu mentor 24/7" },
-  { icon: "bar-chart-outline"   as const, text: "Análisis IA profundo de portafolio + Stress test" },
-  { icon: "search-outline"      as const, text: "Screener semanal: 5 oportunidades cada lunes" },
-  { icon: "cloud-upload-outline"as const, text: "Importa desde PDF, screenshot o broker conectado" },
-  { icon: "flash-outline"       as const, text: "Resumen IA de noticias + reporte mensual de performance" },
+  { icon: "chatbubbles-outline"  as const, text: "Mensajes ilimitados con el mentor 24/7" },
+  { icon: "bar-chart-outline"    as const, text: "Portafolio ilimitado — sin límite de acciones" },
+  { icon: "calendar-outline"     as const, text: "Earnings Calendar con análisis IA por posición" },
+  { icon: "cloud-upload-outline" as const, text: "Importar portafolio desde PDF o screenshot" },
+  { icon: "search-outline"       as const, text: "Screener semanal: 5 oportunidades cada lunes" },
 ];
 
 const ALL_FEATURES = [
-  { text: "Mensajes ilimitados con el mentor",        detail: "Sin límite de 20 mensajes al día. Habla con tu mentor cuando quieras, sin restricciones." },
-  { text: "Watchlist ilimitada",                      detail: "En el plan gratuito puedes seguir hasta 25 acciones. Premium elimina ese límite." },
-  { text: "Análisis IA profundo del portafolio",      detail: "Fortalezas, debilidades y sugerencias sobre tu portafolio. Incluye distribución por sector y score de riesgo 0-100." },
-  { text: "Stress test con 5 escenarios históricos",  detail: "Simula cómo hubiera reaccionado tu portafolio en Crisis 2008, COVID-19, Tech Crash 2022, subida de tasas y Bull Market." },
-  { text: "Comparativa vs S&P 500",                   detail: "Ve en qué períodos tu portafolio ganó o perdió contra el índice de referencia." },
-  { text: "Screener semanal personalizado",           detail: "Cada lunes 5 oportunidades con catalizador, score 0-100, análisis de riesgo y nota de tu mentor." },
-  { text: "Importar desde PDF o screenshot",          detail: "Sube tu estado de cuenta y la IA extrae tickers, cantidades y precios promedio automáticamente." },
-  { text: "Conectar broker (Plaid, IOL, Fidelity)",   detail: "Sincroniza tu portafolio real automáticamente desde tu bróker. Siempre actualizado." },
-  { text: "Resumen IA de noticias",                   detail: "Cada noticia de tus posiciones viene con resumen generado por IA. El punto clave en segundos." },
-  { text: "Reporte mensual de performance",           detail: "Al cierre de cada mes: retorno real, comparativa vs S&P 500 y nota personalizada de tu mentor." },
-  { text: "Evaluación conductual BSCORE",             detail: "La IA mide tu madurez inversora y te da sugerencias concretas para tomar mejores decisiones." },
-  { text: "Cambiar moneda del portafolio",            detail: "Ve tu portafolio en USD, MXN, EUR u otras monedas." },
-  { text: "Emails semanales personalizados",          detail: "Cada viernes: resumen del mercado adaptado a tu perfil, conversaciones y portafolio." },
+  { text: "Mensajes ilimitados con el mentor 24/7",        detail: "Sin límite de 20 mensajes al día. Habla con tu mentor cuando quieras, sin restricciones." },
+  { text: "Portafolio ilimitado — sin límite de acciones", detail: "En el plan gratuito puedes agregar hasta 10 acciones. Premium elimina ese límite completamente." },
+  { text: "Importar portafolio desde PDF o screenshot",    detail: "Sube tu estado de cuenta y la IA extrae tickers, cantidades y precios promedio automáticamente." },
+  { text: "Earnings Calendar con análisis IA por posición",detail: "Ve las fechas de resultados de todas tus posiciones y obtén análisis IA antes de que reporten." },
+  { text: "Stress Test con 5 escenarios históricos",       detail: "Simula cómo hubiera reaccionado tu portafolio en Crisis 2008, COVID-19, Tech Crash 2022, subida de tasas y Bull Market." },
+  { text: "Análisis IA profundo de tu portafolio",         detail: "Fortalezas, debilidades y sugerencias sobre tu portafolio. Incluye distribución por sector y score de riesgo 0-100." },
+  { text: "Screener semanal: 5 oportunidades cada lunes",  detail: "Cada lunes la IA selecciona 5 oportunidades con catalizador, score 0-100, análisis de riesgo y nota de tu mentor." },
+  { text: "Noticias de TU portafolio con resumen IA",      detail: "Cada noticia de tus posiciones viene con resumen generado por IA. El punto clave en segundos." },
+  { text: "Reporte mensual de performance vs S&P 500",     detail: "Al cierre de cada mes: retorno real, comparativa vs S&P 500 y nota personalizada de tu mentor." },
+  { text: "Aprende con tu portafolio (lecciones contextuales)", detail: "La app detecta qué empresas tienes y te sugiere lecciones relevantes antes de que reporten." },
+  { text: "Mentor proactivo — alertas móviles personalizadas", detail: "Recibe notificaciones cuando tu portafolio diverge del mercado, hay earnings próximos o tu sector se concentra demasiado." },
+  { text: "Evaluación conductual BSCORE",                  detail: "La IA mide tu madurez inversora y te da sugerencias concretas para tomar mejores decisiones." },
 ];
 
 const AVATAR_COLORS = ["#8b5cf6", "#3b82f6", "#f59e0b", "#ef4444", "#22c55e"];
-const TRUST_ITEMS  = ["Cancela cuando quieras", "Pago seguro con Stripe", "7 días gratis"];
+const TRUST_ITEMS  = ["Cancela cuando quieras", "Pago seguro con Apple", "1 mes gratis"];
 
 interface Props { visible: boolean; onClose: () => void; reason?: string }
 
 export default function PaywallModal({ visible, onClose, reason }: Props) {
   const { colors } = useTheme();
-  const fetchStatus  = useSubscriptionStore((s) => s.fetchStatus);
-  const [plan, setPlan]             = useState<"monthly" | "yearly">("yearly");
-  const [showAll, setShowAll]       = useState(false);
-  const [expanded, setExpanded]     = useState<string | null>(null);
-  const [loading, setLoading]       = useState(false);
-  const [error, setError]           = useState("");
+  const fetchStatus = useSubscriptionStore((s) => s.fetchStatus);
+  const [plan, setPlan]         = useState<"monthly" | "yearly">("yearly");
+  const [showAll, setShowAll]   = useState(false);
+  const [expanded, setExpanded] = useState<string | null>(null);
+  const [loading, setLoading]   = useState(false);
+  const [error, setError]       = useState("");
+  const [monthlyPkg, setMonthlyPkg] = useState<PurchasesPackage | null>(null);
+  const [yearlyPkg,  setYearlyPkg]  = useState<PurchasesPackage | null>(null);
+
+  useEffect(() => {
+    if (!visible) return;
+    getOfferings().then((offering) => {
+      if (!offering) return;
+      setMonthlyPkg(offering.monthly ?? null);
+      setYearlyPkg(offering.annual  ?? null);
+    });
+  }, [visible]);
 
   const active = PLANS.find((p) => p.key === plan)!;
 
   const handleUpgrade = async () => {
+    const pkg = plan === "monthly" ? monthlyPkg : yearlyPkg;
+    if (!pkg) { setError("Productos no disponibles. Intenta de nuevo."); return; }
     setLoading(true); setError("");
     try {
-      const res = await billingApi.createCheckout(plan);
-      await Linking.openURL(res.data.url);
-      setTimeout(fetchStatus, 3000);
-    } catch { setError("No se pudo abrir el pago. Intenta de nuevo."); }
-    finally   { setLoading(false); }
+      const ok = await purchasePackage(pkg);
+      if (ok) { await fetchStatus(); onClose(); }
+    } catch (e: any) {
+      if (!e?.userCancelled) setError(e?.message ?? "No se pudo completar la compra.");
+    }
+    setLoading(false);
+  };
+
+  const handleRestore = async () => {
+    setLoading(true);
+    const ok = await restorePurchases();
+    if (ok) { await fetchStatus(); onClose(); }
+    else Alert.alert("Sin compras", "No encontramos compras anteriores para restaurar.");
+    setLoading(false);
   };
 
   return (
@@ -252,10 +274,15 @@ export default function PaywallModal({ visible, onClose, reason }: Props) {
               ))}
             </View>
 
+            {/* Restaurar compras — requerido por Apple */}
+            <TouchableOpacity onPress={handleRestore} style={{ alignItems: "center", paddingVertical: 10 }} activeOpacity={0.7}>
+              <Text style={{ fontSize: 11, color: colors.textMuted, textDecorationLine: "underline" }}>Restaurar compras anteriores</Text>
+            </TouchableOpacity>
+
             {/* 1:1 coaching link */}
             <TouchableOpacity
               style={[s.coachingRow, { borderTopColor: "rgba(0,212,126,0.12)" }]}
-              onPress={() => Linking.openURL("https://calendly.com/diego-arria19/sesion-1-1-con-diego-nuvos-ai")}
+              onPress={() => {}}>
               activeOpacity={0.7}
             >
               <Text style={s.coachingEmoji}>📅</Text>
