@@ -42,7 +42,6 @@ const DUO_PLAN = {
   title: "Duo Plan",
   description: "Comparte Premium con un familiar o pareja. Cada uno con su perfil y portafolio independiente. Ideal para aprender a invertir juntos.",
   price: "$19.99/mes · $199.99/año",
-  href: "/support",
 };
 
 const ONE_TIME_PRODUCTS = [
@@ -195,11 +194,11 @@ export default function ProductsPage() {
                     <span className="text-xs font-bold" style={{ color: "#818cf8" }}>{DUO_PLAN.price}</span>
                   </div>
                   <button
-                    onClick={() => router.push(DUO_PLAN.href)}
+                    onClick={() => setShowPricing(true)}
                     className="shrink-0 flex items-center gap-1 px-3 py-2 rounded-xl text-xs font-bold transition-all hover:opacity-80"
                     style={{ background: "rgba(99,102,241,0.15)", border: "1px solid rgba(99,102,241,0.3)", color: "#818cf8" }}
                   >
-                    Ver <ArrowRight className="w-3 h-3" />
+                    Contratar <ArrowRight className="w-3 h-3" />
                   </button>
                 </div>
               </div>

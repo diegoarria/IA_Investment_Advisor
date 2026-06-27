@@ -162,7 +162,16 @@ export default function ProductsScreen() {
             <Text style={{ fontSize: 12, color: "rgba(255,255,255,0.55)", lineHeight: 18, marginBottom: 10 }}>
               Comparte Premium con un familiar o pareja. Cada uno con su perfil y portafolio independiente. Ideal para aprender a invertir juntos.
             </Text>
-            <Text style={{ fontSize: 13, fontWeight: "800", color: "#818cf8" }}>$19.99/mes · $199.99/año</Text>
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+              <Text style={{ fontSize: 13, fontWeight: "800", color: "#818cf8" }}>$19.99/mes · $199.99/año</Text>
+              <TouchableOpacity
+                onPress={() => setShowPricing(true)}
+                style={{ backgroundColor: "rgba(99,102,241,0.2)", borderWidth: 1, borderColor: "rgba(99,102,241,0.4)", borderRadius: 10, paddingHorizontal: 12, paddingVertical: 7 }}
+                activeOpacity={0.8}
+              >
+                <Text style={{ fontSize: 11, fontWeight: "800", color: "#818cf8" }}>Contratar</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
 
