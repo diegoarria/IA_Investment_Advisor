@@ -37,6 +37,14 @@ const SUBSCRIPTION_FEATURES = {
   ],
 };
 
+const DUO_PLAN = {
+  icon: "🌍",
+  title: "Duo Plan",
+  description: "Comparte Premium con un familiar o pareja. Cada uno con su perfil y portafolio independiente. Ideal para aprender a invertir juntos.",
+  price: "$19.99/mes · $199.99/año",
+  href: "/support",
+};
+
 const ONE_TIME_PRODUCTS = [
   {
     icon: "📊",
@@ -72,11 +80,6 @@ const COMING_SOON = [
     icon: "🔗",
     title: "Conectar Broker (Plaid / Fidelity / Schwab)",
     description: "Sincroniza tu portafolio real desde tu bróker automáticamente. Sin entrada manual, siempre actualizado.",
-  },
-  {
-    icon: "🌍",
-    title: "Duo Plan — Compartir Premium",
-    description: "Comparte tu suscripción Premium con un familiar o pareja. Cada uno con su perfil y portafolio independiente.",
   },
   {
     icon: "📈",
@@ -172,6 +175,32 @@ export default function ProductsPage() {
                       </div>
                     ))}
                   </div>
+                </div>
+              </div>
+            </section>
+
+            {/* ── Duo Plan ────────────────────────────────────────────────── */}
+            <section>
+              <h2 className="text-base font-black mb-4" style={{ color: "var(--text)" }}>Duo Plan</h2>
+              <div className="rounded-2xl border p-5 relative overflow-hidden" style={{ background: "linear-gradient(135deg, #0d1020 0%, #111827 100%)", borderColor: "rgba(99,102,241,0.4)" }}>
+                <div className="absolute inset-0 pointer-events-none" style={{ background: "radial-gradient(ellipse at top right, rgba(99,102,241,0.07) 0%, transparent 60%)" }} />
+                <div className="relative flex items-start justify-between gap-4">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-xl">{DUO_PLAN.icon}</span>
+                      <h3 className="text-sm font-black text-white">{DUO_PLAN.title}</h3>
+                      <span className="text-[9px] font-black px-2 py-0.5 rounded-full" style={{ background: "rgba(99,102,241,0.2)", color: "#818cf8" }}>NUEVO</span>
+                    </div>
+                    <p className="text-xs mb-3" style={{ color: "rgba(255,255,255,0.55)", lineHeight: 1.55 }}>{DUO_PLAN.description}</p>
+                    <span className="text-xs font-bold" style={{ color: "#818cf8" }}>{DUO_PLAN.price}</span>
+                  </div>
+                  <button
+                    onClick={() => router.push(DUO_PLAN.href)}
+                    className="shrink-0 flex items-center gap-1 px-3 py-2 rounded-xl text-xs font-bold transition-all hover:opacity-80"
+                    style={{ background: "rgba(99,102,241,0.15)", border: "1px solid rgba(99,102,241,0.3)", color: "#818cf8" }}
+                  >
+                    Ver <ArrowRight className="w-3 h-3" />
+                  </button>
                 </div>
               </div>
             </section>

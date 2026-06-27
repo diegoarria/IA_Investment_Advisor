@@ -61,7 +61,6 @@ const ONE_TIME = [
 
 const COMING_SOON = [
   { emoji: "🔗", title: "Conectar Broker", desc: "Plaid, Fidelity, Schwab — sincroniza tu portafolio automáticamente." },
-  { emoji: "🌍", title: "Duo Plan", desc: "Comparte Premium con un familiar. Perfiles y portafolios independientes." },
   { emoji: "📈", title: "Simulador de Opciones", desc: "Aprende calls y puts con dinero virtual y análisis IA de cada estrategia." },
 ];
 
@@ -146,6 +145,24 @@ export default function ProductsScreen() {
                 </View>
               ))}
             </View>
+          </View>
+        </View>
+
+        {/* ── Duo Plan ── */}
+        <View>
+          <Text style={{ fontSize: 13, fontWeight: "900", color: colors.text, marginBottom: 12 }}>Duo Plan</Text>
+          <View style={{ borderRadius: 20, borderWidth: 1.5, padding: 16, borderColor: "rgba(99,102,241,0.4)", backgroundColor: "#0d1020", overflow: "hidden" }}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 6 }}>
+              <Text style={{ fontSize: 20 }}>🌍</Text>
+              <Text style={{ fontSize: 15, fontWeight: "900", color: "#fff" }}>Duo Plan</Text>
+              <View style={{ backgroundColor: "rgba(99,102,241,0.2)", borderRadius: 8, paddingHorizontal: 8, paddingVertical: 2 }}>
+                <Text style={{ fontSize: 9, fontWeight: "900", color: "#818cf8" }}>NUEVO</Text>
+              </View>
+            </View>
+            <Text style={{ fontSize: 12, color: "rgba(255,255,255,0.55)", lineHeight: 18, marginBottom: 10 }}>
+              Comparte Premium con un familiar o pareja. Cada uno con su perfil y portafolio independiente. Ideal para aprender a invertir juntos.
+            </Text>
+            <Text style={{ fontSize: 13, fontWeight: "800", color: "#818cf8" }}>$19.99/mes · $199.99/año</Text>
           </View>
         </View>
 
