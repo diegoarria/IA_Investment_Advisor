@@ -282,7 +282,7 @@ export default function PaywallModal({ visible, onClose, reason }: Props) {
             {/* 1:1 coaching link */}
             <TouchableOpacity
               style={[s.coachingRow, { borderTopColor: "rgba(0,212,126,0.12)" }]}
-              onPress={() => {}}>
+              onPress={() => {}}
               activeOpacity={0.7}
             >
               <Text style={s.coachingEmoji}>📅</Text>

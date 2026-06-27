@@ -205,7 +205,7 @@ export const usePortfolioStore = create<PortfolioStore>()(
               if (serverPortfolios.length > 0) get()._setPortfolios(serverPortfolios, get().activePortfolioId);
             } catch {
               // Fallback: old single-portfolio endpoint (pre-migration)
-              const res = await syncApi.getPortfolio();
+              const res = await syncApi.getAllPortfolios();
               const positions: Position[] = (res.data.positions ?? []).map((pos: any, i: number) => ({ ...pos, id: pos.id ?? `${pos.ticker}-${i}` }));
               const currency: string = res.data.currency ?? "USD";
               if (positions.length > 0) {

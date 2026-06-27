@@ -2014,7 +2014,7 @@ export default function HomeScreen() {
                     multiline
                     numberOfLines={3}
                     style={{
-                      backgroundColor: colors.raised,
+                      backgroundColor: colors.bgRaised,
                       borderRadius: 12,
                       padding: 12,
                       color: colors.text,
