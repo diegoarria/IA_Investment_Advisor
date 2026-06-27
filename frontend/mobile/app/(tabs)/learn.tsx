@@ -10,7 +10,7 @@ import { router, useLocalSearchParams } from "expo-router";
 import { useTheme, Colors } from "../../src/lib/ThemeContext";
 import { chatApi, learnApi, earningsApi } from "../../src/lib/api";
 import { useLearnStore, getNextMilestone, getUnclaimedMilestones, STREAK_MILESTONES } from "../../src/lib/learnStore";
-import { useSubscriptionStore } from "../../src/lib/subscriptionStore";
+import { useSubscriptionStore, hasPremiumAccess } from "../../src/lib/subscriptionStore";
 import { usePortfolioStore } from "../../src/lib/portfolioStore";
 import StreakMilestoneModal from "../../src/components/StreakMilestoneModal";
 import QuizModal from "../../src/components/QuizModal";
@@ -248,7 +248,9 @@ export default function LearnScreen() {
   const markdownStyles = useMemo(() => makeMarkdownStyles(colors), [colors]);
 
   const { streak, completedToday, markTopicCompleted, markTopicId, completedTopicIds, initStreak, claimedMilestones, markMilestoneClaimed } = useLearnStore();
-  const { fetchStatus: fetchSubStatus } = useSubscriptionStore();
+  const subStore = useSubscriptionStore();
+  const { fetchStatus: fetchSubStatus } = subStore;
+  const isPremium = hasPremiumAccess(subStore);
   const { positions } = usePortfolioStore();
   useEffect(() => { initStreak(); }, []);
 
@@ -520,8 +522,8 @@ const { topicId } = useLocalSearchParams<{ topicId?: string }>();
         )}
       </View>
 
-      {/* Aprende con tu portafolio */}
-      {portfolioLessons.length > 0 && (
+      {/* Aprende con tu portafolio — premium only */}
+      {isPremium && portfolioLessons.length > 0 && (
         <View style={{ marginHorizontal: 12, marginBottom: 10, borderRadius: 16, borderWidth: 1, borderColor: "rgba(0,212,126,0.25)", backgroundColor: "rgba(0,212,126,0.04)", overflow: "hidden" }}>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: "rgba(0,212,126,0.15)" }}>
             <Text style={{ fontSize: 14 }}>🎓</Text>

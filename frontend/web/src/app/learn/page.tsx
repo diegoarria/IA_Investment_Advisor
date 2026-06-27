@@ -554,8 +554,8 @@ export default function LearnPage() {
             </div>
           </div>
 
-          {/* ── Aprende con tu portafolio ── */}
-          {portfolioLessons.length > 0 && (
+          {/* ── Aprende con tu portafolio — premium only ── */}
+          {isPremium && portfolioLessons.length > 0 && (
             <div className="px-4 pb-3 shrink-0">
               <div className="rounded-2xl border overflow-hidden" style={{ borderColor: "rgba(0,212,126,0.25)", background: "rgba(0,212,126,0.04)" }}>
                 <div className="flex items-center gap-2 px-3 py-2 border-b" style={{ borderColor: "rgba(0,212,126,0.15)" }}>
