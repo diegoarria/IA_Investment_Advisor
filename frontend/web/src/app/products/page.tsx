@@ -49,8 +49,8 @@ const ONE_TIME_PRODUCTS = [
   },
   {
     icon: "📱",
-    title: "Sesión 1:1 con Asesor",
-    description: "Sesión privada de 45 minutos con un asesor financiero certificado. Revisan tu portafolio real, estrategia y dudas específicas. Disponible para usuarios México y LATAM.",
+    title: "Sesión 1:1 de Guía Personalizada",
+    description: "Sesión privada de 45 minutos donde te guiamos por la app, configuramos tu portafolio juntos y diseñamos tu ruta de aprendizaje personalizada según tus metas de inversión.",
     price_free: "$149 USD",
     price_premium: "$99 USD",
     available: true,
@@ -58,8 +58,8 @@ const ONE_TIME_PRODUCTS = [
   },
   {
     icon: "📦",
-    title: "Pack 3 Sesiones",
-    description: "Tres sesiones 1:1 con un asesor financiero. Ideal para quien quiere seguimiento continuo: revisión mensual de portafolio, ajuste de estrategia y educación financiera personalizada.",
+    title: "Pack 3 Sesiones de Seguimiento",
+    description: "Tres sesiones 1:1 de guía y seguimiento continuo. Revisamos tu progreso en la app, ajustamos tu ruta de aprendizaje y resolvemos dudas conforme avanzas en tu camino como inversor.",
     price_premium: "$247 USD",
     note: "Solo disponible para Premium",
     available: true,
