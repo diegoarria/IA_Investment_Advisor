@@ -233,11 +233,14 @@ export default function NotificationsPage() {
               <div className="flex gap-1.5 px-3 py-2.5 border-b" style={{ borderColor: "var(--border)", background: "var(--raised)" }}>
                 {([
                   { key: "general",   label: "🌍 Generales" },
-                  { key: "portfolio", label: "💼 Tu Portafolio" },
+                  { key: "portfolio", label: `💼 Tu Portafolio${!isPremium ? " 🔒" : ""}` },
                 ] as const).map(({ key, label }) => (
                   <button
                     key={key}
-                    onClick={() => setNewsTab(key)}
+                    onClick={() => {
+                      if (key === "portfolio" && !isPremium) { setPaywallOpen(true); return; }
+                      setNewsTab(key);
+                    }}
                     className="px-3 py-1.5 rounded-full text-xs font-bold transition-all"
                     style={{
                       background: newsTab === key ? "rgba(0,168,94,0.14)" : "transparent",
@@ -321,7 +324,23 @@ export default function NotificationsPage() {
               )}
 
               {/* ── Tab: Tu Portafolio ── */}
-              {newsTab === "portfolio" && (
+              {newsTab === "portfolio" && !isPremium && (
+                <div className="flex flex-col items-center gap-3 py-10 px-6 text-center">
+                  <span className="text-4xl">💼</span>
+                  <p className="text-sm font-extrabold" style={{ color: "var(--text)" }}>Noticias de Tu Portafolio</p>
+                  <p className="text-xs leading-relaxed" style={{ color: "var(--muted)" }}>
+                    Recibe noticias filtradas automáticamente para cada acción que tienes. Solo disponible en Premium.
+                  </p>
+                  <button
+                    onClick={() => setPaywallOpen(true)}
+                    className="mt-2 px-5 py-2.5 rounded-2xl text-sm font-black"
+                    style={{ background: "var(--grad-green)", color: "#fff" }}
+                  >
+                    Desbloquear Premium
+                  </button>
+                </div>
+              )}
+              {newsTab === "portfolio" && isPremium && (
                 <>
                   {/* Ticker filter chips */}
                   {positions.length > 0 && !newsLoading && news.length > 0 && (

@@ -439,12 +439,15 @@ export default function NotificationsScreen() {
         <View style={[styles.newsTabs, { backgroundColor: colors.bgRaised, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border }]}>
           {([
             { key: "general"   as const, label: "🌍 Generales" },
-            { key: "portfolio" as const, label: "💼 Tu Portafolio" },
+            { key: "portfolio" as const, label: `💼 Tu Portafolio${!isPremiumAccess ? " 🔒" : ""}` },
           ]).map(({ key, label }) => (
             <TouchableOpacity
               key={key}
               style={[styles.newsTabBtn, newsTab === key && { backgroundColor: "rgba(0,168,94,0.14)", borderColor: "rgba(0,168,94,0.3)" }]}
-              onPress={() => setNewsTab(key)}
+              onPress={() => {
+                if (key === "portfolio" && !isPremiumAccess) { setPaywallOpen(true); return; }
+                setNewsTab(key);
+              }}
               activeOpacity={0.7}
             >
               <Text style={[styles.newsTabText, { color: newsTab === key ? colors.accentLight : colors.textMuted }]}>
@@ -480,7 +483,26 @@ export default function NotificationsScreen() {
           </ScrollView>
         )}
 
-        {newsTab === "general" ? generalBody() : portfolioBody()}
+        {newsTab === "general" ? generalBody() : (
+          !isPremiumAccess ? (
+            <View style={{ alignItems: "center", paddingVertical: 40, paddingHorizontal: 28, gap: 12 }}>
+              <Text style={{ fontSize: 40 }}>💼</Text>
+              <Text style={{ fontSize: 15, fontWeight: "900", color: colors.text, textAlign: "center" }}>
+                Noticias de Tu Portafolio
+              </Text>
+              <Text style={{ fontSize: 13, color: colors.textMuted, textAlign: "center", lineHeight: 20 }}>
+                Recibe noticias filtradas automáticamente para cada acción que tienes. Solo disponible en Premium.
+              </Text>
+              <TouchableOpacity
+                onPress={() => setPaywallOpen(true)}
+                style={{ marginTop: 8, paddingHorizontal: 24, paddingVertical: 12, borderRadius: 20, backgroundColor: colors.accent }}
+                activeOpacity={0.85}
+              >
+                <Text style={{ fontSize: 14, fontWeight: "900", color: "#fff" }}>Desbloquear Premium</Text>
+              </TouchableOpacity>
+            </View>
+          ) : portfolioBody()
+        )}
       </View>
     );
   };
