@@ -13,6 +13,8 @@ import { useLearnStore, getNextMilestone, getUnclaimedMilestones, STREAK_MILESTO
 import { useSubscriptionStore } from "../../src/lib/subscriptionStore";
 import { usePortfolioStore } from "../../src/lib/portfolioStore";
 import StreakMilestoneModal from "../../src/components/StreakMilestoneModal";
+import QuizModal from "../../src/components/QuizModal";
+import { QUIZ_DATA } from "../../src/lib/quizData";
 
 // ─── Data ──────────────────────────────────────────────────────────────────
 
@@ -327,9 +329,10 @@ const { topicId } = useLocalSearchParams<{ topicId?: string }>();
 
   const [search, setSearch] = useState("");
   const [selectedCat, setSelectedCat] = useState("all");
-  const [modal, setModal] = useState<{ title: string; icon: IoniconName } | null>(null);
+  const [modal, setModal] = useState<{ title: string; icon: IoniconName; topicId?: string } | null>(null);
   const [content, setContent] = useState("");
   const [streaming, setStreaming] = useState(false);
+  const [quizModal, setQuizModal] = useState<{ topicId: string; title: string; emoji: string } | null>(null);
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
@@ -356,11 +359,14 @@ const { topicId } = useLocalSearchParams<{ topicId?: string }>();
   );
 
   const openTopic = async (title: string, _topicContext: string, icon: IoniconName = "book-outline", topicId?: string) => {
-    setModal({ title, icon });
+    setModal({ title, icon, topicId });
     setContent("");
     setStreaming(true);
-    markTopicCompleted();
-    if (topicId) markTopicId(topicId);
+    const hasQuiz = topicId && !!QUIZ_DATA[topicId] && !completedTopicIds.includes(topicId);
+    if (!hasQuiz) {
+      markTopicCompleted();
+      if (topicId) markTopicId(topicId);
+    }
     // Prompt flashcard: máximo 70 palabras → respuesta en <3 segundos
     const flashcard = `Eres un mentor de finanzas. Explica "${title}" en formato FLASHCARD — exactamente esta estructura, máximo 70 palabras en total, en español:
 
@@ -703,11 +709,26 @@ const { topicId } = useLocalSearchParams<{ topicId?: string }>();
             {/* Action */}
             {!streaming && content && (
               <View style={{ paddingHorizontal: 18, paddingBottom: 18 }}>
-                <TouchableOpacity
-                  onPress={() => setModal(null)}
-                  style={{ backgroundColor: "#00a85e", borderRadius: 16, paddingVertical: 12, alignItems: "center" }}>
-                  <Text style={{ color: "white", fontWeight: "800", fontSize: 14 }}>Entendido ✓</Text>
-                </TouchableOpacity>
+                {modal?.topicId && QUIZ_DATA[modal.topicId] && !completedTopicIds.includes(modal.topicId) ? (
+                  <TouchableOpacity
+                    onPress={() => {
+                      const m = modal;
+                      setModal(null);
+                      if (m?.topicId) {
+                        const topic = TOPICS.find(t => t.id === m.topicId);
+                        setQuizModal({ topicId: m.topicId, title: m.title, emoji: topic ? String(topic.icon) : "📚" });
+                      }
+                    }}
+                    style={{ backgroundColor: "#00a85e", borderRadius: 16, paddingVertical: 12, alignItems: "center" }}>
+                    <Text style={{ color: "white", fontWeight: "800", fontSize: 14 }}>¿Entendido? — Haz el quiz →</Text>
+                  </TouchableOpacity>
+                ) : (
+                  <TouchableOpacity
+                    onPress={() => setModal(null)}
+                    style={{ backgroundColor: "#00a85e", borderRadius: 16, paddingVertical: 12, alignItems: "center" }}>
+                    <Text style={{ color: "white", fontWeight: "800", fontSize: 14 }}>Entendido ✓</Text>
+                  </TouchableOpacity>
+                )}
               </View>
             )}
           </View>
@@ -715,6 +736,22 @@ const { topicId } = useLocalSearchParams<{ topicId?: string }>();
       </Modal>
 
       </View>
+
+      {/* Quiz Modal */}
+      {quizModal && (
+        <QuizModal
+          visible={!!quizModal}
+          topicId={quizModal.topicId}
+          topicTitle={quizModal.title}
+          topicEmoji={quizModal.emoji}
+          onPass={() => {
+            markTopicCompleted();
+            markTopicId(quizModal.topicId);
+            setQuizModal(null);
+          }}
+          onClose={() => setQuizModal(null)}
+        />
+      )}
 
       {/* Modal: todos los objetivos de racha */}
       <Modal visible={streakModalOpen} animationType="slide" transparent onRequestClose={() => setStreakModalOpen(false)}>

@@ -12,6 +12,8 @@ import { chat as chatApi, learn as learnApi, earningsApi } from "@/lib/api";
 import { useAuthStore, useLearnStore, useSubscriptionStore, useProfileStore, getNextMilestone, getUnclaimedMilestones, STREAK_MILESTONES, type StreakMilestone } from "@/lib/store";
 import { usePortfolioStore } from "@/lib/portfolioStore";
 import { getUserLevel, LEVEL_COLOR, LEVEL_LABEL, type UserLevel } from "@/lib/userLevel";
+import { QUIZ_DATA } from "@/lib/quizData";
+import QuizModal from "@/components/QuizModal";
 
 const CATEGORY_LEVEL: Record<string, UserLevel> = {
   basics:      "basico",
@@ -336,9 +338,10 @@ export default function LearnPage() {
 
   const [search, setSearch] = useState("");
   const [selectedCat, setSelectedCat] = useState("all");
-  const [modal, setModal] = useState<{ title: string; emoji: string } | null>(null);
+  const [modal, setModal] = useState<{ title: string; emoji: string; topicId?: string } | null>(null);
   const [content, setContent] = useState("");
   const [streaming, setStreaming] = useState(false);
+  const [quizModal, setQuizModal] = useState<{ topicId: string; title: string; emoji: string } | null>(null);
 
   useEffect(() => { initStreak(); }, []);
 
@@ -365,11 +368,15 @@ export default function LearnPage() {
   const [objectivesOpen, setObjectivesOpen] = useState(false);
 
   const openTopic = async (title: string, _prompt: string, emoji = "📚", topicId?: string) => {
-    setModal({ title, emoji });
+    setModal({ title, emoji, topicId });
     setContent("");
     setStreaming(true);
-    markTopicCompleted();
-    if (topicId) markTopicId(topicId);
+    // Only mark completed immediately for topics without quiz data
+    const hasQuiz = topicId && !!QUIZ_DATA[topicId] && !completedTopicIds.includes(topicId);
+    if (!hasQuiz) {
+      markTopicCompleted();
+      if (topicId) markTopicId(topicId);
+    }
     // Prompt flashcard: breve, estructurado, ~70 palabras → respuesta en <3 seg
     const flashcard = `Eres un mentor de finanzas. Explica "${title}" en formato FLASHCARD — exactamente esta estructura, máximo 70 palabras en total, en español:
 
@@ -704,7 +711,14 @@ export default function LearnPage() {
                 <span className="text-2xl">{modal.emoji}</span>
                 <span className="font-extrabold text-base" style={{ color: "var(--text)" }}>{modal.title}</span>
               </div>
-              <button onClick={() => setModal(null)} style={{ color: "var(--muted)" }}>
+              <button onClick={() => {
+                // Close without quiz: mark completed if topic has no quiz
+                if (modal?.topicId && !QUIZ_DATA[modal.topicId]) {
+                  markTopicCompleted();
+                  markTopicId(modal.topicId);
+                }
+                setModal(null);
+              }} style={{ color: "var(--muted)" }}>
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -728,11 +742,25 @@ export default function LearnPage() {
             {/* Action */}
             {!streaming && content && (
               <div className="px-5 pb-5">
-                <button onClick={() => setModal(null)}
-                        className="w-full py-2.5 rounded-2xl text-sm font-bold text-white"
-                        style={{ background: "var(--grad-green)" }}>
-                  Entendido ✓
-                </button>
+                {modal?.topicId && QUIZ_DATA[modal.topicId] && !completedTopicIds.includes(modal.topicId) ? (
+                  <button
+                    onClick={() => {
+                      const m = modal;
+                      setModal(null);
+                      if (m?.topicId) setQuizModal({ topicId: m.topicId, title: m.title, emoji: m.emoji });
+                    }}
+                    className="w-full py-2.5 rounded-2xl text-sm font-bold text-white"
+                    style={{ background: "var(--grad-green)" }}
+                  >
+                    ¿Entendido? — Haz el quiz →
+                  </button>
+                ) : (
+                  <button onClick={() => setModal(null)}
+                          className="w-full py-2.5 rounded-2xl text-sm font-bold text-white"
+                          style={{ background: "var(--grad-green)" }}>
+                    Entendido ✓
+                  </button>
+                )}
               </div>
             )}
           </div>
@@ -750,6 +778,21 @@ export default function LearnPage() {
         @keyframes milestone-pop { from { opacity:0; transform:scale(0.8); } to { opacity:1; transform:scale(1); } }
         @keyframes milestone-pulse { 0%,100% { transform:scale(1); } 50% { transform:scale(1.08); } }
       `}</style>
+
+      {/* ── Quiz Modal ─────────────────────────────────────────────────────── */}
+      {quizModal && (
+        <QuizModal
+          topicId={quizModal.topicId}
+          topicTitle={quizModal.title}
+          topicEmoji={quizModal.emoji}
+          onPass={() => {
+            markTopicCompleted();
+            markTopicId(quizModal.topicId);
+            setQuizModal(null);
+          }}
+          onClose={() => setQuizModal(null)}
+        />
+      )}
 
       {/* ── Streak Milestone Celebration Modal ─────────────────────────────── */}
       {pendingMilestone && (
