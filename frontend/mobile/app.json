@@ -27,7 +27,7 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#0f1117"
+        "backgroundColor": "#3db54a"
       },
       "package": "com.nuvosai.app"
     },

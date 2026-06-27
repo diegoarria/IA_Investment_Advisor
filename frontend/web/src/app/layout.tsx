@@ -22,8 +22,12 @@ export const metadata: Metadata = {
   title: "Nuvos AI — Tu mentor de inversiones",
   description: "Aprende a pensar como un inversor profesional",
   icons: {
-    icon: "/logo.png",
+    icon: [
+      { url: "/favicon.ico", sizes: "32x32" },
+      { url: "/favicon-192.png", sizes: "192x192" },
+    ],
     apple: "/logo.png",
+    shortcut: "/favicon.ico",
   },
 };
 
