@@ -191,8 +191,8 @@ async def get_status(user_id: str = Depends(get_current_user_id)):
     trial_started   = data.get("trial_started_at")
     has_stripe      = bool(data.get("stripe_customer_id"))
 
-    # Auto-start 90-day promo for any user who hasn't paid and hasn't started a trial yet
-    if tier != "premium" and not trial_started and not has_stripe:
+    # Auto-start 90-day promo for any non-premium user who hasn't started a trial yet
+    if tier != "premium" and not trial_started:
         trial_started = datetime.now(timezone.utc).isoformat()
         await run_query(
             db.table("user_profiles")
