@@ -2,7 +2,6 @@ import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { billingApi } from "./api";
-import { identifyUser, getCustomerInfo, isPremium as rcIsPremium } from "./purchases";
 
 export type SubscriptionTier = "free" | "premium";
 
@@ -37,18 +36,9 @@ export const useSubscriptionStore = create<SubscriptionStore>()(
 
       fetchStatus: async () => {
         try {
-          // Check RevenueCat first — source of truth for IAP on iOS (stub until fiscal docs ready)
-          const customerInfo = await getCustomerInfo();
-          const rcPremium = customerInfo ? rcIsPremium(customerInfo) : false;
-
           const res = await billingApi.getStatus();
-          const backendTier = res.data.tier ?? "free";
-
-          // RevenueCat premium overrides backend if it says premium
-          const effectiveTier = (rcPremium || backendTier === "premium") ? "premium" : "free";
-
           set({
-            tier:                effectiveTier,
+            tier:                res.data.tier ?? "free",
             msgCount:            res.data.msg_count ?? 0,
             msgWindowStart:      res.data.msg_window_start ?? null,
             isTrialPremium:      res.data.is_trial ?? false,

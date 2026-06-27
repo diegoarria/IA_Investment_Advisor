@@ -22,10 +22,6 @@ import Sidebar from "../src/components/Sidebar";
 import { useSubscriptionStore, isTrialActive, hasPremiumAccess } from "../src/lib/subscriptionStore";
 import PaywallModal from "../src/components/PaywallModal";
 import * as Notifications from "expo-notifications";
-import { initRevenueCat } from "../src/lib/purchases";
-
-// Initialize RevenueCat as early as possible
-initRevenueCat();
 
 const HIDE_SIDEBAR_ROUTES = ["/", "/onboarding"];
 

@@ -1,13 +1,13 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import {
   View, Text, TouchableOpacity, Modal, StyleSheet,
-  ActivityIndicator, Alert, ScrollView,
+  ActivityIndicator, Linking, ScrollView,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
+import { billingApi } from "../lib/api";
 import { useSubscriptionStore } from "../lib/subscriptionStore";
 import { useTheme } from "../lib/ThemeContext";
-import { getOfferings, purchasePackage, restorePurchases } from "../lib/purchases";
 
 const PLANS = [
   {
@@ -52,7 +52,7 @@ const ALL_FEATURES = [
 ];
 
 const AVATAR_COLORS = ["#8b5cf6", "#3b82f6", "#f59e0b", "#ef4444", "#22c55e"];
-const TRUST_ITEMS  = ["Cancela cuando quieras", "Pago seguro con Apple", "1 mes gratis"];
+const TRUST_ITEMS  = ["Cancela cuando quieras", "Pago seguro con Stripe", "7 días gratis"];
 
 interface Props { visible: boolean; onClose: () => void; reason?: string }
 
@@ -62,41 +62,19 @@ export default function PaywallModal({ visible, onClose, reason }: Props) {
   const [plan, setPlan]         = useState<"monthly" | "yearly">("yearly");
   const [showAll, setShowAll]   = useState(false);
   const [expanded, setExpanded] = useState<string | null>(null);
-  const [loading, setLoading]   = useState(false);
-  const [error, setError]       = useState("");
-  const [monthlyPkg, setMonthlyPkg] = useState<any>(null);
-  const [yearlyPkg,  setYearlyPkg]  = useState<any>(null);
-
-  useEffect(() => {
-    if (!visible) return;
-    getOfferings().then((offering) => {
-      if (!offering) return;
-      setMonthlyPkg((offering as any).monthly ?? null);
-      setYearlyPkg((offering as any).annual  ?? null);
-    });
-  }, [visible]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError]     = useState("");
 
   const active = PLANS.find((p) => p.key === plan)!;
 
   const handleUpgrade = async () => {
-    const pkg = plan === "monthly" ? monthlyPkg : yearlyPkg;
-    if (!pkg) { setError("Productos no disponibles. Intenta de nuevo."); return; }
     setLoading(true); setError("");
     try {
-      const ok = await purchasePackage(pkg);
-      if (ok) { await fetchStatus(); onClose(); }
-    } catch (e: any) {
-      if (!e?.userCancelled) setError(e?.message ?? "No se pudo completar la compra.");
-    }
-    setLoading(false);
-  };
-
-  const handleRestore = async () => {
-    setLoading(true);
-    const ok = await restorePurchases();
-    if (ok) { await fetchStatus(); onClose(); }
-    else Alert.alert("Sin compras", "No encontramos compras anteriores para restaurar.");
-    setLoading(false);
+      const res = await billingApi.createCheckout(plan);
+      await Linking.openURL(res.data.url);
+      setTimeout(fetchStatus, 3000);
+    } catch { setError("No se pudo abrir el pago. Intenta de nuevo."); }
+    finally   { setLoading(false); }
   };
 
   return (
@@ -273,15 +251,10 @@ export default function PaywallModal({ visible, onClose, reason }: Props) {
               ))}
             </View>
 
-            {/* Restaurar compras — requerido por Apple */}
-            <TouchableOpacity onPress={handleRestore} style={{ alignItems: "center", paddingVertical: 10 }} activeOpacity={0.7}>
-              <Text style={{ fontSize: 11, color: colors.textMuted, textDecorationLine: "underline" }}>Restaurar compras anteriores</Text>
-            </TouchableOpacity>
-
             {/* 1:1 coaching link */}
             <TouchableOpacity
               style={[s.coachingRow, { borderTopColor: "rgba(0,212,126,0.12)" }]}
-              onPress={() => {}}
+              onPress={() => Linking.openURL("https://calendly.com/diego-arria19/sesion-1-1-con-diego-nuvos-ai")}
               activeOpacity={0.7}
             >
               <Text style={s.coachingEmoji}>📅</Text>
