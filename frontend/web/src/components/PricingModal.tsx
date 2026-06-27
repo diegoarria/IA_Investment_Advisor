@@ -15,18 +15,17 @@ const FREE_FEATURES = [
 
 const PREMIUM_FEATURES = [
   "Mensajes ilimitados con el mentor 24/7",
-  "Portafolio ilimitado + importar desde PDF",
-  "Earnings Calendar con análisis IA",
+  "Portafolio ilimitado — sin límite de acciones",
+  "Importar portafolio desde PDF o screenshot",
+  "Earnings Calendar con análisis IA por posición",
   "Stress Test con 5 escenarios históricos",
-  "Analiza tu portafolio con IA",
+  "Análisis IA profundo de tu portafolio",
   "Screener semanal: 5 oportunidades cada lunes",
   "Noticias de TU portafolio con resumen IA",
   "Reporte mensual de performance vs S&P 500",
   "Aprende con tu portafolio (lecciones contextuales)",
-  "Mentor proactivo — alertas personalizadas",
-  "Gráfico interactivo YTD + comparativa S&P",
+  "Mentor proactivo — alertas móviles personalizadas",
   "Evaluación conductual BSCORE",
-  "Emails semanales personalizados",
 ];
 
 interface Props {

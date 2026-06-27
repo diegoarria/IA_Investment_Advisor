@@ -26,27 +26,26 @@ const PLANS = [
 ];
 
 const HERO_FEATURES = [
-  { icon: Brain,      text: "Mensajes ilimitados con tu mentor 24/7" },
-  { icon: BarChart2,  text: "Análisis IA profundo de portafolio + Stress test" },
-  { icon: TrendingUp, text: "Screener semanal: 5 oportunidades cada lunes" },
-  { icon: Shield,     text: "Importa desde PDF, screenshot o broker conectado" },
-  { icon: Zap,        text: "Resumen IA de noticias + reporte mensual de performance" },
+  { icon: Brain,      text: "Mensajes ilimitados con el mentor 24/7" },
+  { icon: BarChart2,  text: "Portafolio ilimitado — sin límite de acciones" },
+  { icon: TrendingUp, text: "Earnings Calendar con análisis IA por posición" },
+  { icon: Shield,     text: "Importar portafolio desde PDF o screenshot" },
+  { icon: Zap,        text: "Screener semanal: 5 oportunidades cada lunes" },
 ];
 
 const ALL_FEATURES = [
-  { text: "Mensajes ilimitados con el mentor", detail: "Sin límite de 20 mensajes al día. Habla con tu mentor cuando quieras, sin restricciones." },
-  { text: "Watchlist ilimitada", detail: "En el plan gratuito puedes seguir hasta 25 acciones. Premium elimina ese límite — sigue todas las empresas que quieras." },
-  { text: "Análisis IA profundo del portafolio", detail: "Fortalezas, debilidades y sugerencias concretas sobre tu portafolio generadas por IA. Incluye distribución por sector y score de riesgo 0-100." },
-  { text: "Stress test con 5 escenarios históricos", detail: "Simula cómo hubiera reaccionado tu portafolio en Crisis 2008, COVID-19, Tech Crash 2022, subida de tasas Fed y Bull Market." },
-  { text: "Gráfico interactivo + comparativa vs S&P 500", detail: "Evolución de tu portafolio desde 1D hasta MÁX, comparada con el índice de referencia. Visualiza en qué períodos ganaste o perdiste contra el mercado." },
-  { text: "Screener semanal personalizado", detail: "Cada lunes la IA selecciona 5 oportunidades con catalizador, score 0-100, análisis de riesgo y nota de tu mentor. Basado en tu perfil real." },
+  { text: "Mensajes ilimitados con el mentor 24/7", detail: "Sin límite de 20 mensajes al día. Habla con tu mentor cuando quieras, sin restricciones." },
+  { text: "Portafolio ilimitado — sin límite de acciones", detail: "En el plan gratuito puedes agregar hasta 10 acciones. Premium elimina ese límite completamente." },
   { text: "Importar portafolio desde PDF o screenshot", detail: "Sube tu estado de cuenta y la IA extrae tickers, cantidades y precios promedio automáticamente. Sin entrada manual." },
-  { text: "Conectar broker (Plaid, IOL, Fidelity, Schwab)", detail: "Sincroniza tu portafolio real automáticamente desde tu bróker. Sin errores manuales, siempre actualizado." },
-  { text: "Resumen IA de noticias", detail: "Cada noticia de tus posiciones viene con un resumen generado por IA. Lee el punto clave en segundos, no el artículo completo." },
-  { text: "Reporte mensual de performance", detail: "Al cierre de cada mes: retorno real, comparativa vs S&P 500, posiciones más rentables y nota personalizada de tu mentor." },
+  { text: "Earnings Calendar con análisis IA por posición", detail: "Ve las fechas de resultados de todas tus posiciones y obtén análisis IA de qué esperar antes de que reporten." },
+  { text: "Stress Test con 5 escenarios históricos", detail: "Simula cómo hubiera reaccionado tu portafolio en Crisis 2008, COVID-19, Tech Crash 2022, subida de tasas Fed y Bull Market." },
+  { text: "Análisis IA profundo de tu portafolio", detail: "Fortalezas, debilidades y sugerencias concretas sobre tu portafolio generadas por IA. Incluye distribución por sector y score de riesgo 0-100." },
+  { text: "Screener semanal: 5 oportunidades cada lunes", detail: "Cada lunes la IA selecciona 5 oportunidades con catalizador, score 0-100, análisis de riesgo y nota de tu mentor. Basado en tu perfil real." },
+  { text: "Noticias de TU portafolio con resumen IA", detail: "Cada noticia de tus posiciones viene con un resumen generado por IA. Lee el punto clave en segundos, no el artículo completo." },
+  { text: "Reporte mensual de performance vs S&P 500", detail: "Al cierre de cada mes: retorno real, comparativa vs S&P 500, posiciones más rentables y nota personalizada de tu mentor." },
+  { text: "Aprende con tu portafolio (lecciones contextuales)", detail: "La app detecta qué empresas tienes en cartera y te sugiere lecciones relevantes justo antes de que reporten resultados." },
+  { text: "Mentor proactivo — alertas móviles personalizadas", detail: "Recibe notificaciones cuando tu portafolio diverge del mercado, cuando hay earnings próximos o cuando tu sector se concentra demasiado." },
   { text: "Evaluación conductual BSCORE", detail: "La IA analiza tu perfil inversor y conversaciones para medir tu madurez como inversor con sugerencias concretas de mejora." },
-  { text: "Cambiar moneda del portafolio", detail: "Ve tu portafolio en USD, MXN, EUR u otras monedas. Útil si tu capital está en una moneda diferente a USD." },
-  { text: "Emails semanales personalizados", detail: "Cada viernes recibes un resumen del mercado adaptado a tu perfil, tus conversaciones y el estado de tu portafolio." },
 ];
 
 interface PaywallModalProps {
