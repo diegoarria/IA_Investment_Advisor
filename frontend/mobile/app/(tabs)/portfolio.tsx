@@ -2100,75 +2100,114 @@ export default function PortfolioScreen() {
                 </View>
                 <Text style={[s.simSubtitle, { color: "#6b7280" }]}>
                   ¿Cuánto aguantaría tu portafolio en una crisis histórica?
-                  {!isPremiumAccess && (
-                    <Text style={{ color: "#4b5563" }}> COVID-19 gratis · el resto con Premium.</Text>
-                  )}
                 </Text>
               </View>
             </View>
 
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }} contentContainerStyle={{ gap: 8 }}>
-              {STRESS_SCENARIOS.map((sc) => {
-                const isFreeScenario = sc.id === "covid";
-                const canRun = isPremiumAccess || isFreeScenario;
-                return (
-                  <TouchableOpacity
-                    key={sc.id}
-                    style={[s.stressChip, { borderColor: stressScenario === sc.id ? sc.color : "#1f2330", backgroundColor: stressScenario === sc.id ? sc.color + "18" : "transparent", opacity: canRun ? 1 : 0.45 }]}
-                    onPress={() => canRun ? runStressTest(sc.id) : setPaywallOpen(true)}
-                  >
-                    <Text style={s.stressChipIcon}>{sc.icon}</Text>
-                    <View>
-                      <Text style={[s.stressChipName, { color: stressScenario === sc.id ? sc.color : "#9ca3af" }]}>{sc.name}</Text>
-                      <Text style={[s.stressChipYear, { color: "#4b5563" }]}>
-                        {!isPremiumAccess && !isFreeScenario ? "🔒 " : ""}{sc.year}
-                      </Text>
-                    </View>
-                  </TouchableOpacity>
-                );
-              })}
-            </ScrollView>
-
-            {stressResult && stressScenario && (() => {
-              const sc = STRESS_SCENARIOS.find((x) => x.id === stressScenario)!;
-              return (
-                <View style={[s.stressResultCard, { backgroundColor: "#111318", borderColor: sc.color + "50" }]}>
-                  <Text style={[s.stressResultTitle, { color: "#fff" }]}>{sc.icon} {sc.name} — {sc.desc}</Text>
-
-                  <View style={[s.stressSummary, { backgroundColor: stressResult.diff >= 0 ? "#22c55e14" : "#ef444414" }]}>
-                    <Text style={[s.stressSummaryLabel, { color: "#6b7280" }]}>Impacto total estimado</Text>
-                    <Text style={[s.stressSummaryVal, { color: stressResult.diff >= 0 ? "#22c55e" : "#ef4444" }]}>
-                      {stressResult.diff >= 0 ? "+" : ""}{fmtMoney(Math.abs(stressResult.diff))} ({stressResult.pct >= 0 ? "+" : ""}{stressResult.pct.toFixed(1)}%)
-                    </Text>
-                    <Text style={{ color: "#4b5563", fontSize: 11, marginTop: 2 }}>
-                      {fmtMoney(stressResult.total)} → {fmtMoney(stressResult.stressed)}
-                    </Text>
-                  </View>
-
-                  {stressResult.rows.map((row) => (
-                    <View key={row.ticker} style={[s.stressRow, { borderTopColor: "#1f2330" }]}>
-                      <View style={{ flex: 1 }}>
-                        <Text style={[s.stressRowTicker, { color: "#fff" }]}>{row.ticker}</Text>
-                        <Text style={[s.stressRowSector, { color: "#4b5563" }]}>{row.sector}</Text>
+            <View style={{ position: "relative" }}>
+              {/* Content — blurred for free users */}
+              <View style={!isPremiumAccess ? { opacity: 0.4 } : undefined} pointerEvents={!isPremiumAccess ? "none" : "auto"}>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }} contentContainerStyle={{ gap: 8 }}>
+                  {STRESS_SCENARIOS.map((sc) => (
+                    <TouchableOpacity
+                      key={sc.id}
+                      style={[s.stressChip, { borderColor: stressScenario === sc.id ? sc.color : "#1f2330", backgroundColor: stressScenario === sc.id ? sc.color + "18" : "transparent" }]}
+                      onPress={() => runStressTest(sc.id)}
+                    >
+                      <Text style={s.stressChipIcon}>{sc.icon}</Text>
+                      <View>
+                        <Text style={[s.stressChipName, { color: stressScenario === sc.id ? sc.color : "#9ca3af" }]}>{sc.name}</Text>
+                        <Text style={[s.stressChipYear, { color: "#4b5563" }]}>{sc.year}</Text>
                       </View>
-                      <View style={{ alignItems: "flex-end" }}>
-                        <Text style={[s.stressRowPct, { color: row.pct >= 0 ? "#22c55e" : "#ef4444" }]}>
-                          {row.pct >= 0 ? "+" : ""}{row.pct.toFixed(0)}%
-                        </Text>
-                        <Text style={[s.stressRowDiff, { color: row.diff >= 0 ? "#22c55e" : "#ef4444" }]}>
-                          {row.diff >= 0 ? "+" : ""}{fmtMoney(Math.abs(row.diff))}
-                        </Text>
-                      </View>
-                    </View>
+                    </TouchableOpacity>
                   ))}
+                </ScrollView>
 
-                  <View style={s.disclaimer}>
-                    <Ionicons name="warning-outline" size={12} color="#ca8a04" />
-                    <Text style={s.disclaimerText}>Estimación basada en datos históricos. No garantiza resultados futuros.</Text>
+                {/* Fake blurred result for free users */}
+                {!isPremiumAccess && (
+                  <View style={[s.stressResultCard, { backgroundColor: "#111318", borderColor: "#ef444450" }]}>
+                    <Text style={[s.stressResultTitle, { color: "#fff" }]}>💥 Crisis 2008 — Caída hipotecaria</Text>
+                    <View style={[s.stressSummary, { backgroundColor: "#ef444414" }]}>
+                      <Text style={[s.stressSummaryLabel, { color: "#6b7280" }]}>Impacto total estimado</Text>
+                      <Text style={[s.stressSummaryVal, { color: "#ef4444" }]}>-$XX,XXX (-XX.X%)</Text>
+                      <Text style={{ color: "#4b5563", fontSize: 11, marginTop: 2 }}>$XX,XXX → $XX,XXX</Text>
+                    </View>
+                    {["AAPL", "MSFT", "GOOGL"].map((t) => (
+                      <View key={t} style={[s.stressRow, { borderTopColor: "#1f2330" }]}>
+                        <View style={{ flex: 1 }}>
+                          <Text style={[s.stressRowTicker, { color: "#fff" }]}>{t}</Text>
+                          <Text style={[s.stressRowSector, { color: "#4b5563" }]}>Tecnología</Text>
+                        </View>
+                        <View style={{ alignItems: "flex-end" }}>
+                          <Text style={[s.stressRowPct, { color: "#ef4444" }]}>-XX%</Text>
+                          <Text style={[s.stressRowDiff, { color: "#ef4444" }]}>-$X,XXX</Text>
+                        </View>
+                      </View>
+                    ))}
                   </View>
+                )}
+
+                {isPremiumAccess && stressResult && stressScenario && (() => {
+                  const sc = STRESS_SCENARIOS.find((x) => x.id === stressScenario)!;
+                  return (
+                    <View style={[s.stressResultCard, { backgroundColor: "#111318", borderColor: sc.color + "50" }]}>
+                      <Text style={[s.stressResultTitle, { color: "#fff" }]}>{sc.icon} {sc.name} — {sc.desc}</Text>
+                      <View style={[s.stressSummary, { backgroundColor: stressResult.diff >= 0 ? "#22c55e14" : "#ef444414" }]}>
+                        <Text style={[s.stressSummaryLabel, { color: "#6b7280" }]}>Impacto total estimado</Text>
+                        <Text style={[s.stressSummaryVal, { color: stressResult.diff >= 0 ? "#22c55e" : "#ef4444" }]}>
+                          {stressResult.diff >= 0 ? "+" : ""}{fmtMoney(Math.abs(stressResult.diff))} ({stressResult.pct >= 0 ? "+" : ""}{stressResult.pct.toFixed(1)}%)
+                        </Text>
+                        <Text style={{ color: "#4b5563", fontSize: 11, marginTop: 2 }}>
+                          {fmtMoney(stressResult.total)} → {fmtMoney(stressResult.stressed)}
+                        </Text>
+                      </View>
+                      {stressResult.rows.map((row) => (
+                        <View key={row.ticker} style={[s.stressRow, { borderTopColor: "#1f2330" }]}>
+                          <View style={{ flex: 1 }}>
+                            <Text style={[s.stressRowTicker, { color: "#fff" }]}>{row.ticker}</Text>
+                            <Text style={[s.stressRowSector, { color: "#4b5563" }]}>{row.sector}</Text>
+                          </View>
+                          <View style={{ alignItems: "flex-end" }}>
+                            <Text style={[s.stressRowPct, { color: row.pct >= 0 ? "#22c55e" : "#ef4444" }]}>
+                              {row.pct >= 0 ? "+" : ""}{row.pct.toFixed(0)}%
+                            </Text>
+                            <Text style={[s.stressRowDiff, { color: row.diff >= 0 ? "#22c55e" : "#ef4444" }]}>
+                              {row.diff >= 0 ? "+" : ""}{fmtMoney(Math.abs(row.diff))}
+                            </Text>
+                          </View>
+                        </View>
+                      ))}
+                      <View style={s.disclaimer}>
+                        <Ionicons name="warning-outline" size={12} color="#ca8a04" />
+                        <Text style={s.disclaimerText}>Estimación basada en datos históricos. No garantiza resultados futuros.</Text>
+                      </View>
+                    </View>
+                  );
+                })()}
+              </View>
+
+              {/* Paywall overlay for free users */}
+              {!isPremiumAccess && (
+                <View style={{
+                  position: "absolute", top: 0, left: 0, right: 0, bottom: 0,
+                  backgroundColor: "rgba(0,0,0,0.55)", borderRadius: 18,
+                  alignItems: "center", justifyContent: "center", gap: 10, padding: 20,
+                }}>
+                  <Text style={{ fontSize: 32 }}>🛡️</Text>
+                  <Text style={{ fontSize: 15, fontWeight: "900", color: "#fff", textAlign: "center" }}>Desbloquea el Stress Test</Text>
+                  <Text style={{ fontSize: 12, color: "rgba(255,255,255,0.65)", textAlign: "center" }}>
+                    Simula crisis históricas y ve el impacto real en tu portafolio
+                  </Text>
+                  <TouchableOpacity
+                    onPress={() => setPaywallOpen(true)}
+                    style={{ paddingHorizontal: 22, paddingVertical: 11, borderRadius: 18, backgroundColor: "#f59e0b", marginTop: 4 }}
+                    activeOpacity={0.85}
+                  >
+                    <Text style={{ fontSize: 13, fontWeight: "900", color: "#000" }}>Ir a Premium</Text>
+                  </TouchableOpacity>
                 </View>
-              );
-            })()}
+              )}
+            </View>
           </>
         )}
 
@@ -2257,15 +2296,33 @@ export default function PortfolioScreen() {
         <View style={s.simHeader}>
           <Ionicons name="sparkles-outline" size={20} color="#22c55e" />
           <View style={{ flex: 1 }}>
-            <Text style={[s.sectionTitle, { marginBottom: 2 }]}>Analiza tu Portafolio</Text>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 2 }}>
+              <Text style={s.sectionTitle}>Analiza tu Portafolio</Text>
+              {!isPremiumAccess && (
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 3, backgroundColor: "#f59e0b18", borderWidth: 1, borderColor: "#f59e0b40", borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 }}>
+                  <Ionicons name="star" size={9} color="#f59e0b" />
+                  <Text style={{ fontSize: 9, fontWeight: "700", color: "#f59e0b", letterSpacing: 0.3 }}>PREMIUM</Text>
+                </View>
+              )}
+            </View>
             <Text style={[s.simSubtitle, { color: "#6b7280" }]}>
               IA evalúa tus {positions.length} posiciones y da una calificación detallada
             </Text>
           </View>
         </View>
-        {/* ── DIAGNÓSTICO DE RIESGO ── */}
         {/* Analyze button */}
-        {positions.length > 0 ? (
+        {!isPremiumAccess ? (
+          <TouchableOpacity
+            style={[s.simBtn, { backgroundColor: "rgba(245,158,11,0.1)", borderWidth: 1, borderColor: "rgba(245,158,11,0.35)" }]}
+            onPress={() => setPaywallOpen(true)}
+            activeOpacity={0.85}
+          >
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+              <Text style={{ fontSize: 15 }}>🔒</Text>
+              <Text style={[s.simBtnText, { color: "#f59e0b" }]}>Desbloquear análisis con IA</Text>
+            </View>
+          </TouchableOpacity>
+        ) : positions.length > 0 ? (
           <TouchableOpacity
             style={[s.simBtn, analysisLoading && s.btnDisabled]}
             onPress={runPortfolioAnalysis}

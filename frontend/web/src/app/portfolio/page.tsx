@@ -2223,67 +2223,112 @@ export default function PortfolioPage() {
             <section>
               <div className="flex items-center gap-2 mb-3">
                 <Shield className="w-5 h-5 text-[#ef4444] shrink-0" />
-                <div>
-                  <h3 className="text-sm font-extrabold" style={{ color:"var(--text)" }}>Stress Test de Portafolio</h3>
+                <div className="flex-1">
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-sm font-extrabold" style={{ color:"var(--text)" }}>Stress Test de Portafolio</h3>
+                    {!isPremium && <span className="text-xs px-1.5 py-0.5 rounded-md font-bold" style={{ background:"rgba(245,158,11,0.15)", color:"#f59e0b" }}>Premium</span>}
+                  </div>
                   <p className="text-xs" style={{ color:"var(--muted)" }}>¿Cuánto aguantaría tu portafolio en una crisis?</p>
                 </div>
               </div>
-              <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-none">
-                {STRESS_SCENARIOS.map((sc) => (
-                  <button key={sc.id}
-                          onClick={() => runStressTest(sc.id)}
-                          className="flex items-center gap-2 px-3 py-2.5 rounded-xl border shrink-0 transition-all"
-                          style={{
-                            borderColor: stressScenario===sc.id ? sc.color : "var(--border)",
-                            background: stressScenario===sc.id ? sc.color+"18" : "var(--card)",
-                          }}>
-                    <span>{sc.icon}</span>
-                    <div className="text-left">
-                      <p className="text-xs font-bold" style={{ color:stressScenario===sc.id?sc.color:"var(--sub)" }}>{sc.name}</p>
-                      <p className="text-[10px]" style={{ color:"var(--dim)" }}>{sc.year}</p>
-                    </div>
-                  </button>
-                ))}
-              </div>
-              {stressResult && stressScenario && (() => {
-                const sc = STRESS_SCENARIOS.find((x) => x.id===stressScenario)!;
-                return (
-                  <div className="rounded-2xl border p-4 mt-3" style={{ borderColor:sc.color+"50", background:"var(--card)" }}>
-                    <p className="text-sm font-bold mb-3" style={{ color:"var(--text)" }}>{sc.icon} {sc.name} — {sc.desc}</p>
-                    <div className="rounded-xl p-3 mb-3" style={{ background:stressResult.diff>=0?"rgba(34,197,94,0.08)":"rgba(239,68,68,0.08)" }}>
-                      <p className="text-xs mb-1" style={{ color:"var(--muted)" }}>Impacto total estimado</p>
-                      <p className="text-2xl font-black" style={{ color:stressResult.diff>=0?"#22c55e":"#ef4444" }}>
-                        {stressResult.diff>=0?"+":""}{fmtMoney(Math.abs(stressResult.diff))} ({stressResult.pct>=0?"+":""}{stressResult.pct.toFixed(1)}%)
-                      </p>
-                      <p className="text-xs mt-1" style={{ color:"var(--dim)" }}>
-                        {fmtMoney(stressResult.total)} → {fmtMoney(stressResult.stressed)}
-                      </p>
-                    </div>
-                    {stressResult.rows.map((row) => (
-                      <div key={row.ticker} className="flex items-center justify-between py-2.5 border-t"
-                           style={{ borderColor:"var(--border)" }}>
-                        <div>
-                          <p className="text-sm font-extrabold" style={{ color:"var(--text)" }}>{row.ticker}</p>
-                          <p className="text-xs" style={{ color:"var(--dim)" }}>{row.sector}</p>
+              {/* Scenarios — always visible, blurred for free */}
+              <div className="relative">
+                <div className={!isPremium ? "pointer-events-none select-none" : ""} style={!isPremium ? { filter:"blur(3px)", opacity:0.6 } : {}}>
+                  <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-none">
+                    {STRESS_SCENARIOS.map((sc) => (
+                      <button key={sc.id}
+                              onClick={() => runStressTest(sc.id)}
+                              className="flex items-center gap-2 px-3 py-2.5 rounded-xl border shrink-0 transition-all"
+                              style={{
+                                borderColor: stressScenario===sc.id ? sc.color : "var(--border)",
+                                background: stressScenario===sc.id ? sc.color+"18" : "var(--card)",
+                              }}>
+                        <span>{sc.icon}</span>
+                        <div className="text-left">
+                          <p className="text-xs font-bold" style={{ color:stressScenario===sc.id?sc.color:"var(--sub)" }}>{sc.name}</p>
+                          <p className="text-[10px]" style={{ color:"var(--dim)" }}>{sc.year}</p>
                         </div>
-                        <div className="text-right">
-                          <p className="text-sm font-extrabold" style={{ color:row.pct>=0?"#22c55e":"#ef4444" }}>
-                            {row.pct>=0?"+":""}{row.pct.toFixed(0)}%
+                      </button>
+                    ))}
+                  </div>
+                  {/* Fake blurred result */}
+                  {!isPremium && (
+                    <div className="rounded-2xl border p-4 mt-3" style={{ borderColor:"rgba(239,68,68,0.3)", background:"var(--card)" }}>
+                      <p className="text-sm font-bold mb-3" style={{ color:"var(--text)" }}>💥 Crisis 2008 — Caída del mercado hipotecario</p>
+                      <div className="rounded-xl p-3 mb-3" style={{ background:"rgba(239,68,68,0.08)" }}>
+                        <p className="text-xs mb-1" style={{ color:"var(--muted)" }}>Impacto total estimado</p>
+                        <p className="text-2xl font-black" style={{ color:"#ef4444" }}>-$XX,XXX (-XX.X%)</p>
+                        <p className="text-xs mt-1" style={{ color:"var(--dim)" }}>$XX,XXX → $XX,XXX</p>
+                      </div>
+                      {["AAPL","MSFT","GOOGL"].map((t) => (
+                        <div key={t} className="flex items-center justify-between py-2.5 border-t" style={{ borderColor:"var(--border)" }}>
+                          <div>
+                            <p className="text-sm font-extrabold" style={{ color:"var(--text)" }}>{t}</p>
+                            <p className="text-xs" style={{ color:"var(--dim)" }}>Tecnología</p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-sm font-extrabold" style={{ color:"#ef4444" }}>-XX%</p>
+                            <p className="text-xs font-semibold" style={{ color:"#ef4444" }}>-$X,XXX</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {isPremium && stressResult && stressScenario && (() => {
+                    const sc = STRESS_SCENARIOS.find((x) => x.id===stressScenario)!;
+                    return (
+                      <div className="rounded-2xl border p-4 mt-3" style={{ borderColor:sc.color+"50", background:"var(--card)" }}>
+                        <p className="text-sm font-bold mb-3" style={{ color:"var(--text)" }}>{sc.icon} {sc.name} — {sc.desc}</p>
+                        <div className="rounded-xl p-3 mb-3" style={{ background:stressResult.diff>=0?"rgba(34,197,94,0.08)":"rgba(239,68,68,0.08)" }}>
+                          <p className="text-xs mb-1" style={{ color:"var(--muted)" }}>Impacto total estimado</p>
+                          <p className="text-2xl font-black" style={{ color:stressResult.diff>=0?"#22c55e":"#ef4444" }}>
+                            {stressResult.diff>=0?"+":""}{fmtMoney(Math.abs(stressResult.diff))} ({stressResult.pct>=0?"+":""}{stressResult.pct.toFixed(1)}%)
                           </p>
-                          <p className="text-xs font-semibold" style={{ color:row.diff>=0?"#22c55e":"#ef4444" }}>
-                            {row.diff>=0?"+":""}{fmtMoney(Math.abs(row.diff))}
+                          <p className="text-xs mt-1" style={{ color:"var(--dim)" }}>
+                            {fmtMoney(stressResult.total)} → {fmtMoney(stressResult.stressed)}
                           </p>
+                        </div>
+                        {stressResult.rows.map((row) => (
+                          <div key={row.ticker} className="flex items-center justify-between py-2.5 border-t"
+                               style={{ borderColor:"var(--border)" }}>
+                            <div>
+                              <p className="text-sm font-extrabold" style={{ color:"var(--text)" }}>{row.ticker}</p>
+                              <p className="text-xs" style={{ color:"var(--dim)" }}>{row.sector}</p>
+                            </div>
+                            <div className="text-right">
+                              <p className="text-sm font-extrabold" style={{ color:row.pct>=0?"#22c55e":"#ef4444" }}>
+                                {row.pct>=0?"+":""}{row.pct.toFixed(0)}%
+                              </p>
+                              <p className="text-xs font-semibold" style={{ color:row.diff>=0?"#22c55e":"#ef4444" }}>
+                                {row.diff>=0?"+":""}{fmtMoney(Math.abs(row.diff))}
+                              </p>
+                            </div>
+                          </div>
+                        ))}
+                        <div className="flex items-center gap-1.5 mt-3 px-3 py-2 rounded-lg"
+                             style={{ background:"rgba(234,179,8,0.08)", border:"1px solid rgba(234,179,8,0.25)" }}>
+                          <AlertTriangle className="w-3 h-3 text-yellow-600 shrink-0" />
+                          <p className="text-[11px] text-yellow-600">Estimación basada en datos históricos. No garantiza resultados futuros.</p>
                         </div>
                       </div>
-                    ))}
-                    <div className="flex items-center gap-1.5 mt-3 px-3 py-2 rounded-lg"
-                         style={{ background:"rgba(234,179,8,0.08)", border:"1px solid rgba(234,179,8,0.25)" }}>
-                      <AlertTriangle className="w-3 h-3 text-yellow-600 shrink-0" />
-                      <p className="text-[11px] text-yellow-600">Estimación basada en datos históricos. No garantiza resultados futuros.</p>
-                    </div>
+                    );
+                  })()}
+                </div>
+                {/* Paywall overlay for free users */}
+                {!isPremium && (
+                  <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 rounded-2xl"
+                       style={{ background:"rgba(0,0,0,0.45)", backdropFilter:"blur(2px)" }}>
+                    <span className="text-3xl">🛡️</span>
+                    <p className="text-sm font-extrabold text-white text-center px-4">Desbloquea el Stress Test</p>
+                    <p className="text-xs text-white/70 text-center px-6">Simula crisis históricas y ve el impacto real en tu portafolio</p>
+                    <button onClick={() => setPaywallOpen(true)}
+                            className="px-5 py-2 rounded-2xl text-sm font-black text-black"
+                            style={{ background:"#f59e0b" }}>
+                      Ir a Premium
+                    </button>
                   </div>
-                );
-              })()}
+                )}
+              </div>
             </section>
           )}
 
@@ -2291,8 +2336,11 @@ export default function PortfolioPage() {
           <section>
             <div className="flex items-center gap-2 mb-3">
               <Sparkles className="w-5 h-5 shrink-0" style={{ color:"#22c55e" }} />
-              <div>
-                <h3 className="text-sm font-extrabold" style={{ color:"var(--text)" }}>Analiza tu Portafolio</h3>
+              <div className="flex-1">
+                <div className="flex items-center gap-2">
+                  <h3 className="text-sm font-extrabold" style={{ color:"var(--text)" }}>Analiza tu Portafolio</h3>
+                  {!isPremium && <span className="text-xs px-1.5 py-0.5 rounded-md font-bold" style={{ background:"rgba(245,158,11,0.15)", color:"#f59e0b" }}>Premium</span>}
+                </div>
                 <p className="text-xs" style={{ color:"var(--muted)" }}>
                   IA evalúa tus {positions.length} posiciones y te da una calificación detallada
                 </p>
@@ -2300,7 +2348,13 @@ export default function PortfolioPage() {
             </div>
 
             {/* Analyze button */}
-            {positions.length > 0 ? (
+            {!isPremium ? (
+              <button onClick={() => setPaywallOpen(true)}
+                      className="w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl font-bold text-sm transition-opacity"
+                      style={{ background:"rgba(245,158,11,0.12)", border:"1px solid rgba(245,158,11,0.35)", color:"#f59e0b" }}>
+                🔒 Desbloquear análisis con IA
+              </button>
+            ) : positions.length > 0 ? (
               <button onClick={runPortfolioAnalysis} disabled={analysisLoading}
                       className="w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl text-white font-bold text-sm disabled:opacity-40 transition-opacity"
                       style={{ background:"var(--accent)" }}>
