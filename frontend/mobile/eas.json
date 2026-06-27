@@ -6,16 +6,19 @@
   "build": {
     "development": {
       "developmentClient": true,
-      "distribution": "internal"
+      "distribution": "internal",
+      "appRootDir": "frontend/mobile"
     },
     "preview": {
       "distribution": "internal",
+      "appRootDir": "frontend/mobile",
       "ios": {
         "simulator": false
       }
     },
     "production": {
       "autoIncrement": true,
+      "appRootDir": "frontend/mobile",
       "ios": {
         "buildConfiguration": "Release"
       },
