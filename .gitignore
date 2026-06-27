@@ -29,3 +29,16 @@ npm-debug.log*
 # IDE
 .vscode/
 .idea/
+
+# Next.js build output
+frontend/web/.next/
+frontend/web/tsconfig.tsbuildinfo
+
+# Claude Code internal
+.claude/worktrees/
+
+# Loose files
+*.jpg
+*.png
+package-lock.json
+package.json
