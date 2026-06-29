@@ -37,7 +37,7 @@ interface PortfolioStore {
   setCurrency: (currency: string) => void;
   addPosition: (p: Omit<Position, "id">) => void;
   removePosition: (id: string) => void;
-  updatePosition: (id: string, updates: { shares?: number; avgPrice?: number; purchaseDate?: string }) => void;
+  updatePosition: (id: string, updates: { shares?: number; avgPrice?: number; purchaseDate?: string }) => Promise<void>;
   setPositions: (positions: Omit<Position, "id">[]) => void;
   clearPortfolio: () => void;
   retrySync: () => void;
@@ -56,17 +56,36 @@ const DEFAULT_PORTFOLIO: Portfolio = { id: "default", name: "Mi portafolio", pos
 export const usePortfolioStore = create<PortfolioStore>()(
   persist(
     (set, get) => {
-      /** Push active portfolio to server */
-      const push = (positions: Position[], currency: string, portfolioId: string, portfolioName: string) => {
+      /** Push active portfolio to server — returns Promise so callers can await completion */
+      const push = (positions: Position[], currency: string, portfolioId: string, portfolioName: string): Promise<void> => {
         set({ syncStatus: "syncing", pendingSync: true });
-        import("./api").then(({ sync }) => {
-          sync.pushPortfolio(positions, currency, portfolioId, portfolioName)
-            .then(() => {
-              set({ syncStatus: "saved", lastSaved: new Date().toISOString(), pendingSync: false });
-              setTimeout(() => { if (get().syncStatus === "saved") set({ syncStatus: "idle" }); }, 4000);
-            })
-            .catch(() => { set({ syncStatus: "error" }); });
-        });
+        const BASE_URL =
+          process.env.NEXT_PUBLIC_API_URL ||
+          "https://iainvestmentadvisor-production.up.railway.app";
+        const token = typeof localStorage !== "undefined" ? localStorage.getItem("access_token") : null;
+        return fetch(`${BASE_URL}/api/sync/portfolio`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({
+            positions,
+            currency,
+            portfolio_id: portfolioId,
+            portfolio_name: portfolioName,
+          }),
+          keepalive: true,
+        })
+          .then((res) => {
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            set({ syncStatus: "saved", lastSaved: new Date().toISOString(), pendingSync: false });
+            setTimeout(() => { if (get().syncStatus === "saved") set({ syncStatus: "idle" }); }, 4000);
+          })
+          .catch((err) => {
+            set({ syncStatus: "error" });
+            throw err;
+          });
       };
 
       /** Get the active portfolio object */
@@ -75,8 +94,8 @@ export const usePortfolioStore = create<PortfolioStore>()(
         return portfolios.find(p => p.id === activePortfolioId) ?? portfolios[0] ?? DEFAULT_PORTFOLIO;
       };
 
-      /** Update positions in the active portfolio and sync */
-      const updateActive = (newPositions: Position[], newCurrency?: string) => {
+      /** Update positions in the active portfolio and sync — returns Promise for awaitable saves */
+      const updateActive = (newPositions: Position[], newCurrency?: string): Promise<void> => {
         const { portfolios, activePortfolioId } = get();
         const activeId = activePortfolioId || "default";
         const updated = portfolios.map(p =>
@@ -86,7 +105,7 @@ export const usePortfolioStore = create<PortfolioStore>()(
         );
         const active = updated.find(p => p.id === activeId) ?? updated[0] ?? DEFAULT_PORTFOLIO;
         set({ portfolios: updated, positions: active.positions, portfolioCurrency: active.currency });
-        push(active.positions, active.currency, active.id, active.name);
+        return push(active.positions, active.currency, active.id, active.name);
       };
 
       return {
@@ -118,7 +137,7 @@ export const usePortfolioStore = create<PortfolioStore>()(
 
         updatePosition: (id, updates) => {
           const active = getActive();
-          updateActive(active.positions.map(p => p.id === id ? { ...p, ...updates } : p));
+          return updateActive(active.positions.map(p => p.id === id ? { ...p, ...updates } : p));
         },
 
         setPositions: (list) => {

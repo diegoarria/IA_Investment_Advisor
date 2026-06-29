@@ -594,7 +594,7 @@ function PortfolioHistoryChart({
 
 export default function PortfolioPage() {
   const router = useRouter();
-  const { isAuthenticated } = useAuthStore();
+  const { isAuthenticated, userId } = useAuthStore();
   const [isTour, setIsTour] = useState(false);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { setIsTour(new URLSearchParams(window.location.search).get("tour") === "1"); }, []);
@@ -657,6 +657,8 @@ export default function PortfolioPage() {
   // Edit position modal
   const [editingPos, setEditingPos] = useState<{ id: string; shares: string; avgPrice: string; purchaseDate: string } | null>(null);
   const [editConfirm, setEditConfirm] = useState(false);
+  const [editSaving, setEditSaving] = useState(false);
+  const [editSaveError, setEditSaveError] = useState(false);
   const [revealedPrices, setRevealedPrices] = useState<Set<string>>(new Set());
 
   // Manual form
@@ -713,11 +715,24 @@ export default function PortfolioPage() {
     localStorage.setItem(STORAGE_KEY, String(Date.now()));
   }, []);
 
-  // Cargar portafolio del servidor al montar — garantiza sincronía entre dispositivos
+  // Cargar portafolio del servidor — pero NO sobreescribir si hay cambios locales pendientes
+  // Bug Safari: el store hidrata con key "guest" antes de que userId cargue, por lo que
+  // pendingSync en memoria siempre es false aunque haya cambios sin guardar. Verificamos
+  // la clave correcta de localStorage antes de hacer pull del servidor.
   useEffect(() => {
-    if (isAuthenticated) loadFromServer();
+    if (!isAuthenticated || !userId) return;
+    const storedKey = `portfolio-positions-web__${userId}`;
+    try {
+      const raw = localStorage.getItem(storedKey);
+      const stored = raw ? JSON.parse(raw) : null;
+      if (stored?.pendingSync) {
+        retrySync();
+        return;
+      }
+    } catch {}
+    loadFromServer();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAuthenticated]);
+  }, [isAuthenticated, userId]);
 
   // Retry automático si hay cambios locales sin confirmar (syncStatus error o pendingSync)
   useEffect(() => {
@@ -2900,22 +2915,36 @@ export default function PortfolioPage() {
                         Cancelar
                       </button>
                       <button
-                        onClick={() => {
+                        disabled={editSaving}
+                        onClick={async () => {
                           const shares = parseFloat(editingPos.shares);
                           const avgPrice = parseFloat(editingPos.avgPrice);
-                          updatePosition(editingPos.id, {
-                            shares,
-                            avgPrice: isNaN(avgPrice) ? 0 : avgPrice,
-                            purchaseDate: editingPos.purchaseDate,
-                          });
-                          setEditingPos(null);
-                          setEditConfirm(false);
+                          setEditSaving(true);
+                          setEditSaveError(false);
+                          try {
+                            await updatePosition(editingPos.id, {
+                              shares,
+                              avgPrice: isNaN(avgPrice) ? 0 : avgPrice,
+                              purchaseDate: editingPos.purchaseDate,
+                            });
+                            setEditingPos(null);
+                            setEditConfirm(false);
+                          } catch {
+                            setEditSaveError(true);
+                          } finally {
+                            setEditSaving(false);
+                          }
                         }}
                         className="flex-[2] py-2 rounded-lg text-xs font-bold text-white"
-                        style={{ background: "linear-gradient(90deg,#00a85e,#00d47e)" }}>
-                        Guardar
+                        style={{ background: "linear-gradient(90deg,#00a85e,#00d47e)", opacity: editSaving ? 0.7 : 1 }}>
+                        {editSaving ? "Guardando..." : "Guardar"}
                       </button>
                     </div>
+                    {editSaveError && (
+                      <p className="text-[10px] text-center mt-2" style={{ color: "#f87171" }}>
+                        Error al guardar. Verifica tu conexión y vuelve a intentar.
+                      </p>
+                    )}
                   </div>
                 )}
               </div>
