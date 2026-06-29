@@ -411,7 +411,7 @@ function fmtMoney(n: number, showSign = false): string {
 
 
 interface PriceData { price: number | null; currency: string; name: string }
-interface ExtractedPosition { id: string; ticker: string; name: string; shares: number; avg_price: number }
+interface ExtractedPosition { id: string; ticker: string; name: string; shares: number; avg_price: number; purchase_date?: string | null }
 
 
 
@@ -703,6 +703,7 @@ export default function PortfolioScreen() {
   const [screenshotProgress, setScreenshotProgress] = useState("");
   const [screenshotPreview, setScreenshotPreview] = useState<ExtractedPosition[] | null>(null);
   const [screenshotUris, setScreenshotUris] = useState<string[]>([]);
+  const [screenshotPriceInputs, setScreenshotPriceInputs] = useState<Record<string, { avgPrice: string; purchaseDate: string }>>({});
   const [brokerModalOpen, setBrokerModalOpen] = useState(false);
 
   // Sort
@@ -944,6 +945,9 @@ export default function PortfolioScreen() {
         setScreenshotUris([]);
       } else {
         setScreenshotPreview(final);
+        const inputs: Record<string, { avgPrice: string; purchaseDate: string }> = {};
+        for (const p of final) inputs[p.id] = { avgPrice: "", purchaseDate: "" };
+        setScreenshotPriceInputs(inputs);
       }
     } catch {
       Alert.alert("Error", "No se pudieron analizar las imágenes. Verifica que el backend esté corriendo.");
@@ -969,12 +973,14 @@ export default function PortfolioScreen() {
       return;
     }
 
-    type ImportItem = { ticker: string; name: string; shares: number; avgPrice: number };
+    type ImportItem = { ticker: string; name: string; shares: number; avgPrice: number; purchaseDate?: string };
+    // Never use OCR avg_price — use user-entered value instead
     const incoming: ImportItem[] = screenshotPreview.map((p) => ({
       ticker: p.ticker,
       name: p.name ?? "",
       shares: p.shares,
-      avgPrice: p.avg_price,
+      avgPrice: parseFloat(screenshotPriceInputs[p.id]?.avgPrice ?? "") || 0,
+      ...(screenshotPriceInputs[p.id]?.purchaseDate ? { purchaseDate: screenshotPriceInputs[p.id].purchaseDate } : {}),
     }));
 
     // Resolve merge vs replace now; store the final list in pendingImport for currency selection
@@ -982,6 +988,7 @@ export default function PortfolioScreen() {
       setPendingImport(toImport);
       setScreenshotPreview(null);
       setScreenshotUris([]);
+      setScreenshotPriceInputs({});
       setImportCurrency("USD");
     };
 
@@ -1495,7 +1502,7 @@ export default function PortfolioScreen() {
                   {screenshotPreview.length} posiciones detectadas
                 </Text>
                 <Text style={[s.previewSub, { color: "#6b7280" }]}>
-                  {screenshotUris.length > 1 ? `De ${screenshotUris.length} capturas · ` : ""}Revisa y elimina las incorrectas antes de confirmar
+                  {screenshotUris.length > 1 ? `De ${screenshotUris.length} capturas · ` : ""}Agrega el precio de compra de cada posición
                 </Text>
               </View>
               {screenshotUris.length > 0 && (
@@ -1512,32 +1519,61 @@ export default function PortfolioScreen() {
               )}
             </View>
 
+            <View style={{ backgroundColor: "#f59e0b18", borderRadius: 8, padding: 10, marginBottom: 12 }}>
+              <Text style={{ color: "#f59e0b", fontSize: 11, fontWeight: "600" }}>
+                ⚠ No usamos el precio de la foto — puede ser incorrecto en acciones fraccionadas. Búscalo en tu broker bajo "precio promedio" o "average cost".
+              </Text>
+            </View>
             {screenshotPreview.map((p) => (
-              <View key={p.id} style={[s.previewRow, { borderColor: "#1f2330" }]}>
-                <View style={s.previewRowLeft}>
-                  <Text style={[s.previewTicker, { color: "#fff" }]}>{p.ticker}</Text>
-                  {p.name !== p.ticker && (
-                    <Text style={[s.previewName, { color: "#6b7280" }]}>{p.name}</Text>
-                  )}
+              <View key={p.id} style={[s.previewRow, { borderColor: "#1f2330", flexDirection: "column", alignItems: "stretch" }]}>
+                <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+                  <View>
+                    <Text style={[s.previewTicker, { color: "#fff" }]}>{p.ticker}</Text>
+                    {p.name !== p.ticker && (
+                      <Text style={[s.previewName, { color: "#6b7280" }]}>{p.name} · {p.shares.toLocaleString("en-US")} acc</Text>
+                    )}
+                  </View>
+                  <TouchableOpacity onPress={() => {
+                    removeExtracted(p.id);
+                    setScreenshotPriceInputs((prev) => { const n = { ...prev }; delete n[p.id]; return n; });
+                  }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                    <Text style={{ color: "#ef4444", fontSize: 18, fontWeight: "600" }}>×</Text>
+                  </TouchableOpacity>
                 </View>
-                <View style={s.previewRowMid}>
-                  <Text style={[s.previewDetail, { color: "#9ca3af" }]}>
-                    {p.shares.toLocaleString("en-US")} acc
-                  </Text>
-                  <Text style={[s.previewDetail, { color: "#9ca3af" }]}>
-                    @ ${p.avg_price > 0 ? p.avg_price.toLocaleString("en-US", { minimumFractionDigits: 2 }) : "—"}
-                  </Text>
+                <View style={{ flexDirection: "row", gap: 8 }}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ color: "#6b7280", fontSize: 10, fontWeight: "700", textTransform: "uppercase", marginBottom: 4 }}>
+                      Precio promedio ($)
+                    </Text>
+                    <TextInput
+                      style={{ backgroundColor: "#0a0d12", borderWidth: 1, borderColor: "#1f2330", borderRadius: 8, paddingHorizontal: 10, paddingVertical: 7, color: "#fff", fontSize: 13 }}
+                      keyboardType="decimal-pad"
+                      placeholder="ej. 223.00"
+                      placeholderTextColor="#374151"
+                      value={screenshotPriceInputs[p.id]?.avgPrice ?? ""}
+                      onChangeText={(v) => setScreenshotPriceInputs((prev) => ({ ...prev, [p.id]: { ...prev[p.id], avgPrice: v } }))}
+                    />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ color: "#6b7280", fontSize: 10, fontWeight: "700", textTransform: "uppercase", marginBottom: 4 }}>
+                      Fecha compra <Text style={{ fontWeight: "400" }}>(opcional)</Text>
+                    </Text>
+                    <TextInput
+                      style={{ backgroundColor: "#0a0d12", borderWidth: 1, borderColor: "#1f2330", borderRadius: 8, paddingHorizontal: 10, paddingVertical: 7, color: "#fff", fontSize: 13 }}
+                      placeholder="AAAA-MM-DD"
+                      placeholderTextColor="#374151"
+                      value={screenshotPriceInputs[p.id]?.purchaseDate ?? ""}
+                      onChangeText={(v) => setScreenshotPriceInputs((prev) => ({ ...prev, [p.id]: { ...prev[p.id], purchaseDate: v } }))}
+                    />
+                  </View>
                 </View>
-                <TouchableOpacity onPress={() => removeExtracted(p.id)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                  <Text style={{ color: "#ef4444", fontSize: 18, fontWeight: "600" }}>×</Text>
-                </TouchableOpacity>
               </View>
             ))}
 
             <View style={s.previewActions}>
               <TouchableOpacity
                 style={[s.previewCancel, { borderColor: "#1f2330" }]}
-                onPress={() => { setScreenshotPreview(null); setScreenshotUris([]); }}
+                onPress={() => { setScreenshotPreview(null); setScreenshotUris([]); setScreenshotPriceInputs({}); }}
               >
                 <Text style={[s.previewCancelText, { color: "#6b7280" }]}>Cancelar</Text>
               </TouchableOpacity>

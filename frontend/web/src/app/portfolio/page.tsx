@@ -631,6 +631,7 @@ export default function PortfolioPage() {
   const [isDragOver, setIsDragOver] = useState(false);
   type ExtractedPos = { id: string; ticker: string; name: string; shares: number; avg_price: number; purchase_date?: string | null };
   const [screenshotPreview, setScreenshotPreview] = useState<ExtractedPos[]|null>(null);
+  const [screenshotPriceInputs, setScreenshotPriceInputs] = useState<Record<string, { avgPrice: string; purchaseDate: string }>>({});
   const [mergeModalOpen, setMergeModalOpen] = useState(false);
   const [brokerModalOpen, setBrokerModalOpen] = useState(false);
   const [pendingMerge, setPendingMerge] = useState<ExtractedPos[]>([]);
@@ -899,6 +900,9 @@ export default function PortfolioPage() {
         alert("No se encontraron posiciones en el PDF. Verifica que sea un estado de cuenta con posiciones.");
       } else {
         setScreenshotPreview(extracted);
+        const inputs: Record<string, { avgPrice: string; purchaseDate: string }> = {};
+        for (const p of extracted) inputs[p.id] = { avgPrice: "", purchaseDate: "" };
+        setScreenshotPriceInputs(inputs);
       }
     } catch {
       alert("No se pudo leer el PDF. Intenta con el estado de cuenta más reciente o usa una captura de pantalla.");
@@ -939,6 +943,9 @@ export default function PortfolioPage() {
         alert("No se encontraron posiciones en las imágenes. Intenta con capturas más claras.");
       } else {
         setScreenshotPreview(final);
+        const inputs: Record<string, { avgPrice: string; purchaseDate: string }> = {};
+        for (const p of final) inputs[p.id] = { avgPrice: "", purchaseDate: "" };
+        setScreenshotPriceInputs(inputs);
       }
     } catch {
       alert("No se pudieron analizar las imágenes. Verifica que el backend esté corriendo.");
@@ -974,18 +981,26 @@ export default function PortfolioPage() {
 
   const confirmScreenshotImport = () => {
     if (!screenshotPreview?.length) return;
+    // Inject user-entered prices — never trust OCR avg_price
+    const withUserPrices = screenshotPreview.map((p) => ({
+      ...p,
+      avg_price: parseFloat(screenshotPriceInputs[p.id]?.avgPrice ?? "") || 0,
+      purchase_date: screenshotPriceInputs[p.id]?.purchaseDate || null,
+    }));
     if (positions.length > 0) {
-      setPendingMerge(screenshotPreview);
+      setPendingMerge(withUserPrices);
       setMergeModalOpen(true);
       setScreenshotPreview(null);
+      setScreenshotPriceInputs({});
       return;
     }
-    setPendingImport(screenshotPreview.map((p) => ({
+    setPendingImport(withUserPrices.map((p) => ({
       ticker: p.ticker, name: p.name, shares: p.shares, avgPrice: p.avg_price,
       ...(p.purchase_date ? { purchaseDate: p.purchase_date } : {}),
     })));
     setImportCurrency("USD");
     setScreenshotPreview(null);
+    setScreenshotPriceInputs({});
   };
 
   const applyMerge = (mode: "keep" | "replace") => {
@@ -1482,26 +1497,57 @@ export default function PortfolioPage() {
                 <p className="font-extrabold text-sm mb-1" style={{ color:"var(--text)" }}>
                   {screenshotPreview.length} posiciones detectadas
                 </p>
-                <p className="text-xs mb-3" style={{ color:"var(--muted)" }}>Revisa y elimina las incorrectas</p>
+                <p className="text-xs mb-1" style={{ color:"var(--muted)" }}>
+                  Agrega el precio promedio de compra de cada posición.
+                </p>
+                <p className="text-[11px] mb-3 px-2.5 py-1.5 rounded-lg font-medium" style={{ color:"#f59e0b", background:"#f59e0b15" }}>
+                  ⚠ No usamos el precio de la foto — puede ser incorrecto en acciones fraccionadas. Búscalo en tu broker bajo "precio promedio" o "average cost".
+                </p>
                 {screenshotPreview.map((p) => (
-                  <div key={p.id} className="flex items-center justify-between py-2.5 border-b" style={{ borderColor:"var(--border)" }}>
-                    <div className="flex-1">
-                      <span className="font-extrabold text-sm" style={{ color:"var(--text)" }}>{p.ticker}</span>
-                      {p.name !== p.ticker && <span className="text-xs ml-2" style={{ color:"var(--muted)" }}>{p.name}</span>}
+                  <div key={p.id} className="py-3 border-b" style={{ borderColor:"var(--border)" }}>
+                    <div className="flex items-center justify-between mb-2">
+                      <div>
+                        <span className="font-extrabold text-sm" style={{ color:"var(--text)" }}>{p.ticker}</span>
+                        {p.name !== p.ticker && <span className="text-xs ml-2" style={{ color:"var(--muted)" }}>{p.name}</span>}
+                        <span className="text-xs ml-2 font-medium" style={{ color:"var(--sub)" }}>{p.shares} acc</span>
+                      </div>
+                      <button onClick={() => {
+                        setScreenshotPreview((prev) => { const next=(prev??[]).filter((x)=>x.id!==p.id); return next.length?next:null; });
+                        setScreenshotPriceInputs((prev) => { const n={...prev}; delete n[p.id]; return n; });
+                      }} className="text-[#ef4444] text-xl font-bold leading-none ml-2">×</button>
                     </div>
-                    <div className="text-right mr-3">
-                      <p className="text-xs" style={{ color:"var(--sub)" }}>{p.shares} acc</p>
-                      <p className="text-xs" style={{ color:"var(--sub)" }}>@ ${p.avg_price>0?p.avg_price.toFixed(2):"—"}</p>
-                      {p.purchase_date && <p className="text-xs" style={{ color:"var(--muted)" }}>{p.purchase_date}</p>}
+                    <div className="flex gap-2">
+                      <div className="flex-1">
+                        <label className="text-[10px] font-bold uppercase block mb-1" style={{ color:"var(--muted)" }}>
+                          Precio promedio de compra ($)
+                        </label>
+                        <input
+                          type="number" min="0" step="any"
+                          placeholder="ej. 223.00"
+                          value={screenshotPriceInputs[p.id]?.avgPrice ?? ""}
+                          onChange={(e) => setScreenshotPriceInputs((prev) => ({ ...prev, [p.id]: { ...prev[p.id], avgPrice: e.target.value } }))}
+                          className="w-full rounded-lg border px-2.5 py-1.5 text-sm outline-none"
+                          style={{ background:"var(--raised)", borderColor:"var(--border)", color:"var(--text)" }}
+                        />
+                      </div>
+                      <div className="flex-1">
+                        <label className="text-[10px] font-bold uppercase block mb-1" style={{ color:"var(--muted)" }}>
+                          Fecha de compra <span style={{ fontWeight:400 }}>(opcional)</span>
+                        </label>
+                        <input
+                          type="date"
+                          max={new Date().toISOString().split("T")[0]}
+                          value={screenshotPriceInputs[p.id]?.purchaseDate ?? ""}
+                          onChange={(e) => setScreenshotPriceInputs((prev) => ({ ...prev, [p.id]: { ...prev[p.id], purchaseDate: e.target.value } }))}
+                          className="w-full rounded-lg border px-2.5 py-1.5 text-sm outline-none"
+                          style={{ background:"var(--raised)", borderColor:"var(--border)", color:"var(--text)" }}
+                        />
+                      </div>
                     </div>
-                    <button onClick={() => setScreenshotPreview((prev) => {
-                      const next=(prev??[]).filter((x)=>x.id!==p.id);
-                      return next.length?next:null;
-                    })} className="text-[#ef4444] text-xl font-bold leading-none">×</button>
                   </div>
                 ))}
                 <div className="flex gap-2 mt-3">
-                  <button onClick={() => setScreenshotPreview(null)}
+                  <button onClick={() => { setScreenshotPreview(null); setScreenshotPriceInputs({}); }}
                           className="flex-1 py-2.5 rounded-xl border text-sm font-semibold"
                           style={{ borderColor:"var(--border)", color:"var(--muted)" }}>
                     Cancelar
