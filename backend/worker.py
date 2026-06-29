@@ -155,6 +155,21 @@ def _calc_portfolio_close_data(
     return port_pct, round(total_curr, 2), gainers, losers
 
 
+def _is_premium_user(tier: str, trial_started: str | None) -> bool:
+    """Consistent premium check used by all notification jobs.
+    Covers: explicit premium/pro tier, and active 90-day trial."""
+    if tier in ("premium", "pro"):
+        return True
+    if trial_started:
+        try:
+            from datetime import datetime as _dt, timezone as _tz
+            started = _dt.fromisoformat(trial_started.replace("Z", "+00:00"))
+            return (_dt.now(_tz.utc) - started).days < 90
+        except Exception:
+            pass
+    return False
+
+
 def _top_performer(positions: list, prices: dict) -> tuple[str | None, float | None]:
     """Return (ticker, pct) for best-performing position today (by %)."""
     best_ticker, best_pct = None, None
@@ -536,7 +551,8 @@ def _fetch_realtime_pct(symbols: list[str]) -> dict[str, float | None]:
 
 def _finnhub_quote(symbol: str) -> dict | None:
     """Fetch real-time quote from Finnhub. Returns {curr, prev, pct} or None.
-    Works on Railway (no IP block). Supports indices like ^VIX."""
+    Works on Railway (no IP block). Supports indices like ^VIX.
+    At market open, Finnhub may return c=0 before the first tick — falls back to o (open price)."""
     import requests as _req
     key = os.getenv("FINNHUB_API_KEY", "")
     if not key:
@@ -548,11 +564,12 @@ def _finnhub_quote(symbol: str) -> dict | None:
             timeout=8,
         )
         d = r.json()
-        curr = d.get("c")
-        prev = d.get("pc")
-        if curr and prev and prev > 0:
-            return {"curr": float(curr), "prev": float(prev),
-                    "pct": round((float(curr) - float(prev)) / float(prev) * 100, 2)}
+        # c = current price, o = open price (fallback at market open when c=0)
+        curr = float(d.get("c") or 0) or float(d.get("o") or 0)
+        prev = float(d.get("pc") or 0)
+        if curr > 0 and prev > 0:
+            return {"curr": curr, "prev": prev,
+                    "pct": round((curr - prev) / prev * 100, 2)}
     except Exception:
         pass
     return None
@@ -691,16 +708,16 @@ async def job_market_open():
             return
 
         profiles_res = await run_query(
-            db.table("user_profiles").select("user_id,name,subscription_tier").in_("user_id", uids)
+            db.table("user_profiles")
+            .select("user_id,name,subscription_tier,trial_started_at").in_("user_id", uids)
         )
-        name_map = {r["user_id"]: (r.get("name") or "Inversor").split()[0] for r in (profiles_res.data or [])}
-        tier_map = {r["user_id"]: (r.get("subscription_tier") or "free") for r in (profiles_res.data or [])}
+        name_map      = {r["user_id"]: (r.get("name") or "Inversor").split()[0] for r in (profiles_res.data or [])}
+        premium_map   = {r["user_id"]: _is_premium_user(r.get("subscription_tier") or "free", r.get("trial_started_at")) for r in (profiles_res.data or [])}
 
-        # Bulk-load portfolios only for premium users
-        premium_uids = {uid for uid in uids if tier_map.get(uid) == "premium"}
+        # Bulk-load portfolios for all users (needed for portfolio % in premium body)
         portfolio_map: dict[str, list] = {}
         all_tickers: set[str] = set()
-        for uid in premium_uids:
+        for uid in [u for u in uids if premium_map.get(u)]:
             port_res = await run_query(db.table("user_portfolio").select("positions").eq("user_id", uid))
             pos = _agg_positions(port_res.data or [])
             if pos:
@@ -709,8 +726,8 @@ async def job_market_open():
 
         prices = await _finnhub_prices_batch(list(all_tickers)) if all_tickers else {}
 
-        sp_str = f"{sp500_pct:+.1f}%" if sp500_pct is not None else "—"
-        nq_str = f"{nasdaq_pct:+.1f}%" if nasdaq_pct is not None else "—"
+        sp_str = f"{sp500_pct:+.1f}%" if sp500_pct is not None else "s/d"
+        nq_str = f"{nasdaq_pct:+.1f}%" if nasdaq_pct is not None else "s/d"
 
         sent = 0
         for i, uid in enumerate(uids):
@@ -719,19 +736,17 @@ async def job_market_open():
             await asyncio.sleep(random.uniform(0, 0.1))
 
             first      = name_map.get(uid, "Inversor")
-            is_premium = tier_map.get(uid) == "premium"
+            is_premium = premium_map.get(uid, False)
 
             if is_premium:
                 user_pct = _calc_portfolio_pct(portfolio_map.get(uid, []), prices)
-                if user_pct is not None and sp500_pct is not None:
-                    if user_pct > sp500_pct:
-                        body = f"{first}, el mercado acaba de abrir. Tu portafolio va {user_pct:+.1f}% vs S&P 500 ({sp_str}) y Nasdaq ({nq_str}). ¡Arriba!"
-                    else:
-                        body = f"{first}, el mercado acaba de abrir. Tu portafolio va {user_pct:+.1f}% frente al S&P 500 ({sp_str}) y Nasdaq ({nq_str})."
+                if user_pct is not None:
+                    port_str = f"{user_pct:+.1f}%"
+                    body = f"S&P 500 {sp_str} · Nasdaq {nq_str} · Tu portafolio {port_str}"
                 else:
-                    body = f"{first}, el mercado acaba de abrir. S&P 500 {sp_str}, Nasdaq {nq_str}. Entra a revisar tu portafolio."
+                    body = f"S&P 500 {sp_str} · Nasdaq {nq_str} · Agrega tu portafolio para ver tu rendimiento."
             else:
-                body = f"Buenos días {first}! S&P 500 {sp_str}, Nasdaq {nq_str}. Activa Premium para ver el rendimiento de tu portafolio. 📈"
+                body = f"Buenos días {first}! S&P 500 {sp_str} · Nasdaq {nq_str}. Activa Premium para ver el rendimiento de tu portafolio."
 
             await send_push(uid, "market_open", "🔔 Mercado Abierto", body, {"screen": "portfolio"}, db)
             sent += 1
@@ -835,13 +850,14 @@ async def job_market_close():
 
         # ── 3. Profiles: name + email + tier in one query ────────────────────────────
         profiles_res = await run_query(
-            db.table("user_profiles").select("user_id,name,email,subscription_tier").in_("user_id", uids)
+            db.table("user_profiles")
+            .select("user_id,name,email,subscription_tier,trial_started_at").in_("user_id", uids)
         )
         profile_map = {
             r["user_id"]: {
-                "first": (r.get("name") or "Inversor").split()[0],
-                "email": r.get("email") or "",
-                "is_premium": (r.get("subscription_tier") or "free") == "premium",
+                "first":      (r.get("name") or "Inversor").split()[0],
+                "email":      r.get("email") or "",
+                "is_premium": _is_premium_user(r.get("subscription_tier") or "free", r.get("trial_started_at")),
             }
             for r in (profiles_res.data or [])
         }
@@ -877,16 +893,15 @@ async def job_market_close():
                     portfolio_map[uid], prices
                 )
                 if uid in push_capable:
+                    sp_cl  = f"{sp500_pct:+.1f}%"  if sp500_pct  is not None else "s/d"
+                    nq_cl  = f"{nasdaq_pct:+.1f}%"  if nasdaq_pct is not None else "s/d"
                     if user_pct is not None:
                         beating    = sp500_pct is not None and user_pct > sp500_pct
-                        push_title = "🏆 Superaste al mercado hoy" if beating else "📊 El mercado ha cerrado"
-                        push_body  = (
-                            f"Tu portafolio: {user_pct:+.2f}% · {indices}"
-                            + (" ¡Lo superaste!" if beating else " Mañana es otra oportunidad.")
-                        )
+                        push_title = "🏆 Superaste al mercado hoy" if beating else "📊 Cierre de mercado"
+                        push_body  = f"S&P 500 {sp_cl} · Nasdaq {nq_cl} · Tu portafolio {user_pct:+.1f}%"
                     else:
-                        push_title = "📊 El mercado ha cerrado"
-                        push_body  = indices
+                        push_title = "📊 Cierre de mercado"
+                        push_body  = f"S&P 500 {sp_cl} · Nasdaq {nq_cl}"
                     await send_push(uid, "market_close", push_title, push_body, {"screen": "portfolio"}, db)
                     sent_push += 1
 
@@ -1483,18 +1498,6 @@ async def job_portfolio_alerts():
             await asyncio.sleep(0.05)
 
         # 6. Batch-fetch user profiles (name + tier + trial) once
-        def _is_premium(tier: str, trial_started: str | None) -> bool:
-            if tier in ("premium", "pro"):
-                return True
-            if trial_started:
-                try:
-                    from datetime import datetime as _dt, timezone as _tz
-                    started = _dt.fromisoformat(trial_started.replace("Z", "+00:00"))
-                    return (_dt.now(_tz.utc) - started).days < 90
-                except Exception:
-                    pass
-            return False
-
         all_uids  = list(user_tickers.keys())
         prof_res  = await run_query(
             db.table("user_profiles")
@@ -1504,7 +1507,7 @@ async def job_portfolio_alerts():
         user_meta: dict[str, dict] = {
             r["user_id"]: {
                 "first":      (r.get("name") or "Inversor").split()[0],
-                "is_premium": _is_premium(r.get("subscription_tier", "free"), r.get("trial_started_at")),
+                "is_premium": _is_premium_user(r.get("subscription_tier", "free"), r.get("trial_started_at")),
             }
             for r in (prof_res.data or [])
         }
