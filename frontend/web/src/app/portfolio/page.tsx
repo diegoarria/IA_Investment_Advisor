@@ -598,6 +598,23 @@ export default function PortfolioPage() {
   const [isTour, setIsTour] = useState(false);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { setIsTour(new URLSearchParams(window.location.search).get("tour") === "1"); }, []);
+  const [demoMode, setDemoMode] = useState(false);
+  useEffect(() => {
+    if (!localStorage.getItem("nuvos_demo_done")) setDemoMode(true);
+  }, []);
+  const dismissDemo = (choice: "has_portfolio" | "has_cash" | "wants_to_learn") => {
+    localStorage.setItem("nuvos_demo_done", "1");
+    setDemoMode(false);
+    if (choice === "wants_to_learn") {
+      // Load demo positions so they can explore the full experience
+      const demoPositions = [
+        { ticker: "NVDA", name: "NVIDIA Corp.", shares: 3.2, avgPrice: 580 },
+        { ticker: "AAPL", name: "Apple Inc.", shares: 8, avgPrice: 156 },
+        { ticker: "TSLA", name: "Tesla Inc.", shares: 5, avgPrice: 195 },
+      ];
+      setPositions(demoPositions);
+    }
+  };
   const { profile } = useProfileStore();
   const userLevel = getUserLevel(profile);
   const sub = useSubscriptionStore();
@@ -1734,7 +1751,91 @@ export default function PortfolioPage() {
           })()}
 
           {/* ── Positions ── */}
-          {positions.length === 0 && !screenshotPreview ? (
+          {positions.length === 0 && !screenshotPreview && demoMode ? (
+            <div className="space-y-3">
+              {/* Simulated notification — the "aha moment" */}
+              <div className="rounded-2xl border-2 p-4" style={{ borderColor:"#22c55e40", background:"linear-gradient(135deg,#0a1f0f,#0f1a10)" }}>
+                <div className="flex items-start gap-3">
+                  <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0 mt-0.5" style={{ background:"#22c55e20" }}>
+                    <span className="text-base">📈</span>
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-black uppercase tracking-widest mb-1" style={{ color:"#22c55e" }}>Así funciona Nuvos AI</p>
+                    <p className="text-sm font-bold leading-snug mb-1" style={{ color:"#fff" }}>
+                      Tu NVIDIA subió <span style={{ color:"#22c55e" }}>+$1,847</span> esta semana
+                    </p>
+                    <p className="text-xs leading-relaxed" style={{ color:"#9ca3af" }}>
+                      Jensen Huang anunció nuevos chips para centros de datos IA, lo que impulsó la demanda institucional. Tu portafolio se beneficia directamente por tu posición en NVDA.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Demo portfolio positions */}
+              <div className="rounded-2xl border p-4" style={{ borderColor:"var(--border)", background:"var(--card)" }}>
+                <p className="text-[10px] font-black uppercase tracking-widest mb-3" style={{ color:"var(--muted)" }}>Portafolio de ejemplo</p>
+                {[
+                  { ticker:"NVDA", name:"NVIDIA Corp.", shares:3.2, buy:580, price:134.5 * 4, gain:31.2 },
+                  { ticker:"AAPL", name:"Apple Inc.", shares:8, buy:156, price:198.45, gain:27.2 },
+                  { ticker:"TSLA", name:"Tesla Inc.", shares:5, buy:195, price:248.3, gain:27.3 },
+                ].map((p) => {
+                  const val = p.shares * p.price;
+                  const gainAmt = p.shares * (p.price - p.buy);
+                  return (
+                    <div key={p.ticker} className="flex items-center justify-between py-2.5 border-b last:border-0" style={{ borderColor:"var(--border)" }}>
+                      <div>
+                        <p className="font-extrabold text-sm" style={{ color:"var(--text)" }}>{p.ticker}</p>
+                        <p className="text-[11px]" style={{ color:"var(--muted)" }}>{p.shares} acc</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm font-bold" style={{ color:"var(--text)" }}>${val.toLocaleString("en-US",{maximumFractionDigits:0})}</p>
+                        <p className="text-[11px] font-semibold" style={{ color:"#22c55e" }}>+${gainAmt.toLocaleString("en-US",{maximumFractionDigits:0})} ({p.gain}%)</p>
+                      </div>
+                    </div>
+                  );
+                })}
+                <div className="mt-2.5 pt-2.5 border-t flex justify-between" style={{ borderColor:"var(--border)" }}>
+                  <span className="text-xs font-bold" style={{ color:"var(--muted)" }}>Total portafolio</span>
+                  <span className="text-sm font-black" style={{ color:"#22c55e" }}>+$2,451 · +28.6%</span>
+                </div>
+              </div>
+
+              {/* Magic question */}
+              <div className="rounded-2xl border p-4" style={{ borderColor:"var(--border)", background:"var(--card)" }}>
+                <p className="font-bold text-sm mb-1" style={{ color:"var(--text)" }}>¿Tienes acciones o fondos invertidos actualmente?</p>
+                <p className="text-xs mb-4" style={{ color:"var(--muted)" }}>Así Nuvos AI sabe cómo ayudarte mejor desde el primer momento.</p>
+                <div className="space-y-2">
+                  <button onClick={() => dismissDemo("has_portfolio")}
+                          className="w-full text-left p-3 rounded-xl border-2 transition-all flex items-center gap-3"
+                          style={{ borderColor:"#22c55e", background:"#22c55e08" }}>
+                    <span className="text-xl">📊</span>
+                    <div>
+                      <p className="text-sm font-bold" style={{ color:"var(--text)" }}>Sí, ya tengo portafolio</p>
+                      <p className="text-xs" style={{ color:"var(--muted)" }}>Agrego mis posiciones y Nuvos AI las analiza</p>
+                    </div>
+                  </button>
+                  <button onClick={() => dismissDemo("has_cash")}
+                          className="w-full text-left p-3 rounded-xl border transition-all flex items-center gap-3"
+                          style={{ borderColor:"var(--border)", background:"var(--raised)" }}>
+                    <span className="text-xl">💵</span>
+                    <div>
+                      <p className="text-sm font-bold" style={{ color:"var(--text)" }}>Tengo dinero para invertir</p>
+                      <p className="text-xs" style={{ color:"var(--muted)" }}>Aún no tengo cuenta en un broker</p>
+                    </div>
+                  </button>
+                  <button onClick={() => dismissDemo("wants_to_learn")}
+                          className="w-full text-left p-3 rounded-xl border transition-all flex items-center gap-3"
+                          style={{ borderColor:"var(--border)", background:"var(--raised)" }}>
+                    <span className="text-xl">📚</span>
+                    <div>
+                      <p className="text-sm font-bold" style={{ color:"var(--text)" }}>Solo quiero aprender por ahora</p>
+                      <p className="text-xs" style={{ color:"var(--muted)" }}>Explorar con el portafolio de ejemplo</p>
+                    </div>
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : positions.length === 0 && !screenshotPreview ? (
             <div className="rounded-2xl border p-10 flex flex-col items-center gap-3"
                  style={{ borderColor:"var(--border)", background:"var(--card)" }}>
               <PieChart className="w-10 h-10" style={{ color:"var(--dim)" }} />

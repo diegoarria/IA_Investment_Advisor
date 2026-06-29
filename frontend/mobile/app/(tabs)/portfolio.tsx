@@ -11,6 +11,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import Svg, { Path, Defs, Stop, LinearGradient, Circle, Line as SvgLine } from "react-native-svg";
 import * as ImagePicker from "expo-image-picker";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { marketApi } from "../../src/lib/api";
 import { useTheme } from "../../src/lib/ThemeContext";
@@ -638,6 +639,21 @@ export default function PortfolioScreen() {
     loadFromServer, syncStatus, lastSaved,
     portfolios, activePortfolioId, switchPortfolio, createPortfolio, deletePortfolio, renamePortfolio,
   } = usePortfolioStore();
+  const [demoMode, setDemoMode] = useState(false);
+  useEffect(() => {
+    AsyncStorage.getItem("nuvos_demo_done").then((v) => { if (!v) setDemoMode(true); });
+  }, []);
+  const dismissDemo = async (choice: "has_portfolio" | "has_cash" | "wants_to_learn") => {
+    await AsyncStorage.setItem("nuvos_demo_done", "1");
+    setDemoMode(false);
+    if (choice === "wants_to_learn") {
+      setPositions([
+        { ticker: "NVDA", name: "NVIDIA Corp.", shares: 3.2, avgPrice: 580 },
+        { ticker: "AAPL", name: "Apple Inc.", shares: 8, avgPrice: 156 },
+        { ticker: "TSLA", name: "Tesla Inc.", shares: 5, avgPrice: 195 },
+      ]);
+    }
+  };
   const [portfolioCreating, setPortfolioCreating] = useState(false);
   const [showNewPortfolioModal, setShowNewPortfolioModal] = useState(false);
   const [newPortfolioName, setNewPortfolioName] = useState("");
@@ -1623,7 +1639,79 @@ export default function PortfolioScreen() {
         )}
 
         {/* ── LISTA DE POSICIONES ── */}
-        {positions.length === 0 && !screenshotPreview ? (
+        {positions.length === 0 && !screenshotPreview && demoMode ? (
+          <View style={{ gap: 12 }}>
+            {/* Simulated notification — "aha moment" */}
+            <View style={{ backgroundColor: "#0a1f0f", borderWidth: 1.5, borderColor: "#22c55e30", borderRadius: 16, padding: 14 }}>
+              <View style={{ flexDirection: "row", gap: 12, alignItems: "flex-start" }}>
+                <View style={{ width: 34, height: 34, borderRadius: 10, backgroundColor: "#22c55e15", alignItems: "center", justifyContent: "center" }}>
+                  <Text style={{ fontSize: 16 }}>📈</Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ color: "#22c55e", fontSize: 10, fontWeight: "800", textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }}>Así funciona Nuvos AI</Text>
+                  <Text style={{ color: "#fff", fontSize: 14, fontWeight: "700", marginBottom: 4 }}>
+                    Tu NVIDIA subió{" "}<Text style={{ color: "#22c55e" }}>+$1,847</Text>{" "}esta semana
+                  </Text>
+                  <Text style={{ color: "#9ca3af", fontSize: 12, lineHeight: 17 }}>
+                    Jensen Huang anunció nuevos chips para centros de datos IA, impulsando la demanda institucional. Tu portafolio se beneficia directamente por tu posición en NVDA.
+                  </Text>
+                </View>
+              </View>
+            </View>
+
+            {/* Demo positions */}
+            <View style={{ backgroundColor: "#111318", borderWidth: 1, borderColor: "#1f2330", borderRadius: 16, padding: 14 }}>
+              <Text style={{ color: "#6b7280", fontSize: 10, fontWeight: "800", textTransform: "uppercase", letterSpacing: 1, marginBottom: 12 }}>Portafolio de ejemplo</Text>
+              {[
+                { ticker: "NVDA", shares: 3.2, buy: 580, price: 538, gain: 31.2 },
+                { ticker: "AAPL", shares: 8, buy: 156, price: 198.45, gain: 27.2 },
+                { ticker: "TSLA", shares: 5, buy: 195, price: 248.3, gain: 27.3 },
+              ].map((p, i) => {
+                const val = p.shares * p.price;
+                const gainAmt = p.shares * (p.price - p.buy);
+                return (
+                  <View key={p.ticker} style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: 10, borderBottomWidth: i < 2 ? 1 : 0, borderBottomColor: "#1f2330" }}>
+                    <View>
+                      <Text style={{ color: "#fff", fontWeight: "800", fontSize: 14 }}>{p.ticker}</Text>
+                      <Text style={{ color: "#6b7280", fontSize: 11 }}>{p.shares} acc</Text>
+                    </View>
+                    <View style={{ alignItems: "flex-end" }}>
+                      <Text style={{ color: "#fff", fontWeight: "700", fontSize: 14 }}>${val.toLocaleString("en-US", { maximumFractionDigits: 0 })}</Text>
+                      <Text style={{ color: "#22c55e", fontWeight: "600", fontSize: 12 }}>+${gainAmt.toLocaleString("en-US", { maximumFractionDigits: 0 })} ({p.gain}%)</Text>
+                    </View>
+                  </View>
+                );
+              })}
+              <View style={{ flexDirection: "row", justifyContent: "space-between", marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: "#1f2330" }}>
+                <Text style={{ color: "#6b7280", fontSize: 12, fontWeight: "700" }}>Total</Text>
+                <Text style={{ color: "#22c55e", fontSize: 14, fontWeight: "800" }}>+$2,451 · +28.6%</Text>
+              </View>
+            </View>
+
+            {/* Magic question */}
+            <View style={{ backgroundColor: "#111318", borderWidth: 1, borderColor: "#1f2330", borderRadius: 16, padding: 14 }}>
+              <Text style={{ color: "#fff", fontSize: 15, fontWeight: "700", marginBottom: 4 }}>¿Tienes acciones o fondos invertidos?</Text>
+              <Text style={{ color: "#6b7280", fontSize: 12, marginBottom: 14 }}>Así Nuvos AI sabe cómo ayudarte desde el primer momento.</Text>
+              {[
+                { choice: "has_portfolio" as const, emoji: "📊", title: "Sí, ya tengo portafolio", sub: "Agrego mis posiciones para que Nuvos AI las analice", accent: true },
+                { choice: "has_cash" as const, emoji: "💵", title: "Tengo dinero para invertir", sub: "Aún no tengo cuenta en un broker", accent: false },
+                { choice: "wants_to_learn" as const, emoji: "📚", title: "Solo quiero aprender", sub: "Explorar con el portafolio de ejemplo", accent: false },
+              ].map((opt) => (
+                <TouchableOpacity
+                  key={opt.choice}
+                  onPress={() => dismissDemo(opt.choice)}
+                  style={{ flexDirection: "row", alignItems: "center", gap: 12, padding: 12, borderRadius: 12, borderWidth: opt.accent ? 2 : 1, borderColor: opt.accent ? "#22c55e" : "#1f2330", backgroundColor: opt.accent ? "#22c55e08" : "#0a0d12", marginBottom: 8 }}
+                >
+                  <Text style={{ fontSize: 20 }}>{opt.emoji}</Text>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ color: "#fff", fontSize: 13, fontWeight: "700" }}>{opt.title}</Text>
+                    <Text style={{ color: "#6b7280", fontSize: 11, marginTop: 1 }}>{opt.sub}</Text>
+                  </View>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        ) : positions.length === 0 && !screenshotPreview ? (
           <View style={[s.emptyCard, { backgroundColor: "#111318", borderColor: "#1f2330" }]}>
             <Ionicons name="folder-open-outline" size={40} color={"#6b7280"} style={{ marginBottom: 10 }} />
             <Text style={[s.emptyTitle, { color: "#fff" }]}>Sin posiciones todavía</Text>
