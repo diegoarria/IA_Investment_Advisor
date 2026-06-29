@@ -920,8 +920,9 @@ async def _generate_market_wrap(sp_pct: float | None, nq_pct: float | None, top_
         news_lines: list[str] = []
         for m in top_movers[:5]:
             try:
-                headlines = await asyncio.to_thread(fetch_ticker_news, m["ticker"])
-                for h in (headlines or [])[:2]:
+                news_items = await asyncio.to_thread(fetch_ticker_news, m["ticker"])
+                for item in (news_items or [])[:2]:
+                    h = item["headline"] if isinstance(item, dict) else item
                     news_lines.append(f"- [{m['ticker']} {m.get('pct', m.get('day_pct', 0)):+.1f}%] {h}")
             except Exception:
                 pass
@@ -1464,7 +1465,10 @@ async def job_portfolio_alerts():
         if not movers:
             return
 
-        # 5. Pre-generate WHY explanations for premium — 1 Claude call per mover, reused across users.
+        # 5. Pre-generate WHY explanations — 1 Claude call per mover, reused across users.
+        # Tickers with no specific catalyst are stored as NO_CATALYST and skipped for premium users;
+        # free users still get a plain price-move notification without the WHY.
+        from app.services.price_alert_service import NO_CATALYST
         ticker_why:   dict[str, str] = {}
         ticker_title: dict[str, str] = {}
         for ticker, pct in movers.items():
@@ -1474,6 +1478,8 @@ async def job_portfolio_alerts():
             ticker_why[ticker]   = why
             emoji = "📉" if pct <= -5 else "🔻" if pct < 0 else "🚀" if pct >= 5 else "📈"
             ticker_title[ticker] = f"{emoji} {ticker} {pct:+.1f}% hoy"
+            if why == NO_CATALYST:
+                logger.info("Portfolio alerts: no catalyst for %s — premium users will not receive this", ticker)
             await asyncio.sleep(0.05)
 
         # 6. Batch-fetch user profiles (name + tier + trial) once
@@ -1524,35 +1530,36 @@ async def job_portfolio_alerts():
                 is_portfolio = ticker in port_map
                 screen       = "portfolio" if is_portfolio else "watchlist"
 
+                why = ticker_why[ticker]
                 if is_prem:
-                    why = ticker_why[ticker]
+                    # Premium: only send when we have a specific catalyst
+                    if why == NO_CATALYST:
+                        continue  # skip — no named catalyst found
                     if is_portfolio:
-                        # User OWNS this stock — show financial impact
+                        # User OWNS this stock — show WHY + financial impact
                         shares         = port_map[ticker].get("shares", 0.0)
                         position_value = shares * price if shares else 0.0
                         dollar_delta   = position_value * pct / 100 if position_value else None
                         if position_value and dollar_delta is not None:
                             gl         = "perdiste" if pct < 0 else "ganaste"
                             shares_fmt = f"{shares:.4f}".rstrip("0").rstrip(".") if shares < 1 else f"{shares:.2f}".rstrip("0").rstrip(".")
-                            impact = f"{first}, {gl} ~${abs(dollar_delta):,.0f} hoy ({shares_fmt} acciones × ${price:.2f})."
+                            impact = f" {first}, {gl} ~${abs(dollar_delta):,.0f} hoy ({shares_fmt} acc × ${price:.2f})."
                         else:
                             impact = ""
-                        max_b = 230 - len(impact) - 1
-                        body  = (why[:max_b] if len(why) > max_b else why)
-                        if impact:
-                            body += " " + impact
+                        max_b = 230 - len(impact)
+                        body  = (why[:max_b] if len(why) > max_b else why) + impact
                     else:
                         # User WATCHES this stock — informational only
                         suffix = " La tienes en tu watchlist."
                         max_b  = 230 - len(suffix)
                         body   = (why[:max_b] if len(why) > max_b else why) + suffix
                 else:
-                    # Free tier
+                    # Free tier — plain price alert, no catalyst required
                     direction = "bajó" if pct < 0 else "subió"
                     if is_portfolio:
                         body = (
                             f"{ticker} {direction} {abs(pct):.1f}% hoy a ${price:.2f}. "
-                            f"Activa Premium para ver el impacto en tu portafolio."
+                            f"Activa Premium para ver el análisis completo."
                         )
                     else:
                         body = (
