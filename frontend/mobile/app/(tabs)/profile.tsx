@@ -15,6 +15,7 @@ import ProgressModal from "../../src/components/ProgressModal";
 import TutorialModal from "../../src/components/TutorialModal";
 import UpsellModal from "../../src/components/UpsellModal";
 import { insightsApi, mentorLetterApi, profileApi, authApi, referralApi, syncApi, feedApi, billingApi } from "../../src/lib/api";
+import { posthog } from "../../src/config/posthog";
 import { useSubscriptionStore, hasPremiumAccess } from "../../src/lib/subscriptionStore";
 import type { UpsellOffer } from "../../src/lib/upsellStore";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -280,6 +281,7 @@ if (!profile) {
       { text: "Cancelar", style: "cancel" },
       {
         text: "Cerrar sesión", style: "destructive", onPress: () => {
+          posthog.reset();
           logout();
           router.replace("/");
           SecureStore.deleteItemAsync("access_token").catch(() => {});
@@ -1062,6 +1064,7 @@ if (!profile) {
                 style={[s.referralShareBtn, { backgroundColor: "#f59e0b10", borderColor: "#f59e0b35" }]}
                 onPress={() => {
                   if (!referralCode) return;
+                  posthog.capture("referral_link_shared", { referral_code: referralCode });
                   Share.share({
                     message: `Estoy usando Nuvos AI — el mejor mentor de inversiones con IA. Únete gratis 👉 https://nuvosai.com/join?ref=${referralCode}`,
                     url: `https://nuvosai.com/join?ref=${referralCode}`,

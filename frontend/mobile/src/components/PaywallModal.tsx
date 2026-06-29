@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View, Text, TouchableOpacity, Modal, StyleSheet,
   ActivityIndicator, Linking, ScrollView,
@@ -6,6 +6,7 @@ import {
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import { billingApi } from "../lib/api";
+import { posthog } from "../config/posthog";
 import { useSubscriptionStore } from "../lib/subscriptionStore";
 import { useTheme } from "../lib/ThemeContext";
 
@@ -67,7 +68,12 @@ export default function PaywallModal({ visible, onClose, reason }: Props) {
 
   const active = PLANS.find((p) => p.key === plan)!;
 
+  useEffect(() => {
+    if (visible) posthog.capture("paywall_viewed", { reason: reason ?? null });
+  }, [visible]);
+
   const handleUpgrade = async () => {
+    posthog.capture("premium_upgrade_initiated", { plan, price: active.price });
     setLoading(true); setError("");
     try {
       const res = await billingApi.createCheckout(plan);

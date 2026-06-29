@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -12,6 +12,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, { Circle } from "react-native-svg";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
+import { posthog } from "../../config/posthog";
 import { useStockDetail, useStockScore, useRichFinancials, type EntryRange, type EntryRangesMeta } from "../../hooks/useStockDetail";
 import StockChart from "../StockChart";
 import StockNews from "./StockNews";
@@ -503,6 +504,10 @@ export default function StockDetailScreen({ ticker }: { ticker: string }) {
   const insets = useSafeAreaInsets();
   const { data, loading, error, refetch } = useStockDetail(ticker);
   const [activeTab, setActiveTab] = useState<TabId>("veredicto");
+
+  useEffect(() => {
+    if (ticker) posthog.capture("stock_detail_viewed", { ticker });
+  }, [ticker]);
   const { data: richFin } = useRichFinancials(ticker, activeTab === "financieros");
 
   const pricePct = data?.profile?.current_price != null && data?.profile?.prev_close != null && data.profile.prev_close !== 0

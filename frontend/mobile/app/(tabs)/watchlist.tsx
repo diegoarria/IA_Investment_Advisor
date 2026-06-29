@@ -10,6 +10,7 @@ import { useWatchlistStore } from "../../src/lib/watchlistStore";
 import { useSubscriptionStore, hasPremiumAccess } from "../../src/lib/subscriptionStore";
 import { usePortfolioStore } from "../../src/lib/portfolioStore";
 import { marketApi, watchlistExtApi, feedApi, priceAlertsApi } from "../../src/lib/api";
+import { posthog } from "../../src/config/posthog";
 import { Image } from "react-native";
 import StockAvatar from "../../src/components/StockAvatar";
 import PaywallModal from "../../src/components/PaywallModal";
@@ -285,6 +286,7 @@ export default function WatchlistScreen() {
     setSavingAlert(true);
     try {
       const res = await priceAlertsApi.create(alertModal.ticker, Number(alertPrice), alertCondition);
+      posthog.capture("price_alert_created", { ticker: alertModal.ticker, condition: alertCondition, target_price: Number(alertPrice) });
       setAlerts((prev) => ({ ...prev, [alertModal.ticker]: res.data }));
       setAlertModal(null);
     } catch { }
@@ -354,6 +356,7 @@ export default function WatchlistScreen() {
     if (!isPremium && items.length >= FREE_LIMIT) { setPaywallOpen(true); return; }
     setAddingTicker(ticker);
     add(ticker, name);
+    posthog.capture("watchlist_stock_added", { ticker, watchlist_size: items.length + 1 });
     setQuery(""); setSuggestions([]);
     setAddingTicker(null);
     setTimeout(() => loadPrices(true), 400);
@@ -555,7 +558,7 @@ export default function WatchlistScreen() {
                   itemCount={items.length}
                   prices={prices}
                   editMode={editMode && sortMode === "default"}
-                  onRemove={remove}
+                  onRemove={(ticker: string) => { posthog.capture("watchlist_stock_removed", { ticker, watchlist_size: items.length - 1 }); remove(ticker); }}
                   onMoveUp={handleMoveUp}
                   onMoveDown={handleMoveDown}
                   onAlert={openAlertModal}

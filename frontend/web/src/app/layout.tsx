@@ -5,6 +5,7 @@ import ThemeProvider from "@/components/ThemeProvider";
 import NuvosGuide from "@/components/NuvosGuide";
 import UpsellProvider from "@/components/UpsellProvider";
 import FeedbackBanner from "@/components/FeedbackBanner";
+import PostHogProvider from "@/components/PostHogProvider";
 
 const dmSans = DM_Sans({
   subsets: ["latin"],
@@ -35,12 +36,14 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="es" suppressHydrationWarning className={`${dmSans.variable} ${inter.variable}`}>
       <body className="antialiased">
-        <ThemeProvider>
-          {children}
-          <NuvosGuide />
-          <UpsellProvider />
-          <FeedbackBanner />
-        </ThemeProvider>
+        <PostHogProvider>
+          <ThemeProvider>
+            {children}
+            <NuvosGuide />
+            <UpsellProvider />
+            <FeedbackBanner />
+          </ThemeProvider>
+        </PostHogProvider>
       </body>
     </html>
   );

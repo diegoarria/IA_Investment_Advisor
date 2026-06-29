@@ -73,8 +73,8 @@ COMPANY_TICKERS: dict[str, str] = {
     "eth": "ETH-USD", "ethereum": "ETH-USD",
 }
 
-CACHE_TTL        = 600   # 10 minutes — fresher financial data
-GLOBAL_CACHE_TTL = 900   # 15 minutes
+CACHE_TTL        = 300   # 5 minutes — fresh company data for premium
+GLOBAL_CACHE_TTL = 600   # 10 minutes (was 15)
 
 
 def _cached(ticker: str, builder) -> str:
@@ -85,6 +85,87 @@ def _cached(ticker: str, builder) -> str:
     result = builder(ticker)
     cache_set(ck, result, ttl=CACHE_TTL)
     return result
+
+
+def _fetch_finnhub_company_news(ticker: str, days: int = 5) -> list[dict]:
+    """Fetch recent news for a ticker from Finnhub. Returns list of {date, headline, source, summary}."""
+    import os, requests as _req
+    key = os.getenv("FINNHUB_API_KEY", "")
+    if not key:
+        return []
+    try:
+        today = datetime.today()
+        from_d = (today - timedelta(days=days)).strftime("%Y-%m-%d")
+        to_d   = today.strftime("%Y-%m-%d")
+        r = _req.get(
+            "https://finnhub.io/api/v1/company-news",
+            params={"symbol": ticker, "from": from_d, "to": to_d, "token": key},
+            timeout=6,
+        )
+        items = r.json() if r.status_code == 200 else []
+        if not isinstance(items, list):
+            return []
+        out = []
+        seen: set[str] = set()
+        for art in items[:15]:
+            headline = (art.get("headline") or "").strip()
+            if not headline or headline in seen:
+                continue
+            seen.add(headline)
+            ts = art.get("datetime", 0)
+            dt = datetime.fromtimestamp(ts).strftime("%d/%m/%Y") if ts else "?"
+            out.append({
+                "date":     dt,
+                "headline": headline,
+                "source":   art.get("source", ""),
+                "summary":  (art.get("summary") or "")[:200],
+            })
+        return out[:10]
+    except Exception:
+        return []
+
+
+def _fetch_finnhub_market_news() -> str:
+    """Fetch today's top market headlines from Finnhub (general + forex + crypto).
+    Returns a formatted string ready to inject into global context."""
+    import os, requests as _req
+    key = os.getenv("FINNHUB_API_KEY", "")
+    if not key:
+        return ""
+    lines: list[str] = []
+    today = datetime.today().strftime("%Y-%m-%d")
+    for category in ("general", "merger"):
+        try:
+            r = _req.get(
+                "https://finnhub.io/api/v1/news",
+                params={"category": category, "minId": 0, "token": key},
+                timeout=5,
+            )
+            items = r.json() if r.status_code == 200 else []
+            if not isinstance(items, list):
+                continue
+            seen: set[str] = set()
+            for art in items[:20]:
+                headline = (art.get("headline") or "").strip()
+                ts = art.get("datetime", 0)
+                dt = datetime.fromtimestamp(ts).strftime("%Y-%m-%d") if ts else ""
+                # only keep today's and yesterday's news
+                if dt < (datetime.today() - timedelta(days=2)).strftime("%Y-%m-%d"):
+                    continue
+                if not headline or headline in seen:
+                    continue
+                seen.add(headline)
+                source = art.get("source", "")
+                lines.append(f"  [{dt}] {headline} — *{source}*")
+                if len(lines) >= 8:
+                    break
+        except Exception:
+            continue
+        if len(lines) >= 8:
+            break
+    if not lines:
+        return ""
+    return "**Noticias de mercado hoy:**\n" + "\n".join(lines)
 
 
 # ── Global market context (indices + IPOs, injected on every message) ──────
@@ -185,9 +266,10 @@ def get_global_market_context() -> str:
     stale = cache_get("mds:global_market_stale")
 
     try:
-        with concurrent.futures.ThreadPoolExecutor(max_workers=len(_INDICES) + 1) as ex:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=len(_INDICES) + 2) as ex:
             index_futs = {ex.submit(_get_index_summary, t, l): (t, l) for t, l in _INDICES}
-            ipo_fut = ex.submit(_fetch_recent_ipos)
+            ipo_fut  = ex.submit(_fetch_recent_ipos)
+            news_fut = ex.submit(_fetch_finnhub_market_news)
 
             ordered_results: dict[tuple, str] = {}
             all_nd = True
@@ -204,6 +286,10 @@ def get_global_market_context() -> str:
                 ipo_section = ipo_fut.result(timeout=6)
             except Exception:
                 ipo_section = ""
+            try:
+                market_news = news_fut.result(timeout=6)
+            except Exception:
+                market_news = ""
 
         # If Yahoo Finance rate-limited everything, return stale cache to avoid hammering
         if all_nd and stale:
@@ -213,6 +299,7 @@ def get_global_market_context() -> str:
             return stale
         ordered_results = {(t, l): f"  {l}: N/D" for t, l in _INDICES}
         ipo_section = ""
+        market_news = ""
 
     lines = [
         "---",
@@ -224,6 +311,10 @@ def get_global_market_context() -> str:
     ]
     for key in _INDICES:
         lines.append(ordered_results[key])
+
+    if market_news:
+        lines.append("")
+        lines.append(market_news)
 
     if ipo_section:
         lines.append("")
@@ -555,16 +646,25 @@ def _build_company_context(ticker: str) -> str:
                 upside = (target - price) / price * 100
                 lines.append(f"- Precio objetivo promedio: ${target:.2f} ({upside:+.1f}% vs precio actual)")
 
-        # ── Recent news ──
-        news_items = (raw_news or [])[:6]
-        if news_items:
-            lines.append("\n**Noticias recientes:**")
-            for art in news_items:
-                title = art.get("title", "")
-                pub   = art.get("publisher", "")
-                ts    = art.get("providerPublishTime", 0)
-                dt    = datetime.fromtimestamp(ts).strftime("%d/%m/%Y") if ts else "?"
-                lines.append(f"- [{dt}] {title} — *{pub}*")
+        # ── Recent news — Finnhub (primary, more reliable) + yfinance fallback ──
+        fh_news = _fetch_finnhub_company_news(ticker, days=5)
+        if fh_news:
+            lines.append("\n**Noticias recientes (Finnhub):**")
+            for art in fh_news:
+                lines.append(f"- [{art['date']}] {art['headline']} — *{art['source']}*")
+                if art["summary"]:
+                    lines.append(f"  ↳ {art['summary']}")
+        else:
+            # fallback to yfinance news
+            news_items = (raw_news or [])[:6]
+            if news_items:
+                lines.append("\n**Noticias recientes:**")
+                for art in news_items:
+                    title = art.get("title", "")
+                    pub   = art.get("publisher", "")
+                    ts    = art.get("providerPublishTime", 0)
+                    dt    = datetime.fromtimestamp(ts).strftime("%d/%m/%Y") if ts else "?"
+                    lines.append(f"- [{dt}] {title} — *{pub}*")
 
         # ── SEC EDGAR block (authoritative 10-Q/10-K financial statements) ──
         if sec_block:

@@ -1,0 +1,70 @@
+export default {
+  expo: {
+    name: "Nuvos AI",
+    slug: "nuvo",
+    version: "1.0.0",
+    orientation: "portrait",
+    icon: "./assets/icon.png",
+    userInterfaceStyle: "dark",
+    scheme: "nuvo",
+    splash: {
+      image: "./assets/images/logo_splash.png",
+      resizeMode: "contain",
+      backgroundColor: "#0f1117",
+    },
+    ios: {
+      supportsTablet: true,
+      bundleIdentifier: "com.nuvosai.app",
+      buildNumber: "7",
+      infoPlist: {
+        ITSAppUsesNonExemptEncryption: false,
+        NSPhotoLibraryUsageDescription:
+          "Nuvos AI necesita acceso a tu galería para que puedas subir una foto de perfil y analizar capturas de tu portafolio.",
+        NSPhotoLibraryAddUsageDescription:
+          "Nuvos AI puede guardar imágenes en tu galería.",
+        NSUserNotificationsUsageDescription:
+          "Activa las notificaciones para recibir alertas de tus posiciones, oportunidades de mercado y mensajes de tu mentor.",
+        NSFaceIDUsageDescription:
+          "Nuvos AI usa Face ID para que puedas iniciar sesión de forma rápida y segura sin escribir tu contraseña.",
+      },
+    },
+    android: {
+      adaptiveIcon: {
+        foregroundImage: "./assets/adaptive-icon.png",
+        backgroundColor: "#3db54a",
+      },
+      package: "com.nuvosai.app",
+    },
+    plugins: [
+      "expo-router",
+      [
+        "expo-notifications",
+        {
+          icon: "./assets/notification-icon.png",
+          color: "#22c55e",
+          sounds: [
+            "./assets/sounds/market_open.wav",
+            "./assets/sounds/market_close.wav",
+          ],
+        },
+      ],
+      "expo-asset",
+      "expo-font",
+      "expo-secure-store",
+      "expo-web-browser",
+    ],
+    experiments: {
+      typedRoutes: true,
+    },
+    extra: {
+      router: {
+        origin: false,
+      },
+      eas: {
+        projectId: "11c4956f-5fff-4fb2-9128-210b504a43b5",
+      },
+      posthogProjectToken: process.env.POSTHOG_PROJECT_TOKEN,
+      posthogHost: process.env.POSTHOG_HOST || "https://us.i.posthog.com",
+    },
+  },
+};

@@ -7,6 +7,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { profileApi } from "../../src/lib/api";
+import { posthog } from "../../src/config/posthog";
 import { useAppStore, RISK_CONFIG } from "../../src/lib/profileStore";
 import type { QuizAnswer } from "../../src/lib/profileStore";
 
@@ -570,7 +571,11 @@ export default function OnboardingScreen() {
 
   // ── Submit ────────────────────────────────────────────────────────────────────
   const handleNext = async () => {
-    if (!isLastStep) { setStep(step + 1); return; }
+    if (!isLastStep) {
+      posthog.capture("onboarding_step_advanced", { step_index: step, step_total: STEPS.length });
+      setStep(step + 1);
+      return;
+    }
     setLoading(true); setError("");
     try {
       const profileData = {
@@ -587,6 +592,12 @@ export default function OnboardingScreen() {
       };
       setProfile(profileData as unknown as import("../../src/lib/profileStore").UserProfile);
       profileApi.create(profileData as Record<string, unknown>).catch(() => {});
+      posthog.capture("onboarding_completed", {
+        risk_tolerance: calculated,
+        knowledge_level: form.knowledge_level,
+        investment_goal: form.investment_goal,
+        investment_horizon: parseInt(form.investment_horizon) || 0,
+      });
       router.replace("/(tabs)/chat");
     } catch {
       setError("Error al guardar el perfil. Intenta de nuevo.");

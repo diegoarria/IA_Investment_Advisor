@@ -13,6 +13,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import Markdown from "react-native-markdown-display";
 import { chatApi, marketApi, decisionsApi } from "../../src/lib/api";
+import { posthog } from "../../src/config/posthog";
 import { useTheme, Colors } from "../../src/lib/ThemeContext";
 import { useAppStore, RISK_CONFIG, getAge } from "../../src/lib/profileStore";
 import { getUserLevel, LEVEL_LABEL, LEVEL_COLOR } from "../../src/lib/userLevel";
@@ -545,6 +546,7 @@ Instrucciones críticas:
     // Client-side free limit check
     if (!isPremiumAccess && remaining <= 0) {
       const mins = resetMinutes(subStore.msgWindowStart);
+      posthog.capture("ai_chat_limit_reached", { free_limit: FREE_MSG_LIMIT, reset_minutes: mins });
       openPaywall(`Alcanzaste el límite de ${FREE_MSG_LIMIT} mensajes. Vuelve en ${mins} min o activa Premium.`);
       return;
     }
@@ -584,6 +586,13 @@ Instrucciones críticas:
     setLastTicker(null);
 
     incrementMsgCount();
+    posthog.capture("ai_message_sent", {
+      has_images: imagesToSend.length > 0,
+      image_count: imagesToSend.length,
+      is_voice: voiceInputRef.current,
+      is_premium: isPremiumAccess,
+      messages_remaining: remaining - 1,
+    });
 
     const ctxToSend = notificationContext;
     setNotificationContext(null);

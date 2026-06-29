@@ -3607,66 +3607,85 @@ _FX_FALLBACK_RATES: dict[str, float] = {
 
 @router.get("/fx-rate")
 async def get_fx_rate(to: str = "USD"):
-    """Real-time USD → {to} exchange rate. Cached 30 min."""
+    """Real-time USD → {to} exchange rate. Cached 1 hour.
+
+    Source priority:
+    1. open.er-api.com  — free, no key, 1500+ currencies, updated every 24h
+    2. frankfurter.app  — ECB official rates (EUR-centric, covers ~30 currencies)
+    3. yfinance         — market FX tick (slow on Railway, kept as last live option)
+    4. hardcoded fallback — always returns something reasonable
+    """
     if to.upper() == "USD":
         return {"rate": 1.0, "pair": "USD/USD", "source": "exact"}
 
     to = to.upper()
-    cache_key = f"fx:USD:{to}"
+    cache_key = f"fx:USD:{to}:v2"
     cached = cache_get(cache_key)
     if cached:
         return cached
 
     result = None
+    import httpx as _httpx
 
-    # Primary: yfinance — try fast_info then recent history
-    try:
-        import asyncio as _asyncio
-
-        def _yf_rate():
-            t = yf.Ticker(f"USD{to}=X")
-            try:
-                rate = t.fast_info.last_price
-                if rate and float(rate) > 0:
-                    return float(rate)
-            except Exception:
-                pass
-            # history fallback (last 5 trading days)
-            try:
-                hist = t.history(period="5d", interval="1d")
-                if not hist.empty:
-                    return float(hist["Close"].iloc[-1])
-            except Exception:
-                pass
-            return None
-
-        rate = await _asyncio.to_thread(_yf_rate)
-        if rate:
-            result = {"rate": round(rate, 6), "pair": f"USD/{to}", "source": "live"}
-    except Exception:
-        pass
-
-    # Fallback: frankfurter.app (ECB rates, updated daily)
+    # 1. open.er-api.com — free, no auth, covers ARS/COP/CLP/PEN/etc.
     if not result:
         try:
-            import httpx as _httpx
-            async with _httpx.AsyncClient(timeout=5) as client:
-                resp = await client.get(
-                    f"https://api.frankfurter.app/latest?from=USD&to={to}"
-                )
+            async with _httpx.AsyncClient(timeout=6) as client:
+                resp = await client.get("https://open.er-api.com/v6/latest/USD")
                 d = resp.json()
-                if d.get("rates", {}).get(to):
-                    result = {"rate": d["rates"][to], "pair": f"USD/{to}", "source": "frankfurter"}
+                if d.get("result") == "success":
+                    rate = (d.get("rates") or {}).get(to)
+                    if rate and float(rate) > 0:
+                        result = {"rate": round(float(rate), 6), "pair": f"USD/{to}", "source": "open.er-api"}
         except Exception:
             pass
 
-    # Last resort: hardcoded approximate rates so UI never shows 1 by mistake
+    # 2. frankfurter.app — ECB rates, ~30 currencies
+    if not result:
+        try:
+            async with _httpx.AsyncClient(timeout=5) as client:
+                resp = await client.get(f"https://api.frankfurter.app/latest?from=USD&to={to}")
+                d = resp.json()
+                rate = (d.get("rates") or {}).get(to)
+                if rate and float(rate) > 0:
+                    result = {"rate": round(float(rate), 6), "pair": f"USD/{to}", "source": "frankfurter"}
+        except Exception:
+            pass
+
+    # 3. yfinance — market FX tick (slow, last live resort)
+    if not result:
+        try:
+            import asyncio as _asyncio
+
+            def _yf_rate():
+                t = yf.Ticker(f"USD{to}=X")
+                try:
+                    rate = t.fast_info.last_price
+                    if rate and float(rate) > 0:
+                        return float(rate)
+                except Exception:
+                    pass
+                try:
+                    hist = t.history(period="5d", interval="1d")
+                    if not hist.empty:
+                        return float(hist["Close"].iloc[-1])
+                except Exception:
+                    pass
+                return None
+
+            rate = await _asyncio.to_thread(_yf_rate)
+            if rate:
+                result = {"rate": round(rate, 6), "pair": f"USD/{to}", "source": "yfinance"}
+        except Exception:
+            pass
+
+    # 4. Hardcoded fallback — always returns something
     if not result and to in _FX_FALLBACK_RATES:
         result = {"rate": _FX_FALLBACK_RATES[to], "pair": f"USD/{to}", "source": "fallback"}
 
     if result:
-        ttl = 1800 if result["source"] != "fallback" else 300
+        ttl = 3600 if result["source"] not in ("fallback",) else 300
         cache_set(cache_key, result, ttl=ttl)
         return result
 
-    return {"rate": None, "pair": f"USD/{to}", "source": "unavailable"}
+    return {"rate": _FX_FALLBACK_RATES.get(to, 1.0), "pair": f"USD/{to}", "source": "fallback"}

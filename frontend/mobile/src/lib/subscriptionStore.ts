@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { billingApi } from "./api";
+import { posthog } from "../config/posthog";
 
 export type SubscriptionTier = "free" | "premium";
 
@@ -37,9 +38,14 @@ export const useSubscriptionStore = create<SubscriptionStore>()(
       fetchStatus: async () => {
         try {
           const res = await billingApi.getStatus();
+          const prevTier = get().tier;
+          const newTier = res.data.tier ?? "free";
+          if (prevTier !== "premium" && newTier === "premium") {
+            posthog.capture("premium_upgrade_completed", { plan: res.data.plan ?? null });
+          }
           set({
-            tier:                res.data.tier ?? "free",
-            msgCount:            res.data.msg_count ?? 0,
+            tier:                newTier,
+            msgCount:            res.data.msg_count  ?? 0,
             msgWindowStart:      res.data.msg_window_start ?? null,
             isTrialPremium:      res.data.is_trial ?? false,
             trialDaysLeftServer: res.data.trial_days_left ?? 0,

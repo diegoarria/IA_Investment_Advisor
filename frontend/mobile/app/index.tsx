@@ -12,6 +12,7 @@ import * as LocalAuthentication from "expo-local-authentication";
 import Constants, { ExecutionEnvironment } from "expo-constants";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { authApi, profileApi, syncApi, referralApi } from "../src/lib/api";
+import { posthog } from "../src/config/posthog";
 import { useAppStore } from "../src/lib/profileStore";
 import type { UserProfile } from "../src/lib/profileStore";
 import { usePortfolioStore } from "../src/lib/portfolioStore";
@@ -168,6 +169,10 @@ export default function AuthScreen() {
           mentor: p.mentor ?? null,
           avatarUri: p.avatar_url ?? useAppStore.getState().profile?.avatarUri ?? null,
         });
+        posthog.identify(userId, {
+          $set: { name: p.name, risk_tolerance: p.risk_tolerance as string, knowledge_level: (p.knowledge_level as string) ?? null },
+          $set_once: { first_seen: new Date().toISOString() },
+        });
       }
       if (syncRes.status === "fulfilled") {
         const d = syncRes.value.data;
@@ -270,8 +275,11 @@ export default function AuthScreen() {
       const fn = mode === "login" ? authApi.login : authApi.register;
       const res = await fn(trimmedEmail, password);
       await afterAuth(res.data.access_token, res.data.refresh_token, res.data.user_id);
-      if (mode === "register" && refCode.trim()) {
-        referralApi.applyCode(refCode.trim().toUpperCase()).catch(() => {});
+      if (mode === "register") {
+        posthog.capture("user_signed_up", { method: "email", has_referral_code: !!refCode.trim() });
+        if (refCode.trim()) referralApi.applyCode(refCode.trim().toUpperCase()).catch(() => {});
+      } else {
+        posthog.capture("user_logged_in", { method: "email" });
       }
       if (mode === "login") {
         const isEnabled = await SecureStore.getItemAsync(BIOMETRIC_ENABLED_KEY);
@@ -317,6 +325,7 @@ export default function AuthScreen() {
       }
       const res = await authApi.login(savedEmail, savedPassword);
       await afterAuth(res.data.access_token, res.data.refresh_token, res.data.user_id);
+      posthog.capture("user_logged_in", { method: "biometric", biometric_type: hasFaceId ? "face_id" : "fingerprint" });
     } catch {
       Alert.alert("Error", "No se pudo autenticar. Intenta con tu contraseña.");
     } finally {

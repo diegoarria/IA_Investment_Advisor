@@ -7,6 +7,7 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { marketApi, paperApi } from "../../src/lib/api";
+import { posthog } from "../../src/config/posthog";
 import { usePaperStore, PAPER_INITIAL_CASH } from "../../src/lib/paperStore";
 import { useSubscriptionStore, hasPremiumAccess } from "../../src/lib/subscriptionStore";
 import PaywallModal from "../../src/components/PaywallModal";
@@ -145,6 +146,7 @@ export default function PaperScreen() {
   const [analysisLoading, setAnalysisLoading] = useState(false);
 
   const runAnalysis = async () => {
+    posthog.capture("paper_ai_analysis_requested", { trade_count: trades.length, return_pct: totalReturnPct });
     setAnalysisLoading(true);
     try {
       const res = await paperApi.analyze(positions, trades, totalReturnPct, cash, totalValue);
@@ -219,13 +221,17 @@ export default function PaperScreen() {
     setBuyLoading(true);
     const err = buy(tickerInfo.ticker, tickerInfo.name, shares, tickerInfo.price);
     if (err) { Alert.alert("Error", err); }
-    else { setQuery(""); setBuyQty(""); setTickerInfo(null); }
+    else {
+      posthog.capture("paper_trade_executed", { action: "buy", ticker: tickerInfo.ticker, shares, price: tickerInfo.price });
+      setQuery(""); setBuyQty(""); setTickerInfo(null);
+    }
     setBuyLoading(false);
   };
 
   const confirmSell = (shares: number) => {
     if (!sellModal) return;
     sell(sellModal.ticker, shares, sellModal.price);
+    posthog.capture("paper_trade_executed", { action: "sell", ticker: sellModal.ticker, shares, price: sellModal.price });
     setPosPrices((prev) => ({ ...prev }));
   };
 

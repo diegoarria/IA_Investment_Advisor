@@ -14,6 +14,7 @@ import * as ImagePicker from "expo-image-picker";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { marketApi } from "../../src/lib/api";
+import { posthog } from "../../src/config/posthog";
 import { useTheme } from "../../src/lib/ThemeContext";
 import { usePortfolioStore, Position } from "../../src/lib/portfolioStore";
 import MobileMonthlyReport from "../../src/components/MobileMonthlyReport";
@@ -681,7 +682,8 @@ export default function PortfolioScreen() {
     : portfolioCurrency === "JPY" ? "¥"
     : `${portfolioCurrency} `;
 
-  // Fetch live FX rate from backend (yfinance → frankfurter → hardcoded fallback)
+  // Fetch live FX rate — open.er-api.com (primary) → frankfurter → hardcoded fallback
+  // Caches last-known-good rate in AsyncStorage so UI shows correct value on reload
   useEffect(() => {
     if (portfolioCurrency === "USD") { setFxRate(1); return; }
     const LOCAL_FALLBACK: Record<string, number> = {
@@ -690,11 +692,19 @@ export default function PortfolioScreen() {
       NZD:1.68, INR:83.5, CNY:7.25, HKD:7.82, SGD:1.35, TRY:32.5,
       ZAR:18.8, SEK:10.6, NOK:10.8, DKK:6.85, PLN:4.05, KRW:1360,
     };
+    const asKey = `nuvos_fx_${portfolioCurrency}`;
+    // Apply last-known-good rate immediately
+    AsyncStorage.getItem(asKey).then((val) => {
+      const stored = parseFloat(val ?? "");
+      if (!isNaN(stored) && stored > 0) setFxRate(stored);
+    }).catch(() => {});
     const fetchRate = () => {
       marketApi.getFxRate(portfolioCurrency)
         .then((r) => {
-          if (r.data?.rate) {
-            setFxRate(r.data.rate);
+          const rate = r.data?.rate;
+          if (rate && rate > 0) {
+            setFxRate(rate);
+            AsyncStorage.setItem(asKey, String(rate)).catch(() => {});
           } else if (LOCAL_FALLBACK[portfolioCurrency]) {
             setFxRate(LOCAL_FALLBACK[portfolioCurrency]);
           }
@@ -704,7 +714,7 @@ export default function PortfolioScreen() {
         });
     };
     fetchRate();
-    const interval = setInterval(fetchRate, 30 * 60 * 1000);
+    const interval = setInterval(fetchRate, 60 * 60 * 1000); // refresh every hour
     return () => clearInterval(interval);
   }, [portfolioCurrency]);
 
@@ -990,22 +1000,27 @@ export default function PortfolioScreen() {
     }
 
     type ImportItem = { ticker: string; name: string; shares: number; avgPrice: number; purchaseDate?: string };
-    // Never use OCR avg_price — use user-entered value instead
-    const incoming: ImportItem[] = screenshotPreview.map((p) => ({
-      ticker: p.ticker,
-      name: p.name ?? "",
-      shares: p.shares,
-      avgPrice: parseFloat(screenshotPriceInputs[p.id]?.avgPrice ?? "") || 0,
-      ...(screenshotPriceInputs[p.id]?.purchaseDate ? { purchaseDate: screenshotPriceInputs[p.id].purchaseDate } : {}),
-    }));
+    // Never use OCR avg_price — use user-entered value, converted to USD for storage
+    const incoming: ImportItem[] = screenshotPreview.map((p) => {
+      const entered = parseFloat(screenshotPriceInputs[p.id]?.avgPrice ?? "") || 0;
+      const avgPriceUSD = portfolioCurrency === "USD" ? entered : parseFloat((entered / fxRate).toFixed(6));
+      return {
+        ticker: p.ticker,
+        name: p.name ?? "",
+        shares: p.shares,
+        avgPrice: avgPriceUSD,
+        ...(screenshotPriceInputs[p.id]?.purchaseDate ? { purchaseDate: screenshotPriceInputs[p.id].purchaseDate } : {}),
+      };
+    });
 
     // Resolve merge vs replace now; store the final list in pendingImport for currency selection
     const openCurrencyModal = (toImport: ImportItem[]) => {
+      posthog.capture("portfolio_import_completed", { position_count: toImport.length, method: "screenshot" });
       setPendingImport(toImport);
       setScreenshotPreview(null);
       setScreenshotUris([]);
       setScreenshotPriceInputs({});
-      setImportCurrency("USD");
+      setImportCurrency(portfolioCurrency); // prices already in USD; this just sets display currency
     };
 
     if (positions.length > 0) {
@@ -1044,9 +1059,11 @@ export default function PortfolioScreen() {
   const handleAdd = async () => {
     const ticker = form.ticker.trim().toUpperCase();
     const shares = parseFloat(form.shares);
-    const avgPrice = parseFloat(form.avgPrice);
-    if (!ticker || !shares || !avgPrice) { Alert.alert("Completa todos los campos"); return; }
+    const enteredPrice = parseFloat(form.avgPrice);
+    if (!ticker || !shares || !enteredPrice) { Alert.alert("Completa todos los campos"); return; }
     if (!isPremiumAccess && positions.length >= FREE_POSITION_LIMIT) { setPaywallOpen(true); return; }
+    // avgPrice always stored in USD
+    const avgPrice = portfolioCurrency === "USD" ? enteredPrice : parseFloat((enteredPrice / fxRate).toFixed(6));
     setAddingLoading(true);
     try {
       const res = await marketApi.getPrices([ticker]);
@@ -1054,6 +1071,7 @@ export default function PortfolioScreen() {
     } catch {
       addPosition({ ticker, shares, avgPrice });
     }
+    posthog.capture("portfolio_position_added", { ticker, shares, method: "manual", position_count: positions.length + 1 });
     setForm({ ticker: "", shares: "", avgPrice: "" });
     setShowForm(false);
     setAddingLoading(false);
@@ -1063,6 +1081,7 @@ export default function PortfolioScreen() {
   // ── Simulator 1: portfolio AI analysis ────────────────────────────────
   const runPortfolioAnalysis = async () => {
     if (!positions.length) return;
+    posthog.capture("portfolio_ai_analysis_requested", { position_count: positions.length });
     setAnalysisLoading(true); setPortfolioAnalysis(null);
     try {
       const posPayload = positions.map((p) => ({
@@ -1148,6 +1167,7 @@ export default function PortfolioScreen() {
   const runStressTest = (scenarioId: string) => {
     const sc = STRESS_SCENARIOS.find((s) => s.id === scenarioId);
     if (!sc) return;
+    posthog.capture("stress_test_run", { scenario: scenarioId, position_count: positions.length });
     setStressScenario(scenarioId);
     const rows = positions.map((pos) => {
       const currentPrice = prices[pos.ticker]?.price ?? pos.avgPrice;
@@ -1559,12 +1579,12 @@ export default function PortfolioScreen() {
                 <View style={{ flexDirection: "row", gap: 8 }}>
                   <View style={{ flex: 1 }}>
                     <Text style={{ color: "#6b7280", fontSize: 10, fontWeight: "700", textTransform: "uppercase", marginBottom: 4 }}>
-                      Precio promedio ($)
+                      Precio promedio ({portfolioCurrency})
                     </Text>
                     <TextInput
                       style={{ backgroundColor: "#0a0d12", borderWidth: 1, borderColor: "#1f2330", borderRadius: 8, paddingHorizontal: 10, paddingVertical: 7, color: "#fff", fontSize: 13 }}
                       keyboardType="decimal-pad"
-                      placeholder="ej. 223.00"
+                      placeholder={portfolioCurrency === "USD" ? "ej. 223.00" : `ej. ${(223 * fxRate).toFixed(0)}`}
                       placeholderTextColor="#374151"
                       value={screenshotPriceInputs[p.id]?.avgPrice ?? ""}
                       onChangeText={(v) => setScreenshotPriceInputs((prev) => ({ ...prev, [p.id]: { ...prev[p.id], avgPrice: v } }))}
@@ -1623,7 +1643,8 @@ export default function PortfolioScreen() {
                 style={[s.formInput, { color: "#fff", backgroundColor: "#0a0d12", borderColor: "#1f2330", flex: 1, marginLeft: 8 }]}
                 value={form.avgPrice}
                 onChangeText={(v) => setForm({ ...form, avgPrice: v })}
-                placeholder="Precio promedio" placeholderTextColor={"#374151"}
+                placeholder={portfolioCurrency === "USD" ? "Precio (USD)" : `Precio (${portfolioCurrency})`}
+                placeholderTextColor={"#374151"}
                 keyboardType="decimal-pad"
               />
             </View>
@@ -2183,13 +2204,13 @@ export default function PortfolioScreen() {
                       {/* Actions */}
                       <View style={{ width: 52, flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 4, paddingLeft: 4 }}>
                         <TouchableOpacity
-                          onPress={(e) => { e.stopPropagation(); setEditingPos({ id: pos.id, shares: String(pos.shares), avgPrice: String(pos.avgPrice), purchaseDate: pos.purchaseDate ?? new Date().toISOString().split("T")[0] }); }}
+                          onPress={(e) => { e.stopPropagation(); setEditingPos({ id: pos.id, shares: String(pos.shares), avgPrice: portfolioCurrency === "USD" ? String(pos.avgPrice) : String(parseFloat((pos.avgPrice * fxRate).toFixed(4))), purchaseDate: pos.purchaseDate ?? new Date().toISOString().split("T")[0] }); }}
                           hitSlop={{ top: 8, bottom: 8, left: 8, right: 4 }}
                           activeOpacity={0.7}>
                           <Ionicons name="pencil-outline" size={14} color={"#4b5563"} />
                         </TouchableOpacity>
                         <TouchableOpacity
-                          onPress={(e) => { e.stopPropagation(); removePosition(pos.id); }}
+                          onPress={(e) => { e.stopPropagation(); posthog.capture("portfolio_position_removed", { ticker: pos.ticker }); removePosition(pos.id); }}
                           hitSlop={{ top: 8, bottom: 8, left: 4, right: 8 }}
                           activeOpacity={0.7}>
                           <Ionicons name="trash-outline" size={14} color="#ef444470" />
@@ -2777,6 +2798,7 @@ export default function PortfolioScreen() {
               avgPrice: p.avgPrice,
             });
           });
+          posthog.capture("portfolio_import_completed", { position_count: positions.length, method: "broker_connect" });
           setBrokerModalOpen(false);
         }}
       />
@@ -2802,15 +2824,20 @@ export default function PortfolioScreen() {
                 placeholderTextColor={"#4b5563"}
                 placeholder="Ej: 10"
               />
-              <Text style={{ fontSize: 10, color: "#6b7280", fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>Precio promedio de compra ($)</Text>
+              <Text style={{ fontSize: 10, color: "#6b7280", fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>Precio promedio de compra ({portfolioCurrency})</Text>
               <TextInput
-                style={{ backgroundColor: "#1a1d27", borderWidth: 1, borderColor: "#1f2330", borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: "#fff", marginBottom: 12 }}
+                style={{ backgroundColor: "#1a1d27", borderWidth: 1, borderColor: "#1f2330", borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: "#fff", marginBottom: portfolioCurrency !== "USD" ? 4 : 12 }}
                 keyboardType="decimal-pad"
                 value={editingPos?.avgPrice ?? ""}
                 onChangeText={(v) => setEditingPos((p) => p ? { ...p, avgPrice: v } : p)}
                 placeholderTextColor={"#4b5563"}
-                placeholder="Ej: 150.00"
+                placeholder={portfolioCurrency === "USD" ? "Ej: 150.00" : `Ej: ${(150 * fxRate).toFixed(0)}`}
               />
+              {portfolioCurrency !== "USD" && editingPos?.avgPrice && !isNaN(parseFloat(editingPos.avgPrice)) && (
+                <Text style={{ fontSize: 11, color: "#4b5563", marginBottom: 10 }}>
+                  ≈ ${(parseFloat(editingPos.avgPrice) / fxRate).toFixed(2)} USD
+                </Text>
+              )}
               <Text style={{ fontSize: 10, color: "#6b7280", fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>Fecha de compra (YYYY-MM-DD)</Text>
               <TextInput
                 style={{ backgroundColor: "#1a1d27", borderWidth: 1, borderColor: "#1f2330", borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: "#fff", marginBottom: 16 }}
@@ -2825,17 +2852,22 @@ export default function PortfolioScreen() {
                 onPress={() => {
                   if (!editingPos) return;
                   const shares = parseFloat(editingPos.shares);
-                  const avgPrice = parseFloat(editingPos.avgPrice);
+                  const enteredPrice = parseFloat(editingPos.avgPrice);
                   if (isNaN(shares) || shares <= 0) return;
+                  // avgPrice always stored in USD
+                  const avgPriceUSD = isNaN(enteredPrice) ? 0
+                    : portfolioCurrency === "USD" ? enteredPrice
+                    : parseFloat((enteredPrice / fxRate).toFixed(6));
+                  const displayPrice = isNaN(enteredPrice) ? "0" : enteredPrice.toString();
                   Alert.alert(
                     "¿Guardar cambios?",
-                    `${shares} acciones · precio promedio $${isNaN(avgPrice) ? "0" : avgPrice}`,
+                    `${shares} acciones · precio promedio ${currencySymbol}${displayPrice}`,
                     [
                       { text: "Cancelar", style: "cancel" },
                       {
                         text: "Guardar", style: "default",
                         onPress: () => {
-                          updatePosition(editingPos.id, { shares, avgPrice: isNaN(avgPrice) ? 0 : avgPrice, purchaseDate: editingPos.purchaseDate || undefined });
+                          updatePosition(editingPos.id, { shares, avgPrice: avgPriceUSD, purchaseDate: editingPos.purchaseDate || undefined });
                           setEditingPos(null);
                         },
                       },

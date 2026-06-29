@@ -21,8 +21,26 @@ from app.services.market_data_service import (
 from app.core.limiter import limiter
 
 FREE_MSG_LIMIT    = 20
-PREMIUM_MSG_LIMIT = 80
+PREMIUM_MSG_LIMIT = 200
 MSG_WINDOW_HOURS  = 24
+
+
+def _is_premium(profile) -> bool:
+    """True for premium/pro subscribers and users within their 90-day trial."""
+    if profile is None:
+        return False
+    from datetime import datetime as _dt, timezone as _tz
+    tier = getattr(profile, "subscription_tier", "") or ""
+    if tier in ("premium", "pro"):
+        return True
+    trial = getattr(profile, "trial_started_at", None)
+    if trial:
+        try:
+            started = _dt.fromisoformat(trial.replace("Z", "+00:00"))
+            return (_dt.now(_tz.utc) - started).days < 90
+        except Exception:
+            pass
+    return False
 
 
 async def _check_and_increment_msg_limit(user_id: str, profile: UserProfile) -> None:
@@ -180,18 +198,18 @@ async def _get_mentor_deep_context(user_id: str) -> str | None:
         return None
 
 
-def _enrich_message(message: str) -> str:
+def _enrich_message(message: str, timeout: float = 3.0) -> str:
     """Prepend global market context + append per-company context. Both fetched in parallel."""
     f_global  = _ENRICH_POOL.submit(get_global_market_context)
     f_company = _ENRICH_POOL.submit(get_market_context_for_message, message)
     global_ctx  = ""
     company_ctx = ""
     try:
-        global_ctx = f_global.result(timeout=0.8)
+        global_ctx = f_global.result(timeout=timeout)
     except Exception:
         pass
     try:
-        company_ctx = f_company.result(timeout=0.8)
+        company_ctx = f_company.result(timeout=timeout)
     except Exception:
         pass
     parts = [message]
@@ -216,26 +234,28 @@ async def chat_stream(
     if not images and body.image_data:
         images = [{"data": body.image_data, "type": body.image_type or "image/jpeg"}]
 
-    # Run all pre-AI work in parallel; cap market enrichment at 1s so it never blocks
+    # Fetch profile first (needed for premium check + enrichment timeout)
+    profile = await _get_user_profile(user_id)
+    premium = _is_premium(profile)
+    enrich_timeout = 4.0 if premium else 2.5
+
     async def _safe_enrich():
         try:
             return await asyncio.wait_for(
-                asyncio.to_thread(_enrich_message, body.message),
-                timeout=1.0,
+                asyncio.to_thread(_enrich_message, body.message, enrich_timeout),
+                timeout=enrich_timeout + 1.0,
             )
         except Exception:
             return body.message
 
     if has_images:
-        profile, memory, deep_ctx = await asyncio.gather(
-            _get_user_profile(user_id),
+        memory, deep_ctx = await asyncio.gather(
             _get_memory_context(user_id),
             _get_mentor_deep_context(user_id),
         )
         enriched = body.message
     else:
-        profile, memory, deep_ctx, enriched = await asyncio.gather(
-            _get_user_profile(user_id),
+        memory, deep_ctx, enriched = await asyncio.gather(
             _get_memory_context(user_id),
             _get_mentor_deep_context(user_id),
             _safe_enrich(),
@@ -251,6 +271,7 @@ async def chat_stream(
             memory_context=memory,
             notification_context=body.notification_context,
             deep_context=deep_ctx,
+            is_premium=premium,
         ):
             yield chunk
 
@@ -267,9 +288,11 @@ async def chat_message(
     profile = await _get_user_profile(user_id)
     if profile:
         await _check_and_increment_msg_limit(user_id, profile)
+    premium = _is_premium(profile)
+    enrich_timeout = 4.0 if premium else 2.5
     tickers  = await asyncio.to_thread(detect_tickers, body.message)
     has_images = bool(body.images or body.image_data)
-    enriched = await asyncio.to_thread(_enrich_message, body.message) if not has_images else body.message
+    enriched = await asyncio.to_thread(_enrich_message, body.message, enrich_timeout) if not has_images else body.message
     images = [{"data": img.data, "type": img.type} for img in body.images] if body.images else None
     if not images and body.image_data:
         images = [{"data": body.image_data, "type": body.image_type or "image/jpeg"}]
@@ -287,6 +310,7 @@ async def chat_message(
         memory_context=memory,
         notification_context=body.notification_context,
         deep_context=deep_ctx,
+        is_premium=premium,
     ):
         full += chunk
     clean_reply, bscore = _extract_bscore(full)

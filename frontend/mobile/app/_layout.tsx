@@ -1,8 +1,10 @@
 import { GestureHandlerRootView } from "react-native-gesture-handler";
-import { Stack, usePathname, router } from "expo-router";
+import { Stack, usePathname, useGlobalSearchParams, router } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { View, Platform, Modal, Text, TouchableOpacity, StyleSheet, Alert } from "react-native";
 import { useEffect, useRef, useState } from "react";
+import { PostHogProvider } from "posthog-react-native";
+import { posthog } from "../src/config/posthog";
 import { useFonts } from "expo-font";
 import {
   DMSans_400Regular,
@@ -82,7 +84,16 @@ const s = StyleSheet.create({
 function AppStack() {
   const { colors, isDark } = useTheme();
   const pathname = usePathname();
+  const params = useGlobalSearchParams();
+  const previousPathname = useRef<string | undefined>(undefined);
   const startTrialIfNeeded = useSubscriptionStore((s) => s.startTrialIfNeeded);
+
+  useEffect(() => {
+    if (previousPathname.current !== pathname) {
+      posthog.screen(pathname, { previous_screen: previousPathname.current ?? null, ...params });
+      previousPathname.current = pathname;
+    }
+  }, [pathname, params]);
 
   useEffect(() => {
     const inApp = !HIDE_SIDEBAR_ROUTES.some((r) => pathname === r || pathname.startsWith(r + "/"));
@@ -138,7 +149,11 @@ function AppStack() {
         }
       }
 
-      if (finalStatus !== "granted") return;
+      if (finalStatus !== "granted") {
+        posthog.capture("notification_permission_denied");
+        return;
+      }
+      posthog.capture("notification_permission_granted");
       const tokenData = await Notifications.getExpoPushTokenAsync({
         projectId: "11c4956f-5fff-4fb2-9128-210b504a43b5",
       });
@@ -233,9 +248,19 @@ export default function RootLayout() {
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <ThemeProvider>
-        <AppStack />
-      </ThemeProvider>
+      <PostHogProvider
+        client={posthog}
+        autocapture={{
+          captureScreens: false,
+          captureTouches: true,
+          propsToCapture: ["testID"],
+          maxElementsCaptured: 20,
+        }}
+      >
+        <ThemeProvider>
+          <AppStack />
+        </ThemeProvider>
+      </PostHogProvider>
     </GestureHandlerRootView>
   );
 }

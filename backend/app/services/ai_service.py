@@ -963,6 +963,7 @@ async def chat_stream(
     memory_context: str | None = None,
     notification_context: str | None = None,
     deep_context: str | None = None,
+    is_premium: bool = False,
 ):
     # Static part cached by Anthropic (base + profile + mentor + guardrails).
     # Dynamic context (memory, notifications) goes in a separate uncached block so
@@ -1014,9 +1015,12 @@ async def chat_stream(
 
     messages.append({"role": "user", "content": user_content})
 
+    model      = settings.claude_model
+    max_tokens = 8192 if is_premium else 5000
+
     async with client.messages.stream(
-        model=settings.claude_model,
-        max_tokens=5000,
+        model=model,
+        max_tokens=max_tokens,
         system=system_blocks,
         messages=messages,
     ) as stream:
