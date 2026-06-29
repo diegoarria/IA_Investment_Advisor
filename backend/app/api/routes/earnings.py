@@ -77,13 +77,56 @@ def _finnhub_dividend_events(symbol: str, window_start, window_end, today) -> li
     return events
 
 
+def _finnhub_earnings_date(symbol: str, window_start, window_end) -> dict | None:
+    """Fetch upcoming earnings date from Finnhub /calendar/earnings.
+    Returns {event_date, eps_estimate} or None."""
+    import os, httpx as _hx
+    key = os.getenv("FINNHUB_API_KEY", "")
+    if not key:
+        return None
+    try:
+        r = _hx.get(
+            "https://finnhub.io/api/v1/calendar/earnings",
+            params={
+                "symbol": symbol,
+                "from": window_start.strftime("%Y-%m-%d"),
+                "to":   window_end.strftime("%Y-%m-%d"),
+                "token": key,
+            },
+            timeout=8,
+        )
+        items = (r.json() or {}).get("earningsCalendar") or []
+        if not items:
+            return None
+        # Sort upcoming first
+        items.sort(key=lambda x: x.get("date") or "")
+        today = datetime.now().date()
+        for item in items:
+            dt_str = item.get("date") or ""
+            try:
+                dt = datetime.strptime(dt_str, "%Y-%m-%d").date()
+            except ValueError:
+                continue
+            if dt >= (today - timedelta(days=7)):
+                return {
+                    "event_date":    str(dt),
+                    "eps_estimate":  item.get("epsEstimate"),
+                    "eps_actual":    item.get("epsActual"),
+                    "revenue_est":   item.get("revenueEstimate"),
+                    "revenue_actual": item.get("revenueActual"),
+                    "hour":          item.get("hour"),  # "BMO" / "AMC"
+                }
+    except Exception as e:
+        logger.debug("Finnhub earnings calendar failed for %s: %s", symbol, e)
+    return None
+
+
 def _fetch_events_for_symbol(symbol: str) -> list[dict]:
     """Return all calendar events (earnings + dividends) for one symbol.
 
-    Uses the same Yahoo Finance quoteSummary API as quote-details (reliable)
-    instead of yfinance t.calendar (unreliable).
+    Uses Finnhub earnings calendar (primary) + Yahoo Finance quoteSummary (fallback).
     """
-    key = f"events:cal3:{symbol}"  # cal3 = bust cal2 cached empty results (added Finnhub fallback)
+    key = f"events:cal4:{symbol}"  # bump version to bust stale cache
     cached = cache_get(key)
     if cached is not None:
         return cached
@@ -97,44 +140,72 @@ def _fetch_events_for_symbol(symbol: str) -> list[dict]:
         v = (obj or {}).get(k)
         return v.get("raw") if isinstance(v, dict) else v
 
+    # ── 1. Finnhub earnings calendar (primary — more reliable dates) ──────────
+    fh_earn = _finnhub_earnings_date(symbol, window_start, window_end)
+    if fh_earn:
+        dt_str = fh_earn["event_date"]
+        try:
+            dt = datetime.strptime(dt_str, "%Y-%m-%d").date()
+            eps_est = fh_earn.get("eps_estimate")
+            eps_act = fh_earn.get("eps_actual")
+            rev_est = fh_earn.get("revenue_est")
+            rev_act = fh_earn.get("revenue_actual")
+            hour    = fh_earn.get("hour") or ""
+            timing  = "Antes de apertura" if hour == "BMO" else "Después del cierre" if hour == "AMC" else ""
+            events.append({
+                "ticker":            symbol,
+                "event_date":        str(dt),
+                "event_type":        "earnings",
+                "status":            "past" if dt < today else "today" if dt == today else "upcoming",
+                "eps_estimate":      round(float(eps_est), 2) if eps_est is not None else None,
+                "eps_actual":        round(float(eps_act), 2) if eps_act is not None else None,
+                "revenue_estimate":  f"{round(float(rev_est)/1e9, 1)}B" if rev_est else None,
+                "revenue_actual":    f"{round(float(rev_act)/1e9, 1)}B" if rev_act else None,
+                "timing":            timing,
+            })
+        except Exception:
+            pass
+
+    # ── 2. Yahoo Finance quoteSummary (fallback for earnings + dividends) ──────
     try:
         qs = _fetch_quote_light(symbol)
         if qs:
             cal_m     = qs.get("calendarEvents") or {}
             summary_m = qs.get("summaryDetail") or {}
 
-            # ── Earnings dates ────────────────────────────────────────────────
-            earnings_block = cal_m.get("earnings") or {}
-            earn_list      = earnings_block.get("earningsDate") or []
-            eps_est = _r(earnings_block, "earningsAverage")
-            eps_hi  = _r(earnings_block, "earningsHigh")
-            eps_lo  = _r(earnings_block, "earningsLow")
-            rev_est = _r(earnings_block, "revenueAverage")
+            # Earnings dates — only add if Finnhub didn't already find one
+            if not events:
+                earnings_block = cal_m.get("earnings") or {}
+                earn_list      = earnings_block.get("earningsDate") or []
+                eps_est_y = _r(earnings_block, "earningsAverage")
+                eps_hi    = _r(earnings_block, "earningsHigh")
+                eps_lo    = _r(earnings_block, "earningsLow")
+                rev_est_y = _r(earnings_block, "revenueAverage")
 
-            for ed in earn_list:
-                try:
-                    if isinstance(ed, dict):
-                        dt_str = ed.get("fmt")
-                        dt = datetime.strptime(dt_str, "%Y-%m-%d").date() if dt_str else None
-                    elif isinstance(ed, (int, float)):
-                        dt = datetime.utcfromtimestamp(float(ed)).date()
-                    else:
-                        dt = None
-                    if dt is None or not (window_start <= dt <= window_end):
+                for ed in earn_list:
+                    try:
+                        if isinstance(ed, dict):
+                            dt_str = ed.get("fmt")
+                            dt = datetime.strptime(dt_str, "%Y-%m-%d").date() if dt_str else None
+                        elif isinstance(ed, (int, float)):
+                            dt = datetime.utcfromtimestamp(float(ed)).date()
+                        else:
+                            dt = None
+                        if dt is None or not (window_start <= dt <= window_end):
+                            continue
+                        events.append({
+                            "ticker":           symbol,
+                            "event_date":       str(dt),
+                            "event_type":       "earnings",
+                            "status":           "past" if dt < today else "today" if dt == today else "upcoming",
+                            "eps_estimate":     round(float(eps_est_y), 2) if eps_est_y else None,
+                            "eps_range":        f"${float(eps_lo):.2f}–${float(eps_hi):.2f}" if eps_lo and eps_hi else None,
+                            "revenue_estimate": f"{round(float(rev_est_y)/1e9, 1)}B" if rev_est_y else None,
+                        })
+                    except Exception:
                         continue
-                    events.append({
-                        "ticker":           symbol,
-                        "event_date":       str(dt),
-                        "event_type":       "earnings",
-                        "status":           "past" if dt < today else "today" if dt == today else "upcoming",
-                        "eps_estimate":     round(float(eps_est), 2) if eps_est else None,
-                        "eps_range":        f"${float(eps_lo):.2f}–${float(eps_hi):.2f}" if eps_lo and eps_hi else None,
-                        "revenue_estimate": f"{round(float(rev_est)/1e9, 1)}B" if rev_est else None,
-                    })
-                except Exception:
-                    continue
 
-            # ── Ex-dividend date ──────────────────────────────────────────────
+            # Ex-dividend date
             ex_ts = _r(cal_m, "exDividendDate")
             ex_dt = None
             if ex_ts:
@@ -142,7 +213,6 @@ def _fetch_events_for_symbol(symbol: str) -> list[dict]:
                     ex_dt = datetime.utcfromtimestamp(float(ex_ts)).date()
                 except Exception:
                     pass
-
             if ex_dt and window_start <= ex_dt <= window_end:
                 div_rate  = _r(summary_m, "dividendRate")
                 div_yield = _r(summary_m, "dividendYield")
@@ -155,7 +225,7 @@ def _fetch_events_for_symbol(symbol: str) -> list[dict]:
                     "dividend_yield":  round(float(div_yield) * 100, 2) if div_yield else None,
                 })
 
-            # ── Dividend payment date ─────────────────────────────────────────
+            # Dividend payment date
             pay_ts = _r(cal_m, "dividendDate")
             pay_dt = None
             if pay_ts:
@@ -163,7 +233,6 @@ def _fetch_events_for_symbol(symbol: str) -> list[dict]:
                     pay_dt = datetime.utcfromtimestamp(float(pay_ts)).date()
                 except Exception:
                     pass
-
             if pay_dt and window_start <= pay_dt <= window_end:
                 events.append({
                     "ticker":     symbol,
@@ -173,9 +242,9 @@ def _fetch_events_for_symbol(symbol: str) -> list[dict]:
                 })
 
     except Exception as e:
-        logger.warning("events fetch failed for %s: %s", symbol, e)
+        logger.warning("Yahoo events fetch failed for %s: %s", symbol, e)
 
-    # ── Finnhub fallback for dividend dates when Yahoo returns nothing ────────
+    # ── 3. Finnhub fallback for dividends ─────────────────────────────────────
     has_div = any(e["event_type"] in ("ex_dividend", "dividend") for e in events)
     if not has_div:
         try:
@@ -184,7 +253,9 @@ def _fetch_events_for_symbol(symbol: str) -> list[dict]:
         except Exception as e:
             logger.warning("Finnhub dividend fallback failed for %s: %s", symbol, e)
 
-    if not events:
+    # ── 4. Always return something — "unknown" if no date found ───────────────
+    has_earnings = any(e["event_type"] == "earnings" for e in events)
+    if not has_earnings:
         events.append({"ticker": symbol, "event_date": None, "event_type": "earnings", "status": "unknown"})
 
     cache_set(key, events, ttl=_TTL_CALENDAR)
