@@ -451,7 +451,7 @@ async def send_monthly_reports():
     db = get_supabase()
     try:
         users_res = await run_query(
-            db.table("user_profiles").select("user_id,name,subscription_tier")
+            db.table("user_profiles").select("user_id,name,subscription_tier,trial_started_at")
         )
         users = users_res.data
         auth_users = {u.id: u.email for u in await asyncio.to_thread(lambda: db.auth.admin.list_users())}
@@ -463,7 +463,7 @@ async def send_monthly_reports():
                 skipped += 1
                 continue
             name = (u.get("name") or "Inversor").split()[0]
-            is_premium = u.get("subscription_tier") == "premium"
+            is_premium = _is_premium_user(u.get("subscription_tier") or "free", u.get("trial_started_at"))
             try:
                 if is_premium:
                     ok = await generate_and_send_monthly_report(
