@@ -124,7 +124,7 @@ async def create_portfolio(body: dict, user_id: str = Depends(get_current_user_i
     """Create a new empty portfolio. Premium only, max 3 total."""
     db = get_supabase()
     profile_res = await run_query(
-        db.table("user_profiles").select("subscription_tier").eq("user_id", user_id)
+        db.table("user_profiles").select("subscription_tier, trial_started_at").eq("user_id", user_id)
     )
     profile = profile_res.data[0] if profile_res.data else {}
     tier = profile.get("subscription_tier") or "free"
