@@ -88,7 +88,7 @@ export default function NotificationAnalyticsPage() {
   const maxRate = Math.max(...cats.map((r) => r.open_rate), 1);
 
   return (
-    <div className="min-h-screen" style={{ background: "#0f1117", color: "#fff", fontFamily: "system-ui,sans-serif" }}>
+    <div style={{ background: "#0f1117", color: "#fff", fontFamily: "system-ui,sans-serif", height: "100vh", overflowY: "auto" }}>
       <div className="max-w-4xl mx-auto px-4 py-8">
 
         {/* Header */}
