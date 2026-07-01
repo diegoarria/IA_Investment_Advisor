@@ -215,31 +215,76 @@ async def admin_send_monthly_report(
         from app.services.email_service import build_monthly_report_html, send_email
         from app.services import ai_service
         from app.api.routes.market import _get_user_profile
-        from app.core.finnhub import fh_candles, fh_quote
-        from datetime import datetime as _dt, timezone as _tz
-        import calendar
-        import time as _time
-        import logging
+        from app.core.finnhub import fh_quote
+        from datetime import datetime as _dt, timezone as _tz, date as _date
+        import calendar, requests as _req, logging
         _log = logging.getLogger(__name__)
+
+        # ── Nasdaq historical API: returns sorted daily OHLCV (no key needed) ──
+        def _nasdaq_monthly(ticker: str, from_date: str, to_date: str) -> list[dict]:
+            """Fetch daily closes from Nasdaq API. Returns [{date, close}] oldest→newest."""
+            HEADERS = {
+                "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
+                "Accept": "application/json,text/plain,*/*",
+                "Accept-Language": "en-US,en;q=0.9",
+            }
+            result = []
+            for assetclass in ("stocks", "etf"):
+                try:
+                    r = _req.get(
+                        f"https://api.nasdaq.com/api/quote/{ticker}/historical",
+                        params={"assetclass": assetclass, "limit": 50,
+                                "fromdate": from_date, "todate": to_date},
+                        headers=HEADERS, timeout=10,
+                    )
+                    if r.status_code != 200:
+                        continue
+                    rows = r.json().get("data", {}).get("tradesTable", {}).get("rows", [])
+                    if not rows:
+                        continue
+                    for row in rows:
+                        try:
+                            close_str = row.get("close", "").replace("$", "").replace(",", "").strip()
+                            date_str  = row.get("date", "").strip()
+                            if close_str and date_str:
+                                result.append({"date": date_str, "close": float(close_str)})
+                        except Exception:
+                            pass
+                    if result:
+                        # Rows come newest→oldest from Nasdaq — reverse to oldest→newest
+                        result.sort(key=lambda x: x["date"])
+                        return result
+                except Exception:
+                    pass
+            return result
+
         try:
-            # ── Parse month label → date range ─────────────────────────────
+            # ── Parse label → month/year ─────────────────────────────────────
             label = month_override or "Julio 2026"
             _MONTHS = {
                 "enero":1,"febrero":2,"marzo":3,"abril":4,"mayo":5,"junio":6,
                 "julio":7,"agosto":8,"septiembre":9,"octubre":10,"noviembre":11,"diciembre":12,
             }
-            parts = label.lower().split()
+            parts     = label.lower().split()
             month_num = _MONTHS.get(parts[0], 7)
             year_num  = int(parts[1]) if len(parts) > 1 else _dt.now().year
             last_day  = calendar.monthrange(year_num, month_num)[1]
-            start_dt  = _dt(year_num, month_num, 1, tzinfo=_tz.utc)
-            end_dt    = _dt(year_num, month_num, last_day, 23, 59, 59, tzinfo=_tz.utc)
-            # If end is in the future, cap at now
-            now_dt    = _dt.now(_tz.utc)
-            if end_dt > now_dt:
-                end_dt = now_dt
-            from_ts = int(start_dt.timestamp())
-            to_ts   = int(end_dt.timestamp())
+
+            # Date strings for Nasdaq API
+            from_date = f"{year_num}-{month_num:02d}-01"
+            to_date   = f"{year_num}-{month_num:02d}-{last_day:02d}"
+            # If to_date is in the future, cap at today
+            today_str = _date.today().isoformat()
+            if to_date > today_str:
+                to_date = today_str
+
+            # For start_price: use last close of PREVIOUS month so day-1 movement is captured.
+            # Fetch 5 extra days before the month start to get the previous month's last close.
+            prev_month_num  = month_num - 1 if month_num > 1 else 12
+            prev_year_num   = year_num if month_num > 1 else year_num - 1
+            prev_last_day   = calendar.monthrange(prev_year_num, prev_month_num)[1]
+            pre_from_date   = f"{prev_year_num}-{prev_month_num:02d}-{max(prev_last_day - 4, 1):02d}"
+            pre_to_date     = f"{prev_year_num}-{prev_month_num:02d}-{prev_last_day:02d}"
 
             # ── Load portfolio positions ─────────────────────────────────────
             port_res = await run_query(db.table("user_portfolio").select("positions").eq("user_id", target_uid))
@@ -250,12 +295,10 @@ async def admin_send_monthly_report(
             if not positions:
                 _log.error("admin monthly report: empty portfolio for %s", target_uid); return
 
-            # ── Fetch monthly candles per ticker ─────────────────────────────
-            # Use first close of month as start_price, last close as end_price.
-            # Fallback to live quote if candles unavailable.
-            portfolio = []
-            total_start_value = 0.0
-            total_end_value   = 0.0
+            # ── Price each position using Nasdaq historical API ──────────────
+            portfolio          = []
+            total_start_value  = 0.0
+            total_end_value    = 0.0
 
             for p in positions:
                 ticker = p.get("ticker")
@@ -265,16 +308,30 @@ async def admin_send_monthly_report(
                 if shares <= 0:
                     continue
 
-                candles = await asyncio.to_thread(fh_candles, ticker, "D", from_ts, to_ts)
-                if candles and len(candles) >= 1:
-                    start_price = float(candles[0]["c"])   # first trading day of month
-                    end_price   = float(candles[-1]["c"])  # last trading day so far
-                else:
-                    # Fallback: live quote for both (shows 0% if no history)
-                    q = await asyncio.to_thread(fh_quote, ticker)
-                    start_price = end_price = float(q["price"]) if q and q.get("price") else 0.0
+                # Current month's trading days
+                month_rows = await asyncio.to_thread(_nasdaq_monthly, ticker, from_date, to_date)
 
-                month_return_pct = ((end_price - start_price) / start_price * 100) if start_price > 0 else 0.0
+                if month_rows:
+                    # We have at least 1 trading day in the month
+                    end_price = month_rows[-1]["close"]
+                    if len(month_rows) >= 2:
+                        # Multiple days → first close of month is our start
+                        start_price = month_rows[0]["close"]
+                    else:
+                        # Only 1 day (month just started) → use previous month's last close
+                        pre_rows    = await asyncio.to_thread(_nasdaq_monthly, ticker, pre_from_date, pre_to_date)
+                        start_price = pre_rows[-1]["close"] if pre_rows else end_price
+                else:
+                    # Nasdaq API failed → fall back to live Finnhub quote (0% but at least priced)
+                    q           = await asyncio.to_thread(fh_quote, ticker)
+                    end_price   = float(q["price"]) if q and q.get("price") else 0.0
+                    pre_rows    = await asyncio.to_thread(_nasdaq_monthly, ticker, pre_from_date, pre_to_date)
+                    start_price = pre_rows[-1]["close"] if pre_rows else end_price
+
+                if start_price <= 0:
+                    continue
+
+                month_return_pct = (end_price - start_price) / start_price * 100
                 start_val = shares * start_price
                 end_val   = shares * end_price
                 total_start_value += start_val
@@ -284,19 +341,20 @@ async def admin_send_monthly_report(
                     "ticker":        ticker,
                     "name":          p.get("name", ticker),
                     "shares":        shares,
-                    "avg_cost":      start_price,   # monthly baseline
-                    "current_price": end_price,
+                    "avg_cost":      round(start_price, 4),
+                    "current_price": round(end_price, 4),
                     "gain_pct":      round(month_return_pct, 2),
                     "value":         round(end_val, 2),
                 })
+                _log.info("  %s: $%.2f → $%.2f = %+.2f%%", ticker, start_price, end_price, month_return_pct)
 
             if not portfolio:
                 _log.error("admin monthly report: could not price any position"); return
 
-            # ── Build performance dict (monthly) ──────────────────────────────
-            portfolio_month_pct = ((total_end_value - total_start_value) / total_start_value * 100) if total_start_value > 0 else 0.0
+            # ── Portfolio-level monthly performance ──────────────────────────
+            portfolio_month_pct = (total_end_value - total_start_value) / total_start_value * 100 if total_start_value > 0 else 0.0
             monthly_gain        = total_end_value - total_start_value
-            sorted_pos = sorted(portfolio, key=lambda x: x["gain_pct"], reverse=True)
+            sorted_pos          = sorted(portfolio, key=lambda x: x["gain_pct"], reverse=True)
 
             performance = {
                 "total_value":      round(total_end_value, 2),
@@ -307,6 +365,7 @@ async def admin_send_monthly_report(
                 "worst_performer":  {"ticker": sorted_pos[-1]["ticker"], "loss_pct": sorted_pos[-1]["gain_pct"]} if sorted_pos else None,
                 "positions":        sorted_pos[:10],
             }
+            _log.info("Portfolio %s: %+.2f%% | $%.0f → $%.0f", label, portfolio_month_pct, total_start_value, total_end_value)
 
             profile = _get_user_profile(target_uid)
             report  = await ai_service.generate_monthly_report(portfolio, performance, profile)
@@ -323,7 +382,7 @@ async def admin_send_monthly_report(
             html  = build_monthly_report_html(name, report, label)
             first = name.split()[0]
             ok    = await send_email(target_email, f"📊 Tu reporte mensual de {label}, {first}", html)
-            _log.info("admin monthly report sent=%s to %s (month_pct=%.2f%%)", ok, target_email, portfolio_month_pct)
+            _log.info("admin monthly report sent=%s to %s", ok, target_email)
         except Exception as e:
             _log.error("admin monthly report failed for %s: %s", target_email, e, exc_info=True)
 
