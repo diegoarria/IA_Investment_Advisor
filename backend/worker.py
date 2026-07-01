@@ -1537,18 +1537,18 @@ async def job_portfolio_alerts():
                 direction = "bajó" if pct < 0 else "subió"
                 if is_prem:
                     if why == NO_CATALYST:
-                        # No specific catalyst found — send plain alert (never suppress entirely)
+                        no_news = "Sin noticias concretas — movimiento normal de mercado."
                         if is_portfolio:
                             shares         = port_map[ticker].get("shares", 0.0)
                             position_value = shares * price if shares else 0.0
                             dollar_delta   = position_value * pct / 100 if position_value else None
                             if position_value and dollar_delta is not None:
-                                gl     = "perdiste" if pct < 0 else "ganaste"
-                                body   = f"{ticker} {direction} {abs(pct):.1f}% hoy a ${price:.2f}. {first}, {gl} ~${abs(dollar_delta):,.0f}."
+                                gl   = "perdiste" if pct < 0 else "ganaste"
+                                body = f"{ticker} {direction} {abs(pct):.1f}% hoy a ${price:.2f}. {no_news} {first}, {gl} ~${abs(dollar_delta):,.0f}."
                             else:
-                                body   = f"{ticker} {direction} {abs(pct):.1f}% hoy a ${price:.2f}."
+                                body = f"{ticker} {direction} {abs(pct):.1f}% hoy a ${price:.2f}. {no_news}"
                         else:
-                            body = f"{ticker} {direction} {abs(pct):.1f}% hoy a ${price:.2f}. La tienes en tu watchlist."
+                            body = f"{ticker} {direction} {abs(pct):.1f}% hoy a ${price:.2f}. {no_news}"
                     elif is_portfolio:
                         # WHY + financial impact
                         shares         = port_map[ticker].get("shares", 0.0)
