@@ -23,11 +23,27 @@ interface Analytics {
 export default function NotificationAnalyticsPage() {
   const router = useRouter();
   const { userId, token } = useAuthStore();
-  const [data, setData]     = useState<Analytics | null>(null);
+  const [data, setData] = useState<Analytics | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError]   = useState(false);
+  const [analyticsError, setAnalyticsError] = useState(false);
   const [testSending, setTestSending] = useState(false);
-  const [testResult, setTestResult]   = useState<"sent" | "error" | null>(null);
+  const [testResult, setTestResult] = useState<"sent" | "error" | null>(null);
+
+  useEffect(() => {
+    if (userId && userId !== ADMIN_UID) { router.push("/"); return; }
+    (async () => {
+      try {
+        const res = await fetch(`${API}/api/notification-settings/analytics`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok) throw new Error("forbidden");
+        setData(await res.json());
+      } catch {
+        setAnalyticsError(true);
+      }
+      setLoading(false);
+    })();
+  }, [userId, token, router]);
 
   async function sendTestAlert() {
     setTestSending(true);
@@ -44,41 +60,9 @@ export default function NotificationAnalyticsPage() {
     setTestSending(false);
   }
 
-  useEffect(() => {
-    if (userId && userId !== ADMIN_UID) { router.push("/"); return; }
-    (async () => {
-      try {
-        const res = await fetch(`${API}/api/notification-settings/analytics`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        if (!res.ok) throw new Error("forbidden");
-        setData(await res.json());
-      } catch { setError(true); }
-      setLoading(false);
-    })();
-  }, [userId, token, router]);
-
-  if (loading) return (
-    <div className="min-h-screen flex items-center justify-center" style={{ background: "#0f1117" }}>
-      <Loader2 className="w-8 h-8 animate-spin text-green-500" />
-    </div>
-  );
-  if (error) return (
-    <div className="min-h-screen flex items-center justify-center" style={{ background: "#0f1117" }}>
-      <p style={{ color: "#ef4444", fontFamily: "system-ui,sans-serif" }}>
-        Error loading analytics. Admin only.
-      </p>
-    </div>
-  );
-
-  const { totals = { today: 0, week: 0, month: 0 }, open_rates_by_category = [] } = data ?? {};
-  const maxRate = Math.max(...open_rates_by_category.map((r) => r.open_rate), 1);
-
-  const STAT_CARDS = [
-    { label: "Hoy",        value: totals.today, icon: <Bell     className="w-5 h-5" /> },
-    { label: "Esta semana",value: totals.week,  icon: <TrendingUp className="w-5 h-5" /> },
-    { label: "Este mes",   value: totals.month, icon: <BarChart2 className="w-5 h-5" /> },
-  ];
+  const totals = data?.totals ?? { today: 0, week: 0, month: 0 };
+  const cats = data?.open_rates_by_category ?? [];
+  const maxRate = Math.max(...cats.map((r) => r.open_rate), 1);
 
   return (
     <div className="min-h-screen" style={{ background: "#0f1117", color: "#fff", fontFamily: "system-ui,sans-serif" }}>
@@ -87,8 +71,10 @@ export default function NotificationAnalyticsPage() {
         {/* Header */}
         <div className="flex items-center justify-between gap-3 mb-8">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl flex items-center justify-center"
-                 style={{ background: "rgba(34,197,94,0.12)", border: "1px solid rgba(34,197,94,0.3)" }}>
+            <div
+              className="w-10 h-10 rounded-xl flex items-center justify-center"
+              style={{ background: "rgba(34,197,94,0.12)", border: "1px solid rgba(34,197,94,0.3)" }}
+            >
               <Bell className="w-5 h-5 text-green-400" />
             </div>
             <div>
@@ -114,75 +100,102 @@ export default function NotificationAnalyticsPage() {
                 cursor: testSending ? "not-allowed" : "pointer",
               }}
             >
-              {testSending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+              {testSending
+                ? <Loader2 className="w-4 h-4 animate-spin" />
+                : <Send className="w-4 h-4" />
+              }
               Probar alerta
             </button>
           </div>
         </div>
 
-        {/* Totals */}
-        <div className="grid grid-cols-3 gap-4 mb-8">
-          {STAT_CARDS.map(({ label, value, icon }) => (
-            <div key={label} className="rounded-2xl p-5"
-                 style={{ background: "#1a1d27", border: "1px solid #2a2d3a" }}>
-              <div className="flex items-center gap-2 mb-3" style={{ color: "#22c55e" }}>
-                {icon}
-                <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "1.5px", textTransform: "uppercase", color: "#6b7280" }}>
-                  {label}
-                </span>
-              </div>
-              <p style={{ fontSize: 36, fontWeight: 900, color: "#fff", margin: 0 }}>
-                {value.toLocaleString()}
-              </p>
-              <p style={{ fontSize: 12, color: "#6b7280", margin: "4px 0 0" }}>enviadas</p>
-            </div>
-          ))}
-        </div>
+        {/* Analytics body */}
+        {loading && (
+          <div className="flex justify-center py-16">
+            <Loader2 className="w-8 h-8 animate-spin text-green-500" />
+          </div>
+        )}
 
-        {/* Open rate by category */}
-        <div className="rounded-2xl overflow-hidden"
-             style={{ background: "#1a1d27", border: "1px solid #2a2d3a" }}>
-          <div className="px-5 py-4" style={{ borderBottom: "1px solid #2a2d3a" }}>
-            <p style={{ color: "#22c55e", fontSize: 11, fontWeight: 700, letterSpacing: "1.5px", textTransform: "uppercase", margin: 0 }}>
-              Tasa de apertura por categoría — últimos 30 días
+        {!loading && analyticsError && (
+          <div
+            className="rounded-2xl p-6 mb-8 text-center"
+            style={{ background: "#1a1d27", border: "1px solid rgba(239,68,68,0.3)" }}
+          >
+            <p style={{ color: "#ef4444", fontSize: 14 }}>
+              No se pudieron cargar las analíticas. Verifica que el endpoint esté disponible.
             </p>
           </div>
-          <div className="p-5 space-y-4">
-            {open_rates_by_category.length === 0 ? (
-              <p style={{ color: "#6b7280", fontSize: 14, textAlign: "center", padding: "24px 0" }}>
-                Sin datos todavía. Los datos aparecen una vez que se envían notificaciones.
-              </p>
-            ) : open_rates_by_category.map((row) => {
-              const barColor = row.open_rate > 20 ? "#22c55e" : row.open_rate > 10 ? "#f59e0b" : "#6b7280";
-              return (
-                <div key={row.category}>
-                  <div className="flex justify-between items-center mb-1.5">
-                    <span style={{ fontSize: 13, fontWeight: 600, color: "#d1d5db" }}>
-                      {row.category.replace(/_/g, " ")}
+        )}
+
+        {!loading && !analyticsError && (
+          <>
+            {/* Totals */}
+            <div className="grid grid-cols-3 gap-4 mb-8">
+              {[
+                { label: "Hoy",         value: totals.today, Icon: Bell },
+                { label: "Esta semana", value: totals.week,  Icon: TrendingUp },
+                { label: "Este mes",    value: totals.month, Icon: BarChart2 },
+              ].map(({ label, value, Icon }) => (
+                <div key={label} className="rounded-2xl p-5" style={{ background: "#1a1d27", border: "1px solid #2a2d3a" }}>
+                  <div className="flex items-center gap-2 mb-3" style={{ color: "#22c55e" }}>
+                    <Icon className="w-5 h-5" />
+                    <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "1.5px", textTransform: "uppercase", color: "#6b7280" }}>
+                      {label}
                     </span>
-                    <div className="flex items-center gap-3">
-                      <span style={{ fontSize: 12, color: "#6b7280" }}>
-                        {row.opened}/{row.sent}
-                      </span>
-                      <span style={{ fontSize: 14, fontWeight: 700, color: barColor, minWidth: 44, textAlign: "right" }}>
-                        {row.open_rate}%
-                      </span>
-                    </div>
                   </div>
-                  <div style={{ height: 8, background: "#2a2d3a", borderRadius: 4, overflow: "hidden" }}>
-                    <div style={{
-                      height: "100%",
-                      borderRadius: 4,
-                      width: `${(row.open_rate / maxRate) * 100}%`,
-                      background: barColor,
-                      transition: "width 0.6s ease",
-                    }} />
-                  </div>
+                  <p style={{ fontSize: 36, fontWeight: 900, color: "#fff", margin: 0 }}>
+                    {value.toLocaleString()}
+                  </p>
+                  <p style={{ fontSize: 12, color: "#6b7280", margin: "4px 0 0" }}>enviadas</p>
                 </div>
-              );
-            })}
-          </div>
-        </div>
+              ))}
+            </div>
+
+            {/* Open rate by category */}
+            <div className="rounded-2xl overflow-hidden" style={{ background: "#1a1d27", border: "1px solid #2a2d3a" }}>
+              <div className="px-5 py-4" style={{ borderBottom: "1px solid #2a2d3a" }}>
+                <p style={{ color: "#22c55e", fontSize: 11, fontWeight: 700, letterSpacing: "1.5px", textTransform: "uppercase", margin: 0 }}>
+                  Tasa de apertura por categoría — últimos 30 días
+                </p>
+              </div>
+              <div className="p-5 space-y-4">
+                {cats.length === 0 ? (
+                  <p style={{ color: "#6b7280", fontSize: 14, textAlign: "center", padding: "24px 0" }}>
+                    Sin datos todavía. Los datos aparecen una vez que se envían notificaciones.
+                  </p>
+                ) : cats.map((row) => {
+                  const barColor = row.open_rate > 20 ? "#22c55e" : row.open_rate > 10 ? "#f59e0b" : "#6b7280";
+                  return (
+                    <div key={row.category}>
+                      <div className="flex justify-between items-center mb-1.5">
+                        <span style={{ fontSize: 13, fontWeight: 600, color: "#d1d5db" }}>
+                          {row.category.replace(/_/g, " ")}
+                        </span>
+                        <div className="flex items-center gap-3">
+                          <span style={{ fontSize: 12, color: "#6b7280" }}>
+                            {row.opened}/{row.sent}
+                          </span>
+                          <span style={{ fontSize: 14, fontWeight: 700, color: barColor, minWidth: 44, textAlign: "right" }}>
+                            {row.open_rate}%
+                          </span>
+                        </div>
+                      </div>
+                      <div style={{ height: 8, background: "#2a2d3a", borderRadius: 4, overflow: "hidden" }}>
+                        <div style={{
+                          height: "100%",
+                          borderRadius: 4,
+                          width: `${(row.open_rate / maxRate) * 100}%`,
+                          background: barColor,
+                          transition: "width 0.6s ease",
+                        }} />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </>
+        )}
 
       </div>
     </div>
