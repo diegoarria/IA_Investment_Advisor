@@ -641,6 +641,10 @@ export default function PortfolioPage() {
   const [loadingPrices, setLoadingPrices] = useState(false);
   const [priceError, setPriceError] = useState(false);
   const [fxRate, setFxRate] = useState(1);
+  const fxRateRef = useRef(1);
+  const portfolioCurrencyRef = useRef("USD");
+  useEffect(() => { fxRateRef.current = fxRate; }, [fxRate]);
+  useEffect(() => { portfolioCurrencyRef.current = portfolioCurrency; }, [portfolioCurrency]);
 
   // Screenshot import
   const screenshotInputRef = useRef<HTMLInputElement>(null);
@@ -936,7 +940,12 @@ export default function PortfolioPage() {
       } else {
         setScreenshotPreview(extracted);
         const inputs: Record<string, { avgPrice: string; purchaseDate: string }> = {};
-        for (const p of extracted) inputs[p.id] = { avgPrice: "", purchaseDate: "" };
+        const rate = fxRateRef.current;
+        const cur = portfolioCurrencyRef.current;
+        for (const p of extracted) inputs[p.id] = {
+          avgPrice: p.avg_price > 0 ? String(cur === "USD" ? p.avg_price : parseFloat((p.avg_price * rate).toFixed(4))) : "",
+          purchaseDate: p.purchase_date ?? "",
+        };
         setScreenshotPriceInputs(inputs);
       }
     } catch {
@@ -979,7 +988,12 @@ export default function PortfolioPage() {
       } else {
         setScreenshotPreview(final);
         const inputs: Record<string, { avgPrice: string; purchaseDate: string }> = {};
-        for (const p of final) inputs[p.id] = { avgPrice: "", purchaseDate: "" };
+        const rate = fxRateRef.current;
+        const cur = portfolioCurrencyRef.current;
+        for (const p of final) inputs[p.id] = {
+          avgPrice: p.avg_price > 0 ? String(cur === "USD" ? p.avg_price : parseFloat((p.avg_price * rate).toFixed(4))) : "",
+          purchaseDate: p.purchase_date ?? "",
+        };
         setScreenshotPriceInputs(inputs);
       }
     } catch {
@@ -1018,8 +1032,11 @@ export default function PortfolioPage() {
     if (!screenshotPreview?.length) return;
     // Inject user-entered prices — convert from user's display currency to USD for storage
     const withUserPrices = screenshotPreview.map((p) => {
-      const entered = parseFloat(screenshotPriceInputs[p.id]?.avgPrice ?? "") || 0;
-      const avg_price_usd = portfolioCurrency === "USD" ? entered : entered / fxRate;
+      const typed = parseFloat(screenshotPriceInputs[p.id]?.avgPrice ?? "");
+      // If user left the field empty, fall back to the AI-extracted price (already in USD)
+      const avg_price_usd = (!isNaN(typed) && typed > 0)
+        ? (portfolioCurrency === "USD" ? typed : typed / fxRate)
+        : p.avg_price;
       return {
         ...p,
         avg_price: parseFloat(avg_price_usd.toFixed(6)),

@@ -972,7 +972,10 @@ export default function PortfolioScreen() {
       } else {
         setScreenshotPreview(final);
         const inputs: Record<string, { avgPrice: string; purchaseDate: string }> = {};
-        for (const p of final) inputs[p.id] = { avgPrice: "", purchaseDate: "" };
+        for (const p of final) inputs[p.id] = {
+          avgPrice: p.avg_price > 0 ? String(portfolioCurrency === "USD" ? p.avg_price : parseFloat((p.avg_price * fxRate).toFixed(4))) : "",
+          purchaseDate: p.purchase_date ?? "",
+        };
         setScreenshotPriceInputs(inputs);
       }
     } catch {
@@ -1000,10 +1003,12 @@ export default function PortfolioScreen() {
     }
 
     type ImportItem = { ticker: string; name: string; shares: number; avgPrice: number; purchaseDate?: string };
-    // Never use OCR avg_price — use user-entered value, converted to USD for storage
     const incoming: ImportItem[] = screenshotPreview.map((p) => {
-      const entered = parseFloat(screenshotPriceInputs[p.id]?.avgPrice ?? "") || 0;
-      const avgPriceUSD = portfolioCurrency === "USD" ? entered : parseFloat((entered / fxRate).toFixed(6));
+      const typed = parseFloat(screenshotPriceInputs[p.id]?.avgPrice ?? "");
+      // If user left the field empty, fall back to the AI-extracted price (already in USD)
+      const avgPriceUSD = (!isNaN(typed) && typed > 0)
+        ? (portfolioCurrency === "USD" ? typed : parseFloat((typed / fxRate).toFixed(6)))
+        : p.avg_price;
       return {
         ticker: p.ticker,
         name: p.name ?? "",
