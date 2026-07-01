@@ -357,7 +357,7 @@ async def get_all(user_id: str = Depends(get_current_user_id)):
     try:
         profile_res = await run_query(
             db.table("user_profiles")
-            .select("maturity_score, maturity_history, trial_started_at, subscription_tier, nav_order, watchlist_order, theme, avatar_url, behavioral_risk_score, streak_count, last_learn_date, investment_goal, investment_goal_amount, completed_topic_ids, portfolio_view_mode")
+            .select("maturity_score, maturity_history, trial_started_at, subscription_tier, nav_order, watchlist_order, theme, avatar_url, behavioral_risk_score, streak_count, last_learn_date, investment_goal, investment_goal_amount, completed_topic_ids, portfolio_view_mode, checklist_done, watchlist_view_mode")
             .eq("user_id", user_id)
         )
     except Exception:
@@ -443,7 +443,9 @@ async def get_all(user_id: str = Depends(get_current_user_id)):
             "last_learn_date": profile_row.get("last_learn_date"),
         },
         "completed_topic_ids": profile_row.get("completed_topic_ids") or [],
-        "portfolio_view_mode": profile_row.get("portfolio_view_mode", "basic"),
+        "portfolio_view_mode":  profile_row.get("portfolio_view_mode", "basic"),
+        "watchlist_view_mode":  profile_row.get("watchlist_view_mode", "basic"),
+        "checklist_done":       bool(profile_row.get("checklist_done", False)),
     }
     cache_set(ck, resp, ttl=_TTL_ALL)
     return resp
@@ -524,6 +526,31 @@ async def sync_portfolio_view_mode(body: dict, user_id: str = Depends(get_curren
         mode = "basic"
     db = get_supabase()
     await run_query(db.table("user_profiles").update({"portfolio_view_mode": mode}).eq("user_id", user_id))
+    cache_delete(f"sync:all:{user_id}")
+    return {"ok": True}
+
+
+# ─── Watchlist view mode ─────────────────────────────────────────────────────
+
+@router.post("/watchlist-view-mode")
+async def sync_watchlist_view_mode(body: dict, user_id: str = Depends(get_current_user_id)):
+    """Persist the user's watchlist view mode (basic/advanced) for cross-device sync."""
+    mode = body.get("mode", "basic")
+    if mode not in ("basic", "advanced"):
+        mode = "basic"
+    db = get_supabase()
+    await run_query(db.table("user_profiles").update({"watchlist_view_mode": mode}).eq("user_id", user_id))
+    cache_delete(f"sync:all:{user_id}")
+    return {"ok": True}
+
+
+# ─── Checklist done ───────────────────────────────────────────────────────────
+
+@router.post("/checklist-done")
+async def sync_checklist_done(user_id: str = Depends(get_current_user_id)):
+    """Mark the onboarding checklist as permanently completed."""
+    db = get_supabase()
+    await run_query(db.table("user_profiles").update({"checklist_done": True}).eq("user_id", user_id))
     cache_delete(f"sync:all:{user_id}")
     return {"ok": True}
 

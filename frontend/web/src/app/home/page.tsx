@@ -397,9 +397,22 @@ export default function HomePage() {
   const firstName = profile?.name?.split(" ")[0] ?? "Inversor";
 
   // ── Onboarding checklist ─────────────────────────────────────────────────
-  const [checklistPermanentlyDone] = useState(
+  const [checklistPermanentlyDone, setChecklistPermanentlyDone] = useState(
     () => typeof window !== "undefined" && localStorage.getItem("nuvos_checklist_done") === "1"
   );
+  // Restore checklist_done from server so Safari localStorage clears don't resurface the checklist
+  useEffect(() => {
+    if (!isAuthenticated || checklistPermanentlyDone) return;
+    import("@/lib/api").then(({ sync }) =>
+      sync.getAll().then((res) => {
+        if (res.data?.checklist_done) {
+          localStorage.setItem("nuvos_checklist_done", "1");
+          setChecklistPermanentlyDone(true);
+        }
+      }).catch(() => {})
+    );
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthenticated]);
 
   const onboardingSteps: OnboardingStep[] = [
     { emoji: "💼", title: "Agrega tu primera posición",       description: "Registra tus acciones y activa el análisis IA",   completed: positions.length > 0 },
@@ -415,6 +428,7 @@ export default function HomePage() {
   useEffect(() => {
     if (loading || !allOnboardingDone) return;
     localStorage.setItem("nuvos_checklist_done", "1");
+    import("@/lib/api").then(({ sync }) => sync.pushChecklistDone().catch(() => {}));
     const saved = localStorage.getItem(HOME_SCREEN_KEY);
     if (!saved) setShowScreenPicker(true);
     // Show pricing modal once after checklist completion (free users only)

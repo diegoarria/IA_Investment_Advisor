@@ -282,6 +282,8 @@ export const sync = {
   getAll: () => api.get("/api/sync/all"),
   pushTheme: (theme: "dark" | "light") => api.post("/api/sync/theme", { theme }),
   pushPortfolioViewMode: (mode: "basic" | "advanced") => api.post("/api/sync/portfolio-view-mode", { mode }),
+  pushWatchlistViewMode: (mode: "basic" | "advanced") => api.post("/api/sync/watchlist-view-mode", { mode }),
+  pushChecklistDone: () => api.post("/api/sync/checklist-done"),
   pushMaturity: (score: number, history: unknown[]) =>
     api.post("/api/sync/maturity", { score, history }),
   pushNavOrder: (order: string[]) => api.post("/api/sync/nav-order", { order }),

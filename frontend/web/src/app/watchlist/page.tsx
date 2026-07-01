@@ -417,6 +417,20 @@ export default function WatchlistPage() {
     if (typeof window === "undefined") return "basic";
     return (localStorage.getItem("nuvos_watchlist_view") as "basic" | "advanced") ?? "basic";
   });
+  // Restore from server so Safari localStorage clears don't reset the view mode
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    import("@/lib/api").then(({ sync }) =>
+      sync.getAll().then((res) => {
+        const serverMode = res.data?.watchlist_view_mode as "basic" | "advanced" | undefined;
+        if (serverMode && serverMode !== viewMode) {
+          setViewMode(serverMode);
+          localStorage.setItem("nuvos_watchlist_view", serverMode);
+        }
+      }).catch(() => {})
+    );
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthenticated]);
 
   const searchRef = useRef<HTMLDivElement>(null);
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -616,7 +630,7 @@ export default function WatchlistPage() {
               <div className="flex items-center rounded-lg border overflow-hidden"
                    style={{ borderColor: "var(--border)" }}>
                 <button
-                  onClick={() => { setViewMode("basic"); localStorage.setItem("nuvos_watchlist_view", "basic"); }}
+                  onClick={() => { setViewMode("basic"); localStorage.setItem("nuvos_watchlist_view", "basic"); import("@/lib/api").then(({ sync }) => sync.pushWatchlistViewMode("basic").catch(() => {})); }}
                   className="px-2.5 py-1.5 text-[10px] font-bold transition-colors"
                   style={{
                     background: viewMode === "basic" ? "var(--accent)" : "transparent",
@@ -626,7 +640,7 @@ export default function WatchlistPage() {
                   Básico
                 </button>
                 <button
-                  onClick={() => { setViewMode("advanced"); localStorage.setItem("nuvos_watchlist_view", "advanced"); }}
+                  onClick={() => { setViewMode("advanced"); localStorage.setItem("nuvos_watchlist_view", "advanced"); import("@/lib/api").then(({ sync }) => sync.pushWatchlistViewMode("advanced").catch(() => {})); }}
                   className="px-2.5 py-1.5 text-[10px] font-bold transition-colors"
                   style={{
                     background: viewMode === "advanced" ? "var(--accent)" : "transparent",
