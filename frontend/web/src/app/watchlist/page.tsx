@@ -795,23 +795,48 @@ export default function WatchlistPage() {
               />
             ) : items.length === 0 ? (
               /* Empty state */
-              <div
-                className="rounded-2xl border flex flex-col items-center gap-3 py-16 px-6"
-                style={{ borderColor: "var(--border)", background: "var(--card)" }}
-              >
-                <div
-                  className="w-14 h-14 rounded-2xl flex items-center justify-center"
-                  style={{ background: "rgba(0,168,94,0.10)" }}
-                >
-                  <Eye className="w-7 h-7" style={{ color: "var(--accent-l)" }} />
+              userLevel === "avanzado" ? (
+                <div className="rounded-2xl border flex flex-col items-center gap-3 py-16 px-6"
+                     style={{ borderColor: "var(--border)", background: "var(--card)" }}>
+                  <div className="w-14 h-14 rounded-2xl flex items-center justify-center"
+                       style={{ background: "rgba(0,168,94,0.10)" }}>
+                    <Eye className="w-7 h-7" style={{ color: "var(--accent-l)" }} />
+                  </div>
+                  <p className="font-bold text-sm" style={{ color: "var(--text)" }}>Tu watchlist está vacía</p>
+                  <p className="text-xs text-center" style={{ color: "var(--muted)" }}>Busca acciones arriba para seguirlas</p>
                 </div>
-                <p className="font-bold text-sm" style={{ color: "var(--text)" }}>
-                  Tu watchlist está vacía
-                </p>
-                <p className="text-xs text-center" style={{ color: "var(--muted)" }}>
-                  Busca acciones arriba para seguirlas
-                </p>
-              </div>
+              ) : (
+                <div className="rounded-2xl border overflow-hidden"
+                     style={{ borderColor: "rgba(0,212,126,0.2)", background: "var(--card)" }}>
+                  <div className="h-1" style={{ background: "linear-gradient(90deg,#00d47e,#00a8ff)" }} />
+                  <div className="p-6 flex flex-col items-center gap-3 text-center">
+                    <span className="text-3xl">👀</span>
+                    <div>
+                      <p className="font-black text-sm mb-1" style={{ color: "var(--text)" }}>
+                        Tu lista de empresas favoritas
+                      </p>
+                      <p className="text-xs leading-relaxed max-w-xs" style={{ color: "var(--muted)" }}>
+                        Una watchlist es como una lista de compras: agregas las empresas o ETFs que te interesan para seguir su precio antes de decidir si invertir.
+                      </p>
+                    </div>
+                    <div className="w-full grid grid-cols-2 gap-2 mt-1">
+                      <button onClick={() => router.push("/screener")}
+                              className="py-2.5 rounded-xl text-xs font-black transition-all hover:opacity-90"
+                              style={{ background: "var(--accent)", color: "#000" }}>
+                        Ver ETFs recomendados
+                      </button>
+                      <button onClick={() => router.push("/chat")}
+                              className="py-2.5 rounded-xl text-xs font-bold border transition-all hover:opacity-80"
+                              style={{ borderColor: "rgba(0,212,126,0.35)", color: "var(--accent-l)", background: "rgba(0,212,126,0.06)" }}>
+                        Preguntarle al mentor IA
+                      </button>
+                    </div>
+                    <p className="text-[10px] mt-1" style={{ color: "var(--dim)" }}>
+                      O busca cualquier empresa arriba por nombre o símbolo (ej: "Apple" o "AAPL")
+                    </p>
+                  </div>
+                </div>
+              )
             ) : (
               <div className="space-y-1.5">
                 {items.map((item, index) => (

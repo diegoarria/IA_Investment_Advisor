@@ -845,8 +845,10 @@ export default function ChatPage() {
                         </p>
                       );
                       return (
-                        <p className="text-sm" style={{ color: "var(--muted)" }}>
-                          Pregúntame sobre empresas, ETFs, estrategias o conceptos
+                        <p className="text-sm leading-relaxed max-w-sm mx-auto" style={{ color: "var(--muted)" }}>
+                          {!isAuthenticated || getUserLevel(profile) === "basico"
+                            ? "Cuéntame cuánto tienes para invertir y qué quieres lograr — te guío paso a paso, sin complicaciones."
+                            : "Pregúntame sobre empresas, ETFs, estrategias o conceptos"}
                         </p>
                       );
                     })()}
@@ -891,9 +893,10 @@ export default function ChatPage() {
                 {(() => {
                   const obj = profile?.quiz_answers?.objective as string | undefined;
                   const level = getUserLevel(profile);
+                  const effectiveLevel = !isAuthenticated ? "basico" : level;
                   const suggestions = obj && SUGGESTIONS_BY_OBJECTIVE[obj]
                     ? SUGGESTIONS_BY_OBJECTIVE[obj]
-                    : (SUGGESTIONS_BY_LEVEL[level] ?? SUGGESTIONS_DEFAULT);
+                    : (SUGGESTIONS_BY_LEVEL[effectiveLevel] ?? SUGGESTIONS_DEFAULT);
                   return (
                     <div className="w-full">
                       <p className="text-xs font-bold uppercase tracking-widest mb-3" style={{ color: "var(--muted)" }}>

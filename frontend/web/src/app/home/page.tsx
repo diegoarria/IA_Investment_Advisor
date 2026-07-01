@@ -19,6 +19,7 @@ import HomeScreenPickerModal, { HOME_SCREEN_KEY } from "@/components/HomeScreenP
 import { usePortfolioStore } from "@/lib/portfolioStore";
 import { isNYSEOpen } from "@/lib/marketHours";
 import { registerWebPush } from "@/lib/webPush";
+import { getUserLevel } from "@/lib/userLevel";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -402,6 +403,9 @@ export default function HomePage() {
   const goalPct    = goalAmount > 0 ? Math.min(100, (total / goalAmount) * 100) : 0;
 
   const firstName = profile?.name?.split(" ")[0] ?? "Inversor";
+  const userLevel = getUserLevel(profile);
+  const isGuest = typeof window !== "undefined" && localStorage.getItem("nuvos_guest") === "1";
+  const isBeginnerMode = isGuest || !isAuthenticated || userLevel === "basico" || userLevel === "intermedio";
 
   // ── Onboarding checklist ─────────────────────────────────────────────────
   const [checklistPermanentlyDone, setChecklistPermanentlyDone] = useState(
@@ -759,6 +763,54 @@ export default function HomePage() {
             {/* ── Onboarding checklist (hidden once all done) ──────────────── */}
             {!allOnboardingDone && (
               <OnboardingChecklist steps={onboardingSteps} onStepClick={handleOnboardingStep} />
+            )}
+
+            {/* ── Guía para principiantes / modo guest ─────────────────── */}
+            {isBeginnerMode && (
+              <div className="rounded-2xl border overflow-hidden"
+                   style={{ borderColor: "rgba(0,212,126,0.25)", background: "var(--card)" }}>
+                <div className="h-1" style={{ background: "linear-gradient(90deg,#00d47e,#00a8ff)" }} />
+                <div className="p-5">
+                  <p className="text-[10px] font-bold uppercase tracking-widest mb-1"
+                     style={{ color: "var(--accent-l)" }}>Tu camino para empezar</p>
+                  <h3 className="text-base font-black mb-1" style={{ color: "var(--text)" }}>
+                    Invierte con confianza, paso a paso
+                  </h3>
+                  <p className="text-xs mb-4" style={{ color: "var(--muted)" }}>
+                    Sin tecnicismos. Sin riesgo al inicio. Solo tú, tu meta y tu mentor IA.
+                  </p>
+
+                  <div className="grid grid-cols-3 gap-2 mb-4">
+                    {([
+                      { icon: "📚", title: "Aprende lo básico", desc: "Qué es una acción, un ETF y cómo funciona la bolsa", href: "/learn" },
+                      { icon: "🎮", title: "Practica sin dinero", desc: "Opera con $10,000 virtuales antes de arriesgar el tuyo", href: "/paper" },
+                      { icon: "🚀", title: "Tu primera inversión", desc: "Los mejores ETFs para empezar con poco dinero", href: "/screener" },
+                    ] as const).map((s) => (
+                      <button key={s.href} onClick={() => router.push(s.href)}
+                              className="flex flex-col items-start p-3 rounded-xl border transition-all hover:opacity-80 text-left"
+                              style={{ background: "var(--raised)", borderColor: "var(--border)" }}>
+                        <span className="text-xl mb-1.5">{s.icon}</span>
+                        <p className="text-[11px] font-black mb-0.5" style={{ color: "var(--text)" }}>{s.title}</p>
+                        <p className="text-[10px] leading-tight" style={{ color: "var(--muted)" }}>{s.desc}</p>
+                      </button>
+                    ))}
+                  </div>
+
+                  <button onClick={() => router.push("/chat")}
+                          className="w-full py-2.5 rounded-xl text-sm font-black transition-all hover:opacity-90"
+                          style={{ background: "var(--accent)", color: "#000" }}>
+                    Pregúntale a tu mentor IA →
+                  </button>
+
+                  {isGuest && (
+                    <button onClick={() => router.push("/")}
+                            className="w-full py-2 mt-2 text-xs font-semibold transition-all hover:opacity-70"
+                            style={{ color: "var(--muted)" }}>
+                      Crear mi cuenta gratis — es totalmente gratis
+                    </button>
+                  )}
+                </div>
+              </div>
             )}
 
             {/* ── Stat Strip ──────────────────────────────────────────────── */}

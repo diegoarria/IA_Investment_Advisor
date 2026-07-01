@@ -1942,14 +1942,49 @@ export default function PortfolioPage() {
               </div>
             </div>
           ) : positions.length === 0 && !screenshotPreview ? (
-            <div className="rounded-2xl border p-10 flex flex-col items-center gap-3"
-                 style={{ borderColor:"var(--border)", background:"var(--card)" }}>
-              <PieChart className="w-10 h-10" style={{ color:"var(--dim)" }} />
-              <p className="font-bold text-sm" style={{ color:"var(--text)" }}>Sin posiciones todavía</p>
-              <p className="text-xs text-center" style={{ color:"var(--muted)" }}>
-                Importa capturas de pantalla y la IA lo detecta todo automáticamente
-              </p>
-            </div>
+            userLevel === "avanzado" ? (
+              <div className="rounded-2xl border p-10 flex flex-col items-center gap-3"
+                   style={{ borderColor:"var(--border)", background:"var(--card)" }}>
+                <PieChart className="w-10 h-10" style={{ color:"var(--dim)" }} />
+                <p className="font-bold text-sm" style={{ color:"var(--text)" }}>Sin posiciones todavía</p>
+                <p className="text-xs text-center" style={{ color:"var(--muted)" }}>
+                  Importa capturas de pantalla y la IA lo detecta todo automáticamente
+                </p>
+              </div>
+            ) : (
+              <div className="rounded-2xl border overflow-hidden"
+                   style={{ borderColor:"rgba(0,212,126,0.2)", background:"var(--card)" }}>
+                <div className="h-1" style={{ background:"linear-gradient(90deg,#00d47e,#00a8ff)" }} />
+                <div className="p-6 flex flex-col items-center gap-3 text-center">
+                  <span className="text-4xl">🌱</span>
+                  <div>
+                    <p className="font-black text-base mb-1" style={{ color:"var(--text)" }}>
+                      Todos empezamos desde cero
+                    </p>
+                    <p className="text-xs leading-relaxed max-w-xs" style={{ color:"var(--muted)" }}>
+                      Antes de invertir dinero real, practica con dinero virtual. Cuando te sientas listo, te recomendamos los mejores ETFs para empezar.
+                    </p>
+                  </div>
+                  <div className="w-full grid grid-cols-2 gap-2 mt-1">
+                    <button onClick={() => router.push("/paper")}
+                            className="py-2.5 rounded-xl text-xs font-black transition-all hover:opacity-90"
+                            style={{ background:"var(--accent)", color:"#000" }}>
+                      🎮 Practica sin dinero real
+                    </button>
+                    <button onClick={() => router.push("/screener")}
+                            className="py-2.5 rounded-xl text-xs font-bold border transition-all hover:opacity-80"
+                            style={{ borderColor:"rgba(0,212,126,0.35)", color:"var(--accent-l)", background:"rgba(0,212,126,0.06)" }}>
+                      🚀 Ver ETFs recomendados
+                    </button>
+                  </div>
+                  <button onClick={() => router.push("/chat")}
+                          className="text-xs transition-all hover:opacity-70 mt-1"
+                          style={{ color:"var(--muted)" }}>
+                    Tengo dudas — preguntarle al mentor IA →
+                  </button>
+                </div>
+              </div>
+            )
           ) : positions.length > 0 ? (
             <section>
               {/* ── Unified Performance Card ── */}
