@@ -1901,7 +1901,8 @@ export default function PortfolioPage() {
                 const sp   = periodReturns["since_purchase"];
                 const r    = periodReturns[selectedPeriod];
                 const displayPct = r?.pct !== undefined ? r.pct : chartData?.period_pct;
-                const displayAmt = r?.amount !== undefined ? r.amount : chartData?.period_amount;
+                const displayAmtUSD = r?.amount !== undefined ? r.amount : chartData?.period_amount;
+                const displayAmt = displayAmtUSD !== undefined ? displayAmtUSD * fxRate : undefined;
                 const up   = displayPct !== undefined ? displayPct >= 0 : totals.diff >= 0;
                 const color = up ? "#22c55e" : "#ef4444";
                 // Hero always shows since_purchase as the "total return" anchor
