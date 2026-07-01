@@ -667,8 +667,21 @@ CAMPOS:
 - gain_loss_pct: porcentaje de ganancia/pérdida (null si no visible)
 - purchase_date: fecha de compra en formato "YYYY-MM-DD" (null si no visible)
 
-CÓMO CALCULAR avg_price (en orden de prioridad):
-1. Si ves etiquetas como "Precio Prom", "Avg Cost", "Average Cost", "Cost Per Share", "Preço Médio", "P.M.", "Precio promedio" → usa ese número DIRECTAMENTE sin cálculo adicional
+CÓMO OBTENER avg_price (en orden de prioridad — NUNCA saltes al paso 2 si el paso 1 es visible):
+
+1. ETIQUETA DIRECTA (máxima prioridad absoluta): Si ves CUALQUIERA de estas etiquetas junto a un número, usa ese número DIRECTAMENTE como avg_price SIN hacer ningún cálculo:
+   - "Precio de compra", "Precio promedio de compra", "Precio Prom. de compra"
+   - "Precio promedio", "Precio Prom", "Precio de adquisición", "Precio de entrada"
+   - "Precio base", "Valor de compra", "Costo promedio", "Costo por acción"
+   - "Coste medio", "Coste de adquisición", "Precio medio"
+   - "Average Cost", "Avg Cost", "Avg Buy Price", "Average Buy Price"
+   - "Cost Per Share", "Cost Basis Per Share", "Purchase Price", "Buy Price"
+   - "Average Price", "Avg Price", "Price Paid", "Price per share paid"
+   - "Break-even", "Break even price"
+   - "Preço Médio", "Preço de Compra", "P.M.", "P. Médio"
+   - Cualquier variante que incluya las palabras: compra / purchase / buy / cost / average / promedio / medio / adquisición
+   → USA ESE NÚMERO DIRECTAMENTE. No calcules. No promedies. No transformes.
+
 2. Si ves valor_total_mercado y ganancia/pérdida en color:
    - Verde/positivo: avg_price = (valor_mercado - ganancia) / shares
    - Rojo/negativo: avg_price = (valor_mercado + pérdida_absoluta) / shares
