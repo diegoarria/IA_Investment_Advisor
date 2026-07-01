@@ -599,14 +599,15 @@ export default function PortfolioPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { setIsTour(new URLSearchParams(window.location.search).get("tour") === "1"); }, []);
   const [demoMode, setDemoMode] = useState(false);
+  const [serverLoading, setServerLoading] = useState(true);
   useEffect(() => {
     if (!localStorage.getItem("nuvos_demo_done")) setDemoMode(true);
   }, []);
   const dismissDemo = (choice: "has_portfolio" | "has_cash" | "wants_to_learn") => {
     localStorage.setItem("nuvos_demo_done", "1");
     setDemoMode(false);
-    if (choice === "wants_to_learn") {
-      // Load demo positions so they can explore the full experience
+    if (choice === "wants_to_learn" && !isAuthenticated) {
+      // Only load demo positions for unauthenticated users — never overwrite a real portfolio
       const demoPositions = [
         { ticker: "NVDA", name: "NVIDIA Corp.", shares: 3.2, avgPrice: 580 },
         { ticker: "AAPL", name: "Apple Inc.", shares: 8, avgPrice: 156 },
@@ -661,6 +662,20 @@ export default function PortfolioPage() {
     if (typeof window === "undefined") return "basic";
     return (localStorage.getItem("nuvos_portfolio_view") as "basic" | "advanced") ?? "basic";
   });
+  // Sync viewMode from server after load (survives Safari localStorage clears)
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    import("@/lib/api").then(({ sync }) =>
+      sync.getAll().then((res) => {
+        const serverMode = res.data?.portfolio_view_mode as "basic" | "advanced" | undefined;
+        if (serverMode && serverMode !== viewMode) {
+          setViewMode(serverMode);
+          localStorage.setItem("nuvos_portfolio_view", serverMode);
+        }
+      }).catch(() => {})
+    );
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthenticated]);
   const [selectedStock, setSelectedStock] = useState<string | null>(null);
 
   const handleSort = (field: SortField) => {
@@ -733,22 +748,25 @@ export default function PortfolioPage() {
     localStorage.setItem(STORAGE_KEY, String(Date.now()));
   }, []);
 
-  // Cargar portafolio del servidor — pero NO sobreescribir si hay cambios locales pendientes
-  // Bug Safari: el store hidrata con key "guest" antes de que userId cargue, por lo que
-  // pendingSync en memoria siempre es false aunque haya cambios sin guardar. Verificamos
-  // la clave correcta de localStorage antes de hacer pull del servidor.
+  // Cargar portafolio del servidor — pero NO sobreescribir si hay cambios locales pendientes.
+  // serverLoading stays true until we know whether the server has data, so the demo banner
+  // never appears to an authenticated user before their real portfolio has a chance to load.
   useEffect(() => {
-    if (!isAuthenticated || !userId) return;
+    if (!isAuthenticated || !userId) {
+      setServerLoading(false);
+      return;
+    }
     const storedKey = `portfolio-positions-web__${userId}`;
     try {
       const raw = localStorage.getItem(storedKey);
       const stored = raw ? JSON.parse(raw) : null;
       if (stored?.pendingSync) {
         retrySync();
+        setServerLoading(false);
         return;
       }
     } catch {}
-    loadFromServer();
+    loadFromServer().finally(() => setServerLoading(false));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthenticated, userId]);
 
@@ -1304,12 +1322,12 @@ export default function PortfolioPage() {
             )}
             {/* View toggle */}
             <div className="flex items-center rounded-lg border overflow-hidden" style={{ borderColor: "var(--border)" }}>
-              <button onClick={() => { setViewMode("basic"); localStorage.setItem("nuvos_portfolio_view", "basic"); }}
+              <button onClick={() => { setViewMode("basic"); localStorage.setItem("nuvos_portfolio_view", "basic"); import("@/lib/api").then(({ sync }) => sync.pushPortfolioViewMode("basic").catch(() => {})); }}
                       className="px-2.5 py-1.5 text-[10px] font-bold transition-colors"
                       style={{ background: viewMode === "basic" ? "var(--accent)" : "transparent", color: viewMode === "basic" ? "#fff" : "var(--muted)" }}>
                 Básico
               </button>
-              <button onClick={() => { setViewMode("advanced"); localStorage.setItem("nuvos_portfolio_view", "advanced"); }}
+              <button onClick={() => { setViewMode("advanced"); localStorage.setItem("nuvos_portfolio_view", "advanced"); import("@/lib/api").then(({ sync }) => sync.pushPortfolioViewMode("advanced").catch(() => {})); }}
                       className="px-2.5 py-1.5 text-[10px] font-bold transition-colors"
                       style={{ background: viewMode === "advanced" ? "var(--accent)" : "transparent", color: viewMode === "advanced" ? "#fff" : "var(--muted)" }}>
                 Avanzado
@@ -1766,7 +1784,7 @@ export default function PortfolioPage() {
           })()}
 
           {/* ── Positions ── */}
-          {positions.length === 0 && !screenshotPreview && demoMode ? (
+          {positions.length === 0 && !screenshotPreview && demoMode && !serverLoading ? (
             <div className="space-y-3">
               {/* Simulated notification — the "aha moment" */}
               <div className="rounded-2xl border-2 p-4" style={{ borderColor:"#22c55e40", background:"linear-gradient(135deg,#0a1f0f,#0f1a10)" }}>

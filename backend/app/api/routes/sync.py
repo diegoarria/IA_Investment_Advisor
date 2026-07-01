@@ -357,7 +357,7 @@ async def get_all(user_id: str = Depends(get_current_user_id)):
     try:
         profile_res = await run_query(
             db.table("user_profiles")
-            .select("maturity_score, maturity_history, trial_started_at, subscription_tier, nav_order, watchlist_order, theme, avatar_url, behavioral_risk_score, streak_count, last_learn_date, investment_goal, investment_goal_amount, completed_topic_ids")
+            .select("maturity_score, maturity_history, trial_started_at, subscription_tier, nav_order, watchlist_order, theme, avatar_url, behavioral_risk_score, streak_count, last_learn_date, investment_goal, investment_goal_amount, completed_topic_ids, portfolio_view_mode")
             .eq("user_id", user_id)
         )
     except Exception:
@@ -443,6 +443,7 @@ async def get_all(user_id: str = Depends(get_current_user_id)):
             "last_learn_date": profile_row.get("last_learn_date"),
         },
         "completed_topic_ids": profile_row.get("completed_topic_ids") or [],
+        "portfolio_view_mode": profile_row.get("portfolio_view_mode", "basic"),
     }
     cache_set(ck, resp, ttl=_TTL_ALL)
     return resp
@@ -511,6 +512,20 @@ async def get_theme(user_id: str = Depends(get_current_user_id)):
     resp = {"theme": result.data[0].get("theme", "dark")} if result.data else {"theme": "dark"}
     cache_set(ck, resp, ttl=_TTL_MISC)
     return resp
+
+
+# ─── Portfolio view mode ─────────────────────────────────────────────────────
+
+@router.post("/portfolio-view-mode")
+async def sync_portfolio_view_mode(body: dict, user_id: str = Depends(get_current_user_id)):
+    """Persist the user's portfolio view mode (basic/advanced) for cross-device sync."""
+    mode = body.get("mode", "basic")
+    if mode not in ("basic", "advanced"):
+        mode = "basic"
+    db = get_supabase()
+    await run_query(db.table("user_profiles").update({"portfolio_view_mode": mode}).eq("user_id", user_id))
+    cache_delete(f"sync:all:{user_id}")
+    return {"ok": True}
 
 
 # ─── Behavioral risk score ────────────────────────────────────────────────────

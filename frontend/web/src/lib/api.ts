@@ -281,6 +281,7 @@ export const sync = {
   deletePortfolio: (portfolioId: string) => api.delete(`/api/sync/portfolios/${portfolioId}`),
   getAll: () => api.get("/api/sync/all"),
   pushTheme: (theme: "dark" | "light") => api.post("/api/sync/theme", { theme }),
+  pushPortfolioViewMode: (mode: "basic" | "advanced") => api.post("/api/sync/portfolio-view-mode", { mode }),
   pushMaturity: (score: number, history: unknown[]) =>
     api.post("/api/sync/maturity", { score, history }),
   pushNavOrder: (order: string[]) => api.post("/api/sync/nav-order", { order }),
