@@ -5,11 +5,13 @@ import { useRouter } from "next/navigation";
 import AppSidebar from "@/components/AppSidebar";
 import MarketTickerBar from "@/components/MarketTickerBar";
 import PricingModal from "@/components/PricingModal";
-import { useSubscriptionStore } from "@/lib/store";
+import { useSubscriptionStore, useAuthStore } from "@/lib/store";
+
+const API = process.env.NEXT_PUBLIC_API_URL ?? "";
 import {
   Brain, BarChart2, TrendingUp, Shield, Zap, BookOpen,
-  GraduationCap, Bell, Calendar, RefreshCw, Target, Lock,
-  Check, ArrowRight, Sparkles, Phone, FileText,
+  GraduationCap, Bell, Calendar, RefreshCw, Target,
+  Check, ArrowRight, Sparkles, FileText,
 } from "lucide-react";
 
 const SUBSCRIPTION_FEATURES = {
@@ -52,7 +54,8 @@ const ONE_TIME_PRODUCTS = [
     price_free: "$34.99 USD",
     price_premium: "$19.99 USD",
     available: true,
-    href: "/portfolio",
+    offer: "annual_report",
+    variant: "default",
   },
   {
     icon: "📱",
@@ -61,7 +64,8 @@ const ONE_TIME_PRODUCTS = [
     price_free: "$149 USD",
     price_premium: "$99 USD",
     available: true,
-    href: "/support",
+    offer: "session",
+    variant: "default",
   },
   {
     icon: "📦",
@@ -70,7 +74,8 @@ const ONE_TIME_PRODUCTS = [
     price_premium: "$247 USD",
     note: "Solo disponible para Premium",
     available: true,
-    href: "/support",
+    offer: "session",
+    variant: "bundle",
   },
 ];
 
@@ -90,9 +95,27 @@ const COMING_SOON = [
 export default function ProductsPage() {
   const router = useRouter();
   const { tier: subTier } = useSubscriptionStore();
+  const { token } = useAuthStore();
   const isPremium = subTier === "premium";
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showPricing, setShowPricing] = useState(false);
+  const [checkoutLoading, setCheckoutLoading] = useState<string | null>(null);
+
+  async function handleCheckout(offer: string, variant: string) {
+    if (!token) { router.push("/login"); return; }
+    setCheckoutLoading(offer + variant);
+    try {
+      const res = await fetch(`${API}/api/upsells/checkout`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ offer, variant, trigger_source: "products_page" }),
+      });
+      const data = await res.json();
+      if (data.url) window.location.href = data.url;
+    } finally {
+      setCheckoutLoading(null);
+    }
+  }
 
   return (
     <div className="flex h-screen overflow-hidden" style={{ background: "var(--bg)" }}>
@@ -234,11 +257,12 @@ export default function ProductsPage() {
                         </div>
                       </div>
                       <button
-                        onClick={() => router.push(p.href)}
-                        className="shrink-0 flex items-center gap-1 px-3 py-2 rounded-xl text-xs font-bold transition-all hover:opacity-80"
+                        onClick={() => handleCheckout(p.offer, p.variant ?? "default")}
+                        disabled={checkoutLoading === p.offer + (p.variant ?? "default")}
+                        className="shrink-0 flex items-center gap-1 px-3 py-2 rounded-xl text-xs font-bold transition-all hover:opacity-80 disabled:opacity-50"
                         style={{ background: "var(--bg)", border: "1px solid var(--border)", color: "var(--sub)" }}
                       >
-                        Ver <ArrowRight className="w-3 h-3" />
+                        {checkoutLoading === p.offer + (p.variant ?? "default") ? "..." : <>Ver <ArrowRight className="w-3 h-3" /></>}
                       </button>
                     </div>
                   </div>
