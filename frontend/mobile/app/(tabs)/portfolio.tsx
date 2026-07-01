@@ -1299,7 +1299,7 @@ export default function PortfolioScreen() {
                 </TouchableOpacity>
                 <TouchableOpacity
                   disabled={portfolioCreating || !newPortfolioName.trim()}
-                  onPress={async () => { if (!newPortfolioName.trim()) return; setPortfolioCreating(true); try { await createPortfolio(newPortfolioName.trim()); setShowNewPortfolioModal(false); setNewPortfolioName(""); } finally { setPortfolioCreating(false); } }}
+                  onPress={async () => { if (!newPortfolioName.trim()) return; setPortfolioCreating(true); try { await createPortfolio(newPortfolioName.trim()); setShowNewPortfolioModal(false); setNewPortfolioName(""); } catch { Alert.alert("Error", "No se pudo crear el portafolio. Inténtalo de nuevo."); } finally { setPortfolioCreating(false); } }}
                   style={{ flex: 1, padding: 14, borderRadius: 12, backgroundColor: "#00d47e", alignItems: "center", opacity: portfolioCreating || !newPortfolioName.trim() ? 0.5 : 1 }}
                 >
                   <Text style={{ color: "#000", fontWeight: "800" }}>{portfolioCreating ? "Creando…" : "Crear"}</Text>

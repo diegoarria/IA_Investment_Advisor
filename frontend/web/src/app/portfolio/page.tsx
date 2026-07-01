@@ -619,7 +619,7 @@ export default function PortfolioPage() {
   const { profile } = useProfileStore();
   const userLevel = getUserLevel(profile);
   const sub = useSubscriptionStore();
-  const isPremium = sub.tier === "premium";
+  const isPremium = sub.tier === "premium" || sub.isTrialPremium;
   const upsellTrigger = useUpsellStore((s) => s.trigger);
   const [paywallOpen, setPaywallOpen] = useState(false);
   const {
@@ -1297,7 +1297,7 @@ export default function PortfolioPage() {
                 </button>
               )}
               {showNewPortfolioInput && (
-                <form onSubmit={async e => { e.preventDefault(); if (!newPortfolioName.trim()) return; setPortfolioCreating(true); try { await createPortfolio(newPortfolioName.trim()); } finally { setPortfolioCreating(false); setShowNewPortfolioInput(false); } }} style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                <form onSubmit={async e => { e.preventDefault(); if (!newPortfolioName.trim()) return; setPortfolioCreating(true); try { await createPortfolio(newPortfolioName.trim()); setShowNewPortfolioInput(false); setNewPortfolioName(""); } catch { alert("No se pudo crear el portafolio. Inténtalo de nuevo."); } finally { setPortfolioCreating(false); } }} style={{ display: "flex", gap: 6, alignItems: "center" }}>
                   <input autoFocus placeholder="Nombre del portafolio…" value={newPortfolioName} onChange={e => setNewPortfolioName(e.target.value)} onKeyDown={e => { if (e.key === "Escape") setShowNewPortfolioInput(false); }}
                     style={{ padding: "4px 10px", borderRadius: 10, border: "1px solid var(--accent-l)", background: "rgba(0,212,126,0.08)", color: "var(--text)", fontSize: 12, outline: "none", width: 140 }} />
                   <button type="submit" disabled={portfolioCreating || !newPortfolioName.trim()} style={{ padding: "4px 12px", borderRadius: 10, background: "var(--accent-l)", color: "#000", fontSize: 12, fontWeight: 800, border: "none", cursor: "pointer" }}>

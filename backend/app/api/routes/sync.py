@@ -126,8 +126,18 @@ async def create_portfolio(body: dict, user_id: str = Depends(get_current_user_i
     profile_res = await run_query(
         db.table("user_profiles").select("subscription_tier").eq("user_id", user_id)
     )
-    tier = (profile_res.data[0].get("subscription_tier") or "free") if profile_res.data else "free"
-    if tier != "premium":
+    profile = profile_res.data[0] if profile_res.data else {}
+    tier = profile.get("subscription_tier") or "free"
+    trial = profile.get("trial_started_at")
+    is_premium = tier in ("premium", "pro")
+    if not is_premium and trial:
+        try:
+            from datetime import datetime as _dt, timezone as _tz
+            started = _dt.fromisoformat(trial.replace("Z", "+00:00"))
+            is_premium = (_dt.now(_tz.utc) - started).days < 90
+        except Exception:
+            pass
+    if not is_premium:
         raise HTTPException(status_code=403, detail="Los portafolios múltiples son exclusivos para usuarios Premium.")
     existing = await run_query(
         db.table("user_portfolio").select("portfolio_id").eq("user_id", user_id)
