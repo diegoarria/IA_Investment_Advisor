@@ -106,56 +106,69 @@ async def track_notification_event(
 async def get_analytics(user_id: str = Depends(get_current_user_id)):
     if user_id != _ADMIN_UID:
         raise HTTPException(status_code=403, detail="Admin only")
-    db = get_supabase()
-    now = datetime.now(timezone.utc)
-    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
-    week_start  = (now - timedelta(days=7)).isoformat()
-    month_start = (now - timedelta(days=30)).isoformat()
+    try:
+        db = get_supabase()
+        now = datetime.now(timezone.utc)
+        today_start = now.replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
+        week_start  = (now - timedelta(days=7)).isoformat()
+        month_start = (now - timedelta(days=30)).isoformat()
 
-    today_res = await run_query(
-        db.table("notification_log").select("id", count="exact")
-        .gte("sent_at", today_start).eq("status", "sent")
-    )
-    week_res = await run_query(
-        db.table("notification_log").select("id", count="exact")
-        .gte("sent_at", week_start).eq("status", "sent")
-    )
-    month_res = await run_query(
-        db.table("notification_log").select("id", count="exact")
-        .gte("sent_at", month_start).eq("status", "sent")
-    )
+        # Fetch all logs for the month in one query, then count in Python
+        # (avoids count="exact" compatibility issues across supabase-py versions)
+        all_res = await run_query(
+            db.table("notification_log")
+            .select("sent_at,status,category,opened_at,type")
+            .gte("sent_at", month_start)
+        )
+        rows = all_res.data or []
 
-    logs_res = await run_query(
-        db.table("notification_log").select("category,status,opened_at,type")
-        .gte("sent_at", month_start).eq("type", "push")
-    )
-    category_stats: dict = {}
-    for row in (logs_res.data or []):
-        cat = row["category"]
-        if cat not in category_stats:
-            category_stats[cat] = {"sent": 0, "opened": 0}
-        category_stats[cat]["sent"] += 1
-        if row.get("opened_at"):
-            category_stats[cat]["opened"] += 1
+        today_count = 0
+        week_count  = 0
+        month_count = 0
+        category_stats: dict = {}
 
-    open_rates = sorted([
-        {
-            "category":  cat,
-            "sent":      v["sent"],
-            "opened":    v["opened"],
-            "open_rate": round(v["opened"] / v["sent"] * 100, 1) if v["sent"] else 0,
+        for row in rows:
+            sent_at = row.get("sent_at", "")
+            status  = row.get("status", "")
+            rtype   = row.get("type", "")
+
+            if status == "sent":
+                month_count += 1
+                if sent_at >= week_start:
+                    week_count += 1
+                if sent_at >= today_start:
+                    today_count += 1
+
+            if rtype == "push":
+                cat = row.get("category") or "unknown"
+                if cat not in category_stats:
+                    category_stats[cat] = {"sent": 0, "opened": 0}
+                category_stats[cat]["sent"] += 1
+                if row.get("opened_at"):
+                    category_stats[cat]["opened"] += 1
+
+        open_rates = sorted([
+            {
+                "category":  cat,
+                "sent":      v["sent"],
+                "opened":    v["opened"],
+                "open_rate": round(v["opened"] / v["sent"] * 100, 1) if v["sent"] else 0,
+            }
+            for cat, v in category_stats.items()
+        ], key=lambda x: x["open_rate"], reverse=True)
+
+        return {
+            "totals": {
+                "today": today_count,
+                "week":  week_count,
+                "month": month_count,
+            },
+            "open_rates_by_category": open_rates,
         }
-        for cat, v in category_stats.items()
-    ], key=lambda x: x["open_rate"], reverse=True)
-
-    return {
-        "totals": {
-            "today": today_res.count or 0,
-            "week":  week_res.count  or 0,
-            "month": month_res.count or 0,
-        },
-        "open_rates_by_category": open_rates,
-    }
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).error("analytics endpoint failed: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Analytics error: {e}")
 
 
 @router.post("/admin/send-notification")
