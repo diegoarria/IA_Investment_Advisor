@@ -56,6 +56,7 @@ export default function NotificationAnalyticsPage() {
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
         body: JSON.stringify({ email, month }),
       });
+      // endpoint returns immediately with status:"queued" — treat as sent
       setReportResult(res.ok ? "sent" : "error");
     } catch {
       setReportResult("error");
