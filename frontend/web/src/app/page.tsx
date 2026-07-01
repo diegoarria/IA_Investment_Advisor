@@ -582,12 +582,12 @@ export default function Home() {
           {/* Low-friction entry points */}
           {mode !== "forgot" && (
             <div className="grid grid-cols-2 gap-2 mt-3">
-              <button onClick={() => { setEmail("demo@nuvosai.app"); setPassword("demo1234"); setMode("login"); }}
+              <button onClick={() => { localStorage.setItem("nuvos_ob", "1"); setEmail("demo@nuvosai.app"); setPassword("demo1234"); setMode("login"); }}
                       className="text-xs py-2.5 rounded-xl text-center transition-all hover:opacity-80"
                       style={{ background: "rgba(255,255,255,0.03)", border: "1px solid var(--border)", color: "var(--muted)" }}>
                 Ver cuenta demo
               </button>
-              <button onClick={() => router.push("/chat")}
+              <button onClick={() => { localStorage.setItem("nuvos_ob", "1"); localStorage.setItem("nuvos_guest", "1"); router.push("/home"); }}
                       className="text-xs py-2.5 rounded-xl text-center transition-all hover:opacity-80"
                       style={{ background: "rgba(255,255,255,0.03)", border: "1px solid var(--border)", color: "var(--muted)" }}>
                 Explorar sin cuenta →
