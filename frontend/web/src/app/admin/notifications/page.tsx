@@ -28,6 +28,8 @@ export default function NotificationAnalyticsPage() {
   const [analyticsError, setAnalyticsError] = useState(false);
   const [testSending, setTestSending] = useState(false);
   const [testResult, setTestResult] = useState<"sent" | "no_channel" | "error" | null>(null);
+  const [reportSending, setReportSending] = useState(false);
+  const [reportResult, setReportResult] = useState<"sent" | "error" | null>(null);
 
   useEffect(() => {
     if (userId && userId !== ADMIN_UID) { router.push("/"); return; }
@@ -44,6 +46,22 @@ export default function NotificationAnalyticsPage() {
       setLoading(false);
     })();
   }, [userId, token, router]);
+
+  async function sendMonthlyReport(email: string, month: string) {
+    setReportSending(true);
+    setReportResult(null);
+    try {
+      const res = await fetch(`${API}/api/admin/send-monthly-report`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ email, month }),
+      });
+      setReportResult(res.ok ? "sent" : "error");
+    } catch {
+      setReportResult("error");
+    }
+    setReportSending(false);
+  }
 
   async function sendTestAlert() {
     setTestSending(true);
@@ -84,16 +102,26 @@ export default function NotificationAnalyticsPage() {
               <p style={{ color: "#6b7280", fontSize: 13 }}>Admin · Nuvos AI</p>
             </div>
           </div>
-          <div className="flex items-center gap-3">
-            {testResult === "sent" && (
-              <span style={{ color: "#22c55e", fontSize: 13, fontWeight: 600 }}>✓ Alerta enviada</span>
-            )}
-            {testResult === "no_channel" && (
-              <span style={{ color: "#f59e0b", fontSize: 13, fontWeight: 600 }}>⚠ Sin canal — activa push en el browser o abre la app móvil</span>
-            )}
-            {testResult === "error" && (
-              <span style={{ color: "#ef4444", fontSize: 13, fontWeight: 600 }}>✗ Error al enviar</span>
-            )}
+          <div className="flex items-center gap-3 flex-wrap justify-end">
+            {reportResult === "sent" && <span style={{ color: "#22c55e", fontSize: 13, fontWeight: 600 }}>✓ Reporte enviado</span>}
+            {reportResult === "error" && <span style={{ color: "#ef4444", fontSize: 13, fontWeight: 600 }}>✗ Error al enviar reporte</span>}
+            <button
+              onClick={() => sendMonthlyReport("diego.arria19@gmail.com", "Junio 2026")}
+              disabled={reportSending}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl font-semibold text-sm"
+              style={{
+                background: reportSending ? "rgba(59,130,246,0.1)" : "rgba(59,130,246,0.15)",
+                border: "1px solid rgba(59,130,246,0.4)",
+                color: "#60a5fa",
+                cursor: reportSending ? "not-allowed" : "pointer",
+              }}
+            >
+              {reportSending ? <Loader2 className="w-4 h-4 animate-spin" /> : <BarChart2 className="w-4 h-4" />}
+              Enviar reporte Junio
+            </button>
+            {testResult === "sent" && <span style={{ color: "#22c55e", fontSize: 13, fontWeight: 600 }}>✓ Alerta enviada</span>}
+            {testResult === "no_channel" && <span style={{ color: "#f59e0b", fontSize: 13, fontWeight: 600 }}>⚠ Sin canal push</span>}
+            {testResult === "error" && <span style={{ color: "#ef4444", fontSize: 13, fontWeight: 600 }}>✗ Error al enviar</span>}
             <button
               onClick={sendTestAlert}
               disabled={testSending}
@@ -105,10 +133,7 @@ export default function NotificationAnalyticsPage() {
                 cursor: testSending ? "not-allowed" : "pointer",
               }}
             >
-              {testSending
-                ? <Loader2 className="w-4 h-4 animate-spin" />
-                : <Send className="w-4 h-4" />
-              }
+              {testSending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
               Probar alerta
             </button>
           </div>

@@ -182,6 +182,72 @@ async def admin_send_notification(
     return {"ok": True, "token": token[:30] + "..."}
 
 
+@router.post("/admin/send-monthly-report")
+async def admin_send_monthly_report(
+    body: dict,
+    user_id: str = Depends(get_current_user_id),
+):
+    """Admin-only: trigger monthly report email for a given email address."""
+    if user_id != _ADMIN_UID:
+        raise HTTPException(status_code=403, detail="Admin only")
+    target_email = body.get("email", "").strip().lower()
+    month_override = body.get("month", "")  # e.g. "Junio 2026"
+    if not target_email:
+        raise HTTPException(status_code=400, detail="email required")
+
+    from app.services.email_service import generate_and_send_monthly_report, build_monthly_report_html, send_email
+    from app.services import ai_service
+    from app.api.routes.market import _get_user_profile
+    from app.api.routes.report import _compute_performance
+    import asyncio
+
+    db = get_supabase()
+
+    # Find user_id from email
+    try:
+        auth_users = await asyncio.to_thread(lambda: db.auth.admin.list_users())
+        target_uid = next((u.id for u in auth_users if (u.email or "").lower() == target_email), None)
+    except Exception:
+        target_uid = None
+    if not target_uid:
+        raise HTTPException(status_code=404, detail=f"User not found: {target_email}")
+
+    # Fetch name
+    prof_res = await run_query(db.table("user_profiles").select("name").eq("user_id", target_uid))
+    name = (prof_res.data[0].get("name") or "Inversor") if prof_res.data else "Inversor"
+
+    # If month_override provided, call build directly so we can use the right month label
+    if month_override:
+        port_res = await run_query(db.table("user_portfolio").select("positions").eq("user_id", target_uid))
+        if not port_res.data:
+            raise HTTPException(status_code=404, detail="No portfolio found")
+        raw = port_res.data[0]["positions"]
+        positions = raw.get("positions", []) if isinstance(raw, dict) else (raw if isinstance(raw, list) else [])
+        if not positions:
+            raise HTTPException(status_code=404, detail="Portfolio is empty")
+        portfolio = [
+            {"ticker": p.get("ticker",""), "name": p.get("name", p.get("ticker","")),
+             "shares": p.get("shares",0), "avg_cost": p.get("avgPrice", p.get("avg_price", p.get("avg_cost",0))),
+             "current_price": p.get("currentPrice", p.get("current_price",0))}
+            for p in positions if p.get("ticker")
+        ]
+        performance = await asyncio.to_thread(_compute_performance, portfolio)
+        profile = _get_user_profile(target_uid)
+        report = await ai_service.generate_monthly_report(portfolio, performance, profile)
+        report["performance"] = {**report.get("performance",{}), **{k: performance[k] for k in ("total_return_pct","total_value","unrealized_gain","best_performer","worst_performer")}}
+        report["metrics"] = {**report.get("metrics",{}), "total_value": performance["total_value"], "unrealized_gain": performance["unrealized_gain"]}
+        report["top_positions"] = performance["positions"]
+        html = build_monthly_report_html(name, report, month_override)
+        first = name.split()[0]
+        ok = await send_email(target_email, f"📊 Tu reporte mensual de {month_override}, {first}", html)
+    else:
+        ok = await generate_and_send_monthly_report(user_id=target_uid, email=target_email, name=name)
+
+    if not ok:
+        raise HTTPException(status_code=500, detail="Failed to send report")
+    return {"ok": True, "sent_to": target_email, "user_id": target_uid}
+
+
 @router.post("/notifications/send-test")
 async def send_test_notification(
     body: dict,
