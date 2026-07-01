@@ -107,7 +107,7 @@ export default function NotificationAnalyticsPage() {
             {reportResult === "sent" && <span style={{ color: "#22c55e", fontSize: 13, fontWeight: 600 }}>✓ Reporte enviado</span>}
             {reportResult === "error" && <span style={{ color: "#ef4444", fontSize: 13, fontWeight: 600 }}>✗ Error al enviar reporte</span>}
             <button
-              onClick={() => sendMonthlyReport("diego.arria19@gmail.com", "Junio 2026")}
+              onClick={() => sendMonthlyReport("diego.arria19@gmail.com", "Julio 2026")}
               disabled={reportSending}
               className="flex items-center gap-2 px-4 py-2 rounded-xl font-semibold text-sm"
               style={{
@@ -118,7 +118,7 @@ export default function NotificationAnalyticsPage() {
               }}
             >
               {reportSending ? <Loader2 className="w-4 h-4 animate-spin" /> : <BarChart2 className="w-4 h-4" />}
-              Enviar reporte Junio
+              Enviar reporte Julio
             </button>
             {testResult === "sent" && <span style={{ color: "#22c55e", fontSize: 13, fontWeight: 600 }}>✓ Alerta enviada</span>}
             {testResult === "no_channel" && <span style={{ color: "#f59e0b", fontSize: 13, fontWeight: 600 }}>⚠ Sin canal push</span>}

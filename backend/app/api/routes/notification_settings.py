@@ -212,40 +212,52 @@ async def admin_send_monthly_report(
     name = (prof_res.data[0].get("name") or "Inversor") if prof_res.data else "Inversor"
 
     async def _build_and_send():
-        from app.services.email_service import generate_and_send_monthly_report, build_monthly_report_html, send_email
+        from app.services.email_service import build_monthly_report_html, send_email
         from app.services import ai_service
         from app.api.routes.market import _get_user_profile
         from app.api.routes.report import _compute_performance
+        from app.core.finnhub import fh_quote
         import logging
         _log = logging.getLogger(__name__)
         try:
-            if month_override:
-                port_res = await run_query(db.table("user_portfolio").select("positions").eq("user_id", target_uid))
-                if not port_res.data:
-                    _log.error("admin monthly report: no portfolio for %s", target_uid); return
-                raw = port_res.data[0]["positions"]
-                positions = raw.get("positions", []) if isinstance(raw, dict) else (raw if isinstance(raw, list) else [])
-                if not positions:
-                    _log.error("admin monthly report: empty portfolio for %s", target_uid); return
-                portfolio = [
-                    {"ticker": p.get("ticker",""), "name": p.get("name", p.get("ticker","")),
-                     "shares": p.get("shares",0),
-                     "avg_cost": p.get("avgPrice", p.get("avg_price", p.get("avg_cost",0))),
-                     "current_price": p.get("currentPrice", p.get("current_price",0))}
-                    for p in positions if p.get("ticker")
-                ]
-                performance = await asyncio.to_thread(_compute_performance, portfolio)
-                profile     = _get_user_profile(target_uid)
-                report      = await ai_service.generate_monthly_report(portfolio, performance, profile)
-                report["performance"] = {**report.get("performance",{}),
-                    **{k: performance[k] for k in ("total_return_pct","total_value","unrealized_gain","best_performer","worst_performer")}}
-                report["metrics"]      = {**report.get("metrics",{}), "total_value": performance["total_value"], "unrealized_gain": performance["unrealized_gain"]}
-                report["top_positions"] = performance["positions"]
-                html  = build_monthly_report_html(name, report, month_override)
-                first = name.split()[0]
-                ok    = await send_email(target_email, f"📊 Tu reporte mensual de {month_override}, {first}", html)
-            else:
-                ok = await generate_and_send_monthly_report(user_id=target_uid, email=target_email, name=name)
+            port_res = await run_query(db.table("user_portfolio").select("positions").eq("user_id", target_uid))
+            if not port_res.data:
+                _log.error("admin monthly report: no portfolio for %s", target_uid); return
+            raw = port_res.data[0]["positions"]
+            positions = raw.get("positions", []) if isinstance(raw, dict) else (raw if isinstance(raw, list) else [])
+            if not positions:
+                _log.error("admin monthly report: empty portfolio for %s", target_uid); return
+
+            # Build portfolio list and inject live Finnhub prices
+            portfolio = []
+            for p in positions:
+                if not p.get("ticker"):
+                    continue
+                ticker = p["ticker"]
+                avg_cost = float(p.get("avgPrice", p.get("avg_price", p.get("avg_cost", 0))) or 0)
+                # Always fetch live price from Finnhub — stored current_price is stale
+                q = await asyncio.to_thread(fh_quote, ticker)
+                curr_price = float(q["price"]) if q and q.get("price") else 0.0
+                portfolio.append({
+                    "ticker":        ticker,
+                    "name":          p.get("name", ticker),
+                    "shares":        float(p.get("shares", 0) or 0),
+                    "avg_cost":      avg_cost,
+                    "current_price": curr_price,
+                })
+
+            performance = await asyncio.to_thread(_compute_performance, portfolio)
+            profile     = _get_user_profile(target_uid)
+            report      = await ai_service.generate_monthly_report(portfolio, performance, profile)
+            report["performance"] = {**report.get("performance", {}),
+                **{k: performance[k] for k in ("total_return_pct", "total_value", "unrealized_gain", "best_performer", "worst_performer")}}
+            report["metrics"]       = {**report.get("metrics", {}), "total_value": performance["total_value"], "unrealized_gain": performance["unrealized_gain"]}
+            report["top_positions"] = performance["positions"]
+
+            label = month_override or "Julio 2026"
+            html  = build_monthly_report_html(name, report, label)
+            first = name.split()[0]
+            ok    = await send_email(target_email, f"📊 Tu reporte mensual de {label}, {first}", html)
             _log.info("admin monthly report sent=%s to %s", ok, target_email)
         except Exception as e:
             _log.error("admin monthly report failed for %s: %s", target_email, e)
