@@ -28,6 +28,8 @@ export default function NotificationAnalyticsPage() {
   const [analyticsError, setAnalyticsError] = useState(false);
   const [testSending, setTestSending] = useState(false);
   const [testResult, setTestResult] = useState<"sent" | "no_channel" | "error" | null>(null);
+  const [closeSending, setCloseSending] = useState(false);
+  const [closeResult, setCloseResult] = useState<"sent" | "error" | null>(null);
   const [reportSending, setReportSending] = useState(false);
   const [reportResult, setReportResult] = useState<"sent" | "error" | null>(null);
 
@@ -64,6 +66,21 @@ export default function NotificationAnalyticsPage() {
       setReportResult("error");
     }
     setReportSending(false);
+  }
+
+  async function testMarketClosePush() {
+    setCloseSending(true);
+    setCloseResult(null);
+    try {
+      const res = await fetch(`${API}/api/admin/test-market-close-push`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setCloseResult(res.ok ? "sent" : "error");
+    } catch {
+      setCloseResult("error");
+    }
+    setCloseSending(false);
   }
 
   async function sendTestAlert() {
@@ -121,6 +138,22 @@ export default function NotificationAnalyticsPage() {
             >
               {reportSending ? <Loader2 className="w-4 h-4 animate-spin" /> : <BarChart2 className="w-4 h-4" />}
               Enviar reporte Julio
+            </button>
+            {closeResult === "sent" && <span style={{ color: "#22c55e", fontSize: 13, fontWeight: 600 }}>✓ Push cierre enviado</span>}
+            {closeResult === "error" && <span style={{ color: "#ef4444", fontSize: 13, fontWeight: 600 }}>✗ Error al enviar</span>}
+            <button
+              onClick={testMarketClosePush}
+              disabled={closeSending}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl font-semibold text-sm"
+              style={{
+                background: closeSending ? "rgba(251,191,36,0.1)" : "rgba(251,191,36,0.12)",
+                border: "1px solid rgba(251,191,36,0.35)",
+                color: "#fbbf24",
+                cursor: closeSending ? "not-allowed" : "pointer",
+              }}
+            >
+              {closeSending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Bell className="w-4 h-4" />}
+              Test cierre
             </button>
             {testResult === "sent" && <span style={{ color: "#22c55e", fontSize: 13, fontWeight: 600 }}>✓ Alerta enviada</span>}
             {testResult === "no_channel" && <span style={{ color: "#f59e0b", fontSize: 13, fontWeight: 600 }}>⚠ Sin canal push</span>}

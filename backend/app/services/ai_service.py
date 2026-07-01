@@ -14,10 +14,29 @@ client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
 _claude_sem = asyncio.Semaphore(40)
 
 
+_COST_PER_MTOK: dict[str, tuple[float, float]] = {
+    "claude-sonnet-4-6":          (3.00,  15.00),
+    "claude-haiku-4-5-20251001":  (0.80,   4.00),
+    "claude-opus-4-8":            (15.00, 60.00),
+    "claude-opus-4-5":            (15.00, 60.00),
+}
+
 async def _claude(**kwargs):
-    """Wrapper that enforces the concurrency cap on every Anthropic call."""
+    """Wrapper that enforces the concurrency cap on every Anthropic call and logs cost."""
+    import inspect as _inspect
+    frame = _inspect.currentframe()
+    caller = frame.f_back.f_code.co_name if frame and frame.f_back else "?"
+    kwargs.pop("_fn", None)  # remove internal tag if passed
     async with _claude_sem:
-        return await client.messages.create(**kwargs)
+        resp = await client.messages.create(**kwargs)
+        model = kwargs.get("model", "unknown")
+        in_tok  = getattr(resp.usage, "input_tokens",  0)
+        out_tok = getattr(resp.usage, "output_tokens", 0)
+        in_cost, out_cost = _COST_PER_MTOK.get(model, (3.00, 15.00))
+        cost = in_tok / 1e6 * in_cost + out_tok / 1e6 * out_cost
+        _log.info("LLM call: model=%s fn=%s in=%d out=%d cost=$%.5f",
+                  model, caller, in_tok, out_tok, cost)
+        return resp
 
 SYSTEM_PROMPT_BASE = """Eres Nuvos, mentor y educador de inversiones de élite, radicalmente diferente a cualquier chatbot financiero. Tu superpoder es detectar la brecha entre lo que el usuario *cree* que es como inversionista y lo que *realmente* es bajo presión — y usarla para hacerlo crecer.
 
@@ -1741,7 +1760,7 @@ async def analyze_decision_biases(
     profile: UserProfile | None = None,
 ) -> dict:
     system_prompt = build_system_prompt(profile)
-    decisions_str = json.dumps(decisions[-50:], ensure_ascii=False)  # last 50
+    decisions_str = json.dumps(decisions[-20:], ensure_ascii=False)  # last 20 — sufficient for bias detection
 
     prompt = f"""Analiza el historial de decisiones de inversión de este usuario y detecta sus sesgos conductuales.
 

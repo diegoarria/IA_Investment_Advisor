@@ -974,6 +974,10 @@ Español, tono analítico pero accesible. Sin viñetas, sin markdown, sin asteri
             ),
             timeout=15,
         )
+        in_tok = getattr(resp.usage, "input_tokens", 0)
+        out_tok = getattr(resp.usage, "output_tokens", 0)
+        logger.info("LLM market_wrap: in=%d out=%d cost=$%.5f", in_tok, out_tok,
+                    in_tok / 1e6 * 0.80 + out_tok / 1e6 * 4.0)
         raw = (resp.content[0].text or "").strip()
         # Strip any accidental markdown (model sometimes ignores the no-markdown instruction)
         import re as _re
@@ -1016,6 +1020,10 @@ async def _generate_earnings_ai_for_email(
             ),
             timeout=10,
         )
+        in_tok = getattr(resp.usage, "input_tokens", 0)
+        out_tok = getattr(resp.usage, "output_tokens", 0)
+        logger.info("LLM earnings_email(%s): in=%d out=%d cost=$%.5f", ticker, in_tok, out_tok,
+                    in_tok / 1e6 * 0.80 + out_tok / 1e6 * 4.0)
         return (resp.content[0].text or "").strip()
     except Exception:
         return ""
@@ -1680,6 +1688,10 @@ async def job_weekly_screener_push():
                         )}],
                     )
                 )
+                in_tok = getattr(resp.usage, "input_tokens", 0)
+                out_tok = getattr(resp.usage, "output_tokens", 0)
+                logger.info("LLM screener(risk=%s): in=%d out=%d cost=$%.5f", risk, in_tok, out_tok,
+                            in_tok / 1e6 * 0.80 + out_tok / 1e6 * 4.0)
                 raw = resp.content[0].text.strip() if resp.content else "[]"
                 import json as _json
                 parsed = _json.loads(raw)
@@ -1958,6 +1970,10 @@ REGLAS:
             ),
             timeout=8.0,
         )
+        in_tok = getattr(resp.usage, "input_tokens", 0)
+        out_tok = getattr(resp.usage, "output_tokens", 0)
+        logger.info("LLM earnings_push: in=%d out=%d cost=$%.5f", in_tok, out_tok,
+                    in_tok / 1e6 * 0.80 + out_tok / 1e6 * 4.0)
         body = resp.content[0].text.strip().strip('"').strip("'")
         if len(body) > 280:
             body = body[:277] + "..."
@@ -2731,6 +2747,10 @@ async def send_enhanced_weekly_emails():
                             )}],
                         )
                     )
+                    in_tok = getattr(_resp.usage, "input_tokens", 0)
+                    out_tok = getattr(_resp.usage, "output_tokens", 0)
+                    logger.info("LLM weekly_email(%s): in=%d out=%d cost=$%.5f", _key, in_tok, out_tok,
+                                in_tok / 1e6 * 0.80 + out_tok / 1e6 * 4.0)
                     ai_summaries[_key] = _resp.content[0].text.strip() if _resp.content else ""
         except Exception as e:
             logger.warning("AI weekly summaries failed: %s", e)

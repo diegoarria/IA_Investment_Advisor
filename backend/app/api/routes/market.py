@@ -1,7 +1,7 @@
 import asyncio
 import os
 import threading
-from fastapi import APIRouter, Depends, Query, Request, UploadFile, File
+from fastapi import APIRouter, Depends, Form, Query, Request, UploadFile, File
 from concurrent.futures import ThreadPoolExecutor
 
 _INDICES_POOL = ThreadPoolExecutor(max_workers=5, thread_name_prefix="indices")
@@ -635,6 +635,7 @@ async def portfolio_from_screenshot(
 
     image_data = body.get("image", "")
     image_type = body.get("type", "image/jpeg")
+    screenshot_currency = body.get("currency", "USD").upper()
 
     if not image_data:
         return {"positions": [], "error": "No image provided"}
@@ -703,30 +704,27 @@ NOTAS IMPORTANTES:
 - Si la lista está cortada, extrae las posiciones que SÍ están visibles
 - Responde SOLO el JSON array, nada más"""
 
-    def _call_claude(img_data: str, img_type: str, use_thinking: bool) -> list:
+    # Inject currency hint so the AI knows not to convert prices
+    _PROMPT += f"\n- MONEDA DE LOS PRECIOS: El usuario indicó que los precios en esta captura están en {screenshot_currency}. Extrae avg_price exactamente como aparece, sin convertir."
+
+    def _call_claude(img_data: str, img_type: str) -> list:
+        import logging as _log
         sc = anthropic.Anthropic(api_key=settings.anthropic_api_key)
-        kwargs: dict = {
-            "model": "claude-opus-4-8",
-            "max_tokens": 16000 if use_thinking else 4096,
-            "system": _SYSTEM,
-            "messages": [{"role": "user", "content": [
+        msg = sc.messages.create(
+            model="claude-haiku-4-5-20251001",
+            max_tokens=2048,
+            system=_SYSTEM,
+            messages=[{"role": "user", "content": [
                 {"type": "image", "source": {"type": "base64", "media_type": img_type, "data": img_data}},
                 {"type": "text", "text": _PROMPT},
             ]}],
-        }
-        if use_thinking:
-            kwargs["thinking"] = {"type": "adaptive"}
-
-        msg = sc.messages.create(**kwargs)
-
-        # Extract text from response (handles both thinking and non-thinking responses)
-        raw = ""
-        for block in msg.content:
-            if hasattr(block, "type") and block.type == "text":
-                raw = block.text
-                break
-        if not raw:
-            raw = str(msg.content[0]) if msg.content else ""
+        )
+        _log.getLogger(__name__).info(
+            "OCR screenshot: in=%d out=%d cost≈$%.4f",
+            msg.usage.input_tokens, msg.usage.output_tokens,
+            msg.usage.input_tokens / 1e6 * 0.80 + msg.usage.output_tokens / 1e6 * 4.0,
+        )
+        raw = next((b.text for b in msg.content if hasattr(b, "type") and b.type == "text"), "")
         return _extract_json(raw)
 
     def _run_sync(img_data: str, img_type: str) -> dict:
@@ -734,16 +732,10 @@ NOTAS IMPORTANTES:
             positions_raw = None
             last_error = None
 
-            # Try with extended thinking first (most accurate)
             try:
-                positions_raw = _call_claude(img_data, img_type, use_thinking=True)
+                positions_raw = _call_claude(img_data, img_type)
             except Exception as e:
                 last_error = str(e)
-                # Fallback: try without thinking (broader SDK compatibility)
-                try:
-                    positions_raw = _call_claude(img_data, img_type, use_thinking=False)
-                except Exception as e2:
-                    last_error = str(e2)
 
             if positions_raw is None:
                 return {"positions": [], "error": last_error or "Error al procesar la imagen"}
@@ -780,9 +772,12 @@ NOTAS IMPORTANTES:
 async def portfolio_from_pdf(
     request: Request,
     file: UploadFile = File(...),
+    currency: str = Form("USD"),
     user_id: str = Depends(get_current_user_id),
 ):
     import base64 as _b64
+
+    screenshot_currency = currency.upper()
 
     if not file.content_type == "application/pdf" and not (file.filename or "").lower().endswith(".pdf"):
         return {"positions": [], "error": "Solo se aceptan archivos PDF"}
@@ -823,11 +818,14 @@ FORMATO DE NÚMEROS MEXICO:
 
 Responde SOLO el JSON array, nada más."""
 
+    _PROMPT += f"\n- MONEDA DE LOS PRECIOS: El usuario indicó que los precios en este documento están en {screenshot_currency}. Extrae avg_price exactamente como aparece, sin convertir."
+
     def _call_claude_pdf(pdf_data: str) -> list:
+        import logging as _log
         sc = anthropic.Anthropic(api_key=settings.anthropic_api_key)
         msg = sc.beta.messages.create(
-            model="claude-opus-4-8",
-            max_tokens=4096,
+            model="claude-haiku-4-5-20251001",
+            max_tokens=2048,
             betas=["pdfs-2024-09-25"],
             system=_SYSTEM,
             messages=[{
@@ -837,6 +835,11 @@ Responde SOLO el JSON array, nada más."""
                     {"type": "text", "text": _PROMPT},
                 ],
             }],
+        )
+        _log.getLogger(__name__).info(
+            "OCR PDF: in=%d out=%d cost≈$%.4f",
+            msg.usage.input_tokens, msg.usage.output_tokens,
+            msg.usage.input_tokens / 1e6 * 0.80 + msg.usage.output_tokens / 1e6 * 4.0,
         )
         raw = next((b.text for b in msg.content if hasattr(b, "type") and b.type == "text"), "")
         return _extract_json(raw)

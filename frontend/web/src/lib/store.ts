@@ -431,10 +431,6 @@ export const useChatStore = create<ChatState>()(
           const session = state.sessions.find((s) => s.id === state.currentId);
           if (session) state.messages = session.messages;
         }
-        // On a new device with no local sessions, fetch history from the server.
-        if (!state?.sessions?.length) {
-          setTimeout(() => useChatStore.getState().loadFromServer(), 200);
-        }
       },
     }
   )

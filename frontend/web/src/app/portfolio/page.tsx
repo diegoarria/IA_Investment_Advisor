@@ -654,6 +654,10 @@ export default function PortfolioPage() {
   type ExtractedPos = { id: string; ticker: string; name: string; shares: number; avg_price: number; purchase_date?: string | null };
   const [screenshotPreview, setScreenshotPreview] = useState<ExtractedPos[]|null>(null);
   const [screenshotPriceInputs, setScreenshotPriceInputs] = useState<Record<string, { avgPrice: string; purchaseDate: string }>>({});
+  // Currency of prices shown in the screenshot/PDF (set by user before importing)
+  const [screenshotCurrency, setScreenshotCurrency] = useState("USD");
+  const screenshotCurrencyRef = useRef("USD");
+  useEffect(() => { screenshotCurrencyRef.current = screenshotCurrency; }, [screenshotCurrency]);
   const [mergeModalOpen, setMergeModalOpen] = useState(false);
   const [brokerModalOpen, setBrokerModalOpen] = useState(false);
   const [pendingMerge, setPendingMerge] = useState<ExtractedPos[]>([]);
@@ -931,7 +935,8 @@ export default function PortfolioPage() {
     setScreenshotPreview(null);
     setScreenshotProgress("Leyendo PDF con IA...");
     try {
-      const res = await marketApi.analyzePdf(file);
+      const shotCur = screenshotCurrencyRef.current;
+      const res = await marketApi.analyzePdf(file, shotCur);
       const extracted: ExtractedPos[] = (res.data.positions || []).map(
         (p: Omit<ExtractedPos, "id">, i: number) => ({ ...p, id: `${p.ticker}-pdf-${i}-${Date.now()}` })
       );
@@ -942,10 +947,24 @@ export default function PortfolioPage() {
         const inputs: Record<string, { avgPrice: string; purchaseDate: string }> = {};
         const rate = fxRateRef.current;
         const cur = portfolioCurrencyRef.current;
-        for (const p of extracted) inputs[p.id] = {
-          avgPrice: p.avg_price > 0 ? String(cur === "USD" ? p.avg_price : parseFloat((p.avg_price * rate).toFixed(4))) : "",
-          purchaseDate: p.purchase_date ?? "",
-        };
+        const APPROX: Record<string, number> = { MXN:18.5, EUR:0.92, GBP:0.79, CAD:1.38, BRL:5.7, JPY:155, AUD:1.55, CHF:0.89 };
+        for (const p of extracted) {
+          let display = p.avg_price;
+          if (p.avg_price > 0) {
+            if (shotCur === cur) {
+              display = p.avg_price;
+            } else if (shotCur === "USD") {
+              display = p.avg_price * rate;
+            } else {
+              const usd = p.avg_price / (APPROX[shotCur] ?? 1);
+              display = cur === "USD" ? usd : usd * rate;
+            }
+          }
+          inputs[p.id] = {
+            avgPrice: p.avg_price > 0 ? String(parseFloat(display.toFixed(4))) : "",
+            purchaseDate: p.purchase_date ?? "",
+          };
+        }
         setScreenshotPriceInputs(inputs);
       }
     } catch {
@@ -971,7 +990,7 @@ export default function PortfolioPage() {
           reader.onload = () => resolve((reader.result as string).split(",")[1]);
           reader.readAsDataURL(file);
         });
-        const res = await marketApi.analyzeScreenshot(base64, file.type || "image/jpeg");
+        const res = await marketApi.analyzeScreenshot(base64, file.type || "image/jpeg", screenshotCurrencyRef.current);
         const fromImage: ExtractedPos[] = (res.data.positions || []).map(
           (p: Omit<ExtractedPos,"id">, j: number) => ({ ...p, id:`${p.ticker}-${i}-${j}-${Date.now()}` })
         );
@@ -988,12 +1007,27 @@ export default function PortfolioPage() {
       } else {
         setScreenshotPreview(final);
         const inputs: Record<string, { avgPrice: string; purchaseDate: string }> = {};
+        const shotCur = screenshotCurrencyRef.current;
         const rate = fxRateRef.current;
         const cur = portfolioCurrencyRef.current;
-        for (const p of final) inputs[p.id] = {
-          avgPrice: p.avg_price > 0 ? String(cur === "USD" ? p.avg_price : parseFloat((p.avg_price * rate).toFixed(4))) : "",
-          purchaseDate: p.purchase_date ?? "",
-        };
+        const APPROX: Record<string, number> = { MXN:18.5, EUR:0.92, GBP:0.79, CAD:1.38, BRL:5.7, JPY:155, AUD:1.55, CHF:0.89 };
+        for (const p of final) {
+          let display = p.avg_price;
+          if (p.avg_price > 0) {
+            if (shotCur === cur) {
+              display = p.avg_price;
+            } else if (shotCur === "USD") {
+              display = p.avg_price * rate;
+            } else {
+              const usd = p.avg_price / (APPROX[shotCur] ?? 1);
+              display = cur === "USD" ? usd : usd * rate;
+            }
+          }
+          inputs[p.id] = {
+            avgPrice: p.avg_price > 0 ? String(parseFloat(display.toFixed(4))) : "",
+            purchaseDate: p.purchase_date ?? "",
+          };
+        }
         setScreenshotPriceInputs(inputs);
       }
     } catch {
@@ -1031,12 +1065,15 @@ export default function PortfolioPage() {
   const confirmScreenshotImport = () => {
     if (!screenshotPreview?.length) return;
     // Inject user-entered prices — convert from user's display currency to USD for storage
+    const shotCur = screenshotCurrencyRef.current;
+    const APPROX: Record<string, number> = { MXN:18.5, EUR:0.92, GBP:0.79, CAD:1.38, BRL:5.7, JPY:155, AUD:1.55, CHF:0.89 };
     const withUserPrices = screenshotPreview.map((p) => {
       const typed = parseFloat(screenshotPriceInputs[p.id]?.avgPrice ?? "");
-      // If user left the field empty, fall back to the AI-extracted price (already in USD)
+      // Fallback: convert AI-extracted price from screenshotCurrency to USD
+      const fallbackUSD = shotCur === "USD" ? p.avg_price : p.avg_price / (APPROX[shotCur] ?? 1);
       const avg_price_usd = (!isNaN(typed) && typed > 0)
         ? (portfolioCurrency === "USD" ? typed : typed / fxRate)
-        : p.avg_price;
+        : fallbackUSD;
       return {
         ...p,
         avg_price: parseFloat(avg_price_usd.toFixed(6)),
@@ -1466,6 +1503,25 @@ export default function PortfolioPage() {
                   ))}
                 </div>
               )}
+            </div>
+
+            {/* Moneda de la captura — selector inline antes de importar */}
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-xs shrink-0" style={{ color: "var(--muted)" }}>Precios de la captura en:</span>
+              {["USD", "MXN", "EUR", "GBP"].map((c) => (
+                <button
+                  key={c}
+                  onClick={() => setScreenshotCurrency(c)}
+                  className="px-2 py-0.5 rounded-lg text-xs font-bold transition-all"
+                  style={{
+                    background: screenshotCurrency === c ? "rgba(0,212,126,0.15)" : "var(--raised)",
+                    color: screenshotCurrency === c ? "#00d47e" : "var(--muted)",
+                    border: `1px solid ${screenshotCurrency === c ? "#00d47e" : "var(--border)"}`,
+                  }}
+                >
+                  {c}
+                </button>
+              ))}
             </div>
 
             {/* Botones principales: Agregar posición + Importar captura */}

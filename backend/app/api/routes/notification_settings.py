@@ -1194,3 +1194,56 @@ async def trigger_dividend_test(
         "push_body": notif_body,
         "pago_total": round(shares_held * amt, 4) if amt and shares_held else None,
     }
+
+
+@router.post("/admin/test-market-close-push")
+async def test_market_close_push(user_id: str = Depends(get_current_user_id)):
+    """Admin-only: send a real-time market-close push to the admin user.
+    Fetches SPY/QQQ live from Finnhub — no body needed. Bypasses per-day dedup."""
+    if user_id != _ADMIN_UID:
+        raise HTTPException(status_code=403, detail="Admin only")
+
+    import asyncio, os, time as _time
+    import requests as _req
+    from app.services.notification_engine import send_push
+
+    db = get_supabase()
+
+    def _fh_pct(sym: str):
+        key = os.getenv("FINNHUB_API_KEY", "")
+        if not key:
+            return None
+        try:
+            r = _req.get("https://finnhub.io/api/v1/quote",
+                         params={"symbol": sym, "token": key}, timeout=8)
+            d = r.json()
+            curr = float(d.get("c") or 0) or float(d.get("o") or 0)
+            prev = float(d.get("pc") or 0)
+            if curr > 0 and prev > 0:
+                return round((curr - prev) / prev * 100, 2)
+        except Exception:
+            pass
+        return None
+
+    spy_pct, qqq_pct = await asyncio.gather(
+        asyncio.to_thread(_fh_pct, "SPY"),
+        asyncio.to_thread(_fh_pct, "QQQ"),
+    )
+
+    sp_line = f"S&P 500: {spy_pct:+.2f}%" if spy_pct is not None else "S&P 500: N/D"
+    nq_line = f"Nasdaq: {qqq_pct:+.2f}%" if qqq_pct is not None else "Nasdaq: N/D"
+    push_title = "📊 El mercado ha cerrado"
+    push_body  = f"{sp_line} · {nq_line} — (test push)"
+
+    # Timestamp suffix so repeated calls are never deduped
+    test_cat = f"market_close_test_{int(_time.time())}"
+    await send_push(user_id, test_cat, push_title, push_body, {"screen": "portfolio"}, db)
+
+    return {
+        "ok": True,
+        "push_title": push_title,
+        "push_body": push_body,
+        "sp500_pct": spy_pct,
+        "nasdaq_pct": qqq_pct,
+        "finnhub_key_set": bool(os.getenv("FINNHUB_API_KEY")),
+    }

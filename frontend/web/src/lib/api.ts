@@ -183,11 +183,12 @@ export const market = {
   ) => api.post("/api/market/portfolio", { scenario, capital, positions }),
   analyzePortfolio: (positions: { ticker: string; shares: number; avg_price: number; name?: string; current_price?: number }[]) =>
     api.post("/api/simulate/analyze-portfolio", { positions }),
-  analyzeScreenshot: (imageData: string, imageType: string) =>
-    api.post("/api/market/portfolio/from-screenshot", { image: imageData, type: imageType }),
-  analyzePdf: (file: File) => {
+  analyzeScreenshot: (imageData: string, imageType: string, currency = "USD") =>
+    api.post("/api/market/portfolio/from-screenshot", { image: imageData, type: imageType, currency }),
+  analyzePdf: (file: File, currency = "USD") => {
     const form = new FormData();
     form.append("file", file);
+    form.append("currency", currency);
     return api.post("/api/market/portfolio/from-pdf", form, {
       headers: { "Content-Type": "multipart/form-data" },
     });

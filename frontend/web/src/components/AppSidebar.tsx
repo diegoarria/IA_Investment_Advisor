@@ -73,10 +73,17 @@ export default function AppSidebar({ open, onClose }: Props) {
   const { profile, behavioralRiskScore } = useProfileStore();
   const { notifications } = useNotificationStore();
   const subStore = useSubscriptionStore();
-  const { sessions, currentId, createSession, loadSession, deleteSession } = useChatStore();
+  const { sessions, currentId, createSession, loadSession, deleteSession, loadFromServer } = useChatStore();
 
   // Always sync subscription tier on mount so premium granted via promo/webhook is picked up immediately
   useEffect(() => { subStore.fetchStatus().catch(() => {}); }, []);
+
+  // Load chat history from server when authenticated but no local sessions (Safari / new browser)
+  useEffect(() => {
+    if (isAuthenticated && sessions.length === 0) {
+      loadFromServer().catch(() => {});
+    }
+  }, [isAuthenticated]);
 
   const [historyOpen, setHistoryOpen] = useState(true);
   const [paywallOpen, setPaywallOpen] = useState(false);
