@@ -9,7 +9,7 @@ export async function registerWebPush(token: string): Promise<boolean> {
     // 1. Fetch VAPID public key
     const keyRes = await fetch(`${API}/api/push/vapid-key`);
     if (!keyRes.ok) return false;
-    const { publicKey } = await keyRes.json();
+    const { publicKey } = await keyRes.json() as { publicKey?: string };
     if (!publicKey) return false;
 
     // 2. Register service worker
@@ -24,9 +24,11 @@ export async function registerWebPush(token: string): Promise<boolean> {
       const perm = await Notification.requestPermission();
       if (perm !== "granted") return false;
 
+      // applicationServerKey accepts string (base64url) or BufferSource.
+      // Passing the raw base64url string avoids Uint8Array generic-buffer type errors.
       sub = await reg.pushManager.subscribe({
         userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(publicKey),
+        applicationServerKey: publicKey,
       });
     }
 
@@ -42,11 +44,4 @@ export async function registerWebPush(token: string): Promise<boolean> {
   } catch {
     return false;
   }
-}
-
-function urlBase64ToUint8Array(base64String: string): Uint8Array {
-  const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
-  const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
-  const raw = window.atob(base64);
-  return Uint8Array.from([...raw].map((c) => c.charCodeAt(0)));
 }
