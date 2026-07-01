@@ -32,13 +32,15 @@ export default function NotificationAnalyticsPage() {
   const [reportResult, setReportResult] = useState<"sent" | "error" | null>(null);
 
   useEffect(() => {
-    if (userId && userId !== ADMIN_UID) { router.push("/"); return; }
+    if (!userId || !token) return;           // wait for auth to restore
+    if (userId !== ADMIN_UID) { router.push("/"); return; }
     (async () => {
       try {
         const res = await fetch(`${API}/api/notification-settings/analytics`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         if (!res.ok) throw new Error("forbidden");
+        setAnalyticsError(false);
         setData(await res.json());
       } catch {
         setAnalyticsError(true);
