@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, Bell, TrendingUp, BarChart2, Mail } from "lucide-react";
+import { Loader2, Bell, TrendingUp, BarChart2, Send } from "lucide-react";
 import { useAuthStore } from "@/lib/store";
 
 const ADMIN_UID = "86961402-9072-4670-9f73-b2aa91930b04";
@@ -26,6 +26,23 @@ export default function NotificationAnalyticsPage() {
   const [data, setData]     = useState<Analytics | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError]   = useState(false);
+  const [testSending, setTestSending] = useState(false);
+  const [testResult, setTestResult]   = useState<"sent" | "error" | null>(null);
+
+  async function sendTestAlert() {
+    setTestSending(true);
+    setTestResult(null);
+    try {
+      const res = await fetch(`${API}/api/push/test-alert`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setTestResult(res.ok ? "sent" : "error");
+    } catch {
+      setTestResult("error");
+    }
+    setTestSending(false);
+  }
 
   useEffect(() => {
     if (userId && userId !== ADMIN_UID) { router.push("/"); return; }
@@ -68,14 +85,38 @@ export default function NotificationAnalyticsPage() {
       <div className="max-w-4xl mx-auto px-4 py-8">
 
         {/* Header */}
-        <div className="flex items-center gap-3 mb-8">
-          <div className="w-10 h-10 rounded-xl flex items-center justify-center"
-               style={{ background: "rgba(34,197,94,0.12)", border: "1px solid rgba(34,197,94,0.3)" }}>
-            <Bell className="w-5 h-5 text-green-400" />
+        <div className="flex items-center justify-between gap-3 mb-8">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center"
+                 style={{ background: "rgba(34,197,94,0.12)", border: "1px solid rgba(34,197,94,0.3)" }}>
+              <Bell className="w-5 h-5 text-green-400" />
+            </div>
+            <div>
+              <h1 className="text-xl font-bold">Notification Analytics</h1>
+              <p style={{ color: "#6b7280", fontSize: 13 }}>Admin · Nuvos AI</p>
+            </div>
           </div>
-          <div>
-            <h1 className="text-xl font-bold">Notification Analytics</h1>
-            <p style={{ color: "#6b7280", fontSize: 13 }}>Admin · Nuvos AI</p>
+          <div className="flex items-center gap-3">
+            {testResult === "sent" && (
+              <span style={{ color: "#22c55e", fontSize: 13, fontWeight: 600 }}>✓ Alerta enviada</span>
+            )}
+            {testResult === "error" && (
+              <span style={{ color: "#ef4444", fontSize: 13, fontWeight: 600 }}>✗ Error al enviar</span>
+            )}
+            <button
+              onClick={sendTestAlert}
+              disabled={testSending}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl font-semibold text-sm"
+              style={{
+                background: testSending ? "rgba(34,197,94,0.1)" : "rgba(34,197,94,0.15)",
+                border: "1px solid rgba(34,197,94,0.4)",
+                color: "#22c55e",
+                cursor: testSending ? "not-allowed" : "pointer",
+              }}
+            >
+              {testSending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+              Probar alerta
+            </button>
           </div>
         </div>
 

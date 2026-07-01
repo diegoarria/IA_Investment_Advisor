@@ -74,3 +74,48 @@ async def unsubscribe(body: UnsubscribeBody, user_id: str = Depends(get_current_
         .eq("endpoint", body.endpoint)
     )
     return {"ok": True}
+
+
+# ── Test alert ────────────────────────────────────────────────────────────────
+
+@router.post("/push/test-alert")
+async def send_test_alert(user_id: str = Depends(get_current_user)):
+    """Send a test price alert push notification to the current user.
+    Uses a timestamp-based dedup key so it always fires regardless of previous sends."""
+    import datetime
+    from app.services.web_push_service import send_web_push_to_user
+    from app.services.push_service import send_push as _expo_push
+
+    db = get_supabase()
+    title = "📈 NVDA +5.2% hoy"
+    body = (
+        "NVIDIA reportó ingresos de data center un 18% por encima del consenso, "
+        "impulsado por demanda récord de chips H100. "
+        "Diego, ganaste ~$320 hoy (12 acc × $892.40)."
+    )
+    data = {"ticker": "NVDA", "change_pct": 5.2, "price": 892.40, "screen": "portfolio"}
+
+    sent_any = False
+
+    # 1. Web push
+    try:
+        web_sent = await send_web_push_to_user(user_id, title, body, {**data, "category": "price_mover_test"})
+        if web_sent > 0:
+            sent_any = True
+    except Exception:
+        pass
+
+    # 2. Expo push
+    tok_res = await run_query(db.table("user_profiles").select("push_token").eq("user_id", user_id))
+    token = (tok_res.data[0].get("push_token") or "") if tok_res.data else ""
+    if token and token.startswith("ExponentPushToken"):
+        try:
+            await _expo_push(token, title=title, body=body, data={**data, "category": "price_mover_test"})
+            sent_any = True
+        except Exception:
+            pass
+
+    if not sent_any:
+        raise HTTPException(404, "No push channel found — subscribe first (web push) or open the mobile app to register an Expo token")
+
+    return {"ok": True, "sent": True}
