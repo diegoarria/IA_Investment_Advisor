@@ -27,7 +27,7 @@ export default function NotificationAnalyticsPage() {
   const [loading, setLoading] = useState(true);
   const [analyticsError, setAnalyticsError] = useState(false);
   const [testSending, setTestSending] = useState(false);
-  const [testResult, setTestResult] = useState<"sent" | "error" | null>(null);
+  const [testResult, setTestResult] = useState<"sent" | "no_channel" | "error" | null>(null);
 
   useEffect(() => {
     if (userId && userId !== ADMIN_UID) { router.push("/"); return; }
@@ -53,7 +53,9 @@ export default function NotificationAnalyticsPage() {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` },
       });
-      setTestResult(res.ok ? "sent" : "error");
+      if (!res.ok) { setTestResult("error"); return; }
+      const json = await res.json();
+      setTestResult(json.reason === "no_channel" ? "no_channel" : "sent");
     } catch {
       setTestResult("error");
     }
@@ -85,6 +87,9 @@ export default function NotificationAnalyticsPage() {
           <div className="flex items-center gap-3">
             {testResult === "sent" && (
               <span style={{ color: "#22c55e", fontSize: 13, fontWeight: 600 }}>✓ Alerta enviada</span>
+            )}
+            {testResult === "no_channel" && (
+              <span style={{ color: "#f59e0b", fontSize: 13, fontWeight: 600 }}>⚠ Sin canal — activa push en el browser o abre la app móvil</span>
             )}
             {testResult === "error" && (
               <span style={{ color: "#ef4444", fontSize: 13, fontWeight: 600 }}>✗ Error al enviar</span>

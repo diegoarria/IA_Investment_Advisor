@@ -18,6 +18,7 @@ import OnboardingChecklist, { type OnboardingStep } from "@/components/Onboardin
 import HomeScreenPickerModal, { HOME_SCREEN_KEY } from "@/components/HomeScreenPickerModal";
 import { usePortfolioStore } from "@/lib/portfolioStore";
 import { isNYSEOpen } from "@/lib/marketHours";
+import { registerWebPush } from "@/lib/webPush";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -214,6 +215,12 @@ export default function HomePage() {
   useEffect(() => {
     if (!authRestoring && !isAuthenticated && !localStorage.getItem("access_token") && !localStorage.getItem("refresh_token")) { router.push("/"); return; }
   }, [isAuthenticated, authRestoring]);
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    const tok = localStorage.getItem("access_token") || "";
+    if (tok) registerWebPush(tok).catch(() => {});
+  }, [isAuthenticated]);
 
   // Redirect immediately to preferred start screen (before data loads)
   useEffect(() => {

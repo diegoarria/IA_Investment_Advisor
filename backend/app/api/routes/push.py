@@ -7,7 +7,7 @@ GET  /api/push/vapid-key     — return the VAPID public key for the browser
 """
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
-from app.api.deps import get_current_user
+from app.api.deps import get_current_user, get_current_user_id
 from app.core.database import get_supabase, run_query
 from app.services.web_push_service import is_configured
 from app.core.config import settings
@@ -79,7 +79,7 @@ async def unsubscribe(body: UnsubscribeBody, user_id: str = Depends(get_current_
 # ── Test alert ────────────────────────────────────────────────────────────────
 
 @router.post("/push/test-alert")
-async def send_test_alert(user_id: str = Depends(get_current_user)):
+async def send_test_alert(user_id: str = Depends(get_current_user_id)):
     """Send a test price alert push notification to the current user.
     Uses a timestamp-based dedup key so it always fires regardless of previous sends."""
     import datetime
@@ -116,6 +116,6 @@ async def send_test_alert(user_id: str = Depends(get_current_user)):
             pass
 
     if not sent_any:
-        raise HTTPException(404, "No push channel found — subscribe first (web push) or open the mobile app to register an Expo token")
+        return {"ok": True, "sent": False, "reason": "no_channel"}
 
-    return {"ok": True, "sent": True}
+    return {"ok": True, "sent": True, "reason": "sent"}
