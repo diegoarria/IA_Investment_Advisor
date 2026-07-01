@@ -1534,12 +1534,23 @@ async def job_portfolio_alerts():
                 screen       = "portfolio" if is_portfolio else "watchlist"
 
                 why = ticker_why[ticker]
+                direction = "bajó" if pct < 0 else "subió"
                 if is_prem:
-                    # Premium: only send when we have a specific catalyst
                     if why == NO_CATALYST:
-                        continue  # skip — no named catalyst found
-                    if is_portfolio:
-                        # User OWNS this stock — show WHY + financial impact
+                        # No specific catalyst found — send plain alert (never suppress entirely)
+                        if is_portfolio:
+                            shares         = port_map[ticker].get("shares", 0.0)
+                            position_value = shares * price if shares else 0.0
+                            dollar_delta   = position_value * pct / 100 if position_value else None
+                            if position_value and dollar_delta is not None:
+                                gl     = "perdiste" if pct < 0 else "ganaste"
+                                body   = f"{ticker} {direction} {abs(pct):.1f}% hoy a ${price:.2f}. {first}, {gl} ~${abs(dollar_delta):,.0f}."
+                            else:
+                                body   = f"{ticker} {direction} {abs(pct):.1f}% hoy a ${price:.2f}."
+                        else:
+                            body = f"{ticker} {direction} {abs(pct):.1f}% hoy a ${price:.2f}. La tienes en tu watchlist."
+                    elif is_portfolio:
+                        # WHY + financial impact
                         shares         = port_map[ticker].get("shares", 0.0)
                         position_value = shares * price if shares else 0.0
                         dollar_delta   = position_value * pct / 100 if position_value else None
@@ -1552,13 +1563,12 @@ async def job_portfolio_alerts():
                         max_b = 230 - len(impact)
                         body  = (why[:max_b] if len(why) > max_b else why) + impact
                     else:
-                        # User WATCHES this stock — informational only
+                        # WHY + watchlist suffix
                         suffix = " La tienes en tu watchlist."
                         max_b  = 230 - len(suffix)
                         body   = (why[:max_b] if len(why) > max_b else why) + suffix
                 else:
-                    # Free tier — plain price alert, no catalyst required
-                    direction = "bajó" if pct < 0 else "subió"
+                    # Free tier — plain price alert
                     if is_portfolio:
                         body = (
                             f"{ticker} {direction} {abs(pct):.1f}% hoy a ${price:.2f}. "
