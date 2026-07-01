@@ -1179,8 +1179,10 @@ def _compute_portfolio_returns(positions: list[_PortfolioReturnsItem]) -> dict:
     purchase_date_map = {p.ticker.upper(): p.purchase_date for p in positions if p.purchase_date}
 
     today = _dt.now()
-    # Include SPY as benchmark
-    all_tickers = list(dict.fromkeys(tickers + ["SPY"]))
+    # Include ^GSPC (S&P 500 index) as benchmark — preferred over SPY because the index
+    # has no dividends so adjclose == regular close, eliminating the adjclose/price mismatch.
+    # SPY is included as fallback in case ^GSPC fetch fails.
+    all_tickers = list(dict.fromkeys(tickers + ["^GSPC", "SPY"]))
 
     # Fetch 5+ years via direct Yahoo Finance Chart API (same as getPrices — guaranteed to work)
     today_ts = int(today.timestamp())
@@ -1225,7 +1227,9 @@ def _compute_portfolio_returns(positions: list[_PortfolioReturnsItem]) -> dict:
     if current_val <= 0:
         return {}
 
-    spy_current = _cp("SPY") if ("SPY" in close.columns or "SPY" in rt_prices) else 0.0
+    # Prefer ^GSPC (pure price index, no dividend distortion) over SPY as benchmark
+    _BENCH = "^GSPC" if ("^GSPC" in close.columns or "^GSPC" in rt_prices) else "SPY"
+    spy_current = _cp(_BENCH) if (_BENCH in close.columns or _BENCH in rt_prices) else 0.0
 
     # All cutoffs use timezone-naive today (index is also timezone-naive from _build_close_df)
     ytd_start = _pd.Timestamp(f"{today.year}-01-01")
@@ -1270,8 +1274,8 @@ def _compute_portfolio_returns(positions: list[_PortfolioReturnsItem]) -> dict:
                     breakdown[t] = round((cp - sp) / sp * 100, 2)
                     if oldest_date_str is None or pd_str < oldest_date_str:
                         oldest_date_str = pd_str
-                        if "SPY" in close.columns:
-                            spy_start_buy = _safe_price(subset.iloc[0], "SPY")
+                        if _BENCH in close.columns:
+                            spy_start_buy = _safe_price(subset.iloc[0], _BENCH)
 
             if total_cost > 0:
                 spy_pct_buy = round((spy_current - spy_start_buy) / spy_start_buy * 100, 2) if spy_start_buy > 0 else None
@@ -1330,10 +1334,10 @@ def _compute_portfolio_returns(positions: list[_PortfolioReturnsItem]) -> dict:
             if start_cost <= 0:
                 continue
 
-            # SPY benchmark (always from period start, independent of positions)
+            # S&P 500 benchmark (always from period start, independent of positions)
             spy_pct = None
-            if spy_current > 0 and "SPY" in close.columns:
-                spy_start = _safe_price(start_row, "SPY")
+            if spy_current > 0 and _BENCH in close.columns:
+                spy_start = _safe_price(start_row, _BENCH)
                 if spy_start > 0:
                     spy_pct = round((spy_current - spy_start) / spy_start * 100, 2)
 
