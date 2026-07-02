@@ -42,9 +42,16 @@ const SUBSCRIPTION_FEATURES = {
 const DUO_PLAN = {
   icon: "🌍",
   title: "Duo Plan",
-  description: "Comparte Premium con un familiar o pareja. Cada uno con su perfil y portafolio independiente. Ideal para aprender a invertir juntos.",
-  price: "$19.99/mes · $199.99/año",
+  price: "$19.99",
+  priceNote: "Anual $199.99/año",
 };
+
+const DUO_PLAN_FEATURES = [
+  "Todo lo de Premium, para ambos",
+  "Perfil y portafolio independientes para cada persona",
+  "Comparte con un familiar o pareja",
+  "Ideal para aprender a invertir juntos",
+];
 
 const ONE_TIME_PRODUCTS = [
   {
@@ -206,23 +213,32 @@ export default function ProductsPage() {
               <h2 className="text-base font-black mb-4" style={{ color: "var(--text)" }}>Duo Plan</h2>
               <div className="rounded-2xl border p-5 relative overflow-hidden" style={{ background: "linear-gradient(135deg, #0d1020 0%, #111827 100%)", borderColor: "rgba(99,102,241,0.4)" }}>
                 <div className="absolute inset-0 pointer-events-none" style={{ background: "radial-gradient(ellipse at top right, rgba(99,102,241,0.07) 0%, transparent 60%)" }} />
-                <div className="relative flex items-start justify-between gap-4">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="text-xl">{DUO_PLAN.icon}</span>
-                      <h3 className="text-sm font-black text-white">{DUO_PLAN.title}</h3>
-                      <span className="text-[9px] font-black px-2 py-0.5 rounded-full" style={{ background: "rgba(99,102,241,0.2)", color: "#818cf8" }}>NUEVO</span>
+
+                <div className="relative flex items-center gap-2 mb-0.5">
+                  <span className="text-xl">{DUO_PLAN.icon}</span>
+                  <p className="text-base font-black text-white">{DUO_PLAN.title}</p>
+                  <span className="text-[9px] font-black px-2 py-0.5 rounded-full" style={{ background: "rgba(99,102,241,0.2)", color: "#818cf8" }}>NUEVO</span>
+                </div>
+                <p className="relative text-2xl font-black text-white mb-1">
+                  {DUO_PLAN.price} <span className="text-sm font-normal" style={{ color: "rgba(255,255,255,0.5)" }}>/ mes</span>
+                </p>
+                <p className="relative text-[10px] mb-4" style={{ color: "rgba(255,255,255,0.4)" }}>{DUO_PLAN.priceNote}</p>
+
+                <button
+                  onClick={() => setShowPricing(true)}
+                  className="relative w-full py-2 rounded-xl text-xs font-black mb-4 transition-all hover:opacity-90 flex items-center justify-center gap-1"
+                  style={{ background: "rgba(99,102,241,0.2)", border: "1px solid rgba(99,102,241,0.4)", color: "#818cf8" }}
+                >
+                  Contratar Duo Plan <ArrowRight className="w-3 h-3" />
+                </button>
+
+                <div className="relative space-y-2.5">
+                  {DUO_PLAN_FEATURES.map((f, i) => (
+                    <div key={i} className="flex items-start gap-2">
+                      <Check className="w-3.5 h-3.5 shrink-0 mt-0.5" style={{ color: "#818cf8" }} />
+                      <span className="text-xs" style={{ color: "rgba(255,255,255,0.75)" }}>{f}</span>
                     </div>
-                    <p className="text-xs mb-3" style={{ color: "rgba(255,255,255,0.55)", lineHeight: 1.55 }}>{DUO_PLAN.description}</p>
-                    <span className="text-xs font-bold" style={{ color: "#818cf8" }}>{DUO_PLAN.price}</span>
-                  </div>
-                  <button
-                    onClick={() => setShowPricing(true)}
-                    className="shrink-0 flex items-center gap-1 px-3 py-2 rounded-xl text-xs font-bold transition-all hover:opacity-80"
-                    style={{ background: "rgba(99,102,241,0.15)", border: "1px solid rgba(99,102,241,0.3)", color: "#818cf8" }}
-                  >
-                    Contratar <ArrowRight className="w-3 h-3" />
-                  </button>
+                  ))}
                 </div>
               </div>
             </section>
