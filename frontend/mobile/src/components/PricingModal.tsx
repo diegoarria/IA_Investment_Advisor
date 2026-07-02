@@ -16,18 +16,18 @@ const FREE_FEATURES = [
 ];
 
 const PREMIUM_FEATURES = [
-  "Mensajes ilimitados con el mentor 24/7",
-  "Portafolio ilimitado — sin límite de acciones",
-  "Importar portafolio desde PDF o screenshot",
-  "Earnings Calendar con análisis IA por posición",
-  "Stress Test con 5 escenarios históricos",
-  "Análisis IA profundo de tu portafolio",
-  "Screener semanal: 5 oportunidades cada lunes",
-  "Noticias de TU portafolio con resumen IA",
-  "Reporte mensual de performance vs S&P 500",
-  "Aprende con tu portafolio (lecciones contextuales)",
-  "Mentor proactivo — alertas móviles personalizadas",
-  "Evaluación conductual BSCORE",
+  "Chatea sin límites con tu mentor de IA, a cualquier hora",
+  "Agrega todas las acciones que quieras, sin límite",
+  "Sube una foto o PDF de tu cuenta y la IA arma tu portafolio",
+  "Te avisamos antes de que tus empresas reporten ganancias",
+  "Mira cómo le hubiera ido a tu dinero en crisis pasadas (2008, COVID...)",
+  "La IA revisa tu portafolio y te dice qué mejorar",
+  "Cada lunes, 5 ideas de inversión seleccionadas para ti",
+  "Noticias de tus acciones, resumidas por IA en segundos",
+  "Cada mes te decimos si le ganaste al mercado o no",
+  "Lecciones pensadas para las acciones que ya tienes",
+  "Te avisamos cuando pasa algo importante con tu dinero",
+  "Descubre tu estilo como inversor y cómo mejorar",
 ];
 
 const DUO_FEATURES = [

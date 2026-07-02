@@ -26,26 +26,26 @@ const PLANS = [
 ];
 
 const HERO_FEATURES = [
-  { icon: Brain,      text: "Mensajes ilimitados con el mentor 24/7" },
-  { icon: BarChart2,  text: "Portafolio ilimitado — sin límite de acciones" },
-  { icon: TrendingUp, text: "Earnings Calendar con análisis IA por posición" },
-  { icon: Shield,     text: "Importar portafolio desde PDF o screenshot" },
-  { icon: Zap,        text: "Screener semanal: 5 oportunidades cada lunes" },
+  { icon: Brain,      text: "Chatea sin límites con tu mentor de IA, a cualquier hora" },
+  { icon: BarChart2,  text: "Agrega todas las acciones que quieras, sin límite" },
+  { icon: TrendingUp, text: "Te avisamos antes de que tus empresas reporten ganancias" },
+  { icon: Shield,     text: "Sube una foto o PDF de tu cuenta y la IA arma tu portafolio" },
+  { icon: Zap,        text: "Cada lunes, 5 ideas de inversión seleccionadas para ti" },
 ];
 
 const ALL_FEATURES = [
-  { text: "Mensajes ilimitados con el mentor 24/7", detail: "Sin límite de 20 mensajes al día. Habla con tu mentor cuando quieras, sin restricciones." },
-  { text: "Portafolio ilimitado — sin límite de acciones", detail: "En el plan gratuito puedes agregar hasta 10 acciones. Premium elimina ese límite completamente." },
-  { text: "Importar portafolio desde PDF o screenshot", detail: "Sube tu estado de cuenta y la IA extrae tickers, cantidades y precios promedio automáticamente. Sin entrada manual." },
-  { text: "Earnings Calendar con análisis IA por posición", detail: "Ve las fechas de resultados de todas tus posiciones y obtén análisis IA de qué esperar antes de que reporten." },
-  { text: "Stress Test con 5 escenarios históricos", detail: "Simula cómo hubiera reaccionado tu portafolio en Crisis 2008, COVID-19, Tech Crash 2022, subida de tasas Fed y Bull Market." },
-  { text: "Análisis IA profundo de tu portafolio", detail: "Fortalezas, debilidades y sugerencias concretas sobre tu portafolio generadas por IA. Incluye distribución por sector y score de riesgo 0-100." },
-  { text: "Screener semanal: 5 oportunidades cada lunes", detail: "Cada lunes la IA selecciona 5 oportunidades con catalizador, score 0-100, análisis de riesgo y nota de tu mentor. Basado en tu perfil real." },
-  { text: "Noticias de TU portafolio con resumen IA", detail: "Cada noticia de tus posiciones viene con un resumen generado por IA. Lee el punto clave en segundos, no el artículo completo." },
-  { text: "Reporte mensual de performance vs S&P 500", detail: "Al cierre de cada mes: retorno real, comparativa vs S&P 500, posiciones más rentables y nota personalizada de tu mentor." },
-  { text: "Aprende con tu portafolio (lecciones contextuales)", detail: "La app detecta qué empresas tienes en cartera y te sugiere lecciones relevantes justo antes de que reporten resultados." },
-  { text: "Mentor proactivo — alertas móviles personalizadas", detail: "Recibe notificaciones cuando tu portafolio diverge del mercado, cuando hay earnings próximos o cuando tu sector se concentra demasiado." },
-  { text: "Evaluación conductual BSCORE", detail: "La IA analiza tu perfil inversor y conversaciones para medir tu madurez como inversor con sugerencias concretas de mejora." },
+  { text: "Chatea sin límites con tu mentor de IA, a cualquier hora", detail: "Sin límite de 20 mensajes al día. Pregunta lo que quieras, cuando quieras." },
+  { text: "Agrega todas las acciones que quieras, sin límite", detail: "En el plan gratuito puedes agregar hasta 10 acciones. Premium elimina ese límite." },
+  { text: "Sube una foto o PDF de tu cuenta y la IA arma tu portafolio", detail: "La IA lee tu estado de cuenta y agrega automáticamente tus acciones, cantidades y precios." },
+  { text: "Te avisamos antes de que tus empresas reporten ganancias", detail: "Ve las fechas de resultados de todas tus posiciones y qué esperar, explicado por la IA." },
+  { text: "Mira cómo le hubiera ido a tu dinero en crisis pasadas (2008, COVID...)", detail: "Simula tu portafolio en 5 momentos históricos: Crisis 2008, COVID-19, Tech Crash 2022, subida de tasas y un mercado alcista." },
+  { text: "La IA revisa tu portafolio y te dice qué mejorar", detail: "Fortalezas, debilidades y sugerencias concretas. Incluye en qué sectores estás muy concentrado." },
+  { text: "Cada lunes, 5 ideas de inversión seleccionadas para ti", detail: "La IA elige 5 oportunidades cada semana con una explicación simple de por qué y qué tan arriesgadas son." },
+  { text: "Noticias de tus acciones, resumidas por IA en segundos", detail: "Cada noticia de tus posiciones viene con un resumen corto de la IA. Entérate sin leer el artículo completo." },
+  { text: "Cada mes te decimos si le ganaste al mercado o no", detail: "Al cierre de cada mes: tu retorno real, comparado contra el S&P 500, y una nota personalizada." },
+  { text: "Lecciones pensadas para las acciones que ya tienes", detail: "La app detecta qué empresas tienes y te muestra lecciones relevantes justo antes de que reporten resultados." },
+  { text: "Te avisamos cuando pasa algo importante con tu dinero", detail: "Notificaciones cuando tu portafolio se aleja del mercado, se acercan resultados o estás muy concentrado en un sector." },
+  { text: "Descubre tu estilo como inversor y cómo mejorar", detail: "La IA analiza tus decisiones y conversaciones para ayudarte a tomar mejores decisiones con el tiempo." },
 ];
 
 interface PaywallModalProps {
