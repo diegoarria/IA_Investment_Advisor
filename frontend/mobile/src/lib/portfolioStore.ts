@@ -81,8 +81,12 @@ export const usePortfolioStore = create<PortfolioStore>()(
               portfolioId,
               portfolioName,
             )
-              .then(() => {
-                set({ syncStatus: "saved", lastSaved: new Date().toISOString(), pendingSync: false, pendingSyncSetAt: null });
+              .then((res) => {
+                // Prefer the server's own commit timestamp over the client clock, so
+                // "lastSaved" is proof the write actually landed, not just that the
+                // request didn't throw.
+                const confirmedAt = res?.data?.updated_at ?? new Date().toISOString();
+                set({ syncStatus: "saved", lastSaved: confirmedAt, pendingSync: false, pendingSyncSetAt: null });
                 setTimeout(() => { if (get().syncStatus === "saved") set({ syncStatus: "idle" }); }, 4000);
               })
               .catch((err) => {

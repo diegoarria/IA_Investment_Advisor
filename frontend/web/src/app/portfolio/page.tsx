@@ -1325,8 +1325,9 @@ export default function PortfolioPage() {
               </div>
             )}
             {syncStatus === "saved" && (
-              <div className="flex items-center gap-1 text-[10px] font-semibold" style={{ color: "#22c55e" }}>
-                <Check className="w-3 h-3" /><span className="hidden sm:inline">Guardado</span>
+              <div className="flex items-center gap-1 text-[10px] font-semibold" style={{ color: "#22c55e" }}
+                   title="Confirmado por el servidor">
+                <Check className="w-3 h-3" /><span className="hidden sm:inline">Guardado en el servidor</span>
               </div>
             )}
             {syncStatus === "error" && (
@@ -1336,8 +1337,9 @@ export default function PortfolioPage() {
             )}
             {syncStatus === "idle" && lastSaved && (
               <div className="flex items-center gap-1 text-[10px]" style={{ color: "var(--dim)" }}
-                   title={`Guardado: ${new Date(lastSaved).toLocaleTimeString()}`}>
+                   title="Última confirmación del servidor">
                 <Cloud className="w-3 h-3" />
+                <span className="hidden sm:inline">Guardado {new Date(lastSaved).toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" })}</span>
               </div>
             )}
             {/* View toggle */}

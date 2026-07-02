@@ -93,9 +93,14 @@ export const usePortfolioStore = create<PortfolioStore>()(
             }),
             keepalive: true,
           })
-            .then((res) => {
+            .then(async (res) => {
               if (!res.ok) throw new Error(`HTTP ${res.status}`);
-              set({ syncStatus: "saved", lastSaved: new Date().toISOString(), pendingSync: false, pendingSyncSetAt: null });
+              // Prefer the server's own commit timestamp over the client clock, so
+              // "lastSaved" is proof the write actually landed, not just that the
+              // request didn't throw.
+              const data = await res.json().catch(() => null);
+              const confirmedAt = data?.updated_at ?? new Date().toISOString();
+              set({ syncStatus: "saved", lastSaved: confirmedAt, pendingSync: false, pendingSyncSetAt: null });
               setTimeout(() => { if (get().syncStatus === "saved") set({ syncStatus: "idle" }); }, 4000);
             })
             .catch((err) => {

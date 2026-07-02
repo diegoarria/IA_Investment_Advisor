@@ -52,18 +52,22 @@ async def sync_portfolio(body: dict, user_id: str = Depends(get_current_user_id)
     portfolio_id  = body.get("portfolio_id", "default") or "default"
     portfolio_name = body.get("portfolio_name", "Mi portafolio") or "Mi portafolio"
     portfolio_state = {"_v": 2, "currency": currency, "positions": positions}
+    now = _NOW()
     db = get_supabase()
     await run_query(db.table("user_portfolio").upsert({
         "user_id":        user_id,
         "portfolio_id":   portfolio_id,
         "portfolio_name": portfolio_name,
         "positions":      portfolio_state,
-        "updated_at":     _NOW(),
+        "updated_at":     now,
     }, on_conflict="user_id,portfolio_id"))
     cache_delete(f"sync:portfolio:{user_id}:{portfolio_id}")
     cache_delete(f"sync:portfolios:{user_id}")
     cache_delete(f"sync:all:{user_id}")
-    return {"ok": True}
+    # Echo back the exact timestamp the write was committed with, so clients can
+    # show a server-confirmed "saved at" time instead of just trusting their own
+    # local clock/state.
+    return {"ok": True, "updated_at": now}
 
 
 @router.get("/portfolio")
