@@ -1,8 +1,11 @@
 import asyncio
+import logging
 import os
 import threading
 from fastapi import APIRouter, Depends, Form, Query, Request, UploadFile, File
 from concurrent.futures import ThreadPoolExecutor
+
+logger = logging.getLogger("uvicorn.error")
 
 _INDICES_POOL = ThreadPoolExecutor(max_workers=5, thread_name_prefix="indices")
 _MARKET_POOL = ThreadPoolExecutor(max_workers=20, thread_name_prefix="market")
@@ -1017,16 +1020,32 @@ async def summarize_news(body: dict, user_id: str = Depends(get_current_user_id)
                 "AppleWebKit/537.36 (KHTML, like Gecko) "
                 "Chrome/124.0.0.0 Safari/537.36"
             ),
-            "Accept": "text/html,application/xhtml+xml;q=0.9,*/*;q=0.8",
+            "Accept": "text/html,application/xhtml+xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
             "Accept-Language": "es-419,en-US;q=0.7",
+            # No explicit Accept-Encoding — httpx already negotiates the correct
+            # set based on what's actually installed (brotli isn't, so forcing
+            # "br" here would risk an undecodable response).
+            "Referer": "https://www.google.com/",
+            "Sec-Fetch-Dest": "document",
+            "Sec-Fetch-Mode": "navigate",
+            "Sec-Fetch-Site": "cross-site",
+            "Upgrade-Insecure-Requests": "1",
         }
-        try:
-            async with httpx.AsyncClient(timeout=10, follow_redirects=True) as client:
-                r = await client.get(url, headers=_HEADERS)
-            if r.status_code == 200:
-                content = _extract_article_text(r.text)
-        except Exception:
-            pass
+        # One retry — a cloud server's outbound IP can get transiently rate-limited
+        # by finance sites in a way a single request wouldn't recover from otherwise.
+        for attempt in range(2):
+            try:
+                async with httpx.AsyncClient(timeout=10, follow_redirects=True) as client:
+                    r = await client.get(url, headers=_HEADERS)
+                if r.status_code == 200:
+                    content = _extract_article_text(r.text)
+                else:
+                    logger.warning("summarize-news fetch got HTTP %s for %s", r.status_code, url)
+                break
+            except Exception as e:
+                logger.warning("summarize-news fetch failed (attempt %s) for %s: %s", attempt + 1, url, e)
+                if attempt == 0:
+                    await asyncio.sleep(1)
 
     summary = await ai_service.summarize_news_article(title, content)
     return {"summary": summary}
