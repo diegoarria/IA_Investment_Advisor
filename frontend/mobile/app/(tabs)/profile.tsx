@@ -13,11 +13,9 @@ import { useAppStore, RISK_CONFIG, getAge, maturityLabel } from "../../src/lib/p
 import { getMentorInfo } from "../../src/lib/mentorData";
 import ProgressModal from "../../src/components/ProgressModal";
 import TutorialModal from "../../src/components/TutorialModal";
-import UpsellModal from "../../src/components/UpsellModal";
 import { insightsApi, mentorLetterApi, profileApi, authApi, referralApi, syncApi, feedApi, billingApi } from "../../src/lib/api";
 import { posthog } from "../../src/config/posthog";
 import { useSubscriptionStore, hasPremiumAccess } from "../../src/lib/subscriptionStore";
-import type { UpsellOffer } from "../../src/lib/upsellStore";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { HOME_SCREEN_KEY } from "../../src/components/MobileHomeScreenPickerModal";
 
@@ -165,16 +163,6 @@ export default function ProfileScreen() {
 
   const subStore = useSubscriptionStore();
   const isPremium = hasPremiumAccess(subStore);
-
-  const PLAN_PRICES: Record<UpsellOffer, Record<string, number>> = {
-    session:       { free: 149, premium: 99, bundle: 247 },
-    annual_report: { free: 34.99, premium: 19.99 },
-    family_plan:   { monthly: 19.99, yearly: 199.99 },
-  };
-
-  const [planOffer, setPlanOffer] = useState<UpsellOffer | null>(null);
-
-  const handleOpenPlan = (offer: UpsellOffer) => setPlanOffer(offer);
 
   useEffect(() => {
     insightsApi.get().then((r) => setInsights(r.data)).catch(() => {});
@@ -1272,56 +1260,6 @@ if (!profile) {
           </View>
         )}
 
-        {/* ── PLANES ADICIONALES ── */}
-        <View style={s.section}>
-          <Text style={[s.plansSectionLabel, { color: colors.textMuted }]}>PLANES ADICIONALES</Text>
-          {([
-            {
-              offer: "session" as UpsellOffer,
-              emoji: "🎯",
-              title: "Sesión 1:1 con Diego",
-              sub: "45 min con el fundador",
-              color: "#00d47e",
-              priceLabel: isPremium ? "desde $99" : "desde $149",
-            },
-            {
-              offer: "annual_report" as UpsellOffer,
-              emoji: "📊",
-              title: "Reporte Anual de Madurez",
-              sub: "Tu evolución como inversor",
-              color: "#8b5cf6",
-              priceLabel: isPremium ? "$19.99" : "$34.99",
-            },
-            {
-              offer: "family_plan" as UpsellOffer,
-              emoji: "👫",
-              title: "Plan Dúo",
-              sub: "Dos cuentas Premium",
-              color: "#3b82f6",
-              priceLabel: "desde $19.99/mes",
-            },
-          ]).map(({ offer, emoji, title, sub, color, priceLabel }) => (
-            <TouchableOpacity
-              key={offer}
-              onPress={() => handleOpenPlan(offer)}
-              activeOpacity={0.8}
-              style={[s.planCard, { backgroundColor: color + "0d", borderColor: color + "30" }]}
-            >
-              <View style={[s.planIcon, { backgroundColor: color + "18" }]}>
-                <Text style={{ fontSize: 20 }}>{emoji}</Text>
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={[s.planTitle, { color: colors.text }]}>{title}</Text>
-                <Text style={[s.planSub, { color: colors.textMuted }]}>{sub}</Text>
-              </View>
-              <View style={{ alignItems: "flex-end" }}>
-                <Text style={[s.planPrice, { color }]}>{priceLabel}</Text>
-                <Text style={[s.planSeeMore, { color: colors.textDim }]}>Ver más →</Text>
-              </View>
-            </TouchableOpacity>
-          ))}
-        </View>
-
         {/* ── BOTTOM ── */}
         <View style={{ marginTop: 16, gap: 10, paddingBottom: 12 }}>
           <View style={{ flexDirection: "row", justifyContent: "center", gap: 20, paddingVertical: 4 }}>
@@ -1391,16 +1329,6 @@ if (!profile) {
         </View>
       </Modal>
 
-      {planOffer && (
-        <UpsellModal
-          visible={true}
-          offer={planOffer}
-          userTier={isPremium ? "premium" : "free"}
-          prices={PLAN_PRICES[planOffer]}
-          triggerSource="profile_plans"
-          onClose={() => setPlanOffer(null)}
-        />
-      )}
     </SafeAreaView>
   );
 }
@@ -1621,11 +1549,5 @@ function makeStyles(c: Colors) {
     },
     modalShareText: { color: "white", fontWeight: "700", fontSize: 15 },
     plansSectionLabel: { fontSize: 11, fontWeight: "900", letterSpacing: 0.8, textTransform: "uppercase", marginBottom: 10, paddingHorizontal: 2 },
-    planCard:    { flexDirection: "row", alignItems: "center", gap: 12, padding: 14, borderRadius: 16, borderWidth: 1, marginBottom: 8 },
-    planIcon:    { width: 42, height: 42, borderRadius: 12, alignItems: "center", justifyContent: "center" },
-    planTitle:   { fontSize: 14, fontWeight: "800", lineHeight: 18 },
-    planSub:     { fontSize: 12, marginTop: 2 },
-    planPrice:   { fontSize: 13, fontWeight: "900" },
-    planSeeMore: { fontSize: 10, marginTop: 2 },
   });
 }
