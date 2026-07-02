@@ -32,6 +32,10 @@ interface PortfolioStore {
   syncStatus: SyncStatus;
   lastSaved: string | null;
   pendingSync: boolean;
+  // When pendingSync was last set to true. Used to detect a flag stuck from a
+  // long-dead session (e.g. a push that never resolved before the tab closed)
+  // so loadFromServer() doesn't defer to it forever and never pull again.
+  pendingSyncSetAt: number | null;
 
   // Active portfolio mutations (same API as before)
   setCurrency: (currency: string) => void;
@@ -69,7 +73,7 @@ export const usePortfolioStore = create<PortfolioStore>()(
 
       /** Push active portfolio to server — returns Promise so callers can await completion */
       const push = (positions: Position[], currency: string, portfolioId: string, portfolioName: string): Promise<void> => {
-        set({ syncStatus: "syncing", pendingSync: true });
+        set({ syncStatus: "syncing", pendingSync: true, pendingSyncSetAt: Date.now() });
         const doFetch = (): Promise<void> => {
           const BASE_URL =
             process.env.NEXT_PUBLIC_API_URL ||
@@ -91,7 +95,7 @@ export const usePortfolioStore = create<PortfolioStore>()(
           })
             .then((res) => {
               if (!res.ok) throw new Error(`HTTP ${res.status}`);
-              set({ syncStatus: "saved", lastSaved: new Date().toISOString(), pendingSync: false });
+              set({ syncStatus: "saved", lastSaved: new Date().toISOString(), pendingSync: false, pendingSyncSetAt: null });
               setTimeout(() => { if (get().syncStatus === "saved") set({ syncStatus: "idle" }); }, 4000);
             })
             .catch((err) => {
@@ -132,6 +136,7 @@ export const usePortfolioStore = create<PortfolioStore>()(
         syncStatus: "idle",
         lastSaved: null,
         pendingSync: false,
+        pendingSyncSetAt: null,
 
         setCurrency: (currency) => {
           const active = getActive();
@@ -194,7 +199,7 @@ export const usePortfolioStore = create<PortfolioStore>()(
           // Flag pendingSync so a loadFromServer() that's already in flight (e.g. the
           // 30s background sync) can't land mid-delete and pull a stale portfolio
           // list that still includes this one, resurrecting it locally.
-          set({ pendingSync: true });
+          set({ pendingSync: true, pendingSyncSetAt: Date.now() });
           deletingPortfolioId = portfolioId;
           // Chain onto pushChain too: if a position edit for this portfolio was
           // queued right before the delete, its upsert would otherwise land on the
@@ -206,7 +211,7 @@ export const usePortfolioStore = create<PortfolioStore>()(
           try {
             await result;
           } finally {
-            set({ pendingSync: false });
+            set({ pendingSync: false, pendingSyncSetAt: null });
             deletingPortfolioId = null;
           }
           const { portfolios, activePortfolioId } = get();
@@ -232,12 +237,22 @@ export const usePortfolioStore = create<PortfolioStore>()(
         loadFromServer: async () => {
           try {
             const { sync } = await import("./api");
-            const { pendingSync } = get();
-            if (pendingSync) {
+            const { pendingSync, pendingSyncSetAt } = get();
+            // A pendingSync flag stuck for more than 2 minutes means the push that
+            // set it never resolved (tab closed, crashed, or hung mid-request) — it
+            // isn't "in flight" anymore. Trusting it forever would mean this browser
+            // never pulls fresh data from the server again, only ever re-pushing its
+            // own possibly-ancient local snapshot. No timestamp at all (persisted
+            // from before this field existed) is treated as stale too — there's no
+            // way to know how old it is, and every code path that sets pendingSync
+            // now always sets this timestamp alongside it.
+            const isStale = pendingSyncSetAt == null || Date.now() - pendingSyncSetAt > 2 * 60 * 1000;
+            if (pendingSync && !isStale) {
               const active = getActive();
               if (active.id !== deletingPortfolioId) push(active.positions, active.currency, active.id, active.name);
               return;
             }
+            if (pendingSync && isStale) set({ pendingSync: false, pendingSyncSetAt: null });
             try {
               // Try new multi-portfolio endpoint first (requires migration 018)
               const res = await sync.getAllPortfolios();
@@ -301,6 +316,7 @@ export const usePortfolioStore = create<PortfolioStore>()(
         positions: state.positions,
         portfolioCurrency: state.portfolioCurrency,
         pendingSync: state.pendingSync,
+        pendingSyncSetAt: state.pendingSyncSetAt,
         lastSaved: state.lastSaved,
       }),
     }

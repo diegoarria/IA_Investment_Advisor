@@ -31,6 +31,9 @@ interface PortfolioStore {
   syncStatus: SyncStatus;
   lastSaved: string | null;
   pendingSync: boolean;
+  // When pendingSync was last set to true. Used to detect a flag stuck from a
+  // long-dead session so loadFromServer() doesn't defer to it forever.
+  pendingSyncSetAt: number | null;
 
   // Active portfolio mutations
   setCurrency: (currency: string) => void;
@@ -69,7 +72,7 @@ export const usePortfolioStore = create<PortfolioStore>()(
       let deletingPortfolioId: string | null = null;
 
       const push = (positions: Position[], currency: string, portfolioId: string, portfolioName: string): Promise<void> => {
-        set({ syncStatus: "syncing", pendingSync: true });
+        set({ syncStatus: "syncing", pendingSync: true, pendingSyncSetAt: Date.now() });
         const doFetch = (): Promise<void> =>
           import("./api").then(({ syncApi }) =>
             syncApi.pushPortfolio(
@@ -79,7 +82,7 @@ export const usePortfolioStore = create<PortfolioStore>()(
               portfolioName,
             )
               .then(() => {
-                set({ syncStatus: "saved", lastSaved: new Date().toISOString(), pendingSync: false });
+                set({ syncStatus: "saved", lastSaved: new Date().toISOString(), pendingSync: false, pendingSyncSetAt: null });
                 setTimeout(() => { if (get().syncStatus === "saved") set({ syncStatus: "idle" }); }, 4000);
               })
               .catch((err) => {
@@ -116,6 +119,7 @@ export const usePortfolioStore = create<PortfolioStore>()(
         syncStatus: "idle",
         lastSaved: null,
         pendingSync: false,
+        pendingSyncSetAt: null,
 
         setCurrency: (currency) => {
           const active = getActive();
@@ -187,7 +191,7 @@ export const usePortfolioStore = create<PortfolioStore>()(
           const { syncApi } = await import("./api");
           // Flag pendingSync so a loadFromServer() already in flight can't land
           // mid-delete and pull a stale portfolio list that resurrects this one.
-          set({ pendingSync: true });
+          set({ pendingSync: true, pendingSyncSetAt: Date.now() });
           deletingPortfolioId = portfolioId;
           // Chain onto pushChain: a queued position-edit upsert for this portfolio
           // must never land on the server after the delete and recreate the row.
@@ -197,7 +201,7 @@ export const usePortfolioStore = create<PortfolioStore>()(
           try {
             await result;
           } finally {
-            set({ pendingSync: false });
+            set({ pendingSync: false, pendingSyncSetAt: null });
             deletingPortfolioId = null;
           }
           const { portfolios, activePortfolioId } = get();
@@ -223,12 +227,16 @@ export const usePortfolioStore = create<PortfolioStore>()(
         loadFromServer: async () => {
           try {
             const { syncApi } = await import("./api");
-            const { pendingSync } = get();
-            if (pendingSync) {
+            const { pendingSync, pendingSyncSetAt } = get();
+            // Stuck flag (or none at all, persisted from before this field existed)
+            // means whatever push set it never resolved — don't defer to it forever.
+            const isStale = pendingSyncSetAt == null || Date.now() - pendingSyncSetAt > 2 * 60 * 1000;
+            if (pendingSync && !isStale) {
               const a = getActive();
               if (a.id !== deletingPortfolioId) push(a.positions, a.currency, a.id, a.name);
               return;
             }
+            if (pendingSync && isStale) set({ pendingSync: false, pendingSyncSetAt: null });
             try {
               // Try new multi-portfolio endpoint first (requires migration 018)
               const res = await syncApi.getAllPortfolios();
@@ -279,6 +287,7 @@ export const usePortfolioStore = create<PortfolioStore>()(
         positions: state.positions,
         portfolioCurrency: state.portfolioCurrency,
         pendingSync: state.pendingSync,
+        pendingSyncSetAt: state.pendingSyncSetAt,
         lastSaved: state.lastSaved,
       }),
     }
