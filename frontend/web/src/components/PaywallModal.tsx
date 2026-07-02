@@ -34,7 +34,7 @@ const HERO_FEATURES = [
 ];
 
 const ALL_FEATURES = [
-  { text: "Chatea sin límites con tu mentor de IA, a cualquier hora", detail: "Sin límite de 20 mensajes al día. Pregunta lo que quieras, cuando quieras." },
+  { text: "Chatea sin límites con tu mentor de IA, a cualquier hora", detail: "Sin límite de 15 mensajes al día. Pregunta lo que quieras, cuando quieras." },
   { text: "Agrega todas las acciones que quieras, sin límite", detail: "En el plan gratuito puedes agregar hasta 10 acciones. Premium elimina ese límite." },
   { text: "Sube una foto o PDF de tu cuenta y la IA arma tu portafolio", detail: "La IA lee tu estado de cuenta y agrega automáticamente tus acciones, cantidades y precios." },
   { text: "Te avisamos antes de que tus empresas reporten ganancias", detail: "Ve las fechas de resultados de todas tus posiciones y qué esperar, explicado por la IA." },

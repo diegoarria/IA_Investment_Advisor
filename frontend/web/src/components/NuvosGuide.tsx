@@ -13,7 +13,7 @@ const SECTIONS = [
     description: "Hazle cualquier pregunta sobre acciones, mercados, estrategias o tu portafolio. Muestra fundamentos reales — P/E, márgenes, flujo de caja — y te enseña a pensar como inversor.",
     cta: "Hablar con Nuvos",
     href: "/chat",
-    tip: "20 mensajes gratis al día. Empieza: '¿Qué es un ETF y cómo funciona?'",
+    tip: "15 mensajes gratis al día. Empieza: '¿Qué es un ETF y cómo funciona?'",
     premium: false,
   },
   {

@@ -13,7 +13,7 @@ import { Menu, X, Sun, Moon, Send, Loader2, ChevronDown, ChevronUp, TicketCheck 
 interface Msg { role: "user" | "assistant"; content: string; }
 
 const FAQ = [
-  { q: "¿Cuántos mensajes puedo enviar gratis?", a: "El plan Free incluye 20 mensajes cada 24 horas. Con Premium tienes mensajes ilimitados y acceso a todas las funciones avanzadas." },
+  { q: "¿Cuántos mensajes puedo enviar gratis?", a: "El plan Free incluye 15 mensajes cada 24 horas. Con Premium tienes mensajes ilimitados y acceso a todas las funciones avanzadas." },
   { q: "¿Cómo funciona el Premium gratis de 90 días?", a: "Todos los usuarios nuevos reciben 90 días de Premium gratis automáticamente, sin necesidad de tarjeta de crédito. Puedes explorar todas las funciones sin restricciones durante ese período." },
   { q: "¿Cómo importo mi portafolio?", a: "En la sección Portafolio puedes pegar una captura de pantalla de tu broker (Ctrl+V / ⌘+V) o agregar posiciones manualmente. La IA lee la imagen y extrae tus posiciones, precios y cantidades automáticamente." },
   { q: "¿Cómo veo el análisis completo de una acción?", a: "Toca o haz clic en cualquier acción desde Portafolio, Watchlist o el Chat para abrir su perfil completo. Ahí encuentras el gráfico histórico, estado de resultados, balance general y flujo de caja con datos en tiempo real." },

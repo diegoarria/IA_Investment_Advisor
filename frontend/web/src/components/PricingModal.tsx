@@ -5,12 +5,12 @@ import { X, Check, Lock } from "lucide-react";
 import { billing, upsells } from "@/lib/api";
 
 const FREE_FEATURES = [
-  "Hasta 20 mensajes/día con el mentor IA",
+  "Hasta 15 mensajes/día con el mentor IA",
   "Portafolio con hasta 10 acciones",
   "Watchlist de hasta 25 acciones",
   "Lecciones y quizzes de academia",
   "Gráfico básico de portafolio (5D y 1M)",
-  "Noticias generales del mercado",
+  "Notificaciones generales de tu portafolio y watchlist",
 ];
 
 const PREMIUM_FEATURES = [

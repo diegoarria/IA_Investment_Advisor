@@ -20,7 +20,7 @@ from app.services.market_data_service import (
 )
 from app.core.limiter import limiter
 
-FREE_MSG_LIMIT    = 20
+FREE_MSG_LIMIT    = 15
 PREMIUM_MSG_LIMIT = 200
 MSG_WINDOW_HOURS  = 24
 

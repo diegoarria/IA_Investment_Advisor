@@ -137,7 +137,7 @@ export function getUnclaimedMilestones(streak: number, claimed: number[]): Strea
 }
 
 export type SubscriptionTier = "free" | "premium";
-export const FREE_MSG_LIMIT = 20;
+export const FREE_MSG_LIMIT = 15;
 export const FREE_MSG_WINDOW_HOURS = 24;
 
 interface AuthState {

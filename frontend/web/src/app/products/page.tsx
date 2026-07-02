@@ -16,11 +16,11 @@ import {
 
 const SUBSCRIPTION_FEATURES = {
   free: [
-    { icon: Brain,       text: "Hasta 20 mensajes/día con el mentor IA" },
-    { icon: BarChart2,   text: "Portafolio de hasta 10 acciones" },
-    { icon: TrendingUp,  text: "Gráfico básico de portafolio (5D y 1M)" },
-    { icon: Bell,        text: "Noticias generales del mercado" },
-    { icon: BookOpen,    text: "25 acciones en watchlist" },
+    { icon: Brain,        text: "Hasta 15 mensajes/día con el mentor IA" },
+    { icon: BarChart2,    text: "Portafolio de hasta 10 acciones" },
+    { icon: TrendingUp,   text: "Gráfico básico de portafolio (5D y 1M)" },
+    { icon: Bell,         text: "Notificaciones generales de tu portafolio y watchlist" },
+    { icon: BookOpen,     text: "25 acciones en watchlist" },
     { icon: GraduationCap, text: "Academia completa + quizzes" },
   ],
   premium: [
@@ -31,10 +31,10 @@ const SUBSCRIPTION_FEATURES = {
     { icon: Shield,        text: "Mira cómo le hubiera ido a tu dinero en crisis pasadas (2008, COVID...)" },
     { icon: Sparkles,      text: "La IA revisa tu portafolio y te dice qué mejorar" },
     { icon: TrendingUp,    text: "Cada lunes, 5 ideas de inversión seleccionadas para ti" },
-    { icon: Bell,          text: "Noticias de tus acciones, resumidas por IA en segundos" },
+    { icon: Bell,          text: "Alertas personalizadas: te explicamos POR QUÉ se mueve tu dinero" },
     { icon: RefreshCw,     text: "Cada mes te decimos si le ganaste al mercado o no" },
     { icon: GraduationCap, text: "Lecciones pensadas para las acciones que ya tienes" },
-    { icon: Zap,           text: "Te avisamos cuando pasa algo importante con tu dinero" },
+    { icon: Zap,           text: "Notificaciones instantáneas cuando pasa algo importante con tu portafolio" },
     { icon: Target,        text: "Descubre tu estilo como inversor y cómo mejorar" },
   ],
 };

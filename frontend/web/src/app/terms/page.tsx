@@ -126,7 +126,7 @@ export default function TermsPage() {
             <div className="space-y-4 text-sm">
               <div>
                 <h3 className="text-white/90 font-semibold mb-2">Plan Gratuito</h3>
-                <p>Incluye acceso limitado a las funcionalidades de la app: 20 mensajes cada 24 horas y funciones básicas de portafolio.</p>
+                <p>Incluye acceso limitado a las funcionalidades de la app: 15 mensajes cada 24 horas y funciones básicas de portafolio.</p>
               </div>
               <div>
                 <h3 className="text-white/90 font-semibold mb-2">Plan Premium</h3>
