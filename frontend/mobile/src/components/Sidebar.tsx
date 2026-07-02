@@ -152,13 +152,13 @@ const MAIN_NAV = [
   { icon: "home-outline",                 label: "Inicio",         path: "/home",          minLevel: "basico" as const },
   { icon: "chatbubble-ellipses-outline",  label: "Mentor IA",      path: "/chat",          minLevel: "basico" as const },
   { icon: "pie-chart-outline",            label: "Patrimonio",     path: "/portfolio",     minLevel: "basico" as const },
+  { icon: "bag-outline",                  label: "Productos",      path: "/products",      minLevel: "basico" as const },
   { icon: "school-outline",              label: "Academy",        path: "/learn",         minLevel: "basico" as const },
 ];
 
 const SECONDARY_NAV = [
   { icon: "notifications-outline",  label: "Notificaciones", path: "/notifications", minLevel: "basico" as const },
   { icon: "person-outline",         label: "Perfil",         path: "/profile",       minLevel: "basico" as const },
-  { icon: "bag-outline",            label: "Productos",      path: "/products",      minLevel: "basico" as const },
   { icon: "headset-outline",        label: "Soporte",        path: "/support",       minLevel: "basico" as const },
 ];
 

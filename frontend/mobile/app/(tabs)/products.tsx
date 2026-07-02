@@ -1,12 +1,13 @@
 import React, { useState } from "react";
 import {
-  View, Text, ScrollView, TouchableOpacity, StyleSheet, SafeAreaView,
+  View, Text, ScrollView, TouchableOpacity, StyleSheet,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
-import { useTheme } from "../src/lib/ThemeContext";
-import { useSubscriptionStore, hasPremiumAccess } from "../src/lib/subscriptionStore";
-import PricingModal from "../src/components/PricingModal";
+import { useTheme } from "../../src/lib/ThemeContext";
+import { useSubscriptionStore, hasPremiumAccess } from "../../src/lib/subscriptionStore";
+import PricingModal from "../../src/components/PricingModal";
 
 const FREE_FEATURES = [
   "Hasta 20 mensajes/día con el mentor IA",
@@ -92,13 +93,13 @@ export default function ProductsScreen() {
   const [showPricing, setShowPricing] = useState(false);
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }}>
+    <SafeAreaView edges={["top"]} style={[ss.safe, { backgroundColor: colors.bg }]}>
       {/* Header */}
-      <View style={{ flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border }}>
-        <TouchableOpacity onPress={() => router.back()} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-          <Ionicons name="arrow-back" size={22} color={colors.text} />
-        </TouchableOpacity>
-        <Text style={{ fontSize: 17, fontWeight: "900", color: colors.text }}>Productos y Servicios</Text>
+      <View style={[ss.header, { borderBottomColor: colors.border }]}>
+        <View>
+          <Text style={[ss.headerSub, { color: colors.textMuted }]}>Planes y servicios</Text>
+          <Text style={[ss.headerTitle, { color: colors.text }]}>Productos</Text>
+        </View>
       </View>
 
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 40, gap: 24 }} showsVerticalScrollIndicator={false}>
@@ -279,3 +280,22 @@ export default function ProductsScreen() {
     </SafeAreaView>
   );
 }
+
+const ss = StyleSheet.create({
+  safe: { flex: 1 },
+  header: {
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  headerSub: {
+    fontSize: 11,
+    fontWeight: "600",
+    textTransform: "uppercase",
+  },
+  headerTitle: {
+    fontSize: 26,
+    fontWeight: "900",
+    letterSpacing: -0.5,
+  },
+});
