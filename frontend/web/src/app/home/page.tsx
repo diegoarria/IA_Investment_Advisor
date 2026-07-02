@@ -407,7 +407,10 @@ export default function HomePage() {
   const firstName = profile?.name?.split(" ")[0] ?? "Inversor";
   const userLevel = getUserLevel(profile);
   const isGuest = typeof window !== "undefined" && localStorage.getItem("nuvos_guest") === "1";
-  const isBeginnerMode = isGuest || !isAuthenticated || userLevel === "basico" || userLevel === "intermedio";
+  // "Tu camino para empezar" only makes sense for guests exploring the app, or for
+  // beginner/intermediate users who haven't imported a real portfolio yet — once an
+  // account has actual positions, this onboarding pitch is no longer relevant to them.
+  const isBeginnerMode = isGuest || !isAuthenticated || ((userLevel === "basico" || userLevel === "intermedio") && positions.length === 0);
 
   // ── Onboarding checklist ─────────────────────────────────────────────────
   const [checklistPermanentlyDone, setChecklistPermanentlyDone] = useState(
