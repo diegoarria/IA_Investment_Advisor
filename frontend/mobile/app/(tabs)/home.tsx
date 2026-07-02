@@ -20,7 +20,6 @@ import { marketApi, notificationsApi } from "../../src/lib/api";
 import { useChatStore } from "../../src/lib/chatStore";
 import { useWatchlistStore } from "../../src/lib/watchlistStore";
 import StockAvatar from "../../src/components/StockAvatar";
-import EarningsCalendar from "../../src/components/EarningsCalendar";
 import MobileOnboardingChecklist, { type OnboardingStep } from "../../src/components/MobileOnboardingChecklist";
 import MobileHomeScreenPickerModal, { HOME_SCREEN_KEY } from "../../src/components/MobileHomeScreenPickerModal";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -1778,17 +1777,6 @@ export default function HomeScreen() {
             </Text>
           </TouchableOpacity>
         </View>
-
-        {/* ── Earnings Calendar ─────────────────────────────────────────────── */}
-        {positions.length > 0 && (
-          <View style={ss.section}>
-            <EarningsCalendar
-              positions={positions.map(p => ({ ticker: p.ticker, shares: p.shares, avg_cost: p.avgPrice }))}
-              isPremium={isPremium}
-              onUpgrade={() => router.navigate("/(tabs)/portfolio")}
-            />
-          </View>
-        )}
 
         {/* ── Portfolio News ───────────────────────────────────────────────── */}
         {news.length > 0 && (
