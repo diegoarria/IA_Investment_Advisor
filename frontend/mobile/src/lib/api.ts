@@ -177,8 +177,12 @@ export const marketApi = {
     api.get("/api/market/news", { params: { symbols: symbols.join(",") } }),
   summarizeNews: (title: string, url: string) =>
     api.post("/api/market/summarize-news", { title, url }),
-  getPortfolioReturns: (positions: { ticker: string; shares: number; purchase_date?: string | null; avg_price?: number | null }[]) =>
-    api.post("/api/market/portfolio-returns", { positions }),
+  getPortfolioReturns: (
+    positions: { ticker: string; shares: number; purchase_date?: string | null; avg_price?: number | null }[],
+    closedPositions?: { ticker: string; shares: number; avg_price: number; close_price: number; purchase_date?: string | null; close_date?: string | null }[],
+    inceptionDate?: string | null
+  ) =>
+    api.post("/api/market/portfolio-returns", { positions, closed_positions: closedPositions ?? [], inception_date: inceptionDate ?? null }),
   getPortfolioChart: (positions: { ticker: string; shares: number; purchase_date?: string | null; avg_price?: number | null }[], period: string) =>
     api.post("/api/market/portfolio-chart", { positions, period }),
   getStockDetail: (symbol: string, includeScore = false) =>
@@ -234,10 +238,19 @@ export const syncApi = {
   // Single call to restore everything after login
   getAll: () => api.get("/api/sync/all"),
   // Individual push endpoints (fire-and-forget)
-  pushPortfolio: (positions: unknown[], currency?: string, portfolioId?: string, portfolioName?: string) =>
+  pushPortfolio: (
+    positions: unknown[],
+    currency?: string,
+    portfolioId?: string,
+    portfolioName?: string,
+    closedPositions?: unknown[],
+    inceptionDate?: string | null,
+  ) =>
     api.post("/api/sync/portfolio", {
       positions,
       currency,
+      closed_positions: closedPositions ?? [],
+      inception_date: inceptionDate ?? null,
       ...(portfolioId ? { portfolio_id: portfolioId, portfolio_name: portfolioName ?? "Mi portafolio" } : {}),
     }),
   getAllPortfolios: () => api.get("/api/sync/portfolios"),

@@ -624,7 +624,7 @@ export default function PortfolioPage() {
   const upsellTrigger = useUpsellStore((s) => s.trigger);
   const [paywallOpen, setPaywallOpen] = useState(false);
   const {
-    positions, addPosition, removePosition, updatePosition, setPositions,
+    positions, closedPositions, inceptionDate, addPosition, removePosition, updatePosition, setPositions,
     clearPortfolio, portfolioCurrency, setCurrency,
     loadFromServer, syncStatus, lastSaved, pendingSync, retrySync,
     portfolios, activePortfolioId, switchPortfolio, createPortfolio, deletePortfolio, renamePortfolio,
@@ -697,10 +697,20 @@ export default function PortfolioPage() {
   const [showImportSteps, setShowImportSteps] = useState(false);
 
   // Edit position modal
-  const [editingPos, setEditingPos] = useState<{ id: string; shares: string; avgPrice: string; purchaseDate: string } | null>(null);
+  const [editingPos, setEditingPos] = useState<{ id: string; ticker: string; originalShares: number; shares: string; avgPrice: string; purchaseDate: string } | null>(null);
   const [editConfirm, setEditConfirm] = useState(false);
   const [editSaving, setEditSaving] = useState(false);
   const [editSaveError, setEditSaveError] = useState(false);
+  // When editing reduces shares, we don't know if it's a sale or a data-entry
+  // correction — ask, since only a real sale should be archived into the
+  // since-inception performance ledger.
+  const [editSaleChoice, setEditSaleChoice] = useState<"ask" | "sale" | "correction" | null>(null);
+  const [editSalePrice, setEditSalePrice] = useState("");
+  // Sell-price confirmation shown when fully removing a position — required so
+  // the realized gain/loss recorded in the ledger is accurate, not a guess.
+  const [sellConfirm, setSellConfirm] = useState<{ id: string; ticker: string; shares: number } | null>(null);
+  const [sellPrice, setSellPrice] = useState("");
+  const [sellSaving, setSellSaving] = useState(false);
   const [revealedPrices, setRevealedPrices] = useState<Set<string>>(new Set());
 
   // Manual form
@@ -844,10 +854,20 @@ export default function PortfolioPage() {
     [positions]
   );
 
+  const closedPosPayload = useCallback(
+    () => closedPositions.map((c) => ({
+      ticker: c.ticker, shares: c.shares, avg_price: c.avgPrice, close_price: c.closePrice,
+      purchase_date: c.purchaseDate ?? null, close_date: c.closeDate ?? null,
+    })),
+    [closedPositions]
+  );
+
   const fetchReturns = useCallback((showLoader = false) => {
-    if (positions.length === 0) return;
+    // Still fetch if everything was sold — closedPositions alone can carry a
+    // real since-inception return even with zero current holdings.
+    if (positions.length === 0 && closedPositions.length === 0) return;
     if (showLoader) setLoadingReturns(true);
-    marketApi.getPortfolioReturns(posPayload())
+    marketApi.getPortfolioReturns(posPayload(), closedPosPayload(), inceptionDate)
       .then((res: { data: { returns?: Record<string, PeriodReturn>; inferred_dates?: Record<string, string> } }) => {
         setPeriodReturns(res.data.returns ?? {});
         if (showLoader) {
@@ -860,7 +880,7 @@ export default function PortfolioPage() {
       })
       .catch(() => {})
       .finally(() => { if (showLoader) setLoadingReturns(false); });
-  }, [positions, posPayload, updatePosition]);
+  }, [positions, closedPositions, posPayload, closedPosPayload, inceptionDate, updatePosition]);
 
   const fetchChart = useCallback((resetChart = false) => {
     if (positions.length === 0) return;
@@ -2218,11 +2238,14 @@ export default function PortfolioPage() {
                     onRowClick={setSelectedStock}
                     onEdit={(ticker) => {
                       const pos = sortedPositions.find((p) => p.ticker === ticker);
-                      if (pos) { setEditConfirm(false); setEditingPos({ id: pos.id, shares: String(pos.shares), avgPrice: String(portfolioCurrency === "USD" ? pos.avgPrice : parseFloat((pos.avgPrice * fxRate).toFixed(4))), purchaseDate: pos.purchaseDate ?? new Date().toISOString().split("T")[0] }); }
+                      if (pos) {
+                        setEditConfirm(false); setEditSaleChoice(null); setEditSalePrice("");
+                        setEditingPos({ id: pos.id, ticker: pos.ticker, originalShares: pos.shares, shares: String(pos.shares), avgPrice: String(portfolioCurrency === "USD" ? pos.avgPrice : parseFloat((pos.avgPrice * fxRate).toFixed(4))), purchaseDate: pos.purchaseDate ?? new Date().toISOString().split("T")[0] });
+                      }
                     }}
                     onRemove={(ticker) => {
                       const pos = sortedPositions.find((p) => p.ticker === ticker);
-                      if (pos) removePosition(pos.id);
+                      if (pos) { setSellPrice(""); setSellConfirm({ id: pos.id, ticker: pos.ticker, shares: pos.shares }); }
                     }}
                     rows={sortedPositions.map((pos): AdvancedRow => {
                       const pd = prices[pos.ticker];
@@ -2321,13 +2344,16 @@ export default function PortfolioPage() {
                           </div>
                         )}
                         <button
-                          onClick={() => { setEditConfirm(false); setEditingPos({ id: pos.id, shares: String(pos.shares), avgPrice: String(portfolioCurrency === "USD" ? pos.avgPrice : parseFloat((pos.avgPrice * fxRate).toFixed(4))), purchaseDate: pos.purchaseDate ?? new Date().toISOString().split("T")[0] }); }}
+                          onClick={() => {
+                            setEditConfirm(false); setEditSaleChoice(null); setEditSalePrice("");
+                            setEditingPos({ id: pos.id, ticker: pos.ticker, originalShares: pos.shares, shares: String(pos.shares), avgPrice: String(portfolioCurrency === "USD" ? pos.avgPrice : parseFloat((pos.avgPrice * fxRate).toFixed(4))), purchaseDate: pos.purchaseDate ?? new Date().toISOString().split("T")[0] });
+                          }}
                           className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold border transition-colors hover:border-[var(--accent)] hover:text-[var(--accent-l)]"
                           style={{ borderColor: "var(--border)", color: "var(--sub)", background: "var(--raised)" }}>
                           <Pencil className="w-3 h-3" />
                           Editar
                         </button>
-                        <button onClick={() => removePosition(pos.id)}
+                        <button onClick={() => { setSellPrice(""); setSellConfirm({ id: pos.id, ticker: pos.ticker, shares: pos.shares }); }}
                                 className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold border transition-colors hover:border-red-500/40 hover:text-red-400"
                                 style={{ borderColor: "var(--border)", color: "var(--dim)", background: "var(--raised)" }}>
                           <Trash2 className="w-3 h-3" />
@@ -3114,7 +3140,7 @@ export default function PortfolioPage() {
             <div className="p-5">
               <div className="flex items-center justify-between mb-4">
                 <p className="font-bold text-sm" style={{ color:"var(--text)" }}>Editar posición</p>
-                <button onClick={() => { setEditingPos(null); setEditConfirm(false); }} style={{ color:"var(--muted)" }}>
+                <button onClick={() => { setEditingPos(null); setEditConfirm(false); setEditSaleChoice(null); setEditSalePrice(""); }} style={{ color:"var(--muted)" }}>
                   <X className="w-4 h-4" />
                 </button>
               </div>
@@ -3157,11 +3183,67 @@ export default function PortfolioPage() {
                     style={{ background:"var(--raised)", borderColor:"var(--border)", color:"var(--text)" }}
                   />
                 </div>
-                {!editConfirm ? (
+                {editSaleChoice === "ask" ? (
+                  <div className="rounded-xl border p-3 space-y-2" style={{ borderColor: "var(--border)", background: "var(--raised)" }}>
+                    <p className="text-xs font-bold text-center" style={{ color: "var(--text)" }}>
+                      Bajaste de {editingPos.originalShares} a {editingPos.shares} acciones
+                    </p>
+                    <p className="text-[10px] text-center" style={{ color: "var(--muted)" }}>
+                      ¿Vendiste {(editingPos.originalShares - parseFloat(editingPos.shares || "0")).toLocaleString()} acciones o es una corrección de captura?
+                    </p>
+                    <div className="flex gap-2">
+                      <button onClick={() => { setEditSaleChoice("correction"); setEditConfirm(true); }}
+                              className="flex-1 py-2 rounded-lg text-xs font-semibold border"
+                              style={{ borderColor: "var(--border)", color: "var(--muted)" }}>
+                        Es corrección
+                      </button>
+                      <button
+                        onClick={() => {
+                          const marketUSD = prices[editingPos.ticker]?.price;
+                          const prefill = marketUSD ? (portfolioCurrency === "USD" ? marketUSD : marketUSD * fxRate) : 0;
+                          setEditSalePrice(prefill > 0 ? prefill.toFixed(2) : "");
+                          setEditSaleChoice("sale");
+                        }}
+                        className="flex-1 py-2 rounded-lg text-xs font-bold text-white"
+                        style={{ background: "linear-gradient(90deg,#00a85e,#00d47e)" }}>
+                        Vendí acciones
+                      </button>
+                    </div>
+                  </div>
+                ) : editSaleChoice === "sale" && !editConfirm ? (
+                  <div className="rounded-xl border p-3 space-y-2" style={{ borderColor: "var(--border)", background: "var(--raised)" }}>
+                    <label className="text-[10px] font-bold uppercase block" style={{ color:"var(--muted)" }}>
+                      Precio de venta ({portfolioCurrency})
+                    </label>
+                    <input
+                      type="number" min="0" step="any"
+                      value={editSalePrice}
+                      onChange={(e) => setEditSalePrice(e.target.value)}
+                      className="w-full rounded-xl border px-3 py-2 text-sm"
+                      style={{ background:"var(--card)", borderColor:"var(--border)", color:"var(--text)" }}
+                    />
+                    <div className="flex gap-2">
+                      <button onClick={() => setEditSaleChoice("ask")}
+                              className="flex-1 py-2 rounded-lg text-xs font-semibold border"
+                              style={{ borderColor: "var(--border)", color: "var(--muted)" }}>
+                        Atrás
+                      </button>
+                      <button
+                        disabled={!editSalePrice || isNaN(parseFloat(editSalePrice))}
+                        onClick={() => setEditConfirm(true)}
+                        className="flex-1 py-2 rounded-lg text-xs font-bold text-white"
+                        style={{ background: "linear-gradient(90deg,#00a85e,#00d47e)", opacity: (!editSalePrice || isNaN(parseFloat(editSalePrice))) ? 0.5 : 1 }}>
+                        Continuar
+                      </button>
+                    </div>
+                  </div>
+                ) : !editConfirm ? (
                   <button
                     onClick={() => {
                       const shares = parseFloat(editingPos.shares);
-                      if (!isNaN(shares) && shares > 0) setEditConfirm(true);
+                      if (isNaN(shares) || shares <= 0) return;
+                      if (shares < editingPos.originalShares && editSaleChoice === null) { setEditSaleChoice("ask"); return; }
+                      setEditConfirm(true);
                     }}
                     className="w-full py-2.5 rounded-xl text-sm font-bold text-white"
                     style={{ background: "linear-gradient(90deg,#00a85e,#00d47e)" }}>
@@ -3172,6 +3254,7 @@ export default function PortfolioPage() {
                     <p className="text-xs font-bold text-center" style={{ color: "var(--text)" }}>¿Confirmar cambios?</p>
                     <p className="text-[10px] text-center" style={{ color: "var(--muted)" }}>
                       {editingPos.shares} acciones · precio promedio {currencySymbol}{editingPos.avgPrice}
+                      {editSaleChoice === "sale" && ` · vendiste ${(editingPos.originalShares - parseFloat(editingPos.shares || "0")).toLocaleString()} a ${currencySymbol}${editSalePrice}`}
                     </p>
                     <div className="flex gap-2">
                       <button onClick={() => setEditConfirm(false)}
@@ -3191,13 +3274,21 @@ export default function PortfolioPage() {
                           setEditSaving(true);
                           setEditSaveError(false);
                           try {
+                            let saleInfo: { soldShares: number; closePrice: number } | undefined;
+                            if (editSaleChoice === "sale") {
+                              const enteredSalePrice = parseFloat(editSalePrice);
+                              const closePriceUSD = portfolioCurrency === "USD" ? enteredSalePrice : enteredSalePrice / fxRate;
+                              saleInfo = { soldShares: editingPos.originalShares - shares, closePrice: closePriceUSD };
+                            }
                             await updatePosition(editingPos.id, {
                               shares,
                               avgPrice: parseFloat(avgPriceUSD.toFixed(6)),
                               purchaseDate: editingPos.purchaseDate,
-                            });
+                            }, saleInfo);
                             setEditingPos(null);
                             setEditConfirm(false);
+                            setEditSaleChoice(null);
+                            setEditSalePrice("");
                           } catch {
                             setEditSaveError(true);
                           } finally {
@@ -3221,6 +3312,77 @@ export default function PortfolioPage() {
           </div>
         </div>
       )}
+
+      {/* Sell confirmation modal — required to record realized gain/loss accurately */}
+      {sellConfirm && (() => {
+        const marketUSD = prices[sellConfirm.ticker]?.price;
+        return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
+             style={{ background: "rgba(0,0,0,0.7)", backdropFilter: "blur(4px)" }}>
+          <div className="w-full max-w-xs rounded-2xl border overflow-hidden"
+               style={{ background: "var(--card)", borderColor: "var(--border)" }}>
+            <div className="h-1" style={{ background: "linear-gradient(90deg,#ef4444,#f97316)" }} />
+            <div className="p-5">
+              <div className="flex items-center justify-between mb-4">
+                <p className="font-bold text-sm" style={{ color:"var(--text)" }}>Vender {sellConfirm.ticker}</p>
+                <button onClick={() => setSellConfirm(null)} style={{ color:"var(--muted)" }}>
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              <div className="space-y-3">
+                <p className="text-xs" style={{ color: "var(--muted)" }}>
+                  Vas a eliminar tus {sellConfirm.shares.toLocaleString()} acciones de {sellConfirm.ticker}. ¿A qué precio las vendiste?
+                </p>
+                <div>
+                  <label className="text-[10px] font-bold uppercase block mb-1" style={{ color:"var(--muted)" }}>
+                    Precio de venta ({portfolioCurrency})
+                  </label>
+                  <input
+                    type="number" min="0" step="any" autoFocus
+                    value={sellPrice}
+                    onChange={(e) => setSellPrice(e.target.value)}
+                    placeholder={marketUSD ? (portfolioCurrency === "USD" ? marketUSD : marketUSD * fxRate).toFixed(2) : undefined}
+                    className="w-full rounded-xl border px-3 py-2 text-sm"
+                    style={{ background:"var(--raised)", borderColor:"var(--border)", color:"var(--text)" }}
+                  />
+                  {marketUSD != null && (
+                    <button
+                      onClick={() => setSellPrice(((portfolioCurrency === "USD" ? marketUSD : marketUSD * fxRate)).toFixed(2))}
+                      className="text-[10px] mt-1 underline" style={{ color: "var(--accent-l)" }}>
+                      Usar precio actual de mercado ({currencySymbol}{(portfolioCurrency === "USD" ? marketUSD : marketUSD * fxRate).toFixed(2)})
+                    </button>
+                  )}
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={() => setSellConfirm(null)}
+                          className="flex-1 py-2 rounded-lg text-xs font-semibold border"
+                          style={{ borderColor: "var(--border)", color: "var(--muted)" }}>
+                    Cancelar
+                  </button>
+                  <button
+                    disabled={sellSaving || !sellPrice || isNaN(parseFloat(sellPrice)) || parseFloat(sellPrice) < 0}
+                    onClick={async () => {
+                      const enteredPrice = parseFloat(sellPrice);
+                      const closePriceUSD = portfolioCurrency === "USD" ? enteredPrice : enteredPrice / fxRate;
+                      setSellSaving(true);
+                      try {
+                        await removePosition(sellConfirm.id, parseFloat(closePriceUSD.toFixed(6)));
+                        setSellConfirm(null);
+                      } finally {
+                        setSellSaving(false);
+                      }
+                    }}
+                    className="flex-[2] py-2 rounded-lg text-xs font-bold text-white"
+                    style={{ background: "linear-gradient(90deg,#ef4444,#f97316)", opacity: sellSaving ? 0.7 : 1 }}>
+                    {sellSaving ? "Guardando..." : "Confirmar venta"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        );
+      })()}
 
       {/* Merge modal */}
       {mergeModalOpen && (

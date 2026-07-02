@@ -1045,8 +1045,20 @@ class _PortfolioReturnsItem(_BaseModel):
     purchase_date: _Opt[str] = None  # "YYYY-MM-DD"
     avg_price: _Opt[float] = None    # precio de compra promedio por acción
 
+class _ClosedPositionItem(_BaseModel):
+    """A fully or partially sold position — realized gain/loss is already known
+    (no market data lookup needed), unlike a currently-held position."""
+    ticker: str
+    shares: float
+    avg_price: float          # cost basis paid per share
+    close_price: float        # price it was sold at
+    purchase_date: _Opt[str] = None
+    close_date: _Opt[str] = None
+
 class _PortfolioReturnsRequest(_BaseModel):
     positions: list[_PortfolioReturnsItem]
+    closed_positions: list[_ClosedPositionItem] = []
+    inception_date: _Opt[str] = None
 
 
 def _infer_purchase_date(ticker: str, avg_price: float, close_df: "_pd.DataFrame") -> "_Opt[str]":
@@ -1191,9 +1203,32 @@ def _build_close_df_range(
     return _pd.concat(series, axis=1).ffill().dropna(how="all")
 
 
-def _compute_portfolio_returns(positions: list[_PortfolioReturnsItem]) -> dict:
+def _compute_portfolio_returns(
+    positions: list[_PortfolioReturnsItem],
+    closed_positions: list[_ClosedPositionItem] | None = None,
+    inception_date: _Opt[str] = None,
+) -> tuple[dict, dict]:
+    closed_positions = closed_positions or []
+    if not positions and not closed_positions:
+        return {}, {}
+
+    # Realized gain/loss from positions already sold never needs market data —
+    # the price they were sold at is already fixed. This is what lets
+    # "since_purchase" reflect true since-inception performance instead of
+    # forgetting everything the moment a position is no longer held.
+    realized_cost = sum(c.shares * c.avg_price for c in closed_positions)
+    realized_gain = sum(c.shares * (c.close_price - c.avg_price) for c in closed_positions)
+
     if not positions:
-        return {}
+        # Everything was sold — since_purchase is purely realized performance.
+        results: dict[str, dict] = {}
+        if realized_cost > 0:
+            results["since_purchase"] = {
+                "pct": round(realized_gain / realized_cost * 100, 2),
+                "amount": round(realized_gain, 2),
+                "date": inception_date,
+            }
+        return results, {}
 
     tickers = [p.ticker.upper() for p in positions]
     shares_map = {p.ticker.upper(): p.shares for p in positions}
@@ -1221,16 +1256,16 @@ def _compute_portfolio_returns(positions: list[_PortfolioReturnsItem]) -> dict:
                 inferred_dates[t] = inferred
 
     if close.empty and not rt_prices:
-        return {}
+        return {}, inferred_dates
 
     # Bail if none of the user's tickers returned data
     if not any(t in close.columns or t in rt_prices for t in tickers):
-        return {}
+        return {}, inferred_dates
 
     # Ensure all portfolio tickers are present (SPY might be missing in some envs)
     missing = [t for t in tickers if t not in close.columns and t not in rt_prices]
     if missing == tickers:
-        return {}
+        return {}, inferred_dates
 
     current_row = close.iloc[-1] if not close.empty else None
 
@@ -1247,7 +1282,7 @@ def _compute_portfolio_returns(positions: list[_PortfolioReturnsItem]) -> dict:
         for t in tickers if t in close.columns or t in rt_prices
     )
     if current_val <= 0:
-        return {}
+        return {}, inferred_dates
 
     # Prefer ^GSPC (pure price index, no dividend distortion) over SPY as benchmark
     _BENCH = "^GSPC" if ("^GSPC" in close.columns or "^GSPC" in rt_prices) else "SPY"
@@ -1270,13 +1305,13 @@ def _compute_portfolio_returns(positions: list[_PortfolioReturnsItem]) -> dict:
 
     results: dict[str, dict] = {}
 
-    # "Desde compra" — weighted by each position's individual purchase date
-    if purchase_date_map:
+    # "Desde compra" — weighted by each position's individual purchase date,
+    # plus realized gain/loss from anything already sold (closed_positions).
+    if purchase_date_map or closed_positions:
         try:
             total_cost = 0.0; total_gain = 0.0
             breakdown: dict[str, float] = {}
             oldest_date_str: _Opt[str] = None
-            spy_start_buy = 0.0
 
             for t in tickers:
                 pd_str = purchase_date_map.get(t)
@@ -1296,8 +1331,23 @@ def _compute_portfolio_returns(positions: list[_PortfolioReturnsItem]) -> dict:
                     breakdown[t] = round((cp - sp) / sp * 100, 2)
                     if oldest_date_str is None or pd_str < oldest_date_str:
                         oldest_date_str = pd_str
-                        if _BENCH in close.columns:
-                            spy_start_buy = _safe_price(subset.iloc[0], _BENCH)
+
+            # Fold in realized performance from positions no longer held — this
+            # is what keeps "since inception" accurate after a sale, instead of
+            # forgetting it the moment the position leaves the current list.
+            total_cost += realized_cost
+            total_gain += realized_gain
+
+            # The displayed anchor date is the frozen inception date the client
+            # sends (set once, the first position ever added) — not whichever
+            # currently-held position happens to be oldest, which would shift
+            # every time an older position is edited or sold.
+            benchmark_date = inception_date or oldest_date_str
+            spy_start_buy = 0.0
+            if benchmark_date and _BENCH in close.columns:
+                bench_subset = close[close.index >= _pd.Timestamp(benchmark_date)]
+                if not bench_subset.empty:
+                    spy_start_buy = _safe_price(bench_subset.iloc[0], _BENCH)
 
             if total_cost > 0:
                 spy_pct_buy = round((spy_current - spy_start_buy) / spy_start_buy * 100, 2) if spy_start_buy > 0 else None
@@ -1306,7 +1356,7 @@ def _compute_portfolio_returns(positions: list[_PortfolioReturnsItem]) -> dict:
                     "pct": round(total_gain / total_cost * 100, 2),
                     "avg_pct": avg_pct,
                     "amount": round(total_gain, 2),
-                    "date": oldest_date_str,
+                    "date": benchmark_date,
                     "breakdown": breakdown,
                     **({"spy_pct": spy_pct_buy} if spy_pct_buy is not None else {}),
                 }
@@ -1380,7 +1430,9 @@ async def get_portfolio_returns(
     body: _PortfolioReturnsRequest,
     user_id: str = Depends(get_current_user_id),
 ):
-    data, inferred_dates = await asyncio.to_thread(_compute_portfolio_returns, body.positions)
+    data, inferred_dates = await asyncio.to_thread(
+        _compute_portfolio_returns, body.positions, body.closed_positions, body.inception_date
+    )
     return {"returns": data, "inferred_dates": inferred_dates}
 
 

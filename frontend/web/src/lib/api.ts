@@ -223,8 +223,12 @@ export const market = {
     api.post("/api/market/summarize-news", { title, url }),
   screener: (sector: string | null, query: string) =>
     api.post("/api/market/screener", { sector, query }),
-  getPortfolioReturns: (positions: { ticker: string; shares: number; purchase_date?: string | null; avg_price?: number | null }[]) =>
-    api.post("/api/market/portfolio-returns", { positions }),
+  getPortfolioReturns: (
+    positions: { ticker: string; shares: number; purchase_date?: string | null; avg_price?: number | null }[],
+    closedPositions?: { ticker: string; shares: number; avg_price: number; close_price: number; purchase_date?: string | null; close_date?: string | null }[],
+    inceptionDate?: string | null
+  ) =>
+    api.post("/api/market/portfolio-returns", { positions, closed_positions: closedPositions ?? [], inception_date: inceptionDate ?? null }),
   getPortfolioChart: (positions: { ticker: string; shares: number; purchase_date?: string | null; avg_price?: number | null }[], period: string) =>
     api.post("/api/market/portfolio-chart", { positions, period }),
   getFinancials: (ticker: string, limit = 5) =>

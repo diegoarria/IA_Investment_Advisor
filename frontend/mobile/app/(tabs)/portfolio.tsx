@@ -635,7 +635,7 @@ export default function PortfolioScreen() {
   const isTour = tour === "1";
 
   const {
-    positions, addPosition, removePosition, updatePosition, setPositions,
+    positions, closedPositions, inceptionDate, addPosition, removePosition, updatePosition, setPositions,
     clearPortfolio, portfolioCurrency, setCurrency,
     loadFromServer, syncStatus, lastSaved,
     portfolios, activePortfolioId, switchPortfolio, createPortfolio, deletePortfolio, renamePortfolio,
@@ -745,7 +745,17 @@ export default function PortfolioScreen() {
   const [showCurrencyPicker, setShowCurrencyPicker] = useState(false);
 
   // Edit position
-  const [editingPos, setEditingPos] = useState<{ id: string; shares: string; avgPrice: string; purchaseDate: string } | null>(null);
+  const [editingPos, setEditingPos] = useState<{ id: string; ticker: string; originalShares: number; shares: string; avgPrice: string; purchaseDate: string } | null>(null);
+  // When editing reduces shares, we don't know if it's a sale or a data-entry
+  // correction — ask, since only a real sale should be archived into the
+  // since-inception performance ledger.
+  const [editSaleChoice, setEditSaleChoice] = useState<"sale" | "correction" | null>(null);
+  const [editSalePrice, setEditSalePrice] = useState("");
+  // Sell-price confirmation shown when fully removing a position — required so
+  // the realized gain/loss recorded in the ledger is accurate, not a guess.
+  const [sellConfirm, setSellConfirm] = useState<{ id: string; ticker: string; shares: number } | null>(null);
+  const [sellPrice, setSellPrice] = useState("");
+  const [sellSaving, setSellSaving] = useState(false);
 
 
   // Period returns
@@ -860,10 +870,20 @@ export default function PortfolioScreen() {
     [positions]
   );
 
+  const closedPosPayload = useCallback(
+    () => closedPositions.map((c) => ({
+      ticker: c.ticker, shares: c.shares, avg_price: c.avgPrice, close_price: c.closePrice,
+      purchase_date: c.purchaseDate ?? null, close_date: c.closeDate ?? null,
+    })),
+    [closedPositions]
+  );
+
   const fetchReturns = useCallback((showLoader = false) => {
-    if (positions.length === 0) return;
+    // Still fetch if everything was sold — closedPositions alone can carry a
+    // real since-inception return even with zero current holdings.
+    if (positions.length === 0 && closedPositions.length === 0) return;
     if (showLoader) setLoadingReturns(true);
-    marketApi.getPortfolioReturns(posPayload())
+    marketApi.getPortfolioReturns(posPayload(), closedPosPayload(), inceptionDate)
       .then((res: { data: { returns?: Record<string, PeriodReturn>; inferred_dates?: Record<string, string> } }) => {
         setPeriodReturns(res.data.returns ?? {});
         if (showLoader) {
@@ -876,7 +896,7 @@ export default function PortfolioScreen() {
       })
       .catch(() => {})
       .finally(() => { if (showLoader) setLoadingReturns(false); });
-  }, [positions, posPayload, updatePosition]);
+  }, [positions, closedPositions, posPayload, closedPosPayload, inceptionDate, updatePosition]);
 
   const fetchChart = useCallback((resetChart = false) => {
     if (positions.length === 0) return;
@@ -1058,6 +1078,43 @@ export default function PortfolioScreen() {
     } else {
       openCurrencyModal(incoming);
     }
+  };
+
+  // Shows the final "¿Guardar cambios?" confirmation for the edit-position
+  // modal, building saleInfo from editSaleChoice/editSalePrice when the user
+  // said this was a real sale rather than a data-entry correction.
+  const confirmEditSave = (shares: number) => {
+    if (!editingPos) return;
+    const enteredPrice = parseFloat(editingPos.avgPrice);
+    // avgPrice always stored in USD
+    const avgPriceUSD = isNaN(enteredPrice) ? 0
+      : portfolioCurrency === "USD" ? enteredPrice
+      : parseFloat((enteredPrice / fxRate).toFixed(6));
+    const displayPrice = isNaN(enteredPrice) ? "0" : enteredPrice.toString();
+    const soldShares = editingPos.originalShares - shares;
+    const saleSuffix = editSaleChoice === "sale" ? ` · vendiste ${soldShares.toLocaleString()} a ${currencySymbol}${editSalePrice}` : "";
+    Alert.alert(
+      "¿Guardar cambios?",
+      `${shares} acciones · precio promedio ${currencySymbol}${displayPrice}${saleSuffix}`,
+      [
+        { text: "Cancelar", style: "cancel" },
+        {
+          text: "Guardar", style: "default",
+          onPress: () => {
+            let saleInfo: { soldShares: number; closePrice: number } | undefined;
+            if (editSaleChoice === "sale") {
+              const enteredSalePrice = parseFloat(editSalePrice);
+              const closePriceUSD = portfolioCurrency === "USD" ? enteredSalePrice : enteredSalePrice / fxRate;
+              saleInfo = { soldShares, closePrice: closePriceUSD };
+            }
+            updatePosition(editingPos.id, { shares, avgPrice: avgPriceUSD, purchaseDate: editingPos.purchaseDate || undefined }, saleInfo);
+            setEditingPos(null);
+            setEditSaleChoice(null);
+            setEditSalePrice("");
+          },
+        },
+      ]
+    );
   };
 
   // ── Manual add ─────────────────────────────────────────────────────────
@@ -2215,13 +2272,17 @@ export default function PortfolioScreen() {
                       {/* Actions */}
                       <View style={{ width: 52, flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 4, paddingLeft: 4 }}>
                         <TouchableOpacity
-                          onPress={(e) => { e.stopPropagation(); setEditingPos({ id: pos.id, shares: String(pos.shares), avgPrice: portfolioCurrency === "USD" ? String(pos.avgPrice) : String(parseFloat((pos.avgPrice * fxRate).toFixed(4))), purchaseDate: pos.purchaseDate ?? new Date().toISOString().split("T")[0] }); }}
+                          onPress={(e) => {
+                            e.stopPropagation();
+                            setEditSaleChoice(null); setEditSalePrice("");
+                            setEditingPos({ id: pos.id, ticker: pos.ticker, originalShares: pos.shares, shares: String(pos.shares), avgPrice: portfolioCurrency === "USD" ? String(pos.avgPrice) : String(parseFloat((pos.avgPrice * fxRate).toFixed(4))), purchaseDate: pos.purchaseDate ?? new Date().toISOString().split("T")[0] });
+                          }}
                           hitSlop={{ top: 8, bottom: 8, left: 8, right: 4 }}
                           activeOpacity={0.7}>
                           <Ionicons name="pencil-outline" size={14} color={"#4b5563"} />
                         </TouchableOpacity>
                         <TouchableOpacity
-                          onPress={(e) => { e.stopPropagation(); posthog.capture("portfolio_position_removed", { ticker: pos.ticker }); removePosition(pos.id); }}
+                          onPress={(e) => { e.stopPropagation(); posthog.capture("portfolio_position_removed", { ticker: pos.ticker }); setSellPrice(""); setSellConfirm({ id: pos.id, ticker: pos.ticker, shares: pos.shares }); }}
                           hitSlop={{ top: 8, bottom: 8, left: 4, right: 8 }}
                           activeOpacity={0.7}>
                           <Ionicons name="trash-outline" size={14} color="#ef444470" />
@@ -2815,14 +2876,14 @@ export default function PortfolioScreen() {
       />
 
       {/* Edit position modal */}
-      <Modal visible={!!editingPos} transparent animationType="fade" onRequestClose={() => setEditingPos(null)}>
+      <Modal visible={!!editingPos} transparent animationType="fade" onRequestClose={() => { setEditingPos(null); setEditSaleChoice(null); setEditSalePrice(""); }}>
         <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.7)", justifyContent: "center", alignItems: "center", padding: 20 }}>
           <View style={{ backgroundColor: "#111318", borderRadius: 20, width: "100%", maxWidth: 360, overflow: "hidden" }}>
             <View style={{ height: 4, backgroundColor: "#00a85e" }} />
             <View style={{ padding: 20 }}>
               <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
                 <Text style={{ color: "#fff", fontWeight: "800", fontSize: 15 }}>Editar posición</Text>
-                <TouchableOpacity onPress={() => setEditingPos(null)}>
+                <TouchableOpacity onPress={() => { setEditingPos(null); setEditSaleChoice(null); setEditSalePrice(""); }}>
                   <Ionicons name="close" size={20} color={"#6b7280"} />
                 </TouchableOpacity>
               </View>
@@ -2858,35 +2919,121 @@ export default function PortfolioScreen() {
                 placeholderTextColor={"#4b5563"}
                 placeholder={new Date().toISOString().split("T")[0]}
               />
+              {editSaleChoice === "sale" && (
+                <>
+                  <Text style={{ fontSize: 10, color: "#6b7280", fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>
+                    Precio de venta ({portfolioCurrency})
+                  </Text>
+                  <TextInput
+                    style={{ backgroundColor: "#1a1d27", borderWidth: 1, borderColor: "#1f2330", borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: "#fff", marginBottom: 16 }}
+                    keyboardType="decimal-pad"
+                    value={editSalePrice}
+                    onChangeText={setEditSalePrice}
+                    placeholderTextColor={"#4b5563"}
+                    autoFocus
+                  />
+                </>
+              )}
               <TouchableOpacity
                 style={{ backgroundColor: "#00a85e", borderRadius: 14, paddingVertical: 12, alignItems: "center" }}
                 onPress={() => {
                   if (!editingPos) return;
                   const shares = parseFloat(editingPos.shares);
-                  const enteredPrice = parseFloat(editingPos.avgPrice);
                   if (isNaN(shares) || shares <= 0) return;
-                  // avgPrice always stored in USD
-                  const avgPriceUSD = isNaN(enteredPrice) ? 0
-                    : portfolioCurrency === "USD" ? enteredPrice
-                    : parseFloat((enteredPrice / fxRate).toFixed(6));
-                  const displayPrice = isNaN(enteredPrice) ? "0" : enteredPrice.toString();
-                  Alert.alert(
-                    "¿Guardar cambios?",
-                    `${shares} acciones · precio promedio ${currencySymbol}${displayPrice}`,
-                    [
-                      { text: "Cancelar", style: "cancel" },
-                      {
-                        text: "Guardar", style: "default",
-                        onPress: () => {
-                          updatePosition(editingPos.id, { shares, avgPrice: avgPriceUSD, purchaseDate: editingPos.purchaseDate || undefined });
-                          setEditingPos(null);
+
+                  if (shares < editingPos.originalShares && editSaleChoice === null) {
+                    Alert.alert(
+                      `Bajaste de ${editingPos.originalShares} a ${shares} acciones`,
+                      "¿Vendiste esas acciones o es una corrección de captura?",
+                      [
+                        { text: "Es corrección", onPress: () => { setEditSaleChoice("correction"); confirmEditSave(shares); } },
+                        {
+                          text: "Vendí acciones",
+                          onPress: () => {
+                            const marketUSD = prices[editingPos.ticker]?.price;
+                            const prefill = marketUSD ? (portfolioCurrency === "USD" ? marketUSD : marketUSD * fxRate) : 0;
+                            setEditSalePrice(prefill > 0 ? prefill.toFixed(2) : "");
+                            setEditSaleChoice("sale");
+                          },
                         },
-                      },
-                    ]
-                  );
+                      ]
+                    );
+                    return;
+                  }
+                  if (editSaleChoice === "sale" && (!editSalePrice || isNaN(parseFloat(editSalePrice)))) {
+                    Alert.alert("Falta el precio", "Ingresa el precio al que vendiste las acciones.");
+                    return;
+                  }
+                  confirmEditSave(shares);
                 }}>
                 <Text style={{ color: "white", fontWeight: "800", fontSize: 14 }}>Guardar cambios</Text>
               </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Sell confirmation modal — required to record realized gain/loss accurately */}
+      <Modal visible={!!sellConfirm} transparent animationType="fade" onRequestClose={() => setSellConfirm(null)}>
+        <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.7)", justifyContent: "center", alignItems: "center", padding: 20 }}>
+          <View style={{ backgroundColor: "#111318", borderRadius: 20, width: "100%", maxWidth: 360, overflow: "hidden" }}>
+            <View style={{ height: 4, backgroundColor: "#ef4444" }} />
+            <View style={{ padding: 20 }}>
+              <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+                <Text style={{ color: "#fff", fontWeight: "800", fontSize: 15 }}>Vender {sellConfirm?.ticker}</Text>
+                <TouchableOpacity onPress={() => setSellConfirm(null)}>
+                  <Ionicons name="close" size={20} color={"#6b7280"} />
+                </TouchableOpacity>
+              </View>
+              <Text style={{ fontSize: 12, color: "#9ca3af", marginBottom: 12 }}>
+                Vas a eliminar tus {sellConfirm?.shares.toLocaleString()} acciones de {sellConfirm?.ticker}. ¿A qué precio las vendiste?
+              </Text>
+              <Text style={{ fontSize: 10, color: "#6b7280", fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>
+                Precio de venta ({portfolioCurrency})
+              </Text>
+              <TextInput
+                style={{ backgroundColor: "#1a1d27", borderWidth: 1, borderColor: "#1f2330", borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: "#fff", marginBottom: 8 }}
+                keyboardType="decimal-pad"
+                value={sellPrice}
+                onChangeText={setSellPrice}
+                placeholderTextColor={"#4b5563"}
+                autoFocus
+              />
+              {sellConfirm && prices[sellConfirm.ticker]?.price != null && (
+                <TouchableOpacity
+                  onPress={() => {
+                    const marketUSD = prices[sellConfirm.ticker]!.price!;
+                    setSellPrice((portfolioCurrency === "USD" ? marketUSD : marketUSD * fxRate).toFixed(2));
+                  }}
+                  style={{ marginBottom: 16 }}>
+                  <Text style={{ fontSize: 11, color: "#00d47e" }}>
+                    Usar precio actual de mercado
+                  </Text>
+                </TouchableOpacity>
+              )}
+              <View style={{ flexDirection: "row", gap: 8, marginTop: sellConfirm && prices[sellConfirm.ticker]?.price != null ? 0 : 8 }}>
+                <TouchableOpacity onPress={() => setSellConfirm(null)}
+                                  style={{ flex: 1, borderRadius: 14, paddingVertical: 12, alignItems: "center", borderWidth: 1, borderColor: "#1f2330" }}>
+                  <Text style={{ color: "#9ca3af", fontWeight: "700", fontSize: 13 }}>Cancelar</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  disabled={sellSaving || !sellPrice || isNaN(parseFloat(sellPrice)) || parseFloat(sellPrice) < 0}
+                  style={{ flex: 2, backgroundColor: "#ef4444", borderRadius: 14, paddingVertical: 12, alignItems: "center", opacity: sellSaving ? 0.7 : 1 }}
+                  onPress={async () => {
+                    if (!sellConfirm) return;
+                    const enteredPrice = parseFloat(sellPrice);
+                    const closePriceUSD = portfolioCurrency === "USD" ? enteredPrice : enteredPrice / fxRate;
+                    setSellSaving(true);
+                    try {
+                      await removePosition(sellConfirm.id, parseFloat(closePriceUSD.toFixed(6)));
+                      setSellConfirm(null);
+                    } finally {
+                      setSellSaving(false);
+                    }
+                  }}>
+                  <Text style={{ color: "white", fontWeight: "800", fontSize: 13 }}>{sellSaving ? "Guardando..." : "Confirmar venta"}</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           </View>
         </View>

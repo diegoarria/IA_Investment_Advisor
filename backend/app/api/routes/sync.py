@@ -34,26 +34,67 @@ _TTL_MISC      = 60    # nav-order, theme, behavioral-risk
 # ─── Portfolio ────────────────────────────────────────────────────────────────
 
 def _parse_portfolio(raw) -> dict:
-    """Parse portfolio data regardless of storage format (v1 array or v2 object)."""
+    """Parse portfolio data regardless of storage format (v1 array, v2, or v3 with
+    the closed-positions ledger + frozen inception date)."""
     if isinstance(raw, list):
-        return {"currency": "USD", "positions": raw}
+        return {"currency": "USD", "positions": raw, "closed_positions": [], "inception_date": None}
     if isinstance(raw, dict) and "_v" in raw:
-        return {"currency": raw.get("currency", "USD"), "positions": raw.get("positions", [])}
-    return {"currency": "USD", "positions": []}
+        positions = raw.get("positions", [])
+        closed_positions = raw.get("closed_positions", [])
+        inception_date = raw.get("inception_date")
+        if inception_date is None and positions:
+            # v2 data (or v3 written before a position ever set it): best-effort
+            # migration so existing users don't lose continuity — it just stops
+            # moving from here on, instead of recomputing on every read.
+            dates = [p.get("purchaseDate") for p in positions if p.get("purchaseDate")]
+            inception_date = min(dates) if dates else None
+        return {
+            "currency": raw.get("currency", "USD"),
+            "positions": positions,
+            "closed_positions": closed_positions,
+            "inception_date": inception_date,
+        }
+    return {"currency": "USD", "positions": [], "closed_positions": [], "inception_date": None}
 
 
 @router.post("/portfolio")
 async def sync_portfolio(body: dict, user_id: str = Depends(get_current_user_id)):
     """Upsert portfolio positions + currency.
-    body: { positions: [...], currency: 'USD', portfolio_id?: 'default', portfolio_name?: '...' }
+    body: { positions: [...], currency: 'USD', portfolio_id?: 'default', portfolio_name?: '...',
+            closed_positions?: [...], inception_date?: '...' | null }
+
+    closed_positions/inception_date are the since-inception performance ledger.
+    An older client (e.g. mobile before it's rebuilt with this feature) won't
+    send them at all — in that case we must read-modify-write to preserve
+    whatever is already stored instead of silently erasing it.
     """
     positions     = body.get("positions", [])
     currency      = body.get("currency", "USD")
     portfolio_id  = body.get("portfolio_id", "default") or "default"
     portfolio_name = body.get("portfolio_name", "Mi portafolio") or "Mi portafolio"
-    portfolio_state = {"_v": 2, "currency": currency, "positions": positions}
-    now = _NOW()
+
     db = get_supabase()
+    closed_positions = body.get("closed_positions")
+    has_inception_key = "inception_date" in body
+    inception_date = body.get("inception_date")
+    if closed_positions is None or not has_inception_key:
+        existing = await run_query(
+            db.table("user_portfolio").select("positions")
+            .eq("user_id", user_id).eq("portfolio_id", portfolio_id)
+        )
+        if existing.data:
+            existing_parsed = _parse_portfolio(existing.data[0]["positions"])
+            if closed_positions is None:
+                closed_positions = existing_parsed["closed_positions"]
+            if not has_inception_key:
+                inception_date = existing_parsed["inception_date"]
+    closed_positions = closed_positions or []
+
+    portfolio_state = {
+        "_v": 3, "currency": currency, "positions": positions,
+        "closed_positions": closed_positions, "inception_date": inception_date,
+    }
+    now = _NOW()
     await run_query(db.table("user_portfolio").upsert({
         "user_id":        user_id,
         "portfolio_id":   portfolio_id,
@@ -91,7 +132,7 @@ async def get_portfolio(portfolio_id: str = "default", user_id: str = Depends(ge
         # that would lock in the wrong (empty) answer for the full TTL.
         cache_set(ck, resp, ttl=_TTL_PORTFOLIO)
     else:
-        resp = {"positions": [], "currency": "USD", "portfolio_name": "Mi portafolio", "updated_at": None}
+        resp = {"positions": [], "currency": "USD", "closed_positions": [], "inception_date": None, "portfolio_name": "Mi portafolio", "updated_at": None}
     return resp
 
 
@@ -118,6 +159,8 @@ async def list_portfolios(user_id: str = Depends(get_current_user_id)):
             "portfolio_id":   row["portfolio_id"],
             "portfolio_name": row["portfolio_name"],
             "positions":      parsed["positions"],
+            "closed_positions": parsed["closed_positions"],
+            "inception_date": parsed["inception_date"],
             "currency":       parsed["currency"],
             "updated_at":     row["updated_at"],
         })
@@ -402,6 +445,8 @@ async def get_all(user_id: str = Depends(get_current_user_id)):
             "portfolio_id":   row["portfolio_id"],
             "portfolio_name": row["portfolio_name"],
             "positions":      parsed["positions"],
+            "closed_positions": parsed["closed_positions"],
+            "inception_date": parsed["inception_date"],
             "currency":       parsed["currency"],
             "updated_at":     row["updated_at"],
         })
