@@ -158,6 +158,7 @@ const MAIN_NAV = [
 const SECONDARY_NAV = [
   { icon: "notifications-outline",  label: "Notificaciones", path: "/notifications", minLevel: "basico" as const },
   { icon: "person-outline",         label: "Perfil",         path: "/profile",       minLevel: "basico" as const },
+  { icon: "bag-outline",            label: "Productos",      path: "/products",      minLevel: "basico" as const },
   { icon: "headset-outline",        label: "Soporte",        path: "/support",       minLevel: "basico" as const },
 ];
 
