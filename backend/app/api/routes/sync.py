@@ -86,9 +86,12 @@ async def get_portfolio(portfolio_id: str = "default", user_id: str = Depends(ge
     if result.data:
         parsed = _parse_portfolio(result.data[0]["positions"])
         resp = {**parsed, "portfolio_name": result.data[0]["portfolio_name"], "updated_at": result.data[0]["updated_at"]}
+        # Only a real row is safe to cache. A "no row found" result can also mean
+        # this read raced a just-committed write and briefly missed it — caching
+        # that would lock in the wrong (empty) answer for the full TTL.
+        cache_set(ck, resp, ttl=_TTL_PORTFOLIO)
     else:
         resp = {"positions": [], "currency": "USD", "portfolio_name": "Mi portafolio", "updated_at": None}
-    cache_set(ck, resp, ttl=_TTL_PORTFOLIO)
     return resp
 
 
@@ -119,7 +122,10 @@ async def list_portfolios(user_id: str = Depends(get_current_user_id)):
             "updated_at":     row["updated_at"],
         })
     resp = {"portfolios": portfolios}
-    cache_set(ck, resp, ttl=_TTL_PORTFOLIO)
+    # Same reasoning as get_portfolio(): don't cement an empty read that might
+    # just be racing a very recent write into a 30s-long wrong answer.
+    if portfolios:
+        cache_set(ck, resp, ttl=_TTL_PORTFOLIO)
     return resp
 
 
@@ -461,7 +467,15 @@ async def get_all(user_id: str = Depends(get_current_user_id)):
         "watchlist_view_mode":  profile_row.get("watchlist_view_mode", "basic"),
         "checklist_done":       bool(profile_row.get("checklist_done", False)),
     }
-    cache_set(ck, resp, ttl=_TTL_ALL)
+    # A brand-new account with zero portfolio rows is a normal, cacheable state.
+    # But if this account has ever had a portfolio and this particular read just
+    # came back empty, it's more likely racing a very recent write than a real
+    # reset — don't cache that and risk locking in stale/empty data (including
+    # for scheduled jobs that read this same cache) for the full TTL. There's no
+    # cheap way to tell the two cases apart here, so we simply never cache an
+    # empty portfolio_res — the extra DB hit on the rare miss is cheap.
+    if portfolio_res.data:
+        cache_set(ck, resp, ttl=_TTL_ALL)
     return resp
 
 
