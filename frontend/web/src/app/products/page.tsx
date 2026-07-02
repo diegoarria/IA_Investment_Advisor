@@ -57,7 +57,12 @@ const ONE_TIME_PRODUCTS = [
   {
     icon: "📊",
     title: "Reporte Anual de Inversiones",
-    description: "Análisis completo de tu año como inversor: retorno real, comparativa vs índices, lecciones aprendidas y plan para el año siguiente. Generado por IA con tus datos reales.",
+    features: [
+      "Retorno real de todo tu año como inversor",
+      "Comparativa vs índices (S&P 500 y más)",
+      "Lecciones aprendidas generadas por IA",
+      "Plan personalizado para el año siguiente",
+    ],
     price_free: "$34.99 USD",
     price_premium: "$19.99 USD",
     available: true,
@@ -67,7 +72,11 @@ const ONE_TIME_PRODUCTS = [
   {
     icon: "📱",
     title: "Sesión 1:1 de Guía Personalizada",
-    description: "Sesión privada de 45 minutos donde te guiamos por la app, configuramos tu portafolio juntos y diseñamos tu ruta de aprendizaje personalizada según tus metas de inversión.",
+    features: [
+      "45 minutos en vivo con un guía",
+      "Configuramos tu portafolio juntos",
+      "Ruta de aprendizaje personalizada según tus metas",
+    ],
     price_free: "$149 USD",
     price_premium: "$99 USD",
     available: true,
@@ -77,7 +86,12 @@ const ONE_TIME_PRODUCTS = [
   {
     icon: "📦",
     title: "Pack 3 Sesiones de Seguimiento",
-    description: "Tres sesiones 1:1 de guía y seguimiento continuo. Revisamos tu progreso en la app, ajustamos tu ruta de aprendizaje y resolvemos dudas conforme avanzas en tu camino como inversor.",
+    features: [
+      "3 sesiones 1:1 de seguimiento continuo",
+      "Revisamos tu progreso en la app",
+      "Ajustamos tu ruta de aprendizaje",
+      "Resolvemos dudas conforme avanzas",
+    ],
     price_premium: "$247 USD",
     note: "Solo disponible para Premium",
     available: true,
@@ -249,37 +263,42 @@ export default function ProductsPage() {
               <div className="space-y-3">
                 {ONE_TIME_PRODUCTS.map((p, i) => (
                   <div key={i} className="rounded-2xl border p-5" style={{ background: "var(--card)", borderColor: "var(--border)" }}>
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="text-xl">{p.icon}</span>
-                          <h3 className="text-sm font-black" style={{ color: "var(--text)" }}>{p.title}</h3>
+                    <div className="flex items-center gap-2 mb-0.5">
+                      <span className="text-xl">{p.icon}</span>
+                      <p className="text-base font-black" style={{ color: "var(--text)" }}>{p.title}</p>
+                    </div>
+
+                    <div className="flex items-baseline gap-2 mb-1 flex-wrap">
+                      {p.price_premium && (
+                        <span className="text-2xl font-black" style={{ color: "#00d47e" }}>{p.price_premium}</span>
+                      )}
+                      {p.price_free && (
+                        <span className="text-xs" style={{ color: "var(--muted)" }}>
+                          Free: <strong style={{ color: "var(--sub)" }}>{p.price_free}</strong>
+                        </span>
+                      )}
+                    </div>
+                    {p.note && (
+                      <span className="inline-block text-[10px] px-2 py-0.5 rounded-full mb-4" style={{ background: "rgba(0,212,126,0.08)", color: "#00d47e" }}>{p.note}</span>
+                    )}
+
+                    <button
+                      onClick={() => handleCheckout(p.offer, p.variant ?? "default")}
+                      disabled={checkoutLoading === p.offer + (p.variant ?? "default")}
+                      className={`w-full py-2 rounded-xl text-xs font-black transition-all hover:opacity-90 disabled:opacity-50 flex items-center justify-center gap-1 ${p.note ? "" : "mb-4"}`}
+                      style={{ background: "#00d47e", color: "#000" }}
+                    >
+                      {checkoutLoading === p.offer + (p.variant ?? "default") ? "..." : <>Ver detalles <ArrowRight className="w-3 h-3" /></>}
+                    </button>
+                    {p.note && <div className="mb-4" />}
+
+                    <div className="space-y-2.5">
+                      {p.features.map((f, fi) => (
+                        <div key={fi} className="flex items-start gap-2">
+                          <Check className="w-3.5 h-3.5 shrink-0 mt-0.5" style={{ color: "#00d47e" }} />
+                          <span className="text-xs" style={{ color: "var(--muted)" }}>{f}</span>
                         </div>
-                        <p className="text-xs mb-3" style={{ color: "var(--muted)", lineHeight: 1.55 }}>{p.description}</p>
-                        <div className="flex items-center gap-3">
-                          {p.price_free && (
-                            <span className="text-xs" style={{ color: "var(--muted)" }}>
-                              Free: <strong style={{ color: "var(--sub)" }}>{p.price_free}</strong>
-                            </span>
-                          )}
-                          {p.price_premium && (
-                            <span className="text-xs" style={{ color: "var(--muted)" }}>
-                              Premium: <strong style={{ color: "#00d47e" }}>{p.price_premium}</strong>
-                            </span>
-                          )}
-                          {p.note && (
-                            <span className="text-[10px] px-2 py-0.5 rounded-full" style={{ background: "rgba(0,212,126,0.08)", color: "#00d47e" }}>{p.note}</span>
-                          )}
-                        </div>
-                      </div>
-                      <button
-                        onClick={() => handleCheckout(p.offer, p.variant ?? "default")}
-                        disabled={checkoutLoading === p.offer + (p.variant ?? "default")}
-                        className="shrink-0 flex items-center gap-1 px-3 py-2 rounded-xl text-xs font-bold transition-all hover:opacity-80 disabled:opacity-50"
-                        style={{ background: "var(--bg)", border: "1px solid var(--border)", color: "var(--sub)" }}
-                      >
-                        {checkoutLoading === p.offer + (p.variant ?? "default") ? "..." : <>Ver <ArrowRight className="w-3 h-3" /></>}
-                      </button>
+                      ))}
                     </div>
                   </div>
                 ))}
