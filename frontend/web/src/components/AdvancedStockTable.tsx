@@ -47,6 +47,8 @@ interface Props {
   rows: AdvancedRow[];
   mode: Mode;
   userLevel?: UserLevel;
+  // Applied to prices sourced from live quotes/details, which always arrive in USD
+  fxRate?: number;
   onRemove?: (ticker: string) => void;
   onEdit?: (ticker: string) => void;
   onRowClick?: (ticker: string) => void;
@@ -167,7 +169,7 @@ function DeleteBtn({ ticker, onRemove }: { ticker: string; onRemove: (t: string)
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
-export default function AdvancedStockTable({ rows, mode, userLevel = "avanzado", onRemove, onEdit, onRowClick }: Props) {
+export default function AdvancedStockTable({ rows, mode, userLevel = "avanzado", fxRate = 1, onRemove, onEdit, onRowClick }: Props) {
   // All columns visible — the Avanzado toggle already gates access to this table
   const showVol      = true;
   const showCap      = true;
@@ -221,9 +223,14 @@ export default function AdvancedStockTable({ rows, mode, userLevel = "avanzado",
   const enriched: AdvancedRow[] = rows.map((r) => {
     const d    = details[r.ticker] ?? {};
     const live = livePrices[r.ticker];
-    const price = live?.price ?? (d.price as number | null) ?? r.price;
+    // live/details prices always arrive in USD — convert to the row's display currency.
+    // r.price is already converted by the caller, so it's used as-is when there's no fresher quote.
+    const liveOrDetailPriceUSD = live?.price ?? (d.price as number | null);
+    const price = liveOrDetailPriceUSD != null ? liveOrDetailPriceUSD * fxRate : r.price;
     return {
       ...r, ...d, price,
+      week52Low:  d.week52Low  != null ? d.week52Low  * fxRate : r.week52Low,
+      week52High: d.week52High != null ? d.week52High * fxRate : r.week52High,
       change:    (d.change    as number | null) ?? r.change    ?? null,
       changePct: (d.changePct as number | null) ?? r.changePct,
     };

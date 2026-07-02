@@ -8,6 +8,7 @@ import PremiumBadge from "@/components/PremiumBadge";
 import StockAvatar from "@/components/StockAvatar";
 import { market as marketApi } from "@/lib/api";
 import { usePortfolioStore } from "@/lib/portfolioStore";
+import { useFxRate } from "@/lib/useFxRate";
 import { useWatchlistStore } from "@/lib/store";
 import { usePaperStore, PAPER_INITIAL_CASH } from "@/lib/paperStore";
 import { TrendingUp, TrendingDown, ArrowRight, Wallet, Eye, BarChart2 } from "lucide-react";
@@ -83,17 +84,19 @@ function SummaryCard({
 function PortfolioTab({ prices, loading }: { prices: PriceMap; loading: boolean }) {
   const router = useRouter();
   const { positions, portfolioCurrency } = usePortfolioStore();
+  const fxRate = useFxRate(portfolioCurrency);
 
-  const totalValue = positions.reduce((sum, pos) => {
+  const totalValueUSD = positions.reduce((sum, pos) => {
     const p = prices[pos.ticker]?.price ?? pos.avgPrice;
     return sum + pos.shares * p;
   }, 0);
+  const totalValue = totalValueUSD * fxRate;
 
-  const totalCost = positions.reduce((sum, pos) => sum + pos.shares * pos.avgPrice, 0);
+  const totalCost = positions.reduce((sum, pos) => sum + pos.shares * pos.avgPrice, 0) * fxRate;
   const totalGain = totalValue - totalCost;
   const totalGainPct = totalCost > 0 ? (totalGain / totalCost) * 100 : 0;
 
-  const { dayGain, dayPrev } = positions.reduce((acc, pos) => {
+  const { dayGain: dayGainUSD, dayPrev } = positions.reduce((acc, pos) => {
     const pr = prices[pos.ticker];
     if (!pr?.price) return acc;
     const cp = pr.change_pct ?? 0;
@@ -103,7 +106,8 @@ function PortfolioTab({ prices, loading }: { prices: PriceMap; loading: boolean 
       dayPrev: acc.dayPrev + pos.shares * prevPrice,
     };
   }, { dayGain: 0, dayPrev: 0 });
-  const dayGainPctFinal = dayPrev > 0 ? (dayGain / dayPrev) * 100 : 0;
+  const dayGain = dayGainUSD * fxRate;
+  const dayGainPctFinal = dayPrev > 0 ? (dayGainUSD / dayPrev) * 100 : 0;
 
   return (
     <div className="space-y-4">
@@ -151,8 +155,8 @@ function PortfolioTab({ prices, loading }: { prices: PriceMap; loading: boolean 
             {positions.map((pos) => {
               const pr = prices[pos.ticker];
               const currentPrice = pr?.price ?? pos.avgPrice;
-              const currentValue = pos.shares * currentPrice;
-              const cost = pos.shares * pos.avgPrice;
+              const currentValue = pos.shares * currentPrice * fxRate;
+              const cost = pos.shares * pos.avgPrice * fxRate;
               const gainAbs = currentValue - cost;
               const gainPct = cost > 0 ? (gainAbs / cost) * 100 : 0;
               const dayChangePct = pr?.change_pct ?? 0;
@@ -212,6 +216,8 @@ function PortfolioTab({ prices, loading }: { prices: PriceMap; loading: boolean 
 function WatchlistTab({ prices, loading }: { prices: PriceMap; loading: boolean }) {
   const router = useRouter();
   const { items } = useWatchlistStore();
+  const { portfolioCurrency } = usePortfolioStore();
+  const fxRate = useFxRate(portfolioCurrency);
 
   return (
     <div className="space-y-4">
@@ -250,7 +256,7 @@ function WatchlistTab({ prices, loading }: { prices: PriceMap; loading: boolean 
                   </div>
                   <div className="text-right">
                     <p className="font-bold text-sm" style={{ color: "var(--text)" }}>
-                      {price !== null ? `$${price.toFixed(2)}` : "—"}
+                      {price !== null ? fmtMoney(price * fxRate, portfolioCurrency) : "—"}
                     </p>
                     <div className="flex items-center justify-end gap-1">
                       {positive ? (

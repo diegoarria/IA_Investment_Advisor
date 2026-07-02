@@ -17,6 +17,7 @@ import { useAuthStore, useProfileStore, useLearnStore, useSubscriptionStore, use
 import OnboardingChecklist, { type OnboardingStep } from "@/components/OnboardingChecklist";
 import HomeScreenPickerModal, { HOME_SCREEN_KEY } from "@/components/HomeScreenPickerModal";
 import { usePortfolioStore } from "@/lib/portfolioStore";
+import { useFxRate } from "@/lib/useFxRate";
 import { isNYSEOpen } from "@/lib/marketHours";
 import { registerWebPush } from "@/lib/webPush";
 import { getUserLevel } from "@/lib/userLevel";
@@ -82,6 +83,7 @@ export default function HomePage() {
   const { isAuthenticated, authRestoring } = useAuthStore();
   const { profile, setProfile } = useProfileStore();
   const { positions, portfolioCurrency } = usePortfolioStore();
+  const fxRate = useFxRate(portfolioCurrency);
   const streak = useLearnStore((s) => s.streak);
   const completedToday = useLearnStore((s) => s.completedToday);
   const { tier: subTier } = useSubscriptionStore();
@@ -353,8 +355,8 @@ export default function HomePage() {
     const dayGainPct   = total > 0 ? (dayGain / (total - dayGain)) * 100 : 0;
     const totalGain    = total - costBasis;
     const totalGainPct = costBasis > 0 ? (totalGain / costBasis) * 100 : 0;
-    return { total, dayGain, dayGainPct, totalGain, totalGainPct };
-  }, [positions, prices]);
+    return { total: total * fxRate, dayGain: dayGain * fxRate, dayGainPct, totalGain: totalGain * fxRate, totalGainPct };
+  }, [positions, prices, fxRate]);
 
   // ── Top gainers today (sorted by % change desc, top 4) ────────────────────
   const movers = useMemo(() => {
@@ -365,12 +367,12 @@ export default function HomePage() {
         const cp   = px?.change_pct ?? 0;
         const prev = cp !== -100 ? curr / (1 + cp / 100) : curr;
         const chg  = prev > 0 ? ((curr - prev) / prev) * 100 : 0;
-        return { ...p, curr, chg };
+        return { ...p, curr: curr * fxRate, chg };
       })
       .filter((m) => m.chg > 0)
       .sort((a, b) => b.chg - a.chg)
       .slice(0, 4);
-  }, [positions, prices]);
+  }, [positions, prices, fxRate]);
 
   // ── Top losers today (sorted by % change asc, top 4, only negative) ────────
   const losers = useMemo(() => {
@@ -381,12 +383,12 @@ export default function HomePage() {
         const cp   = px?.change_pct ?? 0;
         const prev = cp !== -100 ? curr / (1 + cp / 100) : curr;
         const chg  = prev > 0 ? ((curr - prev) / prev) * 100 : 0;
-        return { ...p, curr, chg };
+        return { ...p, curr: curr * fxRate, chg };
       })
       .filter((m) => m.chg < 0)
       .sort((a, b) => a.chg - b.chg)
       .slice(0, 4);
-  }, [positions, prices]);
+  }, [positions, prices, fxRate]);
 
   // ── Goal ───────────────────────────────────────────────────────────────────
   const GOAL_MAP: Record<string, { label: string; emoji: string }> = {
@@ -962,7 +964,7 @@ export default function HomePage() {
                             {fmtPct(ytdPct ?? 0)}
                           </p>
                           <p className="text-[11px] mt-1" style={{ color: "var(--sub)" }}>
-                            {isPremium ? "Rendimiento YTD" : "Últimos 5 días"} ({ytdGain >= 0 ? "+" : ""}{fmt(ytdGain, portfolioCurrency)})
+                            {isPremium ? "Rendimiento YTD" : "Últimos 5 días"} ({ytdGain >= 0 ? "+" : ""}{fmt(ytdGain * fxRate, portfolioCurrency)})
                           </p>
                         </>
                       ) : (
@@ -990,7 +992,7 @@ export default function HomePage() {
                             {fmtPct(shortPct ?? 0)}
                           </p>
                           <p className="text-[11px] mt-1" style={{ color: "var(--sub)" }}>
-                            Último mes ({shortGain >= 0 ? "+" : ""}{fmt(shortGain, portfolioCurrency)})
+                            Último mes ({shortGain >= 0 ? "+" : ""}{fmt(shortGain * fxRate, portfolioCurrency)})
                           </p>
                         </>
                       ) : (

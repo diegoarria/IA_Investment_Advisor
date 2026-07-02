@@ -56,36 +56,47 @@ const DEFAULT_PORTFOLIO: Portfolio = { id: "default", name: "Mi portafolio", pos
 export const usePortfolioStore = create<PortfolioStore>()(
   persist(
     (set, get) => {
+      // Requests to /api/sync/portfolio must never race: each one sends the *full*
+      // position list, so if two overlap, whichever the server finishes last wins —
+      // even if it was sent first. Chaining them onto a single in-flight promise
+      // guarantees the server always processes writes in the order they were made.
+      let pushChain: Promise<void> = Promise.resolve();
+
       /** Push active portfolio to server — returns Promise so callers can await completion */
       const push = (positions: Position[], currency: string, portfolioId: string, portfolioName: string): Promise<void> => {
         set({ syncStatus: "syncing", pendingSync: true });
-        const BASE_URL =
-          process.env.NEXT_PUBLIC_API_URL ||
-          "https://iainvestmentadvisor-production.up.railway.app";
-        const token = typeof localStorage !== "undefined" ? localStorage.getItem("access_token") : null;
-        return fetch(`${BASE_URL}/api/sync/portfolio`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          },
-          body: JSON.stringify({
-            positions,
-            currency,
-            portfolio_id: portfolioId,
-            portfolio_name: portfolioName,
-          }),
-          keepalive: true,
-        })
-          .then((res) => {
-            if (!res.ok) throw new Error(`HTTP ${res.status}`);
-            set({ syncStatus: "saved", lastSaved: new Date().toISOString(), pendingSync: false });
-            setTimeout(() => { if (get().syncStatus === "saved") set({ syncStatus: "idle" }); }, 4000);
+        const doFetch = (): Promise<void> => {
+          const BASE_URL =
+            process.env.NEXT_PUBLIC_API_URL ||
+            "https://iainvestmentadvisor-production.up.railway.app";
+          const token = typeof localStorage !== "undefined" ? localStorage.getItem("access_token") : null;
+          return fetch(`${BASE_URL}/api/sync/portfolio`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            },
+            body: JSON.stringify({
+              positions,
+              currency,
+              portfolio_id: portfolioId,
+              portfolio_name: portfolioName,
+            }),
+            keepalive: true,
           })
-          .catch((err) => {
-            set({ syncStatus: "error" });
-            throw err;
-          });
+            .then((res) => {
+              if (!res.ok) throw new Error(`HTTP ${res.status}`);
+              set({ syncStatus: "saved", lastSaved: new Date().toISOString(), pendingSync: false });
+              setTimeout(() => { if (get().syncStatus === "saved") set({ syncStatus: "idle" }); }, 4000);
+            })
+            .catch((err) => {
+              set({ syncStatus: "error" });
+              throw err;
+            });
+        };
+        const result = pushChain.then(doFetch, doFetch);
+        pushChain = result.catch(() => {}); // keep the chain alive after a failed push
+        return result;
       };
 
       /** Get the active portfolio object */

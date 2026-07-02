@@ -12,6 +12,7 @@ import { market as marketApi } from "@/lib/api";
 import { useAuthStore, useSubscriptionStore, useProfileStore } from "@/lib/store";
 import { getUserLevel, isAtLeast } from "@/lib/userLevel";
 import { usePortfolioStore, type Position } from "@/lib/portfolioStore";
+import { useFxRate } from "@/lib/useFxRate";
 import AdvancedStockTable from "@/components/AdvancedStockTable";
 import type { AdvancedRow } from "@/components/AdvancedStockTable";
 import StockDetailModal from "@/components/StockDetailModal";
@@ -640,7 +641,7 @@ export default function PortfolioPage() {
   const [prices, setPrices] = useState<Record<string, PriceData>>({});
   const [loadingPrices, setLoadingPrices] = useState(false);
   const [priceError, setPriceError] = useState(false);
-  const [fxRate, setFxRate] = useState(1);
+  const fxRate = useFxRate(portfolioCurrency);
   const fxRateRef = useRef(1);
   const portfolioCurrencyRef = useRef("USD");
   useEffect(() => { fxRateRef.current = fxRate; }, [fxRate]);
@@ -1118,41 +1119,6 @@ export default function PortfolioPage() {
     setMergeModalOpen(false);
     setPendingMerge([]);
   };
-
-  // Fetch live FX rate — open.er-api.com (primary) → frankfurter → hardcoded fallback
-  // Also caches last-known-good rate in localStorage so UI never shows 1.0 on reload
-  useEffect(() => {
-    if (portfolioCurrency === "USD") { setFxRate(1); return; }
-    const LOCAL_FALLBACK: Record<string, number> = {
-      MXN:18.5, EUR:0.92, GBP:0.79, CAD:1.38, ARS:1150, BRL:5.7,
-      COP:4200, CLP:960, PEN:3.75, JPY:155, AUD:1.55, CHF:0.89,
-      NZD:1.68, INR:83.5, CNY:7.25, HKD:7.82, SGD:1.35, TRY:32.5,
-      ZAR:18.8, SEK:10.6, NOK:10.8, DKK:6.85, PLN:4.05, KRW:1360,
-    };
-    const lsKey = `nuvos_fx_${portfolioCurrency}`;
-    // Apply last-known-good rate immediately so positions render correctly while fetching
-    const stored = typeof window !== "undefined" ? parseFloat(localStorage.getItem(lsKey) ?? "") : NaN;
-    if (!isNaN(stored) && stored > 0) setFxRate(stored);
-    const fetchRate = () => {
-      marketApi.getFxRate(portfolioCurrency)
-        .then((r) => {
-          const rate = r.data?.rate;
-          if (rate && rate > 0) {
-            setFxRate(rate);
-            if (typeof window !== "undefined") localStorage.setItem(lsKey, String(rate));
-          } else if (LOCAL_FALLBACK[portfolioCurrency]) {
-            setFxRate(LOCAL_FALLBACK[portfolioCurrency]);
-          }
-        })
-        .catch(() => {
-          if (!isNaN(stored) && stored > 0) return; // already applied stored
-          if (LOCAL_FALLBACK[portfolioCurrency]) setFxRate(LOCAL_FALLBACK[portfolioCurrency]);
-        });
-    };
-    fetchRate();
-    const interval = setInterval(fetchRate, 60 * 60 * 1000); // refresh every hour
-    return () => clearInterval(interval);
-  }, [portfolioCurrency]);
 
   // Import: keep prices in original currency, just store the currency
   const applyImport = async (positions: PendingImport, currency: string) => {
@@ -2246,6 +2212,7 @@ export default function PortfolioPage() {
                   <AdvancedStockTable
                     mode="portfolio"
                     userLevel={userLevel}
+                    fxRate={fxRate}
                     onRowClick={setSelectedStock}
                     onEdit={(ticker) => {
                       const pos = sortedPositions.find((p) => p.ticker === ticker);

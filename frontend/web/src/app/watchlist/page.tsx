@@ -12,6 +12,7 @@ import { watchlist as watchlistApi, market as marketApi, sync as syncApi, priceA
 import { useAuthStore, useSubscriptionStore, useProfileStore } from "@/lib/store";
 import { getUserLevel } from "@/lib/userLevel";
 import { usePortfolioStore } from "@/lib/portfolioStore";
+import { useFxRate } from "@/lib/useFxRate";
 import AppSidebar from "@/components/AppSidebar";
 import MarketTickerBar from "@/components/MarketTickerBar";
 import PremiumBadge from "@/components/PremiumBadge";
@@ -83,9 +84,14 @@ function applyOrder(data: WatchlistItem[], order: string[]): WatchlistItem[] {
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
+const CURRENCY_SYM: Record<string, string> = {
+  USD: "$", MXN: "$", ARS: "$", CLP: "$", COP: "$", CAD: "$",
+  EUR: "€", GBP: "£", BRL: "R$", JPY: "¥", CHF: "Fr",
+};
+
 function fmtPrice(price: number | null, currency = "USD"): string {
   if (price === null || price === undefined) return "—";
-  const symbol = currency === "EUR" ? "€" : currency === "GBP" ? "£" : "$";
+  const symbol = CURRENCY_SYM[currency] ?? "$";
   return `${symbol}${price.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
@@ -170,6 +176,8 @@ function StockAvatar({ ticker, logoUrl }: { ticker: string; logoUrl: string | nu
 
 interface StockCardProps {
   item: WatchlistItem;
+  fxRate: number;
+  displayCurrency: string;
   onDelete: (ticker: string) => void;
   onSelect: (ticker: string) => void;
   onAlert: (ticker: string, price: number | null) => void;
@@ -183,8 +191,9 @@ interface StockCardProps {
   onDragEnd?: () => void;
 }
 
-function StockCard({ item, onDelete, onSelect, onAlert, hasAlert, draggable: isDraggable, isDragging, isDragOver: _isDragOver, onDragStart, onDragOver, onDrop, onDragEnd }: StockCardProps) {
+function StockCard({ item, fxRate, displayCurrency, onDelete, onSelect, onAlert, hasAlert, draggable: isDraggable, isDragging, isDragOver: _isDragOver, onDragStart, onDragOver, onDrop, onDragEnd }: StockCardProps) {
   const isUp = item.change_pct >= 0;
+  const conv = (price: number | null) => price === null ? null : price * fxRate;
   const borderColor = isUp ? "rgba(34,197,94,0.5)" : "rgba(239,68,68,0.5)";
   const priceColor = isUp ? "#22c55e" : "#ef4444";
 
@@ -242,31 +251,31 @@ function StockCard({ item, onDelete, onSelect, onAlert, hasAlert, draggable: isD
             {showPreMkt ? (
               <>
                 <p className="text-[13px] font-black leading-tight" style={{ color: "#f59e0b" }}>
-                  {fmtPrice(item.pre_market_price, item.currency)}
+                  {fmtPrice(conv(item.pre_market_price), displayCurrency)}
                 </p>
                 <p className="text-[10px] font-bold" style={{ color: "#f59e0b" }}>
                   {fmtPct(item.pre_market_change_pct)}
                 </p>
                 <p className="text-[9px]" style={{ color: "var(--muted)" }}>
-                  Reg. {fmtPrice(item.price, item.currency)}
+                  Reg. {fmtPrice(conv(item.price), displayCurrency)}
                 </p>
               </>
             ) : showPostMkt ? (
               <>
                 <p className="text-[13px] font-black leading-tight" style={{ color: "#818cf8" }}>
-                  {fmtPrice(item.post_market_price, item.currency)}
+                  {fmtPrice(conv(item.post_market_price), displayCurrency)}
                 </p>
                 <p className="text-[10px] font-bold" style={{ color: "#818cf8" }}>
                   {fmtPct(item.post_market_change_pct)}
                 </p>
                 <p className="text-[9px]" style={{ color: "var(--muted)" }}>
-                  Cierre {fmtPrice(item.price, item.currency)}
+                  Cierre {fmtPrice(conv(item.price), displayCurrency)}
                 </p>
               </>
             ) : (
               <>
                 <p className="text-[13px] font-black leading-tight" style={{ color: "var(--text)" }}>
-                  {fmtPrice(item.price, item.currency)}
+                  {fmtPrice(conv(item.price), displayCurrency)}
                 </p>
                 <div className="flex items-center justify-end gap-0.5 mt-0.5">
                   {isUp
@@ -348,7 +357,8 @@ export default function WatchlistPage() {
   const userLevel = getUserLevel(profile);
   const { tier } = useSubscriptionStore();
   const isPremium = tier === "premium";
-  const { positions } = usePortfolioStore();
+  const { positions, portfolioCurrency } = usePortfolioStore();
+  const fxRate = useFxRate(portfolioCurrency);
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [items, setItems] = useState<WatchlistItem[]>(() => readCache());
@@ -778,15 +788,16 @@ export default function WatchlistPage() {
               <AdvancedStockTable
                 mode="watchlist"
                 userLevel={userLevel}
+                fxRate={fxRate}
                 rows={items.map((i): AdvancedRow => ({
                   ticker: i.ticker,
                   name: i.name,
                   logoUrl: i.logo_url,
-                  price: i.price,
+                  price: i.price !== null ? i.price * fxRate : null,
                   changePct: i.change_pct,
-                  currency: i.currency,
+                  currency: portfolioCurrency,
                   marketState: i.market_state,
-                  extPrice: i.pre_market_price ?? i.post_market_price,
+                  extPrice: (i.pre_market_price ?? i.post_market_price) !== null ? (i.pre_market_price ?? i.post_market_price)! * fxRate : null,
                   extPct: i.pre_market_change_pct ?? i.post_market_change_pct,
                   extLabel: i.pre_market_price ? "Pre" : i.post_market_price ? "Post" : null,
                 }))}
@@ -847,6 +858,8 @@ export default function WatchlistPage() {
                     )}
                     <StockCard
                       item={item}
+                      fxRate={fxRate}
+                      displayCurrency={portfolioCurrency}
                       onDelete={handleConfirmDelete}
                       onSelect={setSelectedStock}
                       onAlert={openAlertModal}
