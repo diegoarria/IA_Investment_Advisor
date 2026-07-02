@@ -1825,18 +1825,26 @@ Sin texto fuera del JSON."""
 
 
 async def summarize_news_article(title: str, content: str) -> str:
-    """Summarize a financial news article with structured, emoji-enhanced output in Spanish."""
-    has_content = bool(content and len(content) > 80)
-    source_block = f"Fragmento del artículo:\n{content[:3000]}" if has_content else ""
+    """Summarize a financial news article with structured, emoji-enhanced output in Spanish.
 
-    prompt = f"""Titular: {title}
-{chr(10) + source_block + chr(10) if source_block else ""}
-Eres el analista financiero de Nuvos AI. Resume esta noticia para un inversor de largo plazo en español.
+    `content` is the actual extracted article text (via trafilatura), not just the
+    headline — when it's missing, we tell the user honestly instead of having the
+    model guess a plausible-sounding summary from the headline alone.
+    """
+    has_content = bool(content and len(content) > 80)
+
+    if has_content:
+        prompt = f"""Titular: {title}
+
+Fragmento del artículo:
+{content[:4000]}
+
+Eres el analista financiero de Nuvos AI. Resume esta noticia para un inversor de largo plazo en español, basándote ÚNICAMENTE en el fragmento del artículo de arriba.
 
 Usa EXACTAMENTE este formato — no lo cambies:
 
 📌 **¿Qué pasó?**
-[1-2 oraciones. Explica el hecho central de forma directa y concisa.]
+[1-2 oraciones. Explica el hecho central de forma directa y concisa, con datos concretos del artículo.]
 
 📈 **¿Por qué importa para los mercados?**
 [1-2 oraciones. Impacto en la acción, sector o mercado en general.]
@@ -1847,7 +1855,18 @@ Usa EXACTAMENTE este formato — no lo cambies:
 ⚠️ **Riesgo / oportunidad**
 [1 oración. ¿Qué debería tener en mente el inversor de largo plazo?]
 
-Reglas: Sin frases como "Este artículo..." o "La noticia indica...". Sin introducciones. Tono directo, claro y educativo. Si no hay contenido disponible, usa tu conocimiento sobre el titular."""
+Reglas: Sin frases como "Este artículo..." o "La noticia indica...". Sin introducciones. Tono directo, claro y educativo."""
+    else:
+        prompt = f"""Titular: {title}
+
+No se pudo acceder al contenido completo de este artículo (la fuente bloquea el acceso automático o requiere suscripción).
+
+Eres el analista financiero de Nuvos AI. Responde en español, en 2-3 oraciones máximo:
+1. Dilo de forma directa y breve: no pudiste leer el artículo completo.
+2. Da contexto útil basado SOLO en lo que dice el titular — sin inventar cifras, declaraciones o detalles que no estén en él.
+3. Sugiere al usuario abrir el enlace original si quiere el detalle completo.
+
+No uses el formato de 4 secciones con emojis — esta es una respuesta corta y honesta, no un análisis completo."""
 
     response = await _claude(
         model=settings.claude_model,

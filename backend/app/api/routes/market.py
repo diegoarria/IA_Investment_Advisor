@@ -963,16 +963,52 @@ async def get_portfolio_news(
     return all_articles
 
 
+_BOT_BLOCK_MARKERS = (
+    "enable javascript", "please enable js", "verify you are human",
+    "access denied", "are you a robot", "checking your browser",
+    "attention required", "cloudflare", "subscribe to continue",
+    "subscribe now to read", "sign in to continue",
+)
+
+
+def _extract_article_text(html: str) -> str:
+    """Extract the main article body from raw HTML, filtering out bot-block/paywall shells."""
+    import re as _re
+    import trafilatura
+
+    extracted = trafilatura.extract(
+        html, include_comments=False, include_tables=False, favor_precision=True
+    )
+    text = (extracted or "").strip()
+
+    # Fall back to meta description if trafilatura found nothing usable
+    if len(text) < 80:
+        m = _re.search(r'(?:og:description|name="description")[^>]*content="([^"]{40,})"', html, _re.IGNORECASE)
+        if not m:
+            m = _re.search(r'content="([^"]{40,})"[^>]*(?:og:description|name="description")', html, _re.IGNORECASE)
+        if m:
+            text = m.group(1).strip()
+
+    # A bot-block/paywall interstitial often masquerades as "content" — reject it
+    # rather than let the AI treat it as the real article.
+    lowered = text.lower()
+    if len(text) < 80 or any(marker in lowered for marker in _BOT_BLOCK_MARKERS):
+        return ""
+
+    return _re.sub(r"\s+", " ", text).strip()[:6000]
+
+
 @router.post("/summarize-news")
 async def summarize_news(body: dict, user_id: str = Depends(get_current_user_id)):
     """AI summary of a news article — premium-only, enforced on the frontend."""
-    import re as _re
     title = (body.get("title") or "").strip()
     url   = (body.get("url") or "").strip()
     if not title:
         return {"summary": "No se pudo resumir: falta el titular."}
 
-    # Attempt to extract readable text from the article page
+    # Attempt to extract readable article text — this is the actual content the AI
+    # summarizes. If the source blocks scraping (paywall/bot-detection), we tell the
+    # user honestly instead of letting the AI guess from the headline alone.
     content = ""
     if url:
         _HEADERS = {
@@ -988,24 +1024,7 @@ async def summarize_news(body: dict, user_id: str = Depends(get_current_user_id)
             async with httpx.AsyncClient(timeout=10, follow_redirects=True) as client:
                 r = await client.get(url, headers=_HEADERS)
             if r.status_code == 200:
-                html = r.text
-                # 1. Try og:description / meta description first (always present, even on paywalls)
-                meta = ""
-                m = _re.search(r'(?:og:description|name="description")[^>]*content="([^"]{40,})"', html, _re.IGNORECASE)
-                if not m:
-                    m = _re.search(r'content="([^"]{40,})"[^>]*(?:og:description|name="description")', html, _re.IGNORECASE)
-                if m:
-                    meta = m.group(1).strip()
-
-                # 2. Extract text from <p> tags (article body)
-                paras = _re.findall(r"<p[^>]*>(.*?)</p>", html, _re.DOTALL | _re.IGNORECASE)
-                para_text = " ".join(
-                    _re.sub(r"<[^>]+>", "", p).strip()
-                    for p in paras if len(_re.sub(r"<[^>]+>", "", p).strip()) > 60
-                )
-                para_text = _re.sub(r"\s+", " ", para_text).strip()[:3500]
-
-                content = (meta + (" " + para_text if para_text else "")).strip()
+                content = _extract_article_text(r.text)
         except Exception:
             pass
 
