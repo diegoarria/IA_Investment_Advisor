@@ -1825,7 +1825,7 @@ Sin texto fuera del JSON."""
 
 
 async def summarize_news_article(title: str, content: str) -> str:
-    """Summarize a financial news article with structured, emoji-enhanced output in Spanish.
+    """Summarize a financial news article as a single plain paragraph in Spanish.
 
     `content` is the actual extracted article text (via trafilatura), not just the
     headline — when it's missing, we tell the user honestly instead of having the
@@ -1839,23 +1839,12 @@ async def summarize_news_article(title: str, content: str) -> str:
 Fragmento del artículo:
 {content[:4000]}
 
-Eres el analista financiero de Nuvos AI. Resume esta noticia para un inversor de largo plazo en español, basándote ÚNICAMENTE en el fragmento del artículo de arriba.
+Eres el analista financiero de Nuvos AI. Lee el fragmento del artículo de arriba y resúmelo para un inversor de largo plazo, basándote ÚNICAMENTE en ese contenido.
 
-Usa EXACTAMENTE este formato — no lo cambies:
-
-📌 **¿Qué pasó?**
-[1-2 oraciones. Explica el hecho central de forma directa y concisa, con datos concretos del artículo.]
-
-📈 **¿Por qué importa para los mercados?**
-[1-2 oraciones. Impacto en la acción, sector o mercado en general.]
-
-🧠 **Contexto clave**
-[1-2 oraciones. Dato histórico, tendencia o comparativa que ayude a entender la magnitud.]
-
-⚠️ **Riesgo / oportunidad**
-[1 oración. ¿Qué debería tener en mente el inversor de largo plazo?]
-
-Reglas: Sin frases como "Este artículo..." o "La noticia indica...". Sin introducciones. Tono directo, claro y educativo."""
+Reglas:
+- Un solo párrafo corrido, sin subtítulos, viñetas ni emojis.
+- 3-5 oraciones: el hecho central con datos concretos del artículo, por qué importa para la acción/sector/mercado, y qué debería tener en mente el inversor de largo plazo.
+- Sin frases como "Este artículo..." o "La noticia indica...". Sin introducciones. Tono directo, claro y educativo. En español."""
     else:
         prompt = f"""Titular: {title}
 
