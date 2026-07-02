@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import {
   TrendingUp, TrendingDown, Sparkles, BookOpen,
-  Bell, ChevronRight, GraduationCap, Newspaper, Target, Flame, Building2,
+  Bell, ChevronRight, GraduationCap, Newspaper, Target, Flame, Building2, X,
 } from "lucide-react";
 import AppSidebar from "@/components/AppSidebar";
 import MarketTickerBar from "@/components/MarketTickerBar";
@@ -412,6 +412,18 @@ export default function HomePage() {
   // account has actual positions, this onboarding pitch is no longer relevant to them.
   const isBeginnerMode = isGuest || !isAuthenticated || ((userLevel === "basico" || userLevel === "intermedio") && positions.length === 0);
 
+  const [beginnerCardDismissed, setBeginnerCardDismissed] = useState(
+    () => typeof window !== "undefined" && localStorage.getItem("nuvos_beginner_card_dismissed") === "1"
+  );
+  const dismissBeginnerCard = () => {
+    localStorage.setItem("nuvos_beginner_card_dismissed", "1");
+    setBeginnerCardDismissed(true);
+  };
+  const reopenBeginnerCard = () => {
+    localStorage.removeItem("nuvos_beginner_card_dismissed");
+    setBeginnerCardDismissed(false);
+  };
+
   // ── Onboarding checklist ─────────────────────────────────────────────────
   const [checklistPermanentlyDone, setChecklistPermanentlyDone] = useState(
     () => typeof window !== "undefined" && localStorage.getItem("nuvos_checklist_done") === "1"
@@ -749,6 +761,14 @@ export default function HomePage() {
                       style={{ background: marketOpen ? "#22c55e" : "var(--dim)" }} />
                 {marketOpen ? "Mercado abierto" : "Mercado cerrado"}
               </div>
+              {isBeginnerMode && beginnerCardDismissed && (
+                <button onClick={reopenBeginnerCard}
+                        title="Mostrar guía para empezar"
+                        className="relative w-9 h-9 flex items-center justify-center rounded-xl border transition-colors hover:border-[var(--accent)]"
+                        style={{ borderColor: "var(--border)", background: "var(--raised)" }}>
+                  <GraduationCap className="w-4 h-4" style={{ color: "var(--sub)" }} />
+                </button>
+              )}
               <button onClick={() => router.push("/notifications")}
                       className="relative w-9 h-9 flex items-center justify-center rounded-xl border transition-colors hover:border-[var(--accent)]"
                       style={{ borderColor: "var(--border)", background: "var(--raised)" }}>
@@ -771,14 +791,20 @@ export default function HomePage() {
             )}
 
             {/* ── Guía para principiantes / modo guest ─────────────────── */}
-            {isBeginnerMode && (
-              <div className="rounded-2xl border overflow-hidden"
+            {isBeginnerMode && !beginnerCardDismissed && (
+              <div className="rounded-2xl border overflow-hidden relative"
                    style={{ borderColor: "rgba(0,212,126,0.25)", background: "var(--card)" }}>
                 <div className="h-1" style={{ background: "linear-gradient(90deg,#00d47e,#00a8ff)" }} />
+                <button onClick={dismissBeginnerCard}
+                        aria-label="Cerrar"
+                        className="absolute top-3 right-3 w-7 h-7 flex items-center justify-center rounded-lg transition-opacity hover:opacity-70"
+                        style={{ color: "var(--muted)" }}>
+                  <X className="w-4 h-4" />
+                </button>
                 <div className="p-5">
                   <p className="text-[10px] font-bold uppercase tracking-widest mb-1"
                      style={{ color: "var(--accent-l)" }}>Tu camino para empezar</p>
-                  <h3 className="text-base font-black mb-1" style={{ color: "var(--text)" }}>
+                  <h3 className="text-base font-black mb-1 pr-8" style={{ color: "var(--text)" }}>
                     Invierte con confianza, paso a paso
                   </h3>
                   <p className="text-xs mb-4" style={{ color: "var(--muted)" }}>
