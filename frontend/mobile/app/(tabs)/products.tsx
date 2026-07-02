@@ -1,11 +1,11 @@
 import React, { useState } from "react";
 import {
-  View, Text, ScrollView, TouchableOpacity,
+  View, Text, ScrollView, TouchableOpacity, Linking,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { router } from "expo-router";
 import { useTheme } from "../../src/lib/ThemeContext";
 import { useSubscriptionStore, hasPremiumAccess } from "../../src/lib/subscriptionStore";
+import { upsellsApi } from "../../src/lib/api";
 import PricingModal from "../../src/components/PricingModal";
 
 const FREE_FEATURES = [
@@ -51,7 +51,8 @@ const ONE_TIME = [
     ],
     priceFree: "$34.99 USD",
     pricePremium: "$19.99 USD",
-    route: "/(tabs)/portfolio",
+    offer: "annual_report",
+    variant: "default",
   },
   {
     emoji: "📱",
@@ -63,7 +64,8 @@ const ONE_TIME = [
     ],
     priceFree: "$149 USD",
     pricePremium: "$99 USD",
-    route: "/(tabs)/support",
+    offer: "session",
+    variant: "default",
   },
   {
     emoji: "📦",
@@ -76,7 +78,8 @@ const ONE_TIME = [
     ],
     pricePremium: "$247 USD",
     note: "Solo Premium",
-    route: "/(tabs)/support",
+    offer: "session",
+    variant: "bundle",
   },
 ];
 
@@ -90,6 +93,18 @@ export default function ProductsScreen() {
   const subStore = useSubscriptionStore();
   const isPremium = hasPremiumAccess(subStore);
   const [showPricing, setShowPricing] = useState(false);
+  const [checkoutLoading, setCheckoutLoading] = useState<string | null>(null);
+
+  async function handleCheckout(offer: string, variant: string) {
+    const key = offer + variant;
+    setCheckoutLoading(key);
+    try {
+      const res = await upsellsApi.checkout(offer, variant, "products_page");
+      const url = res?.data?.url;
+      if (url) await Linking.openURL(url);
+    } catch {}
+    setCheckoutLoading(null);
+  }
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
@@ -224,11 +239,14 @@ export default function ProductsScreen() {
                 )}
 
                 <TouchableOpacity
-                  onPress={() => router.push(p.route as any)}
-                  style={{ backgroundColor: "#00d47e", borderRadius: 12, paddingVertical: 10, alignItems: "center", marginBottom: 12 }}
+                  onPress={() => handleCheckout(p.offer, p.variant)}
+                  disabled={checkoutLoading === p.offer + p.variant}
+                  style={{ backgroundColor: "#00d47e", borderRadius: 12, paddingVertical: 10, alignItems: "center", marginBottom: 12, opacity: checkoutLoading === p.offer + p.variant ? 0.6 : 1 }}
                   activeOpacity={0.85}
                 >
-                  <Text style={{ fontSize: 12, fontWeight: "900", color: "#000" }}>Ver detalles →</Text>
+                  <Text style={{ fontSize: 12, fontWeight: "900", color: "#000" }}>
+                    {checkoutLoading === p.offer + p.variant ? "Abriendo..." : "Comprar →"}
+                  </Text>
                 </TouchableOpacity>
 
                 {p.features.map((f, fi) => (
