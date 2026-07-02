@@ -216,19 +216,20 @@ function MobileHeader({ title }: { title: string }) {
         {/* Spacer pushes right-side icons to the edge */}
         <View style={{ flex: 1 }} />
 
-        {/* Notification bell */}
-        <TouchableOpacity
-          style={headerStyles.bellBtn}
-          onPress={() => router.navigate("/(tabs)/notifications")}
-          activeOpacity={0.7}
-        >
-          <Ionicons name="notifications-outline" size={22} color={colors.textSub} />
-        </TouchableOpacity>
+        {/* Notification bell + theme toggle — kept tight together */}
+        <View style={{ flexDirection: "row", alignItems: "center" }}>
+          <TouchableOpacity
+            style={headerStyles.bellBtn}
+            onPress={() => router.navigate("/(tabs)/notifications")}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="notifications-outline" size={22} color={colors.textSub} />
+          </TouchableOpacity>
 
-        {/* Theme toggle */}
-        <TouchableOpacity style={headerStyles.bellBtn} onPress={toggle} activeOpacity={0.7}>
-          <Ionicons name={isDark ? "sunny-outline" : "moon-outline"} size={20} color={colors.textSub} />
-        </TouchableOpacity>
+          <TouchableOpacity style={headerStyles.bellBtn} onPress={toggle} activeOpacity={0.7}>
+            <Ionicons name={isDark ? "sunny-outline" : "moon-outline"} size={20} color={colors.textSub} />
+          </TouchableOpacity>
+        </View>
 
         {/* Avatar / Profile */}
         {profile ? (
@@ -287,7 +288,7 @@ const headerStyles = StyleSheet.create({
     fontSize: 16, fontFamily: "DMSans_700Bold", letterSpacing: -0.3,
     textAlign: "center",
   },
-  bellBtn: { padding: 6 },
+  bellBtn: { paddingVertical: 6, paddingHorizontal: 3 },
   avatar: {
     width: 34, height: 34, borderRadius: 17, borderWidth: 1.5,
     alignItems: "center", justifyContent: "center",
