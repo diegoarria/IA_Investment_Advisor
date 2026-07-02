@@ -1004,6 +1004,7 @@ def _extract_article_text(html: str) -> str:
 @router.post("/summarize-news")
 async def summarize_news(body: dict, user_id: str = Depends(get_current_user_id)):
     """AI summary of a news article — premium-only, enforced on the frontend."""
+    import httpx
     title = (body.get("title") or "").strip()
     url   = (body.get("url") or "").strip()
     if not title:
