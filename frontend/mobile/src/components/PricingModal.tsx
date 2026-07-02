@@ -4,7 +4,7 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "../lib/ThemeContext";
-import { billingApi } from "../lib/api";
+import { billingApi, upsellsApi } from "../lib/api";
 
 const FREE_FEATURES = [
   "Hasta 20 mensajes/día con el mentor IA",
@@ -30,6 +30,13 @@ const PREMIUM_FEATURES = [
   "Evaluación conductual BSCORE",
 ];
 
+const DUO_FEATURES = [
+  "Todo lo de Premium, para ambos",
+  "Perfil y portafolio independientes para cada persona",
+  "Comparte con un familiar o pareja",
+  "Ideal para aprender a invertir juntos",
+];
+
 interface Props {
   visible: boolean;
   onClose: () => void;
@@ -39,6 +46,7 @@ export default function PricingModal({ visible, onClose }: Props) {
   const { colors } = useTheme();
   const [plan, setPlan] = useState<"monthly" | "yearly">("monthly");
   const [loading, setLoading] = useState(false);
+  const [duoLoading, setDuoLoading] = useState(false);
 
   async function handleUpgrade() {
     setLoading(true);
@@ -50,7 +58,19 @@ export default function PricingModal({ visible, onClose }: Props) {
     setLoading(false);
   }
 
+  async function handleDuoCheckout() {
+    setDuoLoading(true);
+    try {
+      const res = await upsellsApi.checkout("family_plan", plan, "pricing_modal");
+      const url = res?.data?.url;
+      if (url) await Linking.openURL(url);
+    } catch {}
+    setDuoLoading(false);
+  }
+
   const regularPrice = plan === "monthly" ? "$12.99" : "$10.50";
+  const duoPrice  = plan === "monthly" ? "$19.99" : "$199.99";
+  const duoPeriod = plan === "monthly" ? "/mes" : "/año";
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
@@ -149,6 +169,43 @@ export default function PricingModal({ visible, onClose }: Props) {
                   <View key={i} style={{ flexDirection: "row", alignItems: "flex-start", gap: 8, marginBottom: 8 }}>
                     <Ionicons name="checkmark" size={14} color="#00d47e" style={{ marginTop: 1 }} />
                     <Text style={{ fontSize: 12, color: "rgba(255,255,255,0.8)", flex: 1 }}>{f}</Text>
+                  </View>
+                ))}
+              </View>
+
+              {/* Duo card */}
+              <View style={{ borderRadius: 20, borderWidth: 1.5, padding: 16, borderColor: "rgba(99,102,241,0.4)", backgroundColor: "#0d1020", overflow: "hidden" }}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 2 }}>
+                  <Text style={{ fontSize: 18 }}>👫</Text>
+                  <Text style={{ fontSize: 16, fontWeight: "900", color: "#fff" }}>Duo Plan</Text>
+                  <View style={{ backgroundColor: "rgba(99,102,241,0.2)", borderRadius: 8, paddingHorizontal: 8, paddingVertical: 2 }}>
+                    <Text style={{ fontSize: 9, fontWeight: "900", color: "#818cf8" }}>NUEVO</Text>
+                  </View>
+                </View>
+
+                <View style={{ flexDirection: "row", alignItems: "baseline", gap: 4, marginBottom: 2 }}>
+                  <Text style={{ fontSize: 28, fontWeight: "900", color: "#fff" }}>{duoPrice}</Text>
+                  <Text style={{ fontSize: 12, color: "rgba(255,255,255,0.5)" }}>USD {duoPeriod}</Text>
+                </View>
+                <Text style={{ fontSize: 10, color: "rgba(255,255,255,0.4)", marginBottom: 14 }}>
+                  {plan === "monthly" ? "Facturado mensualmente" : "$16.67/mes · Ahorra $40.87 vs mensual"}
+                </Text>
+
+                <TouchableOpacity
+                  onPress={handleDuoCheckout}
+                  disabled={duoLoading}
+                  style={{ backgroundColor: duoLoading ? "rgba(99,102,241,0.4)" : "rgba(99,102,241,0.2)", borderWidth: 1, borderColor: "rgba(99,102,241,0.4)", borderRadius: 14, paddingVertical: 12, alignItems: "center", marginBottom: 14 }}
+                  activeOpacity={0.85}
+                >
+                  <Text style={{ fontSize: 14, fontWeight: "900", color: "#818cf8" }}>
+                    {duoLoading ? "Abriendo..." : "Contratar Duo Plan"}
+                  </Text>
+                </TouchableOpacity>
+
+                {DUO_FEATURES.map((f, i) => (
+                  <View key={i} style={{ flexDirection: "row", alignItems: "flex-start", gap: 8, marginBottom: 8 }}>
+                    <Ionicons name="checkmark" size={14} color="#818cf8" style={{ marginTop: 1 }} />
+                    <Text style={{ fontSize: 12, color: "rgba(255,255,255,0.75)", flex: 1 }}>{f}</Text>
                   </View>
                 ))}
               </View>

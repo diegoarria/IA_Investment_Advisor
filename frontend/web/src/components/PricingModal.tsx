@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { X, Check, Lock } from "lucide-react";
-import { billing } from "@/lib/api";
+import { billing, upsells } from "@/lib/api";
 
 const FREE_FEATURES = [
   "Hasta 20 mensajes/día con el mentor IA",
@@ -28,6 +28,13 @@ const PREMIUM_FEATURES = [
   "Evaluación conductual BSCORE",
 ];
 
+const DUO_FEATURES = [
+  "Todo lo de Premium, para ambos",
+  "Perfil y portafolio independientes para cada persona",
+  "Comparte con un familiar o pareja",
+  "Ideal para aprender a invertir juntos",
+];
+
 interface Props {
   visible: boolean;
   onClose: () => void;
@@ -36,6 +43,7 @@ interface Props {
 export default function PricingModal({ visible, onClose }: Props) {
   const [plan, setPlan] = useState<"monthly" | "yearly">("monthly");
   const [loading, setLoading] = useState(false);
+  const [duoLoading, setDuoLoading] = useState(false);
 
   if (!visible) return null;
 
@@ -49,12 +57,24 @@ export default function PricingModal({ visible, onClose }: Props) {
     }
   }
 
+  async function handleDuoCheckout() {
+    setDuoLoading(true);
+    try {
+      const res = await upsells.checkout("family_plan", plan, "pricing_modal");
+      if (res.data?.url) window.location.href = res.data.url;
+    } catch {
+      setDuoLoading(false);
+    }
+  }
+
   const monthlyPrice = plan === "monthly" ? "$12.99" : "$10.50";
   const yearlyNote   = plan === "yearly" ? "· Ahorra $29.89 vs mensual" : null;
+  const duoPrice     = plan === "monthly" ? "$19.99" : "$199.99";
+  const duoPeriod    = plan === "monthly" ? "/mes" : "/año";
 
   return (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.75)", backdropFilter: "blur(6px)" }}>
-      <div className="w-full max-w-2xl rounded-3xl shadow-2xl flex flex-col" style={{ background: "var(--bg)", border: "1px solid var(--border)", maxHeight: "90vh" }}>
+      <div className="w-full max-w-4xl rounded-3xl shadow-2xl flex flex-col" style={{ background: "var(--bg)", border: "1px solid var(--border)", maxHeight: "90vh" }}>
 
         {/* Header — sticky, always visible */}
         <div className="relative flex items-center justify-center py-5 px-6 border-b shrink-0" style={{ borderColor: "var(--border)" }}>
@@ -89,7 +109,7 @@ export default function PricingModal({ visible, onClose }: Props) {
         </div>
 
         {/* Cards */}
-        <div className="grid grid-cols-2 gap-4 px-6 pb-6">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 px-6 pb-6">
 
           {/* Free card */}
           <div className="rounded-2xl border p-5 flex flex-col" style={{ background: "var(--card)", borderColor: "var(--border)" }}>
@@ -153,6 +173,43 @@ export default function PricingModal({ visible, onClose }: Props) {
                 <div key={i} className="flex items-start gap-2">
                   <Check className="w-3.5 h-3.5 shrink-0 mt-0.5" style={{ color: "#00d47e" }} />
                   <span className="text-xs" style={{ color: "rgba(255,255,255,0.8)" }}>{f}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Duo card */}
+          <div className="rounded-2xl border p-5 flex flex-col relative overflow-hidden" style={{ background: "linear-gradient(135deg, #0d1020 0%, #111827 100%)", borderColor: "rgba(99,102,241,0.4)" }}>
+            <div className="absolute inset-0 pointer-events-none" style={{ background: "radial-gradient(ellipse at top right, rgba(99,102,241,0.07) 0%, transparent 60%)" }} />
+
+            <div className="flex items-center gap-2 mb-1 relative">
+              <span className="text-lg">👫</span>
+              <p className="text-lg font-black text-white">Duo Plan</p>
+              <span className="text-[9px] font-black px-2 py-0.5 rounded-full" style={{ background: "rgba(99,102,241,0.2)", color: "#818cf8" }}>NUEVO</span>
+            </div>
+
+            <div className="flex items-baseline gap-1 mb-1 relative">
+              <span className="text-3xl font-black text-white">{duoPrice}</span>
+              <span className="text-sm" style={{ color: "rgba(255,255,255,0.5)" }}>USD {duoPeriod}</span>
+            </div>
+            <p className="text-[10px] mb-3 relative" style={{ color: "rgba(255,255,255,0.4)" }}>
+              {plan === "monthly" ? "Facturado mensualmente" : "$16.67/mes · Ahorra $40.87 vs mensual"}
+            </p>
+
+            <button
+              onClick={handleDuoCheckout}
+              disabled={duoLoading}
+              className="relative w-full py-2.5 rounded-xl text-sm font-black transition-all mb-5"
+              style={{ background: duoLoading ? "rgba(99,102,241,0.4)" : "rgba(99,102,241,0.2)", border: "1px solid rgba(99,102,241,0.4)", color: "#818cf8" }}
+            >
+              {duoLoading ? "Redirigiendo..." : "Contratar Duo Plan"}
+            </button>
+
+            <div className="relative space-y-2.5 flex-1">
+              {DUO_FEATURES.map((f, i) => (
+                <div key={i} className="flex items-start gap-2">
+                  <Check className="w-3.5 h-3.5 shrink-0 mt-0.5" style={{ color: "#818cf8" }} />
+                  <span className="text-xs" style={{ color: "rgba(255,255,255,0.75)" }}>{f}</span>
                 </div>
               ))}
             </div>

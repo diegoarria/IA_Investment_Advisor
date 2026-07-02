@@ -215,6 +215,11 @@ export const billingApi = {
   duoSetup: (secondary_email: string) => api.post("/api/billing/duo-setup", { secondary_email }),
 };
 
+export const upsellsApi = {
+  checkout: (offer: string, variant: string, trigger_source: string) =>
+    api.post("/api/upsells/checkout", { offer, variant, trigger_source }),
+};
+
 export const learnApi = {
   getScenario: (difficulty: string) => api.post("/api/learn/scenario", { difficulty }),
   submitScenarioResult: (scenarioId: string, choice: string, difficulty: string) =>

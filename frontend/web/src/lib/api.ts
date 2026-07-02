@@ -313,6 +313,11 @@ export const billing = {
   duoSetup: (secondary_email: string) => api.post("/api/billing/duo-setup", { secondary_email }),
 };
 
+export const upsells = {
+  checkout: (offer: string, variant: string, trigger_source: string) =>
+    api.post("/api/upsells/checkout", { offer, variant, trigger_source }),
+};
+
 export const feedbackApi = {
   status: () => api.get("/api/feedback/status"),
   seen:   () => api.post("/api/feedback/seen"),
