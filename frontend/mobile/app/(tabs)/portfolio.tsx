@@ -1438,7 +1438,13 @@ export default function PortfolioScreen() {
             <View>
               <Text style={{ fontSize: 12, fontWeight: "700", color: "#fff" }}>Portafolio en la nube</Text>
               <Text style={{ fontSize: 10, color: "#6b7280" }}>
-                {syncStatus === "syncing" ? "Guardando..." : syncStatus === "saved" ? "✓ Guardado" : syncStatus === "error" ? "⚠ Error al guardar" : lastSaved ? "Sincronizado" : "Sincronizado en todos tus dispositivos"}
+                {syncStatus === "syncing"
+                  ? "Guardando..."
+                  : syncStatus === "error"
+                  ? "⚠ Error al guardar"
+                  : lastSaved
+                  ? `${syncStatus === "saved" ? "✓ Guardado" : "Guardado"} ${new Date(lastSaved).toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" })}`
+                  : "Sincronizado en todos tus dispositivos"}
               </Text>
             </View>
           </View>
