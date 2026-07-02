@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { useThemeStore, useAuthStore, useWatchlistStore, useLearnStore } from "@/lib/store";
 import { usePortfolioStore } from "@/lib/portfolioStore";
@@ -16,6 +16,8 @@ export default function ThemeProvider({ children }: { children: React.ReactNode 
   const lastSyncRef = useRef<number>(0);
   const pathname = usePathname();
   const isAuthPage = pathname === "/" || pathname?.startsWith("/auth") || pathname === "/join";
+  const [newVersionAvailable, setNewVersionAvailable] = useState(false);
+  const [bannerDismissed, setBannerDismissed] = useState(false);
 
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", theme);
@@ -130,8 +132,50 @@ export default function ThemeProvider({ children }: { children: React.ReactNode 
     };
   }, [isAuthenticated]);
 
+  // Detect a stale tab: an open tab keeps running whatever JS it loaded with —
+  // it never picks up a new deploy on its own. /api/version always reflects the
+  // currently-deployed code, so comparing it against the SHA baked into this
+  // tab's own bundle tells us if we're running old code, no matter how many
+  // fixes have since shipped to production.
+  useEffect(() => {
+    const builtSha = process.env.NEXT_PUBLIC_BUILD_SHA;
+    if (!builtSha || builtSha === "dev") return; // local dev — nothing to compare against
+
+    const checkVersion = () => {
+      fetch("/api/version", { cache: "no-store" })
+        .then((res) => res.json())
+        .then((data: { sha?: string }) => {
+          if (data?.sha && data.sha !== builtSha) setNewVersionAvailable(true);
+        })
+        .catch(() => {});
+    };
+
+    checkVersion();
+    const interval = setInterval(checkVersion, 5 * 60 * 1000);
+    const onVisibility = () => { if (document.visibilityState === "visible") checkVersion(); };
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, []);
+
   return (
     <div style={isAuthPage ? {} : { height: "100vh", overflow: "hidden" }}>
+      {newVersionAvailable && !bannerDismissed && (
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 px-4 py-2.5 rounded-xl shadow-lg text-sm font-semibold"
+             style={{ background: "var(--card)", border: "1px solid var(--accent)", color: "var(--text)" }}>
+          <span>Hay una nueva versión disponible</span>
+          <button onClick={() => window.location.reload()}
+                  className="px-3 py-1 rounded-lg text-xs font-black"
+                  style={{ background: "var(--accent)", color: "#000" }}>
+            Recargar
+          </button>
+          <button onClick={() => setBannerDismissed(true)} aria-label="Cerrar" style={{ color: "var(--muted)" }}>
+            ✕
+          </button>
+        </div>
+      )}
       {children}
     </div>
   );
