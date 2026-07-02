@@ -8,6 +8,7 @@ import * as SecureStore from "expo-secure-store";
 import { router, usePathname } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAppStore, getAge } from "../lib/profileStore";
+import { useSubscriptionStore, hasPremiumAccess } from "../lib/subscriptionStore";
 import { useChatStore } from "../lib/chatStore";
 import { useTheme } from "../lib/ThemeContext";
 import MarketTicker from "./MarketTicker";
@@ -52,7 +53,8 @@ function ProfileCard({ colors }: { colors: ReturnType<typeof useTheme>["colors"]
   const seg = RISK_SEGMENTS.find((s) => s.key === profile.risk_tolerance);
   const level = getUserLevel(profile);
   const levelColor = LEVEL_COLOR[level];
-  const isPremium = (profile as any).subscription_tier === "premium";
+  const subStore = useSubscriptionStore();
+  const isPremium = hasPremiumAccess(subStore);
   const age = getAge(profile.birth_date ?? "");
 
   return (
