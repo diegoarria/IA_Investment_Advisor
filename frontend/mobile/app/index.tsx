@@ -102,8 +102,6 @@ export default function AuthScreen() {
         }
         if (syncRes.status === "fulfilled") {
           const d = syncRes.value.data;
-          if (d.portfolio?.positions?.length)
-            usePortfolioStore.getState().restoreFromServer(d.portfolio.positions);
           if (d.paper)
             usePaperStore.getState().restoreFromServer({
               cash: d.paper.cash, positions: d.paper.positions,
@@ -123,6 +121,10 @@ export default function AuthScreen() {
             }));
           }
         }
+        // Portfolio uses its own store method, not the /sync/all "default" snapshot
+        // above — that shape ignores which portfolio is actually active on this
+        // device and has no guard against overwriting a pending local edit.
+        usePortfolioStore.getState().loadFromServer().catch(() => {});
         useChatStore.getState().restoreFromServer().catch(() => {});
         router.replace(await getStartRoute() as any);
       } catch {
@@ -176,8 +178,6 @@ export default function AuthScreen() {
       }
       if (syncRes.status === "fulfilled") {
         const d = syncRes.value.data;
-        if (d.portfolio?.positions?.length)
-          usePortfolioStore.getState().restoreFromServer(d.portfolio.positions);
         if (d.paper)
           usePaperStore.getState().restoreFromServer({
             cash: d.paper.cash, positions: d.paper.positions,
@@ -192,6 +192,9 @@ export default function AuthScreen() {
         if (d.trial?.trial_started_at)
           useSubscriptionStore.setState({ trialStartDate: d.trial.trial_started_at });
       }
+      // Portfolio uses its own store method — see comment at the other call site
+      // in this file for why the /sync/all "default" snapshot isn't safe here.
+      usePortfolioStore.getState().loadFromServer().catch(() => {});
       useChatStore.getState().restoreFromServer().catch(() => {});
       const hasLocalProfile = !!useAppStore.getState().profile?.name;
       if (profileRes.status === "fulfilled") {

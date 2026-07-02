@@ -45,7 +45,6 @@ interface PortfolioStore {
   clearPortfolio: () => void;
   retrySync: () => void;
   loadFromServer: () => Promise<void>;
-  restoreFromServer: (positions: Omit<Position, "id">[], currency?: string) => void;
 
   // Multi-portfolio management
   switchPortfolio: (portfolioId: string) => void;
@@ -163,17 +162,6 @@ export const usePortfolioStore = create<PortfolioStore>()(
         retrySync: () => {
           const active = getActive();
           push(active.positions, active.currency, active.id, active.name);
-        },
-
-        restoreFromServer: (list, currency) => {
-          const active = getActive();
-          if (!list.length && active.positions.length > 0) {
-            push(active.positions, currency ?? active.currency, active.id, active.name);
-            return;
-          }
-          if (!list.length) return;
-          const positions = list.map((p, i) => ({ ...p, id: `${p.ticker}-restore-${i}` }));
-          updateActive(positions, currency);
         },
 
         switchPortfolio: (portfolioId) => {

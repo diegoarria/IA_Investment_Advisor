@@ -313,18 +313,20 @@ export default function TabsLayout() {
     loadOrder();
     loadWatchlist();
 
-    // Refresh portfolio, paper trading, and maturity from server
+    // Portfolio has its own store method for this: it fetches every portfolio by
+    // its real id (not just "default", which /sync/all always returns regardless
+    // of which portfolio is actually active on this device), and skips the pull
+    // entirely while a local edit is still pending so it can never overwrite a
+    // more recent local change with a stale server snapshot.
+    import("../../src/lib/portfolioStore").then(({ usePortfolioStore }) => {
+      usePortfolioStore.getState().loadFromServer();
+    }).catch(() => {});
+
+    // Refresh paper trading and maturity from server
     import("../../src/lib/api").then(({ syncApi }) => {
       syncApi.getAll().then((res) => {
         const data = res.data;
         if (!data) return;
-
-        // Portfolio — only restore if server has data; never overwrite local with empty
-        if (data.portfolio?.positions?.length) {
-          import("../../src/lib/portfolioStore").then(({ usePortfolioStore }) => {
-            usePortfolioStore.getState().restoreFromServer(data.portfolio.positions, data.portfolio.currency);
-          }).catch(() => {});
-        }
 
         // Paper trading
         if (data.paper) {
