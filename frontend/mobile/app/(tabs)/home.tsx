@@ -337,6 +337,7 @@ export default function HomeScreen() {
   const { colors } = useTheme();
   const profile    = useAppStore((s) => s.profile);
   const setProfile = useAppStore((s) => s.setProfile);
+  const openSidebar = useAppStore((s) => s.openSidebar);
   const maturity   = useAppStore((s) => s.maturityScore);
   const streak              = useLearnStore((s) => s.streak);
   const completedToday      = useLearnStore((s) => s.completedToday);
@@ -1114,9 +1115,15 @@ export default function HomeScreen() {
 
       {/* ── Header ─────────────────────────────────────────────────────────── */}
       <View style={[ss.header, { backgroundColor: colors.bg, borderBottomColor: colors.border }]}>
-        <View>
-          <Text style={[ss.greeting, { color: colors.textMuted }]}>{greeting()},</Text>
-          <Text style={[ss.name, { color: colors.text }]}>{firstName} 👋</Text>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+          <TouchableOpacity onPress={openSidebar} style={{ width: 36, height: 36, justifyContent: "center", gap: 6 }} activeOpacity={0.7}>
+            <View style={{ height: 2, borderRadius: 1, width: 22, backgroundColor: colors.textSub }} />
+            <View style={{ height: 2, borderRadius: 1, width: 14, backgroundColor: colors.accentLight }} />
+          </TouchableOpacity>
+          <View>
+            <Text style={[ss.greeting, { color: colors.textMuted }]}>{greeting()},</Text>
+            <Text style={[ss.name, { color: colors.text }]}>{firstName} 👋</Text>
+          </View>
         </View>
         <View style={ss.headerRight}>
           {/* Market open/closed dot */}

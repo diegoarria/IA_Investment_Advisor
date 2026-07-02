@@ -8,6 +8,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
 import MobileTourBanner from "../../src/components/MobileTourBanner";
 import { useTheme } from "../../src/lib/ThemeContext";
+import { useAppStore } from "../../src/lib/profileStore";
 import { useLearnStore } from "../../src/lib/learnStore";
 
 // ─── Sub-tabs ────────────────────────────────────────────────────────────────
@@ -144,6 +145,7 @@ function VideosTab({ colors }: { colors: any }) {
 
 export default function AcademyScreen() {
   const { colors } = useTheme();
+  const openSidebar = useAppStore((s) => s.openSidebar);
   const [activeTab, setActiveTab] = useState<TabId>("Aprendizaje");
   const { tour } = useLocalSearchParams<{ tour?: string }>();
   const isTour = tour === "4";
@@ -151,7 +153,11 @@ export default function AcademyScreen() {
   return (
     <SafeAreaView edges={["top"]} style={[ss.safe, { backgroundColor: colors.bg }]}>
       {/* Header */}
-      <View style={[ss.header, { borderBottomColor: colors.border }]}>
+      <View style={[ss.header, { borderBottomColor: colors.border, flexDirection: "row", alignItems: "center", gap: 10 }]}>
+        <TouchableOpacity onPress={openSidebar} style={{ width: 36, height: 36, justifyContent: "center", gap: 6 }} activeOpacity={0.7}>
+          <View style={{ height: 2, borderRadius: 1, width: 22, backgroundColor: colors.textSub }} />
+          <View style={{ height: 2, borderRadius: 1, width: 14, backgroundColor: colors.accentLight }} />
+        </TouchableOpacity>
         <View>
           <Text style={[ss.headerSub, { color: colors.textMuted }]}>Aprende e invierte</Text>
           <Text style={[ss.headerTitle, { color: colors.text }]}>Academy</Text>

@@ -7,6 +7,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { useTheme } from "../../src/lib/ThemeContext";
+import { useAppStore } from "../../src/lib/profileStore";
 import { usePortfolioStore } from "../../src/lib/portfolioStore";
 import { useWatchlistStore } from "../../src/lib/watchlistStore";
 import { usePaperStore, PAPER_INITIAL_CASH } from "../../src/lib/paperStore";
@@ -339,6 +340,7 @@ function SimuladorTab({ prices, loading, colors }: { prices: PriceMap; loading: 
 
 export default function PatrimonioScreen() {
   const { colors } = useTheme();
+  const openSidebar = useAppStore((s) => s.openSidebar);
   const [activeTab, setActiveTab] = useState<TabId>("Portafolio");
   const [prices, setPrices] = useState<PriceMap>({});
   const [pricesLoading, setPricesLoading] = useState(false);
@@ -373,7 +375,11 @@ export default function PatrimonioScreen() {
   return (
     <SafeAreaView edges={["top"]} style={[ss.safe, { backgroundColor: colors.bg }]}>
       {/* Header */}
-      <View style={[ss.header, { borderBottomColor: colors.border }]}>
+      <View style={[ss.header, { borderBottomColor: colors.border, flexDirection: "row", alignItems: "center", gap: 10 }]}>
+        <TouchableOpacity onPress={openSidebar} style={{ width: 36, height: 36, justifyContent: "center", gap: 6 }} activeOpacity={0.7}>
+          <View style={{ height: 2, borderRadius: 1, width: 22, backgroundColor: colors.textSub }} />
+          <View style={{ height: 2, borderRadius: 1, width: 14, backgroundColor: colors.accentLight }} />
+        </TouchableOpacity>
         <View>
           <Text style={[ss.headerSub, { color: colors.textMuted }]}>Mi dinero</Text>
           <Text style={[ss.headerTitle, { color: colors.text }]}>Patrimonio</Text>
