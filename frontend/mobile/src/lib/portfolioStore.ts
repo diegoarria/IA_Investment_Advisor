@@ -57,21 +57,34 @@ const DEFAULT_PORTFOLIO: Portfolio = { id: "default", name: "Mi portafolio", pos
 export const usePortfolioStore = create<PortfolioStore>()(
   persist(
     (set, get) => {
-      const push = (positions: Position[], currency: string, portfolioId: string, portfolioName: string) => {
+      // Requests to the portfolio sync endpoint must never race: each one sends the
+      // *full* position list, so if two overlap, whichever the server finishes last
+      // wins — even if it was sent first. Chaining them onto a single in-flight
+      // promise guarantees the server always processes writes in the order made.
+      let pushChain: Promise<void> = Promise.resolve();
+
+      const push = (positions: Position[], currency: string, portfolioId: string, portfolioName: string): Promise<void> => {
         set({ syncStatus: "syncing", pendingSync: true });
-        import("./api").then(({ syncApi }) => {
-          syncApi.pushPortfolio(
-            positions.map((p) => ({ ticker: p.ticker, name: p.name, shares: p.shares, avgPrice: p.avgPrice, purchaseDate: p.purchaseDate })),
-            currency,
-            portfolioId,
-            portfolioName,
-          )
-            .then(() => {
-              set({ syncStatus: "saved", lastSaved: new Date().toISOString(), pendingSync: false });
-              setTimeout(() => { if (get().syncStatus === "saved") set({ syncStatus: "idle" }); }, 4000);
-            })
-            .catch(() => { set({ syncStatus: "error" }); });
-        });
+        const doFetch = (): Promise<void> =>
+          import("./api").then(({ syncApi }) =>
+            syncApi.pushPortfolio(
+              positions.map((p) => ({ ticker: p.ticker, name: p.name, shares: p.shares, avgPrice: p.avgPrice, purchaseDate: p.purchaseDate })),
+              currency,
+              portfolioId,
+              portfolioName,
+            )
+              .then(() => {
+                set({ syncStatus: "saved", lastSaved: new Date().toISOString(), pendingSync: false });
+                setTimeout(() => { if (get().syncStatus === "saved") set({ syncStatus: "idle" }); }, 4000);
+              })
+              .catch((err) => {
+                set({ syncStatus: "error" });
+                throw err;
+              })
+          );
+        const result = pushChain.then(doFetch, doFetch);
+        pushChain = result.catch(() => {}); // keep the chain alive after a failed push
+        return result;
       };
 
       const getActive = (): Portfolio => {
