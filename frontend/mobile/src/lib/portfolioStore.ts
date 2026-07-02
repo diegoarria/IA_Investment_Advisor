@@ -62,6 +62,11 @@ export const usePortfolioStore = create<PortfolioStore>()(
       // wins — even if it was sent first. Chaining them onto a single in-flight
       // promise guarantees the server always processes writes in the order made.
       let pushChain: Promise<void> = Promise.resolve();
+      // Tracks a portfolio mid-deletion so loadFromServer()'s pendingSync fallback
+      // (below) doesn't "helpfully" re-push it — which would recreate it right
+      // after the delete lands, since the still-active portfolio during the
+      // deletion window is the one being removed.
+      let deletingPortfolioId: string | null = null;
 
       const push = (positions: Position[], currency: string, portfolioId: string, portfolioName: string): Promise<void> => {
         set({ syncStatus: "syncing", pendingSync: true });
@@ -180,7 +185,21 @@ export const usePortfolioStore = create<PortfolioStore>()(
 
         deletePortfolio: async (portfolioId) => {
           const { syncApi } = await import("./api");
-          await syncApi.deletePortfolio(portfolioId);
+          // Flag pendingSync so a loadFromServer() already in flight can't land
+          // mid-delete and pull a stale portfolio list that resurrects this one.
+          set({ pendingSync: true });
+          deletingPortfolioId = portfolioId;
+          // Chain onto pushChain: a queued position-edit upsert for this portfolio
+          // must never land on the server after the delete and recreate the row.
+          const doDelete = (): Promise<void> => syncApi.deletePortfolio(portfolioId).then(() => {});
+          const result = pushChain.then(doDelete, doDelete);
+          pushChain = result.catch(() => {});
+          try {
+            await result;
+          } finally {
+            set({ pendingSync: false });
+            deletingPortfolioId = null;
+          }
           const { portfolios, activePortfolioId } = get();
           const remaining = portfolios.filter(p => p.id !== portfolioId);
           const list = remaining.length ? remaining : [DEFAULT_PORTFOLIO];
@@ -205,7 +224,11 @@ export const usePortfolioStore = create<PortfolioStore>()(
           try {
             const { syncApi } = await import("./api");
             const { pendingSync } = get();
-            if (pendingSync) { const a = getActive(); push(a.positions, a.currency, a.id, a.name); return; }
+            if (pendingSync) {
+              const a = getActive();
+              if (a.id !== deletingPortfolioId) push(a.positions, a.currency, a.id, a.name);
+              return;
+            }
             try {
               // Try new multi-portfolio endpoint first (requires migration 018)
               const res = await syncApi.getAllPortfolios();

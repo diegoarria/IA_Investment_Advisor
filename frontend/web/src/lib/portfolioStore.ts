@@ -61,6 +61,11 @@ export const usePortfolioStore = create<PortfolioStore>()(
       // even if it was sent first. Chaining them onto a single in-flight promise
       // guarantees the server always processes writes in the order they were made.
       let pushChain: Promise<void> = Promise.resolve();
+      // Tracks a portfolio mid-deletion so loadFromServer()'s pendingSync fallback
+      // (below) doesn't "helpfully" re-push it — which would recreate it right
+      // after the delete lands, since the still-active portfolio during the
+      // deletion window is the one being removed.
+      let deletingPortfolioId: string | null = null;
 
       /** Push active portfolio to server — returns Promise so callers can await completion */
       const push = (positions: Position[], currency: string, portfolioId: string, portfolioName: string): Promise<void> => {
@@ -186,7 +191,24 @@ export const usePortfolioStore = create<PortfolioStore>()(
 
         deletePortfolio: async (portfolioId) => {
           const { sync } = await import("./api");
-          await sync.deletePortfolio(portfolioId);
+          // Flag pendingSync so a loadFromServer() that's already in flight (e.g. the
+          // 30s background sync) can't land mid-delete and pull a stale portfolio
+          // list that still includes this one, resurrecting it locally.
+          set({ pendingSync: true });
+          deletingPortfolioId = portfolioId;
+          // Chain onto pushChain too: if a position edit for this portfolio was
+          // queued right before the delete, its upsert would otherwise land on the
+          // server *after* the delete and recreate the row. Serializing guarantees
+          // the delete is always the last write for this portfolio.
+          const doDelete = (): Promise<void> => sync.deletePortfolio(portfolioId).then(() => {});
+          const result = pushChain.then(doDelete, doDelete);
+          pushChain = result.catch(() => {});
+          try {
+            await result;
+          } finally {
+            set({ pendingSync: false });
+            deletingPortfolioId = null;
+          }
           const { portfolios, activePortfolioId } = get();
           const remaining = portfolios.filter(p => p.id !== portfolioId);
           const newActive = activePortfolioId === portfolioId ? (remaining[0] ?? DEFAULT_PORTFOLIO) : remaining.find(p => p.id === activePortfolioId) ?? remaining[0] ?? DEFAULT_PORTFOLIO;
@@ -213,7 +235,7 @@ export const usePortfolioStore = create<PortfolioStore>()(
             const { pendingSync } = get();
             if (pendingSync) {
               const active = getActive();
-              push(active.positions, active.currency, active.id, active.name);
+              if (active.id !== deletingPortfolioId) push(active.positions, active.currency, active.id, active.name);
               return;
             }
             try {
