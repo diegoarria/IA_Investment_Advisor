@@ -21,7 +21,6 @@ const TAB_CONFIG: Record<string, { icon: IoniconName; iconFilled: IoniconName; l
   home:          { icon: "home-outline",            iconFilled: "home",            label: "Inicio" },
   chat:          { icon: "sparkles-outline",        iconFilled: "sparkles",        label: "Mentor IA" },
   patrimonio:    { icon: "wallet-outline",          iconFilled: "wallet",          label: "Patrimonio" },
-  products:      { icon: "bag-outline",             iconFilled: "bag",             label: "Productos" },
   academy:       { icon: "school-outline",          iconFilled: "school",          label: "Academy" },
   // ── Secondary screens (accessible from hub screens) ──
   portfolio:     { icon: "pie-chart-outline",       iconFilled: "pie-chart",       label: "Portafolio" },
@@ -33,9 +32,10 @@ const TAB_CONFIG: Record<string, { icon: IoniconName; iconFilled: IoniconName; l
   notifications: { icon: "notifications-outline",   iconFilled: "notifications",   label: "Notificaciones" },
   support:       { icon: "headset-outline",         iconFilled: "headset",         label: "Soporte" },
   profile:       { icon: "person-outline",          iconFilled: "person",          label: "Perfil" },
+  products:      { icon: "bag-outline",             iconFilled: "bag",             label: "Productos" },
 };
 
-const FIXED_TABS = ["home", "chat", "patrimonio", "products", "academy"] as const;
+const FIXED_TABS = ["home", "chat", "patrimonio", "academy"] as const;
 
 const GOAL_MAP: Record<string, { label: string; emoji: string }> = {
   house:             { label: "Comprar una casa",         emoji: "🏠" },
@@ -375,7 +375,6 @@ export default function TabsLayout() {
       <Tabs.Screen name="home"       options={{ headerShown: false }} />
       <Tabs.Screen name="chat"       options={{ title: "Mentor IA",      header: () => <MobileHeader title="Mentor IA" /> }} />
       <Tabs.Screen name="patrimonio" options={{ headerShown: false }} />
-      <Tabs.Screen name="products"   options={{ headerShown: false }} />
       <Tabs.Screen name="academy"    options={{ headerShown: false }} />
       {/* ── Secondary screens (accessible from hub pages) ─────────────── */}
       <Tabs.Screen name="portfolio"     options={{ title: "Portafolio",    header: () => <MobileHeader title="Mi Portafolio" /> }} />
@@ -386,6 +385,7 @@ export default function TabsLayout() {
       <Tabs.Screen name="investors"     options={{ title: "Inversores",    header: () => <MobileHeader title="Inversores" /> }} />
       <Tabs.Screen name="notifications" options={{ title: "Notificaciones", header: () => <MobileHeader title="Notificaciones" /> }} />
       <Tabs.Screen name="profile"       options={{ title: "Perfil",        header: () => <MobileHeader title="Mi Perfil" /> }} />
+      <Tabs.Screen name="products"      options={{ title: "Productos",     header: () => <MobileHeader title="Productos y Servicios" /> }} />
       <Tabs.Screen name="support"       options={{ title: "Soporte",       header: () => <MobileHeader title="Soporte" /> }} />
       <Tabs.Screen name="explore"       options={{ href: null }} />
     </Tabs>

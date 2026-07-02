@@ -1,8 +1,7 @@
 import React, { useState } from "react";
 import {
-  View, Text, ScrollView, TouchableOpacity, StyleSheet,
+  View, Text, ScrollView, TouchableOpacity,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { useTheme } from "../../src/lib/ThemeContext";
@@ -93,15 +92,7 @@ export default function ProductsScreen() {
   const [showPricing, setShowPricing] = useState(false);
 
   return (
-    <SafeAreaView edges={["top"]} style={[ss.safe, { backgroundColor: colors.bg }]}>
-      {/* Header */}
-      <View style={[ss.header, { borderBottomColor: colors.border }]}>
-        <View>
-          <Text style={[ss.headerSub, { color: colors.textMuted }]}>Planes y servicios</Text>
-          <Text style={[ss.headerTitle, { color: colors.text }]}>Productos</Text>
-        </View>
-      </View>
-
+    <View style={{ flex: 1, backgroundColor: colors.bg }}>
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 40, gap: 24 }} showsVerticalScrollIndicator={false}>
 
         {/* ── Suscripción ── */}
@@ -277,25 +268,6 @@ export default function ProductsScreen() {
       </ScrollView>
 
       <PricingModal visible={showPricing} onClose={() => setShowPricing(false)} />
-    </SafeAreaView>
+    </View>
   );
 }
-
-const ss = StyleSheet.create({
-  safe: { flex: 1 },
-  header: {
-    paddingHorizontal: 20,
-    paddingVertical: 14,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-  },
-  headerSub: {
-    fontSize: 11,
-    fontWeight: "600",
-    textTransform: "uppercase",
-  },
-  headerTitle: {
-    fontSize: 26,
-    fontWeight: "900",
-    letterSpacing: -0.5,
-  },
-});
