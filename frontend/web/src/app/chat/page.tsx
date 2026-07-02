@@ -473,12 +473,21 @@ export default function ChatPage() {
         });
     });
 
+    // Retry the history pull shortly after mount. This call has no retry of its
+    // own, so a single cold-start race with auth-token restoration (e.g. a fresh
+    // login on a new browser) can silently leave this tab thinking the account
+    // has no chat history at all, when it actually does on the server. Re-running
+    // loadFromServer() is a safe no-op if the first pull already succeeded — its
+    // merge logic drops the placeholder empty session once real ones land.
+    const retryTimers = [3_000, 8_000, 15_000].map((delay) => setTimeout(loadFromServer, delay));
+
     notifApi.getAll()
       .then((res) => setNotifications(res.data.notifications, res.data.unread_count))
       .catch(() => {});
 
     subStore.fetchStatus().catch(() => {});
     loadPortfolio();
+    return () => retryTimers.forEach(clearTimeout);
   }, [isAuthenticated]);
 
   useEffect(() => {
