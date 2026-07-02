@@ -1,0 +1,849 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Flujo Broker — Nuvos AI</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #0a0a0a;
+    color: #fff;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    padding: 40px 24px 80px;
+  }
+
+  h1 {
+    text-align: center;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: #00d47e;
+    margin-bottom: 6px;
+  }
+  h2 {
+    text-align: center;
+    font-size: 28px;
+    font-weight: 900;
+    color: #fff;
+    margin-bottom: 6px;
+  }
+  .subtitle {
+    text-align: center;
+    font-size: 14px;
+    color: #666;
+    margin-bottom: 60px;
+  }
+
+  /* Flow row */
+  .flow {
+    display: flex;
+    align-items: flex-start;
+    gap: 0;
+    overflow-x: auto;
+    padding-bottom: 20px;
+  }
+
+  /* Step wrapper */
+  .step-wrap {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    flex-shrink: 0;
+  }
+
+  /* Arrow */
+  .arrow {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: 0 8px;
+    flex-shrink: 0;
+    margin-top: 80px;
+  }
+  .arrow-line {
+    width: 32px;
+    height: 2px;
+    background: linear-gradient(90deg, #00d47e, #3b82f6);
+    border-radius: 2px;
+  }
+  .arrow-head {
+    width: 0; height: 0;
+    border-top: 5px solid transparent;
+    border-bottom: 5px solid transparent;
+    border-left: 8px solid #3b82f6;
+    margin-left: 32px;
+    margin-top: -8px;
+  }
+  .arrow-label {
+    font-size: 9px;
+    color: #444;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    white-space: nowrap;
+    margin-top: 6px;
+  }
+
+  /* Phone frame */
+  .phone {
+    width: 220px;
+    background: #111;
+    border-radius: 32px;
+    border: 1.5px solid #222;
+    overflow: hidden;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+    flex-shrink: 0;
+  }
+  .phone-notch {
+    background: #000;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .phone-notch-pill {
+    width: 60px; height: 10px;
+    background: #1a1a1a;
+    border-radius: 10px;
+  }
+  .phone-screen {
+    padding: 12px;
+    min-height: 360px;
+  }
+  .phone-home-bar {
+    height: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #111;
+  }
+  .phone-home-pill {
+    width: 48px; height: 4px;
+    background: #333;
+    border-radius: 4px;
+  }
+
+  /* Step label */
+  .step-label {
+    text-align: center;
+    margin-top: 12px;
+  }
+  .step-num {
+    display: inline-block;
+    width: 22px; height: 22px;
+    border-radius: 50%;
+    background: #00d47e;
+    color: #000;
+    font-size: 11px;
+    font-weight: 900;
+    line-height: 22px;
+    text-align: center;
+    margin-bottom: 4px;
+  }
+  .step-title {
+    font-size: 12px;
+    font-weight: 700;
+    color: #fff;
+    display: block;
+    margin-bottom: 2px;
+  }
+  .step-desc {
+    font-size: 10px;
+    color: #555;
+    line-height: 1.5;
+    max-width: 200px;
+    margin: 0 auto;
+  }
+
+  /* ── SCREEN CONTENT HELPERS ── */
+  .sc-header {
+    font-size: 10px;
+    font-weight: 700;
+    color: #00d47e;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    margin-bottom: 3px;
+  }
+  .sc-title {
+    font-size: 14px;
+    font-weight: 900;
+    color: #fff;
+    margin-bottom: 10px;
+    line-height: 1.3;
+  }
+  .sc-muted { color: #555; font-size: 10px; }
+  .sc-card {
+    background: #1a1a1a;
+    border: 1px solid #222;
+    border-radius: 12px;
+    padding: 10px;
+    margin-bottom: 8px;
+  }
+  .sc-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    background: rgba(245,158,11,0.10);
+    border: 1px solid rgba(245,158,11,0.3);
+    border-radius: 10px;
+    padding: 6px 9px;
+    font-size: 10px;
+    font-weight: 700;
+    color: #f59e0b;
+    margin-bottom: 8px;
+  }
+  .sc-btn {
+    display: block;
+    text-align: center;
+    padding: 8px;
+    border-radius: 10px;
+    font-size: 11px;
+    font-weight: 800;
+    margin-bottom: 6px;
+    cursor: default;
+  }
+  .sc-btn-green  { background: #00d47e; color: #000; }
+  .sc-btn-stripe { background: #635bff; color: #fff; }
+  .sc-btn-outline {
+    border: 1px solid #333;
+    color: #aaa;
+    background: transparent;
+  }
+  .sc-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 6px;
+  }
+  .sc-check {
+    width: 16px; height: 16px;
+    border-radius: 5px;
+    background: rgba(0,212,126,0.15);
+    color: #00d47e;
+    font-size: 9px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  .sc-tag {
+    display: inline-block;
+    font-size: 8px;
+    font-weight: 700;
+    padding: 2px 6px;
+    border-radius: 20px;
+  }
+  .stars { color: #f59e0b; font-size: 10px; }
+  .price-row {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    margin: 10px 0 8px;
+  }
+  .price-big { font-size: 20px; font-weight: 900; color: #fff; }
+  .price-old { font-size: 13px; color: #444; text-decoration: line-through; }
+  .price-badge {
+    background: rgba(239,68,68,0.15);
+    color: #ef4444;
+    font-size: 11px;
+    font-weight: 900;
+    padding: 2px 7px;
+    border-radius: 20px;
+  }
+  .countdown {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    background: rgba(239,68,68,0.08);
+    border: 1px solid rgba(239,68,68,0.2);
+    border-radius: 10px;
+    padding: 8px;
+    margin-bottom: 10px;
+    font-size: 14px;
+    font-weight: 900;
+    color: #ef4444;
+  }
+  /* Stat strip */
+  .stat-strip {
+    display: flex;
+    gap: 5px;
+    margin-bottom: 10px;
+    overflow: hidden;
+  }
+  .stat-chip-sm {
+    flex: 1;
+    background: #1a1a1a;
+    border: 1px solid #222;
+    border-radius: 8px;
+    padding: 5px;
+    font-size: 9px;
+  }
+  .stat-chip-sm .val { font-weight: 800; font-size: 10px; }
+  .stat-chip-sm .lbl { color: #555; }
+  .broker-chip-sm {
+    flex: 1;
+    background: rgba(245,158,11,0.08);
+    border: 1px solid rgba(245,158,11,0.3);
+    border-radius: 8px;
+    padding: 5px;
+    font-size: 9px;
+  }
+  .broker-chip-sm .val { font-weight: 800; font-size: 10px; color: #f59e0b; }
+  .broker-chip-sm .lbl { color: #555; }
+  /* Hero mini */
+  .hero-mini {
+    background: #1a1a1a;
+    border: 1px solid #222;
+    border-radius: 14px;
+    padding: 12px;
+    margin-bottom: 8px;
+  }
+  .hero-mini-label { font-size: 9px; color: #555; margin-bottom: 3px; }
+  .hero-mini-value { font-size: 22px; font-weight: 900; color: #fff; }
+  .hero-mini-gain { font-size: 11px; color: #00d47e; font-weight: 700; }
+  /* Calendly */
+  .calendly-header {
+    background: linear-gradient(135deg, #006bff, #0052cc);
+    padding: 14px 12px;
+    margin: -12px -12px 10px;
+  }
+  .calendly-avatar {
+    width: 36px; height: 36px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    margin-bottom: 6px;
+  }
+  .calendly-name { font-size: 11px; font-weight: 800; color: #fff; }
+  .calendly-evt  { font-size: 10px; color: rgba(255,255,255,0.7); }
+  .cal-day {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 6px;
+    justify-content: center;
+  }
+  .cal-slot {
+    flex: 1;
+    text-align: center;
+    padding: 5px 2px;
+    border: 1px solid #333;
+    border-radius: 8px;
+    font-size: 9px;
+    color: #888;
+  }
+  .cal-slot.avail {
+    border-color: #006bff;
+    color: #006bff;
+    font-weight: 700;
+    background: rgba(0,107,255,0.06);
+  }
+  /* Stripe */
+  .stripe-card {
+    background: #fff;
+    border-radius: 10px;
+    padding: 10px;
+    margin-bottom: 8px;
+  }
+  .stripe-label { font-size: 9px; color: #888; margin-bottom: 3px; }
+  .stripe-input {
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    padding: 5px 8px;
+    font-size: 10px;
+    color: #333;
+    width: 100%;
+    margin-bottom: 5px;
+  }
+  .stripe-row { display: flex; gap: 5px; }
+  .stripe-total {
+    display: flex;
+    justify-content: space-between;
+    font-size: 10px;
+    padding: 6px 0;
+    border-top: 1px solid #eee;
+    margin-top: 4px;
+  }
+  .stripe-pay {
+    background: #635bff;
+    color: #fff;
+    text-align: center;
+    padding: 8px;
+    border-radius: 8px;
+    font-size: 11px;
+    font-weight: 700;
+  }
+  .stripe-logo {
+    text-align: center;
+    font-size: 9px;
+    color: #aaa;
+    margin-top: 5px;
+  }
+  .stripe-logo span { color: #635bff; font-weight: 700; }
+
+  /* Broker list items */
+  .broker-item {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 8px;
+    background: #161616;
+    border: 1px solid #222;
+    border-radius: 10px;
+    margin-bottom: 6px;
+  }
+  .broker-emoji {
+    width: 30px; height: 30px;
+    border-radius: 8px;
+    background: rgba(0,212,126,0.1);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    flex-shrink: 0;
+  }
+  .broker-info { flex: 1; min-width: 0; }
+  .broker-name { font-size: 10px; font-weight: 800; color: #fff; }
+  .broker-desc { font-size: 8px; color: #555; margin-top: 1px; }
+
+  /* Bottom connector */
+  .vertical-connector {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    flex-shrink: 0;
+    margin-top: 80px;
+    padding: 0 6px;
+  }
+  .vc-dot { width: 4px; height: 4px; border-radius: 50%; background: #333; }
+
+  /* Legend */
+  .legend {
+    display: flex;
+    justify-content: center;
+    gap: 24px;
+    margin-top: 50px;
+    padding-top: 30px;
+    border-top: 1px solid #1a1a1a;
+    flex-wrap: wrap;
+  }
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    color: #555;
+  }
+  .legend-dot {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+  }
+</style>
+</head>
+<body>
+
+<h1>Nuvos AI — Flujo de usuario</h1>
+<h2>Del Home al Calendly</h2>
+<p class="subtitle">7 pasos · Web &amp; Mobile</p>
+
+<div class="flow">
+
+  <!-- ═══ PASO 1 ═══ -->
+  <div class="step-wrap">
+    <div>
+      <div class="phone">
+        <div class="phone-notch"><div class="phone-notch-pill"></div></div>
+        <div class="phone-screen">
+          <!-- Header -->
+          <div style="margin-bottom:10px;">
+            <div style="font-size:9px;color:#555;margin-bottom:2px;">TU RESUMEN DE HOY</div>
+            <div style="font-size:14px;font-weight:900;color:#fff;">Buenas tardes, Diego 👋</div>
+          </div>
+          <!-- Stat strip — 5 chips incluyendo broker -->
+          <div class="stat-strip">
+            <div class="stat-chip-sm">
+              <div class="val" style="color:#22c55e;">+0.11%</div>
+              <div class="lbl">Port. hoy</div>
+            </div>
+            <div class="broker-chip-sm" style="border-color:rgba(245,158,11,0.5);box-shadow:0 0 8px rgba(245,158,11,0.15);">
+              <div style="font-size:11px;margin-bottom:1px;">🏦</div>
+              <div class="val">Abre broker</div>
+              <div class="lbl">Crea tu cuenta</div>
+            </div>
+            <div class="stat-chip-sm">
+              <div class="val" style="color:#f59e0b;">5 días</div>
+              <div class="lbl">Racha</div>
+            </div>
+          </div>
+          <!-- Hero card -->
+          <div class="hero-mini">
+            <div class="hero-mini-label">MI PORTAFOLIO  USD</div>
+            <div class="hero-mini-value">$1,770.18</div>
+            <div class="hero-mini-gain">+0.11% hoy (+$1.97)</div>
+            <div style="display:flex;gap:12px;margin-top:8px;border-top:1px solid #222;padding-top:8px;">
+              <div><div style="font-size:8px;color:#555;">Hoy</div><div style="font-size:10px;font-weight:800;color:#22c55e;">+0.11%</div></div>
+              <div><div style="font-size:8px;color:#555;">YTD</div><div style="font-size:10px;font-weight:800;color:#22c55e;">+15.05%</div></div>
+              <div><div style="font-size:8px;color:#555;">Total</div><div style="font-size:10px;font-weight:800;color:#22c55e;">+16.52%</div></div>
+            </div>
+          </div>
+          <div style="font-size:9px;color:#555;text-align:center;">↑ La chip dorada llama la atención</div>
+        </div>
+        <div class="phone-home-bar"><div class="phone-home-pill"></div></div>
+      </div>
+      <div class="step-label">
+        <div class="step-num">1</div>
+        <span class="step-title">Home — Chip broker</span>
+        <span class="step-desc">El usuario ve el chip 🏦 "Abre tu broker" entre Portafolio hoy y Racha</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Arrow 1→2 -->
+  <div class="arrow">
+    <div style="display:flex;align-items:center;">
+      <div class="arrow-line"></div>
+      <div class="arrow-head"></div>
+    </div>
+    <div class="arrow-label">Tap chip</div>
+  </div>
+
+  <!-- ═══ PASO 2 ═══ -->
+  <div class="step-wrap">
+    <div>
+      <div class="phone">
+        <div class="phone-notch"><div class="phone-notch-pill"></div></div>
+        <div class="phone-screen">
+          <div style="width:40px;height:4px;background:#333;border-radius:4px;margin:0 auto 12px;"></div>
+          <div class="sc-header" style="color:#f59e0b;">Brokers en Venezuela</div>
+          <div class="sc-title">¿Con cuál quieres empezar?</div>
+          <!-- Broker items -->
+          <div class="broker-item">
+            <div class="broker-emoji" style="background:rgba(0,212,126,0.12);">🥇</div>
+            <div class="broker-info">
+              <div class="broker-name">Interactive Brokers</div>
+              <div style="display:flex;align-items:center;gap:4px;margin:2px 0;">
+                <div class="sc-tag" style="background:rgba(0,212,126,0.15);color:#00d47e;">Mejor global</div>
+              </div>
+              <div class="stars">★★★★★ <span style="color:#fff;font-size:9px;font-weight:700;">4.9</span></div>
+            </div>
+            <div style="color:#444;font-size:12px;">›</div>
+          </div>
+          <div class="broker-item">
+            <div class="broker-emoji" style="background:rgba(59,130,246,0.12);">🌐</div>
+            <div class="broker-info">
+              <div class="broker-name">Charles Schwab</div>
+              <div style="display:flex;align-items:center;gap:4px;margin:2px 0;">
+                <div class="sc-tag" style="background:rgba(59,130,246,0.15);color:#3b82f6;">Internacional</div>
+              </div>
+              <div class="stars">★★★★☆ <span style="color:#fff;font-size:9px;font-weight:700;">4.5</span></div>
+            </div>
+            <div style="color:#444;font-size:12px;">›</div>
+          </div>
+          <div style="text-align:center;font-size:9px;color:#444;margin-top:8px;padding-top:8px;border-top:1px solid #1a1a1a;">
+            Ya tengo cuenta de broker
+          </div>
+        </div>
+        <div class="phone-home-bar"><div class="phone-home-pill"></div></div>
+      </div>
+      <div class="step-label">
+        <div class="step-num">2</div>
+        <span class="step-title">Modal — Lista de brokers</span>
+        <span class="step-desc">Detecta el país via IP y muestra brokers con rating y recomendación</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Arrow 2→3 -->
+  <div class="arrow">
+    <div style="display:flex;align-items:center;">
+      <div class="arrow-line"></div>
+      <div class="arrow-head"></div>
+    </div>
+    <div class="arrow-label">Selecciona broker</div>
+  </div>
+
+  <!-- ═══ PASO 3 ═══ -->
+  <div class="step-wrap">
+    <div>
+      <div class="phone">
+        <div class="phone-notch"><div class="phone-notch-pill"></div></div>
+        <div class="phone-screen">
+          <div style="font-size:9px;color:#555;margin-bottom:10px;">← Todos los brokers</div>
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+            <div style="width:40px;height:40px;border-radius:12px;background:rgba(0,212,126,0.12);border:1px solid rgba(0,212,126,0.2);display:flex;align-items:center;justify-content:center;font-size:20px;">🥇</div>
+            <div>
+              <div style="font-size:13px;font-weight:900;color:#fff;">Interactive Brokers</div>
+              <div class="stars">★★★★★ 4.9/5</div>
+            </div>
+          </div>
+          <div class="sc-tag" style="background:rgba(0,212,126,0.12);color:#00d47e;font-size:9px;padding:3px 8px;border-radius:8px;display:inline-block;margin-bottom:8px;">Mejor global</div>
+          <div style="font-size:10px;color:#555;margin-bottom:10px;line-height:1.5;">El broker con mejor acceso global. Disponible en +200 países.</div>
+          <div style="font-size:8px;font-weight:700;color:#555;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;">Por qué lo recomendamos</div>
+          <div class="sc-row"><div class="sc-check">✓</div><div style="font-size:9px;color:#ddd;">200+ países</div></div>
+          <div class="sc-row"><div class="sc-check">✓</div><div style="font-size:9px;color:#ddd;">150+ bolsas del mundo</div></div>
+          <div class="sc-row"><div class="sc-check">✓</div><div style="font-size:9px;color:#ddd;">Tasas institucionales</div></div>
+          <div style="height:1px;background:#1a1a1a;margin:10px 0;"></div>
+          <div class="sc-btn sc-btn-green">Crear cuenta con ayuda de Nuvos</div>
+          <div class="sc-btn sc-btn-outline" style="font-size:10px;padding:7px;">Crear cuenta solo</div>
+        </div>
+        <div class="phone-home-bar"><div class="phone-home-pill"></div></div>
+      </div>
+      <div class="step-label">
+        <div class="step-num">3</div>
+        <span class="step-title">Detalle del broker</span>
+        <span class="step-desc">Pros, descripción y 2 opciones: solo o con ayuda de Nuvos</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Arrow 3→4 -->
+  <div class="arrow">
+    <div style="display:flex;align-items:center;">
+      <div class="arrow-line"></div>
+      <div class="arrow-head"></div>
+    </div>
+    <div class="arrow-label">"Con ayuda de Nuvos"</div>
+  </div>
+
+  <!-- ═══ PASO 4 ═══ -->
+  <div class="step-wrap">
+    <div>
+      <div class="phone">
+        <div class="phone-notch"><div class="phone-notch-pill"></div></div>
+        <div class="phone-screen">
+          <div style="font-size:9px;color:#555;margin-bottom:10px;">← Volver</div>
+          <!-- Countdown -->
+          <div class="countdown">⏱ 23:41:07</div>
+          <!-- Offer card -->
+          <div style="background:rgba(0,212,126,0.04);border:1px solid rgba(0,212,126,0.2);border-radius:14px;padding:12px;">
+            <div class="sc-header" style="margin-bottom:6px;">Sesión 1:1 con Nuvos AI</div>
+            <div style="font-size:11px;font-weight:800;color:#fff;line-height:1.4;margin-bottom:10px;">Te acompañamos a abrir tu cuenta en Interactive Brokers</div>
+            <div class="sc-row"><div class="sc-check">✓</div><div style="font-size:9px;color:#ddd;">Crear tu cuenta paso a paso</div></div>
+            <div class="sc-row"><div class="sc-check">✓</div><div style="font-size:9px;color:#ddd;">Navegar por la plataforma</div></div>
+            <div class="sc-row"><div class="sc-check">✓</div><div style="font-size:9px;color:#ddd;">Buscar acciones, ETFs e instrumentos</div></div>
+            <div class="sc-row"><div class="sc-check">✓</div><div style="font-size:9px;color:#ddd;">Depositar dinero de forma segura</div></div>
+            <!-- Price -->
+            <div class="price-row">
+              <div class="price-big">$49</div>
+              <div class="price-old">$89</div>
+              <div class="price-badge">-45% OFF</div>
+            </div>
+            <div class="sc-btn sc-btn-green" style="font-size:11px;">Agendar mi llamada — $49 USD →</div>
+          </div>
+          <div style="text-align:center;font-size:9px;color:#444;margin-top:8px;">Ya tengo cuenta de broker</div>
+        </div>
+        <div class="phone-home-bar"><div class="phone-home-pill"></div></div>
+      </div>
+      <div class="step-label">
+        <div class="step-num">4</div>
+        <span class="step-title">Upsell — Oferta 24h</span>
+        <span class="step-desc">Countdown activo, precio $49 vs $89 tachado, 4 beneficios incluidos</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Arrow 4→5 -->
+  <div class="arrow">
+    <div style="display:flex;align-items:center;">
+      <div class="arrow-line"></div>
+      <div class="arrow-head"></div>
+    </div>
+    <div class="arrow-label">Tap "Agendar $49"</div>
+  </div>
+
+  <!-- ═══ PASO 5 ═══ -->
+  <div class="step-wrap">
+    <div>
+      <div class="phone">
+        <div class="phone-notch"><div class="phone-notch-pill"></div></div>
+        <div class="phone-screen" style="padding:0;">
+          <!-- Stripe checkout header -->
+          <div style="background:#fff;padding:12px;border-bottom:1px solid #eee;">
+            <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;">
+              <div style="font-size:16px;">💳</div>
+              <div style="font-size:10px;font-weight:700;color:#333;">Checkout seguro</div>
+              <div style="margin-left:auto;font-size:9px;color:#888;">stripe.com</div>
+            </div>
+            <div style="background:#f6f9fc;border-radius:8px;padding:8px;margin-bottom:8px;">
+              <div style="font-size:9px;color:#666;">Nuvos AI · Sesión 1:1 Broker</div>
+              <div style="font-size:14px;font-weight:900;color:#1a1f36;">$49.00 USD</div>
+            </div>
+            <div class="stripe-label">Número de tarjeta</div>
+            <div class="stripe-input" style="color:#999;letter-spacing:2px;">4242 4242 4242 ····</div>
+            <div class="stripe-row">
+              <div style="flex:1;"><div class="stripe-label">Vencimiento</div><div class="stripe-input" style="color:#999;">MM / AA</div></div>
+              <div style="flex:1;"><div class="stripe-label">CVC</div><div class="stripe-input" style="color:#999;">···</div></div>
+            </div>
+            <div class="stripe-total">
+              <span style="color:#333;font-weight:700;">Total</span>
+              <span style="color:#333;font-weight:900;">$49.00 USD</span>
+            </div>
+            <div class="stripe-pay">Pagar $49.00</div>
+            <div class="stripe-logo">Powered by <span>stripe</span></div>
+          </div>
+        </div>
+        <div class="phone-home-bar"><div class="phone-home-pill"></div></div>
+      </div>
+      <div class="step-label">
+        <div class="step-num">5</div>
+        <span class="step-title">Stripe Checkout</span>
+        <span class="step-desc">Pago seguro — tarjeta de crédito/débito. Precio fijo $49 USD</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Arrow 5→6 -->
+  <div class="arrow">
+    <div style="display:flex;align-items:center;">
+      <div class="arrow-line"></div>
+      <div class="arrow-head"></div>
+    </div>
+    <div class="arrow-label">Pago exitoso ✓</div>
+  </div>
+
+  <!-- ═══ PASO 6 ═══ -->
+  <div class="step-wrap">
+    <div>
+      <div class="phone">
+        <div class="phone-notch"><div class="phone-notch-pill"></div></div>
+        <div class="phone-screen" style="padding:0;">
+          <!-- Calendly -->
+          <div class="calendly-header">
+            <div class="calendly-avatar">🧑‍💻</div>
+            <div class="calendly-name">Nuvos AI · Equipo de onboarding</div>
+            <div class="calendly-evt">Sesión 1:1 · 45 min</div>
+          </div>
+          <div style="padding:12px;">
+            <div style="font-size:10px;font-weight:700;color:#fff;margin-bottom:6px;">Selecciona una fecha</div>
+            <!-- Mini calendar -->
+            <div style="display:flex;justify-content:space-between;margin-bottom:6px;">
+              <span style="font-size:9px;color:#444;">‹ Jun 2026</span>
+              <span style="font-size:9px;color:#006bff;">Jul ›</span>
+            </div>
+            <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px;margin-bottom:8px;text-align:center;">
+              <span style="font-size:8px;color:#444;">L</span><span style="font-size:8px;color:#444;">M</span><span style="font-size:8px;color:#444;">X</span><span style="font-size:8px;color:#444;">J</span><span style="font-size:8px;color:#444;">V</span><span style="font-size:8px;color:#444;">S</span><span style="font-size:8px;color:#444;">D</span>
+              <span style="font-size:8px;color:#333;">23</span><span style="font-size:8px;color:#333;">24</span><span style="font-size:9px;color:#006bff;font-weight:800;background:rgba(0,107,255,0.1);border-radius:4px;">25</span><span style="font-size:9px;color:#006bff;font-weight:800;background:rgba(0,107,255,0.1);border-radius:4px;">26</span><span style="font-size:9px;color:#006bff;font-weight:800;background:rgba(0,107,255,0.1);border-radius:4px;">27</span><span style="font-size:8px;color:#333;">28</span><span style="font-size:8px;color:#333;">29</span>
+            </div>
+            <div style="font-size:9px;color:#aaa;margin-bottom:5px;">Horarios disponibles — Jue 26 Jun</div>
+            <div class="cal-day">
+              <div class="cal-slot avail">9:00 AM</div>
+              <div class="cal-slot avail">11:00 AM</div>
+              <div class="cal-slot">2:00 PM</div>
+            </div>
+            <div class="cal-day">
+              <div class="cal-slot avail">4:00 PM</div>
+              <div class="cal-slot">5:00 PM</div>
+              <div class="cal-slot avail">6:00 PM</div>
+            </div>
+            <div style="text-align:center;font-size:8px;color:#444;margin-top:6px;">Zona horaria: America/Caracas (GMT-4)</div>
+          </div>
+        </div>
+        <div class="phone-home-bar"><div class="phone-home-pill"></div></div>
+      </div>
+      <div class="step-label">
+        <div class="step-num">6</div>
+        <span class="step-title">Calendly — Agendar sesión</span>
+        <span class="step-desc">Stripe redirige automáticamente a Calendly donde el usuario reserva su llamada</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Arrow 6→7 -->
+  <div class="arrow">
+    <div style="display:flex;align-items:center;">
+      <div class="arrow-line"></div>
+      <div class="arrow-head"></div>
+    </div>
+    <div class="arrow-label">Confirma horario</div>
+  </div>
+
+  <!-- ═══ PASO 7 ═══ -->
+  <div class="step-wrap">
+    <div>
+      <div class="phone">
+        <div class="phone-notch"><div class="phone-notch-pill"></div></div>
+        <div class="phone-screen" style="display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:8px;min-height:360px;">
+          <div style="width:56px;height:56px;border-radius:50%;background:rgba(0,212,126,0.15);border:2px solid #00d47e;display:flex;align-items:center;justify-content:center;font-size:28px;">✓</div>
+          <div style="font-size:15px;font-weight:900;color:#fff;line-height:1.3;">¡Sesión<br>confirmada!</div>
+          <div style="font-size:10px;color:#555;line-height:1.6;">
+            Jue 26 Jun · 9:00 AM<br>
+            <span style="color:#3b82f6;">📧 Confirmación enviada</span><br>
+            <span style="color:#f59e0b;">📅 Agregado a tu calendario</span>
+          </div>
+          <div style="margin-top:10px;background:rgba(0,212,126,0.06);border:1px solid rgba(0,212,126,0.2);border-radius:12px;padding:10px 14px;">
+            <div style="font-size:9px;color:#00d47e;font-weight:700;margin-bottom:3px;">PRÓXIMO PASO</div>
+            <div style="font-size:10px;color:#ddd;line-height:1.5;">El equipo de Nuvos te<br>contactará antes de la llamada</div>
+          </div>
+        </div>
+        <div class="phone-home-bar"><div class="phone-home-pill"></div></div>
+      </div>
+      <div class="step-label">
+        <div class="step-num">7</div>
+        <span class="step-title">Sesión confirmada 🎉</span>
+        <span class="step-desc">Calendly envía email + invitación al calendario automáticamente</span>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /flow -->
+
+<!-- Legend -->
+<div class="legend">
+  <div class="legend-item">
+    <div class="legend-dot" style="background:#00d47e;"></div>
+    Acción del usuario
+  </div>
+  <div class="legend-item">
+    <div class="legend-dot" style="background:#3b82f6;"></div>
+    Redirección automática
+  </div>
+  <div class="legend-item">
+    <div class="legend-dot" style="background:#635bff;"></div>
+    Stripe (externo)
+  </div>
+  <div class="legend-item">
+    <div class="legend-dot" style="background:#006bff;"></div>
+    Calendly (externo)
+  </div>
+  <div class="legend-item">
+    <div class="legend-dot" style="background:#f59e0b;"></div>
+    Lógica de countdown
+  </div>
+</div>
+
+<!-- Summary -->
+<div style="max-width:700px;margin:40px auto 0;background:#111;border:1px solid #1a1a1a;border-radius:20px;padding:24px;">
+  <div style="font-size:11px;font-weight:700;color:#00d47e;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:12px;">Resumen del flujo</div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+    <div style="background:#0a0a0a;border-radius:12px;padding:12px;">
+      <div style="font-size:10px;color:#555;margin-bottom:4px;">Si paga dentro de 24h</div>
+      <div style="font-size:18px;font-weight:900;color:#00d47e;">$49 USD</div>
+      <div style="font-size:10px;color:#555;">→ price_1TlvyGRo7dTEppnh1uqgftWt</div>
+    </div>
+    <div style="background:#0a0a0a;border-radius:12px;padding:12px;">
+      <div style="font-size:10px;color:#555;margin-bottom:4px;">Si el countdown expira</div>
+      <div style="font-size:18px;font-weight:900;color:#ef4444;">$89 USD</div>
+      <div style="font-size:10px;color:#555;">→ price_1TlvypRo7dTEppnh6ojeqUU7</div>
+    </div>
+    <div style="background:#0a0a0a;border-radius:12px;padding:12px;">
+      <div style="font-size:10px;color:#555;margin-bottom:4px;">Detección de país</div>
+      <div style="font-size:13px;font-weight:700;color:#fff;">ipapi.co · automático</div>
+      <div style="font-size:10px;color:#555;">Brokers locales sugeridos</div>
+    </div>
+    <div style="background:#0a0a0a;border-radius:12px;padding:12px;">
+      <div style="font-size:10px;color:#555;margin-bottom:4px;">Post-pago</div>
+      <div style="font-size:13px;font-weight:700;color:#fff;">Calendly automático</div>
+      <div style="font-size:10px;color:#555;">success_url → calendly.com/nuvosai</div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

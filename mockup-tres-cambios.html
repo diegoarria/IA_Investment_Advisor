@@ -1,0 +1,664 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Nuvos AI — 3 cambios recientes</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #080a0e;
+    color: #e5e7eb;
+    font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", sans-serif;
+    min-height: 100vh;
+    padding: 40px 20px 80px;
+  }
+
+  .page-title {
+    text-align: center;
+    margin-bottom: 60px;
+  }
+  .page-title h1 {
+    font-size: 28px;
+    font-weight: 800;
+    color: #fff;
+    margin-bottom: 8px;
+    letter-spacing: -0.5px;
+  }
+  .page-title p {
+    color: #6b7280;
+    font-size: 14px;
+  }
+
+  .section {
+    max-width: 900px;
+    margin: 0 auto 70px;
+  }
+  .section-label {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 24px;
+  }
+  .section-number {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: #22c55e;
+    color: #000;
+    font-weight: 900;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  .section-label h2 {
+    font-size: 20px;
+    font-weight: 800;
+    color: #fff;
+  }
+  .section-label p {
+    color: #6b7280;
+    font-size: 13px;
+    margin-top: 2px;
+  }
+  .divider {
+    border: none;
+    border-top: 1px solid #1f2330;
+    margin: 60px auto;
+    max-width: 900px;
+  }
+
+  /* ── CARD ── */
+  .card {
+    background: #111318;
+    border: 1px solid #1f2330;
+    border-radius: 16px;
+    padding: 16px;
+  }
+  .card + .card { margin-top: 12px; }
+
+  /* ── CHANGE 1: ONBOARDING DEMO ── */
+  .notif-banner {
+    background: linear-gradient(135deg, #0a1f0f, #0f1a10);
+    border: 1.5px solid #22c55e40;
+    border-radius: 16px;
+    padding: 14px;
+    display: flex;
+    gap: 12px;
+    margin-bottom: 12px;
+  }
+  .notif-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    background: #22c55e15;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    flex-shrink: 0;
+    margin-top: 2px;
+  }
+  .notif-tag {
+    font-size: 10px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 1.2px;
+    color: #22c55e;
+    margin-bottom: 5px;
+  }
+  .notif-title {
+    font-size: 14px;
+    font-weight: 700;
+    color: #fff;
+    margin-bottom: 4px;
+  }
+  .notif-title span { color: #22c55e; }
+  .notif-body {
+    font-size: 12px;
+    color: #9ca3af;
+    line-height: 1.5;
+  }
+
+  .demo-portfolio {
+    background: #111318;
+    border: 1px solid #1f2330;
+    border-radius: 16px;
+    padding: 14px;
+    margin-bottom: 12px;
+  }
+  .section-mini-label {
+    font-size: 10px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 1.2px;
+    color: #4b5563;
+    margin-bottom: 12px;
+  }
+  .position-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 0;
+    border-bottom: 1px solid #1a1d26;
+  }
+  .position-row:last-child { border-bottom: none; }
+  .pos-ticker { font-weight: 800; font-size: 14px; color: #fff; }
+  .pos-shares { font-size: 11px; color: #6b7280; margin-top: 2px; }
+  .pos-val { font-size: 14px; font-weight: 700; color: #fff; text-align: right; }
+  .pos-gain { font-size: 12px; font-weight: 600; color: #22c55e; text-align: right; margin-top: 2px; }
+  .portfolio-total {
+    display: flex;
+    justify-content: space-between;
+    padding-top: 10px;
+    margin-top: 2px;
+    border-top: 1px solid #1a1d26;
+  }
+  .total-label { font-size: 12px; font-weight: 700; color: #6b7280; }
+  .total-val { font-size: 14px; font-weight: 800; color: #22c55e; }
+
+  .magic-q {
+    background: #111318;
+    border: 1px solid #1f2330;
+    border-radius: 16px;
+    padding: 14px;
+  }
+  .magic-q h3 { font-size: 15px; font-weight: 700; color: #fff; margin-bottom: 4px; }
+  .magic-q p { font-size: 12px; color: #6b7280; margin-bottom: 14px; }
+  .choice-btn {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px;
+    border-radius: 12px;
+    border: 1px solid #1f2330;
+    background: #0a0d12;
+    margin-bottom: 8px;
+    cursor: pointer;
+    transition: border-color .15s, background .15s;
+  }
+  .choice-btn:last-child { margin-bottom: 0; }
+  .choice-btn.primary { border: 2px solid #22c55e; background: #22c55e08; }
+  .choice-btn:hover:not(.primary) { border-color: #374151; background: #111318; }
+  .choice-btn:hover.primary { background: #22c55e12; }
+  .choice-emoji { font-size: 20px; flex-shrink: 0; }
+  .choice-title { font-size: 13px; font-weight: 700; color: #fff; }
+  .choice-sub { font-size: 11px; color: #6b7280; margin-top: 2px; }
+
+  /* ── CHANGE 2: OCR SCREENSHOT ── */
+  .ocr-warning {
+    background: #1f1200;
+    border: 1px solid #d9770640;
+    border-radius: 12px;
+    padding: 10px 14px;
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    margin-bottom: 14px;
+  }
+  .warn-icon { font-size: 16px; flex-shrink: 0; margin-top: 1px; }
+  .warn-text { font-size: 12px; color: #d97706; line-height: 1.45; }
+  .warn-text b { color: #fbbf24; }
+
+  .ocr-position {
+    background: #0d0f14;
+    border: 1px solid #1f2330;
+    border-radius: 12px;
+    padding: 12px;
+    margin-bottom: 8px;
+  }
+  .ocr-pos-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+  }
+  .ocr-ticker-wrap { display: flex; align-items: center; gap: 10px; }
+  .avatar {
+    width: 32px; height: 32px; border-radius: 8px;
+    background: #1f2330;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px; font-weight: 800; color: #9ca3af;
+  }
+  .ocr-ticker { font-weight: 800; font-size: 14px; color: #fff; }
+  .ocr-shares { font-size: 11px; color: #6b7280; }
+  .check-badge {
+    font-size: 10px;
+    font-weight: 700;
+    color: #22c55e;
+    background: #22c55e15;
+    padding: 3px 8px;
+    border-radius: 20px;
+  }
+  .ocr-inputs { display: flex; gap: 10px; }
+  .input-group { flex: 1; }
+  .input-group label {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: #6b7280;
+    display: block;
+    margin-bottom: 5px;
+  }
+  .input-group input {
+    width: 100%;
+    background: #111318;
+    border: 1px solid #1f2330;
+    border-radius: 8px;
+    padding: 8px 10px;
+    font-size: 13px;
+    color: #fff;
+    outline: none;
+    font-family: inherit;
+  }
+  .input-group input:focus { border-color: #22c55e50; }
+  .input-group .hint { font-size: 10px; color: #4b5563; margin-top: 4px; }
+
+  .before-after {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 12px;
+  }
+  .before-card {
+    background: #1a0a0a;
+    border: 1px solid #7f1d1d40;
+    border-radius: 12px;
+    padding: 14px;
+    opacity: .75;
+  }
+  .after-card {
+    background: #0a1a0a;
+    border: 1px solid #22c55e40;
+    border-radius: 12px;
+    padding: 14px;
+  }
+  .ba-label {
+    font-size: 10px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 10px;
+  }
+  .ba-label.bad { color: #ef4444; }
+  .ba-label.good { color: #22c55e; }
+  .ba-text { font-size: 12px; color: #d1d5db; line-height: 1.5; }
+  .strikethrough { text-decoration: line-through; color: #6b7280; }
+
+  /* ── CHANGE 3: NOTIFICATIONS ── */
+  .phone-notif {
+    background: rgba(30,30,32,.92);
+    backdrop-filter: blur(20px);
+    border-radius: 16px;
+    padding: 14px 16px;
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+    margin-bottom: 10px;
+    border: 1px solid rgba(255,255,255,.08);
+  }
+  .app-icon {
+    width: 36px; height: 36px;
+    border-radius: 9px;
+    background: linear-gradient(135deg, #1a8c50, #0d6b3b);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    font-size: 18px;
+  }
+  .notif-meta {
+    font-size: 11px;
+    color: rgba(255,255,255,.45);
+    margin-bottom: 2px;
+    display: flex;
+    justify-content: space-between;
+  }
+  .notif-app-name { font-weight: 600; color: rgba(255,255,255,.6); }
+  .notif-content { flex: 1; }
+  .notif-headline { font-size: 13px; font-weight: 600; color: #fff; margin-bottom: 3px; }
+  .notif-desc { font-size: 12px; color: rgba(255,255,255,.65); line-height: 1.4; }
+
+  .tag { display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .8px; margin-bottom: 8px; }
+  .tag.bad { background: #7f1d1d40; color: #f87171; }
+  .tag.good { background: #14532d40; color: #4ade80; }
+
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+
+  @media (max-width: 600px) {
+    .before-after, .two-col { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<div class="page-title">
+  <h1>Nuvos AI — 3 cambios recientes</h1>
+  <p>Vista previa de las actualizaciones en web, mobile y notificaciones</p>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!--  CAMBIO 1 — ONBOARDING DEMO                                    -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-label">
+    <div class="section-number">1</div>
+    <div>
+      <h2>Onboarding con portafolio demo + pregunta mágica</h2>
+      <p>En vez de pantalla vacía al registrarse, el usuario siente el producto inmediatamente</p>
+    </div>
+  </div>
+
+  <!-- Simulated notification banner -->
+  <div class="notif-banner">
+    <div class="notif-icon">📈</div>
+    <div>
+      <div class="notif-tag">Así funciona Nuvos AI</div>
+      <div class="notif-title">Tu NVIDIA subió <span>+$1,847</span> esta semana</div>
+      <div class="notif-body">Jensen Huang anunció nuevos chips para centros de datos IA, lo que impulsó la demanda institucional. Tu portafolio se beneficia directamente por tu posición en NVDA.</div>
+    </div>
+  </div>
+
+  <!-- Demo portfolio -->
+  <div class="demo-portfolio">
+    <div class="section-mini-label">Portafolio de ejemplo</div>
+
+    <div class="position-row">
+      <div>
+        <div class="pos-ticker">NVDA</div>
+        <div class="pos-shares">3.2 acc</div>
+      </div>
+      <div>
+        <div class="pos-val">$1,721</div>
+        <div class="pos-gain">+$576 (+31.2%)</div>
+      </div>
+    </div>
+    <div class="position-row">
+      <div>
+        <div class="pos-ticker">AAPL</div>
+        <div class="pos-shares">8 acc</div>
+      </div>
+      <div>
+        <div class="pos-val">$1,587</div>
+        <div class="pos-gain">+$339 (+27.2%)</div>
+      </div>
+    </div>
+    <div class="position-row">
+      <div>
+        <div class="pos-ticker">TSLA</div>
+        <div class="pos-shares">5 acc</div>
+      </div>
+      <div>
+        <div class="pos-val">$1,241</div>
+        <div class="pos-gain">+$266 (+27.3%)</div>
+      </div>
+    </div>
+
+    <div class="portfolio-total">
+      <span class="total-label">Total portafolio</span>
+      <span class="total-val">+$2,451 · +28.6%</span>
+    </div>
+  </div>
+
+  <!-- Magic question -->
+  <div class="magic-q">
+    <h3>¿Tienes acciones o fondos invertidos actualmente?</h3>
+    <p>Así Nuvos AI sabe cómo ayudarte mejor desde el primer momento.</p>
+
+    <div class="choice-btn primary">
+      <span class="choice-emoji">📊</span>
+      <div>
+        <div class="choice-title">Sí, ya tengo portafolio</div>
+        <div class="choice-sub">Agrego mis posiciones y Nuvos AI las analiza</div>
+      </div>
+    </div>
+    <div class="choice-btn">
+      <span class="choice-emoji">💵</span>
+      <div>
+        <div class="choice-title">Tengo dinero para invertir</div>
+        <div class="choice-sub">Aún no tengo cuenta en un broker</div>
+      </div>
+    </div>
+    <div class="choice-btn">
+      <span class="choice-emoji">📚</span>
+      <div>
+        <div class="choice-title">Solo quiero aprender por ahora</div>
+        <div class="choice-sub">Explorar con el portafolio de ejemplo</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<hr class="divider">
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!--  CAMBIO 2 — OCR SCREENSHOT FIX                                 -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-label">
+    <div class="section-number">2</div>
+    <div>
+      <h2>Screenshot import — precio manual en vez de OCR</h2>
+      <p>El OCR detecta ticker y acciones, pero el precio promedio lo ingresa el usuario</p>
+    </div>
+  </div>
+
+  <!-- Before / After -->
+  <div class="before-after">
+    <div class="before-card">
+      <div class="ba-label bad">❌ Antes — precio incorrecto</div>
+      <div class="ba-text">
+        Amazon AMZN<br>
+        <span style="color:#6b7280">2 acciones</span><br><br>
+        Precio promedio de compra:<br>
+        <span class="strikethrough">$97.68</span>
+        <span style="color:#ef4444;font-size:11px;margin-left:6px;">← valor actual (INCORRECTO)</span><br><br>
+        <span style="font-size:11px;color:#6b7280">El usuario compró a $223 USD pero el OCR<br>tomó el valor de su posición fraccionada.</span>
+      </div>
+    </div>
+    <div class="after-card">
+      <div class="ba-label good">✓ Ahora — el usuario ingresa el precio</div>
+      <div class="ba-text">
+        Amazon AMZN<br>
+        <span style="color:#6b7280">2 acciones</span><br><br>
+        Precio promedio de compra:<br>
+        <span style="color:#fff;font-weight:700">$223.00</span>
+        <span style="color:#22c55e;font-size:11px;margin-left:6px;">← ingresado por el usuario ✓</span><br><br>
+        <span style="font-size:11px;color:#6b7280">Fecha de compra (opcional):<br>2024-03-15</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- OCR warning -->
+  <div class="ocr-warning">
+    <span class="warn-icon">⚠️</span>
+    <div class="warn-text">
+      <b>No usamos el precio de la foto</b> — puede ser incorrecto en acciones fraccionadas. Búscalo en tu broker bajo "precio promedio de compra".
+    </div>
+  </div>
+
+  <!-- OCR position inputs -->
+  <div class="ocr-position">
+    <div class="ocr-pos-header">
+      <div class="ocr-ticker-wrap">
+        <div class="avatar">AMZN</div>
+        <div>
+          <div class="ocr-ticker">AMZN</div>
+          <div class="ocr-shares">2 acciones detectadas</div>
+        </div>
+      </div>
+      <span class="check-badge">✓ Detectado</span>
+    </div>
+    <div class="ocr-inputs">
+      <div class="input-group">
+        <label>Precio promedio de compra *</label>
+        <input type="text" value="$223.00" />
+        <div class="hint">Búscalo en tu broker</div>
+      </div>
+      <div class="input-group">
+        <label>Fecha de compra (opcional)</label>
+        <input type="text" placeholder="YYYY-MM-DD" />
+        <div class="hint">Deja vacío si no la recuerdas</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="ocr-position">
+    <div class="ocr-pos-header">
+      <div class="ocr-ticker-wrap">
+        <div class="avatar">NVDA</div>
+        <div>
+          <div class="ocr-ticker">NVDA</div>
+          <div class="ocr-shares">0.5 acciones detectadas</div>
+        </div>
+      </div>
+      <span class="check-badge">✓ Detectado</span>
+    </div>
+    <div class="ocr-inputs">
+      <div class="input-group">
+        <label>Precio promedio de compra *</label>
+        <input type="text" placeholder="$0.00" />
+        <div class="hint">Búscalo en tu broker</div>
+      </div>
+      <div class="input-group">
+        <label>Fecha de compra (opcional)</label>
+        <input type="text" placeholder="YYYY-MM-DD" />
+        <div class="hint">Deja vacío si no la recuerdas</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<hr class="divider">
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!--  CAMBIO 3 — NOTIFICACIONES PUSH                                -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-label">
+    <div class="section-number">3</div>
+    <div>
+      <h2>Notificaciones push mejoradas</h2>
+      <p>Formato correcto para premium · Catalizador específico o silencio</p>
+    </div>
+  </div>
+
+  <div class="two-col">
+    <!-- Left: market open/close -->
+    <div>
+      <div class="tag bad">Antes</div>
+      <div class="phone-notif">
+        <div class="app-icon">N</div>
+        <div class="notif-content">
+          <div class="notif-meta">
+            <span class="notif-app-name">Nuvos AI</span>
+            <span>9:30 a.m.</span>
+          </div>
+          <div class="notif-headline">🔔 Mercado Abierto</div>
+          <div class="notif-desc">Buenos días Diego! S&P 500 —, Nasdaq —. Activa Premium para ver el rendimiento de tu portafolio. 📈</div>
+        </div>
+      </div>
+
+      <div class="tag good" style="margin-top:16px">Ahora — usuario premium</div>
+      <div class="phone-notif">
+        <div class="app-icon">N</div>
+        <div class="notif-content">
+          <div class="notif-meta">
+            <span class="notif-app-name">Nuvos AI</span>
+            <span>9:30 a.m.</span>
+          </div>
+          <div class="notif-headline">🔔 Mercado Abierto</div>
+          <div class="notif-desc">S&P 500 +0.4% · Nasdaq +1.2% · Tu portafolio +2.1%</div>
+        </div>
+      </div>
+
+      <div class="phone-notif" style="margin-top:10px">
+        <div class="app-icon">N</div>
+        <div class="notif-content">
+          <div class="notif-meta">
+            <span class="notif-app-name">Nuvos AI</span>
+            <span>4:00 p.m.</span>
+          </div>
+          <div class="notif-headline">🏆 Superaste al mercado hoy</div>
+          <div class="notif-desc">S&P 500 -0.3% · Nasdaq -0.8% · Tu portafolio +1.4%</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right: price alerts with catalyst -->
+    <div>
+      <div class="tag bad">Antes — vago, sin catalizador</div>
+      <div class="phone-notif">
+        <div class="app-icon">N</div>
+        <div class="notif-content">
+          <div class="notif-meta">
+            <span class="notif-app-name">Nuvos AI</span>
+            <span>Hace 3 h</span>
+          </div>
+          <div class="notif-headline">📈 TSLA +5.2% hoy</div>
+          <div class="notif-desc">Tesla subió por noticias positivas del sector automotriz y expectativas del mercado.</div>
+        </div>
+      </div>
+
+      <div style="text-align:center;padding:8px 0;font-size:11px;color:#374151">
+        Sin catalizador específico → NO se envía
+      </div>
+
+      <div class="tag good">Ahora — catalizador real o silencio</div>
+      <div class="phone-notif">
+        <div class="app-icon">N</div>
+        <div class="notif-content">
+          <div class="notif-meta">
+            <span class="notif-app-name">Nuvos AI</span>
+            <span>11:20 a.m.</span>
+          </div>
+          <div class="notif-headline">🚀 NVDA +6.1% hoy</div>
+          <div class="notif-desc">NVIDIA sube tras el anuncio de Jensen Huang de la arquitectura Blackwell Ultra para centros de datos IA, elevando las estimaciones de margen para H2. Diego, ganaste ~$1,120 hoy (3.2 acc × $538).</div>
+        </div>
+      </div>
+
+      <div class="phone-notif" style="margin-top:10px">
+        <div class="app-icon">N</div>
+        <div class="notif-content">
+          <div class="notif-meta">
+            <span class="notif-app-name">Nuvos AI</span>
+            <span>2:45 p.m.</span>
+          </div>
+          <div class="notif-headline">📉 AAPL -4.3% hoy</div>
+          <div class="notif-desc">Apple cayó después de que el Departamento de Justicia de EE.UU. anunció una investigación antimonopolio sobre las comisiones del App Store. Diego, perdiste ~$540 hoy (8 acc × $191.20).</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Logic explanation -->
+  <div style="margin-top:20px;background:#0d0f14;border:1px solid #1f2330;border-radius:12px;padding:14px;">
+    <div style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:1px;color:#4b5563;margin-bottom:10px;">Lógica de catalizador</div>
+    <div style="display:flex;gap:12px;flex-wrap:wrap;">
+      <div style="flex:1;min-width:200px;background:#0a1a0a;border:1px solid #22c55e30;border-radius:10px;padding:12px;">
+        <div style="font-size:11px;font-weight:700;color:#22c55e;margin-bottom:6px;">✓ ENVIAR cuando hay</div>
+        <div style="font-size:12px;color:#9ca3af;line-height:1.6">
+          • Nombre de persona (Jensen Huang, Tim Cook)<br>
+          • Empresa concreta (DOJ, FTC, Goldman Sachs)<br>
+          • Resultado financiero (EPS, ingresos, guidance)<br>
+          • Anuncio de producto / acuerdo específico
+        </div>
+      </div>
+      <div style="flex:1;min-width:200px;background:#1a0a0a;border:1px solid #ef444430;border-radius:10px;padding:12px;">
+        <div style="font-size:11px;font-weight:700;color:#ef4444;margin-bottom:6px;">✗ SUPRIMIR cuando es vago</div>
+        <div style="font-size:12px;color:#9ca3af;line-height:1.6">
+          • "Por expectativas del mercado"<br>
+          • "Noticias positivas del sector"<br>
+          • "Presión vendedora generalizada"<br>
+          • Sin noticias en últimas 72h
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>
