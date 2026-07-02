@@ -109,11 +109,25 @@ export default function ThemeProvider({ children }: { children: React.ReactNode 
 
     syncAll();
 
+    // Retry shortly after login/mount regardless of the 30s throttle above. Each
+    // store's loadFromServer() swallows its own network errors silently with no
+    // retry, so a single cold-start hiccup on a freshly logged-in browser (new
+    // device, new browser) could otherwise leave it stuck showing stale/empty
+    // data — looking exactly like "this browser has its own separate history" —
+    // until the user happens to switch tabs. Forcing a few extra pulls closes
+    // that window.
+    const retryTimers = [3_000, 8_000, 15_000].map((delay) =>
+      setTimeout(() => { lastSyncRef.current = 0; syncAll(); }, delay)
+    );
+
     const onVisibility = () => {
       if (document.visibilityState === "visible") syncAll();
     };
     document.addEventListener("visibilitychange", onVisibility);
-    return () => document.removeEventListener("visibilitychange", onVisibility);
+    return () => {
+      retryTimers.forEach(clearTimeout);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
   }, [isAuthenticated]);
 
   return (
