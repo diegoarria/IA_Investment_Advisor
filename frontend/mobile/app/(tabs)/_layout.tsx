@@ -387,6 +387,7 @@ export default function TabsLayout() {
       <Tabs.Screen name="notifications" options={{ title: "Notificaciones", header: () => <MobileHeader title="Notificaciones" /> }} />
       <Tabs.Screen name="profile"       options={{ title: "Perfil",        header: () => <MobileHeader title="Mi Perfil" /> }} />
       <Tabs.Screen name="products"      options={{ title: "Productos",     header: () => <MobileHeader title="Productos y Servicios" /> }} />
+      <Tabs.Screen name="progress"      options={{ title: "Evolución",     header: () => <MobileHeader title="Tu evolución como inversionista" /> }} />
       <Tabs.Screen name="support"       options={{ title: "Soporte",       header: () => <MobileHeader title="Soporte" /> }} />
       <Tabs.Screen name="explore"       options={{ href: null }} />
     </Tabs>

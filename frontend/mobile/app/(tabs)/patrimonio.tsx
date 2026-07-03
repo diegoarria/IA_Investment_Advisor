@@ -386,6 +386,24 @@ export default function PatrimonioScreen() {
         </View>
       </View>
 
+      {/* Investor Progress Engine entry point */}
+      <View style={{ paddingHorizontal: 16, paddingTop: 10 }}>
+        <TouchableOpacity
+          onPress={() => router.push("/progress")}
+          activeOpacity={0.85}
+          style={{ flexDirection: "row", alignItems: "center", gap: 10, padding: 12, borderRadius: 14, borderWidth: 1, backgroundColor: "rgba(0,168,94,0.06)", borderColor: "rgba(0,168,94,0.25)" }}
+        >
+          <View style={{ width: 34, height: 34, borderRadius: 10, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(0,168,94,0.12)" }}>
+            <Ionicons name="trending-up" size={18} color={colors.accentLight} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontSize: 13, fontWeight: "800", color: colors.text }}>Tu evolución como inversionista</Text>
+            <Text style={{ fontSize: 11, color: colors.textMuted }}>Hitos, patrimonio y decisiones que evitaron errores</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={16} color={colors.accentLight} />
+        </TouchableOpacity>
+      </View>
+
       {/* Sub-tab switcher */}
       <View style={[ss.tabBar, { borderBottomColor: colors.border, backgroundColor: colors.bg }]}>
         {TABS.map((tab) => (

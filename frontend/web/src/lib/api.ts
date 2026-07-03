@@ -443,4 +443,10 @@ export const fmgApi = {
   deleteMemory: (id: string) => api.delete(`/api/fmg/memories/${id}`),
 };
 
+export const progressApi = {
+  getSummary: () => api.get("/api/progress/summary"),
+  getMilestones: () => api.get("/api/progress/milestones"),
+  getDecisionsThatHelped: () => api.get("/api/progress/decisions-that-helped"),
+};
+
 export default api;
