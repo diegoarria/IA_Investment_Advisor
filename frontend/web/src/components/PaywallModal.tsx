@@ -26,26 +26,26 @@ const PLANS = [
 ];
 
 const HERO_FEATURES = [
-  { icon: Brain,      text: "Chatea sin límites con tu mentor de IA, a cualquier hora" },
-  { icon: BarChart2,  text: "Agrega todas las acciones que quieras, sin límite" },
-  { icon: TrendingUp, text: "Te avisamos antes de que tus empresas reporten ganancias" },
-  { icon: Shield,     text: "Sube una foto o PDF de tu cuenta y la IA arma tu portafolio" },
-  { icon: Zap,        text: "Cada lunes, 5 ideas de inversión seleccionadas para ti" },
+  { icon: Brain,      text: "Entiende qué hacer con tu dinero antes de que cierre el mercado" },
+  { icon: TrendingUp, text: "Sabe exactamente cuánto ganaste o perdiste, y por qué" },
+  { icon: Zap,        text: "Nunca te sorprende una noticia — te avisamos antes de que mueva tu dinero" },
+  { icon: Shield,     text: "Tu portafolio armado en 30 segundos, sin hojas de cálculo" },
+  { icon: BarChart2,  text: "5 oportunidades concretas cada semana, con la razón y el riesgo" },
 ];
 
 const ALL_FEATURES = [
-  { text: "Chatea sin límites con tu mentor de IA, a cualquier hora", detail: "Sin límite de 15 mensajes al día. Pregunta lo que quieras, cuando quieras." },
-  { text: "Agrega todas las acciones que quieras, sin límite", detail: "En el plan gratuito puedes agregar hasta 10 acciones. Premium elimina ese límite." },
-  { text: "Sube una foto o PDF de tu cuenta y la IA arma tu portafolio", detail: "La IA lee tu estado de cuenta y agrega automáticamente tus acciones, cantidades y precios." },
-  { text: "Te avisamos antes de que tus empresas reporten ganancias", detail: "Ve las fechas de resultados de todas tus posiciones y qué esperar, explicado por la IA." },
-  { text: "Mira cómo le hubiera ido a tu dinero en crisis pasadas (2008, COVID...)", detail: "Simula tu portafolio en 5 momentos históricos: Crisis 2008, COVID-19, Tech Crash 2022, subida de tasas y un mercado alcista." },
-  { text: "La IA revisa tu portafolio y te dice qué mejorar", detail: "Fortalezas, debilidades y sugerencias concretas. Incluye en qué sectores estás muy concentrado." },
-  { text: "Cada lunes, 5 ideas de inversión seleccionadas para ti", detail: "La IA elige 5 oportunidades cada semana con una explicación simple de por qué y qué tan arriesgadas son." },
-  { text: "Noticias de tus acciones, resumidas por IA en segundos", detail: "Cada noticia de tus posiciones viene con un resumen corto de la IA. Entérate sin leer el artículo completo." },
-  { text: "Cada mes te decimos si le ganaste al mercado o no", detail: "Al cierre de cada mes: tu retorno real, comparado contra el S&P 500, y una nota personalizada." },
-  { text: "Lecciones pensadas para las acciones que ya tienes", detail: "La app detecta qué empresas tienes y te muestra lecciones relevantes justo antes de que reporten resultados." },
-  { text: "Te avisamos cuando pasa algo importante con tu dinero", detail: "Notificaciones cuando tu portafolio se aleja del mercado, se acercan resultados o estás muy concentrado en un sector." },
-  { text: "Descubre tu estilo como inversor y cómo mejorar", detail: "La IA analiza tus decisiones y conversaciones para ayudarte a tomar mejores decisiones con el tiempo." },
+  { text: "Pregunta lo que quieras, cuando quieras — sin límite", detail: "Un mentor de IA disponible 24/7 que conoce tu portafolio real y te responde con contexto de lo que ya tienes, no en abstracto." },
+  { text: "Sé el primero en saber cuando una de tus empresas va a reportar", detail: "Antes de los resultados trimestrales, la IA te explica qué esperar y si hay algo que te debería importar. Sin sorpresas." },
+  { text: "Descubre si tu dinero aguantaría otra crisis como 2008 o el COVID", detail: "Simula tu portafolio actual en 30 crisis históricas reales. Ve cuánto hubieras perdido y si estarías cómodo con eso." },
+  { text: "La IA te dice honestamente qué está mal en tu portafolio", detail: "Concentración excesiva en un sector, falta de diversificación, posiciones inconsistentes con tu perfil. Concreto, no genérico." },
+  { text: "Sube tu estado de cuenta y la IA arma todo solo", detail: "Sube una foto o PDF de tu broker. La IA detecta automáticamente tus acciones, cantidades y precios de compra." },
+  { text: "Cada lunes, 5 ideas de inversión pensadas para tu situación", detail: "No ideas genéricas. La IA considera lo que ya tienes, tu perfil y lo que está pasando en el mercado esa semana." },
+  { text: "Entérate de lo que pasa con tus acciones antes de que afecte tu dinero", detail: "Notificaciones cuando algo importante mueve una de tus posiciones — con la explicación del por qué y si deberías hacer algo." },
+  { text: "Al cierre de cada mes, sabe si le ganaste al mercado", detail: "Tu retorno real vs el S&P 500. Una nota personalizada de lo que funcionó y lo que no. Sin excusas, sin lenguaje técnico." },
+  { text: "Aprende sobre las empresas que ya tienes en tu portafolio", detail: "Lecciones diseñadas para lo que tú tienes. Antes de que Apple reporte, entiende qué mirar. Relevante, no genérico." },
+  { text: "Ve cómo se compara tu portafolio con el mercado en tiempo real", detail: "Un panel simple: tu rendimiento hoy, esta semana, este año — frente al S&P 500. Sabes en todo momento si vas bien." },
+  { text: "Agrega todas las acciones que quieras, sin tope", detail: "El plan gratuito tiene límite de 10. Premium elimina ese límite para que tu portafolio sea tuyo, completo." },
+  { text: "Conviértete en mejor inversionista con el tiempo", detail: "La IA aprende tu estilo de inversión y te da retroalimentación sobre tus patrones. Te ayuda a tomar mejores decisiones cada mes." },
 ];
 
 interface PaywallModalProps {
@@ -127,11 +127,11 @@ export default function PaywallModal({ visible, onClose, reason }: PaywallModalP
               className="text-center text-2xl font-black leading-tight mb-2"
               style={{ color: "var(--text)" }}
             >
-              Invierte como los<br />
-              <span style={{ color: "#00d47e" }}>mejores del mundo</span>
+              Conviértete en<br />
+              <span style={{ color: "#00d47e" }}>inversionista de verdad</span>
             </h2>
             <p className="text-center text-sm mb-4" style={{ color: "var(--muted)" }}>
-              Tu asesor de inversiones con IA, disponible 24/7
+              El acompañamiento que necesitas para que tu dinero trabaje para ti — todos los días.
             </p>
 
             {/* Social proof */}
@@ -224,7 +224,7 @@ export default function PaywallModal({ visible, onClose, reason }: PaywallModalP
               style={{ color: "var(--muted)", background: "var(--raised)" }}
             >
               {showAllFeatures ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-              {showAllFeatures ? "Ver menos" : `Ver los ${ALL_FEATURES.length} beneficios`}
+              {showAllFeatures ? "Ver menos" : `Ver los ${ALL_FEATURES.length} resultados incluidos`}
             </button>
 
             {showAllFeatures && (

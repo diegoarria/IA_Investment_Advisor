@@ -24,18 +24,18 @@ const SUBSCRIPTION_FEATURES = {
     { icon: GraduationCap, text: "Academia completa + quizzes" },
   ],
   premium: [
-    { icon: Brain,         text: "Chatea sin límites con tu mentor de IA, a cualquier hora" },
-    { icon: BarChart2,     text: "Agrega todas las acciones que quieras, sin límite" },
-    { icon: FileText,      text: "Sube una foto o PDF de tu cuenta y la IA arma tu portafolio" },
-    { icon: Calendar,      text: "Te avisamos antes de que tus empresas reporten ganancias" },
-    { icon: Shield,        text: "Mira cómo le hubiera ido a tu dinero en crisis pasadas (2008, COVID...)" },
-    { icon: Sparkles,      text: "La IA revisa tu portafolio y te dice qué mejorar" },
-    { icon: TrendingUp,    text: "Cada lunes, 5 ideas de inversión seleccionadas para ti" },
-    { icon: Bell,          text: "Alertas personalizadas: te explicamos POR QUÉ se mueve tu dinero" },
-    { icon: RefreshCw,     text: "Cada mes te decimos si le ganaste al mercado o no" },
-    { icon: GraduationCap, text: "Lecciones pensadas para las acciones que ya tienes" },
-    { icon: Zap,           text: "Notificaciones instantáneas cuando pasa algo importante con tu portafolio" },
-    { icon: Target,        text: "Descubre tu estilo como inversor y cómo mejorar" },
+    { icon: Brain,         text: "Entiende qué hacer con tu dinero, todos los días — sin límite" },
+    { icon: Calendar,      text: "Sé el primero en saber cuando una de tus empresas va a reportar" },
+    { icon: Shield,        text: "Descubre si tu dinero aguantaría otra crisis como 2008 o el COVID" },
+    { icon: Sparkles,      text: "La IA te dice honestamente qué está mal en tu portafolio" },
+    { icon: FileText,      text: "Sube tu estado de cuenta y la IA arma todo solo" },
+    { icon: TrendingUp,    text: "5 ideas de inversión reales cada semana, pensadas para ti" },
+    { icon: Bell,          text: "Te avisamos por qué se mueve tu dinero — antes de que reacciones" },
+    { icon: RefreshCw,     text: "Al cierre de cada mes, sabe si le ganaste al mercado" },
+    { icon: GraduationCap, text: "Aprende sobre las empresas que ya tienes en tu portafolio" },
+    { icon: BarChart2,     text: "Ve cómo se compara tu portafolio con el mercado en tiempo real" },
+    { icon: Zap,           text: "Portafolio ilimitado — sin topes de acciones ni watchlist" },
+    { icon: Target,        text: "Conviértete en mejor inversionista con el tiempo, con la IA de tu lado" },
   ],
 };
 
@@ -150,8 +150,8 @@ export default function ProductsPage() {
 
             {/* Header */}
             <div>
-              <h1 className="text-2xl font-black mb-1" style={{ color: "var(--text)" }}>Productos y Servicios</h1>
-              <p className="text-sm" style={{ color: "var(--muted)" }}>Todo lo que ofrece Nuvos AI — en un solo lugar</p>
+              <h1 className="text-2xl font-black mb-1" style={{ color: "var(--text)" }}>Conviértete en inversionista</h1>
+              <p className="text-sm" style={{ color: "var(--muted)" }}>El acompañamiento que necesitas para que tu dinero trabaje para ti</p>
             </div>
 
             {/* ── Suscripción ─────────────────────────────────────────────── */}
