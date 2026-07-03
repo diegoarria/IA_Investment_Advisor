@@ -1055,7 +1055,14 @@ export default function OnboardingPage() {
                   style={{ background: "var(--accent)" }}>
             Comenzar mi sesión →
           </button>
-          <p className="text-center text-xs mt-3" style={{ color: "var(--dim)" }}>
+          {!isFirstTimer && (
+            <button onClick={() => router.push("/home")}
+                    className="w-full py-3 rounded-2xl text-sm font-semibold mt-2 transition-all"
+                    style={{ color: "var(--muted)", background: "transparent" }}>
+              Ya tengo todo configurado — ir al inicio →
+            </button>
+          )}
+          <p className="text-center text-xs mt-2" style={{ color: "var(--dim)" }}>
             Tu Mentor IA ya conoce todo tu perfil
           </p>
         </div>
