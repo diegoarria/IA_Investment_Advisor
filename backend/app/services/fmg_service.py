@@ -343,14 +343,18 @@ async def take_portfolio_snapshot(user_id: str) -> None:
         if existing.data:
             return
 
-        # Fetch current portfolio
+        # Fetch current portfolio. A user can have up to 3 portfolios
+        # (premium), so this can return multiple rows — pick "default" to
+        # match every other read path in the app (sync.py's get_all), instead
+        # of grabbing whichever row happens to come back first.
         res = await run_query(
-            db.table("user_portfolio").select("positions").eq("user_id", user_id)
+            db.table("user_portfolio").select("portfolio_id, positions").eq("user_id", user_id)
         )
         if not res.data:
             return
 
-        raw = res.data[0].get("positions", [])
+        default_row = next((r for r in res.data if r.get("portfolio_id") == "default"), None)
+        raw = (default_row or res.data[0]).get("positions", [])
         if isinstance(raw, dict) and "_v" in raw:
             raw = raw.get("positions", [])
         if not isinstance(raw, list) or not raw:

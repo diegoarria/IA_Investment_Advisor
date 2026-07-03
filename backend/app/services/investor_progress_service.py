@@ -40,14 +40,22 @@ log = logging.getLogger(__name__)
 
 async def _get_raw_portfolio(user_id: str) -> dict:
     """Positions/closed_positions/inception_date exactly as stored — camelCase
-    field names, straight from user_portfolio.positions JSONB."""
+    field names, straight from user_portfolio.positions JSONB.
+
+    A user can have up to 3 portfolios (premium), so user_portfolio can hold
+    multiple rows per user_id. Every other read path in this app (sync.py's
+    get_all) picks the row with portfolio_id == "default", falling back to
+    whichever portfolio comes first only if no default row exists — match
+    that convention here instead of grabbing an arbitrary row."""
     db = get_supabase()
     res = await run_query(
-        db.table("user_portfolio").select("positions").eq("user_id", user_id)
+        db.table("user_portfolio").select("portfolio_id, positions").eq("user_id", user_id)
     )
-    if not res.data:
+    rows = res.data or []
+    if not rows:
         return {"currency": "USD", "positions": [], "closed_positions": [], "inception_date": None}
-    return _parse_portfolio(res.data[0]["positions"])
+    default_row = next((r for r in rows if r.get("portfolio_id") == "default"), None)
+    return _parse_portfolio((default_row or rows[0])["positions"])
 
 
 async def _get_account_created_at(user_id: str) -> str | None:
@@ -321,13 +329,16 @@ def _decision_style_ratio(decisions: list[dict]) -> float | None:
     return impulsive / len(known)
 
 
-async def detect_behavior_evolution(user_id: str) -> list[dict]:
+async def detect_behavior_evolution(user_id: str, ctx: dict | None = None) -> list[dict]:
     """
     Compare the earliest available signal against the most recent one.
     Only emits a statement when there are genuinely two separated points in
     time to compare — otherwise stays silent rather than inventing a "before".
+
+    Pass an already-built ctx (from _build_context) when the caller has one,
+    to avoid re-fetching the same portfolio/snapshots/decisions twice.
     """
-    ctx = await _build_context(user_id)
+    ctx = ctx if ctx is not None else await _build_context(user_id)
     statements: list[dict] = []
 
     # Decision style: impulsive (fomo/panic) vs deliberate (research/manual/alert)
@@ -386,13 +397,15 @@ def _compute_year_returns(snapshots: list[dict]) -> dict[int, float]:
     return year_returns
 
 
-async def compute_progress_summary(user_id: str) -> dict:
+async def compute_progress_summary(user_id: str, ctx: dict | None = None) -> dict:
     """
     Build every metric for "Tu evolución como inversionista". Each key is
     present only when there's enough real data to support it — the frontend
     should treat a missing key as "not enough data yet", never as zero.
+
+    Pass an already-built ctx to avoid re-fetching the same data twice.
     """
-    ctx = await _build_context(user_id)
+    ctx = ctx if ctx is not None else await _build_context(user_id)
     summary: dict = {}
 
     created_at = await _get_account_created_at(user_id)
@@ -520,7 +533,7 @@ async def get_decisions_that_helped(user_id: str) -> list[dict]:
             ),
         })
 
-    evolution = await detect_behavior_evolution(user_id)
+    evolution = await detect_behavior_evolution(user_id, ctx=ctx)
     for e in evolution:
         if e["key"] == "sector_concentration":
             items.append({
@@ -574,7 +587,7 @@ async def get_wrapped_extension(user_id: str, year: int) -> dict:
     if decisions_this_year:
         ext["decisions_logged_this_year"] = len(decisions_this_year)
 
-    evolution = await detect_behavior_evolution(user_id)
+    evolution = await detect_behavior_evolution(user_id, ctx=ctx)
     for e in evolution:
         if e["key"] == "sector_concentration":
             ext["diversification_note"] = f"{e['before']} {e['after']}"
@@ -635,7 +648,8 @@ async def build_progress_context_for_mentor(user_id: str) -> str | None:
 
 
 async def _build_progress_context_for_mentor_uncached(user_id: str) -> str | None:
-    summary = await compute_progress_summary(user_id)
+    ctx = await _build_context(user_id)
+    summary = await compute_progress_summary(user_id, ctx=ctx)
     if not summary:
         return None
 
@@ -652,7 +666,7 @@ async def _build_progress_context_for_mentor_uncached(user_id: str) -> str | Non
     if "consecutive_months_contributing" in summary:
         parts.append(f"Lleva {summary['consecutive_months_contributing']} meses consecutivos aportando capital.")
 
-    evolution = await detect_behavior_evolution(user_id)
+    evolution = await detect_behavior_evolution(user_id, ctx=ctx)
     for e in evolution:
         parts.append(f"{e['before']} {e['after']}")
 

@@ -117,10 +117,17 @@ async def get_wrapped(
     lessons     = sim_count + debate_count
 
     # ── 3. Portfolio positions ────────────────────────────────────────────────
+    # A user can have up to 3 portfolios (premium) — pick "default" to match
+    # every other read path in the app, instead of an arbitrary row.
     port_res = await run_query(
-        db.table("user_portfolio").select("positions").eq("user_id", user_id)
+        db.table("user_portfolio").select("portfolio_id, positions").eq("user_id", user_id)
     )
-    raw = (port_res.data[0].get("positions") or {}) if port_res.data else {}
+    port_rows = port_res.data or []
+    default_port_row = next((r for r in port_rows if r.get("portfolio_id") == "default"), None)
+    if port_rows:
+        raw = (default_port_row or port_rows[0]).get("positions") or {}
+    else:
+        raw = {}
     positions: list = raw.get("positions", []) if isinstance(raw, dict) else (raw if isinstance(raw, list) else [])
     tickers = [p["ticker"] for p in positions if p.get("ticker")]
 
