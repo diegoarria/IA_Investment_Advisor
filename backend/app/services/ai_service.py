@@ -987,12 +987,15 @@ def _build_dynamic_system_addendum(
     memory_context: str | None = None,
     notification_context: str | None = None,
     fmg_context: str | None = None,
+    progress_context: str | None = None,
 ) -> str | None:
     """Dynamic (per-request) addendum — NOT cached to avoid cache key churn."""
     parts: list[str] = []
     # FMG goes first — it's the most important persistent context
     if fmg_context:
         parts.append(fmg_context)
+    if progress_context:
+        parts.append(progress_context)
     if memory_context:
         parts.append(f"## 💬 ÚLTIMAS CONVERSACIONES (contexto inmediato)\n\n{memory_context}")
     if notification_context:
@@ -1012,13 +1015,14 @@ async def chat_stream(
     notification_context: str | None = None,
     deep_context: str | None = None,
     fmg_context: str | None = None,
+    progress_context: str | None = None,
     is_premium: bool = False,
 ):
     # Static part cached by Anthropic (base + profile + mentor + guardrails).
     # Dynamic context (memory, notifications) goes in a separate uncached block so
     # it doesn't bust the cache every message and inflate input token costs.
     static_prompt  = _build_static_system_prompt(profile, mentor, deep_context)
-    dynamic_addend = _build_dynamic_system_addendum(memory_context, notification_context, fmg_context)
+    dynamic_addend = _build_dynamic_system_addendum(memory_context, notification_context, fmg_context, progress_context)
 
     system_blocks: list[dict] = [{"type": "text", "text": static_prompt, "cache_control": {"type": "ephemeral"}}]
     if dynamic_addend:

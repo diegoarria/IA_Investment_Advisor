@@ -12,7 +12,7 @@ from fastapi.responses import StreamingResponse
 from app.api.deps import get_current_user_id
 from app.core.database import get_supabase, run_query
 from app.models.user import ChatRequest, UserProfile
-from app.services import ai_service, fmg_service
+from app.services import ai_service, fmg_service, investor_progress_service
 from app.services.market_data_service import (
     get_market_context_for_message,
     get_global_market_context,
@@ -248,18 +248,27 @@ async def chat_stream(
         except Exception:
             return body.message
 
+    async def _progress_ctx():
+        # Premium-only, mirroring the dashboard's own gating — free users'
+        # mentor doesn't get the deeper progress narrative either.
+        if not premium:
+            return None
+        return await investor_progress_service.build_progress_context_for_mentor(user_id)
+
     if has_images:
-        memory, deep_ctx, fmg_ctx = await asyncio.gather(
+        memory, deep_ctx, fmg_ctx, progress_ctx = await asyncio.gather(
             _get_memory_context(user_id),
             _get_mentor_deep_context(user_id),
             fmg_service.get_fmg_context(user_id),
+            _progress_ctx(),
         )
         enriched = body.message
     else:
-        memory, deep_ctx, fmg_ctx, enriched = await asyncio.gather(
+        memory, deep_ctx, fmg_ctx, progress_ctx, enriched = await asyncio.gather(
             _get_memory_context(user_id),
             _get_mentor_deep_context(user_id),
             fmg_service.get_fmg_context(user_id),
+            _progress_ctx(),
             _safe_enrich(),
         )
 
@@ -274,6 +283,7 @@ async def chat_stream(
             notification_context=body.notification_context,
             deep_context=deep_ctx,
             fmg_context=fmg_ctx,
+            progress_context=progress_ctx,
             is_premium=premium,
         ):
             yield chunk
@@ -299,10 +309,16 @@ async def chat_message(
     images = [{"data": img.data, "type": img.type} for img in body.images] if body.images else None
     if not images and body.image_data:
         images = [{"data": body.image_data, "type": body.image_type or "image/jpeg"}]
-    memory, deep_ctx, fmg_ctx = await asyncio.gather(
+    async def _progress_ctx():
+        if not premium:
+            return None
+        return await investor_progress_service.build_progress_context_for_mentor(user_id)
+
+    memory, deep_ctx, fmg_ctx, progress_ctx = await asyncio.gather(
         _get_memory_context(user_id),
         _get_mentor_deep_context(user_id),
         fmg_service.get_fmg_context(user_id),
+        _progress_ctx(),
     )
     full = ""
     async for chunk in ai_service.chat_stream(
@@ -315,6 +331,7 @@ async def chat_message(
         notification_context=body.notification_context,
         deep_context=deep_ctx,
         fmg_context=fmg_ctx,
+        progress_context=progress_ctx,
         is_premium=premium,
     ):
         full += chunk

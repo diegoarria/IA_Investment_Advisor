@@ -10,9 +10,9 @@ Hard rule: every number here must trace back to real, storable data. A metric
 that can't be computed from what actually exists is omitted from the result —
 never zero-filled, inferred, or exaggerated.
 
-Fase 1 scope: pure computation + milestone detection. No API routes, no
-notifications, no Mentor IA wiring yet — those are later phases. This module
-is safe to import and call in isolation.
+Fase 2 adds: API routes (progress.py), milestone push notifications, and
+Mentor IA context wiring. This module stays the single source of truth for
+the computation — routes and the chat pipeline just call into it.
 """
 
 from __future__ import annotations
@@ -29,6 +29,7 @@ from app.api.routes.market import (
     _compute_portfolio_returns,
 )
 from app.api.routes.sync import _parse_portfolio
+from app.core.cache import cache_get, cache_set
 from app.core.database import get_supabase, run_query
 from app.services import fmg_service
 
@@ -267,7 +268,44 @@ async def detect_new_milestones(user_id: str) -> list[dict]:
             milestone_key=m["key"],
         )
 
+    if newly_achieved:
+        await _notify_milestones(user_id, newly_achieved)
+
     return newly_achieved
+
+
+async def _notify_milestones(user_id: str, milestones: list[dict]) -> None:
+    """
+    Push a notification per newly-achieved milestone. The existing fatigue
+    control in notification_engine.send_push already dedupes by
+    (user_id, category, day) — so if several milestones land the same day,
+    only the first push actually sends; the rest are logged as "skipped"
+    rather than spamming the user. That's intentional, not a bug to fix here.
+    """
+    try:
+        from app.core.database import get_supabase as _get_db
+        from app.services.notification_engine import send_push
+
+        db = _get_db()
+        prefs_res = await run_query(
+            db.table("notification_preferences").select("push_milestones").eq("user_id", user_id).limit(1)
+        )
+        # Default to opted-in, matching notification_engine's own default prefs.
+        enabled = prefs_res.data[0].get("push_milestones", True) if prefs_res.data else True
+        if not enabled:
+            return
+
+        for m in milestones:
+            await send_push(
+                user_id,
+                "milestone_reached",
+                f"🏆 {m['title']}",
+                m["description"],
+                {"screen": "profile", "section": "progress", "milestone_key": m["key"]},
+                db,
+            )
+    except Exception as exc:
+        log.debug("Milestone notification failed for %s: %s", user_id, exc)
 
 
 # ── Behavior evolution ("antes vs ahora") ────────────────────────────────────
@@ -434,15 +472,74 @@ async def compute_progress_summary(user_id: str) -> dict:
     return summary
 
 
-# ── Mentor IA context (built here, wired in a later phase) ──────────────────
+# ── Decisions that avoided costly mistakes ───────────────────────────────────
+
+def _is_impulsive_hold(d: dict) -> bool:
+    return d.get("action") == "hold" and d.get("trigger") in ("fomo", "panic")
+
+
+async def get_decisions_that_helped(user_id: str) -> list[dict]:
+    """
+    Grounded "decisiones que evitaron errores costosos" — never a dollar figure
+    that can't be demonstrated, only the decision, why it mattered, and what
+    it shows. Two real signals, both already in storage:
+      1. A decision explicitly logged as "hold" with trigger fomo/panic — the
+         user recorded, in the moment, that they resisted an impulsive urge.
+      2. A meaningful drop in portfolio sector concentration over time
+         (reuses the same signal as detect_behavior_evolution, reframed here).
+    """
+    ctx = await _build_context(user_id)
+    items: list[dict] = []
+
+    impulsive_holds = [d for d in ctx["decisions"] if _is_impulsive_hold(d)]
+    for d in impulsive_holds[:10]:
+        trigger_label = "pánico" if d["trigger"] == "panic" else "FOMO"
+        items.append({
+            "key": f"decision_{d['id']}",
+            "title": "Mantuviste tu inversión bajo presión",
+            "description": (
+                f"El {str(d.get('created_at', ''))[:10]} sentiste {trigger_label} por "
+                f"{d.get('ticker', 'una posición')}, pero decidiste mantenerla en vez de "
+                f"reaccionar por impulso."
+            ),
+        })
+
+    evolution = await detect_behavior_evolution(user_id)
+    for e in evolution:
+        if e["key"] == "sector_concentration":
+            items.append({
+                "key": "sector_concentration",
+                "title": "Redujiste tu concentración excesiva",
+                "description": f"{e['before']} {e['after']}",
+            })
+
+    return items
+
+
+# ── Mentor IA context (Fase 2: wired into ai_service.py's dynamic addendum) ──
+
+_MENTOR_CONTEXT_TTL = 3600  # 1h — since_purchase computation is network-bound
+
 
 async def build_progress_context_for_mentor(user_id: str) -> str | None:
     """
-    Short paragraph summarizing the user's real progress, meant to be injected
-    into the Mentor IA's dynamic system prompt addendum. Built now so a later
-    phase can wire it in without redesigning this computation — but not
-    connected to ai_service.py yet.
+    Short paragraph summarizing the user's real progress, injected into the
+    Mentor IA's dynamic system prompt addendum on every chat turn. Cached
+    because compute_progress_summary() calls into the same network-bound
+    since-inception calculation used by /market/portfolio-returns — without
+    caching, every single chat message would trigger a live market data fetch.
     """
+    cache_key = f"progress_mentor_ctx:{user_id}"
+    cached = cache_get(cache_key)
+    if cached is not None:
+        return cached or None  # cache_set below stores "" for "no context yet"
+
+    result = await _build_progress_context_for_mentor_uncached(user_id)
+    cache_set(cache_key, result or "", ttl=_MENTOR_CONTEXT_TTL)
+    return result
+
+
+async def _build_progress_context_for_mentor_uncached(user_id: str) -> str | None:
     summary = await compute_progress_summary(user_id)
     if not summary:
         return None
