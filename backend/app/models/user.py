@@ -13,9 +13,15 @@ class UserProfileCreate(BaseModel):
     investment_amount: Optional[str] = None
     investment_goal: Optional[str] = None
     investment_goal_amount: Optional[str] = None
+    investment_horizon: Optional[str] = None
     knowledge_level: Optional[str] = None
     terms_accepted_at: Optional[str] = None
     terms_version: Optional[str] = None
+    country: Optional[str] = None
+    initial_capital: Optional[str] = None
+    has_broker: Optional[bool] = None
+    broker_name: Optional[str] = None
+    has_investments: Optional[bool] = None
 
 
 class UserProfileUpdate(BaseModel):
@@ -33,6 +39,11 @@ class UserProfileUpdate(BaseModel):
     investment_goal_amount: Optional[str] = None
     investment_horizon: Optional[str] = None
     knowledge_level: Optional[str] = None
+    country: Optional[str] = None
+    initial_capital: Optional[str] = None
+    has_broker: Optional[bool] = None
+    broker_name: Optional[str] = None
+    has_investments: Optional[bool] = None
 
 
 class UserProfile(BaseModel):
@@ -58,6 +69,11 @@ class UserProfile(BaseModel):
     knowledge_level: Optional[str] = None
     terms_accepted_at: Optional[str] = None
     terms_version: Optional[str] = None
+    country: Optional[str] = None
+    initial_capital: Optional[str] = None
+    has_broker: Optional[bool] = None
+    broker_name: Optional[str] = None
+    has_investments: Optional[bool] = None
     created_at: Optional[str] = None
     updated_at: Optional[str] = None
 

@@ -608,15 +608,42 @@ def build_profile_context(profile: UserProfile) -> str:
         except Exception:
             pass
 
+    country_str     = getattr(profile, "country", None) or "No especificado"
+    initial_cap_str = ""
+    try:
+        ic = getattr(profile, "initial_capital", None)
+        initial_cap_str = f"${float(ic):,.0f}" if ic else "No especificado"
+    except Exception:
+        initial_cap_str = getattr(profile, "initial_capital", None) or "No especificado"
+
+    has_broker_val = getattr(profile, "has_broker", None)
+    broker_name_val = getattr(profile, "broker_name", None)
+    broker_str = (
+        f"Sí — {broker_name_val}" if has_broker_val and broker_name_val
+        else "Sí" if has_broker_val
+        else "No tiene broker aún" if has_broker_val is False
+        else "No especificado"
+    )
+    has_inv_val = getattr(profile, "has_investments", None)
+    inv_str = (
+        "Sí, ya tiene inversiones" if has_inv_val
+        else "No, está empezando desde cero" if has_inv_val is False
+        else "No especificado"
+    )
+
     return f"""
 ## PERFIL DEL USUARIO ACTUAL:
 - Nombre: {profile.name or 'No especificado'}
 - Edad: {age_str}
+- País: {country_str}
 - Ingresos mensuales: {income}
 - Contribución mensual: {contrib}
-- Tolerancia al riesgo: {risk_map.get(profile.risk_tolerance, profile.risk_tolerance)}{quiz_extra}
+- Capital inicial disponible: {initial_cap_str}
+- Tolerancia al riesgo: {risk_map.get(profile.risk_tolerance, profile.risk_tolerance)}
+- Broker: {broker_str}
+- Inversiones previas: {inv_str}{quiz_extra}
 
-ADAPTA TODO tu análisis a este perfil específico."""
+ADAPTA TODO tu análisis a este perfil específico. Si no tiene broker ni inversiones, guíalo hacia su primera inversión de forma simple y sin jerga técnica."""
 
 
 def build_deep_user_context(

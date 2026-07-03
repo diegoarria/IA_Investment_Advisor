@@ -69,6 +69,18 @@ const QUIZ_LABELS = {
   q4: { A: "$5K seguro",    B: "$15K / riesgo $5K", C: "$40K / riesgo $20K",D: "$120K / riesgo total"} as Record<QuizAnswer, string>,
 };
 
+const COUNTRIES = [
+  { value: "MX", label: "🇲🇽 México" },
+  { value: "US", label: "🇺🇸 Estados Unidos" },
+  { value: "CO", label: "🇨🇴 Colombia" },
+  { value: "AR", label: "🇦🇷 Argentina" },
+  { value: "VE", label: "🇻🇪 Venezuela" },
+  { value: "PE", label: "🇵🇪 Perú" },
+  { value: "CL", label: "🇨🇱 Chile" },
+  { value: "ES", label: "🇪🇸 España" },
+  { value: "OTHER", label: "🌎 Otro país" },
+];
+
 // ─── Helpers ───────────────────────────────────────────────────────────────────
 function calculateRisk(q1: string, q4: string): RiskTolerance {
   const m: Record<QuizAnswer, number> = { A: 1, B: 2, C: 3, D: 4 };
@@ -98,13 +110,18 @@ type FormState = {
   birth_day: string;
   birth_month: string;
   birth_year: string;
+  country: string;
   knowledge_level: QuizAnswer | "";
   monthly_contribution: string;
+  initial_capital: string;
   investment_goal_amount: string;
   investment_horizon: string;
   investment_goal: string;
   q1: QuizAnswer | "";
   q4: QuizAnswer | "";
+  has_broker: "yes" | "no" | "";
+  broker_name: string;
+  has_investments: "yes" | "no" | "";
 };
 
 // ─── Component ─────────────────────────────────────────────────────────────────
@@ -121,9 +138,10 @@ export default function OnboardingPage() {
   const [acceptedDisclaimer, setAcceptedDisclaimer] = useState(false);
 
   const [form, setForm] = useState<FormState>({
-    name: "", birth_day: "", birth_month: "", birth_year: "",
-    knowledge_level: "", monthly_contribution: "", investment_goal_amount: "",
-    investment_horizon: "", investment_goal: "", q1: "", q4: "",
+    name: "", birth_day: "", birth_month: "", birth_year: "", country: "",
+    knowledge_level: "", monthly_contribution: "", initial_capital: "",
+    investment_goal_amount: "", investment_horizon: "", investment_goal: "",
+    q1: "", q4: "", has_broker: "", broker_name: "", has_investments: "",
   });
 
   useEffect(() => { if (!authRestoring && !isAuthenticated && !localStorage.getItem("access_token") && !localStorage.getItem("refresh_token")) router.push("/"); }, [isAuthenticated, authRestoring]);
@@ -207,11 +225,11 @@ export default function OnboardingPage() {
     : `En ${horizonYrs} años tendrías ${fmtMoney(fvHorizon)} — aumenta tu aportación mensual`;
 
   const STEPS = [
-    // 0 — Nombre + fecha de nacimiento
+    // 0 — Nombre + fecha de nacimiento + país
     {
       subtitle: "BIENVENIDO",
       title: "¡Hola! Cuéntanos sobre ti",
-      valid: () => form.name.trim().length >= 2 && birthDateValid,
+      valid: () => form.name.trim().length >= 2 && birthDateValid && !!form.country,
       content: (
         <div className="space-y-5">
           <div>
@@ -268,6 +286,29 @@ export default function OnboardingPage() {
               Debes tener al menos 18 años para usar Nuvos AI.
             </p>
           </div>
+
+          <div>
+            <label className="block text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: "var(--muted)" }}>
+              ¿Desde dónde inviertes?
+            </label>
+            <div className="grid grid-cols-3 gap-2">
+              {COUNTRIES.map((c) => {
+                const active = form.country === c.value;
+                return (
+                  <button key={c.value}
+                          onClick={() => setForm(f => ({ ...f, country: c.value }))}
+                          className="px-3 py-2.5 rounded-xl border-2 text-xs font-semibold text-left transition-all"
+                          style={{
+                            borderColor: active ? "var(--accent)" : "var(--border)",
+                            background: active ? "rgba(0,168,94,0.10)" : "var(--raised)",
+                            color: active ? "var(--accent-l)" : "var(--sub)",
+                          }}>
+                    {c.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
         </div>
       ),
     },
@@ -322,6 +363,25 @@ export default function OnboardingPage() {
       valid: () => pmt > 0 && parseFloat(form.investment_goal_amount) > 0 && horizonYrs >= 1,
       content: (
         <div className="space-y-5">
+          <div>
+            <label className="block text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: "var(--muted)" }}>
+              ¿Cuánto tienes disponible para empezar a invertir hoy?
+            </label>
+            <div className="relative">
+              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm font-bold" style={{ color: "var(--muted)" }}>$</span>
+              <input type="number" min={0}
+                     value={form.initial_capital}
+                     onChange={(e) => setForm(f => ({ ...f, initial_capital: e.target.value }))}
+                     className="w-full rounded-xl border pl-8 pr-4 py-3 text-sm outline-none"
+                     placeholder="0 si todavía no tienes"
+                     style={{ background: "var(--raised)", borderColor: "var(--border)", color: "var(--text)" }}
+              />
+            </div>
+            <p className="text-xs mt-1.5" style={{ color: "var(--dim)" }}>
+              No te preocupes si es $0 — muchos empiezan de cero. Es solo para personalizar tu plan.
+            </p>
+          </div>
+
           <div>
             <label className="block text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: "var(--muted)" }}>
               ¿Cuánto quieres invertir mensualmente?
@@ -432,7 +492,94 @@ export default function OnboardingPage() {
       content: renderQuiz(QUIZ_Q4, "q4"),
     },
 
-    // 6 — Perfil del inversor (reveal)
+    // 6 — Experiencia previa: broker + inversiones
+    {
+      subtitle: "TU PUNTO DE PARTIDA",
+      title: `${firstName ? `${firstName}, ¿ya` : "¿Ya"} tienes experiencia en el mercado?`,
+      valid: () => !!form.has_broker && !!form.has_investments,
+      content: (
+        <div className="space-y-6">
+          {/* Broker */}
+          <div>
+            <p className="text-sm font-bold mb-3" style={{ color: "var(--text)" }}>
+              ¿Tienes cuenta en algún broker?
+            </p>
+            <div className="grid grid-cols-2 gap-3">
+              {([
+                { val: "yes" as const, label: "Sí, ya tengo", emoji: "✅" },
+                { val: "no"  as const, label: "No todavía",   emoji: "🚀" },
+              ]).map(({ val, label, emoji }) => {
+                const active = form.has_broker === val;
+                return (
+                  <button key={val}
+                          onClick={() => setForm(f => ({ ...f, has_broker: val, broker_name: val === "no" ? "" : f.broker_name }))}
+                          className="p-4 rounded-2xl border-2 text-center transition-all"
+                          style={{
+                            borderColor: active ? "var(--accent)" : "var(--border)",
+                            background: active ? "rgba(0,168,94,0.10)" : "var(--raised)",
+                          }}>
+                    <div className="text-2xl mb-1">{emoji}</div>
+                    <p className="text-sm font-bold" style={{ color: active ? "var(--accent-l)" : "var(--sub)" }}>{label}</p>
+                  </button>
+                );
+              })}
+            </div>
+            {form.has_broker === "yes" && (
+              <div className="mt-3">
+                <input
+                  value={form.broker_name}
+                  onChange={(e) => setForm(f => ({ ...f, broker_name: e.target.value }))}
+                  className="w-full rounded-xl border px-4 py-3 text-sm outline-none"
+                  placeholder="Ej. Robinhood, GBM, Fidelity, Interactive Brokers..."
+                  style={{ background: "var(--raised)", borderColor: "var(--border)", color: "var(--text)" }}
+                />
+                <p className="text-xs mt-1.5" style={{ color: "var(--dim)" }}>
+                  Así Nuvos sabrá qué plataforma usas y podrá guiarte mejor.
+                </p>
+              </div>
+            )}
+          </div>
+
+          {/* Inversiones previas */}
+          <div>
+            <p className="text-sm font-bold mb-3" style={{ color: "var(--text)" }}>
+              ¿Ya tienes dinero invertido en el mercado?
+            </p>
+            <div className="grid grid-cols-2 gap-3">
+              {([
+                { val: "yes" as const, label: "Sí, ya invertí", emoji: "📈" },
+                { val: "no"  as const, label: "Seré primerizo", emoji: "🌱" },
+              ]).map(({ val, label, emoji }) => {
+                const active = form.has_investments === val;
+                return (
+                  <button key={val}
+                          onClick={() => setForm(f => ({ ...f, has_investments: val }))}
+                          className="p-4 rounded-2xl border-2 text-center transition-all"
+                          style={{
+                            borderColor: active ? "var(--accent)" : "var(--border)",
+                            background: active ? "rgba(0,168,94,0.10)" : "var(--raised)",
+                          }}>
+                    <div className="text-2xl mb-1">{emoji}</div>
+                    <p className="text-sm font-bold" style={{ color: active ? "var(--accent-l)" : "var(--sub)" }}>{label}</p>
+                  </button>
+                );
+              })}
+            </div>
+            {form.has_investments === "no" && (
+              <div className="mt-3 rounded-xl px-4 py-3 flex items-start gap-3"
+                   style={{ background: "rgba(34,197,94,0.08)", border: "1px solid rgba(34,197,94,0.25)" }}>
+                <span className="text-xl shrink-0">🎯</span>
+                <p className="text-xs leading-relaxed" style={{ color: "#22c55e" }}>
+                  <strong>¡Perfecto punto de partida!</strong> Al terminar el onboarding te esperará una Sesión de Bienvenida personalizada para que hagas tu primera inversión con confianza.
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+      ),
+    },
+
+    // 7 — Perfil del inversor (reveal)
     {
       subtitle: "TU PERFIL DE INVERSIÓN",
       title: `Tu perfil, ${firstName || "inversionista"}`,
@@ -466,13 +613,17 @@ export default function OnboardingPage() {
               </p>
             </div>
             {[
-              { label: "Nombre",            value: form.name },
-              { label: "Edad",              value: userAge ? `${userAge} años` : "—" },
-              { label: "Nivel",             value: levelInfo ? `${levelInfo.emoji} ${levelInfo.label}` : "—" },
-              { label: "Meta",              value: goalInfo  ? `${goalInfo.emoji} ${goalInfo.label}` : "—" },
-              { label: "Patrimonio objetivo", value: `$${Number(form.investment_goal_amount).toLocaleString()}` },
-              { label: "Horizonte",         value: `${form.investment_horizon} años` },
-              { label: "Aportación mensual",value: `$${Number(form.monthly_contribution).toLocaleString()}/mes` },
+              { label: "Nombre",             value: form.name },
+              { label: "Edad",               value: userAge ? `${userAge} años` : "—" },
+              { label: "País",               value: COUNTRIES.find(c => c.value === form.country)?.label ?? "—" },
+              { label: "Nivel",              value: levelInfo ? `${levelInfo.emoji} ${levelInfo.label}` : "—" },
+              { label: "Meta",               value: goalInfo  ? `${goalInfo.emoji} ${goalInfo.label}` : "—" },
+              { label: "Capital inicial",    value: form.initial_capital ? `$${Number(form.initial_capital).toLocaleString()}` : "$0" },
+              { label: "Aportación mensual", value: `$${Number(form.monthly_contribution).toLocaleString()}/mes` },
+              { label: "Patrimonio objetivo",value: `$${Number(form.investment_goal_amount).toLocaleString()}` },
+              { label: "Horizonte",          value: `${form.investment_horizon} años` },
+              { label: "Broker",             value: form.has_broker === "yes" ? (form.broker_name || "Sí") : "Sin broker aún" },
+              { label: "Inversiones previas",value: form.has_investments === "yes" ? "Ya invertí antes" : "Primera vez 🌱" },
             ].map((row) => (
               <div key={row.label}
                    className="flex items-center justify-between px-4 py-2.5 border-b last:border-0"
@@ -757,13 +908,18 @@ export default function OnboardingPage() {
       const payload = {
         name:                   form.name.trim(),
         birth_date:             birthDateStr || undefined,
+        country:                form.country || undefined,
         monthly_contribution:   form.monthly_contribution,
+        initial_capital:        form.initial_capital || undefined,
         investment_goal:        form.investment_goal,
         investment_goal_amount: form.investment_goal_amount,
         investment_horizon:     form.investment_horizon,
         knowledge_level:        form.knowledge_level,
         risk_tolerance:         calculated,
         quiz_answers:           { q1: form.q1, q4: form.q4 },
+        has_broker:             form.has_broker === "yes",
+        broker_name:            form.has_broker === "yes" ? (form.broker_name || undefined) : undefined,
+        has_investments:        form.has_investments === "yes",
         terms_accepted_at:      new Date().toISOString(),
         terms_version:          "2026-06",
       };
@@ -788,11 +944,26 @@ export default function OnboardingPage() {
       const _yrsPart = yrsNeeded && goalAmt > 0 && pmt > 0
         ? `\n\n📊 Con **$${pmt.toLocaleString()}/mes** y un retorno histórico promedio del **${_rateLabel}** anual, podrías alcanzar **${fmtMoney(goalAmt)}** en aproximadamente **${yrsNeeded} años**.`
         : "";
+      const _brokerContext = form.has_broker === "yes" && form.broker_name
+        ? `Veo que ya usas **${form.broker_name}**`
+        : form.has_broker === "yes"
+        ? "Veo que ya tienes broker"
+        : "Como todavía no tienes broker, uno de nuestros primeros pasos será ayudarte a abrir uno";
+      const _invContext = form.has_investments === "yes"
+        ? "y ya tienes experiencia en el mercado"
+        : "y será tu primera vez invirtiendo — lo mejor que te puede pasar";
       const _welcomeMsg =
-        `Hola **${firstName}** 👋 Ya revisé tu perfil.\n\n` +
-        `Eres un inversionista **${riskCfg.label}** con meta de **${_goalLabel[form.investment_goal] ?? form.investment_goal}**.` +
-        `${_yrsPart}\n\n${_levelIntro}\n\n` +
-        `Para empezar bien, necesito saber una cosa: **¿ya tienes alguna posición o inversión en el mercado, o estás comenzando desde cero?**`;
+        `¡Bienvenido a tu **Sesión de Bienvenida**, **${firstName}**! 🎉\n\n` +
+        `Ya revisé tu perfil completo. Eres un inversionista **${riskCfg.label}** con meta de **${_goalLabel[form.investment_goal] ?? form.investment_goal}**.` +
+        `${_yrsPart}\n\n` +
+        `${_brokerContext} ${_invContext}.\n\n` +
+        `${_levelIntro}\n\n` +
+        `Esta sesión está diseñada para que salgas con **todo listo**:\n` +
+        `✅ Objetivos claros\n` +
+        `✅ Broker configurado\n` +
+        `✅ Portafolio armado\n` +
+        `✅ Nuvos AI 100% personalizado para ti\n\n` +
+        `**¿Por dónde quieres empezar?**`;
 
       const _chat = useChatStore.getState();
       _chat.createSession();
@@ -814,42 +985,79 @@ export default function OnboardingPage() {
     }
   };
 
-  // ── Success screen ───────────────────────────────────────────────────────────
+  // ── Sesión de Bienvenida screen ─────────────────────────────────────────────
   if (success) {
+    const isFirstTimer = form.has_investments === "no";
+    const hasNoBroker  = form.has_broker === "no";
     return (
       <div className="min-h-screen flex items-center justify-center p-4" style={{ background: "var(--bg)" }}>
-        <div className="w-full max-w-sm text-center">
-          <div className="text-6xl mb-4">{riskCfg.emoji}</div>
-          <h1 className="text-3xl font-black mb-2" style={{ color: "var(--text)" }}>
-            ¡Listo, {firstName}!
-          </h1>
-          <p className="text-sm mb-6" style={{ color: "var(--muted)" }}>
-            Tu perfil de inversionista está configurado.
-          </p>
-          <div className="rounded-2xl border p-4 mb-6 text-left space-y-2"
-               style={{ background: "var(--card)", borderColor: "var(--border)" }}>
-            <div className="flex items-center gap-3">
-              <span className="text-xl">{riskCfg.emoji}</span>
-              <div>
-                <div className="text-[10px] font-bold uppercase tracking-wider" style={{ color: "var(--muted)" }}>Perfil de riesgo</div>
-                <div className="text-sm font-semibold" style={{ color: riskCfg.color }}>Inversionista {riskCfg.label}</div>
-              </div>
-            </div>
-            {levelInfo && (
-              <div className="flex items-center gap-3">
-                <span className="text-xl">{levelInfo.emoji}</span>
-                <div>
-                  <div className="text-[10px] font-bold uppercase tracking-wider" style={{ color: "var(--muted)" }}>Nivel</div>
-                  <div className="text-sm font-semibold" style={{ color: levelInfo.color }}>{levelInfo.label}</div>
-                </div>
-              </div>
-            )}
+        <div className="w-full max-w-sm">
+
+          {/* Header */}
+          <div className="text-center mb-6">
+            <div className="text-5xl mb-3">🎉</div>
+            <h1 className="text-3xl font-black mb-1" style={{ color: "var(--text)" }}>
+              ¡Bienvenido, {firstName}!
+            </h1>
+            <p className="text-sm font-semibold" style={{ color: "var(--muted)" }}>
+              Tu Sesión de Bienvenida está lista
+            </p>
           </div>
+
+          {/* Profile badge */}
+          <div className="rounded-2xl border px-4 py-3 mb-5 flex items-center gap-3"
+               style={{ background: "var(--card)", borderColor: riskCfg.color + "40" }}>
+            <span className="text-2xl">{riskCfg.emoji}</span>
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-wider" style={{ color: "var(--muted)" }}>Tu perfil de inversionista</p>
+              <p className="text-sm font-black" style={{ color: riskCfg.color }}>
+                {riskCfg.label} · {levelInfo?.label ?? ""}
+              </p>
+            </div>
+          </div>
+
+          {/* Session agenda */}
+          <div className="rounded-2xl border p-5 mb-5 space-y-3"
+               style={{ background: "var(--card)", borderColor: "var(--border)" }}>
+            <p className="text-xs font-black uppercase tracking-widest mb-4" style={{ color: "var(--muted)" }}>
+              En esta sesión vamos a:
+            </p>
+            {[
+              { icon: "🎯", text: "Definir tus objetivos de inversión con claridad" },
+              { icon: "📚", text: "Explicarte el proceso de inversión paso a paso" },
+              ...(hasNoBroker
+                ? [{ icon: "🏦", text: "Ayudarte a abrir tu cuenta en un broker" }]
+                : [{ icon: "🏦", text: "Conectar y revisar tu broker actual" }]),
+              { icon: "📊", text: "Configurar tu portafolio en Nuvos AI" },
+              { icon: "🤖", text: "Personalizar tu Mentor IA al máximo" },
+              ...(isFirstTimer
+                ? [{ icon: "🚀", text: "Acompañarte en tu primera inversión, si decides hacerla" }]
+                : [{ icon: "🔍", text: "Analizar tus inversiones actuales y detectar mejoras" }]),
+            ].map((item, i) => (
+              <div key={i} className="flex items-center gap-3">
+                <span className="text-lg shrink-0">{item.icon}</span>
+                <p className="text-sm" style={{ color: "var(--sub)" }}>{item.text}</p>
+              </div>
+            ))}
+          </div>
+
+          {/* Outcome promise */}
+          <div className="rounded-xl px-4 py-3 mb-5 space-y-1.5"
+               style={{ background: "rgba(34,197,94,0.07)", border: "1px solid rgba(34,197,94,0.25)" }}>
+            <p className="text-xs font-bold" style={{ color: "#22c55e" }}>Al terminar saldrás con:</p>
+            {["✅ Objetivos claros", "✅ Broker configurado", "✅ Portafolio armado", "✅ Nuvos AI listo para ti"].map(t => (
+              <p key={t} className="text-xs" style={{ color: "var(--sub)" }}>{t}</p>
+            ))}
+          </div>
+
           <button onClick={() => router.push("/chat")}
-                  className="w-full py-4 rounded-2xl text-white font-bold text-base"
+                  className="w-full py-4 rounded-2xl text-black font-black text-base transition-all"
                   style={{ background: "var(--accent)" }}>
-            Empezar →
+            Comenzar mi sesión →
           </button>
+          <p className="text-center text-xs mt-3" style={{ color: "var(--dim)" }}>
+            Tu Mentor IA ya conoce todo tu perfil
+          </p>
         </div>
       </div>
     );
