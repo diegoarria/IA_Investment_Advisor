@@ -507,14 +507,76 @@ def _is_impulsive_hold(d: dict) -> bool:
     return d.get("action") == "hold" and d.get("trigger") in ("fomo", "panic")
 
 
+_MIN_DRAWDOWN_PCT = 10.0  # peak-to-trough decline worth calling a "real drawdown"
+
+
+def _find_significant_drawdowns(snapshots: list[dict]) -> list[dict]:
+    """
+    Peak-to-trough declines of at least _MIN_DRAWDOWN_PCT in the snapshot
+    history — a simple running-peak scan, not a statistical model. Each
+    result is a real, dated period the user's own patrimonio actually lived
+    through, not a hypothetical.
+    """
+    drawdowns: list[dict] = []
+    if len(snapshots) < 2:
+        return drawdowns
+
+    peak_val = snapshots[0]["total_value"]
+    peak_date = snapshots[0]["snapshot_date"]
+    trough_val = peak_val
+    trough_date = peak_date
+    in_drawdown = False
+
+    def _maybe_record():
+        if in_drawdown and peak_val > 0:
+            drop_pct = (peak_val - trough_val) / peak_val * 100
+            if drop_pct >= _MIN_DRAWDOWN_PCT:
+                drawdowns.append({
+                    "peak_date": peak_date, "peak_value": peak_val,
+                    "trough_date": trough_date, "trough_value": trough_val,
+                    "drop_pct": drop_pct,
+                })
+
+    for s in snapshots[1:]:
+        val = s.get("total_value")
+        if val is None:
+            continue
+        if val > peak_val:
+            _maybe_record()
+            peak_val, peak_date = val, s["snapshot_date"]
+            trough_val, trough_date = val, s["snapshot_date"]
+            in_drawdown = False
+        elif val < trough_val:
+            trough_val, trough_date = val, s["snapshot_date"]
+            in_drawdown = True
+
+    _maybe_record()  # capture a drawdown still in progress at the end of history
+    drawdowns.sort(key=lambda d: d["drop_pct"], reverse=True)
+    return drawdowns
+
+
+def _held_through_drawdown(ctx: dict, peak_date: str) -> bool:
+    """True if the user still holds a position that was already open before
+    the drawdown's peak — i.e. they didn't fully bail out during the drop."""
+    for p in ctx["positions"]:
+        purchase_date = p.get("purchaseDate")
+        if purchase_date and purchase_date <= peak_date:
+            return True
+    return False
+
+
 async def get_decisions_that_helped(user_id: str) -> list[dict]:
     """
     Grounded "decisiones que evitaron errores costosos" — never a dollar figure
     that can't be demonstrated, only the decision, why it mattered, and what
-    it shows. Two real signals, both already in storage:
+    it shows. Three real signals, all already in storage:
       1. A decision explicitly logged as "hold" with trigger fomo/panic — the
          user recorded, in the moment, that they resisted an impulsive urge.
-      2. A meaningful drop in portfolio sector concentration over time
+      2. A real peak-to-trough drawdown in the user's own patrimonio history
+         where they still held a position opened before the drop — evidence
+         they didn't panic-sell, with no dependency on the manual decision
+         diary most users never touch.
+      3. A meaningful drop in portfolio sector concentration over time
          (reuses the same signal as detect_behavior_evolution, reframed here).
     """
     ctx = await _build_context(user_id)
@@ -532,6 +594,18 @@ async def get_decisions_that_helped(user_id: str) -> list[dict]:
                 f"reaccionar por impulso."
             ),
         })
+
+    for dd in _find_significant_drawdowns(ctx["snapshots"])[:3]:
+        if _held_through_drawdown(ctx, dd["peak_date"]):
+            items.append({
+                "key": f"drawdown_{dd['peak_date']}_{dd['trough_date']}",
+                "title": "Mantuviste tu inversión durante una caída real",
+                "description": (
+                    f"Entre el {dd['peak_date']} y el {dd['trough_date']} tu patrimonio cayó "
+                    f"{round(dd['drop_pct'])}%, y no vendiste — mantuviste tu estrategia en vez "
+                    f"de liquidar por pánico."
+                ),
+            })
 
     evolution = await detect_behavior_evolution(user_id, ctx=ctx)
     for e in evolution:
