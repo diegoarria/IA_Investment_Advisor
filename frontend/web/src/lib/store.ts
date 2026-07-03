@@ -510,8 +510,8 @@ export const useSubscriptionStore = create<SubscriptionState>()(
   )
 );
 
-export function msgsRemaining(store: { tier: SubscriptionTier; msgCount: number; msgWindowStart: string | null }): number {
-  if (store.tier === "premium") return Infinity;
+export function msgsRemaining(store: { tier: SubscriptionTier; isTrialPremium?: boolean; msgCount: number; msgWindowStart: string | null }): number {
+  if (store.tier === "premium" || store.isTrialPremium) return Infinity;
   const { msgCount, msgWindowStart } = store;
   const now = new Date();
   const windowStart = msgWindowStart ? new Date(msgWindowStart) : null;

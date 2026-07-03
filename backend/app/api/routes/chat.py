@@ -44,7 +44,7 @@ def _is_premium(profile) -> bool:
 
 
 async def _check_and_increment_msg_limit(user_id: str, profile: UserProfile) -> None:
-    is_premium = profile.subscription_tier == "premium"
+    is_premium = _is_premium(profile)
     limit = PREMIUM_MSG_LIMIT if is_premium else FREE_MSG_LIMIT
 
     db = get_supabase()

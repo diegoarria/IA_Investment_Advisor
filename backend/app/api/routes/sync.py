@@ -495,7 +495,7 @@ async def get_all(user_id: str = Depends(get_current_user_id)):
     try:
         profile_res = await run_query(
             db.table("user_profiles")
-            .select("maturity_score, maturity_history, trial_started_at, subscription_tier, nav_order, watchlist_order, theme, avatar_url, behavioral_risk_score, streak_count, last_learn_date, investment_goal, investment_goal_amount, completed_topic_ids, portfolio_view_mode, checklist_done, watchlist_view_mode")
+            .select("maturity_score, maturity_history, trial_started_at, subscription_tier, nav_order, watchlist_order, theme, avatar_url, behavioral_risk_score, streak_count, last_learn_date, investment_goal, investment_goal_amount, completed_topic_ids, portfolio_view_mode, checklist_done, watchlist_view_mode, has_broker")
             .eq("user_id", user_id)
         )
     except Exception:
@@ -586,6 +586,7 @@ async def get_all(user_id: str = Depends(get_current_user_id)):
         "portfolio_view_mode":  profile_row.get("portfolio_view_mode", "basic"),
         "watchlist_view_mode":  profile_row.get("watchlist_view_mode", "basic"),
         "checklist_done":       bool(profile_row.get("checklist_done", False)),
+        "has_broker":           bool(profile_row.get("has_broker", False)),
     }
     # A brand-new account with zero portfolio rows is a normal, cacheable state.
     # But if this account has ever had a portfolio and this particular read just

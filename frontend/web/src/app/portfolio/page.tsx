@@ -38,171 +38,167 @@ import {
 
 // ─── Sector taxonomy ────────────────────────────────────────────────────────
 const TICKER_SECTOR: Record<string, string> = {
-  // ── Tecnología (Technology) ────────────────────────────────────────────────
-  // Semiconductors
-  NVDA:"Tecnología",AMD:"Tecnología",INTC:"Tecnología",
-  QCOM:"Tecnología",AVGO:"Tecnología",MU:"Tecnología",
-  TSM:"Tecnología",AMAT:"Tecnología",LRCX:"Tecnología",
-  KLAC:"Tecnología",TXN:"Tecnología",ADI:"Tecnología",
-  MCHP:"Tecnología",ON:"Tecnología",SWKS:"Tecnología",
-  SMCI:"Tecnología",MRVL:"Tecnología",ARM:"Tecnología",
-  WOLF:"Tecnología",MPWR:"Tecnología",SOXX:"Tecnología",SMH:"Tecnología",
-  // Software – Infrastructure & Application
-  MSFT:"Tecnología",CRM:"Tecnología",ADBE:"Tecnología",ORCL:"Tecnología",
-  NOW:"Tecnología",INTU:"Tecnología",CDNS:"Tecnología",SNPS:"Tecnología",
-  ANSS:"Tecnología",WDAY:"Tecnología",DDOG:"Tecnología",TEAM:"Tecnología",
-  HUBS:"Tecnología",VEEV:"Tecnología",NET:"Tecnología",ZS:"Tecnología",
-  OKTA:"Tecnología",PANW:"Tecnología",FTNT:"Tecnología",MDB:"Tecnología",
-  SNOW:"Tecnología",GTLB:"Tecnología",ESTC:"Tecnología",SMAR:"Tecnología",
-  SPLK:"Tecnología",DOCN:"Tecnología",
-  // Consumer Electronics & AI platforms
-  AAPL:"Tecnología",
-  PLTR:"Tecnología",AI:"Tecnología",BBAI:"Tecnología",SOUN:"Tecnología",
-  SHOP:"Tecnología",VGT:"Tecnología",
-  // Solar (classified under Technology per Yahoo Finance)
-  ENPH:"Tecnología",SEDG:"Tecnología",FSLR:"Tecnología",
+  // Semiconductores
+  NVDA:"Semiconductores",AMD:"Semiconductores",INTC:"Semiconductores",
+  QCOM:"Semiconductores",AVGO:"Semiconductores",MU:"Semiconductores",
+  TSM:"Semiconductores",AMAT:"Semiconductores",LRCX:"Semiconductores",
+  KLAC:"Semiconductores",TXN:"Semiconductores",ADI:"Semiconductores",
+  MCHP:"Semiconductores",ON:"Semiconductores",SWKS:"Semiconductores",
+  SMCI:"Semiconductores",MRVL:"Semiconductores",ARM:"Semiconductores",
+  WOLF:"Semiconductores",MPWR:"Semiconductores",SOXX:"Semiconductores",
+  ASML:"Semiconductores",ENTG:"Semiconductores",
 
-  // ── Comunicaciones (Communication Services) ────────────────────────────────
-  // Internet Content & Information
-  GOOGL:"Comunicaciones",GOOG:"Comunicaciones",
-  META:"Comunicaciones",SNAP:"Comunicaciones",PINS:"Comunicaciones",
-  RBLX:"Comunicaciones",SPOT:"Comunicaciones",
-  // Entertainment
-  NFLX:"Comunicaciones",DIS:"Comunicaciones",
-  WBD:"Comunicaciones",PARA:"Comunicaciones",FOX:"Comunicaciones",FOXA:"Comunicaciones",
-  // Telecom Services
-  T:"Comunicaciones",VZ:"Comunicaciones",TMUS:"Comunicaciones",
-  CMCSA:"Comunicaciones",CHTR:"Comunicaciones",
+  // Software
+  MSFT:"Software",CRM:"Software",ADBE:"Software",ORCL:"Software",
+  NOW:"Software",INTU:"Software",CDNS:"Software",SNPS:"Software",
+  ANSS:"Software",WDAY:"Software",DDOG:"Software",TEAM:"Software",
+  HUBS:"Software",VEEV:"Software",NET:"Software",ZS:"Software",
+  OKTA:"Software",PANW:"Software",FTNT:"Software",MDB:"Software",
+  SNOW:"Software",GTLB:"Software",ESTC:"Software",SMAR:"Software",
+  SPLK:"Software",DOCN:"Software",CRWD:"Software",
 
-  // ── Consumo Discrecional (Consumer Discretionary) ─────────────────────────
-  // Internet Retail
-  AMZN:"Consumo Discrecional",
-  MELI:"Consumo Discrecional",SE:"Consumo Discrecional",
-  BABA:"Consumo Discrecional",JD:"Consumo Discrecional",
-  EBAY:"Consumo Discrecional",ETSY:"Consumo Discrecional",
-  W:"Consumo Discrecional",CHWY:"Consumo Discrecional",CPNG:"Consumo Discrecional",
-  // Auto Manufacturers
-  TSLA:"Consumo Discrecional",
+  // Tecnología (plataformas, ecosistemas consumer)
+  AAPL:"Tecnología",GOOGL:"Tecnología",GOOG:"Tecnología",
+  META:"Tecnología",AMZN:"Tecnología",SPOT:"Tecnología",
+  SNAP:"Tecnología",PINS:"Tecnología",RBLX:"Tecnología",
+  CSCO:"Tecnología",IBM:"Tecnología",DELL:"Tecnología",HPQ:"Tecnología",
+
+  // Inteligencia Artificial
+  PLTR:"Inteligencia Artificial",AI:"Inteligencia Artificial",
+  BBAI:"Inteligencia Artificial",SOUN:"Inteligencia Artificial",
+  U:"Inteligencia Artificial",
+
+  // Fintech
+  PYPL:"Fintech",SQ:"Fintech",HOOD:"Fintech",SOFI:"Fintech",
+  AFRM:"Fintech",UPST:"Fintech",NERDW:"Fintech",
+
+  // eCommerce
+  SHOP:"eCommerce",MELI:"eCommerce",SE:"eCommerce",
+  BABA:"eCommerce",JD:"eCommerce",EBAY:"eCommerce",
+  ETSY:"eCommerce",W:"eCommerce",CHWY:"eCommerce",CPNG:"eCommerce",
+
+  // Consumo Discrecional
+  TSLA:"Consumo Discrecional",NFLX:"Consumo Discrecional",
+  NKE:"Consumo Discrecional",SBUX:"Consumo Discrecional",
+  MCD:"Consumo Discrecional",HD:"Consumo Discrecional",
+  LOW:"Consumo Discrecional",TGT:"Consumo Discrecional",
+  TJX:"Consumo Discrecional",ROST:"Consumo Discrecional",
+  ABNB:"Consumo Discrecional",BKNG:"Consumo Discrecional",EXPE:"Consumo Discrecional",
+  YUM:"Consumo Discrecional",CMG:"Consumo Discrecional",
+  DKNG:"Consumo Discrecional",DIS:"Consumo Discrecional",
+  UBER:"Consumo Discrecional",LYFT:"Consumo Discrecional",
   F:"Consumo Discrecional",GM:"Consumo Discrecional",
   RIVN:"Consumo Discrecional",LCID:"Consumo Discrecional",NIO:"Consumo Discrecional",
-  // Restaurants
-  MCD:"Consumo Discrecional",SBUX:"Consumo Discrecional",
-  CMG:"Consumo Discrecional",YUM:"Consumo Discrecional",
-  // Home Improvement Retail
-  HD:"Consumo Discrecional",LOW:"Consumo Discrecional",
-  // Specialty & Apparel Retail
-  NKE:"Consumo Discrecional",TGT:"Consumo Discrecional",
-  TJX:"Consumo Discrecional",ROST:"Consumo Discrecional",
-  // Travel & Leisure
-  ABNB:"Consumo Discrecional",BKNG:"Consumo Discrecional",EXPE:"Consumo Discrecional",
-  // Gambling & Casinos
-  LVS:"Consumo Discrecional",MGM:"Consumo Discrecional",
-  WYNN:"Consumo Discrecional",DKNG:"Consumo Discrecional",
-  // Other
+  LVS:"Consumo Discrecional",MGM:"Consumo Discrecional",WYNN:"Consumo Discrecional",
   PTON:"Consumo Discrecional",
-  UBER:"Consumo Discrecional",LYFT:"Consumo Discrecional",
 
-  // ── Consumo Básico (Consumer Staples) ─────────────────────────────────────
+  // Consumo Básico
   WMT:"Consumo Básico",KO:"Consumo Básico",PG:"Consumo Básico",
   COST:"Consumo Básico",PEP:"Consumo Básico",MDLZ:"Consumo Básico",
   CLX:"Consumo Básico",KHC:"Consumo Básico",GIS:"Consumo Básico",
   HSY:"Consumo Básico",CL:"Consumo Básico",KMB:"Consumo Básico",
   EL:"Consumo Básico",K:"Consumo Básico",CHD:"Consumo Básico",
-  TSN:"Consumo Básico",HRL:"Consumo Básico",
-  PM:"Consumo Básico",MO:"Consumo Básico",
+  TSN:"Consumo Básico",HRL:"Consumo Básico",PM:"Consumo Básico",MO:"Consumo Básico",
 
-  // ── Salud (Healthcare) ─────────────────────────────────────────────────────
-  // Healthcare Plans & Hospitals
+  // Salud (aseguradoras + hospitales + dispositivos)
   UNH:"Salud",HCA:"Salud",CNC:"Salud",CVS:"Salud",
   CI:"Salud",HUM:"Salud",MOH:"Salud",ELV:"Salud",
-  // Drug Manufacturers
-  JNJ:"Salud",PFE:"Salud",ABBV:"Salud",
-  MRK:"Salud",LLY:"Salud",BMY:"Salud",
-  AZN:"Salud",GSK:"Salud",SNY:"Salud",
-  NVO:"Salud",RHHBY:"Salud",
-  // Biotechnology
-  AMGN:"Salud",GILD:"Salud",REGN:"Salud",
-  VRTX:"Salud",BIIB:"Salud",MRNA:"Salud",
-  BNTX:"Salud",ILMN:"Salud",IONS:"Salud",
-  ALNY:"Salud",SGEN:"Salud",BEAM:"Salud",
-  // Medical Devices
-  ABT:"Salud",MDT:"Salud",ISRG:"Salud",
+  ABT:"Salud",MDT:"Salud",BSX:"Salud",ISRG:"Salud",
 
-  // ── Financiero (Financials) ────────────────────────────────────────────────
-  // Capital Markets & Asset Management
+  // Farmacéutica
+  JNJ:"Farmacéutica",PFE:"Farmacéutica",ABBV:"Farmacéutica",
+  MRK:"Farmacéutica",LLY:"Farmacéutica",BMY:"Farmacéutica",
+  AZN:"Farmacéutica",GSK:"Farmacéutica",SNY:"Farmacéutica",NVO:"Farmacéutica",
+
+  // Biotecnología
+  AMGN:"Biotecnología",GILD:"Biotecnología",REGN:"Biotecnología",
+  VRTX:"Biotecnología",BIIB:"Biotecnología",MRNA:"Biotecnología",
+  BNTX:"Biotecnología",ILMN:"Biotecnología",ALNY:"Biotecnología",
+  IONS:"Biotecnología",BEAM:"Biotecnología",SGEN:"Biotecnología",
+
+  // Financiero (capital markets, gestoras, pagos)
   GS:"Financiero",MS:"Financiero",BX:"Financiero",
   KKR:"Financiero",APO:"Financiero",SCHW:"Financiero",
   BLK:"Financiero",SPGI:"Financiero",ICE:"Financiero",IBKR:"Financiero",
-  // Credit Services
   V:"Financiero",MA:"Financiero",AXP:"Financiero",
-  // Fintech & Credit
-  PYPL:"Financiero",SQ:"Financiero",HOOD:"Financiero",
-  SOFI:"Financiero",AFRM:"Financiero",UPST:"Financiero",NERDW:"Financiero",
-  // Banks – Diversified & Regional
-  JPM:"Financiero",BAC:"Financiero",WFC:"Financiero",
-  C:"Financiero",USB:"Financiero",PNC:"Financiero",
-  TFC:"Financiero",FITB:"Financiero",HBAN:"Financiero",
-  // Insurance
-  BRK:"Financiero","BRK-B":"Financiero",PRU:"Financiero",MET:"Financiero",
-  AFL:"Financiero",TRV:"Financiero",AIG:"Financiero",
-  CB:"Financiero",ALL:"Financiero",PGR:"Financiero",UNM:"Financiero",
-  // Crypto / Blockchain (Capital Markets per Yahoo Finance)
-  COIN:"Financiero",MSTR:"Financiero",MARA:"Financiero",
-  RIOT:"Financiero",HUT:"Financiero",CLSK:"Financiero",
+  BRK:"Financiero","BRK-B":"Financiero",
 
-  // ── Energía (Energy) ──────────────────────────────────────────────────────
+  // Bancario
+  JPM:"Bancario",BAC:"Bancario",WFC:"Bancario",
+  C:"Bancario",USB:"Bancario",PNC:"Bancario",
+  TFC:"Bancario",FITB:"Bancario",HBAN:"Bancario",
+
+  // Seguros
+  PRU:"Seguros",MET:"Seguros",AFL:"Seguros",
+  TRV:"Seguros",AIG:"Seguros",CB:"Seguros",
+  ALL:"Seguros",PGR:"Seguros",UNM:"Seguros",
+
+  // Energía
   XOM:"Energía",CVX:"Energía",COP:"Energía",OXY:"Energía",
   SLB:"Energía",HAL:"Energía",EOG:"Energía",PXD:"Energía",
   DVN:"Energía",PSX:"Energía",VLO:"Energía",MPC:"Energía",
   HES:"Energía",BKR:"Energía",MRO:"Energía",
 
-  // ── Industriales (Industrials) ─────────────────────────────────────────────
-  // Machinery
+  // Energía Renovable
+  ENPH:"Energía Renovable",SEDG:"Energía Renovable",FSLR:"Energía Renovable",
+  RUN:"Energía Renovable",PLUG:"Energía Renovable",BE:"Energía Renovable",
+
+  // Servicios Públicos
+  NEE:"Servicios Públicos",DUK:"Servicios Públicos",
+  SO:"Servicios Públicos",AEP:"Servicios Públicos",
+  D:"Servicios Públicos",EXC:"Servicios Públicos",
+  XEL:"Servicios Públicos",PCG:"Servicios Públicos",ITRI:"Servicios Públicos",
+
+  // Industriales (maquinaria, manufactura)
   CAT:"Industriales",DE:"Industriales",GE:"Industriales",
   HON:"Industriales",EMR:"Industriales",ETN:"Industriales",
   ITW:"Industriales",PH:"Industriales",ROK:"Industriales",
   XYL:"Industriales",AME:"Industriales",MMM:"Industriales",
   CARR:"Industriales",OTIS:"Industriales",
-  // Aerospace & Defense
-  LMT:"Industriales",RTX:"Industriales",NOC:"Industriales",
-  GD:"Industriales",BA:"Industriales",TDG:"Industriales",
-  HEI:"Industriales",AXON:"Industriales",RKLB:"Industriales",SPCE:"Industriales",
-  // Logistics & Transport
-  UPS:"Industriales",FDX:"Industriales",CHRW:"Industriales",
-  EXPD:"Industriales",GXO:"Industriales",XPO:"Industriales",
-  ODFL:"Industriales",SAIA:"Industriales",JBHT:"Industriales",
-  LSTR:"Industriales",WERN:"Industriales",
-  // Railroads
   UNP:"Industriales",CSX:"Industriales",
 
-  // ── Materiales (Materials) ────────────────────────────────────────────────
+  // Aeroespacial & Defensa
+  LMT:"Aeroespacial",RTX:"Aeroespacial",NOC:"Aeroespacial",
+  GD:"Aeroespacial",BA:"Aeroespacial",TDG:"Aeroespacial",
+  HEI:"Aeroespacial",AXON:"Aeroespacial",RKLB:"Aeroespacial",SPCE:"Aeroespacial",
+
+  // Logística & Transporte
+  UPS:"Logística",FDX:"Logística",CHRW:"Logística",
+  EXPD:"Logística",GXO:"Logística",XPO:"Logística",
+  ODFL:"Logística",SAIA:"Logística",JBHT:"Logística",
+  LSTR:"Logística",WERN:"Logística",
+
+  // Materiales
   LIN:"Materiales",APD:"Materiales",DOW:"Materiales",
   NEM:"Materiales",FCX:"Materiales",AA:"Materiales",
   CLF:"Materiales",NUE:"Materiales",MLM:"Materiales",
   VMC:"Materiales",ALB:"Materiales",SQM:"Materiales",
   MP:"Materiales",ECL:"Materiales",PPG:"Materiales",SHW:"Materiales",
 
-  // ── Bienes Raíces (Real Estate) ────────────────────────────────────────────
-  AMT:"Bienes Raíces",CCI:"Bienes Raíces",PLD:"Bienes Raíces",
-  EQR:"Bienes Raíces",VTR:"Bienes Raíces",SPG:"Bienes Raíces",
-  MAA:"Bienes Raíces",PSA:"Bienes Raíces",INVH:"Bienes Raíces",
-  VICI:"Bienes Raíces",VNQ:"Bienes Raíces",EQIX:"Bienes Raíces",
+  // Telecomunicaciones
+  T:"Telecomunicaciones",VZ:"Telecomunicaciones",TMUS:"Telecomunicaciones",
+  CMCSA:"Telecomunicaciones",CHTR:"Telecomunicaciones",
 
-  // ── Servicios Públicos (Utilities) ────────────────────────────────────────
-  NEE:"Servicios Públicos",DUK:"Servicios Públicos",
-  SO:"Servicios Públicos",AEP:"Servicios Públicos",
-  D:"Servicios Públicos",EXC:"Servicios Públicos",
-  XEL:"Servicios Públicos",PCG:"Servicios Públicos",
-  // Renewable utilities
-  RUN:"Servicios Públicos",PLUG:"Servicios Públicos",
-  BE:"Servicios Públicos",ITRI:"Servicios Públicos",
+  // Medios & Entretenimiento
+  WBD:"Medios",PARA:"Medios",FOX:"Medios",FOXA:"Medios",
 
-  // ── ETF ───────────────────────────────────────────────────────────────────
+  // Real Estate
+  AMT:"Real Estate",CCI:"Real Estate",PLD:"Real Estate",
+  EQR:"Real Estate",VTR:"Real Estate",SPG:"Real Estate",
+  MAA:"Real Estate",PSA:"Real Estate",INVH:"Real Estate",
+  VICI:"Real Estate",VNQ:"Real Estate",EQIX:"Real Estate",
+
+  // Cripto / Blockchain
+  COIN:"Cripto",MSTR:"Cripto",MARA:"Cripto",
+  RIOT:"Cripto",HUT:"Cripto",CLSK:"Cripto",
+
+  // ETF
   SPY:"ETF",QQQ:"ETF",VTI:"ETF",IVV:"ETF",VOO:"ETF",
   IWM:"ETF",GLD:"ETF",SLV:"ETF",USO:"ETF",TLT:"ETF",
   HYG:"ETF",LQD:"ETF",EEM:"ETF",EFA:"ETF",IEF:"ETF",
   DIA:"ETF",ARKK:"ETF",TQQQ:"ETF",SQQQ:"ETF",
   XLK:"ETF",XLF:"ETF",XLV:"ETF",XLE:"ETF",
+  VGT:"ETF",SMH:"ETF",
 };
 
 const TICKER_RISK_OVERRIDE: Record<string, number> = {
@@ -241,32 +237,81 @@ const TICKER_RISK_OVERRIDE: Record<string, number> = {
 const SECTOR_RISK_BASE: Record<string, number> = {
   ETF: 22,
   "Consumo Básico": 20,
-  "Servicios Públicos": 28,
-  "Bienes Raíces": 40,
-  Salud: 42,
-  Comunicaciones: 52,
+  "Real Estate": 40,
+  Seguros: 40,
+  Farmacéutica: 38,
+  Salud: 32,
+  Telecomunicaciones: 35,
+  Logística: 44,
+  Bancario: 48,
+  Industriales: 48,
+  Aeroespacial: 52,
   Financiero: 52,
-  Energía: 55,
-  Industriales: 46,
-  Materiales: 52,
-  "Consumo Discrecional": 58,
-  Tecnología: 68,
+  Materiales: 54,
+  Medios: 55,
+  Energía: 58,
+  "Consumo Discrecional": 55,
+  eCommerce: 62,
+  Software: 65,
+  "Energía Renovable": 68,
+  "Servicios Públicos": 28,
+  Tecnología: 70,
+  Fintech: 74,
+  Biotecnología: 72,
+  "Inteligencia Artificial": 82,
+  Semiconductores: 78,
+  Cripto: 92,
 };
 
 // Color por sector para la barra de diagnóstico
 const SECTOR_COLOR: Record<string, string> = {
-  Tecnología:"#8b5cf6",
-  Comunicaciones:"#06b6d4",
-  "Consumo Discrecional":"#f97316",
+  Semiconductores:"#8b5cf6",
+  Software:"#6366f1",
+  "Inteligencia Artificial":"#a855f7",
+  Tecnología:"#7c3aed",
+  Fintech:"#06b6d4",
+  eCommerce:"#f97316",
+  "Consumo Discrecional":"#fb923c",
   "Consumo Básico":"#eab308",
   Salud:"#ec4899",
+  Farmacéutica:"#f43f5e",
+  Biotecnología:"#e11d48",
   Financiero:"#475569",
+  Bancario:"#64748b",
+  Seguros:"#94a3b8",
   Energía:"#ef4444",
+  "Energía Renovable":"#22c55e",
+  "Servicios Públicos":"#16a34a",
   Industriales:"#0ea5e9",
+  Aeroespacial:"#38bdf8",
+  Logística:"#14b8a6",
   Materiales:"#d97706",
-  "Bienes Raíces":"#14b8a6",
-  "Servicios Públicos":"#22c55e",
+  Telecomunicaciones:"#22d3ee",
+  Medios:"#818cf8",
+  "Real Estate":"#2dd4bf",
+  Cripto:"#f59e0b",
   ETF:"#94a3b8",
+};
+
+// Mapeo de sectores granulares → categoría de drawdown para stress test
+const SECTOR_PARENT: Record<string, string> = {
+  Semiconductores: "Tecnología",
+  Software: "Tecnología",
+  "Inteligencia Artificial": "Tecnología",
+  Fintech: "Financiero",
+  eCommerce: "Consumo Discrecional",
+  Farmacéutica: "Salud",
+  Biotecnología: "Salud",
+  Telecomunicaciones: "Comunicaciones",
+  Medios: "Comunicaciones",
+  Bancario: "Financiero",
+  Seguros: "Financiero",
+  "Energía Renovable": "Servicios Públicos",
+  Aeroespacial: "Industriales",
+  Logística: "Industriales",
+  "Real Estate": "Bienes Raíces",
+  "Servicios Públicos": "Servicios Públicos",
+  Cripto: "Tecnología",
 };
 
 const PORTFOLIO_LEVELS = [
@@ -797,6 +842,14 @@ export default function PortfolioPage() {
   const [sellSaving, setSellSaving] = useState(false);
   const [revealedPrices, setRevealedPrices] = useState<Set<string>>(new Set());
 
+  // Toast + confirm modal
+  const [toastMsg, setToastMsg] = useState<{ text: string; ok?: boolean } | null>(null);
+  const showToast = (text: string, ok = false) => {
+    setToastMsg({ text, ok });
+    setTimeout(() => setToastMsg(null), 3500);
+  };
+  const [confirmModal, setConfirmModal] = useState<{ msg: string; onConfirm: () => void } | null>(null);
+
   // Manual form
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ ticker:"", shares:"", avgPrice:"", purchaseDate: new Date().toISOString().split("T")[0] });
@@ -1047,7 +1100,7 @@ export default function PortfolioPage() {
         (p: Omit<ExtractedPos, "id">, i: number) => ({ ...p, id: `${p.ticker}-pdf-${i}-${Date.now()}` })
       );
       if (!extracted.length) {
-        alert("No se encontraron posiciones en el PDF. Verifica que sea un estado de cuenta con posiciones.");
+        showToast("No se encontraron posiciones en el PDF. Verifica que sea un estado de cuenta con posiciones.");
       } else {
         setScreenshotPreview(extracted);
         const inputs: Record<string, { avgPrice: string; purchaseDate: string }> = {};
@@ -1074,7 +1127,7 @@ export default function PortfolioPage() {
         setScreenshotPriceInputs(inputs);
       }
     } catch {
-      alert("No se pudo leer el PDF. Intenta con el estado de cuenta más reciente o usa una captura de pantalla.");
+      showToast("No se pudo leer el PDF. Intenta con el estado de cuenta más reciente o usa una captura de pantalla.");
     } finally {
       setScreenshotAnalyzing(false);
       setScreenshotProgress("");
@@ -1109,7 +1162,7 @@ export default function PortfolioPage() {
       }
       const final = Array.from(merged.values());
       if (!final.length) {
-        alert("No se encontraron posiciones en las imágenes. Intenta con capturas más claras.");
+        showToast("No se encontraron posiciones en las imágenes. Intenta con capturas más claras.");
       } else {
         setScreenshotPreview(final);
         const inputs: Record<string, { avgPrice: string; purchaseDate: string }> = {};
@@ -1137,7 +1190,7 @@ export default function PortfolioPage() {
         setScreenshotPriceInputs(inputs);
       }
     } catch {
-      alert("No se pudieron analizar las imágenes. Verifica que el backend esté corriendo.");
+      showToast("No se pudieron analizar las imágenes. Verifica que el backend esté corriendo.");
     } finally {
       setScreenshotAnalyzing(false);
       setScreenshotProgress("");
@@ -1241,7 +1294,7 @@ export default function PortfolioPage() {
     const ticker = form.ticker.trim().toUpperCase();
     const shares = parseFloat(form.shares);
     const enteredPrice = parseFloat(form.avgPrice);
-    if (!ticker || !shares || !enteredPrice) { alert("Completa todos los campos"); return; }
+    if (!ticker || !shares || !enteredPrice) { showToast("Completa todos los campos"); return; }
     if (!isPremium && positions.length >= FREE_POSITION_LIMIT) { setPaywallOpen(true); return; }
     // avgPrice always stored in USD
     const avgPrice = portfolioCurrency === "USD" ? enteredPrice : enteredPrice / fxRate;
@@ -1266,7 +1319,12 @@ export default function PortfolioPage() {
       const currentPrice = prices[pos.ticker]?.price ?? pos.avgPrice;
       const invested = pos.shares * currentPrice;
       const sector = TICKER_SECTOR[pos.ticker] ?? "";
-      const drawdown = sector ? (sc.drawdowns[sector as keyof typeof sc.drawdowns] ?? sc.default) : sc.default;
+      const parentSector = sector ? (SECTOR_PARENT[sector] ?? sector) : null;
+      const drawdown = sector
+        ? (sc.drawdowns[sector as keyof typeof sc.drawdowns]
+            ?? (parentSector ? sc.drawdowns[parentSector as keyof typeof sc.drawdowns] : undefined)
+            ?? sc.default)
+        : sc.default;
       const stressed = invested * (1 + drawdown/100);
       return { ticker:pos.ticker, invested, stressed, diff:stressed-invested, pct:drawdown, sector:sector||"Otro" };
     });
@@ -1328,6 +1386,36 @@ export default function PortfolioPage() {
 
   return (
     <>
+    {/* Toast */}
+    {toastMsg && (
+      <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[9999] px-5 py-3 rounded-2xl text-sm font-semibold shadow-xl pointer-events-none"
+           style={{ background: toastMsg.ok ? "rgba(0,168,94,0.95)" : "rgba(30,32,48,0.97)", color: "#fff", border: "1px solid rgba(255,255,255,0.08)" }}>
+        {toastMsg.text}
+      </div>
+    )}
+    {/* Confirm Modal */}
+    {confirmModal && (
+      <div className="fixed inset-0 z-[9998] flex items-center justify-center" style={{ background: "rgba(0,0,0,0.6)" }}
+           onClick={() => setConfirmModal(null)}>
+        <div className="rounded-2xl p-6 max-w-xs w-full mx-4 flex flex-col gap-4"
+             style={{ background: "var(--card)", border: "1px solid var(--border)" }}
+             onClick={e => e.stopPropagation()}>
+          <p className="text-sm font-semibold" style={{ color: "var(--text)" }}>{confirmModal.msg}</p>
+          <div className="flex gap-3">
+            <button onClick={() => setConfirmModal(null)}
+                    className="flex-1 py-2.5 rounded-xl text-sm font-bold border"
+                    style={{ borderColor: "var(--border)", color: "var(--muted)" }}>
+              Cancelar
+            </button>
+            <button onClick={() => { confirmModal.onConfirm(); setConfirmModal(null); }}
+                    className="flex-1 py-2.5 rounded-xl text-sm font-bold"
+                    style={{ background: "#ef4444", color: "#fff" }}>
+              Eliminar
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
     <div className="flex h-screen overflow-hidden" style={{ background: "var(--bg)" }}>
       <AppSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
@@ -1388,7 +1476,7 @@ export default function PortfolioPage() {
                   )}
                   {isPremium && p.id !== "default" && renamingId !== p.id && (
                     <span
-                      onClick={e => { e.stopPropagation(); if (confirm(`¿Eliminar "${p.name}"?`)) deletePortfolio(p.id); }}
+                      onClick={e => { e.stopPropagation(); setConfirmModal({ msg: `¿Eliminar "${p.name}"?`, onConfirm: () => deletePortfolio(p.id) }); }}
                       style={{ fontSize: 10, opacity: 0.5, cursor: "pointer", marginLeft: 2 }}
                       title="Eliminar portafolio"
                     >✕</span>
@@ -1405,7 +1493,7 @@ export default function PortfolioPage() {
                 </button>
               )}
               {showNewPortfolioInput && (
-                <form onSubmit={async e => { e.preventDefault(); if (!newPortfolioName.trim()) return; setPortfolioCreating(true); try { await createPortfolio(newPortfolioName.trim()); setShowNewPortfolioInput(false); setNewPortfolioName(""); } catch { alert("No se pudo crear el portafolio. Inténtalo de nuevo."); } finally { setPortfolioCreating(false); } }} style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                <form onSubmit={async e => { e.preventDefault(); if (!newPortfolioName.trim()) return; setPortfolioCreating(true); try { await createPortfolio(newPortfolioName.trim()); setShowNewPortfolioInput(false); setNewPortfolioName(""); } catch { showToast("No se pudo crear el portafolio. Inténtalo de nuevo."); } finally { setPortfolioCreating(false); } }} style={{ display: "flex", gap: 6, alignItems: "center" }}>
                   <input autoFocus placeholder="Nombre del portafolio…" value={newPortfolioName} onChange={e => setNewPortfolioName(e.target.value)} onKeyDown={e => { if (e.key === "Escape") setShowNewPortfolioInput(false); }}
                     style={{ padding: "4px 10px", borderRadius: 10, border: "1px solid var(--accent-l)", background: "rgba(0,212,126,0.08)", color: "var(--text)", fontSize: 12, outline: "none", width: 140 }} />
                   <button type="submit" disabled={portfolioCreating || !newPortfolioName.trim()} style={{ padding: "4px 12px", borderRadius: 10, background: "var(--accent-l)", color: "#000", fontSize: 12, fontWeight: 800, border: "none", cursor: "pointer" }}>
@@ -1478,7 +1566,7 @@ export default function PortfolioPage() {
                   navigator.share({ title: "Mi portafolio – Nuvos AI", text });
                 } else {
                   navigator.clipboard.writeText(text);
-                  alert("¡Texto copiado al portapapeles!");
+                  showToast("¡Texto copiado al portapapeles!", true);
                 }
               }}>
               <Share2 className="w-4 h-4" />
@@ -1535,9 +1623,7 @@ export default function PortfolioPage() {
               {positions.length > 0 && (
                 <button
                   onClick={() => {
-                    if (window.confirm(`¿Eliminar las ${positions.length} posiciones de tu portafolio? Esta acción no se puede deshacer.`)) {
-                      clearPortfolio();
-                    }
+                    setConfirmModal({ msg: `¿Eliminar las ${positions.length} posiciones de tu portafolio? Esta acción no se puede deshacer.`, onConfirm: clearPortfolio });
                   }}
                   className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-[11px] font-bold transition-colors"
                   style={{ color: "#ef4444", background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.2)" }}>

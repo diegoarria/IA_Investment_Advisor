@@ -94,6 +94,7 @@ interface RowProps {
   itemCount: number;
   prices: Record<string, ExtPrice>;
   editMode: boolean;
+  advanced?: boolean;
   onRemove: (ticker: string) => void;
   onMoveUp: (index: number) => void;
   onMoveDown: (index: number) => void;
@@ -101,13 +102,16 @@ interface RowProps {
   hasAlert?: boolean;
 }
 
-function WatchlistRow({ item, index, itemCount, prices, editMode, onRemove, onMoveUp, onMoveDown, onAlert, hasAlert }: RowProps) {
+function WatchlistRow({ item, index, itemCount, prices, editMode, advanced, onRemove, onMoveUp, onMoveDown, onAlert, hasAlert }: RowProps) {
   const p = prices[item.ticker] as ExtPrice | undefined;
   const dayUp  = (p?.change_pct ?? 0) >= 0;
   const dayCol = dayUp ? "#22c55e" : "#ef4444";
   const ms = (p?.market_state ?? "").toUpperCase();
   const showPre  = (ms === "PRE"  || ms === "PREPRE")  && !!p?.pre_market_price;
   const showPost = (ms === "POST" || ms === "POSTPOST") && !!p?.post_market_price;
+  // In advanced mode, also show pre/post even during regular hours if data is available
+  const showPreAdv  = advanced && !showPre  && !showPost && !!p?.pre_market_price;
+  const showPostAdv = advanced && !showPre  && !showPost && !showPreAdv && !!p?.post_market_price;
 
   const primaryPrice = showPre ? p!.pre_market_price : showPost ? p!.post_market_price : p?.price ?? null;
   const primaryPct   = showPre ? p!.pre_market_change_pct : showPost ? p!.post_market_change_pct : p?.change_pct ?? null;
@@ -185,6 +189,16 @@ function WatchlistRow({ item, index, itemCount, prices, editMode, onRemove, onMo
               {showPre ? "Reg." : "Cierre"} {fmtPrice(p.price, p.currency)}
             </Text>
           )}
+          {showPreAdv && p?.pre_market_price != null && (
+            <Text style={[rw.closeLabel, { color: "#f59e0b" }]}>
+              Pre {fmtPrice(p.pre_market_price, p?.currency)}{p?.pre_market_change_pct != null ? ` (${fmtPct(p.pre_market_change_pct)})` : ""}
+            </Text>
+          )}
+          {showPostAdv && p?.post_market_price != null && (
+            <Text style={[rw.closeLabel, { color: "#818cf8" }]}>
+              Post {fmtPrice(p.post_market_price, p?.currency)}{p?.post_market_change_pct != null ? ` (${fmtPct(p.post_market_change_pct)})` : ""}
+            </Text>
+          )}
         </View>
       </TouchableOpacity>
 
@@ -256,6 +270,8 @@ export default function WatchlistScreen() {
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const refreshRef  = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  const [viewMode, setViewMode] = useState<"basic" | "advanced">("basic");
+
   const [clips, setClips]               = useState<any[]>([]);
   const [clipsLoading, setClipsLoading] = useState(false);
 
@@ -273,6 +289,21 @@ export default function WatchlistScreen() {
       setAlerts(map);
     }).catch(() => {});
   }, []);
+
+  useEffect(() => {
+    import("../../src/lib/api").then(({ syncApi }) => {
+      syncApi.getAll().then((res: any) => {
+        const mode = res.data?.watchlist_view_mode;
+        if (mode === "basic" || mode === "advanced") setViewMode(mode);
+      }).catch(() => {});
+    });
+  }, []);
+
+  const toggleViewMode = () => {
+    const next: "basic" | "advanced" = viewMode === "basic" ? "advanced" : "basic";
+    setViewMode(next);
+    import("../../src/lib/api").then(({ syncApi }) => syncApi.pushWatchlistViewMode(next).catch(() => {}));
+  };
 
   const openAlertModal = (ticker: string, currentPrice: number | null) => {
     const existing = alerts[ticker];
@@ -536,17 +567,29 @@ export default function WatchlistScreen() {
                 )}
 
                 {!editMode && (
-                  pricesLoading
-                    ? <ActivityIndicator size="small" color="#00d47e" style={{ marginLeft: "auto" }} />
-                    : (
-                      <TouchableOpacity
-                        style={{ marginLeft: "auto", flexDirection: "row", alignItems: "center", gap: 4 }}
-                        onPress={() => { loadPrices(); setSecondsLeft(60); }}
-                      >
-                        <Ionicons name="refresh-outline" size={13} color="#4b5563" />
-                        <Text style={s.counterText}>{secondsLeft}s</Text>
-                      </TouchableOpacity>
-                    )
+                  <View style={{ marginLeft: "auto", flexDirection: "row", alignItems: "center", gap: 6 }}>
+                    <TouchableOpacity
+                      onPress={toggleViewMode}
+                      style={[s.sortBtn, viewMode === "advanced" && { backgroundColor: "rgba(99,102,241,0.12)", borderColor: "#6366f1" }]}
+                      hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                    >
+                      <Text style={[s.sortBtnText, { color: viewMode === "advanced" ? "#818cf8" : "#4b5563" }]}>
+                        {viewMode === "basic" ? "Básico" : "Avanzado"}
+                      </Text>
+                    </TouchableOpacity>
+                    {pricesLoading
+                      ? <ActivityIndicator size="small" color="#00d47e" />
+                      : (
+                        <TouchableOpacity
+                          style={{ flexDirection: "row", alignItems: "center", gap: 4 }}
+                          onPress={() => { loadPrices(); setSecondsLeft(60); }}
+                        >
+                          <Ionicons name="refresh-outline" size={13} color="#4b5563" />
+                          <Text style={s.counterText}>{secondsLeft}s</Text>
+                        </TouchableOpacity>
+                      )
+                    }
+                  </View>
                 )}
               </View>
 
@@ -558,6 +601,7 @@ export default function WatchlistScreen() {
                   itemCount={items.length}
                   prices={prices}
                   editMode={editMode && sortMode === "default"}
+                  advanced={viewMode === "advanced"}
                   onRemove={(ticker: string) => { posthog.capture("watchlist_stock_removed", { ticker, watchlist_size: items.length - 1 }); remove(ticker); }}
                   onMoveUp={handleMoveUp}
                   onMoveDown={handleMoveDown}

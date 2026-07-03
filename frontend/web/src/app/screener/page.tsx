@@ -143,8 +143,8 @@ export default function ScreenerPage() {
             )}
           </div>}
 
-          {/* Paywall gate — only for intermedio+ */}
-          {isAtLeast(userLevel, "intermedio") && !isPremium && (
+          {/* Paywall gate — all free users */}
+          {!isPremium && (
             <div className="rounded-2xl border p-8 text-center"
                  style={{ borderColor: "var(--border)", background: "var(--card)" }}>
               <div className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4"

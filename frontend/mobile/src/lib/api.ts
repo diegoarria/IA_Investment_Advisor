@@ -280,6 +280,9 @@ export const syncApi = {
     api.post("/api/sync/theme", { theme }),
   getTheme: () =>
     api.get("/api/sync/theme"),
+  // Watchlist view mode sync
+  pushWatchlistViewMode: (mode: "basic" | "advanced") =>
+    api.post("/api/sync/watchlist-view-mode", { mode }),
 };
 
 export const referralApi = {

@@ -355,6 +355,10 @@ export default function HomePage() {
       } else if (localScore > serverScore) {
         syncApi.pushMaturity(localScore, localHistory).catch(() => {});
       }
+      if (res.data?.has_broker) {
+        setHasBroker(true);
+        localStorage.setItem("nuvos_has_broker", "1");
+      }
     }).catch(() => {});
   }, [loadData]);
 
@@ -941,7 +945,7 @@ export default function HomePage() {
               )}
 
               {/* Racha */}
-              <button onClick={() => router.push("/academy")}
+              <button onClick={() => router.push("/learn")}
                       className="flex items-center gap-2.5 px-4 py-3 rounded-xl border transition-all hover:border-[var(--accent)]"
                       style={{ background: "var(--card)", borderColor: "var(--border)" }}>
                 <span className="text-xl shrink-0">{streak >= 7 ? "🔥" : streak >= 3 ? "⚡" : "✨"}</span>
@@ -1155,7 +1159,7 @@ export default function HomePage() {
                 </button>
 
                 {/* 🔥 Racha */}
-                <button onClick={() => router.push("/academy")}
+                <button onClick={() => router.push("/learn")}
                         className="flex-1 flex items-center gap-3 px-4 py-4 rounded-xl border transition-all hover:border-[var(--accent)] text-left"
                         style={{ background: "var(--card)", borderColor: streak > 0 ? "rgba(245,158,11,0.3)" : "var(--border)" }}>
                   <div className="w-10 h-10 rounded-full border-2 flex items-center justify-center text-xl shrink-0"
@@ -1255,7 +1259,7 @@ export default function HomePage() {
               {[
                 { icon: BookOpen,       label: "Pregunta algo",  sub: "Mentor IA",    href: "/chat",                accent: true  },
                 { icon: Sparkles,       label: "Mi dinero",      sub: "Patrimonio",   href: "/patrimonio",          accent: false },
-                { icon: GraduationCap,  label: "Aprender",       sub: "Academy",      href: "/academy",             accent: false },
+                { icon: GraduationCap,  label: "Aprender",       sub: "Academy",      href: "/learn",               accent: false },
                 { icon: Flame,          label: "Mi perfil",      sub: "Stats",        href: "/profile",             accent: false },
               ].map(({ icon: Icon, label, sub, href, accent }) => (
                 <button key={href}
