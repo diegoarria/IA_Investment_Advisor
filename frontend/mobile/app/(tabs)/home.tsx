@@ -527,13 +527,48 @@ export default function HomeScreen() {
   };
 
   const DAILY_LESSONS = [
-    { emoji: "🥧", title: "Diversificación",       topicId: "diversif"  },
-    { emoji: "📅", title: "Dollar Cost Averaging",  topicId: "dca"       },
-    { emoji: "💰", title: "Dividendos",             topicId: "dividendo" },
-    { emoji: "📈", title: "Análisis Fundamental",   topicId: "fund"      },
-    { emoji: "🛡️", title: "Ventaja Competitiva",   topicId: "moat"      },
-    { emoji: "⚠️", title: "Aversión a la Pérdida", topicId: "aversion"  },
-    { emoji: "🔄", title: "Rebalanceo",             topicId: "rebalanceo"},
+    { emoji: "🥧", title: "Diversificación",       topicId: "diversif",
+      body: "No pongas todos los huevos en una canasta. Si tienes 10 empresas de sectores distintos y una quiebra, pierdes el 10%. La diversificación distribuye el riesgo.",
+      tip: "¿Más del 30% de tu portafolio en un solo sector?" },
+    { emoji: "📅", title: "Dollar Cost Averaging",  topicId: "dca",
+      body: "Invertir la misma cantidad cada mes, sin importar si el mercado sube o baja. Cuando baja, compras más acciones por el mismo precio. La disciplina bate al timing.",
+      tip: "Define un monto fijo mensual y automatízalo." },
+    { emoji: "💰", title: "Dividendos",             topicId: "dividendo",
+      body: "Algunas empresas te pagan por tener sus acciones. Reinvertir dividendos automáticamente puede duplicar tu retorno a 20 años.",
+      tip: "Busca empresas con 10+ años aumentando dividendos consecutivamente." },
+    { emoji: "📈", title: "P/E Ratio",              topicId: "pe_ratio",
+      body: "El P/E compara el precio de la acción con lo que gana la empresa. No hay un número 'bueno' universal — compara contra el sector y el historial.",
+      tip: "Un P/E muy alto no significa cara si la empresa crece rápido. Contexto > número." },
+    { emoji: "🛡️", title: "Ventaja Competitiva",   topicId: "moat",
+      body: "El 'moat' es lo que hace que una empresa sea difícil de copiar: marca (Apple), red (Visa), costos bajos (Walmart). Protege sus márgenes en el tiempo.",
+      tip: "¿Qué le impediría a un competidor con $1B tomar este mercado?" },
+    { emoji: "⚠️", title: "Aversión a la Pérdida", topicId: "aversion",
+      body: "El cerebro siente el dolor de perder $100 el doble que el placer de ganar $100. Por eso vendemos en pánico. Reconocer este sesgo es el primer paso.",
+      tip: "Antes de vender en caída: ¿cambiaron los fundamentos del negocio?" },
+    { emoji: "🔄", title: "Rebalanceo",             topicId: "rebalanceo",
+      body: "Si tus acciones subieron mucho, ahora tienes más riesgo del que querías. Rebalancear es vender lo que creció y comprar lo que quedó atrás.",
+      tip: "Rebalancea 1-2 veces al año o cuando algo se aleje más del 5% de tu objetivo." },
+    { emoji: "📊", title: "Flujo de Caja Libre",    topicId: "fund",
+      body: "Las ganancias se pueden manipular contablemente. El Free Cash Flow no miente — es el dinero real que entra a la caja de la empresa.",
+      tip: "Busca empresas cuyo FCF crezca más rápido que sus ingresos." },
+    { emoji: "🎯", title: "Horizonte de Inversión", topicId: "diversif",
+      body: "El mercado cae 10-20% una vez cada 1-2 años. Pero en 10+ años, el S&P 500 nunca ha perdido dinero. Tu horizonte determina cuánto riesgo puedes absorber.",
+      tip: "¿Necesitas el dinero en menos de 3 años? No debería estar en acciones." },
+    { emoji: "🧠", title: "FOMO Financiero",        topicId: "fomo",
+      body: "El Fear Of Missing Out te hace comprar en máximos. El FOMO es la señal más confiable de que un activo está sobrevalorado. El mejor momento es cuando nadie habla de él.",
+      tip: "Si lo ves en noticias masivas y WhatsApp de familia — cuidado." },
+    { emoji: "🏦", title: "ETFs vs Acciones",       topicId: "etf",
+      body: "Un ETF replica un índice completo. El 90% de los gestores activos NO superan al índice en 15 años. Los ETFs son el punto de partida inteligente.",
+      tip: "Empieza con ETFs amplios. Agrega acciones individuales solo cuando entiendas el negocio." },
+    { emoji: "💡", title: "Compra Negocios",        topicId: "moat",
+      body: "Antes de comprar una acción: ¿entiendo cómo gana dinero esta empresa? ¿Seguiría comprando si el mercado cerrara 5 años?",
+      tip: "Warren Buffett solo invierte en lo que puede entender en 5 minutos." },
+    { emoji: "📉", title: "Las Caídas son Normales", topicId: "bull_bear",
+      body: "Desde 1950, el S&P 500 ha caído más del 10% una vez al año en promedio. A pesar de eso, multiplicó por 200x. Las caídas son el precio de los rendimientos.",
+      tip: "Guarda una lista de empresas que quieras comprar cuando caigan." },
+    { emoji: "🌍", title: "Riesgo de Concentración", topicId: "diversif",
+      body: "Más del 20% en una sola empresa o más del 40% en un sector es concentración alta. Si esa empresa colapsa, tu portafolio colapsa.",
+      tip: "Calcula tu posición más grande. ¿Es mayor al 20% de tu portafolio?" },
   ];
   const dailyLesson = DAILY_LESSONS[new Date().getDay() % DAILY_LESSONS.length];
 
@@ -1571,7 +1606,7 @@ export default function HomeScreen() {
             backgroundColor: completedToday ? "rgba(34,197,94,0.06)" : colors.card,
             borderColor: completedToday ? "rgba(34,197,94,0.35)" : colors.border,
           }]}>
-          <View style={[ss.lessonIcon, { backgroundColor: completedToday ? "rgba(34,197,94,0.14)" : "#7c3aed18" }]}>
+          <View style={[ss.lessonIcon, { backgroundColor: completedToday ? "rgba(34,197,94,0.14)" : "#7c3aed18", alignSelf: "flex-start", marginTop: 2 }]}>
             <Text style={{ fontSize: 22 }}>{completedToday ? "✅" : dailyLesson.emoji}</Text>
           </View>
           <View style={{ flex: 1 }}>
@@ -1580,12 +1615,22 @@ export default function HomeScreen() {
               {completedToday ? "Completada hoy" : "Lección del día"}
             </Text>
             <Text style={{ fontSize: 15, fontWeight: "800", color: colors.text }}>{dailyLesson.title}</Text>
+            {"body" in dailyLesson && !completedToday && (
+              <Text style={{ fontSize: 11, color: colors.textMuted, marginTop: 4, lineHeight: 16 }} numberOfLines={2}>
+                {(dailyLesson as { body: string }).body}
+              </Text>
+            )}
+            {"tip" in dailyLesson && !completedToday && (
+              <Text style={{ fontSize: 11, color: colors.accentLight, marginTop: 3, fontWeight: "600" }} numberOfLines={1}>
+                💡 {(dailyLesson as { tip: string }).tip}
+              </Text>
+            )}
           </View>
           {completedToday
-            ? <View style={{ backgroundColor: "rgba(34,197,94,0.14)", borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4, borderWidth: 1, borderColor: "rgba(34,197,94,0.3)" }}>
+            ? <View style={{ backgroundColor: "rgba(34,197,94,0.14)", borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4, borderWidth: 1, borderColor: "rgba(34,197,94,0.3)", alignSelf: "flex-start" }}>
                 <Text style={{ color: "#22c55e", fontSize: 12, fontWeight: "700" }}>✓</Text>
               </View>
-            : <Text style={{ fontSize: 16, fontWeight: "700", color: colors.accentLight }}>→</Text>
+            : <Text style={{ fontSize: 16, fontWeight: "700", color: colors.accentLight, alignSelf: "flex-start", marginTop: 2 }}>→</Text>
           }
         </TouchableOpacity>
 

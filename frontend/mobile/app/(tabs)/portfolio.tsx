@@ -325,76 +325,270 @@ function buildFeedback(
 
 interface StressScenario {
   id: string; name: string; icon: string; color: string;
-  year: string; desc: string;
+  year: string; desc: string; era: string;
   drawdowns: Record<string, number>;
   default: number;
 }
 
 const STRESS_SCENARIOS: StressScenario[] = [
+  // ── Pre-1950 ──────────────────────────────────────────────────────────────
   {
-    id: "2008", name: "Crisis 2008", icon: "🏦", color: "#ef4444", year: "2008-09",
-    desc: "Colapso del sistema financiero global", default: -42,
-    drawdowns: {
-      Semiconductores:-55, Software:-48, Tecnología:-52, "Inteligencia Artificial":-52,
+    id: "1929", name: "Gran Depresión", icon: "🏚️", color: "#b91c1c", year: "1929-32", era: "pre1950",
+    desc: "El mayor colapso bursátil de la historia, -89% en 3 años", default: -89,
+    drawdowns: { Semiconductores:-89, Software:-89, Tecnología:-89, "Inteligencia Artificial":-89,
+      Fintech:-89, eCommerce:-89, "Consumo Discrecional":-82, "Consumo Básico":-52,
+      Salud:-60, "Farmacéutica":-65, Biotecnología:-70,
+      Bancario:-95, Financiero:-90, Seguros:-82,
+      Energía:-75, "Energía Renovable":-75,
+      Industriales:-75, Aeroespacial:-80, Logística:-70, Materiales:-80,
+      Telecomunicaciones:-55, Medios:-65, "Real Estate":-85, Cripto:-89, ETF:-75 },
+  },
+  {
+    id: "ww2_1938", name: "Pre-WWII", icon: "⚔️", color: "#dc2626", year: "1938-42", era: "pre1950",
+    desc: "Tensión global previa a la Segunda Guerra Mundial", default: -41,
+    drawdowns: { Semiconductores:-41, Software:-41, Tecnología:-41, "Inteligencia Artificial":-41,
+      Fintech:-41, eCommerce:-41, "Consumo Discrecional":-35, "Consumo Básico":-18,
+      Salud:-22, "Farmacéutica":-25, Biotecnología:-30,
+      Bancario:-50, Financiero:-45, Seguros:-38,
+      Energía:-30, "Energía Renovable":-35,
+      Industriales:10, Aeroespacial:20, Logística:-15, Materiales:5,
+      Telecomunicaciones:-20, Medios:-25, "Real Estate":-40, Cripto:-41, ETF:-35 },
+  },
+  // ── Mid-Century (1950–1990) ───────────────────────────────────────────────
+  {
+    id: "oil1973", name: "Crisis del Petróleo", icon: "⛽", color: "#d97706", year: "1973-74", era: "mid_century",
+    desc: "Embargo árabe dispara inflación, S&P cae -48%", default: -48,
+    drawdowns: { Semiconductores:-55, Software:-52, Tecnología:-55, "Inteligencia Artificial":-55,
+      Fintech:-50, eCommerce:-50, "Consumo Discrecional":-45, "Consumo Básico":-28,
+      Salud:-30, "Farmacéutica":-32, Biotecnología:-38,
+      Bancario:-40, Financiero:-38, Seguros:-30,
+      Energía:80, "Energía Renovable":-10,
+      Industriales:-42, Aeroespacial:-38, Logística:-35, Materiales:-30,
+      Telecomunicaciones:-35, Medios:-40, "Real Estate":-20, Cripto:-48, ETF:-42 },
+  },
+  {
+    id: "stagflation1980", name: "Estanflación '80", icon: "📈", color: "#b45309", year: "1980-82", era: "mid_century",
+    desc: "Fed sube tasas al 20%, recesión severa", default: -27,
+    drawdowns: { Semiconductores:-38, Software:-35, Tecnología:-38, "Inteligencia Artificial":-38,
+      Fintech:-35, eCommerce:-35, "Consumo Discrecional":-30, "Consumo Básico":-15,
+      Salud:-18, "Farmacéutica":-20, Biotecnología:-25,
+      Bancario:-32, Financiero:-30, Seguros:-22,
+      Energía:20, "Energía Renovable":-15,
+      Industriales:-28, Aeroespacial:-25, Logística:-22, Materiales:-25,
+      Telecomunicaciones:-25, Medios:-28, "Real Estate":-18, Cripto:-27, ETF:-25 },
+  },
+  {
+    id: "black_monday", name: "Lunes Negro", icon: "⬛", color: "#1d4ed8", year: "Oct 1987", era: "mid_century",
+    desc: "Mayor caída en un solo día: -22.6% en 24 horas", default: -34,
+    drawdowns: { Semiconductores:-42, Software:-40, Tecnología:-42, "Inteligencia Artificial":-42,
+      Fintech:-42, eCommerce:-42, "Consumo Discrecional":-32, "Consumo Básico":-20,
+      Salud:-22, "Farmacéutica":-25, Biotecnología:-32,
+      Bancario:-40, Financiero:-38, Seguros:-35,
+      Energía:-28, "Energía Renovable":-28,
+      Industriales:-30, Aeroespacial:-28, Logística:-28, Materiales:-32,
+      Telecomunicaciones:-30, Medios:-35, "Real Estate":-30, Cripto:-34, ETF:-30 },
+  },
+  // ── Late XX Century (1990–2005) ──────────────────────────────────────────
+  {
+    id: "gulf1990", name: "Guerra del Golfo", icon: "🛢️", color: "#78350f", year: "1990-91", era: "late_xx",
+    desc: "Invasión de Kuwait, recesión y petróleo dispara precios", default: -20,
+    drawdowns: { Semiconductores:-25, Software:-22, Tecnología:-25, "Inteligencia Artificial":-25,
+      Fintech:-22, eCommerce:-22, "Consumo Discrecional":-18, "Consumo Básico":-8,
+      Salud:-10, "Farmacéutica":-12, Biotecnología:-15,
+      Bancario:-28, Financiero:-25, Seguros:-18,
+      Energía:35, "Energía Renovable":-12,
+      Industriales:-18, Aeroespacial:-15, Logística:-12, Materiales:-15,
+      Telecomunicaciones:-15, Medios:-18, "Real Estate":-22, Cripto:-20, ETF:-18 },
+  },
+  {
+    id: "asian1997", name: "Crisis Asiática", icon: "🌏", color: "#0369a1", year: "1997-98", era: "late_xx",
+    desc: "Colapso monedas asiáticas, contagio global", default: -19,
+    drawdowns: { Semiconductores:-35, Software:-28, Tecnología:-30, "Inteligencia Artificial":-30,
+      Fintech:-35, eCommerce:-30, "Consumo Discrecional":-22, "Consumo Básico":-10,
+      Salud:-12, "Farmacéutica":-14, Biotecnología:-18,
+      Bancario:-38, Financiero:-32, Seguros:-25,
+      Energía:-22, "Energía Renovable":-20,
+      Industriales:-20, Aeroespacial:-18, Logística:-18, Materiales:-25,
+      Telecomunicaciones:-22, Medios:-20, "Real Estate":-15, Cripto:-19, ETF:-17 },
+  },
+  {
+    id: "ltcm1998", name: "Crisis LTCM", icon: "🎲", color: "#7c3aed", year: "1998", era: "late_xx",
+    desc: "Colapso de hedge fund sistémico, Fed interviene", default: -20,
+    drawdowns: { Semiconductores:-28, Software:-25, Tecnología:-28, "Inteligencia Artificial":-28,
+      Fintech:-35, eCommerce:-25, "Consumo Discrecional":-18, "Consumo Básico":-8,
+      Salud:-10, "Farmacéutica":-12, Biotecnología:-15,
+      Bancario:-32, Financiero:-38, Seguros:-28,
+      Energía:-18, "Energía Renovable":-15,
+      Industriales:-15, Aeroespacial:-12, Logística:-12, Materiales:-18,
+      Telecomunicaciones:-18, Medios:-15, "Real Estate":-12, Cripto:-20, ETF:-18 },
+  },
+  {
+    id: "dotcom", name: "Burbuja .com", icon: "💻", color: "#0891b2", year: "2000-02", era: "late_xx",
+    desc: "Colapso de valuaciones tech, Nasdaq -78%", default: -49,
+    drawdowns: { Semiconductores:-82, Software:-80, Tecnología:-78, "Inteligencia Artificial":-80,
+      Fintech:-75, eCommerce:-85, "Consumo Discrecional":-30, "Consumo Básico":-12,
+      Salud:-15, "Farmacéutica":-18, Biotecnología:-55,
+      Bancario:-22, Financiero:-20, Seguros:-18,
+      Energía:-18, "Energía Renovable":-22,
+      Industriales:-20, Aeroespacial:-18, Logística:-18, Materiales:-18,
+      Telecomunicaciones:-60, Medios:-50, "Real Estate":-5, Cripto:-49, ETF:-38 },
+  },
+  {
+    id: "9_11", name: "9/11", icon: "🇺🇸", color: "#1e40af", year: "Sep 2001", era: "late_xx",
+    desc: "Ataques terroristas cierran NYSE 4 días, caída abrupta", default: -12,
+    drawdowns: { Semiconductores:-18, Software:-15, Tecnología:-18, "Inteligencia Artificial":-18,
+      Fintech:-18, eCommerce:-15, "Consumo Discrecional":-15, "Consumo Básico":-5,
+      Salud:-5, "Farmacéutica":-6, Biotecnología:-8,
+      Bancario:-22, Financiero:-20, Seguros:-25,
+      Energía:10, "Energía Renovable":-8,
+      Industriales:-12, Aeroespacial:-35, Logística:-15, Materiales:-10,
+      Telecomunicaciones:-15, Medios:-18, "Real Estate":-8, Cripto:-12, ETF:-10 },
+  },
+  // ── 2005–2015 ────────────────────────────────────────────────────────────
+  {
+    id: "2008", name: "Crisis 2008", icon: "🏦", color: "#ef4444", year: "2008-09", era: "2000s",
+    desc: "Colapso del sistema financiero global", default: -55,
+    drawdowns: { Semiconductores:-55, Software:-48, Tecnología:-52, "Inteligencia Artificial":-52,
       Fintech:-55, eCommerce:-50, "Consumo Discrecional":-42, "Consumo Básico":-20,
       Salud:-18, "Farmacéutica":-22, Biotecnología:-30,
       Bancario:-80, Financiero:-68, Seguros:-55,
       Energía:-55, "Energía Renovable":-60,
       Industriales:-42, Aeroespacial:-40, Logística:-40, Materiales:-55,
-      Telecomunicaciones:-32, Medios:-42, "Real Estate":-65, Cripto:-55, ETF:-38,
-    },
+      Telecomunicaciones:-32, Medios:-42, "Real Estate":-65, Cripto:-55, ETF:-38 },
   },
   {
-    id: "covid", name: "COVID-19", icon: "🦠", color: "#f97316", year: "Feb-Mar 2020",
+    id: "euro_debt2011", name: "Crisis Euro", icon: "🇪🇺", color: "#1d4ed8", year: "2011-12", era: "2000s",
+    desc: "Grecia, España e Italia al borde del colapso soberano", default: -21,
+    drawdowns: { Semiconductores:-25, Software:-22, Tecnología:-25, "Inteligencia Artificial":-25,
+      Fintech:-35, eCommerce:-20, "Consumo Discrecional":-20, "Consumo Básico":-10,
+      Salud:-10, "Farmacéutica":-12, Biotecnología:-15,
+      Bancario:-45, Financiero:-40, Seguros:-32,
+      Energía:-20, "Energía Renovable":-22,
+      Industriales:-18, Aeroespacial:-15, Logística:-15, Materiales:-20,
+      Telecomunicaciones:-18, Medios:-15, "Real Estate":-25, Cripto:-21, ETF:-18 },
+  },
+  {
+    id: "china2015", name: "Crash China", icon: "🐉", color: "#dc2626", year: "2015-16", era: "2000s",
+    desc: "Devaluación yuan y desplome mercado chino, contagio global", default: -14,
+    drawdowns: { Semiconductores:-22, Software:-18, Tecnología:-22, "Inteligencia Artificial":-22,
+      Fintech:-20, eCommerce:-18, "Consumo Discrecional":-15, "Consumo Básico":-8,
+      Salud:-8, "Farmacéutica":-10, Biotecnología:-12,
+      Bancario:-22, Financiero:-20, Seguros:-15,
+      Energía:-35, "Energía Renovable":-25,
+      Industriales:-15, Aeroespacial:-12, Logística:-12, Materiales:-20,
+      Telecomunicaciones:-12, Medios:-10, "Real Estate":-12, Cripto:-14, ETF:-12 },
+  },
+  // ── Reciente (2015–Hoy) ──────────────────────────────────────────────────
+  {
+    id: "volmageddon2018", name: "Volmageddon", icon: "📊", color: "#7c3aed", year: "Feb 2018", era: "recent",
+    desc: "Explosión de productos de volatilidad corta, caída de VIX", default: -10,
+    drawdowns: { Semiconductores:-14, Software:-12, Tecnología:-14, "Inteligencia Artificial":-14,
+      Fintech:-16, eCommerce:-12, "Consumo Discrecional":-10, "Consumo Básico":-6,
+      Salud:-6, "Farmacéutica":-7, Biotecnología:-10,
+      Bancario:-12, Financiero:-14, Seguros:-10,
+      Energía:-8, "Energía Renovable":-10,
+      Industriales:-10, Aeroespacial:-8, Logística:-8, Materiales:-10,
+      Telecomunicaciones:-8, Medios:-8, "Real Estate":-10, Cripto:-50, ETF:-9 },
+  },
+  {
+    id: "trade_war2018", name: "Guerra Comercial", icon: "🏭", color: "#f59e0b", year: "2018", era: "recent",
+    desc: "Aranceles EE.UU.–China sacuden mercados globales", default: -20,
+    drawdowns: { Semiconductores:-35, Software:-25, Tecnología:-30, "Inteligencia Artificial":-30,
+      Fintech:-25, eCommerce:-28, "Consumo Discrecional":-18, "Consumo Básico":-8,
+      Salud:-10, "Farmacéutica":-12, Biotecnología:-15,
+      Bancario:-22, Financiero:-20, Seguros:-14,
+      Energía:-15, "Energía Renovable":-18,
+      Industriales:-25, Aeroespacial:-22, Logística:-20, Materiales:-22,
+      Telecomunicaciones:-15, Medios:-12, "Real Estate":-12, Cripto:-75, ETF:-18 },
+  },
+  {
+    id: "covid", name: "COVID-19", icon: "🦠", color: "#f97316", year: "Feb-Mar 2020", era: "recent",
     desc: "Crash de 33 días, caída brusca y rápida", default: -34,
-    drawdowns: {
-      Semiconductores:-35, Software:-28, Tecnología:-32, "Inteligencia Artificial":-30,
+    drawdowns: { Semiconductores:-35, Software:-28, Tecnología:-32, "Inteligencia Artificial":-30,
       Fintech:-38, eCommerce:18, "Consumo Discrecional":-50, "Consumo Básico":-12,
       Salud:-10, "Farmacéutica":-15, Biotecnología:15,
       Bancario:-48, Financiero:-42, Seguros:-38,
       Energía:-65, "Energía Renovable":-38,
       Industriales:-40, Aeroespacial:-55, Logística:-32, Materiales:-40,
-      Telecomunicaciones:-22, Medios:-45, "Real Estate":-40, Cripto:-50, ETF:-34,
-    },
+      Telecomunicaciones:-22, Medios:-45, "Real Estate":-40, Cripto:-50, ETF:-34 },
   },
   {
-    id: "tech2022", name: "Tech Crash '22", icon: "📉", color: "#f59e0b", year: "2022",
+    id: "tech2022", name: "Tech Crash '22", icon: "📉", color: "#f59e0b", year: "2022", era: "recent",
     desc: "Alza de tasas aplasta valuaciones tech", default: -20,
-    drawdowns: {
-      Semiconductores:-62, Software:-58, Tecnología:-52, "Inteligencia Artificial":-60,
+    drawdowns: { Semiconductores:-62, Software:-58, Tecnología:-52, "Inteligencia Artificial":-60,
       Fintech:-70, eCommerce:-55, "Consumo Discrecional":-18, "Consumo Básico":-10,
       Salud:-8, "Farmacéutica":-10, Biotecnología:-32,
       Bancario:-18, Financiero:-22, Seguros:-12,
       Energía:45, "Energía Renovable":-35,
       Industriales:-12, Aeroespacial:-8, Logística:-20, Materiales:-20,
-      Telecomunicaciones:-28, Medios:-40, "Real Estate":-25, Cripto:-75, ETF:-18,
-    },
+      Telecomunicaciones:-28, Medios:-40, "Real Estate":-25, Cripto:-75, ETF:-18 },
   },
   {
-    id: "fed", name: "Fed +1%", icon: "🏛️", color: "#6366f1", year: "Escenario",
-    desc: "Subida sorpresiva de 100pb en tasas", default: -12,
-    drawdowns: {
-      Semiconductores:-22, Software:-25, Tecnología:-20, "Inteligencia Artificial":-28,
+    id: "svb2023", name: "Crisis SVB", icon: "🏛️", color: "#db2777", year: "Mar 2023", era: "recent",
+    desc: "Quiebra de Silicon Valley Bank, pánico bancario regional", default: -9,
+    drawdowns: { Semiconductores:-15, Software:-12, Tecnología:-14, "Inteligencia Artificial":-14,
+      Fintech:-25, eCommerce:-10, "Consumo Discrecional":-8, "Consumo Básico":-4,
+      Salud:-5, "Farmacéutica":-6, Biotecnología:-8,
+      Bancario:-35, Financiero:-28, Seguros:-18,
+      Energía:-8, "Energía Renovable":-10,
+      Industriales:-8, Aeroespacial:-7, Logística:-7, Materiales:-8,
+      Telecomunicaciones:-7, Medios:-7, "Real Estate":-10, Cripto:20, ETF:-8 },
+  },
+  {
+    id: "ai_bubble2025", name: "Corrección IA '25", icon: "🤖", color: "#8b5cf6", year: "2025", era: "recent",
+    desc: "Valuaciones de IA sobrecalentadas, corrección del Nasdaq", default: -18,
+    drawdowns: { Semiconductores:-38, Software:-32, Tecnología:-30, "Inteligencia Artificial":-55,
+      Fintech:-25, eCommerce:-20, "Consumo Discrecional":-12, "Consumo Básico":-5,
+      Salud:-6, "Farmacéutica":-7, Biotecnología:-10,
+      Bancario:-15, Financiero:-12, Seguros:-8,
+      Energía:-5, "Energía Renovable":-12,
+      Industriales:-10, Aeroespacial:-8, Logística:-8, Materiales:-8,
+      Telecomunicaciones:-15, Medios:-12, "Real Estate":-8, Cripto:-40, ETF:-15 },
+  },
+  // ── Hipotéticos ──────────────────────────────────────────────────────────
+  {
+    id: "fed", name: "Fed +1%", icon: "📋", color: "#6366f1", year: "Hipotético", era: "hypothetical",
+    desc: "Subida sorpresiva de 100pb en tasas de la Fed", default: -12,
+    drawdowns: { Semiconductores:-22, Software:-25, Tecnología:-20, "Inteligencia Artificial":-28,
       Fintech:-28, eCommerce:-22, "Consumo Discrecional":-12, "Consumo Básico":-8,
       Salud:-5, "Farmacéutica":-8, Biotecnología:-15,
       Bancario:8, Financiero:5, Seguros:3,
       Energía:-8, "Energía Renovable":-20,
       Industriales:-10, Aeroespacial:-8, Logística:-10, Materiales:-12,
-      Telecomunicaciones:-15, Medios:-10, "Real Estate":-20, Cripto:-35, ETF:-12,
-    },
+      Telecomunicaciones:-15, Medios:-10, "Real Estate":-20, Cripto:-35, ETF:-12 },
   },
   {
-    id: "bull", name: "Bull Market", icon: "🚀", color: "#22c55e", year: "Escenario",
+    id: "china_taiwan", name: "Conflicto Taiwán", icon: "⚠️", color: "#dc2626", year: "Hipotético", era: "hypothetical",
+    desc: "Tensión militar China-Taiwán interrumpe semiconductores", default: -28,
+    drawdowns: { Semiconductores:-60, Software:-35, Tecnología:-45, "Inteligencia Artificial":-50,
+      Fintech:-30, eCommerce:-25, "Consumo Discrecional":-20, "Consumo Básico":-10,
+      Salud:-8, "Farmacéutica":-10, Biotecnología:-12,
+      Bancario:-30, Financiero:-25, Seguros:-18,
+      Energía:-25, "Energía Renovable":-20,
+      Industriales:-30, Aeroespacial:-25, Logística:-35, Materiales:-20,
+      Telecomunicaciones:-25, Medios:-15, "Real Estate":-15, Cripto:-45, ETF:-25 },
+  },
+  {
+    id: "recession_mild", name: "Recesión Leve", icon: "📉", color: "#64748b", year: "Hipotético", era: "hypothetical",
+    desc: "GDP cae 2 trimestres, desempleo sube moderadamente", default: -18,
+    drawdowns: { Semiconductores:-25, Software:-20, Tecnología:-22, "Inteligencia Artificial":-22,
+      Fintech:-22, eCommerce:-18, "Consumo Discrecional":-25, "Consumo Básico":-5,
+      Salud:-5, "Farmacéutica":-6, Biotecnología:-10,
+      Bancario:-28, Financiero:-25, Seguros:-15,
+      Energía:-20, "Energía Renovable":-15,
+      Industriales:-20, Aeroespacial:-18, Logística:-15, Materiales:-18,
+      Telecomunicaciones:-15, Medios:-18, "Real Estate":-22, Cripto:-40, ETF:-16 },
+  },
+  {
+    id: "bull", name: "Bull Market", icon: "🚀", color: "#22c55e", year: "Hipotético", era: "hypothetical",
     desc: "Año de recuperación y euforia inversora", default: 22,
-    drawdowns: {
-      Semiconductores:55, Software:40, Tecnología:38, "Inteligencia Artificial":60,
+    drawdowns: { Semiconductores:55, Software:40, Tecnología:38, "Inteligencia Artificial":60,
       Fintech:42, eCommerce:38, "Consumo Discrecional":25, "Consumo Básico":12,
       Salud:18, "Farmacéutica":20, Biotecnología:32,
       Bancario:25, Financiero:28, Seguros:18,
       Energía:22, "Energía Renovable":40,
       Industriales:22, Aeroespacial:28, Logística:20, Materiales:25,
-      Telecomunicaciones:15, Medios:20, "Real Estate":25, Cripto:80, ETF:25,
-    },
+      Telecomunicaciones:15, Medios:20, "Real Estate":25, Cripto:80, ETF:25 },
   },
 ];
 
@@ -1171,6 +1365,7 @@ export default function PortfolioScreen() {
 
   // Stress Test state
   const [stressScenario, setStressScenario] = useState<string | null>(null);
+  const [stressEra, setStressEra] = useState<string>("all");
   const [stressResult, setStressResult] = useState<null | {
     total: number; stressed: number; diff: number; pct: number;
     rows: { ticker: string; invested: number; stressed: number; diff: number; pct: number; sector: string }[];
@@ -2337,8 +2532,39 @@ export default function PortfolioScreen() {
             <View style={{ position: "relative" }}>
               {/* Content — blurred for free users */}
               <View style={!isPremiumAccess ? { opacity: 0.4 } : undefined} pointerEvents={!isPremiumAccess ? "none" : "auto"}>
+                {/* Era filter chips */}
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 10 }} contentContainerStyle={{ gap: 6 }}>
+                  {[
+                    { id: "all",         label: "Todos" },
+                    { id: "pre1950",     label: "Hasta 1950" },
+                    { id: "mid_century", label: "1950–1990" },
+                    { id: "late_xx",     label: "1990–2005" },
+                    { id: "2000s",       label: "2005–2015" },
+                    { id: "recent",      label: "2015–Hoy" },
+                    { id: "hypothetical",label: "Hipotéticos" },
+                  ].map((era) => {
+                    const active = stressEra === era.id;
+                    return (
+                      <TouchableOpacity
+                        key={era.id}
+                        onPress={() => setStressEra(era.id)}
+                        style={{
+                          paddingHorizontal: 12, paddingVertical: 5, borderRadius: 20,
+                          borderWidth: 1,
+                          borderColor: active ? "#00d47e" : "#1f2330",
+                          backgroundColor: active ? "rgba(0,212,126,0.12)" : "transparent",
+                        }}
+                      >
+                        <Text style={{ fontSize: 11, fontWeight: "700", color: active ? "#00d47e" : "#6b7280" }}>
+                          {era.label}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
+                {/* Scenario pills */}
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }} contentContainerStyle={{ gap: 8 }}>
-                  {STRESS_SCENARIOS.map((sc) => (
+                  {STRESS_SCENARIOS.filter((sc) => stressEra === "all" || sc.era === stressEra).map((sc) => (
                     <TouchableOpacity
                       key={sc.id}
                       style={[s.stressChip, { borderColor: stressScenario === sc.id ? sc.color : "#1f2330", backgroundColor: stressScenario === sc.id ? sc.color + "18" : "transparent" }]}

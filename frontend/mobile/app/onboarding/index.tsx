@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from "react";
 import {
   View, Text, TextInput, TouchableOpacity, ScrollView,
-  StyleSheet, Image,
+  StyleSheet, Image, Linking,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -16,6 +16,18 @@ type RiskTolerance = "conservative" | "moderate" | "aggressive";
 
 const MONTHS = ["Enero","Febrero","Marzo","Abril","Mayo","Junio",
                 "Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
+
+const COUNTRIES = [
+  { value: "MX", label: "México",        emoji: "🇲🇽" },
+  { value: "US", label: "Estados Unidos", emoji: "🇺🇸" },
+  { value: "CO", label: "Colombia",       emoji: "🇨🇴" },
+  { value: "AR", label: "Argentina",      emoji: "🇦🇷" },
+  { value: "VE", label: "Venezuela",      emoji: "🇻🇪" },
+  { value: "PE", label: "Perú",           emoji: "🇵🇪" },
+  { value: "CL", label: "Chile",          emoji: "🇨🇱" },
+  { value: "ES", label: "España",         emoji: "🇪🇸" },
+  { value: "OTHER", label: "Otro país",   emoji: "🌍" },
+];
 
 const GOALS = [
   { value: "house",             label: "Comprar una casa",          emoji: "🏠" },
@@ -93,10 +105,15 @@ function yearsToGoal(pmt: number, goal: number, annualRate: number): number | nu
 
 type FormState = {
   name: string; birth_day: string; birth_month: string; birth_year: string;
+  country: string;
   knowledge_level: QuizAnswer | "";
+  initial_capital: string;
   monthly_contribution: string; investment_goal_amount: string;
   investment_horizon: string; investment_goal: string;
   q1: QuizAnswer | ""; q4: QuizAnswer | "";
+  has_broker: "yes" | "no" | "";
+  broker_name: string;
+  has_investments: "yes" | "no" | "";
 };
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -117,9 +134,14 @@ export default function OnboardingScreen() {
 
   const [form, setForm] = useState<FormState>({
     name: "", birth_day: "", birth_month: "", birth_year: "",
-    knowledge_level: "", monthly_contribution: "", investment_goal_amount: "",
+    country: "",
+    knowledge_level: "", initial_capital: "",
+    monthly_contribution: "", investment_goal_amount: "",
     investment_horizon: "", investment_goal: "", q1: "", q4: "",
+    has_broker: "", broker_name: "", has_investments: "",
   });
+  const [showSession, setShowSession] = useState(false);
+  const isFirstTimer = form.has_investments !== "yes";
 
   const firstName  = form.name.trim().split(" ")[0];
   const calculated = calculateRisk(form.q1, form.q4);
@@ -194,7 +216,7 @@ export default function OnboardingScreen() {
       emoji: "👋",
       title: "¡Hola! Cuéntanos sobre ti",
       sub: "Necesitamos tu nombre y edad para personalizar tu experiencia.",
-      isValid: () => form.name.trim().length >= 2 && birthDateValid,
+      isValid: () => form.name.trim().length >= 2 && birthDateValid && !!form.country,
       content: (
         <View style={{ gap: 20 }}>
           <View>
@@ -234,6 +256,31 @@ export default function OnboardingScreen() {
               />
             </View>
             <Text style={S.hint}>Debes tener al menos 18 años para usar Nuvos AI.</Text>
+          </View>
+
+          <View>
+            <Text style={S.label}>¿Desde dónde inviertes?</Text>
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+              {COUNTRIES.map((c) => {
+                const active = form.country === c.value;
+                return (
+                  <TouchableOpacity
+                    key={c.value}
+                    onPress={() => setForm(f => ({ ...f, country: c.value }))}
+                    style={{
+                      flexDirection: "row", alignItems: "center", gap: 6,
+                      paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12,
+                      borderWidth: 1,
+                      borderColor: active ? "#00d47e" : "#1a1d27",
+                      backgroundColor: active ? "rgba(0,212,126,0.1)" : "#111318",
+                    }}
+                  >
+                    <Text style={{ fontSize: 16 }}>{c.emoji}</Text>
+                    <Text style={{ fontSize: 13, fontWeight: "600", color: active ? "#00d47e" : "#9ca3af" }}>{c.label}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
           </View>
         </View>
       ),
@@ -285,6 +332,20 @@ export default function OnboardingScreen() {
       isValid: () => pmt > 0 && parseFloat(form.investment_goal_amount) > 0 && horizonYrs >= 1,
       content: (
         <View style={{ gap: 20 }}>
+          <View>
+            <Text style={S.label}>¿Con cuánto capital cuentas hoy para invertir?</Text>
+            <View style={S.prefixWrap}>
+              <Text style={S.prefix}>$</Text>
+              <TextInput
+                style={[S.input, S.prefixInput]}
+                value={form.initial_capital}
+                onChangeText={(v) => setForm(f => ({ ...f, initial_capital: v }))}
+                placeholder="0" placeholderTextColor="#374151"
+                keyboardType="numeric"
+              />
+            </View>
+            <Text style={S.hint}>Puedes poner 0 si aún no tienes capital inicial.</Text>
+          </View>
           <View>
             <Text style={S.label}>¿Cuánto quieres invertir mensualmente?</Text>
             <View style={S.prefixWrap}>
@@ -383,7 +444,85 @@ export default function OnboardingScreen() {
       content: renderQuiz(QUIZ_Q4, "q4"),
     },
 
-    // 6 — Perfil del inversor (reveal)
+    // 6 — Experiencia en el mercado
+    {
+      emoji: "💼",
+      title: "¿Ya tienes experiencia en el mercado?",
+      sub: "Esto nos ayuda a saber cómo acompañarte mejor desde el primer día.",
+      isValid: () => !!form.has_broker && !!form.has_investments,
+      content: (
+        <View style={{ gap: 24 }}>
+          <View style={{ gap: 10 }}>
+            <Text style={S.label}>¿Tienes un broker o cuenta de inversión activa?</Text>
+            <View style={{ flexDirection: "row", gap: 10 }}>
+              {(["yes", "no"] as const).map((v) => {
+                const active = form.has_broker === v;
+                return (
+                  <TouchableOpacity
+                    key={v}
+                    onPress={() => setForm(f => ({ ...f, has_broker: v, broker_name: v === "no" ? "" : f.broker_name }))}
+                    style={{ flex: 1, paddingVertical: 14, borderRadius: 14, borderWidth: 1, alignItems: "center",
+                      borderColor: active ? "#00d47e" : "#1a1d27",
+                      backgroundColor: active ? "rgba(0,212,126,0.1)" : "#111318" }}
+                  >
+                    <Text style={{ fontSize: 20, marginBottom: 4 }}>{v === "yes" ? "✅" : "❌"}</Text>
+                    <Text style={{ fontSize: 14, fontWeight: "700", color: active ? "#00d47e" : "#9ca3af" }}>
+                      {v === "yes" ? "Sí tengo" : "No tengo"}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+            {form.has_broker === "yes" && (
+              <TextInput
+                style={[S.input, { marginTop: 4 }]}
+                value={form.broker_name}
+                onChangeText={(v) => setForm(f => ({ ...f, broker_name: v }))}
+                placeholder="¿Cuál broker? (ej. GBM, Fidelity, Robinhood)"
+                placeholderTextColor="#374151"
+                autoCapitalize="words"
+              />
+            )}
+          </View>
+
+          <View style={{ gap: 10 }}>
+            <Text style={S.label}>¿Ya tienes inversiones actualmente?</Text>
+            <View style={{ flexDirection: "row", gap: 10 }}>
+              {(["yes", "no"] as const).map((v) => {
+                const active = form.has_investments === v;
+                return (
+                  <TouchableOpacity
+                    key={v}
+                    onPress={() => setForm(f => ({ ...f, has_investments: v }))}
+                    style={{ flex: 1, paddingVertical: 14, borderRadius: 14, borderWidth: 1, alignItems: "center",
+                      borderColor: active ? "#00d47e" : "#1a1d27",
+                      backgroundColor: active ? "rgba(0,212,126,0.1)" : "#111318" }}
+                  >
+                    <Text style={{ fontSize: 20, marginBottom: 4 }}>{v === "yes" ? "📈" : "🌱"}</Text>
+                    <Text style={{ fontSize: 14, fontWeight: "700", color: active ? "#00d47e" : "#9ca3af" }}>
+                      {v === "yes" ? "Sí tengo" : "Empezando"}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+            {form.has_investments === "no" && (
+              <View style={{ backgroundColor: "rgba(0,212,126,0.06)", borderRadius: 12, padding: 12,
+                             borderWidth: 1, borderColor: "rgba(0,212,126,0.2)", marginTop: 4 }}>
+                <Text style={{ color: "#00d47e", fontSize: 12, fontWeight: "700", marginBottom: 4 }}>
+                  ✨ Sesión de Bienvenida incluida
+                </Text>
+                <Text style={{ color: "#6b7280", fontSize: 11, lineHeight: 16 }}>
+                  Como es tu primera inversión, al final del onboarding te agendaremos una sesión 1:1 con Diego para ayudarte a comenzar con el pie derecho.
+                </Text>
+              </View>
+            )}
+          </View>
+        </View>
+      ),
+    },
+
+    // 7 — Perfil del inversor (reveal)
     {
       emoji: riskCfg?.color ? "" : "🎉",
       title: `Tu perfil, ${firstName || "inversionista"}`,
@@ -411,12 +550,14 @@ export default function OnboardingScreen() {
             <Text style={S.summaryTitle}>Resumen de tu perfil</Text>
             {[
               { label: "Nombre",    value: form.name },
+              { label: "País",      value: COUNTRIES.find(c => c.value === form.country)?.label ?? "—" },
               { label: "Edad",      value: userAge ? `${userAge} años` : "—" },
               { label: "Nivel",     value: levelInfo ? `${levelInfo.emoji} ${levelInfo.label}` : "—" },
               { label: "Meta",      value: goalInfo  ? `${goalInfo.emoji} ${goalInfo.label}` : "—" },
-              { label: "Objetivo",  value: `$${Number(form.investment_goal_amount).toLocaleString()}` },
-              { label: "Horizonte", value: `${form.investment_horizon} años` },
+              { label: "Capital",   value: form.initial_capital ? `$${Number(form.initial_capital).toLocaleString()}` : "$0" },
               { label: "Mensual",   value: `$${Number(form.monthly_contribution).toLocaleString()}/mes` },
+              { label: "Broker",    value: form.has_broker === "yes" ? (form.broker_name || "Sí") : "Sin broker aún" },
+              { label: "Horizonte", value: `${form.investment_horizon} años` },
             ].map((row) => (
               <View key={row.label} style={S.summaryRow}>
                 <Text style={S.summaryLabel}>{row.label}</Text>
@@ -581,6 +722,8 @@ export default function OnboardingScreen() {
       const profileData = {
         name:                   form.name.trim(),
         birth_date:             birthDateStr || undefined,
+        country:                form.country || undefined,
+        initial_capital:        form.initial_capital || undefined,
         monthly_contribution:   form.monthly_contribution,
         investment_goal:        form.investment_goal,
         investment_goal_amount: form.investment_goal_amount,
@@ -588,6 +731,9 @@ export default function OnboardingScreen() {
         knowledge_level:        form.knowledge_level,
         risk_tolerance:         calculated,
         quiz_answers:           { q1: form.q1, q4: form.q4 },
+        has_broker:             form.has_broker === "yes",
+        broker_name:            form.has_broker === "yes" ? (form.broker_name || undefined) : undefined,
+        has_investments:        form.has_investments === "yes",
         mentor:                 null,
       };
       setProfile(profileData as unknown as import("../../src/lib/profileStore").UserProfile);
@@ -597,14 +743,105 @@ export default function OnboardingScreen() {
         knowledge_level: form.knowledge_level,
         investment_goal: form.investment_goal,
         investment_horizon: parseInt(form.investment_horizon) || 0,
+        has_investments: form.has_investments === "yes",
+        country: form.country,
       });
-      router.replace("/(tabs)/chat");
+      setShowSession(true);
     } catch {
       setError("Error al guardar el perfil. Intenta de nuevo.");
     } finally {
       setLoading(false);
     }
   };
+
+  // ─── Sesión de Bienvenida ────────────────────────────────────────────────────
+  if (showSession) {
+    const agendaItems = [
+      "Definir y clarificar tus metas financieras",
+      form.has_broker !== "yes" ? "Ayudarte a abrir tu primera cuenta de broker" : "Revisar tu estrategia de broker actual",
+      form.has_investments !== "yes" ? "Acompañarte en tu primera inversión real" : "Revisar tus inversiones actuales",
+      "Dejar Nuvos AI 100% configurado para ti",
+    ];
+    return (
+      <View style={S.screen}>
+        <View style={S.glowOrb} />
+        <SafeAreaView style={{ flex: 1 }}>
+          <ScrollView contentContainerStyle={{ padding: 24, paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
+            {/* Badge */}
+            <View style={{ alignItems: "center", marginBottom: 28 }}>
+              <View style={{ backgroundColor: "rgba(0,212,126,0.12)", borderRadius: 20, paddingHorizontal: 16, paddingVertical: 6,
+                             borderWidth: 1, borderColor: "rgba(0,212,126,0.3)", flexDirection: "row", gap: 6, alignItems: "center" }}>
+                <Text style={{ fontSize: 14 }}>{RISK_EXTRA[calculated].emoji}</Text>
+                <Text style={{ color: "#00d47e", fontSize: 12, fontWeight: "800" }}>
+                  Perfil {riskCfg.label} · {riskCfg.pct * 100 | 0}% riesgo
+                </Text>
+              </View>
+            </View>
+
+            {/* Headline */}
+            <Text style={{ fontSize: 28, fontWeight: "900", color: "#fff", textAlign: "center", lineHeight: 34, marginBottom: 8 }}>
+              {isFirstTimer ? "Tu Sesión de\nBienvenida" : "¡Ya casi listo,\n" + firstName + "!"}
+            </Text>
+            <Text style={{ fontSize: 14, color: "#6b7280", textAlign: "center", lineHeight: 21, marginBottom: 28 }}>
+              {isFirstTimer
+                ? "Agendaremos una sesión 1:1 con Diego para ayudarte a empezar con el pie derecho."
+                : "Tu perfil está listo. Puedes explorar Nuvos AI directamente."}
+            </Text>
+
+            {/* Agenda */}
+            {isFirstTimer && (
+              <View style={{ backgroundColor: "#111318", borderRadius: 16, padding: 16, borderWidth: 1,
+                             borderColor: "#1f2330", marginBottom: 20, gap: 12 }}>
+                <Text style={{ color: "#9ca3af", fontSize: 11, fontWeight: "700", letterSpacing: 1.2,
+                               textTransform: "uppercase", marginBottom: 4 }}>En tu sesión vamos a</Text>
+                {agendaItems.map((item, i) => (
+                  <View key={i} style={{ flexDirection: "row", gap: 10, alignItems: "flex-start" }}>
+                    <View style={{ width: 20, height: 20, borderRadius: 10, backgroundColor: "rgba(0,212,126,0.15)",
+                                   alignItems: "center", justifyContent: "center", marginTop: 1 }}>
+                      <Text style={{ color: "#00d47e", fontSize: 10, fontWeight: "800" }}>{i + 1}</Text>
+                    </View>
+                    <Text style={{ color: "#d1d5db", fontSize: 13, lineHeight: 20, flex: 1 }}>{item}</Text>
+                  </View>
+                ))}
+              </View>
+            )}
+
+            {/* Outcomes */}
+            <View style={{ gap: 8, marginBottom: 28 }}>
+              {["Objetivos financieros claros", "Broker configurado y listo", "Primera inversión planeada", "Nuvos AI 100% para ti"].map((o) => (
+                <View key={o} style={{ flexDirection: "row", gap: 8, alignItems: "center" }}>
+                  <Text style={{ color: "#00d47e", fontSize: 14 }}>✅</Text>
+                  <Text style={{ color: "#9ca3af", fontSize: 13 }}>{o}</Text>
+                </View>
+              ))}
+            </View>
+
+            {/* CTA */}
+            {isFirstTimer ? (
+              <TouchableOpacity
+                onPress={() => Linking.openURL("https://calendly.com/diego-arria19/sesion-1-1-con-diego-nuvos-ai")}
+                style={{ backgroundColor: "#00d47e", borderRadius: 16, paddingVertical: 16,
+                         alignItems: "center", flexDirection: "row", justifyContent: "center", gap: 8, marginBottom: 12 }}
+              >
+                <Text style={{ fontSize: 16 }}>📅</Text>
+                <Text style={{ color: "#000", fontSize: 16, fontWeight: "900" }}>Agendar mi Sesión de Bienvenida</Text>
+              </TouchableOpacity>
+            ) : null}
+
+            {/* Skip / Explore */}
+            <TouchableOpacity
+              onPress={() => router.replace("/(tabs)/chat")}
+              style={{ paddingVertical: 14, alignItems: "center" }}
+            >
+              <Text style={{ color: "#6b7280", fontSize: 14, fontWeight: "600" }}>
+                {isFirstTimer ? "Explorar la app primero →" : "Ir a la app →"}
+              </Text>
+            </TouchableOpacity>
+          </ScrollView>
+        </SafeAreaView>
+      </View>
+    );
+  }
 
   // ─── Render ──────────────────────────────────────────────────────────────────
   return (
