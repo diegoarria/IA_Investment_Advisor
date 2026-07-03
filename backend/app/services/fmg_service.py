@@ -293,10 +293,16 @@ async def log_event(
     title: str,
     description: str = "",
     metadata: dict | None = None,
+    milestone_key: str | None = None,
 ) -> None:
     """
     Manually log a timeline event from any part of the system.
     e.g. first portfolio position added, goal achieved, etc.
+
+    Pass milestone_key for one-time achievements (e.g. "first_investment") —
+    the (user_id, milestone_key) unique index makes this idempotent, so
+    calling it again for an already-recorded milestone is a no-op insert error
+    that's safely swallowed rather than a duplicate row.
     """
     try:
         db = get_supabase()
@@ -308,6 +314,7 @@ async def log_event(
                 "description": description or None,
                 "metadata":   metadata or {},
                 "occurred_at": datetime.now(timezone.utc).isoformat(),
+                **({"milestone_key": milestone_key} if milestone_key else {}),
             })
         )
     except Exception as exc:
@@ -353,8 +360,14 @@ async def take_portfolio_snapshot(user_id: str) -> None:
         sector_totals: dict[str, float] = {}
 
         for pos in raw:
-            qty   = float(pos.get("quantity", 0) or 0)
-            price = float(pos.get("current_price") or pos.get("avg_price") or 0)
+            # Stored positions use the frontend's camelCase field names (shares,
+            # avgPrice) — this previously read "quantity"/"current_price"/"avg_price",
+            # none of which exist on a position, so every snapshot recorded $0.
+            # avgPrice is cost basis, not live market price — no cheap way to get a
+            # real-time quote for every ticker of every user in a nightly batch job
+            # without hammering the market data APIs, so this is an approximation.
+            qty   = float(pos.get("shares", 0) or 0)
+            price = float(pos.get("avgPrice", 0) or 0)
             value = qty * price
             total_value += value
             sector = pos.get("sector") or "Other"
@@ -377,6 +390,14 @@ async def take_portfolio_snapshot(user_id: str) -> None:
                 "sector_weights": sector_weights,
             })
         )
+
+        # Milestones accumulate daily so the Investor Progress Engine's API
+        # (a later phase) doesn't start from a cold, empty timeline.
+        try:
+            from app.services.investor_progress_service import detect_new_milestones
+            await detect_new_milestones(user_id)
+        except Exception as exc:
+            log.debug("Milestone detection failed for %s: %s", user_id, exc)
     except Exception as exc:
         log.debug("FMG snapshot failed for %s: %s", user_id, exc)
 
