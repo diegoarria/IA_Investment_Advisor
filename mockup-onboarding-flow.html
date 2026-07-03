@@ -1,0 +1,930 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Nuvos AI — Onboarding Flow</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #07080f; --card: #0e0f1a; --raised: #13141f;
+    --border: #1e2035; --text: #f0f1ff; --sub: #9ba3c4;
+    --muted: #6b7499; --dim: #3d4260; --accent: #00a85e;
+    --accent-l: #00d47e;
+  }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+         background: var(--bg); color: var(--text); min-height: 100vh;
+         display: flex; flex-direction: column; align-items: center; }
+
+  /* ── Shell ── */
+  .shell { width: 100%; max-width: 420px; min-height: 100vh;
+           display: flex; flex-direction: column; position: relative; }
+
+  /* ── Progress bar ── */
+  .progress-wrap { padding: 20px 24px 0; }
+  .progress-meta { display: flex; justify-content: space-between; align-items: center;
+                   margin-bottom: 8px; }
+  .progress-label { font-size: 10px; font-weight: 800; text-transform: uppercase;
+                    letter-spacing: .1em; color: var(--muted); }
+  .progress-count { font-size: 10px; color: var(--dim); }
+  .progress-bar { height: 3px; background: var(--border); border-radius: 99px; overflow: hidden; }
+  .progress-fill { height: 100%; background: var(--accent-l); border-radius: 99px;
+                   transition: width .4s ease; }
+
+  /* ── Step content ── */
+  .step { flex: 1; padding: 28px 24px 100px; display: none; }
+  .step.active { display: block; }
+  .step-subtitle { font-size: 10px; font-weight: 800; text-transform: uppercase;
+                   letter-spacing: .12em; color: var(--accent-l); margin-bottom: 8px; }
+  .step-title { font-size: 22px; font-weight: 900; line-height: 1.25;
+                color: var(--text); margin-bottom: 24px; }
+
+  /* ── Inputs ── */
+  .label { font-size: 10px; font-weight: 700; text-transform: uppercase;
+           letter-spacing: .08em; color: var(--muted); display: block; margin-bottom: 8px; }
+  .hint { font-size: 11px; color: var(--dim); margin-top: 6px; }
+  input, select, textarea {
+    width: 100%; background: var(--raised); border: 1px solid var(--border);
+    color: var(--text); border-radius: 12px; padding: 12px 16px; font-size: 14px;
+    outline: none; appearance: none; -webkit-appearance: none;
+    font-family: inherit;
+  }
+  input:focus, select:focus { border-color: var(--accent); }
+  .input-prefix { position: relative; }
+  .input-prefix .prefix { position: absolute; left: 14px; top: 50%; transform: translateY(-50%);
+                           font-size: 14px; font-weight: 700; color: var(--muted); }
+  .input-prefix input { padding-left: 28px; }
+  .input-suffix { position: relative; }
+  .input-suffix .suffix { position: absolute; right: 14px; top: 50%; transform: translateY(-50%);
+                           font-size: 11px; font-weight: 600; color: var(--muted); }
+  .field { margin-bottom: 20px; }
+  .grid3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+
+  /* ── Option cards ── */
+  .opt-card { background: var(--raised); border: 2px solid var(--border);
+              border-radius: 16px; padding: 14px 16px; cursor: pointer;
+              text-align: left; width: 100%; transition: all .15s; }
+  .opt-card.active { border-color: var(--accent); background: rgba(0,168,94,.10); }
+  .opt-card .opt-letter { width: 32px; height: 32px; border-radius: 10px;
+                          display: inline-flex; align-items: center; justify-content: center;
+                          font-size: 11px; font-weight: 900; background: var(--border);
+                          color: var(--muted); flex-shrink: 0; }
+  .opt-card.active .opt-letter { background: var(--accent); color: #fff; }
+  .opt-card .opt-text { font-size: 13px; line-height: 1.4; color: var(--sub); padding-top: 2px; }
+  .opt-card.active .opt-text { color: var(--text); }
+  .opt-row { display: flex; align-items: flex-start; gap: 12px; }
+  .opt-stack { display: flex; flex-direction: column; gap: 10px; }
+
+  /* ── Level cards ── */
+  .lvl-card { border: 2px solid var(--border); border-radius: 18px; padding: 16px;
+              cursor: pointer; transition: all .15s; background: var(--raised); }
+  .lvl-card.active { border-color: var(--accent); background: rgba(0,168,94,.10); }
+  .lvl-card .lvl-head { display: flex; align-items: center; gap: 12px; margin-bottom: 4px; }
+  .lvl-card .lvl-check { width: 20px; height: 20px; border-radius: 50%; border: 2px solid var(--border);
+                          margin-left: auto; flex-shrink: 0; }
+  .lvl-card.active .lvl-check { background: var(--accent); border-color: var(--accent); }
+  .lvl-card .lvl-name { font-size: 14px; font-weight: 900; }
+  .lvl-card .lvl-desc { font-size: 12px; color: var(--sub); line-height: 1.4; }
+
+  /* ── Goal grid ── */
+  .goal-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .goal-card { border: 2px solid var(--border); border-radius: 16px; padding: 16px;
+               cursor: pointer; transition: all .15s; background: var(--raised); position: relative; }
+  .goal-card.active { border-color: var(--accent); background: rgba(0,168,94,.10); }
+  .goal-card .goal-emoji { font-size: 24px; margin-bottom: 8px; }
+  .goal-card .goal-label { font-size: 12px; font-weight: 700; color: var(--sub); }
+  .goal-card.active .goal-label { color: var(--accent-l); }
+  .goal-card .goal-check { position: absolute; top: 10px; right: 10px; width: 18px; height: 18px;
+                            border-radius: 50%; background: var(--accent);
+                            display: none; align-items: center; justify-content: center; }
+  .goal-card.active .goal-check { display: flex; }
+
+  /* ── Country grid ── */
+  .country-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+  .country-btn { border: 2px solid var(--border); border-radius: 12px; padding: 10px 8px;
+                 cursor: pointer; text-align: center; font-size: 11px; font-weight: 600;
+                 color: var(--sub); background: var(--raised); transition: all .15s; }
+  .country-btn.active { border-color: var(--accent); background: rgba(0,168,94,.10); color: var(--accent-l); }
+
+  /* ── YN cards ── */
+  .yn-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .yn-card { border: 2px solid var(--border); border-radius: 18px; padding: 20px 16px;
+             cursor: pointer; text-align: center; transition: all .15s; background: var(--raised); }
+  .yn-card.active { border-color: var(--accent); background: rgba(0,168,94,.10); }
+  .yn-card .yn-emoji { font-size: 28px; margin-bottom: 8px; }
+  .yn-card .yn-label { font-size: 13px; font-weight: 800; color: var(--sub); }
+  .yn-card.active .yn-label { color: var(--accent-l); }
+
+  /* ── Risk reveal ── */
+  .risk-card { border-radius: 20px; padding: 24px; text-align: center; margin-bottom: 16px; }
+  .risk-bar-wrap { height: 8px; background: var(--border); border-radius: 99px; overflow: hidden; }
+  .risk-bar-fill { height: 100%; border-radius: 99px; }
+  .profile-table { border-radius: 14px; overflow: hidden; border: 1px solid var(--border);
+                   background: var(--card); }
+  .profile-row { display: flex; justify-content: space-between; align-items: center;
+                 padding: 10px 16px; border-bottom: 1px solid var(--border); }
+  .profile-row:last-child { border-bottom: none; }
+  .profile-row .pk { font-size: 11px; color: var(--muted); }
+  .profile-row .pv { font-size: 11px; font-weight: 600; color: var(--text); }
+  .table-head { padding: 8px 16px; border-bottom: 1px solid var(--border); }
+  .table-head span { font-size: 10px; font-weight: 800; text-transform: uppercase;
+                     letter-spacing: .1em; color: var(--muted); }
+
+  /* ── Projections ── */
+  .proj-card { background: var(--raised); border: 1px solid var(--border); border-radius: 16px;
+               padding: 20px; margin-bottom: 16px; }
+  .proj-bar-wrap { position: relative; height: 10px; background: var(--border);
+                   border-radius: 99px; overflow: visible; margin: 6px 0 16px; }
+  .proj-bar-fill { height: 100%; border-radius: 99px; }
+  .goal-line { position: absolute; top: -4px; width: 2px; height: 18px;
+               background: #22c55e; border-radius: 1px; }
+  .feat-card { display: flex; align-items: center; gap: 12px; padding: 12px 14px;
+               background: var(--card); border: 1px solid var(--border); border-radius: 14px;
+               margin-bottom: 8px; }
+
+  /* ── Legal ── */
+  .legal-scroll { max-height: 200px; overflow-y: auto; padding: 14px 16px;
+                  font-size: 12px; line-height: 1.7; color: var(--sub); }
+  .legal-scroll h4 { font-size: 12px; font-weight: 700; color: var(--text); margin-bottom: 4px; }
+  .legal-box { border: 1px solid rgba(245,158,11,.3); border-radius: 14px; overflow: hidden;
+               margin-bottom: 16px; }
+  .legal-head { background: rgba(245,158,11,.1); border-bottom: 1px solid rgba(245,158,11,.2);
+                padding: 8px 14px; font-size: 10px; font-weight: 800; color: #f59e0b;
+                text-transform: uppercase; letter-spacing: .08em; }
+  .check-row { display: flex; align-items: flex-start; gap: 12px; cursor: pointer; margin-bottom: 14px; }
+  .check-box { width: 20px; height: 20px; border-radius: 6px; border: 2px solid var(--border);
+               flex-shrink: 0; margin-top: 2px; display: flex; align-items: center; justify-content: center; }
+  .check-box.checked { background: var(--accent); border-color: var(--accent); }
+  .check-text { font-size: 12px; line-height: 1.6; color: var(--sub); }
+
+  /* ── Sesión de Bienvenida ── */
+  .session-screen { padding: 32px 24px 40px; }
+  .session-header { text-align: center; margin-bottom: 24px; }
+  .session-badge { display: flex; align-items: center; gap: 12px; border-radius: 18px;
+                   padding: 14px 16px; margin-bottom: 20px; }
+  .agenda-card { background: var(--card); border: 1px solid var(--border); border-radius: 18px;
+                 padding: 20px; margin-bottom: 16px; }
+  .agenda-item { display: flex; align-items: center; gap: 12px; padding: 7px 0; }
+  .agenda-item span { font-size: 18px; flex-shrink: 0; }
+  .agenda-item p { font-size: 13px; color: var(--sub); }
+  .outcome-card { background: rgba(34,197,94,.07); border: 1px solid rgba(34,197,94,.25);
+                  border-radius: 14px; padding: 14px 16px; margin-bottom: 20px; }
+  .outcome-card .ot { font-size: 11px; font-weight: 800; color: #22c55e; margin-bottom: 6px; }
+  .outcome-card p { font-size: 12px; color: var(--sub); margin-bottom: 3px; }
+
+  /* ── Bottom nav ── */
+  .bottom-bar { position: fixed; bottom: 0; left: 50%; transform: translateX(-50%);
+                width: 100%; max-width: 420px; padding: 16px 24px 28px;
+                background: linear-gradient(to top, var(--bg) 80%, transparent);
+                display: flex; gap: 10px; }
+  .btn-back { width: 48px; height: 52px; border-radius: 14px; border: 1px solid var(--border);
+              background: var(--raised); color: var(--muted); font-size: 18px; cursor: pointer;
+              display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .btn-next { flex: 1; height: 52px; border-radius: 14px; background: var(--accent);
+              color: #000; font-size: 15px; font-weight: 900; cursor: pointer; border: none;
+              transition: opacity .15s; }
+  .btn-next:disabled { opacity: .35; cursor: default; }
+  .btn-session { width: 100%; height: 56px; border-radius: 16px; background: var(--accent);
+                 color: #000; font-size: 16px; font-weight: 900; cursor: pointer; border: none; }
+  .btn-skip { width: 100%; height: 48px; border-radius: 14px; background: transparent;
+              color: var(--muted); font-size: 14px; font-weight: 600; cursor: pointer;
+              border: none; margin-top: 8px; }
+
+  /* ── Info pill ── */
+  .pill { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px;
+          border-radius: 99px; font-size: 11px; font-weight: 700; }
+  .pill-green { background: rgba(34,197,94,.12); color: #22c55e; border: 1px solid rgba(34,197,94,.25); }
+  .pill-blue  { background: rgba(99,102,241,.12); color: #818cf8; border: 1px solid rgba(99,102,241,.25); }
+
+  /* ── Scrollbar ── */
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  /* ── Inline broker input ── */
+  .broker-input-wrap { margin-top: 12px; }
+
+  /* ── Alert box ── */
+  .alert-green { background: rgba(34,197,94,.08); border: 1px solid rgba(34,197,94,.25);
+                 border-radius: 14px; padding: 12px 14px; display: flex; align-items: flex-start;
+                 gap: 10px; margin-top: 12px; }
+  .alert-green p { font-size: 12px; color: #22c55e; line-height: 1.5; }
+</style>
+</head>
+<body>
+
+<div class="shell" id="app">
+
+  <!-- ─── Progress bar (hidden on welcome session) ─── -->
+  <div class="progress-wrap" id="progressWrap">
+    <div class="progress-meta">
+      <span class="progress-label" id="progressLabel">Bienvenido</span>
+      <span class="progress-count" id="progressCount">1 / 10</span>
+    </div>
+    <div class="progress-bar"><div class="progress-fill" id="progressFill" style="width:10%"></div></div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════
+       STEP 0 — Nombre + fecha + país
+  ════════════════════════════════════════════════ -->
+  <div class="step active" id="step0">
+    <div class="step-subtitle">BIENVENIDO</div>
+    <div class="step-title">¡Hola! Cuéntanos sobre ti</div>
+
+    <div class="field">
+      <label class="label">Tu nombre completo</label>
+      <input type="text" id="f_name" placeholder="Ej. Diego Arria" oninput="validate()">
+      <p class="hint">Así te llamaremos y la IA sabrá cómo dirigirse a ti.</p>
+    </div>
+
+    <div class="field">
+      <label class="label">Fecha de nacimiento</label>
+      <div class="grid3">
+        <select id="f_day" onchange="validate()">
+          <option value="">Día</option>
+          <script>for(let d=1;d<=31;d++) document.write(`<option>${d}</option>`)</script>
+        </select>
+        <select id="f_month" onchange="validate()">
+          <option value="">Mes</option>
+          <script>
+            ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
+            .forEach((m,i)=>document.write(`<option value="${i+1}">${m}</option>`))
+          </script>
+        </select>
+        <select id="f_year" onchange="validate()">
+          <option value="">Año</option>
+          <script>for(let y=2006;y>=1934;y--) document.write(`<option>${y}</option>`)</script>
+        </select>
+      </div>
+      <p class="hint">Debes tener al menos 18 años para usar Nuvos AI.</p>
+    </div>
+
+    <div class="field">
+      <label class="label">¿Desde dónde inviertes?</label>
+      <div class="country-grid" id="countryGrid">
+        <button class="country-btn" onclick="pickCountry(this,'MX')">🇲🇽 México</button>
+        <button class="country-btn" onclick="pickCountry(this,'US')">🇺🇸 EE.UU.</button>
+        <button class="country-btn" onclick="pickCountry(this,'CO')">🇨🇴 Colombia</button>
+        <button class="country-btn" onclick="pickCountry(this,'AR')">🇦🇷 Argentina</button>
+        <button class="country-btn" onclick="pickCountry(this,'VE')">🇻🇪 Venezuela</button>
+        <button class="country-btn" onclick="pickCountry(this,'PE')">🇵🇪 Perú</button>
+        <button class="country-btn" onclick="pickCountry(this,'CL')">🇨🇱 Chile</button>
+        <button class="country-btn" onclick="pickCountry(this,'ES')">🇪🇸 España</button>
+        <button class="country-btn" onclick="pickCountry(this,'OTHER')">🌎 Otro</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════
+       STEP 1 — Nivel de conocimiento
+  ════════════════════════════════════════════════ -->
+  <div class="step" id="step1">
+    <div class="step-subtitle">TU PERFIL</div>
+    <div class="step-title">¿Cuál es tu nivel de conocimiento en inversiones?</div>
+    <div class="opt-stack" id="levelCards">
+      <div class="lvl-card" onclick="pickLevel(this,'B')">
+        <div class="lvl-head">
+          <span style="font-size:24px">🌱</span>
+          <div>
+            <div class="lvl-name" style="color:#22c55e">Básico</div>
+          </div>
+          <div class="lvl-check"></div>
+        </div>
+        <div class="lvl-desc">Sin experiencia o apenas inicio. Conozco ahorro, CETES o fondos básicos.</div>
+      </div>
+      <div class="lvl-card" onclick="pickLevel(this,'C')">
+        <div class="lvl-head">
+          <span style="font-size:24px">📈</span>
+          <div>
+            <div class="lvl-name" style="color:#3b82f6">Intermedio</div>
+          </div>
+          <div class="lvl-check"></div>
+        </div>
+        <div class="lvl-desc">Tengo experiencia con ETFs y acciones. Entiendo diversificación y rendimiento.</div>
+      </div>
+      <div class="lvl-card" onclick="pickLevel(this,'D')">
+        <div class="lvl-head">
+          <span style="font-size:24px">🎯</span>
+          <div>
+            <div class="lvl-name" style="color:#a855f7">Avanzado</div>
+          </div>
+          <div class="lvl-check"></div>
+        </div>
+        <div class="lvl-desc">Manejo análisis fundamental, derivados, ciclos de mercado y estrategias complejas.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════
+       STEP 2 — Plan financiero
+  ════════════════════════════════════════════════ -->
+  <div class="step" id="step2">
+    <div class="step-subtitle">METAS FINANCIERAS</div>
+    <div class="step-title">Cuéntanos sobre tu plan</div>
+
+    <div class="field">
+      <label class="label">¿Cuánto tienes disponible para empezar a invertir hoy?</label>
+      <div class="input-prefix">
+        <span class="prefix">$</span>
+        <input type="number" id="f_capital" placeholder="0 si todavía no tienes" oninput="validate()">
+      </div>
+      <p class="hint">No te preocupes si es $0 — muchos empiezan de cero. Es solo para personalizar tu plan.</p>
+    </div>
+
+    <div class="field">
+      <label class="label">¿Cuánto quieres invertir mensualmente?</label>
+      <div class="input-suffix">
+        <input type="number" id="f_monthly" placeholder="500" style="padding-right:52px" oninput="validate()">
+        <span class="suffix">/mes</span>
+      </div>
+    </div>
+
+    <div class="field">
+      <label class="label">¿Cuánto patrimonio quieres tener?</label>
+      <div class="input-prefix">
+        <span class="prefix">$</span>
+        <input type="number" id="f_goal_amt" placeholder="1,000,000" oninput="validate()">
+      </div>
+      <p class="hint">La app calculará cuándo llegarás a esta meta con tus aportaciones.</p>
+    </div>
+
+    <div class="field">
+      <label class="label">¿Por cuántos años quieres invertir?</label>
+      <div class="input-suffix">
+        <input type="number" id="f_horizon" placeholder="10" style="padding-right:52px" oninput="validate()">
+        <span class="suffix">años</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════
+       STEP 3 — Meta al invertir
+  ════════════════════════════════════════════════ -->
+  <div class="step" id="step3">
+    <div class="step-subtitle">OBJETIVO</div>
+    <div class="step-title">¿Cuál es tu meta al invertir?</div>
+    <div class="goal-grid">
+      <div class="goal-card" onclick="pickGoal(this,'house')">
+        <div class="goal-check"><svg viewBox="0 0 12 12" fill="none" width="10"><path d="M2 6l3 3 5-5" stroke="white" stroke-width="1.8" stroke-linecap="round"/></svg></div>
+        <div class="goal-emoji">🏠</div>
+        <div class="goal-label">Comprar una casa</div>
+      </div>
+      <div class="goal-card" onclick="pickGoal(this,'car')">
+        <div class="goal-check"><svg viewBox="0 0 12 12" fill="none" width="10"><path d="M2 6l3 3 5-5" stroke="white" stroke-width="1.8" stroke-linecap="round"/></svg></div>
+        <div class="goal-emoji">🚗</div>
+        <div class="goal-label">Comprar un carro</div>
+      </div>
+      <div class="goal-card" onclick="pickGoal(this,'passive')">
+        <div class="goal-check"><svg viewBox="0 0 12 12" fill="none" width="10"><path d="M2 6l3 3 5-5" stroke="white" stroke-width="1.8" stroke-linecap="round"/></svg></div>
+        <div class="goal-emoji">💸</div>
+        <div class="goal-label">Vivir de mis inversiones</div>
+      </div>
+      <div class="goal-card" onclick="pickGoal(this,'retirement')">
+        <div class="goal-check"><svg viewBox="0 0 12 12" fill="none" width="10"><path d="M2 6l3 3 5-5" stroke="white" stroke-width="1.8" stroke-linecap="round"/></svg></div>
+        <div class="goal-emoji">👴</div>
+        <div class="goal-label">Retiro / pensión</div>
+      </div>
+      <div class="goal-card" onclick="pickGoal(this,'freedom')">
+        <div class="goal-check"><svg viewBox="0 0 12 12" fill="none" width="10"><path d="M2 6l3 3 5-5" stroke="white" stroke-width="1.8" stroke-linecap="round"/></svg></div>
+        <div class="goal-emoji">🦅</div>
+        <div class="goal-label">Libertad financiera</div>
+      </div>
+      <div class="goal-card" onclick="pickGoal(this,'wealth')">
+        <div class="goal-check"><svg viewBox="0 0 12 12" fill="none" width="10"><path d="M2 6l3 3 5-5" stroke="white" stroke-width="1.8" stroke-linecap="round"/></svg></div>
+        <div class="goal-emoji">🏛️</div>
+        <div class="goal-label">Patrimonio a largo plazo</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════
+       STEP 4 — Q1 Mentalidad
+  ════════════════════════════════════════════════ -->
+  <div class="step" id="step4">
+    <div class="step-subtitle">01 · MENTALIDAD</div>
+    <div class="step-title">Si inviertes $100,000 y el mercado se desploma 40%, ¿qué harías?</div>
+    <div class="opt-stack" id="q1Cards">
+      <div class="opt-card" onclick="pickQ('q1','A',this)">
+        <div class="opt-row"><span class="opt-letter">A</span><span class="opt-text">Vendo todo inmediatamente para evitar más pérdidas</span></div>
+      </div>
+      <div class="opt-card" onclick="pickQ('q1','B',this)">
+        <div class="opt-row"><span class="opt-letter">B</span><span class="opt-text">Espero sin hacer nada hasta que el mercado se recupere</span></div>
+      </div>
+      <div class="opt-card" onclick="pickQ('q1','C',this)">
+        <div class="opt-row"><span class="opt-letter">C</span><span class="opt-text">Mantengo mi posición — los fundamentos no cambiaron</span></div>
+      </div>
+      <div class="opt-card" onclick="pickQ('q1','D',this)">
+        <div class="opt-row"><span class="opt-letter">D</span><span class="opt-text">Compro más — es la oportunidad que estaba esperando</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════
+       STEP 5 — Q4 Riesgo
+  ════════════════════════════════════════════════ -->
+  <div class="step" id="step5">
+    <div class="step-subtitle">02 · RIESGO</div>
+    <div class="step-title">Tienes $100,000 para invertir. ¿Qué escenario prefieres?</div>
+    <div class="opt-stack" id="q4Cards">
+      <div class="opt-card" onclick="pickQ('q4','A',this)">
+        <div class="opt-row"><span class="opt-letter">A</span><span class="opt-text">Ganar $5K seguro, sin posibilidad de perder nada</span></div>
+      </div>
+      <div class="opt-card" onclick="pickQ('q4','B',this)">
+        <div class="opt-row"><span class="opt-letter">B</span><span class="opt-text">Ganar $15K probable, con riesgo de perder $5K</span></div>
+      </div>
+      <div class="opt-card" onclick="pickQ('q4','C',this)">
+        <div class="opt-row"><span class="opt-letter">C</span><span class="opt-text">Ganar $40K posible, con riesgo de perder $20K</span></div>
+      </div>
+      <div class="opt-card" onclick="pickQ('q4','D',this)">
+        <div class="opt-row"><span class="opt-letter">D</span><span class="opt-text">Ganar $120K posible, con riesgo de perder todo</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════
+       STEP 6 — Broker + Inversiones previas (NUEVO)
+  ════════════════════════════════════════════════ -->
+  <div class="step" id="step6">
+    <div class="step-subtitle">TU PUNTO DE PARTIDA</div>
+    <div class="step-title" id="s6title">¿Ya tienes experiencia en el mercado?</div>
+
+    <div class="field">
+      <label class="label">¿Tienes cuenta en algún broker?</label>
+      <div class="yn-grid">
+        <div class="yn-card" id="broker_yes" onclick="pickBroker('yes')">
+          <div class="yn-emoji">✅</div>
+          <div class="yn-label">Sí, ya tengo</div>
+        </div>
+        <div class="yn-card" id="broker_no" onclick="pickBroker('no')">
+          <div class="yn-emoji">🚀</div>
+          <div class="yn-label">No todavía</div>
+        </div>
+      </div>
+      <div class="broker-input-wrap" id="brokerNameWrap" style="display:none">
+        <input type="text" id="f_broker_name" placeholder="Ej. Robinhood, GBM, Fidelity, Interactive Brokers..." oninput="validate()">
+        <p class="hint">Así Nuvos sabrá qué plataforma usas y podrá guiarte mejor.</p>
+      </div>
+    </div>
+
+    <div class="field">
+      <label class="label">¿Ya tienes dinero invertido en el mercado?</label>
+      <div class="yn-grid">
+        <div class="yn-card" id="inv_yes" onclick="pickInv('yes')">
+          <div class="yn-emoji">📈</div>
+          <div class="yn-label">Sí, ya invertí</div>
+        </div>
+        <div class="yn-card" id="inv_no" onclick="pickInv('no')">
+          <div class="yn-emoji">🌱</div>
+          <div class="yn-label">Seré primerizo</div>
+        </div>
+      </div>
+      <div class="alert-green" id="firstTimerAlert" style="display:none">
+        <span style="font-size:20px">🎯</span>
+        <p><strong>¡Perfecto punto de partida!</strong> Al terminar el onboarding te esperará una Sesión de Bienvenida personalizada para que hagas tu primera inversión con confianza.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════
+       STEP 7 — Perfil de inversión (reveal)
+  ════════════════════════════════════════════════ -->
+  <div class="step" id="step7">
+    <div class="step-subtitle">TU PERFIL DE INVERSIÓN</div>
+    <div class="step-title" id="s7title">Tu perfil, Diego</div>
+
+    <div class="risk-card" id="riskCard" style="border:1px solid #f59e0b55;background:var(--raised)">
+      <div style="font-size:48px;margin-bottom:10px" id="riskEmoji">⚖️</div>
+      <div style="font-size:17px;font-weight:900;margin-bottom:6px" id="riskLabel">Inversionista Moderado</div>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:16px" id="riskDesc">Buscas equilibrio entre crecimiento y protección. Aceptas cierta volatilidad.</div>
+      <div class="risk-bar-wrap">
+        <div class="risk-bar-fill" id="riskBarFill" style="width:66%;background:#f59e0b"></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;margin-top:6px">
+        <span style="font-size:10px;color:var(--dim)">Bajo riesgo</span>
+        <span style="font-size:10px;color:var(--dim)">Alto riesgo</span>
+      </div>
+    </div>
+
+    <div class="profile-table">
+      <div class="table-head"><span>Resumen de tu perfil</span></div>
+      <div class="profile-row"><span class="pk">Nombre</span><span class="pv" id="rv_name">—</span></div>
+      <div class="profile-row"><span class="pk">Edad</span><span class="pv" id="rv_age">—</span></div>
+      <div class="profile-row"><span class="pk">País</span><span class="pv" id="rv_country">—</span></div>
+      <div class="profile-row"><span class="pk">Nivel</span><span class="pv" id="rv_level">—</span></div>
+      <div class="profile-row"><span class="pk">Meta</span><span class="pv" id="rv_goal">—</span></div>
+      <div class="profile-row"><span class="pk">Capital inicial</span><span class="pv" id="rv_capital">—</span></div>
+      <div class="profile-row"><span class="pk">Aportación mensual</span><span class="pv" id="rv_monthly">—</span></div>
+      <div class="profile-row"><span class="pk">Patrimonio objetivo</span><span class="pv" id="rv_goalamt">—</span></div>
+      <div class="profile-row"><span class="pk">Horizonte</span><span class="pv" id="rv_horizon">—</span></div>
+      <div class="profile-row"><span class="pk">Broker</span><span class="pv" id="rv_broker">—</span></div>
+      <div class="profile-row"><span class="pk">Inversiones previas</span><span class="pv" id="rv_investments">—</span></div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════
+       STEP 8 — Proyección
+  ════════════════════════════════════════════════ -->
+  <div class="step" id="step8">
+    <div class="step-subtitle">TU PROYECCIÓN</div>
+    <div class="step-title" id="s8title">Tu camino hacia $1,000,000</div>
+
+    <div class="proj-card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+        <span style="font-size:12px;font-weight:700;color:var(--muted)" id="proj_label">Aportando $500/mes</span>
+        <span class="pill pill-blue" id="proj_rate">~10%/año</span>
+      </div>
+
+      <div style="font-size:11px;color:var(--sub);margin-bottom:4px" id="proj_h1_label">A los 10 años (tu horizonte)</div>
+      <div style="font-size:16px;font-weight:900;margin-bottom:6px" id="proj_h1_val" style="color:var(--text)">$103,226</div>
+      <div class="proj-bar-wrap" style="margin-bottom:16px">
+        <div class="proj-bar-fill" id="proj_bar1" style="width:10%;background:#f59e0b"></div>
+        <div class="goal-line" id="proj_goalline" style="left:100%"></div>
+      </div>
+
+      <div style="font-size:11px;color:var(--sub);margin-bottom:4px" id="proj_h2_label">Si lo dejas 10 años más (20 total)</div>
+      <div style="font-size:16px;font-weight:900;margin-bottom:6px" id="proj_h2_val">$379,684</div>
+      <div class="proj-bar-wrap" style="margin-bottom:16px">
+        <div class="proj-bar-fill" id="proj_bar2" style="width:38%;background:#f59e0b"></div>
+        <div class="goal-line" id="proj_goalline2" style="left:100%"></div>
+      </div>
+
+      <div class="pill-green" style="display:flex;align-items:center;gap:8px;padding:10px 14px;border-radius:12px;background:rgba(34,197,94,.08);border:1px solid rgba(34,197,94,.25)">
+        <span>🎯</span><span style="font-size:12px;font-weight:600;color:#22c55e" id="proj_status">Necesitas ~30 años para alcanzar $1M</span>
+      </div>
+    </div>
+
+    <div style="margin-bottom:6px">
+      <p style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);margin-bottom:12px">Nuvos AI trabaja contigo</p>
+      <div class="feat-card"><span style="font-size:22px">🤖</span><div><p style="font-size:13px;font-weight:700;color:var(--text)">IA que conoce tu perfil</p><p style="font-size:11px;color:var(--muted)">Análisis personalizado según tu nivel y tolerancia al riesgo</p></div></div>
+      <div class="feat-card"><span style="font-size:22px">📊</span><div><p style="font-size:13px;font-weight:700;color:var(--text)">Portafolio en tiempo real</p><p style="font-size:11px;color:var(--muted)">Precios cada 30s con rendimientos Hoy / YTD / Total</p></div></div>
+      <div class="feat-card"><span style="font-size:22px">📅</span><div><p style="font-size:13px;font-weight:700;color:var(--text)">Calendario de eventos</p><p style="font-size:11px;color:var(--muted)">Earnings, dividendos y ex-dividendos de tus posiciones</p></div></div>
+      <div class="feat-card"><span style="font-size:22px">🎮</span><div><p style="font-size:13px;font-weight:700;color:var(--text)">Paper trading sin riesgo</p><p style="font-size:11px;color:var(--muted)">Practica con $10,000 virtuales a precios reales del mercado</p></div></div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════
+       STEP 9 — Legal
+  ════════════════════════════════════════════════ -->
+  <div class="step" id="step9">
+    <div class="step-subtitle">AVISO LEGAL</div>
+    <div class="step-title">Antes de empezar</div>
+
+    <div class="legal-box">
+      <div class="legal-head">⚠️ Aviso de Carácter Educativo — léelo completo antes de continuar</div>
+      <div class="legal-scroll">
+        <h4>1. Naturaleza del servicio</h4>
+        <p>Nuvos AI es una herramienta tecnológica de carácter educativo e informativo orientada a la educación financiera y al análisis de mercados. Nuvos AI <strong>no es</strong> una institución bancaria, casa de bolsa, asesor en inversiones, ni ninguna otra entidad regulada por la CNBV, CONDUSEF, SEC ni cualquier otro regulador financiero.</p>
+        <br>
+        <h4>2. Ausencia de asesoría financiera personalizada</h4>
+        <p>Ningún contenido generado dentro de la aplicación constituye una recomendación personalizada de inversión. Todo el contenido es de naturaleza general y educativa, generado o asistido por inteligencia artificial.</p>
+        <br>
+        <h4>3. Riesgos de invertir</h4>
+        <p>Toda inversión conlleva riesgo, incluyendo la posible pérdida total o parcial del capital invertido. El desempeño histórico no garantiza resultados futuros. Cualquier decisión de inversión que tomes es <strong>responsabilidad exclusiva del usuario</strong>.</p>
+        <br>
+        <h4>4. Limitaciones de la IA</h4>
+        <p>El contenido generado por IA puede contener errores, imprecisiones u omisiones. No debe interpretarse como sustituto de la consulta con un profesional financiero certificado.</p>
+        <br>
+        <h4>5. Responsabilidad del usuario</h4>
+        <p>Nuvos AI, sus fundadores y colaboradores no asumen responsabilidad alguna por pérdidas relacionadas con decisiones de inversión tomadas con base en el contenido de la aplicación.</p>
+      </div>
+    </div>
+
+    <div class="check-row" onclick="toggleCheck('chk1')">
+      <div class="check-box" id="chk1">
+        <svg viewBox="0 0 12 12" fill="none" width="10" style="display:none" id="chk1svg"><path d="M2 6l3 3 5-5" stroke="white" stroke-width="1.8" stroke-linecap="round"/></svg>
+      </div>
+      <div class="check-text">He leído y acepto los <span style="color:var(--accent-l);text-decoration:underline">Términos de Uso</span> y la <span style="color:var(--accent-l);text-decoration:underline">Política de Privacidad</span>.</div>
+    </div>
+
+    <div class="check-row" onclick="toggleCheck('chk2')">
+      <div class="check-box" id="chk2">
+        <svg viewBox="0 0 12 12" fill="none" width="10" style="display:none" id="chk2svg"><path d="M2 6l3 3 5-5" stroke="white" stroke-width="1.8" stroke-linecap="round"/></svg>
+      </div>
+      <div class="check-text">Entiendo que Nuvos AI ofrece contenido educativo generado con IA, <strong style="color:var(--text)">que no constituye asesoría financiera personalizada</strong>, y que cualquier decisión financiera que tome es de mi exclusiva responsabilidad.</div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════
+       SESIÓN DE BIENVENIDA
+  ════════════════════════════════════════════════ -->
+  <div class="step" id="stepSession">
+    <div class="session-screen" style="padding:0">
+
+      <div class="session-header">
+        <div style="font-size:52px;margin-bottom:12px">🎉</div>
+        <h1 style="font-size:28px;font-weight:900;margin-bottom:4px" id="sess_name">¡Bienvenido, Diego!</h1>
+        <p style="font-size:14px;font-weight:600;color:var(--muted)">Tu Sesión de Bienvenida está lista</p>
+      </div>
+
+      <div class="session-badge" id="sess_badge" style="border:1px solid #f59e0b40;background:var(--card);margin-bottom:20px">
+        <span style="font-size:28px" id="sess_emoji">⚖️</span>
+        <div>
+          <p style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:var(--muted)">Tu perfil de inversionista</p>
+          <p style="font-size:14px;font-weight:900" id="sess_profile">Moderado · Intermedio</p>
+        </div>
+      </div>
+
+      <div class="agenda-card">
+        <p style="font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:.12em;color:var(--muted);margin-bottom:14px">En esta sesión vamos a:</p>
+        <div class="agenda-item"><span>🎯</span><p>Definir tus objetivos de inversión con claridad</p></div>
+        <div class="agenda-item"><span>📚</span><p>Explicarte el proceso de inversión paso a paso</p></div>
+        <div class="agenda-item" id="agenda_broker"><span>🏦</span><p id="agenda_broker_text">Ayudarte a abrir tu cuenta en un broker</p></div>
+        <div class="agenda-item"><span>📊</span><p>Configurar tu portafolio en Nuvos AI</p></div>
+        <div class="agenda-item"><span>🤖</span><p>Personalizar tu Mentor IA al máximo</p></div>
+        <div class="agenda-item" id="agenda_inv"><span id="agenda_inv_icon">🚀</span><p id="agenda_inv_text">Acompañarte en tu primera inversión, si decides hacerla</p></div>
+      </div>
+
+      <div class="outcome-card">
+        <div class="ot">Al terminar saldrás con:</div>
+        <p>✅ Objetivos claros</p>
+        <p>✅ Broker configurado</p>
+        <p>✅ Portafolio armado</p>
+        <p>✅ Nuvos AI listo para ti</p>
+      </div>
+
+      <a href="https://calendly.com/diego-arria19/sesion-1-1-con-diego-nuvos-ai"
+         target="_blank" rel="noopener noreferrer"
+         style="display:block;width:100%;height:56px;border-radius:16px;background:var(--accent);color:#000;font-size:16px;font-weight:900;text-align:center;line-height:56px;text-decoration:none">
+        Agendar mi Sesión de Bienvenida →
+      </a>
+      <button class="btn-skip" id="skipBtn" style="display:none" onclick="alert('Redirigiendo a inicio...')">
+        Ya tengo todo configurado — ir al inicio →
+      </button>
+      <p style="text-align:center;font-size:11px;color:var(--dim);margin-top:10px">Tu Mentor IA ya conoce todo tu perfil</p>
+    </div>
+  </div>
+
+  <!-- ─── Bottom navigation ─── -->
+  <div class="bottom-bar" id="bottomBar">
+    <button class="btn-back" id="btnBack" onclick="goBack()">←</button>
+    <button class="btn-next" id="btnNext" onclick="goNext()" disabled>Siguiente</button>
+  </div>
+
+</div><!-- /shell -->
+
+<script>
+// ─── State ───────────────────────────────────────────────────────────────────
+const state = {
+  step: 0, country: '', level: '', q1: '', q4: '',
+  goal: '', has_broker: '', has_investments: '',
+  chk1: false, chk2: false,
+};
+const TOTAL_STEPS = 10; // 0-9 onboarding + session
+
+const COUNTRIES = {MX:'🇲🇽 México',US:'🇺🇸 EE.UU.',CO:'🇨🇴 Colombia',AR:'🇦🇷 Argentina',
+                   VE:'🇻🇪 Venezuela',PE:'🇵🇪 Perú',CL:'🇨🇱 Chile',ES:'🇪🇸 España',OTHER:'🌎 Otro'};
+const LEVEL_MAP = {B:{emoji:'🌱',label:'Básico',color:'#22c55e'},
+                   C:{emoji:'📈',label:'Intermedio',color:'#3b82f6'},
+                   D:{emoji:'🎯',label:'Avanzado',color:'#a855f7'}};
+const GOAL_MAP  = {house:'🏠 Comprar una casa',car:'🚗 Comprar un carro',
+                   passive:'💸 Vivir de mis inversiones',retirement:'👴 Retiro / pensión',
+                   freedom:'🦅 Libertad financiera',wealth:'🏛️ Patrimonio a largo plazo'};
+const RISK_CFG = {
+  conservative: {emoji:'🛡️',label:'Conservador',color:'#3b82f6',pct:33,
+    desc:'Priorizas la seguridad y la preservación de tu capital. Prefieres rendimientos estables.',rate:0.07,rateLabel:'7%'},
+  moderate:     {emoji:'⚖️',label:'Moderado',color:'#f59e0b',pct:66,
+    desc:'Buscas equilibrio entre crecimiento y protección. Aceptas cierta volatilidad.',rate:0.10,rateLabel:'10%'},
+  aggressive:   {emoji:'🚀',label:'Agresivo',color:'#ef4444',pct:100,
+    desc:'Buscas máximo crecimiento. Toleras alta volatilidad a cambio de retornos superiores.',rate:0.12,rateLabel:'12%'},
+};
+
+function calcRisk() {
+  const m = {A:1,B:2,C:3,D:4};
+  const vals = [state.q1, state.q4].filter(v=>'ABCD'.includes(v));
+  if (!vals.length) return 'moderate';
+  const avg = vals.reduce((s,v)=>s+m[v],0)/vals.length;
+  return avg<=2?'conservative':avg<=3?'moderate':'aggressive';
+}
+
+function fmtMoney(n) {
+  if (n>=1e6) return `$${(n/1e6).toFixed(1)}M`;
+  if (n>=1e3) return `$${Math.round(n/1e3)}K`;
+  return `$${Math.round(n).toLocaleString()}`;
+}
+
+function fvCalc(pmt,r,months) {
+  if (pmt<=0) return 0;
+  return Math.round(pmt*((Math.pow(1+r,months)-1)/r));
+}
+
+// ─── Validation per step ─────────────────────────────────────────────────────
+function isValid() {
+  const s = state.step;
+  if (s===0) return (document.getElementById('f_name').value.trim().length>=2) &&
+                    (document.getElementById('f_day').value) &&
+                    (document.getElementById('f_month').value) &&
+                    (document.getElementById('f_year').value) &&
+                    !!state.country;
+  if (s===1) return !!state.level;
+  if (s===2) return parseFloat(document.getElementById('f_monthly').value)>0 &&
+                    parseFloat(document.getElementById('f_goal_amt').value)>0 &&
+                    parseInt(document.getElementById('f_horizon').value)>=1;
+  if (s===3) return !!state.goal;
+  if (s===4) return !!state.q1;
+  if (s===5) return !!state.q4;
+  if (s===6) return !!state.has_broker && !!state.has_investments;
+  if (s===7) return true;
+  if (s===8) return true;
+  if (s===9) return state.chk1 && state.chk2;
+  return false;
+}
+
+function validate() {
+  document.getElementById('btnNext').disabled = !isValid();
+}
+
+// ─── Pickers ─────────────────────────────────────────────────────────────────
+function pickCountry(btn, val) {
+  document.querySelectorAll('.country-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active'); state.country = val; validate();
+}
+function pickLevel(card, val) {
+  document.querySelectorAll('.lvl-card').forEach(c=>c.classList.remove('active'));
+  card.classList.add('active'); state.level = val; validate();
+}
+function pickGoal(card, val) {
+  document.querySelectorAll('.goal-card').forEach(c=>c.classList.remove('active'));
+  card.classList.add('active'); state.goal = val; validate();
+}
+function pickQ(field, val, card) {
+  const parent = card.closest('.opt-stack');
+  parent.querySelectorAll('.opt-card').forEach(c=>c.classList.remove('active'));
+  card.classList.add('active'); state[field]=val; validate();
+}
+function pickBroker(val) {
+  state.has_broker=val;
+  document.getElementById('broker_yes').classList.toggle('active',val==='yes');
+  document.getElementById('broker_no').classList.toggle('active',val==='no');
+  document.getElementById('brokerNameWrap').style.display=val==='yes'?'block':'none';
+  validate();
+}
+function pickInv(val) {
+  state.has_investments=val;
+  document.getElementById('inv_yes').classList.toggle('active',val==='yes');
+  document.getElementById('inv_no').classList.toggle('active',val==='no');
+  document.getElementById('firstTimerAlert').style.display=val==='no'?'flex':'none';
+  validate();
+}
+function toggleCheck(id) {
+  state[id] = !state[id];
+  const box = document.getElementById(id);
+  const svg = document.getElementById(id+'svg');
+  box.classList.toggle('checked', state[id]);
+  svg.style.display = state[id]?'block':'none';
+  validate();
+}
+
+// ─── Build reveal / session screens ──────────────────────────────────────────
+function buildReveal() {
+  const risk = calcRisk();
+  const cfg  = RISK_CFG[risk];
+  const lvl  = LEVEL_MAP[state.level]||{emoji:'—',label:'—'};
+  const name = document.getElementById('f_name').value.trim().split(' ')[0];
+  const year = parseInt(document.getElementById('f_year').value)||0;
+  const age  = year ? new Date().getFullYear()-year : 0;
+  const capital = parseFloat(document.getElementById('f_capital').value)||0;
+  const monthly = parseFloat(document.getElementById('f_monthly').value)||0;
+  const goalAmt = parseFloat(document.getElementById('f_goal_amt').value)||0;
+  const horizon = parseInt(document.getElementById('f_horizon').value)||10;
+  const brokerName = document.getElementById('f_broker_name').value;
+
+  document.getElementById('s7title').textContent = `Tu perfil, ${name||'inversionista'}`;
+  document.getElementById('riskEmoji').textContent = cfg.emoji;
+  document.getElementById('riskLabel').textContent = `Inversionista ${cfg.label}`;
+  document.getElementById('riskDesc').textContent  = cfg.desc;
+  document.getElementById('riskBarFill').style.width     = cfg.pct+'%';
+  document.getElementById('riskBarFill').style.background = cfg.color;
+  document.getElementById('riskCard').style.borderColor  = cfg.color+'55';
+
+  document.getElementById('rv_name').textContent  = document.getElementById('f_name').value.trim()||'—';
+  document.getElementById('rv_age').textContent   = age ? `${age} años` : '—';
+  document.getElementById('rv_country').textContent = COUNTRIES[state.country]||'—';
+  document.getElementById('rv_level').textContent  = `${lvl.emoji} ${lvl.label}`;
+  document.getElementById('rv_goal').textContent   = GOAL_MAP[state.goal]||'—';
+  document.getElementById('rv_capital').textContent= capital ? `$${capital.toLocaleString()}` : '$0';
+  document.getElementById('rv_monthly').textContent= monthly ? `$${monthly.toLocaleString()}/mes` : '—';
+  document.getElementById('rv_goalamt').textContent= goalAmt ? `$${goalAmt.toLocaleString()}` : '—';
+  document.getElementById('rv_horizon').textContent= horizon ? `${horizon} años` : '—';
+  document.getElementById('rv_broker').textContent = state.has_broker==='yes'
+    ? (brokerName||'Sí') : 'Sin broker aún';
+  document.getElementById('rv_investments').textContent = state.has_investments==='yes'
+    ? 'Ya invertí antes' : 'Primera vez 🌱';
+}
+
+function buildProjection() {
+  const risk = calcRisk();
+  const cfg  = RISK_CFG[risk];
+  const monthly = parseFloat(document.getElementById('f_monthly').value)||500;
+  const goalAmt = parseFloat(document.getElementById('f_goal_amt').value)||1000000;
+  const horizon = parseInt(document.getElementById('f_horizon').value)||10;
+  const r = cfg.rate/12;
+
+  const fv1 = fvCalc(monthly,r,horizon*12);
+  const fv2 = fvCalc(monthly,r,(horizon+10)*12);
+  const maxFV = Math.max(fv2,goalAmt);
+
+  document.getElementById('s8title').textContent  = `Tu camino hacia ${fmtMoney(goalAmt)}`;
+  document.getElementById('proj_label').textContent = `Aportando $${monthly.toLocaleString()}/mes`;
+  document.getElementById('proj_rate').textContent  = `~${cfg.rateLabel}/año`;
+  document.getElementById('proj_h1_label').textContent = `A los ${horizon} años (tu horizonte)`;
+  document.getElementById('proj_h1_val').textContent   = fmtMoney(fv1);
+  document.getElementById('proj_h1_val').style.color   = fv1>=goalAmt?'#22c55e':'var(--text)';
+  document.getElementById('proj_h2_label').textContent = `Si lo dejas 10 años más (${horizon+10} total)`;
+  document.getElementById('proj_h2_val').textContent   = fmtMoney(fv2);
+  document.getElementById('proj_bar1').style.width      = Math.min(fv1/maxFV*100,100)+'%';
+  document.getElementById('proj_bar1').style.background = fv1>=goalAmt?'#22c55e':cfg.color;
+  document.getElementById('proj_bar2').style.width      = Math.min(fv2/maxFV*100,100)+'%';
+  document.getElementById('proj_bar2').style.background = fv2>=goalAmt?'#22c55e':cfg.color;
+  const glPct = Math.min(goalAmt/maxFV*100,100);
+  document.getElementById('proj_goalline').style.left  = glPct+'%';
+  document.getElementById('proj_goalline2').style.left = glPct+'%';
+
+  // Years to goal
+  if (monthly>0 && goalAmt>0) {
+    const n = Math.log(1+(goalAmt*r)/monthly)/Math.log(1+r);
+    const yrs = Math.ceil(n/12);
+    document.getElementById('proj_status').textContent = fv1>=goalAmt
+      ? `¡Alcanzas tu meta dentro de los ${horizon} años!`
+      : isFinite(yrs)&&yrs>0 ? `Necesitas ~${yrs} años para alcanzar ${fmtMoney(goalAmt)}`
+      : `Aumenta tu aportación mensual para alcanzar tu meta`;
+  }
+}
+
+function buildSession() {
+  const risk = calcRisk();
+  const cfg  = RISK_CFG[risk];
+  const lvl  = LEVEL_MAP[state.level]||{label:'—'};
+  const name = document.getElementById('f_name').value.trim().split(' ')[0];
+  const isFirstTimer = state.has_investments==='no';
+  const hasNoBroker  = state.has_broker==='no';
+
+  document.getElementById('sess_name').textContent   = `¡Bienvenido, ${name||'Inversor'}!`;
+  document.getElementById('sess_emoji').textContent  = cfg.emoji;
+  document.getElementById('sess_badge').style.borderColor = cfg.color+'40';
+  document.getElementById('sess_profile').textContent = `${cfg.label} · ${lvl.label}`;
+  document.getElementById('sess_profile').style.color = cfg.color;
+
+  document.getElementById('agenda_broker_text').textContent = hasNoBroker
+    ? 'Ayudarte a abrir tu cuenta en un broker'
+    : 'Conectar y revisar tu broker actual';
+
+  if (isFirstTimer) {
+    document.getElementById('agenda_inv_icon').textContent = '🚀';
+    document.getElementById('agenda_inv_text').textContent = 'Acompañarte en tu primera inversión, si decides hacerla';
+  } else {
+    document.getElementById('agenda_inv_icon').textContent = '🔍';
+    document.getElementById('agenda_inv_text').textContent = 'Analizar tus inversiones actuales y detectar mejoras';
+  }
+
+  document.getElementById('skipBtn').style.display = isFirstTimer ? 'none' : 'block';
+}
+
+// ─── Navigation ──────────────────────────────────────────────────────────────
+function showStep(n) {
+  document.querySelectorAll('.step').forEach(s=>s.classList.remove('active'));
+  const isSession = (n===10);
+  const id = isSession ? 'stepSession' : 'step'+n;
+  document.getElementById(id).classList.add('active');
+
+  const progressWrap = document.getElementById('progressWrap');
+  const bottomBar    = document.getElementById('bottomBar');
+
+  if (isSession) {
+    progressWrap.style.display = 'none';
+    bottomBar.style.display    = 'none';
+  } else {
+    progressWrap.style.display = 'block';
+    bottomBar.style.display    = 'flex';
+    const labels = ['BIENVENIDO','TU PERFIL','METAS','OBJETIVO','MENTALIDAD','RIESGO','EXPERIENCIA','PERFIL','PROYECCIÓN','LEGAL'];
+    document.getElementById('progressLabel').textContent = labels[n]||'';
+    document.getElementById('progressCount').textContent = `${n+1} / 10`;
+    document.getElementById('progressFill').style.width  = `${((n+1)/10)*100}%`;
+    document.getElementById('btnBack').style.display = n===0?'none':'flex';
+    const isLast = n===9;
+    document.getElementById('btnNext').textContent = isLast ? '¡Comenzar!' : 'Siguiente';
+  }
+
+  validate();
+}
+
+function goNext() {
+  if (!isValid()) return;
+  const n = state.step;
+  if (n===6) buildReveal();
+  if (n===7) buildProjection();
+  if (n===9) { buildSession(); state.step=10; showStep(10); return; }
+  state.step++;
+  showStep(state.step);
+}
+
+function goBack() {
+  if (state.step===0) return;
+  state.step--;
+  showStep(state.step);
+}
+
+// init
+showStep(0);
+</script>
+</body>
+</html>

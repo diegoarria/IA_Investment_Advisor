@@ -1050,11 +1050,12 @@ export default function OnboardingPage() {
             ))}
           </div>
 
-          <button onClick={() => router.push("/chat")}
-                  className="w-full py-4 rounded-2xl text-black font-black text-base transition-all"
-                  style={{ background: "var(--accent)" }}>
-            Comenzar mi sesión →
-          </button>
+          <a href="https://calendly.com/diego-arria19/sesion-1-1-con-diego-nuvos-ai"
+             target="_blank" rel="noopener noreferrer"
+             className="block w-full py-4 rounded-2xl text-black font-black text-base text-center transition-all"
+             style={{ background: "var(--accent)" }}>
+            Agendar mi Sesión de Bienvenida →
+          </a>
           {!isFirstTimer && (
             <button onClick={() => router.push("/home")}
                     className="w-full py-3 rounded-2xl text-sm font-semibold mt-2 transition-all"
