@@ -148,8 +148,8 @@ export default function HomePage() {
   const fxRate = useFxRate(portfolioCurrency);
   const streak = useLearnStore((s) => s.streak);
   const completedToday = useLearnStore((s) => s.completedToday);
-  const { tier: subTier } = useSubscriptionStore();
-  const isPremium = subTier === "premium";
+  const { tier: subTier, isTrialPremium: subTrialPremium } = useSubscriptionStore();
+  const isPremium = subTier === "premium" || subTrialPremium;
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showScreenPicker, setShowScreenPicker] = useState(false);

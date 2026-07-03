@@ -47,7 +47,7 @@ const ETF_BY_RISK: Record<string, { ticker: string; name: string; desc: string; 
 
 export default function ScreenerPage() {
   const sub          = useSubscriptionStore();
-  const isPremium    = sub.tier === "premium";
+  const isPremium = sub.tier === "premium" || sub.isTrialPremium;
   const { profile }  = useProfileStore();
   const userLevel    = getUserLevel(profile);
   const [weekly, setWeekly]         = useState<WeeklyData | null>(null);

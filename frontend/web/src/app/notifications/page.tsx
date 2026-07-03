@@ -37,7 +37,7 @@ export default function NotificationsPage() {
   const { theme, toggleTheme } = useThemeStore();
   const { positions } = usePortfolioStore();
   const subStore = useSubscriptionStore();
-  const isPremium = subStore.tier === "premium";
+  const isPremium = subStore.tier === "premium" || subStore.isTrialPremium;
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [paywallOpen, setPaywallOpen] = useState(false);

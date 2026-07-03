@@ -261,7 +261,7 @@ export default function ChatPage() {
     setShowScrollBtn(false);
   };
 
-  const isPremium = subStore.tier === "premium";
+  const isPremium = subStore.tier === "premium" || subStore.isTrialPremium;
   const remaining = msgsRemaining(subStore);
 
   const handleStop = () => {

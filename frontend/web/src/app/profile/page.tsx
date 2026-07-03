@@ -146,7 +146,7 @@ export default function ProfilePage() {
   } | null>(null);
   const [fmgOpen, setFmgOpen] = useState(false);
 
-  const isPremium = subStore.tier === "premium";
+  const isPremium = subStore.tier === "premium" || subStore.isTrialPremium;
   const remaining = msgsRemaining(subStore);
   const mentor = getMentorInfo(profile?.mentor);
   const riskColor = profile ? (RISK_COLOR[profile.risk_tolerance] ?? "var(--accent)") : "var(--accent)";

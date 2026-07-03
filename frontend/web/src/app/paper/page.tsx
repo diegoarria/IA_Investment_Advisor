@@ -38,7 +38,7 @@ export default function PaperPage() {
   const router   = useRouter();
   const { isAuthenticated }  = useAuthStore();
   const subStore = useSubscriptionStore();
-  const isPremium = subStore.tier === "premium";
+  const isPremium = subStore.tier === "premium" || subStore.isTrialPremium;
   const { cash, positions, trades, buy, sell, topUp, reset } = usePaperStore();
 
   const [paywallOpen, setPaywallOpen]       = useState(false);

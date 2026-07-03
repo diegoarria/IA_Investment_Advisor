@@ -290,8 +290,45 @@ async def sync_paper(body: dict, user_id: str = Depends(get_current_user_id)):
     """Upsert full paper trading state.
     freeTradeMonth/Count are only updated when explicitly included in the body,
     so web-only pushes (which omit them) don't clear mobile-specific state.
+
+    Soft lock: free/expired-trial users can VIEW their paper portfolio but
+    cannot execute new trades (i.e., increase the trades list).
     """
     db = get_supabase()
+    new_trades = body.get("trades", [])
+
+    # Soft lock — check if user is trying to add new trades without premium
+    if new_trades:
+        pr_res = await run_query(
+            db.table("user_profiles")
+            .select("subscription_tier, trial_started_at")
+            .eq("user_id", user_id)
+        )
+        pr = pr_res.data[0] if pr_res.data else {}
+        _tier  = pr.get("subscription_tier") or "free"
+        _trial = pr.get("trial_started_at")
+        _is_prem = _tier in ("premium", "pro")
+        if not _is_prem and _trial:
+            try:
+                from datetime import datetime as _dt, timezone as _tz
+                _started = _dt.fromisoformat(_trial.replace("Z", "+00:00"))
+                _is_prem = (_dt.now(_tz.utc) - _started).days < 90
+            except Exception:
+                pass
+        if not _is_prem:
+            existing_paper = await run_query(
+                db.table("user_paper_trading").select("trades").eq("user_id", user_id)
+            )
+            current_trade_count = 0
+            if existing_paper.data:
+                current_trade_count = len(existing_paper.data[0].get("trades") or [])
+            if len(new_trades) > current_trade_count:
+                raise HTTPException(
+                    status_code=403,
+                    detail={"code": "limit_reached",
+                            "message": "El paper trading es exclusivo de Premium. Activa tu plan para seguir operando."}
+                )
+
     update_data: dict = {
         "user_id":   user_id,
         "cash":      body.get("cash", 10000),

@@ -249,8 +249,8 @@ export default function LearnPage() {
   const router = useRouter();
   const { isAuthenticated } = useAuthStore();
   const { streak, completedToday, markTopicCompleted, markTopicId, completedTopicIds, initStreak, claimedMilestones, markMilestoneClaimed } = useLearnStore();
-  const { fetchStatus: fetchSubStatus, tier: subTier } = useSubscriptionStore();
-  const isPremium = subTier === "premium";
+  const { fetchStatus: fetchSubStatus, tier: subTier, isTrialPremium: subTrialPremium } = useSubscriptionStore();
+  const isPremium = subTier === "premium" || subTrialPremium;
   const { profile } = useProfileStore();
   const { positions } = usePortfolioStore();
   const [portfolioLessons, setPortfolioLessons] = useState<{ ticker: string; date: string; topicId: string; topicTitle: string; topicEmoji: string; daysUntil: number }[]>([]);

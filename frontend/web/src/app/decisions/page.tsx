@@ -78,7 +78,7 @@ const SEVERITY_COLOR: Record<string, string> = {
 
 export default function DecisionsPage() {
   const sub        = useSubscriptionStore();
-  const isPremium  = sub.tier === "premium";
+  const isPremium = sub.tier === "premium" || sub.isTrialPremium;
   const { profile } = useProfileStore();
   const userLevel  = getUserLevel(profile);
 
