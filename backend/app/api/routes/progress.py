@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from app.api.deps import get_current_user_id
 from app.api.routes.upsells import _effective_tier
 from app.core.database import get_supabase, run_query
-from app.services import investor_progress_service as progress_service
+from app.services import fmg_service, investor_progress_service as progress_service
 
 router = APIRouter(prefix="/progress", tags=["progress"])
 
@@ -25,6 +25,24 @@ async def _require_premium(user_id: str) -> None:
         raise HTTPException(status_code=403, detail="Tu evolución como inversionista es exclusiva de Premium")
 
 
+async def _ensure_fresh_data(user_id: str) -> None:
+    """
+    Milestones and snapshot-derived metrics (max_patrimonio, best/worst year)
+    only get computed from the nightly batch job (job_fmg_snapshot, 16:05 ET
+    weekdays) — a user opening the dashboard for the first time otherwise sees
+    an empty page until that job happens to run, even when they clearly
+    qualify (e.g. 175 days since their first investment). Both calls are
+    idempotent (today's snapshot / each milestone_key is only ever recorded
+    once), so it's safe and cheap to run them on every dashboard load instead
+    of only once a day.
+    """
+    try:
+        await fmg_service.take_portfolio_snapshot(user_id)
+        await progress_service.detect_new_milestones(user_id)
+    except Exception:
+        pass  # best-effort — the dashboard should still render with whatever data already exists
+
+
 # ── GET /api/progress/summary ─────────────────────────────────────────────────
 @router.get("/summary")
 async def get_summary(user_id: str = Depends(get_current_user_id)):
@@ -32,6 +50,7 @@ async def get_summary(user_id: str = Depends(get_current_user_id)):
     present only when there's enough real data — a missing key means 'not
     enough history yet', never zero."""
     await _require_premium(user_id)
+    await _ensure_fresh_data(user_id)
     summary = await progress_service.compute_progress_summary(user_id)
     return {"summary": summary}
 
@@ -41,6 +60,7 @@ async def get_summary(user_id: str = Depends(get_current_user_id)):
 async def get_milestones(user_id: str = Depends(get_current_user_id)):
     """Permanent timeline of achieved milestones, newest first."""
     await _require_premium(user_id)
+    await _ensure_fresh_data(user_id)
     db = get_supabase()
     res = await run_query(
         db.table("fmg_events")
