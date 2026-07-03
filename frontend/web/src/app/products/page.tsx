@@ -22,6 +22,7 @@ const SUBSCRIPTION_FEATURES = {
     { icon: Bell,         text: "Notificaciones generales de tu portafolio y watchlist" },
     { icon: BookOpen,     text: "25 acciones en watchlist" },
     { icon: GraduationCap, text: "Academia completa + quizzes" },
+    { icon: Brain,        text: "Memoria básica — Nuvos recuerda hasta 10 creencias e ideas tuyas" },
   ],
   premium: [
     { icon: Brain,         text: "Entiende qué hacer con tu dinero, todos los días — sin límite" },
@@ -35,7 +36,7 @@ const SUBSCRIPTION_FEATURES = {
     { icon: GraduationCap, text: "Aprende sobre las empresas que ya tienes en tu portafolio" },
     { icon: BarChart2,     text: "Ve cómo se compara tu portafolio con el mercado en tiempo real" },
     { icon: Zap,           text: "Portafolio ilimitado — sin topes de acciones ni watchlist" },
-    { icon: Target,        text: "Conviértete en mejor inversionista con el tiempo, con la IA de tu lado" },
+    { icon: Target,        text: "Memoria financiera completa — patrones, timeline y evolución de tu portafolio" },
   ],
 };
 

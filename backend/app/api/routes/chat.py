@@ -325,7 +325,7 @@ async def chat_message(
     user_name = getattr(profile, "name", None) if profile else None
     asyncio.create_task(
         fmg_service.extract_from_conversation(
-            user_id, body.message, clean_reply, user_name
+            user_id, body.message, clean_reply, user_name, is_premium=premium
         )
     )
 

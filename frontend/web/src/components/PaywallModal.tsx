@@ -45,7 +45,7 @@ const ALL_FEATURES = [
   { text: "Aprende sobre las empresas que ya tienes en tu portafolio", detail: "Lecciones diseñadas para lo que tú tienes. Antes de que Apple reporte, entiende qué mirar. Relevante, no genérico." },
   { text: "Ve cómo se compara tu portafolio con el mercado en tiempo real", detail: "Un panel simple: tu rendimiento hoy, esta semana, este año — frente al S&P 500. Sabes en todo momento si vas bien." },
   { text: "Agrega todas las acciones que quieras, sin tope", detail: "El plan gratuito tiene límite de 10. Premium elimina ese límite para que tu portafolio sea tuyo, completo." },
-  { text: "Conviértete en mejor inversionista con el tiempo", detail: "La IA aprende tu estilo de inversión y te da retroalimentación sobre tus patrones. Te ayuda a tomar mejores decisiones cada mes." },
+  { text: "Nuvos te conoce mejor con el tiempo — y recuerda todo", detail: "Con Premium construyes tu memoria financiera completa: patrones de comportamiento, timeline de decisiones y evolución de tu portafolio. El plan gratuito solo guarda 10 creencias básicas." },
 ];
 
 interface PaywallModalProps {

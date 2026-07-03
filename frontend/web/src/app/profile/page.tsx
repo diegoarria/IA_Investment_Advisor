@@ -1084,7 +1084,11 @@ export default function ProfilePage() {
                     <div className="flex-1">
                       <p className="text-sm font-black" style={{ color: "var(--text)" }}>Mi Memoria Financiera</p>
                       <p className="text-xs" style={{ color: "var(--muted)" }}>
-                        {fmgData ? `${fmgData.memories.length} aprendizajes · ${fmgData.patterns.length} patrones` : "Lo que Nuvos recuerda de ti"}
+                        {fmgData
+                          ? isPremium
+                            ? `${fmgData.memories.length} aprendizajes · ${fmgData.patterns.length} patrones`
+                            : `${fmgData.memories.length}/10 creencias guardadas`
+                          : "Lo que Nuvos recuerda de ti"}
                       </p>
                     </div>
                     <ChevronDown className="w-4 h-4 shrink-0 transition-transform" style={{ color: "var(--muted)", transform: fmgOpen ? "rotate(180deg)" : "rotate(0deg)" }} />
@@ -1094,68 +1098,105 @@ export default function ProfilePage() {
                     <div className="border-t p-4 space-y-4" style={{ borderColor: "var(--border)", background: "var(--bg)" }}>
                       {!fmgData ? (
                         <p className="text-xs text-center py-4" style={{ color: "var(--muted)" }}>Cargando...</p>
-                      ) : fmgData.memories.length === 0 && fmgData.patterns.length === 0 && fmgData.events.length === 0 ? (
+                      ) : fmgData.memories.length === 0 ? (
                         <p className="text-xs text-center py-4" style={{ color: "var(--muted)" }}>Aún no hay aprendizajes. Conversa con tu mentor para que empiece a recordar.</p>
                       ) : (
                         <>
                           {/* Memories */}
-                          {fmgData.memories.length > 0 && (
-                            <div>
-                              <p className="text-xs font-bold uppercase tracking-wider mb-2" style={{ color: "#7c3aed" }}>Aprendizajes</p>
-                              <div className="space-y-2">
-                                {fmgData.memories.slice(0, 8).map((m) => (
-                                  <div key={m.id} className="flex items-start gap-2 p-2 rounded-xl" style={{ background: "var(--surface)" }}>
-                                    <span className="text-xs mt-0.5 shrink-0 px-1.5 py-0.5 rounded-md font-semibold" style={{ background: "#7c3aed18", color: "#7c3aed" }}>{m.type}</span>
-                                    <p className="text-xs flex-1 leading-relaxed" style={{ color: "var(--text)" }}>{m.content}</p>
+                          <div>
+                            <div className="flex items-center justify-between mb-2">
+                              <p className="text-xs font-bold uppercase tracking-wider" style={{ color: "#7c3aed" }}>Aprendizajes</p>
+                              {!isPremium && (
+                                <span className="text-xs font-semibold px-2 py-0.5 rounded-full" style={{ background: "#7c3aed18", color: "#7c3aed" }}>
+                                  {fmgData.memories.length}/10
+                                </span>
+                              )}
+                            </div>
+                            <div className="space-y-2">
+                              {fmgData.memories.slice(0, isPremium ? 50 : 10).map((m) => (
+                                <div key={m.id} className="flex items-start gap-2 p-2 rounded-xl" style={{ background: "var(--surface)" }}>
+                                  <span className="text-xs mt-0.5 shrink-0 px-1.5 py-0.5 rounded-md font-semibold" style={{ background: "#7c3aed18", color: "#7c3aed" }}>{m.type}</span>
+                                  <p className="text-xs flex-1 leading-relaxed" style={{ color: "var(--text)" }}>{m.content}</p>
+                                  {isPremium && (
                                     <button
                                       onClick={() => fmgApi.deleteMemory(m.id).then(() => setFmgData((d) => d ? { ...d, memories: d.memories.filter((x) => x.id !== m.id) } : d)).catch(() => {})}
                                       className="shrink-0 hover:opacity-70 transition-opacity"
                                     >
                                       <Trash2 className="w-3 h-3" style={{ color: "var(--dim)" }} />
                                     </button>
-                                  </div>
-                                ))}
-                              </div>
+                                  )}
+                                </div>
+                              ))}
                             </div>
+                          </div>
+
+                          {/* Patterns — premium only */}
+                          {isPremium ? (
+                            fmgData.patterns.length > 0 && (
+                              <div>
+                                <p className="text-xs font-bold uppercase tracking-wider mb-2" style={{ color: "#f59e0b" }}>Patrones de comportamiento</p>
+                                <div className="space-y-2">
+                                  {fmgData.patterns.map((p) => (
+                                    <div key={p.id} className="p-2 rounded-xl" style={{ background: "var(--surface)" }}>
+                                      <div className="flex items-center justify-between mb-1">
+                                        <p className="text-xs font-semibold" style={{ color: p.is_positive ? "#22c55e" : "#f59e0b" }}>{p.description}</p>
+                                        <span className="text-xs font-bold" style={{ color: "var(--muted)" }}>{Math.round(p.confidence * 100)}%</span>
+                                      </div>
+                                      <div className="h-1.5 rounded-full overflow-hidden" style={{ background: "var(--border)" }}>
+                                        <div className="h-full rounded-full transition-all" style={{ width: `${p.confidence * 100}%`, background: p.is_positive ? "#22c55e" : "#f59e0b" }} />
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )
+                          ) : (
+                            <button
+                              onClick={() => setPaywallOpen(true)}
+                              className="w-full flex items-center gap-3 p-3 rounded-xl text-left transition-opacity hover:opacity-80"
+                              style={{ background: "rgba(245,158,11,0.07)", border: "1px solid rgba(245,158,11,0.25)" }}
+                            >
+                              <Star className="w-4 h-4 shrink-0" style={{ color: "#f59e0b" }} />
+                              <div className="flex-1">
+                                <p className="text-xs font-bold" style={{ color: "#f59e0b" }}>Patrones de comportamiento</p>
+                                <p className="text-xs" style={{ color: "var(--muted)" }}>Descubre cómo piensas como inversionista — Premium</p>
+                              </div>
+                              <ChevronDown className="w-3 h-3 -rotate-90 shrink-0" style={{ color: "#f59e0b" }} />
+                            </button>
                           )}
 
-                          {/* Patterns */}
-                          {fmgData.patterns.length > 0 && (
-                            <div>
-                              <p className="text-xs font-bold uppercase tracking-wider mb-2" style={{ color: "#f59e0b" }}>Patrones de comportamiento</p>
-                              <div className="space-y-2">
-                                {fmgData.patterns.map((p) => (
-                                  <div key={p.id} className="p-2 rounded-xl" style={{ background: "var(--surface)" }}>
-                                    <div className="flex items-center justify-between mb-1">
-                                      <p className="text-xs font-semibold" style={{ color: p.is_positive ? "#22c55e" : "#f59e0b" }}>{p.description}</p>
-                                      <span className="text-xs font-bold" style={{ color: "var(--muted)" }}>{Math.round(p.confidence * 100)}%</span>
+                          {/* Timeline — premium only */}
+                          {isPremium ? (
+                            fmgData.events.length > 0 && (
+                              <div>
+                                <p className="text-xs font-bold uppercase tracking-wider mb-2" style={{ color: "#3b82f6" }}>Timeline</p>
+                                <div className="space-y-2">
+                                  {fmgData.events.slice(0, 5).map((e) => (
+                                    <div key={e.id} className="flex items-start gap-2">
+                                      <div className="w-1.5 h-1.5 rounded-full mt-1.5 shrink-0" style={{ background: "#3b82f6" }} />
+                                      <div>
+                                        <p className="text-xs font-semibold" style={{ color: "var(--text)" }}>{e.title}</p>
+                                        {e.description && <p className="text-xs" style={{ color: "var(--muted)" }}>{e.description}</p>}
+                                        <p className="text-xs" style={{ color: "var(--dim)" }}>{new Date(e.occurred_at).toLocaleDateString("es")}</p>
+                                      </div>
                                     </div>
-                                    <div className="h-1.5 rounded-full overflow-hidden" style={{ background: "var(--border)" }}>
-                                      <div className="h-full rounded-full transition-all" style={{ width: `${p.confidence * 100}%`, background: p.is_positive ? "#22c55e" : "#f59e0b" }} />
-                                    </div>
-                                  </div>
-                                ))}
+                                  ))}
+                                </div>
                               </div>
-                            </div>
-                          )}
-
-                          {/* Timeline */}
-                          {fmgData.events.length > 0 && (
-                            <div>
-                              <p className="text-xs font-bold uppercase tracking-wider mb-2" style={{ color: "#3b82f6" }}>Timeline</p>
-                              <div className="space-y-2">
-                                {fmgData.events.slice(0, 5).map((e) => (
-                                  <div key={e.id} className="flex items-start gap-2">
-                                    <div className="w-1.5 h-1.5 rounded-full mt-1.5 shrink-0" style={{ background: "#3b82f6" }} />
-                                    <div>
-                                      <p className="text-xs font-semibold" style={{ color: "var(--text)" }}>{e.title}</p>
-                                      {e.description && <p className="text-xs" style={{ color: "var(--muted)" }}>{e.description}</p>}
-                                      <p className="text-xs" style={{ color: "var(--dim)" }}>{new Date(e.occurred_at).toLocaleDateString("es")}</p>
-                                    </div>
-                                  </div>
-                                ))}
+                            )
+                          ) : (
+                            <button
+                              onClick={() => setPaywallOpen(true)}
+                              className="w-full flex items-center gap-3 p-3 rounded-xl text-left transition-opacity hover:opacity-80"
+                              style={{ background: "rgba(59,130,246,0.07)", border: "1px solid rgba(59,130,246,0.25)" }}
+                            >
+                              <Star className="w-4 h-4 shrink-0" style={{ color: "#3b82f6" }} />
+                              <div className="flex-1">
+                                <p className="text-xs font-bold" style={{ color: "#3b82f6" }}>Timeline de decisiones</p>
+                                <p className="text-xs" style={{ color: "var(--muted)" }}>Tu historial financiero permanente — Premium</p>
                               </div>
-                            </div>
+                              <ChevronDown className="w-3 h-3 -rotate-90 shrink-0" style={{ color: "#3b82f6" }} />
+                            </button>
                           )}
                         </>
                       )}

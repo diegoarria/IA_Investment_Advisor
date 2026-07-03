@@ -80,23 +80,32 @@ Devuelve JSON con este schema exacto:
 Si no hay nada nuevo: {{"nothing_new": true}}"""
 
 
+_FREE_MEMORY_TYPES = {"belief", "preference"}
+_ALL_MEMORY_TYPES  = {"belief", "preference", "rule", "lesson", "bias", "goal", "insight"}
+_FREE_MAX_MEMORIES = 10
+
+
 async def extract_from_conversation(
     user_id: str,
     user_message: str,
     assistant_response: str,
     user_name: str | None = None,
+    is_premium: bool = False,
 ) -> None:
     """
     Extract knowledge from one conversation turn and store it in the FMG.
     Called as a fire-and-forget background task after each AI response.
     Failures are silently swallowed — never block the chat flow.
+
+    Free tier: only belief + preference types, max 10 active memories, no patterns/events.
+    Premium: full extraction — all types, unlimited memories, patterns, events.
     """
     try:
         api_key = os.getenv("ANTHROPIC_API_KEY", "")
         if not api_key:
             return
 
-        user_msg   = user_message[:_MAX_CONTENT_LEN]
+        user_msg      = user_message[:_MAX_CONTENT_LEN]
         assistant_msg = assistant_response[:_MAX_CONTENT_LEN]
 
         client = anthropic.Anthropic(api_key=api_key)
@@ -105,7 +114,6 @@ async def extract_from_conversation(
             assistant_msg=assistant_msg,
         )
 
-        # Synchronous call wrapped in thread so we don't block the event loop
         def _call():
             return client.messages.create(
                 model=_EXTRACTION_MODEL,
@@ -117,7 +125,6 @@ async def extract_from_conversation(
         response = await asyncio.to_thread(_call)
         raw = response.content[0].text.strip()
 
-        # Strip markdown fences if present
         if raw.startswith("```"):
             raw = raw.split("```")[1]
             if raw.startswith("json"):
@@ -130,37 +137,49 @@ async def extract_from_conversation(
         db = get_supabase()
         tasks = []
 
-        # ── Store memories ────────────────────────────────────────────────
+        # ── Memories ──────────────────────────────────────────────────────
+        allowed_types = _ALL_MEMORY_TYPES if is_premium else _FREE_MEMORY_TYPES
+        mems_to_add: list[tuple[str, str]] = []
         for mem in data.get("memories", [])[:5]:
             mem_type    = mem.get("type", "insight")
             mem_content = (mem.get("content") or "").strip()[:200]
-            if not mem_content or mem_type not in (
-                "belief","preference","rule","lesson","bias","goal","insight"
-            ):
-                continue
+            if mem_content and mem_type in allowed_types:
+                mems_to_add.append((mem_type, mem_content))
+
+        if mems_to_add and not is_premium:
+            # Enforce free cap — count current active memories
+            count_res = await run_query(
+                db.table("fmg_memories")
+                .select("id")
+                .eq("user_id", user_id)
+                .eq("is_active", True)
+                .limit(_FREE_MAX_MEMORIES + 1)
+            )
+            slots = _FREE_MAX_MEMORIES - len(count_res.data or [])
+            mems_to_add = mems_to_add[:max(0, slots)]
+
+        for mem_type, mem_content in mems_to_add:
             tasks.append(_upsert_memory(db, user_id, mem_type, mem_content))
 
-        # ── Store behavioral patterns ─────────────────────────────────────
-        for pat in data.get("patterns", [])[:3]:
-            key  = (pat.get("key") or "").strip().lower().replace(" ", "_")[:50]
-            desc = (pat.get("description") or "").strip()[:200]
-            positive = bool(pat.get("positive", False))
-            if not key or not desc:
-                continue
-            tasks.append(_upsert_pattern(db, user_id, key, desc, positive))
+        # ── Patterns & events — premium only ──────────────────────────────
+        if is_premium:
+            for pat in data.get("patterns", [])[:3]:
+                key  = (pat.get("key") or "").strip().lower().replace(" ", "_")[:50]
+                desc = (pat.get("description") or "").strip()[:200]
+                positive = bool(pat.get("positive", False))
+                if key and desc:
+                    tasks.append(_upsert_pattern(db, user_id, key, desc, positive))
 
-        # ── Store timeline events ─────────────────────────────────────────
-        for evt in data.get("events", [])[:2]:
-            evt_type = evt.get("type", "learning")
-            title    = (evt.get("title") or "").strip()[:150]
-            desc_txt = (evt.get("description") or "").strip()[:300]
-            if not title or evt_type not in (
-                "milestone","emotional","decision",
-                "first_investment","goal_achieved","goal_changed",
-                "pattern_detected","learning"
-            ):
-                continue
-            tasks.append(_insert_event(db, user_id, evt_type, title, desc_txt))
+            for evt in data.get("events", [])[:2]:
+                evt_type = evt.get("type", "learning")
+                title    = (evt.get("title") or "").strip()[:150]
+                desc_txt = (evt.get("description") or "").strip()[:300]
+                if title and evt_type in (
+                    "milestone","emotional","decision",
+                    "first_investment","goal_achieved","goal_changed",
+                    "pattern_detected","learning"
+                ):
+                    tasks.append(_insert_event(db, user_id, evt_type, title, desc_txt))
 
         if tasks:
             await asyncio.gather(*tasks, return_exceptions=True)
