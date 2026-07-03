@@ -66,6 +66,15 @@ def _is_market_open_today() -> bool:
     if today.weekday() >= 5:          # Saturday=5, Sunday=6
         return False
     return today not in _NYSE_HOLIDAYS
+
+
+def _is_market_holiday_today() -> bool:
+    """True if today is a weekday NYSE holiday (closed due to holiday, not weekend)."""
+    import pytz
+    today = datetime.now(pytz.timezone("America/New_York")).date()
+    if today.weekday() >= 5:
+        return False
+    return today in _NYSE_HOLIDAYS
 from app.core.config import settings
 from app.services.notification_service import scan_and_notify_all_users
 from app.services.email_service import (
@@ -753,6 +762,49 @@ async def job_market_open():
         logger.info("Market open push: %d sent | SPY %s | QQQ %s", sent, sp500_pct, nasdaq_pct)
     except Exception as e:
         logger.error("job_market_open failed: %s", e)
+
+
+async def job_holiday_midday():
+    """12:00 PM ET weekdays — midday nudge on NYSE holidays (market closed today)."""
+    if not _is_market_holiday_today():
+        logger.info("job_holiday_midday: today is not a market holiday — skipping")
+        return
+
+    from app.core.database import get_supabase, run_query
+    from app.services.notification_engine import send_push
+    db = get_supabase()
+    try:
+        prefs_res = await run_query(
+            db.table("notification_preferences").select("user_id,push_market_open")
+        )
+        disabled = {p["user_id"] for p in (prefs_res.data or []) if p.get("push_market_open") is False}
+
+        token_res = await run_query(
+            db.table("user_profiles").select("user_id,push_token")
+            .neq("push_token", "").not_.is_("push_token", "null")
+        )
+        expo_uids = {r["user_id"] for r in (token_res.data or [])}
+        web_res = await run_query(db.table("web_push_subscriptions").select("user_id"))
+        web_uids = {r["user_id"] for r in (web_res.data or [])}
+        uids = list((expo_uids | web_uids) - disabled)
+        if not uids:
+            return
+
+        profiles_res = await run_query(
+            db.table("user_profiles").select("user_id,name").in_("user_id", uids)
+        )
+        name_map = {r["user_id"]: (r.get("name") or "Inversor").split()[0] for r in (profiles_res.data or [])}
+
+        for uid in uids:
+            first = name_map.get(uid, "Inversor")
+            title = "Hoy la bolsa descansa 🏖️"
+            body = f"{first}, buen momento para analizar tus acciones sin la presión del mercado. ¿Cómo va tu portafolio?"
+            await send_push(uid, "holiday_midday", title, body, {"screen": "portfolio"}, db)
+            await asyncio.sleep(0.05)
+
+        logger.info("job_holiday_midday: sent to %d users", len(uids))
+    except Exception as e:
+        logger.error("job_holiday_midday failed: %s", e)
 
 
 async def job_market_open_reminder():
@@ -3792,6 +3844,7 @@ async def main():
     scheduler.add_job(job_events_alerts,        "cron", day_of_week="mon-fri", hour=8,       minute=0,     timezone="America/New_York")
     scheduler.add_job(job_earnings_bmo,         "cron", day_of_week="mon-fri", hour=9,       minute=15,    timezone="America/New_York")
     scheduler.add_job(job_market_open,          "cron", day_of_week="mon-fri", hour=9,       minute=30,    timezone="America/New_York")
+    scheduler.add_job(job_holiday_midday,       "cron", day_of_week="mon-fri", hour=12,      minute=0,     timezone="America/New_York")
     scheduler.add_job(job_portfolio_alerts,     "cron", day_of_week="mon-fri", hour="9-15",  minute="*/5", timezone="America/New_York")
     scheduler.add_job(job_market_close,         "cron", day_of_week="mon-fri", hour=16,      minute=0,     timezone="America/New_York")
     scheduler.add_job(job_earnings_results,     "cron", day_of_week="mon-fri", hour=16,      minute=30,    timezone="America/New_York")
