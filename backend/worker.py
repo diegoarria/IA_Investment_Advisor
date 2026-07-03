@@ -3121,6 +3121,16 @@ async def job_opportunity_push():
         logger.error("job_opportunity_push failed: %s", e)
 
 
+async def job_fmg_snapshot():
+    """Daily at 16:05 ET — take portfolio snapshots for all active users."""
+    from app.services import fmg_service
+    try:
+        await fmg_service.snapshot_all_active_users()
+        logger.info("FMG portfolio snapshots done")
+    except Exception as e:
+        logger.error("job_fmg_snapshot failed: %s", e)
+
+
 async def job_cleanup_analytics():
     """Hourly — delete notification_log entries older than 90 days."""
     from app.core.database import get_supabase, run_query
@@ -3866,6 +3876,9 @@ async def main():
     scheduler.add_job(job_proactive_vs_market,        "cron", day_of_week="mon-fri", hour=16, minute=45, timezone="America/New_York")
     scheduler.add_job(job_proactive_earnings_preview, "cron", day_of_week="mon-fri", hour=8,  minute=30, timezone="America/New_York")
     scheduler.add_job(job_proactive_rebalancing,      "cron", day_of_week="sun",     hour=10, minute=0,  timezone="America/New_York")
+
+    # ── Financial Memory Graph — daily portfolio snapshot ─────────────────────
+    scheduler.add_job(job_fmg_snapshot,         "cron", day_of_week="mon-fri", hour=16, minute=5, timezone="America/New_York")
 
     # ── Cleanup ───────────────────────────────────────────────────────────────
     scheduler.add_job(job_cleanup_analytics,    "interval", hours=1)

@@ -13,7 +13,7 @@ import { useAppStore, RISK_CONFIG, getAge, maturityLabel } from "../../src/lib/p
 import { getMentorInfo } from "../../src/lib/mentorData";
 import ProgressModal from "../../src/components/ProgressModal";
 import TutorialModal from "../../src/components/TutorialModal";
-import { insightsApi, mentorLetterApi, profileApi, authApi, referralApi, syncApi, feedApi, billingApi } from "../../src/lib/api";
+import { insightsApi, mentorLetterApi, profileApi, authApi, referralApi, syncApi, feedApi, billingApi, fmgApi } from "../../src/lib/api";
 import { posthog } from "../../src/config/posthog";
 import { useSubscriptionStore, hasPremiumAccess } from "../../src/lib/subscriptionStore";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -168,6 +168,7 @@ export default function ProfileScreen() {
     insightsApi.get().then((r) => setInsights(r.data)).catch(() => {});
     referralApi.getCode().then((r) => setReferralCode(r.data.code ?? null)).catch(() => {});
     feedApi.getLiked().then((r: any) => setLikedClips(r.data.clips || [])).catch(() => {});
+    fmgApi.getSummary().then((r: any) => setFmgData(r.data)).catch(() => {});
     referralApi.getStats().then((r) => setReferralStats(r.data)).catch(() => {});
     billingApi.getStatus().then((res: any) => {
       setDuoPending(!!res?.data?.duo_setup_pending);
@@ -246,6 +247,13 @@ export default function ProfileScreen() {
   const [duoSaving, setDuoSaving] = useState(false);
   const [duoError, setDuoError] = useState("");
   const [duoEditing, setDuoEditing] = useState(false);
+
+  const [fmgData, setFmgData] = useState<{
+    memories: { id: string; type: string; content: string; times_reinforced: number }[];
+    patterns: { id: string; pattern_key: string; description: string; confidence: number; times_observed: number; is_positive: boolean }[];
+    events: { id: string; event_type: string; title: string; description?: string; occurred_at: string }[];
+  } | null>(null);
+  const [fmgOpen, setFmgOpen] = useState(false);
 
 if (!profile) {
     return (
@@ -1171,6 +1179,93 @@ if (!profile) {
             </View>
             <Text style={{ fontSize: 13, fontWeight: "900", color: "#00d47e" }}>Ver →</Text>
           </TouchableOpacity>
+        </View>
+
+        {/* ── MEMORIA FINANCIERA ── */}
+        <View style={s.section}>
+          <TouchableOpacity
+            onPress={() => setFmgOpen((v) => !v)}
+            activeOpacity={0.85}
+            style={{ flexDirection: "row", alignItems: "center", gap: 14, padding: 16, borderRadius: 20, backgroundColor: "rgba(124,58,237,0.07)", borderWidth: 1, borderColor: "rgba(124,58,237,0.25)" }}
+          >
+            <View style={{ width: 44, height: 44, borderRadius: 14, backgroundColor: "rgba(124,58,237,0.14)", alignItems: "center", justifyContent: "center" }}>
+              <Ionicons name="brain-outline" size={22} color="#7c3aed" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 15, fontWeight: "900", color: colors.text }}>Mi Memoria Financiera</Text>
+              <Text style={{ fontSize: 12, color: colors.textMuted, marginTop: 2 }}>
+                {fmgData ? `${fmgData.memories.length} aprendizajes · ${fmgData.patterns.length} patrones` : "Lo que Nuvos recuerda de ti"}
+              </Text>
+            </View>
+            <Ionicons name={fmgOpen ? "chevron-up" : "chevron-down"} size={16} color={colors.textDim} />
+          </TouchableOpacity>
+
+          {fmgOpen && (
+            <View style={{ marginTop: 8, borderRadius: 20, borderWidth: 1, borderColor: "rgba(124,58,237,0.2)", overflow: "hidden", backgroundColor: colors.bgRaised, padding: 16, gap: 16 }}>
+              {!fmgData ? (
+                <ActivityIndicator size="small" color="#7c3aed" />
+              ) : fmgData.memories.length === 0 && fmgData.patterns.length === 0 && fmgData.events.length === 0 ? (
+                <Text style={{ fontSize: 13, color: colors.textMuted, textAlign: "center", paddingVertical: 8 }}>
+                  Aún no hay aprendizajes. Conversa con tu mentor para que empiece a recordar.
+                </Text>
+              ) : (
+                <>
+                  {fmgData.memories.length > 0 && (
+                    <View style={{ gap: 8 }}>
+                      <Text style={{ fontSize: 10, fontWeight: "900", letterSpacing: 0.8, textTransform: "uppercase", color: "#7c3aed" }}>Aprendizajes</Text>
+                      {fmgData.memories.slice(0, 8).map((m) => (
+                        <View key={m.id} style={{ flexDirection: "row", alignItems: "flex-start", gap: 8, backgroundColor: colors.card, borderRadius: 12, padding: 10 }}>
+                          <View style={{ backgroundColor: "rgba(124,58,237,0.12)", borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 }}>
+                            <Text style={{ fontSize: 10, fontWeight: "700", color: "#7c3aed" }}>{m.type}</Text>
+                          </View>
+                          <Text style={{ flex: 1, fontSize: 12, color: colors.text, lineHeight: 18 }}>{m.content}</Text>
+                          <TouchableOpacity
+                            onPress={() => fmgApi.deleteMemory(m.id).then(() => setFmgData((d) => d ? { ...d, memories: d.memories.filter((x) => x.id !== m.id) } : d)).catch(() => {})}
+                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                          >
+                            <Ionicons name="trash-outline" size={14} color={colors.textDim} />
+                          </TouchableOpacity>
+                        </View>
+                      ))}
+                    </View>
+                  )}
+
+                  {fmgData.patterns.length > 0 && (
+                    <View style={{ gap: 8 }}>
+                      <Text style={{ fontSize: 10, fontWeight: "900", letterSpacing: 0.8, textTransform: "uppercase", color: "#f59e0b" }}>Patrones de comportamiento</Text>
+                      {fmgData.patterns.map((p) => (
+                        <View key={p.id} style={{ backgroundColor: colors.card, borderRadius: 12, padding: 10, gap: 6 }}>
+                          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+                            <Text style={{ fontSize: 12, fontWeight: "700", color: p.is_positive ? "#22c55e" : "#f59e0b", flex: 1, marginRight: 8 }}>{p.description}</Text>
+                            <Text style={{ fontSize: 11, fontWeight: "800", color: colors.textMuted }}>{Math.round(p.confidence * 100)}%</Text>
+                          </View>
+                          <View style={{ height: 4, borderRadius: 2, backgroundColor: colors.border, overflow: "hidden" }}>
+                            <View style={{ height: 4, borderRadius: 2, width: `${p.confidence * 100}%` as any, backgroundColor: p.is_positive ? "#22c55e" : "#f59e0b" }} />
+                          </View>
+                        </View>
+                      ))}
+                    </View>
+                  )}
+
+                  {fmgData.events.length > 0 && (
+                    <View style={{ gap: 8 }}>
+                      <Text style={{ fontSize: 10, fontWeight: "900", letterSpacing: 0.8, textTransform: "uppercase", color: "#3b82f6" }}>Timeline</Text>
+                      {fmgData.events.slice(0, 5).map((e) => (
+                        <View key={e.id} style={{ flexDirection: "row", alignItems: "flex-start", gap: 10 }}>
+                          <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: "#3b82f6", marginTop: 5 }} />
+                          <View style={{ flex: 1 }}>
+                            <Text style={{ fontSize: 12, fontWeight: "700", color: colors.text }}>{e.title}</Text>
+                            {e.description ? <Text style={{ fontSize: 11, color: colors.textMuted, marginTop: 1 }}>{e.description}</Text> : null}
+                            <Text style={{ fontSize: 10, color: colors.textDim, marginTop: 2 }}>{new Date(e.occurred_at).toLocaleDateString("es")}</Text>
+                          </View>
+                        </View>
+                      ))}
+                    </View>
+                  )}
+                </>
+              )}
+            </View>
+          )}
         </View>
 
         {/* ── PLAN DÚO — secondary account management ── */}

@@ -986,13 +986,17 @@ def _build_static_system_prompt(
 def _build_dynamic_system_addendum(
     memory_context: str | None = None,
     notification_context: str | None = None,
+    fmg_context: str | None = None,
 ) -> str | None:
     """Dynamic (per-request) addendum — NOT cached to avoid cache key churn."""
     parts: list[str] = []
+    # FMG goes first — it's the most important persistent context
+    if fmg_context:
+        parts.append(fmg_context)
     if memory_context:
-        parts.append(f"## 🧠 CONTEXTO DE CONVERSACIONES RECIENTES\n\nÚltimas interacciones — dales continuidad, no las repitas explícitamente:\n\n{memory_context}")
+        parts.append(f"## 💬 ÚLTIMAS CONVERSACIONES (contexto inmediato)\n\n{memory_context}")
     if notification_context:
-        parts.append(f"## 📩 CONTEXTO: EL USUARIO LLEGÓ DESDE UNA NOTIFICACIÓN\n\n{notification_context}\n\nEl usuario acaba de ver esta notificación y abrió el chat. Empieza reconociendo este contexto de forma natural y ofrece análisis relevante.")
+        parts.append(f"## 📩 EL USUARIO LLEGÓ DESDE UNA NOTIFICACIÓN\n\n{notification_context}\n\nEmpieza reconociendo este contexto de forma natural y ofrece análisis relevante.")
     return "\n\n".join(parts) if parts else None
 
 
@@ -1007,13 +1011,14 @@ async def chat_stream(
     memory_context: str | None = None,
     notification_context: str | None = None,
     deep_context: str | None = None,
+    fmg_context: str | None = None,
     is_premium: bool = False,
 ):
     # Static part cached by Anthropic (base + profile + mentor + guardrails).
     # Dynamic context (memory, notifications) goes in a separate uncached block so
     # it doesn't bust the cache every message and inflate input token costs.
     static_prompt  = _build_static_system_prompt(profile, mentor, deep_context)
-    dynamic_addend = _build_dynamic_system_addendum(memory_context, notification_context)
+    dynamic_addend = _build_dynamic_system_addendum(memory_context, notification_context, fmg_context)
 
     system_blocks: list[dict] = [{"type": "text", "text": static_prompt, "cache_control": {"type": "ephemeral"}}]
     if dynamic_addend:
