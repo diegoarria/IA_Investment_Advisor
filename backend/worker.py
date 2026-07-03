@@ -1610,21 +1610,22 @@ async def job_portfolio_alerts():
                         else:
                             body = f"{ticker} {direction} {abs(pct):.1f}% hoy a ${price:.2f}. {no_news}"
                     elif is_portfolio:
-                        # WHY + financial impact
+                        # WHY + financial impact + 3-question framework
                         shares         = port_map[ticker].get("shares", 0.0)
                         position_value = shares * price if shares else 0.0
                         dollar_delta   = position_value * pct / 100 if position_value else None
                         if position_value and dollar_delta is not None:
                             gl         = "perdiste" if pct < 0 else "ganaste"
                             shares_fmt = f"{shares:.4f}".rstrip("0").rstrip(".") if shares < 1 else f"{shares:.2f}".rstrip("0").rstrip(".")
-                            impact = f" {first}, {gl} ~${abs(dollar_delta):,.0f} hoy ({shares_fmt} acc × ${price:.2f})."
+                            impact = f" {first}, {gl} ~${abs(dollar_delta):,.0f} hoy. "
                         else:
-                            impact = ""
-                        max_b = 230 - len(impact)
-                        body  = (why[:max_b] if len(why) > max_b else why) + impact
+                            impact = " "
+                        cta = "¿Cambia tu tesis? Abre Nuvos."
+                        max_b = 230 - len(impact) - len(cta)
+                        body  = (why[:max_b] if len(why) > max_b else why) + impact + cta
                     else:
-                        # WHY + watchlist suffix
-                        suffix = " La tienes en tu watchlist."
+                        # WHY + watchlist suffix + action prompt
+                        suffix = " La tienes en watchlist. ¿Vale la pena analizarla ahora?"
                         max_b  = 230 - len(suffix)
                         body   = (why[:max_b] if len(why) > max_b else why) + suffix
                 else:

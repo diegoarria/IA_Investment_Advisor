@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import {
   TrendingUp, TrendingDown, Sparkles, BookOpen,
-  Bell, ChevronRight, GraduationCap, Newspaper, Target, Flame, Building2, X,
+  Bell, ChevronRight, GraduationCap, Newspaper, Target, Flame, X,
 } from "lucide-react";
 import AppSidebar from "@/components/AppSidebar";
 import MarketTickerBar from "@/components/MarketTickerBar";
@@ -66,13 +66,76 @@ function timeAgo(ts: string | number): string {
 }
 
 const DAILY_LESSONS = [
-  { emoji: "🥧", title: "Diversificación" },
-  { emoji: "📅", title: "Dollar Cost Averaging" },
-  { emoji: "💰", title: "Dividendos" },
-  { emoji: "📈", title: "Análisis Fundamental" },
-  { emoji: "🛡️", title: "Ventaja Competitiva" },
-  { emoji: "⚠️", title: "Aversión a la Pérdida" },
-  { emoji: "🔄", title: "Rebalanceo" },
+  {
+    emoji: "🥧", title: "Diversificación",
+    body: "No pongas todos los huevos en una canasta. Si tienes 10 empresas de sectores distintos y una quiebra, pierdes el 10%. Si solo tienes una, pierdes el 100%. La diversificación no elimina el riesgo — lo distribuye.",
+    tip: "Revisa hoy tu portafolio: ¿más del 30% está en un solo sector?",
+  },
+  {
+    emoji: "📅", title: "Dollar Cost Averaging",
+    body: "Invertir la misma cantidad cada mes, sin importar si el mercado sube o baja. Cuando baja, compras más acciones por el mismo precio. Cuando sube, tus acciones ya valían más. Con el tiempo, tu precio promedio se optimiza solo.",
+    tip: "Define un monto fijo mensual y autozmatízalo. La disciplina bate al timing.",
+  },
+  {
+    emoji: "💰", title: "Dividendos",
+    body: "Algunas empresas te pagan por tener sus acciones. Ese pago se llama dividendo. Las empresas maduras (Coca-Cola, J&J, Apple) suelen pagar entre 1-4% anual. Reinvertir dividendos automáticamente puede duplicar tu retorno a 20 años.",
+    tip: "Busca empresas con historial de 10+ años pagando y aumentando dividendos.",
+  },
+  {
+    emoji: "📈", title: "P/E Ratio",
+    body: "El Price/Earnings (P/E) compara el precio de la acción con lo que gana la empresa. Un P/E de 20 significa que pagas $20 por cada $1 de ganancia. No hay un número 'bueno' universal — compara siempre contra el sector y el historial de la empresa.",
+    tip: "Un P/E muy alto no significa cara si la empresa crece rápido. Contexto > número.",
+  },
+  {
+    emoji: "🛡️", title: "Ventaja Competitiva",
+    body: "El 'moat' o fosa económica es lo que hace que una empresa sea difícil de copiar. Puede ser marca (Apple), red de usuarios (Visa), costos bajos (Walmart) o patentes (Pfizer). Las empresas con moat fuerte protegen sus márgenes en el tiempo.",
+    tip: "Pregúntate: ¿qué le impediría a un competidor con $1B tomar este mercado?",
+  },
+  {
+    emoji: "⚠️", title: "Aversión a la Pérdida",
+    body: "El cerebro humano siente el dolor de perder $100 el doble de fuerte que el placer de ganar $100. Por eso vendemos en pánico en caídas y compramos en euforia en subidas. Reconocer este sesgo es el primer paso para no actuar en él.",
+    tip: "Antes de vender en una caída, pregúntate: ¿cambiaron los fundamentos del negocio?",
+  },
+  {
+    emoji: "🔄", title: "Rebalanceo",
+    body: "Si empezaste con 60% acciones / 40% bonos y las acciones subieron mucho, ahora tienes 75/25 — más riesgo del que querías. Rebalancear es vender lo que creció y comprar lo que se quedó atrás para volver a tu proporción objetivo.",
+    tip: "Rebalancea 1-2 veces al año o cuando algún activo se aleje más del 5% de tu objetivo.",
+  },
+  {
+    emoji: "📊", title: "Flujo de Caja Libre",
+    body: "Las ganancias (earnings) se pueden manipular contablemente. El Free Cash Flow (FCF) no miente — es el dinero real que entra a la caja de la empresa después de pagar sus operaciones e inversiones. Las empresas con FCF creciente tienen poder real.",
+    tip: "Busca empresas cuyo FCF crezca consistentemente más rápido que sus ingresos.",
+  },
+  {
+    emoji: "🎯", title: "Horizonte de Inversión",
+    body: "El mercado cae en promedio 10-20% una vez cada 1-2 años. Pero en 10+ años, el S&P 500 nunca ha perdido dinero. Tu horizonte de inversión determina cuánto riesgo puedes absorber. A 20 años, las caídas son oportunidades. A 2 años, son amenazas.",
+    tip: "¿Tu dinero lo necesitas en menos de 3 años? No debería estar en acciones.",
+  },
+  {
+    emoji: "🧠", title: "FOMO Financiero",
+    body: "El Fear Of Missing Out te hace comprar en máximos cuando todos están emocionados. Bitcoin en $65K, acciones de moda en su pico. El FOMO es la señal más confiable de que un activo está sobrevalorado. El mejor momento para entrar es cuando nadie habla de él.",
+    tip: "Si ves el activo en noticias masivas y WhatsApp de familia — cuidado.",
+  },
+  {
+    emoji: "🏦", title: "ETFs vs Acciones",
+    body: "Un ETF (como VOO o SPY) replica un índice completo. Con $1 compras 500 empresas. Una acción individual es una apuesta específica. Los estudios muestran que el 90% de los gestores activos NO superan al índice en 15 años. Los ETFs son el punto de partida inteligente.",
+    tip: "Empieza con ETFs amplios. Agrega acciones individuales solo cuando entiendas el negocio.",
+  },
+  {
+    emoji: "💡", title: "Compra Negocios, No Tickers",
+    body: "Antes de comprar una acción, pregúntate: ¿entiendo cómo gana dinero esta empresa? ¿Qué la hace mejor que sus competidores? ¿Seguiría comprando si el mercado cerrara 5 años? Si no puedes responder estas preguntas, no deberías tener esa posición.",
+    tip: "Warren Buffett solo invierte en lo que puede entender en 5 minutos. Síguela.",
+  },
+  {
+    emoji: "📉", title: "Las Caídas son Normales",
+    body: "Desde 1950, el S&P 500 ha caído más del 10% en promedio una vez al año. Más del 20% cada 3-5 años. A pesar de eso, el índice multiplicó por 200x en ese período. Las caídas no son el final del mercado — son el precio de entrada a los rendimientos a largo plazo.",
+    tip: "Guarda una lista de empresas que quieras comprar cuando caigan. Las caídas son ventas.",
+  },
+  {
+    emoji: "🌍", title: "Riesgo de Concentración",
+    body: "Tener más del 20% en una sola empresa o más del 40% en un sector es concentración alta. Si esa empresa o sector colapsa, tu portafolio colapsa. Las mejores carteras tienen posiciones de entre 3-10% cada una, distribuidas en 5+ sectores distintos.",
+    tip: "Calcula hoy cuál es tu posición más grande. ¿Es mayor al 20% de tu portafolio?",
+  },
 ];
 
 // ── Page ──────────────────────────────────────────────────────────────────────
@@ -1126,11 +1189,22 @@ export default function HomePage() {
                        style={{ color: completedToday ? "#22c55e" : "var(--muted)" }}>
                       {completedToday ? "Completada hoy ✓" : "Lección del día"}
                     </p>
-                    <p className="text-sm font-black truncate" style={{ color: "var(--text)" }}>{dailyLesson.title}</p>
-                    <p className="text-[10px] mt-0.5 font-semibold"
-                       style={{ color: completedToday ? "#16a34a" : "var(--accent-l)" }}>
-                      {completedToday ? "Ver otra lección →" : "Aprender →"}
-                    </p>
+                    <p className="text-sm font-black" style={{ color: "var(--text)" }}>{dailyLesson.title}</p>
+                    {"body" in dailyLesson && !completedToday && (
+                      <p className="text-[10px] mt-1 line-clamp-2 leading-relaxed" style={{ color: "var(--muted)" }}>
+                        {(dailyLesson as { body: string }).body}
+                      </p>
+                    )}
+                    {"tip" in dailyLesson && !completedToday && (
+                      <p className="text-[10px] mt-1 font-semibold" style={{ color: "var(--accent-l)" }}>
+                        💡 {(dailyLesson as { tip: string }).tip}
+                      </p>
+                    )}
+                    {completedToday && (
+                      <p className="text-[10px] mt-0.5 font-semibold" style={{ color: "#16a34a" }}>
+                        Ver otra lección →
+                      </p>
+                    )}
                   </div>
                 </button>
               </div>
