@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { router } from "expo-router";
 import { useTheme } from "../../src/lib/ThemeContext";
 import { useSubscriptionStore, hasPremiumAccess } from "../../src/lib/subscriptionStore";
 import { progressApi } from "../../src/lib/api";
@@ -11,7 +12,7 @@ interface ProgressSummary {
   days_since_first_investment?: number;
   total_operations?: number;
   capital_invested?: number;
-  max_patrimonio?: number;
+  current_patrimonio?: number;
   cumulative_return_pct?: number;
   best_year?: { year: number; pct: number };
   worst_year?: { year: number; pct: number };
@@ -74,8 +75,8 @@ export default function ProgressScreen() {
   if (summary.capital_invested !== undefined) {
     metrics.push({ label: "Capital invertido", value: fmtUSD(summary.capital_invested) });
   }
-  if (summary.max_patrimonio !== undefined) {
-    metrics.push({ label: "Máximo patrimonio alcanzado", value: fmtUSD(summary.max_patrimonio) });
+  if (summary.current_patrimonio !== undefined) {
+    metrics.push({ label: "Patrimonio actual", value: fmtUSD(summary.current_patrimonio) });
   }
   if (summary.cumulative_return_pct !== undefined) {
     const sign = summary.cumulative_return_pct >= 0 ? "+" : "";
@@ -97,6 +98,13 @@ export default function ProgressScreen() {
   if (!isPremium) {
     return (
       <View style={{ flex: 1, backgroundColor: colors.bg, alignItems: "center", justifyContent: "center", padding: 24 }}>
+        <TouchableOpacity
+          onPress={() => router.back()}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          style={{ position: "absolute", top: 16, right: 16, width: 32, height: 32, borderRadius: 10, alignItems: "center", justifyContent: "center", backgroundColor: colors.bgRaised }}
+        >
+          <Ionicons name="close" size={18} color={colors.textMuted} />
+        </TouchableOpacity>
         <View style={{ width: 64, height: 64, borderRadius: 20, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(0,168,94,0.1)", marginBottom: 16 }}>
           <Ionicons name="lock-closed" size={28} color={colors.accentLight} />
         </View>
@@ -120,6 +128,15 @@ export default function ProgressScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
+      <View style={{ flexDirection: "row", justifyContent: "flex-end", paddingHorizontal: 16, paddingTop: 12 }}>
+        <TouchableOpacity
+          onPress={() => router.back()}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          style={{ width: 32, height: 32, borderRadius: 10, alignItems: "center", justifyContent: "center", backgroundColor: colors.bgRaised }}
+        >
+          <Ionicons name="close" size={18} color={colors.textMuted} />
+        </TouchableOpacity>
+      </View>
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 40, gap: 20 }} showsVerticalScrollIndicator={false}>
         {loading ? (
           <ActivityIndicator color={colors.accentLight} style={{ marginTop: 40 }} />

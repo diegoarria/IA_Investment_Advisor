@@ -429,9 +429,6 @@ async def compute_progress_summary(user_id: str, ctx: dict | None = None) -> dic
     if ctx["capital_invested"] > 0:
         summary["capital_invested"] = round(ctx["capital_invested"], 2)
 
-    if ctx["max_patrimonio"] is not None:
-        summary["max_patrimonio"] = round(ctx["max_patrimonio"], 2)
-
     # Since-inception return — reuses the existing, already-correct computation
     # from market.py instead of re-deriving it. Network-bound, so only ever
     # called per-request for a single user, never in a batch loop.
@@ -464,6 +461,15 @@ async def compute_progress_summary(user_id: str, ctx: dict | None = None) -> dic
             if since_purchase:
                 summary["cumulative_return_pct"] = since_purchase["pct"]
                 summary["cumulative_return_amount"] = since_purchase["amount"]
+                # Current patrimonio, not a historical max: everything ever put
+                # in, plus everything ever gained or lost (realized from sales
+                # + unrealized from what's still held) — computed from real
+                # market prices via the same call, not the cost-basis
+                # approximation the daily snapshot job has to use.
+                if ctx["capital_invested"] > 0:
+                    summary["current_patrimonio"] = round(
+                        ctx["capital_invested"] + since_purchase["amount"], 2
+                    )
         except Exception as exc:
             log.debug("compute_progress_summary: since_purchase failed for %s: %s", user_id, exc)
 
@@ -735,8 +741,8 @@ async def _build_progress_context_for_mentor_uncached(user_id: str) -> str | Non
         parts.append(f"Ha realizado {summary['total_operations']} operaciones en total.")
     if "cumulative_return_pct" in summary:
         parts.append(f"Su retorno acumulado desde el inicio es de {summary['cumulative_return_pct']}%.")
-    if "max_patrimonio" in summary:
-        parts.append(f"Su máximo patrimonio alcanzado es ${summary['max_patrimonio']:,.0f}.")
+    if "current_patrimonio" in summary:
+        parts.append(f"Su patrimonio actual es ${summary['current_patrimonio']:,.0f}.")
     if "consecutive_months_contributing" in summary:
         parts.append(f"Lleva {summary['consecutive_months_contributing']} meses consecutivos aportando capital.")
 

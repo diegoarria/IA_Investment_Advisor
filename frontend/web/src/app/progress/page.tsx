@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { TrendingUp, Lock, Loader2, Trophy, ShieldCheck, Calendar } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { TrendingUp, Lock, Loader2, Trophy, ShieldCheck, Calendar, X } from "lucide-react";
 import AppSidebar from "@/components/AppSidebar";
 import PaywallModal from "@/components/PaywallModal";
 import { progressApi } from "@/lib/api";
@@ -13,7 +14,7 @@ interface ProgressSummary {
   days_since_first_investment?: number;
   total_operations?: number;
   capital_invested?: number;
-  max_patrimonio?: number;
+  current_patrimonio?: number;
   cumulative_return_pct?: number;
   cumulative_return_amount?: number;
   best_year?: { year: number; pct: number };
@@ -38,6 +39,7 @@ interface DecisionThatHelped {
 const fmtUSD = (n: number) => `$${n.toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
 
 export default function ProgressPage() {
+  const router = useRouter();
   const sub = useSubscriptionStore();
   const isPremium = sub.tier === "premium" || sub.isTrialPremium;
 
@@ -78,8 +80,8 @@ export default function ProgressPage() {
   if (summary.capital_invested !== undefined) {
     metrics.push({ label: "Capital invertido", value: fmtUSD(summary.capital_invested) });
   }
-  if (summary.max_patrimonio !== undefined) {
-    metrics.push({ label: "Máximo patrimonio alcanzado", value: fmtUSD(summary.max_patrimonio) });
+  if (summary.current_patrimonio !== undefined) {
+    metrics.push({ label: "Patrimonio actual", value: fmtUSD(summary.current_patrimonio) });
   }
   if (summary.cumulative_return_pct !== undefined) {
     const sign = summary.cumulative_return_pct >= 0 ? "+" : "";
@@ -104,6 +106,13 @@ export default function ProgressPage() {
         <AppSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
         <main className="flex-1 overflow-y-auto p-6">
           <div className="max-w-2xl mx-auto">
+            <div className="flex justify-end mb-2">
+              <button onClick={() => router.back()}
+                      className="w-8 h-8 rounded-lg flex items-center justify-center transition-colors hover:opacity-80"
+                      style={{ background: "var(--raised)", color: "var(--muted)" }}>
+                <X className="w-4 h-4" />
+              </button>
+            </div>
             <div className="rounded-2xl border p-10 text-center"
                  style={{ borderColor: "var(--border)", background: "var(--card)" }}>
               <div className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4"
@@ -133,14 +142,21 @@ export default function ProgressPage() {
       <main className="flex-1 overflow-y-auto p-6">
         <div className="max-w-2xl mx-auto space-y-5">
           {/* Header */}
-          <div>
-            <h1 className="text-xl font-bold flex items-center gap-2" style={{ color: "var(--text)" }}>
-              <TrendingUp className="w-5 h-5" style={{ color: "var(--accent-l)" }} />
-              Tu evolución como inversionista
-            </h1>
-            <p className="text-xs mt-0.5" style={{ color: "var(--muted)" }}>
-              Todo respaldado por tus datos reales — nunca inventamos progreso
-            </p>
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h1 className="text-xl font-bold flex items-center gap-2" style={{ color: "var(--text)" }}>
+                <TrendingUp className="w-5 h-5" style={{ color: "var(--accent-l)" }} />
+                Tu evolución como inversionista
+              </h1>
+              <p className="text-xs mt-0.5" style={{ color: "var(--muted)" }}>
+                Todo respaldado por tus datos reales — nunca inventamos progreso
+              </p>
+            </div>
+            <button onClick={() => router.back()}
+                    className="shrink-0 w-8 h-8 rounded-lg flex items-center justify-center transition-colors hover:opacity-80"
+                    style={{ background: "var(--raised)", color: "var(--muted)" }}>
+              <X className="w-4 h-4" />
+            </button>
           </div>
 
           {loading ? (

@@ -27,8 +27,8 @@ async def _require_premium(user_id: str) -> None:
 
 async def _ensure_fresh_data(user_id: str) -> None:
     """
-    Milestones and snapshot-derived metrics (max_patrimonio, best/worst year)
-    only get computed from the nightly batch job (job_fmg_snapshot, 16:05 ET
+    Milestones and snapshot-derived metrics (best/worst year, patrimonio
+    thresholds) only get computed from the nightly batch job (job_fmg_snapshot, 16:05 ET
     weekdays) — a user opening the dashboard for the first time otherwise sees
     an empty page until that job happens to run, even when they clearly
     qualify (e.g. 175 days since their first investment). Both calls are
