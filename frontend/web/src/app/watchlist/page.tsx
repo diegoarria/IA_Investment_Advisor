@@ -355,8 +355,8 @@ export default function WatchlistPage() {
   const { isAuthenticated, clearAuth } = useAuthStore();
   const { profile } = useProfileStore();
   const userLevel = getUserLevel(profile);
-  const { tier } = useSubscriptionStore();
-  const isPremium = tier === "premium";
+  const { tier, isTrialPremium } = useSubscriptionStore();
+  const isPremium = tier === "premium" || isTrialPremium;
   const { positions, portfolioCurrency } = usePortfolioStore();
   const fxRate = useFxRate(portfolioCurrency);
 

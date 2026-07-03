@@ -283,15 +283,26 @@ async def add_to_watchlist(body: dict, user_id: str = Depends(get_current_user_i
 
     db = get_supabase()
 
-    # Check tier and count
+    # Check tier + active trial
     tier_res = await run_query(
-        db.table("user_profiles").select("subscription_tier").eq("user_id", user_id)
+        db.table("user_profiles")
+        .select("subscription_tier, trial_started_at")
+        .eq("user_id", user_id)
     )
-    tier = "free"
-    if tier_res.data:
-        tier = tier_res.data[0].get("subscription_tier", "free") or "free"
+    row = tier_res.data[0] if tier_res.data else {}
+    tier  = row.get("subscription_tier", "free") or "free"
+    trial = row.get("trial_started_at")
 
-    if tier != "premium":
+    is_premium = tier in ("premium", "pro")
+    if not is_premium and trial:
+        try:
+            from datetime import datetime as _dt, timezone as _tz
+            started = _dt.fromisoformat(trial.replace("Z", "+00:00"))
+            is_premium = (_dt.now(_tz.utc) - started).days < 90
+        except Exception:
+            pass
+
+    if not is_premium:
         count_res = await run_query(
             db.table("watchlist").select("id", count="exact").eq("user_id", user_id)
         )
@@ -299,7 +310,8 @@ async def add_to_watchlist(body: dict, user_id: str = Depends(get_current_user_i
         if count >= FREE_LIMIT:
             raise HTTPException(
                 status_code=403,
-                detail=f"Free tier limit of {FREE_LIMIT} items reached. Upgrade to Premium."
+                detail={"code": "limit_reached", "limit": FREE_LIMIT,
+                        "message": f"Límite de {FREE_LIMIT} acciones en watchlist. Activa Premium para agregar más."}
             )
 
     # Resolve name and logo via YF if not provided (these are blocking network calls)

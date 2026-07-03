@@ -74,6 +74,44 @@ async def sync_portfolio(body: dict, user_id: str = Depends(get_current_user_id)
     portfolio_name = body.get("portfolio_name", "Mi portafolio") or "Mi portafolio"
 
     db = get_supabase()
+
+    # ── Soft lock: free/expired-trial users can keep existing positions but
+    #    cannot ADD new ones beyond the free limit of 10. ─────────────────────
+    _FREE_PORTFOLIO_LIMIT = 10
+    if len(positions) > _FREE_PORTFOLIO_LIMIT:
+        profile_res = await run_query(
+            db.table("user_profiles")
+            .select("subscription_tier, trial_started_at")
+            .eq("user_id", user_id)
+        )
+        pr = profile_res.data[0] if profile_res.data else {}
+        _tier  = pr.get("subscription_tier") or "free"
+        _trial = pr.get("trial_started_at")
+        _is_prem = _tier in ("premium", "pro")
+        if not _is_prem and _trial:
+            try:
+                from datetime import datetime as _dt, timezone as _tz
+                _started = _dt.fromisoformat(_trial.replace("Z", "+00:00"))
+                _is_prem = (_dt.now(_tz.utc) - _started).days < 90
+            except Exception:
+                pass
+        if not _is_prem:
+            # Allow syncing existing positions; block only if count is INCREASING beyond limit
+            existing_pos = await run_query(
+                db.table("user_portfolio").select("positions")
+                .eq("user_id", user_id).eq("portfolio_id", portfolio_id)
+            )
+            current_count = 0
+            if existing_pos.data:
+                _parsed = _parse_portfolio(existing_pos.data[0]["positions"])
+                current_count = len(_parsed.get("positions", []))
+            if len(positions) > max(current_count, _FREE_PORTFOLIO_LIMIT):
+                raise HTTPException(
+                    status_code=403,
+                    detail={"code": "limit_reached", "limit": _FREE_PORTFOLIO_LIMIT,
+                            "message": "Límite de 10 posiciones en portafolio. Activa Premium para agregar más."}
+                )
+
     closed_positions = body.get("closed_positions")
     has_inception_key = "inception_date" in body
     inception_date = body.get("inception_date")
