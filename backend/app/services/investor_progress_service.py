@@ -364,6 +364,28 @@ async def detect_behavior_evolution(user_id: str) -> list[dict]:
 
 # ── Progress summary (dashboard) ─────────────────────────────────────────────
 
+def _compute_year_returns(snapshots: list[dict]) -> dict[int, float]:
+    """% change from the first to the last snapshot of each calendar year.
+    Only includes years with at least 2 snapshots — shared by
+    compute_progress_summary (best/worst year) and the Wrapped annual report
+    (this year's growth) so both use the exact same definition of 'year return'."""
+    by_year: dict[int, list[dict]] = {}
+    for s in snapshots:
+        try:
+            year = date.fromisoformat(s["snapshot_date"]).year
+            by_year.setdefault(year, []).append(s)
+        except Exception:
+            pass
+    year_returns: dict[int, float] = {}
+    for year, snaps in by_year.items():
+        snaps_sorted = sorted(snaps, key=lambda s: s["snapshot_date"])
+        start_val = snaps_sorted[0]["total_value"]
+        end_val = snaps_sorted[-1]["total_value"]
+        if start_val and start_val > 0 and len(snaps_sorted) >= 2:
+            year_returns[year] = (end_val - start_val) / start_val * 100
+    return year_returns
+
+
 async def compute_progress_summary(user_id: str) -> dict:
     """
     Build every metric for "Tu evolución como inversionista". Each key is
@@ -434,20 +456,7 @@ async def compute_progress_summary(user_id: str) -> dict:
 
     # Best / worst calendar year — only years with a snapshot at both the
     # start and end of that year (or account creation, whichever is later).
-    by_year: dict[int, list[dict]] = {}
-    for s in ctx["snapshots"]:
-        try:
-            year = date.fromisoformat(s["snapshot_date"]).year
-            by_year.setdefault(year, []).append(s)
-        except Exception:
-            pass
-    year_returns: dict[int, float] = {}
-    for year, snaps in by_year.items():
-        snaps_sorted = sorted(snaps, key=lambda s: s["snapshot_date"])
-        start_val = snaps_sorted[0]["total_value"]
-        end_val = snaps_sorted[-1]["total_value"]
-        if start_val and start_val > 0 and len(snaps_sorted) >= 2:
-            year_returns[year] = (end_val - start_val) / start_val * 100
+    year_returns = _compute_year_returns(ctx["snapshots"])
     if year_returns:
         best_year = max(year_returns, key=year_returns.get)
         worst_year = min(year_returns, key=year_returns.get)
@@ -455,21 +464,28 @@ async def compute_progress_summary(user_id: str) -> dict:
         summary["worst_year"] = {"year": worst_year, "pct": round(year_returns[worst_year], 2)}
 
     # Consecutive months with at least one purchase, ending this month.
-    months = ctx["purchase_months"]
-    if months:
-        today = date.today()
-        streak = 0
-        y, m = today.year, today.month
-        while (y, m) in months:
-            streak += 1
-            m -= 1
-            if m == 0:
-                m = 12
-                y -= 1
-        if streak > 0:
-            summary["consecutive_months_contributing"] = streak
+    streak = _consecutive_months_streak(ctx["purchase_months"])
+    if streak > 0:
+        summary["consecutive_months_contributing"] = streak
 
     return summary
+
+
+def _consecutive_months_streak(purchase_months: set[tuple[int, int]]) -> int:
+    """Consecutive (year, month) pairs with at least one purchase, ending this
+    month. Shared by compute_progress_summary and get_personalized_message."""
+    if not purchase_months:
+        return 0
+    today = date.today()
+    streak = 0
+    y, m = today.year, today.month
+    while (y, m) in purchase_months:
+        streak += 1
+        m -= 1
+        if m == 0:
+            m = 12
+            y -= 1
+    return streak
 
 
 # ── Decisions that avoided costly mistakes ───────────────────────────────────
@@ -514,6 +530,85 @@ async def get_decisions_that_helped(user_id: str) -> list[dict]:
             })
 
     return items
+
+
+# ── Wrapped / Resumen Anual extension (Fase 4) ───────────────────────────────
+
+async def get_wrapped_extension(user_id: str, year: int) -> dict:
+    """
+    Extra, real fields for the existing Wrapped ("Annual ScoreBoard") report:
+    this year's patrimonio growth, milestones achieved this year, decisions
+    logged this year, and a lifetime diversification note. Each key is
+    omitted when there isn't enough data — same rule as everywhere else in
+    this module.
+    """
+    ctx = await _build_context(user_id)
+    ext: dict = {}
+
+    year_returns = _compute_year_returns(ctx["snapshots"])
+    if year in year_returns:
+        ext["growth_pct"] = round(year_returns[year], 2)
+
+    year_start = f"{year}-01-01"
+    year_end = f"{year}-12-31"
+
+    db = get_supabase()
+    milestones_res = await run_query(
+        db.table("fmg_events")
+        .select("title, description, occurred_at")
+        .eq("user_id", user_id)
+        .not_.is_("milestone_key", "null")
+        .gte("occurred_at", year_start)
+        .lte("occurred_at", f"{year_end}T23:59:59")
+        .order("occurred_at")
+    )
+    if milestones_res.data:
+        ext["milestones_this_year"] = [
+            {"title": m["title"], "description": m.get("description")} for m in milestones_res.data
+        ]
+
+    decisions_this_year = [
+        d for d in ctx["decisions"]
+        if str(d.get("created_at", ""))[:10] >= year_start and str(d.get("created_at", ""))[:10] <= year_end
+    ]
+    if decisions_this_year:
+        ext["decisions_logged_this_year"] = len(decisions_this_year)
+
+    evolution = await detect_behavior_evolution(user_id)
+    for e in evolution:
+        if e["key"] == "sector_concentration":
+            ext["diversification_note"] = f"{e['before']} {e['after']}"
+
+    return ext
+
+
+# ── Personalized messages (Fase 4) ───────────────────────────────────────────
+
+async def get_personalized_message(user_id: str) -> str | None:
+    """
+    One grounded, emotional sentence for a Home/Patrimonio banner — only when
+    today is actually meaningful (an exact inception anniversary, or a round
+    number of consecutive months investing). No message on an ordinary day,
+    rather than forcing one that isn't backed by anything real.
+    """
+    ctx = await _build_context(user_id)
+    today = date.today()
+
+    if ctx["inception_date"]:
+        try:
+            inception = date.fromisoformat(ctx["inception_date"][:10])
+            years = today.year - inception.year
+            if years >= 1 and (today.month, today.day) == (inception.month, inception.day):
+                plural = "s" if years != 1 else ""
+                return f"Hace exactamente {years} año{plural} hiciste tu primera inversión con Nuvos AI."
+        except Exception:
+            pass
+
+    streak = _consecutive_months_streak(ctx["purchase_months"])
+    if streak > 0 and streak % 6 == 0:
+        return f"Hoy cumples {streak} meses consecutivos invirtiendo. Tu disciplina ha mejorado notablemente desde que comenzaste."
+
+    return None
 
 
 # ── Mentor IA context (Fase 2: wired into ai_service.py's dynamic addendum) ──

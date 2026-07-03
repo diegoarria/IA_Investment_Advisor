@@ -13,6 +13,7 @@ import { useWatchlistStore } from "../../src/lib/watchlistStore";
 import { usePaperStore, PAPER_INITIAL_CASH } from "../../src/lib/paperStore";
 import { marketApi } from "../../src/lib/api";
 import StockAvatar from "../../src/components/StockAvatar";
+import PersonalizedMessageBanner from "../../src/components/PersonalizedMessageBanner";
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
@@ -385,6 +386,8 @@ export default function PatrimonioScreen() {
           <Text style={[ss.headerTitle, { color: colors.text }]}>Patrimonio</Text>
         </View>
       </View>
+
+      <PersonalizedMessageBanner style={{ marginHorizontal: 16, marginTop: 10 }} />
 
       {/* Investor Progress Engine entry point */}
       <View style={{ paddingHorizontal: 16, paddingTop: 10 }}>

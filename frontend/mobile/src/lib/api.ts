@@ -414,6 +414,7 @@ export const progressApi = {
   getSummary: () => api.get("/api/progress/summary"),
   getMilestones: () => api.get("/api/progress/milestones"),
   getDecisionsThatHelped: () => api.get("/api/progress/decisions-that-helped"),
+  getPersonalizedMessage: () => api.get("/api/progress/personalized-message"),
 };
 
 export default api;

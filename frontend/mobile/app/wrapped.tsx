@@ -14,9 +14,13 @@ interface WrappedData {
   lessons: number;
   days_active: number;
   top_sector: string;
+  growth_pct?: number;
+  milestones_this_year?: { title: string; description?: string }[];
+  decisions_logged_this_year?: number;
+  diversification_note?: string;
 }
 
-const SLIDES = ["cover", "stocks", "lessons", "sector"] as const;
+const SLIDES = ["cover", "stocks", "lessons", "progress", "sector"] as const;
 
 export default function WrappedScreen() {
   const [data, setData]     = useState<WrappedData | null>(null);
@@ -50,6 +54,7 @@ export default function WrappedScreen() {
       `🏆 Mi Annual ScoreBoard ${data.year} en Nuvos AI`,
       ``,
       top ? `🚀 Mi mejor acción: ${top.ticker} ${fmt(top.ytd_pct)} YTD` : null,
+      data.growth_pct !== undefined ? `📈 Mi patrimonio creció ${fmt(data.growth_pct)} este año` : null,
       `🧠 ${data.lessons} lecciones completadas`,
       `📊 ${data.days_active} días como inversor activo`,
       data.top_sector ? `🏆 Sector favorito: ${data.top_sector}` : null,
@@ -185,8 +190,53 @@ export default function WrappedScreen() {
         </View>
       )}
 
-      {/* ── SLIDE 3: SECTOR + SHARE ──────────────────────── */}
+      {/* ── SLIDE 3: PROGRESS (Investor Progress Engine) ─────── */}
       {slide === 3 && (
+        <View style={[s.slide, { backgroundColor: "#0d1117" }]}>
+          <View style={[s.bgCircle, { top: -40, right: -40, backgroundColor: "rgba(0,212,126,0.08)" }]} />
+          <View style={s.slideInner}>
+            <Text style={[s.eyebrow, { color: "#00d47e" }]}>Tu evolución</Text>
+            <Text style={s.slideTitle}>Así creciste{"\n"}este año 📈</Text>
+
+            {data.growth_pct === undefined && !data.milestones_this_year?.length && !data.decisions_logged_this_year ? (
+              <Text style={s.emptyNote}>Sigue invirtiendo y usando Nuvos — el próximo año verás aquí tu evolución completa.</Text>
+            ) : (
+              <>
+                {data.growth_pct !== undefined && (
+                  <View style={[s.bigStatCard, { borderColor: "rgba(0,212,126,0.25)", backgroundColor: "rgba(0,212,126,0.08)" }]}>
+                    <Text style={[s.bigStatNum, { color: "#00d47e" }]}>{fmt(data.growth_pct)}</Text>
+                    <Text style={s.bigStatLabel}>creció tu patrimonio</Text>
+                  </View>
+                )}
+                <View style={{ flexDirection: "row", gap: 12 }}>
+                  {!!data.milestones_this_year?.length && (
+                    <View style={[s.smallStatCard, { flex: 1 }]}>
+                      <Text style={s.smallStatNum}>{data.milestones_this_year.length}</Text>
+                      <Text style={s.smallStatLabel}>hitos alcanzados</Text>
+                    </View>
+                  )}
+                  {!!data.decisions_logged_this_year && (
+                    <View style={[s.smallStatCard, { flex: 1 }]}>
+                      <Text style={s.smallStatNum}>{data.decisions_logged_this_year}</Text>
+                      <Text style={s.smallStatLabel}>decisiones registradas</Text>
+                    </View>
+                  )}
+                </View>
+                {!!data.diversification_note && (
+                  <Text style={s.emptyNote}>{data.diversification_note}</Text>
+                )}
+              </>
+            )}
+          </View>
+          <View style={s.smallLogoRow}>
+            <View style={s.smallLogoBox}><Text style={s.smallLogoLetter}>N</Text></View>
+            <Text style={s.smallLogoName}>Nuvos AI</Text>
+          </View>
+        </View>
+      )}
+
+      {/* ── SLIDE 4: SECTOR + SHARE ──────────────────────── */}
+      {slide === 4 && (
         <View style={[s.slide, { backgroundColor: "#0d1117" }]}>
           <View style={[s.bgCircle, { bottom: -60, right: -60, backgroundColor: "rgba(59,130,246,0.07)" }]} />
           <View style={s.slideInner}>

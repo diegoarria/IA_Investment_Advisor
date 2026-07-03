@@ -10,6 +10,7 @@ from fastapi import APIRouter, Depends, Request
 from app.api.deps import get_current_user
 from app.core.database import get_supabase, run_query
 from app.core.limiter import limiter
+from app.services import investor_progress_service
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/wrapped", tags=["wrapped"])
@@ -83,12 +84,15 @@ async def get_wrapped(
     # ── 1. User profile ──────────────────────────────────────────────────────
     prof_res = await run_query(
         db.table("user_profiles")
-          .select("full_name, created_at")
+          .select("full_name, created_at, subscription_tier, trial_started_at")
           .eq("user_id", user_id)
     )
     prof = prof_res.data[0] if prof_res.data else {}
 
     full_name = prof.get("full_name") or "Inversor"
+
+    from app.api.routes.upsells import _effective_tier
+    is_premium = _effective_tier(prof.get("subscription_tier", "free"), prof.get("trial_started_at")) == "premium"
 
     created_raw = prof.get("created_at")
     if created_raw:
@@ -143,7 +147,7 @@ async def get_wrapped(
             dominant = max(sector_counts, key=lambda k: sector_counts[k])
             top_sector = _es_sector(dominant)
 
-    return {
+    result = {
         "year":        year,
         "user_name":   full_name,
         "top_stocks":  top3,           # [{ticker, ytd_pct}, ...]
@@ -153,3 +157,13 @@ async def get_wrapped(
         "sim_count":   sim_count,
         "debate_count": debate_count,
     }
+
+    # Investor Progress Engine fields — Premium only, matching the dashboard's
+    # own gating. Free users keep the exact Wrapped they've always had.
+    if is_premium:
+        try:
+            result.update(await investor_progress_service.get_wrapped_extension(user_id, year))
+        except Exception:
+            logger.warning("get_wrapped_extension failed for %s", user_id, exc_info=True)
+
+    return result

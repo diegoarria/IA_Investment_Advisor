@@ -61,3 +61,14 @@ async def get_decisions_that_helped(user_id: str = Depends(get_current_user_id))
     await _require_premium(user_id)
     items = await progress_service.get_decisions_that_helped(user_id)
     return {"decisions": items}
+
+
+# ── GET /api/progress/personalized-message ────────────────────────────────────
+@router.get("/personalized-message")
+async def get_personalized_message(user_id: str = Depends(get_current_user_id)):
+    """One grounded sentence for a Home/Patrimonio banner, or null on an
+    ordinary day. Deliberately its own light endpoint (no network-bound
+    since-inception calc) since it's meant to be checked on every Home load."""
+    await _require_premium(user_id)
+    message = await progress_service.get_personalized_message(user_id)
+    return {"message": message}

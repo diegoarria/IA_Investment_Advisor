@@ -25,6 +25,7 @@ import MobileHomeScreenPickerModal, { HOME_SCREEN_KEY } from "../../src/componen
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { supabase } from "../../src/lib/supabase";
 import PricingModal from "../../src/components/PricingModal";
+import PersonalizedMessageBanner from "../../src/components/PersonalizedMessageBanner";
 
 // ── Sparkline helpers ─────────────────────────────────────────────────────────
 function sparkPath(prices: number[], w: number, h: number, close = false): string {
@@ -1205,6 +1206,8 @@ export default function HomeScreen() {
             tintColor={colors.accentLight} colors={[colors.accentLight]} />
         }
       >
+        <PersonalizedMessageBanner style={{ marginHorizontal: 16, marginBottom: 12 }} />
+
         {/* ── Onboarding checklist ─────────────────────────────────────────── */}
         {!allOnboardingDone && (
           <MobileOnboardingChecklist steps={onboardingSteps} onStepPress={handleOnboardingStep} />

@@ -10,6 +10,7 @@ import AppSidebar from "@/components/AppSidebar";
 import MarketTickerBar from "@/components/MarketTickerBar";
 import HomeMarketOverview from "@/components/HomeMarketOverview";
 import StockAvatar from "@/components/StockAvatar";
+import PersonalizedMessageBanner from "@/components/PersonalizedMessageBanner";
 import { market as marketApi, notifications as notifApi, profile as profileApi, sync as syncApi, watchlist as watchlistApi, billing } from "@/lib/api";
 import PricingModal from "@/components/PricingModal";
 import { useAuthStore, useProfileStore, useLearnStore, useSubscriptionStore, useChatStore } from "@/lib/store";
@@ -850,6 +851,8 @@ export default function HomePage() {
           </div>
 
           <div className="px-6 py-5 space-y-5 max-w-5xl mx-auto">
+
+            <PersonalizedMessageBanner />
 
             {/* ── Onboarding checklist (hidden once all done) ──────────────── */}
             {!allOnboardingDone && (

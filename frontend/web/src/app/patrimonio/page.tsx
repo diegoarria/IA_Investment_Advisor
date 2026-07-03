@@ -6,6 +6,7 @@ import AppSidebar from "@/components/AppSidebar";
 import MarketTickerBar from "@/components/MarketTickerBar";
 import PremiumBadge from "@/components/PremiumBadge";
 import StockAvatar from "@/components/StockAvatar";
+import PersonalizedMessageBanner from "@/components/PersonalizedMessageBanner";
 import { market as marketApi } from "@/lib/api";
 import { usePortfolioStore } from "@/lib/portfolioStore";
 import { useFxRate } from "@/lib/useFxRate";
@@ -457,6 +458,8 @@ function PatrimonioContent() {
             <PremiumBadge />
           </div>
         </div>
+
+        <PersonalizedMessageBanner className="mx-6 mt-3" />
 
         {/* Investor Progress Engine entry point */}
         <div className="px-6 pt-3 shrink-0">
