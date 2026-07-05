@@ -24,6 +24,7 @@ class Settings(BaseSettings):
     stripe_price_family_monthly: str = ""         # $19.99/month
     stripe_price_family_yearly: str = ""          # $199.99/year
     resend_api_key: str = ""
+    perplexity_api_key: str = ""  # Perplexity sonar — real-time web search
     redis_url: str = ""  # e.g. redis://localhost:6379 — optional, falls back to in-memory
     elevenlabs_api_key: str = ""   # for TTS
     elevenlabs_voice_id: str = "pNInz6obpgDQGcFmaJgB"  # Adam — multilingual, good Spanish

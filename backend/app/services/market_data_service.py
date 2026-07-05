@@ -87,6 +87,153 @@ def _cached(ticker: str, builder) -> str:
     return result
 
 
+def _fetch_earnings_calendar(days_ahead: int = 7) -> str:
+    """Upcoming earnings reports from Finnhub for the next N days."""
+    import os, requests as _req
+    key = os.getenv("FINNHUB_API_KEY", "")
+    if not key:
+        return ""
+    try:
+        today    = datetime.today()
+        to_date  = today + timedelta(days=days_ahead)
+        r = _req.get(
+            "https://finnhub.io/api/v1/calendar/earnings",
+            params={"from": today.strftime("%Y-%m-%d"), "to": to_date.strftime("%Y-%m-%d"), "token": key},
+            timeout=5,
+        )
+        if r.status_code != 200:
+            return ""
+        items = r.json().get("earningsCalendar", [])
+        if not items:
+            return ""
+        lines: list[str] = []
+        for item in items[:20]:
+            symbol   = (item.get("symbol") or "").strip()
+            date     = (item.get("date") or "").strip()
+            eps_est  = item.get("epsEstimate")
+            hour     = item.get("hour", "")
+            if not symbol or not date:
+                continue
+            timing = {"bmo": "antes apertura", "amc": "después cierre"}.get(hour, "")
+            line = f"  {date} — {symbol}"
+            if timing:
+                line += f" ({timing})"
+            if eps_est is not None:
+                line += f" | EPS est: ${eps_est:.2f}"
+            lines.append(line)
+        if not lines:
+            return ""
+        return "**Próximos reportes de resultados (7 días):**\n" + "\n".join(lines)
+    except Exception:
+        return ""
+
+
+def _fetch_economic_calendar(days_ahead: int = 14) -> str:
+    """High-impact economic events from Finnhub for the next N days."""
+    import os, requests as _req
+    key = os.getenv("FINNHUB_API_KEY", "")
+    if not key:
+        return ""
+    try:
+        today    = datetime.today()
+        to_date  = today + timedelta(days=days_ahead)
+        r = _req.get(
+            "https://finnhub.io/api/v1/calendar/economic",
+            params={"from": today.strftime("%Y-%m-%d"), "to": to_date.strftime("%Y-%m-%d"), "token": key},
+            timeout=5,
+        )
+        if r.status_code != 200:
+            return ""
+        items = r.json().get("economicCalendar", [])
+        if not items:
+            return ""
+        # Keep high-impact events only (impact 2-3); fallback to top items if none
+        high = [e for e in items if (e.get("impact") or 0) >= 2]
+        subset = high[:12] if high else items[:8]
+        lines: list[str] = []
+        for item in subset:
+            event   = (item.get("event") or "").strip()
+            country = (item.get("country") or "").strip().upper()
+            time_str = item.get("time") or item.get("date") or ""
+            date     = time_str[:10] if time_str else ""
+            estimate = item.get("estimate")
+            prev_val = item.get("prev")
+            if not event:
+                continue
+            line = f"  {date} — {event}"
+            if country:
+                line += f" [{country}]"
+            if estimate is not None:
+                line += f" | Est: {estimate}"
+            if prev_val is not None:
+                line += f" | Prev: {prev_val}"
+            lines.append(line)
+        if not lines:
+            return ""
+        return "**Eventos económicos próximos (14 días):**\n" + "\n".join(lines)
+    except Exception:
+        return ""
+
+
+def _fetch_finnhub_earnings(ticker: str) -> str:
+    """
+    Fetch last 4 quarters of EPS actuals vs estimates + next earnings date from Finnhub.
+    Returns a formatted block or empty string.
+    """
+    import os, requests as _req
+    key = os.getenv("FINNHUB_API_KEY", "")
+    if not key:
+        return ""
+    try:
+        r = _req.get(
+            "https://finnhub.io/api/v1/stock/earnings",
+            params={"symbol": ticker, "limit": 4, "token": key},
+            timeout=5,
+        )
+        if r.status_code != 200:
+            return ""
+        items = r.json()
+        if not isinstance(items, list) or not items:
+            return ""
+        lines = ["**Resultados trimestrales recientes (EPS actual vs estimado):**"]
+        for q in items:
+            period = q.get("period", "")
+            actual = q.get("actual")
+            est    = q.get("estimate")
+            surp   = q.get("surprisePercent")
+            if actual is None:
+                continue
+            line = f"  {period} | EPS actual: ${actual:.2f}"
+            if est is not None:
+                line += f" | Est: ${est:.2f}"
+            if surp is not None:
+                emoji = "✅" if surp > 0 else "⚠️"
+                line += f" | Sorpresa: {surp:+.1f}% {emoji}"
+            lines.append(line)
+
+        # Next earnings date (use basic financials endpoint)
+        try:
+            r2 = _req.get(
+                "https://finnhub.io/api/v1/stock/earnings-calendar",
+                params={"symbol": ticker, "token": key},
+                timeout=4,
+            )
+            if r2.status_code == 200:
+                upcoming = r2.json().get("earningsCalendar", [])
+                from datetime import date as _date
+                today_str = _date.today().isoformat()
+                future = [e for e in upcoming if (e.get("date") or "") >= today_str]
+                if future:
+                    next_e = future[0]
+                    lines.append(f"  → Próximo reporte: {next_e.get('date','')} | EPS est: ${next_e.get('epsEstimate') or 'N/D'}")
+        except Exception:
+            pass
+
+        return "\n".join(lines) if len(lines) > 1 else ""
+    except Exception:
+        return ""
+
+
 def _fetch_finnhub_company_news(ticker: str, days: int = 5) -> list[dict]:
     """Fetch recent news for a ticker from Finnhub. Returns list of {date, headline, source, summary}."""
     import os, requests as _req
@@ -266,10 +413,12 @@ def get_global_market_context() -> str:
     stale = cache_get("mds:global_market_stale")
 
     try:
-        with concurrent.futures.ThreadPoolExecutor(max_workers=len(_INDICES) + 2) as ex:
-            index_futs = {ex.submit(_get_index_summary, t, l): (t, l) for t, l in _INDICES}
-            ipo_fut  = ex.submit(_fetch_recent_ipos)
-            news_fut = ex.submit(_fetch_finnhub_market_news)
+        with concurrent.futures.ThreadPoolExecutor(max_workers=len(_INDICES) + 4) as ex:
+            index_futs   = {ex.submit(_get_index_summary, t, l): (t, l) for t, l in _INDICES}
+            ipo_fut      = ex.submit(_fetch_recent_ipos)
+            news_fut     = ex.submit(_fetch_finnhub_market_news)
+            earnings_fut = ex.submit(_fetch_earnings_calendar)
+            economic_fut = ex.submit(_fetch_economic_calendar)
 
             ordered_results: dict[tuple, str] = {}
             all_nd = True
@@ -290,6 +439,14 @@ def get_global_market_context() -> str:
                 market_news = news_fut.result(timeout=6)
             except Exception:
                 market_news = ""
+            try:
+                earnings_section = earnings_fut.result(timeout=6)
+            except Exception:
+                earnings_section = ""
+            try:
+                economic_section = economic_fut.result(timeout=6)
+            except Exception:
+                economic_section = ""
 
         # If Yahoo Finance rate-limited everything, return stale cache to avoid hammering
         if all_nd and stale:
@@ -319,6 +476,14 @@ def get_global_market_context() -> str:
     if ipo_section:
         lines.append("")
         lines.append(ipo_section)
+
+    if earnings_section:
+        lines.append("")
+        lines.append(earnings_section)
+
+    if economic_section:
+        lines.append("")
+        lines.append(economic_section)
 
     lines.append("")
     lines.append(
@@ -645,6 +810,11 @@ def _build_company_context(ticker: str) -> str:
             if target and price:
                 upside = (target - price) / price * 100
                 lines.append(f"- Precio objetivo promedio: ${target:.2f} ({upside:+.1f}% vs precio actual)")
+
+        # ── Quarterly earnings history (Finnhub) ──
+        fh_earnings = _fetch_finnhub_earnings(ticker)
+        if fh_earnings:
+            lines.append("\n" + fh_earnings)
 
         # ── Recent news — Finnhub (primary, more reliable) + yfinance fallback ──
         fh_news = _fetch_finnhub_company_news(ticker, days=5)
