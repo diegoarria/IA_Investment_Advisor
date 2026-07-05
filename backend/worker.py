@@ -2054,6 +2054,83 @@ async def _generate_price_alert_why(ticker: str, change_pct: float, price: float
     return await generate_price_alert_why(ticker, change_pct, price, news_headlines)
 
 
+async def job_ipo_alerts():
+    """7:45 AM ET daily — notify all opted-in users about IPOs priced today or expected tomorrow.
+    Deduped per symbol per user so each IPO fires exactly one notification."""
+    from app.core.database import get_supabase, run_query
+    from app.services.notification_engine import send_push
+    from app.services.market_data_service import fetch_upcoming_ipos_raw
+
+    db   = get_supabase()
+    ipos = await asyncio.to_thread(fetch_upcoming_ipos_raw, 2)
+    if not ipos:
+        logger.info("job_ipo_alerts: no upcoming IPOs in window — skipping")
+        return
+
+    today_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+
+    try:
+        # Opt-in model: users with push_news_general enabled (default True)
+        prefs_res = await run_query(
+            db.table("notification_preferences")
+            .select("user_id,push_news_general")
+            .neq("push_news_general", False)
+        )
+        opted_in = {p["user_id"] for p in (prefs_res.data or [])}
+        if not opted_in:
+            return
+
+        # Also include users who have a token but no prefs row yet (defaults to on)
+        token_res = await run_query(
+            db.table("user_profiles").select("user_id,push_token")
+            .neq("push_token", "").not_.is_("push_token", "null")
+        )
+        expo_uids = {r["user_id"] for r in (token_res.data or [])}
+        web_res   = await run_query(db.table("web_push_subscriptions").select("user_id"))
+        web_uids  = {r["user_id"] for r in (web_res.data or [])}
+        all_uids  = list((expo_uids | web_uids) & opted_in)
+        if not all_uids:
+            return
+
+        sent_total = 0
+        for ipo in ipos:
+            symbol      = ipo["symbol"]
+            name        = ipo["name"] or symbol
+            ipo_date    = ipo["date"]
+            price_range = ipo["price_range"]
+            exchange    = ipo["exchange"] or "bolsa"
+            status      = ipo["status"]
+
+            is_today    = ipo_date == today_str
+            when        = "hoy" if is_today else "mañana"
+            emoji       = "🚀" if is_today else "📅"
+
+            title = f"{emoji} IPO {when}: {symbol}"
+
+            body_parts = [f"{name} debuta {when} en {exchange}."]
+            if price_range:
+                body_parts.append(f"Precio esperado: {price_range}.")
+            body_parts.append("Toca para ver el análisis.")
+            body = " ".join(body_parts)
+
+            category = f"ipo_alert:{symbol.upper()}"
+
+            for i, uid in enumerate(all_uids):
+                if i % 100 == 0 and i > 0:
+                    await asyncio.sleep(8)
+                await asyncio.sleep(random.uniform(0, 0.05))
+                await send_push(
+                    uid, category, title, body,
+                    {"screen": "chat", "prefill": f"Analiza la IPO de {symbol} — {name}"},
+                    db,
+                )
+                sent_total += 1
+
+        logger.info("job_ipo_alerts: %d notifications sent for %d IPOs", sent_total, len(ipos))
+    except Exception as e:
+        logger.exception("job_ipo_alerts failed: %s", e)
+
+
 async def job_events_alerts():
     """8:00 AM ET weekdays — push for today/tomorrow ex-div, dividend payment, and earnings dates.
     Skips weekends and NYSE holidays."""
@@ -3852,6 +3929,7 @@ async def main():
     scheduler = AsyncIOScheduler(job_defaults={"misfire_grace_time": 600})
 
     # ── Mon-Fri: core daily jobs ──────────────────────────────────────────────
+    scheduler.add_job(job_ipo_alerts,            "cron",                        hour=7,       minute=45,    timezone="America/New_York")
     scheduler.add_job(job_events_alerts,        "cron", day_of_week="mon-fri", hour=8,       minute=0,     timezone="America/New_York")
     scheduler.add_job(job_earnings_bmo,         "cron", day_of_week="mon-fri", hour=9,       minute=15,    timezone="America/New_York")
     scheduler.add_job(job_market_open,          "cron", day_of_week="mon-fri", hour=9,       minute=30,    timezone="America/New_York")

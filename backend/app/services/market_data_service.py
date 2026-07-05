@@ -87,6 +87,56 @@ def _cached(ticker: str, builder) -> str:
     return result
 
 
+def fetch_upcoming_ipos_raw(days_ahead: int = 3) -> list[dict]:
+    """
+    Return structured IPO data for IPOs priced today or expected within `days_ahead` days.
+    Each dict: {symbol, name, date, price_range, exchange, status}
+    Used by the worker's job_ipo_alerts.
+    """
+    try:
+        today    = datetime.today().date()
+        window   = {str(today + timedelta(days=i)) for i in range(days_ahead + 1)}
+        months   = sorted({d[:7] for d in window})
+
+        seen: set[str] = set()
+        results: list[dict] = []
+
+        for month in months:
+            url = f"https://api.nasdaq.com/api/ipo/calendar?date={month}"
+            r = requests.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=4)
+            if r.status_code != 200:
+                continue
+            data = r.json().get("data", {})
+
+            for section_key, status_label in (("priced", "priced"), ("upcoming", "upcoming")):
+                section   = data.get(section_key, {})
+                table_key = next(iter(section), None)
+                rows      = section.get(table_key, {}).get("rows") or [] if table_key else []
+                for row in rows:
+                    symbol = (row.get("proposedTickerSymbol") or "").strip()
+                    name   = (row.get("companyName") or "").strip()
+                    date   = (
+                        row.get("pricedDate") if status_label == "priced"
+                        else row.get("expectedPriceDate")
+                    ) or ""
+                    date = date.strip()
+
+                    if not symbol or symbol in seen or date not in window:
+                        continue
+                    seen.add(symbol)
+                    results.append({
+                        "symbol":      symbol,
+                        "name":        name,
+                        "date":        date,
+                        "price_range": (row.get("proposedSharePrice") or "").strip(),
+                        "exchange":    (row.get("proposedExchange") or "").strip(),
+                        "status":      status_label,
+                    })
+        return results
+    except Exception:
+        return []
+
+
 def _fetch_earnings_calendar(days_ahead: int = 7) -> str:
     """Upcoming earnings reports from Finnhub for the next N days."""
     import os, requests as _req
