@@ -311,6 +311,7 @@ export const billing = {
     api.post("/api/billing/broker-call-checkout", { offer }),
   brokerOfferSeen: () => api.post("/api/billing/broker-offer-seen"),
   duoSetup: (secondary_email: string) => api.post("/api/billing/duo-setup", { secondary_email }),
+  getDuoPartner: () => api.get("/api/billing/duo-partner"),
 };
 
 export const upsells = {

@@ -19,6 +19,17 @@ import {
 } from "lucide-react";
 import { getUserLevel, LEVEL_COLOR, LEVEL_LABEL, LEVEL_EMOJI } from "@/lib/userLevel";
 
+const _fmtUSD = (n: number) => `$${n.toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
+
+const DUO_METRIC_DEFS: { key: string; label: string; format: (v: any) => string }[] = [
+  { key: "current_patrimonio", label: "Patrimonio actual", format: (v) => _fmtUSD(v) },
+  { key: "cumulative_return_pct", label: "Retorno acumulado", format: (v) => `${v >= 0 ? "+" : ""}${v}%` },
+  { key: "capital_invested", label: "Capital invertido", format: (v) => _fmtUSD(v) },
+  { key: "total_operations", label: "Operaciones", format: (v) => `${v}` },
+  { key: "consecutive_months_contributing", label: "Racha de meses", format: (v) => `${v}` },
+  { key: "days_since_first_investment", label: "Desde su primera inversión", format: (v) => `${v} días` },
+];
+
 const LEVEL_OPTIONS = [
   { key: "B", label: "Básico",      emoji: "📚", desc: "Sin experiencia o conozco lo básico" },
   { key: "C", label: "Intermedio",  emoji: "📈", desc: "Tengo experiencia (ETFs, acciones)" },
@@ -138,6 +149,12 @@ export default function ProfilePage() {
   const [duoSaving, setDuoSaving] = useState(false);
   const [duoError, setDuoError] = useState("");
   const [duoEditing, setDuoEditing] = useState(false);
+  const [duoPartner, setDuoPartner] = useState<{
+    paired: boolean;
+    partner_name?: string;
+    my_summary?: Record<string, any>;
+    partner_summary?: Record<string, any>;
+  } | null>(null);
 
   const [fmgData, setFmgData] = useState<{
     memories: { id: string; type: string; content: string; times_reinforced: number }[];
@@ -174,6 +191,11 @@ export default function ProfilePage() {
       }
     }).catch(() => {});
   }, [isAuthenticated]);
+
+  useEffect(() => {
+    if (!subStore.duoSecondaryEmail) return;
+    billing.getDuoPartner().then((r) => setDuoPartner(r.data)).catch(() => {});
+  }, [subStore.duoSecondaryEmail]);
 
   const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -925,6 +947,39 @@ export default function ProfilePage() {
                             >
                               {duoSaving ? "Guardando..." : "Guardar"}
                             </button>
+                          </div>
+                        </div>
+                      )}
+
+                      {duoPartner?.paired && (
+                        <div className="pt-3 mt-1 border-t" style={{ borderColor: "var(--border)" }}>
+                          <p className="text-xs font-bold mb-2" style={{ color: "var(--text)" }}>
+                            Comparar progreso con {duoPartner.partner_name}
+                          </p>
+                          <div className="grid grid-cols-2 gap-2">
+                            <p className="text-[10px] font-bold uppercase" style={{ color: "var(--muted)" }}>Tú</p>
+                            <p className="text-[10px] font-bold uppercase" style={{ color: "var(--muted)" }}>{duoPartner.partner_name}</p>
+                            {DUO_METRIC_DEFS.map((m) => {
+                              const mine = duoPartner.my_summary?.[m.key];
+                              const theirs = duoPartner.partner_summary?.[m.key];
+                              if (mine === undefined && theirs === undefined) return null;
+                              return (
+                                <div key={m.key} className="contents">
+                                  <div className="rounded-lg p-2" style={{ background: "var(--raised)" }}>
+                                    <p className="text-[9px]" style={{ color: "var(--muted)" }}>{m.label}</p>
+                                    <p className="text-xs font-black" style={{ color: "var(--text)" }}>
+                                      {mine !== undefined ? m.format(mine) : "—"}
+                                    </p>
+                                  </div>
+                                  <div className="rounded-lg p-2" style={{ background: "var(--raised)" }}>
+                                    <p className="text-[9px]" style={{ color: "var(--muted)" }}>{m.label}</p>
+                                    <p className="text-xs font-black" style={{ color: "var(--text)" }}>
+                                      {theirs !== undefined ? m.format(theirs) : "—"}
+                                    </p>
+                                  </div>
+                                </div>
+                              );
+                            })}
                           </div>
                         </div>
                       )}

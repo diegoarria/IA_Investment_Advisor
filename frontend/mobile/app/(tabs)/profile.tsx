@@ -19,6 +19,17 @@ import { useSubscriptionStore, hasPremiumAccess } from "../../src/lib/subscripti
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { HOME_SCREEN_KEY } from "../../src/components/MobileHomeScreenPickerModal";
 
+const _fmtUSD = (n: number) => `$${n.toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
+
+const DUO_METRIC_DEFS: { key: string; label: string; format: (v: any) => string }[] = [
+  { key: "current_patrimonio", label: "Patrimonio actual", format: (v) => _fmtUSD(v) },
+  { key: "cumulative_return_pct", label: "Retorno acumulado", format: (v) => `${v >= 0 ? "+" : ""}${v}%` },
+  { key: "capital_invested", label: "Capital invertido", format: (v) => _fmtUSD(v) },
+  { key: "total_operations", label: "Operaciones", format: (v) => `${v}` },
+  { key: "consecutive_months_contributing", label: "Racha de meses", format: (v) => `${v}` },
+  { key: "days_since_first_investment", label: "Desde su primera inversión", format: (v) => `${v} días` },
+];
+
 const START_SCREEN_OPTIONS = [
   { key: "home",          label: "Inicio",         icon: "home-outline",          color: "#00d47e" },
   { key: "patrimonio",    label: "Patrimonio",      icon: "wallet-outline",        color: "#3b82f6" },
@@ -247,6 +258,17 @@ export default function ProfileScreen() {
   const [duoSaving, setDuoSaving] = useState(false);
   const [duoError, setDuoError] = useState("");
   const [duoEditing, setDuoEditing] = useState(false);
+  const [duoPartner, setDuoPartner] = useState<{
+    paired: boolean;
+    partner_name?: string;
+    my_summary?: Record<string, any>;
+    partner_summary?: Record<string, any>;
+  } | null>(null);
+
+  useEffect(() => {
+    if (!duoSecondaryEmail) return;
+    billingApi.getDuoPartner().then((r: any) => setDuoPartner(r.data)).catch(() => {});
+  }, [duoSecondaryEmail]);
 
   const [fmgData, setFmgData] = useState<{
     memories: { id: string; type: string; content: string; times_reinforced: number }[];
@@ -1394,6 +1416,40 @@ if (!profile) {
                     </TouchableOpacity>
                   </View>
                 </>
+              )}
+
+              {/* Comparación de progreso con la pareja */}
+              {duoPartner?.paired && (
+                <View style={{ paddingTop: 12, marginTop: 4, borderTopWidth: 1, borderTopColor: "rgba(59,130,246,0.2)" }}>
+                  <Text style={{ fontSize: 12, fontWeight: "900", color: colors.text, marginBottom: 8 }}>
+                    Comparar progreso con {duoPartner.partner_name}
+                  </Text>
+                  <View style={{ flexDirection: "row", gap: 8, marginBottom: 6 }}>
+                    <Text style={{ flex: 1, fontSize: 10, fontWeight: "800", textTransform: "uppercase", color: colors.textMuted }}>Tú</Text>
+                    <Text style={{ flex: 1, fontSize: 10, fontWeight: "800", textTransform: "uppercase", color: colors.textMuted }}>{duoPartner.partner_name}</Text>
+                  </View>
+                  {DUO_METRIC_DEFS.map((m) => {
+                    const mine = duoPartner!.my_summary?.[m.key];
+                    const theirs = duoPartner!.partner_summary?.[m.key];
+                    if (mine === undefined && theirs === undefined) return null;
+                    return (
+                      <View key={m.key} style={{ flexDirection: "row", gap: 8, marginBottom: 6 }}>
+                        <View style={{ flex: 1, backgroundColor: colors.bgRaised, borderRadius: 12, padding: 8 }}>
+                          <Text style={{ fontSize: 9, color: colors.textMuted }}>{m.label}</Text>
+                          <Text style={{ fontSize: 13, fontWeight: "900", color: colors.text }}>
+                            {mine !== undefined ? m.format(mine) : "—"}
+                          </Text>
+                        </View>
+                        <View style={{ flex: 1, backgroundColor: colors.bgRaised, borderRadius: 12, padding: 8 }}>
+                          <Text style={{ fontSize: 9, color: colors.textMuted }}>{m.label}</Text>
+                          <Text style={{ fontSize: 13, fontWeight: "900", color: colors.text }}>
+                            {theirs !== undefined ? m.format(theirs) : "—"}
+                          </Text>
+                        </View>
+                      </View>
+                    );
+                  })}
+                </View>
               )}
             </View>
           </View>

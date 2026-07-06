@@ -8,6 +8,7 @@ from typing import Literal
 from app.api.deps import get_current_user_id
 from app.core.config import settings
 from app.core.database import get_supabase, run_query
+from app.services import investor_progress_service
 
 logger = logging.getLogger(__name__)
 
@@ -283,24 +284,33 @@ async def _find_user_id_by_email(email: str, db) -> str | None:
 
 
 async def _revoke_duo_secondary(primary_customer_id: str, db):
-    """When a duo subscription ends, revoke premium from the linked secondary account."""
+    """When a duo subscription ends, revoke premium from the linked secondary
+    account and clear the bidirectional link on both sides — otherwise a
+    cancelled pairing would leave stale duo_primary_user_id/duo_secondary_user_id
+    pointing at an account that's no longer actually linked."""
     try:
         primary_res = await run_query(
             db.table("user_profiles")
-            .select("duo_secondary_email")
+            .select("user_id, duo_secondary_email, duo_secondary_user_id")
             .eq("stripe_customer_id", primary_customer_id)
         )
-        secondary_email = (primary_res.data[0].get("duo_secondary_email") or "") if primary_res.data else ""
-        if not secondary_email:
+        primary_row = primary_res.data[0] if primary_res.data else None
+        secondary_email = (primary_row.get("duo_secondary_email") or "") if primary_row else ""
+        if not primary_row or not secondary_email:
             return
-        secondary_id = await _find_user_id_by_email(secondary_email, db)
+        secondary_id = primary_row.get("duo_secondary_user_id") or await _find_user_id_by_email(secondary_email, db)
         if secondary_id:
             await run_query(
                 db.table("user_profiles")
-                .update({"subscription_tier": "free"})
+                .update({"subscription_tier": "free", "duo_primary_user_id": None})
                 .eq("user_id", secondary_id)
             )
             logger.info("Duo secondary %s reverted to free", secondary_email)
+        await run_query(
+            db.table("user_profiles")
+            .update({"duo_secondary_user_id": None})
+            .eq("user_id", primary_row["user_id"])
+        )
     except Exception as e:
         logger.warning("_revoke_duo_secondary failed: %s", e)
 
@@ -332,20 +342,62 @@ async def duo_setup(body: dict, user_id: str = Depends(get_current_user_id)):
     if secondary_id == user_id:
         raise HTTPException(status_code=422, detail="No puedes agregar tu propia cuenta como segundo usuario")
 
-    # 3. Grant premium to secondary account
+    # 3. Grant premium to secondary account + link back to the primary, so the
+    # secondary can look up its own partner instead of the link only working
+    # one-directional (primary -> secondary by email).
     await run_query(
         db.table("user_profiles")
-        .update({"subscription_tier": "premium"})
+        .update({"subscription_tier": "premium", "duo_primary_user_id": user_id})
         .eq("user_id", secondary_id)
     )
 
-    # 4. Save secondary email on primary profile
+    # 4. Save secondary email + resolved id on primary profile (caching the id
+    # avoids re-scanning all auth users by email on every future lookup).
     await run_query(
         db.table("user_profiles")
-        .update({"duo_secondary_email": secondary_email})
+        .update({"duo_secondary_email": secondary_email, "duo_secondary_user_id": secondary_id})
         .eq("user_id", user_id)
     )
 
     logger.info("Duo setup: primary=%s granted premium to secondary=%s (%s)", user_id, secondary_email, secondary_id)
     return {"ok": True, "duo_secondary_email": secondary_email}
+
+
+@router.get("/duo-partner")
+async def get_duo_partner(user_id: str = Depends(get_current_user_id)):
+    """
+    Side-by-side progress comparison for a paired Duo account — works from
+    either side of the pairing (primary or secondary), since duo_setup now
+    writes the link both ways. Reuses compute_progress_summary exactly as
+    the solo dashboard does, so a missing field means "not enough data",
+    never zero, on either side.
+    """
+    db = get_supabase()
+    res = await run_query(
+        db.table("user_profiles")
+        .select("duo_primary_user_id, duo_secondary_user_id")
+        .eq("user_id", user_id)
+        .limit(1)
+    )
+    row = res.data[0] if res.data else {}
+    partner_id = row.get("duo_secondary_user_id") or row.get("duo_primary_user_id")
+    if not partner_id:
+        return {"paired": False}
+
+    partner_res = await run_query(
+        db.table("user_profiles").select("full_name").eq("user_id", partner_id).limit(1)
+    )
+    partner_name = (partner_res.data[0].get("full_name") if partner_res.data else None) or "Tu pareja"
+
+    my_summary, partner_summary = await asyncio.gather(
+        investor_progress_service.compute_progress_summary(user_id),
+        investor_progress_service.compute_progress_summary(partner_id),
+    )
+
+    return {
+        "paired": True,
+        "partner_name": partner_name,
+        "my_summary": my_summary,
+        "partner_summary": partner_summary,
+    }
 
