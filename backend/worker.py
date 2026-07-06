@@ -3198,6 +3198,166 @@ async def job_opportunity_push():
         logger.error("job_opportunity_push failed: %s", e)
 
 
+_VALUATION_TIER_MSG = {
+    "avoid":   ("⚠️", "{name} está muy cara actualmente (${price} USD). Mejor esperar una bajada antes de comprar más."),
+    "wait":    ("⚠️", "{name} está cara actualmente (${price} USD). Conviene esperar a que baje antes de comprar."),
+    "neutral": ("📊", "{name} está en un precio justo actualmente ${price} USD."),
+    "good":    ("💰", "{name} está en un buen rango para entrar actualmente (${price} USD)."),
+    "strong":  ("💰", "{name} está barata actualmente, buena oportunidad para revisar fundamentos y considerar comprar ${price} USD."),
+}
+
+_COMPANY_SUFFIXES = (
+    ", Inc.", " Inc.", ", Inc", " Incorporated", " Corporation", " Corp.",
+    ", Ltd.", " Ltd.", " plc", " PLC", " Co.", " Company",
+)
+
+
+def _clean_company_name(raw: str | None, ticker: str) -> str:
+    if not raw:
+        return ticker
+    name = raw
+    for suf in _COMPANY_SUFFIXES:
+        if name.endswith(suf):
+            name = name[: -len(suf)]
+            break
+    return name.strip() or ticker
+
+
+async def job_valuation_push():
+    """Miércoles 12:00 PM ET — evalúa el nivel de valoración fundamental
+    (fair value vs. precio actual: Muy cara / Cara / Precio justo / Buen rango /
+    Barata) de cada ticker en watchlist + portafolio de cada usuario.
+    Solo notifica cuando el nivel cambió desde la última vez (valuation_alert_state),
+    para no repetir el mismo mensaje semana tras semana."""
+    from app.core.database import get_supabase, run_query
+    from app.services.notification_engine import send_push
+    from app.api.routes.market import _fetch_stock_detail, _compute_stock_score
+
+    db = get_supabase()
+    try:
+        prefs_res = await run_query(
+            db.table("notification_preferences")
+            .select("user_id,push_portfolio_alerts,push_watchlist_alerts")
+        )
+        explicit_prefs: dict[str, dict] = {p["user_id"]: p for p in (prefs_res.data or [])}
+
+        token_res = await run_query(
+            db.table("user_profiles").select("user_id,push_token").neq("push_token", "").not_.is_("push_token", "null")
+        )
+        expo_uids: set[str] = {r["user_id"] for r in (token_res.data or [])}
+        web_res = await run_query(db.table("web_push_subscriptions").select("user_id"))
+        web_uids: set[str] = {r["user_id"] for r in (web_res.data or [])}
+        token_uids: set[str] = expo_uids | web_uids
+
+        watch_uid_res = await run_query(db.table("watchlist").select("user_id"))
+        watch_uids: set[str] = {r["user_id"] for r in (watch_uid_res.data or [])}
+        port_uid_res = await run_query(db.table("user_portfolio").select("user_id"))
+        port_uids: set[str] = {r["user_id"] for r in (port_uid_res.data or [])}
+
+        candidate_uids = token_uids & (watch_uids | port_uids)
+        if not candidate_uids:
+            return
+
+        def _wants_portfolio(uid: str) -> bool:
+            return explicit_prefs.get(uid, {}).get("push_portfolio_alerts", True)
+
+        def _wants_watchlist(uid: str) -> bool:
+            return explicit_prefs.get(uid, {}).get("push_watchlist_alerts", True)
+
+        user_tickers: dict[str, set[str]] = {}
+        all_tickers: set[str] = set()
+        for uid in candidate_uids:
+            tickers: set[str] = set()
+            if _wants_portfolio(uid) and uid in port_uids:
+                port_res = await run_query(db.table("user_portfolio").select("positions").eq("user_id", uid))
+                if port_res.data:
+                    pos = _agg_positions(port_res.data or [])
+                    tickers |= {p["ticker"] for p in pos if p.get("ticker")}
+            if _wants_watchlist(uid) and uid in watch_uids:
+                watch_res = await run_query(db.table("watchlist").select("ticker").eq("user_id", uid))
+                tickers |= {r["ticker"] for r in (watch_res.data or [])}
+            if tickers:
+                user_tickers[uid] = tickers
+                all_tickers |= tickers
+
+        if not all_tickers:
+            return
+
+        # 1 valuation lookup per unique ticker (fair value via analyst target or
+        # PEG-adjusted P/E), reused across every user tracking that ticker.
+        def _score_one(ticker: str) -> dict | None:
+            try:
+                detail = _fetch_stock_detail(ticker)
+                result = _compute_stock_score(detail)
+                meta = result.get("entry_ranges_meta")
+                if not meta:
+                    return None
+                current_tier = next((t for t in result.get("entry_ranges", []) if t.get("is_current")), None)
+                if not current_tier:
+                    return None
+                return {
+                    "signal": current_tier["signal"],
+                    "price":  meta["current_price"],
+                    "name":   _clean_company_name(detail.get("profile", {}).get("name"), ticker),
+                }
+            except Exception:
+                return None
+
+        ticker_info: dict[str, dict] = {}
+        with concurrent.futures.ThreadPoolExecutor(max_workers=5) as ex:
+            futures = {ex.submit(_score_one, t): t for t in all_tickers}
+            for fut, t in futures.items():
+                try:
+                    r = fut.result(timeout=20)
+                    if r:
+                        ticker_info[t] = r
+                except Exception:
+                    pass
+
+        if not ticker_info:
+            logger.info("Valuation push: no tickers could be scored")
+            return
+
+        state_res = await run_query(
+            db.table("valuation_alert_state").select("user_id,ticker,last_tier")
+            .in_("user_id", list(user_tickers.keys()))
+        )
+        last_tier: dict[tuple[str, str], str] = {
+            (r["user_id"], r["ticker"]): r["last_tier"] for r in (state_res.data or [])
+        }
+
+        sent = 0
+        for uid, tickers in user_tickers.items():
+            for ticker in sorted(tickers & ticker_info.keys()):
+                info = ticker_info[ticker]
+                signal = info["signal"]
+                if last_tier.get((uid, ticker)) == signal:
+                    continue
+
+                emoji, template = _VALUATION_TIER_MSG[signal]
+                body = template.format(name=info["name"], price=f"{info['price']:,.2f}")
+
+                await send_push(
+                    uid, f"valuation_{ticker}",
+                    f"{emoji} {ticker}", body,
+                    {"ticker": ticker, "signal": signal, "price": info["price"], "screen": "watchlist"},
+                    db,
+                )
+                await run_query(
+                    db.table("valuation_alert_state").upsert(
+                        {"user_id": uid, "ticker": ticker, "last_tier": signal,
+                         "updated_at": datetime.utcnow().isoformat()},
+                        on_conflict="user_id,ticker",
+                    )
+                )
+                sent += 1
+                await asyncio.sleep(random.uniform(0.05, 0.2))
+
+        logger.info("Valuation push: %d tickers scored, %d pushes sent", len(ticker_info), sent)
+    except Exception as e:
+        logger.error("job_valuation_push failed: %s", e)
+
+
 async def job_fmg_snapshot():
     """Daily at 16:05 ET — take portfolio snapshots for all active users."""
     from app.services import fmg_service
@@ -3941,6 +4101,9 @@ async def main():
 
     # ── Saturday: weekly screener (premium only) ──────────────────────────────
     scheduler.add_job(job_weekly_screener_push, "cron", day_of_week="sat",     hour=11,      minute=0,     timezone="America/New_York")
+
+    # ── Wednesday: weekly valuation push (watchlist + portfolio, all users) ───
+    scheduler.add_job(job_valuation_push,       "cron", day_of_week="wed",     hour=12,      minute=0,     timezone="America/New_York")
 
     # ── Monthly: day 1 (premium personalized, free general) ──────────────────
     scheduler.add_job(job_monthly_report_push,  "cron", day=1,                 hour=9,       minute=0,     timezone="America/New_York")
