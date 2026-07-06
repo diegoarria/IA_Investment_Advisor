@@ -49,8 +49,22 @@ _TICKER_SPEECH_RE = re.compile(
 )
 
 
+_QUARTER_RE = re.compile(r"\bQ([1-4])(?:\s*[-/']?\s*(\d{2,4}))?\b")
+
+
+def _quarter_to_speech(m: re.Match) -> str:
+    q = m.group(1)
+    year = m.group(2)
+    if not year:
+        return f"trimestre {q}"
+    year = year if len(year) == 4 else f"20{year}"
+    return f"trimestre {q} del {year}"
+
+
 def _speechify(text: str) -> str:
-    """Replace bare tickers with how they'd actually be said out loud."""
+    """Replace bare tickers and quarter shorthand (Q1 2026) with how they'd
+    actually be said out loud."""
+    text = _QUARTER_RE.sub(_quarter_to_speech, text)
     return _TICKER_SPEECH_RE.sub(lambda m: _TICKER_SPEECH_MAP[m.group(1)], text)
 
 

@@ -714,6 +714,12 @@ def build_deep_user_context(
             cost   = float(shares or 0) * float(avg or 0)
             pct    = round(cost / total_cost * 100) if total_cost > 0 else 0
             parts.append(f"  - {ticker}: {shares} acciones @ ${avg} ≈ ${cost:,.0f} ({pct}%)")
+        parts.append(
+            "  → Al hablar de estas posiciones en tu respuesta, prioriza el monto invertido en "
+            "dólares sobre la cantidad de acciones — di \"tienes ~$X invertidos en {ticker}\" en "
+            "vez de mencionar cuántas acciones tiene, salvo que el usuario pregunte explícitamente "
+            "por la cantidad de acciones."
+        )
         # Concentration flags
         tech_set = {"NVDA","AAPL","MSFT","GOOGL","GOOG","META","AMZN","TSLA","AMD","INTC","QCOM","AVGO","CRM","ORCL","NFLX","UBER","SNAP","SPOT","PLTR","SQ","PYPL","COIN","RBLX","HOOD","SOFI","MSTR","SMCI","ARM","APP"}
         tech_cost = sum(
