@@ -63,6 +63,14 @@ export default function VoiceCallModal({ onClose }: Props) {
       const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
       const audioCtx: AudioContext = new AudioCtx();
       audioCtxRef.current = audioCtx;
+      if (audioCtx.state === "suspended") {
+        // Browsers suspend AudioContext until it's resumed inside a user-gesture
+        // chain. Opening this modal is itself the gesture, but the creation
+        // happens a tick later (inside a useEffect), so Chrome/Safari sometimes
+        // leave it suspended — without this the analyser reads flat silence
+        // forever and the VAD never detects speech.
+        await audioCtx.resume().catch(() => {});
+      }
       const source = audioCtx.createMediaStreamSource(stream);
       const analyser = audioCtx.createAnalyser();
       analyser.fftSize = 512;
@@ -88,21 +96,27 @@ export default function VoiceCallModal({ onClose }: Props) {
       wsRef.current = ws;
 
       ws.onopen = () => {
+        console.debug("[voice-call] websocket open");
         if (cancelled) return;
         setStatus("listening");
         startVadLoop();
       };
-      ws.onmessage = (ev) => handleServerMessage(ev.data);
-      ws.onerror = () => {
+      ws.onmessage = (ev) => {
+        console.debug("[voice-call] message:", typeof ev.data === "string" ? ev.data.slice(0, 200) : "<binary>");
+        handleServerMessage(ev.data);
+      };
+      ws.onerror = (ev) => {
+        console.error("[voice-call] websocket error", ev);
         if (!cancelled) {
           setStatus("error");
           setErrorMsg("No se pudo conectar con el Mentor. Revisa tu conexión.");
         }
       };
-      ws.onclose = () => {
+      ws.onclose = (ev) => {
+        console.debug("[voice-call] websocket closed", ev.code, ev.reason);
         if (!cancelled && !closedRef.current) {
           setStatus("error");
-          setErrorMsg("La llamada se cerró inesperadamente.");
+          setErrorMsg(`La llamada se cerró inesperadamente${ev.code ? ` (código ${ev.code})` : ""}.`);
         }
       };
     }
@@ -179,11 +193,15 @@ export default function VoiceCallModal({ onClose }: Props) {
       URL.revokeObjectURL(url);
       playNextInQueue();
     };
-    audio.onerror = () => {
+    audio.onerror = (e) => {
+      console.error("[voice-call] audio playback error", e);
       URL.revokeObjectURL(url);
       playNextInQueue();
     };
-    audio.play().catch(() => playNextInQueue());
+    audio.play().catch((e) => {
+      console.error("[voice-call] audio.play() rejected", e);
+      playNextInQueue();
+    });
   }
 
   function maybeFinishSpeaking() {
@@ -208,6 +226,7 @@ export default function VoiceCallModal({ onClose }: Props) {
 
   function sendUtterance(blob: Blob) {
     const ws = wsRef.current;
+    console.debug("[voice-call] sendUtterance, size=", blob.size, "wsState=", ws?.readyState);
     if (!ws || ws.readyState !== WebSocket.OPEN || blob.size === 0) return;
     blob.arrayBuffer().then((buf) => {
       ws.send(buf);
@@ -220,7 +239,13 @@ export default function VoiceCallModal({ onClose }: Props) {
     if (!analyser) return;
     const data = new Uint8Array(analyser.fftSize);
 
+    let tick = 0;
     vadTimerRef.current = setInterval(() => {
+      // Some browsers silently re-suspend an AudioContext (e.g. after a tab
+      // goes background) — resume every tick is cheap and self-heals that.
+      if (audioCtxRef.current && audioCtxRef.current.state === "suspended") {
+        audioCtxRef.current.resume().catch(() => {});
+      }
       analyser.getByteTimeDomainData(data);
       let sumSquares = 0;
       for (let i = 0; i < data.length; i++) {
@@ -229,6 +254,12 @@ export default function VoiceCallModal({ onClose }: Props) {
       }
       const rms = Math.sqrt(sumSquares / data.length);
       const now = Date.now();
+
+      tick++;
+      if (tick % 20 === 0) {
+        // eslint-disable-next-line no-console
+        console.debug("[voice-call] rms=", rms.toFixed(4), "ctxState=", audioCtxRef.current?.state, "recording=", isRecordingRef.current, "assistantSpeaking=", assistantSpeakingRef.current);
+      }
 
       if (assistantSpeakingRef.current) {
         // Barge-in detection: sustained speech while the assistant is talking
@@ -271,6 +302,7 @@ export default function VoiceCallModal({ onClose }: Props) {
   function beginRecording() {
     const recorder = recorderRef.current;
     if (!recorder || recorder.state === "recording") return;
+    console.debug("[voice-call] beginRecording, recorder.state=", recorder.state);
     chunksRef.current = [];
     recorder.start();
     isRecordingRef.current = true;
@@ -280,6 +312,7 @@ export default function VoiceCallModal({ onClose }: Props) {
   function endRecording() {
     const recorder = recorderRef.current;
     if (!recorder || recorder.state !== "recording") return;
+    console.debug("[voice-call] endRecording (silence timeout reached)");
     recorder.stop();
     isRecordingRef.current = false;
     silenceSinceRef.current = null;
