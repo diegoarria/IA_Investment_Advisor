@@ -1,13 +1,19 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { X, PhoneOff, Mic, Volume2 } from "lucide-react";
+import { PhoneOff, Mic, MicOff } from "lucide-react";
 
 interface Props {
   onClose: () => void;
 }
 
 type CallStatus = "connecting" | "listening" | "user_speaking" | "assistant_speaking" | "error";
+
+function formatDuration(secs: number): string {
+  const m = Math.floor(secs / 60);
+  const s = secs % 60;
+  return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+}
 
 const SPEECH_RMS_THRESHOLD = 0.02;
 const BARGE_IN_RMS_THRESHOLD = 0.035;
@@ -26,8 +32,11 @@ function wsBaseUrl(): string {
 
 export default function VoiceCallModal({ onClose }: Props) {
   const [status, setStatus] = useState<CallStatus>("connecting");
-  const [caption, setCaption] = useState<string>("");
   const [errorMsg, setErrorMsg] = useState<string>("");
+  const [muted, setMuted] = useState(false);
+  const [callSeconds, setCallSeconds] = useState(0);
+  const mutedRef = useRef(false);
+  const durationTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const wsRef = useRef<WebSocket | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
@@ -100,6 +109,7 @@ export default function VoiceCallModal({ onClose }: Props) {
         if (cancelled) return;
         setStatus("listening");
         startVadLoop();
+        durationTimerRef.current = setInterval(() => setCallSeconds((s) => s + 1), 1000);
       };
       ws.onmessage = (ev) => {
         console.debug("[voice-call] message:", typeof ev.data === "string" ? ev.data.slice(0, 200) : "<binary>");
@@ -152,13 +162,11 @@ export default function VoiceCallModal({ onClose }: Props) {
     }
     switch (msg.type) {
       case "transcript":
-        setCaption(msg.text || "");
         setStatus("assistant_speaking");
         assistantSpeakingRef.current = true;
         awaitingMoreRef.current = true;
         break;
       case "assistant_sentence":
-        setCaption(msg.text || "");
         if (msg.audio_b64) {
           playQueueRef.current.push(base64ToBlob(msg.audio_b64, "audio/mpeg"));
           if (!currentAudioRef.current) playNextInQueue();
@@ -208,7 +216,6 @@ export default function VoiceCallModal({ onClose }: Props) {
     if (!awaitingMoreRef.current && playQueueRef.current.length === 0 && !currentAudioRef.current) {
       assistantSpeakingRef.current = false;
       setStatus("listening");
-      setCaption("");
     }
   }
 
@@ -221,7 +228,6 @@ export default function VoiceCallModal({ onClose }: Props) {
     assistantSpeakingRef.current = false;
     awaitingMoreRef.current = false;
     setStatus("listening");
-    setCaption("");
   }
 
   function sendUtterance(blob: Blob) {
@@ -259,6 +265,11 @@ export default function VoiceCallModal({ onClose }: Props) {
       if (tick % 20 === 0) {
         // eslint-disable-next-line no-console
         console.debug("[voice-call] rms=", rms.toFixed(4), "ctxState=", audioCtxRef.current?.state, "recording=", isRecordingRef.current, "assistantSpeaking=", assistantSpeakingRef.current);
+      }
+
+      if (mutedRef.current) {
+        if (isRecordingRef.current) endRecording();
+        return;
       }
 
       if (assistantSpeakingRef.current) {
@@ -321,6 +332,7 @@ export default function VoiceCallModal({ onClose }: Props) {
   function cleanup() {
     closedRef.current = true;
     if (vadTimerRef.current) clearInterval(vadTimerRef.current);
+    if (durationTimerRef.current) clearInterval(durationTimerRef.current);
     if (recorderRef.current && recorderRef.current.state === "recording") {
       try {
         recorderRef.current.stop();
@@ -337,58 +349,60 @@ export default function VoiceCallModal({ onClose }: Props) {
     onClose();
   }
 
-  const statusLabel: Record<CallStatus, string> = {
-    connecting: "Conectando...",
-    listening: "Escuchando...",
-    user_speaking: "Te estoy escuchando",
-    assistant_speaking: "El Mentor está hablando",
-    error: "Error en la llamada",
-  };
+  function toggleMute() {
+    setMuted((m) => {
+      const next = !m;
+      mutedRef.current = next;
+      return next;
+    });
+  }
+
+  const isSpeaking = status === "assistant_speaking" || status === "user_speaking";
+  const ringColor = status === "assistant_speaking" ? "#00b96d" : status === "user_speaking" ? "#3b82f6" : "#3a3a3a";
+  const subLabel =
+    status === "error" ? errorMsg
+    : status === "connecting" ? "Llamando..."
+    : formatDuration(callSeconds);
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.6)" }}>
-      <div
-        className="w-full max-w-sm rounded-[28px] p-8 flex flex-col items-center gap-6 text-center"
-        style={{ background: "var(--card)", border: "1px solid var(--border)", boxShadow: "var(--shadow-lg)" }}
-      >
-        <button
-          onClick={handleHangUp}
-          className="self-end -mt-2 -mr-2 p-2 rounded-full"
-          style={{ color: "var(--muted)" }}
-          aria-label="Cerrar"
-        >
-          <X size={18} />
-        </button>
+    <div className="fixed inset-0 z-[100] flex flex-col items-center" style={{ background: "linear-gradient(180deg,#111 0%,#000 100%)" }}>
+      <div className="flex-1" />
 
-        <div
-          className="w-24 h-24 rounded-full flex items-center justify-center transition-all"
-          style={{
-            background: status === "assistant_speaking" ? "#00b96d22" : status === "user_speaking" ? "#3b82f622" : "var(--raised)",
-            border: `2px solid ${status === "assistant_speaking" ? "#00b96d" : status === "user_speaking" ? "#3b82f6" : "var(--border)"}`,
-          }}
-        >
-          {status === "assistant_speaking" ? (
-            <Volume2 size={34} color="#00b96d" />
-          ) : (
-            <Mic size={34} color={status === "user_speaking" ? "#3b82f6" : "var(--muted)"} />
+      <div className="flex flex-col items-center gap-5">
+        <div className="relative w-36 h-36 flex items-center justify-center">
+          {isSpeaking && (
+            <span
+              className="absolute inset-0 rounded-full animate-ping"
+              style={{ background: ringColor + "33" }}
+            />
           )}
+          <div
+            className="w-32 h-32 rounded-full flex items-center justify-center transition-colors duration-300"
+            style={{ background: "#1c1c1e", border: `2px solid ${ringColor}` }}
+          >
+            <span className="text-6xl" role="img" aria-label="Mentor IA">🤖</span>
+          </div>
         </div>
 
-        <div>
-          <p className="text-base font-bold" style={{ color: "var(--text)" }}>
-            Llamada con Mentor IA
-          </p>
-          <p className="text-sm mt-1" style={{ color: "var(--muted)" }}>
-            {status === "error" ? errorMsg : statusLabel[status]}
+        <div className="text-center">
+          <p className="text-2xl font-bold text-white">Mentor IA</p>
+          <p className="text-sm mt-2 tabular-nums" style={{ color: status === "error" ? "#f87171" : "rgba(255,255,255,0.5)" }}>
+            {subLabel}
           </p>
         </div>
+      </div>
 
-        {caption && (
-          <p className="text-sm leading-relaxed max-h-24 overflow-y-auto" style={{ color: "var(--sub)" }}>
-            {caption}
-          </p>
-        )}
+      <div className="flex-1" />
 
+      <div className="flex items-center justify-center gap-10 pb-16">
+        <button
+          onClick={toggleMute}
+          className="w-14 h-14 rounded-full flex items-center justify-center transition-colors"
+          style={{ background: muted ? "#fff" : "rgba(255,255,255,0.14)" }}
+          aria-label={muted ? "Activar micrófono" : "Silenciar"}
+        >
+          {muted ? <MicOff size={22} color="#000" /> : <Mic size={22} color="#fff" />}
+        </button>
         <button
           onClick={handleHangUp}
           className="w-16 h-16 rounded-full flex items-center justify-center"

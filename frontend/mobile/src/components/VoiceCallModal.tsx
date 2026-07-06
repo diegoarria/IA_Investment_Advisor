@@ -1,11 +1,10 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Modal, View, Text, TouchableOpacity, StyleSheet } from "react-native";
+import { Modal, View, Text, TouchableOpacity, StyleSheet, Animated } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Audio } from "expo-av";
 import * as FileSystem from "expo-file-system/legacy";
 import * as SecureStore from "expo-secure-store";
 import { BASE_URL } from "../lib/api";
-import { useTheme } from "../lib/ThemeContext";
 
 interface Props {
   visible: boolean;
@@ -24,11 +23,19 @@ function wsUrl(token: string): string {
   return `${BASE_URL.replace(/^http/, "ws")}/api/voice/call/ws?token=${encodeURIComponent(token)}`;
 }
 
+function formatDuration(secs: number): string {
+  const m = Math.floor(secs / 60);
+  const s = secs % 60;
+  return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+}
+
 export default function VoiceCallModal({ visible, onClose }: Props) {
-  const { colors } = useTheme();
   const [status, setStatus] = useState<CallStatus>("connecting");
-  const [caption, setCaption] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
+  const [muted, setMuted] = useState(false);
+  const [callSeconds, setCallSeconds] = useState(0);
+  const mutedRef = useRef(false);
+  const durationTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const wsRef = useRef<WebSocket | null>(null);
   const recordingRef = useRef<Audio.Recording | null>(null);
@@ -44,6 +51,9 @@ export default function VoiceCallModal({ visible, onClose }: Props) {
   const finalizingRef = useRef(false);
   const closedRef = useRef(false);
 
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+  const pulseLoopRef = useRef<Animated.CompositeAnimation | null>(null);
+
   useEffect(() => {
     if (!visible) return;
     closedRef.current = false;
@@ -53,6 +63,24 @@ export default function VoiceCallModal({ visible, onClose }: Props) {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible]);
+
+  useEffect(() => {
+    const isSpeaking = status === "assistant_speaking" || status === "user_speaking";
+    if (isSpeaking) {
+      pulseLoopRef.current = Animated.loop(
+        Animated.sequence([
+          Animated.timing(pulseAnim, { toValue: 1.12, duration: 550, useNativeDriver: true }),
+          Animated.timing(pulseAnim, { toValue: 1, duration: 550, useNativeDriver: true }),
+        ])
+      );
+      pulseLoopRef.current.start();
+    } else {
+      pulseLoopRef.current?.stop();
+      pulseAnim.setValue(1);
+    }
+    return () => pulseLoopRef.current?.stop();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status]);
 
   async function start() {
     try {
@@ -72,6 +100,7 @@ export default function VoiceCallModal({ visible, onClose }: Props) {
         if (closedRef.current) return;
         setStatus("listening");
         beginNewSegment();
+        durationTimerRef.current = setInterval(() => setCallSeconds((s) => s + 1), 1000);
       };
       ws.onmessage = (ev) => handleServerMessage(ev.data as string);
       ws.onerror = () => {
@@ -103,7 +132,6 @@ export default function VoiceCallModal({ visible, onClose }: Props) {
       silenceSinceRef.current = null;
       startMeteringLoop();
     } catch (e) {
-      // Recording setup failed — surface but don't crash the call
       setErrorMsg("No se pudo acceder al micrófono.");
     }
   }
@@ -121,6 +149,8 @@ export default function VoiceCallModal({ visible, onClose }: Props) {
         return;
       }
       const now = Date.now();
+
+      if (mutedRef.current) return;
 
       if (assistantSpeakingRef.current) {
         if (db > BARGE_IN_DB_THRESHOLD) {
@@ -197,13 +227,11 @@ export default function VoiceCallModal({ visible, onClose }: Props) {
     }
     switch (msg.type) {
       case "transcript":
-        setCaption(msg.text || "");
         assistantSpeakingRef.current = true;
         awaitingMoreRef.current = true;
         setStatus("assistant_speaking");
         break;
       case "assistant_sentence":
-        setCaption(msg.text || "");
         if (msg.audio_b64) {
           playQueueRef.current.push(msg.audio_b64);
           if (!soundRef.current) playNextInQueue();
@@ -254,7 +282,6 @@ export default function VoiceCallModal({ visible, onClose }: Props) {
     if (!awaitingMoreRef.current && playQueueRef.current.length === 0 && !soundRef.current) {
       assistantSpeakingRef.current = false;
       setStatus("listening");
-      setCaption("");
     }
   }
 
@@ -270,12 +297,12 @@ export default function VoiceCallModal({ visible, onClose }: Props) {
     assistantSpeakingRef.current = false;
     awaitingMoreRef.current = false;
     setStatus("listening");
-    setCaption("");
   }
 
   function cleanup() {
     closedRef.current = true;
     if (meteringTimerRef.current) clearInterval(meteringTimerRef.current);
+    if (durationTimerRef.current) clearInterval(durationTimerRef.current);
     const recording = recordingRef.current;
     recordingRef.current = null;
     if (recording) {
@@ -295,51 +322,46 @@ export default function VoiceCallModal({ visible, onClose }: Props) {
     onClose();
   }
 
-  const statusLabel: Record<CallStatus, string> = {
-    connecting: "Conectando...",
-    listening: "Escuchando...",
-    user_speaking: "Te estoy escuchando",
-    assistant_speaking: "El Mentor está hablando",
-    error: "Error en la llamada",
-  };
+  function toggleMute() {
+    setMuted((m) => {
+      const next = !m;
+      mutedRef.current = next;
+      return next;
+    });
+  }
+
+  const ringColor = status === "assistant_speaking" ? "#00b96d" : status === "user_speaking" ? "#3b82f6" : "#3a3a3a";
+  const subLabel =
+    status === "error" ? errorMsg
+    : status === "connecting" ? "Llamando..."
+    : formatDuration(callSeconds);
 
   return (
-    <Modal visible={visible} animationType="fade" transparent onRequestClose={handleHangUp}>
-      <View style={styles.overlay}>
-        <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <TouchableOpacity onPress={handleHangUp} style={styles.closeBtn}>
-            <Ionicons name="close" size={20} color={colors.textMuted} />
-          </TouchableOpacity>
+    <Modal visible={visible} animationType="fade" onRequestClose={handleHangUp}>
+      <View style={styles.container}>
+        <View style={{ flex: 1 }} />
 
-          <View
-            style={[
-              styles.avatar,
-              {
-                backgroundColor: status === "assistant_speaking" ? "#00b96d22" : status === "user_speaking" ? "#3b82f622" : colors.bgRaised,
-                borderColor: status === "assistant_speaking" ? "#00b96d" : status === "user_speaking" ? "#3b82f6" : colors.border,
-              },
-            ]}
-          >
-            <Ionicons
-              name={status === "assistant_speaking" ? "volume-high" : "mic"}
-              size={32}
-              color={status === "assistant_speaking" ? "#00b96d" : status === "user_speaking" ? "#3b82f6" : colors.textMuted}
-            />
-          </View>
-
-          <Text style={[styles.title, { color: colors.text }]}>Llamada con Mentor IA</Text>
-          <Text style={[styles.subtitle, { color: colors.textMuted }]}>
-            {status === "error" ? errorMsg : statusLabel[status]}
+        <View style={styles.center}>
+          <Animated.View style={[styles.avatar, { borderColor: ringColor, transform: [{ scale: pulseAnim }] }]}>
+            <Text style={{ fontSize: 56 }}>🤖</Text>
+          </Animated.View>
+          <Text style={styles.name}>Mentor IA</Text>
+          <Text style={[styles.subLabel, { color: status === "error" ? "#f87171" : "rgba(255,255,255,0.5)" }]}>
+            {subLabel}
           </Text>
+        </View>
 
-          {!!caption && (
-            <Text style={[styles.caption, { color: colors.textSub }]} numberOfLines={4}>
-              {caption}
-            </Text>
-          )}
+        <View style={{ flex: 1 }} />
 
+        <View style={styles.controls}>
+          <TouchableOpacity
+            onPress={toggleMute}
+            style={[styles.controlBtn, { backgroundColor: muted ? "#fff" : "rgba(255,255,255,0.14)" }]}
+          >
+            <Ionicons name={muted ? "mic-off" : "mic"} size={22} color={muted ? "#000" : "#fff"} />
+          </TouchableOpacity>
           <TouchableOpacity onPress={handleHangUp} style={styles.hangupBtn}>
-            <Ionicons name="call" size={24} color="#fff" style={{ transform: [{ rotate: "135deg" }] }} />
+            <Ionicons name="call" size={26} color="#fff" style={{ transform: [{ rotate: "135deg" }] }} />
           </TouchableOpacity>
         </View>
       </View>
@@ -348,12 +370,15 @@ export default function VoiceCallModal({ visible, onClose }: Props) {
 }
 
 const styles = StyleSheet.create({
-  overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.65)", alignItems: "center", justifyContent: "center", padding: 20 },
-  card: { width: "100%", maxWidth: 340, borderRadius: 28, borderWidth: 1, padding: 28, alignItems: "center", gap: 14 },
-  closeBtn: { position: "absolute", top: 14, right: 14, padding: 6 },
-  avatar: { width: 96, height: 96, borderRadius: 48, borderWidth: 2, alignItems: "center", justifyContent: "center" },
-  title: { fontSize: 16, fontWeight: "700" },
-  subtitle: { fontSize: 13 },
-  caption: { fontSize: 13, lineHeight: 19, textAlign: "center", maxHeight: 100 },
-  hangupBtn: { width: 60, height: 60, borderRadius: 30, backgroundColor: "#ef4444", alignItems: "center", justifyContent: "center", marginTop: 8 },
+  container: { flex: 1, backgroundColor: "#000", alignItems: "center" },
+  center: { alignItems: "center", gap: 16 },
+  avatar: {
+    width: 144, height: 144, borderRadius: 72, borderWidth: 2,
+    backgroundColor: "#1c1c1e", alignItems: "center", justifyContent: "center",
+  },
+  name: { fontSize: 22, fontWeight: "800", color: "#fff" },
+  subLabel: { fontSize: 14, marginTop: -8 },
+  controls: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 40, paddingBottom: 64 },
+  controlBtn: { width: 56, height: 56, borderRadius: 28, alignItems: "center", justifyContent: "center" },
+  hangupBtn: { width: 64, height: 64, borderRadius: 32, backgroundColor: "#ef4444", alignItems: "center", justifyContent: "center" },
 });
