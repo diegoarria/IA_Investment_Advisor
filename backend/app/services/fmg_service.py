@@ -53,6 +53,20 @@ Tipos de memory válidos:
 - goal: Meta financiera concreta ("Quiere jubilarse antes de los 45")
 - insight: Insight sobre su situación ("Su mayor riesgo es la concentración en AAPL")
 
+Patrones de comportamiento con pattern_key CANÓNICO — usa exactamente estas claves cuando
+apliquen, para que sean comparables entre conversaciones (no inventes variantes):
+- prefers_short_explanations: el usuario pidió explícitamente una versión más corta/directa,
+  dijo "resúmelo", "en pocas palabras", "sin tanto detalle", o se mostró impaciente con
+  explicaciones largas.
+- prefers_deep_explanations: el usuario pidió explícitamente más profundidad/mecanismo,
+  "explícamelo a fondo", "por qué exactamente", o hizo preguntas de seguimiento técnicas.
+- learns_visually: el usuario pidió explícitamente un gráfico, tabla, comparación visual, o
+  dijo que entiende mejor "viéndolo" en vez de leyéndolo.
+- learns_by_example: el usuario pidió explícitamente un ejemplo concreto o número real en vez
+  de la explicación teórica.
+Cualquier otro patrón de comportamiento observado (sesgos emocionales, hábitos de decisión,
+etc.) usa un pattern_key propio en snake_case inglés, igual que antes.
+
 Devuelve SOLO JSON válido, sin texto adicional."""
 
 _EXTRACTION_USER_TMPL = """Analiza este intercambio y extrae conocimiento nuevo sobre el usuario.
@@ -427,7 +441,7 @@ async def get_fmg_context(user_id: str) -> str | None:
             ),
             run_query(
                 db.table("fmg_behavioral_patterns")
-                .select("description, confidence, times_observed, is_positive")
+                .select("pattern_key, description, confidence, times_observed, is_positive")
                 .eq("user_id", user_id)
                 .gte("confidence", _MIN_CONFIDENCE)
                 .order("confidence", desc=True)
@@ -490,6 +504,21 @@ async def get_fmg_context(user_id: str) -> str | None:
                 conf  = int(p["confidence"] * 100)
                 count = p["times_observed"]
                 parts.append(f"- {sign} {p['description']} (confianza {conf}%, observado {count}x)")
+
+        # Explanation-style directives — act on these, don't just display them.
+        pattern_keys = {p.get("pattern_key") for p in patterns}
+        style_directives: list[str] = []
+        if "prefers_short_explanations" in pattern_keys:
+            style_directives.append("Responde corto y directo — este usuario ya mostró impaciencia con explicaciones largas.")
+        if "prefers_deep_explanations" in pattern_keys:
+            style_directives.append("Puedes profundizar en el mecanismo/por qué — este usuario busca ese nivel de detalle.")
+        if "learns_visually" in pattern_keys:
+            style_directives.append("Cuando sea posible, describe la idea en términos de gráfico/tabla/comparación en vez de solo prosa.")
+        if "learns_by_example" in pattern_keys:
+            style_directives.append("Ancla la explicación en un ejemplo concreto o número real, no solo la teoría.")
+        if style_directives:
+            parts.append("\n### 🎯 Estilo de explicación a seguir AHORA")
+            parts.extend(f"- {d}" for d in style_directives)
 
         if events:
             parts.append("\n### 📅 Últimos eventos registrados")

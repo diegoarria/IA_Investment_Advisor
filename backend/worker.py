@@ -2566,6 +2566,7 @@ async def job_diversification_push():
     """11:00 AM ET Saturday — nudge users who are close to a diversification goal."""
     from app.core.database import get_supabase, run_query
     from app.services.notification_engine import send_push
+    from app.services.portfolio_manager_service import generate_diversification_insight
     # Sector ETF proxies: simple sector classification
     SECTOR_MAP = {
         "AAPL": "Tecnología", "MSFT": "Tecnología", "GOOGL": "Tecnología", "META": "Tecnología", "NVDA": "Tecnología",
@@ -2583,12 +2584,20 @@ async def job_diversification_push():
 
     db = get_supabase()
     try:
-        users_res = await run_query(db.table("user_profiles").select("user_id"))
+        prefs_res = await run_query(
+            db.table("notification_preferences").select("user_id,push_portfolio_alerts")
+        )
+        explicit_prefs = {p["user_id"]: p.get("push_portfolio_alerts", True) for p in (prefs_res.data or [])}
+        users_res = await run_query(
+            db.table("user_profiles").select("user_id,name,subscription_tier,trial_started_at,investing_style")
+        )
         sent = 0
         for i, u in enumerate(users_res.data or []):
             if i % 100 == 0 and i > 0:
                 await asyncio.sleep(12)
             uid = u["user_id"]
+            if not explicit_prefs.get(uid, True):
+                continue
             port_res = await run_query(db.table("user_portfolio").select("positions").eq("user_id", uid))
             if not port_res.data:
                 continue
@@ -2597,8 +2606,17 @@ async def job_diversification_push():
             missing = GOAL_SECTORS - len(sectors)
             if missing <= 0 or missing > 2:
                 continue  # already diversified or too far away
-            sector_label = "sector" if missing == 1 else "sectores"
-            body = f"Estás a {missing} {sector_label} de completar tu meta de diversificación. ¿Qué activo te falta explorar?"
+
+            body = None
+            if _is_premium_user(u.get("subscription_tier", "free"), u.get("trial_started_at")):
+                first = (u.get("name") or "Inversor").split()[0]
+                body = await generate_diversification_insight(
+                    first, missing, sorted(sectors), u.get("investing_style"),
+                )
+            if not body:
+                sector_label = "sector" if missing == 1 else "sectores"
+                body = f"Estás a {missing} {sector_label} de completar tu meta de diversificación. ¿Qué activo te falta explorar?"
+
             await send_push(
                 uid, "diversification_goal",
                 "🎯 Meta de diversificación",
@@ -2611,6 +2629,94 @@ async def job_diversification_push():
         logger.info("Diversification push: %d users notified", sent)
     except Exception as e:
         logger.error("job_diversification_push failed: %s", e)
+
+
+_CONCENTRATION_THRESHOLD = 0.55  # one sector at >55% of portfolio value = risk
+
+
+async def job_concentration_risk_push():
+    """1:00 PM ET Tuesday — AI Portfolio Manager: detect when a single sector
+    dominates a user's portfolio (concentration risk), reusing the sector
+    weights already computed daily by fmg_service.take_portfolio_snapshot
+    instead of re-deriving them from a hardcoded ticker→sector map.
+    Premium gets an AI-personalized message referencing their actual weight
+    and declared investing style; free gets a plain template."""
+    from app.core.database import get_supabase, run_query
+    from app.services.notification_engine import send_push
+    from app.services.portfolio_manager_service import generate_concentration_insight
+
+    db = get_supabase()
+    try:
+        prefs_res = await run_query(
+            db.table("notification_preferences").select("user_id,push_portfolio_alerts")
+        )
+        explicit_prefs = {p["user_id"]: p.get("push_portfolio_alerts", True) for p in (prefs_res.data or [])}
+
+        # Latest snapshot per user (fmg_portfolio_snapshots has one row per user per day)
+        snap_res = await run_query(
+            db.table("fmg_portfolio_snapshots")
+            .select("user_id,snapshot_date,total_value,top_sector,sector_weights")
+            .order("snapshot_date", desc=True)
+            .limit(5000)
+        )
+        latest_snap: dict[str, dict] = {}
+        for row in (snap_res.data or []):
+            uid = row["user_id"]
+            if uid not in latest_snap:  # first hit per user = most recent, thanks to the order()
+                latest_snap[uid] = row
+
+        candidates = [
+            (uid, row) for uid, row in latest_snap.items()
+            if explicit_prefs.get(uid, True)
+            and row.get("total_value") and row["total_value"] > 0
+            and row.get("top_sector")
+            and (row.get("sector_weights") or {}).get(row["top_sector"], 0) >= _CONCENTRATION_THRESHOLD
+        ]
+        if not candidates:
+            logger.info("Concentration risk push: no users above %.0f%% threshold", _CONCENTRATION_THRESHOLD * 100)
+            return
+
+        uids = [uid for uid, _ in candidates]
+        prof_res = await run_query(
+            db.table("user_profiles")
+            .select("user_id,name,subscription_tier,trial_started_at,investing_style")
+            .in_("user_id", uids)
+        )
+        prof_map = {r["user_id"]: r for r in (prof_res.data or [])}
+
+        sent = 0
+        for uid, row in candidates:
+            prof = prof_map.get(uid, {})
+            first = (prof.get("name") or "Inversor").split()[0]
+            top_sector = row["top_sector"]
+            weight_pct = row["sector_weights"][top_sector] * 100
+            total_value = row["total_value"]
+            is_prem = _is_premium_user(prof.get("subscription_tier", "free"), prof.get("trial_started_at"))
+
+            body = None
+            if is_prem:
+                body = await generate_concentration_insight(
+                    first, top_sector, weight_pct, total_value, prof.get("investing_style"),
+                )
+            if not body:
+                body = (
+                    f"El {weight_pct:.0f}% de tu portafolio está concentrado en {top_sector}. "
+                    f"Considera diversificar para reducir el riesgo."
+                )
+
+            await send_push(
+                uid, "concentration_risk",
+                "⚠️ Concentración de portafolio",
+                body,
+                {"screen": "portfolio", "sector": top_sector, "weight_pct": round(weight_pct, 1)},
+                db,
+            )
+            sent += 1
+            await asyncio.sleep(random.uniform(0.05, 0.2))
+
+        logger.info("Concentration risk push: %d users notified", sent)
+    except Exception as e:
+        logger.error("job_concentration_risk_push failed: %s", e)
 
 
 def _finnhub_earnings_today(hour_filter: str | None = None) -> dict[str, dict]:
@@ -3356,6 +3462,340 @@ async def job_valuation_push():
         logger.info("Valuation push: %d tickers scored, %d pushes sent", len(ticker_info), sent)
     except Exception as e:
         logger.error("job_valuation_push failed: %s", e)
+
+
+_DRIFT_STYLES = ("value", "growth", "dividend")
+
+
+def _drift_reason(investing_style: str, categories: dict, dividend_yield: float) -> tuple[str, str] | None:
+    """Returns (reason_key, reason_text) if the holding no longer matches the
+    user's declared investing style, else None. Reuses the same category
+    scores already computed for the AI Analyst / valuation push — a join,
+    not new intelligence."""
+    val_score  = categories.get("valuation")
+    grow_score = categories.get("growth")
+    if investing_style == "value" and val_score is not None and val_score < 35:
+        return "expensive_for_value", "está cara respecto a sus fundamentos (múltiplos elevados), no encaja con una tesis de value investing"
+    if investing_style == "growth" and grow_score is not None and grow_score < 35:
+        return "weak_growth", "muestra crecimiento débil de ingresos/ganancias, no encaja con una tesis growth"
+    if investing_style == "dividend" and (dividend_yield or 0) < 0.5:
+        return "no_dividend", "prácticamente no paga dividendos, no encaja con una estrategia de renta pasiva"
+    return None
+
+
+async def job_thesis_drift_push():
+    """Jueves 1:00 PM ET — AI Portfolio Manager, Premium only: detecta cuando
+    una posición ya no encaja con el estilo de inversión declarado por el
+    usuario (value/growth/dividend), reutilizando el scoring fundamental ya
+    calculado para el X-ray de acciones y el push de valoración. Solo notifica
+    cuando la razón de drift cambia (thesis_drift_state), no cada semana."""
+    from app.core.database import get_supabase, run_query
+    from app.services.notification_engine import send_push
+    from app.services.portfolio_manager_service import generate_thesis_drift_insight
+    from app.api.routes.market import _fetch_stock_detail, _compute_stock_score
+
+    db = get_supabase()
+    try:
+        prof_res = await run_query(
+            db.table("user_profiles")
+            .select("user_id,name,subscription_tier,trial_started_at,investing_style")
+        )
+        candidates = [
+            r for r in (prof_res.data or [])
+            if r.get("investing_style") in _DRIFT_STYLES
+            and _is_premium_user(r.get("subscription_tier", "free"), r.get("trial_started_at"))
+        ]
+        if not candidates:
+            return
+
+        prefs_res = await run_query(
+            db.table("notification_preferences").select("user_id,push_portfolio_alerts")
+        )
+        explicit_prefs = {p["user_id"]: p.get("push_portfolio_alerts", True) for p in (prefs_res.data or [])}
+        candidates = [r for r in candidates if explicit_prefs.get(r["user_id"], True)]
+        if not candidates:
+            return
+
+        user_tickers: dict[str, set[str]] = {}
+        all_tickers: set[str] = set()
+        for r in candidates:
+            uid = r["user_id"]
+            port_res = await run_query(db.table("user_portfolio").select("positions").eq("user_id", uid))
+            if not port_res.data:
+                continue
+            pos = _agg_positions(port_res.data or [])
+            tickers = {p["ticker"] for p in pos if p.get("ticker")}
+            if tickers:
+                user_tickers[uid] = tickers
+                all_tickers |= tickers
+
+        if not all_tickers:
+            return
+
+        def _score_one(ticker: str) -> dict | None:
+            try:
+                detail = _fetch_stock_detail(ticker)
+                result = _compute_stock_score(detail)
+                categories = {c["key"]: c["score"] for c in result.get("categories", [])}
+                dividend_yield = float(detail.get("profile", {}).get("dividend_yield") or 0)
+                return {
+                    "categories": categories,
+                    "dividend_yield": dividend_yield,
+                    "name": _clean_company_name(detail.get("profile", {}).get("name"), ticker),
+                }
+            except Exception:
+                return None
+
+        ticker_info: dict[str, dict] = {}
+        with concurrent.futures.ThreadPoolExecutor(max_workers=5) as ex:
+            futures = {ex.submit(_score_one, t): t for t in all_tickers}
+            for fut, t in futures.items():
+                try:
+                    r = fut.result(timeout=20)
+                    if r:
+                        ticker_info[t] = r
+                except Exception:
+                    pass
+
+        prof_map = {r["user_id"]: r for r in candidates}
+        state_res = await run_query(
+            db.table("thesis_drift_state").select("user_id,ticker,reason_key")
+            .in_("user_id", list(user_tickers.keys()))
+        )
+        last_reason: dict[tuple[str, str], str] = {
+            (r["user_id"], r["ticker"]): r["reason_key"] for r in (state_res.data or [])
+        }
+
+        sent = 0
+        for uid, tickers in user_tickers.items():
+            style = prof_map[uid]["investing_style"]
+            first = (prof_map[uid].get("name") or "Inversor").split()[0]
+            for ticker in sorted(tickers & ticker_info.keys()):
+                info = ticker_info[ticker]
+                drift = _drift_reason(style, info["categories"], info["dividend_yield"])
+                if not drift:
+                    continue
+                reason_key, reason_text = drift
+                if last_reason.get((uid, ticker)) == reason_key:
+                    continue
+
+                body = await generate_thesis_drift_insight(first, ticker, info["name"], style, reason_text)
+                if not body:
+                    body = f"{info['name']} ({ticker}) {reason_text}. Vale la pena revisar tu tesis."
+
+                await send_push(
+                    uid, f"thesis_drift_{ticker}",
+                    f"🔍 {ticker}: ¿aún encaja?",
+                    body,
+                    {"ticker": ticker, "screen": "portfolio"},
+                    db,
+                )
+                await run_query(
+                    db.table("thesis_drift_state").upsert(
+                        {"user_id": uid, "ticker": ticker, "reason_key": reason_key,
+                         "updated_at": datetime.utcnow().isoformat()},
+                        on_conflict="user_id,ticker",
+                    )
+                )
+                sent += 1
+                await asyncio.sleep(random.uniform(0.05, 0.2))
+
+        logger.info("Thesis drift push: %d tickers scored, %d pushes sent", len(ticker_info), sent)
+    except Exception as e:
+        logger.error("job_thesis_drift_push failed: %s", e)
+
+
+# ── Daily habit system — evening capsule ──────────────────────────────────────
+_EVENING_CAPSULES = [
+    ("🌙 Cápsula de 3 min: Free Cash Flow", "El FCF es el efectivo que le queda a una empresa después de operar e invertir en sí misma — más confiable que la utilidad neta, que se puede maquillar. 3 min en la Academia Nuvos."),
+    ("🌙 Cápsula de 3 min: Foso competitivo", "Un 'moat' es lo que protege a una empresa de la competencia: marca, costos de cambio, efecto de red. Aprende a identificarlo en 3 minutos."),
+    ("🌙 Cápsula de 3 min: Margen de seguridad", "Comprar por debajo del valor intrínseco te protege de tus propios errores de análisis. Es la idea central de Benjamin Graham — repásala hoy."),
+    ("🌙 Cápsula de 3 min: Sesgo de confirmación", "Buscamos información que confirme lo que ya creemos sobre una acción, e ignoramos lo que la contradice. Aprende a detectarlo en ti mismo."),
+    ("🌙 Cápsula de 3 min: Dilución de acciones", "Cuando una empresa emite más acciones, tu porcentaje de propiedad se reduce aunque el precio no cambie. Entiende por qué importa."),
+    ("🌙 Cápsula de 3 min: Ciclo económico", "Identificar en qué fase del ciclo está la economía te ayuda a entender por qué ciertos sectores se comportan distinto. 3 minutos para ubicarte."),
+    ("🌙 Cápsula de 3 min: Costo de oportunidad", "Cada dólar invertido en algo es un dólar que no está en otra cosa. Aprende a pensar así antes de tu próxima decisión."),
+]
+
+
+async def job_evening_capsule_push():
+    """7:30 PM ET diario — cápsula educativa de 3 minutos, cierre del día.
+    Rotación independiente de job_education_push (contenido y horario distintos),
+    pensada como el ritual nocturno del hábito diario."""
+    from app.core.database import get_supabase, run_query
+    from app.services.notification_engine import send_push
+    db = get_supabase()
+    try:
+        day_idx = datetime.now(timezone.utc).timetuple().tm_yday
+        title, body = _EVENING_CAPSULES[day_idx % len(_EVENING_CAPSULES)]
+
+        prefs_res = await run_query(
+            db.table("notification_preferences").select("user_id").eq("push_news_general", True)
+        )
+        sent = 0
+        for i, u in enumerate(prefs_res.data or []):
+            if i % 100 == 0 and i > 0:
+                await asyncio.sleep(12)
+            await asyncio.sleep(random.uniform(0, 0.12))
+            await send_push(u["user_id"], "evening_capsule", title, body, {"screen": "academy"}, db)
+            sent += 1
+        logger.info("Evening capsule push: %d sent (capsule index %d)", sent, day_idx % len(_EVENING_CAPSULES))
+    except Exception as e:
+        logger.error("job_evening_capsule_push failed: %s", e)
+
+
+# ── Daily habit system — Sunday portfolio review ──────────────────────────────
+async def job_sunday_portfolio_review():
+    """Domingo 5:00 PM ET — resumen semanal del portafolio: cambio de valor
+    vs. hace 7 días + top mover, usando los snapshots de fmg_portfolio_snapshots
+    que ya se calculan a diario. Premium recibe una versión con IA que referencia
+    su patrimonio y estilo declarado; free recibe la versión con solo datos."""
+    from app.core.database import get_supabase, run_query
+    from app.services.notification_engine import send_push
+    from app.services.portfolio_manager_service import _haiku_insight
+    db = get_supabase()
+    try:
+        week_ago = (datetime.now(timezone.utc) - timedelta(days=7)).date().isoformat()
+        snap_res = await run_query(
+            db.table("fmg_portfolio_snapshots")
+            .select("user_id,snapshot_date,total_value,top_sector")
+            .order("snapshot_date", desc=True)
+            .limit(8000)
+        )
+        latest_by_user: dict[str, dict] = {}
+        weekago_by_user: dict[str, dict] = {}
+        for row in (snap_res.data or []):
+            uid = row["user_id"]
+            if uid not in latest_by_user:
+                latest_by_user[uid] = row
+            if row["snapshot_date"] <= week_ago and uid not in weekago_by_user:
+                weekago_by_user[uid] = row
+
+        prefs_res = await run_query(
+            db.table("notification_preferences").select("user_id,push_portfolio_alerts")
+        )
+        explicit_prefs = {p["user_id"]: p.get("push_portfolio_alerts", True) for p in (prefs_res.data or [])}
+
+        uids = [uid for uid in latest_by_user if explicit_prefs.get(uid, True)]
+        if not uids:
+            return
+        prof_res = await run_query(
+            db.table("user_profiles")
+            .select("user_id,name,subscription_tier,trial_started_at,investing_style")
+            .in_("user_id", uids)
+        )
+        prof_map = {r["user_id"]: r for r in (prof_res.data or [])}
+
+        sent = 0
+        for uid in uids:
+            latest = latest_by_user[uid]
+            prev   = weekago_by_user.get(uid)
+            total  = latest.get("total_value") or 0
+            if total <= 0:
+                continue
+            prof  = prof_map.get(uid, {})
+            first = (prof.get("name") or "Inversor").split()[0]
+            is_prem = _is_premium_user(prof.get("subscription_tier", "free"), prof.get("trial_started_at"))
+
+            change_str = ""
+            if prev and prev.get("total_value"):
+                delta = total - prev["total_value"]
+                pct   = delta / prev["total_value"] * 100 if prev["total_value"] else 0
+                sign  = "+" if delta >= 0 else ""
+                change_str = f" ({sign}${delta:,.0f}, {sign}{pct:.1f}% vs. hace 7 días)"
+
+            body = None
+            if is_prem:
+                style = prof.get("investing_style")
+                style_note = f" Estilo declarado: {style}." if style and style != "not_set" else ""
+                prompt = (
+                    f"Eres el Portfolio Manager IA de Nuvos. Escribe UNA notificación push (máximo 200 caracteres) "
+                    f"de revisión semanal para {first}: su portafolio vale ${total:,.0f} USD{change_str}, "
+                    f"su sector principal es {latest.get('top_sector') or 'diversificado'}.{style_note} "
+                    f"Tono de cierre de semana, sin alarmismo, invita a revisar el detalle. "
+                    f"Sin emojis al inicio, sin mencionar \"Nuvos AI\", solo el texto de la notificación."
+                )
+                body = await _haiku_insight(prompt, max_tokens=120)
+            if not body:
+                body = f"Tu portafolio cerró la semana en ${total:,.0f} USD{change_str}. Revisa el detalle en Nuvos."
+
+            await send_push(
+                uid, "sunday_portfolio_review",
+                "📅 Tu semana en Nuvos",
+                body,
+                {"screen": "portfolio"},
+                db,
+            )
+            sent += 1
+            await asyncio.sleep(random.uniform(0.05, 0.2))
+
+        logger.info("Sunday portfolio review: %d sent", sent)
+    except Exception as e:
+        logger.error("job_sunday_portfolio_review failed: %s", e)
+
+
+# ── Daily habit system — quarterly earnings season digest ────────────────────
+async def job_quarterly_earnings_digest():
+    """Día 5 de enero/abril/julio/octubre, 9:00 AM ET — resumen de qué activos
+    del usuario reportan ganancias esta temporada (los próximos ~45 días),
+    reutilizando el mismo calendario de earnings que ya usa el preview diario."""
+    from app.core.database import get_supabase, run_query
+    from app.services.notification_engine import send_push
+    from app.api.routes.earnings import _fetch_events_for_symbol
+    db = get_supabase()
+    try:
+        prefs_res = await run_query(
+            db.table("notification_preferences").select("user_id").eq("push_portfolio_alerts", True)
+        )
+        uids = [r["user_id"] for r in (prefs_res.data or [])]
+        if not uids:
+            return
+
+        window_end = (datetime.now(timezone.utc) + timedelta(days=45)).date()
+        today = datetime.now(timezone.utc).date()
+
+        sent = 0
+        for i, uid in enumerate(uids):
+            if i % 100 == 0 and i > 0:
+                await asyncio.sleep(12)
+            port_res = await run_query(db.table("user_portfolio").select("positions").eq("user_id", uid))
+            if not port_res.data:
+                continue
+            positions = _agg_positions(port_res.data or [])
+            tickers = [p["ticker"] for p in positions if p.get("ticker")]
+            if not tickers:
+                continue
+
+            reporting: list[str] = []
+            for ticker in tickers[:20]:
+                events = await asyncio.to_thread(_fetch_events_for_symbol, ticker)
+                for ev in events:
+                    if ev.get("event_type") == "earnings":
+                        try:
+                            ev_date = datetime.strptime(ev["event_date"], "%Y-%m-%d").date()
+                        except Exception:
+                            continue
+                        if today <= ev_date <= window_end:
+                            reporting.append(ticker)
+                            break
+
+            if not reporting:
+                continue
+            names = ", ".join(reporting[:5])
+            extra = f" y {len(reporting) - 5} más" if len(reporting) > 5 else ""
+            body = f"Esta temporada de earnings reportan: {names}{extra}. Prepárate revisando expectativas en Nuvos."
+            await send_push(
+                uid, "quarterly_earnings_digest",
+                "📈 Temporada de resultados",
+                body,
+                {"screen": "portfolio"},
+                db,
+            )
+            sent += 1
+            await asyncio.sleep(random.uniform(0.05, 0.2))
+
+        logger.info("Quarterly earnings digest: %d sent", sent)
+    except Exception as e:
+        logger.error("job_quarterly_earnings_digest failed: %s", e)
 
 
 async def job_fmg_snapshot():
@@ -4104,6 +4544,21 @@ async def main():
 
     # ── Wednesday: weekly valuation push (watchlist + portfolio, all users) ───
     scheduler.add_job(job_valuation_push,       "cron", day_of_week="wed",     hour=12,      minute=0,     timezone="America/New_York")
+
+    # ── AI Portfolio Manager — proactive alerts (written earlier, now scheduled) ──
+    scheduler.add_job(job_risk_mgmt_push,        "cron", day_of_week="fri",     hour=15, minute=0, timezone="America/New_York")
+    scheduler.add_job(job_diversification_push,  "cron", day_of_week="sat",     hour=11, minute=0, timezone="America/New_York")
+    scheduler.add_job(job_concentration_risk_push, "cron", day_of_week="tue",   hour=13, minute=0, timezone="America/New_York")
+    scheduler.add_job(job_opportunity_push,      "cron", day_of_week="wed,fri", hour=13, minute=0, timezone="America/New_York")
+    scheduler.add_job(job_social_proof_push,     "cron", day_of_week="sat",     hour=15, minute=0, timezone="America/New_York")
+    scheduler.add_job(job_education_push,        "cron", day_of_week="mon,wed,fri", hour=14, minute=0, timezone="America/New_York")
+    scheduler.add_job(job_reengagement_push,     "cron",                        hour=11, minute=0, timezone="America/New_York")
+    scheduler.add_job(job_thesis_drift_push,     "cron", day_of_week="thu",     hour=13, minute=0, timezone="America/New_York")
+
+    # ── Daily habit system ──────────────────────────────────────────────────────
+    scheduler.add_job(job_evening_capsule_push,      "cron",                    hour=19, minute=30, timezone="America/New_York")
+    scheduler.add_job(job_sunday_portfolio_review,   "cron", day_of_week="sun", hour=17, minute=0,  timezone="America/New_York")
+    scheduler.add_job(job_quarterly_earnings_digest, "cron", month="1,4,7,10", day=5, hour=9, minute=0, timezone="America/New_York")
 
     # ── Monthly: day 1 (premium personalized, free general) ──────────────────
     scheduler.add_job(job_monthly_report_push,  "cron", day=1,                 hour=9,       minute=0,     timezone="America/New_York")

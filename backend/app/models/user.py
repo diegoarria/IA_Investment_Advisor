@@ -74,6 +74,13 @@ class UserProfile(BaseModel):
     has_broker: Optional[bool] = None
     broker_name: Optional[str] = None
     has_investments: Optional[bool] = None
+    net_worth_usd: Optional[float] = None
+    monthly_expenses_usd: Optional[float] = None
+    currency: Optional[str] = None
+    preferred_language: Optional[str] = None
+    investing_style: Optional[str] = None
+    time_horizon_years: Optional[int] = None
+    financial_freedom_target_usd: Optional[float] = None
     created_at: Optional[str] = None
     updated_at: Optional[str] = None
 

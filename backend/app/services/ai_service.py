@@ -644,19 +644,46 @@ def build_profile_context(profile: UserProfile) -> str:
         else "No especificado"
     )
 
+    style_map = {
+        "value": "value investing (negocios de calidad a precio justo)",
+        "growth": "growth (crecimiento por encima de valoración)",
+        "dividend": "dividendos / renta pasiva",
+        "index": "indexado / pasivo",
+        "momentum": "momentum / técnico",
+    }
+    investing_style_val = getattr(profile, "investing_style", None)
+    style_str = style_map.get(investing_style_val, "No especificado aún")
+
+    net_worth_val = getattr(profile, "net_worth_usd", None)
+    net_worth_str = f"${net_worth_val:,.0f}" if net_worth_val else "No especificado"
+
+    expenses_val = getattr(profile, "monthly_expenses_usd", None)
+    expenses_str = f"${expenses_val:,.0f}/mes" if expenses_val else "No especificado"
+
+    horizon_val = getattr(profile, "time_horizon_years", None)
+    horizon_str = f"{horizon_val} años" if horizon_val else "No especificado"
+
+    freedom_target_val = getattr(profile, "financial_freedom_target_usd", None)
+    freedom_str = f"${freedom_target_val:,.0f}" if freedom_target_val else "No especificado"
+
     return f"""
 ## PERFIL DEL USUARIO ACTUAL:
 - Nombre: {profile.name or 'No especificado'}
 - Edad: {age_str}
 - País: {country_str}
 - Ingresos mensuales: {income}
+- Gastos mensuales: {expenses_str}
+- Patrimonio neto declarado: {net_worth_str}
 - Contribución mensual: {contrib}
 - Capital inicial disponible: {initial_cap_str}
 - Tolerancia al riesgo: {risk_map.get(profile.risk_tolerance, profile.risk_tolerance)}
+- Estilo de inversión declarado: {style_str}
+- Horizonte de tiempo: {horizon_str}
+- Meta de libertad financiera: {freedom_str}
 - Broker: {broker_str}
 - Inversiones previas: {inv_str}{quiz_extra}
 
-ADAPTA TODO tu análisis a este perfil específico. Si no tiene broker ni inversiones, guíalo hacia su primera inversión de forma simple y sin jerga técnica."""
+ADAPTA TODO tu análisis a este perfil específico, incluyendo su estilo de inversión declarado. Si no tiene broker ni inversiones, guíalo hacia su primera inversión de forma simple y sin jerga técnica."""
 
 
 def build_deep_user_context(
