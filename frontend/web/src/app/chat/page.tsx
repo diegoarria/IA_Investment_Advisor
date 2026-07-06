@@ -20,10 +20,11 @@ import { useUpsellStore } from "@/lib/upsellStore";
 import TutorialModal from "@/components/TutorialModal";
 import GuidedSteps from "@/components/GuidedSteps";
 import PremiumBadge from "@/components/PremiumBadge";
+import VoiceCallModal from "@/components/VoiceCallModal";
 import { useTutorialStore } from "@/lib/store";
 import {
   Send, TrendingUp, Bell, LogOut, Menu, X,
-  ChevronRight, Sun, Moon, Square, Pencil, ImagePlus, Plus, Mic, Play, Copy,
+  ChevronRight, Sun, Moon, Square, Pencil, ImagePlus, Plus, Mic, Play, Copy, Phone,
 } from "lucide-react";
 import { getUserLevel, LEVEL_LABEL, LEVEL_COLOR } from "@/lib/userLevel";
 
@@ -233,6 +234,7 @@ export default function ChatPage() {
   const [recordingSecs, setRecordingSecs] = useState(0);
   const [voiceAudio, setVoiceAudio] = useState<{ content: string; url: string | null; loading: boolean; playing: boolean } | null>(null);
   const [sendError, setSendError] = useState<string | null>(null);
+  const [showCallModal, setShowCallModal] = useState(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -454,24 +456,28 @@ export default function ChatPage() {
   useEffect(() => {
     if (!hasSeenTutorial) setTimeout(() => openTutorial(), 800);
 
-    // Fresh browser session (tab closed+reopened) or logout: always start with a new empty chat.
-    // sessionStorage is cleared automatically when the browser tab/window closes.
-    const isNewBrowserSession = !sessionStorage.getItem("nuvos_chat_active");
-    sessionStorage.setItem("nuvos_chat_active", "1");
-
-    // Load all sessions from server (grouped by session_id) then set polling cursor
+    // Always start with a fresh empty chat on every visit/navigation to this page.
+    // Load history from server first so the sidebar shows past sessions, then open
+    // a new blank session for the current conversation.
     loadFromServer().finally(() => {
       chatApi.getHistory()
         .then((res) => {
           const msgs: { created_at?: string }[] = res.data?.messages ?? [];
           syncCursorRef.current = msgs[msgs.length - 1]?.created_at ?? new Date().toISOString();
-          if (isNewBrowserSession || useChatStore.getState().sessions.length === 0) createSession();
+          createSession();
         })
         .catch(() => {
           syncCursorRef.current = new Date().toISOString();
-          if (isNewBrowserSession || useChatStore.getState().sessions.length === 0) createSession();
+          createSession();
         });
     });
+
+    // Also open a fresh session whenever the user returns to this tab after
+    // having it hidden (matches mobile's AppState inactive→active behavior).
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") createSession();
+    };
+    document.addEventListener("visibilitychange", onVisibility);
 
     // Retry the history pull shortly after mount. This call has no retry of its
     // own, so a single cold-start race with auth-token restoration (e.g. a fresh
@@ -487,7 +493,10 @@ export default function ChatPage() {
 
     subStore.fetchStatus().catch(() => {});
     loadPortfolio();
-    return () => retryTimers.forEach(clearTimeout);
+    return () => {
+      retryTimers.forEach(clearTimeout);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
   }, [isAuthenticated]);
 
   useEffect(() => {
@@ -1399,6 +1408,13 @@ export default function ChatPage() {
                     <span className="hidden sm:inline">{isTranscribing ? "Transcribiendo..." : "Voz"}</span>
                   </button>
 
+                  <button onClick={() => setShowCallModal(true)} disabled={isStreaming}
+                          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium hover:bg-white/5 disabled:opacity-30 transition-colors"
+                          style={{ color: "var(--muted)" }}>
+                    <Phone className="w-3.5 h-3.5" />
+                    <span className="hidden sm:inline">Llamar</span>
+                  </button>
+
                   <div className="flex-1" />
 
                   <span className="text-[9px] hidden md:block" style={{ color: "var(--dim)" }}>
@@ -1438,6 +1454,8 @@ export default function ChatPage() {
           </div>
         </div>
       )}
+
+      {showCallModal && <VoiceCallModal onClose={() => setShowCallModal(false)} />}
 
       <PaywallModal visible={paywallOpen} onClose={() => setPaywallOpen(false)} />
       <TutorialModal />

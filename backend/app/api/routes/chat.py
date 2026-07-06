@@ -390,21 +390,17 @@ async def transcribe_audio(
     user_id: str = Depends(get_current_user_id),
 ):
     """Convert voice recording to text using OpenAI Whisper."""
-    api_key = os.getenv("OPENAI_API_KEY")
-    if not api_key:
-        raise HTTPException(status_code=503, detail="Servicio de voz no configurado")
+    from app.services.voice_service import transcribe_audio_bytes
     try:
-        from openai import AsyncOpenAI
-        client = AsyncOpenAI(api_key=api_key)
         audio_bytes = await audio.read()
-        filename = audio.filename or "audio.m4a"
-        content_type = audio.content_type or "audio/m4a"
-        transcript = await client.audio.transcriptions.create(
-            model="whisper-1",
-            file=(filename, audio_bytes, content_type),
-            language="es",
+        text = await transcribe_audio_bytes(
+            audio_bytes,
+            filename=audio.filename or "audio.m4a",
+            content_type=audio.content_type or "audio/m4a",
         )
-        return {"text": transcript.text}
+        return {"text": text}
+    except RuntimeError as e:
+        raise HTTPException(status_code=503, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error al transcribir: {str(e)}")
 
@@ -417,44 +413,14 @@ async def speak_text(
     user_id: str = Depends(get_current_user_id),
 ):
     """Convert text to speech. Uses ElevenLabs if configured, else OpenAI TTS."""
+    from app.services.voice_service import synthesize_speech_b64
     text = (body.get("text") or "").strip()[:2000]
     if not text:
         raise HTTPException(status_code=400, detail="text requerido")
-
-    eleven_key = os.getenv("ELEVENLABS_API_KEY")
-    if eleven_key:
-        voice_id = os.getenv("ELEVENLABS_VOICE_ID", "SOYHLrjzK2X1ezoPC6cr")
-        url = f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}"
-        payload = {
-            "text": text,
-            "model_id": "eleven_multilingual_v2",
-            "voice_settings": {"stability": 0.45, "similarity_boost": 0.80, "style": 0.20, "use_speaker_boost": True},
-        }
-        headers = {"xi-api-key": eleven_key, "Content-Type": "application/json", "Accept": "audio/mpeg"}
-        try:
-            import httpx
-            async with httpx.AsyncClient(timeout=30) as client:
-                resp = await client.post(url, json=payload, headers=headers)
-                resp.raise_for_status()
-                audio_b64 = base64.b64encode(resp.content).decode()
-                return {"audio": audio_b64}
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Error ElevenLabs: {str(e)}")
-
-    # Fallback: OpenAI TTS
-    api_key = os.getenv("OPENAI_API_KEY")
-    if not api_key:
-        raise HTTPException(status_code=503, detail="Servicio de voz no configurado")
     try:
-        from openai import AsyncOpenAI
-        client = AsyncOpenAI(api_key=api_key)
-        response = await client.audio.speech.create(
-            model="tts-1",
-            voice="nova",
-            input=text,
-        )
-        audio_b64 = base64.b64encode(response.content).decode()
-        return {"audio": audio_b64}
+        return {"audio": await synthesize_speech_b64(text)}
+    except RuntimeError as e:
+        raise HTTPException(status_code=503, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error al generar voz: {str(e)}")
 
