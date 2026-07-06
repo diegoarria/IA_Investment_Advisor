@@ -35,7 +35,7 @@ async def synthesize_speech_bytes(text: str) -> bytes:
 
     eleven_key = os.getenv("ELEVENLABS_API_KEY")
     if eleven_key:
-        voice_id = os.getenv("ELEVENLABS_VOICE_ID", "SOYHLrjzK2X1ezoPC6cr")
+        voice_id = os.getenv("ELEVENLABS_VOICE_ID", "jBDyTilUWfkS9aYMESCa")
         url = f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}"
         payload = {
             "text": text,
