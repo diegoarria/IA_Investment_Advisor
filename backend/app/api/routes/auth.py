@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import secrets
 
 from fastapi import APIRouter, HTTPException, Depends
@@ -7,7 +8,20 @@ from app.models.user import AuthRequest, TokenResponse
 from app.api.deps import get_current_user_id
 from app.core.cache import cache_get, cache_set, cache_delete
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter(prefix="/auth", tags=["auth"])
+
+# Holds strong references to fire-and-forget tasks so the GC can't collect them
+# before they finish. Tasks remove themselves when done.
+_bg_tasks: set[asyncio.Task] = set()
+
+
+def _fire(coro) -> None:
+    """Schedule a coroutine as a background task with GC protection."""
+    task = asyncio.create_task(coro)
+    _bg_tasks.add(task)
+    task.add_done_callback(_bg_tasks.discard)
 
 _RESET_TTL = 900  # 15 minutes
 
@@ -21,25 +35,25 @@ def _del_reset_code(key: str) -> None:
     cache_delete(key)
 
 
-async def _send_welcome_email(email: str) -> None:
-    """Fire-and-forget — never raises, never blocks the register response."""
-    try:
-        from app.services.email_service import send_email, NUVOS_LOGO_SRC
-        html = f"""<!DOCTYPE html>
+async def _send_welcome_email(email: str, attempt: int = 1) -> None:
+    """
+    Send the welcome email. Retries up to 3 times with exponential backoff.
+    Logs success and every failure — never swallows errors silently.
+    """
+    from app.services.email_service import send_email, NUVOS_LOGO_SRC
+    subject = "Ya eres parte de Nuvos AI 🎉"
+    html = f"""<!DOCTYPE html>
 <html lang="es">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
 <body style="margin:0;padding:0;background:#0f1117;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,sans-serif">
   <div style="max-width:520px;margin:0 auto;padding:40px 16px">
 
-    <!-- Logo -->
     <div style="text-align:center;margin-bottom:32px">
       <img src="{NUVOS_LOGO_SRC}" alt="Nuvos AI" width="120" style="display:inline-block">
     </div>
 
-    <!-- Card principal -->
     <div style="background:#1a1d27;border-radius:20px;padding:36px 32px;border:1px solid #2a2d3a">
 
-      <!-- Headline -->
       <h1 style="margin:0 0 8px;color:#ffffff;font-size:24px;font-weight:900;letter-spacing:-0.5px">
         Ya eres parte de Nuvos AI 🎉
       </h1>
@@ -48,7 +62,6 @@ async def _send_welcome_email(email: str) -> None:
         entender tu portafolio y tomar mejores decisiones con tu dinero — en español, sin jerga.
       </p>
 
-      <!-- 3 pasos -->
       <div style="margin-bottom:28px">
 
         <div style="display:flex;align-items:flex-start;gap:14px;margin-bottom:18px">
@@ -77,16 +90,13 @@ async def _send_welcome_email(email: str) -> None:
 
       </div>
 
-      <!-- CTA -->
       <a href="https://nuvosai.com/home"
          style="display:block;text-align:center;background:linear-gradient(90deg,#00a85e,#00d47e);color:#000;font-size:15px;font-weight:800;text-decoration:none;padding:14px 24px;border-radius:12px;margin-bottom:24px">
         Empezar ahora →
       </a>
 
-      <!-- Separador -->
       <div style="border-top:1px solid #2a2d3a;margin-bottom:20px"></div>
 
-      <!-- Prueba Premium -->
       <p style="margin:0;color:#9ca3af;font-size:13px;line-height:1.6;text-align:center">
         Tienes <strong style="color:#00d47e">90 días de Premium gratis</strong> incluidos en tu cuenta nueva.
         Úsalos para explorar todo sin límites.
@@ -94,7 +104,6 @@ async def _send_welcome_email(email: str) -> None:
 
     </div>
 
-    <!-- Footer -->
     <p style="text-align:center;color:#4b5563;font-size:12px;margin-top:24px;line-height:1.6">
       Nuvos AI · Tu mentor financiero personal<br>
       <a href="https://nuvosai.com" style="color:#4b5563;text-decoration:none">nuvosai.com</a>
@@ -103,9 +112,27 @@ async def _send_welcome_email(email: str) -> None:
   </div>
 </body>
 </html>"""
-        await send_email(email, "Ya eres parte de Nuvos AI 🎉", html)
-    except Exception:
-        pass
+
+    try:
+        ok = await send_email(email, subject, html)
+        if ok:
+            logger.info("Welcome email sent → %s", email)
+            return
+        # send_email returned False (API error / missing key)
+        raise RuntimeError("send_email returned False")
+    except Exception as exc:
+        if attempt < 3:
+            delay = 10 * attempt  # 10s, 20s
+            logger.warning(
+                "Welcome email attempt %d/3 failed for %s (%s) — retrying in %ds",
+                attempt, email, exc, delay,
+            )
+            await asyncio.sleep(delay)
+            await _send_welcome_email(email, attempt + 1)
+        else:
+            logger.error(
+                "Welcome email FAILED after 3 attempts for %s: %s", email, exc
+            )
 
 
 @router.post("/register", response_model=TokenResponse)
@@ -121,7 +148,7 @@ async def register(request: AuthRequest):
         if result.session is None:
             raise HTTPException(status_code=400, detail="Cuenta creada. Revisa tu correo para confirmar.")
 
-        asyncio.create_task(_send_welcome_email(request.email))
+        _fire(_send_welcome_email(request.email))
 
         return TokenResponse(
             access_token=result.session.access_token,

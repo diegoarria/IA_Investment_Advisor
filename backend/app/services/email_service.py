@@ -1,6 +1,9 @@
 import httpx
+import logging
 import re
 from app.core.config import settings
+
+_log = logging.getLogger(__name__)
 
 # ── Logo (JPEG 160px, white background strip) ─────────────────────────────────
 # To replace with a hosted URL: set NUVOS_LOGO_SRC = "https://your-cdn/logo.png"
@@ -65,13 +68,15 @@ def _nuvos_email_header(tagline: str = "Tu asistente de inversiones") -> str:
 
 
 async def send_email(to: str, subject: str, html: str) -> bool:
-    if not getattr(settings, "resend_api_key", ""):
+    api_key = getattr(settings, "resend_api_key", "")
+    if not api_key:
+        _log.error("send_email: RESEND_API_KEY not set — cannot send to %s", to)
         return False
     try:
-        async with httpx.AsyncClient(timeout=15) as client:
+        async with httpx.AsyncClient(timeout=20) as client:
             res = await client.post(
                 "https://api.resend.com/emails",
-                headers={"Authorization": f"Bearer {settings.resend_api_key}"},
+                headers={"Authorization": f"Bearer {api_key}"},
                 json={
                     "from": "Nuvos AI <resumen@nuvosai.com>",
                     "to": [to],
@@ -79,8 +84,12 @@ async def send_email(to: str, subject: str, html: str) -> bool:
                     "html": html,
                 },
             )
-        return res.status_code == 200
-    except Exception:
+        if res.status_code == 200:
+            return True
+        _log.error("send_email: Resend returned %d for %s — body: %s", res.status_code, to, res.text[:300])
+        return False
+    except Exception as exc:
+        _log.error("send_email: network error for %s: %s", to, exc)
         return False
 
 
