@@ -27,6 +27,7 @@ Protocol (JSON control frames + raw binary audio frames on the same socket):
     {"type":"error", "detail": "..."}
 """
 import asyncio
+import base64
 import json
 import logging
 import re
@@ -99,10 +100,6 @@ async def voice_call_ws(websocket: WebSocket, token: str = ""):
         async with send_lock:
             await websocket.send_json(payload)
 
-    async def _send_bytes(data: bytes):
-        async with send_lock:
-            await websocket.send_bytes(data)
-
     profile = await _load_profile(user_id)
     is_premium = _is_premium(profile)
     ctx = await _load_call_context(user_id, profile, is_premium)
@@ -112,9 +109,10 @@ async def voice_call_ws(websocket: WebSocket, token: str = ""):
     audio_buffer = bytearray()
     current_task: asyncio.Task | None = None
 
-    async def _run_turn(user_audio: bytes):
+    async def _run_turn(user_audio: bytes, mime: str = "audio/webm"):
         try:
-            user_text = await transcribe_audio_bytes(user_audio, filename="utterance.webm", content_type="audio/webm")
+            ext = mime.split("/")[-1] or "webm"
+            user_text = await transcribe_audio_bytes(user_audio, filename=f"utterance.{ext}", content_type=mime)
             user_text = (user_text or "").strip()
             if not user_text:
                 await _send_json({"type": "assistant_done"})
@@ -145,16 +143,20 @@ async def voice_call_ws(websocket: WebSocket, token: str = ""):
                         if len(sentence) < _MIN_SENTENCE_CHARS:
                             continue
                         audio = await synthesize_speech_bytes(sentence)
-                        await _send_json({"type": "assistant_sentence", "text": sentence})
-                        if audio:
-                            await _send_bytes(audio)
+                        await _send_json({
+                            "type": "assistant_sentence",
+                            "text": sentence,
+                            "audio_b64": base64.b64encode(audio).decode() if audio else None,
+                        })
 
             tail = sentence_buf.strip()
             if tail:
                 audio = await synthesize_speech_bytes(tail)
-                await _send_json({"type": "assistant_sentence", "text": tail})
-                if audio:
-                    await _send_bytes(audio)
+                await _send_json({
+                    "type": "assistant_sentence",
+                    "text": tail,
+                    "audio_b64": base64.b64encode(audio).decode() if audio else None,
+                })
 
             await _send_json({"type": "assistant_done"})
 
@@ -208,6 +210,22 @@ async def voice_call_ws(websocket: WebSocket, token: str = ""):
                 if not audio:
                     continue
                 current_task = asyncio.create_task(_run_turn(audio))
+
+            elif msg_type == "utterance_audio":
+                # Mobile path: whole utterance as one base64 JSON message instead of
+                # raw binary chunks + utterance_end (React Native has no easy way to
+                # get an ArrayBuffer out of a recording file URI for a binary WS send).
+                if current_task and not current_task.done():
+                    continue
+                b64 = data.get("audio_b64")
+                if not b64:
+                    continue
+                try:
+                    audio = base64.b64decode(b64)
+                except Exception:
+                    continue
+                mime = data.get("mime") or "audio/m4a"
+                current_task = asyncio.create_task(_run_turn(audio, mime=mime))
 
             elif msg_type == "barge_in":
                 audio_buffer.clear()

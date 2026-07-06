@@ -122,40 +122,44 @@ export default function VoiceCallModal({ onClose }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  function handleServerMessage(data: string | ArrayBuffer) {
-    if (typeof data === "string") {
-      let msg: any;
-      try {
-        msg = JSON.parse(data);
-      } catch {
-        return;
-      }
-      switch (msg.type) {
-        case "transcript":
-          setCaption(msg.text || "");
-          setStatus("assistant_speaking");
-          assistantSpeakingRef.current = true;
-          awaitingMoreRef.current = true;
-          break;
-        case "assistant_sentence":
-          setCaption(msg.text || "");
-          break;
-        case "assistant_done":
-          awaitingMoreRef.current = false;
-          maybeFinishSpeaking();
-          break;
-        case "cancelled":
-          stopAllPlayback();
-          break;
-        case "error":
-          setErrorMsg(msg.detail || "Ocurrió un error.");
-          break;
-      }
-    } else {
-      // Binary audio chunk (mp3) for the sentence just announced
-      const blob = new Blob([data], { type: "audio/mpeg" });
-      playQueueRef.current.push(blob);
-      if (!currentAudioRef.current) playNextInQueue();
+  function base64ToBlob(b64: string, mime: string): Blob {
+    const bin = atob(b64);
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    return new Blob([bytes], { type: mime });
+  }
+
+  function handleServerMessage(data: string) {
+    let msg: any;
+    try {
+      msg = JSON.parse(data);
+    } catch {
+      return;
+    }
+    switch (msg.type) {
+      case "transcript":
+        setCaption(msg.text || "");
+        setStatus("assistant_speaking");
+        assistantSpeakingRef.current = true;
+        awaitingMoreRef.current = true;
+        break;
+      case "assistant_sentence":
+        setCaption(msg.text || "");
+        if (msg.audio_b64) {
+          playQueueRef.current.push(base64ToBlob(msg.audio_b64, "audio/mpeg"));
+          if (!currentAudioRef.current) playNextInQueue();
+        }
+        break;
+      case "assistant_done":
+        awaitingMoreRef.current = false;
+        maybeFinishSpeaking();
+        break;
+      case "cancelled":
+        stopAllPlayback();
+        break;
+      case "error":
+        setErrorMsg(msg.detail || "Ocurrió un error.");
+        break;
     }
   }
 

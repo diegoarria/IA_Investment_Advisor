@@ -3,7 +3,7 @@ import * as SecureStore from "expo-secure-store";
 import { router } from "expo-router";
 
 
-const BASE_URL =
+export const BASE_URL =
   process.env.EXPO_PUBLIC_API_URL || "https://iainvestmentadvisor-production.up.railway.app";
 
 const api = axios.create({ baseURL: BASE_URL });
@@ -416,6 +416,35 @@ export const progressApi = {
   getMilestones: () => api.get("/api/progress/milestones"),
   getDecisionsThatHelped: () => api.get("/api/progress/decisions-that-helped"),
   getPersonalizedMessage: () => api.get("/api/progress/personalized-message"),
+};
+
+export const financialProfileApi = {
+  get: () => api.get("/api/profile/financial"),
+  update: (fields: Partial<{
+    net_worth_usd: number;
+    monthly_expenses_usd: number;
+    currency: string;
+    preferred_language: string;
+    investing_style: string;
+    time_horizon_years: number;
+    financial_freedom_target_usd: number;
+  }>) => api.patch("/api/profile/financial", fields),
+  getGoals: () => api.get("/api/profile/financial/goals"),
+  addGoal: (goal: { goal_type: string; label?: string; target_usd?: number; target_date?: string; is_primary?: boolean }) =>
+    api.post("/api/profile/financial/goals", goal),
+  deleteGoal: (id: string) => api.delete(`/api/profile/financial/goals/${id}`),
+  getSectors: () => api.get("/api/profile/financial/sectors"),
+  setSectors: (sectors: string[]) => api.put("/api/profile/financial/sectors", { sectors }),
+};
+
+export const libraryApi = {
+  list: (params?: { ticker?: string; item_type?: string; limit?: number }) =>
+    api.get("/api/library", { params }),
+  get: (id: string) => api.get(`/api/library/${id}`),
+  save: (item: { item_type: string; title: string; body?: string; ticker?: string; source?: "user" | "ai"; file_url?: string; metadata?: object }) =>
+    api.post("/api/library", item),
+  update: (id: string, patch: { title?: string; body?: string }) => api.patch(`/api/library/${id}`, patch),
+  delete: (id: string) => api.delete(`/api/library/${id}`),
 };
 
 export default api;

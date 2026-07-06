@@ -188,6 +188,20 @@ function AppStack() {
           presentation: "modal",
         }}
       />
+      <Stack.Screen
+        name="profile/financial"
+        options={{
+          headerTitle: "Perfil financiero",
+          headerShown: true,
+          presentation: "modal",
+        }}
+      />
+      <Stack.Screen
+        name="library"
+        options={{
+          headerShown: false,
+        }}
+      />
     </Stack>
   );
 

@@ -25,6 +25,7 @@ import UpsellModal from "../../src/components/UpsellModal";
 import { useUpsellStore } from "../../src/lib/upsellStore";
 import StockChart from "../../src/components/StockChart";
 import FirstActionModal from "../../src/components/FirstActionModal";
+import VoiceCallModal from "../../src/components/VoiceCallModal";
 import TutorialModal from "../../src/components/TutorialModal";
 import { getMentorInfo } from "../../src/lib/mentorData";
 
@@ -196,6 +197,7 @@ export default function ChatScreen() {
   const [isLoadingAudio, setIsLoadingAudio] = useState(false);
   const [showRecordingModal, setShowRecordingModal] = useState(false);
   const [recordingSecs, setRecordingSecs] = useState(0);
+  const [showCallModal, setShowCallModal] = useState(false);
   const recordingRef = useRef<Audio.Recording | null>(null);
   const soundRef = useRef<Audio.Sound | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -1108,6 +1110,14 @@ Instrucciones críticas:
                   {isTranscribing ? "Procesando..." : isRecording ? "Detener" : "Voz"}
                 </Text>
               </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => setShowCallModal(true)}
+                disabled={streaming}
+                style={[styles.toolbarBtn, { opacity: streaming ? 0.4 : 1 }]}
+              >
+                <Ionicons name="call-outline" size={18} color={colors.textSub} />
+                <Text style={[styles.toolbarBtnText, { color: colors.textMuted }]}>Llamar</Text>
+              </TouchableOpacity>
               <View style={{ flex: 1 }} />
               <Text style={[styles.toolbarBtnText, { color: colors.textDim }]}>↵ Enviar</Text>
             </View>
@@ -1131,6 +1141,7 @@ Instrucciones críticas:
       />
     )}
     <FirstActionModal />
+    <VoiceCallModal visible={showCallModal} onClose={() => setShowCallModal(false)} />
     <TutorialModal
       visible={tutorialVisible}
       onClose={() => { setTutorialVisible(false); markTutorialSeen(); }}

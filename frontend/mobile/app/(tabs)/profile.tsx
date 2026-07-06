@@ -400,6 +400,18 @@ if (!profile) {
         <View style={{ flexDirection: "row", gap: 10 }}>
           <TouchableOpacity
             style={[s.iconBtn, { borderColor: colors.border, backgroundColor: colors.card }]}
+            onPress={() => router.push("/library")}
+          >
+            <Ionicons name="library-outline" size={17} color={colors.text} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[s.iconBtn, { borderColor: colors.border, backgroundColor: colors.card }]}
+            onPress={() => router.push("/profile/financial")}
+          >
+            <Ionicons name="wallet-outline" size={17} color={colors.text} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[s.iconBtn, { borderColor: colors.border, backgroundColor: colors.card }]}
             onPress={() => router.push("/profile/edit")}
           >
             <Ionicons name="pencil-outline" size={17} color={colors.text} />
