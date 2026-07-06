@@ -4,8 +4,54 @@ and the real-time voice-call WebSocket pipeline, so the two never drift."""
 import base64
 import logging
 import os
+import re
 
 logger = logging.getLogger(__name__)
+
+# TTS engines mangle bare ticker letters (spelling "VOO" or "QQQM" out loud is
+# unnatural, and 4-letter clusters like "NFLX" often get mispronounced as a
+# word). Swap known tickers for how a person would actually say them in
+# conversation before the text ever reaches the TTS provider.
+_TICKER_SPEECH_MAP: dict[str, str] = {
+    # Broad-market / index ETFs — say the fund/index, not the letters.
+    # No leading article ("el"/"la") here: the surrounding sentence usually
+    # already has one ("El VTI es..." → "El Vanguard Total Market es...").
+    "VOO": "Vanguard S&P 500", "SPY": "S&P 500", "IVV": "S&P 500",
+    "VTI": "Vanguard Total Market", "QQQ": "Nasdaq 100", "QQQM": "Nasdaq 100",
+    "IWM": "Russell 2000", "DIA": "Dow Jones",
+    "VXUS": "Vanguard mercados internacionales", "VEA": "Vanguard mercados desarrollados",
+    "VWO": "Vanguard mercados emergentes", "BND": "Vanguard de bonos",
+    "SCHD": "Schwab de dividendos", "VYM": "Vanguard de alto dividendo",
+    "ARKK": "ARK Innovation",
+    # Companies — say the name, not the ticker
+    "AAPL": "Apple", "MSFT": "Microsoft", "GOOGL": "Alphabet", "GOOG": "Alphabet",
+    "AMZN": "Amazon", "META": "Meta", "TSLA": "Tesla", "NVDA": "NVIDIA",
+    "NFLX": "Netflix", "SPOT": "Spotify", "DIS": "Disney", "INTC": "Intel",
+    "ORCL": "Oracle", "CRM": "Salesforce", "ADBE": "Adobe", "SBUX": "Starbucks",
+    "JPM": "JPMorgan", "BAC": "Bank of America",
+    "GS": "Goldman Sachs", "WFC": "Wells Fargo",
+    "JNJ": "Johnson & Johnson", "PFE": "Pfizer", "ABBV": "AbbVie", "UNH": "UnitedHealth",
+    "MRK": "Merck", "XOM": "ExxonMobil", "CVX": "Chevron",
+    "KO": "Coca-Cola", "PEP": "PepsiCo", "WMT": "Walmart", "COST": "Costco",
+    "HD": "Home Depot", "MCD": "McDonald's", "NKE": "Nike", "BA": "Boeing",
+    "CAT": "Caterpillar", "PG": "Procter & Gamble", "VZ": "Verizon",
+    "PLTR": "Palantir", "COIN": "Coinbase", "SOFI": "SoFi", "RKLB": "Rocket Lab",
+    "MSTR": "MicroStrategy", "SMCI": "Super Micro", "SHOP": "Shopify", "SQ": "Block",
+    "PYPL": "PayPal", "UBER": "Uber", "ABNB": "Airbnb", "RIVN": "Rivian",
+    "LCID": "Lucid", "BABA": "Alibaba", "TSM": "TSMC", "ASML": "ASML",
+    "SNOW": "Snowflake", "DDOG": "Datadog", "CRWD": "CrowdStrike", "PANW": "Palo Alto",
+    "AVGO": "Broadcom", "QCOM": "Qualcomm", "MU": "Micron", "AMD": "AMD",
+    "BRK-B": "Berkshire Hathaway", "BRK.B": "Berkshire Hathaway",
+}
+
+_TICKER_SPEECH_RE = re.compile(
+    r"\b(" + "|".join(re.escape(t) for t in sorted(_TICKER_SPEECH_MAP, key=len, reverse=True)) + r")\b"
+)
+
+
+def _speechify(text: str) -> str:
+    """Replace bare tickers with how they'd actually be said out loud."""
+    return _TICKER_SPEECH_RE.sub(lambda m: _TICKER_SPEECH_MAP[m.group(1)], text)
 
 
 async def transcribe_audio_bytes(
@@ -32,6 +78,7 @@ async def synthesize_speech_bytes(text: str) -> bytes:
     text = (text or "").strip()[:2000]
     if not text:
         return b""
+    text = _speechify(text)
 
     eleven_key = os.getenv("ELEVENLABS_API_KEY")
     if eleven_key:
