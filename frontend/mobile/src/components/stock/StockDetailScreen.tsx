@@ -7,6 +7,7 @@ import {
   StyleSheet,
   Linking,
   ActivityIndicator,
+  Alert,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, { Circle } from "react-native-svg";
@@ -171,7 +172,7 @@ function VerdictSection({ ticker }: { ticker: string }) {
     return (
       <View style={vd.loadRow}>
         <ActivityIndicator size="small" color={D.green} />
-        <Text style={[vd.loadText, { color: D.muted }]}>Calculando veredicto IA…</Text>
+        <Text style={[vd.loadText, { color: D.muted }]}>Calculando resumen IA…</Text>
       </View>
     );
   }
@@ -355,6 +356,21 @@ const sh = StyleSheet.create({
 
 // ─── Key Metrics ─────────────────────────────────────────────────────────────
 
+const METRIC_HINTS: Record<string, string> = {
+  "Market Cap":    "Valor total de todas las acciones en el mercado. Mide qué tan grande es la empresa.",
+  "P/E (TTM)":     "Cuántos años de ganancias actuales pagas por cada acción. Un P/E alto significa que el mercado espera mucho crecimiento futuro.",
+  "P/E Fwd":       "P/E usando las ganancias esperadas del próximo año. Refleja las expectativas del mercado.",
+  "EPS (TTM)":     "Ganancia por acción en los últimos 12 meses. Cuánto ganó la empresa por cada acción emitida.",
+  "ROE":           "Cuánto gana la empresa por cada peso de capital que pusieron los accionistas. Mientras más alto, más eficiente.",
+  "Margen Neto":   "De cada $100 de ventas, cuánto queda como ganancia final tras impuestos y todos los costos.",
+  "Div. Yield":    "Dividendo anual como % del precio actual. Es lo que te pagan solo por tener la acción.",
+  "FCF":           "Free Cash Flow: efectivo real que genera la empresa después de sus inversiones. Más confiable que las ganancias contables.",
+  "Beta":          "Volatilidad relativa al mercado. Beta > 1 significa que se mueve más que el S&P 500, para bien y para mal.",
+  "Deuda/Equity":  "Cuánta deuda tiene por cada peso de capital propio. Más bajo es más seguro financieramente.",
+  "52s Máx":       "Precio más alto que alcanzó la acción en los últimos 12 meses.",
+  "52s Mín":       "Precio más bajo que tuvo la acción en los últimos 12 meses.",
+};
+
 type ProfileData = ReturnType<typeof useStockDetail>["data"] extends { profile: infer P } | null ? P | undefined : never;
 
 function KeyMetrics({ profile }: { profile?: ProfileData }) {
@@ -396,12 +412,25 @@ function KeyMetrics({ profile }: { profile?: ProfileData }) {
         <View key={group.label} style={km.groupCard}>
           <Text style={km.groupLabel}>{group.label}</Text>
           <View style={km.grid}>
-            {group.items.map((item) => (
-              <View key={item.label} style={km.cell}>
-                <Text style={km.cellLabel}>{item.label}</Text>
-                <Text style={km.cellValue}>{item.value}</Text>
-              </View>
-            ))}
+            {group.items.map((item) => {
+              const hint = METRIC_HINTS[item.label];
+              return (
+                <TouchableOpacity
+                  key={item.label}
+                  style={km.cell}
+                  activeOpacity={hint ? 0.7 : 1}
+                  onPress={hint ? () => Alert.alert(item.label, hint) : undefined}
+                >
+                  <View style={km.labelRow}>
+                    <Text style={km.cellLabel}>{item.label}</Text>
+                    {hint && (
+                      <Ionicons name="information-circle-outline" size={11} color={D.muted} />
+                    )}
+                  </View>
+                  <Text style={km.cellValue}>{item.value}</Text>
+                </TouchableOpacity>
+              );
+            })}
           </View>
         </View>
       ))}
@@ -414,7 +443,8 @@ const km = StyleSheet.create({
   groupLabel: { fontSize: 9, fontFamily: "DMSans_800ExtraBold", textTransform: "uppercase", letterSpacing: 0.8, color: D.green, paddingHorizontal: 16, paddingTop: 14, paddingBottom: 10 },
   grid:       { flexDirection: "row", flexWrap: "wrap" },
   cell:       { width: "50%", padding: 14, paddingTop: 10, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: D.border },
-  cellLabel:  { fontSize: 10, fontFamily: "DMSans_500Medium", color: D.muted, marginBottom: 5, textTransform: "uppercase", letterSpacing: 0.3 },
+  labelRow:   { flexDirection: "row", alignItems: "center", gap: 4, marginBottom: 5 },
+  cellLabel:  { fontSize: 10, fontFamily: "DMSans_500Medium", color: D.muted, textTransform: "uppercase", letterSpacing: 0.3 },
   cellValue:  { fontSize: 19, fontFamily: "DMSans_800ExtraBold", color: D.text },
 });
 
@@ -488,7 +518,7 @@ const ab = StyleSheet.create({
 // ─── Tabs ─────────────────────────────────────────────────────────────────────
 
 const TABS = [
-  { id: "veredicto",   label: "Veredicto",    icon: "sparkles-outline" as const },
+  { id: "veredicto",   label: "Resumen",      icon: "sparkles-outline" as const },
   { id: "grafica",     label: "Gráfica",      icon: "stats-chart-outline" as const },
   { id: "financieros", label: "Financieros",  icon: "bar-chart-outline" as const },
   { id: "analistas",   label: "Analistas",    icon: "people-outline" as const },

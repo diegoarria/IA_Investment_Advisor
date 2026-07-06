@@ -194,14 +194,60 @@ function MiniAvatar({ ticker }: { ticker: string }) {
   );
 }
 
-function StatCard({ label, value, color }: {
-  label: string; value: string; color?: string;
+const METRIC_HINTS: Record<string, string> = {
+  "Cap. Mkt":          "Valor total de todas las acciones en el mercado. Mide qué tan grande es la empresa.",
+  "EV":                "Precio real para comprar toda la empresa: capitalización + deuda − efectivo.",
+  "P/E (TTM)":         "Cuántos años de ganancias actuales pagas por cada acción. Un P/E alto significa que el mercado espera mucho crecimiento futuro.",
+  "P/E Fwd":           "P/E usando las ganancias esperadas del próximo año. Refleja las expectativas del mercado.",
+  "PEG":               "P/E ajustado por el crecimiento esperado. Menor a 1 puede indicar que la acción está subvalorada.",
+  "P/S":               "Precio dividido entre las ventas anuales. Útil para empresas que aún no son rentables.",
+  "P/B":               "Precio de mercado vs valor contable. Menor a 1 puede indicar que cotiza por debajo de su valor en libros.",
+  "EV/EBITDA":         "Valoración de la empresa vs su rentabilidad operativa. Menos es generalmente más barato.",
+  "EV/Revenue":        "Parecido al P/S pero usa el valor completo de la empresa incluyendo deuda.",
+  "Margen Bruto":      "De cada $100 de ventas, cuánto queda después de pagar el costo directo de producir o vender.",
+  "Margen Op.":        "De cada $100 de ventas, cuánto queda después de todos los gastos operativos del negocio.",
+  "Margen Neto":       "De cada $100 de ventas, cuánto queda como ganancia final tras impuestos y todos los costos.",
+  "EBITDA %":          "Rentabilidad antes de intereses, impuestos, depreciación y amortización. Muestra el potencial operativo puro.",
+  "ROE":               "Cuánto gana la empresa por cada peso de capital de los accionistas. Mientras más alto, más eficiente.",
+  "ROA":               "Cuánto gana la empresa por cada peso de activos que tiene. Mide qué tan bien usa sus recursos.",
+  "Crec. Rev.":        "Qué tan rápido crecieron las ventas respecto al mismo período del año anterior.",
+  "Crec. Ganancias":   "Qué tan rápido crecieron las ganancias respecto al mismo período del año anterior.",
+  "Flujo Libre":       "Efectivo real que genera la empresa después de sus inversiones. Más confiable que las ganancias contables.",
+  "Deuda/Capital":     "Cuánta deuda tiene por cada peso de capital propio. Más bajo es más seguro financieramente.",
+  "Ratio Corriente":   "Capacidad de pagar sus deudas en el corto plazo. Por encima de 1 es buena señal.",
+  "Ratio Rápido":      "Como el Ratio Corriente pero sin contar inventarios. Más conservador y exigente.",
+  "Efectivo":          "Dinero en caja y activos líquidos disponibles.",
+  "Deuda Total":       "Suma de toda la deuda de la empresa, tanto corto como largo plazo.",
+  "Book Value":        "Valor contable por acción según el balance general.",
+  "SMA 50":            "Precio promedio de los últimos 50 días. Si el precio cotiza encima, es señal alcista de corto plazo.",
+  "SMA 200":           "Precio promedio de los últimos 200 días. La referencia clave de tendencia de largo plazo.",
+  "Beta":              "Volatilidad relativa al mercado. Beta > 1 significa que se mueve más que el S&P 500, para bien y para mal.",
+  "Short %":           "Porcentaje de acciones que traders apuestan a que bajan. Muy alto puede indicar riesgo o posible 'short squeeze'.",
+  "Short Ratio":       "Días que tardarían los vendedores en corto en cubrir sus posiciones. Más días = más presión potencial al alza.",
+  "Acciones":          "Total de acciones en circulación en el mercado.",
+};
+
+function StatCard({ label, value, color, hint }: {
+  label: string; value: string; color?: string; hint?: string;
 }) {
   return (
     <div className="rounded-xl p-4 flex flex-col gap-1" style={{ background: "var(--raised)", border: "1px solid var(--border)" }}>
-      <span className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: "var(--dim)" }}>
-        {label}
-      </span>
+      <div className="flex items-center gap-1">
+        <span className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: "var(--dim)" }}>
+          {label}
+        </span>
+        {hint && (
+          <div className="relative group/tip shrink-0">
+            <span className="text-[9px] cursor-help select-none leading-none" style={{ color: "var(--dim)", opacity: 0.55 }}>ⓘ</span>
+            <div className="absolute invisible group-hover/tip:visible opacity-0 group-hover/tip:opacity-100 transition-opacity duration-150 z-50 bottom-full left-1/2 -translate-x-1/2 mb-2 w-52 rounded-xl p-3 shadow-2xl pointer-events-none"
+                 style={{ background: "var(--bg)", border: "1px solid var(--border)", color: "var(--sub)", fontSize: 11, lineHeight: 1.55 }}>
+              {hint}
+              <div className="absolute top-full left-1/2 -translate-x-1/2 w-0 h-0"
+                   style={{ borderLeft: "5px solid transparent", borderRight: "5px solid transparent", borderTop: "5px solid var(--border)" }} />
+            </div>
+          </div>
+        )}
+      </div>
       <span className="text-2xl font-black leading-tight" style={{ color: color ?? "var(--text)" }}>
         {value}
       </span>
@@ -655,7 +701,7 @@ function ForecastChart({ prices, current, targetLow, targetMean, targetHigh }: {
 type Tab = "verdict" | "chart" | "financials" | "analyst" | "company";
 
 const TABS: { key: Tab; label: string }[] = [
-  { key: "verdict",    label: "Veredicto" },
+  { key: "verdict",    label: "Resumen" },
   { key: "chart",      label: "Gráfica" },
   { key: "financials", label: "Financieros" },
   { key: "analyst",    label: "Analistas" },
@@ -1489,15 +1535,15 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
                       <span className="text-xs font-black uppercase tracking-widest" style={{ color: "var(--muted)" }}>💰 Valoración</span>
                     </div>
                     <div className="grid grid-cols-3 gap-2">
-                      <StatCard label="Cap. Mkt"   value={fmtBig(profile.market_cap)} />
-                      <StatCard label="EV"          value={fmtBig(profile.enterprise_value)} />
-                      <StatCard label="P/E (TTM)"   value={fmtNum(profile.pe_ratio)} />
-                      <StatCard label="P/E Fwd"     value={fmtNum(profile.forward_pe)} />
-                      <StatCard label="PEG"         value={fmtNum(profile.peg_ratio)} />
-                      <StatCard label="P/S"         value={fmtNum(profile.ps_ratio)} />
-                      <StatCard label="P/B"         value={fmtNum(profile.pb_ratio)} />
-                      <StatCard label="EV/EBITDA"   value={fmtNum(profile.ev_to_ebitda)} />
-                      <StatCard label="EV/Revenue"  value={fmtNum(profile.ev_to_revenue)} />
+                      <StatCard label="Cap. Mkt"   value={fmtBig(profile.market_cap)}          hint={METRIC_HINTS["Cap. Mkt"]} />
+                      <StatCard label="EV"          value={fmtBig(profile.enterprise_value)}    hint={METRIC_HINTS["EV"]} />
+                      <StatCard label="P/E (TTM)"   value={fmtNum(profile.pe_ratio)}            hint={METRIC_HINTS["P/E (TTM)"]} />
+                      <StatCard label="P/E Fwd"     value={fmtNum(profile.forward_pe)}          hint={METRIC_HINTS["P/E Fwd"]} />
+                      <StatCard label="PEG"         value={fmtNum(profile.peg_ratio)}           hint={METRIC_HINTS["PEG"]} />
+                      <StatCard label="P/S"         value={fmtNum(profile.ps_ratio)}            hint={METRIC_HINTS["P/S"]} />
+                      <StatCard label="P/B"         value={fmtNum(profile.pb_ratio)}            hint={METRIC_HINTS["P/B"]} />
+                      <StatCard label="EV/EBITDA"   value={fmtNum(profile.ev_to_ebitda)}        hint={METRIC_HINTS["EV/EBITDA"]} />
+                      <StatCard label="EV/Revenue"  value={fmtNum(profile.ev_to_revenue)}       hint={METRIC_HINTS["EV/Revenue"]} />
                     </div>
                   </div>
 
@@ -1508,15 +1554,15 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
                       <span className="text-xs font-black uppercase tracking-widest" style={{ color: "var(--muted)" }}>📊 Rentabilidad &amp; Márgenes</span>
                     </div>
                     <div className="grid grid-cols-3 gap-2">
-                      <StatCard label="Margen Bruto"  value={profile.gross_margins != null ? `${profile.gross_margins.toFixed(1)}%` : "—"} />
-                      <StatCard label="Margen Op."    value={profile.operating_margins != null ? `${profile.operating_margins.toFixed(1)}%` : "—"} />
-                      <StatCard label="Margen Neto"   value={profile.profit_margins != null ? `${profile.profit_margins.toFixed(1)}%` : "—"} />
-                      <StatCard label="EBITDA %"      value={profile.ebitda_margins != null ? `${profile.ebitda_margins.toFixed(1)}%` : "—"} />
-                      <StatCard label="ROE"           value={profile.return_on_equity != null ? `${profile.return_on_equity.toFixed(1)}%` : "—"} />
-                      <StatCard label="ROA"           value={profile.return_on_assets != null ? `${profile.return_on_assets.toFixed(1)}%` : "—"} />
-                      <StatCard label="Crec. Rev."    value={fmtPct(profile.revenue_growth)} color={profile.revenue_growth != null ? (profile.revenue_growth >= 0 ? "#22c55e" : "#ef4444") : undefined} />
-                      <StatCard label="Crec. Ganancias" value={fmtPct(profile.earnings_growth)} color={profile.earnings_growth != null ? (profile.earnings_growth >= 0 ? "#22c55e" : "#ef4444") : undefined} />
-                      <StatCard label="Flujo Libre"   value={fmtBig(profile.free_cashflow)} />
+                      <StatCard label="Margen Bruto"    value={profile.gross_margins != null ? `${profile.gross_margins.toFixed(1)}%` : "—"}        hint={METRIC_HINTS["Margen Bruto"]} />
+                      <StatCard label="Margen Op."      value={profile.operating_margins != null ? `${profile.operating_margins.toFixed(1)}%` : "—"} hint={METRIC_HINTS["Margen Op."]} />
+                      <StatCard label="Margen Neto"     value={profile.profit_margins != null ? `${profile.profit_margins.toFixed(1)}%` : "—"}       hint={METRIC_HINTS["Margen Neto"]} />
+                      <StatCard label="EBITDA %"        value={profile.ebitda_margins != null ? `${profile.ebitda_margins.toFixed(1)}%` : "—"}       hint={METRIC_HINTS["EBITDA %"]} />
+                      <StatCard label="ROE"             value={profile.return_on_equity != null ? `${profile.return_on_equity.toFixed(1)}%` : "—"}   hint={METRIC_HINTS["ROE"]} />
+                      <StatCard label="ROA"             value={profile.return_on_assets != null ? `${profile.return_on_assets.toFixed(1)}%` : "—"}   hint={METRIC_HINTS["ROA"]} />
+                      <StatCard label="Crec. Rev."      value={fmtPct(profile.revenue_growth)}   color={profile.revenue_growth != null ? (profile.revenue_growth >= 0 ? "#22c55e" : "#ef4444") : undefined}   hint={METRIC_HINTS["Crec. Rev."]} />
+                      <StatCard label="Crec. Ganancias" value={fmtPct(profile.earnings_growth)}  color={profile.earnings_growth != null ? (profile.earnings_growth >= 0 ? "#22c55e" : "#ef4444") : undefined}  hint={METRIC_HINTS["Crec. Ganancias"]} />
+                      <StatCard label="Flujo Libre"     value={fmtBig(profile.free_cashflow)}    hint={METRIC_HINTS["Flujo Libre"]} />
                     </div>
                   </div>
 
@@ -1527,12 +1573,12 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
                       <span className="text-xs font-black uppercase tracking-widest" style={{ color: "var(--muted)" }}>🏛️ Balance &amp; Liquidez</span>
                     </div>
                     <div className="grid grid-cols-3 gap-2">
-                      <StatCard label="Deuda/Capital"   value={fmtNum(profile.debt_to_equity)} />
-                      <StatCard label="Ratio Corriente"  value={fmtNum(profile.current_ratio)} />
-                      <StatCard label="Ratio Rápido"     value={fmtNum(profile.quick_ratio)} />
-                      <StatCard label="Efectivo"         value={fmtBig(profile.total_cash)} />
-                      <StatCard label="Deuda Total"      value={fmtBig(profile.total_debt)} />
-                      <StatCard label="Book Value"       value={profile.book_value != null ? `$${profile.book_value.toFixed(2)}` : "—"} />
+                      <StatCard label="Deuda/Capital"   value={fmtNum(profile.debt_to_equity)}                                         hint={METRIC_HINTS["Deuda/Capital"]} />
+                      <StatCard label="Ratio Corriente" value={fmtNum(profile.current_ratio)}                                          hint={METRIC_HINTS["Ratio Corriente"]} />
+                      <StatCard label="Ratio Rápido"    value={fmtNum(profile.quick_ratio)}                                            hint={METRIC_HINTS["Ratio Rápido"]} />
+                      <StatCard label="Efectivo"        value={fmtBig(profile.total_cash)}                                             hint={METRIC_HINTS["Efectivo"]} />
+                      <StatCard label="Deuda Total"     value={fmtBig(profile.total_debt)}                                             hint={METRIC_HINTS["Deuda Total"]} />
+                      <StatCard label="Book Value"      value={profile.book_value != null ? `$${profile.book_value.toFixed(2)}` : "—"} hint={METRIC_HINTS["Book Value"]} />
                     </div>
                   </div>
 
@@ -1543,12 +1589,12 @@ export default function StockDetailModal({ ticker, onClose }: Props) {
                       <span className="text-xs font-black uppercase tracking-widest" style={{ color: "var(--muted)" }}>📈 Precio &amp; Volumen</span>
                     </div>
                     <div className="grid grid-cols-3 gap-2">
-                      <StatCard label="SMA 50"      value={profile.sma_50 ? `$${profile.sma_50.toFixed(2)}` : "—"} />
-                      <StatCard label="SMA 200"     value={profile.sma_200 ? `$${profile.sma_200.toFixed(2)}` : "—"} />
-                      <StatCard label="Beta"        value={fmtNum(profile.beta)} />
-                      <StatCard label="Short %"     value={profile.short_pct_float != null ? `${profile.short_pct_float.toFixed(1)}%` : "—"} />
-                      <StatCard label="Short Ratio" value={fmtNum(profile.short_ratio)} />
-                      <StatCard label="Acciones"    value={fmtK(profile.shares_outstanding)} />
+                      <StatCard label="SMA 50"      value={profile.sma_50 ? `$${profile.sma_50.toFixed(2)}` : "—"}                   hint={METRIC_HINTS["SMA 50"]} />
+                      <StatCard label="SMA 200"     value={profile.sma_200 ? `$${profile.sma_200.toFixed(2)}` : "—"}                 hint={METRIC_HINTS["SMA 200"]} />
+                      <StatCard label="Beta"        value={fmtNum(profile.beta)}                                                      hint={METRIC_HINTS["Beta"]} />
+                      <StatCard label="Short %"     value={profile.short_pct_float != null ? `${profile.short_pct_float.toFixed(1)}%` : "—"} hint={METRIC_HINTS["Short %"]} />
+                      <StatCard label="Short Ratio" value={fmtNum(profile.short_ratio)}                                               hint={METRIC_HINTS["Short Ratio"]} />
+                      <StatCard label="Acciones"    value={fmtK(profile.shares_outstanding)}                                          hint={METRIC_HINTS["Acciones"]} />
                     </div>
                   </div>
 

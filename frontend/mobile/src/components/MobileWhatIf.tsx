@@ -94,7 +94,7 @@ export default function MobileWhatIf({ positions, isPremium, onUpgrade }: Props)
             {[
               { icon: "🔄", text: "¿Qué pasa si vendo X y compro Y?" },
               { icon: "💰", text: "Proyección de aportes mensuales a N años" },
-              { icon: "💡", text: "Veredicto de tu mentor en cada escenario" },
+              { icon: "💡", text: "Resumen de tu mentor en cada escenario" },
             ].map((f, i, arr) => (
               <View key={f.text} style={[s.featureRow,
                 i < arr.length - 1 && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border }]}>
@@ -261,7 +261,7 @@ export default function MobileWhatIf({ positions, isPremium, onUpgrade }: Props)
                 ))}
                 {result.mentor_verdict && (
                   <View style={[s.verdictBox, { backgroundColor: colors.accent + "0D", borderColor: colors.accent + "40" }]}>
-                    <Text style={[s.verdictLabel, { color: colors.accent }]}>🧠 Veredicto del mentor</Text>
+                    <Text style={[s.verdictLabel, { color: colors.accent }]}>🧠 Resumen del mentor</Text>
                     <Text style={[s.verdictText, { color: colors.textSub }]}>{result.mentor_verdict}</Text>
                   </View>
                 )}

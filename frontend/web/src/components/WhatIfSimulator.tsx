@@ -118,7 +118,7 @@ export default function WhatIfSimulator({ positions, isPremium, onUpgrade }: Wha
           { icon: RefreshCw,  text: "¿Qué pasa si vendo X y compro Y?" },
           { icon: DollarSign, text: "Proyección de aportes mensuales a N años" },
           { icon: Globe,      text: "Impacto de eventos macro en tu portafolio" },
-          { icon: Brain,      text: "Veredicto de tu mentor en cada escenario" },
+          { icon: Brain,      text: "Resumen de tu mentor en cada escenario" },
         ]}
         onUnlock={onUpgrade}
       />
@@ -163,7 +163,7 @@ export default function WhatIfSimulator({ positions, isPremium, onUpgrade }: Wha
             {[
               { emoji: "🔄", text: "¿Qué pasa si vendo X y compro Y?" },
               { emoji: "💰", text: "Proyección de aportes mensuales a N años" },
-              { emoji: "💡", text: "Veredicto de tu mentor en cada escenario" },
+              { emoji: "💡", text: "Resumen de tu mentor en cada escenario" },
             ].map((f, i, arr) => (
               <div key={f.text}
                    className="flex items-center gap-3 px-3.5 py-3"
@@ -375,7 +375,7 @@ export default function WhatIfSimulator({ positions, isPremium, onUpgrade }: Wha
                   )}
                   {result.mentor_verdict && (
                     <div className="p-3 rounded-xl" style={{ background: "rgba(0,168,94,0.06)", border: "1px solid rgba(0,168,94,0.2)" }}>
-                      <p className="text-[10px] font-bold mb-1" style={{ color: "var(--accent-l)" }}>Veredicto del mentor</p>
+                      <p className="text-[10px] font-bold mb-1" style={{ color: "var(--accent-l)" }}>Resumen del mentor</p>
                       <p className="text-xs leading-relaxed" style={{ color: "var(--sub)" }}>{result.mentor_verdict}</p>
                     </div>
                   )}
