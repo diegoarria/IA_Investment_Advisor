@@ -221,7 +221,10 @@ export default function AppSidebar({ open, onClose }: Props) {
         </button>
       )}
 
-      <aside className={`${open ? "flex" : "hidden"} ${desktopCollapsed ? "lg:hidden" : "lg:flex"} w-64 flex-col absolute lg:relative z-20 h-full sidebar-gradient`} style={{ zoom: 1.15 }}>
+      {/* zoom only kicks in at lg+ (desktop) — on mobile it was scaling the
+          whole drawer to ~115% of a fixed 256px width, eating most of a
+          phone's screen with unreliable WebKit touch-target sizing. */}
+      <aside className={`${open ? "flex" : "hidden"} ${desktopCollapsed ? "lg:hidden" : "lg:flex"} w-64 flex-col absolute lg:relative z-20 h-full sidebar-gradient lg:[zoom:1.15]`}>
 
         {/* Brand header: logo + name + collapse button */}
         <div className="flex items-center gap-2.5 px-3 pb-2.5 pt-1 shrink-0"

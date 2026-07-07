@@ -79,6 +79,28 @@ html, body {
   overflow: hidden;
 }
 
+/* ─── Mobile web fixes ───────────────────────────────────────────────── */
+/* Tailwind's h-screen (100vh) doesn't account for a mobile browser's address
+   bar hiding/showing as you scroll — content gets clipped or the layout
+   jumps. 100dvh (dynamic viewport height) tracks the actual visible area.
+   Scoped to the .h-screen utility itself so every page using it (28 at last
+   count) is fixed at once, no per-page changes needed. */
+@supports (height: 100dvh) {
+  .h-screen {
+    height: 100dvh;
+  }
+}
+
+/* iOS Safari auto-zooms the whole page when focusing a text input/textarea
+   with a computed font-size under 16px — that jarring zoom-in-then-you-have-
+   to-zoom-back-out is a big part of why the app feels broken on a phone.
+   16px is the exact threshold; below it triggers, at/above it doesn't. */
+@media (max-width: 767px) {
+  input, textarea, select {
+    font-size: 16px;
+  }
+}
+
 body {
   background-color: var(--bg);
   color: var(--text);
