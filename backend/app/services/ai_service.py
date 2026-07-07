@@ -814,8 +814,14 @@ def build_deep_user_context(
         ext_lines.append(f"Horizonte temporal: {horizon}")
 
     knowledge = extended.get("knowledge_level")
+    knowledge_label = {"B": "Básico", "C": "Intermedio", "D": "Avanzado"}.get(knowledge, knowledge)
+    knowledge_language = {
+        "B": "Lenguaje MUY simple, cero jerga financiera sin explicarla, usa analogías cotidianas. Si usas un término técnico, defínelo en la misma frase.",
+        "C": "Lenguaje intermedio: puedes usar términos como P/E, diversificación o dividendos sin definirlos, pero explica conceptos más avanzados (DCF, opciones, derivados) si aparecen.",
+        "D": "Lenguaje avanzado: puedes hablar con la jerga y profundidad de un analista financiero, sin simplificar de más.",
+    }.get(knowledge, None)
     if knowledge:
-        ext_lines.append(f"Nivel de conocimiento: {knowledge}")
+        ext_lines.append(f"Nivel de conocimiento: {knowledge_label}")
 
     if ext_lines:
         parts.append("\n### 🧠 PERFIL CONDUCTUAL Y MADUREZ:")
@@ -830,6 +836,7 @@ def build_deep_user_context(
         "Si su perfil conductual contradice lo que dice → díselo con empatía. "
         "Si su watchlist sugiere interés en algo → conéctalo. "
         "No eres un chatbot genérico: eres su mentor que lo conoce mejor que él mismo."
+        + (f"\nADAPTA TU LENGUAJE a su nivel de conocimiento ({knowledge_label}): {knowledge_language}" if knowledge_language else "")
     )
 
     return "\n".join(parts)
@@ -1021,6 +1028,7 @@ def _build_dynamic_system_addendum(
     notification_context: str | None = None,
     fmg_context: str | None = None,
     progress_context: str | None = None,
+    style_instructions: str | None = None,
 ) -> str | None:
     """Dynamic (per-request) addendum — NOT cached to avoid cache key churn."""
     parts: list[str] = []
@@ -1033,6 +1041,8 @@ def _build_dynamic_system_addendum(
         parts.append(f"## 💬 ÚLTIMAS CONVERSACIONES (contexto inmediato)\n\n{memory_context}")
     if notification_context:
         parts.append(f"## 📩 EL USUARIO LLEGÓ DESDE UNA NOTIFICACIÓN\n\n{notification_context}\n\nEmpieza reconociendo este contexto de forma natural y ofrece análisis relevante.")
+    if style_instructions:
+        parts.append(f"## 🗣️ ESTILO DE RESPUESTA PARA ESTE CANAL\n\n{style_instructions}")
     return "\n\n".join(parts) if parts else None
 
 
@@ -1050,12 +1060,13 @@ async def chat_stream(
     fmg_context: str | None = None,
     progress_context: str | None = None,
     is_premium: bool = False,
+    style_instructions: str | None = None,
 ):
     # Static part cached by Anthropic (base + profile + mentor + guardrails).
     # Dynamic context (memory, notifications) goes in a separate uncached block so
     # it doesn't bust the cache every message and inflate input token costs.
     static_prompt  = _build_static_system_prompt(profile, mentor, deep_context)
-    dynamic_addend = _build_dynamic_system_addendum(memory_context, notification_context, fmg_context, progress_context)
+    dynamic_addend = _build_dynamic_system_addendum(memory_context, notification_context, fmg_context, progress_context, style_instructions)
 
     system_blocks: list[dict] = [{"type": "text", "text": static_prompt, "cache_control": {"type": "ephemeral"}}]
     if dynamic_addend:

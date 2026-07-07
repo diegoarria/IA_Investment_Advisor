@@ -47,6 +47,17 @@ _MAX_HISTORY_TURNS = 20
 _SENTENCE_SPLIT_RE = re.compile(r"(?<=[.!?])\s+")
 _MIN_SENTENCE_CHARS = 12
 
+_VOICE_STYLE_INSTRUCTIONS = (
+    "Estás en una LLAMADA DE VOZ en tiempo real, no en un chat de texto. Habla como hablaría "
+    "un amigo o mentor de carne y hueso en una conversación real:\n"
+    "- Respuestas CORTAS — 1 a 3 oraciones por turno como máximo. Nunca uses listas con viñetas "
+    "ni numeración (suenan artificiales al escucharlas en voz alta).\n"
+    "- Ve directo al grano, sin preámbulos ni resúmenes de lo que vas a decir.\n"
+    "- Si el tema da para más, responde lo esencial primero y pregunta si quiere que profundices, "
+    "en vez de soltarlo todo de una vez.\n"
+    "- Tono cálido y natural, como una charla en persona — no como un reporte financiero."
+)
+
 
 async def _load_profile(user_id: str) -> UserProfile | None:
     try:
@@ -131,6 +142,7 @@ async def voice_call_ws(websocket: WebSocket, token: str = ""):
                 fmg_context=ctx["fmg_context"],
                 progress_context=ctx["progress_context"],
                 is_premium=is_premium,
+                style_instructions=_VOICE_STYLE_INSTRUCTIONS,
             ):
                 full_reply += chunk
                 sentence_buf += chunk
@@ -179,8 +191,31 @@ async def voice_call_ws(websocket: WebSocket, token: str = ""):
             except Exception:
                 pass
 
+    async def _send_greeting():
+        first_name = (getattr(profile, "name", None) or "").split()[0] if profile and getattr(profile, "name", None) else None
+        greeting = (
+            f"Hola {first_name}, soy tu mentor financiero y es un placer atenderte y poder "
+            f"conversar contigo. Cuéntame, ¿cómo puedo ayudarte?"
+            if first_name else
+            "Hola, soy tu mentor financiero y es un placer atenderte y poder conversar contigo. "
+            "Cuéntame, ¿cómo puedo ayudarte?"
+        )
+        try:
+            audio = await synthesize_speech_bytes(greeting)
+            await _send_json({
+                "type": "assistant_sentence",
+                "text": greeting,
+                "audio_b64": base64.b64encode(audio).decode() if audio else None,
+            })
+            await _send_json({"type": "assistant_done"})
+            history.append(ChatMessage(role="assistant", content=greeting))
+        except Exception as e:
+            logger.warning("Voice call greeting failed for %s: %s", user_id, e)
+            await _send_json({"type": "assistant_done"})
+
     try:
         await _send_json({"type": "ready"})
+        await _send_greeting()
         while True:
             message = await websocket.receive()
             if message["type"] == "websocket.disconnect":
