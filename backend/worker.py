@@ -2562,6 +2562,69 @@ async def job_risk_mgmt_push():
         logger.error("job_risk_mgmt_push failed: %s", e)
 
 
+_MARKET_CRASH_THRESHOLD_PCT = -3.0  # S&P 500 single-day drop that triggers the alert
+
+
+async def job_market_crash_alert():
+    """Cada 5 min, 9:30 AM–4:00 PM ET lun-vie — detecta una caída del S&P 500
+    de -3% o más en un solo día (vía SPY como proxy, igual que job_market_open/
+    job_market_close) y manda una alerta urgente. send_push dedupea por
+    categoría+día, así que aunque el job corra cada 5 min mientras el mercado
+    siga en rojo, cada usuario recibe como máximo un push por día."""
+    from app.core.database import get_supabase, run_query
+    from app.services.notification_engine import send_push
+    db = get_supabase()
+    try:
+        spy_q = await asyncio.to_thread(_finnhub_quote, "SPY")
+        pct = spy_q["pct"] if spy_q else None
+
+        if pct is None or pct > _MARKET_CRASH_THRESHOLD_PCT:
+            return
+
+        prefs_res = await run_query(
+            db.table("notification_preferences").select("user_id").eq("push_portfolio_alerts", True)
+        )
+        uids = [r["user_id"] for r in (prefs_res.data or [])]
+        if not uids:
+            return
+
+        prof_res = await run_query(
+            db.table("user_profiles")
+            .select("user_id,subscription_tier,trial_started_at")
+            .in_("user_id", uids)
+        )
+        prof_map = {r["user_id"]: r for r in (prof_res.data or [])}
+
+        premium_title = "🚨 ¡URGENTE!"
+        premium_body  = (
+            f"Tenemos que hablar de lo que está pasando en la bolsa de valores — "
+            f"el S&P 500 cayó {abs(pct):.1f}% hoy. Abre Nuvos y hablemos."
+        )
+        free_title = "📉 El mercado está cayendo fuerte"
+        free_body  = (
+            f"El S&P 500 cayó {abs(pct):.1f}% hoy. Activa Premium para que tu Mentor IA "
+            f"te explique qué está pasando y qué hacer al respecto."
+        )
+
+        sent = 0
+        for i, uid in enumerate(uids):
+            if i % 100 == 0 and i > 0:
+                await asyncio.sleep(12)
+            prof = prof_map.get(uid, {})
+            is_prem = _is_premium_user(prof.get("subscription_tier", "free"), prof.get("trial_started_at"))
+            title, body = (premium_title, premium_body) if is_prem else (free_title, free_body)
+            await send_push(
+                uid, "market_crash_alert", title, body,
+                {"screen": "chat", "sp500_pct": pct}, db,
+            )
+            sent += 1
+            await asyncio.sleep(random.uniform(0, 0.12))
+
+        logger.info("Market crash alert: S&P 500 %.2f%%, %d users notified", pct, sent)
+    except Exception as e:
+        logger.error("job_market_crash_alert failed: %s", e)
+
+
 async def job_diversification_push():
     """11:00 AM ET Saturday — nudge users who are close to a diversification goal."""
     from app.core.database import get_supabase, run_query
@@ -4547,6 +4610,7 @@ async def main():
 
     # ── AI Portfolio Manager — proactive alerts (written earlier, now scheduled) ──
     scheduler.add_job(job_risk_mgmt_push,        "cron", day_of_week="fri",     hour=15, minute=0, timezone="America/New_York")
+    scheduler.add_job(job_market_crash_alert,    "cron", day_of_week="mon-fri", hour="9-15", minute="*/5", timezone="America/New_York")
     scheduler.add_job(job_diversification_push,  "cron", day_of_week="sat",     hour=11, minute=0, timezone="America/New_York")
     scheduler.add_job(job_concentration_risk_push, "cron", day_of_week="tue",   hour=13, minute=0, timezone="America/New_York")
     scheduler.add_job(job_opportunity_push,      "cron", day_of_week="wed,fri", hour=13, minute=0, timezone="America/New_York")
