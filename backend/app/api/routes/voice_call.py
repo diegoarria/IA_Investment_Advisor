@@ -187,7 +187,17 @@ async def voice_call_ws(websocket: WebSocket, token: str = ""):
         async with send_lock:
             await websocket.send_json(payload)
 
-    ctx = await _load_call_context(user_id, profile, is_premium)
+    try:
+        ctx = await _load_call_context(user_id, profile, is_premium)
+    except Exception as e:
+        # This ran outside any try/except before — any failure here (a DB
+        # hiccup, a transient import issue) crashed the whole ASGI handler
+        # without a clean close frame, which is exactly what a client sees
+        # as "code 1006 (abnormal closure)". Degrade gracefully instead: the
+        # call still works, just without deep/FMG/progress context for this
+        # session.
+        logger.warning("Voice call context load failed for %s: %s", user_id, e)
+        ctx = {"deep_context": None, "fmg_context": None, "progress_context": None}
     mentor_id = profile.mentor if profile else None
 
     call_started_at = datetime.now(timezone.utc)
