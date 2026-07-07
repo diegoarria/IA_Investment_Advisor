@@ -177,7 +177,7 @@ function AcademyContent() {
 
   return (
     <div className="flex h-screen overflow-hidden" style={{ background: "var(--bg)" }}>
-      <AppSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+      <AppSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} onOpen={() => setSidebarOpen(true)} />
       <div className="flex-1 flex flex-col overflow-hidden">
         <MarketTickerBar />
 

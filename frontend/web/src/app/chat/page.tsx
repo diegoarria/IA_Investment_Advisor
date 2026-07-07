@@ -768,7 +768,7 @@ export default function ChatPage() {
       <MarketTickerBar />
 
       <div className="flex flex-1 overflow-hidden relative">
-        <AppSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+        <AppSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} onOpen={() => setSidebarOpen(true)} hideMobileTrigger />
 
         {/* Notification panel */}
         {notifOpen && (

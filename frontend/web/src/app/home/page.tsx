@@ -551,7 +551,7 @@ export default function HomePage() {
 
   return (
     <div className="flex h-screen overflow-hidden" style={{ background: "var(--bg)" }}>
-      <AppSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+      <AppSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} onOpen={() => setSidebarOpen(true)} />
 
       {/* ── Broker Modal ── */}
       {showBrokerModal && (

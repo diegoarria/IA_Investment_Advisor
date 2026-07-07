@@ -118,7 +118,7 @@ export default function ProgressPage() {
   if (!isPremium) {
     return (
       <div className="flex h-screen" style={{ background: "var(--bg)" }}>
-        <AppSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+        <AppSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} onOpen={() => setSidebarOpen(true)} />
         <main className="flex-1 overflow-y-auto p-6">
           <div className="max-w-2xl mx-auto">
             <div className="flex justify-end mb-2">
@@ -153,7 +153,7 @@ export default function ProgressPage() {
 
   return (
     <div className="flex h-screen" style={{ background: "var(--bg)" }}>
-      <AppSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+      <AppSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} onOpen={() => setSidebarOpen(true)} />
       <main className="flex-1 overflow-y-auto p-6">
         <div className="max-w-2xl mx-auto space-y-5">
           {/* Header */}

@@ -133,7 +133,7 @@ export default function DecisionsPage() {
   if (!isAtLeast(userLevel, "intermedio")) {
     return (
       <div className="flex h-screen" style={{ background: "var(--bg)" }}>
-        <AppSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+        <AppSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} onOpen={() => setSidebarOpen(true)} />
         <main className="flex-1 overflow-y-auto p-6 flex items-center justify-center">
           <div className="max-w-sm text-center">
             <div className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4"
@@ -170,7 +170,7 @@ export default function DecisionsPage() {
   if (!isPremium) {
     return (
       <div className="flex h-screen" style={{ background: "var(--bg)" }}>
-        <AppSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+        <AppSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} onOpen={() => setSidebarOpen(true)} />
         <main className="flex-1 overflow-y-auto p-6">
           <div className="max-w-2xl mx-auto">
             <div className="rounded-2xl border p-10 text-center"
@@ -198,7 +198,7 @@ export default function DecisionsPage() {
 
   return (
     <div className="flex h-screen" style={{ background: "var(--bg)" }}>
-      <AppSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+      <AppSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} onOpen={() => setSidebarOpen(true)} />
       <main className="flex-1 overflow-y-auto p-6">
         <div className="max-w-2xl mx-auto space-y-5">
           {/* Header */}

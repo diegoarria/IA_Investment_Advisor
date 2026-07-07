@@ -189,7 +189,7 @@ function FeedPageInner() {
 
   return (
     <div className="flex h-screen overflow-hidden" style={{ background: "var(--bg)" }}>
-      <AppSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+      <AppSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} onOpen={() => setSidebarOpen(true)} hideMobileTrigger />
 
       {/* Right side: filter bar (outside scroll container) + scroll container */}
       <div className="flex-1 flex flex-col overflow-hidden relative">

@@ -5,7 +5,7 @@ import { useRouter, usePathname } from "next/navigation";
 import Image from "next/image";
 import {
   BrainCircuit, Wallet, Bell, User, GraduationCap,
-  MessageSquare, ChevronLeft, ChevronRight, Plus, X, HeadphonesIcon, GripVertical, ArrowRight, Lock, LogOut, Home, ShoppingBag,
+  MessageSquare, ChevronLeft, ChevronRight, Plus, X, HeadphonesIcon, GripVertical, ArrowRight, Lock, LogOut, Home, ShoppingBag, Menu,
 } from "lucide-react";
 
 const COACHING_URL = "https://calendly.com/diego-arria19/sesion-1-1-con-diego-nuvos-ai"; // ← actualiza con tu link real
@@ -57,9 +57,15 @@ const SECONDARY_NAV: NavItem[] = [
 interface Props {
   open: boolean;
   onClose: () => void;
+  onOpen: () => void;
+  /** Pages that already render their own mobile hamburger button (chat, feed)
+      set this so they don't get a second, overlapping one. Every other page
+      using AppSidebar had NO way at all to open it on mobile — this default
+      floating trigger is what fixes that everywhere at once. */
+  hideMobileTrigger?: boolean;
 }
 
-export default function AppSidebar({ open, onClose }: Props) {
+export default function AppSidebar({ open, onClose, onOpen, hideMobileTrigger }: Props) {
   const router = useRouter();
   const pathname = usePathname();
   const { isAuthenticated, clearAuth } = useAuthStore();
@@ -218,6 +224,21 @@ export default function AppSidebar({ open, onClose }: Props) {
           title="Abrir sidebar"
         >
           <ChevronRight className="w-3 h-3" style={{ color: "var(--muted)" }} />
+        </button>
+      )}
+
+      {/* Mobile floating trigger — most pages had literally no way to open
+          the sidebar below lg (only chat/feed built their own). This one
+          default fixes every page at once instead of relying on each page
+          to remember to add its own button. */}
+      {!open && !hideMobileTrigger && (
+        <button
+          onClick={onOpen}
+          className="lg:hidden fixed top-3 left-3 z-30 w-9 h-9 rounded-xl flex items-center justify-center"
+          style={{ background: "var(--card)", border: "1px solid var(--border)", boxShadow: "0 2px 8px rgba(0,0,0,0.2)" }}
+          aria-label="Abrir menú"
+        >
+          <Menu className="w-4 h-4" style={{ color: "var(--muted)" }} />
         </button>
       )}
 

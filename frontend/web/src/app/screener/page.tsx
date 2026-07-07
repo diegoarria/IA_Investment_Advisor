@@ -77,7 +77,7 @@ export default function ScreenerPage() {
 
   return (
     <div className="flex h-screen" style={{ background: "var(--bg)" }}>
-      <AppSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+      <AppSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} onOpen={() => setSidebarOpen(true)} />
       <main className="flex-1 overflow-y-auto p-6">
         <div className="max-w-2xl mx-auto space-y-6">
           {/* ETF mode for basico */}
