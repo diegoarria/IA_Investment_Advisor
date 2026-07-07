@@ -9,13 +9,13 @@ import {
   useAuthStore, useProfileStore, useSubscriptionStore,
   useThemeStore, msgsRemaining, FREE_MSG_LIMIT, maturityLabel,
 } from "@/lib/store";
-import { auth as authApi, billing, feedApi, fmgApi, insights as insightsApi, mentorLetter as mentorLetterApi, notifications as notifApi, profile as profileApi, referral as referralApi, sync as syncApi } from "@/lib/api";
+import { auth as authApi, billing, feedApi, fmgApi, insights as insightsApi, mentorLetter as mentorLetterApi, notifications as notifApi, profile as profileApi, referral as referralApi, sync as syncApi, voiceCallsApi } from "@/lib/api";
 import { getMentorInfo } from "@/lib/mentorData";
 import PaywallModal from "@/components/PaywallModal";
 import WrappedCard from "@/components/WrappedCard";
 import {
   User, LogOut, X, Sun, Moon, ChevronDown, ChevronUp, Star, BarChart,
-  Loader2, Copy, Check, Gift, Users, Share2, Brain, Trash2,
+  Loader2, Copy, Check, Gift, Users, Share2, Brain, Trash2, Phone,
 } from "lucide-react";
 import { getUserLevel, LEVEL_COLOR, LEVEL_LABEL, LEVEL_EMOJI } from "@/lib/userLevel";
 
@@ -163,6 +163,11 @@ export default function ProfilePage() {
   } | null>(null);
   const [fmgOpen, setFmgOpen] = useState(false);
 
+  const [voiceCalls, setVoiceCalls] = useState<{ id: string; mentor: string | null; started_at: string; duration_seconds: number }[]>([]);
+  const [voiceCallsOpen, setVoiceCallsOpen] = useState(false);
+  const [expandedCallId, setExpandedCallId] = useState<string | null>(null);
+  const [callDetail, setCallDetail] = useState<Record<string, { role: string; text: string }[]>>({});
+
   const isPremium = subStore.tier === "premium" || subStore.isTrialPremium;
   const remaining = msgsRemaining(subStore);
   const mentor = getMentorInfo(profile?.mentor);
@@ -178,6 +183,7 @@ export default function ProfilePage() {
     referralApi.getCode().then((r) => setReferralCode(r.data.code ?? null)).catch(() => {});
     referralApi.getStats().then((r) => setReferralStats(r.data)).catch(() => {});
     fmgApi.getSummary().then((r) => setFmgData(r.data)).catch(() => {});
+    voiceCallsApi.list().then((r) => setVoiceCalls(r.data?.calls || [])).catch(() => {});
     if (profile?.avatar_url) setAvatarUrl(profile.avatar_url);
     // Bidirectional maturity sync on every profile view
     syncApi.getAll().then((res) => {
@@ -196,6 +202,27 @@ export default function ProfilePage() {
     if (!subStore.duoSecondaryEmail) return;
     billing.getDuoPartner().then((r) => setDuoPartner(r.data)).catch(() => {});
   }, [subStore.duoSecondaryEmail]);
+
+  const toggleCallExpand = async (id: string) => {
+    if (expandedCallId === id) {
+      setExpandedCallId(null);
+      return;
+    }
+    setExpandedCallId(id);
+    if (!callDetail[id]) {
+      try {
+        const res = await voiceCallsApi.get(id);
+        setCallDetail((prev) => ({ ...prev, [id]: res.data.turns || [] }));
+      } catch {}
+    }
+  };
+
+  const handleDeleteCall = async (id: string) => {
+    setVoiceCalls((prev) => prev.filter((c) => c.id !== id));
+    try {
+      await voiceCallsApi.delete(id);
+    } catch {}
+  };
 
   const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -984,6 +1011,78 @@ export default function ProfilePage() {
                         </div>
                       )}
                     </div>
+                  </div>
+                )}
+
+                {/* Mis llamadas — voice call transcripts */}
+                {voiceCalls.length > 0 && (
+                  <div>
+                    <button
+                      onClick={() => setVoiceCallsOpen((v) => !v)}
+                      className="w-full flex items-center justify-between mb-2"
+                    >
+                      <p className="text-[10px] font-bold uppercase tracking-widest ml-0.5" style={{ color: "var(--dim)" }}>
+                        Mis llamadas ({voiceCalls.length})
+                      </p>
+                      {voiceCallsOpen ? <ChevronUp className="w-4 h-4" style={{ color: "var(--muted)" }} /> : <ChevronDown className="w-4 h-4" style={{ color: "var(--muted)" }} />}
+                    </button>
+                    {voiceCallsOpen && (
+                      <div className="rounded-2xl border overflow-hidden" style={{ background: "var(--card)", borderColor: "var(--border)" }}>
+                        {voiceCalls.map((call, i) => {
+                          const date = new Date(call.started_at);
+                          const dateStr = date.toLocaleDateString("es", { day: "numeric", month: "short", year: "numeric" });
+                          const timeStr = date.toLocaleTimeString("es", { hour: "2-digit", minute: "2-digit" });
+                          const mins = Math.floor(call.duration_seconds / 60);
+                          const secs = call.duration_seconds % 60;
+                          const isOpen = expandedCallId === call.id;
+                          return (
+                            <div key={call.id} style={{ borderTop: i > 0 ? "1px solid var(--border)" : "none" }}>
+                              <button
+                                onClick={() => toggleCallExpand(call.id)}
+                                className="w-full flex items-center gap-3 p-4 text-left"
+                              >
+                                <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ background: "rgba(0,185,109,0.12)" }}>
+                                  <Phone className="w-4 h-4" style={{ color: "var(--accent)" }} />
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm font-bold" style={{ color: "var(--text)" }}>{dateStr} · {timeStr}</p>
+                                  <p className="text-xs" style={{ color: "var(--muted)" }}>{mins}:{String(secs).padStart(2, "0")} min</p>
+                                </div>
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); handleDeleteCall(call.id); }}
+                                  className="p-1.5 rounded-lg"
+                                  style={{ color: "var(--dim)" }}
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                                {isOpen ? <ChevronUp className="w-4 h-4 shrink-0" style={{ color: "var(--muted)" }} /> : <ChevronDown className="w-4 h-4 shrink-0" style={{ color: "var(--muted)" }} />}
+                              </button>
+                              {isOpen && (
+                                <div className="px-4 pb-4 flex flex-col gap-2">
+                                  {(callDetail[call.id] || []).length === 0 ? (
+                                    <p className="text-xs" style={{ color: "var(--dim)" }}>Cargando...</p>
+                                  ) : (
+                                    callDetail[call.id].map((turn, idx) => (
+                                      <div
+                                        key={idx}
+                                        className="rounded-xl px-3 py-2 text-xs max-w-[85%]"
+                                        style={{
+                                          background: turn.role === "user" ? "var(--raised)" : "rgba(0,185,109,0.08)",
+                                          color: "var(--text)",
+                                          alignSelf: turn.role === "user" ? "flex-end" : "flex-start",
+                                        }}
+                                      >
+                                        {turn.text}
+                                      </div>
+                                    ))
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
                 )}
 

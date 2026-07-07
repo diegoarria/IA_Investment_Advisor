@@ -13,7 +13,7 @@ import { useAppStore, RISK_CONFIG, getAge, maturityLabel } from "../../src/lib/p
 import { getMentorInfo } from "../../src/lib/mentorData";
 import ProgressModal from "../../src/components/ProgressModal";
 import TutorialModal from "../../src/components/TutorialModal";
-import { insightsApi, mentorLetterApi, profileApi, authApi, referralApi, syncApi, feedApi, billingApi, fmgApi } from "../../src/lib/api";
+import { insightsApi, mentorLetterApi, profileApi, authApi, referralApi, syncApi, feedApi, billingApi, fmgApi, voiceCallsApi } from "../../src/lib/api";
 import { posthog } from "../../src/config/posthog";
 import { useSubscriptionStore, hasPremiumAccess } from "../../src/lib/subscriptionStore";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -269,6 +269,31 @@ export default function ProfileScreen() {
     if (!duoSecondaryEmail) return;
     billingApi.getDuoPartner().then((r: any) => setDuoPartner(r.data)).catch(() => {});
   }, [duoSecondaryEmail]);
+
+  const [voiceCalls, setVoiceCalls] = useState<{ id: string; mentor: string | null; started_at: string; duration_seconds: number }[]>([]);
+  const [voiceCallsOpen, setVoiceCallsOpen] = useState(false);
+  const [expandedCallId, setExpandedCallId] = useState<string | null>(null);
+  const [callDetail, setCallDetail] = useState<Record<string, { role: string; text: string }[]>>({});
+
+  useEffect(() => {
+    voiceCallsApi.list().then((r: any) => setVoiceCalls(r.data?.calls || [])).catch(() => {});
+  }, []);
+
+  const toggleCallExpand = async (id: string) => {
+    if (expandedCallId === id) { setExpandedCallId(null); return; }
+    setExpandedCallId(id);
+    if (!callDetail[id]) {
+      try {
+        const res = await voiceCallsApi.get(id);
+        setCallDetail((prev) => ({ ...prev, [id]: res.data.turns || [] }));
+      } catch {}
+    }
+  };
+
+  const handleDeleteCall = async (id: string) => {
+    setVoiceCalls((prev) => prev.filter((c) => c.id !== id));
+    try { await voiceCallsApi.delete(id); } catch {}
+  };
 
   const [fmgData, setFmgData] = useState<{
     memories: { id: string; type: string; content: string; times_reinforced: number }[];
@@ -1464,6 +1489,74 @@ if (!profile) {
                 </View>
               )}
             </View>
+          </View>
+        )}
+
+        {/* ── MIS LLAMADAS — voice call transcripts ── */}
+        {voiceCalls.length > 0 && (
+          <View style={s.section}>
+            <TouchableOpacity
+              onPress={() => setVoiceCallsOpen((v) => !v)}
+              style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}
+            >
+              <Text style={[s.plansSectionLabel, { color: colors.textMuted }]}>MIS LLAMADAS ({voiceCalls.length})</Text>
+              <Ionicons name={voiceCallsOpen ? "chevron-up" : "chevron-down"} size={16} color={colors.textMuted} />
+            </TouchableOpacity>
+            {voiceCallsOpen && (
+              <View style={{ backgroundColor: colors.card, borderRadius: 16, borderWidth: 1, borderColor: colors.border, marginTop: 8, overflow: "hidden" }}>
+                {voiceCalls.map((call, i) => {
+                  const date = new Date(call.started_at);
+                  const dateStr = date.toLocaleDateString("es", { day: "numeric", month: "short", year: "numeric" });
+                  const timeStr = date.toLocaleTimeString("es", { hour: "2-digit", minute: "2-digit" });
+                  const mins = Math.floor(call.duration_seconds / 60);
+                  const secs = call.duration_seconds % 60;
+                  const isOpen = expandedCallId === call.id;
+                  return (
+                    <View key={call.id} style={{ borderTopWidth: i > 0 ? 1 : 0, borderTopColor: colors.border }}>
+                      <TouchableOpacity
+                        onPress={() => toggleCallExpand(call.id)}
+                        style={{ flexDirection: "row", alignItems: "center", gap: 10, padding: 14 }}
+                      >
+                        <View style={{ width: 34, height: 34, borderRadius: 12, backgroundColor: "rgba(0,185,109,0.12)", alignItems: "center", justifyContent: "center" }}>
+                          <Ionicons name="call-outline" size={16} color={colors.accent} />
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={{ fontSize: 13, fontWeight: "700", color: colors.text }}>{dateStr} · {timeStr}</Text>
+                          <Text style={{ fontSize: 11, color: colors.textMuted, marginTop: 1 }}>{mins}:{String(secs).padStart(2, "0")} min</Text>
+                        </View>
+                        <TouchableOpacity onPress={() => handleDeleteCall(call.id)} style={{ padding: 6 }}>
+                          <Ionicons name="trash-outline" size={14} color={colors.textDim} />
+                        </TouchableOpacity>
+                        <Ionicons name={isOpen ? "chevron-up" : "chevron-down"} size={16} color={colors.textMuted} />
+                      </TouchableOpacity>
+                      {isOpen && (
+                        <View style={{ paddingHorizontal: 14, paddingBottom: 14, gap: 6 }}>
+                          {(callDetail[call.id] || []).length === 0 ? (
+                            <Text style={{ fontSize: 11, color: colors.textDim }}>Cargando...</Text>
+                          ) : (
+                            callDetail[call.id].map((turn, idx) => (
+                              <View
+                                key={idx}
+                                style={{
+                                  alignSelf: turn.role === "user" ? "flex-end" : "flex-start",
+                                  maxWidth: "85%",
+                                  backgroundColor: turn.role === "user" ? colors.bgRaised : "rgba(0,185,109,0.08)",
+                                  borderRadius: 12,
+                                  paddingHorizontal: 12,
+                                  paddingVertical: 8,
+                                }}
+                              >
+                                <Text style={{ fontSize: 12, color: colors.text }}>{turn.text}</Text>
+                              </View>
+                            ))
+                          )}
+                        </View>
+                      )}
+                    </View>
+                  );
+                })}
+              </View>
+            )}
           </View>
         )}
 

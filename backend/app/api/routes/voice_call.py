@@ -31,10 +31,11 @@ import base64
 import json
 import logging
 import re
+from datetime import datetime, timezone
 
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect
 
-from app.api.deps import _resolve_user
+from app.api.deps import _resolve_user, get_current_user_id
 from app.core.database import get_supabase, run_query
 from app.models.user import ChatMessage, UserProfile
 from app.services import ai_service, fmg_service, investor_progress_service
@@ -95,6 +96,72 @@ async def _load_call_context(user_id: str, profile: UserProfile | None, is_premi
     }
 
 
+async def _save_transcript(
+    user_id: str,
+    mentor_id: str | None,
+    started_at: datetime,
+    history: list[ChatMessage],
+) -> None:
+    """Persist the call's text transcript — not audio — once the call ends.
+    Skips near-empty calls (just the greeting, no real exchange)."""
+    if len(history) < 2:
+        return
+    try:
+        db = get_supabase()
+        ended_at = datetime.now(timezone.utc)
+        await run_query(
+            db.table("voice_call_transcripts").insert({
+                "user_id":          user_id,
+                "mentor":           mentor_id,
+                "started_at":       started_at.isoformat(),
+                "ended_at":         ended_at.isoformat(),
+                "duration_seconds": max(0, int((ended_at - started_at).total_seconds())),
+                "turns":            [{"role": m.role, "text": m.content} for m in history],
+            })
+        )
+    except Exception as e:
+        logger.warning("Voice call transcript save failed for %s: %s", user_id, e)
+
+
+# ── GET /api/voice/calls — list past call transcripts ─────────────────────────
+@router.get("/calls")
+async def list_calls(user_id: str = Depends(get_current_user_id)):
+    db = get_supabase()
+    res = await run_query(
+        db.table("voice_call_transcripts")
+        .select("id, mentor, started_at, duration_seconds")
+        .eq("user_id", user_id)
+        .order("started_at", desc=True)
+        .limit(100)
+    )
+    return {"calls": res.data or []}
+
+
+# ── GET /api/voice/calls/{id} — full transcript ───────────────────────────────
+@router.get("/calls/{call_id}")
+async def get_call(call_id: str, user_id: str = Depends(get_current_user_id)):
+    db = get_supabase()
+    res = await run_query(
+        db.table("voice_call_transcripts").select("*")
+        .eq("id", call_id).eq("user_id", user_id).limit(1)
+    )
+    if not res.data:
+        raise HTTPException(status_code=404, detail="Llamada no encontrada")
+    return res.data[0]
+
+
+# ── DELETE /api/voice/calls/{id} ───────────────────────────────────────────────
+@router.delete("/calls/{call_id}")
+async def delete_call(call_id: str, user_id: str = Depends(get_current_user_id)):
+    db = get_supabase()
+    res = await run_query(
+        db.table("voice_call_transcripts").delete().eq("id", call_id).eq("user_id", user_id)
+    )
+    if not res.data:
+        raise HTTPException(status_code=404, detail="Llamada no encontrada")
+    return {"deleted": True}
+
+
 @router.websocket("/call/ws")
 async def voice_call_ws(websocket: WebSocket, token: str = ""):
     try:
@@ -116,6 +183,7 @@ async def voice_call_ws(websocket: WebSocket, token: str = ""):
     ctx = await _load_call_context(user_id, profile, is_premium)
     mentor_id = profile.mentor if profile else None
 
+    call_started_at = datetime.now(timezone.utc)
     history: list[ChatMessage] = []
     audio_buffer = bytearray()
     current_task: asyncio.Task | None = None
@@ -274,3 +342,4 @@ async def voice_call_ws(websocket: WebSocket, token: str = ""):
     finally:
         if current_task and not current_task.done():
             current_task.cancel()
+        await _save_transcript(user_id, mentor_id, call_started_at, history)

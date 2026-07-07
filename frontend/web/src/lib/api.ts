@@ -451,4 +451,10 @@ export const progressApi = {
   getPersonalizedMessage: () => api.get("/api/progress/personalized-message"),
 };
 
+export const voiceCallsApi = {
+  list: () => api.get("/api/voice/calls"),
+  get: (id: string) => api.get(`/api/voice/calls/${id}`),
+  delete: (id: string) => api.delete(`/api/voice/calls/${id}`),
+};
+
 export default api;
