@@ -914,7 +914,12 @@ export default function HomePage() {
             )}
 
             {/* ── Stat Strip ──────────────────────────────────────────────── */}
-            <div className={`grid gap-3 ${hasBroker ? "grid-cols-4" : "grid-cols-5"}`}>
+            {/* grid-cols-4/5 with no breakpoint forced 5 equal columns at any
+                width — on a phone each card got squeezed to ~60px and the
+                last one was clipped by the page's overflow boundary with no
+                way to scroll to it. Wrap to 2 columns below lg (unchanged
+                desktop layout preserved at lg:+). */}
+            <div className={`grid grid-cols-2 sm:grid-cols-3 gap-3 ${hasBroker ? "lg:grid-cols-4" : "lg:grid-cols-5"}`}>
               {/* Portfolio day */}
               <button onClick={() => router.push("/patrimonio")}
                       className="flex items-center gap-2.5 px-4 py-3 rounded-xl border transition-all hover:border-[var(--accent)]"

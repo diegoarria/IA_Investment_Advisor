@@ -262,13 +262,19 @@ export default function MarketTickerBar() {
           </span>
         </div>
 
-        {/* Ticker area: loops when open, static scrollable when closed */}
+        {/* Ticker area: loops when open, static scrollable when closed.
+            When closed it's already scrollable, but on a phone the content
+            just stops dead at the screen edge with no hint there's more —
+            reads as broken even though it isn't. The mask fades the edge
+            instead of hard-clipping it. */}
         <div style={{
           flex: 1,
           overflow: open ? "hidden" : "auto",
           height: 30,
           display: "flex",
           alignItems: "center",
+          WebkitMaskImage: "linear-gradient(to right, black calc(100% - 20px), transparent 100%)",
+          maskImage: "linear-gradient(to right, black calc(100% - 20px), transparent 100%)",
         }}
           className="scrollbar-none"
         >
