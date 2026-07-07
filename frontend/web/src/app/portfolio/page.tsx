@@ -814,6 +814,19 @@ export default function PortfolioPage() {
     );
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthenticated]);
+  // "Avanzado" is a denser table meant for desktop width — force "Básico" on
+  // a phone-sized viewport without touching the user's actual saved
+  // preference, so it's back to normal the moment they open this on a
+  // computer. Web-only concept (viewport width), not a device check.
+  const [isMobileViewport, setIsMobileViewport] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 1023px)");
+    setIsMobileViewport(mq.matches);
+    const onChange = (e: MediaQueryListEvent) => setIsMobileViewport(e.matches);
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, []);
+  const effectiveViewMode: "basic" | "advanced" = isMobileViewport ? "basic" : viewMode;
   const [selectedStock, setSelectedStock] = useState<string | null>(null);
 
   const handleSort = (field: SortField) => {
@@ -1541,8 +1554,8 @@ export default function PortfolioPage() {
                 <span className="hidden sm:inline">Guardado {new Date(lastSaved).toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" })}</span>
               </div>
             )}
-            {/* View toggle */}
-            <div className="flex items-center rounded-lg border overflow-hidden" style={{ borderColor: "var(--border)" }}>
+            {/* View toggle — hidden on mobile since effectiveViewMode forces "basic" there regardless of what's tapped */}
+            <div className="hidden lg:flex items-center rounded-lg border overflow-hidden" style={{ borderColor: "var(--border)" }}>
               <button onClick={() => { setViewMode("basic"); localStorage.setItem("nuvos_portfolio_view", "basic"); import("@/lib/api").then(({ sync }) => sync.pushPortfolioViewMode("basic").catch(() => {})); }}
                       className="px-2.5 py-1.5 text-[10px] font-bold transition-colors"
                       style={{ background: viewMode === "basic" ? "var(--accent)" : "transparent", color: viewMode === "basic" ? "#fff" : "var(--muted)" }}>
@@ -2406,7 +2419,7 @@ export default function PortfolioPage() {
               })()}
 
               {/* Advanced table view */}
-              {viewMode === "advanced" && sortedPositions.length > 0 && (
+              {effectiveViewMode === "advanced" && sortedPositions.length > 0 && (
                 <div className="mb-4">
                   <AdvancedStockTable
                     mode="portfolio"
@@ -2448,7 +2461,7 @@ export default function PortfolioPage() {
               )}
 
               {/* Sort chips */}
-              {viewMode === "basic" && (
+              {effectiveViewMode === "basic" && (
               <div className="flex items-center gap-1.5 mb-3 flex-wrap">
                 <span className="text-[10px] font-semibold" style={{ color:"var(--dim)" }}>Ordenar:</span>
                 {([
@@ -2476,7 +2489,7 @@ export default function PortfolioPage() {
               )}
 
               {/* Position cards */}
-              {viewMode === "basic" && sortedPositions.map((pos) => {
+              {effectiveViewMode === "basic" && sortedPositions.map((pos) => {
                 const pd = prices[pos.ticker];
                 const cpUSD = pd?.price;
                 // Convert USD market price → user's currency

@@ -442,6 +442,20 @@ export default function WatchlistPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthenticated]);
 
+  // "Avanzado" is a denser table meant for desktop width — force "Básico" on
+  // a phone-sized viewport without touching the user's actual saved
+  // preference, so it's back to normal the moment they open this on a
+  // computer. Web-only concept (viewport width), not a device check.
+  const [isMobileViewport, setIsMobileViewport] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 1023px)");
+    setIsMobileViewport(mq.matches);
+    const onChange = (e: MediaQueryListEvent) => setIsMobileViewport(e.matches);
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, []);
+  const effectiveViewMode: "basic" | "advanced" = isMobileViewport ? "basic" : viewMode;
+
   const searchRef = useRef<HTMLDivElement>(null);
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -636,8 +650,8 @@ export default function WatchlistPage() {
                   {lastUpdatedText}
                 </span>
               )}
-              {/* View toggle */}
-              <div className="flex items-center rounded-lg border overflow-hidden"
+              {/* View toggle — hidden on mobile since effectiveViewMode forces "basic" there regardless of what's tapped */}
+              <div className="hidden lg:flex items-center rounded-lg border overflow-hidden"
                    style={{ borderColor: "var(--border)" }}>
                 <button
                   onClick={() => { setViewMode("basic"); localStorage.setItem("nuvos_watchlist_view", "basic"); import("@/lib/api").then(({ sync }) => sync.pushWatchlistViewMode("basic").catch(() => {})); }}
@@ -784,7 +798,7 @@ export default function WatchlistPage() {
                 <SkeletonCard />
                 <SkeletonCard />
               </div>
-            ) : viewMode === "advanced" && items.length > 0 ? (
+            ) : effectiveViewMode === "advanced" && items.length > 0 ? (
               <AdvancedStockTable
                 mode="watchlist"
                 userLevel={userLevel}
