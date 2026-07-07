@@ -4,7 +4,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { useTheme } from "../../src/lib/ThemeContext";
 import { useSubscriptionStore, hasPremiumAccess } from "../../src/lib/subscriptionStore";
-import { progressApi } from "../../src/lib/api";
+import { progressApi, benchmarkApi } from "../../src/lib/api";
 import PricingModal from "../../src/components/PricingModal";
 
 interface ProgressSummary {
@@ -32,6 +32,19 @@ interface DecisionThatHelped {
   description: string;
 }
 
+interface BenchmarkResult {
+  metric: string;
+  label: string;
+  your_value: number;
+  percentile: number;
+  cohort_size: number;
+}
+
+interface Benchmark {
+  cohort_label: string;
+  results: BenchmarkResult[];
+}
+
 const fmtUSD = (n: number) => `$${n.toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
 
 export default function ProgressScreen() {
@@ -44,6 +57,7 @@ export default function ProgressScreen() {
   const [summary, setSummary] = useState<ProgressSummary>({});
   const [milestones, setMilestones] = useState<Milestone[]>([]);
   const [decisions, setDecisions] = useState<DecisionThatHelped[]>([]);
+  const [benchmark, setBenchmark] = useState<Benchmark | null>(null);
 
   useEffect(() => {
     if (!isPremium) return;
@@ -60,6 +74,7 @@ export default function ProgressScreen() {
       })
       .catch(() => {})
       .finally(() => setLoading(false));
+    benchmarkApi.getMine().then((r: any) => setBenchmark(r.data)).catch(() => {});
   }, [isPremium]);
 
   const metrics: { label: string; value: string }[] = [];
@@ -156,6 +171,31 @@ export default function ProgressScreen() {
                     <Text style={{ fontSize: 16, fontWeight: "900", color: colors.text }}>{m.value}</Text>
                   </View>
                 ))}
+              </View>
+            )}
+
+            {benchmark && benchmark.results.length > 0 && (
+              <View>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 8 }}>
+                  <Ionicons name="people" size={13} color="#3b82f6" />
+                  <Text style={{ fontSize: 11, fontWeight: "800", color: colors.textMuted }}>CÓMO TE COMPARAS</Text>
+                </View>
+                <View style={{ gap: 8 }}>
+                  {benchmark.results.map((r) => (
+                    <View key={r.metric} style={{ padding: 12, borderRadius: 14, borderWidth: 1, backgroundColor: "rgba(59,130,246,0.06)", borderColor: "rgba(59,130,246,0.2)" }}>
+                      <Text style={{ fontSize: 13, color: colors.text }}>
+                        <Text style={{ fontWeight: "900" }}>Superas al {r.percentile}%</Text>
+                        {" "}de inversionistas con perfil <Text style={{ fontWeight: "800" }}>{benchmark.cohort_label}</Text> en {r.label.toLowerCase()}.
+                      </Text>
+                      <View style={{ height: 6, borderRadius: 3, marginTop: 10, backgroundColor: colors.border, overflow: "hidden" }}>
+                        <View style={{ height: "100%", width: `${r.percentile}%`, borderRadius: 3, backgroundColor: "#3b82f6" }} />
+                      </View>
+                      <Text style={{ fontSize: 10, color: colors.textDim, marginTop: 6 }}>
+                        Comparado de forma anónima contra {r.cohort_size} inversionistas — nunca vemos ni compartimos datos individuales de nadie.
+                      </Text>
+                    </View>
+                  ))}
+                </View>
               </View>
             )}
 

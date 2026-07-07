@@ -418,6 +418,10 @@ export const progressApi = {
   getPersonalizedMessage: () => api.get("/api/progress/personalized-message"),
 };
 
+export const benchmarkApi = {
+  getMine: () => api.get("/api/benchmark/me"),
+};
+
 export const financialProfileApi = {
   get: () => api.get("/api/profile/financial"),
   update: (fields: Partial<{

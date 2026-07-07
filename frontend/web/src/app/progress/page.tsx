@@ -2,10 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { TrendingUp, Lock, Loader2, Trophy, ShieldCheck, Calendar, X } from "lucide-react";
+import { TrendingUp, Lock, Loader2, Trophy, ShieldCheck, Calendar, X, Users } from "lucide-react";
 import AppSidebar from "@/components/AppSidebar";
 import PaywallModal from "@/components/PaywallModal";
-import { progressApi } from "@/lib/api";
+import { progressApi, benchmarkApi } from "@/lib/api";
 import { useSubscriptionStore } from "@/lib/store";
 
 interface ProgressSummary {
@@ -36,6 +36,19 @@ interface DecisionThatHelped {
   description: string;
 }
 
+interface BenchmarkResult {
+  metric: string;
+  label: string;
+  your_value: number;
+  percentile: number;
+  cohort_size: number;
+}
+
+interface Benchmark {
+  cohort_label: string;
+  results: BenchmarkResult[];
+}
+
 const fmtUSD = (n: number) => `$${n.toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
 
 export default function ProgressPage() {
@@ -49,6 +62,7 @@ export default function ProgressPage() {
   const [summary, setSummary] = useState<ProgressSummary>({});
   const [milestones, setMilestones] = useState<Milestone[]>([]);
   const [decisions, setDecisions] = useState<DecisionThatHelped[]>([]);
+  const [benchmark, setBenchmark] = useState<Benchmark | null>(null);
 
   useEffect(() => {
     if (!isPremium) return;
@@ -65,6 +79,7 @@ export default function ProgressPage() {
       })
       .catch(() => {})
       .finally(() => setLoading(false));
+    benchmarkApi.getMine().then((r) => setBenchmark(r.data)).catch(() => {});
   }, [isPremium]);
 
   const metrics: { label: string; value: string }[] = [];
@@ -181,6 +196,33 @@ export default function ProgressPage() {
                       <p className="text-lg font-black" style={{ color: "var(--text)" }}>{m.value}</p>
                     </div>
                   ))}
+                </div>
+              )}
+
+              {/* Comparación anónima con otros inversionistas */}
+              {benchmark && benchmark.results.length > 0 && (
+                <div>
+                  <p className="text-xs font-bold mb-2 flex items-center gap-1.5" style={{ color: "var(--muted)" }}>
+                    <Users className="w-3.5 h-3.5" style={{ color: "#3b82f6" }} /> CÓMO TE COMPARAS
+                  </p>
+                  <div className="space-y-2.5">
+                    {benchmark.results.map((r) => (
+                      <div key={r.metric} className="p-3.5 rounded-xl border"
+                           style={{ borderColor: "rgba(59,130,246,0.2)", background: "rgba(59,130,246,0.05)" }}>
+                        <p className="text-sm" style={{ color: "var(--text)" }}>
+                          <span className="font-black">Superas al {r.percentile}%</span>{" "}
+                          de inversionistas con perfil <span className="font-bold">{benchmark.cohort_label}</span> en{" "}
+                          {r.label.toLowerCase()}.
+                        </p>
+                        <div className="h-1.5 rounded-full mt-2.5 overflow-hidden" style={{ background: "var(--border)" }}>
+                          <div className="h-full rounded-full" style={{ width: `${r.percentile}%`, background: "#3b82f6" }} />
+                        </div>
+                        <p className="text-[10px] mt-1.5" style={{ color: "var(--dim)" }}>
+                          Comparado de forma anónima contra {r.cohort_size} inversionistas — nunca vemos ni compartimos datos individuales de nadie.
+                        </p>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
 

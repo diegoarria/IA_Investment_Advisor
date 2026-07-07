@@ -3796,6 +3796,92 @@ async def job_sunday_portfolio_review():
         logger.error("job_sunday_portfolio_review failed: %s", e)
 
 
+_BENCHMARK_MIN_SAMPLE = 5  # never store/serve a cohort distribution smaller than this — privacy floor
+
+
+def _benchmark_cohort(risk_tolerance: str | None) -> str:
+    r = (risk_tolerance or "moderate").lower()
+    if "conserv" in r:
+        return "conservative"
+    if "agres" in r or "aggres" in r:
+        return "aggressive"
+    return "moderate"
+
+
+async def job_compute_benchmarks():
+    """Domingo 6:00 AM ET — recalcula las distribuciones anónimas de retorno
+    acumulado y constancia por cohorte de riesgo (conservador/moderado/
+    agresivo), usadas para el benchmarking entre inversionistas ("le ganas
+    al 62% de inversionistas con tu perfil"). Solo usuarios Premium con
+    portafolio (mismo universo que ya usa el Investor Progress Engine).
+    Nunca se guarda qué valor pertenece a qué usuario — solo la distribución
+    agregada y anónima de cada cohorte."""
+    from app.core.database import get_supabase, run_query
+    from app.services import investor_progress_service
+    db = get_supabase()
+    try:
+        prof_res = await run_query(
+            db.table("user_profiles").select("user_id,risk_tolerance,subscription_tier,trial_started_at")
+        )
+        candidates = [
+            r for r in (prof_res.data or [])
+            if r.get("risk_tolerance") and _is_premium_user(r.get("subscription_tier", "free"), r.get("trial_started_at"))
+        ]
+        if not candidates:
+            return
+
+        port_res = await run_query(db.table("user_portfolio").select("user_id"))
+        has_portfolio = {r["user_id"] for r in (port_res.data or [])}
+        candidates = [r for r in candidates if r["user_id"] in has_portfolio]
+        if not candidates:
+            return
+
+        return_by_cohort: dict[str, list[float]] = {"conservative": [], "moderate": [], "aggressive": []}
+        streak_by_cohort: dict[str, list[float]] = {"conservative": [], "moderate": [], "aggressive": []}
+
+        sem = asyncio.Semaphore(8)  # bounds concurrent network-bound progress computations
+
+        async def _one(uid: str, cohort: str):
+            async with sem:
+                try:
+                    summary = await investor_progress_service.compute_progress_summary(uid)
+                except Exception:
+                    return
+                if "cumulative_return_pct" in summary:
+                    return_by_cohort[cohort].append(summary["cumulative_return_pct"])
+                if "consecutive_months_contributing" in summary:
+                    streak_by_cohort[cohort].append(float(summary["consecutive_months_contributing"]))
+
+        await asyncio.gather(*[_one(r["user_id"], _benchmark_cohort(r["risk_tolerance"])) for r in candidates])
+
+        stored = 0
+        now_iso = datetime.now(timezone.utc).isoformat()
+        for metric_key, by_cohort in (
+            ("cumulative_return_pct", return_by_cohort),
+            ("consecutive_months_contributing", streak_by_cohort),
+        ):
+            for cohort, values in by_cohort.items():
+                if len(values) < _BENCHMARK_MIN_SAMPLE:
+                    continue
+                await run_query(
+                    db.table("benchmark_cohort_stats").upsert(
+                        {
+                            "cohort_key": cohort,
+                            "metric_key": metric_key,
+                            "values": sorted(values),
+                            "sample_size": len(values),
+                            "computed_at": now_iso,
+                        },
+                        on_conflict="cohort_key,metric_key",
+                    )
+                )
+                stored += 1
+
+        logger.info("Benchmark cohorts: %d distributions stored from %d users", stored, len(candidates))
+    except Exception as e:
+        logger.error("job_compute_benchmarks failed: %s", e)
+
+
 # ── Daily habit system — quarterly earnings season digest ────────────────────
 async def job_quarterly_earnings_digest():
     """Día 5 de enero/abril/julio/octubre, 9:00 AM ET — resumen de qué activos
@@ -4622,6 +4708,7 @@ async def main():
     # ── Daily habit system ──────────────────────────────────────────────────────
     scheduler.add_job(job_evening_capsule_push,      "cron",                    hour=19, minute=30, timezone="America/New_York")
     scheduler.add_job(job_sunday_portfolio_review,   "cron", day_of_week="sun", hour=17, minute=0,  timezone="America/New_York")
+    scheduler.add_job(job_compute_benchmarks,        "cron", day_of_week="sun", hour=6,  minute=0,  timezone="America/New_York")
     scheduler.add_job(job_quarterly_earnings_digest, "cron", month="1,4,7,10", day=5, hour=9, minute=0, timezone="America/New_York")
 
     # ── Monthly: day 1 (premium personalized, free general) ──────────────────
