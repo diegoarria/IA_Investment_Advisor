@@ -461,4 +461,8 @@ export const voiceCallsApi = {
   delete: (id: string) => api.delete(`/api/voice/calls/${id}`),
 };
 
+export const adminApi = {
+  getUserSnapshot: (email: string) => api.get("/api/admin/user-snapshot", { params: { email } }),
+};
+
 export default api;

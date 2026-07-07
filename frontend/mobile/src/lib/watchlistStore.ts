@@ -1,6 +1,6 @@
 import { create } from "zustand";
-import { persist, createJSONStorage } from "zustand/middleware";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import { persist } from "zustand/middleware";
+import { userScopedStorage } from "./userScopedStorage";
 import { watchlistServerApi } from "./api";
 
 export interface WatchItem {
@@ -71,7 +71,7 @@ export const useWatchlistStore = create<WatchlistStore>()(
     }),
     {
       name: "watchlist",
-      storage: createJSONStorage(() => AsyncStorage),
+      storage: userScopedStorage,
       // Only persist items — runtime flags stay in-memory
       partialize: (state) => ({ items: state.items }),
     }

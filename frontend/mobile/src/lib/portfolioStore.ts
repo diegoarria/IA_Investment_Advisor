@@ -1,6 +1,6 @@
 import { create } from "zustand";
-import { persist, createJSONStorage } from "zustand/middleware";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import { persist } from "zustand/middleware";
+import { userScopedStorage } from "./userScopedStorage";
 
 export interface Position {
   id: string;
@@ -418,7 +418,7 @@ export const usePortfolioStore = create<PortfolioStore>()(
         }
         return persisted;
       },
-      storage: createJSONStorage(() => AsyncStorage),
+      storage: userScopedStorage,
       partialize: (state) => ({
         portfolios: state.portfolios,
         activePortfolioId: state.activePortfolioId,

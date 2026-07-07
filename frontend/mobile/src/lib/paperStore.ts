@@ -1,6 +1,6 @@
 import { create } from "zustand";
-import { persist, createJSONStorage } from "zustand/middleware";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import { persist } from "zustand/middleware";
+import { userScopedStorage } from "./userScopedStorage";
 
 export interface PaperPosition {
   id: string;
@@ -176,7 +176,7 @@ export const usePaperStore = create<PaperStore>()(
     }),
     {
       name: "paper-trading",
-      storage: createJSONStorage(() => AsyncStorage),
+      storage: userScopedStorage,
     }
   )
 );

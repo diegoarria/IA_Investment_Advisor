@@ -37,6 +37,8 @@ class Settings(BaseSettings):
     vapid_private_key: str = ""   # base64url-encoded private key
     vapid_public_key: str = ""    # base64url-encoded public key (sent to browser)
     vapid_claim_email: str = "mailto:diego.arria19@gmail.com"
+    # Comma-separated emails allowed to use the read-only admin "view as" panel
+    admin_emails: str = "diego.arria19@gmail.com"
 
     class Config:
         env_file = ".env"

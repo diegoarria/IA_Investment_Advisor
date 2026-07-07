@@ -1,6 +1,6 @@
 import { create } from "zustand";
-import { persist, createJSONStorage } from "zustand/middleware";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import { persist } from "zustand/middleware";
+import { userScopedStorage } from "./userScopedStorage";
 
 function todayStr() {
   const d = new Date();
@@ -173,7 +173,7 @@ export const useLearnStore = create<LearnStore>()(
         _syncStreak(newStreak, today);
       },
     }),
-    { name: "learn-store", storage: createJSONStorage(() => AsyncStorage) }
+    { name: "learn-store", storage: userScopedStorage }
   )
 );
 

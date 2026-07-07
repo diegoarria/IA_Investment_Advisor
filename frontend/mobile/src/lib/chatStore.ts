@@ -1,23 +1,6 @@
 import { create } from "zustand";
-import { persist, createJSONStorage } from "zustand/middleware";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import * as SecureStore from "expo-secure-store";
-
-// Each user gets their own chat storage key so accounts don't share history.
-const userScopedStorage = createJSONStorage(() => ({
-  getItem: async (name: string) => {
-    const uid = (await SecureStore.getItemAsync("user_id")) ?? "guest";
-    return AsyncStorage.getItem(`${name}__${uid}`);
-  },
-  setItem: async (name: string, value: string) => {
-    const uid = (await SecureStore.getItemAsync("user_id")) ?? "guest";
-    return AsyncStorage.setItem(`${name}__${uid}`, value);
-  },
-  removeItem: async (name: string) => {
-    const uid = (await SecureStore.getItemAsync("user_id")) ?? "guest";
-    return AsyncStorage.removeItem(`${name}__${uid}`);
-  },
-}));
+import { persist } from "zustand/middleware";
+import { userScopedStorage } from "./userScopedStorage";
 
 export interface Message {
   role: "user" | "assistant";

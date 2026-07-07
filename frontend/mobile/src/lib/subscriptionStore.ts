@@ -1,6 +1,6 @@
 import { create } from "zustand";
-import { persist, createJSONStorage } from "zustand/middleware";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import { persist } from "zustand/middleware";
+import { userScopedStorage } from "./userScopedStorage";
 import { billingApi } from "./api";
 import { posthog } from "../config/posthog";
 
@@ -92,7 +92,7 @@ export const useSubscriptionStore = create<SubscriptionStore>()(
     }),
     {
       name: "subscription-status",
-      storage: createJSONStorage(() => AsyncStorage),
+      storage: userScopedStorage,
     }
   )
 );

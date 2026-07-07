@@ -1,6 +1,6 @@
 import { create } from "zustand";
-import { persist, createJSONStorage } from "zustand/middleware";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import { persist } from "zustand/middleware";
+import { userScopedStorage } from "./userScopedStorage";
 
 export type RiskTolerance = "conservative" | "moderate" | "aggressive";
 export type QuizAnswer = "A" | "B" | "C" | "D";
@@ -165,7 +165,7 @@ export const useAppStore = create<AppStore>()(
     }),
     {
       name: "user-profile",
-      storage: createJSONStorage(() => AsyncStorage),
+      storage: userScopedStorage,
       partialize: (s) => ({ profile: s.profile, maturityScore: s.maturityScore, maturityHistory: s.maturityHistory, hasSeenFirstAction: s.hasSeenFirstAction, hasSeenTutorial: s.hasSeenTutorial }),
     }
   )
