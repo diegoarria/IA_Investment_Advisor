@@ -70,7 +70,27 @@ async def _load_profile(user_id: str) -> UserProfile | None:
 
 
 def _is_premium(profile: UserProfile | None) -> bool:
-    return bool(profile and profile.subscription_tier in ("premium", "pro"))
+    """True for premium/pro subscribers and users within their 90-day trial —
+    must match chat.py's _is_premium exactly. A user in an active trial is
+    treated as premium everywhere else in the app (including the client-side
+    check that decides whether to show the paywall before opening the call),
+    so this WebSocket-level gate has to agree, or trial users get silently
+    rejected here — which the browser can only ever show as a generic
+    "connection failed" / code 1006, since the real 403 happens before the
+    WS handshake completes and JS has no visibility into why."""
+    if profile is None:
+        return False
+    tier = getattr(profile, "subscription_tier", "") or ""
+    if tier in ("premium", "pro"):
+        return True
+    trial = getattr(profile, "trial_started_at", None)
+    if trial:
+        try:
+            started = datetime.fromisoformat(trial.replace("Z", "+00:00"))
+            return (datetime.now(timezone.utc) - started).days < 90
+        except Exception:
+            pass
+    return False
 
 
 async def _load_call_context(user_id: str, profile: UserProfile | None, is_premium: bool) -> dict:
