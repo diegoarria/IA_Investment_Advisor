@@ -229,6 +229,11 @@ export default function MarketTickerBar() {
       `}</style>
 
       <div
+        // pl-9 clears AppSidebar's mobile hamburger trigger (fixed top-1.5
+        // left-1.5, 28px) so its text doesn't render underneath it — the
+        // button lives outside this component so it can't just take less
+        // space, this bar has to leave room for it instead.
+        className="pl-9 lg:pl-0"
         style={{
           height: 30,
           display: "flex",

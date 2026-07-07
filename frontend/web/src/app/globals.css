@@ -101,6 +101,15 @@ html, body {
   }
 }
 
+/* Any horizontally-scrollable row (filter chips, card carousels) that gets
+   clipped by a fixed-width viewport reads as "broken/cut off" without a
+   hint that there's more — fade the trailing edge instead of hard-cutting
+   it. Apply to the element that actually has overflow-x-auto. */
+.fade-scroll-x {
+  -webkit-mask-image: linear-gradient(to right, black calc(100% - 24px), transparent 100%);
+  mask-image: linear-gradient(to right, black calc(100% - 24px), transparent 100%);
+}
+
 body {
   background-color: var(--bg);
   color: var(--text);

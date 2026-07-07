@@ -234,11 +234,11 @@ export default function AppSidebar({ open, onClose, onOpen, hideMobileTrigger }:
       {!open && !hideMobileTrigger && (
         <button
           onClick={onOpen}
-          className="lg:hidden fixed top-3 left-3 z-30 w-9 h-9 rounded-xl flex items-center justify-center"
-          style={{ background: "var(--card)", border: "1px solid var(--border)", boxShadow: "0 2px 8px rgba(0,0,0,0.2)" }}
+          className="lg:hidden fixed top-1.5 left-1.5 z-40 w-7 h-7 rounded-lg flex items-center justify-center"
+          style={{ background: "var(--card)", border: "1px solid var(--border)", boxShadow: "0 2px 8px rgba(0,0,0,0.25)" }}
           aria-label="Abrir menú"
         >
-          <Menu className="w-4 h-4" style={{ color: "var(--muted)" }} />
+          <Menu className="w-3.5 h-3.5" style={{ color: "var(--muted)" }} />
         </button>
       )}
 

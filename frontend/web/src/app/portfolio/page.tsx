@@ -1423,7 +1423,13 @@ export default function PortfolioPage() {
         <MarketTickerBar />
 
         {/* Sticky Header */}
-        <div className="sticky top-0 z-10 px-6 py-4 flex items-center justify-between border-b shrink-0"
+        {/* Title+switcher and the controls row used to share one
+            items-center justify-between row unconditionally — on mobile
+            there's no room for both, so the wrapped portfolio-pill line and
+            the view-toggle/refresh/share controls ended up vertically
+            overlapping instead of stacking. flex-col below lg stacks them;
+            lg:flex-row restores the original single-row desktop layout. */}
+        <div className="sticky top-0 z-10 px-4 sm:px-6 py-3 sm:py-4 flex flex-col lg:flex-row lg:items-center justify-between gap-3 border-b shrink-0"
              style={{ background: "var(--bg)", borderColor: "var(--border)" }}>
           <div className="flex flex-col gap-2 flex-1 min-w-0">
             <div>
@@ -1510,7 +1516,7 @@ export default function PortfolioPage() {
               )}
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             {/* Sync status */}
             {syncStatus === "syncing" && (
               <div className="flex items-center gap-1 text-[10px] font-semibold" style={{ color: "var(--muted)" }}>
@@ -2725,7 +2731,7 @@ export default function PortfolioPage() {
                       { id:"hypothetical",label:"Hipotéticos" },
                     ];
                     return (
-                      <div className="flex gap-1.5 overflow-x-auto pb-2 scrollbar-none mb-2">
+                      <div className="flex gap-1.5 overflow-x-auto pb-2 scrollbar-none mb-2 fade-scroll-x">
                         {ERAS.map((era) => (
                           <button key={era.id}
                                   onClick={() => { setStressEra(era.id); setStressScenario(null); }}
@@ -2741,7 +2747,7 @@ export default function PortfolioPage() {
                       </div>
                     );
                   })()}
-                  <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-none">
+                  <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-none fade-scroll-x">
                     {STRESS_SCENARIOS.filter((sc) => stressEra==="all" || sc.era===stressEra).map((sc) => (
                       <button key={sc.id}
                               onClick={() => runStressTest(sc.id)}
