@@ -171,6 +171,15 @@ async def voice_call_ws(websocket: WebSocket, token: str = ""):
         return
     user_id = user["id"]
 
+    # Voice call is Premium-exclusive. The client already gates the button
+    # behind a paywall, but enforce it here too — the client is not a
+    # trust boundary, and this is the only place that actually matters.
+    profile = await _load_profile(user_id)
+    is_premium = _is_premium(profile)
+    if not is_premium:
+        await websocket.close(code=4403, reason="premium_required")
+        return
+
     await websocket.accept()
     send_lock = asyncio.Lock()
 
@@ -178,8 +187,6 @@ async def voice_call_ws(websocket: WebSocket, token: str = ""):
         async with send_lock:
             await websocket.send_json(payload)
 
-    profile = await _load_profile(user_id)
-    is_premium = _is_premium(profile)
     ctx = await _load_call_context(user_id, profile, is_premium)
     mentor_id = profile.mentor if profile else None
 

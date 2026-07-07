@@ -1111,7 +1111,13 @@ Instrucciones críticas:
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity
-                onPress={() => setShowCallModal(true)}
+                onPress={() => {
+                  if (!isPremiumAccess) {
+                    openPaywall("La llamada de voz con el Mentor IA es exclusiva para Premium.");
+                    return;
+                  }
+                  setShowCallModal(true);
+                }}
                 disabled={streaming}
                 style={[styles.toolbarBtn, { opacity: streaming ? 0.4 : 1 }]}
               >

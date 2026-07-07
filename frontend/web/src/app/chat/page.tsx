@@ -218,6 +218,7 @@ export default function ChatPage() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const [paywallOpen, setPaywallOpen] = useState(false);
+  const [paywallReason, setPaywallReason] = useState<string | undefined>(undefined);
   const [lastAssessment, setLastAssessment] = useState<BScoreData | null>(null);
   const [pendingImages, setPendingImages] = useState<Array<{ data: string; type: string; preview: string }>>([]);
   const [isDragging, setIsDragging] = useState(false);
@@ -575,7 +576,7 @@ export default function ChatPage() {
     const msg = text || input.trim();
     if ((!msg && pendingImages.length === 0) || isStreaming) return;
 
-    if (remaining === 0) { setPaywallOpen(true); return; }
+    if (remaining === 0) { setPaywallReason(undefined); setPaywallOpen(true); return; }
 
     const imagesToSend = [...pendingImages];
     setInput("");
@@ -660,7 +661,7 @@ export default function ChatPage() {
       setStreaming(false);
       removeLastMessage();
       const status = (err as { response?: { status?: number } })?.response?.status;
-      if (status === 429) { await subStore.fetchStatus(); upsellTrigger("msg_limit_hit"); setPaywallOpen(true); }
+      if (status === 429) { await subStore.fetchStatus(); upsellTrigger("msg_limit_hit"); setPaywallReason(undefined); setPaywallOpen(true); }
       else { setSendError("No se pudo conectar con el asistente. Verifica tu conexión e intenta de nuevo."); }
     }
   };
@@ -1297,7 +1298,7 @@ export default function ChatPage() {
                 <span className="text-xs" style={{ color: "var(--down)" }}>
                   Alcanzaste el límite de {FREE_MSG_LIMIT} mensajes diarios.
                 </span>
-                <button onClick={() => setPaywallOpen(true)}
+                <button onClick={() => { setPaywallReason(undefined); setPaywallOpen(true); }}
                         className="text-xs font-bold ml-3 shrink-0" style={{ color: "var(--accent-l)" }}>
                   Activar Premium →
                 </button>
@@ -1408,9 +1409,19 @@ export default function ChatPage() {
                     <span className="hidden sm:inline">{isTranscribing ? "Transcribiendo..." : "Voz"}</span>
                   </button>
 
-                  <button onClick={() => setShowCallModal(true)} disabled={isStreaming}
-                          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium hover:bg-white/5 disabled:opacity-30 transition-colors"
-                          style={{ color: "var(--muted)" }}>
+                  <button
+                    onClick={() => {
+                      if (!isPremium) {
+                        setPaywallReason("La llamada de voz con el Mentor IA es exclusiva para Premium.");
+                        setPaywallOpen(true);
+                        return;
+                      }
+                      setShowCallModal(true);
+                    }}
+                    disabled={isStreaming}
+                    className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium hover:bg-white/5 disabled:opacity-30 transition-colors"
+                    style={{ color: "var(--muted)" }}
+                  >
                     <Phone className="w-3.5 h-3.5" />
                     <span className="hidden sm:inline">Llamar</span>
                   </button>
@@ -1457,7 +1468,7 @@ export default function ChatPage() {
 
       {showCallModal && <VoiceCallModal onClose={() => setShowCallModal(false)} />}
 
-      <PaywallModal visible={paywallOpen} onClose={() => setPaywallOpen(false)} />
+      <PaywallModal visible={paywallOpen} onClose={() => setPaywallOpen(false)} reason={paywallReason} />
       <TutorialModal />
 
       {/* Decision journal modal */}
