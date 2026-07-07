@@ -62,7 +62,12 @@ export default function VoiceCallModal({ onClose }: Props) {
 
     async function start() {
       const token = localStorage.getItem("access_token") || "";
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      // Explicit constraints (not just `audio: true`): echoCancellation is what
+      // keeps the Mentor's own voice from bleeding into the mic and triggering
+      // false barge-ins — browsers often default it off or inconsistently on.
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+      });
       if (cancelled) {
         stream.getTracks().forEach((t) => t.stop());
         return;

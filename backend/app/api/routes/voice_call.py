@@ -207,6 +207,7 @@ async def voice_call_ws(websocket: WebSocket, token: str = ""):
 
             full_reply = ""
             sentence_buf = ""
+            hit_hidden_tags = False  # True once <!-- BSCORE/ACTION --> starts — never speak those
             async for chunk in ai_service.chat_stream(
                 message=user_text,
                 conversation_history=history,
@@ -220,7 +221,14 @@ async def voice_call_ws(websocket: WebSocket, token: str = ""):
                 style_instructions=_VOICE_STYLE_INSTRUCTIONS,
             ):
                 full_reply += chunk
+                if hit_hidden_tags:
+                    continue  # still drain the stream for full_reply/history, just don't speak it
+
                 sentence_buf += chunk
+                if "<!--" in sentence_buf:
+                    sentence_buf = sentence_buf.split("<!--")[0]
+                    hit_hidden_tags = True
+
                 parts = _SENTENCE_SPLIT_RE.split(sentence_buf)
                 if len(parts) > 1:
                     # Everything but the last (possibly incomplete) fragment is ready to speak
@@ -247,13 +255,14 @@ async def voice_call_ws(websocket: WebSocket, token: str = ""):
 
             await _send_json({"type": "assistant_done"})
 
+            clean_reply = full_reply.split("<!--")[0].rstrip()
             history.append(ChatMessage(role="user", content=user_text))
-            history.append(ChatMessage(role="assistant", content=full_reply))
+            history.append(ChatMessage(role="assistant", content=clean_reply))
             del history[:-_MAX_HISTORY_TURNS * 2]
 
             user_name = getattr(profile, "name", None) if profile else None
             asyncio.create_task(
-                fmg_service.extract_from_conversation(user_id, user_text, full_reply, user_name, is_premium=is_premium)
+                fmg_service.extract_from_conversation(user_id, user_text, clean_reply, user_name, is_premium=is_premium)
             )
 
         except asyncio.CancelledError:
