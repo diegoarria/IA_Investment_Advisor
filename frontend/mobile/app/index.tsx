@@ -19,6 +19,7 @@ import { usePortfolioStore } from "../src/lib/portfolioStore";
 import { usePaperStore } from "../src/lib/paperStore";
 import { useSubscriptionStore } from "../src/lib/subscriptionStore";
 import { useChatStore } from "../src/lib/chatStore";
+import { useTranslation } from "react-i18next";
 
 const IS_EXPO_GO = Constants.executionEnvironment === ExecutionEnvironment.StoreClient;
 
@@ -44,6 +45,7 @@ const BIOMETRIC_PASSWORD_KEY = "biometric_password";
 const BIOMETRIC_ENABLED_KEY  = "biometric_enabled";
 
 export default function AuthScreen() {
+  const { t } = useTranslation();
   const setProfile = useAppStore((s) => s.setProfile);
 
   const [mode, setMode] = useState<"login" | "register" | "forgot">("login");
@@ -67,8 +69,8 @@ export default function AuthScreen() {
 
   useEffect(() => {
     if (biometricReady && mode === "login" && !checking) {
-      const t = setTimeout(() => handleBiometric(), 300);
-      return () => clearTimeout(t);
+      const timer = setTimeout(() => handleBiometric(), 300);
+      return () => clearTimeout(timer);
     }
   }, [biometricReady, checking]);
 
@@ -220,13 +222,13 @@ export default function AuthScreen() {
       if (!hasHardware || !enrolled) return;
       const types = await LocalAuthentication.supportedAuthenticationTypesAsync();
       const hasFaceId = types.includes(LocalAuthentication.AuthenticationType.FACIAL_RECOGNITION);
-      const label = hasFaceId ? "Face ID" : "huella digital";
+      const label = hasFaceId ? "Face ID" : t("index.fingerprint");
       Alert.alert(
-        `Activar ${label}`,
-        `¿Quieres usar ${label} para iniciar sesión más rápido?`,
+        t("index.activateBiometric", { label }),
+        t("index.activateBiometricPrompt", { label }),
         [
-          { text: "Ahora no", style: "cancel" },
-          { text: "Activar", onPress: async () => {
+          { text: t("index.notNow"), style: "cancel" },
+          { text: t("index.activate"), onPress: async () => {
             await SecureStore.setItemAsync(BIOMETRIC_EMAIL_KEY,    emailUsed);
             await SecureStore.setItemAsync(BIOMETRIC_PASSWORD_KEY, passwordUsed);
             await SecureStore.setItemAsync(BIOMETRIC_ENABLED_KEY,  "true");
@@ -264,7 +266,7 @@ export default function AuthScreen() {
       }
     } catch (err: unknown) {
       const detail = (err as any)?.response?.data?.detail;
-      Alert.alert("Error", typeof detail === "string" ? detail : "Ocurrió un error. Inténtalo de nuevo.");
+      Alert.alert(t("index.error"), typeof detail === "string" ? detail : t("index.genericError"));
     } finally {
       setLoading(false);
     }
@@ -296,7 +298,7 @@ export default function AuthScreen() {
       const msg = Array.isArray(detail)
         ? detail.map((d: any) => d.msg ?? String(d)).join(", ")
         : typeof detail === "string" ? detail : null;
-      Alert.alert("Error", msg || (mode === "login" ? "Credenciales inválidas" : "No se pudo crear la cuenta"));
+      Alert.alert(t("index.error"), msg || (mode === "login" ? t("index.invalidCredentials") : t("index.registerFailed")));
     } finally {
       setLoading(false);
     }
@@ -310,27 +312,27 @@ export default function AuthScreen() {
       if (!savedEmail || !savedPassword) {
         await SecureStore.deleteItemAsync(BIOMETRIC_ENABLED_KEY);
         setBiometricReady(false);
-        Alert.alert("Configura Face ID", "Ingresa con tu email y contraseña una vez. Al entrar te pediremos activar Face ID.");
+        Alert.alert(t("index.setUpFaceId"), t("index.setUpFaceIdBody"));
         return;
       }
       const types = await LocalAuthentication.supportedAuthenticationTypesAsync();
       const hasFaceId = types.includes(LocalAuthentication.AuthenticationType.FACIAL_RECOGNITION);
       const result = await LocalAuthentication.authenticateAsync({
-        promptMessage: hasFaceId ? "Usa Face ID para entrar a Nuvos AI" : "Usa tu huella para entrar a Nuvos AI",
-        cancelLabel: "Cancelar",
+        promptMessage: hasFaceId ? t("index.useFaceId") : t("index.useFingerprint"),
+        cancelLabel: t("common.cancel"),
         disableDeviceFallback: true,
       });
       if (!result.success) {
         const err = (result as { error?: string }).error ?? "";
         if (err === "user_cancel" || err === "app_cancel" || err === "system_cancel") return;
-        Alert.alert("Face ID no funcionó", "Usa tu email y contraseña para entrar.");
+        Alert.alert(t("index.faceIdFailed"), t("index.faceIdFailedBody"));
         return;
       }
       const res = await authApi.login(savedEmail, savedPassword);
       await afterAuth(res.data.access_token, res.data.refresh_token, res.data.user_id);
       posthog.capture("user_logged_in", { method: "biometric", biometric_type: hasFaceId ? "face_id" : "fingerprint" });
     } catch {
-      Alert.alert("Error", "No se pudo autenticar. Intenta con tu contraseña.");
+      Alert.alert(t("index.error"), t("index.authFailed"));
     } finally {
       setBiometricLoading(false);
     }
@@ -375,9 +377,9 @@ export default function AuthScreen() {
                 <Image source={require("../assets/images/logo_new.png")} style={S.logo} />
               </View>
               <Text style={S.brandName}>Nuvos AI</Text>
-              <Text style={S.tagline}>Con Nuvos, construye tu futuro.</Text>
+              <Text style={S.tagline}>{t("index.tagline")}</Text>
               <View style={S.pill}>
-                <Text style={S.pillText}>La plataforma que conoce tu portafolio y transforma la información financiera compleja en explicaciones claras y personalizadas para ayudarte a invertir con confianza.</Text>
+                <Text style={S.pillText}>{t("index.pillText")}</Text>
               </View>
             </View>
 
@@ -398,10 +400,10 @@ export default function AuthScreen() {
                     </View>
                     <View style={{ flex: 1 }}>
                       <Text style={S.biometricTitle}>
-                        {biometricReady ? "Continuar con Face ID" : "Configurar Face ID"}
+                        {biometricReady ? t("index.continueWithFaceId") : t("index.setUpFaceIdShort")}
                       </Text>
                       <Text style={S.biometricSub}>
-                        {biometricReady ? "Toca para autenticarte" : "Ingresa una vez con email"}
+                        {biometricReady ? t("index.tapToAuthenticate") : t("index.enterOnceWithEmail")}
                       </Text>
                     </View>
                     <Ionicons name="chevron-forward" size={18} color="#374151" />
@@ -413,7 +415,7 @@ export default function AuthScreen() {
             {biometricAvailable && mode === "login" && (
               <View style={S.divider}>
                 <View style={S.dividerLine} />
-                <Text style={S.dividerLabel}>o continúa con email</Text>
+                <Text style={S.dividerLabel}>{t("index.orContinueWithEmail")}</Text>
                 <View style={S.dividerLine} />
               </View>
             )}
@@ -426,15 +428,15 @@ export default function AuthScreen() {
                     <View style={S.successIcon}>
                       <Ionicons name="checkmark-circle" size={40} color="#00d47e" />
                     </View>
-                    <Text style={[S.sectionTitle, { marginTop: 16, marginBottom: 8 }]}>¡Contraseña actualizada!</Text>
+                    <Text style={[S.sectionTitle, { marginTop: 16, marginBottom: 8 }]}>{t("index.passwordUpdated")}</Text>
                     <Text style={[S.sectionSub, { textAlign: "center", marginBottom: 28 }]}>
-                      Ya puedes iniciar sesión con tu nueva contraseña.
+                      {t("index.passwordUpdatedBody")}
                     </Text>
                     <TouchableOpacity
                       style={S.submitBtn}
                       onPress={() => { setMode("login"); setForgotStep("email"); setForgotDone(false); }}
                     >
-                      <Text style={S.submitText}>Iniciar sesión</Text>
+                      <Text style={S.submitText}>{t("index.login")}</Text>
                     </TouchableOpacity>
                   </View>
                 ) : (
@@ -444,20 +446,20 @@ export default function AuthScreen() {
                       style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 28 }}
                     >
                       <Ionicons name="arrow-back" size={18} color="#00d47e" />
-                      <Text style={{ color: "#00d47e", fontSize: 14, fontWeight: "600" }}>Volver al login</Text>
+                      <Text style={{ color: "#00d47e", fontSize: 14, fontWeight: "600" }}>{t("index.backToLogin")}</Text>
                     </TouchableOpacity>
 
                     <Text style={S.sectionTitle}>
-                      {forgotStep === "email" ? "¿Olvidaste tu contraseña?" :
-                       forgotStep === "code"  ? `Revisa tu ${forgotMethod === "sms" ? "teléfono" : "email"}` :
-                       "Nueva contraseña"}
+                      {forgotStep === "email" ? t("index.forgotPasswordTitle") :
+                       forgotStep === "code"  ? t("index.checkYour", { channel: forgotMethod === "sms" ? t("index.phone") : t("index.email") }) :
+                       t("index.newPassword")}
                     </Text>
                     <Text style={[S.sectionSub, { marginBottom: 24 }]}>
                       {forgotStep === "email"
-                        ? "Elige cómo recibir tu código de verificación."
+                        ? t("index.chooseVerificationMethod")
                         : forgotStep === "code"
-                        ? `Ingresa el código enviado a ${forgotMethod === "sms" ? forgotPhone : forgotEmail}.`
-                        : "Elige una contraseña segura (mínimo 6 caracteres)."}
+                        ? t("index.codeSentTo", { destination: forgotMethod === "sms" ? forgotPhone : forgotEmail })
+                        : t("index.choosePassword")}
                     </Text>
 
                     {forgotStep === "email" && (
@@ -470,12 +472,12 @@ export default function AuthScreen() {
                               onPress={() => setForgotMethod(m)}
                             >
                               <Text style={[S.methodTabText, forgotMethod === m && { color: "#fff" }]}>
-                                {m === "email" ? "📧  Email" : "💬  SMS"}
+                                {m === "email" ? t("index.emailOption") : t("index.smsOption")}
                               </Text>
                             </TouchableOpacity>
                           ))}
                         </View>
-                        <Text style={S.inputLabel}>Correo electrónico</Text>
+                        <Text style={S.inputLabel}>{t("index.emailLabel")}</Text>
                         <TextInput
                           style={S.input} value={forgotEmail} onChangeText={setForgotEmail}
                           placeholder="tu@email.com" placeholderTextColor="#374151"
@@ -483,13 +485,13 @@ export default function AuthScreen() {
                         />
                         {forgotMethod === "sms" && (
                           <>
-                            <Text style={[S.inputLabel, { marginTop: 16 }]}>Número de teléfono</Text>
+                            <Text style={[S.inputLabel, { marginTop: 16 }]}>{t("index.phoneLabel")}</Text>
                             <TextInput
                               style={S.input} value={forgotPhone} onChangeText={setForgotPhone}
                               placeholder="+52 55 1234 5678" placeholderTextColor="#374151"
                               keyboardType="phone-pad"
                             />
-                            <Text style={S.hint}>Incluye el código de país, ej: +52 para México</Text>
+                            <Text style={S.hint}>{t("index.countryCodeHint")}</Text>
                           </>
                         )}
                       </>
@@ -500,14 +502,14 @@ export default function AuthScreen() {
                         <TextInput
                           style={[S.input, { textAlign: "center", fontSize: 32, fontWeight: "900", letterSpacing: 14 }]}
                           value={forgotCode}
-                          onChangeText={(t) => setForgotCode(t.replace(/\D/g, "").slice(0, 6))}
+                          onChangeText={(v) => setForgotCode(v.replace(/\D/g, "").slice(0, 6))}
                           placeholder="000000" placeholderTextColor="#374151"
                           keyboardType="number-pad" maxLength={6} autoFocus
                         />
                         <View style={{ alignItems: "center", marginTop: 16 }}>
                           {resendCooldown > 0 ? (
                             <Text style={{ color: "#4b5563", fontSize: 13 }}>
-                              Reenviar en <Text style={{ color: "#00d47e", fontWeight: "700" }}>{resendCooldown}s</Text>
+                              {t("index.resendIn")} <Text style={{ color: "#00d47e", fontWeight: "700" }}>{resendCooldown}s</Text>
                             </Text>
                           ) : (
                             <TouchableOpacity
@@ -522,7 +524,7 @@ export default function AuthScreen() {
                                 setLoading(false);
                               }}
                             >
-                              <Text style={{ color: "#00d47e", fontWeight: "700", fontSize: 13 }}>Reenviar código →</Text>
+                              <Text style={{ color: "#00d47e", fontWeight: "700", fontSize: 13 }}>{t("index.resendCode")}</Text>
                             </TouchableOpacity>
                           )}
                         </View>
@@ -531,10 +533,10 @@ export default function AuthScreen() {
 
                     {forgotStep === "newpass" && (
                       <>
-                        <Text style={S.inputLabel}>Nueva contraseña</Text>
+                        <Text style={S.inputLabel}>{t("index.newPasswordLabel")}</Text>
                         <TextInput
                           style={S.input} value={forgotNewPass} onChangeText={setForgotNewPass}
-                          placeholder="Mínimo 6 caracteres" placeholderTextColor="#374151"
+                          placeholder={t("index.min6Chars")} placeholderTextColor="#374151"
                           secureTextEntry autoFocus
                         />
                       </>
@@ -547,7 +549,7 @@ export default function AuthScreen() {
                     >
                       {loading ? <ActivityIndicator color="#000" /> : (
                         <Text style={S.submitText}>
-                          {forgotStep === "email" ? "Enviar código" : forgotStep === "code" ? "Verificar" : "Actualizar contraseña"}
+                          {forgotStep === "email" ? t("index.sendCode") : forgotStep === "code" ? t("index.verify") : t("index.updatePassword")}
                         </Text>
                       )}
                     </TouchableOpacity>
@@ -558,7 +560,7 @@ export default function AuthScreen() {
               /* ── Email / password form ── */
               <View>
                 <View style={S.inputGroup}>
-                  <Text style={S.inputLabel}>Email</Text>
+                  <Text style={S.inputLabel}>{t("index.emailLabel")}</Text>
                   <TextInput
                     style={S.input} value={email} onChangeText={setEmail}
                     placeholder="tu@email.com" placeholderTextColor="#374151"
@@ -568,10 +570,10 @@ export default function AuthScreen() {
 
                 <View style={S.inputGroup}>
                   <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-                    <Text style={S.inputLabel}>Contraseña</Text>
+                    <Text style={S.inputLabel}>{t("index.passwordLabel")}</Text>
                     {mode === "login" && (
                       <TouchableOpacity onPress={() => { setMode("forgot"); setForgotEmail(email); setForgotStep("email"); }}>
-                        <Text style={{ color: "#00d47e", fontSize: 13, fontWeight: "600" }}>¿Olvidaste?</Text>
+                        <Text style={{ color: "#00d47e", fontSize: 13, fontWeight: "600" }}>{t("index.forgot")}</Text>
                       </TouchableOpacity>
                     )}
                   </View>
@@ -583,11 +585,11 @@ export default function AuthScreen() {
 
                 {mode === "register" && (
                   <View style={S.inputGroup}>
-                    <Text style={S.inputLabel}>Código de referido (opcional)</Text>
+                    <Text style={S.inputLabel}>{t("index.referralCodeLabel")}</Text>
                     <TextInput
                       style={S.input} value={refCode}
-                      onChangeText={(t) => setRefCode(t.toUpperCase())}
-                      placeholder="Ej: AB3XY7Z2" placeholderTextColor="#374151"
+                      onChangeText={(v) => setRefCode(v.toUpperCase())}
+                      placeholder={t("index.referralPlaceholder")} placeholderTextColor="#374151"
                       autoCapitalize="characters" maxLength={8}
                     />
                   </View>
@@ -601,7 +603,7 @@ export default function AuthScreen() {
                   {loading ? (
                     <ActivityIndicator color="#000" />
                   ) : (
-                    <Text style={S.submitText}>{mode === "login" ? "Iniciar sesión" : "Crear cuenta"}</Text>
+                    <Text style={S.submitText}>{mode === "login" ? t("index.login") : t("index.createAccount")}</Text>
                   )}
                 </TouchableOpacity>
 
@@ -610,9 +612,9 @@ export default function AuthScreen() {
                   style={{ marginTop: 22, alignItems: "center" }}
                 >
                   <Text style={{ color: "#6b7280", fontSize: 14, textAlign: "center" }}>
-                    {mode === "login" ? "¿No tienes cuenta? " : "¿Ya tienes cuenta? "}
+                    {mode === "login" ? t("index.noAccount") : t("index.hasAccount")}
                     <Text style={{ color: "#00d47e", fontWeight: "700" }}>
-                      {mode === "login" ? "Crear una" : "Inicia sesión"}
+                      {mode === "login" ? t("index.createOne") : t("index.login")}
                     </Text>
                   </Text>
                 </TouchableOpacity>
@@ -622,7 +624,7 @@ export default function AuthScreen() {
                   style={S.guestBtn}
                   activeOpacity={0.6}
                 >
-                  <Text style={S.guestText}>Explorar sin cuenta</Text>
+                  <Text style={S.guestText}>{t("index.exploreWithoutAccount")}</Text>
                 </TouchableOpacity>
               </View>
             )}

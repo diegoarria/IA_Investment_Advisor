@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useTranslation } from "react-i18next";
 import { useSubscriptionStore } from "@/lib/store";
 import { CheckCircle, Loader2 } from "lucide-react";
 
@@ -9,6 +10,7 @@ const CALENDLY_URL = "https://calendly.com/diego-arria19/sesion-1-1-con-diego-nu
 
 export default function PremiumSuccessPage() {
   const router = useRouter();
+  const { t } = useTranslation();
   const fetchStatus = useSubscriptionStore((s) => s.fetchStatus);
   const tier = useSubscriptionStore((s) => s.tier);
   const [ready, setReady] = useState(false);
@@ -58,12 +60,12 @@ export default function PremiumSuccessPage() {
           <CheckCircle size={64} color="#22c55e" strokeWidth={1.5} />
           <div style={{ textAlign: "center" }}>
             <h1 style={{ color: "#fff", fontSize: "28px", fontWeight: 800, margin: "0 0 8px" }}>
-              {isSession ? "¡Sesión reservada con éxito!" : "¡Bienvenido a Nuvos Premium!"}
+              {isSession ? t("premiumSuccess.sessionBookedTitle") : t("premiumSuccess.welcomeTitle")}
             </h1>
             <p style={{ color: "#9ca3af", fontSize: "15px", margin: 0 }}>
               {isSession
-                ? "Tu pago fue procesado. Ahora elige el horario de tu sesión."
-                : "Tu cuenta ya está activa. Redirigiendo..."}
+                ? t("premiumSuccess.sessionBookedDesc")
+                : t("premiumSuccess.welcomeDesc")}
             </p>
           </div>
 
@@ -84,7 +86,7 @@ export default function PremiumSuccessPage() {
                 marginTop: "8px",
               }}
             >
-              Reservar mi horario en Calendly →
+              {t("premiumSuccess.bookSlot")}
             </a>
           ) : (
             <div
@@ -101,10 +103,10 @@ export default function PremiumSuccessPage() {
               }}
             >
               {[
-                "Chat ilimitado con tu asesor IA",
-                "Análisis avanzado de portafolio",
-                "Screener premium sin límites",
-                "Emails semanales personalizados",
+                t("premiumSuccess.features.unlimitedChat"),
+                t("premiumSuccess.features.advancedAnalysis"),
+                t("premiumSuccess.features.premiumScreener"),
+                t("premiumSuccess.features.weeklyEmails"),
               ].map((feat) => (
                 <div key={feat} style={{ display: "flex", alignItems: "center", gap: "10px", color: "#d1fae5", fontSize: "14px" }}>
                   <CheckCircle size={16} color="#22c55e" />
@@ -118,7 +120,7 @@ export default function PremiumSuccessPage() {
         <>
           <Loader2 size={48} color="#22c55e" strokeWidth={1.5} className="animate-spin" style={{ animation: "spin 1s linear infinite" }} />
           <p style={{ color: "#9ca3af", fontSize: "15px", margin: 0 }}>
-            Activando tu cuenta premium...
+            {t("premiumSuccess.activating")}
           </p>
         </>
       )}

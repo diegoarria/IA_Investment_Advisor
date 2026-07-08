@@ -1424,5 +1424,290 @@
     "tourCta": "Got it, back to home ✓",
     "imageSentOne": "📷 Image sent",
     "imageSentMany": "📷 {{count}} images sent"
+  },
+  "paper": {
+    "title": "Simulator",
+    "portfolioLabel": "Virtual portfolio",
+    "totalSuffix": "total",
+    "cash": "Cash",
+    "positionsStat": "Positions",
+    "buySection": "Buy stocks",
+    "searchPlaceholder": "Search ticker: NVDA, AAPL, TSLA…",
+    "priceError": "Couldn't get the price",
+    "quantityPlaceholder": "Quantity",
+    "buy": "Buy",
+    "total": "Total:",
+    "balance": "Balance:",
+    "openPositions": "Open positions",
+    "totalPositions": "Total positions",
+    "colTicker": "Ticker",
+    "colShares": "Shares",
+    "colBuy": "Buy",
+    "colCurrent": "Current",
+    "colPnl": "P&L",
+    "sharesAbbrev": "sh",
+    "avgAbbrev": "avg.",
+    "emptyTitle": "Start trading",
+    "emptyBody": "Search any ticker above and buy at real prices<br />with your {{amount}} virtual funds, no real money at risk",
+    "tradeHistory": "Trade history",
+    "seeMore": "See more",
+    "seeLess": "See less",
+    "colType": "Type",
+    "colAsset": "Asset",
+    "colDetail": "Detail",
+    "colAmount": "Amount",
+    "tradeBuy": "Buy",
+    "tradeDeposit": "Deposit",
+    "tradeSell": "Sell",
+    "cashLabel": "Cash",
+    "aiAnalysisTitle": "AI analysis of your simulation",
+    "premium": "Premium",
+    "lockedTitle": "The AI checks if you're ready to invest for real",
+    "lockedBody": "Get personalized feedback on your strategy, diversification, and behavior. Premium only.",
+    "activatePremium": "Activate Premium",
+    "verdictReady": "✓ Ready to invest responsibly",
+    "verdictPromising": "↗ You're on the right track",
+    "verdictPracticeMore": "↺ Keep practicing a bit more",
+    "positivesTitle": "What you're doing well",
+    "improvementsTitle": "Areas to improve",
+    "reanalyze": "Analyze again",
+    "analysisCta": "The AI analyzes your strategy, diversification, and behavior to tell you if you're ready to invest real money in individual stocks — always responsibly and with prior research.",
+    "analyzing": "Analyzing your simulation…",
+    "analyzeButton": "Analyze my portfolio with AI",
+    "needTrade": "Make at least one trade to unlock the analysis",
+    "resetConfirm": "Reset your paper trading portfolio?",
+    "reset": "Reset",
+    "paywallReason": "AI simulator analysis is a Premium-only feature",
+    "sellTitle": "Sell {{ticker}}",
+    "currentPrice": "Current price:",
+    "sharesAvailable": "{{count}} shares available",
+    "max": "MAX",
+    "youReceive": "You'll receive",
+    "cancel": "Cancel",
+    "sellButton": "Sell {{qty}} sh",
+    "analysisErrorHeadline": "Error generating analysis",
+    "analysisErrorFeedback": "Couldn't connect to the AI. Try again.",
+    "analysis": {
+      "errorHeadline": "Error generating analysis",
+      "errorFeedback": "Couldn't connect to the AI. Try again.",
+      "analyzing": "Analyzing your simulation…",
+      "analyzeButton": "Analyze my portfolio with AI",
+      "needOneTrade": "Make at least one trade to unlock the analysis"
+    },
+    "resetButton": "Reset"
+  },
+  "feed": {
+    "videoUnavailable": "Video unavailable",
+    "trending": "🔥 Trending",
+    "recent": "🕐 Recent",
+    "random": "Random",
+    "shuffleTitle": "Show random videos",
+    "filter": "Filter",
+    "emptyTitle": "No content yet",
+    "emptySubtitle": "We'll soon load educational clips from the best investors",
+    "clearFilters": "Clear filters",
+    "endOfContent": "You've seen all available content",
+    "filterDrawerTitle": "Filter content",
+    "byInvestor": "BY INVESTOR",
+    "byTopic": "BY TOPIC",
+    "savedTitle": "Saved videos",
+    "savedCountSingular": "{{count}} saved video",
+    "savedCountPlural": "{{count}} saved videos",
+    "savedEmptyTitle": "You haven't saved any videos yet",
+    "savedEmptySubtitle": "Tap the bookmark icon on any video in the feed to save it here",
+    "goToFeed": "Go to feed",
+    "downloading": "Downloading...",
+    "download": "Download",
+    "remove": "Remove"
+  },
+  "stock": {},
+  "profileEdit": {
+    "header": "Edit profile",
+    "financialSituation": "Financial situation",
+    "monthlyIncome": "Monthly income (USD)",
+    "monthlyContribution": "Monthly contribution (USD)",
+    "perMonth": "/mo",
+    "investmentPlan": "Investment plan",
+    "targetWealth": "Target wealth (USD)",
+    "investmentHorizon": "Investment horizon",
+    "years": "years",
+    "investingGoal": "Investing goal",
+    "goals": {
+      "house": "Buy a house",
+      "car": "Buy a car",
+      "passive_income": "Live off my investments",
+      "retirement": "Retirement / pension",
+      "financial_freedom": "Financial freedom",
+      "long_term_wealth": "Long-term wealth"
+    },
+    "knowledgeLevel": "Knowledge level",
+    "knowledgeLevels": {
+      "basic": {
+        "label": "Basic",
+        "desc": "No experience or just starting out. I know about savings, CDs, or basic funds."
+      },
+      "intermediate": {
+        "label": "Intermediate",
+        "desc": "I have experience with ETFs and stocks. I understand diversification and returns."
+      },
+      "advanced": {
+        "label": "Advanced",
+        "desc": "I handle fundamental analysis, derivatives, market cycles, and complex strategies."
+      }
+    },
+    "diagnostic": "Investor diagnostic",
+    "quiz": {
+      "q1": {
+        "category": "MINDSET",
+        "question": "Your portfolio drops 35% in 3 months due to a market crisis. What do you do?",
+        "options": {
+          "A": "Sell everything before losing more",
+          "B": "Wait for it to recover, but don't buy more",
+          "C": "Check if the fundamentals still hold up and stay invested",
+          "D": "Take advantage to buy more at low prices"
+        }
+      },
+      "q2": {
+        "category": "HORIZON",
+        "question": "What do you need this invested money for, and in how much time?",
+        "options": {
+          "A": "I might need it in less than 2 years",
+          "B": "In 3-5 years, for something specific",
+          "C": "In 10+ years, for financial independence or retirement",
+          "D": "I'm in no rush — it's to build long-term wealth"
+        }
+      },
+      "q3": {
+        "category": "KNOWLEDGE",
+        "question": "Which of these concepts do you understand well enough to explain to someone else?",
+        "options": {
+          "A": "None confidently — I'm just starting out",
+          "B": "Compound interest, CDs, index funds",
+          "C": "P/E ratio, diversification, risk-adjusted return",
+          "D": "Fundamental analysis, hedging with derivatives, market cycles"
+        }
+      },
+      "q4": {
+        "category": "RISK",
+        "question": "You have $100,000 to invest. Which scenario do you prefer?",
+        "options": {
+          "A": "Earn a guaranteed $5K, with no chance of losing anything",
+          "B": "Likely earn $15K, with a risk of losing $5K",
+          "C": "Possibly earn $40K, with a risk of losing $20K",
+          "D": "Possibly earn $120K, with a risk of losing it all"
+        }
+      },
+      "q5": {
+        "category": "BEHAVIOR",
+        "question": "How much time would you spend monitoring and managing your investments?",
+        "options": {
+          "A": "I'd rather have something automatic that needs no attention",
+          "B": "A monthly or quarterly review seems enough to me",
+          "C": "I like to check weekly and make adjustments when it's worth it",
+          "D": "I'm willing to spend time on it daily — it's an active pursuit"
+        }
+      }
+    },
+    "resultingProfile": "Your resulting profile",
+    "investorLabel": "{{profile}} investor",
+    "riskConfig": {
+      "conservative": {
+        "label": "Conservative",
+        "desc": "You prioritize safety and preserving your capital."
+      },
+      "moderate": {
+        "label": "Moderate",
+        "desc": "You seek a balance between growth and protection."
+      },
+      "aggressive": {
+        "label": "Aggressive",
+        "desc": "You aim for maximum growth. You can tolerate high volatility."
+      }
+    },
+    "lowRisk": "Low risk",
+    "highRisk": "High risk",
+    "saveError": "Couldn't save your changes. Please try again.",
+    "saved": "✅ Saved",
+    "saving": "Saving...",
+    "saveChanges": "Save changes"
+  },
+  "join": {
+    "features": {
+      "aiTitle": "AI that knows you",
+      "aiDesc": "Adapts to your real risk profile and behavior",
+      "analysisTitle": "Personalized analysis",
+      "analysisDesc": "Based on your portfolio and concrete goals",
+      "noConflictTitle": "No conflicts of interest",
+      "noConflictDesc": "We teach you to think, not what to buy"
+    },
+    "inviteApplied": "Invite applied",
+    "invitedBy": "A friend invited you to Nuvos AI",
+    "tagline": "The most personalized AI investing mentor",
+    "createAccount": "Create free account",
+    "termsPrefix": "By signing up you agree to our",
+    "termsOfUse": "Terms of Use",
+    "and": "and",
+    "privacyPolicy": "Privacy Policy",
+    "codeLabel": "Code:"
+  },
+  "premiumSuccess": {
+    "sessionBookedTitle": "Session booked successfully!",
+    "welcomeTitle": "Welcome to Nuvos Premium!",
+    "sessionBookedDesc": "Your payment was processed. Now pick a time for your session.",
+    "welcomeDesc": "Your account is now active. Redirecting...",
+    "bookSlot": "Book my slot on Calendly →",
+    "features": {
+      "unlimitedChat": "Unlimited chat with your AI advisor",
+      "advancedAnalysis": "Advanced portfolio analysis",
+      "premiumScreener": "Unlimited premium screener",
+      "weeklyEmails": "Personalized weekly emails"
+    },
+    "activating": "Activating your premium account..."
+  },
+  "upsellSuccess": {
+    "offers": {
+      "session": {
+        "title": "Session confirmed!",
+        "subtitle": "Your payment was processed successfully."
+      },
+      "annual_report": {
+        "title": "Report requested!",
+        "subtitle": "Your payment was processed successfully."
+      },
+      "family_plan": {
+        "title": "Duo Plan activated!",
+        "subtitle": "Your payment was processed successfully."
+      }
+    },
+    "tagline": "With Nuvos, build your future.",
+    "session": {
+      "paymentProcessed": "Payment of ${{amount}} processed",
+      "videoCall": "45-minute video call with Diego",
+      "recording": "Recording delivered after the session",
+      "nextStep": "Next step",
+      "nextStepDesc": "Pick the day and time that works best for you. You'll get an email confirmation with the video call link.",
+      "scheduleCta": "Schedule my session on Calendly"
+    },
+    "annualReport": {
+      "paymentProcessed": "Payment processed successfully",
+      "customReport": "Personalized report with your maturity history",
+      "certificate": "Digital Informed Investor certificate",
+      "downloading": "Generating your report...",
+      "download": "Download my PDF Report"
+    },
+    "familyPlan": {
+      "whichAccounts": "Which accounts do you want to add?",
+      "account1Label": "Account 1 — Your account",
+      "loading": "Loading...",
+      "account2Label": "Account 2 — Person you're sharing with",
+      "emailPlaceholder": "email@example.com",
+      "saving": "Saving...",
+      "saveAccounts": "Save accounts",
+      "addLater": "Add second email later",
+      "savedTitle": "Accounts saved successfully!",
+      "redirecting": "Redirecting to your profile...",
+      "saveError": "Couldn't save. Try again."
+    },
+    "backToProfile": "Back to my profile"
   }
 }

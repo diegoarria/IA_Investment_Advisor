@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Loader2, Download, Bookmark, Play, ArrowLeft } from "lucide-react";
 import { feedApi } from "@/lib/api";
 import { useAuthStore } from "@/lib/store";
+import { useTranslation } from "react-i18next";
 
 interface SavedClip {
   id: string;
@@ -20,6 +21,7 @@ interface SavedClip {
 }
 
 export default function SavedClipsPage() {
+  const { t } = useTranslation();
   const router = useRouter();
   const { isAuthenticated } = useAuthStore();
   const [clips, setClips]     = useState<SavedClip[]>([]);
@@ -91,11 +93,11 @@ export default function SavedClipsPage() {
           <div>
             <h1 className="text-xl font-black flex items-center gap-2">
               <Bookmark className="w-5 h-5" fill="#ffd700" style={{ color: "#ffd700" }} />
-              Videos guardados
+              {t("feed.savedTitle")}
             </h1>
             {!loading && (
               <p className="text-xs mt-0.5" style={{ color: "var(--muted)" }}>
-                {clips.length} {clips.length === 1 ? "video" : "videos"} guardados
+                {t(clips.length === 1 ? "feed.savedCountSingular" : "feed.savedCountPlural", { count: clips.length })}
               </p>
             )}
           </div>
@@ -109,15 +111,15 @@ export default function SavedClipsPage() {
         ) : clips.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 gap-4 text-center">
             <Bookmark className="w-12 h-12" style={{ color: "var(--muted)" }} />
-            <p className="font-bold text-lg" style={{ color: "var(--text)" }}>Aún no guardaste videos</p>
+            <p className="font-bold text-lg" style={{ color: "var(--text)" }}>{t("feed.savedEmptyTitle")}</p>
             <p className="text-sm" style={{ color: "var(--muted)" }}>
-              Presiona el ícono de marcador en cualquier video del feed para guardarlo aquí
+              {t("feed.savedEmptySubtitle")}
             </p>
             <button
               onClick={() => router.push("/feed")}
               className="flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm"
               style={{ background: "linear-gradient(90deg,#00a85e,#00d47e)", color: "#000" }}>
-              <Play className="w-4 h-4" /> Ir al feed
+              <Play className="w-4 h-4" /> {t("feed.goToFeed")}
             </button>
           </div>
         ) : (
@@ -174,7 +176,7 @@ export default function SavedClipsPage() {
                       {downloading === clip.id
                         ? <Loader2 className="w-3 h-3 animate-spin" />
                         : <Download className="w-3 h-3" />}
-                      {downloading === clip.id ? "Bajando..." : "Descargar"}
+                      {downloading === clip.id ? t("feed.downloading") : t("feed.download")}
                     </button>
 
                     <button
@@ -182,7 +184,7 @@ export default function SavedClipsPage() {
                       className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold"
                       style={{ background: "rgba(255,215,0,0.1)", color: "#b8980c" }}>
                       <Bookmark className="w-3 h-3" fill="currentColor" />
-                      Quitar
+                      {t("feed.remove")}
                     </button>
                   </div>
                 </div>

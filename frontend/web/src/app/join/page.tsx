@@ -3,16 +3,22 @@
 import { useEffect, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import { TrendingUp, Shield, Brain, ArrowRight, Users } from "lucide-react";
 
-const FEATURES = [
-  { icon: Brain,      color: "#a78bfa", title: "IA que te conoce",         desc: "Se adapta a tu perfil de riesgo y comportamiento real" },
-  { icon: TrendingUp, color: "#34d399", title: "Análisis personalizado",   desc: "Basado en tu portafolio y objetivos concretos" },
-  { icon: Shield,     color: "#60a5fa", title: "Sin conflictos de interés", desc: "Te enseñamos a pensar, no qué comprar" },
-];
+function getFeatures(t: TFunction) {
+  return [
+    { icon: Brain,      color: "#a78bfa", title: t("join.features.aiTitle"),         desc: t("join.features.aiDesc") },
+    { icon: TrendingUp, color: "#34d399", title: t("join.features.analysisTitle"),   desc: t("join.features.analysisDesc") },
+    { icon: Shield,     color: "#60a5fa", title: t("join.features.noConflictTitle"), desc: t("join.features.noConflictDesc") },
+  ];
+}
 
 function JoinContent() {
   const router = useRouter();
+  const { t } = useTranslation();
+  const FEATURES = getFeatures(t);
   const params = useSearchParams();
   const ref = params.get("ref") ?? "";
   const [saved, setSaved] = useState(false);
@@ -46,9 +52,9 @@ function JoinContent() {
                style={{ background: "rgba(0,168,94,0.08)", borderColor: "rgba(0,168,94,0.3)" }}>
             <Users className="w-4 h-4 shrink-0" style={{ color: "#00a85e" }} />
             <div>
-              <p className="text-xs font-bold" style={{ color: "#00a85e" }}>Invitación aplicada</p>
+              <p className="text-xs font-bold" style={{ color: "#00a85e" }}>{t("join.inviteApplied")}</p>
               <p className="text-[11px]" style={{ color: "rgba(0,168,94,0.7)" }}>
-                Código: <span className="font-mono font-bold">{ref.toUpperCase()}</span>
+                {t("join.codeLabel")} <span className="font-mono font-bold">{ref.toUpperCase()}</span>
               </p>
             </div>
           </div>
@@ -56,10 +62,10 @@ function JoinContent() {
 
         <div className="text-center">
           <p className="text-base font-semibold" style={{ color: "var(--text, #fff)" }}>
-            Tu amigo te invitó a Nuvos AI
+            {t("join.invitedBy")}
           </p>
           <p className="text-sm mt-1" style={{ color: "rgba(255,255,255,0.5)" }}>
-            El mentor de inversiones con IA más personalizado
+            {t("join.tagline")}
           </p>
         </div>
 
@@ -86,17 +92,17 @@ function JoinContent() {
           className="w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl font-bold text-white text-sm"
           style={{ background: "linear-gradient(135deg, #00a85e, #00c87a)" }}
         >
-          Crear cuenta gratis <ArrowRight className="w-4 h-4" />
+          {t("join.createAccount")} <ArrowRight className="w-4 h-4" />
         </button>
 
         <p className="text-center text-[10px]" style={{ color: "rgba(255,255,255,0.3)" }}>
-          Al registrarte aceptas nuestros{" "}
+          {t("join.termsPrefix")}{" "}
           <a href="/terms" target="_blank" className="underline hover:opacity-80" style={{ color: "rgba(255,255,255,0.5)" }}>
-            Términos de uso
+            {t("join.termsOfUse")}
           </a>{" "}
-          y{" "}
+          {t("join.and")}{" "}
           <a href="/privacy" target="_blank" className="underline hover:opacity-80" style={{ color: "rgba(255,255,255,0.5)" }}>
-            Política de privacidad
+            {t("join.privacyPolicy")}
           </a>.
         </p>
       </div>

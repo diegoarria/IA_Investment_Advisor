@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useCallback, useEffect, useRef } from "react";
+import { useTranslation } from "react-i18next";
 import StockAvatar from "../../src/components/StockAvatar";
 import {
   View, Text, TextInput, TouchableOpacity,
@@ -48,6 +49,7 @@ function SellModal({
   visible: boolean; ticker: string; maxShares: number;
   price: number; onClose: () => void; onSell: (shares: number) => void;
 }) {
+  const { t } = useTranslation();
   const [qty, setQty] = useState("");
   const parsed = parseFloat(qty) || 0;
   const valid = parsed > 0 && parsed <= maxShares;
@@ -59,32 +61,32 @@ function SellModal({
         <TouchableOpacity style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.75)" }} activeOpacity={1} onPress={onClose} />
         <View style={SM.sheet}>
           <View style={SM.handle} />
-          <Text style={SM.title}>Vender {ticker}</Text>
+          <Text style={SM.title}>{t("paper.sellModal.title", { ticker })}</Text>
           <Text style={SM.sub}>
-            Precio actual: <Text style={{ color: "#fff", fontWeight: "700" }}>${price.toLocaleString("en-US", { minimumFractionDigits: 2 })}</Text>
-            {"  ·  "}Tienes {maxShares} acciones
+            {t("paper.sellModal.currentPrice")} <Text style={{ color: "#fff", fontWeight: "700" }}>${price.toLocaleString("en-US", { minimumFractionDigits: 2 })}</Text>
+            {"  ·  "}{t("paper.sellModal.youHave", { count: maxShares })}
           </Text>
           <View style={SM.inputWrap}>
             <TextInput style={SM.input} value={qty} onChangeText={setQty}
               placeholder={`1 – ${maxShares}`} placeholderTextColor="#374151"
               keyboardType="decimal-pad" autoFocus />
             <TouchableOpacity onPress={() => setQty(String(maxShares))} style={SM.maxBtn}>
-              <Text style={SM.maxBtnText}>MAX</Text>
+              <Text style={SM.maxBtnText}>{t("paper.sellModal.max")}</Text>
             </TouchableOpacity>
           </View>
           {parsed > 0 && (
             <Text style={SM.proceeds}>
-              Recibirás:{" "}
+              {t("paper.sellModal.proceeds")}{" "}
               <Text style={{ color: "#00d47e", fontWeight: "800" }}>{fmtMoney(parsed * price)}</Text>
             </Text>
           )}
           <View style={SM.actions}>
             <TouchableOpacity style={SM.cancelBtn} onPress={onClose}>
-              <Text style={SM.cancelText}>Cancelar</Text>
+              <Text style={SM.cancelText}>{t("paper.sellModal.cancel")}</Text>
             </TouchableOpacity>
             <TouchableOpacity style={[SM.sellBtn, !valid && { opacity: 0.4 }]}
               onPress={() => { if (valid) { onSell(parsed); onClose(); } }} disabled={!valid}>
-              <Text style={SM.sellBtnText}>Vender {qty || "—"} acc</Text>
+              <Text style={SM.sellBtnText}>{t("paper.sellModal.sellButton", { qty: qty || "—" })}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -120,6 +122,7 @@ const SM = StyleSheet.create({
 
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 export default function PaperScreen() {
+  const { t } = useTranslation();
   const s = darkStyles;
   const subStore = useSubscriptionStore();
   const isPremiumAccess = hasPremiumAccess(subStore);
@@ -154,8 +157,8 @@ export default function PaperScreen() {
     } catch {
       setAnalysis({
         verdict: "promising",
-        headline: "Error al generar análisis",
-        feedback: "No se pudo conectar con la IA. Intenta de nuevo.",
+        headline: t("paper.analysisError.headline"),
+        feedback: t("paper.analysisError.feedback"),
         positives: [],
         improvements: [],
         disclaimer: "",
@@ -181,6 +184,9 @@ export default function PaperScreen() {
 
   useEffect(() => { loadPosPrices(); }, [positions.length]);
 
+  const errTickerNotFound = t("paper.tickerNotFound");
+  const errPriceFetch = t("paper.priceFetchError");
+
   const searchTicker = useCallback((raw: string) => {
     const t = raw.trim().toUpperCase();
     if (!t) { setTickerInfo(null); setSearchError(null); return; }
@@ -191,8 +197,8 @@ export default function PaperScreen() {
         const res = await marketApi.getPrices([t]);
         const d = res.data[t];
         if (d?.price) setTickerInfo({ ticker: t, name: d.name ?? t, price: d.price, change_pct: d.change_pct ?? 0 });
-        else setSearchError("Ticker no encontrado");
-      } catch { setSearchError("No se pudo obtener precio"); }
+        else setSearchError(errTickerNotFound);
+      } catch { setSearchError(errPriceFetch); }
       setSearching(false);
     }, 500);
   }, []);
@@ -220,7 +226,7 @@ export default function PaperScreen() {
     if (!shares || shares <= 0) return;
     setBuyLoading(true);
     const err = buy(tickerInfo.ticker, tickerInfo.name, shares, tickerInfo.price);
-    if (err) { Alert.alert("Error", err); }
+    if (err) { Alert.alert(t("paper.buyError"), err); }
     else {
       posthog.capture("paper_trade_executed", { action: "buy", ticker: tickerInfo.ticker, shares, price: tickerInfo.price });
       setQuery(""); setBuyQty(""); setTickerInfo(null);
@@ -255,7 +261,7 @@ export default function PaperScreen() {
             <View style={s.balanceCardInner}>
               <View style={s.balanceRow}>
                 <View style={{ flex: 1 }}>
-                  <Text style={s.balanceLabel}>Portafolio virtual</Text>
+                  <Text style={s.balanceLabel}>{t("paper.virtualPortfolio")}</Text>
                   <Text style={s.balanceTotal}>{fmtMoney(totalValue)}</Text>
                   <View style={s.balanceReturnRow}>
                     <View style={[s.returnBadge, { backgroundColor: (isUp ? "#00d47e" : "#ef4444") + "18" }]}>
@@ -277,28 +283,28 @@ export default function PaperScreen() {
                       <Text style={s.topUpBtnText}>{amt >= 1000 ? `+$${amt / 1000}K` : `+$${amt}`}</Text>
                     </TouchableOpacity>
                   ))}
-                  <TouchableOpacity style={s.resetBtn} onPress={() => Alert.alert("Reiniciar", "¿Volver a $10,000 virtuales?", [
-                    { text: "Cancelar", style: "cancel" },
-                    { text: "Reiniciar", style: "destructive", onPress: reset },
+                  <TouchableOpacity style={s.resetBtn} onPress={() => Alert.alert(t("paper.resetAlert.title"), t("paper.resetAlert.message"), [
+                    { text: t("paper.resetAlert.cancel"), style: "cancel" },
+                    { text: t("paper.resetAlert.confirm"), style: "destructive", onPress: reset },
                   ])}>
                     <Ionicons name="refresh-outline" size={14} color="#ef4444" />
-                    <Text style={s.resetBtnText}>Reset</Text>
+                    <Text style={s.resetBtnText}>{t("paper.resetButton")}</Text>
                   </TouchableOpacity>
                 </View>
               </View>
               <View style={s.balanceSplit}>
                 <View style={s.balanceSplitItem}>
-                  <Text style={s.balanceSplitLabel}>Efectivo</Text>
+                  <Text style={s.balanceSplitLabel}>{t("paper.cash")}</Text>
                   <Text style={[s.balanceSplitVal, { color: "#8b5cf6" }]}>{fmtMoney(cash)}</Text>
                 </View>
                 <View style={s.balanceSplitDivider} />
                 <View style={s.balanceSplitItem}>
-                  <Text style={s.balanceSplitLabel}>En acciones</Text>
+                  <Text style={s.balanceSplitLabel}>{t("paper.inStocks")}</Text>
                   <Text style={[s.balanceSplitVal, { color: "#fff" }]}>{fmtMoney(virtualValue)}</Text>
                 </View>
                 <View style={s.balanceSplitDivider} />
                 <View style={s.balanceSplitItem}>
-                  <Text style={s.balanceSplitLabel}>Posiciones</Text>
+                  <Text style={s.balanceSplitLabel}>{t("paper.positions")}</Text>
                   <Text style={[s.balanceSplitVal, { color: "#fff" }]}>{positions.length}</Text>
                 </View>
               </View>
@@ -311,12 +317,12 @@ export default function PaperScreen() {
               <View style={s.buyCardIcon}>
                 <Ionicons name="add" size={16} color="#00d47e" />
               </View>
-              <Text style={s.buyCardTitle}>Comprar acciones</Text>
+              <Text style={s.buyCardTitle}>{t("paper.buyStocks")}</Text>
             </View>
             <View style={s.searchBar}>
               <Ionicons name="search-outline" size={18} color="#6b7280" />
               <TextInput style={s.searchInput} value={query}
-                onChangeText={handleQueryChange} placeholder="Busca ticker: NVDA, AAPL, TSLA…"
+                onChangeText={handleQueryChange} placeholder={t("paper.searchPlaceholder")}
                 placeholderTextColor="#374151" autoCapitalize="characters" autoCorrect={false} />
               {query.length > 0 && (
                 <TouchableOpacity onPress={() => { setQuery(""); setTickerInfo(null); setSearchError(null); setBuyQty(""); setSuggestions([]); }}>
@@ -341,7 +347,7 @@ export default function PaperScreen() {
             {searching && (
               <View style={s.searchState}>
                 <ActivityIndicator size="small" color="#00d47e" />
-                <Text style={s.searchStateText}>Buscando {query}…</Text>
+                <Text style={s.searchStateText}>{t("paper.searching", { query })}</Text>
               </View>
             )}
             {searchError && !searching && (
@@ -370,21 +376,21 @@ export default function PaperScreen() {
             {tickerInfo && !searching && (
               <View style={s.buyForm}>
                 <View style={s.qtyWrap}>
-                  <Text style={s.qtyLabel}>Acciones</Text>
+                  <Text style={s.qtyLabel}>{t("paper.sharesLabel")}</Text>
                   <TextInput style={s.qtyInput} value={buyQty} onChangeText={setBuyQty}
                     placeholder="0" placeholderTextColor="#374151" keyboardType="decimal-pad" />
                 </View>
                 <View style={{ flex: 1 }}>
                   {buyQty && parseFloat(buyQty) > 0 && (
                     <Text style={s.totalCost}>
-                      Total: <Text style={{ color: "#fff", fontWeight: "700" }}>{fmtMoney(tickerInfo.price * parseFloat(buyQty))}</Text>
+                      {t("paper.total")} <Text style={{ color: "#fff", fontWeight: "700" }}>{fmtMoney(tickerInfo.price * parseFloat(buyQty))}</Text>
                     </Text>
                   )}
                   <TouchableOpacity style={[s.buyBtn, (!buyQty || parseFloat(buyQty) <= 0 || buyLoading) && s.buyBtnDisabled]}
                     onPress={handleBuy} disabled={!buyQty || parseFloat(buyQty) <= 0 || buyLoading}>
                     {buyLoading
                       ? <ActivityIndicator color="#000" size="small" />
-                      : <Text style={s.buyBtnText}>Comprar {buyQty || "—"} {tickerInfo.ticker}</Text>}
+                      : <Text style={s.buyBtnText}>{t("paper.buyButton", { qty: buyQty || "—", ticker: tickerInfo.ticker })}</Text>}
                   </TouchableOpacity>
                 </View>
               </View>
@@ -395,7 +401,7 @@ export default function PaperScreen() {
           {positions.length > 0 && (
             <>
               <View style={s.sectionRow}>
-                <Text style={s.sectionTitle}>Mis posiciones</Text>
+                <Text style={s.sectionTitle}>{t("paper.myPositions")}</Text>
                 {pricesLoading && <ActivityIndicator size="small" color="#00d47e" />}
               </View>
               {positions.map((pos) => {
@@ -427,10 +433,14 @@ export default function PaperScreen() {
                       </View>
                       <View style={s.posBottom}>
                         <Text style={s.posDetail}>
-                          {pos.shares} acc · Costo ${pos.avgPrice.toLocaleString("en-US", { minimumFractionDigits: 2 })} · Actual ${cp.toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                          {t("paper.positionDetail", {
+                            shares: pos.shares,
+                            cost: `$${pos.avgPrice.toLocaleString("en-US", { minimumFractionDigits: 2 })}`,
+                            current: `$${cp.toLocaleString("en-US", { minimumFractionDigits: 2 })}`,
+                          })}
                         </Text>
                         <TouchableOpacity style={s.sellBtn} onPress={() => setSellModal({ ticker: pos.ticker, maxShares: pos.shares, price: cp })}>
-                          <Text style={s.sellBtnText}>Vender</Text>
+                          <Text style={s.sellBtnText}>{t("paper.sell")}</Text>
                         </TouchableOpacity>
                       </View>
                     </View>
@@ -461,28 +471,28 @@ export default function PaperScreen() {
               </TouchableOpacity>
               {historyOpen && (
                 <View style={s.historyCard}>
-                  {trades.slice(0, 30).map((t) => {
-                    const isTopup = t.type === "topup";
-                    const isBuy   = t.type === "buy";
+                  {trades.slice(0, 30).map((trade) => {
+                    const isTopup = trade.type === "topup";
+                    const isBuy   = trade.type === "buy";
                     return (
-                      <View key={t.id} style={s.tradeRow}>
+                      <View key={trade.id} style={s.tradeRow}>
                         <View style={[s.tradeBadge, { backgroundColor: isTopup ? "#00d47e22" : isBuy ? "#00d47e22" : "#ef444422" }]}>
                           <Text style={[s.tradeBadgeText, { color: isTopup ? "#00d47e" : isBuy ? "#00d47e" : "#ef4444" }]}>
                             {isTopup ? "$" : isBuy ? "C" : "V"}
                           </Text>
                         </View>
                         <View style={{ flex: 1 }}>
-                          <Text style={s.tradeTicker}>{isTopup ? "Recarga" : t.ticker}</Text>
+                          <Text style={s.tradeTicker}>{isTopup ? t("paper.history.topupLabel") : trade.ticker}</Text>
                           <Text style={s.tradeDetail}>
-                            {isTopup ? "Fondos virtuales añadidos" : `${t.shares} acc @ $${t.price.toLocaleString("en-US", { minimumFractionDigits: 2 })}`}
+                            {isTopup ? t("paper.history.fundsAdded") : `${trade.shares} acc @ $${trade.price.toLocaleString("en-US", { minimumFractionDigits: 2 })}`}
                           </Text>
                         </View>
                         <View style={{ alignItems: "flex-end" }}>
                           <Text style={[s.tradeTotal, { color: isBuy ? "#ef4444" : "#00d47e" }]}>
-                            {isBuy ? "-" : "+"}{fmtMoney(t.total)}
+                            {isBuy ? "-" : "+"}{fmtMoney(trade.total)}
                           </Text>
                           <Text style={s.tradeDate}>
-                            {new Date(t.timestamp).toLocaleDateString("es", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
+                            {new Date(trade.timestamp).toLocaleDateString("es", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
                           </Text>
                         </View>
                       </View>
@@ -540,9 +550,9 @@ export default function PaperScreen() {
                       <Text style={[s.verdictBadgeText, {
                         color: analysis.verdict === "ready" ? "#22c55e" : analysis.verdict === "promising" ? "#f59e0b" : "#818cf8",
                       }]}>
-                        {analysis.verdict === "ready" ? "✓ Listo para invertir con responsabilidad"
-                       : analysis.verdict === "promising" ? "↗ Vas por buen camino"
-                       : "↺ Sigue practicando un poco más"}
+                        {analysis.verdict === "ready" ? t("paper.analysis.verdictReady")
+                       : analysis.verdict === "promising" ? t("paper.analysis.verdictPromising")
+                       : t("paper.analysis.verdictPracticing")}
                       </Text>
                     </View>
                   </View>
@@ -623,7 +633,7 @@ export default function PaperScreen() {
         maxShares={sellModal?.maxShares ?? 0} price={sellModal?.price ?? 0}
         onClose={() => setSellModal(null)} onSell={confirmSell}
       />
-      <PaywallModal visible={paywallOpen} onClose={() => setPaywallOpen(false)} reason="El análisis IA del simulador es exclusivo de Premium." />
+      <PaywallModal visible={paywallOpen} onClose={() => setPaywallOpen(false)} reason={t("paper.paywall.reason")} />
     </SafeAreaView>
   );
 }

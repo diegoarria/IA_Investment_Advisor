@@ -5,17 +5,21 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "expo-router";
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import { useTheme } from "../src/lib/ThemeContext";
 import { libraryApi } from "../src/lib/api";
 
-const TYPE_META: Record<string, { label: string; emoji: string }> = {
-  analysis:         { label: "Análisis",   emoji: "📊" },
-  note:             { label: "Nota",       emoji: "📝" },
-  thesis:           { label: "Tesis",      emoji: "💡" },
-  earnings_summary: { label: "Earnings",   emoji: "📈" },
-  upload:           { label: "Archivo",    emoji: "📎" },
-  bookmark:         { label: "Guardado",   emoji: "🔖" },
-};
+function getTypeMeta(t: TFunction): Record<string, { label: string; emoji: string }> {
+  return {
+    analysis:         { label: t("library.typeAnalysis"), emoji: "📊" },
+    note:             { label: t("library.typeNote"),      emoji: "📝" },
+    thesis:           { label: t("library.typeThesis"),    emoji: "💡" },
+    earnings_summary: { label: t("library.typeEarnings"),  emoji: "📈" },
+    upload:           { label: t("library.typeUpload"),    emoji: "📎" },
+    bookmark:         { label: t("library.typeBookmark"),  emoji: "🔖" },
+  };
+}
 
 interface LibraryItem {
   id: string;
@@ -29,6 +33,8 @@ interface LibraryItem {
 
 export default function LibraryScreen() {
   const { colors } = useTheme();
+  const { t } = useTranslation();
+  const TYPE_META = getTypeMeta(t);
   const [items, setItems] = useState<LibraryItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [adding, setAdding] = useState(false);
@@ -68,17 +74,17 @@ export default function LibraryScreen() {
       setNewTitle(""); setNewBody(""); setNewTicker("");
       setAdding(false);
     } catch {
-      Alert.alert("Error", "No se pudo guardar la nota.");
+      Alert.alert(t("library.error"), t("library.saveErrorMsg"));
     } finally {
       setSaving(false);
     }
   };
 
   const handleDelete = (id: string) => {
-    Alert.alert("Eliminar", "¿Eliminar este elemento de tu biblioteca?", [
-      { text: "Cancelar", style: "cancel" },
+    Alert.alert(t("library.deleteTitle"), t("library.deleteConfirmMsg"), [
+      { text: t("library.cancel"), style: "cancel" },
       {
-        text: "Eliminar", style: "destructive",
+        text: t("library.delete"), style: "destructive",
         onPress: async () => {
           setItems((prev) => prev.filter((i) => i.id !== id));
           try { await libraryApi.delete(id); } catch {}
@@ -90,7 +96,7 @@ export default function LibraryScreen() {
   return (
     <SafeAreaView style={[st.container, { backgroundColor: colors.bg }]}>
       <View style={st.header}>
-        <Text style={[st.headerTitle, { color: colors.text }]}>Mi Biblioteca</Text>
+        <Text style={[st.headerTitle, { color: colors.text }]}>{t("library.title")}</Text>
         <TouchableOpacity onPress={() => setAdding((v) => !v)}>
           <Ionicons name={adding ? "close" : "add-circle-outline"} size={24} color={colors.accentLight} />
         </TouchableOpacity>
@@ -102,24 +108,24 @@ export default function LibraryScreen() {
             <TextInput
               style={[st.input, { borderColor: colors.border, color: colors.text }]}
               value={newTitle} onChangeText={setNewTitle}
-              placeholder="Título" placeholderTextColor={colors.placeholder}
+              placeholder={t("library.titlePlaceholder")} placeholderTextColor={colors.placeholder}
             />
             <TextInput
               style={[st.input, { borderColor: colors.border, color: colors.text, marginTop: 8 }]}
               value={newTicker} onChangeText={(v) => setNewTicker(v.toUpperCase())}
-              placeholder="Ticker (opcional)" placeholderTextColor={colors.placeholder} autoCapitalize="characters"
+              placeholder={t("library.tickerPlaceholder")} placeholderTextColor={colors.placeholder} autoCapitalize="characters"
             />
             <TextInput
               style={[st.input, st.multiline, { borderColor: colors.border, color: colors.text, marginTop: 8 }]}
               value={newBody} onChangeText={setNewBody}
-              placeholder="Tu nota o tesis..." placeholderTextColor={colors.placeholder}
+              placeholder={t("library.bodyPlaceholder")} placeholderTextColor={colors.placeholder}
               multiline numberOfLines={4}
             />
             <TouchableOpacity
               style={[st.saveBtn, { backgroundColor: colors.accent, opacity: saving ? 0.6 : 1 }]}
               onPress={handleAdd} disabled={saving}
             >
-              <Text style={st.saveBtnText}>{saving ? "Guardando..." : "Guardar en mi biblioteca"}</Text>
+              <Text style={st.saveBtnText}>{saving ? t("library.saving") : t("library.saveButton")}</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -130,7 +136,7 @@ export default function LibraryScreen() {
           <View style={st.empty}>
             <Text style={{ fontSize: 32, marginBottom: 8 }}>📚</Text>
             <Text style={[st.emptyText, { color: colors.textMuted }]}>
-              Aún no tienes nada guardado. Tus análisis, notas y tesis de inversión aparecerán aquí.
+              {t("library.emptyText")}
             </Text>
           </View>
         ) : (
@@ -143,7 +149,7 @@ export default function LibraryScreen() {
                   <View style={{ flex: 1, marginLeft: 8 }}>
                     <Text style={[st.itemTitle, { color: colors.text }]} numberOfLines={1}>{item.title}</Text>
                     <Text style={[st.itemMeta, { color: colors.textDim }]}>
-                      {meta.label}{item.ticker ? ` · ${item.ticker}` : ""} · {item.source === "ai" ? "Generado por IA" : "Tuyo"}
+                      {meta.label}{item.ticker ? ` · ${item.ticker}` : ""} · {item.source === "ai" ? t("library.generatedByAI") : t("library.yours")}
                     </Text>
                   </View>
                   <TouchableOpacity onPress={() => handleDelete(item.id)}>

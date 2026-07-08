@@ -7,6 +7,8 @@ import { Loader2, Search, X, Shuffle } from "lucide-react";
 import AppSidebar from "@/components/AppSidebar";
 import VideoCard from "@/components/VideoCard";
 import { feedApi } from "@/lib/api";
+import { useTranslation } from "react-i18next";
+import i18n from "@/i18n";
 
 // Isolates each video so a single broken clip can't crash the whole feed
 class ClipErrorBoundary extends React.Component<
@@ -25,7 +27,7 @@ class ClipErrorBoundary extends React.Component<
           className="flex items-center justify-center"
           style={{ height: "100%", scrollSnapAlign: "start", scrollSnapStop: "always" }}
         >
-          <p className="text-sm" style={{ color: "var(--muted)" }}>Video no disponible</p>
+          <p className="text-sm" style={{ color: "var(--muted)" }}>{i18n.t("feed.videoUnavailable")}</p>
         </div>
       );
     }
@@ -67,6 +69,7 @@ const TAGS = [
 ];
 
 function FeedPageInner() {
+  const { t } = useTranslation();
   const searchParams = useSearchParams();
   const [clips, setClips]           = useState<Clip[]>([]);
   const [loading, setLoading]       = useState(true);
@@ -211,12 +214,12 @@ function FeedPageInner() {
                 background: sort === "trending" ? "var(--accent-l)" : "var(--raised)",
                 color: sort === "trending" ? "#000" : "var(--text)",
               }}>
-              {sort === "trending" ? "🔥 Trending" : "🕐 Reciente"}
+              {sort === "trending" ? t("feed.trending") : t("feed.recent")}
             </button>
 
             <button
               onClick={handleShuffle}
-              title="Mostrar videos aleatorios"
+              title={t("feed.shuffleTitle")}
               className="shrink-0 flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold transition-all active:scale-95"
               style={{
                 background: sort === "random" ? "rgba(139,92,246,0.18)" : "var(--raised)",
@@ -227,7 +230,7 @@ function FeedPageInner() {
                 className="w-3 h-3"
                 style={{ animation: spinning ? "spin 0.5s linear" : "none" }}
               />
-              Aleatorio
+              {t("feed.random")}
             </button>
 
             {(speaker || tag) && (
@@ -241,7 +244,7 @@ function FeedPageInner() {
             <button onClick={() => setFilterOpen(true)}
                     className="shrink-0 flex items-center gap-1.5 px-3 py-1 rounded-full text-xs"
                     style={{ background: "var(--raised)", color: "var(--text)" }}>
-              <Search className="w-3 h-3" /> Filtrar
+              <Search className="w-3 h-3" /> {t("feed.filter")}
             </button>
           </div>
         </div>
@@ -259,15 +262,15 @@ function FeedPageInner() {
             </div>
           ) : clips.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center gap-3">
-              <p className="text-lg font-bold" style={{ color: "var(--text)" }}>Sin contenido aún</p>
+              <p className="text-lg font-bold" style={{ color: "var(--text)" }}>{t("feed.emptyTitle")}</p>
               <p className="text-sm" style={{ color: "var(--sub)" }}>
-                Pronto cargaremos clips educativos de los mejores inversores
+                {t("feed.emptySubtitle")}
               </p>
               {(speaker || tag) && (
                 <button onClick={clearFilters}
                         className="px-4 py-2 rounded-xl text-sm font-semibold"
                         style={{ background: "var(--accent-l, #00d47e)", color: "#000" }}>
-                  Limpiar filtros
+                  {t("feed.clearFilters")}
                 </button>
               )}
             </div>
@@ -300,7 +303,7 @@ function FeedPageInner() {
               {nextCursor === null && clips.length > 0 && (
                 <div className="flex items-center justify-center py-6 text-sm"
                      style={{ color: "var(--muted)", scrollSnapAlign: "start" }}>
-                  Has visto todo el contenido disponible
+                  {t("feed.endOfContent")}
                 </div>
               )}
             </>
@@ -318,14 +321,14 @@ function FeedPageInner() {
             style={{ background: "var(--card, #1a1a1a)", border: "1px solid var(--border, #333)" }}
             onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between">
-              <p className="font-bold" style={{ color: "var(--text, #fff)" }}>Filtrar contenido</p>
+              <p className="font-bold" style={{ color: "var(--text, #fff)" }}>{t("feed.filterDrawerTitle")}</p>
               <button onClick={() => setFilterOpen(false)}>
                 <X className="w-5 h-5" style={{ color: "var(--muted, #888)" }} />
               </button>
             </div>
 
             <div>
-              <p className="text-xs font-semibold mb-2" style={{ color: "var(--muted, #888)" }}>POR INVERSOR</p>
+              <p className="text-xs font-semibold mb-2" style={{ color: "var(--muted, #888)" }}>{t("feed.byInvestor")}</p>
               <div className="flex flex-wrap gap-2">
                 {SPEAKERS.map((s) => (
                   <button key={s}
@@ -342,7 +345,7 @@ function FeedPageInner() {
             </div>
 
             <div>
-              <p className="text-xs font-semibold mb-2" style={{ color: "var(--muted, #888)" }}>POR TEMA</p>
+              <p className="text-xs font-semibold mb-2" style={{ color: "var(--muted, #888)" }}>{t("feed.byTopic")}</p>
               <div className="flex flex-wrap gap-2">
                 {TAGS.map((t) => (
                   <button key={t}

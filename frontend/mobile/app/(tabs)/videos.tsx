@@ -12,6 +12,7 @@ import * as SecureStore from "expo-secure-store";
 import * as FileSystem from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
 import { captureRef } from "react-native-view-shot";
+import { useTranslation } from "react-i18next";
 import { feedApi } from "../../src/lib/api";
 import { useTheme, Colors } from "../../src/lib/ThemeContext";
 import { useAppStore } from "../../src/lib/profileStore";
@@ -97,6 +98,7 @@ function ClipCard({
   onSave: (id: string) => void;
   cardHeight: number;
 }) {
+  const { t } = useTranslation();
   const videoRef = useRef<Video>(null);
   const myProfile = useAppStore((s) => s.profile);
   const [myUserId, setMyUserId] = useState<string | null>(null);
@@ -306,7 +308,7 @@ function ClipCard({
       user_id: myUserId ?? "",
       text: body,
       created_at: new Date().toISOString(),
-      user_profiles: { name: myProfile?.name ?? "Tú" },
+      user_profiles: { name: myProfile?.name ?? t("videos.you") },
       replies: [],
     };
     if (parentId) {
@@ -403,13 +405,13 @@ function ClipCard({
         mimeType: "image/jpeg",
         UTI: "public.jpeg",
         dialogTitle: platform === "instagram"
-          ? "Compartir en Instagram Stories"
-          : "Compartir en Facebook Stories",
+          ? t("videos.shareInstagramStories")
+          : t("videos.shareFacebookStories"),
       });
     } catch {
       Alert.alert(
-        "Error al preparar la imagen",
-        "Intenta de nuevo o verifica que el video esté cargado.",
+        t("videos.imagePrepError"),
+        t("videos.imagePrepErrorBody"),
       );
     } finally {
       setIsCreatingShare(false);
@@ -439,22 +441,22 @@ function ClipCard({
         } catch {}
         if (detail.includes("HLS") || detail.includes("descargable") || detail.includes("download_url")) {
           Alert.alert(
-            "Descarga no disponible",
-            "Este clip aún no tiene archivo MP4 descargable. Escríbenos a soporte para solicitarlo.",
+            t("videos.downloadUnavailable"),
+            t("videos.downloadUnavailableBody"),
           );
         } else {
-          Alert.alert("Error", detail || "No se pudo descargar el video. Intenta de nuevo.");
+          Alert.alert(t("videos.error"), detail || t("videos.downloadError"));
         }
         return;
       }
       const canShare = await Sharing.isAvailableAsync();
       if (canShare) {
-        await Sharing.shareAsync(dlResult.uri, { mimeType: "video/mp4", dialogTitle: "Guardar video" });
+        await Sharing.shareAsync(dlResult.uri, { mimeType: "video/mp4", dialogTitle: t("videos.saveVideo") });
       } else {
-        Alert.alert("Descargado", `Guardado en: ${dlResult.uri}`);
+        Alert.alert(t("videos.downloaded"), t("videos.downloadedAt", { uri: dlResult.uri }));
       }
     } catch {
-      Alert.alert("Error", "No se pudo descargar el video. Intenta de nuevo.");
+      Alert.alert(t("videos.error"), t("videos.downloadError"));
     } finally {
       setDownloading(false);
     }
@@ -561,7 +563,7 @@ function ClipCard({
             ))}
           </View>
           <Text style={phStyles.label}>
-            {phase === "pre" ? "Introducción IA" : "Análisis IA"}
+            {phase === "pre" ? t("videos.aiIntro") : t("videos.aiAnalysis")}
           </Text>
           {audioRemaining > 0 && (
             <Text style={phStyles.timer}>{audioRemaining}s</Text>
@@ -572,7 +574,7 @@ function ClipCard({
       {/* Skip AI audio button */}
       {(phase === "pre" || phase === "post") && (
         <TouchableOpacity style={phStyles.skipBtn} onPress={skipAudio} activeOpacity={0.8}>
-          <Text style={phStyles.skipText}>Saltar</Text>
+          <Text style={phStyles.skipText}>{t("videos.skip")}</Text>
           <Ionicons name="play-skip-forward" size={13} color="white" />
         </TouchableOpacity>
       )}
@@ -643,17 +645,17 @@ function ClipCard({
             size={20}
             color={clip.saved ? "#f59e0b" : "white"}
           />
-          <Text style={styles.actionLabel}>{clip.saved ? "Guardado" : "Guardar"}</Text>
+          <Text style={styles.actionLabel}>{clip.saved ? t("videos.saved") : t("videos.save")}</Text>
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.actionBtn} onPress={handleShare}>
           <Ionicons name="share-social-outline" size={20} color="white" />
-          <Text style={styles.actionLabel}>Compartir</Text>
+          <Text style={styles.actionLabel}>{t("videos.share")}</Text>
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.actionBtn} onPress={handleDownload} disabled={downloading}>
           <Ionicons name={downloading ? "hourglass-outline" : "download-outline"} size={20} color={downloading ? "rgba(255,255,255,0.5)" : "white"} />
-          <Text style={styles.actionLabel}>{downloading ? "..." : "Bajar"}</Text>
+          <Text style={styles.actionLabel}>{downloading ? "..." : t("videos.downloadShort")}</Text>
         </TouchableOpacity>
 
         {/* CC captions button */}
@@ -689,7 +691,7 @@ function ClipCard({
               onPress={() => { setCaptionLang(lang); setShowCaptionPicker(false); }}
             >
               <Text style={[ccStyles.pickerText, captionLang === lang && { color: "#a78bfa" }]}>
-                {lang === "off" ? "Apagado" : lang === "es" ? "🇪🇸 Español" : "🇺🇸 English"}
+                {lang === "off" ? t("videos.off") : lang === "es" ? "🇪🇸 Español" : "🇺🇸 English"}
               </Text>
             </TouchableOpacity>
           ))}
@@ -769,7 +771,7 @@ function ClipCard({
         <View style={shareStyles.sheet}>
           {/* Handle */}
           <View style={shareStyles.handle} />
-          <Text style={shareStyles.title}>Compartir como Historia</Text>
+          <Text style={shareStyles.title}>{t("videos.shareAsStory")}</Text>
 
           {/* Thumbnail preview */}
           {clip.thumbnail_url ? (
@@ -797,7 +799,7 @@ function ClipCard({
                 <Ionicons name="logo-instagram" size={26} color="white" />
               )}
               <Text style={shareStyles.platformLabel}>Instagram</Text>
-              <Text style={shareStyles.platformSub}>Historia</Text>
+              <Text style={shareStyles.platformSub}>{t("videos.story")}</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -811,7 +813,7 @@ function ClipCard({
                 <Ionicons name="logo-facebook" size={26} color="white" />
               )}
               <Text style={shareStyles.platformLabel}>Facebook</Text>
-              <Text style={shareStyles.platformSub}>Historia</Text>
+              <Text style={shareStyles.platformSub}>{t("videos.story")}</Text>
             </TouchableOpacity>
           </View>
 
@@ -827,14 +829,14 @@ function ClipCard({
               <Ionicons name="logo-whatsapp" size={22} color="white" />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={shareStyles.whatsappLabel}>Enviar por WhatsApp</Text>
-              <Text style={shareStyles.whatsappSub}>Tus contactos pueden abrir el clip aunque no tengan la app</Text>
+              <Text style={shareStyles.whatsappLabel}>{t("videos.sendViaWhatsApp")}</Text>
+              <Text style={shareStyles.whatsappSub}>{t("videos.whatsappSub")}</Text>
             </View>
             <Ionicons name="chevron-forward" size={16} color="rgba(255,255,255,0.3)" />
           </TouchableOpacity>
 
           <TouchableOpacity style={shareStyles.cancelBtn} onPress={() => setShareOpen(false)}>
-            <Text style={shareStyles.cancelText}>Cancelar</Text>
+            <Text style={shareStyles.cancelText}>{t("common.cancel")}</Text>
           </TouchableOpacity>
         </View>
       </Modal>
@@ -863,7 +865,7 @@ function ClipCard({
             {/* Header */}
             <View style={cmtStyles.header}>
               <Text style={[cmtStyles.headerTitle, { color: colors.text }]}>
-                Comentarios ({commentCount})
+                {t("videos.commentsCount", { count: commentCount })}
               </Text>
               <TouchableOpacity onPress={() => { setCommentsOpen(false); setReplyingTo(null); setReplyText(""); }}>
                 <Ionicons name="close" size={22} color={colors.textMuted} />
@@ -878,12 +880,12 @@ function ClipCard({
                 <View style={{ alignItems: "center", paddingVertical: 32 }}>
                   <Ionicons name="chatbubbles-outline" size={32} color={colors.textDim} />
                   <Text style={[cmtStyles.body, { color: colors.textMuted, marginTop: 8 }]}>
-                    Sé el primero en comentar
+                    {t("videos.beFirstToComment")}
                   </Text>
                 </View>
               ) : (
                 comments.map((c) => {
-                  const cName = c.user_profiles?.name ?? "Usuario";
+                  const cName = c.user_profiles?.name ?? t("videos.user");
                   const isMyComment = c.user_id === myUserId;
                   return (
                     <View key={c.id} style={{ marginBottom: 16 }}>
@@ -914,7 +916,7 @@ function ClipCard({
                             style={{ marginTop: 4 }}
                           >
                             <Text style={[cmtStyles.replyBtn, { color: replyingTo?.id === c.id ? colors.accentLight : colors.textMuted }]}>
-                              Responder
+                              {t("videos.reply")}
                             </Text>
                           </TouchableOpacity>
                         </View>
@@ -924,7 +926,7 @@ function ClipCard({
                       {(c.replies ?? []).length > 0 && (
                         <View style={[cmtStyles.repliesThread, { borderLeftColor: colors.border }]}>
                           {(c.replies ?? []).map((r) => {
-                            const rName = r.user_profiles?.name ?? "Usuario";
+                            const rName = r.user_profiles?.name ?? t("videos.user");
                             const isMyReply = r.user_id === myUserId;
                             return (
                               <View key={r.id} style={cmtStyles.row}>
@@ -961,7 +963,7 @@ function ClipCard({
                           <TextInput
                             autoFocus
                             style={[cmtStyles.replyTextField, { color: colors.text }]}
-                            placeholder={`Responder a ${replyingTo.name}…`}
+                            placeholder={t("videos.replyToPlaceholder", { name: replyingTo.name })}
                             placeholderTextColor={colors.textDim}
                             value={replyText}
                             onChangeText={setReplyText}
@@ -984,7 +986,7 @@ function ClipCard({
             <View style={[cmtStyles.inputRow, { borderTopColor: colors.border }]}>
               <TextInput
                 style={[styles.commentInput, { backgroundColor: colors.bg, color: colors.text, borderColor: colors.border }]}
-                placeholder="Escribe un comentario..."
+                placeholder={t("videos.writeComment")}
                 placeholderTextColor={colors.textDim}
                 value={commentText}
                 onChangeText={setCommentText}
@@ -1074,6 +1076,7 @@ function VideosSkeleton() {
 
 export default function VideosScreen() {
   const { colors } = useTheme();
+  const { t } = useTranslation();
 
   const [clips, setClips]             = useState<Clip[]>([]);
   const [loading, setLoading]         = useState(true);
@@ -1117,7 +1120,7 @@ export default function VideosScreen() {
   const handleDownloadSaved = async (clip: Clip) => {
     if (downloadingId) return;
     if (clip.video_url.includes(".m3u8")) {
-      Alert.alert("No disponible", "Este video es streaming y no puede descargarse.");
+      Alert.alert(t("videos.notAvailable"), t("videos.streamingNotDownloadable"));
       return;
     }
     setDownloadingId(clip.id);
@@ -1133,10 +1136,10 @@ export default function VideosScreen() {
       if (dlResult.status !== 200) throw new Error();
       const canShare = await Sharing.isAvailableAsync();
       if (canShare) {
-        await Sharing.shareAsync(dlResult.uri, { mimeType: "video/mp4", dialogTitle: "Guardar video" });
+        await Sharing.shareAsync(dlResult.uri, { mimeType: "video/mp4", dialogTitle: t("videos.saveVideo") });
       }
     } catch {
-      Alert.alert("Error", "No se pudo descargar. Intenta de nuevo.");
+      Alert.alert(t("videos.error"), t("videos.genericDownloadError"));
     } finally {
       setDownloadingId(null);
     }
@@ -1262,7 +1265,7 @@ export default function VideosScreen() {
         <View style={styles.center}>
           <Ionicons name="videocam-off-outline" size={48} color="rgba(255,255,255,0.4)" />
           <Text style={{ color: "rgba(255,255,255,0.6)", marginTop: 12, fontSize: 15 }}>
-            No hay videos disponibles
+            {t("videos.noVideosAvailable")}
           </Text>
         </View>
       </SafeAreaView>
@@ -1303,12 +1306,12 @@ export default function VideosScreen() {
           )}
           {sort === "trending" && (
             <TouchableOpacity style={styles.filterChip} onPress={() => setSort("recent")}>
-              <Text style={styles.filterChipText}>🔥 Trending ✕</Text>
+              <Text style={styles.filterChipText}>🔥 {t("videos.trending")} ✕</Text>
             </TouchableOpacity>
           )}
           {sort === "random" && (
             <TouchableOpacity style={[styles.filterChip, { backgroundColor: "rgba(139,92,246,0.18)", borderColor: "rgba(139,92,246,0.4)" }]} onPress={() => setSort("recent")}>
-              <Text style={[styles.filterChipText, { color: "#a78bfa" }]}>🔀 Aleatorio ✕</Text>
+              <Text style={[styles.filterChipText, { color: "#a78bfa" }]}>🔀 {t("videos.random")} ✕</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -1331,7 +1334,7 @@ export default function VideosScreen() {
             onRefresh={handlePullRefresh}
             tintColor="#a78bfa"
             colors={["#a78bfa"]}
-            title="Cargando aleatorio..."
+            title={t("videos.loadingRandom")}
             titleColor="#a78bfa"
           />
         }
@@ -1358,7 +1361,7 @@ export default function VideosScreen() {
           <View style={[styles.filterSheet, { backgroundColor: colors.card }]}>
             <View style={[styles.captionHandle, { backgroundColor: colors.border }]} />
 
-            <Text style={[styles.filterSectionTitle, { color: colors.text }]}>Ordenar</Text>
+            <Text style={[styles.filterSectionTitle, { color: colors.text }]}>{t("videos.sortBy")}</Text>
             <View style={{ flexDirection: "row", gap: 8, marginBottom: 16 }}>
               {(["recent", "trending"] as const).map((s) => (
                 <TouchableOpacity
@@ -1367,13 +1370,13 @@ export default function VideosScreen() {
                   onPress={() => { setSort(s); }}
                 >
                   <Text style={[styles.filterOptionText, { color: sort === s ? "#00d47e" : colors.textSub }]}>
-                    {s === "recent" ? "⏰ Recientes" : "🔥 Trending"}
+                    {s === "recent" ? `⏰ ${t("videos.recent")}` : `🔥 ${t("videos.trending")}`}
                   </Text>
                 </TouchableOpacity>
               ))}
             </View>
 
-            <Text style={[styles.filterSectionTitle, { color: colors.text }]}>Inversor</Text>
+            <Text style={[styles.filterSectionTitle, { color: colors.text }]}>{t("videos.investor")}</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 16 }}>
               {SPEAKERS.map((sp) => {
                 const active = sp === "Todos" ? !speaker : speaker === sp;
@@ -1383,23 +1386,23 @@ export default function VideosScreen() {
                     style={[styles.filterOption, active && { backgroundColor: "#00d47e22", borderColor: "#00d47e" }, { borderColor: colors.border, marginRight: 8 }]}
                     onPress={() => { seenIdsRef.current.clear(); setSpeaker(sp === "Todos" ? null : sp); }}
                   >
-                    <Text style={[styles.filterOptionText, { color: active ? "#00d47e" : colors.textSub }]}>{sp}</Text>
+                    <Text style={[styles.filterOptionText, { color: active ? "#00d47e" : colors.textSub }]}>{sp === "Todos" ? t("videos.all") : sp}</Text>
                   </TouchableOpacity>
                 );
               })}
             </ScrollView>
 
-            <Text style={[styles.filterSectionTitle, { color: colors.text }]}>Tema</Text>
+            <Text style={[styles.filterSectionTitle, { color: colors.text }]}>{t("videos.topic")}</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 24 }}>
-              {TAGS.map((t) => {
-                const active = t === "Todos" ? !tag : tag === t;
+              {TAGS.map((tg) => {
+                const active = tg === "Todos" ? !tag : tag === tg;
                 return (
                   <TouchableOpacity
-                    key={t}
+                    key={tg}
                     style={[styles.filterOption, active && { backgroundColor: "#00d47e22", borderColor: "#00d47e" }, { borderColor: colors.border, marginRight: 8 }]}
-                    onPress={() => { seenIdsRef.current.clear(); setTag(t === "Todos" ? null : t); }}
+                    onPress={() => { seenIdsRef.current.clear(); setTag(tg === "Todos" ? null : tg); }}
                   >
-                    <Text style={[styles.filterOptionText, { color: active ? "#00d47e" : colors.textSub }]}>#{t}</Text>
+                    <Text style={[styles.filterOptionText, { color: active ? "#00d47e" : colors.textSub }]}>{tg === "Todos" ? t("videos.all") : `#${tg}`}</Text>
                   </TouchableOpacity>
                 );
               })}
@@ -1409,7 +1412,7 @@ export default function VideosScreen() {
               style={[styles.applyBtn, { backgroundColor: "#00d47e" }]}
               onPress={() => setFilterOpen(false)}
             >
-              <Text style={{ color: "white", fontWeight: "700", fontSize: 15 }}>Aplicar filtros</Text>
+              <Text style={{ color: "white", fontWeight: "700", fontSize: 15 }}>{t("videos.applyFilters")}</Text>
             </TouchableOpacity>
           </View>
         </TouchableOpacity>
@@ -1424,7 +1427,7 @@ export default function VideosScreen() {
           {/* Header */}
           <View style={savedStyles.header}>
             <Ionicons name="bookmark" size={18} color="#f59e0b" style={{ marginRight: 6 }} />
-            <Text style={[savedStyles.title, { color: colors.text }]}>Videos guardados</Text>
+            <Text style={[savedStyles.title, { color: colors.text }]}>{t("videos.savedVideos")}</Text>
             <TouchableOpacity onPress={() => setSavedOpen(false)} style={{ marginLeft: "auto" }}>
               <Ionicons name="close" size={22} color={colors.textMuted} />
             </TouchableOpacity>
@@ -1438,10 +1441,10 @@ export default function VideosScreen() {
             <View style={savedStyles.center}>
               <Ionicons name="bookmark-outline" size={40} color={colors.textDim} />
               <Text style={[savedStyles.empty, { color: colors.textMuted }]}>
-                Aún no guardaste videos
+                {t("videos.noSavedVideos")}
               </Text>
               <Text style={[savedStyles.emptySub, { color: colors.textDim }]}>
-                Toca el ícono de marcador en cualquier video
+                {t("videos.tapBookmarkIcon")}
               </Text>
             </View>
           ) : (
@@ -1480,7 +1483,7 @@ export default function VideosScreen() {
                           color="#00d47e"
                         />
                         <Text style={[savedStyles.btnText, { color: "#00d47e" }]}>
-                          {downloadingId === clip.id ? "Bajando..." : "Descargar"}
+                          {downloadingId === clip.id ? t("videos.downloading") : t("videos.download")}
                         </Text>
                       </TouchableOpacity>
 
@@ -1488,7 +1491,7 @@ export default function VideosScreen() {
                         style={[savedStyles.btn, { backgroundColor: "rgba(245,158,11,0.12)" }]}
                         onPress={() => handleUnsave(clip.id)}>
                         <Ionicons name="bookmark" size={14} color="#f59e0b" />
-                        <Text style={[savedStyles.btnText, { color: "#f59e0b" }]}>Quitar</Text>
+                        <Text style={[savedStyles.btnText, { color: "#f59e0b" }]}>{t("videos.remove")}</Text>
                       </TouchableOpacity>
                     </View>
                   </View>

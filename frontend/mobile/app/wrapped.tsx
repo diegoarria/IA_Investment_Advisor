@@ -5,6 +5,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
+import { useTranslation } from "react-i18next";
 import api from "../src/lib/api";
 
 interface WrappedData {
@@ -23,6 +24,7 @@ interface WrappedData {
 const SLIDES = ["cover", "stocks", "lessons", "progress", "sector"] as const;
 
 export default function WrappedScreen() {
+  const { t } = useTranslation();
   const [data, setData]     = useState<WrappedData | null>(null);
   const [loading, setLoading] = useState(true);
   const [slide, setSlide]   = useState(0);
@@ -34,7 +36,7 @@ export default function WrappedScreen() {
     api.get("/api/wrapped/annual")
       .then((r) => setData(r.data))
       .catch((e) => {
-        const msg = e?.response?.data?.detail ?? e?.response?.status ?? e?.message ?? "Error desconocido";
+        const msg = e?.response?.data?.detail ?? e?.response?.status ?? e?.message ?? t("wrapped.unknownError");
         setError(String(msg));
       })
       .finally(() => setLoading(false));
@@ -51,38 +53,38 @@ export default function WrappedScreen() {
     if (!data) return;
     const top = data.top_stocks[0];
     const shareText = [
-      `🏆 Mi Annual ScoreBoard ${data.year} en Nuvos AI`,
+      t("wrapped.shareLine1", { year: data.year }),
       ``,
-      top ? `🚀 Mi mejor acción: ${top.ticker} ${fmt(top.ytd_pct)} YTD` : null,
-      data.growth_pct !== undefined ? `📈 Mi patrimonio creció ${fmt(data.growth_pct)} este año` : null,
-      `🧠 ${data.lessons} lecciones completadas`,
-      `📊 ${data.days_active} días como inversor activo`,
-      data.top_sector ? `🏆 Sector favorito: ${data.top_sector}` : null,
+      top ? t("wrapped.shareLineBestStock", { ticker: top.ticker, pct: fmt(top.ytd_pct) }) : null,
+      data.growth_pct !== undefined ? t("wrapped.shareLineGrowth", { pct: fmt(data.growth_pct) }) : null,
+      t("wrapped.shareLineLessons", { count: data.lessons }),
+      t("wrapped.shareLineDays", { count: data.days_active }),
+      data.top_sector ? t("wrapped.shareLineSector", { sector: data.top_sector }) : null,
       ``,
-      `Aprende a invertir con inteligencia 👉 nuvosai.app`,
+      t("wrapped.shareLineFooter"),
     ].filter(Boolean).join("\n");
 
     try {
-      await Share.share({ message: shareText, title: `Mi Annual ScoreBoard ${data.year}` });
+      await Share.share({ message: shareText, title: t("wrapped.shareTitle", { year: data.year }) });
     } catch {}
   };
 
   if (loading) return (
     <View style={s.loadingContainer}>
       <ActivityIndicator color="#00d47e" size="large" />
-      <Text style={s.loadingText}>Preparando tu ScoreBoard…</Text>
+      <Text style={s.loadingText}>{t("wrapped.loadingText")}</Text>
     </View>
   );
 
   if (!data) return (
     <View style={s.loadingContainer}>
-      <Text style={s.loadingText}>No se pudo cargar el ScoreBoard.</Text>
+      <Text style={s.loadingText}>{t("wrapped.loadFailedText")}</Text>
       {error && <Text style={{ color: "#ef4444", fontSize: 12, marginTop: 8, textAlign: "center", paddingHorizontal: 32 }}>{error}</Text>}
       <TouchableOpacity onPress={load} style={{ marginTop: 16 }}>
-        <Text style={{ color: "#00d47e", fontSize: 14 }}>Reintentar</Text>
+        <Text style={{ color: "#00d47e", fontSize: 14 }}>{t("wrapped.retry")}</Text>
       </TouchableOpacity>
       <TouchableOpacity onPress={() => router.back()} style={{ marginTop: 10 }}>
-        <Text style={{ color: "#6b7280", fontSize: 13 }}>Volver</Text>
+        <Text style={{ color: "#6b7280", fontSize: 13 }}>{t("wrapped.back")}</Text>
       </TouchableOpacity>
     </View>
   );
@@ -120,14 +122,14 @@ export default function WrappedScreen() {
 
           {/* Main */}
           <View style={s.coverMain}>
-            <Text style={s.coverEyebrow}>Tu año en</Text>
-            <Text style={s.coverTitle}>Annual{"\n"}ScoreBoard</Text>
+            <Text style={s.coverEyebrow}>{t("wrapped.coverEyebrow")}</Text>
+            <Text style={s.coverTitle}>{t("wrapped.coverTitleLine1")}{"\n"}{t("wrapped.coverTitleLine2")}</Text>
             <Text style={s.coverYear}>{data.year}</Text>
           </View>
 
           {/* User */}
           <View style={s.coverUser}>
-            <Text style={s.coverUserLabel}>Resumen de</Text>
+            <Text style={s.coverUserLabel}>{t("wrapped.coverUserLabel")}</Text>
             <Text style={s.coverUserName}>{data.user_name}</Text>
           </View>
         </View>
@@ -138,11 +140,11 @@ export default function WrappedScreen() {
         <View style={[s.slide, { backgroundColor: "#0d1117" }]}>
           <View style={[s.bgCircle, { top: -40, right: -40, backgroundColor: "rgba(0,212,126,0.08)" }]} />
           <View style={s.slideInner}>
-            <Text style={[s.eyebrow, { color: "#00d47e" }]}>Tus mejores inversiones</Text>
-            <Text style={s.slideTitle}>Top 3 acciones{"\n"}del año 🚀</Text>
+            <Text style={[s.eyebrow, { color: "#00d47e" }]}>{t("wrapped.stocksEyebrow")}</Text>
+            <Text style={s.slideTitle}>{t("wrapped.stocksTitleLine1")}{"\n"}{t("wrapped.stocksTitleLine2")}</Text>
 
             {data.top_stocks.length === 0 ? (
-              <Text style={s.emptyNote}>Agrega acciones a tu portafolio para ver este dato el próximo año.</Text>
+              <Text style={s.emptyNote}>{t("wrapped.stocksEmptyNote")}</Text>
             ) : (
               data.top_stocks.map((st, i) => (
                 <View key={st.ticker} style={s.stockRow}>
@@ -150,7 +152,7 @@ export default function WrappedScreen() {
                   <View style={s.stockCard}>
                     <View>
                       <Text style={s.stockTicker}>{st.ticker}</Text>
-                      <Text style={s.stockSub}>Rendimiento YTD</Text>
+                      <Text style={s.stockSub}>{t("wrapped.stockSub")}</Text>
                     </View>
                     <Text style={[s.stockPct, { color: st.ytd_pct >= 0 ? "#00d47e" : "#ef4444" }]}>{fmt(st.ytd_pct)}</Text>
                   </View>
@@ -170,17 +172,17 @@ export default function WrappedScreen() {
         <View style={[s.slide, { backgroundColor: "#0d1117" }]}>
           <View style={[s.bgCircle, { top: -40, left: -40, backgroundColor: "rgba(139,92,246,0.08)" }]} />
           <View style={s.slideInner}>
-            <Text style={[s.eyebrow, { color: "#8b5cf6" }]}>Tu actividad</Text>
-            <Text style={s.slideTitle}>Nunca dejaste{"\n"}de aprender 🧠</Text>
+            <Text style={[s.eyebrow, { color: "#8b5cf6" }]}>{t("wrapped.activityEyebrow")}</Text>
+            <Text style={s.slideTitle}>{t("wrapped.activityTitleLine1")}{"\n"}{t("wrapped.activityTitleLine2")}</Text>
 
             <View style={[s.bigStatCard, { borderColor: "rgba(139,92,246,0.25)", backgroundColor: "rgba(139,92,246,0.08)" }]}>
               <Text style={[s.bigStatNum, { color: "#8b5cf6" }]}>{data.lessons}</Text>
-              <Text style={s.bigStatLabel}>lecciones completadas</Text>
+              <Text style={s.bigStatLabel}>{t("wrapped.lessonsLabel")}</Text>
             </View>
 
             <View style={s.smallStatCard}>
               <Text style={s.smallStatNum}>{data.days_active}</Text>
-              <Text style={s.smallStatLabel}>días en plataforma</Text>
+              <Text style={s.smallStatLabel}>{t("wrapped.daysLabel")}</Text>
             </View>
           </View>
           <View style={s.smallLogoRow}>
@@ -195,30 +197,30 @@ export default function WrappedScreen() {
         <View style={[s.slide, { backgroundColor: "#0d1117" }]}>
           <View style={[s.bgCircle, { top: -40, right: -40, backgroundColor: "rgba(0,212,126,0.08)" }]} />
           <View style={s.slideInner}>
-            <Text style={[s.eyebrow, { color: "#00d47e" }]}>Tu evolución</Text>
-            <Text style={s.slideTitle}>Así creciste{"\n"}este año 📈</Text>
+            <Text style={[s.eyebrow, { color: "#00d47e" }]}>{t("wrapped.evolutionEyebrow")}</Text>
+            <Text style={s.slideTitle}>{t("wrapped.evolutionTitleLine1")}{"\n"}{t("wrapped.evolutionTitleLine2")}</Text>
 
             {data.growth_pct === undefined && !data.milestones_this_year?.length && !data.decisions_logged_this_year ? (
-              <Text style={s.emptyNote}>Sigue invirtiendo y usando Nuvos — el próximo año verás aquí tu evolución completa.</Text>
+              <Text style={s.emptyNote}>{t("wrapped.evolutionEmptyNote")}</Text>
             ) : (
               <>
                 {data.growth_pct !== undefined && (
                   <View style={[s.bigStatCard, { borderColor: "rgba(0,212,126,0.25)", backgroundColor: "rgba(0,212,126,0.08)" }]}>
                     <Text style={[s.bigStatNum, { color: "#00d47e" }]}>{fmt(data.growth_pct)}</Text>
-                    <Text style={s.bigStatLabel}>creció tu patrimonio</Text>
+                    <Text style={s.bigStatLabel}>{t("wrapped.growthLabel")}</Text>
                   </View>
                 )}
                 <View style={{ flexDirection: "row", gap: 12 }}>
                   {!!data.milestones_this_year?.length && (
                     <View style={[s.smallStatCard, { flex: 1 }]}>
                       <Text style={s.smallStatNum}>{data.milestones_this_year.length}</Text>
-                      <Text style={s.smallStatLabel}>hitos alcanzados</Text>
+                      <Text style={s.smallStatLabel}>{t("wrapped.milestonesLabel")}</Text>
                     </View>
                   )}
                   {!!data.decisions_logged_this_year && (
                     <View style={[s.smallStatCard, { flex: 1 }]}>
                       <Text style={s.smallStatNum}>{data.decisions_logged_this_year}</Text>
-                      <Text style={s.smallStatLabel}>decisiones registradas</Text>
+                      <Text style={s.smallStatLabel}>{t("wrapped.decisionsLabel")}</Text>
                     </View>
                   )}
                 </View>

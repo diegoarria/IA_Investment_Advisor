@@ -2,6 +2,8 @@
 
 import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import { CheckCircle, Calendar, ExternalLink, ArrowRight, Download, Loader2, Users } from "lucide-react";
 import api, { billing } from "@/lib/api";
 import { getSupabaseClient } from "@/lib/supabase";
@@ -9,34 +11,38 @@ import { getSupabaseClient } from "@/lib/supabase";
 // ← Reemplaza con tu link real de Calendly
 const CALENDLY_URL = "https://calendly.com/diego-arria19/sesion-1-1-con-diego-nuvos-ai";
 
-const OFFER_META = {
-  session: {
-    emoji: "🎯",
-    color: "#00d47e",
-    title: "¡Sesión confirmada!",
-    subtitle: "Tu pago fue procesado exitosamente.",
-    cta: true,
-  },
-  annual_report: {
-    emoji: "📊",
-    color: "#8b5cf6",
-    title: "¡Reporte solicitado!",
-    subtitle: "Tu pago fue procesado exitosamente.",
-    cta: false,
-  },
-  family_plan: {
-    emoji: "👫",
-    color: "#3b82f6",
-    title: "¡Plan Dúo activado!",
-    subtitle: "Tu pago fue procesado exitosamente.",
-    cta: false,
-  },
-};
+function getOfferMeta(t: TFunction) {
+  return {
+    session: {
+      emoji: "🎯",
+      color: "#00d47e",
+      title: t("upsellSuccess.offers.session.title"),
+      subtitle: t("upsellSuccess.offers.session.subtitle"),
+      cta: true,
+    },
+    annual_report: {
+      emoji: "📊",
+      color: "#8b5cf6",
+      title: t("upsellSuccess.offers.annual_report.title"),
+      subtitle: t("upsellSuccess.offers.annual_report.subtitle"),
+      cta: false,
+    },
+    family_plan: {
+      emoji: "👫",
+      color: "#3b82f6",
+      title: t("upsellSuccess.offers.family_plan.title"),
+      subtitle: t("upsellSuccess.offers.family_plan.subtitle"),
+      cta: false,
+    },
+  };
+}
 
-type Offer = keyof typeof OFFER_META;
+type Offer = "session" | "annual_report" | "family_plan";
 
 function UpsellSuccessContent() {
   const router = useRouter();
+  const { t } = useTranslation();
+  const OFFER_META = getOfferMeta(t);
   const params = useSearchParams();
   const offer = (params.get("offer") ?? "session") as Offer;
   const meta = OFFER_META[offer] ?? OFFER_META.session;
@@ -51,14 +57,14 @@ function UpsellSuccessContent() {
   const [duoError, setDuoError] = useState("");
 
   useEffect(() => {
-    const t = setTimeout(() => setVisible(true), 100);
+    const timer = setTimeout(() => setVisible(true), 100);
     // If duo plan, pre-fill user email from Supabase session
     if (offer === "family_plan") {
       getSupabaseClient().auth.getUser().then(({ data }) => {
         if (data?.user?.email) setMyEmail(data.user.email);
       });
     }
-    return () => clearTimeout(t);
+    return () => clearTimeout(timer);
   }, [offer]);
 
   const handleDuoSave = async () => {
@@ -71,7 +77,7 @@ function UpsellSuccessContent() {
       setTimeout(() => router.replace("/profile"), 2000);
     } catch (err: any) {
       const msg = err?.response?.data?.detail
-        ?? "Error al guardar. Intenta de nuevo.";
+        ?? t("upsellSuccess.familyPlan.saveError");
       setDuoError(msg);
     } finally {
       setDuoSaving(false);
@@ -136,7 +142,7 @@ function UpsellSuccessContent() {
             {meta.subtitle}
           </p>
           <p style={{ color: "#00d47e", fontSize: 13, fontWeight: 600, margin: 0, letterSpacing: "0.02em" }}>
-            Con Nuvos, construye tu futuro.
+            {t("upsellSuccess.tagline")}
           </p>
         </div>
 
@@ -155,15 +161,15 @@ function UpsellSuccessContent() {
             <>
               <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                 <CheckCircle size={18} color="#22c55e" />
-                <span style={{ color: "#d1fae5", fontSize: 14 }}>Pago de ${params.get("amount") ?? ""} procesado</span>
+                <span style={{ color: "#d1fae5", fontSize: 14 }}>{t("upsellSuccess.session.paymentProcessed", { amount: params.get("amount") ?? "" })}</span>
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                 <CheckCircle size={18} color="#22c55e" />
-                <span style={{ color: "#d1fae5", fontSize: 14 }}>Videollamada de 45 minutos con Diego</span>
+                <span style={{ color: "#d1fae5", fontSize: 14 }}>{t("upsellSuccess.session.videoCall")}</span>
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                 <CheckCircle size={18} color="#22c55e" />
-                <span style={{ color: "#d1fae5", fontSize: 14 }}>Grabación entregada después de la sesión</span>
+                <span style={{ color: "#d1fae5", fontSize: 14 }}>{t("upsellSuccess.session.recording")}</span>
               </div>
 
               <div style={{
@@ -175,10 +181,10 @@ function UpsellSuccessContent() {
               }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
                   <Calendar size={15} color={meta.color} />
-                  <span style={{ color: meta.color, fontSize: 12, fontWeight: 700 }}>Siguiente paso</span>
+                  <span style={{ color: meta.color, fontSize: 12, fontWeight: 700 }}>{t("upsellSuccess.session.nextStep")}</span>
                 </div>
                 <p style={{ color: "#e5e7eb", fontSize: 13, margin: 0, lineHeight: 1.5 }}>
-                  Elige el día y hora que mejor te quede. Recibirás una confirmación por email con el link de la videollamada.
+                  {t("upsellSuccess.session.nextStepDesc")}
                 </p>
               </div>
             </>
@@ -188,15 +194,15 @@ function UpsellSuccessContent() {
             <>
               <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                 <CheckCircle size={18} color="#22c55e" />
-                <span style={{ color: "#d1fae5", fontSize: 14 }}>Pago procesado correctamente</span>
+                <span style={{ color: "#d1fae5", fontSize: 14 }}>{t("upsellSuccess.annualReport.paymentProcessed")}</span>
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                 <CheckCircle size={18} color="#22c55e" />
-                <span style={{ color: "#d1fae5", fontSize: 14 }}>Reporte personalizado con tu historial de madurez</span>
+                <span style={{ color: "#d1fae5", fontSize: 14 }}>{t("upsellSuccess.annualReport.customReport")}</span>
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                 <CheckCircle size={18} color="#22c55e" />
-                <span style={{ color: "#d1fae5", fontSize: 14 }}>Certificado digital de Inversor Informado</span>
+                <span style={{ color: "#d1fae5", fontSize: 14 }}>{t("upsellSuccess.annualReport.certificate")}</span>
               </div>
 
               {/* Download button */}
@@ -227,12 +233,12 @@ function UpsellSuccessContent() {
                 {downloading ? (
                   <>
                     <Loader2 size={17} style={{ animation: "spin 1s linear infinite" }} />
-                    Generando tu reporte...
+                    {t("upsellSuccess.annualReport.downloading")}
                   </>
                 ) : (
                   <>
                     <Download size={17} />
-                    Descargar mi Reporte PDF
+                    {t("upsellSuccess.annualReport.download")}
                   </>
                 )}
               </button>
@@ -245,21 +251,21 @@ function UpsellSuccessContent() {
               <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12, padding: "8px 0" }}>
                 <CheckCircle size={40} color="#22c55e" />
                 <p style={{ color: "#d1fae5", fontSize: 15, fontWeight: 700, margin: 0, textAlign: "center" }}>
-                  ¡Cuentas guardadas exitosamente!
+                  {t("upsellSuccess.familyPlan.savedTitle")}
                 </p>
-                <p style={{ color: "#9ca3af", fontSize: 13, margin: 0 }}>Redirigiendo a tu perfil...</p>
+                <p style={{ color: "#9ca3af", fontSize: 13, margin: 0 }}>{t("upsellSuccess.familyPlan.redirecting")}</p>
               </div>
             ) : (
               <>
                 <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
                   <Users size={16} color={meta.color} />
-                  <span style={{ color: meta.color, fontSize: 13, fontWeight: 700 }}>¿Qué cuentas quieres agregar?</span>
+                  <span style={{ color: meta.color, fontSize: 13, fontWeight: 700 }}>{t("upsellSuccess.familyPlan.whichAccounts")}</span>
                 </div>
 
                 {/* Account 1 — owner (readonly) */}
                 <div>
                   <p style={{ color: "#6b7280", fontSize: 11, fontWeight: 600, margin: "0 0 6px", textTransform: "uppercase", letterSpacing: "0.05em" }}>
-                    Cuenta 1 — Tu cuenta
+                    {t("upsellSuccess.familyPlan.account1Label")}
                   </p>
                   <div style={{
                     padding: "12px 14px",
@@ -269,18 +275,18 @@ function UpsellSuccessContent() {
                     color: "#9ca3af",
                     fontSize: 14,
                   }}>
-                    {myEmail || "Cargando..."}
+                    {myEmail || t("upsellSuccess.familyPlan.loading")}
                   </div>
                 </div>
 
                 {/* Account 2 — secondary (input) */}
                 <div>
                   <p style={{ color: "#6b7280", fontSize: 11, fontWeight: 600, margin: "0 0 6px", textTransform: "uppercase", letterSpacing: "0.05em" }}>
-                    Cuenta 2 — Usuario con quien compartes
+                    {t("upsellSuccess.familyPlan.account2Label")}
                   </p>
                   <input
                     type="email"
-                    placeholder="email@ejemplo.com"
+                    placeholder={t("upsellSuccess.familyPlan.emailPlaceholder")}
                     value={secondaryEmail}
                     onChange={(e) => setSecondaryEmail(e.target.value)}
                     style={{
@@ -333,10 +339,10 @@ function UpsellSuccessContent() {
                   {duoSaving ? (
                     <>
                       <Loader2 size={17} style={{ animation: "spin 1s linear infinite" }} />
-                      Guardando...
+                      {t("upsellSuccess.familyPlan.saving")}
                     </>
                   ) : (
-                    "Guardar cuentas"
+                    t("upsellSuccess.familyPlan.saveAccounts")
                   )}
                 </button>
 
@@ -354,7 +360,7 @@ function UpsellSuccessContent() {
                     textDecorationColor: "rgba(107,114,128,0.4)",
                   }}
                 >
-                  Agregar segundo email después
+                  {t("upsellSuccess.familyPlan.addLater")}
                 </button>
                 <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
               </>
@@ -386,7 +392,7 @@ function UpsellSuccessContent() {
             }}
           >
             <Calendar size={18} />
-            Agendar mi sesión en Calendly
+            {t("upsellSuccess.session.scheduleCta")}
             <ExternalLink size={14} style={{ opacity: 0.7 }} />
           </a>
         )}
@@ -405,7 +411,7 @@ function UpsellSuccessContent() {
             padding: "4px 0",
           }}
         >
-          Volver a mi perfil <ArrowRight size={13} />
+          {t("upsellSuccess.backToProfile")} <ArrowRight size={13} />
         </button>
 
       </div>

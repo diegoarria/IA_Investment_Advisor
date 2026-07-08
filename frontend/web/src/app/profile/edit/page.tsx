@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import { profile as profileApi } from "@/lib/api";
 import { useProfileStore, useAuthStore } from "@/lib/store";
 import { Check, ChevronLeft } from "lucide-react";
@@ -9,85 +11,83 @@ import { Check, ChevronLeft } from "lucide-react";
 type QuizAnswer = "A" | "B" | "C" | "D";
 type RiskTolerance = "conservative" | "moderate" | "aggressive";
 
-const GOALS = [
-  { value: "house",             label: "Comprar una casa",          emoji: "🏠" },
-  { value: "car",               label: "Comprar un carro",          emoji: "🚗" },
-  { value: "passive_income",    label: "Vivir de mis inversiones",  emoji: "💸" },
-  { value: "retirement",        label: "Retiro / pensión",          emoji: "👴" },
-  { value: "financial_freedom", label: "Libertad financiera",       emoji: "🦅" },
-  { value: "long_term_wealth",  label: "Patrimonio de largo plazo", emoji: "🏛️" },
-];
+function getGoals(t: TFunction) {
+  return [
+    { value: "house",             label: t("profileEdit.goals.house"),             emoji: "🏠" },
+    { value: "car",               label: t("profileEdit.goals.car"),               emoji: "🚗" },
+    { value: "passive_income",    label: t("profileEdit.goals.passive_income"),    emoji: "💸" },
+    { value: "retirement",        label: t("profileEdit.goals.retirement"),        emoji: "👴" },
+    { value: "financial_freedom", label: t("profileEdit.goals.financial_freedom"), emoji: "🦅" },
+    { value: "long_term_wealth",  label: t("profileEdit.goals.long_term_wealth"),  emoji: "🏛️" },
+  ];
+}
 
-const KNOWLEDGE_LEVELS = [
-  { value: "B" as QuizAnswer, label: "Básico",     emoji: "🌱", color: "#22c55e",
-    desc: "Sin experiencia o apenas inicio. Conozco ahorro, CETES o fondos básicos." },
-  { value: "C" as QuizAnswer, label: "Intermedio", emoji: "📈", color: "#3b82f6",
-    desc: "Tengo experiencia con ETFs y acciones. Entiendo diversificación y rendimiento." },
-  { value: "D" as QuizAnswer, label: "Avanzado",   emoji: "🎯", color: "#a855f7",
-    desc: "Manejo análisis fundamental, derivados, ciclos de mercado y estrategias complejas." },
-];
+function getKnowledgeLevels(t: TFunction) {
+  return [
+    { value: "B" as QuizAnswer, label: t("profileEdit.knowledgeLevels.basic.label"), emoji: "🌱", color: "#22c55e",
+      desc: t("profileEdit.knowledgeLevels.basic.desc") },
+    { value: "C" as QuizAnswer, label: t("profileEdit.knowledgeLevels.intermediate.label"), emoji: "📈", color: "#3b82f6",
+      desc: t("profileEdit.knowledgeLevels.intermediate.desc") },
+    { value: "D" as QuizAnswer, label: t("profileEdit.knowledgeLevels.advanced.label"), emoji: "🎯", color: "#a855f7",
+      desc: t("profileEdit.knowledgeLevels.advanced.desc") },
+  ];
+}
 
-const QUIZ: { key: string; num: string; category: string; question: string; options: Record<QuizAnswer, string> }[] = [
-  {
-    key: "q1", num: "01", category: "MENTALIDAD",
-    question: "Tu portafolio cae 35% en 3 meses por una crisis del mercado. ¿Qué haces?",
-    options: {
-      A: "Vendo todo antes de perder más",
-      B: "Espero a que se recupere, pero no compro más",
-      C: "Reviso si los fundamentos siguen sólidos y mantengo",
-      D: "Aprovecho para comprar más a precios bajos",
+function getQuiz(t: TFunction): { key: string; num: string; category: string; question: string; options: Record<QuizAnswer, string> }[] {
+  return [
+    {
+      key: "q1", num: "01", category: t("profileEdit.quiz.q1.category"),
+      question: t("profileEdit.quiz.q1.question"),
+      options: {
+        A: t("profileEdit.quiz.q1.options.A"), B: t("profileEdit.quiz.q1.options.B"),
+        C: t("profileEdit.quiz.q1.options.C"), D: t("profileEdit.quiz.q1.options.D"),
+      },
     },
-  },
-  {
-    key: "q2", num: "02", category: "HORIZONTE",
-    question: "¿Para qué necesitas este dinero invertido y en cuánto tiempo?",
-    options: {
-      A: "Podría necesitarlo en menos de 2 años",
-      B: "En 3–5 años, para algo específico",
-      C: "En 10+ años, para independencia financiera o retiro",
-      D: "No tengo prisa — es para construir patrimonio a largo plazo",
+    {
+      key: "q2", num: "02", category: t("profileEdit.quiz.q2.category"),
+      question: t("profileEdit.quiz.q2.question"),
+      options: {
+        A: t("profileEdit.quiz.q2.options.A"), B: t("profileEdit.quiz.q2.options.B"),
+        C: t("profileEdit.quiz.q2.options.C"), D: t("profileEdit.quiz.q2.options.D"),
+      },
     },
-  },
-  {
-    key: "q3", num: "03", category: "CONOCIMIENTO",
-    question: "¿Cuál de estos conceptos entiendes y podrías explicar a alguien más?",
-    options: {
-      A: "Ninguno con confianza — apenas empiezo",
-      B: "Interés compuesto, CETES, fondos indexados",
-      C: "P/E ratio, diversificación, rendimiento ajustado al riesgo",
-      D: "Análisis fundamental, cobertura con derivados, ciclos de mercado",
+    {
+      key: "q3", num: "03", category: t("profileEdit.quiz.q3.category"),
+      question: t("profileEdit.quiz.q3.question"),
+      options: {
+        A: t("profileEdit.quiz.q3.options.A"), B: t("profileEdit.quiz.q3.options.B"),
+        C: t("profileEdit.quiz.q3.options.C"), D: t("profileEdit.quiz.q3.options.D"),
+      },
     },
-  },
-  {
-    key: "q4", num: "04", category: "RIESGO",
-    question: "Tienes $100,000 para invertir. ¿Qué escenario prefieres?",
-    options: {
-      A: "Ganar $5K seguro, sin posibilidad de perder nada",
-      B: "Ganar $15K probable, con riesgo de perder $5K",
-      C: "Ganar $40K posible, con riesgo de perder $20K",
-      D: "Ganar $120K posible, con riesgo de perder todo",
+    {
+      key: "q4", num: "04", category: t("profileEdit.quiz.q4.category"),
+      question: t("profileEdit.quiz.q4.question"),
+      options: {
+        A: t("profileEdit.quiz.q4.options.A"), B: t("profileEdit.quiz.q4.options.B"),
+        C: t("profileEdit.quiz.q4.options.C"), D: t("profileEdit.quiz.q4.options.D"),
+      },
     },
-  },
-  {
-    key: "q5", num: "05", category: "COMPORTAMIENTO",
-    question: "¿Cuánto tiempo dedicarías a monitorear y gestionar tus inversiones?",
-    options: {
-      A: "Prefiero algo automático que no requiera atención",
-      B: "Una revisión mensual o trimestral me parece suficiente",
-      C: "Me gusta revisar semanalmente y hacer ajustes cuando vale",
-      D: "Estoy dispuesto a dedicarle tiempo diario — es una actividad activa",
+    {
+      key: "q5", num: "05", category: t("profileEdit.quiz.q5.category"),
+      question: t("profileEdit.quiz.q5.question"),
+      options: {
+        A: t("profileEdit.quiz.q5.options.A"), B: t("profileEdit.quiz.q5.options.B"),
+        C: t("profileEdit.quiz.q5.options.C"), D: t("profileEdit.quiz.q5.options.D"),
+      },
     },
-  },
-];
+  ];
+}
 
-const RISK_CONFIG: Record<RiskTolerance, { label: string; emoji: string; color: string; pct: number; desc: string }> = {
-  conservative: { label: "Conservador", emoji: "🛡️", color: "#3b82f6", pct: 33,
-    desc: "Priorizas la seguridad y la preservación de tu capital." },
-  moderate:     { label: "Moderado",    emoji: "⚖️", color: "#f59e0b", pct: 66,
-    desc: "Buscas equilibrio entre crecimiento y protección." },
-  aggressive:   { label: "Agresivo",   emoji: "🚀", color: "#ef4444", pct: 100,
-    desc: "Buscas máximo crecimiento. Toleras alta volatilidad." },
-};
+function getRiskConfig(t: TFunction): Record<RiskTolerance, { label: string; emoji: string; color: string; pct: number; desc: string }> {
+  return {
+    conservative: { label: t("profileEdit.riskConfig.conservative.label"), emoji: "🛡️", color: "#3b82f6", pct: 33,
+      desc: t("profileEdit.riskConfig.conservative.desc") },
+    moderate:     { label: t("profileEdit.riskConfig.moderate.label"),    emoji: "⚖️", color: "#f59e0b", pct: 66,
+      desc: t("profileEdit.riskConfig.moderate.desc") },
+    aggressive:   { label: t("profileEdit.riskConfig.aggressive.label"),   emoji: "🚀", color: "#ef4444", pct: 100,
+      desc: t("profileEdit.riskConfig.aggressive.desc") },
+  };
+}
 
 function calculateRisk(answers: Record<string, string>): RiskTolerance {
   const m: Record<QuizAnswer, number> = { A: 1, B: 2, C: 3, D: 4 };
@@ -99,6 +99,11 @@ function calculateRisk(answers: Record<string, string>): RiskTolerance {
 
 export default function EditProfilePage() {
   const router = useRouter();
+  const { t } = useTranslation();
+  const GOALS = getGoals(t);
+  const KNOWLEDGE_LEVELS = getKnowledgeLevels(t);
+  const QUIZ = getQuiz(t);
+  const RISK_CONFIG = getRiskConfig(t);
   const { profile, setProfile } = useProfileStore();
   const { isAuthenticated, authRestoring } = useAuthStore();
   const [saving, setSaving] = useState(false);
@@ -149,7 +154,7 @@ export default function EditProfilePage() {
       setSaved(true);
       setTimeout(() => router.back(), 1200);
     } catch {
-      setError("No se pudieron guardar los cambios. Intenta de nuevo.");
+      setError(t("profileEdit.saveError"));
     } finally {
       setSaving(false);
     }
@@ -168,18 +173,18 @@ export default function EditProfilePage() {
                 className="p-1.5 rounded-lg hover:bg-white/5 transition-colors">
           <ChevronLeft className="w-5 h-5" style={{ color: "var(--text)" }} />
         </button>
-        <h1 className="text-base font-bold" style={{ color: "var(--text)" }}>Editar perfil</h1>
+        <h1 className="text-base font-bold" style={{ color: "var(--text)" }}>{t("profileEdit.header")}</h1>
       </div>
 
       <div className="max-w-xl mx-auto px-4 py-6 space-y-10">
 
         {/* ── Situación financiera ── */}
         <section>
-          <p className={labelCls} style={{ color: "var(--accent-l)" }}>Situación financiera</p>
+          <p className={labelCls} style={{ color: "var(--accent-l)" }}>{t("profileEdit.financialSituation")}</p>
           <div className="space-y-4">
             <div>
               <label className="block text-sm mb-1.5" style={{ color: "var(--sub)" }}>
-                Ingresos mensuales (USD)
+                {t("profileEdit.monthlyIncome")}
               </label>
               <div className="flex items-center rounded-xl border overflow-hidden"
                    style={{ background: "var(--raised)", borderColor: "var(--border)" }}>
@@ -193,7 +198,7 @@ export default function EditProfilePage() {
             </div>
             <div>
               <label className="block text-sm mb-1.5" style={{ color: "var(--sub)" }}>
-                Aportación mensual (USD)
+                {t("profileEdit.monthlyContribution")}
               </label>
               <div className="flex items-center rounded-xl border overflow-hidden"
                    style={{ background: "var(--raised)", borderColor: "var(--border)" }}>
@@ -203,7 +208,7 @@ export default function EditProfilePage() {
                        value={form.monthly_contribution}
                        onChange={(e) => setForm(f => ({ ...f, monthly_contribution: e.target.value }))}
                        placeholder="500" />
-                <span className="px-3 text-xs" style={{ color: "var(--muted)" }}>/mes</span>
+                <span className="px-3 text-xs" style={{ color: "var(--muted)" }}>{t("profileEdit.perMonth")}</span>
               </div>
             </div>
           </div>
@@ -211,11 +216,11 @@ export default function EditProfilePage() {
 
         {/* ── Plan de inversión ── */}
         <section>
-          <p className={labelCls} style={{ color: "var(--accent-l)" }}>Plan de inversión</p>
+          <p className={labelCls} style={{ color: "var(--accent-l)" }}>{t("profileEdit.investmentPlan")}</p>
           <div className="space-y-4">
             <div>
               <label className="block text-sm mb-1.5" style={{ color: "var(--sub)" }}>
-                Patrimonio objetivo (USD)
+                {t("profileEdit.targetWealth")}
               </label>
               <div className="flex items-center rounded-xl border overflow-hidden"
                    style={{ background: "var(--raised)", borderColor: "var(--border)" }}>
@@ -229,7 +234,7 @@ export default function EditProfilePage() {
             </div>
             <div>
               <label className="block text-sm mb-1.5" style={{ color: "var(--sub)" }}>
-                Horizonte de inversión
+                {t("profileEdit.investmentHorizon")}
               </label>
               <div className="flex items-center rounded-xl border overflow-hidden"
                    style={{ background: "var(--raised)", borderColor: "var(--border)" }}>
@@ -238,12 +243,12 @@ export default function EditProfilePage() {
                        value={form.investment_horizon}
                        onChange={(e) => setForm(f => ({ ...f, investment_horizon: e.target.value }))}
                        placeholder="10" />
-                <span className="px-3 text-xs" style={{ color: "var(--muted)" }}>años</span>
+                <span className="px-3 text-xs" style={{ color: "var(--muted)" }}>{t("profileEdit.years")}</span>
               </div>
             </div>
 
             <div>
-              <label className="block text-sm mb-2" style={{ color: "var(--sub)" }}>Meta al invertir</label>
+              <label className="block text-sm mb-2" style={{ color: "var(--sub)" }}>{t("profileEdit.investingGoal")}</label>
               <div className="grid grid-cols-3 gap-2">
                 {GOALS.map((g) => {
                   const active = form.investment_goal === g.value;
@@ -275,7 +280,7 @@ export default function EditProfilePage() {
 
         {/* ── Nivel de conocimiento ── */}
         <section>
-          <p className={labelCls} style={{ color: "var(--accent-l)" }}>Nivel de conocimiento</p>
+          <p className={labelCls} style={{ color: "var(--accent-l)" }}>{t("profileEdit.knowledgeLevel")}</p>
           <div className="space-y-2">
             {KNOWLEDGE_LEVELS.map((lvl) => {
               const active = form.knowledge_level === lvl.value;
@@ -305,7 +310,7 @@ export default function EditProfilePage() {
 
         {/* ── Diagnóstico de inversor ── */}
         <section>
-          <p className={labelCls} style={{ color: "var(--accent-l)" }}>Diagnóstico de inversor</p>
+          <p className={labelCls} style={{ color: "var(--accent-l)" }}>{t("profileEdit.diagnostic")}</p>
           <div className="space-y-8">
             {QUIZ.map((q) => (
               <div key={q.key}>
@@ -346,13 +351,13 @@ export default function EditProfilePage() {
 
         {/* ── Perfil resultante ── */}
         <section>
-          <p className={labelCls} style={{ color: "var(--accent-l)" }}>Tu perfil resultante</p>
+          <p className={labelCls} style={{ color: "var(--accent-l)" }}>{t("profileEdit.resultingProfile")}</p>
           <div className="p-5 rounded-2xl border-2"
                style={{ borderColor: riskCfg.color + "55", background: "var(--raised)" }}>
             <div className="flex items-center gap-4 mb-4">
               <span className="text-4xl">{riskCfg.emoji}</span>
               <div>
-                <p className="text-lg font-800" style={{ color: "var(--text)" }}>Inversionista {riskCfg.label}</p>
+                <p className="text-lg font-800" style={{ color: "var(--text)" }}>{t("profileEdit.investorLabel", { profile: riskCfg.label })}</p>
                 <p className="text-xs leading-snug mt-0.5" style={{ color: "var(--muted)" }}>{riskCfg.desc}</p>
               </div>
             </div>
@@ -361,8 +366,8 @@ export default function EditProfilePage() {
                    style={{ width: `${riskCfg.pct}%`, background: riskCfg.color }} />
             </div>
             <div className="flex justify-between mt-1.5">
-              <span className="text-[10px]" style={{ color: "var(--dim)" }}>Bajo riesgo</span>
-              <span className="text-[10px]" style={{ color: "var(--dim)" }}>Alto riesgo</span>
+              <span className="text-[10px]" style={{ color: "var(--dim)" }}>{t("profileEdit.lowRisk")}</span>
+              <span className="text-[10px]" style={{ color: "var(--dim)" }}>{t("profileEdit.highRisk")}</span>
             </div>
           </div>
         </section>
@@ -386,7 +391,7 @@ export default function EditProfilePage() {
             opacity: saving ? 0.7 : 1,
           }}
         >
-          {saved ? "✅ Guardado" : saving ? "Guardando..." : "Guardar cambios"}
+          {saved ? t("profileEdit.saved") : saving ? t("profileEdit.saving") : t("profileEdit.saveChanges")}
         </button>
 
         <div className="h-8" />

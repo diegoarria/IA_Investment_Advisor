@@ -12,6 +12,7 @@ import { useAuthStore, useSubscriptionStore } from "@/lib/store";
 import { usePaperStore, PAPER_INITIAL_CASH } from "@/lib/paperStore";
 import PaywallModal from "@/components/PaywallModal";
 import { Search, Menu, X, RefreshCw, Loader2, TrendingUp, TrendingDown, Plus, RotateCcw, Clock, Wallet, Sparkles, Lock, ArrowUpRight, ArrowDownRight, ChevronDown, ChevronUp } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 interface PaperAnalysis {
   verdict: "practice_more" | "promising" | "ready";
@@ -35,6 +36,7 @@ function fmtMoney(n: number): string {
 }
 
 export default function PaperPage() {
+  const { t } = useTranslation();
   const router   = useRouter();
   const { isAuthenticated }  = useAuthStore();
   const subStore = useSubscriptionStore();
@@ -125,9 +127,9 @@ export default function PaperPage() {
       if (d?.price) {
         setTickerInfo({ ticker: result.ticker, name: result.name || result.ticker, price: d.price, change_pct: d.change_pct ?? 0 });
       } else {
-        setSearchError("No se pudo obtener precio");
+        setSearchError(t("paper.priceError"));
       }
-    } catch { setSearchError("No se pudo obtener precio"); }
+    } catch { setSearchError(t("paper.priceError")); }
     setLoadingPrice(false);
   }, []);
 
@@ -171,7 +173,7 @@ export default function PaperPage() {
               <span className="w-1.5 h-1.5 rounded-full inline-block" style={{ background: "#22c55e", boxShadow: "0 0 6px #22c55e" }} />
               Paper Trading
             </p>
-            <h1 className="text-2xl font-black tracking-tight" style={{ color: "var(--text)" }}>Simulador</h1>
+            <h1 className="text-2xl font-black tracking-tight" style={{ color: "var(--text)" }}>{t("paper.title")}</h1>
           </div>
           <div className="flex items-center gap-2">
             <PremiumBadge />
@@ -200,7 +202,7 @@ export default function PaperPage() {
             <div className="flex items-start justify-between mb-4">
               <div>
                 <p className="text-[10px] font-bold uppercase tracking-widest mb-2" style={{ color: "var(--muted)" }}>
-                  Portafolio virtual
+                  {t("paper.portfolioLabel")}
                 </p>
                 <p className="text-4xl font-black leading-none tracking-tight" style={{ color: "var(--text)" }}>
                   {fmtMoney(portfolioValue)}
@@ -210,7 +212,7 @@ export default function PaperPage() {
                     <div className="flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold"
                          style={{ background: `${returnColor}18`, color: returnColor }}>
                       {isUp ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
-                      {isUp ? "+" : ""}{totalReturn.toFixed(2)}% total
+                      {isUp ? "+" : ""}{totalReturn.toFixed(2)}% {t("paper.totalSuffix")}
                     </div>
                     <span className="text-xs font-semibold" style={{ color: returnColor }}>
                       {isUp ? "+" : ""}{fmtMoney(portfolioValue - PAPER_INITIAL_CASH)}
@@ -233,10 +235,10 @@ export default function PaperPage() {
             {/* Stats row */}
             <div className="grid grid-cols-3 gap-2 pt-3 border-t" style={{ borderColor: "var(--border)" }}>
               {[
-                { icon: Wallet,       label: "Efectivo",   value: fmtMoney(cash),       color: "#8b5cf6" },
-                { icon: TrendingUp,   label: "Posiciones", value: fmtMoney(totalValue),  color: "var(--text)" },
+                { icon: Wallet,       label: t("paper.cash"),   value: fmtMoney(cash),       color: "#8b5cf6" },
+                { icon: TrendingUp,   label: t("paper.positionsStat"), value: fmtMoney(totalValue),  color: "var(--text)" },
                 { icon: totalPnl >= 0 ? TrendingUp : TrendingDown,
-                  label: "P&L",       value: fmtMoney(totalPnl),  color: totalPnl >= 0 ? "#22c55e" : "#ef4444" },
+                  label: t("paper.colPnl"),       value: fmtMoney(totalPnl),  color: totalPnl >= 0 ? "#22c55e" : "#ef4444" },
               ].map(({ icon: Icon, label, value, color }) => (
                 <div key={label} className="rounded-xl p-2.5 text-center" style={{ background: "var(--raised)" }}>
                   <Icon className="w-3.5 h-3.5 mx-auto mb-1" style={{ color }} />
@@ -253,7 +255,7 @@ export default function PaperPage() {
               <div className="w-6 h-6 rounded-lg flex items-center justify-center" style={{ background: "rgba(0,212,126,0.12)" }}>
                 <Plus className="w-3.5 h-3.5" style={{ color: "#00d47e" }} />
               </div>
-              <span className="font-bold text-sm" style={{ color: "var(--text)" }}>Comprar acciones</span>
+              <span className="font-bold text-sm" style={{ color: "var(--text)" }}>{t("paper.buySection")}</span>
             </div>
 
             <div ref={searchWrapperRef} className="relative">
@@ -264,7 +266,7 @@ export default function PaperPage() {
                   : <Search className="w-4 h-4 shrink-0" style={{ color: "var(--muted)" }} />}
                 <input value={query} onChange={(e) => handleQueryChange(e.target.value)}
                        onFocus={() => suggestions.length > 0 && setShowSuggestions(true)}
-                       placeholder="Busca ticker: NVDA, AAPL, TSLA…"
+                       placeholder={t("paper.searchPlaceholder")}
                        className="flex-1 bg-transparent outline-none text-sm"
                        style={{ color: "var(--text)" }} />
                 {query && (
@@ -319,22 +321,22 @@ export default function PaperPage() {
                 </div>
                 <div className="flex gap-2">
                   <input value={buyQty} onChange={(e) => setBuyQty(e.target.value)}
-                         placeholder="Cantidad" type="number" min="0.01" step="0.01"
+                         placeholder={t("paper.quantityPlaceholder")} type="number" min="0.01" step="0.01"
                          className="flex-1 rounded-xl border px-3 py-2.5 text-sm outline-none"
                          style={{ background: "var(--bg)", borderColor: "var(--border)", color: "var(--text)" }} />
                   <button onClick={handleBuy} disabled={!buyQty || parseFloat(buyQty) <= 0}
                           className="px-5 py-2 rounded-xl text-sm font-bold text-white transition-all disabled:opacity-40"
                           style={{ background: "linear-gradient(135deg,#00a85e,#00d47e)", boxShadow: "0 4px 12px rgba(0,168,94,0.3)" }}>
-                    Comprar
+                    {t("paper.buy")}
                   </button>
                 </div>
                 {buyQty && parseFloat(buyQty) > 0 && (
                   <div className="flex items-center justify-between text-xs px-3 py-2 rounded-lg" style={{ background: "var(--raised)" }}>
                     <span style={{ color: "var(--muted)" }}>
-                      Total: <span className="font-bold" style={{ color: "var(--text)" }}>{fmtMoney(parseFloat(buyQty) * tickerInfo.price)}</span>
+                      {t("paper.total")} <span className="font-bold" style={{ color: "var(--text)" }}>{fmtMoney(parseFloat(buyQty) * tickerInfo.price)}</span>
                     </span>
                     <span style={{ color: cash >= parseFloat(buyQty) * tickerInfo.price ? "#22c55e" : "#ef4444" }}>
-                      Saldo: {fmtMoney(cash)}
+                      {t("paper.balance")} {fmtMoney(cash)}
                     </span>
                   </div>
                 )}
@@ -357,7 +359,7 @@ export default function PaperPage() {
                 <div className="flex items-center justify-between px-4 py-3 border-b" style={{ borderColor: "var(--border)" }}>
                   <div className="flex items-center gap-2">
                     <TrendingUp className="w-3.5 h-3.5" style={{ color: "var(--accent-l)" }} />
-                    <span className="text-sm font-bold" style={{ color: "var(--text)" }}>Posiciones abiertas</span>
+                    <span className="text-sm font-bold" style={{ color: "var(--text)" }}>{t("paper.openPositions")}</span>
                     <span className="text-[10px] font-bold px-2 py-0.5 rounded-full"
                           style={{ background: "var(--raised)", color: "var(--muted)" }}>
                       {positions.length}
@@ -379,11 +381,11 @@ export default function PaperPage() {
                        borderColor: "var(--border)",
                        background: "var(--raised)",
                      }}>
-                  <span>Ticker</span>
-                  <span className="text-right">Acciones</span>
-                  <span className="text-right">Compra</span>
-                  <span className="text-right">Actual</span>
-                  <span className="text-right">P&amp;L</span>
+                  <span>{t("paper.colTicker")}</span>
+                  <span className="text-right">{t("paper.colShares")}</span>
+                  <span className="text-right">{t("paper.colBuy")}</span>
+                  <span className="text-right">{t("paper.colCurrent")}</span>
+                  <span className="text-right">{t("paper.colPnl")}</span>
                   <span />
                 </div>
 
@@ -422,7 +424,7 @@ export default function PaperPage() {
                         {/* Shares */}
                         <div className="text-right">
                           <span className="text-sm font-bold" style={{ color: "var(--text)" }}>{pos.shares}</span>
-                          <div className="text-[10px]" style={{ color: "var(--muted)" }}>acc</div>
+                          <div className="text-[10px]" style={{ color: "var(--muted)" }}>{t("paper.sharesAbbrev")}</div>
                         </div>
 
                         {/* Avg cost */}
@@ -430,7 +432,7 @@ export default function PaperPage() {
                           <span className="text-sm font-semibold" style={{ color: "var(--sub)" }}>
                             ${pos.avgPrice.toFixed(2)}
                           </span>
-                          <div className="text-[10px]" style={{ color: "var(--muted)" }}>prom.</div>
+                          <div className="text-[10px]" style={{ color: "var(--muted)" }}>{t("paper.avgAbbrev")}</div>
                         </div>
 
                         {/* Current price */}
@@ -465,7 +467,7 @@ export default function PaperPage() {
                           <button
                             onClick={() => { setSellModal({ ticker: pos.ticker, shares: pos.shares, price: cur }); setSellQty(""); }}
                             className="w-8 h-8 rounded-xl flex items-center justify-center text-[10px] font-black transition-all hover:opacity-80 active:scale-95"
-                            title={`Vender ${pos.ticker}`}
+                            title={t("paper.sellTitle", { ticker: pos.ticker })}
                             style={{ background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.2)", color: "#ef4444" }}>
                             V
                           </button>
@@ -482,7 +484,7 @@ export default function PaperPage() {
                        borderColor: "var(--border)",
                        background: "var(--raised)",
                      }}>
-                  <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: "var(--muted)" }}>Total posiciones</span>
+                  <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: "var(--muted)" }}>{t("paper.totalPositions")}</span>
                   <span />
                   <span />
                   <div className="text-right">
@@ -514,11 +516,9 @@ export default function PaperPage() {
               <div className="w-12 h-12 rounded-2xl flex items-center justify-center" style={{ background: "rgba(0,212,126,0.1)" }}>
                 <TrendingUp className="w-6 h-6" style={{ color: "#00d47e" }} />
               </div>
-              <p className="font-bold text-sm" style={{ color: "var(--text)" }}>Empieza a operar</p>
-              <p className="text-xs text-center" style={{ color: "var(--muted)" }}>
-                Busca cualquier ticker arriba y compra a precios reales<br />
-                con tus {fmtMoney(PAPER_INITIAL_CASH)} virtuales sin arriesgar dinero real
-              </p>
+              <p className="font-bold text-sm" style={{ color: "var(--text)" }}>{t("paper.emptyTitle")}</p>
+              <p className="text-xs text-center" style={{ color: "var(--muted)" }}
+                 dangerouslySetInnerHTML={{ __html: t("paper.emptyBody", { amount: fmtMoney(PAPER_INITIAL_CASH) }) }} />
             </div>
           )}
 
@@ -532,13 +532,13 @@ export default function PaperPage() {
                 onClick={() => setHistoryOpen(o => !o)}
               >
                 <Clock className="w-3.5 h-3.5" style={{ color: "var(--muted)" }} />
-                <span className="text-sm font-bold" style={{ color: "var(--text)" }}>Historial de operaciones</span>
+                <span className="text-sm font-bold" style={{ color: "var(--text)" }}>{t("paper.tradeHistory")}</span>
                 <span className="text-[10px] font-bold px-2 py-0.5 rounded-full"
                       style={{ background: "var(--raised)", color: "var(--muted)" }}>
                   {trades.length}
                 </span>
                 <span className="ml-auto flex items-center gap-1 text-[11px] font-semibold" style={{ color: "var(--accent-l)" }}>
-                  {historyOpen ? "Ver menos" : "Ver más"}
+                  {historyOpen ? t("paper.seeLess") : t("paper.seeMore")}
                   {historyOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
                 </span>
               </button>
@@ -548,23 +548,23 @@ export default function PaperPage() {
                   {/* Column headers */}
                   <div className="grid px-4 py-2 text-[10px] font-bold uppercase tracking-widest border-b"
                        style={{ gridTemplateColumns: "64px 1fr 1fr 80px", color: "var(--muted)", borderColor: "var(--border)", background: "var(--raised)" }}>
-                    <span>Tipo</span>
-                    <span>Activo</span>
-                    <span>Detalle</span>
-                    <span className="text-right">Monto</span>
+                    <span>{t("paper.colType")}</span>
+                    <span>{t("paper.colAsset")}</span>
+                    <span>{t("paper.colDetail")}</span>
+                    <span className="text-right">{t("paper.colAmount")}</span>
                   </div>
-                  {trades.slice(0, 30).map((t, idx) => {
-                    const isBuy     = t.type === "buy";
-                    const isDeposit = t.type !== "buy" && t.type !== "sell";
+                  {trades.slice(0, 30).map((trade, idx) => {
+                    const isBuy     = trade.type === "buy";
+                    const isDeposit = trade.type !== "buy" && trade.type !== "sell";
                     const col       = isBuy ? "#22c55e" : isDeposit ? "#3b82f6" : "#ef4444";
-                    const label     = isBuy ? "Compra" : isDeposit ? "Recarga" : "Venta";
+                    const label     = isBuy ? t("paper.tradeBuy") : isDeposit ? t("paper.tradeDeposit") : t("paper.tradeSell");
                     const Icon      = isBuy ? ArrowUpRight : isDeposit ? Plus : ArrowDownRight;
-                    const dt        = new Date(t.timestamp);
+                    const dt        = new Date(trade.timestamp);
                     const dateStr   = dt.toLocaleDateString("es-ES", { day: "2-digit", month: "short" });
                     const timeStr   = dt.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" });
-                    const detail    = t.shares > 0 ? `${t.shares} acc @ $${t.price.toFixed(2)}` : "—";
+                    const detail    = trade.shares > 0 ? `${trade.shares} ${t("paper.sharesAbbrev")} @ $${trade.price.toFixed(2)}` : "—";
                     return (
-                      <div key={t.id}
+                      <div key={trade.id}
                            className="grid items-center px-4 py-3 border-b last:border-b-0 hover:bg-white/[0.02] transition-colors"
                            style={{ gridTemplateColumns: "64px 1fr 1fr 80px", borderColor: "var(--border)", background: idx % 2 === 0 ? "transparent" : "rgba(255,255,255,0.01)" }}>
                         <div>
@@ -576,14 +576,14 @@ export default function PaperPage() {
                         </div>
                         <div className="min-w-0">
                           <div className="font-bold text-xs" style={{ color: "var(--text)" }}>
-                            {t.ticker !== "CASH" ? t.ticker : "Efectivo"}
+                            {trade.ticker !== "CASH" ? trade.ticker : t("paper.cashLabel")}
                           </div>
                           <div className="text-[10px]" style={{ color: "var(--muted)" }}>{dateStr} · {timeStr}</div>
                         </div>
                         <div className="text-[11px]" style={{ color: "var(--sub)" }}>{detail}</div>
                         <div className="text-right">
                           <span className="text-sm font-black" style={{ color: isBuy ? "#ef4444" : "#22c55e" }}>
-                            {isBuy ? "−" : "+"}{fmtMoney(t.total)}
+                            {isBuy ? "−" : "+"}{fmtMoney(trade.total)}
                           </span>
                         </div>
                       </div>
@@ -601,10 +601,10 @@ export default function PaperPage() {
                    style={{ background: "rgba(168,85,247,0.12)" }}>
                 <Sparkles className="w-3.5 h-3.5" style={{ color: "#a855f7" }} />
               </div>
-              <span className="font-bold text-sm" style={{ color: "var(--text)" }}>Análisis IA de tu simulación</span>
+              <span className="font-bold text-sm" style={{ color: "var(--text)" }}>{t("paper.aiAnalysisTitle")}</span>
               {!isPremium && (
                 <span className="ml-auto text-[9px] font-bold px-2 py-0.5 rounded-full"
-                      style={{ background: "rgba(168,85,247,0.12)", color: "#a855f7" }}>Premium</span>
+                      style={{ background: "rgba(168,85,247,0.12)", color: "#a855f7" }}>{t("paper.premium")}</span>
               )}
             </div>
 
@@ -617,16 +617,16 @@ export default function PaperPage() {
                 </div>
                 <div>
                   <p className="font-bold text-sm mb-1" style={{ color: "var(--text)" }}>
-                    La IA evalúa si estás listo para invertir de verdad
+                    {t("paper.lockedTitle")}
                   </p>
                   <p className="text-xs leading-relaxed" style={{ color: "var(--muted)" }}>
-                    Recibe feedback personalizado sobre tu estrategia, diversificación y comportamiento. Solo Premium.
+                    {t("paper.lockedBody")}
                   </p>
                 </div>
                 <button onClick={() => setPaywallOpen(true)}
                         className="px-5 py-2.5 rounded-xl text-sm font-bold text-white"
                         style={{ background: "linear-gradient(135deg, #a855f7, #7c3aed)" }}>
-                  Activar Premium
+                  {t("paper.activatePremium")}
                 </button>
               </div>
             ) : analysis ? (
@@ -650,9 +650,9 @@ export default function PaperPage() {
                       color: analysis.verdict === "ready" ? "#22c55e"
                            : analysis.verdict === "promising" ? "#f59e0b" : "#818cf8",
                     }}>
-                      {analysis.verdict === "ready" ? "✓ Listo para invertir con responsabilidad"
-                     : analysis.verdict === "promising" ? "↗ Vas por buen camino"
-                     : "↺ Sigue practicando un poco más"}
+                      {analysis.verdict === "ready" ? t("paper.verdictReady")
+                     : analysis.verdict === "promising" ? t("paper.verdictPromising")
+                     : t("paper.verdictPracticeMore")}
                     </div>
                   </div>
                 </div>
@@ -718,8 +718,8 @@ export default function PaperPage() {
                     } catch {
                       setAnalysis({
                         verdict: "promising",
-                        headline: "Error al generar análisis",
-                        feedback: "No se pudo conectar con la IA. Intenta de nuevo.",
+                        headline: t("paper.analysis.errorHeadline"),
+                        feedback: t("paper.analysis.errorFeedback"),
                         positives: [],
                         improvements: [],
                         disclaimer: "",
@@ -732,12 +732,12 @@ export default function PaperPage() {
                   style={{ background: "linear-gradient(135deg, #a855f7, #7c3aed)", color: "#fff" }}
                 >
                   {analysisLoading
-                    ? <><Loader2 className="w-4 h-4 animate-spin" /> Analizando tu simulación…</>
-                    : <><Sparkles className="w-4 h-4" /> Analizar mi portafolio con IA</>}
+                    ? <><Loader2 className="w-4 h-4 animate-spin" /> {t("paper.analysis.analyzing")}</>
+                    : <><Sparkles className="w-4 h-4" /> {t("paper.analysis.analyzeButton")}</>}
                 </button>
                 {trades.length === 0 && (
                   <p className="text-[10px] text-center" style={{ color: "var(--dim)" }}>
-                    Realiza al menos una operación para desbloquear el análisis
+                    {t("paper.analysis.needOneTrade")}
                   </p>
                 )}
               </div>
@@ -746,11 +746,11 @@ export default function PaperPage() {
 
           {/* ── Reset ── */}
           <div className="flex justify-end pb-2">
-            <button onClick={() => { if (confirm("¿Reiniciar portfolio paper trading?")) { reset(); setAnalysis(null); } }}
+            <button onClick={() => { if (confirm(t("paper.resetConfirm"))) { reset(); setAnalysis(null); } }}
                     className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold border transition-colors hover:opacity-80"
                     style={{ borderColor: "rgba(239,68,68,0.2)", color: "#ef4444", background: "rgba(239,68,68,0.04)" }}>
               <RotateCcw className="w-3 h-3" />
-              Reiniciar
+              {t("paper.resetButton")}
             </button>
           </div>
 
@@ -759,7 +759,7 @@ export default function PaperPage() {
       </div>
 
       <PaywallModal visible={paywallOpen} onClose={() => setPaywallOpen(false)}
-                    reason="El análisis IA del simulador es exclusivo de Premium" />
+                    reason={t("paper.paywallReason")} />
 
       {/* Sell modal */}
       {sellModal && (
