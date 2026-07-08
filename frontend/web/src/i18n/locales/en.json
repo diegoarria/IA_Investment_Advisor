@@ -2270,5 +2270,10 @@
     "activatePremiumCta": "⭐ Activate Premium →",
     "bottomCta": "⭐ Activate Premium — $10.33/mo",
     "bottomSubCta": "Cancel anytime · No commitment"
+  },
+  "themeProvider": {
+    "newVersionAvailable": "A new version is available",
+    "reload": "Reload",
+    "close": "Close"
   }
 }

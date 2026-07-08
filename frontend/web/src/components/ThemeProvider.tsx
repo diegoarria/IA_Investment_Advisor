@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { usePathname } from "next/navigation";
 import { useThemeStore, useAuthStore, useWatchlistStore, useLearnStore, useLanguageStore } from "@/lib/store";
 import "@/i18n";
@@ -12,6 +13,7 @@ const BASE_URL =
   "https://iainvestmentadvisor-production.up.railway.app";
 
 export default function ThemeProvider({ children }: { children: React.ReactNode }) {
+  const { t } = useTranslation();
   const { theme, loadThemeFromServer } = useThemeStore();
   const { language, loadLanguageFromServer } = useLanguageStore();
   const { isAuthenticated, setAuth, setAuthRestoring } = useAuthStore();
@@ -173,13 +175,13 @@ export default function ThemeProvider({ children }: { children: React.ReactNode 
       {newVersionAvailable && !bannerDismissed && (
         <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 px-4 py-2.5 rounded-xl shadow-lg text-sm font-semibold"
              style={{ background: "var(--card)", border: "1px solid var(--accent)", color: "var(--text)" }}>
-          <span>Hay una nueva versión disponible</span>
+          <span>{t("themeProvider.newVersionAvailable")}</span>
           <button onClick={() => window.location.reload()}
                   className="px-3 py-1 rounded-lg text-xs font-black"
                   style={{ background: "var(--accent)", color: "#000" }}>
-            Recargar
+            {t("themeProvider.reload")}
           </button>
-          <button onClick={() => setBannerDismissed(true)} aria-label="Cerrar" style={{ color: "var(--muted)" }}>
+          <button onClick={() => setBannerDismissed(true)} aria-label={t("themeProvider.close")} style={{ color: "var(--muted)" }}>
             ✕
           </button>
         </div>
