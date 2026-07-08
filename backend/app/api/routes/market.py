@@ -17,7 +17,7 @@ import requests as _requests
 import time as time
 from app.api.deps import get_current_user_id
 from app.core.config import settings
-from app.core.database import get_supabase
+from app.core.database import get_supabase, run_query
 from app.models.user import UserProfile
 from app.models.market import AssetAnalysisRequest, PortfolioScenarioRequest
 from app.services import market_service, ai_service
@@ -1048,7 +1048,16 @@ async def summarize_news(body: dict, user_id: str = Depends(get_current_user_id)
                 if attempt == 0:
                     await asyncio.sleep(1)
 
-    summary = await ai_service.summarize_news_article(title, content)
+    language = "es"
+    try:
+        db = get_supabase()
+        prof_res = await run_query(db.table("user_profiles").select("preferred_language").eq("user_id", user_id))
+        if prof_res.data:
+            language = prof_res.data[0].get("preferred_language") or "es"
+    except Exception:
+        pass
+
+    summary = await ai_service.summarize_news_article(title, content, language=language)
     return {"summary": summary}
 
 

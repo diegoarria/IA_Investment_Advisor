@@ -18,24 +18,22 @@ import { posthog } from "../../src/config/posthog";
 import { useSubscriptionStore, hasPremiumAccess } from "../../src/lib/subscriptionStore";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { HOME_SCREEN_KEY } from "../../src/components/MobileHomeScreenPickerModal";
+import { useLanguage, Language } from "../../src/lib/LanguageContext";
+import { useTranslation } from "react-i18next";
+
+const LANGUAGE_OPTIONS: { key: Language; label: string; icon: string; color: string }[] = [
+  { key: "es", label: "Español", icon: "chatbubbles-outline", color: "#00d47e" },
+  { key: "en", label: "English", icon: "chatbubbles-outline", color: "#3b82f6" },
+];
 
 const _fmtUSD = (n: number) => `$${n.toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
 
-const DUO_METRIC_DEFS: { key: string; label: string; format: (v: any) => string }[] = [
-  { key: "current_patrimonio", label: "Patrimonio actual", format: (v) => _fmtUSD(v) },
-  { key: "cumulative_return_pct", label: "Retorno acumulado", format: (v) => `${v >= 0 ? "+" : ""}${v}%` },
-  { key: "capital_invested", label: "Capital invertido", format: (v) => _fmtUSD(v) },
-  { key: "total_operations", label: "Operaciones", format: (v) => `${v}` },
-  { key: "consecutive_months_contributing", label: "Racha de meses", format: (v) => `${v}` },
-  { key: "days_since_first_investment", label: "Desde su primera inversión", format: (v) => `${v} días` },
-];
-
-const START_SCREEN_OPTIONS = [
-  { key: "home",          label: "Inicio",         icon: "home-outline",          color: "#00d47e" },
-  { key: "patrimonio",    label: "Patrimonio",      icon: "wallet-outline",        color: "#3b82f6" },
-  { key: "chat",          label: "Mentor IA",       icon: "chatbubble-ellipses-outline", color: "#8b5cf6" },
-  { key: "notifications", label: "Notificaciones",  icon: "notifications-outline", color: "#ef4444" },
-  { key: "academy",       label: "Academy",         icon: "school-outline",        color: "#f59e0b" },
+const START_SCREEN_ICONS = [
+  { key: "home",          icon: "home-outline",          color: "#00d47e" },
+  { key: "patrimonio",    icon: "wallet-outline",        color: "#3b82f6" },
+  { key: "chat",          icon: "chatbubble-ellipses-outline", color: "#8b5cf6" },
+  { key: "notifications", icon: "notifications-outline", color: "#ef4444" },
+  { key: "academy",       icon: "school-outline",        color: "#f59e0b" },
 ] as const;
 
 const MENTOR_PHOTOS: Record<string, number> = {
@@ -44,47 +42,24 @@ const MENTOR_PHOTOS: Record<string, number> = {
   "Bill Ackman":    require("../../assets/images/mentors/bill_ackman.jpg"),
 };
 
-const QUIZ_CATEGORIES = ["Mentalidad", "Horizonte", "Conocimiento", "Riesgo", "Comportamiento"];
-const QUIZ_LABELS: Record<string, Record<string, string>> = {
-  q1: { A: "Vende ante caídas", B: "Espera sin actuar", C: "Analiza y mantiene", D: "Compra las caídas" },
-  q2: { A: "Menos de 2 años", B: "3–5 años", C: "10+ años", D: "Largo plazo, sin prisa" },
-  q3: { A: "Básico", B: "Básico", C: "Intermedio", D: "Avanzado" },
-  q4: { A: "$5K seguro", B: "$15K / riesgo $5K", C: "$40K / riesgo $20K", D: "$120K / riesgo total" },
-  q5: { A: "Automático / pasivo", B: "Revisión mensual", C: "Revisión semanal", D: "Gestión diaria" },
-};
-const KL_LABEL: Record<string, string>  = { B: "Básico", C: "Intermedio", D: "Avanzado" };
-const KL_COLOR: Record<string, string>  = { B: "#22c55e", C: "#3b82f6",   D: "#a855f7"  };
-const RT_LABEL: Record<string, string>  = { conservative: "Conservador", moderate: "Moderado", aggressive: "Agresivo" };
+// NOTE: QUIZ_CATEGORIES, KL_LABEL, KL_COLOR, QUIZ_ICONS, ANSWER_COLORS were dead code (never rendered) — removed.
 const RT_COLOR: Record<string, string>  = { conservative: "#3b82f6",     moderate: "#f59e0b",  aggressive: "#ef4444"  };
-const QUIZ_ICONS: Record<string, string> = {
-  q1: "trending-down-outline",
-  q2: "time-outline",
-  q3: "school-outline",
-  q4: "dice-outline",
-  q5: "settings-outline",
-};
-const ANSWER_COLORS: Record<string, string> = {
-  A: "#3b82f6", B: "#22c55e", C: "#f59e0b", D: "#ef4444",
-};
 
-const RISK_LEVELS = [
-  { key: "conservative", label: "Conservador", color: "#3b82f6" },
-  { key: "moderate",     label: "Moderado",    color: "#f59e0b" },
-  { key: "aggressive",   label: "Agresivo",    color: "#ef4444" },
-];
+const RISK_LEVEL_KEYS = [
+  { key: "conservative", color: "#3b82f6" },
+  { key: "moderate",     color: "#f59e0b" },
+  { key: "aggressive",   color: "#ef4444" },
+] as const;
 
-const GOAL_MAP: Record<string, { label: string; emoji: string }> = {
-  house:             { label: "Comprar una casa",         emoji: "🏠" },
-  car:               { label: "Comprar un carro",         emoji: "🚗" },
-  passive_income:    { label: "Vivir de mis inversiones", emoji: "💸" },
-  retirement:        { label: "Retiro / pensión",         emoji: "👴" },
-  financial_freedom: { label: "Libertad financiera",      emoji: "🦅" },
-  long_term_wealth:  { label: "Patrimonio a largo plazo", emoji: "🏛️" },
+const GOAL_EMOJI: Record<string, string> = {
+  house: "🏠", car: "🚗", passive_income: "💸",
+  retirement: "👴", financial_freedom: "🦅", long_term_wealth: "🏛️",
 };
 
 // ─── Mentor Letter Card ────────────────────────────────────────────────────────
 
 function MentorLetterCard({ mentor, colors }: { mentor: ReturnType<typeof getMentorInfo>; colors: any }) {
+  const { t } = useTranslation();
   const [letter, setLetter] = React.useState<string | null>(null);
   const [loading, setLoading] = React.useState(false);
   const [open, setOpen] = React.useState(false);
@@ -115,15 +90,15 @@ function MentorLetterCard({ mentor, colors }: { mentor: ReturnType<typeof getMen
           <Ionicons name="mail-outline" size={20} color={mc} />
         </View>
         <View style={{ flex: 1 }}>
-          <Text style={{ color: colors.text, fontSize: 14, fontWeight: "700" }}>Carta de {mentor.name.split(" ")[0]}</Text>
-          <Text style={{ color: colors.textMuted, fontSize: 12, marginTop: 2 }}>Tu carta mensual personalizada</Text>
+          <Text style={{ color: colors.text, fontSize: 14, fontWeight: "700" }}>{t("profile.mentor.letterTitle", { name: mentor.name.split(" ")[0] })}</Text>
+          <Text style={{ color: colors.textMuted, fontSize: 12, marginTop: 2 }}>{t("profile.mentor.letterSubtitle")}</Text>
         </View>
         {loading
           ? <ActivityIndicator size="small" color={mc} />
           : <Ionicons name="chevron-forward" size={16} color={mc} />}
       </TouchableOpacity>
 
-      {error && <Text style={{ color: "#ef4444", fontSize: 11, textAlign: "center", marginTop: 4 }}>No se pudo cargar la carta. Intenta más tarde.</Text>}
+      {error && <Text style={{ color: "#ef4444", fontSize: 11, textAlign: "center", marginTop: 4 }}>{t("profile.mentor.letterError")}</Text>}
 
       <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
         <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.7)", alignItems: "center", justifyContent: "center", padding: 24 }}>
@@ -162,6 +137,35 @@ export default function ProfileScreen() {
   const [progressOpen, setProgressOpen] = useState(false);
   const [startScreenPickerOpen, setStartScreenPickerOpen] = useState(false);
   const [startScreen, setStartScreenState] = useState<string>("home");
+  const [languagePickerOpen, setLanguagePickerOpen] = useState(false);
+  const { language, setLanguage } = useLanguage();
+  const { t } = useTranslation();
+
+  const DUO_METRIC_DEFS: { key: string; label: string; format: (v: any) => string }[] = [
+    { key: "current_patrimonio", label: t("profile.duo.metrics.current_patrimonio"), format: (v) => _fmtUSD(v) },
+    { key: "cumulative_return_pct", label: t("profile.duo.metrics.cumulative_return_pct"), format: (v) => `${v >= 0 ? "+" : ""}${v}%` },
+    { key: "capital_invested", label: t("profile.duo.metrics.capital_invested"), format: (v) => _fmtUSD(v) },
+    { key: "total_operations", label: t("profile.duo.metrics.total_operations"), format: (v) => `${v}` },
+    { key: "consecutive_months_contributing", label: t("profile.duo.metrics.consecutive_months_contributing"), format: (v) => `${v}` },
+    { key: "days_since_first_investment", label: t("profile.duo.metrics.days_since_first_investment"), format: (v) => `${v} ${t("profile.duo.metrics.daysSuffix")}` },
+  ];
+
+  const START_SCREEN_OPTIONS = START_SCREEN_ICONS.map((o) => ({ ...o, label: t(`profile.startScreen.options.${o.key}`) }));
+
+  const QUIZ_LABELS: Record<string, Record<string, string>> = {
+    q1: t("profile.psych.quizLabels.q1", { returnObjects: true }) as Record<string, string>,
+    q2: t("profile.psych.quizLabels.q2", { returnObjects: true }) as Record<string, string>,
+    q5: t("profile.psych.quizLabels.q5", { returnObjects: true }) as Record<string, string>,
+  };
+  const RT_LABEL: Record<string, string> = {
+    conservative: t("common.risk.conservative"),
+    moderate: t("common.risk.moderate"),
+    aggressive: t("common.risk.aggressive"),
+  };
+  const RISK_LEVELS = RISK_LEVEL_KEYS.map((r) => ({ ...r, label: t(`common.risk.${r.key}`) }));
+  const GOAL_MAP: Record<string, { label: string; emoji: string }> = Object.fromEntries(
+    Object.keys(GOAL_EMOJI).map((key) => [key, { label: t(`common.goals.${key}`), emoji: GOAL_EMOJI[key] }])
+  );
 
   useEffect(() => {
     AsyncStorage.getItem(HOME_SCREEN_KEY).then((v) => { if (v) setStartScreenState(v); });
@@ -211,7 +215,7 @@ export default function ProfileScreen() {
   const pickPhoto = async () => {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!perm.granted) {
-      Alert.alert("Permiso requerido", "Necesitamos acceso a tu galería para cambiar tu foto.");
+      Alert.alert(t("profile.photoPermissionTitle"), t("profile.photoPermissionMsg"));
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -234,10 +238,10 @@ export default function ProfileScreen() {
   };
 
   const removePhoto = () => {
-    Alert.alert("Eliminar foto", "¿Seguro que quieres quitar tu foto de perfil?", [
-      { text: "Cancelar", style: "cancel" },
+    Alert.alert(t("profile.removePhotoTitle"), t("profile.removePhotoMsg"), [
+      { text: t("common.cancel"), style: "cancel" },
       {
-        text: "Eliminar", style: "destructive",
+        text: t("common.delete"), style: "destructive",
         onPress: async () => {
           setAvatarUri(null);
           try { await profileApi.deleteAvatar(); } catch {}
@@ -307,7 +311,7 @@ if (!profile) {
       <SafeAreaView style={s.container}>
         <View style={s.empty}>
           <Ionicons name="person-circle-outline" size={60} color={colors.textDim} />
-          <Text style={[s.emptyText, { color: colors.textMuted }]}>No hay perfil activo</Text>
+          <Text style={[s.emptyText, { color: colors.textMuted }]}>{t("profile.noProfile")}</Text>
         </View>
       </SafeAreaView>
     );
@@ -320,10 +324,10 @@ if (!profile) {
   const quizKeys = ["q1", "q2", "q3", "q4", "q5"] as const;
 
   const handleLogout = () => {
-    Alert.alert("Cerrar sesión", "¿Seguro que quieres cerrar sesión?", [
-      { text: "Cancelar", style: "cancel" },
+    Alert.alert(t("profile.logoutConfirmTitle"), t("profile.logoutConfirmMsg"), [
+      { text: t("common.cancel"), style: "cancel" },
       {
-        text: "Cerrar sesión", style: "destructive", onPress: () => {
+        text: t("common.logout"), style: "destructive", onPress: () => {
           posthog.reset();
           logout();
           router.replace("/");
@@ -369,27 +373,27 @@ if (!profile) {
       });
       setPsyEditField(null);
     } catch {
-      Alert.alert("Error", "No se pudo guardar. Intenta de nuevo.");
+      Alert.alert(t("common.error"), t("profile.genericSaveError"));
     }
     setSavingPsy(false);
   };
 
   const handleDeleteAccount = () => {
     Alert.alert(
-      "Eliminar cuenta",
-      "Esta acción es permanente. Se borrarán todos tus datos, portafolio, historial y suscripción. No se puede deshacer.",
+      t("profile.deleteAccountTitle"),
+      t("profile.deleteAccountMsg"),
       [
-        { text: "Cancelar", style: "cancel" },
+        { text: t("common.cancel"), style: "cancel" },
         {
-          text: "Eliminar mi cuenta", style: "destructive",
+          text: t("profile.deleteAccountConfirm"), style: "destructive",
           onPress: () => {
             Alert.alert(
-              "¿Estás seguro?",
-              "Se eliminará tu cuenta y todos tus datos de forma permanente.",
+              t("profile.deleteAccountSureTitle"),
+              t("profile.deleteAccountSureMsg"),
               [
-                { text: "Cancelar", style: "cancel" },
+                { text: t("common.cancel"), style: "cancel" },
                 {
-                  text: "Sí, eliminar", style: "destructive",
+                  text: t("profile.deleteAccountYes"), style: "destructive",
                   onPress: async () => {
                     try { await authApi.deleteAccount(); } catch {}
                     logout();
@@ -419,7 +423,7 @@ if (!profile) {
       {/* ── HEADER ── */}
       <View style={[s.header, { borderBottomColor: colors.border }]}>
         <View>
-          <Text style={[s.headerGreet, { color: colors.textMuted }]}>Mi Perfil</Text>
+          <Text style={[s.headerGreet, { color: colors.textMuted }]}>{t("profile.header")}</Text>
           <Text style={[s.headerName, { color: colors.text }]}>{profile.name}</Text>
         </View>
         <View style={{ flexDirection: "row", gap: 10 }}>
@@ -499,7 +503,7 @@ if (!profile) {
                   onPress={removePhoto}
                 >
                   <Ionicons name="trash-outline" size={10} color="#ef4444" />
-                  <Text style={[s.heroTagText, { color: "#ef4444" }]}>Quitar foto</Text>
+                  <Text style={[s.heroTagText, { color: "#ef4444" }]}>{t("profile.removePhoto")}</Text>
                 </TouchableOpacity>
               )}
             </View>
@@ -508,21 +512,21 @@ if (!profile) {
             <View style={[s.heroStats, { borderTopColor: riskCfg.color + "22" }]}>
               <View style={s.heroStat}>
                 <Text style={[s.heroStatVal, { color: colors.text }]}>{age || "—"}</Text>
-                <Text style={[s.heroStatLabel, { color: colors.textMuted }]}>años</Text>
+                <Text style={[s.heroStatLabel, { color: colors.textMuted }]}>{t("profile.yearsUnit")}</Text>
               </View>
               <View style={[s.heroDivider, { backgroundColor: colors.border }]} />
               <View style={s.heroStat}>
                 <Text style={[s.heroStatVal, { color: colors.text }]} adjustsFontSizeToFit numberOfLines={1}>
                   ${Number(profile.monthly_income ?? 0).toLocaleString()}
                 </Text>
-                <Text style={[s.heroStatLabel, { color: colors.textMuted }]}>ingresos/mes</Text>
+                <Text style={[s.heroStatLabel, { color: colors.textMuted }]}>{t("profile.incomePerMonth")}</Text>
               </View>
               <View style={[s.heroDivider, { backgroundColor: colors.border }]} />
               <View style={s.heroStat}>
                 <Text style={[s.heroStatVal, { color: colors.accentLight }]}>
                   ${Number(profile.monthly_contribution ?? 0).toLocaleString()}
                 </Text>
-                <Text style={[s.heroStatLabel, { color: colors.textMuted }]}>aportación/mes</Text>
+                <Text style={[s.heroStatLabel, { color: colors.textMuted }]}>{t("profile.contributionPerMonth")}</Text>
               </View>
             </View>
           </View>
@@ -537,7 +541,7 @@ if (!profile) {
                 <Text style={{ fontSize: 26, lineHeight: 30 }}>{goalInfo.emoji}</Text>
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={s.metaCaption}>MI META FINANCIERA</Text>
+                <Text style={s.metaCaption}>{t("profile.goal.sectionLabel")}</Text>
                 <Text style={s.metaLabel}>{goalInfo.label}</Text>
                 {goalAmount > 0 && (
                   <Text style={[s.metaAmount, { color: colors.text }]}>
@@ -548,7 +552,7 @@ if (!profile) {
               {horizonYrs > 0 && (
                 <View style={s.metaHorizonBadge}>
                   <Text style={s.metaHorizonVal}>{horizonYrs}</Text>
-                  <Text style={s.metaHorizonUnit}>años</Text>
+                  <Text style={s.metaHorizonUnit}>{t("profile.yearsUnit")}</Text>
                 </View>
               )}
             </View>
@@ -565,11 +569,11 @@ if (!profile) {
               <View style={[s.insightIcon, { backgroundColor: insights.risk_match === false ? "#f59e0b18" : "#22c55e18" }]}>
                 <Text style={{ fontSize: 20 }}>🧠</Text>
               </View>
-              <Text style={[s.sectionTitle, { color: colors.text }]}>La IA te ha analizado</Text>
+              <Text style={[s.sectionTitle, { color: colors.text }]}>{t("profile.insights.title")}</Text>
             </View>
             {insights.risk_match === false && insights.risk_note && (
               <View style={{ backgroundColor: "#f59e0b10", borderRadius: 12, padding: 10, marginBottom: 10, borderWidth: 1, borderColor: "#f59e0b28" }}>
-                <Text style={{ color: "#f59e0b", fontSize: 12, fontWeight: "700", marginBottom: 3 }}>⚠️ Tu comportamiento real difiere de tu perfil</Text>
+                <Text style={{ color: "#f59e0b", fontSize: 12, fontWeight: "700", marginBottom: 3 }}>{t("profile.insights.mismatch")}</Text>
                 <Text style={{ color: colors.textSub, fontSize: 12, lineHeight: 18 }}>{insights.risk_note}</Text>
               </View>
             )}
@@ -578,9 +582,9 @@ if (!profile) {
             )}
             {insights.topics && insights.topics.length > 0 && (
               <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
-                {insights.topics.map((t) => (
-                  <View key={t} style={{ backgroundColor: "#22c55e10", borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4, borderWidth: 1, borderColor: "#22c55e28" }}>
-                    <Text style={{ color: "#22c55e", fontSize: 11, fontWeight: "600" }}>{t}</Text>
+                {insights.topics.map((topic) => (
+                  <View key={topic} style={{ backgroundColor: "#22c55e10", borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4, borderWidth: 1, borderColor: "#22c55e28" }}>
+                    <Text style={{ color: "#22c55e", fontSize: 11, fontWeight: "600" }}>{topic}</Text>
                   </View>
                 ))}
               </View>
@@ -591,7 +595,7 @@ if (!profile) {
         {/* ── PERFIL DE RIESGO ── */}
         <View style={s.section}>
           <View style={s.sectionHeader}>
-            <Text style={[s.sectionTitle, { color: colors.text }]}>Perfil de riesgo</Text>
+            <Text style={[s.sectionTitle, { color: colors.text }]}>{t("profile.risk.sectionTitle")}</Text>
           </View>
           <TouchableOpacity
             activeOpacity={0.85}
@@ -605,11 +609,7 @@ if (!profile) {
               <View style={{ flex: 1 }}>
                 <Text style={[s.riskLabel, { color: colors.text }]}>{riskCfg.label}</Text>
                 <Text style={[s.riskDesc, { color: colors.textMuted }]}>
-                  {profile.risk_tolerance === "conservative"
-                    ? "Priorizas la seguridad y la preservación del capital."
-                    : profile.risk_tolerance === "moderate"
-                    ? "Buscas equilibrio entre crecimiento y protección."
-                    : "Tu objetivo es el máximo crecimiento a largo plazo."}
+                  {t(`profile.risk.desc.${profile.risk_tolerance}`)}
                 </Text>
               </View>
               <Ionicons name={riskExpanded ? "chevron-up" : "chevron-down"} size={16} color={colors.textDim} />
@@ -646,10 +646,10 @@ if (!profile) {
               <View style={{ marginTop: 16, gap: 10, borderTopWidth: 1, borderTopColor: riskCfg.color + "20", paddingTop: 16 }}>
                 <View style={{ gap: 7 }}>
                   {(profile.risk_tolerance === "conservative"
-                    ? [{ label: "Renta fija / Bonos", pct: 60, color: "#3b82f6" }, { label: "Acciones defensivas", pct: 30, color: "#22c55e" }, { label: "Liquidez / Oro", pct: 10, color: "#f59e0b" }]
+                    ? [{ label: t("profile.risk.allocations.conservative.0.label"), pct: 60, color: "#3b82f6" }, { label: t("profile.risk.allocations.conservative.1.label"), pct: 30, color: "#22c55e" }, { label: t("profile.risk.allocations.conservative.2.label"), pct: 10, color: "#f59e0b" }]
                     : profile.risk_tolerance === "moderate"
-                    ? [{ label: "Acciones diversificadas", pct: 60, color: "#22c55e" }, { label: "Renta fija", pct: 30, color: "#3b82f6" }, { label: "Alternativos / REITs", pct: 10, color: "#a855f7" }]
-                    : [{ label: "Acciones de crecimiento", pct: 75, color: "#22c55e" }, { label: "Mercados emergentes", pct: 15, color: "#f59e0b" }, { label: "Renta fija mínima", pct: 10, color: "#3b82f6" }]
+                    ? [{ label: t("profile.risk.allocations.moderate.0.label"), pct: 60, color: "#22c55e" }, { label: t("profile.risk.allocations.moderate.1.label"), pct: 30, color: "#3b82f6" }, { label: t("profile.risk.allocations.moderate.2.label"), pct: 10, color: "#a855f7" }]
+                    : [{ label: t("profile.risk.allocations.aggressive.0.label"), pct: 75, color: "#22c55e" }, { label: t("profile.risk.allocations.aggressive.1.label"), pct: 15, color: "#f59e0b" }, { label: t("profile.risk.allocations.aggressive.2.label"), pct: 10, color: "#3b82f6" }]
                   ).map((item) => (
                     <View key={item.label}>
                       <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 3 }}>
@@ -663,12 +663,11 @@ if (!profile) {
                   ))}
                 </View>
                 <View style={{ flexDirection: "row", gap: 8 }}>
-                  {(profile.risk_tolerance === "conservative"
-                    ? [{ label: "Volatilidad", val: "Baja" }, { label: "Retorno esperado", val: "4–7% anual" }, { label: "Horizonte ideal", val: "1–5 años" }]
-                    : profile.risk_tolerance === "moderate"
-                    ? [{ label: "Volatilidad", val: "Media" }, { label: "Retorno esperado", val: "7–10% anual" }, { label: "Horizonte ideal", val: "5–10 años" }]
-                    : [{ label: "Volatilidad", val: "Alta" }, { label: "Retorno esperado", val: "10–15%+ anual" }, { label: "Horizonte ideal", val: "10+ años" }]
-                  ).map((item) => (
+                  {[
+                    { label: t("profile.risk.metricsLabels.volatility"), val: t(`profile.risk.metrics.${profile.risk_tolerance}.volatility`) },
+                    { label: t("profile.risk.metricsLabels.expectedReturn"), val: t(`profile.risk.metrics.${profile.risk_tolerance}.expectedReturn`) },
+                    { label: t("profile.risk.metricsLabels.idealHorizon"), val: t(`profile.risk.metrics.${profile.risk_tolerance}.idealHorizon`) },
+                  ].map((item) => (
                     <View key={item.label} style={{ flex: 1, backgroundColor: riskCfg.color + "0e", borderRadius: 10, padding: 8, alignItems: "center" }}>
                       <Text style={{ color: colors.textMuted, fontSize: 9, fontWeight: "600", textAlign: "center" }}>{item.label}</Text>
                       <Text style={{ color: riskCfg.color, fontSize: 12, fontWeight: "800", marginTop: 2, textAlign: "center" }}>{item.val}</Text>
@@ -676,7 +675,7 @@ if (!profile) {
                   ))}
                 </View>
                 <Text style={{ color: colors.textMuted, fontSize: 10 }}>
-                  <Text style={{ fontWeight: "700", color: colors.textSub }}>ETFs típicos: </Text>
+                  <Text style={{ fontWeight: "700", color: colors.textSub }}>{t("profile.risk.etfsLabel")}</Text>
                   {profile.risk_tolerance === "conservative"
                     ? "BND, AGG, SCHD, VTIP, SGOV, GLD"
                     : profile.risk_tolerance === "moderate"
@@ -691,9 +690,9 @@ if (!profile) {
         {/* ── MADUREZ INVERSORA ── */}
         <View style={s.section}>
           <View style={s.sectionHeader}>
-            <Text style={[s.sectionTitle, { color: colors.text }]}>Madurez inversora</Text>
+            <Text style={[s.sectionTitle, { color: colors.text }]}>{t("profile.maturity.sectionTitle")}</Text>
             <TouchableOpacity onPress={() => setProgressOpen(true)}>
-              <Text style={[s.sectionLink, { color: colors.accentLight }]}>Ver historial →</Text>
+              <Text style={[s.sectionLink, { color: colors.accentLight }]}>{t("profile.maturity.viewHistory")}</Text>
             </TouchableOpacity>
           </View>
           <TouchableOpacity
@@ -721,18 +720,18 @@ if (!profile) {
               <View style={[s.progressFill, { width: `${maturityScore}%` as any, backgroundColor: maturity.color }]} />
             </View>
             <View style={s.progressLabels}>
-              <Text style={[s.progressLabel, { color: colors.textDim }]}>Pasivo</Text>
-              <Text style={[s.progressLabel, { color: colors.textDim }]}>Racional</Text>
-              <Text style={[s.progressLabel, { color: colors.textDim }]}>Especulativo</Text>
+              <Text style={[s.progressLabel, { color: colors.textDim }]}>{t("profile.maturity.passive")}</Text>
+              <Text style={[s.progressLabel, { color: colors.textDim }]}>{t("profile.maturity.rational")}</Text>
+              <Text style={[s.progressLabel, { color: colors.textDim }]}>{t("profile.maturity.speculative")}</Text>
             </View>
             <Text style={{ color: colors.textDim, fontSize: 10, marginTop: 8, lineHeight: 14 }}>
-              Sube con cada buena decisión en la app. No refleja tu nivel de conocimiento declarado.
+              {t("profile.maturity.note")}
             </Text>
 
             {maturityHistory.length > 0 && (
               <>
                 <View style={[s.divider, { borderTopColor: colors.border }]} />
-                <Text style={[s.histTitle, { color: colors.textMuted }]}>Últimas señales detectadas</Text>
+                <Text style={[s.histTitle, { color: colors.textMuted }]}>{t("profile.maturity.recentSignals")}</Text>
                 {maturityHistory.slice(-3).reverse().map((ev, i) => (
                   <View key={i} style={[s.histRow, i > 0 && { borderTopColor: colors.border, borderTopWidth: StyleSheet.hairlineWidth }]}>
                     <View style={[s.histDelta, { backgroundColor: ev.delta >= 0 ? "#22c55e18" : "#ef444418" }]}>
@@ -755,7 +754,7 @@ if (!profile) {
         {mentor && (
           <View style={s.section}>
             <View style={s.sectionHeader}>
-              <Text style={[s.sectionTitle, { color: colors.text }]}>Tu mentor</Text>
+              <Text style={[s.sectionTitle, { color: colors.text }]}>{t("profile.mentor.sectionTitle")}</Text>
             </View>
             <View style={[s.mentorCard, { backgroundColor: colors.card, borderColor: mentor.color + "40" }]}>
               <View style={[s.mentorBand, { backgroundColor: mentor.color + "0d" }]}>
@@ -792,7 +791,7 @@ if (!profile) {
         {/* ── PERFIL PSICOLÓGICO ── */}
         <View style={s.section}>
           <View style={s.sectionHeader}>
-            <Text style={[s.sectionTitle, { color: colors.text }]}>Perfil psicológico</Text>
+            <Text style={[s.sectionTitle, { color: colors.text }]}>{t("profile.psych.sectionTitle")}</Text>
             {savingPsy && <ActivityIndicator size="small" color={colors.accentLight} />}
           </View>
           <View style={[s.psyTwoCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
@@ -807,9 +806,9 @@ if (!profile) {
                     <Text style={{ fontSize: 18 }}>🕐</Text>
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={[s.psyRowCat, { color: colors.textDim }]}>Horizonte de inversión</Text>
+                    <Text style={[s.psyRowCat, { color: colors.textDim }]}>{t("profile.psych.horizon")}</Text>
                     <Text style={[s.psyRowVal, { color: label ? colors.text : colors.textDim }]}>
-                      {label ?? "No completado"}
+                      {label ?? t("profile.psych.notCompleted")}
                     </Text>
                   </View>
                   {label ? (
@@ -820,7 +819,7 @@ if (!profile) {
                   ) : (
                     <TouchableOpacity onPress={() => setPsyEditField("q2")}
                       style={{ backgroundColor: "rgba(251,191,36,0.12)", borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4, borderWidth: 1, borderColor: "rgba(251,191,36,0.3)" }}>
-                      <Text style={{ color: "#fbbf24", fontSize: 11, fontWeight: "700" }}>Completar</Text>
+                      <Text style={{ color: "#fbbf24", fontSize: 11, fontWeight: "700" }}>{t("profile.psych.complete")}</Text>
                     </TouchableOpacity>
                   )}
                 </View>
@@ -838,7 +837,7 @@ if (!profile) {
                     <Text style={{ fontSize: 18 }}>🧠</Text>
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={[s.psyRowCat, { color: colors.textDim }]}>Comportamiento</Text>
+                    <Text style={[s.psyRowCat, { color: colors.textDim }]}>{t("profile.psych.behavior")}</Text>
                     <Text style={[s.psyRowVal, { color: colors.text }]}>{compLabel}</Text>
                   </View>
                   <TouchableOpacity onPress={() => setPsyEditField("risk_tolerance")}
@@ -859,9 +858,9 @@ if (!profile) {
                     <Text style={{ fontSize: 18 }}>📉</Text>
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={[s.psyRowCat, { color: colors.textDim }]}>Reacción ante caídas</Text>
+                    <Text style={[s.psyRowCat, { color: colors.textDim }]}>{t("profile.psych.reaction")}</Text>
                     <Text style={[s.psyRowVal, { color: label ? colors.text : colors.textDim }]}>
-                      {label ?? "No completado"}
+                      {label ?? t("profile.psych.notCompleted")}
                     </Text>
                   </View>
                   {label ? (
@@ -872,7 +871,7 @@ if (!profile) {
                   ) : (
                     <TouchableOpacity onPress={() => setPsyEditField("q1")}
                       style={{ backgroundColor: "rgba(251,191,36,0.12)", borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4, borderWidth: 1, borderColor: "rgba(251,191,36,0.3)" }}>
-                      <Text style={{ color: "#fbbf24", fontSize: 11, fontWeight: "700" }}>Completar</Text>
+                      <Text style={{ color: "#fbbf24", fontSize: 11, fontWeight: "700" }}>{t("profile.psych.complete")}</Text>
                     </TouchableOpacity>
                   )}
                 </View>
@@ -889,9 +888,9 @@ if (!profile) {
                     <Text style={{ fontSize: 18 }}>⚙️</Text>
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={[s.psyRowCat, { color: colors.textDim }]}>Seguimiento del mercado</Text>
+                    <Text style={[s.psyRowCat, { color: colors.textDim }]}>{t("profile.psych.marketTracking")}</Text>
                     <Text style={[s.psyRowVal, { color: label ? colors.text : colors.textDim }]}>
-                      {label ?? "No completado"}
+                      {label ?? t("profile.psych.notCompleted")}
                     </Text>
                   </View>
                   {label ? (
@@ -902,7 +901,7 @@ if (!profile) {
                   ) : (
                     <TouchableOpacity onPress={() => setPsyEditField("q5")}
                       style={{ backgroundColor: "rgba(251,191,36,0.12)", borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4, borderWidth: 1, borderColor: "rgba(251,191,36,0.3)" }}>
-                      <Text style={{ color: "#fbbf24", fontSize: 11, fontWeight: "700" }}>Completar</Text>
+                      <Text style={{ color: "#fbbf24", fontSize: 11, fontWeight: "700" }}>{t("profile.psych.complete")}</Text>
                     </TouchableOpacity>
                   )}
                 </View>
@@ -928,17 +927,17 @@ if (!profile) {
               {/* Header */}
               <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
                 <Text style={{ color: colors.text, fontSize: 16, fontWeight: "800" }}>
-                  {psyEditField === "q2" ? "¿Cuál es tu horizonte de inversión?" :
-                   psyEditField === "risk_tolerance" ? "¿Cuál es tu comportamiento inversor?" :
-                   psyEditField === "q1" ? "¿Qué haces cuando tu portafolio cae?" :
-                   "¿Con qué frecuencia revisas el mercado?"}
+                  {psyEditField === "q2" ? t("profile.psych.questions.q2") :
+                   psyEditField === "risk_tolerance" ? t("profile.psych.questions.risk_tolerance") :
+                   psyEditField === "q1" ? t("profile.psych.questions.q1") :
+                   t("profile.psych.questions.q5")}
                 </Text>
                 <TouchableOpacity onPress={() => setPsyEditField(null)}>
                   <Ionicons name="close" size={22} color={colors.textMuted} />
                 </TouchableOpacity>
               </View>
               <Text style={{ color: colors.textMuted, fontSize: 12, marginBottom: 4 }}>
-                Toca una opción para guardar automáticamente
+                {t("profile.psych.editHint")}
               </Text>
 
               {/* Options */}
@@ -960,9 +959,9 @@ if (!profile) {
               })}
 
               {psyEditField === "risk_tolerance" && [
-                { key: "conservative", label: "Conservador", color: "#3b82f6", desc: "Priorizo no perder dinero sobre ganar" },
-                { key: "moderate",     label: "Moderado",    color: "#f59e0b", desc: "Balance entre crecimiento y estabilidad" },
-                { key: "aggressive",   label: "Agresivo",    color: "#ef4444", desc: "Acepto alta volatilidad buscando mayor retorno" },
+                { key: "conservative", label: t("profile.psych.riskOptions.conservative.label"), color: "#3b82f6", desc: t("profile.psych.riskOptions.conservative.desc") },
+                { key: "moderate",     label: t("profile.psych.riskOptions.moderate.label"),    color: "#f59e0b", desc: t("profile.psych.riskOptions.moderate.desc") },
+                { key: "aggressive",   label: t("profile.psych.riskOptions.aggressive.label"),   color: "#ef4444", desc: t("profile.psych.riskOptions.aggressive.desc") },
               ].map(({ key, label, color, desc }) => {
                 const active = profile.risk_tolerance === key;
                 return (
@@ -1032,14 +1031,14 @@ if (!profile) {
         {/* ── NIVEL DE CONOCIMIENTO ── */}
         <View style={s.section}>
           <View style={s.sectionHeader}>
-            <Text style={[s.sectionTitle, { color: colors.text }]}>Nivel de conocimiento</Text>
+            <Text style={[s.sectionTitle, { color: colors.text }]}>{t("profile.level.sectionTitle")}</Text>
             {savingLevel && <ActivityIndicator size="small" color={colors.accentLight} />}
           </View>
           <View style={[s.levelCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
             {[
-              { key: "B", label: "Básico",       emoji: "🌱", desc: "Conozco lo básico",      color: "#22c55e" },
-              { key: "C", label: "Intermedio",   emoji: "📈", desc: "Tengo experiencia",       color: "#3b82f6" },
-              { key: "D", label: "Avanzado",     emoji: "🎯", desc: "Análisis profundo",       color: "#a855f7" },
+              { key: "B", label: t("profile.level.basic.label"),       emoji: "🌱", desc: t("profile.level.basic.desc"),      color: "#22c55e" },
+              { key: "C", label: t("profile.level.intermediate.label"),   emoji: "📈", desc: t("profile.level.intermediate.desc"),       color: "#3b82f6" },
+              { key: "D", label: t("profile.level.advanced.label"),     emoji: "🎯", desc: t("profile.level.advanced.desc"),       color: "#a855f7" },
             ].map((opt, i) => {
               const isActive = profile.quiz_answers?.q3 === opt.key || profile.knowledge_level === opt.key;
               return (
@@ -1071,7 +1070,7 @@ if (!profile) {
         {/* ── REFERIDOS ── */}
         <View style={s.section}>
           <View style={s.sectionHeader}>
-            <Text style={[s.sectionTitle, { color: colors.text }]}>Invita amigos</Text>
+            <Text style={[s.sectionTitle, { color: colors.text }]}>{t("profile.referral.sectionTitle")}</Text>
           </View>
           <View style={[s.referralCard, { backgroundColor: colors.card, borderColor: "#f59e0b45" }]}>
             <View style={[s.referralHeader, { backgroundColor: "#f59e0b08", borderBottomColor: colors.border }]}>
@@ -1079,8 +1078,8 @@ if (!profile) {
                 <Ionicons name="gift-outline" size={22} color="#f59e0b" />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={[s.referralTitle, { color: colors.text }]}>Invita amigos, gana recompensas</Text>
-                <Text style={[s.referralSub, { color: colors.textMuted }]}>1 mes Premium gratis por cada amigo que se una</Text>
+                <Text style={[s.referralTitle, { color: colors.text }]}>{t("profile.referral.title")}</Text>
+                <Text style={[s.referralSub, { color: colors.textMuted }]}>{t("profile.referral.subtitle")}</Text>
               </View>
             </View>
 
@@ -1088,12 +1087,12 @@ if (!profile) {
               <View style={[s.referralStats, { borderBottomColor: colors.border }]}>
                 <View style={s.referralStat}>
                   <Text style={[s.referralStatNum, { color: "#f59e0b" }]}>{referralStats.referred_count}</Text>
-                  <Text style={[s.referralStatLabel, { color: colors.textMuted }]}>Amigos referidos</Text>
+                  <Text style={[s.referralStatLabel, { color: colors.textMuted }]}>{t("profile.referral.referredFriends")}</Text>
                 </View>
                 <View style={{ width: StyleSheet.hairlineWidth, backgroundColor: colors.border, marginVertical: 4 }} />
                 <View style={s.referralStat}>
                   <Text style={[s.referralStatNum, { color: "#22c55e" }]}>{referralStats.pending_reward || "—"}</Text>
-                  <Text style={[s.referralStatLabel, { color: colors.textMuted }]}>Recompensa pendiente</Text>
+                  <Text style={[s.referralStatLabel, { color: colors.textMuted }]}>{t("profile.referral.pendingReward")}</Text>
                 </View>
               </View>
             )}
@@ -1101,7 +1100,7 @@ if (!profile) {
             <View style={{ padding: 14, gap: 10 }}>
               <View style={[s.referralLinkRow, { backgroundColor: colors.bg, borderColor: colors.border }]}>
                 <Text style={[s.referralLink, { color: colors.textSub }]} numberOfLines={1}>
-                  {referralCode ? `nuvosai.com/join?ref=${referralCode}` : "Cargando..."}
+                  {referralCode ? `nuvosai.com/join?ref=${referralCode}` : t("profile.referral.loading")}
                 </Text>
                 <TouchableOpacity
                   onPress={() => {
@@ -1121,16 +1120,16 @@ if (!profile) {
                   if (!referralCode) return;
                   posthog.capture("referral_link_shared", { referral_code: referralCode });
                   Share.share({
-                    message: `Estoy usando Nuvos AI — el mejor mentor de inversiones con IA. Únete gratis 👉 https://nuvosai.com/join?ref=${referralCode}`,
+                    message: t("profile.referral.shareMessage", { url: `https://nuvosai.com/join?ref=${referralCode}` }),
                     url: `https://nuvosai.com/join?ref=${referralCode}`,
                   });
                 }}
               >
                 <Ionicons name="share-social-outline" size={16} color="#f59e0b" />
-                <Text style={[s.referralShareText, { color: "#f59e0b" }]}>Compartir invitación</Text>
+                <Text style={[s.referralShareText, { color: "#f59e0b" }]}>{t("profile.referral.share")}</Text>
               </TouchableOpacity>
               <Text style={[s.referralNote, { color: colors.textDim }]}>
-                Tu amigo obtiene 7 días Premium gratis al registrarse. Tú recibes 1 mes Premium cuando activa su plan.
+                {t("profile.referral.note")}
               </Text>
             </View>
           </View>
@@ -1143,7 +1142,7 @@ if (!profile) {
               <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
                 <Text style={{ fontSize: 14 }}>❤️</Text>
                 <Text style={[s.sectionTitle, { color: colors.text }]}>
-                  VIDEOS QUE TE GUSTARON
+                  {t("profile.likedVideos.sectionTitle")}
                 </Text>
                 <View style={{ backgroundColor: colors.accent + "22", borderRadius: 10, paddingHorizontal: 7, paddingVertical: 2 }}>
                   <Text style={{ color: colors.accentLight, fontSize: 11, fontWeight: "700" }}>{likedClips.length}</Text>
@@ -1195,9 +1194,29 @@ if (!profile) {
               <Ionicons name="home-outline" size={22} color="#6366f1" />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: 15, fontWeight: "900", color: colors.text }}>Pantalla de inicio</Text>
+              <Text style={{ fontSize: 15, fontWeight: "900", color: colors.text }}>{t("profile.startScreen.sectionTitle")}</Text>
               <Text style={{ fontSize: 12, color: colors.textMuted, marginTop: 2 }}>
-                {START_SCREEN_OPTIONS.find((o) => o.key === (startScreen ?? "home"))?.label ?? "Inicio"}
+                {START_SCREEN_OPTIONS.find((o) => o.key === (startScreen ?? "home"))?.label ?? t("profile.startScreen.options.home")}
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={16} color={colors.textDim} />
+          </TouchableOpacity>
+        </View>
+
+        {/* ── IDIOMA ── */}
+        <View style={s.section}>
+          <TouchableOpacity
+            onPress={() => setLanguagePickerOpen(true)}
+            activeOpacity={0.85}
+            style={{ flexDirection: "row", alignItems: "center", gap: 14, padding: 16, borderRadius: 20, backgroundColor: colors.bgRaised, borderWidth: 1, borderColor: colors.border }}
+          >
+            <View style={{ width: 44, height: 44, borderRadius: 14, backgroundColor: "rgba(0,212,126,0.12)", alignItems: "center", justifyContent: "center" }}>
+              <Ionicons name="language-outline" size={22} color="#00d47e" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 15, fontWeight: "900", color: colors.text }}>{t("profile.language")}</Text>
+              <Text style={{ fontSize: 12, color: colors.textMuted, marginTop: 2 }}>
+                {LANGUAGE_OPTIONS.find((o) => o.key === language)?.label ?? "Español"}
               </Text>
             </View>
             <Ionicons name="chevron-forward" size={16} color={colors.textDim} />
@@ -1215,8 +1234,8 @@ if (!profile) {
               <Text style={{ fontSize: 22 }}>🛍️</Text>
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: 15, fontWeight: "900", color: colors.text }}>Productos y Servicios</Text>
-              <Text style={{ fontSize: 12, color: colors.textMuted, marginTop: 2 }}>Planes, sesiones 1:1 y más</Text>
+              <Text style={{ fontSize: 15, fontWeight: "900", color: colors.text }}>{t("profile.products.sectionTitle")}</Text>
+              <Text style={{ fontSize: 12, color: colors.textMuted, marginTop: 2 }}>{t("profile.products.sectionSubtitle")}</Text>
             </View>
             <Ionicons name="chevron-forward" size={16} color={colors.textDim} />
           </TouchableOpacity>
@@ -1233,10 +1252,10 @@ if (!profile) {
               <Text style={{ fontSize: 22 }}>✨</Text>
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: 15, fontWeight: "900", color: colors.text }}>Annual ScoreBoard {new Date().getFullYear()}</Text>
-              <Text style={{ fontSize: 12, color: colors.textMuted, marginTop: 2 }}>Tu resumen anual como inversor</Text>
+              <Text style={{ fontSize: 15, fontWeight: "900", color: colors.text }}>{t("profile.wrapped.title", { year: new Date().getFullYear() })}</Text>
+              <Text style={{ fontSize: 12, color: colors.textMuted, marginTop: 2 }}>{t("profile.wrapped.subtitle")}</Text>
             </View>
-            <Text style={{ fontSize: 13, fontWeight: "900", color: "#00d47e" }}>Ver →</Text>
+            <Text style={{ fontSize: 13, fontWeight: "900", color: "#00d47e" }}>{t("profile.wrapped.cta")}</Text>
           </TouchableOpacity>
         </View>
 
@@ -1251,13 +1270,13 @@ if (!profile) {
               <Ionicons name="hardware-chip-outline" size={22} color="#7c3aed" />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: 15, fontWeight: "900", color: colors.text }}>Mi Memoria Financiera</Text>
+              <Text style={{ fontSize: 15, fontWeight: "900", color: colors.text }}>{t("profile.fmg.sectionTitle")}</Text>
               <Text style={{ fontSize: 12, color: colors.textMuted, marginTop: 2 }}>
                 {fmgData
                   ? isPremium
-                    ? `${fmgData.memories.length} aprendizajes · ${fmgData.patterns.length} patrones`
-                    : `${fmgData.memories.length}/10 creencias guardadas`
-                  : "Lo que Nuvos recuerda de ti"}
+                    ? t("profile.fmg.summaryPremium", { memories: fmgData.memories.length, patterns: fmgData.patterns.length })
+                    : t("profile.fmg.summaryFree", { count: fmgData.memories.length })
+                  : t("profile.fmg.subtitle")}
               </Text>
             </View>
             <Ionicons name={fmgOpen ? "chevron-up" : "chevron-down"} size={16} color={colors.textDim} />
@@ -1269,14 +1288,14 @@ if (!profile) {
                 <ActivityIndicator size="small" color="#7c3aed" />
               ) : fmgData.memories.length === 0 ? (
                 <Text style={{ fontSize: 13, color: colors.textMuted, textAlign: "center", paddingVertical: 8 }}>
-                  Aún no hay aprendizajes. Conversa con tu mentor para que empiece a recordar.
+                  {t("profile.fmg.empty")}
                 </Text>
               ) : (
                 <>
                   {/* Memories */}
                   <View style={{ gap: 8 }}>
                     <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
-                      <Text style={{ fontSize: 10, fontWeight: "900", letterSpacing: 0.8, textTransform: "uppercase", color: "#7c3aed" }}>Aprendizajes</Text>
+                      <Text style={{ fontSize: 10, fontWeight: "900", letterSpacing: 0.8, textTransform: "uppercase", color: "#7c3aed" }}>{t("profile.fmg.learnings")}</Text>
                       {!isPremium && (
                         <View style={{ backgroundColor: "rgba(124,58,237,0.12)", borderRadius: 10, paddingHorizontal: 8, paddingVertical: 2 }}>
                           <Text style={{ fontSize: 10, fontWeight: "700", color: "#7c3aed" }}>{fmgData.memories.length}/10</Text>
@@ -1305,7 +1324,7 @@ if (!profile) {
                   {isPremium ? (
                     fmgData.patterns.length > 0 && (
                       <View style={{ gap: 8 }}>
-                        <Text style={{ fontSize: 10, fontWeight: "900", letterSpacing: 0.8, textTransform: "uppercase", color: "#f59e0b" }}>Patrones de comportamiento</Text>
+                        <Text style={{ fontSize: 10, fontWeight: "900", letterSpacing: 0.8, textTransform: "uppercase", color: "#f59e0b" }}>{t("profile.fmg.patterns")}</Text>
                         {fmgData.patterns.map((p) => (
                           <View key={p.id} style={{ backgroundColor: colors.card, borderRadius: 12, padding: 10, gap: 6 }}>
                             <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
@@ -1327,8 +1346,8 @@ if (!profile) {
                     >
                       <Ionicons name="star-outline" size={16} color="#f59e0b" />
                       <View style={{ flex: 1 }}>
-                        <Text style={{ fontSize: 12, fontWeight: "700", color: "#f59e0b" }}>Patrones de comportamiento</Text>
-                        <Text style={{ fontSize: 11, color: colors.textMuted, marginTop: 1 }}>Descubre cómo piensas como inversionista — Premium</Text>
+                        <Text style={{ fontSize: 12, fontWeight: "700", color: "#f59e0b" }}>{t("profile.fmg.patterns")}</Text>
+                        <Text style={{ fontSize: 11, color: colors.textMuted, marginTop: 1 }}>{t("profile.fmg.patternsLocked")}</Text>
                       </View>
                       <Ionicons name="chevron-forward" size={14} color="#f59e0b" />
                     </TouchableOpacity>
@@ -1338,7 +1357,7 @@ if (!profile) {
                   {isPremium ? (
                     fmgData.events.length > 0 && (
                       <View style={{ gap: 8 }}>
-                        <Text style={{ fontSize: 10, fontWeight: "900", letterSpacing: 0.8, textTransform: "uppercase", color: "#3b82f6" }}>Timeline</Text>
+                        <Text style={{ fontSize: 10, fontWeight: "900", letterSpacing: 0.8, textTransform: "uppercase", color: "#3b82f6" }}>{t("profile.fmg.timeline")}</Text>
                         {fmgData.events.slice(0, 5).map((e) => (
                           <View key={e.id} style={{ flexDirection: "row", alignItems: "flex-start", gap: 10 }}>
                             <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: "#3b82f6", marginTop: 5 }} />
@@ -1359,8 +1378,8 @@ if (!profile) {
                     >
                       <Ionicons name="star-outline" size={16} color="#3b82f6" />
                       <View style={{ flex: 1 }}>
-                        <Text style={{ fontSize: 12, fontWeight: "700", color: "#3b82f6" }}>Timeline de decisiones</Text>
-                        <Text style={{ fontSize: 11, color: colors.textMuted, marginTop: 1 }}>Tu historial financiero permanente — Premium</Text>
+                        <Text style={{ fontSize: 12, fontWeight: "700", color: "#3b82f6" }}>{t("profile.fmg.timelineLocked")}</Text>
+                        <Text style={{ fontSize: 11, color: colors.textMuted, marginTop: 1 }}>{t("profile.fmg.timelineLockedDesc")}</Text>
                       </View>
                       <Ionicons name="chevron-forward" size={14} color="#3b82f6" />
                     </TouchableOpacity>
@@ -1374,17 +1393,17 @@ if (!profile) {
         {/* ── PLAN DÚO — secondary account management ── */}
         {isPremium && (duoPending || duoSecondaryEmail) && (
           <View style={s.section}>
-            <Text style={[s.plansSectionLabel, { color: colors.textMuted }]}>PLAN DÚO</Text>
+            <Text style={[s.plansSectionLabel, { color: colors.textMuted }]}>{t("profile.duo.sectionLabel")}</Text>
             <View style={{ backgroundColor: "rgba(59,130,246,0.08)", borderRadius: 20, borderWidth: 1, borderColor: "rgba(59,130,246,0.3)", padding: 16, gap: 12 }}>
               {/* Header */}
               <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
                 <Text style={{ fontSize: 22 }}>👫</Text>
                 <View style={{ flex: 1 }}>
-                  <Text style={{ fontSize: 15, fontWeight: "900", color: colors.text }}>Cuenta secundaria</Text>
+                  <Text style={{ fontSize: 15, fontWeight: "900", color: colors.text }}>{t("profile.duo.secondaryAccount")}</Text>
                   <Text style={{ fontSize: 12, color: colors.textMuted, marginTop: 2 }}>
                     {duoSecondaryEmail
-                      ? `Compartiendo con ${duoSecondaryEmail}`
-                      : "Aún no has agregado la segunda cuenta"}
+                      ? t("profile.duo.sharingWith", { email: duoSecondaryEmail })
+                      : t("profile.duo.noSecondAccount")}
                   </Text>
                 </View>
                 {duoSecondaryEmail && !duoEditing && (
@@ -1393,7 +1412,7 @@ if (!profile) {
                     activeOpacity={0.8}
                     style={{ paddingHorizontal: 12, paddingVertical: 7, borderRadius: 12, backgroundColor: "rgba(59,130,246,0.14)", borderWidth: 1, borderColor: "rgba(59,130,246,0.3)" }}
                   >
-                    <Text style={{ fontSize: 12, fontWeight: "700", color: "#3b82f6" }}>Editar</Text>
+                    <Text style={{ fontSize: 12, fontWeight: "700", color: "#3b82f6" }}>{t("profile.duo.edit")}</Text>
                   </TouchableOpacity>
                 )}
               </View>
@@ -1403,8 +1422,8 @@ if (!profile) {
                 <>
                   <TextInput
                     value={duoInput}
-                    onChangeText={(t) => { setDuoInput(t); setDuoError(""); }}
-                    placeholder="email@ejemplo.com"
+                    onChangeText={(val) => { setDuoInput(val); setDuoError(""); }}
+                    placeholder={t("profile.duo.emailPlaceholder")}
                     placeholderTextColor={colors.textDim}
                     keyboardType="email-address"
                     autoCapitalize="none"
@@ -1428,7 +1447,7 @@ if (!profile) {
                         activeOpacity={0.8}
                         style={{ flex: 1, paddingVertical: 12, borderRadius: 14, alignItems: "center", backgroundColor: colors.bgRaised, borderWidth: 1, borderColor: colors.border }}
                       >
-                        <Text style={{ fontWeight: "700", fontSize: 14, color: colors.textMuted }}>Cancelar</Text>
+                        <Text style={{ fontWeight: "700", fontSize: 14, color: colors.textMuted }}>{t("common.cancel")}</Text>
                       </TouchableOpacity>
                     )}
                     <TouchableOpacity
@@ -1441,14 +1460,14 @@ if (!profile) {
                           setDuoPending(false);
                           setDuoEditing(false);
                         } catch (err: any) {
-                          setDuoError(err?.response?.data?.detail ?? "Error al guardar. Intenta de nuevo.");
+                          setDuoError(err?.response?.data?.detail ?? t("profile.genericSaveError"));
                         } finally { setDuoSaving(false); }
                       }}
                       activeOpacity={0.8}
                       style={{ flex: 1, paddingVertical: 12, borderRadius: 14, alignItems: "center", backgroundColor: duoSaving || !duoInput.includes("@") ? "rgba(59,130,246,0.2)" : "#3b82f6" }}
                     >
                       <Text style={{ fontWeight: "900", fontSize: 14, color: duoSaving || !duoInput.includes("@") ? colors.textMuted : "#fff" }}>
-                        {duoSaving ? "Guardando..." : "Guardar"}
+                        {duoSaving ? t("profile.duo.saving") : t("common.save")}
                       </Text>
                     </TouchableOpacity>
                   </View>
@@ -1459,10 +1478,10 @@ if (!profile) {
               {duoPartner?.paired && (
                 <View style={{ paddingTop: 12, marginTop: 4, borderTopWidth: 1, borderTopColor: "rgba(59,130,246,0.2)" }}>
                   <Text style={{ fontSize: 12, fontWeight: "900", color: colors.text, marginBottom: 8 }}>
-                    Comparar progreso con {duoPartner.partner_name}
+                    {t("profile.duo.compareWith", { name: duoPartner.partner_name })}
                   </Text>
                   <View style={{ flexDirection: "row", gap: 8, marginBottom: 6 }}>
-                    <Text style={{ flex: 1, fontSize: 10, fontWeight: "800", textTransform: "uppercase", color: colors.textMuted }}>Tú</Text>
+                    <Text style={{ flex: 1, fontSize: 10, fontWeight: "800", textTransform: "uppercase", color: colors.textMuted }}>{t("profile.duo.you")}</Text>
                     <Text style={{ flex: 1, fontSize: 10, fontWeight: "800", textTransform: "uppercase", color: colors.textMuted }}>{duoPartner.partner_name}</Text>
                   </View>
                   {DUO_METRIC_DEFS.map((m) => {
@@ -1499,7 +1518,7 @@ if (!profile) {
               onPress={() => setVoiceCallsOpen((v) => !v)}
               style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}
             >
-              <Text style={[s.plansSectionLabel, { color: colors.textMuted }]}>MIS LLAMADAS ({voiceCalls.length})</Text>
+              <Text style={[s.plansSectionLabel, { color: colors.textMuted }]}>{t("profile.voiceCalls.sectionLabel", { count: voiceCalls.length })}</Text>
               <Ionicons name={voiceCallsOpen ? "chevron-up" : "chevron-down"} size={16} color={colors.textMuted} />
             </TouchableOpacity>
             {voiceCallsOpen && (
@@ -1532,7 +1551,7 @@ if (!profile) {
                       {isOpen && (
                         <View style={{ paddingHorizontal: 14, paddingBottom: 14, gap: 6 }}>
                           {(callDetail[call.id] || []).length === 0 ? (
-                            <Text style={{ fontSize: 11, color: colors.textDim }}>Cargando...</Text>
+                            <Text style={{ fontSize: 11, color: colors.textDim }}>{t("profile.voiceCalls.loading")}</Text>
                           ) : (
                             callDetail[call.id].map((turn, idx) => (
                               <View
@@ -1564,11 +1583,11 @@ if (!profile) {
         <View style={{ marginTop: 16, gap: 10, paddingBottom: 12 }}>
           <View style={{ flexDirection: "row", justifyContent: "center", gap: 20, paddingVertical: 4 }}>
             <TouchableOpacity onPress={() => Linking.openURL("https://nuvosai.app/privacy")}>
-              <Text style={[s.legalLink, { color: colors.textDim }]}>Política de privacidad</Text>
+              <Text style={[s.legalLink, { color: colors.textDim }]}>{t("profile.bottom.privacyPolicy")}</Text>
             </TouchableOpacity>
             <Text style={{ color: colors.textDim, fontSize: 11 }}>·</Text>
             <TouchableOpacity onPress={() => Linking.openURL("https://nuvosai.app/terms")}>
-              <Text style={[s.legalLink, { color: colors.textDim }]}>Términos de uso</Text>
+              <Text style={[s.legalLink, { color: colors.textDim }]}>{t("profile.bottom.termsOfUse")}</Text>
             </TouchableOpacity>
           </View>
 
@@ -1577,7 +1596,7 @@ if (!profile) {
             onPress={() => setTutorialFromProfile(true)}
           >
             <Ionicons name="help-circle-outline" size={17} color={colors.textSub} />
-            <Text style={[s.actionBtnText, { color: colors.textSub }]}>Ver tutorial de la app</Text>
+            <Text style={[s.actionBtnText, { color: colors.textSub }]}>{t("profile.bottom.viewTutorial")}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -1585,11 +1604,11 @@ if (!profile) {
             onPress={handleLogout}
           >
             <Ionicons name="log-out-outline" size={17} color="#ef4444" />
-            <Text style={[s.actionBtnText, { color: "#ef4444" }]}>Cerrar sesión</Text>
+            <Text style={[s.actionBtnText, { color: "#ef4444" }]}>{t("profile.bottom.logout")}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity style={{ alignItems: "center", paddingVertical: 10 }} onPress={handleDeleteAccount}>
-            <Text style={{ color: colors.textDim, fontSize: 12, fontWeight: "500" }}>Eliminar mi cuenta</Text>
+            <Text style={{ color: colors.textDim, fontSize: 12, fontWeight: "500" }}>{t("profile.bottom.deleteAccount")}</Text>
           </TouchableOpacity>
         </View>
 
@@ -1602,8 +1621,8 @@ if (!profile) {
       <Modal visible={startScreenPickerOpen} transparent animationType="slide" onRequestClose={() => setStartScreenPickerOpen(false)}>
         <View style={{ flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.6)" }}>
           <View style={{ backgroundColor: colors.card, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 24, paddingBottom: 40, gap: 12 }}>
-            <Text style={{ fontSize: 17, fontWeight: "900", color: colors.text, marginBottom: 4 }}>¿Qué pantalla ver primero?</Text>
-            <Text style={{ fontSize: 13, color: colors.textMuted, marginBottom: 8 }}>Cada vez que abras la app irás directo ahí.</Text>
+            <Text style={{ fontSize: 17, fontWeight: "900", color: colors.text, marginBottom: 4 }}>{t("profile.startScreen.modalTitle")}</Text>
+            <Text style={{ fontSize: 13, color: colors.textMuted, marginBottom: 8 }}>{t("profile.startScreen.modalSubtitle")}</Text>
             {START_SCREEN_OPTIONS.map((opt) => {
               const active = (startScreen ?? "home") === opt.key;
               return (
@@ -1613,6 +1632,36 @@ if (!profile) {
                     AsyncStorage.setItem(HOME_SCREEN_KEY, opt.key).catch(() => {});
                     setStartScreenState(opt.key);
                     setStartScreenPickerOpen(false);
+                  }}
+                  activeOpacity={0.8}
+                  style={{ flexDirection: "row", alignItems: "center", gap: 14, padding: 14, borderRadius: 16, backgroundColor: active ? opt.color + "14" : colors.bgRaised, borderWidth: 1.5, borderColor: active ? opt.color : "transparent" }}
+                >
+                  <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: active ? opt.color + "22" : colors.border, alignItems: "center", justifyContent: "center" }}>
+                    <Ionicons name={opt.icon as any} size={20} color={active ? opt.color : colors.textMuted} />
+                  </View>
+                  <Text style={{ flex: 1, fontSize: 15, fontWeight: "700", color: active ? opt.color : colors.text }}>{opt.label}</Text>
+                  {active && <View style={{ width: 20, height: 20, borderRadius: 10, backgroundColor: opt.color, alignItems: "center", justifyContent: "center" }}><View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: "#fff" }} /></View>}
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── Language Picker ── */}
+      <Modal visible={languagePickerOpen} transparent animationType="slide" onRequestClose={() => setLanguagePickerOpen(false)}>
+        <View style={{ flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.6)" }}>
+          <View style={{ backgroundColor: colors.card, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 24, paddingBottom: 40, gap: 12 }}>
+            <Text style={{ fontSize: 17, fontWeight: "900", color: colors.text, marginBottom: 4 }}>{t("profile.languagePickerTitle")}</Text>
+            <Text style={{ fontSize: 13, color: colors.textMuted, marginBottom: 8 }}>{t("profile.languagePickerSubtitle")}</Text>
+            {LANGUAGE_OPTIONS.map((opt) => {
+              const active = language === opt.key;
+              return (
+                <TouchableOpacity
+                  key={opt.key}
+                  onPress={() => {
+                    setLanguage(opt.key);
+                    setLanguagePickerOpen(false);
                   }}
                   activeOpacity={0.8}
                   style={{ flexDirection: "row", alignItems: "center", gap: 14, padding: 14, borderRadius: 16, backgroundColor: active ? opt.color + "14" : colors.bgRaised, borderWidth: 1.5, borderColor: active ? opt.color : "transparent" }}

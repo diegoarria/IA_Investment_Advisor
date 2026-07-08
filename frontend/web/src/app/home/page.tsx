@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import {
   TrendingUp, TrendingDown, Sparkles, BookOpen,
   Bell, ChevronRight, GraduationCap, Newspaper, Target, Flame, X,
@@ -40,11 +42,11 @@ function fmtPct(n: number) {
   return `${n >= 0 ? "+" : ""}${n.toFixed(2)}%`;
 }
 
-function greeting(): string {
+function greeting(t: TFunction): string {
   const h = new Date().getHours();
-  if (h < 12) return "Buenos días";
-  if (h < 19) return "Buenas tardes";
-  return "Buenas noches";
+  if (h < 12) return t("home.greeting.morning");
+  if (h < 19) return t("home.greeting.afternoon");
+  return t("home.greeting.evening");
 }
 
 function notifIcon(type: string): string {
@@ -56,92 +58,46 @@ function notifIcon(type: string): string {
   return "🔔";
 }
 
-function timeAgo(ts: string | number): string {
+function timeAgo(ts: string | number, t: TFunction): string {
   const diff = Date.now() - new Date(ts).getTime();
   const m = Math.floor(diff / 60000);
-  if (m < 1)  return "ahora";
+  if (m < 1)  return t("home.timeAgoNow");
   if (m < 60) return `${m}m`;
   const h = Math.floor(m / 60);
   if (h < 24) return `${h}h`;
   return `${Math.floor(h / 24)}d`;
 }
 
-const DAILY_LESSONS = [
-  {
-    emoji: "🥧", title: "Diversificación",
-    body: "No pongas todos los huevos en una canasta. Si tienes 10 empresas de sectores distintos y una quiebra, pierdes el 10%. Si solo tienes una, pierdes el 100%. La diversificación no elimina el riesgo — lo distribuye.",
-    tip: "Revisa hoy tu portafolio: ¿más del 30% está en un solo sector?",
-  },
-  {
-    emoji: "📅", title: "Dollar Cost Averaging",
-    body: "Invertir la misma cantidad cada mes, sin importar si el mercado sube o baja. Cuando baja, compras más acciones por el mismo precio. Cuando sube, tus acciones ya valían más. Con el tiempo, tu precio promedio se optimiza solo.",
-    tip: "Define un monto fijo mensual y autozmatízalo. La disciplina bate al timing.",
-  },
-  {
-    emoji: "💰", title: "Dividendos",
-    body: "Algunas empresas te pagan por tener sus acciones. Ese pago se llama dividendo. Las empresas maduras (Coca-Cola, J&J, Apple) suelen pagar entre 1-4% anual. Reinvertir dividendos automáticamente puede duplicar tu retorno a 20 años.",
-    tip: "Busca empresas con historial de 10+ años pagando y aumentando dividendos.",
-  },
-  {
-    emoji: "📈", title: "P/E Ratio",
-    body: "El Price/Earnings (P/E) compara el precio de la acción con lo que gana la empresa. Un P/E de 20 significa que pagas $20 por cada $1 de ganancia. No hay un número 'bueno' universal — compara siempre contra el sector y el historial de la empresa.",
-    tip: "Un P/E muy alto no significa cara si la empresa crece rápido. Contexto > número.",
-  },
-  {
-    emoji: "🛡️", title: "Ventaja Competitiva",
-    body: "El 'moat' o fosa económica es lo que hace que una empresa sea difícil de copiar. Puede ser marca (Apple), red de usuarios (Visa), costos bajos (Walmart) o patentes (Pfizer). Las empresas con moat fuerte protegen sus márgenes en el tiempo.",
-    tip: "Pregúntate: ¿qué le impediría a un competidor con $1B tomar este mercado?",
-  },
-  {
-    emoji: "⚠️", title: "Aversión a la Pérdida",
-    body: "El cerebro humano siente el dolor de perder $100 el doble de fuerte que el placer de ganar $100. Por eso vendemos en pánico en caídas y compramos en euforia en subidas. Reconocer este sesgo es el primer paso para no actuar en él.",
-    tip: "Antes de vender en una caída, pregúntate: ¿cambiaron los fundamentos del negocio?",
-  },
-  {
-    emoji: "🔄", title: "Rebalanceo",
-    body: "Si empezaste con 60% acciones / 40% bonos y las acciones subieron mucho, ahora tienes 75/25 — más riesgo del que querías. Rebalancear es vender lo que creció y comprar lo que se quedó atrás para volver a tu proporción objetivo.",
-    tip: "Rebalancea 1-2 veces al año o cuando algún activo se aleje más del 5% de tu objetivo.",
-  },
-  {
-    emoji: "📊", title: "Flujo de Caja Libre",
-    body: "Las ganancias (earnings) se pueden manipular contablemente. El Free Cash Flow (FCF) no miente — es el dinero real que entra a la caja de la empresa después de pagar sus operaciones e inversiones. Las empresas con FCF creciente tienen poder real.",
-    tip: "Busca empresas cuyo FCF crezca consistentemente más rápido que sus ingresos.",
-  },
-  {
-    emoji: "🎯", title: "Horizonte de Inversión",
-    body: "El mercado cae en promedio 10-20% una vez cada 1-2 años. Pero en 10+ años, el S&P 500 nunca ha perdido dinero. Tu horizonte de inversión determina cuánto riesgo puedes absorber. A 20 años, las caídas son oportunidades. A 2 años, son amenazas.",
-    tip: "¿Tu dinero lo necesitas en menos de 3 años? No debería estar en acciones.",
-  },
-  {
-    emoji: "🧠", title: "FOMO Financiero",
-    body: "El Fear Of Missing Out te hace comprar en máximos cuando todos están emocionados. Bitcoin en $65K, acciones de moda en su pico. El FOMO es la señal más confiable de que un activo está sobrevalorado. El mejor momento para entrar es cuando nadie habla de él.",
-    tip: "Si ves el activo en noticias masivas y WhatsApp de familia — cuidado.",
-  },
-  {
-    emoji: "🏦", title: "ETFs vs Acciones",
-    body: "Un ETF (como VOO o SPY) replica un índice completo. Con $1 compras 500 empresas. Una acción individual es una apuesta específica. Los estudios muestran que el 90% de los gestores activos NO superan al índice en 15 años. Los ETFs son el punto de partida inteligente.",
-    tip: "Empieza con ETFs amplios. Agrega acciones individuales solo cuando entiendas el negocio.",
-  },
-  {
-    emoji: "💡", title: "Compra Negocios, No Tickers",
-    body: "Antes de comprar una acción, pregúntate: ¿entiendo cómo gana dinero esta empresa? ¿Qué la hace mejor que sus competidores? ¿Seguiría comprando si el mercado cerrara 5 años? Si no puedes responder estas preguntas, no deberías tener esa posición.",
-    tip: "Warren Buffett solo invierte en lo que puede entender en 5 minutos. Síguela.",
-  },
-  {
-    emoji: "📉", title: "Las Caídas son Normales",
-    body: "Desde 1950, el S&P 500 ha caído más del 10% en promedio una vez al año. Más del 20% cada 3-5 años. A pesar de eso, el índice multiplicó por 200x en ese período. Las caídas no son el final del mercado — son el precio de entrada a los rendimientos a largo plazo.",
-    tip: "Guarda una lista de empresas que quieras comprar cuando caigan. Las caídas son ventas.",
-  },
-  {
-    emoji: "🌍", title: "Riesgo de Concentración",
-    body: "Tener más del 20% en una sola empresa o más del 40% en un sector es concentración alta. Si esa empresa o sector colapsa, tu portafolio colapsa. Las mejores carteras tienen posiciones de entre 3-10% cada una, distribuidas en 5+ sectores distintos.",
-    tip: "Calcula hoy cuál es tu posición más grande. ¿Es mayor al 20% de tu portafolio?",
-  },
+const DAILY_LESSON_KEYS = [
+  { emoji: "🥧", key: "diversification" },
+  { emoji: "📅", key: "dca" },
+  { emoji: "💰", key: "dividends" },
+  { emoji: "📈", key: "peRatio" },
+  { emoji: "🛡️", key: "moat" },
+  { emoji: "⚠️", key: "lossAversion" },
+  { emoji: "🔄", key: "rebalancing" },
+  { emoji: "📊", key: "freeCashFlow" },
+  { emoji: "🎯", key: "investmentHorizon" },
+  { emoji: "🧠", key: "fomo" },
+  { emoji: "🏦", key: "etfsVsStocks" },
+  { emoji: "💡", key: "buyBusinesses" },
+  { emoji: "📉", key: "dropsNormal" },
+  { emoji: "🌍", key: "concentrationRisk" },
 ];
+
+function getDailyLessons(t: TFunction) {
+  return DAILY_LESSON_KEYS.map(({ emoji, key }) => ({
+    emoji,
+    title: t(`home.lessons.${key}.title`),
+    body: t(`home.lessons.${key}.body`),
+    tip: t(`home.lessons.${key}.tip`),
+  }));
+}
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function HomePage() {
+  const { t } = useTranslation();
   const router = useRouter();
   const { isAuthenticated, authRestoring } = useAuthStore();
   const { profile, setProfile } = useProfileStore();
@@ -192,27 +148,35 @@ export default function HomePage() {
     }
   };
 
+  const brokerKey = (nameKey: string) => `home.brokers.${nameKey}`;
+  const brokerEntry = (name: string, nameKey: string, emoji: string, rating: number) => ({
+    name, emoji, rating,
+    tag: t(`${brokerKey(nameKey)}.tag`),
+    tagColor: "",
+    desc: t(`${brokerKey(nameKey)}.desc`),
+    pros: [t(`${brokerKey(nameKey)}.pro1`), t(`${brokerKey(nameKey)}.pro2`), t(`${brokerKey(nameKey)}.pro3`)],
+  });
   const BROKER_CATALOG: Record<string, { name: string; emoji: string; rating: number; tag: string; tagColor: string; desc: string; pros: string[] }[]> = {
     MX: [
-      { name: "GBM+",                   emoji: "🥇", rating: 4.8, tag: "Recomendado #1",  tagColor: "#00d47e", desc: "El broker más popular de México. App excelente, comisiones bajas.",         pros: ["App móvil de las mejores", "Sin comisión en acciones MX", "ETFs globales fáciles"] },
-      { name: "Interactive Brokers MX", emoji: "🌐", rating: 4.5, tag: "Para avanzados",   tagColor: "#3b82f6", desc: "Acceso a 150+ mercados globales. Ideal si quieres diversificar.",            pros: ["150+ bolsas del mundo",    "Tasas institucionales",        "Opciones y futuros"] },
-      { name: "Actinver",               emoji: "🏛️", rating: 4.0, tag: "Institucional",    tagColor: "#8b5cf6", desc: "Respaldo bancario. Perfecto para fondos y perfiles conservadores.",         pros: ["Respaldo bancario sólido", "Asesoría personal disponible", "Fondos de inversión"] },
+      { ...brokerEntry("GBM+", "gbmPlus", "🥇", 4.8), tagColor: "#00d47e" },
+      { ...brokerEntry("Interactive Brokers MX", "ibMx", "🌐", 4.5), tagColor: "#3b82f6" },
+      { ...brokerEntry("Actinver", "actinver", "🏛️", 4.0), tagColor: "#8b5cf6" },
     ],
     AR: [
-      { name: "Invertir Online (IOL)",  emoji: "🥇", rating: 4.7, tag: "Recomendado #1",  tagColor: "#00d47e", desc: "Líder en Argentina. Acceso a bonos, CEDEARs y acciones locales.",           pros: ["Líder del mercado AR",     "Acceso a CEDEARs (ADRs)",     "Sin costo de mantenimiento"] },
-      { name: "Balanz",                 emoji: "🥈", rating: 4.4, tag: "Muy popular",       tagColor: "#f59e0b", desc: "Plataforma moderna con fondos, bonos y acciones.",                          pros: ["Fondos de money market",   "Acciones locales e internac.", "App moderna e intuitiva"] },
+      { ...brokerEntry("Invertir Online (IOL)", "iol", "🥇", 4.7), tagColor: "#00d47e" },
+      { ...brokerEntry("Balanz", "balanz", "🥈", 4.4), tagColor: "#f59e0b" },
     ],
     US: [
-      { name: "Interactive Brokers",    emoji: "🥇", rating: 4.9, tag: "Recomendado #1",  tagColor: "#00d47e", desc: "El broker más completo del mundo. 0 comisiones en acciones US.",             pros: ["0 comisiones en acciones", "Acceso a 150+ mercados",      "Intereses sobre efectivo"] },
-      { name: "Robinhood",              emoji: "🥈", rating: 4.3, tag: "Más fácil",         tagColor: "#3b82f6", desc: "La app más simple para empezar. Ideal para principiantes.",                 pros: ["App más simple",           "Acciones fraccionadas",       "Sin mínimo de inversión"] },
-      { name: "Charles Schwab",         emoji: "🏦", rating: 4.6, tag: "Más confiable",     tagColor: "#8b5cf6", desc: "Uno de los más confiables de EE.UU. Ideal para largo plazo.",              pros: ["Sin comisiones",           "Atención al cliente 24/7",    "Amplia variedad de ETFs"] },
+      { ...brokerEntry("Interactive Brokers", "ibUs", "🥇", 4.9), tagColor: "#00d47e" },
+      { ...brokerEntry("Robinhood", "robinhood", "🥈", 4.3), tagColor: "#3b82f6" },
+      { ...brokerEntry("Charles Schwab", "schwab", "🏦", 4.6), tagColor: "#8b5cf6" },
     ],
     CO: [
-      { name: "Acciones & Valores",     emoji: "🥇", rating: 4.5, tag: "Recomendado #1",  tagColor: "#00d47e", desc: "El broker referente en Colombia. Acceso a BVC y mercados internac.",        pros: ["Acceso a la BVC",          "Acciones internacionales",    "Asesoría local experta"] },
-      { name: "Interactive Brokers",    emoji: "🌐", rating: 4.8, tag: "Para avanzados",   tagColor: "#3b82f6", desc: "El mejor acceso global. Ideal si quieres invertir fuera de Colombia.",      pros: ["Mercados globales",         "0 comisiones acciones US",    "Muy bien regulado"] },
+      { ...brokerEntry("Acciones & Valores", "accionesValores", "🥇", 4.5), tagColor: "#00d47e" },
+      { ...brokerEntry("Interactive Brokers", "ibCo", "🌐", 4.8), tagColor: "#3b82f6" },
     ],
     DEFAULT: [
-      { name: "Interactive Brokers",    emoji: "🥇", rating: 4.9, tag: "Mejor global",     tagColor: "#00d47e", desc: "El broker con mejor acceso global. Disponible en +200 países.",             pros: ["200+ países",              "150+ bolsas del mundo",       "Tasas institucionales"] },
+      { ...brokerEntry("Interactive Brokers", "ibDefault", "🥇", 4.9), tagColor: "#00d47e" },
     ],
   };
 
@@ -223,7 +187,7 @@ export default function HomePage() {
   const [showBrokerModal, setShowBrokerModal] = useState(false);
   const [brokerView,      setBrokerView]      = useState<"list" | "detail" | "upsell">("list");
   const [selectedBroker,  setSelectedBroker]  = useState<(typeof BROKER_CATALOG.MX)[0] | null>(null);
-  const [brokerCountry,   setBrokerCountry]   = useState<{ label: string; brokers: typeof BROKER_CATALOG.MX }>({ label: "Internacional", brokers: BROKER_CATALOG.DEFAULT });
+  const [brokerCountry,   setBrokerCountry]   = useState<{ label: string; brokers: typeof BROKER_CATALOG.MX }>({ label: t("home.brokerCountryLabels.international"), brokers: BROKER_CATALOG.DEFAULT });
   const [upsellCountdown, setUpsellCountdown] = useState<number | null>(null);
 
   const openBrokerModal = () => {
@@ -234,8 +198,11 @@ export default function HomePage() {
       .then(r => r.json())
       .then(d => {
         const code = d.country_code as string;
-        const labels: Record<string,string> = { MX: "México", AR: "Argentina", US: "Estados Unidos", CO: "Colombia" };
-        setBrokerCountry({ label: labels[code] ?? "Internacional", brokers: BROKER_CATALOG[code] ?? BROKER_CATALOG.DEFAULT });
+        const labels: Record<string,string> = {
+          MX: t("home.brokerCountryLabels.MX"), AR: t("home.brokerCountryLabels.AR"),
+          US: t("home.brokerCountryLabels.US"), CO: t("home.brokerCountryLabels.CO"),
+        };
+        setBrokerCountry({ label: labels[code] ?? t("home.brokerCountryLabels.international"), brokers: BROKER_CATALOG[code] ?? BROKER_CATALOG.DEFAULT });
       })
       .catch(() => {});
   };
@@ -276,6 +243,7 @@ export default function HomePage() {
   };
 
   const sym = CURRENCY_SYM[portfolioCurrency] ?? "$";
+  const DAILY_LESSONS = useMemo(() => getDailyLessons(t), [t]);
   const dailyLesson = DAILY_LESSONS[new Date().getDay() % DAILY_LESSONS.length];
 
   useEffect(() => {
@@ -382,7 +350,7 @@ export default function HomePage() {
       setProfile(fresh.data);
       setShowGoalModal(false);
     } catch (err: any) {
-      const msg = err?.response?.data?.detail ?? err?.message ?? "Error al guardar";
+      const msg = err?.response?.data?.detail ?? err?.message ?? t("home.saveError");
       setGoalError(msg);
       console.error("saveGoal error:", err?.response ?? err);
     }
@@ -459,19 +427,19 @@ export default function HomePage() {
 
   // ── Goal ───────────────────────────────────────────────────────────────────
   const GOAL_MAP: Record<string, { label: string; emoji: string }> = {
-    house:             { label: "Comprar una casa",         emoji: "🏠" },
-    car:               { label: "Comprar un carro",         emoji: "🚗" },
-    passive_income:    { label: "Vivir de mis inversiones", emoji: "💸" },
-    retirement:        { label: "Retiro / pensión",         emoji: "👴" },
-    financial_freedom: { label: "Libertad financiera",      emoji: "🦅" },
-    long_term_wealth:  { label: "Patrimonio a largo plazo", emoji: "🏛️" },
+    house:             { label: t("common.goalMap.house"),             emoji: "🏠" },
+    car:               { label: t("common.goalMap.car"),               emoji: "🚗" },
+    passive_income:    { label: t("common.goalMap.passiveIncome"),     emoji: "💸" },
+    retirement:        { label: t("common.goalMap.retirement"),        emoji: "👴" },
+    financial_freedom: { label: t("common.goalMap.financialFreedom"),  emoji: "🦅" },
+    long_term_wealth:  { label: t("common.goalMap.longTermWealth"),    emoji: "🏛️" },
   };
   const goalKey    = profile?.investment_goal ?? null;
   const goalInfo   = goalKey ? (GOAL_MAP[goalKey] ?? { label: goalKey, emoji: "🎯" }) : null;
   const goalAmount = parseFloat(profile?.investment_goal_amount ?? "0") || 0;
   const goalPct    = goalAmount > 0 ? Math.min(100, (total / goalAmount) * 100) : 0;
 
-  const firstName = profile?.name?.split(" ")[0] ?? "Inversor";
+  const firstName = profile?.name?.split(" ")[0] ?? t("home.defaultName");
   const userLevel = getUserLevel(profile);
   const isGuest = typeof window !== "undefined" && localStorage.getItem("nuvos_guest") === "1";
   // "Tu camino para empezar" only makes sense for guests exploring the app, or for
@@ -510,11 +478,11 @@ export default function HomePage() {
   }, [isAuthenticated]);
 
   const onboardingSteps: OnboardingStep[] = [
-    { emoji: "💼", title: "Agrega tu primera posición",       description: "Registra tus acciones y activa el análisis IA",   completed: positions.length > 0 },
-    { emoji: "🎯", title: "Configura tu meta financiera",     description: "¿Para qué estás invirtiendo?",                    completed: !!profile?.investment_goal },
-    { emoji: "🤖", title: "Habla con Nuvos por primera vez",  description: "Pregunta cualquier cosa sobre inversiones",        completed: hasChatted },
-    { emoji: "📚", title: "Completa tu primera lección",      description: "Empieza tu racha de aprendizaje diario",          completed: streak > 0 },
-    { emoji: "👀", title: "Agrega una acción a tu watchlist", description: "Monitorea empresas que te interesan",             completed: watchlistCount > 0 },
+    { emoji: "💼", title: t("home.onboarding.addFirstPosition.title"),  description: t("home.onboarding.addFirstPosition.desc"), completed: positions.length > 0 },
+    { emoji: "🎯", title: t("home.onboarding.configureGoal.title"),     description: t("home.onboarding.configureGoal.desc"),    completed: !!profile?.investment_goal },
+    { emoji: "🤖", title: t("home.onboarding.talkToNuvos.title"),       description: t("home.onboarding.talkToNuvos.desc"),      completed: hasChatted },
+    { emoji: "📚", title: t("home.onboarding.firstLesson.title"),       description: t("home.onboarding.firstLesson.desc"),      completed: streak > 0 },
+    { emoji: "👀", title: t("home.onboarding.addToWatchlist.title"),    description: t("home.onboarding.addToWatchlist.desc"),   completed: watchlistCount > 0 },
   ];
   const allOnboardingDone = checklistPermanentlyDone || onboardingSteps.every((s) => s.completed);
 
@@ -541,12 +509,12 @@ export default function HomePage() {
   };
 
   const GOAL_OPTIONS = [
-    { key: "house",             label: "Comprar una casa",         emoji: "🏠" },
-    { key: "car",               label: "Comprar un carro",         emoji: "🚗" },
-    { key: "passive_income",    label: "Vivir de inversiones",     emoji: "💸" },
-    { key: "retirement",        label: "Retiro / pensión",         emoji: "👴" },
-    { key: "financial_freedom", label: "Libertad financiera",      emoji: "🦅" },
-    { key: "long_term_wealth",  label: "Patrimonio a largo plazo", emoji: "🏛️" },
+    { key: "house",             label: t("home.goalOptions.house"),             emoji: "🏠" },
+    { key: "car",               label: t("home.goalOptions.car"),               emoji: "🚗" },
+    { key: "passive_income",    label: t("home.goalOptions.passiveIncome"),     emoji: "💸" },
+    { key: "retirement",        label: t("home.goalOptions.retirement"),        emoji: "👴" },
+    { key: "financial_freedom", label: t("home.goalOptions.financialFreedom"),  emoji: "🦅" },
+    { key: "long_term_wealth",  label: t("home.goalOptions.longTermWealth"),    emoji: "🏛️" },
   ];
 
   return (
@@ -566,9 +534,9 @@ export default function HomePage() {
             {brokerView === "list" && (
               <div className="p-6">
                 <p className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: "#f59e0b" }}>
-                  Brokers en {brokerCountry.label}
+                  {t("home.brokerModal.brokersIn", { country: brokerCountry.label })}
                 </p>
-                <h2 className="text-xl font-black mb-5" style={{ color: "var(--text)" }}>¿Con cuál quieres empezar?</h2>
+                <h2 className="text-xl font-black mb-5" style={{ color: "var(--text)" }}>{t("home.brokerModal.chooseTitle")}</h2>
                 <div className="flex flex-col gap-3 mb-4">
                   {brokerCountry.brokers.map(b => (
                     <button key={b.name} onClick={() => { setSelectedBroker(b); setBrokerView("detail"); }}
@@ -598,7 +566,7 @@ export default function HomePage() {
                 <button onClick={dismissBrokerCard}
                         className="w-full py-2.5 text-sm text-center transition-colors hover:opacity-70"
                         style={{ color: "var(--muted)" }}>
-                  Ya tengo cuenta de broker
+                  {t("home.brokerModal.alreadyHaveBroker")}
                 </button>
               </div>
             )}
@@ -609,7 +577,7 @@ export default function HomePage() {
                 <button onClick={() => setBrokerView("list")}
                         className="flex items-center gap-1.5 text-xs mb-5 hover:opacity-70 transition-opacity"
                         style={{ color: "var(--muted)" }}>
-                  ← Todos los brokers
+                  {t("home.brokerModal.backAll")}
                 </button>
                 <div className="flex items-center gap-3 mb-4">
                   <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-3xl shrink-0"
@@ -629,7 +597,7 @@ export default function HomePage() {
                   {selectedBroker.tag}
                 </span>
                 <p className="text-sm mb-4 leading-relaxed" style={{ color: "var(--muted)" }}>{selectedBroker.desc}</p>
-                <p className="text-[10px] font-bold uppercase tracking-widest mb-3" style={{ color: "var(--sub)" }}>Por qué lo recomendamos</p>
+                <p className="text-[10px] font-bold uppercase tracking-widest mb-3" style={{ color: "var(--sub)" }}>{t("home.brokerModal.whyRecommend")}</p>
                 <div className="flex flex-col gap-2.5 mb-6">
                   {selectedBroker.pros.map((p, i) => (
                     <div key={i} className="flex items-center gap-2.5">
@@ -643,17 +611,17 @@ export default function HomePage() {
                 <button onClick={() => setBrokerView("upsell")}
                         className="w-full py-3.5 rounded-xl font-bold text-sm text-black mb-2.5 transition-opacity hover:opacity-90"
                         style={{ background: "#00d47e" }}>
-                  Crear cuenta con ayuda de Nuvos
+                  {t("home.brokerModal.createWithHelp")}
                 </button>
                 <button onClick={() => { setShowBrokerModal(false); setBrokerView("list"); }}
                         className="w-full py-3.5 rounded-xl font-bold text-sm border mb-3 transition-all hover:border-[var(--accent)]"
                         style={{ borderColor: "var(--border)", color: "var(--text)" }}>
-                  Crear cuenta solo
+                  {t("home.brokerModal.createAlone")}
                 </button>
                 <button onClick={dismissBrokerCard}
                         className="w-full py-2 text-xs text-center hover:opacity-70 transition-opacity"
                         style={{ color: "var(--muted)" }}>
-                  Ya tengo cuenta de broker
+                  {t("home.brokerModal.alreadyHaveBroker")}
                 </button>
               </div>
             )}
@@ -664,33 +632,33 @@ export default function HomePage() {
                 <button onClick={() => setBrokerView("detail")}
                         className="flex items-center gap-1.5 text-xs mb-4 hover:opacity-70 transition-opacity"
                         style={{ color: "var(--muted)" }}>
-                  ← Volver
+                  {t("home.brokerModal.back")}
                 </button>
                 {upsellCountdown !== null && upsellCountdown > 0 && (
                   <div className="flex items-center justify-center gap-2.5 py-3.5 rounded-xl mb-4"
                        style={{ background: "rgba(239,68,68,0.07)", border: "1px solid rgba(239,68,68,0.2)" }}>
                     <span className="text-lg">⏱</span>
                     <span className="text-xl font-black" style={{ color: "#ef4444" }}>
-                      Oferta expira en {fmtCountdown(upsellCountdown)}
+                      {t("home.brokerModal.offerExpiresIn", { time: fmtCountdown(upsellCountdown) })}
                     </span>
                   </div>
                 )}
                 {upsellCountdown === 0 && (
                   <div className="flex items-center justify-center py-3 rounded-xl mb-4"
                        style={{ background: "rgba(107,114,128,0.1)", border: "1px solid var(--border)" }}>
-                    <span className="text-base font-bold" style={{ color: "var(--muted)" }}>La oferta especial ha expirado</span>
+                    <span className="text-base font-bold" style={{ color: "var(--muted)" }}>{t("home.brokerModal.offerExpired")}</span>
                   </div>
                 )}
                 <div className="rounded-2xl p-5 mb-4"
                      style={{ background: "rgba(0,212,126,0.04)", border: "1px solid rgba(0,212,126,0.2)" }}>
                   <p className="text-[10px] font-bold uppercase tracking-widest mb-2" style={{ color: "#00d47e" }}>
-                    Sesión 1:1 con Nuvos AI
+                    {t("home.brokerModal.sessionTitle")}
                   </p>
                   <h3 className="text-lg font-black mb-2 leading-snug" style={{ color: "var(--text)" }}>
-                    Te acompañamos a abrir tu cuenta en {selectedBroker?.name ?? "tu broker"}
+                    {t("home.brokerModal.weHelpOpen", { broker: selectedBroker?.name ?? t("home.brokerModal.yourBroker") })}
                   </h3>
                   <div className="flex flex-col gap-2.5 mb-5">
-                    {["Crear tu cuenta paso a paso","Navegar por la plataforma del broker","Buscar acciones, ETFs e instrumentos","Depositar dinero de forma segura"].map((item, i) => (
+                    {[t("home.brokerModal.step1"), t("home.brokerModal.step2"), t("home.brokerModal.step3"), t("home.brokerModal.step4")].map((item, i) => (
                       <div key={i} className="flex items-center gap-2.5">
                         <div className="w-5 h-5 rounded-md shrink-0 flex items-center justify-center text-xs"
                              style={{ background: "rgba(0,212,126,0.12)", color: "#00d47e" }}>✓</div>
@@ -702,23 +670,23 @@ export default function HomePage() {
                     <span className="text-3xl font-black" style={{ color: "var(--text)" }}>$49 USD</span>
                     <span className="text-xl font-bold line-through" style={{ color: "var(--dim)" }}>$89 USD</span>
                     <span className="text-base font-black px-2.5 py-1 rounded-full"
-                          style={{ background: "rgba(239,68,68,0.15)", color: "#ef4444" }}>-45% OFF</span>
+                          style={{ background: "rgba(239,68,68,0.15)", color: "#ef4444" }}>{t("home.brokerModal.offBadge")}</span>
                   </div>
                   <button onClick={handleBrokerCheckout} disabled={brokerCheckoutLoading}
                           className="flex items-center justify-center w-full py-3.5 rounded-xl font-bold text-sm text-black transition-opacity hover:opacity-90 disabled:opacity-60"
                           style={{ background: "#00d47e" }}>
-                    {brokerCheckoutLoading ? "Redirigiendo…" : upsellCountdown === 0 ? "Contratar sesión — $89 USD →" : "Agendar mi llamada — $49 USD →"}
+                    {brokerCheckoutLoading ? t("home.brokerModal.redirecting") : upsellCountdown === 0 ? t("home.brokerModal.hireSession") : t("home.brokerModal.scheduleCall")}
                   </button>
                 </div>
                 <button onClick={() => { setShowBrokerModal(false); setBrokerView("list"); }}
                         className="w-full py-3 rounded-xl font-bold text-sm border mb-2 transition-all hover:border-[var(--accent)]"
                         style={{ borderColor: "var(--border)", color: "var(--text)" }}>
-                  Prefiero hacerlo solo
+                  {t("home.brokerModal.preferAlone")}
                 </button>
                 <button onClick={dismissBrokerCard}
                         className="w-full py-2 text-xs text-center hover:opacity-70 transition-opacity"
                         style={{ color: "var(--muted)" }}>
-                  Ya tengo cuenta de broker
+                  {t("home.brokerModal.alreadyHaveBroker")}
                 </button>
               </div>
             )}
@@ -736,10 +704,10 @@ export default function HomePage() {
                onClick={e => e.stopPropagation()}>
 
             <h3 className="text-base font-black mb-1" style={{ color: "var(--text)" }}>
-              🎯 Tu meta financiera
+              🎯 {t("home.goalModal.title")}
             </h3>
             <p className="text-xs mb-4" style={{ color: "var(--muted)" }}>
-              ¿Cuál es tu objetivo de inversión?
+              {t("home.goalModal.subtitle")}
             </p>
 
             {/* Goal options grid */}
@@ -763,7 +731,7 @@ export default function HomePage() {
             {/* Amount input */}
             <div className="mb-5">
               <label className="text-[10px] font-bold uppercase tracking-wider mb-1.5 block" style={{ color: "var(--muted)" }}>
-                Patrimonio objetivo (opcional)
+                {t("home.goalModal.targetAmount")}
               </label>
               <div className="flex items-center gap-2 px-3 py-2 rounded-xl border"
                    style={{ background: "var(--raised)", borderColor: "var(--border)" }}>
@@ -790,12 +758,12 @@ export default function HomePage() {
               <button onClick={() => setShowGoalModal(false)}
                       className="flex-1 py-2.5 rounded-xl text-sm font-bold border transition-all"
                       style={{ borderColor: "var(--border)", color: "var(--sub)" }}>
-                Cancelar
+                {t("common.cancel")}
               </button>
               <button onClick={saveGoal} disabled={!goalDraft || savingGoal}
                       className="flex-1 py-2.5 rounded-xl text-sm font-black transition-all disabled:opacity-40"
                       style={{ background: "var(--accent)", color: "#000" }}>
-                {savingGoal ? "Guardando…" : "Guardar"}
+                {savingGoal ? t("common.saving") : t("common.save")}
               </button>
             </div>
           </div>
@@ -811,10 +779,10 @@ export default function HomePage() {
                style={{ background: "var(--bg)", borderColor: "var(--border)" }}>
             <div>
               <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--muted)" }}>
-                Tu resumen de hoy
+                {t("home.todaySummary")}
               </p>
               <h1 className="text-2xl font-black tracking-tight" style={{ color: "var(--text)" }}>
-                {greeting()}, {firstName} 👋
+                {greeting(t)}, {firstName} 👋
               </h1>
             </div>
             <div className="flex items-center gap-3">
@@ -826,11 +794,11 @@ export default function HomePage() {
                    }}>
                 <span className="w-1.5 h-1.5 rounded-full"
                       style={{ background: marketOpen ? "#22c55e" : "var(--dim)" }} />
-                {marketOpen ? "Mercado abierto" : "Mercado cerrado"}
+                {marketOpen ? t("home.marketOpen") : t("home.marketClosed")}
               </div>
               {isBeginnerMode && beginnerCardDismissed && (
                 <button onClick={reopenBeginnerCard}
-                        title="Mostrar guía para empezar"
+                        title={t("home.showGuideTooltip")}
                         className="relative w-9 h-9 flex items-center justify-center rounded-xl border transition-colors hover:border-[var(--accent)]"
                         style={{ borderColor: "var(--border)", background: "var(--raised)" }}>
                   <GraduationCap className="w-4 h-4" style={{ color: "var(--sub)" }} />
@@ -865,26 +833,26 @@ export default function HomePage() {
                    style={{ borderColor: "rgba(0,212,126,0.25)", background: "var(--card)" }}>
                 <div className="h-1" style={{ background: "linear-gradient(90deg,#00d47e,#00a8ff)" }} />
                 <button onClick={dismissBeginnerCard}
-                        aria-label="Cerrar"
+                        aria-label={t("common.close")}
                         className="absolute top-3 right-3 w-7 h-7 flex items-center justify-center rounded-lg transition-opacity hover:opacity-70"
                         style={{ color: "var(--muted)" }}>
                   <X className="w-4 h-4" />
                 </button>
                 <div className="p-5">
                   <p className="text-[10px] font-bold uppercase tracking-widest mb-1"
-                     style={{ color: "var(--accent-l)" }}>Tu camino para empezar</p>
+                     style={{ color: "var(--accent-l)" }}>{t("home.beginnerCard.eyebrow")}</p>
                   <h3 className="text-base font-black mb-1 pr-8" style={{ color: "var(--text)" }}>
-                    Invierte con confianza, paso a paso
+                    {t("home.beginnerCard.title")}
                   </h3>
                   <p className="text-xs mb-4" style={{ color: "var(--muted)" }}>
-                    Sin tecnicismos. Sin riesgo al inicio. Solo tú, tu meta y tu mentor IA.
+                    {t("home.beginnerCard.subtitle")}
                   </p>
 
                   <div className="grid grid-cols-3 gap-2 mb-4">
                     {([
-                      { icon: "📚", title: "Aprende lo básico", desc: "Qué es una acción, un ETF y cómo funciona la bolsa", href: "/learn" },
-                      { icon: "🎮", title: "Practica sin dinero", desc: "Opera con $10,000 virtuales antes de arriesgar el tuyo", href: "/paper" },
-                      { icon: "🚀", title: "Tu primera inversión", desc: "Los mejores ETFs para empezar con poco dinero", href: "/screener" },
+                      { icon: "📚", title: t("home.beginnerCard.step1Title"), desc: t("home.beginnerCard.step1Desc"), href: "/learn" },
+                      { icon: "🎮", title: t("home.beginnerCard.step2Title"), desc: t("home.beginnerCard.step2Desc"), href: "/paper" },
+                      { icon: "🚀", title: t("home.beginnerCard.step3Title"), desc: t("home.beginnerCard.step3Desc"), href: "/screener" },
                     ] as const).map((s) => (
                       <button key={s.href} onClick={() => router.push(s.href)}
                               className="flex flex-col items-start p-3 rounded-xl border transition-all hover:opacity-80 text-left"
@@ -899,14 +867,14 @@ export default function HomePage() {
                   <button onClick={() => router.push("/chat")}
                           className="w-full py-2.5 rounded-xl text-sm font-black transition-all hover:opacity-90"
                           style={{ background: "var(--accent)", color: "#000" }}>
-                    Pregúntale a tu mentor IA →
+                    {t("home.beginnerCard.askMentor")}
                   </button>
 
                   {isGuest && (
                     <button onClick={() => router.push("/")}
                             className="w-full py-2 mt-2 text-xs font-semibold transition-all hover:opacity-70"
                             style={{ color: "var(--muted)" }}>
-                      Crear mi cuenta gratis — es totalmente gratis
+                      {t("home.beginnerCard.createFreeAccount")}
                     </button>
                   )}
                 </div>
@@ -933,7 +901,7 @@ export default function HomePage() {
                      style={{ color: dayGain >= 0 ? "#22c55e" : "#ef4444" }}>
                     {loading ? "—" : fmtPct(dayGainPct)}
                   </p>
-                  <p className="text-[10px] mt-0.5" style={{ color: "var(--muted)" }}>Portafolio hoy</p>
+                  <p className="text-[10px] mt-0.5" style={{ color: "var(--muted)" }}>{t("home.stats.portfolioToday")}</p>
                 </div>
               </button>
 
@@ -945,9 +913,9 @@ export default function HomePage() {
                   <span className="text-lg shrink-0">🏦</span>
                   <div className="text-left min-w-0">
                     <p className="text-sm font-black leading-none truncate" style={{ color: "#f59e0b" }}>
-                      Abre tu broker
+                      {t("home.brokerChip.openBroker")}
                     </p>
-                    <p className="text-[10px] mt-0.5" style={{ color: "var(--muted)" }}>Crea tu cuenta</p>
+                    <p className="text-[10px] mt-0.5" style={{ color: "var(--muted)" }}>{t("home.brokerChip.createAccount")}</p>
                   </div>
                 </button>
               )}
@@ -960,9 +928,9 @@ export default function HomePage() {
                 <div className="text-left min-w-0">
                   <p className="text-sm font-black leading-none"
                      style={{ color: streak > 0 ? "#f59e0b" : "var(--text)" }}>
-                    {streak} días
+                    {t("home.streakCard.days", { count: streak })}
                   </p>
-                  <p className="text-[10px] mt-0.5" style={{ color: "var(--muted)" }}>Racha</p>
+                  <p className="text-[10px] mt-0.5" style={{ color: "var(--muted)" }}>{t("home.stats.streak")}</p>
                 </div>
               </button>
 
@@ -975,12 +943,12 @@ export default function HomePage() {
                   : <Target className="w-5 h-5 shrink-0" style={{ color: "var(--accent-l)" }} />}
                 <div className="text-left min-w-0">
                   <p className="text-sm font-black leading-none truncate" style={{ color: "var(--text)" }}>
-                    {goalInfo ? goalInfo.label : "Sin meta"}
+                    {goalInfo ? goalInfo.label : t("home.stats.noGoal")}
                   </p>
                   <p className="text-[10px] mt-0.5 truncate" style={{ color: "var(--accent-l)" }}>
                     {goalAmount > 0
                       ? `$${goalAmount.toLocaleString("en-US")} USD`
-                      : goalInfo ? "Meta activa" : "Meta"}
+                      : goalInfo ? t("home.stats.activeGoal") : t("home.stats.goal")}
                   </p>
                 </div>
               </button>
@@ -994,9 +962,9 @@ export default function HomePage() {
                 <div className="text-left min-w-0">
                   <p className="text-sm font-black leading-none"
                      style={{ color: unread > 0 ? "#ef4444" : "var(--text)" }}>
-                    {unread > 0 ? `${unread} nuevas` : totalNotifs > 0 ? `${totalNotifs} alertas` : "Sin alertas"}
+                    {unread > 0 ? t("home.stats.newAlerts", { count: unread }) : totalNotifs > 0 ? t("home.stats.alertsCount", { count: totalNotifs }) : t("home.stats.noAlerts")}
                   </p>
-                  <p className="text-[10px] mt-0.5" style={{ color: "var(--muted)" }}>Notificaciones</p>
+                  <p className="text-[10px] mt-0.5" style={{ color: "var(--muted)" }}>{t("home.stats.notifications")}</p>
                 </div>
               </button>
             </div>
@@ -1013,7 +981,7 @@ export default function HomePage() {
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex-1 min-w-0">
                     <p className="text-xs font-semibold uppercase tracking-wide mb-1 flex items-center gap-1.5" style={{ color: "var(--muted)" }}>
-                      MI PORTAFOLIO
+                      {t("home.portfolioHero.myPortfolio")}
                       <span className="text-[10px] font-black px-1.5 py-0.5 rounded-md"
                             style={{ background: "var(--raised)", color: "var(--sub)" }}>
                         {portfolioCurrency}
@@ -1048,12 +1016,12 @@ export default function HomePage() {
                        style={{ borderColor: "var(--border)" }}>
                     {/* Hoy */}
                     <div className="flex-1 pr-4">
-                      <p className="text-[11px] font-medium mb-1" style={{ color: "var(--muted)" }}>Hoy</p>
+                      <p className="text-[11px] font-medium mb-1" style={{ color: "var(--muted)" }}>{t("home.portfolioHero.today")}</p>
                       <p className="text-xl font-black tracking-tight leading-none" style={{ color: dayGain >= 0 ? "#22c55e" : "#ef4444" }}>
                         {fmtPct(dayGainPct)}
                       </p>
                       <p className="text-[11px] mt-1" style={{ color: "var(--sub)" }}>
-                        Rendimiento Hoy ({dayGain >= 0 ? "+" : ""}{fmt(dayGain, portfolioCurrency)})
+                        {t("home.portfolioHero.todayReturn")} ({dayGain >= 0 ? "+" : ""}{fmt(dayGain, portfolioCurrency)})
                       </p>
                     </div>
                     {/* Divider */}
@@ -1067,7 +1035,7 @@ export default function HomePage() {
                             {fmtPct(ytdPct ?? 0)}
                           </p>
                           <p className="text-[11px] mt-1" style={{ color: "var(--sub)" }}>
-                            {isPremium ? "Rendimiento YTD" : "Últimos 5 días"} ({ytdGain >= 0 ? "+" : ""}{fmt(ytdGain * fxRate, portfolioCurrency)})
+                            {isPremium ? t("home.portfolioHero.ytd") : t("home.portfolioHero.last5Days")} ({ytdGain >= 0 ? "+" : ""}{fmt(ytdGain * fxRate, portfolioCurrency)})
                           </p>
                         </>
                       ) : (
@@ -1087,7 +1055,7 @@ export default function HomePage() {
                               ({totalGain >= 0 ? "+" : ""}{fmt(totalGain, portfolioCurrency)})
                             </span>
                           </p>
-                          <p className="text-[11px] mt-1" style={{ color: "var(--sub)" }}>Rendimiento Total</p>
+                          <p className="text-[11px] mt-1" style={{ color: "var(--sub)" }}>{t("home.portfolioHero.total")}</p>
                         </>
                       ) : shortGain !== null ? (
                         <>
@@ -1095,7 +1063,7 @@ export default function HomePage() {
                             {fmtPct(shortPct ?? 0)}
                           </p>
                           <p className="text-[11px] mt-1" style={{ color: "var(--sub)" }}>
-                            Último mes ({shortGain >= 0 ? "+" : ""}{fmt(shortGain * fxRate, portfolioCurrency)})
+                            {t("home.portfolioHero.lastMonth", { amount: `${shortGain >= 0 ? "+" : ""}${fmt(shortGain * fxRate, portfolioCurrency)}` })}
                           </p>
                         </>
                       ) : (
@@ -1107,23 +1075,23 @@ export default function HomePage() {
 
                 {!loading && !positions.length && (
                   <div className="mt-4 pt-4 border-t border-dashed" style={{ borderColor: "var(--border)" }}>
-                    <p className="text-sm font-black mb-1" style={{ color: "var(--text)" }}>Agrega tu primera acción</p>
+                    <p className="text-sm font-black mb-1" style={{ color: "var(--text)" }}>{t("home.portfolioHero.addFirstStock")}</p>
                     <p className="text-xs mb-3 leading-relaxed" style={{ color: "var(--muted)" }}>
-                      Registra tus posiciones y Nuvos te dará análisis IA, alertas de precio y seguimiento en tiempo real.
+                      {t("home.portfolioHero.addFirstStockDesc")}
                     </p>
                     <div className="flex flex-wrap gap-1.5 mb-3">
-                      {["AAPL", "NVDA", "MSFT", "TSLA", "GOOGL"].map((t) => (
-                        <button key={t} onClick={() => router.push("/portfolio")}
+                      {["AAPL", "NVDA", "MSFT", "TSLA", "GOOGL"].map((ticker) => (
+                        <button key={ticker} onClick={() => router.push("/portfolio")}
                                 className="text-xs font-bold px-2.5 py-1 rounded-lg border transition-colors hover:border-[var(--accent)]"
                                 style={{ borderColor: "var(--border)", color: "var(--accent-l)", background: "var(--raised)" }}>
-                          {t}
+                          {ticker}
                         </button>
                       ))}
                     </div>
                     <button onClick={() => router.push("/portfolio")}
                             className="w-full py-2 rounded-xl text-xs font-bold transition-colors"
                             style={{ background: "var(--accent)", color: "#fff" }}>
-                      + Agregar posición →
+                      {t("home.portfolioHero.addPosition")}
                     </button>
                   </div>
                 )}
@@ -1146,9 +1114,9 @@ export default function HomePage() {
                       : <Target className="w-5 h-5" style={{ color: "var(--accent-l)" }} />}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-[10px] font-semibold uppercase tracking-wide mb-0.5" style={{ color: "var(--muted)" }}>Mi meta</p>
+                    <p className="text-[10px] font-semibold uppercase tracking-wide mb-0.5" style={{ color: "var(--muted)" }}>{t("home.goalCard.myGoal")}</p>
                     <p className="text-sm font-black truncate" style={{ color: "var(--text)" }}>
-                      {goalInfo ? goalInfo.label : "Configura tu meta"}
+                      {goalInfo ? goalInfo.label : t("home.goalCard.configureGoal")}
                     </p>
                     {goalAmount > 0 && (
                       <p className="text-[11px] font-semibold mt-0.5" style={{ color: "var(--accent-l)" }}>
@@ -1161,7 +1129,7 @@ export default function HomePage() {
                       </div>
                     )}
                     {goalPct > 0 && (
-                      <p className="text-[10px] mt-0.5" style={{ color: "var(--muted)" }}>{goalPct.toFixed(1)}% completado</p>
+                      <p className="text-[10px] mt-0.5" style={{ color: "var(--muted)" }}>{t("home.goalCard.completedPct", { pct: goalPct.toFixed(1) })}</p>
                     )}
                   </div>
                 </button>
@@ -1175,12 +1143,12 @@ export default function HomePage() {
                     {streak >= 7 ? "🔥" : streak >= 3 ? "⚡" : "✨"}
                   </div>
                   <div>
-                    <p className="text-[10px] font-semibold uppercase tracking-wide mb-0.5" style={{ color: "var(--muted)" }}>Racha</p>
+                    <p className="text-[10px] font-semibold uppercase tracking-wide mb-0.5" style={{ color: "var(--muted)" }}>{t("home.stats.streak")}</p>
                     <p className="text-xl font-black leading-none" style={{ color: streak > 0 ? "#f59e0b" : "var(--text)" }}>
-                      {streak} días
+                      {t("home.streakCard.days", { count: streak })}
                     </p>
                     <p className="text-[10px] mt-0.5" style={{ color: "var(--muted)" }}>
-                      {streak === 0 ? "¡Empieza hoy!" : "seguidos"}
+                      {streak === 0 ? t("home.streakCard.startToday") : t("home.streakCard.consecutive")}
                     </p>
                   </div>
                 </button>
@@ -1199,7 +1167,7 @@ export default function HomePage() {
                   <div className="flex-1 min-w-0">
                     <p className="text-[10px] font-semibold uppercase tracking-wide mb-0.5"
                        style={{ color: completedToday ? "#22c55e" : "var(--muted)" }}>
-                      {completedToday ? "Completada hoy ✓" : "Lección del día"}
+                      {completedToday ? t("home.lessonCard.completedToday") : t("home.lessonCard.lessonOfDay")}
                     </p>
                     <p className="text-sm font-black" style={{ color: "var(--text)" }}>{dailyLesson.title}</p>
                     {"body" in dailyLesson && !completedToday && (
@@ -1214,7 +1182,7 @@ export default function HomePage() {
                     )}
                     {completedToday && (
                       <p className="text-[10px] mt-0.5 font-semibold" style={{ color: "#16a34a" }}>
-                        Ver otra lección →
+                        {t("home.lessonCard.viewAnother")}
                       </p>
                     )}
                   </div>
@@ -1228,11 +1196,11 @@ export default function HomePage() {
                 <div className="flex items-center justify-between mb-3">
                   <h2 className="text-sm font-bold flex items-center gap-1.5" style={{ color: "var(--text)" }}>
                     <Bell className="w-4 h-4" style={{ color: "var(--muted)" }} />
-                    Lo más importante hoy
+                    {t("home.mostImportantToday")}
                   </h2>
                   <button onClick={() => router.push("/notifications")}
                           className="text-xs font-semibold" style={{ color: "var(--accent-l)" }}>
-                    Ver todo →
+                    {t("home.viewAll")}
                   </button>
                 </div>
                 <div className="rounded-xl border overflow-hidden" style={{ background: "var(--card)", borderColor: "var(--border)" }}>
@@ -1250,7 +1218,7 @@ export default function HomePage() {
                       </div>
                       {n.created_at && (
                         <p className="text-[10px] shrink-0 mt-0.5" style={{ color: "var(--dim)" }}>
-                          {timeAgo(n.created_at)}
+                          {timeAgo(n.created_at, t)}
                         </p>
                       )}
                     </button>
@@ -1265,10 +1233,10 @@ export default function HomePage() {
             {/* ── Quick Actions ────────────────────────────────────────────── */}
             <div className="grid grid-cols-4 gap-3">
               {[
-                { icon: BookOpen,       label: "Pregunta algo",  sub: "Mentor IA",    href: "/chat",                accent: true  },
-                { icon: Sparkles,       label: "Mi dinero",      sub: "Patrimonio",   href: "/patrimonio",          accent: false },
-                { icon: GraduationCap,  label: "Aprender",       sub: "Academy",      href: "/learn",               accent: false },
-                { icon: Flame,          label: "Mi perfil",      sub: "Stats",        href: "/profile",             accent: false },
+                { icon: BookOpen,       label: t("home.quickActions.askSomething"), sub: t("home.quickActions.aiMentor"),   href: "/chat",       accent: true  },
+                { icon: Sparkles,       label: t("home.quickActions.myMoney"),      sub: t("home.quickActions.patrimonio"), href: "/patrimonio", accent: false },
+                { icon: GraduationCap,  label: t("home.quickActions.learn"),        sub: t("home.quickActions.academy"),    href: "/learn",       accent: false },
+                { icon: Flame,          label: t("home.quickActions.myProfile"),    sub: t("home.quickActions.stats"),      href: "/profile",     accent: false },
               ].map(({ icon: Icon, label, sub, href, accent }) => (
                 <button key={href}
                         onClick={() => router.push(href)}
@@ -1288,10 +1256,10 @@ export default function HomePage() {
             {positions.length > 0 && (
               <div>
                 <div className="flex items-center justify-between mb-3">
-                  <h2 className="text-sm font-bold" style={{ color: "var(--text)" }}>📈 Subiendo hoy</h2>
+                  <h2 className="text-sm font-bold" style={{ color: "var(--text)" }}>{t("home.risingToday")}</h2>
                   <button onClick={() => router.push("/patrimonio")}
                           className="text-xs font-semibold" style={{ color: "var(--accent-l)" }}>
-                    Ver todo →
+                    {t("home.viewAll")}
                   </button>
                 </div>
                 <div className="rounded-xl border overflow-hidden" style={{ background: "var(--card)", borderColor: "var(--border)" }}>
@@ -1311,7 +1279,7 @@ export default function HomePage() {
                     ? (
                         <div className="px-4 py-5 text-center">
                           <p className="text-sm" style={{ color: "var(--muted)" }}>
-                            Sin posiciones al alza hoy
+                            {t("home.noPositionsUp")}
                           </p>
                         </div>
                       )
@@ -1343,10 +1311,10 @@ export default function HomePage() {
             {losers.length > 0 && (
               <div>
                 <div className="flex items-center justify-between mb-3">
-                  <h2 className="text-sm font-bold" style={{ color: "var(--text)" }}>📉 Cayendo hoy</h2>
+                  <h2 className="text-sm font-bold" style={{ color: "var(--text)" }}>{t("home.fallingToday")}</h2>
                   <button onClick={() => router.push("/patrimonio")}
                           className="text-xs font-semibold" style={{ color: "var(--accent-l)" }}>
-                    Ver todo →
+                    {t("home.viewAll")}
                   </button>
                 </div>
                 <div className="rounded-xl border overflow-hidden" style={{ background: "var(--card)", borderColor: "var(--border)" }}>
@@ -1379,11 +1347,11 @@ export default function HomePage() {
                 <div className="flex items-center justify-between mb-3">
                   <h2 className="text-sm font-bold flex items-center gap-1.5" style={{ color: "var(--text)" }}>
                     <Newspaper className="w-4 h-4" style={{ color: "var(--muted)" }} />
-                    Noticias de tu portafolio
+                    {t("home.portfolioNews")}
                   </h2>
                   <button onClick={() => router.push("/notifications")}
                           className="text-xs font-semibold" style={{ color: "var(--accent-l)" }}>
-                    Ver más →
+                    {t("home.viewMore")}
                   </button>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -1428,11 +1396,11 @@ export default function HomePage() {
                 <Sparkles className="w-5 h-5" style={{ color: "var(--accent-l)" }} />
               </div>
               <div className="flex-1 text-left">
-                <p className="text-sm font-bold" style={{ color: "var(--text)" }}>Habla con tu Mentor IA</p>
+                <p className="text-sm font-bold" style={{ color: "var(--text)" }}>{t("home.mentorCta.title")}</p>
                 <p className="text-xs" style={{ color: "var(--muted)" }}>
                   {positions.length
-                    ? `Analiza tus ${positions.length} posiciones o pide consejo de inversión`
-                    : "Chatea sobre inversiones, acciones o estrategias"}
+                    ? t("home.mentorCta.withPositions", { count: positions.length })
+                    : t("home.mentorCta.withoutPositions")}
                 </p>
               </div>
               <ChevronRight className="w-5 h-5 shrink-0" style={{ color: "var(--dim)" }} />

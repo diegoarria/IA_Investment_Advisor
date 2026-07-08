@@ -8,6 +8,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import Svg, { Path, Defs, LinearGradient, Stop } from "react-native-svg";
 import { Ionicons } from "@expo/vector-icons";
 import { router, useFocusEffect } from "expo-router";
+import { useTranslation } from "react-i18next";
 import { useTheme } from "../../src/lib/ThemeContext";
 import { useAppStore } from "../../src/lib/profileStore";
 import { profileApi, syncApi, billingApi, feedbackApi, learnApi } from "../../src/lib/api";
@@ -70,24 +71,16 @@ const SHORT: Record<string, string> = {
   "^GSPC": "S&P 500", "^IXIC": "Nasdaq", "^DJI": "Dow Jones", "^RUT": "Russell", "^VIX": "VIX",
 };
 
-function relTime(ts: number): string {
+function relTime(ts: number, t: (k: string, o?: any) => string): string {
   const h = Math.floor((Date.now() / 1000 - ts) / 3600);
-  if (h < 1) return "Ahora";
-  if (h === 1) return "Hace 1h";
-  if (h < 24) return `Hace ${h}h`;
+  if (h < 1) return t("home.idx.now");
+  if (h === 1) return t("home.idx.hoursAgoOne");
+  if (h < 24) return t("home.idx.hoursAgo", { h });
   const d = Math.floor(h / 24);
-  return d === 1 ? "Ayer" : `Hace ${d}d`;
+  return d === 1 ? t("home.idx.yesterday") : t("home.idx.daysAgo", { d });
 }
 
-const IDX_PERIODS: { key: string; label: string }[] = [
-  { key: "1d",  label: "1D"  },
-  { key: "5d",  label: "5D"  },
-  { key: "6m",  label: "6M"  },
-  { key: "ytd", label: "YTD" },
-  { key: "1y",  label: "1A"  },
-  { key: "5y",  label: "5A"  },
-  { key: "max", label: "MÁX" },
-];
+const IDX_PERIOD_KEYS = ["1d", "5d", "6m", "ytd", "1y", "5y", "max"] as const;
 
 function calcReturn(prices: number[]): number | null {
   if (prices.length < 2 || prices[0] === 0) return null;
@@ -97,6 +90,7 @@ function calcReturn(prices: number[]): number | null {
 function IndexDetailModal({ idx, chartPrices, onClose, colors }: {
   idx: IdxData; chartPrices: number[]; onClose: () => void; colors: any;
 }) {
+  const { t } = useTranslation();
   const [period, setPeriod] = useState("1d");
   const [periodPrices, setPeriodPrices] = useState(chartPrices);
   const [periodLoading, setPeriodLoading] = useState(false);
@@ -160,13 +154,13 @@ function IndexDetailModal({ idx, chartPrices, onClose, colors }: {
                 </View>
                 {isHistorical && (
                   <Text style={{ fontSize: 10, color: colors.textDim, fontWeight: "600" }}>
-                    {IDX_PERIODS.find(p => p.key === period)?.label}
+                    {t(`home.idx.periods.${period}`)}
                   </Text>
                 )}
               </View>
               {isHistorical && (
                 <Text style={{ fontSize: 11, color: colors.textDim, marginTop: 3 }}>
-                  Hoy:{" "}
+                  {t("home.idx.today")}{" "}
                   <Text style={{ color: idx.change_pct >= 0 ? "#22c55e" : "#ef4444", fontWeight: "700" }}>
                     {idx.change_pct >= 0 ? "+" : ""}{idx.change_pct.toFixed(2)}%
                   </Text>
@@ -181,13 +175,13 @@ function IndexDetailModal({ idx, chartPrices, onClose, colors }: {
           {/* Period selector */}
           <ScrollView horizontal showsHorizontalScrollIndicator={false}
                       contentContainerStyle={idxMStyles.periods}>
-            {IDX_PERIODS.map(({ key, label }) => (
+            {IDX_PERIOD_KEYS.map((key) => (
               <TouchableOpacity key={key} onPress={() => loadPeriod(key)}
                                 style={[idxMStyles.periodBtn,
                                         period === key && { backgroundColor: col + "22", borderColor: col + "60" }]}>
                 <Text style={{ fontSize: 11, fontWeight: "700",
                                color: period === key ? col : colors.textMuted }}>
-                  {label}
+                  {t(`home.idx.periods.${key}`)}
                 </Text>
               </TouchableOpacity>
             ))}
@@ -203,7 +197,7 @@ function IndexDetailModal({ idx, chartPrices, onClose, colors }: {
               <Sparkline prices={periodPrices} color={col} width={CHDIMS.w} height={CHDIMS.h} />
             ) : (
               <View style={{ width: CHDIMS.w, height: CHDIMS.h, alignItems: "center", justifyContent: "center" }}>
-                <Text style={{ color: colors.textDim, fontSize: 12 }}>Sin datos</Text>
+                <Text style={{ color: colors.textDim, fontSize: 12 }}>{t("home.idx.noData")}</Text>
               </View>
             )}
           </View>
@@ -215,12 +209,12 @@ function IndexDetailModal({ idx, chartPrices, onClose, colors }: {
           <View style={{ paddingHorizontal: 20, paddingTop: 14, paddingBottom: 20 }}>
             <Text style={{ fontSize: 11, fontWeight: "700", color: colors.textMuted,
                            letterSpacing: 0.6, textTransform: "uppercase", marginBottom: 10 }}>
-              Noticias
+              {t("home.idx.news")}
             </Text>
             {newsLoading ? (
               <ActivityIndicator color={colors.accentLight} style={{ marginTop: 8 }} />
             ) : news.length === 0 ? (
-              <Text style={{ color: colors.textDim, fontSize: 12 }}>Sin noticias disponibles</Text>
+              <Text style={{ color: colors.textDim, fontSize: 12 }}>{t("home.idx.noNews")}</Text>
             ) : (
               news.map((item, i) => (
                 <TouchableOpacity key={item.uuid || i} onPress={() => Linking.openURL(item.url)}
@@ -234,10 +228,10 @@ function IndexDetailModal({ idx, chartPrices, onClose, colors }: {
                       </Text>
                     </View>
                     <Text style={{ fontSize: 11, color: colors.textDim, marginTop: 4 }}>
-                      {item.publisher} · {relTime(item.timestamp)}
+                      {item.publisher} · {relTime(item.timestamp, t)}
                     </Text>
                     <Text style={{ fontSize: 12, fontWeight: "700", color: colors.accentLight, marginTop: 4 }}>
-                      Leer artículo →
+                      {t("home.idx.readArticle")}
                     </Text>
                   </View>
                   {item.thumbnail && (
@@ -306,13 +300,14 @@ function Skeleton({ w, h, r = 8 }: { w: number | string; h: number; r?: number }
 
 // ── Streak Ring ───────────────────────────────────────────────────────────────
 function StreakRing({ streak }: { streak: number }) {
+  const { t } = useTranslation();
   const { colors } = useTheme();
   const fire = streak >= 7 ? "🔥" : streak >= 3 ? "⚡" : "✨";
   return (
     <View style={[ss.streakRing, { borderColor: streak > 0 ? "#f59e0b" : colors.border }]}>
       <Text style={ss.streakEmoji}>{fire}</Text>
       <Text style={[ss.streakNum, { color: streak > 0 ? "#f59e0b" : colors.textMuted }]}>{streak}</Text>
-      <Text style={[ss.streakLabel, { color: colors.textMuted }]}>días</Text>
+      <Text style={[ss.streakLabel, { color: colors.textMuted }]}>{t("common.daysShort")}</Text>
     </View>
   );
 }
@@ -335,6 +330,7 @@ function ActionChip({ icon, label, onPress, accent = false, colors }: any) {
 }
 
 export default function HomeScreen() {
+  const { t } = useTranslation();
   const { colors } = useTheme();
   const profile    = useAppStore((s) => s.profile);
   const setProfile = useAppStore((s) => s.setProfile);
@@ -388,27 +384,30 @@ export default function HomeScreen() {
   const [goalError,     setGoalError]     = useState("");
 
   // ── Broker card ───────────────────────────────────────────────────────────
-  const BROKER_CATALOG: Record<string, { name: string; emoji: string; rating: number; tag: string; tagColor: string; desc: string; pros: string[] }[]> = {
+  type BrokerEntry = { name: string; emoji: string; rating: number; tag: string; tagColor: string; desc: string; pros: string[] };
+  const brokerCat = (country: string, idx: number): { tag: string; desc: string; pros: string[] } =>
+    t(`home.broker.catalog.${country}.${idx}`, { returnObjects: true }) as { tag: string; desc: string; pros: string[] };
+  const BROKER_CATALOG: Record<string, BrokerEntry[]> = {
     MX: [
-      { name: "GBM+",                   emoji: "🥇", rating: 4.8, tag: "Recomendado #1",  tagColor: "#00d47e", desc: "El broker más popular de México. App excelente, comisiones bajas.",   pros: ["App móvil de las mejores", "Sin comisión en acciones MX", "ETFs globales fáciles"] },
-      { name: "Interactive Brokers MX", emoji: "🌐", rating: 4.5, tag: "Para avanzados",  tagColor: "#3b82f6", desc: "Acceso a 150+ mercados globales. Ideal si quieres diversificar.",      pros: ["150+ bolsas del mundo",    "Tasas institucionales",        "Opciones y futuros"] },
-      { name: "Actinver",               emoji: "🏛️", rating: 4.0, tag: "Institucional",   tagColor: "#8b5cf6", desc: "Respaldo bancario. Perfecto para fondos y perfiles conservadores.",   pros: ["Respaldo bancario sólido", "Asesoría personal disponible", "Fondos de inversión"] },
+      { name: "GBM+",                   emoji: "🥇", rating: 4.8, tagColor: "#00d47e", ...brokerCat("MX", 0) },
+      { name: "Interactive Brokers MX", emoji: "🌐", rating: 4.5, tagColor: "#3b82f6", ...brokerCat("MX", 1) },
+      { name: "Actinver",               emoji: "🏛️", rating: 4.0, tagColor: "#8b5cf6", ...brokerCat("MX", 2) },
     ],
     AR: [
-      { name: "Invertir Online (IOL)",  emoji: "🥇", rating: 4.7, tag: "Recomendado #1",  tagColor: "#00d47e", desc: "Líder en Argentina. Fácil de usar, con acceso a bonos y acciones locales.", pros: ["Líder del mercado AR",    "Acceso a CEDEARs (ADRs)",     "Sin costo de mantenimiento"] },
-      { name: "Balanz",                 emoji: "🥈", rating: 4.4, tag: "Muy popular",      tagColor: "#f59e0b", desc: "Plataforma moderna con acceso a fondos, bonos y acciones.",             pros: ["Fondos de money market", "Acciones locales e internac.", "App moderna e intuitiva"] },
+      { name: "Invertir Online (IOL)",  emoji: "🥇", rating: 4.7, tagColor: "#00d47e", ...brokerCat("AR", 0) },
+      { name: "Balanz",                 emoji: "🥈", rating: 4.4, tagColor: "#f59e0b", ...brokerCat("AR", 1) },
     ],
     US: [
-      { name: "Interactive Brokers",    emoji: "🥇", rating: 4.9, tag: "Recomendado #1",  tagColor: "#00d47e", desc: "El broker más completo del mundo. 0 comisiones en acciones US.",        pros: ["0 comisiones en acciones", "Acceso a 150+ mercados",      "Tasas de interés en efectivo"] },
-      { name: "Robinhood",              emoji: "🥈", rating: 4.3, tag: "Más fácil",        tagColor: "#3b82f6", desc: "La app más simple para empezar. Perfecto para principiantes.",          pros: ["App más simple del mercado", "Acciones fraccionadas",       "Sin mínimo de inversión"] },
-      { name: "Charles Schwab",         emoji: "🏦", rating: 4.6, tag: "Más confiable",    tagColor: "#8b5cf6", desc: "Uno de los más confiables de EE.UU. Ideal para largo plazo.",           pros: ["Sin comisiones",           "Atención al cliente 24/7",    "Amplia variedad de ETFs"] },
+      { name: "Interactive Brokers",    emoji: "🥇", rating: 4.9, tagColor: "#00d47e", ...brokerCat("US", 0) },
+      { name: "Robinhood",              emoji: "🥈", rating: 4.3, tagColor: "#3b82f6", ...brokerCat("US", 1) },
+      { name: "Charles Schwab",         emoji: "🏦", rating: 4.6, tagColor: "#8b5cf6", ...brokerCat("US", 2) },
     ],
     CO: [
-      { name: "Acciones & Valores",     emoji: "🥇", rating: 4.5, tag: "Recomendado #1",  tagColor: "#00d47e", desc: "El broker referente en Colombia. Acceso a BVC y mercados internac.",   pros: ["Acceso a la BVC",          "Acciones internacionales",    "Asesoría local experta"] },
-      { name: "Interactive Brokers",    emoji: "🌐", rating: 4.8, tag: "Para avanzados",   tagColor: "#3b82f6", desc: "El mejor acceso global. Ideal si quieres invertir fuera de Colombia.", pros: ["Mercados globales",         "0 comisiones acciones US",    "Muy bien regulado"] },
+      { name: "Acciones & Valores",     emoji: "🥇", rating: 4.5, tagColor: "#00d47e", ...brokerCat("CO", 0) },
+      { name: "Interactive Brokers",    emoji: "🌐", rating: 4.8, tagColor: "#3b82f6", ...brokerCat("CO", 1) },
     ],
     DEFAULT: [
-      { name: "Interactive Brokers",    emoji: "🥇", rating: 4.9, tag: "Mejor global",     tagColor: "#00d47e", desc: "El broker con mejor acceso global. Disponible en +200 países.",        pros: ["200+ países",              "150+ bolsas del mundo",       "Tasas institucionales"] },
+      { name: "Interactive Brokers",    emoji: "🥇", rating: 4.9, tagColor: "#00d47e", ...brokerCat("DEFAULT", 0) },
     ],
   };
 
@@ -416,7 +415,7 @@ export default function HomeScreen() {
   const [showBrokerModal,  setShowBrokerModal]   = useState(false);
   const [brokerView,       setBrokerView]        = useState<"list" | "detail" | "upsell">("list");
   const [selectedBroker,   setSelectedBroker]    = useState<(typeof BROKER_CATALOG.MX)[0] | null>(null);
-  const [brokerCountry,    setBrokerCountry]     = useState<{ code: string; label: string; brokers: typeof BROKER_CATALOG.MX }>({ code: "DEFAULT", label: "Internacional", brokers: BROKER_CATALOG.DEFAULT });
+  const [brokerCountry,    setBrokerCountry]     = useState<{ code: string; label: string; brokers: typeof BROKER_CATALOG.MX }>({ code: "DEFAULT", label: t("home.broker.countryDefault"), brokers: BROKER_CATALOG.DEFAULT });
   const [upsellCountdown,  setUpsellCountdown]   = useState<number | null>(null);
   const upsellTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const UPSELL_MS = 24 * 60 * 60 * 1000;
@@ -431,15 +430,15 @@ export default function HomeScreen() {
       if (url) {
         await Linking.openURL(url);
       } else {
-        Alert.alert("Error", `Sin URL: ${JSON.stringify(res?.data ?? res)}`);
+        Alert.alert(t("common.error"), t("home.broker.noUrl", { details: JSON.stringify(res?.data ?? res) }));
       }
     } catch (e: any) {
-      Alert.alert("Error al procesar pago", e?.message ?? JSON.stringify(e));
+      Alert.alert(t("home.broker.checkoutError"), e?.message ?? JSON.stringify(e));
     } finally {
       setBrokerCheckoutLoading(false);
     }
   };
-  const brokerCallLabel = brokerCheckoutLoading ? "Redirigiendo…" : upsellCountdown === 0 ? "Contratar sesión — $89 USD" : "Agendar mi llamada — $49 USD";
+  const brokerCallLabel = brokerCheckoutLoading ? t("home.broker.redirecting") : upsellCountdown === 0 ? t("home.broker.ctaOffer") : t("home.broker.ctaSchedule");
 
   useEffect(() => {
     // DEV: force-reset so broker card always shows during testing
@@ -455,8 +454,8 @@ export default function HomeScreen() {
       .then(d => {
         const code = d.country_code as string;
         const brokers = BROKER_CATALOG[code] ?? BROKER_CATALOG.DEFAULT;
-        const labels: Record<string,string> = { MX: "México", AR: "Argentina", US: "Estados Unidos", CO: "Colombia" };
-        setBrokerCountry({ code, label: labels[code] ?? "Internacional", brokers });
+        const labels: Record<string,string> = t("home.broker.countries", { returnObjects: true }) as any;
+        setBrokerCountry({ code, label: labels[code] ?? t("home.broker.countryDefault"), brokers });
       })
       .catch(() => {});
   };
@@ -464,20 +463,20 @@ export default function HomeScreen() {
   const handleDuoSave = () => {
     if (!duoSecondaryEmail.includes("@")) return;
     Alert.alert(
-      "¿Guardar estas 2 cuentas?",
-      `1. ${duoMyEmail || "Tu cuenta"}\n2. ${duoSecondaryEmail}`,
+      t("home.duo.confirmTitle"),
+      `1. ${duoMyEmail || t("home.duo.yourAccountFallback")}\n2. ${duoSecondaryEmail}`,
       [
-        { text: "Cancelar", style: "cancel" },
+        { text: t("home.duo.confirmCancel"), style: "cancel" },
         {
-          text: "Guardar",
+          text: t("home.duo.confirmSave"),
           onPress: async () => {
             setDuoSaving(true);
             try {
               await billingApi.duoSetup(duoSecondaryEmail);
               setShowDuoModal(false);
-              Alert.alert("¡Listo!", "Las cuentas del Plan Dúo han sido guardadas.");
+              Alert.alert(t("home.duo.savedTitle"), t("home.duo.savedMsg"));
             } catch {
-              Alert.alert("Error", "No se pudo guardar. Intenta de nuevo.");
+              Alert.alert(t("common.error"), t("home.duo.saveError"));
             } finally {
               setDuoSaving(false);
             }
@@ -527,49 +526,27 @@ export default function HomeScreen() {
     return `${String(h).padStart(2,"0")}:${String(m).padStart(2,"0")}:${String(s).padStart(2,"0")}`;
   };
 
+  const lesson = (key: string, topicId: string, emoji: string) => ({
+    emoji, topicId,
+    title: t(`home.lessons.${key}.title`),
+    body: t(`home.lessons.${key}.body`),
+    tip: t(`home.lessons.${key}.tip`),
+  });
   const DAILY_LESSONS = [
-    { emoji: "🥧", title: "Diversificación",       topicId: "diversif",
-      body: "No pongas todos los huevos en una canasta. Si tienes 10 empresas de sectores distintos y una quiebra, pierdes el 10%. La diversificación distribuye el riesgo.",
-      tip: "¿Más del 30% de tu portafolio en un solo sector?" },
-    { emoji: "📅", title: "Dollar Cost Averaging",  topicId: "dca",
-      body: "Invertir la misma cantidad cada mes, sin importar si el mercado sube o baja. Cuando baja, compras más acciones por el mismo precio. La disciplina bate al timing.",
-      tip: "Define un monto fijo mensual y automatízalo." },
-    { emoji: "💰", title: "Dividendos",             topicId: "dividendo",
-      body: "Algunas empresas te pagan por tener sus acciones. Reinvertir dividendos automáticamente puede duplicar tu retorno a 20 años.",
-      tip: "Busca empresas con 10+ años aumentando dividendos consecutivamente." },
-    { emoji: "📈", title: "P/E Ratio",              topicId: "pe_ratio",
-      body: "El P/E compara el precio de la acción con lo que gana la empresa. No hay un número 'bueno' universal — compara contra el sector y el historial.",
-      tip: "Un P/E muy alto no significa cara si la empresa crece rápido. Contexto > número." },
-    { emoji: "🛡️", title: "Ventaja Competitiva",   topicId: "moat",
-      body: "El 'moat' es lo que hace que una empresa sea difícil de copiar: marca (Apple), red (Visa), costos bajos (Walmart). Protege sus márgenes en el tiempo.",
-      tip: "¿Qué le impediría a un competidor con $1B tomar este mercado?" },
-    { emoji: "⚠️", title: "Aversión a la Pérdida", topicId: "aversion",
-      body: "El cerebro siente el dolor de perder $100 el doble que el placer de ganar $100. Por eso vendemos en pánico. Reconocer este sesgo es el primer paso.",
-      tip: "Antes de vender en caída: ¿cambiaron los fundamentos del negocio?" },
-    { emoji: "🔄", title: "Rebalanceo",             topicId: "rebalanceo",
-      body: "Si tus acciones subieron mucho, ahora tienes más riesgo del que querías. Rebalancear es vender lo que creció y comprar lo que quedó atrás.",
-      tip: "Rebalancea 1-2 veces al año o cuando algo se aleje más del 5% de tu objetivo." },
-    { emoji: "📊", title: "Flujo de Caja Libre",    topicId: "fund",
-      body: "Las ganancias se pueden manipular contablemente. El Free Cash Flow no miente — es el dinero real que entra a la caja de la empresa.",
-      tip: "Busca empresas cuyo FCF crezca más rápido que sus ingresos." },
-    { emoji: "🎯", title: "Horizonte de Inversión", topicId: "diversif",
-      body: "El mercado cae 10-20% una vez cada 1-2 años. Pero en 10+ años, el S&P 500 nunca ha perdido dinero. Tu horizonte determina cuánto riesgo puedes absorber.",
-      tip: "¿Necesitas el dinero en menos de 3 años? No debería estar en acciones." },
-    { emoji: "🧠", title: "FOMO Financiero",        topicId: "fomo",
-      body: "El Fear Of Missing Out te hace comprar en máximos. El FOMO es la señal más confiable de que un activo está sobrevalorado. El mejor momento es cuando nadie habla de él.",
-      tip: "Si lo ves en noticias masivas y WhatsApp de familia — cuidado." },
-    { emoji: "🏦", title: "ETFs vs Acciones",       topicId: "etf",
-      body: "Un ETF replica un índice completo. El 90% de los gestores activos NO superan al índice en 15 años. Los ETFs son el punto de partida inteligente.",
-      tip: "Empieza con ETFs amplios. Agrega acciones individuales solo cuando entiendas el negocio." },
-    { emoji: "💡", title: "Compra Negocios",        topicId: "moat",
-      body: "Antes de comprar una acción: ¿entiendo cómo gana dinero esta empresa? ¿Seguiría comprando si el mercado cerrara 5 años?",
-      tip: "Warren Buffett solo invierte en lo que puede entender en 5 minutos." },
-    { emoji: "📉", title: "Las Caídas son Normales", topicId: "bull_bear",
-      body: "Desde 1950, el S&P 500 ha caído más del 10% una vez al año en promedio. A pesar de eso, multiplicó por 200x. Las caídas son el precio de los rendimientos.",
-      tip: "Guarda una lista de empresas que quieras comprar cuando caigan." },
-    { emoji: "🌍", title: "Riesgo de Concentración", topicId: "diversif",
-      body: "Más del 20% en una sola empresa o más del 40% en un sector es concentración alta. Si esa empresa colapsa, tu portafolio colapsa.",
-      tip: "Calcula tu posición más grande. ¿Es mayor al 20% de tu portafolio?" },
+    lesson("diversif", "diversif", "🥧"),
+    lesson("dca", "dca", "📅"),
+    lesson("dividendo", "dividendo", "💰"),
+    lesson("pe_ratio", "pe_ratio", "📈"),
+    lesson("moat", "moat", "🛡️"),
+    lesson("aversion", "aversion", "⚠️"),
+    lesson("rebalanceo", "rebalanceo", "🔄"),
+    lesson("fund", "fund", "📊"),
+    lesson("horizonte", "diversif", "🎯"),
+    lesson("fomo", "fomo", "🧠"),
+    lesson("etf", "etf", "🏦"),
+    lesson("comprar_negocios", "moat", "💡"),
+    lesson("bull_bear", "bull_bear", "📉"),
+    lesson("concentracion", "diversif", "🌍"),
   ];
   const dailyLesson = DAILY_LESSONS[new Date().getDay() % DAILY_LESSONS.length];
 
@@ -762,12 +739,12 @@ export default function HomeScreen() {
   const onRefresh = () => { setRefreshing(true); loadData(); };
 
   const GOAL_OPTIONS = [
-    { key: "house",             label: "Comprar una casa",         emoji: "🏠" },
-    { key: "car",               label: "Comprar un carro",         emoji: "🚗" },
-    { key: "passive_income",    label: "Vivir de inversiones",     emoji: "💸" },
-    { key: "retirement",        label: "Retiro / pensión",         emoji: "👴" },
-    { key: "financial_freedom", label: "Libertad financiera",      emoji: "🦅" },
-    { key: "long_term_wealth",  label: "Patrimonio a largo plazo", emoji: "🏛️" },
+    { key: "house",             label: t("common.goals.house"),             emoji: "🏠" },
+    { key: "car",               label: t("common.goals.car"),               emoji: "🚗" },
+    { key: "passive_income",    label: t("home.goalOptions.passive_income"), emoji: "💸" },
+    { key: "retirement",        label: t("common.goals.retirement"),        emoji: "👴" },
+    { key: "financial_freedom", label: t("common.goals.financial_freedom"), emoji: "🦅" },
+    { key: "long_term_wealth",  label: t("common.goals.long_term_wealth"),  emoji: "🏛️" },
   ];
 
   const openGoalModal = () => {
@@ -786,7 +763,7 @@ export default function HomeScreen() {
       if (fresh?.data) setProfile(fresh.data);
       setShowGoalModal(false);
     } catch (err: any) {
-      const msg = err?.response?.data?.detail ?? err?.message ?? "Error al guardar";
+      const msg = err?.response?.data?.detail ?? err?.message ?? t("common.error");
       setGoalError(msg);
       console.error("saveGoal error:", err?.response ?? err);
     }
@@ -795,9 +772,9 @@ export default function HomeScreen() {
 
   const greeting = () => {
     const h = new Date().getHours();
-    if (h < 12) return "Buenos días";
-    if (h < 19) return "Buenas tardes";
-    return "Buenas noches";
+    if (h < 12) return t("home.greeting.morning");
+    if (h < 19) return t("home.greeting.afternoon");
+    return t("home.greeting.evening");
   };
 
   // NYSE trading hours: Mon–Fri 09:30–16:00 ET (UTC-4 in summer, UTC-5 in winter)
@@ -813,15 +790,15 @@ export default function HomeScreen() {
     return minutesSinceMidnight >= 9 * 60 + 30 && minutesSinceMidnight < 16 * 60;
   }, []);
 
-  const firstName = profile?.name?.split(" ")[0] ?? "Inversor";
+  const firstName = profile?.name?.split(" ")[0] ?? t("home.investorFallback");
 
   // ── Onboarding checklist ──────────────────────────────────────────────────
   const onboardingSteps: OnboardingStep[] = [
-    { emoji: "💼", title: "Agrega tu primera posición",       description: "Registra tus acciones y activa el análisis IA",   completed: positions.length > 0 },
-    { emoji: "🎯", title: "Configura tu meta financiera",     description: "¿Para qué estás invirtiendo?",                    completed: !!goalName },
-    { emoji: "🤖", title: "Habla con Nuvos por primera vez",  description: "Pregunta cualquier cosa sobre inversiones",        completed: hasChatted },
-    { emoji: "📚", title: "Completa tu primera lección",      description: "Empieza tu racha de aprendizaje diario",          completed: streak > 0 },
-    { emoji: "👀", title: "Agrega una acción a tu watchlist", description: "Monitorea empresas que te interesan",             completed: watchlistItems.length > 0 },
+    { emoji: "💼", title: t("home.onboarding.step1Title"), description: t("home.onboarding.step1Desc"), completed: positions.length > 0 },
+    { emoji: "🎯", title: t("home.onboarding.step2Title"), description: t("home.onboarding.step2Desc"), completed: !!goalName },
+    { emoji: "🤖", title: t("home.onboarding.step3Title"), description: t("home.onboarding.step3Desc"), completed: hasChatted },
+    { emoji: "📚", title: t("home.onboarding.step4Title"), description: t("home.onboarding.step4Desc"), completed: streak > 0 },
+    { emoji: "👀", title: t("home.onboarding.step5Title"), description: t("home.onboarding.step5Desc"), completed: watchlistItems.length > 0 },
   ];
   const allOnboardingDone = onboardingSteps.every((s) => s.completed);
 
@@ -896,10 +873,10 @@ export default function HomeScreen() {
             {brokerView === "list" && (
               <ScrollView showsVerticalScrollIndicator={false}>
                 <Text style={{ fontSize: 10, fontWeight: "700", color: "#f59e0b", letterSpacing: 1.5, textTransform: "uppercase", marginBottom: 4 }}>
-                  Brokers en {brokerCountry.label}
+                  {t("home.broker.brokersIn", { country: brokerCountry.label })}
                 </Text>
                 <Text style={{ fontSize: 18, fontWeight: "900", color: colors.text, marginBottom: 16 }}>
-                  ¿Con cuál quieres empezar?
+                  {t("home.broker.whichOne")}
                 </Text>
 
                 {brokerCountry.brokers.map((b) => (
@@ -935,7 +912,7 @@ export default function HomeScreen() {
                 {/* Already have broker */}
                 <TouchableOpacity onPress={dismissBrokerCard} activeOpacity={0.7}
                   style={{ alignItems: "center", paddingVertical: 14, marginTop: 4 }}>
-                  <Text style={{ fontSize: 13, color: colors.textMuted, fontWeight: "600" }}>Ya tengo cuenta de broker</Text>
+                  <Text style={{ fontSize: 13, color: colors.textMuted, fontWeight: "600" }}>{t("home.broker.alreadyHave")}</Text>
                 </TouchableOpacity>
               </ScrollView>
             )}
@@ -946,7 +923,7 @@ export default function HomeScreen() {
                 {/* Back */}
                 <TouchableOpacity onPress={() => setBrokerView("list")} style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 16 }}>
                   <Ionicons name="chevron-back" size={16} color={colors.textMuted} />
-                  <Text style={{ fontSize: 13, color: colors.textMuted }}>Todos los brokers</Text>
+                  <Text style={{ fontSize: 13, color: colors.textMuted }}>{t("home.broker.allBrokers")}</Text>
                 </TouchableOpacity>
 
                 {/* Header */}
@@ -974,7 +951,7 @@ export default function HomeScreen() {
                 <Text style={{ fontSize: 14, color: colors.textMuted, lineHeight: 20, marginBottom: 16 }}>{selectedBroker.desc}</Text>
 
                 {/* Pros */}
-                <Text style={{ fontSize: 12, fontWeight: "700", color: colors.textSub, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>Por qué lo recomendamos</Text>
+                <Text style={{ fontSize: 12, fontWeight: "700", color: colors.textSub, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>{t("home.broker.whyRecommend")}</Text>
                 {selectedBroker.pros.map((p, i) => (
                   <View key={i} style={{ flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 10 }}>
                     <View style={{ width: 24, height: 24, borderRadius: 8, backgroundColor: "#00d47e18",
@@ -991,15 +968,15 @@ export default function HomeScreen() {
                 {/* CTAs */}
                 <TouchableOpacity onPress={() => setBrokerView("upsell")} activeOpacity={0.85}
                   style={{ paddingVertical: 15, borderRadius: 14, backgroundColor: "#00d47e", alignItems: "center", marginBottom: 10 }}>
-                  <Text style={{ fontSize: 14, fontWeight: "900", color: "#000" }}>Crear cuenta con ayuda de Nuvos</Text>
+                  <Text style={{ fontSize: 14, fontWeight: "900", color: "#000" }}>{t("home.broker.createWithHelp")}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity onPress={() => { setShowBrokerModal(false); setBrokerView("list"); }} activeOpacity={0.8}
                   style={{ paddingVertical: 14, borderRadius: 14, borderWidth: 1, borderColor: colors.border, alignItems: "center", marginBottom: 12 }}>
-                  <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text }}>Crear cuenta solo</Text>
+                  <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text }}>{t("home.broker.createAlone")}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity onPress={dismissBrokerCard} activeOpacity={0.7}
                   style={{ alignItems: "center", paddingVertical: 10 }}>
-                  <Text style={{ fontSize: 12, color: colors.textMuted }}>Ya tengo cuenta de broker</Text>
+                  <Text style={{ fontSize: 12, color: colors.textMuted }}>{t("home.broker.alreadyHave")}</Text>
                 </TouchableOpacity>
               </ScrollView>
             )}
@@ -1010,7 +987,7 @@ export default function HomeScreen() {
                 {/* Back */}
                 <TouchableOpacity onPress={() => setBrokerView("detail")} style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 16 }}>
                   <Ionicons name="chevron-back" size={16} color={colors.textMuted} />
-                  <Text style={{ fontSize: 13, color: colors.textMuted }}>Volver</Text>
+                  <Text style={{ fontSize: 13, color: colors.textMuted }}>{t("home.broker.back")}</Text>
                 </TouchableOpacity>
 
                 {/* Countdown */}
@@ -1020,14 +997,14 @@ export default function HomeScreen() {
                                  borderColor: "rgba(239,68,68,0.25)", marginBottom: 16 }}>
                     <Ionicons name="time-outline" size={20} color="#ef4444" />
                     <Text style={{ fontSize: 20, fontWeight: "900", color: "#ef4444", letterSpacing: -0.5 }}>
-                      Oferta expira en {fmtCountdown(upsellCountdown)}
+                      {t("home.broker.offerExpiresIn", { time: fmtCountdown(upsellCountdown) })}
                     </Text>
                   </View>
                 )}
                 {upsellCountdown === 0 && (
                   <View style={{ paddingVertical: 12, borderRadius: 14, backgroundColor: "rgba(107,114,128,0.1)",
                                  borderWidth: 1, borderColor: colors.border, marginBottom: 16, alignItems: "center" }}>
-                    <Text style={{ fontSize: 15, fontWeight: "700", color: colors.textMuted }}>La oferta especial ha expirado</Text>
+                    <Text style={{ fontSize: 15, fontWeight: "700", color: colors.textMuted }}>{t("home.broker.offerExpired")}</Text>
                   </View>
                 )}
 
@@ -1035,19 +1012,14 @@ export default function HomeScreen() {
                 <View style={{ borderRadius: 20, borderWidth: 1, borderColor: "rgba(0,212,126,0.25)",
                                backgroundColor: "rgba(0,212,126,0.04)", padding: 18, marginBottom: 16 }}>
                   <Text style={{ fontSize: 10, fontWeight: "700", color: "#00d47e", letterSpacing: 1.5, textTransform: "uppercase", marginBottom: 8 }}>
-                    Sesión 1:1 con Nuvos AI
+                    {t("home.broker.sessionTitle")}
                   </Text>
                   <Text style={{ fontSize: 18, fontWeight: "900", color: colors.text, lineHeight: 24, marginBottom: 10 }}>
-                    Te acompañamos a abrir tu cuenta en {selectedBroker?.name ?? "tu broker"}
+                    {t("home.broker.sessionHeadline", { broker: selectedBroker?.name ?? t("home.broker.yourBroker") })}
                   </Text>
 
                   {/* What's included */}
-                  {[
-                    "Crear tu cuenta paso a paso",
-                    "Navegar por la plataforma del broker",
-                    "Buscar acciones, ETFs e instrumentos",
-                    "Depositar dinero de forma segura",
-                  ].map((item, i) => (
+                  {(t("home.broker.checklist", { returnObjects: true }) as string[]).map((item, i) => (
                     <View key={i} style={{ flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 10 }}>
                       <View style={{ width: 22, height: 22, borderRadius: 6, backgroundColor: "#00d47e18",
                                      alignItems: "center", justifyContent: "center" }}>
@@ -1062,7 +1034,7 @@ export default function HomeScreen() {
                     <Text style={{ fontSize: 28, fontWeight: "900", color: colors.text }}>$49 USD</Text>
                     <Text style={{ fontSize: 18, fontWeight: "700", color: colors.textDim, textDecorationLine: "line-through" }}>$89 USD</Text>
                     <View style={{ backgroundColor: "rgba(239,68,68,0.15)", borderRadius: 20, paddingHorizontal: 12, paddingVertical: 5 }}>
-                      <Text style={{ fontSize: 16, fontWeight: "900", color: "#ef4444" }}>-45% OFF</Text>
+                      <Text style={{ fontSize: 16, fontWeight: "900", color: "#ef4444" }}>{t("home.broker.offBadge")}</Text>
                     </View>
                   </View>
 
@@ -1074,11 +1046,11 @@ export default function HomeScreen() {
 
                 <TouchableOpacity onPress={() => { setShowBrokerModal(false); setBrokerView("list"); }} activeOpacity={0.7}
                   style={{ paddingVertical: 14, borderRadius: 14, borderWidth: 1, borderColor: colors.border, alignItems: "center", marginBottom: 10 }}>
-                  <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text }}>Prefiero hacerlo solo</Text>
+                  <Text style={{ fontSize: 14, fontWeight: "700", color: colors.text }}>{t("home.broker.preferAlone")}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity onPress={dismissBrokerCard} activeOpacity={0.7}
                   style={{ alignItems: "center", paddingVertical: 10 }}>
-                  <Text style={{ fontSize: 12, color: colors.textMuted }}>Ya tengo cuenta de broker</Text>
+                  <Text style={{ fontSize: 12, color: colors.textMuted }}>{t("home.broker.alreadyHave")}</Text>
                 </TouchableOpacity>
               </ScrollView>
             )}
@@ -1093,8 +1065,8 @@ export default function HomeScreen() {
                    onPress={() => setShowGoalModal(false)}>
           <Pressable onPress={e => e.stopPropagation()}
                      style={{ width: "100%", maxWidth: 400, backgroundColor: colors.card, borderRadius: 20, padding: 22, borderWidth: 1, borderColor: colors.border }}>
-            <Text style={{ fontSize: 16, fontWeight: "900", color: colors.text, marginBottom: 4 }}>🎯 Tu meta financiera</Text>
-            <Text style={{ fontSize: 12, color: colors.textMuted, marginBottom: 16 }}>¿Cuál es tu objetivo de inversión?</Text>
+            <Text style={{ fontSize: 16, fontWeight: "900", color: colors.text, marginBottom: 4 }}>{t("home.goalModal.title")}</Text>
+            <Text style={{ fontSize: 12, color: colors.textMuted, marginBottom: 16 }}>{t("home.goalModal.subtitle")}</Text>
 
             {/* Goal options grid */}
             <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>
@@ -1111,7 +1083,7 @@ export default function HomeScreen() {
 
             {/* Amount input */}
             <Text style={{ fontSize: 10, fontWeight: "700", color: colors.textMuted, letterSpacing: 0.8, textTransform: "uppercase", marginBottom: 6 }}>
-              Patrimonio objetivo (opcional)
+              {t("home.goalModal.amountLabel")}
             </Text>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: colors.bgRaised, borderRadius: 12,
               borderWidth: 1, borderColor: colors.border, paddingHorizontal: 12, paddingVertical: 10, marginBottom: 18 }}>
@@ -1119,7 +1091,7 @@ export default function HomeScreen() {
               <TextInput
                 value={goalAmtDraft}
                 onChangeText={setGoalAmtDraft}
-                placeholder="100,000"
+                placeholder={t("home.goalModal.amountPlaceholder")}
                 placeholderTextColor={colors.textDim}
                 keyboardType="numeric"
                 style={{ flex: 1, fontSize: 14, fontWeight: "600", color: colors.text }}
@@ -1136,12 +1108,12 @@ export default function HomeScreen() {
             <View style={{ flexDirection: "row", gap: 10 }}>
               <TouchableOpacity onPress={() => setShowGoalModal(false)} activeOpacity={0.7}
                 style={{ flex: 1, paddingVertical: 12, borderRadius: 12, borderWidth: 1, borderColor: colors.border, alignItems: "center" }}>
-                <Text style={{ fontSize: 14, fontWeight: "700", color: colors.textSub }}>Cancelar</Text>
+                <Text style={{ fontSize: 14, fontWeight: "700", color: colors.textSub }}>{t("common.cancel")}</Text>
               </TouchableOpacity>
               <TouchableOpacity onPress={saveGoal} disabled={!goalDraft || savingGoal} activeOpacity={0.7}
                 style={{ flex: 1, paddingVertical: 12, borderRadius: 12, backgroundColor: goalDraft ? "#00d47e" : colors.border, alignItems: "center" }}>
                 <Text style={{ fontSize: 14, fontWeight: "900", color: goalDraft ? "#000" : colors.textDim }}>
-                  {savingGoal ? "Guardando…" : "Guardar"}
+                  {savingGoal ? t("common.saving2") : t("common.save")}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -1166,7 +1138,7 @@ export default function HomeScreen() {
           <View style={ss.marketDotWrap}>
             <View style={[ss.marketDot, { backgroundColor: isMarketOpen ? "#22c55e" : colors.textDim }]} />
             <Text style={[ss.marketDotLabel, { color: isMarketOpen ? "#22c55e" : colors.textDim }]}>
-              {isMarketOpen ? "Abierto" : "Cerrado"}
+              {isMarketOpen ? t("home.marketOpen") : t("home.marketClosed")}
             </Text>
           </View>
 
@@ -1232,7 +1204,7 @@ export default function HomeScreen() {
           <View style={ss.heroTop}>
             <View>
               <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                <Text style={[ss.heroLabel, { color: colors.textMuted }]}>Mi Portafolio</Text>
+                <Text style={[ss.heroLabel, { color: colors.textMuted }]}>{t("home.portfolio.label")}</Text>
                 <View style={{ backgroundColor: colors.bgRaised ?? colors.card, paddingHorizontal: 5, paddingVertical: 2, borderRadius: 4 }}>
                   <Text style={{ fontSize: 9, fontWeight: "900", color: colors.textMuted, letterSpacing: 0.8 }}>{portfolioCurrency}</Text>
                 </View>
@@ -1255,7 +1227,7 @@ export default function HomeScreen() {
               {loading
                 ? <Skeleton w={60} h={14} r={4} />
                 : <Text style={[ss.heroGainText, { color: dayGain >= 0 ? colors.up : colors.down }]}>
-                    {fmtPct(dayGainPct)} hoy
+                    {fmtPct(dayGainPct)} {t("home.portfolio.todaySuffix")}
                   </Text>
               }
             </View>
@@ -1265,7 +1237,7 @@ export default function HomeScreen() {
             <View style={ss.heroStats}>
               {/* Hoy */}
               <View style={ss.heroStat}>
-                <Text style={[ss.heroStatLabel, { color: colors.textMuted }]}>Hoy</Text>
+                <Text style={[ss.heroStatLabel, { color: colors.textMuted }]}>{t("home.portfolio.today")}</Text>
                 <Text style={{ fontSize: 15, fontWeight: "800", color: dayGain >= 0 ? colors.up : colors.down }}>
                   {fmtPct(dayGainPct)}
                 </Text>
@@ -1321,18 +1293,18 @@ export default function HomeScreen() {
 
           {!positions.length && !loading && (
             <View style={[ss.emptyPortfolio, { borderColor: colors.border, gap: 10 }]}>
-              <Text style={{ fontSize: 14, fontWeight: "800", color: colors.text }}>Agrega tu primera acción</Text>
+              <Text style={{ fontSize: 14, fontWeight: "800", color: colors.text }}>{t("home.portfolio.emptyTitle")}</Text>
               <Text style={{ fontSize: 12, color: colors.textMuted, lineHeight: 17 }}>
-                Registra tus posiciones y Nuvos te dará análisis IA, alertas de precio y seguimiento en tiempo real.
+                {t("home.portfolio.emptyBody")}
               </Text>
               <View style={ss.popularRow}>
-                {["AAPL", "NVDA", "MSFT", "TSLA", "GOOGL"].map((t) => (
+                {["AAPL", "NVDA", "MSFT", "TSLA", "GOOGL"].map((ticker) => (
                   <TouchableOpacity
-                    key={t}
+                    key={ticker}
                     onPress={() => router.navigate("/(tabs)/portfolio")}
                     style={[ss.popularChip, { backgroundColor: colors.bgRaised, borderColor: colors.border }]}
                   >
-                    <Text style={[ss.popularChipText, { color: colors.accentLight }]}>{t}</Text>
+                    <Text style={[ss.popularChipText, { color: colors.accentLight }]}>{ticker}</Text>
                   </TouchableOpacity>
                 ))}
               </View>
@@ -1341,7 +1313,7 @@ export default function HomeScreen() {
                 activeOpacity={0.8}
                 style={{ backgroundColor: colors.accent, borderRadius: 12, paddingVertical: 11, alignItems: "center" }}
               >
-                <Text style={{ fontSize: 13, fontWeight: "800", color: "#fff" }}>+ Agregar posición →</Text>
+                <Text style={{ fontSize: 13, fontWeight: "800", color: "#fff" }}>{t("home.portfolio.addPosition")}</Text>
               </TouchableOpacity>
             </View>
           )}
@@ -1365,10 +1337,10 @@ export default function HomeScreen() {
             <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" }}>
               <View>
                 <Text style={{ fontSize: 13, fontWeight: "500", color: colors.textMuted, marginBottom: 6 }}>
-                  Siguiente paso
+                  {t("home.broker.nextStep")}
                 </Text>
                 <Text style={{ fontSize: 22, fontWeight: "800", color: colors.text, letterSpacing: -0.5 }}>
-                  Abre tu broker
+                  {t("home.broker.openBroker")}
                 </Text>
               </View>
               <View style={{ backgroundColor: "rgba(245,158,11,0.12)", borderRadius: 12, padding: 10 }}>
@@ -1378,7 +1350,7 @@ export default function HomeScreen() {
 
             {/* Description */}
             <Text style={{ fontSize: 12, color: colors.textMuted, lineHeight: 18, marginTop: 10, marginBottom: 14 }}>
-              Invierte dinero real en acciones y ETFs. Te mostramos los mejores brokers para tu país con calificaciones y una guía paso a paso.
+              {t("home.broker.teaserDesc")}
             </Text>
 
             {/* Broker avatars preview */}
@@ -1390,7 +1362,7 @@ export default function HomeScreen() {
                 </View>
               ))}
               <View style={{ justifyContent: "center", marginLeft: 4 }}>
-                <Text style={{ fontSize: 11, color: "#f59e0b", fontWeight: "700" }}>Ver brokers →</Text>
+                <Text style={{ fontSize: 11, color: "#f59e0b", fontWeight: "700" }}>{t("home.broker.seeBrokers")}</Text>
               </View>
             </View>
 
@@ -1398,12 +1370,12 @@ export default function HomeScreen() {
             <View style={{ flexDirection: "row", gap: 8 }}>
               <View style={{ flex: 1, backgroundColor: "#f59e0b", borderRadius: 12,
                              paddingVertical: 10, alignItems: "center" }}>
-                <Text style={{ fontSize: 12, fontWeight: "900", color: "#000" }}>Explorar brokers</Text>
+                <Text style={{ fontSize: 12, fontWeight: "900", color: "#000" }}>{t("home.broker.explore")}</Text>
               </View>
               <TouchableOpacity onPress={(e) => { e.stopPropagation(); dismissBrokerCard(); }}
                 style={{ paddingHorizontal: 12, paddingVertical: 10, borderRadius: 12, borderWidth: 1,
                          borderColor: colors.border, alignItems: "center", justifyContent: "center" }}>
-                <Text style={{ fontSize: 11, color: colors.textMuted }}>Ya tengo</Text>
+                <Text style={{ fontSize: 11, color: colors.textMuted }}>{t("home.broker.alreadyHaveShort")}</Text>
               </TouchableOpacity>
             </View>
           </TouchableOpacity>
@@ -1423,7 +1395,7 @@ export default function HomeScreen() {
               <Text style={{ fontSize: 13, fontWeight: "800", color: dayGain >= 0 ? colors.up : colors.down }}>
                 {fmtPct(dayGainPct)}
               </Text>
-              <Text style={{ fontSize: 10, color: colors.textMuted }}>Portafolio hoy</Text>
+              <Text style={{ fontSize: 10, color: colors.textMuted }}>{t("home.stats.portfolioToday")}</Text>
             </View>
           </TouchableOpacity>
 
@@ -1433,9 +1405,9 @@ export default function HomeScreen() {
             <Text style={{ fontSize: 18 }}>{streak >= 7 ? "🔥" : streak >= 3 ? "⚡" : "✨"}</Text>
             <View>
               <Text style={{ fontSize: 13, fontWeight: "800", color: streak > 0 ? "#f59e0b" : colors.text }}>
-                {streak} días
+                {t("home.stats.days", { count: streak })}
               </Text>
-              <Text style={{ fontSize: 10, color: colors.textMuted }}>Racha</Text>
+              <Text style={{ fontSize: 10, color: colors.textMuted }}>{t("home.stats.streak")}</Text>
             </View>
           </TouchableOpacity>
 
@@ -1445,10 +1417,10 @@ export default function HomeScreen() {
             <Text style={{ fontSize: 18 }}>🎯</Text>
             <View>
               <Text style={{ fontSize: 13, fontWeight: "800", color: goalName ? "#00d47e" : colors.text }} numberOfLines={1}>
-                {goalName ? (GOAL_OPTIONS.find(g => g.key === goalName)?.label ?? goalName) : "Sin meta"}
+                {goalName ? (GOAL_OPTIONS.find(g => g.key === goalName)?.label ?? goalName) : t("home.stats.noGoal")}
               </Text>
               <Text style={{ fontSize: 10, color: colors.textMuted }}>
-                {yearsToGoal ? `en ~${yearsToGoal} años` : "Meta"}
+                {yearsToGoal ? t("home.stats.inYears", { years: yearsToGoal }) : t("home.stats.goal")}
               </Text>
             </View>
           </TouchableOpacity>
@@ -1459,9 +1431,9 @@ export default function HomeScreen() {
             <Ionicons name="notifications-outline" size={16} color={unread > 0 ? "#ef4444" : colors.textSub} />
             <View>
               <Text style={{ fontSize: 13, fontWeight: "800", color: unread > 0 ? "#ef4444" : colors.text }}>
-                {unread > 0 ? `${unread} nuevas` : totalNotifs > 0 ? `${totalNotifs} alertas` : "Sin alertas"}
+                {unread > 0 ? t("home.stats.newAlerts", { count: unread }) : totalNotifs > 0 ? t("home.stats.alertsCount", { count: totalNotifs }) : t("home.stats.noAlerts")}
               </Text>
-              <Text style={{ fontSize: 10, color: colors.textMuted }}>Alertas</Text>
+              <Text style={{ fontSize: 10, color: colors.textMuted }}>{t("home.stats.alerts")}</Text>
             </View>
           </TouchableOpacity>
         </ScrollView>
@@ -1476,12 +1448,12 @@ export default function HomeScreen() {
           const vixIdx  = indices.find((i: IdxData) => i.symbol === "^VIX");
           const vixPrice = vixIdx?.price ?? null;
           const sentiment = vixPrice == null ? null
-            : vixPrice < 15 ? { label: "Calma",           color: "#22c55e", bar: 15  }
-            : vixPrice < 20 ? { label: "Normal",           color: "#84cc16", bar: 35  }
-            : vixPrice < 30 ? { label: "Cauteloso",        color: "#f59e0b", bar: 65  }
-            :                 { label: "Alta volatilidad", color: "#ef4444", bar: 100 };
+            : vixPrice < 15 ? { label: t("home.markets.sentimentLabels.calm"),           color: "#22c55e", bar: 15  }
+            : vixPrice < 20 ? { label: t("home.markets.sentimentLabels.normal"),         color: "#84cc16", bar: 35  }
+            : vixPrice < 30 ? { label: t("home.markets.sentimentLabels.cautious"),       color: "#f59e0b", bar: 65  }
+            :                 { label: t("home.markets.sentimentLabels.highVolatility"), color: "#ef4444", bar: 100 };
           const secsSince = idxRefresh ? Math.round((Date.now() - idxRefresh.getTime()) / 1000) : null;
-          const updLabel  = secsSince == null ? null : secsSince < 5 ? "Ahora" : secsSince < 60 ? `${secsSince}s` : `${Math.round(secsSince / 60)}min`;
+          const updLabel  = secsSince == null ? null : secsSince < 5 ? t("home.idx.now") : secsSince < 60 ? `${secsSince}s` : `${Math.round(secsSince / 60)}min`;
 
           return (
             <View>
@@ -1490,13 +1462,13 @@ export default function HomeScreen() {
                              paddingHorizontal: 16, paddingTop: 14, paddingBottom: 8 }}>
                 <Text style={{ fontSize: 10, fontWeight: "700", color: colors.textMuted,
                                textTransform: "uppercase", letterSpacing: 1.2 }}>
-                  Mercados
+                  {t("home.markets.title")}
                 </Text>
                 {updLabel && (
                   <View style={{ paddingHorizontal: 7, paddingVertical: 2, borderRadius: 10,
                                  backgroundColor: colors.bgRaised ?? colors.card }}>
                     <Text style={{ fontSize: 9, color: colors.textDim, fontWeight: "600" }}>
-                      {updLabel === "Ahora" ? "Ahora" : `Hace ${updLabel}`}
+                      {updLabel === t("home.idx.now") ? t("home.idx.now") : t("home.markets.updatedAgo", { time: updLabel })}
                     </Text>
                   </View>
                 )}
@@ -1528,7 +1500,7 @@ export default function HomeScreen() {
                         <View style={{ position: "absolute", top: 0, right: 0,
                                        backgroundColor: "#f59e0b", borderBottomLeftRadius: 8,
                                        paddingHorizontal: 5, paddingVertical: 2, zIndex: 1 }}>
-                          <Text style={{ fontSize: 8, fontWeight: "900", color: "#000" }}>★ MEJOR</Text>
+                          <Text style={{ fontSize: 8, fontWeight: "900", color: "#000" }}>{t("home.markets.best")}</Text>
                         </View>
                       )}
                       <Text style={[ss.idxName, { color: colors.textSub }]}>{idx.name}</Text>
@@ -1568,7 +1540,7 @@ export default function HomeScreen() {
                   <View style={{ flex: 1 }}>
                     <Text style={{ fontSize: 10, fontWeight: "700", color: colors.textMuted,
                                    textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 3 }}>
-                      Sentimiento de mercado
+                      {t("home.markets.sentiment")}
                     </Text>
                     <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
                       <Text style={{ fontSize: 12, fontWeight: "800", color: sentiment.color }}>
@@ -1615,7 +1587,7 @@ export default function HomeScreen() {
           <View style={{ flex: 1 }}>
             <Text style={{ fontSize: 11, fontWeight: "600", marginBottom: 2,
               color: completedToday ? "#22c55e" : colors.textMuted }}>
-              {completedToday ? "Completada hoy" : "Lección del día"}
+              {completedToday ? t("home.lessonCard.completedToday") : t("home.lessonCard.lessonOfDay")}
             </Text>
             <Text style={{ fontSize: 15, fontWeight: "800", color: colors.text }}>{dailyLesson.title}</Text>
             {"body" in dailyLesson && !completedToday && (
@@ -1639,11 +1611,11 @@ export default function HomeScreen() {
 
         {/* ── Quick Actions ────────────────────────────────────────────────── */}
         <View style={ss.actions}>
-          <ActionChip icon="chatbubble-ellipses-outline" label="Mentor IA"
+          <ActionChip icon="chatbubble-ellipses-outline" label={t("common.nav.mentor")}
             onPress={() => router.navigate("/(tabs)/chat")} accent colors={colors} />
-          <ActionChip icon="wallet-outline" label="Patrimonio"
+          <ActionChip icon="wallet-outline" label={t("common.nav.patrimonio")}
             onPress={() => router.navigate("/(tabs)/patrimonio")} colors={colors} />
-          <ActionChip icon="school-outline" label="Academy"
+          <ActionChip icon="school-outline" label={t("common.nav.academy")}
             onPress={() => router.navigate("/(tabs)/academy")} colors={colors} />
 
         </View>
@@ -1652,9 +1624,9 @@ export default function HomeScreen() {
         {(loading || movers.length > 0) && (
           <View style={ss.section}>
             <View style={ss.sectionHeader}>
-              <Text style={[ss.sectionTitle, { color: colors.text }]}>Subiendo hoy</Text>
+              <Text style={[ss.sectionTitle, { color: colors.text }]}>{t("home.sections.risingToday")}</Text>
               <TouchableOpacity onPress={() => router.navigate("/(tabs)/portfolio")}>
-                <Text style={[ss.sectionLink, { color: colors.accentLight }]}>Ver todo →</Text>
+                <Text style={[ss.sectionLink, { color: colors.accentLight }]}>{t("common.seeAll")}</Text>
               </TouchableOpacity>
             </View>
             <View style={[ss.moversCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
@@ -1700,9 +1672,9 @@ export default function HomeScreen() {
         {losers.length > 0 && (
           <View style={ss.section}>
             <View style={ss.sectionHeader}>
-              <Text style={[ss.sectionTitle, { color: colors.text }]}>📉 Cayendo hoy</Text>
+              <Text style={[ss.sectionTitle, { color: colors.text }]}>{t("home.sections.fallingToday")}</Text>
               <TouchableOpacity onPress={() => router.navigate("/(tabs)/portfolio")}>
-                <Text style={[ss.sectionLink, { color: colors.accentLight }]}>Ver todo →</Text>
+                <Text style={[ss.sectionLink, { color: colors.accentLight }]}>{t("common.seeAll")}</Text>
               </TouchableOpacity>
             </View>
             <View style={[ss.moversCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
@@ -1736,9 +1708,9 @@ export default function HomeScreen() {
         {topNotifs.length > 0 && (
           <View style={ss.section}>
             <View style={ss.sectionHeader}>
-              <Text style={[ss.sectionTitle, { color: colors.text }]}>Lo más importante hoy</Text>
+              <Text style={[ss.sectionTitle, { color: colors.text }]}>{t("home.sections.topToday")}</Text>
               <TouchableOpacity onPress={() => router.navigate("/(tabs)/notifications")}>
-                <Text style={[ss.sectionLink, { color: colors.accentLight }]}>Ver todo →</Text>
+                <Text style={[ss.sectionLink, { color: colors.accentLight }]}>{t("common.seeAll")}</Text>
               </TouchableOpacity>
             </View>
             <View style={[ss.moversCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
@@ -1780,9 +1752,9 @@ export default function HomeScreen() {
             style={[ss.statCard, { backgroundColor: colors.card, borderColor: colors.border }]}
           >
             <StreakRing streak={streak} />
-            <Text style={[ss.statCardTitle, { color: colors.text }]}>Racha</Text>
+            <Text style={[ss.statCardTitle, { color: colors.text }]}>{t("home.streakCard.title")}</Text>
             <Text style={[ss.statCardSub, { color: colors.textMuted }]}>
-              {streak === 0 ? "¡Empieza hoy!" : streak === 1 ? "1 día seguido" : `${streak} días seguidos`}
+              {streak === 0 ? t("home.streakCard.start") : streak === 1 ? t("home.streakCard.oneDay") : t("home.streakCard.days", { count: streak })}
             </Text>
           </TouchableOpacity>
 
@@ -1799,9 +1771,9 @@ export default function HomeScreen() {
                 color: maturity >= 70 ? colors.up : maturity >= 40 ? "#f59e0b" : colors.info,
               }]}>{maturity}</Text>
             </View>
-            <Text style={[ss.statCardTitle, { color: colors.text }]}>Madurez</Text>
+            <Text style={[ss.statCardTitle, { color: colors.text }]}>{t("home.maturityCard.title")}</Text>
             <Text style={[ss.statCardSub, { color: colors.textMuted }]}>
-              {maturity >= 70 ? "Inversor maduro" : maturity >= 40 ? "En progreso" : "Desarrollando"}
+              {maturity >= 70 ? t("home.maturityCard.mature") : maturity >= 40 ? t("home.maturityCard.inProgress") : t("home.maturityCard.developing")}
             </Text>
           </TouchableOpacity>
 
@@ -1825,10 +1797,10 @@ export default function HomeScreen() {
               />
             </View>
             <Text style={[ss.statCardTitle, { color: colors.text }]}>
-              {!isPremium ? "Premium" : "Aprender"}
+              {!isPremium ? t("home.premiumCard.premium") : t("home.premiumCard.learn")}
             </Text>
             <Text style={[ss.statCardSub, { color: !isPremium ? "#a78bfa" : colors.textMuted }]}>
-              {!isPremium ? "Desbloquear" : "Ver lecciones"}
+              {!isPremium ? t("home.premiumCard.unlock") : t("home.premiumCard.seeLessons")}
             </Text>
           </TouchableOpacity>
         </View>
@@ -1837,9 +1809,9 @@ export default function HomeScreen() {
         {news.length > 0 && (
           <View style={ss.section}>
             <View style={ss.sectionHeader}>
-              <Text style={[ss.sectionTitle, { color: colors.text }]}>Noticias de tu portafolio</Text>
+              <Text style={[ss.sectionTitle, { color: colors.text }]}>{t("home.sections.news")}</Text>
               <TouchableOpacity onPress={() => router.navigate("/(tabs)/notifications")}>
-                <Text style={[ss.sectionLink, { color: colors.accentLight }]}>Ver más →</Text>
+                <Text style={[ss.sectionLink, { color: colors.accentLight }]}>{t("common.seeMore")}</Text>
               </TouchableOpacity>
             </View>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={ss.newsScroll}>
@@ -1882,11 +1854,11 @@ export default function HomeScreen() {
             <Ionicons name="sparkles" size={22} color={colors.accentLight} />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={[ss.insightTitle, { color: colors.text }]}>Pregúntale a la IA</Text>
+            <Text style={[ss.insightTitle, { color: colors.text }]}>{t("home.aiCta.title")}</Text>
             <Text style={[ss.insightSub, { color: colors.textMuted }]}>
               {positions.length
-                ? `Analiza tus ${positions.length} posiciones o pide consejo de inversión`
-                : "Chatea sobre inversiones, acciones o estrategias"
+                ? t("home.aiCta.withPositions", { count: positions.length })
+                : t("home.aiCta.noPositions")
               }
             </Text>
           </View>
@@ -1914,30 +1886,30 @@ export default function HomeScreen() {
           <View style={{ width: "100%", maxWidth: 400, backgroundColor: colors.card, borderRadius: 22, padding: 24, borderWidth: 1, borderColor: colors.border }}>
             <Text style={{ fontSize: 22, textAlign: "center", marginBottom: 4 }}>👫</Text>
             <Text style={{ fontSize: 17, fontWeight: "900", color: colors.text, textAlign: "center", marginBottom: 6 }}>
-              ¿Qué cuentas quieres agregar?
+              {t("home.duo.modalTitle")}
             </Text>
             <Text style={{ fontSize: 12, color: colors.textMuted, textAlign: "center", marginBottom: 20 }}>
-              Plan Dúo — 2 cuentas Premium independientes
+              {t("home.duo.modalSub")}
             </Text>
 
             {/* Account 1 */}
             <Text style={{ fontSize: 11, fontWeight: "700", color: colors.textMuted, textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 6 }}>
-              Cuenta 1 — Tu cuenta
+              {t("home.duo.account1")}
             </Text>
             <View style={{ padding: 13, backgroundColor: colors.bgRaised, borderRadius: 12, borderWidth: 1, borderColor: colors.border, marginBottom: 16 }}>
               <Text style={{ color: colors.textSub, fontSize: 14 }}>
-                {duoMyEmail || "Cargando..."}
+                {duoMyEmail || t("common.loading")}
               </Text>
             </View>
 
             {/* Account 2 */}
             <Text style={{ fontSize: 11, fontWeight: "700", color: colors.textMuted, textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 6 }}>
-              Cuenta 2 — Usuario con quien compartes
+              {t("home.duo.account2")}
             </Text>
             <TextInput
               value={duoSecondaryEmail}
               onChangeText={setDuoSecondaryEmail}
-              placeholder="email@ejemplo.com"
+              placeholder={t("home.duo.emailPlaceholder")}
               placeholderTextColor={colors.textDim}
               keyboardType="email-address"
               autoCapitalize="none"
@@ -1966,7 +1938,7 @@ export default function HomeScreen() {
               }}
             >
               <Text style={{ color: "#fff", fontWeight: "900", fontSize: 15 }}>
-                {duoSaving ? "Guardando..." : "Guardar"}
+                {duoSaving ? t("home.duo.saving") : t("common.save")}
               </Text>
             </TouchableOpacity>
 
@@ -1977,7 +1949,7 @@ export default function HomeScreen() {
               style={{ alignItems: "center", paddingTop: 4 }}
             >
               <Text style={{ fontSize: 13, color: colors.textMuted, textDecorationLine: "underline" }}>
-                Agregar segundo email después
+                {t("home.duo.addLater")}
               </Text>
             </TouchableOpacity>
           </View>
@@ -2019,16 +1991,16 @@ export default function HomeScreen() {
             {feedbackDone ? (
               <View style={{ alignItems: "center", paddingVertical: 8, gap: 10 }}>
                 <Text style={{ fontSize: 40 }}>🙌</Text>
-                <Text style={{ color: colors.text, fontWeight: "800", fontSize: 17, textAlign: "center" }}>¡Gracias por tu feedback!</Text>
-                <Text style={{ color: colors.textSub, fontSize: 14, textAlign: "center" }}>Nos ayuda a mejorar Nuvos.</Text>
+                <Text style={{ color: colors.text, fontWeight: "800", fontSize: 17, textAlign: "center" }}>{t("home.feedback.thanksTitle")}</Text>
+                <Text style={{ color: colors.textSub, fontSize: 14, textAlign: "center" }}>{t("home.feedback.thanksBody")}</Text>
               </View>
             ) : (
               <>
                 {/* Header */}
                 <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" }}>
                   <View style={{ flex: 1 }}>
-                    <Text style={{ color: colors.text, fontWeight: "800", fontSize: 17 }}>¿Cómo va tu experiencia?</Text>
-                    <Text style={{ color: colors.textSub, fontSize: 13, marginTop: 3 }}>Solo toma 10 segundos</Text>
+                    <Text style={{ color: colors.text, fontWeight: "800", fontSize: 17 }}>{t("home.feedback.title")}</Text>
+                    <Text style={{ color: colors.textSub, fontSize: 13, marginTop: 3 }}>{t("home.feedback.subtitle")}</Text>
                   </View>
                   <TouchableOpacity onPress={() => {
                     setShowFeedbackModal(false);
@@ -2050,7 +2022,7 @@ export default function HomeScreen() {
                 {/* Text input — shown once a star is tapped */}
                 {feedbackRating > 0 && (
                   <TextInput
-                    placeholder="¿Qué podríamos mejorar? (opcional)"
+                    placeholder={t("home.feedback.placeholder")}
                     placeholderTextColor={colors.textDim}
                     value={feedbackMessage}
                     onChangeText={setFeedbackMessage}
@@ -2077,7 +2049,7 @@ export default function HomeScreen() {
                     }}
                     style={{ flex: 1, paddingVertical: 12, borderRadius: 12, borderWidth: 1, borderColor: colors.border, alignItems: "center" }}
                   >
-                    <Text style={{ color: colors.textSub, fontWeight: "600", fontSize: 14 }}>Ahora no</Text>
+                    <Text style={{ color: colors.textSub, fontWeight: "600", fontSize: 14 }}>{t("home.feedback.notNow")}</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
                     disabled={!feedbackRating || feedbackSaving}
@@ -2096,7 +2068,7 @@ export default function HomeScreen() {
                     }}
                   >
                     <Text style={{ color: feedbackRating ? "#fff" : colors.textSub, fontWeight: "800", fontSize: 14 }}>
-                      {feedbackSaving ? "Enviando..." : "Enviar feedback"}
+                      {feedbackSaving ? t("home.feedback.sending") : t("home.feedback.send")}
                     </Text>
                   </TouchableOpacity>
                 </View>

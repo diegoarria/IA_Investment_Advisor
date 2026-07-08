@@ -20,6 +20,7 @@ import {
   Inter_700Bold,
 } from "@expo-google-fonts/inter";
 import { ThemeProvider, useTheme } from "../src/lib/ThemeContext";
+import { LanguageProvider } from "../src/lib/LanguageContext";
 import Sidebar from "../src/components/Sidebar";
 import { useSubscriptionStore, isTrialActive, hasPremiumAccess } from "../src/lib/subscriptionStore";
 import PaywallModal from "../src/components/PaywallModal";
@@ -272,7 +273,9 @@ export default function RootLayout() {
         }}
       >
         <ThemeProvider>
-          <AppStack />
+          <LanguageProvider>
+            <AppStack />
+          </LanguageProvider>
         </ThemeProvider>
       </PostHogProvider>
     </GestureHandlerRootView>

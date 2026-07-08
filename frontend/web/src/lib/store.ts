@@ -563,6 +563,40 @@ export const useThemeStore = create<ThemeState>()(
   )
 );
 
+interface LanguageState {
+  language: "es" | "en";
+  setLanguage: (l: "es" | "en") => void;
+  loadLanguageFromServer: () => Promise<void>;
+}
+
+export const useLanguageStore = create<LanguageState>()(
+  persist(
+    (set, get) => ({
+      language: "es",
+      setLanguage: (l) => {
+        set({ language: l });
+        if (typeof window !== "undefined") {
+          import("@/i18n").then(({ default: i18n }) => i18n.changeLanguage(l));
+        }
+        syncApi.pushLanguage(l).catch(() => {});
+      },
+      loadLanguageFromServer: async () => {
+        try {
+          // Never override a user-selected English preference — only apply
+          // the server value if still on the default "es".
+          if (get().language === "en") return;
+          const res = await syncApi.getAll();
+          const serverLanguage: "es" | "en" | undefined = res.data?.language;
+          if (serverLanguage === "es" || serverLanguage === "en") {
+            get().setLanguage(serverLanguage);
+          }
+        } catch {}
+      },
+    }),
+    { name: "language-store" }
+  )
+);
+
 // ─── Learn store ─────────────────────────────────────────────────────────────
 
 interface LearnState {

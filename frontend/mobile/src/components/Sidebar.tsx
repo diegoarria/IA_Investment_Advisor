@@ -7,6 +7,7 @@ import { Ionicons } from "@expo/vector-icons";
 import * as SecureStore from "expo-secure-store";
 import { router, usePathname } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useTranslation } from "react-i18next";
 import { useAppStore, getAge } from "../lib/profileStore";
 import { useSubscriptionStore, hasPremiumAccess } from "../lib/subscriptionStore";
 import { useChatStore } from "../lib/chatStore";
@@ -33,20 +34,10 @@ const RISK_SEGMENTS = [
   { key: "speculative",            color: "#ff2d3b", pct: 100 },
 ];
 
-const RISK_LABEL: Record<string, string> = {
-  conservative: "Conservador",
-  conservative_moderate: "Cons-Moderado",
-  moderate: "Moderado",
-  moderate_growth: "Mod-Growth",
-  growth: "Growth",
-  aggressive: "Agresivo",
-  aggressive_speculative: "Agr-Especulativo",
-  speculative: "Especulativo",
-};
-
 // ─── Profile card ─────────────────────────────────────────────────────────────
 
 function ProfileCard({ colors }: { colors: ReturnType<typeof useTheme>["colors"] }) {
+  const { t } = useTranslation();
   const { profile } = useAppStore();
   if (!profile) return null;
 
@@ -78,7 +69,7 @@ function ProfileCard({ colors }: { colors: ReturnType<typeof useTheme>["colors"]
             </View>
             <View style={[styles.subBadge, { borderColor: colors.border }]}>
               <Text style={[styles.subBadgeText, { color: isPremium ? "#00d47e" : colors.textDim }]}>
-                {isPremium ? "Premium" : "Free"}
+                {isPremium ? t("common.sidebar.premium") : t("common.sidebar.free")}
               </Text>
             </View>
           </View>
@@ -89,9 +80,9 @@ function ProfileCard({ colors }: { colors: ReturnType<typeof useTheme>["colors"]
       {seg && (
         <View style={{ marginTop: 10 }}>
           <View style={styles.riskRow}>
-            <Text style={[styles.riskLabel, { color: colors.textDim }]}>Riesgo</Text>
+            <Text style={[styles.riskLabel, { color: colors.textDim }]}>{t("common.sidebar.riskLabel")}</Text>
             <Text style={[styles.riskPct, { color: seg.color }]}>
-              {RISK_LABEL[profile.risk_tolerance] ?? profile.risk_tolerance}
+              {t(`common.sidebar.riskSegments.${profile.risk_tolerance}`, { defaultValue: profile.risk_tolerance })}
             </Text>
           </View>
           <View style={[styles.riskBarTrack, { backgroundColor: colors.border }]}>
@@ -105,25 +96,25 @@ function ProfileCard({ colors }: { colors: ReturnType<typeof useTheme>["colors"]
 
 // ─── Goal card ────────────────────────────────────────────────────────────────
 
-const GOAL_MAP: Record<string, { label: string; emoji: string }> = {
-  house:             { label: "Comprar una casa",         emoji: "🏠" },
-  car:               { label: "Comprar un carro",         emoji: "🚗" },
-  passive_income:    { label: "Vivir de mis inversiones", emoji: "💸" },
-  retirement:        { label: "Retiro / pensión",         emoji: "👴" },
-  financial_freedom: { label: "Libertad financiera",      emoji: "🦅" },
-  long_term_wealth:  { label: "Patrimonio a largo plazo", emoji: "🏛️" },
+const GOAL_EMOJI: Record<string, string> = {
+  house: "🏠", car: "🚗", passive_income: "💸",
+  retirement: "👴", financial_freedom: "🦅", long_term_wealth: "🏛️",
 };
 
 function GoalCard({ colors }: { colors: ReturnType<typeof useTheme>["colors"] }) {
+  const { t } = useTranslation();
   const { profile } = useAppStore();
   if (!profile?.investment_goal) return null;
-  const goal = GOAL_MAP[profile.investment_goal] ?? { label: profile.investment_goal, emoji: "🎯" };
+  const goal = {
+    label: t(`common.goals.${profile.investment_goal}`, { defaultValue: profile.investment_goal }),
+    emoji: GOAL_EMOJI[profile.investment_goal] ?? "🎯",
+  };
   const amount = profile.investment_goal_amount ? Number(profile.investment_goal_amount) : null;
   return (
     <View style={[goalStyles.card, { borderColor: "rgba(0,212,126,0.25)", backgroundColor: "rgba(0,212,126,0.07)" }]}>
       <Text style={goalStyles.emoji}>{goal.emoji}</Text>
       <View style={{ flex: 1, minWidth: 0 }}>
-        <Text style={[goalStyles.label, { color: "rgba(0,212,126,0.6)" }]}>MI META</Text>
+        <Text style={[goalStyles.label, { color: "rgba(0,212,126,0.6)" }]}>{t("common.sidebar.myGoal")}</Text>
         <Text style={[goalStyles.name, { color: "#00d47e" }]} numberOfLines={1}>{goal.label}</Text>
         {amount ? (
           <Text style={[goalStyles.amount, { color: colors.text }]}>
@@ -151,17 +142,17 @@ const goalStyles = StyleSheet.create({
 // ─── Fixed nav items ──────────────────────────────────────────────────────────
 
 const MAIN_NAV = [
-  { icon: "home-outline",                 label: "Inicio",         path: "/home",          minLevel: "basico" as const },
-  { icon: "chatbubble-ellipses-outline",  label: "Mentor IA",      path: "/chat",          minLevel: "basico" as const },
-  { icon: "pie-chart-outline",            label: "Patrimonio",     path: "/portfolio",     minLevel: "basico" as const },
-  { icon: "school-outline",              label: "Academy",        path: "/learn",         minLevel: "basico" as const },
+  { icon: "home-outline",                 labelKey: "common.nav.home",     path: "/home",          minLevel: "basico" as const },
+  { icon: "chatbubble-ellipses-outline",  labelKey: "common.nav.mentor",   path: "/chat",          minLevel: "basico" as const },
+  { icon: "pie-chart-outline",            labelKey: "common.nav.patrimonio", path: "/portfolio",  minLevel: "basico" as const },
+  { icon: "school-outline",              labelKey: "common.nav.academy",  path: "/learn",         minLevel: "basico" as const },
 ];
 
 const SECONDARY_NAV = [
-  { icon: "notifications-outline",  label: "Notificaciones", path: "/notifications", minLevel: "basico" as const },
-  { icon: "person-outline",         label: "Perfil",         path: "/profile",       minLevel: "basico" as const },
-  { icon: "bag-outline",            label: "Productos",      path: "/products",      minLevel: "basico" as const },
-  { icon: "headset-outline",        label: "Soporte",        path: "/support",       minLevel: "basico" as const },
+  { icon: "notifications-outline",  labelKey: "common.nav.notifications", path: "/notifications", minLevel: "basico" as const },
+  { icon: "person-outline",         labelKey: "common.nav.profile",       path: "/profile",       minLevel: "basico" as const },
+  { icon: "bag-outline",            labelKey: "common.nav.products",      path: "/products",      minLevel: "basico" as const },
+  { icon: "headset-outline",        labelKey: "common.nav.support",       path: "/support",       minLevel: "basico" as const },
 ];
 
 function NavItems({
@@ -172,6 +163,7 @@ function NavItems({
   onPress: (path: string) => void;
   collapsed?: boolean;
 }) {
+  const { t } = useTranslation();
   const userLevel = useUserLevel();
   const allItems = [...MAIN_NAV, ...SECONDARY_NAV];
 
@@ -219,7 +211,7 @@ function NavItems({
           color={isActive && !locked ? "#22c55e" : colors.textSub}
         />
         <Text style={[styles.navLabel, { color: isActive && !locked ? "#22c55e" : colors.textSub }]}>
-          {item.label}
+          {t(item.labelKey)}
         </Text>
         {locked && (
           <Text style={[styles.lockLevelText, { color: colors.textDim }]}>
@@ -248,6 +240,7 @@ function RecentChats({
   colors: ReturnType<typeof useTheme>["colors"];
   onNavigate: () => void;
 }) {
+  const { t } = useTranslation();
   const { sessions, currentId, loadSession, deleteSession, createSession } = useChatStore();
   const [expanded, setExpanded] = useState(true);
   const recent = sessions.slice(0, 12);
@@ -269,7 +262,7 @@ function RecentChats({
       <View style={styles.recentHeader}>
         <TouchableOpacity style={styles.recentHeaderLeft} onPress={() => setExpanded((v) => !v)}>
           <Ionicons name="time-outline" size={14} color={colors.textMuted} />
-          <Text style={[styles.recentTitle, { color: colors.textMuted }]}>Chats recientes</Text>
+          <Text style={[styles.recentTitle, { color: colors.textMuted }]}>{t("common.sidebar.recentChats")}</Text>
           <Ionicons
             name={expanded ? "chevron-down" : "chevron-forward"}
             size={12}
@@ -284,7 +277,7 @@ function RecentChats({
       {expanded && (
         <>
           {recent.length === 0 ? (
-            <Text style={[styles.recentEmpty, { color: colors.textDim }]}>Sin chats guardados</Text>
+            <Text style={[styles.recentEmpty, { color: colors.textDim }]}>{t("common.sidebar.noSavedChats")}</Text>
           ) : (
             recent.map((s) => (
               <TouchableOpacity
@@ -336,6 +329,7 @@ function useLogout() {
 // ─── Web: collapsible sidebar ─────────────────────────────────────────────────
 
 function WebSidebar() {
+  const { t } = useTranslation();
   const { colors } = useTheme();
   const pathname = usePathname();
   const handleLogout = useLogout();
@@ -360,7 +354,7 @@ function WebSidebar() {
             <Image source={require("../../assets/images/logo_new.png")} style={styles.logoBox} />
             <View style={{ flex: 1 }}>
               <Text style={[styles.appName, { color: colors.text }]}>Nuvos AI</Text>
-              <Text style={[styles.appSub, { color: colors.textMuted }]}>Tu asesor IA</Text>
+              <Text style={[styles.appSub, { color: colors.textMuted }]}>{t("common.sidebar.tagline")}</Text>
             </View>
           </>
         )}
@@ -412,15 +406,15 @@ function WebSidebar() {
                 <Ionicons name="calendar-outline" size={16} color="#00d47e" />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={[styles.coachingTitle, { color: colors.text }]}>Sesión 1:1 con Diego</Text>
-                <Text style={[styles.coachingSub, { color: colors.textMuted }]}>Guía personalizada · 45 min</Text>
+                <Text style={[styles.coachingTitle, { color: colors.text }]}>{t("common.sidebar.coachingTitle")}</Text>
+                <Text style={[styles.coachingSub, { color: colors.textMuted }]}>{t("common.sidebar.coachingSub")}</Text>
               </View>
               <Ionicons name="chevron-forward" size={14} color={colors.textDim} />
             </TouchableOpacity>
 
             <TouchableOpacity style={styles.navItem} onPress={handleLogout}>
               <Ionicons name="log-out-outline" size={20} color="#ef4444" />
-              <Text style={[styles.navLabel, { color: "#ef4444" }]}>Cerrar sesión</Text>
+              <Text style={[styles.navLabel, { color: "#ef4444" }]}>{t("common.sidebar.logout")}</Text>
             </TouchableOpacity>
           </>
         )}
@@ -432,6 +426,7 @@ function WebSidebar() {
 // ─── Mobile: sliding overlay sidebar ─────────────────────────────────────────
 
 function MobileSidebar() {
+  const { t } = useTranslation();
   const { colors } = useTheme();
   const { sidebarOpen, closeSidebar } = useAppStore();
   const insets = useSafeAreaInsets();
@@ -482,7 +477,7 @@ function MobileSidebar() {
           <Image source={require("../../assets/images/logo_new.png")} style={styles.logoBox} />
           <View style={{ flex: 1 }}>
             <Text style={[styles.appName, { color: colors.text }]}>Nuvos AI</Text>
-            <Text style={[styles.appSub, { color: colors.textMuted }]}>Tu asesor IA</Text>
+            <Text style={[styles.appSub, { color: colors.textMuted }]}>{t("common.sidebar.tagline")}</Text>
           </View>
           <TouchableOpacity
             onPress={closeSidebar}

@@ -5,9 +5,11 @@ import MarketTickerBar from "@/components/MarketTickerBar";
 import PremiumBadge from "@/components/PremiumBadge";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import {
   useAuthStore, useProfileStore, useSubscriptionStore,
-  useThemeStore, msgsRemaining, FREE_MSG_LIMIT, maturityLabel,
+  useThemeStore, useLanguageStore, msgsRemaining, FREE_MSG_LIMIT, maturityLabel,
 } from "@/lib/store";
 import { auth as authApi, billing, feedApi, fmgApi, insights as insightsApi, mentorLetter as mentorLetterApi, notifications as notifApi, profile as profileApi, referral as referralApi, sync as syncApi, voiceCallsApi } from "@/lib/api";
 import { getMentorInfo } from "@/lib/mentorData";
@@ -21,31 +23,37 @@ import { getUserLevel, LEVEL_COLOR, LEVEL_LABEL, LEVEL_EMOJI } from "@/lib/userL
 
 const _fmtUSD = (n: number) => `$${n.toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
 
-const DUO_METRIC_DEFS: { key: string; label: string; format: (v: any) => string }[] = [
-  { key: "current_patrimonio", label: "Patrimonio actual", format: (v) => _fmtUSD(v) },
-  { key: "cumulative_return_pct", label: "Retorno acumulado", format: (v) => `${v >= 0 ? "+" : ""}${v}%` },
-  { key: "capital_invested", label: "Capital invertido", format: (v) => _fmtUSD(v) },
-  { key: "total_operations", label: "Operaciones", format: (v) => `${v}` },
-  { key: "consecutive_months_contributing", label: "Racha de meses", format: (v) => `${v}` },
-  { key: "days_since_first_investment", label: "Desde su primera inversión", format: (v) => `${v} días` },
-];
+function getDuoMetricDefs(t: TFunction): { key: string; label: string; format: (v: any) => string }[] {
+  return [
+    { key: "current_patrimonio", label: t("profile.duoMetrics.currentWealth"), format: (v) => _fmtUSD(v) },
+    { key: "cumulative_return_pct", label: t("profile.duoMetrics.cumulativeReturn"), format: (v) => `${v >= 0 ? "+" : ""}${v}%` },
+    { key: "capital_invested", label: t("profile.duoMetrics.capitalInvested"), format: (v) => _fmtUSD(v) },
+    { key: "total_operations", label: t("profile.duoMetrics.operations"), format: (v) => `${v}` },
+    { key: "consecutive_months_contributing", label: t("profile.duoMetrics.monthsStreak"), format: (v) => `${v}` },
+    { key: "days_since_first_investment", label: t("profile.duoMetrics.sinceFirstInvestment"), format: (v) => t("profile.duoMetrics.daysUnit", { count: v }) },
+  ];
+}
 
-const LEVEL_OPTIONS = [
-  { key: "B", label: "Básico",      emoji: "📚", desc: "Sin experiencia o conozco lo básico" },
-  { key: "C", label: "Intermedio",  emoji: "📈", desc: "Tengo experiencia (ETFs, acciones)" },
-  { key: "D", label: "Avanzado",    emoji: "⚡", desc: "Análisis financiero profundo" },
-];
+function getLevelOptions(t: TFunction) {
+  return [
+    { key: "B", label: t("profile.levelBasic"),        emoji: "📚", desc: t("profile.levelBasicDesc") },
+    { key: "C", label: t("profile.levelIntermediate"),  emoji: "📈", desc: t("profile.levelIntermediateDesc") },
+    { key: "D", label: t("profile.levelAdvanced"),      emoji: "⚡", desc: t("profile.levelAdvancedDesc") },
+  ];
+}
 
-const RISK_LABEL: Record<string, string> = {
-  conservative:           "Inversionista Conservador",
-  conservative_moderate:  "Conservador-Moderado",
-  moderate:               "Inversionista Moderado",
-  moderate_growth:        "Moderado-Growth",
-  growth:                 "Growth",
-  aggressive:             "Inversionista Agresivo",
-  aggressive_speculative: "Agresivo-Especulativo",
-  speculative:            "Especulativo",
-};
+function getRiskLabel(t: TFunction): Record<string, string> {
+  return {
+    conservative:           t("profile.riskLabels.conservative"),
+    conservative_moderate:  t("profile.riskLabels.conservative_moderate"),
+    moderate:               t("profile.riskLabels.moderate"),
+    moderate_growth:        t("profile.riskLabels.moderate_growth"),
+    growth:                 t("profile.riskLabels.growth"),
+    aggressive:              t("profile.riskLabels.aggressive"),
+    aggressive_speculative: t("profile.riskLabels.aggressive_speculative"),
+    speculative:            t("profile.riskLabels.speculative"),
+  };
+}
 
 const RISK_COLOR: Record<string, string> = {
   conservative:           "#3b82f6",
@@ -59,13 +67,15 @@ const RISK_COLOR: Record<string, string> = {
 };
 
 const QUIZ_CATEGORIES = ["Mentalidad", "Horizonte", "Conocimiento", "Riesgo", "Comportamiento"];
-const QUIZ_LABELS: Record<string, Record<string, string>> = {
-  q1: { A: "Vende ante caídas", B: "Espera sin actuar", C: "Analiza y mantiene", D: "Compra las caídas" },
-  q2: { A: "< 2 años", B: "3–5 años", C: "10+ años", D: "Largo plazo, sin prisa" },
-  q3: { A: "Principiante", B: "Básico", C: "Intermedio", D: "Avanzado" },
-  q4: { A: "$5K seguro", B: "$15K / riesgo $5K", C: "$40K / riesgo $20K", D: "$120K / riesgo total" },
-  q5: { A: "Automático / pasivo", B: "Revisión mensual", C: "Revisión semanal", D: "Gestión diaria" },
-};
+function getQuizLabels(t: TFunction): Record<string, Record<string, string>> {
+  return {
+    q1: t("profile.quizLabels.q1", { returnObjects: true }) as unknown as Record<string, string>,
+    q2: t("profile.quizLabels.q2", { returnObjects: true }) as unknown as Record<string, string>,
+    q3: t("profile.quizLabels.q3", { returnObjects: true }) as unknown as Record<string, string>,
+    q4: t("profile.quizLabels.q4", { returnObjects: true }) as unknown as Record<string, string>,
+    q5: t("profile.quizLabels.q5", { returnObjects: true }) as unknown as Record<string, string>,
+  };
+}
 const ANSWER_COLORS: Record<string, string> = { A: "#3b82f6", B: "#22c55e", C: "#f59e0b", D: "#ef4444" };
 
 function riskCategory(rt: string): "conservative" | "moderate" | "aggressive" {
@@ -85,29 +95,45 @@ function getAge(birthDate: string): number {
   return Math.max(0, age);
 }
 
-const riskDistributions: Record<string, { label: string; pct: number; color: string }[]> = {
-  conservative: [
-    { label: "Renta fija / Bonos", pct: 60, color: "#3b82f6" },
-    { label: "Acciones defensivas", pct: 30, color: "#22c55e" },
-    { label: "Liquidez / Oro", pct: 10, color: "#f59e0b" },
-  ],
-  moderate: [
-    { label: "Acciones diversificadas", pct: 60, color: "#22c55e" },
-    { label: "Renta fija", pct: 30, color: "#3b82f6" },
-    { label: "Alternativos / REITs", pct: 10, color: "#a855f7" },
-  ],
-  aggressive: [
-    { label: "Acciones de crecimiento", pct: 75, color: "#22c55e" },
-    { label: "Mercados emergentes", pct: 15, color: "#f59e0b" },
-    { label: "Renta fija mínima", pct: 10, color: "#3b82f6" },
-  ],
-};
+function getRiskDistributions(t: TFunction): Record<string, { label: string; pct: number; color: string }[]> {
+  return {
+    conservative: [
+      { label: t("profile.riskDistributions.conservative.fixedIncome"), pct: 60, color: "#3b82f6" },
+      { label: t("profile.riskDistributions.conservative.defensiveStocks"), pct: 30, color: "#22c55e" },
+      { label: t("profile.riskDistributions.conservative.liquidityGold"), pct: 10, color: "#f59e0b" },
+    ],
+    moderate: [
+      { label: t("profile.riskDistributions.moderate.diversifiedStocks"), pct: 60, color: "#22c55e" },
+      { label: t("profile.riskDistributions.moderate.fixedIncome"), pct: 30, color: "#3b82f6" },
+      { label: t("profile.riskDistributions.moderate.alternativesReits"), pct: 10, color: "#a855f7" },
+    ],
+    aggressive: [
+      { label: t("profile.riskDistributions.aggressive.growthStocks"), pct: 75, color: "#22c55e" },
+      { label: t("profile.riskDistributions.aggressive.emergingMarkets"), pct: 15, color: "#f59e0b" },
+      { label: t("profile.riskDistributions.aggressive.minFixedIncome"), pct: 10, color: "#3b82f6" },
+    ],
+  };
+}
 
-const riskMetrics: Record<string, { label: string; val: string }[]> = {
-  conservative: [{ label: "Volatilidad", val: "Baja" }, { label: "Retorno esperado", val: "4–7% anual" }, { label: "Horizonte ideal", val: "1–5 años" }],
-  moderate:     [{ label: "Volatilidad", val: "Media" }, { label: "Retorno esperado", val: "7–10% anual" }, { label: "Horizonte ideal", val: "5–10 años" }],
-  aggressive:   [{ label: "Volatilidad", val: "Alta" }, { label: "Retorno esperado", val: "10–15%+" }, { label: "Horizonte ideal", val: "10+ años" }],
-};
+function getRiskMetrics(t: TFunction): Record<string, { label: string; val: string }[]> {
+  return {
+    conservative: [
+      { label: t("profile.riskMetrics.volatility"), val: t("profile.riskMetrics.low") },
+      { label: t("profile.riskMetrics.expectedReturn"), val: t("profile.riskMetrics.return4_7") },
+      { label: t("profile.riskMetrics.idealHorizon"), val: t("profile.riskMetrics.horizon1_5") },
+    ],
+    moderate: [
+      { label: t("profile.riskMetrics.volatility"), val: t("profile.riskMetrics.medium") },
+      { label: t("profile.riskMetrics.expectedReturn"), val: t("profile.riskMetrics.return7_10") },
+      { label: t("profile.riskMetrics.idealHorizon"), val: t("profile.riskMetrics.horizon5_10") },
+    ],
+    aggressive: [
+      { label: t("profile.riskMetrics.volatility"), val: t("profile.riskMetrics.high") },
+      { label: t("profile.riskMetrics.expectedReturn"), val: t("profile.riskMetrics.return10_15") },
+      { label: t("profile.riskMetrics.idealHorizon"), val: t("profile.riskMetrics.horizon10plus") },
+    ],
+  };
+}
 
 const riskETFs: Record<string, string> = {
   conservative: "BND, AGG, SCHD, VTIP, SGOV, GLD",
@@ -116,11 +142,13 @@ const riskETFs: Record<string, string> = {
 };
 
 export default function ProfilePage() {
+  const { t } = useTranslation();
   const router = useRouter();
   const { isAuthenticated, clearAuth } = useAuthStore();
   const { profile, maturityScore, maturityHistory, setProfile } = useProfileStore();
   const subStore = useSubscriptionStore();
   const { theme, toggleTheme } = useThemeStore();
+  const { language, setLanguage } = useLanguageStore();
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [riskExpanded, setRiskExpanded] = useState(false);
@@ -174,6 +202,12 @@ export default function ProfilePage() {
   const riskColor = profile ? (RISK_COLOR[profile.risk_tolerance] ?? "var(--accent)") : "var(--accent)";
   const riskCat = profile ? riskCategory(profile.risk_tolerance) : "moderate";
   const maturity = maturityLabel(maturityScore);
+  const RISK_LABEL = getRiskLabel(t);
+  const QUIZ_LABELS = getQuizLabels(t);
+  const LEVEL_OPTIONS = getLevelOptions(t);
+  const DUO_METRIC_DEFS = getDuoMetricDefs(t);
+  const riskDistributions = getRiskDistributions(t);
+  const riskMetrics = getRiskMetrics(t);
 
   useEffect(() => {
     insightsApi.get().then((r) => setInsights(r.data)).catch(() => {});
@@ -257,7 +291,7 @@ export default function ProfilePage() {
   };
 
   const handleLogout = () => {
-    if (confirm("¿Seguro que quieres cerrar sesión?")) {
+    if (confirm(t("profile.confirmLogout"))) {
       clearAuth();
       router.push("/");
     }
@@ -299,8 +333,8 @@ export default function ProfilePage() {
   };
 
   const handleDeleteAccount = async () => {
-    if (!confirm("Esta acción es permanente. Se borrarán todos tus datos. ¿Continuar?")) return;
-    if (!confirm("¿Estás absolutamente seguro? No se puede deshacer.")) return;
+    if (!confirm(t("profile.confirmDelete1"))) return;
+    if (!confirm(t("profile.confirmDelete2"))) return;
     setDeletingAccount(true);
     setDeleteError(null);
     try {
@@ -308,7 +342,7 @@ export default function ProfilePage() {
       clearAuth();
       router.push("/");
     } catch {
-      setDeleteError("No se pudo eliminar la cuenta. Intenta de nuevo o escríbenos a soporte.");
+      setDeleteError(t("profile.deleteAccountError"));
       setDeletingAccount(false);
     }
   };
@@ -324,11 +358,17 @@ export default function ProfilePage() {
         <div className="sticky top-0 z-10 px-6 py-4 flex items-center justify-between border-b shrink-0"
              style={{ background: "var(--bg)", borderColor: "var(--border)" }}>
           <div>
-            <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--muted)" }}>Mi cuenta</p>
-            <h1 className="text-2xl font-black tracking-tight" style={{ color: "var(--text)" }}>Perfil</h1>
+            <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--muted)" }}>{t("profile.myAccount")}</p>
+            <h1 className="text-2xl font-black tracking-tight" style={{ color: "var(--text)" }}>{t("profile.title")}</h1>
           </div>
           <div className="flex items-center gap-2">
             <PremiumBadge />
+            <button onClick={() => setLanguage(language === "es" ? "en" : "es")}
+                    className="h-9 px-2.5 flex items-center justify-center rounded-xl border text-[11px] font-bold transition-colors hover:border-[var(--accent)]"
+                    style={{ borderColor: "var(--border)", background: "var(--raised)", color: "var(--sub)" }}
+                    aria-label={t("profile.languageToggle")}>
+              {language === "es" ? "ES" : "EN"}
+            </button>
             <button onClick={toggleTheme}
                     className="w-9 h-9 flex items-center justify-center rounded-xl border transition-colors hover:border-[var(--accent)]"
                     style={{ borderColor: "var(--border)", background: "var(--raised)", color: "var(--sub)" }}>
@@ -350,11 +390,11 @@ export default function ProfilePage() {
             {!profile ? (
               <div className="flex flex-col items-center justify-center h-64 gap-4">
                 <User className="w-16 h-16" style={{ color: "var(--dim)" }} />
-                <p style={{ color: "var(--muted)" }}>No hay perfil configurado</p>
+                <p style={{ color: "var(--muted)" }}>{t("profile.noProfile")}</p>
                 <button onClick={() => router.push("/onboarding")}
                         className="px-4 py-2 rounded-xl text-sm font-semibold text-white"
                         style={{ background: "var(--accent)" }}>
-                  Completar onboarding
+                  {t("profile.completeOnboarding")}
                 </button>
               </div>
             ) : (
@@ -401,16 +441,16 @@ export default function ProfilePage() {
                     <button onClick={() => router.push("/profile/edit")}
                             className="flex-1 py-3 text-xs font-semibold text-center hover:bg-white/5 transition-colors border-r"
                             style={{ color: "var(--muted)", borderColor: "var(--border)" }}>
-                      Editar perfil
+                      {t("profile.editProfile")}
                     </button>
                     <button
                       onClick={() => {
                         const riskLabel = RISK_LABEL[profile.risk_tolerance] ?? profile.risk_tolerance;
-                        const mentorLine = mentor ? `\nMi mentor: ${mentor.emoji} ${mentor.name}` : "";
-                        const maturityLine = `\nMadurez inversora: ${maturityScore}/100`;
-                        const text = `Soy un/a ${riskLabel} 📊${mentorLine}${maturityLine}\n\nAprende a invertir con IA 👉 https://nuvosai.com`;
+                        const mentorLine = mentor ? t("profile.myMentorLine", { emoji: mentor.emoji, name: mentor.name }) : "";
+                        const maturityLine = t("profile.maturityLine", { score: maturityScore });
+                        const text = t("profile.shareText", { riskLabel, mentorLine, maturityLine });
                         if (navigator.share) {
-                          navigator.share({ title: "Mi perfil en Nuvos AI", text, url: "https://nuvosai.com" }).catch(() => {});
+                          navigator.share({ title: t("profile.shareTitle"), text, url: "https://nuvosai.com" }).catch(() => {});
                         } else {
                           setShareOpen((v) => !v);
                         }
@@ -419,7 +459,7 @@ export default function ProfilePage() {
                       style={{ color: "var(--accent-l)" }}
                     >
                       <Share2 className="w-3.5 h-3.5" />
-                      Compartir perfil
+                      {t("profile.shareProfile")}
                     </button>
                   </div>
 
@@ -428,12 +468,13 @@ export default function ProfilePage() {
                     <div className="border-t px-4 py-4" style={{ borderColor: "var(--border)" }}>
                       {(() => {
                         const riskLabel = RISK_LABEL[profile.risk_tolerance] ?? profile.risk_tolerance;
-                        const mentorLine = mentor ? `\nMi mentor: ${mentor.emoji} ${mentor.name}` : "";
-                        const text = encodeURIComponent(`Soy un/a ${riskLabel} 📊${mentorLine}\nMadurez inversora: ${maturityScore}/100\n\nAprende a invertir con IA 👉 https://nuvosai.com`);
+                        const mentorLine = mentor ? t("profile.myMentorLine", { emoji: mentor.emoji, name: mentor.name }) : "";
+                        const maturityLine = t("profile.maturityLine", { score: maturityScore });
+                        const text = encodeURIComponent(t("profile.shareText", { riskLabel, mentorLine, maturityLine }));
                         const url = encodeURIComponent("https://nuvosai.com");
                         return (
                           <div className="space-y-3">
-                            <p className="text-[10px] font-bold uppercase tracking-widest text-center" style={{ color: "var(--dim)" }}>Compartir en</p>
+                            <p className="text-[10px] font-bold uppercase tracking-widest text-center" style={{ color: "var(--dim)" }}>{t("profile.shareOn")}</p>
                             <div className="grid grid-cols-4 gap-2">
                               {[
                                 { label: "X", bg: "#000", href: `https://twitter.com/intent/tweet?text=${text}`, icon: "𝕏" },
@@ -451,7 +492,10 @@ export default function ProfilePage() {
                             </div>
                             <button
                               onClick={() => {
-                                const raw = `Soy un/a ${RISK_LABEL[profile.risk_tolerance] ?? profile.risk_tolerance} 📊${mentor ? `\nMi mentor: ${mentor.emoji} ${mentor.name}` : ""}\nMadurez inversora: ${maturityScore}/100\n\nAprende a invertir con IA 👉 https://nuvosai.com`;
+                                const riskLabel = RISK_LABEL[profile.risk_tolerance] ?? profile.risk_tolerance;
+                                const mentorLine = mentor ? t("profile.myMentorLine", { emoji: mentor.emoji, name: mentor.name }) : "";
+                                const maturityLine = t("profile.maturityLine", { score: maturityScore });
+                                const raw = t("profile.shareText", { riskLabel, mentorLine, maturityLine });
                                 navigator.clipboard.writeText(raw);
                                 setCopiedProfile(true);
                                 setTimeout(() => setCopiedProfile(false), 2000);
@@ -460,7 +504,7 @@ export default function ProfilePage() {
                               style={{ borderColor: "var(--border)", color: copiedProfile ? "#22c55e" : "var(--muted)", background: "var(--raised)" }}
                             >
                               {copiedProfile ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-                              {copiedProfile ? "¡Copiado!" : "Copiar texto"}
+                              {copiedProfile ? t("profile.copied") : t("profile.copyText")}
                             </button>
                           </div>
                         );
@@ -475,11 +519,11 @@ export default function ProfilePage() {
                        style={{ background: insights.risk_match === false ? "rgba(245,158,11,0.06)" : "var(--card)", borderColor: insights.risk_match === false ? "rgba(245,158,11,0.4)" : "rgba(34,197,94,0.4)" }}>
                     <div className="flex items-center gap-2 mb-3">
                       <span className="text-lg">🧠</span>
-                      <span className="text-sm font-bold" style={{ color: "var(--text)" }}>La IA te ha analizado</span>
+                      <span className="text-sm font-bold" style={{ color: "var(--text)" }}>{t("profile.aiAnalyzed")}</span>
                     </div>
                     {insights.risk_match === false && insights.risk_note && (
                       <div className="rounded-xl p-3 mb-3 border" style={{ background: "rgba(245,158,11,0.1)", borderColor: "rgba(245,158,11,0.3)" }}>
-                        <p className="text-xs font-bold mb-1" style={{ color: "#f59e0b" }}>⚠️ Tu comportamiento real difiere de tu perfil</p>
+                        <p className="text-xs font-bold mb-1" style={{ color: "#f59e0b" }}>{t("profile.behaviorDiffers")}</p>
                         <p className="text-xs leading-relaxed" style={{ color: "var(--sub)" }}>{insights.risk_note}</p>
                       </div>
                     )}
@@ -488,10 +532,10 @@ export default function ProfilePage() {
                     )}
                     {insights.topics && insights.topics.length > 0 && (
                       <div className="flex flex-wrap gap-1.5">
-                        {insights.topics.map((t) => (
-                          <span key={t} className="text-xs px-2.5 py-1 rounded-full border font-semibold"
+                        {insights.topics.map((topic) => (
+                          <span key={topic} className="text-xs px-2.5 py-1 rounded-full border font-semibold"
                                 style={{ background: "rgba(34,197,94,0.1)", borderColor: "rgba(34,197,94,0.3)", color: "#22c55e" }}>
-                            {t}
+                            {topic}
                           </span>
                         ))}
                       </div>
@@ -501,12 +545,12 @@ export default function ProfilePage() {
 
                 {/* Datos personales */}
                 <div>
-                  <p className="text-[10px] font-bold uppercase tracking-widest mb-2 ml-0.5" style={{ color: "var(--dim)" }}>Datos personales</p>
+                  <p className="text-[10px] font-bold uppercase tracking-widest mb-2 ml-0.5" style={{ color: "var(--dim)" }}>{t("profile.personalData")}</p>
                   <div className="grid grid-cols-3 gap-3">
                     {[
-                      { label: "Edad", value: String(getAge(profile.birth_date)), sub: "años", color: "#3b82f6" },
-                      { label: "Ingresos", value: `$${Number(profile.monthly_income).toLocaleString()}`, sub: "/mes", color: "#22c55e" },
-                      { label: "Aportación", value: `$${Number(profile.monthly_contribution).toLocaleString()}`, sub: "/mes", color: riskColor },
+                      { label: t("profile.age"), value: String(getAge(profile.birth_date)), sub: t("profile.years"), color: "#3b82f6" },
+                      { label: t("profile.income"), value: `$${Number(profile.monthly_income).toLocaleString()}`, sub: t("profile.perMonth"), color: "#22c55e" },
+                      { label: t("profile.contribution"), value: `$${Number(profile.monthly_contribution).toLocaleString()}`, sub: t("profile.perMonth"), color: riskColor },
                     ].map((item) => (
                       <div key={item.label} className="rounded-2xl border p-3" style={{ background: "var(--card)", borderColor: "var(--border)" }}>
                         <div className="w-8 h-8 rounded-xl flex items-center justify-center mb-2" style={{ background: item.color + "18" }}>
@@ -521,7 +565,7 @@ export default function ProfilePage() {
 
                 {/* Perfil de riesgo */}
                 <div>
-                  <p className="text-[10px] font-bold uppercase tracking-widest mb-2 ml-0.5" style={{ color: "var(--dim)" }}>Perfil de riesgo</p>
+                  <p className="text-[10px] font-bold uppercase tracking-widest mb-2 ml-0.5" style={{ color: "var(--dim)" }}>{t("profile.riskProfile")}</p>
                   <button onClick={() => setRiskExpanded((v) => !v)}
                           className="w-full text-left rounded-2xl border p-4 transition-colors hover:opacity-90"
                           style={{ background: "var(--card)", borderColor: riskColor + "55" }}>
@@ -532,9 +576,9 @@ export default function ProfilePage() {
                       <div className="flex-1">
                         <div className="font-bold text-base" style={{ color: "var(--text)" }}>{RISK_LABEL[profile.risk_tolerance] ?? profile.risk_tolerance}</div>
                         <div className="text-xs mt-1 leading-relaxed" style={{ color: "var(--muted)" }}>
-                          {riskCat === "conservative" ? "Priorizas la seguridad y la preservación del capital."
-                            : riskCat === "moderate" ? "Buscas equilibrio entre crecimiento y protección."
-                            : "Tu objetivo es el máximo crecimiento a largo plazo."}
+                          {riskCat === "conservative" ? t("profile.riskDescConservative")
+                            : riskCat === "moderate" ? t("profile.riskDescModerate")
+                            : t("profile.riskDescAggressive")}
                         </div>
                       </div>
                       {riskExpanded
@@ -548,7 +592,7 @@ export default function ProfilePage() {
                       ))}
                     </div>
                     <div className="flex justify-between text-[9px]" style={{ color: "var(--dim)" }}>
-                      <span>Conservador</span><span>Moderado</span><span>Agresivo</span>
+                      <span>{t("profile.conservative")}</span><span>{t("profile.moderate")}</span><span>{t("profile.aggressive")}</span>
                     </div>
                     {riskExpanded && (
                       <div className="mt-4 pt-4 border-t space-y-3" style={{ borderColor: riskColor + "25" }}>
@@ -574,7 +618,7 @@ export default function ProfilePage() {
                           ))}
                         </div>
                         <p className="text-xs" style={{ color: "var(--muted)" }}>
-                          <span className="font-bold" style={{ color: "var(--sub)" }}>ETFs típicos: </span>
+                          <span className="font-bold" style={{ color: "var(--sub)" }}>{t("profile.typicalETFs")}</span>
                           {riskETFs[riskCat]}
                         </p>
                       </div>
@@ -585,8 +629,8 @@ export default function ProfilePage() {
                 {/* Madurez inversora */}
                 <div>
                   <div className="flex items-baseline gap-2 mb-2 ml-0.5">
-                    <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color: "var(--dim)" }}>Madurez Inversora</p>
-                    <p className="text-[9px] italic" style={{ color: "var(--dim)" }}>comportamiento en la app</p>
+                    <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color: "var(--dim)" }}>{t("profile.investorMaturity")}</p>
+                    <p className="text-[9px] italic" style={{ color: "var(--dim)" }}>{t("profile.appBehavior")}</p>
                   </div>
                   <div className="rounded-2xl border p-4" style={{ background: "var(--card)", borderColor: "var(--border)" }}>
                     <div className="flex items-center justify-between mb-4">
@@ -608,14 +652,14 @@ export default function ProfilePage() {
                       <div className="h-full rounded-full transition-all" style={{ width: `${maturityScore}%`, background: maturity.color }} />
                     </div>
                     <div className="flex justify-between text-[9px]" style={{ color: "var(--dim)" }}>
-                      <span>Pasivo</span><span>Racional</span><span>Especulativo</span>
+                      <span>{t("profile.passive")}</span><span>{t("profile.rational")}</span><span>{t("profile.speculative")}</span>
                     </div>
                     <p className="text-[10px] mt-2 leading-relaxed" style={{ color: "var(--dim)" }}>
-                      Sube con cada buena decisión en la app (mantener calma, diversificar, largo plazo).
+                      {t("profile.maturityGrowthDesc")}
                     </p>
                     {maturityHistory.length > 0 && (
                       <div className="mt-3 pt-3 border-t" style={{ borderColor: "var(--border)" }}>
-                        <p className="text-[9px] font-bold uppercase tracking-wider mb-2" style={{ color: "var(--muted)" }}>Últimas señales</p>
+                        <p className="text-[9px] font-bold uppercase tracking-wider mb-2" style={{ color: "var(--muted)" }}>{t("profile.latestSignals")}</p>
                         {maturityHistory.slice(-5).reverse().map((ev, i) => (
                           <div key={i} className={`flex items-center gap-2 py-1.5 ${i > 0 ? "border-t" : ""}`}
                                style={{ borderColor: "var(--border)" }}>
@@ -637,7 +681,7 @@ export default function ProfilePage() {
                 {/* Mentor card */}
                 {mentor && (
                   <div>
-                    <p className="text-[10px] font-bold uppercase tracking-widest mb-2 ml-0.5" style={{ color: "var(--dim)" }}>Tu mentor</p>
+                    <p className="text-[10px] font-bold uppercase tracking-widest mb-2 ml-0.5" style={{ color: "var(--dim)" }}>{t("profile.yourMentor")}</p>
                     <div className="rounded-2xl border overflow-hidden" style={{ borderColor: mentor.color + "40" }}>
                       <div className="flex items-center gap-4 p-4" style={{ background: mentor.color + "0d" }}>
                         <div className="w-16 h-16 rounded-full flex items-center justify-center text-4xl shrink-0"
@@ -674,8 +718,8 @@ export default function ProfilePage() {
                           : <span className="text-xl">✉️</span>}
                       </div>
                       <div className="flex-1 text-left">
-                        <div className="text-sm font-bold" style={{ color: "var(--text)" }}>Carta de {mentor.name.split(" ")[0]}</div>
-                        <div className="text-xs mt-0.5" style={{ color: "var(--muted)" }}>Tu carta mensual personalizada</div>
+                        <div className="text-sm font-bold" style={{ color: "var(--text)" }}>{t("profile.letterOf", { name: mentor.name.split(" ")[0] })}</div>
+                        <div className="text-xs mt-0.5" style={{ color: "var(--muted)" }}>{t("profile.monthlyLetterDesc")}</div>
                       </div>
                       <ChevronDown className="w-4 h-4 shrink-0" style={{ color: mentor.color }} />
                     </button>
@@ -689,7 +733,7 @@ export default function ProfilePage() {
                   return (
                     <div>
                       <p className="text-[10px] font-bold uppercase tracking-widest mb-2 ml-0.5" style={{ color: "var(--dim)" }}>
-                        Nivel de conocimiento
+                        {t("profile.knowledgeLevel")}
                       </p>
                       <div className="rounded-2xl border overflow-hidden" style={{ background: "var(--card)", borderColor: "var(--border)" }}>
                         <div className="px-4 pt-4 pb-3">
@@ -698,7 +742,7 @@ export default function ProfilePage() {
                             <div>
                               <p className="font-bold text-sm" style={{ color: "var(--text)" }}>{LEVEL_LABEL[currentLevel]}</p>
                               <p className="text-xs" style={{ color: "var(--muted)" }}>
-                                {currentLevel === "basico" ? "La app te guía paso a paso" : currentLevel === "intermedio" ? "Contenido equilibrado" : "Análisis avanzado desbloqueado"}
+                                {currentLevel === "basico" ? t("profile.levelDescBasic") : currentLevel === "intermedio" ? t("profile.levelDescIntermediate") : t("profile.levelDescAdvanced")}
                               </p>
                             </div>
                           </div>
@@ -725,7 +769,7 @@ export default function ProfilePage() {
                             })}
                           </div>
                           {savingLevel && (
-                            <p className="text-[10px] mt-2 text-center" style={{ color: "var(--muted)" }}>Guardando...</p>
+                            <p className="text-[10px] mt-2 text-center" style={{ color: "var(--muted)" }}>{t("profile.saving")}</p>
                           )}
                         </div>
                       </div>
@@ -736,27 +780,27 @@ export default function ProfilePage() {
                 {/* Perfil psicológico */}
                 <div>
                   <div className="flex items-center gap-2 mb-2 ml-0.5">
-                    <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color: "var(--dim)" }}>Perfil psicológico</p>
+                    <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color: "var(--dim)" }}>{t("profile.psychProfile")}</p>
                     {savingPsy && <div className="w-3 h-3 border border-t-transparent rounded-full animate-spin" style={{ borderColor: "var(--accent-l)", borderTopColor: "transparent" }} />}
                   </div>
                   <div className="rounded-2xl border overflow-hidden" style={{ background: "var(--card)", borderColor: "var(--border)" }}>
                     {[
-                      { key: "q2", icon: "🕐", label: "Horizonte de inversión", color: "#22c55e",
+                      { key: "q2", icon: "🕐", label: t("profile.investmentHorizon"), color: "#22c55e",
                         value: profile.quiz_answers?.q2 as string | undefined },
-                      { key: "rt", icon: "🧠", label: "Comportamiento", color:
+                      { key: "rt", icon: "🧠", label: t("profile.behavior"), color:
                           (profile.risk_tolerance ?? "").startsWith("conservative") ? "#3b82f6"
                           : (profile.risk_tolerance ?? "").startsWith("aggressive") || profile.risk_tolerance === "speculative" ? "#ef4444"
                           : "#f59e0b",
                         value: (profile.risk_tolerance ?? "").startsWith("conservative") ? "conservative"
                           : (profile.risk_tolerance ?? "").startsWith("aggressive") || profile.risk_tolerance === "speculative" ? "aggressive"
                           : "moderate",
-                        displayOverride: (profile.risk_tolerance ?? "").startsWith("conservative") ? "Conservador"
-                          : (profile.risk_tolerance ?? "").startsWith("aggressive") || profile.risk_tolerance === "speculative" ? "Agresivo"
-                          : "Moderado",
+                        displayOverride: (profile.risk_tolerance ?? "").startsWith("conservative") ? t("profile.conservative")
+                          : (profile.risk_tolerance ?? "").startsWith("aggressive") || profile.risk_tolerance === "speculative" ? t("profile.aggressive")
+                          : t("profile.moderate"),
                       },
-                      { key: "q1", icon: "📉", label: "Reacción ante caídas", color: "#ef4444",
+                      { key: "q1", icon: "📉", label: t("profile.reactionToDrops"), color: "#ef4444",
                         value: profile.quiz_answers?.q1 as string | undefined },
-                      { key: "q5", icon: "⚙️", label: "Seguimiento del mercado", color: "#3b82f6",
+                      { key: "q5", icon: "⚙️", label: t("profile.marketFollowUp"), color: "#3b82f6",
                         value: profile.quiz_answers?.q5 as string | undefined },
                     ].map((row, idx) => {
                       const displayText = row.displayOverride ?? (row.value ? QUIZ_LABELS[row.key]?.[row.value] : null);
@@ -771,14 +815,14 @@ export default function ProfilePage() {
                           <div className="flex-1 min-w-0">
                             <div className="text-[9px] font-bold uppercase tracking-wider mb-0.5" style={{ color: "var(--dim)" }}>{row.label}</div>
                             <div className="text-sm font-semibold truncate" style={{ color: displayText ? "var(--text)" : "var(--dim)" }}>
-                              {displayText ?? "No completado"}
+                              {displayText ?? t("profile.notCompleted")}
                             </div>
                           </div>
                           <span className="text-xs font-bold px-2.5 py-1 rounded-full shrink-0"
                                 style={displayText
                                   ? { background: row.color + "18", color: row.color, border: `1px solid ${row.color}44` }
                                   : { background: "rgba(251,191,36,0.12)", color: "#fbbf24", border: "1px solid rgba(251,191,36,0.3)" }}>
-                            {displayText ?? "Completar"}
+                            {displayText ?? t("profile.complete")}
                           </span>
                         </button>
                       );
@@ -796,16 +840,16 @@ export default function ProfilePage() {
                          onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center justify-between mb-1">
                         <p className="font-extrabold text-base" style={{ color: "var(--text)" }}>
-                          {psyEditField === "q2" ? "¿Cuál es tu horizonte de inversión?"
-                            : psyEditField === "rt" ? "¿Cuál es tu comportamiento inversor?"
-                            : psyEditField === "q1" ? "¿Qué haces cuando tu portafolio cae?"
-                            : "¿Con qué frecuencia revisas el mercado?"}
+                          {psyEditField === "q2" ? t("profile.modalTitleQ2")
+                            : psyEditField === "rt" ? t("profile.modalTitleRt")
+                            : psyEditField === "q1" ? t("profile.modalTitleQ1")
+                            : t("profile.modalTitleQ5")}
                         </p>
                         <button onClick={() => setPsyEditField(null)} className="p-1 rounded-full hover:opacity-70">
                           <X className="w-5 h-5" style={{ color: "var(--muted)" }} />
                         </button>
                       </div>
-                      <p className="text-xs mb-2" style={{ color: "var(--muted)" }}>Toca una opción para guardar automáticamente</p>
+                      <p className="text-xs mb-2" style={{ color: "var(--muted)" }}>{t("profile.tapToSave")}</p>
 
                       {psyEditField !== "rt" && Object.entries(QUIZ_LABELS[psyEditField] ?? {}).map(([key, text]) => {
                         const currentVal = profile.quiz_answers?.[psyEditField] as string | undefined;
@@ -826,9 +870,9 @@ export default function ProfilePage() {
                       })}
 
                       {psyEditField === "rt" && [
-                        { key: "conservative", label: "Conservador", color: "#3b82f6", desc: "Priorizo no perder dinero sobre ganar" },
-                        { key: "moderate",     label: "Moderado",    color: "#f59e0b", desc: "Balance entre crecimiento y estabilidad" },
-                        { key: "aggressive",   label: "Agresivo",    color: "#ef4444", desc: "Acepto alta volatilidad buscando mayor retorno" },
+                        { key: "conservative", label: t("profile.conservative"), color: "#3b82f6", desc: t("profile.riskConservativeDesc") },
+                        { key: "moderate",     label: t("profile.moderate"),     color: "#f59e0b", desc: t("profile.riskModerateDesc") },
+                        { key: "aggressive",   label: t("profile.aggressive"),   color: "#ef4444", desc: t("profile.riskAggressiveDesc") },
                       ].map(({ key, label, color, desc }) => {
                         const cat = (profile.risk_tolerance ?? "").startsWith("conservative") ? "conservative"
                           : (profile.risk_tolerance ?? "").startsWith("aggressive") || profile.risk_tolerance === "speculative" ? "aggressive" : "moderate";
@@ -855,7 +899,7 @@ export default function ProfilePage() {
 
                 {/* Suscripción */}
                 <div>
-                  <p className="text-[10px] font-bold uppercase tracking-widest mb-2 ml-0.5" style={{ color: "var(--dim)" }}>Suscripción</p>
+                  <p className="text-[10px] font-bold uppercase tracking-widest mb-2 ml-0.5" style={{ color: "var(--dim)" }}>{t("profile.subscription")}</p>
                   {isPremium ? (
                     <div className="rounded-2xl border overflow-hidden" style={{ background: "var(--card)", borderColor: "rgba(245,158,11,0.5)" }}>
                       <div className="h-0.5" style={{ background: "#f59e0b" }} />
@@ -865,12 +909,12 @@ export default function ProfilePage() {
                         </div>
                         <div className="flex-1">
                           <div className="font-bold" style={{ color: "var(--text)" }}>Nuvos AI Premium</div>
-                          <div className="text-xs mt-0.5" style={{ color: "var(--muted)" }}>Acceso completo · Mensajes ilimitados</div>
+                          <div className="text-xs mt-0.5" style={{ color: "var(--muted)" }}>{t("profile.premiumFullAccess")}</div>
                         </div>
                         <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-xs font-bold"
                              style={{ background: "rgba(34,197,94,0.15)", borderColor: "rgba(34,197,94,0.4)", color: "#22c55e" }}>
                           <div className="w-1.5 h-1.5 rounded-full bg-green-400" />
-                          Activo
+                          {t("profile.active")}
                         </div>
                       </div>
                     </div>
@@ -881,9 +925,9 @@ export default function ProfilePage() {
                           <User className="w-5 h-5" style={{ color: "var(--accent-l)" }} />
                         </div>
                         <div className="flex-1">
-                          <div className="font-bold" style={{ color: "var(--text)" }}>Plan Gratis</div>
+                          <div className="font-bold" style={{ color: "var(--text)" }}>{t("profile.freePlan")}</div>
                           <div className="text-xs mt-0.5" style={{ color: "var(--muted)" }}>
-                            {remaining === Infinity ? FREE_MSG_LIMIT : remaining}/{FREE_MSG_LIMIT} mensajes hoy
+                            {t("profile.messagesToday", { remaining: remaining === Infinity ? FREE_MSG_LIMIT : remaining, limit: FREE_MSG_LIMIT })}
                           </div>
                         </div>
                       </div>
@@ -897,7 +941,7 @@ export default function ProfilePage() {
                               className="mx-4 mb-4 w-[calc(100%-2rem)] py-3 rounded-2xl text-sm font-bold text-white flex items-center justify-center gap-2"
                               style={{ background: "linear-gradient(90deg, #f59e0b, #f97316)" }}>
                         <Star className="w-4 h-4 fill-current" />
-                        Activar Premium — $10.33/mes
+                        {t("profile.activatePremium")}
                       </button>
                     </div>
                   )}
@@ -906,16 +950,16 @@ export default function ProfilePage() {
                 {/* Plan Dúo — secondary account management */}
                 {isPremium && (subStore.duoSetupPending || subStore.duoSecondaryEmail) && (
                   <div>
-                    <p className="text-[10px] font-bold uppercase tracking-widest mb-2 ml-0.5" style={{ color: "var(--dim)" }}>Plan Dúo</p>
+                    <p className="text-[10px] font-bold uppercase tracking-widest mb-2 ml-0.5" style={{ color: "var(--dim)" }}>{t("profile.duoPlan")}</p>
                     <div className="rounded-2xl border p-4 flex flex-col gap-3" style={{ background: "var(--card)", borderColor: "rgba(59,130,246,0.4)" }}>
                       <div className="flex items-center gap-2">
                         <span className="text-lg">👫</span>
                         <div className="flex-1">
-                          <p className="text-sm font-bold" style={{ color: "var(--text)" }}>Cuenta secundaria</p>
+                          <p className="text-sm font-bold" style={{ color: "var(--text)" }}>{t("profile.secondaryAccount")}</p>
                           <p className="text-xs" style={{ color: "var(--muted)" }}>
                             {subStore.duoSecondaryEmail
-                              ? `Compartiendo con ${subStore.duoSecondaryEmail}`
-                              : "Aún no has agregado la segunda cuenta"}
+                              ? t("profile.sharingWith", { email: subStore.duoSecondaryEmail })
+                              : t("profile.noSecondaryYet")}
                           </p>
                         </div>
                         {subStore.duoSecondaryEmail && !duoEditing && (
@@ -924,7 +968,7 @@ export default function ProfilePage() {
                             className="text-xs font-bold px-3 py-1.5 rounded-xl"
                             style={{ background: "rgba(59,130,246,0.12)", color: "#3b82f6", border: "1px solid rgba(59,130,246,0.3)" }}
                           >
-                            Editar
+                            {t("profile.edit")}
                           </button>
                         )}
                       </div>
@@ -933,7 +977,7 @@ export default function ProfilePage() {
                         <div className="flex flex-col gap-2">
                           <input
                             type="email"
-                            placeholder="email@ejemplo.com"
+                            placeholder={t("profile.emailPlaceholder")}
                             value={duoEmail}
                             onChange={(e) => { setDuoEmail(e.target.value); setDuoError(""); }}
                             className="w-full px-3 py-2.5 rounded-xl text-sm outline-none"
@@ -951,7 +995,7 @@ export default function ProfilePage() {
                                 className="flex-1 py-2.5 rounded-xl text-sm font-bold"
                                 style={{ background: "var(--raised)", color: "var(--muted)", border: "1px solid var(--border)" }}
                               >
-                                Cancelar
+                                {t("common.cancel")}
                               </button>
                             )}
                             <button
@@ -963,7 +1007,7 @@ export default function ProfilePage() {
                                   await subStore.fetchStatus();
                                   setDuoEditing(false);
                                 } catch (err: any) {
-                                  setDuoError(err?.response?.data?.detail ?? "Error al guardar. Intenta de nuevo.");
+                                  setDuoError(err?.response?.data?.detail ?? t("profile.duoSaveError"));
                                 } finally { setDuoSaving(false); }
                               }}
                               className="flex-1 py-2.5 rounded-xl text-sm font-bold text-white"
@@ -972,7 +1016,7 @@ export default function ProfilePage() {
                                 color: duoSaving || !duoEmail.includes("@") ? "var(--muted)" : "#fff",
                               }}
                             >
-                              {duoSaving ? "Guardando..." : "Guardar"}
+                              {duoSaving ? t("common.saving") : t("common.save")}
                             </button>
                           </div>
                         </div>
@@ -981,10 +1025,10 @@ export default function ProfilePage() {
                       {duoPartner?.paired && (
                         <div className="pt-3 mt-1 border-t" style={{ borderColor: "var(--border)" }}>
                           <p className="text-xs font-bold mb-2" style={{ color: "var(--text)" }}>
-                            Comparar progreso con {duoPartner.partner_name}
+                            {t("profile.compareProgressWith", { name: duoPartner.partner_name })}
                           </p>
                           <div className="grid grid-cols-2 gap-2">
-                            <p className="text-[10px] font-bold uppercase" style={{ color: "var(--muted)" }}>Tú</p>
+                            <p className="text-[10px] font-bold uppercase" style={{ color: "var(--muted)" }}>{t("profile.you")}</p>
                             <p className="text-[10px] font-bold uppercase" style={{ color: "var(--muted)" }}>{duoPartner.partner_name}</p>
                             {DUO_METRIC_DEFS.map((m) => {
                               const mine = duoPartner.my_summary?.[m.key];
@@ -1022,7 +1066,7 @@ export default function ProfilePage() {
                       className="w-full flex items-center justify-between mb-2"
                     >
                       <p className="text-[10px] font-bold uppercase tracking-widest ml-0.5" style={{ color: "var(--dim)" }}>
-                        Mis llamadas ({voiceCalls.length})
+                        {t("profile.myCalls", { count: voiceCalls.length })}
                       </p>
                       {voiceCallsOpen ? <ChevronUp className="w-4 h-4" style={{ color: "var(--muted)" }} /> : <ChevronDown className="w-4 h-4" style={{ color: "var(--muted)" }} />}
                     </button>
@@ -1060,7 +1104,7 @@ export default function ProfilePage() {
                               {isOpen && (
                                 <div className="px-4 pb-4 flex flex-col gap-2">
                                   {(callDetail[call.id] || []).length === 0 ? (
-                                    <p className="text-xs" style={{ color: "var(--dim)" }}>Cargando...</p>
+                                    <p className="text-xs" style={{ color: "var(--dim)" }}>{t("profile.loadingEllipsis")}</p>
                                   ) : (
                                     callDetail[call.id].map((turn, idx) => (
                                       <div
@@ -1088,7 +1132,7 @@ export default function ProfilePage() {
 
                 {/* Referral program */}
                 <div>
-                  <p className="text-[10px] font-bold uppercase tracking-widest mb-2 ml-0.5" style={{ color: "var(--dim)" }}>Programa de referidos</p>
+                  <p className="text-[10px] font-bold uppercase tracking-widest mb-2 ml-0.5" style={{ color: "var(--dim)" }}>{t("profile.referralProgram")}</p>
                   <div className="rounded-2xl border overflow-hidden" style={{ background: "var(--card)", borderColor: "rgba(245,158,11,0.3)" }}>
                     {/* Header */}
                     <div className="p-4 border-b" style={{ borderColor: "var(--border)", background: "linear-gradient(135deg, rgba(245,158,11,0.06) 0%, rgba(251,191,36,0.04) 100%)" }}>
@@ -1097,8 +1141,8 @@ export default function ProfilePage() {
                           <Gift className="w-5 h-5" style={{ color: "#f59e0b" }} />
                         </div>
                         <div>
-                          <div className="font-bold text-sm" style={{ color: "var(--text)" }}>Invita amigos, gana recompensas</div>
-                          <div className="text-xs mt-0.5" style={{ color: "var(--muted)" }}>1 mes Premium gratis por cada amigo que se una</div>
+                          <div className="font-bold text-sm" style={{ color: "var(--text)" }}>{t("profile.inviteFriends")}</div>
+                          <div className="text-xs mt-0.5" style={{ color: "var(--muted)" }}>{t("profile.inviteFriendsDesc")}</div>
                         </div>
                       </div>
                     </div>
@@ -1111,12 +1155,12 @@ export default function ProfilePage() {
                             <Users className="w-3.5 h-3.5" style={{ color: "#f59e0b" }} />
                             <span className="text-xl font-black" style={{ color: "#f59e0b" }}>{referralStats.referred_count}</span>
                           </div>
-                          <span className="text-[10px]" style={{ color: "var(--muted)" }}>Amigos referidos</span>
+                          <span className="text-[10px]" style={{ color: "var(--muted)" }}>{t("profile.referredFriends")}</span>
                         </div>
                         <div className="w-px" style={{ background: "var(--border)" }} />
                         <div className="flex-1 flex flex-col items-center py-3">
                           <span className="text-xl font-black" style={{ color: "#22c55e" }}>{referralStats.pending_reward || "—"}</span>
-                          <span className="text-[10px]" style={{ color: "var(--muted)" }}>Recompensa pendiente</span>
+                          <span className="text-[10px]" style={{ color: "var(--muted)" }}>{t("profile.pendingReward")}</span>
                         </div>
                       </div>
                     )}
@@ -1124,10 +1168,10 @@ export default function ProfilePage() {
                     {/* Link + copy */}
                     <div className="p-4 space-y-3">
                       <div>
-                        <div className="text-[10px] font-semibold uppercase tracking-wide mb-1.5" style={{ color: "var(--muted)" }}>Tu enlace de referido</div>
+                        <div className="text-[10px] font-semibold uppercase tracking-wide mb-1.5" style={{ color: "var(--muted)" }}>{t("profile.referralLink")}</div>
                         <div className="flex items-center gap-2 rounded-xl border px-3 py-2.5" style={{ background: "var(--raised)", borderColor: "var(--border)" }}>
                           <span className="flex-1 text-xs truncate font-mono" style={{ color: "var(--sub)" }}>
-                            {referralCode ? `nuvosai.com/join?ref=${referralCode}` : "Cargando..."}
+                            {referralCode ? `nuvosai.com/join?ref=${referralCode}` : t("profile.loadingEllipsis")}
                           </span>
                           <button
                             onClick={() => {
@@ -1147,7 +1191,7 @@ export default function ProfilePage() {
                       <button
                         onClick={() => {
                           if (!referralCode) return;
-                          const text = `Estoy usando Nuvos AI — el mejor mentor de inversiones con IA. Únete gratis 👉 https://nuvosai.com/join?ref=${referralCode}`;
+                          const text = t("profile.referralShareText", { link: `https://nuvosai.com/join?ref=${referralCode}` });
                           if (navigator.share) {
                             navigator.share({ title: "Nuvos AI", text, url: `https://nuvosai.com/join?ref=${referralCode}` }).catch(() => {});
                           } else {
@@ -1160,11 +1204,11 @@ export default function ProfilePage() {
                         style={{ background: "rgba(245,158,11,0.12)", border: "1px solid rgba(245,158,11,0.3)", color: "#f59e0b" }}
                       >
                         <Gift className="w-4 h-4" />
-                        Compartir invitación
+                        {t("profile.shareInvite")}
                       </button>
 
                       <p className="text-[10px] text-center leading-relaxed" style={{ color: "var(--dim)" }}>
-                        Tu amigo obtiene 7 días Premium gratis al registrarse. Tú recibes 1 mes Premium cuando activa su plan.
+                        {t("profile.referralTerms")}
                       </p>
                     </div>
                   </div>
@@ -1174,7 +1218,7 @@ export default function ProfilePage() {
                 {likedClips.length > 0 && (
                   <div>
                     <p className="text-xs font-bold mb-3 flex items-center gap-1.5" style={{ color: "var(--muted)" }}>
-                      ❤️ VIDEOS QUE TE GUSTARON
+                      {t("profile.likedVideos")}
                       <span className="text-[10px] px-1.5 py-0.5 rounded-full font-normal"
                             style={{ background: "var(--raised)", color: "var(--dim)" }}>
                         {likedClips.length}
@@ -1219,10 +1263,10 @@ export default function ProfilePage() {
                 >
                   <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl shrink-0" style={{ background: "#00d47e18" }}>✨</div>
                   <div className="flex-1">
-                    <p className="text-sm font-black" style={{ color: "var(--text)" }}>Annual ScoreBoard {new Date().getFullYear()}</p>
-                    <p className="text-xs" style={{ color: "var(--muted)" }}>Tu año como inversor en Nuvos AI</p>
+                    <p className="text-sm font-black" style={{ color: "var(--text)" }}>{t("profile.annualScoreboard", { year: new Date().getFullYear() })}</p>
+                    <p className="text-xs" style={{ color: "var(--muted)" }}>{t("profile.yearAsInvestor")}</p>
                   </div>
-                  <p className="text-xs font-black shrink-0" style={{ color: "#00d47e" }}>Ver →</p>
+                  <p className="text-xs font-black shrink-0" style={{ color: "#00d47e" }}>{t("profile.view")}</p>
                 </button>
 
                 {/* Financial Memory Graph */}
@@ -1236,13 +1280,13 @@ export default function ProfilePage() {
                       <Brain className="w-5 h-5" style={{ color: "#7c3aed" }} />
                     </div>
                     <div className="flex-1">
-                      <p className="text-sm font-black" style={{ color: "var(--text)" }}>Mi Memoria Financiera</p>
+                      <p className="text-sm font-black" style={{ color: "var(--text)" }}>{t("profile.financialMemory")}</p>
                       <p className="text-xs" style={{ color: "var(--muted)" }}>
                         {fmgData
                           ? isPremium
-                            ? `${fmgData.memories.length} aprendizajes · ${fmgData.patterns.length} patrones`
-                            : `${fmgData.memories.length}/10 creencias guardadas`
-                          : "Lo que Nuvos recuerda de ti"}
+                            ? t("profile.learningsAndPatterns", { memories: fmgData.memories.length, patterns: fmgData.patterns.length })
+                            : t("profile.beliefsStored", { count: fmgData.memories.length })
+                          : t("profile.whatNuvosRemembers")}
                       </p>
                     </div>
                     <ChevronDown className="w-4 h-4 shrink-0 transition-transform" style={{ color: "var(--muted)", transform: fmgOpen ? "rotate(180deg)" : "rotate(0deg)" }} />
@@ -1251,15 +1295,15 @@ export default function ProfilePage() {
                   {fmgOpen && (
                     <div className="border-t p-4 space-y-4" style={{ borderColor: "var(--border)", background: "var(--bg)" }}>
                       {!fmgData ? (
-                        <p className="text-xs text-center py-4" style={{ color: "var(--muted)" }}>Cargando...</p>
+                        <p className="text-xs text-center py-4" style={{ color: "var(--muted)" }}>{t("profile.loadingEllipsis")}</p>
                       ) : fmgData.memories.length === 0 ? (
-                        <p className="text-xs text-center py-4" style={{ color: "var(--muted)" }}>Aún no hay aprendizajes. Conversa con tu mentor para que empiece a recordar.</p>
+                        <p className="text-xs text-center py-4" style={{ color: "var(--muted)" }}>{t("profile.noLearningsYet")}</p>
                       ) : (
                         <>
                           {/* Memories */}
                           <div>
                             <div className="flex items-center justify-between mb-2">
-                              <p className="text-xs font-bold uppercase tracking-wider" style={{ color: "#7c3aed" }}>Aprendizajes</p>
+                              <p className="text-xs font-bold uppercase tracking-wider" style={{ color: "#7c3aed" }}>{t("profile.learnings")}</p>
                               {!isPremium && (
                                 <span className="text-xs font-semibold px-2 py-0.5 rounded-full" style={{ background: "#7c3aed18", color: "#7c3aed" }}>
                                   {fmgData.memories.length}/10
@@ -1288,7 +1332,7 @@ export default function ProfilePage() {
                           {isPremium ? (
                             fmgData.patterns.length > 0 && (
                               <div>
-                                <p className="text-xs font-bold uppercase tracking-wider mb-2" style={{ color: "#f59e0b" }}>Patrones de comportamiento</p>
+                                <p className="text-xs font-bold uppercase tracking-wider mb-2" style={{ color: "#f59e0b" }}>{t("profile.behaviorPatterns")}</p>
                                 <div className="space-y-2">
                                   {fmgData.patterns.map((p) => (
                                     <div key={p.id} className="p-2 rounded-xl" style={{ background: "var(--surface)" }}>
@@ -1312,8 +1356,8 @@ export default function ProfilePage() {
                             >
                               <Star className="w-4 h-4 shrink-0" style={{ color: "#f59e0b" }} />
                               <div className="flex-1">
-                                <p className="text-xs font-bold" style={{ color: "#f59e0b" }}>Patrones de comportamiento</p>
-                                <p className="text-xs" style={{ color: "var(--muted)" }}>Descubre cómo piensas como inversionista — Premium</p>
+                                <p className="text-xs font-bold" style={{ color: "#f59e0b" }}>{t("profile.behaviorPatterns")}</p>
+                                <p className="text-xs" style={{ color: "var(--muted)" }}>{t("profile.discoverHowYouThink")}</p>
                               </div>
                               <ChevronDown className="w-3 h-3 -rotate-90 shrink-0" style={{ color: "#f59e0b" }} />
                             </button>
@@ -1323,7 +1367,7 @@ export default function ProfilePage() {
                           {isPremium ? (
                             fmgData.events.length > 0 && (
                               <div>
-                                <p className="text-xs font-bold uppercase tracking-wider mb-2" style={{ color: "#3b82f6" }}>Timeline</p>
+                                <p className="text-xs font-bold uppercase tracking-wider mb-2" style={{ color: "#3b82f6" }}>{t("profile.timeline")}</p>
                                 <div className="space-y-2">
                                   {fmgData.events.slice(0, 5).map((e) => (
                                     <div key={e.id} className="flex items-start gap-2">
@@ -1346,8 +1390,8 @@ export default function ProfilePage() {
                             >
                               <Star className="w-4 h-4 shrink-0" style={{ color: "#3b82f6" }} />
                               <div className="flex-1">
-                                <p className="text-xs font-bold" style={{ color: "#3b82f6" }}>Timeline de decisiones</p>
-                                <p className="text-xs" style={{ color: "var(--muted)" }}>Tu historial financiero permanente — Premium</p>
+                                <p className="text-xs font-bold" style={{ color: "#3b82f6" }}>{t("profile.decisionTimeline")}</p>
+                                <p className="text-xs" style={{ color: "var(--muted)" }}>{t("profile.permanentHistory")}</p>
                               </div>
                               <ChevronDown className="w-3 h-3 -rotate-90 shrink-0" style={{ color: "#3b82f6" }} />
                             </button>
@@ -1360,9 +1404,9 @@ export default function ProfilePage() {
 
                 {/* Legal */}
                 <div className="flex justify-center gap-5 py-1">
-                  <a href="/privacy" className="text-xs hover:opacity-80 transition-opacity" style={{ color: "var(--dim)" }}>Política de privacidad</a>
+                  <a href="/privacy" className="text-xs hover:opacity-80 transition-opacity" style={{ color: "var(--dim)" }}>{t("profile.privacyPolicy")}</a>
                   <span style={{ color: "var(--dim)" }}>·</span>
-                  <a href="/terms" className="text-xs hover:opacity-80 transition-opacity" style={{ color: "var(--dim)" }}>Términos de uso</a>
+                  <a href="/terms" className="text-xs hover:opacity-80 transition-opacity" style={{ color: "var(--dim)" }}>{t("profile.termsOfUse")}</a>
                 </div>
 
                 {/* Logout */}
@@ -1370,7 +1414,7 @@ export default function ProfilePage() {
                         className="w-full py-3 rounded-2xl border flex items-center justify-center gap-2 text-sm font-semibold hover:opacity-80 transition-opacity"
                         style={{ borderColor: "rgba(239,68,68,0.35)", background: "rgba(239,68,68,0.06)", color: "#ef4444" }}>
                   <LogOut className="w-4 h-4" />
-                  Cerrar sesión
+                  {t("profile.logout")}
                 </button>
 
                 {/* Delete account */}
@@ -1381,7 +1425,7 @@ export default function ProfilePage() {
                         disabled={deletingAccount}
                         className="w-full py-3 text-xs text-center hover:opacity-70 transition-opacity disabled:opacity-40"
                         style={{ color: "var(--dim)" }}>
-                  {deletingAccount ? "Eliminando cuenta..." : "Eliminar mi cuenta"}
+                  {deletingAccount ? t("profile.deletingAccount") : t("profile.deleteAccount")}
                 </button>
               </>
             )}

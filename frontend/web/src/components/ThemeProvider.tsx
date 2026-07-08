@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
-import { useThemeStore, useAuthStore, useWatchlistStore, useLearnStore } from "@/lib/store";
+import { useThemeStore, useAuthStore, useWatchlistStore, useLearnStore, useLanguageStore } from "@/lib/store";
+import "@/i18n";
 import { usePortfolioStore } from "@/lib/portfolioStore";
 import { getSupabaseClient } from "@/lib/supabase";
 
@@ -12,6 +13,7 @@ const BASE_URL =
 
 export default function ThemeProvider({ children }: { children: React.ReactNode }) {
   const { theme, loadThemeFromServer } = useThemeStore();
+  const { language, loadLanguageFromServer } = useLanguageStore();
   const { isAuthenticated, setAuth, setAuthRestoring } = useAuthStore();
   const lastSyncRef = useRef<number>(0);
   const pathname = usePathname();
@@ -22,6 +24,11 @@ export default function ThemeProvider({ children }: { children: React.ReactNode 
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", theme);
   }, [theme]);
+
+  useEffect(() => {
+    document.documentElement.lang = language;
+    import("@/i18n").then(({ default: i18n }) => i18n.changeLanguage(language));
+  }, [language]);
 
   // On every app load: restore session from stored tokens so the user
   // is never logged out as long as their refresh_token is valid.
@@ -104,6 +111,7 @@ export default function ThemeProvider({ children }: { children: React.ReactNode 
       lastSyncRef.current = now;
 
       loadThemeFromServer();
+      loadLanguageFromServer();
       useWatchlistStore.getState().loadFromServer();
       useLearnStore.getState().restoreFromServer();
       usePortfolioStore.getState().loadFromServer();

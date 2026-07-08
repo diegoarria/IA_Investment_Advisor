@@ -1001,6 +1001,9 @@ def build_system_prompt(
     if notification_context:
         core += f"\n\n## 📩 CONTEXTO: EL USUARIO LLEGÓ DESDE UNA NOTIFICACIÓN\n\n{notification_context}\n\nEl usuario acaba de ver esta notificación y abrió el chat. Empieza reconociendo este contexto de forma natural y ofrece análisis relevante."
 
+    if profile and getattr(profile, "preferred_language", None) == "en":
+        core += "\n\n## 🌐 IDIOMA\n\nResponde siempre en inglés. El usuario configuró el idioma de la app en inglés."
+
     return core + ACTION_TAG_INSTRUCTIONS + SECURITY_GUARDRAILS
 
 
@@ -1020,6 +1023,8 @@ def _build_static_system_prompt(
         core = base + mentor_section + "\n\n## NOTA: Usuario aún no ha completado su perfil. Invítalo a hacerlo para personalizar el análisis."
     if deep_context:
         core += deep_context
+    if profile and getattr(profile, "preferred_language", None) == "en":
+        core += "\n\n## 🌐 IDIOMA\n\nResponde siempre en inglés. El usuario configuró el idioma de la app en inglés."
     return core + ACTION_TAG_INSTRUCTIONS + SECURITY_GUARDRAILS
 
 
@@ -1917,14 +1922,16 @@ Sin texto fuera del JSON."""
         return {"mentor_assessment": raw, "biases_detected": []}
 
 
-async def summarize_news_article(title: str, content: str) -> str:
-    """Summarize a financial news article as a single plain paragraph in Spanish.
+async def summarize_news_article(title: str, content: str, language: str = "es") -> str:
+    """Summarize a financial news article as a single plain paragraph.
 
     `content` is the actual extracted article text (via trafilatura), not just the
     headline — when it's missing, we tell the user honestly instead of having the
     model guess a plausible-sounding summary from the headline alone.
     """
     has_content = bool(content and len(content) > 80)
+    lang_instruction = "En inglés." if language == "en" else "En español."
+    lang_instruction_2 = "Responde en inglés" if language == "en" else "Responde en español"
 
     if has_content:
         prompt = f"""Titular: {title}
@@ -1937,13 +1944,13 @@ Eres el analista financiero de Nuvos AI. Lee el fragmento del artículo de arrib
 Reglas:
 - Un solo párrafo corrido, sin subtítulos, viñetas ni emojis.
 - 3-5 oraciones: el hecho central con datos concretos del artículo, por qué importa para la acción/sector/mercado, y qué debería tener en mente el inversor de largo plazo.
-- Sin frases como "Este artículo..." o "La noticia indica...". Sin introducciones. Tono directo, claro y educativo. En español."""
+- Sin frases como "Este artículo..." o "La noticia indica...". Sin introducciones. Tono directo, claro y educativo. {lang_instruction}"""
     else:
         prompt = f"""Titular: {title}
 
 No se pudo acceder al contenido completo de este artículo (la fuente bloquea el acceso automático o requiere suscripción).
 
-Eres el analista financiero de Nuvos AI. Responde en español, en 2-3 oraciones máximo:
+Eres el analista financiero de Nuvos AI. {lang_instruction_2}, en 2-3 oraciones máximo:
 1. Dilo de forma directa y breve: no pudiste leer el artículo completo.
 2. Da contexto útil basado SOLO en lo que dice el titular — sin inventar cifras, declaraciones o detalles que no estén en él.
 3. Sugiere al usuario abrir el enlace original si quiere el detalle completo.

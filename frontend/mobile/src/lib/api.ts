@@ -281,6 +281,11 @@ export const syncApi = {
     api.post("/api/sync/theme", { theme }),
   getTheme: () =>
     api.get("/api/sync/theme"),
+  // Language sync
+  pushLanguage: (language: "es" | "en") =>
+    api.post("/api/sync/language", { language }),
+  getLanguage: () =>
+    api.get("/api/sync/language"),
   // Watchlist view mode sync
   pushWatchlistViewMode: (mode: "basic" | "advanced") =>
     api.post("/api/sync/watchlist-view-mode", { mode }),

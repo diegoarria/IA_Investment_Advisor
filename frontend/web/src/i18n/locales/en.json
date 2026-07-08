@@ -1,0 +1,562 @@
+{
+  "common": {
+    "nav": {
+      "home": "Home",
+      "mentor": "AI Mentor",
+      "patrimonio": "Wealth",
+      "academy": "Academy",
+      "notifications": "Notifications",
+      "profile": "Profile",
+      "products": "Products",
+      "support": "Support"
+    },
+    "login": "Log in",
+    "createAccount": "Create account",
+    "premium": "Premium",
+    "free": "Free",
+    "risk": "Risk",
+    "myGoal": "My goal",
+    "recentChats": "Recent chats",
+    "newChat": "New chat",
+    "noSavedChats": "No saved chats",
+    "loading": "Loading...",
+    "session1on1": "1:1 session with Diego",
+    "personalizedGuide": "Personalized guidance · 45 min",
+    "logout": "Log out",
+    "openSidebar": "Open sidebar",
+    "closeSidebar": "Close sidebar",
+    "openMenu": "Open menu",
+    "close": "Close",
+    "cancel": "Cancel",
+    "save": "Save",
+    "saving": "Saving...",
+    "goalMap": {
+      "house": "Buy a house",
+      "car": "Buy a car",
+      "passiveIncome": "Live off my investments",
+      "retirement": "Retirement",
+      "financialFreedom": "Financial freedom",
+      "longTermWealth": "Long-term wealth"
+    },
+    "ticker": {
+      "newsTitle": "News — {{name}}",
+      "readArticle": "Read article",
+      "noNews": "No news available",
+      "live": "LIVE",
+      "closed": "CLOSED",
+      "ageNow": "Now",
+      "age1h": "1h ago",
+      "ageHours": "{{h}}h ago",
+      "ageYesterday": "Yesterday",
+      "ageDays": "{{d}}d ago"
+    }
+  },
+  "home": {
+    "greeting": {
+      "morning": "Good morning",
+      "afternoon": "Good afternoon",
+      "evening": "Good evening"
+    },
+    "timeAgoNow": "now",
+    "defaultName": "Investor",
+    "lessons": {
+      "diversification": {
+        "title": "Diversification",
+        "body": "Don't put all your eggs in one basket. If you own 10 companies across different sectors and one goes bankrupt, you lose 10%. If you only own one, you lose 100%. Diversification doesn't eliminate risk — it spreads it out.",
+        "tip": "Check your portfolio today: is more than 30% in a single sector?"
+      },
+      "dca": {
+        "title": "Dollar Cost Averaging",
+        "body": "Investing the same amount every month, regardless of whether the market goes up or down. When it drops, you buy more shares for the same money. When it rises, your shares are already worth more. Over time, your average price optimizes itself.",
+        "tip": "Set a fixed monthly amount and automate it. Discipline beats timing."
+      },
+      "dividends": {
+        "title": "Dividends",
+        "body": "Some companies pay you just for holding their stock. That payment is called a dividend. Mature companies (Coca-Cola, J&J, Apple) typically pay 1-4% a year. Automatically reinvesting dividends can double your return over 20 years.",
+        "tip": "Look for companies with 10+ years of paying and raising dividends."
+      },
+      "peRatio": {
+        "title": "P/E Ratio",
+        "body": "The Price/Earnings (P/E) ratio compares a stock's price to what the company earns. A P/E of 20 means you pay $20 for every $1 of profit. There's no universal 'good' number — always compare it against the sector and the company's own history.",
+        "tip": "A very high P/E doesn't mean expensive if the company is growing fast. Context beats the number."
+      },
+      "moat": {
+        "title": "Competitive Advantage",
+        "body": "A 'moat' is what makes a company hard to copy. It can be a brand (Apple), a user network (Visa), low costs (Walmart), or patents (Pfizer). Companies with a strong moat protect their margins over time.",
+        "tip": "Ask yourself: what would stop a competitor with $1B from taking this market?"
+      },
+      "lossAversion": {
+        "title": "Loss Aversion",
+        "body": "The human brain feels the pain of losing $100 twice as strongly as the pleasure of gaining $100. That's why we sell in panic during drops and buy in euphoria during rallies. Recognizing this bias is the first step to not acting on it.",
+        "tip": "Before selling during a drop, ask yourself: did the business fundamentals actually change?"
+      },
+      "rebalancing": {
+        "title": "Rebalancing",
+        "body": "If you started with 60% stocks / 40% bonds and stocks rallied hard, you might now be at 75/25 — more risk than you wanted. Rebalancing means selling what grew and buying what lagged to return to your target allocation.",
+        "tip": "Rebalance 1-2 times a year, or whenever an asset drifts more than 5% from your target."
+      },
+      "freeCashFlow": {
+        "title": "Free Cash Flow",
+        "body": "Earnings can be manipulated through accounting. Free Cash Flow (FCF) doesn't lie — it's the real cash coming into the company after paying for operations and investments. Companies with growing FCF have real staying power.",
+        "tip": "Look for companies whose FCF grows consistently faster than their revenue."
+      },
+      "investmentHorizon": {
+        "title": "Investment Horizon",
+        "body": "The market drops 10-20% on average once every 1-2 years. But over 10+ years, the S&P 500 has never lost money. Your investment horizon determines how much risk you can absorb. Over 20 years, drops are opportunities. Over 2 years, they're threats.",
+        "tip": "Do you need this money in less than 3 years? It shouldn't be in stocks."
+      },
+      "fomo": {
+        "title": "Financial FOMO",
+        "body": "Fear Of Missing Out makes you buy at the top when everyone's excited. Bitcoin at $65K, hot stocks at their peak. FOMO is the most reliable sign that an asset is overvalued. The best time to get in is when nobody's talking about it.",
+        "tip": "If you're seeing the asset in mainstream news and your family's WhatsApp group — be careful."
+      },
+      "etfsVsStocks": {
+        "title": "ETFs vs Stocks",
+        "body": "An ETF (like VOO or SPY) tracks an entire index. With $1 you buy 500 companies. A single stock is a specific bet. Studies show 90% of active managers fail to beat the index over 15 years. ETFs are the smart starting point.",
+        "tip": "Start with broad ETFs. Add individual stocks only once you understand the business."
+      },
+      "buyBusinesses": {
+        "title": "Buy Businesses, Not Tickers",
+        "body": "Before buying a stock, ask yourself: do I understand how this company makes money? What makes it better than its competitors? Would I still want to own it if the market closed for 5 years? If you can't answer these questions, you probably shouldn't hold that position.",
+        "tip": "Warren Buffett only invests in what he can understand in 5 minutes. Follow that rule."
+      },
+      "dropsNormal": {
+        "title": "Drops Are Normal",
+        "body": "Since 1950, the S&P 500 has fallen more than 10% on average once a year. More than 20% every 3-5 years. Despite that, the index multiplied 200x over that period. Drops aren't the end of the market — they're the price of admission for long-term returns.",
+        "tip": "Keep a list of companies you'd want to buy when they drop. Drops are sales."
+      },
+      "concentrationRisk": {
+        "title": "Concentration Risk",
+        "body": "Having more than 20% in a single company or more than 40% in one sector is high concentration. If that company or sector collapses, so does your portfolio. The best portfolios hold positions of 3-10% each, spread across 5+ different sectors.",
+        "tip": "Calculate your biggest position today. Is it more than 20% of your portfolio?"
+      }
+    },
+    "goalOptions": {
+      "house": "Buy a house",
+      "car": "Buy a car",
+      "passiveIncome": "Live off investments",
+      "retirement": "Retirement",
+      "financialFreedom": "Financial freedom",
+      "longTermWealth": "Long-term wealth"
+    },
+    "brokerCountryLabels": {
+      "MX": "Mexico",
+      "AR": "Argentina",
+      "US": "United States",
+      "CO": "Colombia",
+      "international": "International"
+    },
+    "brokers": {
+      "gbmPlus": {
+        "tag": "#1 Recommended",
+        "desc": "Mexico's most popular broker. Excellent app, low fees.",
+        "pro1": "One of the best mobile apps",
+        "pro2": "No commission on MX stocks",
+        "pro3": "Easy access to global ETFs"
+      },
+      "ibMx": {
+        "tag": "For advanced users",
+        "desc": "Access to 150+ global markets. Ideal if you want to diversify.",
+        "pro1": "150+ exchanges worldwide",
+        "pro2": "Institutional rates",
+        "pro3": "Options and futures"
+      },
+      "actinver": {
+        "tag": "Institutional",
+        "desc": "Bank-backed. Perfect for funds and conservative profiles.",
+        "pro1": "Solid bank backing",
+        "pro2": "Personal advisory available",
+        "pro3": "Investment funds"
+      },
+      "iol": {
+        "tag": "#1 Recommended",
+        "desc": "Leader in Argentina. Access to bonds, CEDEARs and local stocks.",
+        "pro1": "AR market leader",
+        "pro2": "Access to CEDEARs (ADRs)",
+        "pro3": "No maintenance fees"
+      },
+      "balanz": {
+        "tag": "Very popular",
+        "desc": "Modern platform with funds, bonds and stocks.",
+        "pro1": "Money market funds",
+        "pro2": "Local and international stocks",
+        "pro3": "Modern, intuitive app"
+      },
+      "ibUs": {
+        "tag": "#1 Recommended",
+        "desc": "The most complete broker in the world. 0 commissions on US stocks.",
+        "pro1": "0 commissions on stocks",
+        "pro2": "Access to 150+ markets",
+        "pro3": "Interest on cash balances"
+      },
+      "robinhood": {
+        "tag": "Easiest",
+        "desc": "The simplest app to get started. Ideal for beginners.",
+        "pro1": "Simplest app",
+        "pro2": "Fractional shares",
+        "pro3": "No minimum investment"
+      },
+      "schwab": {
+        "tag": "Most reliable",
+        "desc": "One of the most trusted brokers in the US. Ideal for the long term.",
+        "pro1": "No commissions",
+        "pro2": "24/7 customer support",
+        "pro3": "Wide range of ETFs"
+      },
+      "accionesValores": {
+        "tag": "#1 Recommended",
+        "desc": "Colombia's benchmark broker. Access to BVC and international markets.",
+        "pro1": "Access to the BVC",
+        "pro2": "International stocks",
+        "pro3": "Expert local advisory"
+      },
+      "ibCo": {
+        "tag": "For advanced users",
+        "desc": "The best global access. Ideal if you want to invest outside Colombia.",
+        "pro1": "Global markets",
+        "pro2": "0 commissions on US stocks",
+        "pro3": "Highly regulated"
+      },
+      "ibDefault": {
+        "tag": "Best global option",
+        "desc": "The broker with the best global access. Available in 200+ countries.",
+        "pro1": "200+ countries",
+        "pro2": "150+ exchanges worldwide",
+        "pro3": "Institutional rates"
+      }
+    },
+    "brokerModal": {
+      "brokersIn": "Brokers in {{country}}",
+      "chooseTitle": "Which one do you want to start with?",
+      "alreadyHaveBroker": "I already have a broker account",
+      "backAll": "← All brokers",
+      "whyRecommend": "Why we recommend it",
+      "createWithHelp": "Create an account with Nuvos's help",
+      "createAlone": "Create an account on my own",
+      "back": "← Back",
+      "offerExpiresIn": "Offer expires in {{time}}",
+      "offerExpired": "The special offer has expired",
+      "sessionTitle": "1:1 session with Nuvos AI",
+      "weHelpOpen": "We'll help you open your account at {{broker}}",
+      "yourBroker": "your broker",
+      "step1": "Create your account step by step",
+      "step2": "Navigate the broker's platform",
+      "step3": "Search for stocks, ETFs and instruments",
+      "step4": "Deposit money securely",
+      "offBadge": "-45% OFF",
+      "redirecting": "Redirecting…",
+      "hireSession": "Get the session — $89 USD →",
+      "scheduleCall": "Book my call — $49 USD →",
+      "preferAlone": "I'd rather do it on my own"
+    },
+    "brokerChip": {
+      "openBroker": "Open your broker",
+      "createAccount": "Create your account"
+    },
+    "goalModal": {
+      "title": "Your financial goal",
+      "subtitle": "What's your investment goal?",
+      "targetAmount": "Target wealth (optional)"
+    },
+    "todaySummary": "Your summary for today",
+    "marketOpen": "Market open",
+    "marketClosed": "Market closed",
+    "showGuideTooltip": "Show getting-started guide",
+    "beginnerCard": {
+      "eyebrow": "Your path to getting started",
+      "title": "Invest with confidence, step by step",
+      "subtitle": "No jargon. No risk at the start. Just you, your goal, and your AI mentor.",
+      "step1Title": "Learn the basics",
+      "step1Desc": "What a stock is, what an ETF is, and how the market works",
+      "step2Title": "Practice with no money",
+      "step2Desc": "Trade with $10,000 in virtual cash before risking your own",
+      "step3Title": "Your first investment",
+      "step3Desc": "The best ETFs to start with a small amount of money",
+      "askMentor": "Ask your AI mentor →",
+      "createFreeAccount": "Create my free account — it's completely free"
+    },
+    "stats": {
+      "portfolioToday": "Portfolio today",
+      "streak": "Streak",
+      "noGoal": "No goal",
+      "activeGoal": "Active goal",
+      "goal": "Goal",
+      "newAlerts": "{{count}} new",
+      "alertsCount": "{{count}} alerts",
+      "noAlerts": "No alerts",
+      "notifications": "Notifications"
+    },
+    "portfolioHero": {
+      "myPortfolio": "MY PORTFOLIO",
+      "today": "Today",
+      "todayReturn": "Today's return",
+      "ytd": "YTD return",
+      "last5Days": "Last 5 days",
+      "total": "Total return",
+      "lastMonth": "Last month ({{amount}})",
+      "addFirstStock": "Add your first stock",
+      "addFirstStockDesc": "Log your positions and Nuvos will give you AI analysis, price alerts, and real-time tracking.",
+      "addPosition": "+ Add position →"
+    },
+    "goalCard": {
+      "myGoal": "My goal",
+      "configureGoal": "Set up your goal",
+      "completedPct": "{{pct}}% complete"
+    },
+    "streakCard": {
+      "days": "{{count}} days",
+      "startToday": "Start today!",
+      "consecutive": "in a row"
+    },
+    "lessonCard": {
+      "completedToday": "Completed today ✓",
+      "lessonOfDay": "Lesson of the day",
+      "viewAnother": "View another lesson →"
+    },
+    "mostImportantToday": "What matters most today",
+    "viewAll": "View all →",
+    "viewMore": "View more →",
+    "risingToday": "📈 Rising today",
+    "fallingToday": "📉 Falling today",
+    "noPositionsUp": "No positions up today",
+    "portfolioNews": "News about your portfolio",
+    "quickActions": {
+      "askSomething": "Ask something",
+      "aiMentor": "AI Mentor",
+      "myMoney": "My money",
+      "patrimonio": "Wealth",
+      "learn": "Learn",
+      "academy": "Academy",
+      "myProfile": "My profile",
+      "stats": "Stats"
+    },
+    "mentorCta": {
+      "title": "Talk to your AI Mentor",
+      "withPositions": "Analyze your {{count}} positions or get investment advice",
+      "withoutPositions": "Chat about investing, stocks, or strategies"
+    },
+    "saveError": "Error saving",
+    "onboarding": {
+      "addFirstPosition": {
+        "title": "Add your first position",
+        "desc": "Log your stocks and unlock AI analysis"
+      },
+      "configureGoal": {
+        "title": "Set up your financial goal",
+        "desc": "What are you investing for?"
+      },
+      "talkToNuvos": {
+        "title": "Talk to Nuvos for the first time",
+        "desc": "Ask anything about investing"
+      },
+      "firstLesson": {
+        "title": "Complete your first lesson",
+        "desc": "Start your daily learning streak"
+      },
+      "addToWatchlist": {
+        "title": "Add a stock to your watchlist",
+        "desc": "Track companies you're interested in"
+      }
+    }
+  },
+  "profile": {
+    "myAccount": "My account",
+    "title": "Profile",
+    "confirmLogout": "Are you sure you want to log out?",
+    "confirmDelete1": "This action is permanent. All your data will be deleted. Continue?",
+    "confirmDelete2": "Are you absolutely sure? This can't be undone.",
+    "deleteAccountError": "We couldn't delete your account. Try again or contact support.",
+    "noProfile": "No profile set up",
+    "completeOnboarding": "Complete onboarding",
+    "editProfile": "Edit profile",
+    "shareProfile": "Share profile",
+    "shareTitle": "My profile on Nuvos AI",
+    "shareText": "I'm a {{riskLabel}} 📊{{mentorLine}}{{maturityLine}}\n\nLearn to invest with AI 👉 https://nuvosai.com",
+    "myMentorLine": "\nMy mentor: {{emoji}} {{name}}",
+    "maturityLine": "\nInvestor maturity: {{score}}/100",
+    "shareOn": "Share on",
+    "copied": "Copied!",
+    "copyText": "Copy text",
+    "aiAnalyzed": "The AI has analyzed you",
+    "behaviorDiffers": "⚠️ Your real behavior differs from your profile",
+    "personalData": "Personal info",
+    "age": "Age",
+    "years": "years",
+    "income": "Income",
+    "perMonth": "/mo",
+    "contribution": "Contribution",
+    "riskProfile": "Risk profile",
+    "riskDescConservative": "You prioritize safety and preserving your capital.",
+    "riskDescModerate": "You're looking for a balance between growth and protection.",
+    "riskDescAggressive": "Your goal is maximum long-term growth.",
+    "conservative": "Conservative",
+    "moderate": "Moderate",
+    "aggressive": "Aggressive",
+    "typicalETFs": "Typical ETFs: ",
+    "investorMaturity": "Investor Maturity",
+    "appBehavior": "behavior in the app",
+    "passive": "Passive",
+    "rational": "Rational",
+    "speculative": "Speculative",
+    "maturityGrowthDesc": "Rises with every good decision in the app (staying calm, diversifying, thinking long term).",
+    "latestSignals": "Latest signals",
+    "yourMentor": "Your mentor",
+    "letterOf": "Letter from {{name}}",
+    "monthlyLetterDesc": "Your personalized monthly letter",
+    "knowledgeLevel": "Knowledge level",
+    "levelDescBasic": "The app guides you step by step",
+    "levelDescIntermediate": "Balanced content",
+    "levelDescAdvanced": "Advanced analysis unlocked",
+    "saving": "Saving...",
+    "levelBasic": "Basic",
+    "levelBasicDesc": "No experience or I know the basics",
+    "levelIntermediate": "Intermediate",
+    "levelIntermediateDesc": "I have some experience (ETFs, stocks)",
+    "levelAdvanced": "Advanced",
+    "levelAdvancedDesc": "Deep financial analysis",
+    "psychProfile": "Psychological profile",
+    "investmentHorizon": "Investment horizon",
+    "behavior": "Behavior",
+    "reactionToDrops": "Reaction to drops",
+    "marketFollowUp": "Market monitoring",
+    "notCompleted": "Not completed",
+    "complete": "Complete",
+    "modalTitleQ2": "What's your investment horizon?",
+    "modalTitleRt": "What's your investor behavior?",
+    "modalTitleQ1": "What do you do when your portfolio drops?",
+    "modalTitleQ5": "How often do you check the market?",
+    "tapToSave": "Tap an option to save automatically",
+    "riskConservativeDesc": "I prioritize not losing money over gaining it",
+    "riskModerateDesc": "Balance between growth and stability",
+    "riskAggressiveDesc": "I accept high volatility for higher returns",
+    "subscription": "Subscription",
+    "premiumFullAccess": "Full access · Unlimited messages",
+    "active": "Active",
+    "freePlan": "Free plan",
+    "messagesToday": "{{remaining}}/{{limit}} messages today",
+    "activatePremium": "Activate Premium — $10.33/mo",
+    "duoPlan": "Duo Plan",
+    "secondaryAccount": "Secondary account",
+    "sharingWith": "Sharing with {{email}}",
+    "noSecondaryYet": "You haven't added a second account yet",
+    "edit": "Edit",
+    "emailPlaceholder": "email@example.com",
+    "duoSaveError": "Error saving. Please try again.",
+    "compareProgressWith": "Compare progress with {{name}}",
+    "you": "You",
+    "myCalls": "My calls ({{count}})",
+    "loadingEllipsis": "Loading...",
+    "referralProgram": "Referral program",
+    "inviteFriends": "Invite friends, earn rewards",
+    "inviteFriendsDesc": "1 month of Premium free for every friend who joins",
+    "referredFriends": "Friends referred",
+    "pendingReward": "Pending reward",
+    "referralLink": "Your referral link",
+    "referralShareText": "I'm using Nuvos AI — the best AI investment mentor. Join for free 👉 {{link}}",
+    "shareInvite": "Share invite",
+    "referralTerms": "Your friend gets 7 days of Premium free when they sign up. You get 1 month of Premium when they activate their plan.",
+    "likedVideos": "❤️ VIDEOS YOU LIKED",
+    "annualScoreboard": "Annual ScoreBoard {{year}}",
+    "yearAsInvestor": "Your year as an investor on Nuvos AI",
+    "view": "View →",
+    "financialMemory": "My Financial Memory",
+    "learningsAndPatterns": "{{memories}} learnings · {{patterns}} patterns",
+    "beliefsStored": "{{count}}/10 beliefs stored",
+    "whatNuvosRemembers": "What Nuvos remembers about you",
+    "noLearningsYet": "No learnings yet. Chat with your mentor to get it started.",
+    "learnings": "Learnings",
+    "behaviorPatterns": "Behavior patterns",
+    "discoverHowYouThink": "Discover how you think as an investor — Premium",
+    "timeline": "Timeline",
+    "decisionTimeline": "Decision timeline",
+    "permanentHistory": "Your permanent financial history — Premium",
+    "privacyPolicy": "Privacy policy",
+    "termsOfUse": "Terms of use",
+    "logout": "Log out",
+    "deletingAccount": "Deleting account...",
+    "deleteAccount": "Delete my account",
+    "duoMetrics": {
+      "currentWealth": "Current wealth",
+      "cumulativeReturn": "Cumulative return",
+      "capitalInvested": "Capital invested",
+      "operations": "Operations",
+      "monthsStreak": "Months streak",
+      "sinceFirstInvestment": "Since first investment",
+      "daysUnit": "{{count}} days"
+    },
+    "riskLabels": {
+      "conservative": "Conservative Investor",
+      "conservative_moderate": "Conservative-Moderate",
+      "moderate": "Moderate Investor",
+      "moderate_growth": "Moderate-Growth",
+      "growth": "Growth",
+      "aggressive": "Aggressive Investor",
+      "aggressive_speculative": "Aggressive-Speculative",
+      "speculative": "Speculative"
+    },
+    "quizLabels": {
+      "q1": {
+        "A": "Sell on drops",
+        "B": "Wait without acting",
+        "C": "Analyze and hold",
+        "D": "Buy the dip"
+      },
+      "q2": {
+        "A": "< 2 years",
+        "B": "3–5 years",
+        "C": "10+ years",
+        "D": "Long term, no rush"
+      },
+      "q3": {
+        "A": "Beginner",
+        "B": "Basic",
+        "C": "Intermediate",
+        "D": "Advanced"
+      },
+      "q4": {
+        "A": "$5K safe",
+        "B": "$15K / risk $5K",
+        "C": "$40K / risk $20K",
+        "D": "$120K / risk it all"
+      },
+      "q5": {
+        "A": "Automatic / passive",
+        "B": "Monthly review",
+        "C": "Weekly review",
+        "D": "Daily management"
+      }
+    },
+    "riskDistributions": {
+      "conservative": {
+        "fixedIncome": "Fixed income / Bonds",
+        "defensiveStocks": "Defensive stocks",
+        "liquidityGold": "Cash / Gold"
+      },
+      "moderate": {
+        "diversifiedStocks": "Diversified stocks",
+        "fixedIncome": "Fixed income",
+        "alternativesReits": "Alternatives / REITs"
+      },
+      "aggressive": {
+        "growthStocks": "Growth stocks",
+        "emergingMarkets": "Emerging markets",
+        "minFixedIncome": "Minimal fixed income"
+      }
+    },
+    "riskMetrics": {
+      "volatility": "Volatility",
+      "expectedReturn": "Expected return",
+      "idealHorizon": "Ideal horizon",
+      "low": "Low",
+      "medium": "Medium",
+      "high": "High",
+      "return4_7": "4–7% per year",
+      "return7_10": "7–10% per year",
+      "return10_15": "10–15%+",
+      "horizon1_5": "1–5 years",
+      "horizon5_10": "5–10 years",
+      "horizon10plus": "10+ years"
+    },
+    "languageToggle": "Switch language"
+  }
+}

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { market as marketApi } from "@/lib/api";
 import { X, ChevronRight } from "lucide-react";
 import type { IndexNewsItem } from "@/lib/types";
@@ -29,16 +30,17 @@ function fmtPrice(p: number): string {
   return p.toFixed(2);
 }
 
-function formatAge(ts: number): string {
+function formatAge(ts: number, t: (key: string, opts?: any) => string): string {
   const h = Math.floor((Date.now() / 1000 - ts) / 3600);
-  if (h < 1) return "Ahora";
-  if (h === 1) return "Hace 1h";
-  if (h < 24) return `Hace ${h}h`;
+  if (h < 1) return t("common.ticker.ageNow");
+  if (h === 1) return t("common.ticker.age1h");
+  if (h < 24) return t("common.ticker.ageHours", { h });
   const days = Math.floor(h / 24);
-  return days === 1 ? "Ayer" : `Hace ${days}d`;
+  return days === 1 ? t("common.ticker.ageYesterday") : t("common.ticker.ageDays", { d: days });
 }
 
 function NewsModal({ idx, onClose }: { idx: Idx; onClose: () => void }) {
+  const { t } = useTranslation();
   const up = idx.change_pct >= 0;
   const [news, setNews] = useState<IndexNewsItem[] | null>(null);
   const [loading, setLoading] = useState(true);
@@ -64,7 +66,7 @@ function NewsModal({ idx, onClose }: { idx: Idx; onClose: () => void }) {
              style={{ borderColor: "var(--border)" }}>
           <div>
             <p className="text-sm font-bold" style={{ color: "var(--text)" }}>
-              Noticias — {idx.name}
+              {t("common.ticker.newsTitle", { name: idx.name })}
             </p>
             {idx.price !== null && (
               <p className="text-xs mt-0.5 flex items-center gap-2">
@@ -112,12 +114,12 @@ function NewsModal({ idx, onClose }: { idx: Idx; onClose: () => void }) {
                   </p>
                 </div>
                 <p className="text-xs mb-3" style={{ color: "var(--dim)" }}>
-                  {item.publisher} · {formatAge(item.timestamp)}
+                  {item.publisher} · {formatAge(item.timestamp, t)}
                 </p>
                 <a href={item.url} target="_blank" rel="noopener noreferrer"
                    className="inline-flex items-center gap-1 text-xs font-medium px-3 py-1.5 rounded-lg border transition-colors hover:bg-white/5"
                    style={{ color: "var(--accent-l)", borderColor: "var(--border)" }}>
-                  Leer artículo <ChevronRight className="w-3 h-3" />
+                  {t("common.ticker.readArticle")} <ChevronRight className="w-3 h-3" />
                 </a>
               </div>
               {item.thumbnail && (
@@ -129,7 +131,7 @@ function NewsModal({ idx, onClose }: { idx: Idx; onClose: () => void }) {
           ))
         ) : (
           <div className="p-8 text-center">
-            <p className="text-sm" style={{ color: "var(--dim)" }}>Sin noticias disponibles</p>
+            <p className="text-sm" style={{ color: "var(--dim)" }}>{t("common.ticker.noNews")}</p>
           </div>
         )}
       </div>
@@ -186,6 +188,7 @@ function TickerItem({ idx, last, keySuffix, onSelect }: {
 }
 
 export default function MarketTickerBar() {
+  const { t } = useTranslation();
   const [data, setData] = useState<Idx[]>([]);
   const [selected, setSelected] = useState<Idx | null>(null);
   const [open, setOpen] = useState(false);
@@ -263,7 +266,7 @@ export default function MarketTickerBar() {
             display: "inline-block",
           }} />
           <span style={{ fontSize: 9, fontWeight: 600, color: open ? "#22c55e" : "var(--dim)", whiteSpace: "nowrap" }}>
-            {open ? "LIVE" : "CLOSED"}
+            {open ? t("common.ticker.live") : t("common.ticker.closed")}
           </span>
         </div>
 

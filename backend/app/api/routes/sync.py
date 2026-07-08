@@ -495,7 +495,7 @@ async def get_all(user_id: str = Depends(get_current_user_id)):
     try:
         profile_res = await run_query(
             db.table("user_profiles")
-            .select("maturity_score, maturity_history, trial_started_at, subscription_tier, nav_order, watchlist_order, theme, avatar_url, behavioral_risk_score, streak_count, last_learn_date, investment_goal, investment_goal_amount, completed_topic_ids, portfolio_view_mode, checklist_done, watchlist_view_mode, has_broker")
+            .select("maturity_score, maturity_history, trial_started_at, subscription_tier, nav_order, watchlist_order, theme, avatar_url, behavioral_risk_score, streak_count, last_learn_date, investment_goal, investment_goal_amount, completed_topic_ids, portfolio_view_mode, checklist_done, watchlist_view_mode, has_broker, preferred_language")
             .eq("user_id", user_id)
         )
     except Exception:
@@ -574,6 +574,7 @@ async def get_all(user_id: str = Depends(get_current_user_id)):
         "nav_order":            profile_row.get("nav_order"),
         "watchlist_order":      profile_row.get("watchlist_order"),
         "theme":                profile_row.get("theme", "dark"),
+        "language":             profile_row.get("preferred_language") or "es",
         "avatar_url":           profile_row.get("avatar_url"),
         "behavioral_risk_score": profile_row.get("behavioral_risk_score"),
         "investment_goal":        profile_row.get("investment_goal"),
@@ -661,6 +662,34 @@ async def get_theme(user_id: str = Depends(get_current_user_id)):
     db = get_supabase()
     result = await run_query(db.table("user_profiles").select("theme").eq("user_id", user_id))
     resp = {"theme": result.data[0].get("theme", "dark")} if result.data else {"theme": "dark"}
+    cache_set(ck, resp, ttl=_TTL_MISC)
+    return resp
+
+
+# ─── Language ────────────────────────────────────────────────────────────────
+
+@router.post("/language")
+async def sync_language(body: dict, user_id: str = Depends(get_current_user_id)):
+    """Persist the user's app language preference for cross-device sync."""
+    language = body.get("language", "es")
+    if language not in ("es", "en"):
+        language = "es"
+    db = get_supabase()
+    await run_query(db.table("user_profiles").update({"preferred_language": language}).eq("user_id", user_id))
+    cache_delete(f"sync:language:{user_id}")
+    cache_delete(f"sync:all:{user_id}")
+    return {"ok": True}
+
+
+@router.get("/language")
+async def get_language(user_id: str = Depends(get_current_user_id)):
+    ck = f"sync:language:{user_id}"
+    cached = cache_get(ck)
+    if cached is not None:
+        return cached
+    db = get_supabase()
+    result = await run_query(db.table("user_profiles").select("preferred_language").eq("user_id", user_id))
+    resp = {"language": result.data[0].get("preferred_language") or "es"} if result.data else {"language": "es"}
     cache_set(ck, resp, ttl=_TTL_MISC)
     return resp
 

@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
+import { useTranslation } from "react-i18next";
 import Image from "next/image";
 import {
   BrainCircuit, Wallet, Bell, User, GraduationCap,
@@ -10,13 +11,13 @@ import {
 
 const COACHING_URL = "https://calendly.com/diego-arria19/sesion-1-1-con-diego-nuvos-ai"; // ← actualiza con tu link real
 
-const GOAL_MAP: Record<string, { label: string; emoji: string }> = {
-  house:             { label: "Comprar una casa",          emoji: "🏠" },
-  car:               { label: "Comprar un carro",          emoji: "🚗" },
-  passive_income:    { label: "Vivir de mis inversiones",  emoji: "💸" },
-  retirement:        { label: "Retiro / pensión",          emoji: "👴" },
-  financial_freedom: { label: "Libertad financiera",       emoji: "🦅" },
-  long_term_wealth:  { label: "Patrimonio a largo plazo",  emoji: "🏛️" },
+const GOAL_MAP: Record<string, { key: string; emoji: string }> = {
+  house:             { key: "house",             emoji: "🏠" },
+  car:               { key: "car",               emoji: "🚗" },
+  passive_income:    { key: "passiveIncome",      emoji: "💸" },
+  retirement:        { key: "retirement",         emoji: "👴" },
+  financial_freedom: { key: "financialFreedom",   emoji: "🦅" },
+  long_term_wealth:  { key: "longTermWealth",     emoji: "🏛️" },
 };
 import {
   useProfileStore, useNotificationStore, useSubscriptionStore,
@@ -37,20 +38,20 @@ function getAge(birthDate: string | null | undefined): number | null {
 import PaywallModal from "@/components/PaywallModal";
 import api from "@/lib/api";
 
-type NavItem = { href: string; icon: React.ComponentType<{ className?: string; style?: React.CSSProperties }>; label: string; minLevel: UserLevel };
+type NavItem = { href: string; icon: React.ComponentType<{ className?: string; style?: React.CSSProperties }>; labelKey: string; minLevel: UserLevel };
 
 const MAIN_NAV: NavItem[] = [
-  { href: "/home",       icon: Home,           label: "Inicio",     minLevel: "basico" },
-  { href: "/chat",       icon: BrainCircuit,   label: "Mentor IA",  minLevel: "basico" },
-  { href: "/patrimonio", icon: Wallet,         label: "Patrimonio", minLevel: "basico" },
-  { href: "/academy",    icon: GraduationCap,  label: "Academy",    minLevel: "basico" },
+  { href: "/home",       icon: Home,           labelKey: "common.nav.home",     minLevel: "basico" },
+  { href: "/chat",       icon: BrainCircuit,   labelKey: "common.nav.mentor",   minLevel: "basico" },
+  { href: "/patrimonio", icon: Wallet,         labelKey: "common.nav.patrimonio", minLevel: "basico" },
+  { href: "/academy",    icon: GraduationCap,  labelKey: "common.nav.academy",  minLevel: "basico" },
 ];
 
 const SECONDARY_NAV: NavItem[] = [
-  { href: "/notifications", icon: Bell,           label: "Notificaciones", minLevel: "basico" },
-  { href: "/profile",       icon: User,           label: "Perfil",         minLevel: "basico" },
-  { href: "/products",      icon: ShoppingBag,    label: "Productos",      minLevel: "basico" },
-  { href: "/support",       icon: HeadphonesIcon, label: "Soporte",        minLevel: "basico" },
+  { href: "/notifications", icon: Bell,           labelKey: "common.nav.notifications", minLevel: "basico" },
+  { href: "/profile",       icon: User,           labelKey: "common.nav.profile",       minLevel: "basico" },
+  { href: "/products",      icon: ShoppingBag,    labelKey: "common.nav.products",      minLevel: "basico" },
+  { href: "/support",       icon: HeadphonesIcon, labelKey: "common.nav.support",       minLevel: "basico" },
 ];
 
 
@@ -66,6 +67,7 @@ interface Props {
 }
 
 export default function AppSidebar({ open, onClose, onOpen, hideMobileTrigger }: Props) {
+  const { t } = useTranslation();
   const router = useRouter();
   const pathname = usePathname();
   const { isAuthenticated, clearAuth } = useAuthStore();
@@ -221,7 +223,7 @@ export default function AppSidebar({ open, onClose, onOpen, hideMobileTrigger }:
           onClick={toggleDesktop}
           className="hidden lg:flex fixed left-0 top-1/2 -translate-y-1/2 z-30 flex-col items-center justify-center w-5 h-16 rounded-r-xl transition-all hover:w-6"
           style={{ background: "var(--card)", border: "1px solid var(--border)", borderLeft: "none", boxShadow: "2px 0 8px rgba(0,0,0,0.15)" }}
-          title="Abrir sidebar"
+          title={t("common.openSidebar")}
         >
           <ChevronRight className="w-3 h-3" style={{ color: "var(--muted)" }} />
         </button>
@@ -236,7 +238,7 @@ export default function AppSidebar({ open, onClose, onOpen, hideMobileTrigger }:
           onClick={onOpen}
           className="lg:hidden fixed top-1.5 left-1.5 z-40 w-7 h-7 rounded-lg flex items-center justify-center"
           style={{ background: "var(--card)", border: "1px solid var(--border)", boxShadow: "0 2px 8px rgba(0,0,0,0.25)" }}
-          aria-label="Abrir menú"
+          aria-label={t("common.openMenu")}
         >
           <Menu className="w-3.5 h-3.5" style={{ color: "var(--muted)" }} />
         </button>
@@ -262,7 +264,7 @@ export default function AppSidebar({ open, onClose, onOpen, hideMobileTrigger }:
             onClick={toggleDesktop}
             className="hidden lg:flex w-7 h-7 items-center justify-center rounded-lg hover:bg-white/5 transition-colors shrink-0"
             style={{ color: "var(--dim)" }}
-            title="Cerrar sidebar"
+            title={t("common.closeSidebar")}
           >
             <ChevronLeft className="w-4 h-4" />
           </button>
@@ -277,12 +279,12 @@ export default function AppSidebar({ open, onClose, onOpen, hideMobileTrigger }:
               <button onClick={() => navigate("/")}
                       className="w-full py-1.5 rounded-lg text-[11px] font-bold text-white"
                       style={{ background: "var(--accent)" }}>
-                Iniciar sesión
+                {t("common.login")}
               </button>
               <button onClick={() => navigate("/?mode=register")}
                       className="w-full py-1.5 rounded-lg text-[11px] font-semibold border"
                       style={{ borderColor: "var(--border)", color: "var(--muted)" }}>
-                Crear cuenta
+                {t("common.createAccount")}
               </button>
             </div>
           </div>
@@ -321,12 +323,12 @@ export default function AppSidebar({ open, onClose, onOpen, hideMobileTrigger }:
                       {isPremium ? (
                         <span className="text-[8px] font-semibold px-1.5 py-px rounded"
                               style={{ background: "var(--raised)", color: "var(--accent-l)", border: "1px solid var(--border)" }}>
-                          Premium
+                          {t("common.premium")}
                         </span>
                       ) : (
                         <span className="text-[8px] font-semibold px-1.5 py-px rounded"
                               style={{ background: "var(--raised)", color: "var(--dim)", border: "1px solid var(--border)" }}>
-                          Free
+                          {t("common.free")}
                         </span>
                       )}
                     </div>
@@ -337,7 +339,7 @@ export default function AppSidebar({ open, onClose, onOpen, hideMobileTrigger }:
                 <div className="mt-2">
                   <div className="flex items-center justify-between mb-1">
                     <span className="text-[8px] font-semibold uppercase tracking-wide" style={{ color: "var(--dim)" }}>
-                      Riesgo
+                      {t("common.risk")}
                     </span>
                     <span className="text-[8px] font-bold" style={{ color: riskColor }}>
                       {riskLabel}
@@ -355,19 +357,21 @@ export default function AppSidebar({ open, onClose, onOpen, hideMobileTrigger }:
 
         {/* ── Goal banner ── always visible for logged-in users with a goal */}
         {profile?.investment_goal && (() => {
-          const goal = GOAL_MAP[profile.investment_goal] ?? { label: profile.investment_goal, emoji: "🎯" };
+          const goal = GOAL_MAP[profile.investment_goal];
+          const goalLabel = goal ? t(`common.goalMap.${goal.key}`) : profile.investment_goal;
+          const goalEmoji = goal?.emoji ?? "🎯";
           const amount = profile.investment_goal_amount ? Number(profile.investment_goal_amount) : null;
           return (
             <div className="px-2 pb-1.5 shrink-0">
               <div className="rounded-xl px-2.5 py-2 flex items-center gap-2"
                    style={{ background: "linear-gradient(135deg, rgba(0,168,94,0.09), rgba(0,184,94,0.04))", border: "1px solid rgba(0,168,94,0.22)" }}>
-                <span style={{ fontSize: 18, lineHeight: 1 }}>{goal.emoji}</span>
+                <span style={{ fontSize: 18, lineHeight: 1 }}>{goalEmoji}</span>
                 <div className="flex-1 min-w-0">
                   <p className="text-[8px] font-bold uppercase tracking-widest leading-none mb-0.5" style={{ color: "var(--dim)" }}>
-                    Mi meta
+                    {t("common.myGoal")}
                   </p>
                   <p className="text-[11px] font-bold leading-tight truncate" style={{ color: "var(--accent-l)" }}>
-                    {goal.label}
+                    {goalLabel}
                   </p>
                   {amount ? (
                     <p className="text-[10px] font-semibold mt-0.5" style={{ color: "var(--text)" }}>
@@ -384,7 +388,7 @@ export default function AppSidebar({ open, onClose, onOpen, hideMobileTrigger }:
         <div className="flex-1 overflow-y-auto scrollbar-thin">
           <nav className="px-2 py-1 space-y-0.5">
             {/* Main draggable nav */}
-            {orderedNav.map(({ href, icon: Icon, label, minLevel }) => {
+            {orderedNav.map(({ href, icon: Icon, labelKey, minLevel }) => {
               const active  = pathname === href;
               const locked  = !isAtLeast(userLevel, minLevel);
               return (
@@ -414,7 +418,7 @@ export default function AppSidebar({ open, onClose, onOpen, hideMobileTrigger }:
                     onPointerDown={(e) => { if (!locked) { e.stopPropagation(); draggingFromGrip.current = true; } }}
                   />
                   <Icon className="w-3.5 h-3.5 shrink-0" style={{ color: locked ? "var(--dim)" : undefined }} />
-                  <span style={{ color: locked ? "var(--dim)" : undefined }}>{label}</span>
+                  <span style={{ color: locked ? "var(--dim)" : undefined }}>{t(labelKey)}</span>
                   {locked && (
                     <span className="ml-auto flex items-center gap-0.5 text-[8px] font-bold"
                           style={{ color: "var(--dim)" }}>
@@ -430,7 +434,7 @@ export default function AppSidebar({ open, onClose, onOpen, hideMobileTrigger }:
             <div className="my-1.5 border-t" style={{ borderColor: "var(--border)" }} />
 
             {/* Secondary static nav */}
-            {SECONDARY_NAV.map(({ href, icon: Icon, label, minLevel }) => {
+            {SECONDARY_NAV.map(({ href, icon: Icon, labelKey, minLevel }) => {
               const active  = pathname === href;
               const badge   = href === "/notifications" && unreadCount > 0;
               const locked  = !isAtLeast(userLevel, minLevel);
@@ -442,7 +446,7 @@ export default function AppSidebar({ open, onClose, onOpen, hideMobileTrigger }:
                   style={{ opacity: locked ? 0.4 : 1 }}
                 >
                   <Icon className="w-3.5 h-3.5 shrink-0" style={{ color: locked ? "var(--dim)" : undefined }} />
-                  <span style={{ color: locked ? "var(--dim)" : undefined }}>{label}</span>
+                  <span style={{ color: locked ? "var(--dim)" : undefined }}>{t(labelKey)}</span>
                   {locked ? (
                     <span className="ml-auto flex items-center gap-0.5 text-[8px] font-bold"
                           style={{ color: "var(--dim)" }}>
@@ -464,13 +468,13 @@ export default function AppSidebar({ open, onClose, onOpen, hideMobileTrigger }:
                       className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide hover:opacity-80 transition-opacity"
                       style={{ color: "var(--muted)" }}>
                 <MessageSquare className="w-3 h-3" />
-                Chats recientes
+                {t("common.recentChats")}
                 <ChevronRight className={`w-3 h-3 transition-transform ${historyOpen ? "rotate-90" : ""}`} />
               </button>
               <button onClick={handleNewChat}
                       className="w-5 h-5 rounded flex items-center justify-center border transition-colors hover:border-[var(--accent)]"
                       style={{ borderColor: "var(--border)", color: "var(--muted)" }}
-                      title="Nuevo chat">
+                      title={t("common.newChat")}>
                 <Plus className="w-3 h-3" />
               </button>
             </div>
@@ -478,7 +482,7 @@ export default function AppSidebar({ open, onClose, onOpen, hideMobileTrigger }:
             {historyOpen && (
               <div className="space-y-0.5">
                 {sessions.length === 0 ? (
-                  <p className="text-xs px-2 py-2" style={{ color: "var(--dim)" }}>Sin chats guardados</p>
+                  <p className="text-xs px-2 py-2" style={{ color: "var(--dim)" }}>{t("common.noSavedChats")}</p>
                 ) : (
                   sessions.slice(0, 30).map((s) => (
                     <div key={s.id}
@@ -517,9 +521,9 @@ export default function AppSidebar({ open, onClose, onOpen, hideMobileTrigger }:
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-[11px] font-semibold leading-tight" style={{ color: "var(--text)" }}>
-                {sessionLoading ? "Cargando..." : "Sesión 1:1 con Diego"}
+                {sessionLoading ? t("common.loading") : t("common.session1on1")}
               </p>
-              <p className="text-[10px] leading-tight" style={{ color: "var(--dim)" }}>Guía personalizada · 45 min</p>
+              <p className="text-[10px] leading-tight" style={{ color: "var(--dim)" }}>{t("common.personalizedGuide")}</p>
             </div>
             <ArrowRight className="w-3 h-3 shrink-0" style={{ color: "var(--muted)" }} />
           </button>
@@ -530,7 +534,7 @@ export default function AppSidebar({ open, onClose, onOpen, hideMobileTrigger }:
             className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl mt-2 transition-colors hover:bg-red-500/10 group"
           >
             <LogOut className="w-3.5 h-3.5 shrink-0 text-red-400 group-hover:text-red-500" />
-            <span className="text-[12px] font-semibold text-red-400 group-hover:text-red-500">Cerrar sesión</span>
+            <span className="text-[12px] font-semibold text-red-400 group-hover:text-red-500">{t("common.logout")}</span>
           </button>
 
         </div>
