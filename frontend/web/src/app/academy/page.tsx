@@ -8,22 +8,28 @@ import MarketTickerBar from "@/components/MarketTickerBar";
 import PremiumBadge from "@/components/PremiumBadge";
 import { useLearnStore } from "@/lib/store";
 import { BookOpen, ArrowRight, Play, Smartphone } from "lucide-react";
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 
 // ─── Category Grid ───────────────────────────────────────────────────────────
 
-const CATEGORIES = [
-  { emoji: "📚", title: "Básicos" },
-  { emoji: "🏦", title: "Instrumentos" },
-  { emoji: "📊", title: "Análisis" },
-  { emoji: "🎯", title: "Estrategias" },
-  { emoji: "🧠", title: "Psicología" },
-  { emoji: "🌐", title: "Macro" },
-];
+function getCategories(t: TFunction) {
+  return [
+    { emoji: "📚", title: t("academy.categories.basics") },
+    { emoji: "🏦", title: t("academy.categories.instruments") },
+    { emoji: "📊", title: t("academy.categories.analysis") },
+    { emoji: "🎯", title: t("academy.categories.strategies") },
+    { emoji: "🧠", title: t("academy.categories.psychology") },
+    { emoji: "🌐", title: t("academy.categories.macro") },
+  ];
+}
 
 // ─── Aprendizaje Tab ─────────────────────────────────────────────────────────
 
 function AprendizajeTab() {
   const router = useRouter();
+  const { t } = useTranslation();
+  const CATEGORIES = getCategories(t);
   const { streak, completedToday } = useLearnStore();
 
   return (
@@ -50,14 +56,14 @@ function AprendizajeTab() {
         </div>
         <div>
           <p className="font-black text-lg" style={{ color: "var(--text)" }}>
-            {streak} {streak === 1 ? "día" : "días"} de racha
+            {t("academy.streakDays", { count: streak })}
           </p>
           <p className="text-sm" style={{ color: "var(--muted)" }}>
             {streak > 0
               ? completedToday
-                ? "¡Racha activa! Ya leíste hoy 🎉"
-                : "¡Racha activa! Lee hoy para mantenerla"
-              : "Lee para mantener tu racha"}
+                ? t("academy.streakActiveDone")
+                : t("academy.streakActivePending")
+              : t("academy.streakInactive")}
           </p>
         </div>
       </div>
@@ -65,7 +71,7 @@ function AprendizajeTab() {
       {/* Category Grid */}
       <div>
         <p className="text-xs font-semibold uppercase tracking-wide mb-3" style={{ color: "var(--muted)" }}>
-          Explorar temas
+          {t("academy.exploreTopics")}
         </p>
         <div className="grid grid-cols-3 gap-3">
           {CATEGORIES.map((cat) => (
@@ -92,7 +98,7 @@ function AprendizajeTab() {
         style={{ background: "var(--accent)", color: "#fff" }}
       >
         <BookOpen size={16} />
-        Ver todos los temas <ArrowRight size={16} />
+        {t("academy.viewAllTopics")} <ArrowRight size={16} />
       </button>
     </div>
   );
@@ -102,6 +108,7 @@ function AprendizajeTab() {
 
 function VideosTab() {
   const router = useRouter();
+  const { t } = useTranslation();
 
   return (
     <div className="space-y-4">
@@ -118,13 +125,12 @@ function VideosTab() {
             <Play size={18} style={{ color: "var(--accent)" }} />
           </div>
           <div>
-            <p className="font-black" style={{ color: "var(--text)" }}>Videos de inversión</p>
-            <p className="text-xs" style={{ color: "var(--muted)" }}>Contenido corto y directo</p>
+            <p className="font-black" style={{ color: "var(--text)" }}>{t("academy.videosTitle")}</p>
+            <p className="text-xs" style={{ color: "var(--muted)" }}>{t("academy.videosSubtitle")}</p>
           </div>
         </div>
         <p className="text-sm" style={{ color: "var(--muted)" }}>
-          Aprende con videos cortos sobre inversiones, estrategias y análisis de mercado.
-          Contenido curado especialmente para inversores hispanohablantes.
+          {t("academy.videosDesc")}
         </p>
       </div>
 
@@ -135,7 +141,7 @@ function VideosTab() {
         style={{ background: "var(--accent)", color: "#fff" }}
       >
         <Play size={16} />
-        Ver videos <ArrowRight size={16} />
+        {t("academy.viewVideos")} <ArrowRight size={16} />
       </button>
 
       {/* Mobile Note */}
@@ -145,8 +151,8 @@ function VideosTab() {
       >
         <Smartphone size={18} className="shrink-0 mt-0.5" style={{ color: "var(--muted)" }} />
         <p className="text-sm" style={{ color: "var(--muted)" }}>
-          <strong style={{ color: "var(--text)" }}>Mejor experiencia en móvil.</strong>{" "}
-          Los videos son más cómodos en la app móvil de Nuvos AI, con gestos nativos y notificaciones.
+          <strong style={{ color: "var(--text)" }}>{t("academy.mobileNoteTitle")}</strong>{" "}
+          {t("academy.mobileNoteDesc")}
         </p>
       </div>
     </div>
@@ -155,20 +161,22 @@ function VideosTab() {
 
 // ─── Main Content ────────────────────────────────────────────────────────────
 
-const TABS = [
-  { id: "aprendizaje", label: "Aprendizaje" },
-  { id: "videos", label: "Videos" },
-] as const;
+const TAB_IDS = ["aprendizaje", "videos"] as const;
 
-type TabId = (typeof TABS)[number]["id"];
+type TabId = (typeof TAB_IDS)[number];
 
 function AcademyContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
+  const { t } = useTranslation();
+  const TABS = [
+    { id: "aprendizaje" as const, label: t("academy.tabLearning") },
+    { id: "videos" as const, label: t("academy.tabVideos") },
+  ];
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const rawTab = searchParams.get("tab") as TabId | null;
-  const activeTab: TabId = rawTab && TABS.some((t) => t.id === rawTab) ? rawTab : "aprendizaje";
+  const activeTab: TabId = rawTab && TABS.some((tab) => tab.id === rawTab) ? rawTab : "aprendizaje";
   const isTour = searchParams.get("tour") === "4";
 
   function setTab(id: TabId) {
@@ -188,10 +196,10 @@ function AcademyContent() {
         >
           <div>
             <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--muted)" }}>
-              Aprende e invierte
+              {t("academy.eyebrow")}
             </p>
             <h1 className="text-2xl font-black tracking-tight" style={{ color: "var(--text)" }}>
-              Academy
+              {t("academy.title")}
             </h1>
           </div>
           <div className="flex items-center gap-2">
@@ -232,9 +240,9 @@ function AcademyContent() {
         <TourSpotlight
           targetId="tour-start-learning"
           step={4}
-          title="Empieza tu primera lección"
-          description="Cada día hay una lección nueva. Completa 3 seguidas y arranca tu racha — tu streak se muestra en el home."
-          ctaLabel="Entendido, volver al inicio ✓"
+          title={t("academy.tourTitle")}
+          description={t("academy.tourDesc")}
+          ctaLabel={t("academy.tourCta")}
         />
       )}
     </div>

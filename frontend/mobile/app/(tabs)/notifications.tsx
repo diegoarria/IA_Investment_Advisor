@@ -7,6 +7,7 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import Markdown from "react-native-markdown-display";
+import { useTranslation } from "react-i18next";
 import { notificationsApi, marketApi } from "../../src/lib/api";
 import { useTheme, Colors } from "../../src/lib/ThemeContext";
 import { usePortfolioStore } from "../../src/lib/portfolioStore";
@@ -49,6 +50,7 @@ interface NewsItem {
 
 export default function NotificationsScreen() {
   const { colors } = useTheme();
+  const { t } = useTranslation();
   const styles = useMemo(() => makeStyles(colors), [colors]);
 
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -98,7 +100,7 @@ export default function NotificationsScreen() {
     setNewsSummaryLoading(true);
     marketApi.summarizeNews(item.title, item.url)
       .then((res) => setNewsSummary(res.data.summary ?? null))
-      .catch(() => setNewsSummary("No se pudo generar el resumen. Toca el enlace para leer la nota completa."))
+      .catch(() => setNewsSummary(t("notifications.summaryError")))
       .finally(() => setNewsSummaryLoading(false));
   };
 
@@ -109,7 +111,7 @@ export default function NotificationsScreen() {
       const res = await marketApi.summarizeNews(newsModal.title, newsModal.url);
       setNewsSummary(res.data.summary ?? null);
     } catch {
-      setNewsSummary("No se pudo generar el resumen. Toca el enlace para leer la nota completa.");
+      setNewsSummary(t("notifications.summaryError"));
     }
     setNewsSummaryLoading(false);
   };
@@ -252,14 +254,14 @@ export default function NotificationsScreen() {
       <View style={[styles.section, { backgroundColor: colors.card, borderColor: colors.border }]}>
         {/* Header */}
         <View style={[styles.sectionHeader, { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border }]}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>Hoy en tu portafolio</Text>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>{t("notifications.portfolioToday")}</Text>
           {portPricesLoading && <ActivityIndicator size="small" color={colors.accentLight} style={{ marginLeft: 4 }} />}
           {/* Sort buttons */}
           <View style={styles.sortButtons}>
             {([
-              { key: "gainers" as const, label: "▲ Más subidas" },
-              { key: "losers"  as const, label: "▼ Más caídas" },
-              { key: "default" as const, label: "Normal" },
+              { key: "gainers" as const, label: t("notifications.sort.gainers") },
+              { key: "losers"  as const, label: t("notifications.sort.losers") },
+              { key: "default" as const, label: t("notifications.sort.default") },
             ]).map(({ key, label }) => (
               <TouchableOpacity
                 key={key}
@@ -349,19 +351,19 @@ export default function NotificationsScreen() {
       if (generalNewsLoading) return (
         <View style={styles.newsEmptyState}>
           <ActivityIndicator color={colors.accentLight} />
-          <Text style={[styles.newsEmptyText, { color: colors.textDim }]}>Cargando noticias del mercado…</Text>
+          <Text style={[styles.newsEmptyText, { color: colors.textDim }]}>{t("notifications.news.loadingGeneral")}</Text>
         </View>
       );
       if (generalNewsError) return (
         <TouchableOpacity style={styles.newsEmptyState} onPress={loadGeneralNews} activeOpacity={0.7}>
           <Ionicons name="refresh-outline" size={24} color={colors.textDim} />
-          <Text style={[styles.newsEmptyText, { color: colors.textMuted }]}>Error al cargar. Toca para reintentar.</Text>
+          <Text style={[styles.newsEmptyText, { color: colors.textMuted }]}>{t("notifications.news.loadError")}</Text>
         </TouchableOpacity>
       );
       if (generalNews.length === 0) return (
         <View style={styles.newsEmptyState}>
           <Ionicons name="newspaper-outline" size={28} color={colors.textDim} />
-          <Text style={[styles.newsEmptyText, { color: colors.textMuted }]}>Sin noticias disponibles</Text>
+          <Text style={[styles.newsEmptyText, { color: colors.textMuted }]}>{t("notifications.news.noNewsAvailable")}</Text>
         </View>
       );
       const visible = generalNews.slice(0, generalNewsShown);
@@ -372,7 +374,7 @@ export default function NotificationsScreen() {
             <TouchableOpacity style={[styles.newsShowMore, { borderTopColor: colors.border }]}
               onPress={() => setGeneralNewsShown((n) => n + 10)} activeOpacity={0.7}>
               <Text style={[styles.newsShowMoreText, { color: colors.accentLight }]}>
-                Ver {Math.min(10, generalNews.length - visible.length)} noticias más
+                {t("notifications.news.showMore", { count: Math.min(10, generalNews.length - visible.length) })}
               </Text>
             </TouchableOpacity>
           )}
@@ -385,7 +387,7 @@ export default function NotificationsScreen() {
         <View style={styles.newsEmptyState}>
           <Ionicons name="briefcase-outline" size={28} color={colors.textDim} />
           <Text style={[styles.newsEmptyText, { color: colors.textMuted }]}>
-            Importa acciones en Portafolio para ver sus noticias aquí
+            {t("notifications.news.importToSee")}
           </Text>
         </View>
       );
@@ -393,21 +395,21 @@ export default function NotificationsScreen() {
         <View style={styles.newsEmptyState}>
           <ActivityIndicator color={colors.accentLight} />
           <Text style={[styles.newsEmptyText, { color: colors.textDim }]}>
-            Buscando noticias de {tickers.join(", ")}…
+            {t("notifications.news.searchingFor", { tickers: tickers.join(", ") })}
           </Text>
         </View>
       );
       if (newsError) return (
         <TouchableOpacity style={styles.newsEmptyState} onPress={loadPortfolioNews} activeOpacity={0.7}>
           <Ionicons name="refresh-outline" size={24} color={colors.textDim} />
-          <Text style={[styles.newsEmptyText, { color: colors.textMuted }]}>Error al cargar. Toca para reintentar.</Text>
+          <Text style={[styles.newsEmptyText, { color: colors.textMuted }]}>{t("notifications.news.loadError")}</Text>
         </TouchableOpacity>
       );
       if (filteredNews.length === 0) return (
         <View style={styles.newsEmptyState}>
           <Ionicons name="newspaper-outline" size={28} color={colors.textDim} />
           <Text style={[styles.newsEmptyText, { color: colors.textMuted }]}>
-            {newsFilter ? `Sin noticias de ${newsFilter} en los últimos 7 días` : "Sin noticias en los últimos 7 días"}
+            {newsFilter ? t("notifications.news.noNewsFiltered", { ticker: newsFilter }) : t("notifications.news.noNews")}
           </Text>
         </View>
       );
@@ -418,7 +420,7 @@ export default function NotificationsScreen() {
             <TouchableOpacity style={[styles.newsShowMore, { borderTopColor: colors.border }]}
               onPress={() => setNewsShown((n) => n + 10)} activeOpacity={0.7}>
               <Text style={[styles.newsShowMoreText, { color: colors.accentLight }]}>
-                Ver {Math.min(10, filteredNews.length - visibleNews.length)} noticias más
+                {t("notifications.news.showMore", { count: Math.min(10, filteredNews.length - visibleNews.length) })}
               </Text>
             </TouchableOpacity>
           )}
@@ -431,15 +433,15 @@ export default function NotificationsScreen() {
         {/* Header */}
         <View style={[styles.sectionHeader, { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border }]}>
           <Ionicons name="newspaper-outline" size={14} color={colors.accentLight} />
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>Noticias</Text>
-          <Text style={[styles.sectionSubtitle, { color: colors.textDim }]}>últimos 7 días</Text>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>{t("notifications.news.title")}</Text>
+          <Text style={[styles.sectionSubtitle, { color: colors.textDim }]}>{t("notifications.news.subtitle")}</Text>
         </View>
 
         {/* Tab bar */}
         <View style={[styles.newsTabs, { backgroundColor: colors.bgRaised, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border }]}>
           {([
-            { key: "general"   as const, label: "🌍 Generales" },
-            { key: "portfolio" as const, label: `💼 Tu Portafolio${!isPremiumAccess ? " 🔒" : ""}` },
+            { key: "general"   as const, label: t("notifications.news.tabGeneral") },
+            { key: "portfolio" as const, label: `${t("notifications.news.tabPortfolio")}${!isPremiumAccess ? " 🔒" : ""}` },
           ]).map(({ key, label }) => (
             <TouchableOpacity
               key={key}
@@ -463,7 +465,7 @@ export default function NotificationsScreen() {
             style={styles.chipScroll} contentContainerStyle={styles.chipScrollContent}>
             <TouchableOpacity style={[styles.chip, newsFilter === null && styles.chipActive]}
               onPress={() => { setNewsFilter(null); setNewsShown(10); }} activeOpacity={0.7}>
-              <Text style={[styles.chipText, newsFilter === null && styles.chipTextActive]}>Todas</Text>
+              <Text style={[styles.chipText, newsFilter === null && styles.chipTextActive]}>{t("notifications.news.all")}</Text>
             </TouchableOpacity>
             {tickers.map((ticker) => {
               const count = news.filter((n) => n.symbol === ticker).length;
@@ -488,17 +490,17 @@ export default function NotificationsScreen() {
             <View style={{ alignItems: "center", paddingVertical: 40, paddingHorizontal: 28, gap: 12 }}>
               <Text style={{ fontSize: 40 }}>💼</Text>
               <Text style={{ fontSize: 15, fontWeight: "900", color: colors.text, textAlign: "center" }}>
-                Noticias de Tu Portafolio
+                {t("notifications.news.portfolioTitle")}
               </Text>
               <Text style={{ fontSize: 13, color: colors.textMuted, textAlign: "center", lineHeight: 20 }}>
-                Recibe noticias filtradas automáticamente para cada acción que tienes. Solo disponible en Premium.
+                {t("notifications.news.portfolioPremiumDesc")}
               </Text>
               <TouchableOpacity
                 onPress={() => setPaywallOpen(true)}
                 style={{ marginTop: 8, paddingHorizontal: 24, paddingVertical: 12, borderRadius: 20, backgroundColor: colors.accent }}
                 activeOpacity={0.85}
               >
-                <Text style={{ fontSize: 14, fontWeight: "900", color: "#fff" }}>Desbloquear Premium</Text>
+                <Text style={{ fontSize: 14, fontWeight: "900", color: "#fff" }}>{t("notifications.news.unlockPremium")}</Text>
               </TouchableOpacity>
             </View>
           ) : portfolioBody()
@@ -511,7 +513,7 @@ export default function NotificationsScreen() {
     <SafeAreaView style={styles.container}>
       {unread > 0 && (
         <TouchableOpacity style={styles.markAllBtn} onPress={handleMarkAllRead}>
-          <Text style={styles.markAllText}>Marcar todas como leídas ({unread})</Text>
+          <Text style={styles.markAllText}>{t("notifications.markAllRead", { count: unread })}</Text>
         </TouchableOpacity>
       )}
 
@@ -535,9 +537,9 @@ export default function NotificationsScreen() {
         ListEmptyComponent={
           <View style={styles.empty}>
             <Ionicons name="notifications-outline" size={48} color={colors.textMuted} style={{ marginBottom: 16 }} />
-            <Text style={styles.emptyText}>Sin notificaciones todavía</Text>
+            <Text style={styles.emptyText}>{t("notifications.emptyTitle")}</Text>
             <Text style={styles.emptySubtext}>
-              Las alertas aparecen cuando hay eventos relevantes del mercado para tu perfil
+              {t("notifications.emptySubtitle")}
             </Text>
           </View>
         }
@@ -546,7 +548,7 @@ export default function NotificationsScreen() {
       <PaywallModal
         visible={paywallOpen}
         onClose={() => setPaywallOpen(false)}
-        reason="Las noticias ilimitadas son exclusivas de Premium"
+        reason={t("notifications.news.paywallReason")}
       />
 
       {/* AI News summary modal */}
@@ -582,8 +584,8 @@ export default function NotificationsScreen() {
                 <View style={[styles.nsLoadingIcon, { backgroundColor: "rgba(168,85,247,0.15)", borderColor: "rgba(168,85,247,0.3)" }]}>
                   <ActivityIndicator color="#c084fc" size="large" />
                 </View>
-                <Text style={[styles.nsLoadingTitle, { color: colors.text }]}>Claude está leyendo el artículo</Text>
-                <Text style={[styles.nsLoadingSub, { color: colors.textMuted }]}>Extrayendo lo más importante…</Text>
+                <Text style={[styles.nsLoadingTitle, { color: colors.text }]}>{t("notifications.summaryModal.readingArticle")}</Text>
+                <Text style={[styles.nsLoadingSub, { color: colors.textMuted }]}>{t("notifications.summaryModal.extracting")}</Text>
                 {[1, 0.88, 0.94, 0.72].map((w, i) => (
                   <View key={i} style={[styles.nsSkeletonLine, { width: `${w * 100}%` as any, opacity: 0.8 - i * 0.12 }]} />
                 ))}
@@ -592,7 +594,7 @@ export default function NotificationsScreen() {
                   activeOpacity={0.75}
                   onPress={() => { setNewsModal(null); setNewsSummary(null); Linking.openURL(newsModal?.url ?? "").catch(() => {}); }}
                 >
-                  <Text style={[styles.nsSecondaryTitle, { color: colors.textSub, fontSize: 12 }]}>🌐 Ver artículo completo</Text>
+                  <Text style={[styles.nsSecondaryTitle, { color: colors.textSub, fontSize: 12 }]}>{t("notifications.summaryModal.viewFullArticle")}</Text>
                 </TouchableOpacity>
               </View>
             )}
@@ -620,8 +622,8 @@ export default function NotificationsScreen() {
                           <Text style={{ fontSize: 16 }}>✦</Text>
                         </View>
                         <View style={{ flex: 1 }}>
-                          <Text style={styles.nsSummaryTitle}>RESUMEN IA</Text>
-                          <Text style={[styles.nsSummarySub, { color: colors.textDim }]}>Generado por Claude</Text>
+                          <Text style={styles.nsSummaryTitle}>{t("notifications.summaryModal.aiSummary")}</Text>
+                          <Text style={[styles.nsSummarySub, { color: colors.textDim }]}>{t("notifications.summaryModal.generatedBy")}</Text>
                         </View>
                         <View style={[styles.nsPremiumBadge, { backgroundColor: "rgba(168,85,247,0.12)", borderColor: "rgba(168,85,247,0.25)" }]}>
                           <Text style={styles.nsPremiumText}>Premium</Text>
@@ -660,17 +662,17 @@ export default function NotificationsScreen() {
                             style={[styles.newsSummaryBtn, { borderColor: colors.border, backgroundColor: colors.card }]}
                             onPress={() => { setNewsModal(null); setNewsSummary(null); Linking.openURL(newsModal?.url ?? "").catch(() => {}); }}
                           >
-                            <Text style={[styles.newsSummaryBtnText, { color: colors.textSub }]}>Ver artículo</Text>
+                            <Text style={[styles.newsSummaryBtnText, { color: colors.textSub }]}>{t("notifications.summaryModal.viewArticle")}</Text>
                           </TouchableOpacity>
                           <TouchableOpacity
                             style={[styles.newsSummaryBtn, { borderColor: "rgba(168,85,247,0.3)", backgroundColor: "rgba(168,85,247,0.1)" }]}
                             onPress={() => { setNewsModal(null); setNewsSummary(null); }}
                           >
-                            <Text style={[styles.newsSummaryBtnText, { color: "#c084fc" }]}>Cerrar</Text>
+                            <Text style={[styles.newsSummaryBtnText, { color: "#c084fc" }]}>{t("notifications.summaryModal.close")}</Text>
                           </TouchableOpacity>
                         </View>
                         <Text style={[styles.nsDisclaimer, { color: colors.textDim }]}>
-                          Resumen por IA · No constituye asesoramiento de inversión
+                          {t("notifications.summaryModal.disclaimer")}
                         </Text>
                       </View>
                     </View>
@@ -691,7 +693,7 @@ export default function NotificationsScreen() {
             <View style={styles.modalHandle} />
             <View style={styles.modalHeader}>
               <Text style={[styles.modalTitle, { color: colors.text }]}>
-                {(alertModal?.change_pct ?? 0) >= 0 ? "📈" : "📉"} {alertModal?.ticker} {(alertModal?.change_pct ?? 0) >= 0 ? "subió" : "cayó"} {Math.abs(alertModal?.change_pct ?? 0).toFixed(1)}%
+                {(alertModal?.change_pct ?? 0) >= 0 ? "📈" : "📉"} {alertModal?.ticker} {(alertModal?.change_pct ?? 0) >= 0 ? t("notifications.alertModal.up") : t("notifications.alertModal.down")} {Math.abs(alertModal?.change_pct ?? 0).toFixed(1)}%
               </Text>
               <TouchableOpacity onPress={() => setAlertModal(null)}>
                 <Ionicons name="close" size={22} color={colors.textMuted} />
@@ -701,7 +703,7 @@ export default function NotificationsScreen() {
               {alertLoading ? (
                 <View style={{ alignItems: "center", padding: 32 }}>
                   <ActivityIndicator color={colors.accentLight} />
-                  <Text style={{ color: colors.textMuted, marginTop: 12 }}>Analizando con AI…</Text>
+                  <Text style={{ color: colors.textMuted, marginTop: 12 }}>{t("notifications.alertModal.analyzing")}</Text>
                 </View>
               ) : (
                 <Markdown style={markdownStyles}>{alertInsight ?? ""}</Markdown>

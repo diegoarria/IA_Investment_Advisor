@@ -6,6 +6,8 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
+import type { TFunction } from "i18next";
+import { useTranslation } from "react-i18next";
 import MobileTourBanner from "../../src/components/MobileTourBanner";
 import { useTheme } from "../../src/lib/ThemeContext";
 import { useAppStore } from "../../src/lib/profileStore";
@@ -16,21 +18,29 @@ import { useLearnStore } from "../../src/lib/learnStore";
 const TABS = ["Aprendizaje", "Videos"] as const;
 type TabId = (typeof TABS)[number];
 
+function getTabLabel(t: TFunction, tab: TabId): string {
+  return tab === "Aprendizaje" ? t("academy.tabs.learning") : t("academy.tabs.videos");
+}
+
 // ─── Category data ───────────────────────────────────────────────────────────
 
-const CATEGORIES = [
-  { emoji: "📚", title: "Básicos" },
-  { emoji: "🏦", title: "Instrumentos" },
-  { emoji: "📊", title: "Análisis" },
-  { emoji: "🎯", title: "Estrategias" },
-  { emoji: "🧠", title: "Psicología" },
-  { emoji: "🌐", title: "Macro" },
-];
+function getCategories(t: TFunction) {
+  return [
+    { emoji: "📚", title: t("academy.categories.basics") },
+    { emoji: "🏦", title: t("academy.categories.instruments") },
+    { emoji: "📊", title: t("academy.categories.analysis") },
+    { emoji: "🎯", title: t("academy.categories.strategies") },
+    { emoji: "🧠", title: t("academy.categories.psychology") },
+    { emoji: "🌐", title: t("academy.categories.macro") },
+  ];
+}
 
 // ─── Streak Ring ─────────────────────────────────────────────────────────────
 
 function StreakRing({ streak, colors }: { streak: number; colors: any }) {
+  const { t } = useTranslation();
   const fire = streak >= 7 ? "🔥" : streak >= 3 ? "⚡" : "✨";
+  const days = t("academy.days");
   return (
     <View
       style={[
@@ -42,7 +52,7 @@ function StreakRing({ streak, colors }: { streak: number; colors: any }) {
       <Text style={[ss.streakNum, { color: streak > 0 ? "#f59e0b" : colors.textMuted }]}>
         {streak}
       </Text>
-      <Text style={[ss.streakDays, { color: colors.textMuted }]}>días</Text>
+      <Text style={[ss.streakDays, { color: colors.textMuted }]}>{days}</Text>
     </View>
   );
 }
@@ -50,8 +60,10 @@ function StreakRing({ streak, colors }: { streak: number; colors: any }) {
 // ─── Aprendizaje Tab ─────────────────────────────────────────────────────────
 
 function AprendizajeTab({ colors, isTour }: { colors: any; isTour?: boolean }) {
+  const { t } = useTranslation();
   const streak = useLearnStore((s) => s.streak);
   const completedToday = useLearnStore((s) => s.completedToday);
+  const CATEGORIES = getCategories(t);
 
   return (
     <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: 16, gap: 16 }}>
@@ -60,21 +72,21 @@ function AprendizajeTab({ colors, isTour }: { colors: any; isTour?: boolean }) {
         <StreakRing streak={streak} colors={colors} />
         <View style={ss.streakInfo}>
           <Text style={[ss.streakTitle, { color: colors.text }]}>
-            {streak} {streak === 1 ? "día" : "días"} de racha
+            {streak === 1 ? t("academy.streakTitleOne", { count: streak }) : t("academy.streakTitleOther", { count: streak })}
           </Text>
           <Text style={[ss.streakSub, { color: colors.textMuted }]}>
             {streak > 0
               ? completedToday
-                ? "¡Racha activa! Ya leíste hoy 🎉"
-                : "¡Racha activa! Lee hoy para mantenerla"
-              : "Lee para mantener tu racha"}
+                ? t("academy.streakActiveDone")
+                : t("academy.streakActivePending")
+              : t("academy.streakInactive")}
           </Text>
         </View>
       </View>
 
       {/* Category Grid */}
       <View>
-        <Text style={[ss.sectionLabel, { color: colors.textMuted }]}>Explorar temas</Text>
+        <Text style={[ss.sectionLabel, { color: colors.textMuted }]}>{t("academy.exploreTopics")}</Text>
         <View style={ss.categoryGrid}>
           {CATEGORIES.map((cat) => (
             <TouchableOpacity
@@ -97,7 +109,7 @@ function AprendizajeTab({ colors, isTour }: { colors: any; isTour?: boolean }) {
         style={[ss.btn, { backgroundColor: colors.accent }, isTour && { borderWidth: 3, borderColor: "#fff" }]}
       >
         <Ionicons name="library-outline" size={16} color="#fff" />
-        <Text style={ss.btnText}>Ver todos →</Text>
+        <Text style={ss.btnText}>{t("academy.seeAll")}</Text>
       </TouchableOpacity>
     </ScrollView>
   );
@@ -106,6 +118,7 @@ function AprendizajeTab({ colors, isTour }: { colors: any; isTour?: boolean }) {
 // ─── Videos Tab ──────────────────────────────────────────────────────────────
 
 function VideosTab({ colors }: { colors: any }) {
+  const { t } = useTranslation();
   return (
     <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: 16, gap: 12 }}>
       {/* Description Card */}
@@ -113,10 +126,9 @@ function VideosTab({ colors }: { colors: any }) {
         <View style={[ss.videoIconWrap, { backgroundColor: colors.accent + "22" }]}>
           <Ionicons name="play-circle-outline" size={28} color={colors.accentLight} />
         </View>
-        <Text style={[ss.videoTitle, { color: colors.text }]}>Videos de inversión</Text>
+        <Text style={[ss.videoTitle, { color: colors.text }]}>{t("academy.videosTitle")}</Text>
         <Text style={[ss.videoDesc, { color: colors.textMuted }]}>
-          Aprende con videos cortos sobre inversiones, estrategias y análisis de mercado.
-          Contenido curado especialmente para inversores hispanohablantes.
+          {t("academy.videosDesc")}
         </Text>
       </View>
 
@@ -127,14 +139,14 @@ function VideosTab({ colors }: { colors: any }) {
         style={[ss.btn, { backgroundColor: colors.accent }]}
       >
         <Ionicons name="play" size={16} color="#fff" />
-        <Text style={ss.btnText}>Ver videos</Text>
+        <Text style={ss.btnText}>{t("academy.seeVideos")}</Text>
       </TouchableOpacity>
 
       {/* Info Note */}
       <View style={[ss.noteCard, { backgroundColor: colors.bgRaised, borderColor: colors.border }]}>
         <Ionicons name="phone-portrait-outline" size={18} color={colors.textMuted} />
         <Text style={[ss.noteText, { color: colors.textMuted }]}>
-          Los videos están optimizados para la experiencia móvil con gestos nativos.
+          {t("academy.videosNote")}
         </Text>
       </View>
     </ScrollView>
@@ -145,6 +157,7 @@ function VideosTab({ colors }: { colors: any }) {
 
 export default function AcademyScreen() {
   const { colors } = useTheme();
+  const { t } = useTranslation();
   const openSidebar = useAppStore((s) => s.openSidebar);
   const [activeTab, setActiveTab] = useState<TabId>("Aprendizaje");
   const { tour } = useLocalSearchParams<{ tour?: string }>();
@@ -159,8 +172,8 @@ export default function AcademyScreen() {
           <View style={{ height: 2, borderRadius: 1, width: 14, backgroundColor: colors.accentLight }} />
         </TouchableOpacity>
         <View>
-          <Text style={[ss.headerSub, { color: colors.textMuted }]}>Aprende e invierte</Text>
-          <Text style={[ss.headerTitle, { color: colors.text }]}>Academy</Text>
+          <Text style={[ss.headerSub, { color: colors.textMuted }]}>{t("academy.headerSub")}</Text>
+          <Text style={[ss.headerTitle, { color: colors.text }]}>{t("academy.headerTitle")}</Text>
         </View>
       </View>
 
@@ -182,7 +195,7 @@ export default function AcademyScreen() {
                 { color: activeTab === tab ? "#fff" : colors.textMuted },
               ]}
             >
-              {tab}
+              {getTabLabel(t, tab)}
             </Text>
           </TouchableOpacity>
         ))}
@@ -195,8 +208,8 @@ export default function AcademyScreen() {
       {isTour && (
         <MobileTourBanner
           step={4}
-          title="Empieza tu primera lección"
-          description="Cada día hay una lección nueva. Completa 3 seguidas y arranca tu racha — tu streak aparece en el home."
+          title={t("academy.tour.title")}
+          description={t("academy.tour.description")}
         />
       )}
     </SafeAreaView>

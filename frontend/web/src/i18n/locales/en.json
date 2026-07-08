@@ -1009,5 +1009,420 @@
         "desc": "A year of recovery and investor euphoria"
       }
     }
+  },
+  "academy": {
+    "streakDays": "{{count}}-day streak",
+    "streakActiveDone": "Streak active! You already read today 🎉",
+    "streakActivePending": "Streak active! Read today to keep it going",
+    "streakInactive": "Read to start your streak",
+    "exploreTopics": "Explore topics",
+    "viewAllTopics": "See all topics",
+    "videosTitle": "Investing videos",
+    "videosSubtitle": "Short, straight-to-the-point content",
+    "videosDesc": "Learn with short videos on investing, strategies, and market analysis. Content curated for Spanish-speaking investors.",
+    "viewVideos": "Watch videos",
+    "mobileNoteTitle": "Best experience on mobile.",
+    "mobileNoteDesc": "Videos are more comfortable in the Nuvos AI mobile app, with native gestures and notifications.",
+    "eyebrow": "Learn and invest",
+    "title": "Academy",
+    "tabLearning": "Learning",
+    "tabVideos": "Videos",
+    "categories": {
+      "basics": "Basics",
+      "instruments": "Instruments",
+      "analysis": "Analysis",
+      "strategies": "Strategies",
+      "psychology": "Psychology",
+      "macro": "Macro"
+    },
+    "tourTitle": "Start your first lesson",
+    "tourDesc": "There's a new lesson every day. Complete 3 in a row and kick off your streak — it shows up on your home screen.",
+    "tourCta": "Got it, back to home ✓"
+  },
+  "support": {
+    "eyebrow": "Help",
+    "title": "Support",
+    "faqTitle": "Frequently asked questions",
+    "chatTitle": "Support chat",
+    "chatPlaceholder": "Type your question...",
+    "chatGreeting": "Hi, I'm the Nuvos AI support assistant. How can I help you today?",
+    "chatError": "Sorry, something went wrong. Please try again or open a support ticket.",
+    "needMoreHelp": "Need more help?",
+    "ticketSentTitle": "Ticket sent",
+    "ticketSentDesc": "The Nuvos AI team will review your case and get back to you soon.",
+    "sendAnother": "Send another",
+    "ticketIntro": "If the chatbot couldn't solve your problem, open a ticket and our team will reply within 24 hours.",
+    "createTicket": "Create support ticket",
+    "subjectPlaceholder": "Subject (e.g. Error loading portfolio)",
+    "messagePlaceholder": "Describe the problem in detail...",
+    "cancel": "Cancel",
+    "sendTicket": "Send ticket",
+    "faq": [
+      {
+        "q": "How many messages can I send for free?",
+        "a": "The Free plan includes 15 messages every 24 hours. With Premium you get unlimited messages and access to all advanced features."
+      },
+      {
+        "q": "How does the free 90-day Premium work?",
+        "a": "All new users automatically get 90 days of Premium for free, no credit card required. You can explore every feature without restrictions during that period."
+      },
+      {
+        "q": "How do I import my portfolio?",
+        "a": "In the Portfolio section you can paste a screenshot from your broker (Ctrl+V / ⌘+V) or add positions manually. The AI reads the image and automatically extracts your positions, prices, and quantities."
+      },
+      {
+        "q": "How do I see the full analysis of a stock?",
+        "a": "Tap or click any stock from Portfolio, Watchlist, or Chat to open its full profile. There you'll find the historical chart, income statement, balance sheet, and cash flow with real-time data."
+      },
+      {
+        "q": "How does the earnings calendar work?",
+        "a": "In the Portfolio section you'll find a calendar showing the earnings report dates for your positions and Watchlist stocks. It helps you anticipate important price moves."
+      },
+      {
+        "q": "Can I change the order of my stocks in the Watchlist?",
+        "a": "Yes. In the basic Watchlist view you can drag stock cards to reorder them however you like. The order saves automatically and persists across sessions."
+      },
+      {
+        "q": "What is Investor Maturity?",
+        "a": "It's a score (0-100) the AI calculates by analyzing your real behavior in the app: whether you panic during dips, whether you diversify well, whether you make long-term decisions. It evolves as you use the app and appears as a bar on your profile."
+      },
+      {
+        "q": "Does the app sync between web and mobile?",
+        "a": "Yes. Your portfolio, watchlist, dark/light theme preference, and profile settings sync automatically between the web version and the mobile app in real time."
+      },
+      {
+        "q": "How do I cancel my Premium subscription?",
+        "a": "Go to Profile → Subscription → Cancel. Premium access stays active until the end of the period you already paid for."
+      },
+      {
+        "q": "How does the referral program work?",
+        "a": "Go to Profile → Referral program to get your unique link. For every friend who signs up and uses the app, you earn weeks or months of free Premium."
+      }
+    ]
+  },
+  "products": {
+    "title": "Become an investor",
+    "subtitle": "The guidance you need to make your money work for you",
+    "subscriptionTitle": "Subscription",
+    "freeName": "Free",
+    "freePerMonth": "/ month",
+    "freeDesc": "To start investing with AI",
+    "currentPlan": "Your current plan",
+    "premiumName": "Premium",
+    "yourPlan": "YOUR PLAN",
+    "firstMonth": "first month",
+    "premiumPriceNote": "Then $12.99/month · Annual $125.99/year",
+    "claimFirstMonth": "Claim your free first month →",
+    "active": "Active ✓",
+    "duoPlanTitle": "Duo Plan",
+    "duoPlanNew": "NEW",
+    "duoPlanPerMonth": "/ month",
+    "duoPlanPriceNote": "Annual $199.99/year",
+    "hireDuoPlan": "Get Duo Plan",
+    "duoPlanFeatures": [
+      "Everything in Premium, for both of you",
+      "Independent profile and portfolio for each person",
+      "Share with a family member or partner",
+      "Perfect for learning to invest together"
+    ],
+    "oneTimeProductsTitle": "One-time purchase products",
+    "freeLabel": "Free:",
+    "viewDetails": "View details",
+    "comingSoonTitle": "Coming soon",
+    "comingSoonBadge": "SOON",
+    "free": [
+      "Up to 15 messages/day with the AI mentor",
+      "Portfolio of up to 10 stocks",
+      "Basic portfolio chart (5D and 1M)",
+      "General notifications for your portfolio and watchlist",
+      "25 stocks in your watchlist",
+      "Full Academy + quizzes",
+      "Basic memory — Nuvos remembers up to 10 of your beliefs and ideas"
+    ],
+    "premium": [
+      "Understand what to do with your money, every day — no limit",
+      "Be the first to know when one of your companies is about to report earnings",
+      "Find out if your money could withstand another crisis like 2008 or COVID",
+      "The AI honestly tells you what's wrong with your portfolio",
+      "Upload your account statement and the AI builds everything for you",
+      "5 real investment ideas every week, tailored to you",
+      "We tell you why your money is moving — before you react",
+      "At the end of every month, know if you beat the market",
+      "Learn about the companies you already own",
+      "See how your portfolio compares to the market in real time",
+      "Unlimited portfolio — no caps on stocks or watchlist",
+      "Complete financial memory — patterns, timeline, and your portfolio's evolution"
+    ],
+    "oneTimeProducts": [
+      {
+        "title": "Annual Investment Report",
+        "features": [
+          "Your real return for the whole year as an investor",
+          "Comparison vs. indices (S&P 500 and more)",
+          "AI-generated lessons learned",
+          "Personalized plan for next year"
+        ]
+      },
+      {
+        "title": "1:1 Personalized Guidance Session",
+        "features": [
+          "45 minutes live with a guide",
+          "We set up your portfolio together",
+          "Learning path personalized to your goals"
+        ]
+      },
+      {
+        "title": "3-Session Follow-up Pack",
+        "features": [
+          "3 ongoing 1:1 follow-up sessions",
+          "We review your progress in the app",
+          "We adjust your learning path",
+          "We answer questions as you go"
+        ],
+        "note": "Premium only"
+      }
+    ],
+    "comingSoon": [
+      {
+        "title": "Connect Broker (Plaid / Fidelity / Schwab)",
+        "description": "Sync your real portfolio from your broker automatically. No manual entry, always up to date."
+      },
+      {
+        "title": "Options Simulator",
+        "description": "Learn to trade options (calls and puts) with virtual money and AI analysis of every strategy."
+      }
+    ]
+  },
+  "notifications": {
+    "eyebrow": "Alerts and news",
+    "title": "Notifications",
+    "markAllRead": "Mark all as read ({{count}})",
+    "newsTitle": "News",
+    "last7days": "last 7 days",
+    "tabGeneral": "🌍 General",
+    "tabPortfolio": "💼 Your Portfolio",
+    "loadingMarketNews": "Loading market news…",
+    "loadErrorRetry": "Error loading. Click to retry.",
+    "loadErrorRetryTouch": "Error loading. Tap to retry.",
+    "noNewsAvailable": "No news available",
+    "seeMoreNews": "See {{count}} more news items",
+    "portfolioNewsTitle": "News for Your Portfolio",
+    "portfolioNewsDesc": "Get news automatically filtered for each stock you own. Premium only.",
+    "unlockPremium": "Unlock Premium",
+    "allChip": "All",
+    "importPositionsPrompt": "Import positions in Portfolio to see their news here",
+    "searchingNewsFor": "Searching for news on {{tickers}}…",
+    "noNewsForTicker": "No news for {{ticker}} in the last 7 days",
+    "noNewsGeneric": "No news in the last 7 days",
+    "todayInPortfolio": "Today in your portfolio",
+    "sortGainers": "▲ Top gainers",
+    "sortLosers": "▼ Top losers",
+    "sortDefault": "Default",
+    "emptyTitle": "No notifications yet",
+    "emptyDesc": "Alerts show up when there are relevant market events for your profile",
+    "discussWithMentor": "Discuss with my mentor →",
+    "analyzingWithAI": "Analyzing with AI…",
+    "unlimitedNewsPremiumReason": "Unlimited news is a Premium-only feature",
+    "aiSummaryLabel": "AI Summary",
+    "generatedByClaude": "Generated by Claude",
+    "premiumBadge": "Premium",
+    "viewArticle": "View article",
+    "close": "Close",
+    "aiSummaryDisclaimer": "AI summary · Not investment advice",
+    "claudeReading": "Claude is reading the article",
+    "extractingImportant": "Extracting what matters most for you…",
+    "aiSummaryCardDesc": "Claude reads it and pulls out the essentials",
+    "aiSummaryTimeNote": "4–8 lines · in seconds",
+    "viewFullArticle": "View full article",
+    "openOriginalIn": "Opens the original on {{publisher}}",
+    "summaryError": "Couldn't generate the summary. Try viewing the full article instead.",
+    "wentUp": "went up",
+    "fell": "fell"
+  },
+  "learn": {
+    "levelLabel": "Level",
+    "title": "Learning",
+    "streakDays": "{{count}}-day streak",
+    "streakActiveToday": "Streak active today!",
+    "streakInactive": "Read a topic to keep your streak",
+    "myGoals": "My Goals",
+    "topicsCompleted": "{{done}} of {{total}} topics completed",
+    "searchPlaceholder": "Search any financial topic...",
+    "ask": "Ask",
+    "learnBeforeReport": "🎓 Learn before they report",
+    "reportsToday": "today",
+    "reportsTomorrow": "tomorrow",
+    "reportsInDays": "in {{count}} days",
+    "reportsOn": "{{ticker}} reports {{when}}",
+    "viewLesson": "View lesson →",
+    "forYou": "For you",
+    "explainWithAI": "Explain with AI →",
+    "preparingFlashcard": "Preparing flashcard... ~2 sec",
+    "understoodTakeQuiz": "Got it? — Take the quiz →",
+    "understood": "Got it ✓",
+    "claimingReward": "Claiming...",
+    "claimReward": "Claim reward!",
+    "premiumDaysActivated": "{{days}} days of Premium activated! 🎉",
+    "messagesReset": "Daily messages reset! ⚡",
+    "rewardRedeemed": "Reward redeemed! 🏆",
+    "streakGoalsTitle": "Streak Goals",
+    "consecutiveDaysClaimed": "{{count}} consecutive days · {{claimed}}/{{total}} claimed",
+    "daysRemaining": "{{count}} days left",
+    "claim": "Claim",
+    "categories": {
+      "all": "All",
+      "basics": "Basics",
+      "instruments": "Instruments",
+      "ratios": "Ratios",
+      "analysis": "Analysis",
+      "strategies": "Strategies",
+      "trading": "Trading",
+      "psychology": "Psychology",
+      "macro": "Macro",
+      "markets": "Markets",
+      "mexico": "Mexico",
+      "companies": "Companies"
+    }
+  },
+  "chat": {
+    "newChat": "New",
+    "notifPanelTitle": "Notifications",
+    "notifPanelEmpty": "No notifications",
+    "askMentor": "Ask my Mentor",
+    "mentorFallbackName": "AI Mentor",
+    "greeting": "Hi, {{name}}",
+    "riskLabel": {
+      "conservative": "Conservative",
+      "conservative_moderate": "Conservative-Moderate",
+      "moderate": "Moderate",
+      "moderate_growth": "Moderate-Growth",
+      "growth": "Growth",
+      "aggressive": "Aggressive",
+      "aggressive_speculative": "Aggressive-Speculative",
+      "speculative": "Speculative"
+    },
+    "riskAssessmentTitle": "Risk assessment",
+    "defaultMentorTitle": "Your AI investing mentor",
+    "objectiveGreeting": {
+      "protect": "I see you're focused on protecting your capital. Solid place to start. Where would you like to begin?",
+      "grow": "Your goal is to grow your money long term. It's the most solid approach. What's on your mind?",
+      "maximize": "You're looking to maximize returns. Risk comes with the territory — I'll teach you to manage it well. Ready?"
+    },
+    "defaultGreetingQuestion": "How can I help you today?",
+    "welcomeSubtitleBasic": "Tell me how much you have to invest and what you want to achieve — I'll guide you step by step, no complications.",
+    "welcomeSubtitleDefault": "Ask me about companies, ETFs, strategies, or concepts",
+    "positionsCount": "{{count}} positions",
+    "positionsCountSingular": "{{count}} position",
+    "msgToday": "{{count}} msg today",
+    "msgCount": "{{count}} msg",
+    "suggestedQuestions": "Suggested questions",
+    "suggestionsDefault": [
+      "How do I analyze if a company is a good investment?",
+      "Explain what an ETF is",
+      "How does NVIDIA make money?",
+      "How do I build a diversified portfolio?"
+    ],
+    "suggestionsByLevel": {
+      "basico": [
+        "I have $500 and have never invested, where do I start?",
+        "Explain what an ETF is and why it's popular",
+        "Can I lose all my money if I invest in the stock market?",
+        "How do I build a diversified portfolio?"
+      ],
+      "intermedio": [
+        "How do I identify undervalued stocks with P/E and PEG?",
+        "Analyze AAPL — is it a good price today?",
+        "Which sectors are leading the market this year?",
+        "Explain how to read an income statement"
+      ],
+      "avanzado": [
+        "Analyze MSFT vs GOOG free cash flow",
+        "How do I build a hedging strategy with options?",
+        "Which macro indicators most affect the market today?",
+        "Compare NVDA vs AMD on fundamental valuation and momentum"
+      ]
+    },
+    "suggestionsByObjective": {
+      "protect": [
+        "What are the safest investments to preserve capital?",
+        "How do I protect my savings from inflation?",
+        "Explain what bonds are and how they work",
+        "What is an index fund and why is it low risk?"
+      ],
+      "grow": [
+        "How do I build a diversified long-term portfolio?",
+        "What's the difference between growth and value stocks?",
+        "How often should I review my investments?",
+        "What is compound interest and why does it matter so much?"
+      ],
+      "maximize": [
+        "How do I identify stocks with high return potential?",
+        "Which sectors are growing the most this year?",
+        "How do I assess risk before making an aggressive investment?",
+        "Analyze NVDA — is it still a good opportunity?"
+      ]
+    },
+    "you": "You",
+    "edit": "Edit",
+    "copy": "Copy",
+    "generatingAudio": "Generating audio...",
+    "playingAudio": "Playing...",
+    "voiceResponseLabel": "Voice response",
+    "educationalDisclaimerShort": "Educational analysis · Not financial advice",
+    "educationalDisclaimerFull": "Educational analysis · Not financial advice · Data may be inaccurate",
+    "quickReplyHasPositions": "I already have positions",
+    "quickReplyStartingFresh": "I'm starting from scratch",
+    "quickReplyWant1on1": "I want a 1:1 session",
+    "quickReplyHasPositionsMsg": "I already have positions in the market that I'd like to analyze with you.",
+    "quickReplyStartingFreshMsg": "I'm starting from scratch. I don't have any investments yet. Where do I start?",
+    "quickReplyWant1on1Msg": "I'm interested in a 1:1 session with my mentor to define my strategy from the start.",
+    "remindMeTooltip": "Remind me in 24 hours",
+    "guidedTourTitle": "🗺️ Quick start guide",
+    "guidedStepsCompleted": "{{completed}} / {{total}} completed",
+    "skipTour": "✕ Skip tour",
+    "goTo": "Go →",
+    "guidedStepRespond": "Reply to your mentor",
+    "guidedStepAddPosition": "Add your first position",
+    "guidedStepCompleteLesson": "Complete today's lesson",
+    "guidedStepAddWatchlist": "Add something to your watchlist",
+    "oneOnOneTitle": "Want to move faster with a 1:1 session?",
+    "oneOnOneDesc": "In 20 minutes your mentor reviews your situation, defines your strategy, and answers all your questions in real time — free for new users.",
+    "oneOnOneCta": "Request free session →",
+    "oneOnOneDismiss": "Not now",
+    "oneOnOneRequestMsg": "I'd like to request a 1:1 session with my mentor to personalize my investment strategy.",
+    "limitReachedBanner": "You've reached the {{limit}}-message daily limit.",
+    "activatePremium": "Activate Premium →",
+    "dropImagesHere": "Drop images here",
+    "placeholderLimitReached": "Limit reached — activate Premium",
+    "placeholderDescribeImage": "Describe what to analyze in {{target}} (optional)...",
+    "targetImageSingle": "the image",
+    "targetImagePlural": "the images",
+    "placeholderDefault": "Ask about companies, ETFs, strategies, or concepts...",
+    "toolbarImage": "Image",
+    "toolbarVoice": "Voice",
+    "toolbarTranscribing": "Transcribing...",
+    "toolbarCall": "Call",
+    "callPremiumOnly": "Voice calls with the AI Mentor are Premium only.",
+    "enterToSend": "Enter to send · Shift+Enter for new line",
+    "eduFooter": "Educational only · Does not replace professional financial advice",
+    "recordingAudio": "Recording audio...",
+    "cancel": "Cancel",
+    "micPermissionError": "Couldn't access the microphone. Make sure to allow permission in your browser.",
+    "connectError": "Couldn't connect to the assistant. Check your connection and try again.",
+    "decisionModalTitle": "📝 Log decision",
+    "decisionModalDesc": "Save this decision in your journal to review it later.",
+    "decisionLabel": "Decision",
+    "tickerLabel": "Ticker",
+    "notesLabel": "Notes (optional)",
+    "decisionPlaceholder": "e.g. Buy, Sell, Hold...",
+    "tickerPlaceholder": "e.g. AAPL",
+    "notesPlaceholder": "Why did you make this decision?",
+    "saved": "✓ Saved",
+    "save": "Save",
+    "tourTitle": "Talk to Nuvos",
+    "tourDesc": "Ask any question about investing. Nuvos remembers your portfolio and profile to give you personalized answers.",
+    "tourCta": "Got it, back to home ✓",
+    "imageSentOne": "📷 Image sent",
+    "imageSentMany": "📷 {{count}} images sent"
   }
 }

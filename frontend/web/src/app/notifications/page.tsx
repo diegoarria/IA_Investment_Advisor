@@ -14,6 +14,7 @@ import PaywallModal from "@/components/PaywallModal";
 import { Bell, X, Sun, Moon, Newspaper, RefreshCw, Loader2, Settings } from "lucide-react";
 import GuidedSteps from "@/components/GuidedSteps";
 import NotificationSettingsPanel from "./SettingsPanel";
+import { useTranslation } from "react-i18next";
 
 const TYPE_ICONS: Record<string, string> = {
   market_move:           "📉",
@@ -32,6 +33,7 @@ interface PriceData { price: number | null; change_pct: number | null; }
 
 export default function NotificationsPage() {
   const router = useRouter();
+  const { t } = useTranslation();
   const { isAuthenticated } = useAuthStore();
   const { notifications, unreadCount, setNotifications, markRead } = useNotificationStore();
   const { theme, toggleTheme } = useThemeStore();
@@ -182,8 +184,8 @@ export default function NotificationsPage() {
         <div className="sticky top-0 z-10 px-6 py-4 flex items-center justify-between border-b shrink-0"
              style={{ background: "var(--bg)", borderColor: "var(--border)" }}>
           <div>
-            <p className="text-sm" style={{ color: "var(--muted)" }}>Alertas y noticias</p>
-            <h1 className="text-2xl font-black tracking-tight" style={{ color: "var(--text)" }}>Notificaciones</h1>
+            <p className="text-sm" style={{ color: "var(--muted)" }}>{t("notifications.eyebrow")}</p>
+            <h1 className="text-2xl font-black tracking-tight" style={{ color: "var(--text)" }}>{t("notifications.title")}</h1>
           </div>
           <div className="flex items-center gap-2">
             <PremiumBadge />
@@ -215,7 +217,7 @@ export default function NotificationsPage() {
               <button onClick={handleMarkAllRead}
                       className="w-full py-2.5 rounded-xl border text-xs font-semibold text-center transition-colors hover:opacity-80"
                       style={{ background: "var(--accent-l)" + "12", borderColor: "var(--accent-l)" + "40", color: "var(--accent-l)" }}>
-                Marcar todas como leídas ({unreadCount})
+                {t("notifications.markAllRead", { count: unreadCount })}
               </button>
             )}
 
@@ -225,15 +227,15 @@ export default function NotificationsPage() {
               {/* Header */}
               <div className="flex items-center gap-2 px-4 py-3 border-b" style={{ borderColor: "var(--border)" }}>
                 <Newspaper className="w-3.5 h-3.5" style={{ color: "var(--accent-l)" }} />
-                <span className="text-sm font-bold" style={{ color: "var(--text)" }}>Noticias</span>
-                <span className="text-xs" style={{ color: "var(--dim)" }}>últimos 7 días</span>
+                <span className="text-sm font-bold" style={{ color: "var(--text)" }}>{t("notifications.newsTitle")}</span>
+                <span className="text-xs" style={{ color: "var(--dim)" }}>{t("notifications.last7days")}</span>
               </div>
 
               {/* Tab bar */}
               <div className="flex gap-1.5 px-3 py-2.5 border-b" style={{ borderColor: "var(--border)", background: "var(--raised)" }}>
                 {([
-                  { key: "general",   label: "🌍 Generales" },
-                  { key: "portfolio", label: `💼 Tu Portafolio${!isPremium ? " 🔒" : ""}` },
+                  { key: "general",   label: t("notifications.tabGeneral") },
+                  { key: "portfolio", label: `${t("notifications.tabPortfolio")}${!isPremium ? " 🔒" : ""}` },
                 ] as const).map(({ key, label }) => (
                   <button
                     key={key}
@@ -259,17 +261,17 @@ export default function NotificationsPage() {
                   {generalNewsLoading ? (
                     <div className="flex flex-col items-center gap-2 py-6">
                       <Loader2 className="w-5 h-5 animate-spin" style={{ color: "var(--accent-l)" }} />
-                      <p className="text-xs" style={{ color: "var(--dim)" }}>Cargando noticias del mercado…</p>
+                      <p className="text-xs" style={{ color: "var(--dim)" }}>{t("notifications.loadingMarketNews")}</p>
                     </div>
                   ) : generalNewsError ? (
                     <button onClick={loadGeneralNews} className="w-full flex flex-col items-center gap-2 py-6 hover:opacity-70">
                       <RefreshCw className="w-5 h-5" style={{ color: "var(--dim)" }} />
-                      <p className="text-xs" style={{ color: "var(--muted)" }}>Error al cargar. Haz clic para reintentar.</p>
+                      <p className="text-xs" style={{ color: "var(--muted)" }}>{t("notifications.loadErrorRetry")}</p>
                     </button>
                   ) : generalNews.length === 0 ? (
                     <div className="flex flex-col items-center gap-2 py-6 text-center px-4">
                       <Newspaper className="w-6 h-6" style={{ color: "var(--dim)" }} />
-                      <p className="text-sm" style={{ color: "var(--muted)" }}>Sin noticias disponibles</p>
+                      <p className="text-sm" style={{ color: "var(--muted)" }}>{t("notifications.noNewsAvailable")}</p>
                     </div>
                   ) : (
                     <>
@@ -315,7 +317,7 @@ export default function NotificationsPage() {
                         <button onClick={() => setGeneralNewsShown((n) => n + 10)}
                                 className="w-full py-3 border-t text-xs font-semibold transition-colors hover:bg-white/5"
                                 style={{ borderColor: "var(--border)", color: "var(--accent-l)" }}>
-                          Ver {Math.min(10, generalNews.length - generalNewsShown)} noticias más
+                          {t("notifications.seeMoreNews", { count: Math.min(10, generalNews.length - generalNewsShown) })}
                         </button>
                       )}
                     </>
@@ -327,16 +329,16 @@ export default function NotificationsPage() {
               {newsTab === "portfolio" && !isPremium && (
                 <div className="flex flex-col items-center gap-3 py-10 px-6 text-center">
                   <span className="text-4xl">💼</span>
-                  <p className="text-sm font-extrabold" style={{ color: "var(--text)" }}>Noticias de Tu Portafolio</p>
+                  <p className="text-sm font-extrabold" style={{ color: "var(--text)" }}>{t("notifications.portfolioNewsTitle")}</p>
                   <p className="text-xs leading-relaxed" style={{ color: "var(--muted)" }}>
-                    Recibe noticias filtradas automáticamente para cada acción que tienes. Solo disponible en Premium.
+                    {t("notifications.portfolioNewsDesc")}
                   </p>
                   <button
                     onClick={() => setPaywallOpen(true)}
                     className="mt-2 px-5 py-2.5 rounded-2xl text-sm font-black"
                     style={{ background: "var(--grad-green)", color: "#fff" }}
                   >
-                    Desbloquear Premium
+                    {t("notifications.unlockPremium")}
                   </button>
                 </div>
               )}
@@ -352,7 +354,7 @@ export default function NotificationsPage() {
                                 borderColor: newsFilter === null ? "var(--accent)" : "var(--border)",
                                 color: newsFilter === null ? "#fff" : "var(--muted)",
                               }}>
-                        Todas
+                        {t("notifications.allChip")}
                       </button>
                       {[...new Set(positions.map((p) => p.ticker))].map((ticker) => {
                         const active = newsFilter === ticker;
@@ -379,25 +381,25 @@ export default function NotificationsPage() {
                   {positions.length === 0 ? (
                     <div className="flex flex-col items-center gap-2 py-6 px-4 text-center">
                       <span className="text-2xl">💼</span>
-                      <p className="text-sm" style={{ color: "var(--muted)" }}>Importa posiciones en Portafolio para ver sus noticias aquí</p>
+                      <p className="text-sm" style={{ color: "var(--muted)" }}>{t("notifications.importPositionsPrompt")}</p>
                     </div>
                   ) : newsLoading ? (
                     <div className="flex flex-col items-center gap-2 py-6">
                       <Loader2 className="w-5 h-5 animate-spin" style={{ color: "var(--accent-l)" }} />
                       <p className="text-xs" style={{ color: "var(--dim)" }}>
-                        Buscando noticias de {positions.map((p) => p.ticker).join(", ")}…
+                        {t("notifications.searchingNewsFor", { tickers: positions.map((p) => p.ticker).join(", ") })}
                       </p>
                     </div>
                   ) : newsError ? (
                     <button onClick={loadPortfolioNews} className="w-full flex flex-col items-center gap-2 py-6 hover:opacity-70">
                       <RefreshCw className="w-5 h-5" style={{ color: "var(--dim)" }} />
-                      <p className="text-xs" style={{ color: "var(--muted)" }}>Error al cargar. Toca para reintentar.</p>
+                      <p className="text-xs" style={{ color: "var(--muted)" }}>{t("notifications.loadErrorRetryTouch")}</p>
                     </button>
                   ) : filteredNews.length === 0 ? (
                     <div className="flex flex-col items-center gap-2 py-6 text-center px-4">
                       <Newspaper className="w-6 h-6" style={{ color: "var(--dim)" }} />
                       <p className="text-sm" style={{ color: "var(--muted)" }}>
-                        {newsFilter ? `Sin noticias de ${newsFilter} en los últimos 7 días` : "Sin noticias en los últimos 7 días"}
+                        {newsFilter ? t("notifications.noNewsForTicker", { ticker: newsFilter }) : t("notifications.noNewsGeneric")}
                       </p>
                     </div>
                   ) : (
@@ -444,7 +446,7 @@ export default function NotificationsPage() {
                         <button onClick={() => setNewsShown((n) => n + 10)}
                                 className="w-full py-3 border-t text-xs font-semibold transition-colors hover:bg-white/5"
                                 style={{ borderColor: "var(--border)", color: "var(--accent-l)" }}>
-                          Ver {Math.min(10, filteredNews.length - visibleNews.length)} noticias más
+                          {t("notifications.seeMoreNews", { count: Math.min(10, filteredNews.length - visibleNews.length) })}
                         </button>
                       )}
                     </>
@@ -459,15 +461,15 @@ export default function NotificationsPage() {
                 {/* Header */}
                 <div className="flex items-center justify-between px-4 py-2 border-b" style={{ borderColor: "var(--border)" }}>
                   <div className="flex items-center gap-2">
-                    <span className="text-sm font-bold" style={{ color: "var(--text)" }}>Hoy en tu portafolio</span>
+                    <span className="text-sm font-bold" style={{ color: "var(--text)" }}>{t("notifications.todayInPortfolio")}</span>
                     {portPricesLoading && <Loader2 className="w-3 h-3 animate-spin" style={{ color: "var(--muted)" }} />}
                   </div>
                   {/* Sort filters */}
                   <div className="flex gap-1">
                     {([
-                      { key: "gainers", label: "▲ Más subidas" },
-                      { key: "losers",  label: "▼ Más caídas" },
-                      { key: "default", label: "Normal" },
+                      { key: "gainers", label: t("notifications.sortGainers") },
+                      { key: "losers",  label: t("notifications.sortLosers") },
+                      { key: "default", label: t("notifications.sortDefault") },
                     ] as const).map(({ key, label }) => (
                       <button key={key} onClick={() => setPortSort(key)}
                               className="text-[10px] font-semibold px-2 py-1 rounded-lg transition-all"
@@ -525,9 +527,9 @@ export default function NotificationsPage() {
             {notifications.length === 0 ? (
               <div className="flex flex-col items-center py-16 gap-3">
                 <Bell className="w-12 h-12" style={{ color: "var(--dim)", opacity: 0.4 }} />
-                <p className="text-base font-bold" style={{ color: "var(--muted)" }}>Sin notificaciones todavía</p>
+                <p className="text-base font-bold" style={{ color: "var(--muted)" }}>{t("notifications.emptyTitle")}</p>
                 <p className="text-sm text-center max-w-xs" style={{ color: "var(--dim)" }}>
-                  Las alertas aparecen cuando hay eventos relevantes del mercado para tu perfil
+                  {t("notifications.emptyDesc")}
                 </p>
               </div>
             ) : (
@@ -560,7 +562,7 @@ export default function NotificationsPage() {
                     <button onClick={(e) => { e.stopPropagation(); router.push("/chat"); }}
                             className="mt-2 text-xs hover:opacity-70"
                             style={{ color: "var(--accent-l)" }}>
-                      Discutir con mi mentor →
+                      {t("notifications.discussWithMentor")}
                     </button>
                   </div>
                 ))}
@@ -583,7 +585,7 @@ export default function NotificationsPage() {
             <div className="flex items-center justify-between mb-4">
               <span className="font-bold text-sm" style={{ color: "var(--text)" }}>
                 {(alertModal.change_pct ?? 0) >= 0 ? "📈" : "📉"} {alertModal.ticker}{" "}
-                {alertModal.change_pct >= 0 ? "subió" : "cayó"} {Math.abs(alertModal.change_pct).toFixed(1)}%
+                {alertModal.change_pct >= 0 ? t("notifications.wentUp") : t("notifications.fell")} {Math.abs(alertModal.change_pct).toFixed(1)}%
               </span>
               <button onClick={() => setAlertModal(null)} style={{ color: "var(--muted)" }}>
                 <X className="w-5 h-5" />
@@ -593,7 +595,7 @@ export default function NotificationsPage() {
               {alertLoading ? (
                 <div className="flex flex-col items-center py-8 gap-3">
                   <Loader2 className="w-6 h-6 animate-spin" style={{ color: "var(--accent-l)" }} />
-                  <p className="text-xs" style={{ color: "var(--muted)" }}>Analizando con IA…</p>
+                  <p className="text-xs" style={{ color: "var(--muted)" }}>{t("notifications.analyzingWithAI")}</p>
                 </div>
               ) : (
                 <div className="prose-sm" style={{ color: "var(--sub)" }}>
@@ -606,7 +608,7 @@ export default function NotificationsPage() {
       )}
 
       <PaywallModal visible={paywallOpen} onClose={() => setPaywallOpen(false)}
-                    reason="Las noticias ilimitadas son exclusivas de Premium" />
+                    reason={t("notifications.unlimitedNewsPremiumReason")} />
 
       {/* ── Modal elección + resumen IA ── */}
       {newsModal && (
@@ -674,13 +676,13 @@ export default function NotificationsPage() {
                           <span style={{ fontSize: 18 }}>✦</span>
                         </div>
                         <div>
-                          <p className="text-sm font-black tracking-widest uppercase" style={{ color: "#c084fc", letterSpacing: "0.14em" }}>Resumen IA</p>
-                          <p className="text-[10px] mt-0.5" style={{ color: "var(--dim)" }}>Generado por Claude</p>
+                          <p className="text-sm font-black tracking-widest uppercase" style={{ color: "#c084fc", letterSpacing: "0.14em" }}>{t("notifications.aiSummaryLabel")}</p>
+                          <p className="text-[10px] mt-0.5" style={{ color: "var(--dim)" }}>{t("notifications.generatedByClaude")}</p>
                         </div>
                       </div>
                       <span className="text-[10px] font-bold px-2.5 py-1 rounded-full shrink-0"
                             style={{ background: "rgba(168,85,247,0.12)", color: "#c084fc", border: "1px solid rgba(168,85,247,0.25)" }}>
-                        Premium
+                        {t("notifications.premiumBadge")}
                       </span>
                     </div>
 
@@ -732,18 +734,18 @@ export default function NotificationsPage() {
                           className="flex-1 py-2.5 rounded-xl text-sm font-semibold border transition-all hover:opacity-80"
                           style={{ borderColor: "var(--border)", color: "var(--muted)", background: "var(--card)" }}
                         >
-                          Ver artículo
+                          {t("notifications.viewArticle")}
                         </button>
                         <button
                           onClick={() => setNewsModal(null)}
                           className="flex-1 py-2.5 rounded-xl text-sm font-bold transition-all hover:opacity-80"
                           style={{ background: "rgba(168,85,247,0.12)", color: "#c084fc", border: "1px solid rgba(168,85,247,0.22)" }}
                         >
-                          Cerrar
+                          {t("notifications.close")}
                         </button>
                       </div>
                       <p className="text-[10px] text-center mt-3" style={{ color: "var(--dim)" }}>
-                        Resumen por IA · No constituye asesoramiento de inversión
+                        {t("notifications.aiSummaryDisclaimer")}
                       </p>
                     </div>
                   </div>
@@ -763,8 +765,8 @@ export default function NotificationsPage() {
                     </div>
                   </div>
                   <div className="text-center">
-                    <p className="text-sm font-bold" style={{ color: "var(--text)" }}>Claude está leyendo el artículo</p>
-                    <p className="text-xs mt-1" style={{ color: "var(--muted)" }}>Extrayendo lo más importante para ti…</p>
+                    <p className="text-sm font-bold" style={{ color: "var(--text)" }}>{t("notifications.claudeReading")}</p>
+                    <p className="text-xs mt-1" style={{ color: "var(--muted)" }}>{t("notifications.extractingImportant")}</p>
                   </div>
                   {/* Skeleton lines */}
                   <div className="w-full space-y-2.5">
@@ -786,7 +788,7 @@ export default function NotificationsPage() {
                         const res = await marketApi.summarizeNews(newsModal.title, newsModal.url);
                         setSummaryText(res.data.summary);
                       } catch {
-                        setSummaryText("No se pudo generar el resumen. Intenta ver el artículo completo.");
+                        setSummaryText(t("notifications.summaryError"));
                       } finally {
                         setSummaryLoading(false);
                       }
@@ -805,16 +807,16 @@ export default function NotificationsPage() {
                         <span style={{ fontSize: 26 }}>✦</span>
                       </div>
                       <div className="flex-1">
-                        <p className="font-black text-base" style={{ color: "#c084fc" }}>Resumen IA</p>
+                        <p className="font-black text-base" style={{ color: "#c084fc" }}>{t("notifications.aiSummaryLabel")}</p>
                         <p className="text-xs mt-0.5 leading-relaxed" style={{ color: "var(--muted)" }}>
-                          Claude lee y extrae lo esencial
+                          {t("notifications.aiSummaryCardDesc")}
                         </p>
                         <div className="flex items-center gap-2 mt-2">
                           <span className="text-[10px] font-bold px-2 py-0.5 rounded-full"
                                 style={{ background: "rgba(168,85,247,0.15)", color: "#c084fc", border: "1px solid rgba(168,85,247,0.2)" }}>
-                            Premium
+                            {t("notifications.premiumBadge")}
                           </span>
-                          <span className="text-[10px]" style={{ color: "var(--dim)" }}>4–8 líneas · en segundos</span>
+                          <span className="text-[10px]" style={{ color: "var(--dim)" }}>{t("notifications.aiSummaryTimeNote")}</span>
                         </div>
                       </div>
                       <span className="text-xl" style={{ color: "#c084fc", opacity: 0.6 }}>›</span>
@@ -832,8 +834,8 @@ export default function NotificationsPage() {
                       <span className="text-xl">🌐</span>
                     </div>
                     <div className="flex-1">
-                      <p className="font-bold text-sm" style={{ color: "var(--text)" }}>Ver artículo completo</p>
-                      <p className="text-[11px] mt-0.5" style={{ color: "var(--dim)" }}>Abre el original en {newsModal.publisher}</p>
+                      <p className="font-bold text-sm" style={{ color: "var(--text)" }}>{t("notifications.viewFullArticle")}</p>
+                      <p className="text-[11px] mt-0.5" style={{ color: "var(--dim)" }}>{t("notifications.openOriginalIn", { publisher: newsModal.publisher })}</p>
                     </div>
                     <span className="text-lg" style={{ color: "var(--dim)" }}>›</span>
                   </button>

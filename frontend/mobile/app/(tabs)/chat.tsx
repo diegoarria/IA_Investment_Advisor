@@ -12,6 +12,9 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import Markdown from "react-native-markdown-display";
+import type { TFunction } from "i18next";
+import { useTranslation } from "react-i18next";
+import { useLanguage } from "../../src/lib/LanguageContext";
 import { chatApi, marketApi, decisionsApi } from "../../src/lib/api";
 import { posthog } from "../../src/config/posthog";
 import { useTheme, Colors } from "../../src/lib/ThemeContext";
@@ -73,66 +76,21 @@ const MENTOR_PHOTOS: Record<string, number> = {
   "Bill Ackman":    require("../../assets/images/mentors/bill_ackman.jpg"),
 };
 
-const SUGGESTIONS_DEFAULT = [
-  "¿Cómo analizo si una empresa es buena inversión?",
-  "Explícame qué es un ETF",
-  "¿Qué hace NVIDIA para ganar dinero?",
-  "¿Cómo construyo un portafolio diversificado?",
-];
+function getSuggestionsDefault(t: TFunction): string[] {
+  return t("chat.suggestionsDefault", { returnObjects: true }) as string[];
+}
 
-const SUGGESTIONS_BY_LEVEL: Record<string, string[]> = {
-  principiante: [
-    "Tengo $500 y nunca he invertido, ¿por dónde empiezo?",
-    "¿Es seguro invertir ahora con la inflación tan alta?",
-    "¿Puedo perder todo mi dinero si invierto en bolsa?",
-    "¿Cuánto tiempo tarda en crecer una inversión de verdad?",
-  ],
-  basico: [
-    "¿Cómo analizo si una empresa es buena inversión?",
-    "Explícame qué es un ETF y por qué es popular",
-    "¿Cómo construyo un portafolio diversificado?",
-    "¿Qué es el interés compuesto y por qué importa tanto?",
-  ],
-  intermedio: [
-    "¿Cómo identifico acciones subvaloradas con P/E y PEG?",
-    "Analiza AAPL — ¿tiene buen precio hoy?",
-    "¿Qué sectores están liderando el mercado este año?",
-    "Explícame cómo leer un estado de resultados",
-  ],
-  avanzado: [
-    "Analiza el flujo de caja libre de MSFT vs GOOG",
-    "¿Cómo construyo una estrategia de cobertura con opciones?",
-    "¿Qué indicadores macro afectan más el mercado hoy?",
-    "Compara NVDA vs AMD en valoración fundamental y momentum",
-  ],
-};
+function getSuggestionsByLevel(t: TFunction): Record<string, string[]> {
+  return t("chat.suggestionsByLevel", { returnObjects: true }) as Record<string, string[]>;
+}
 
-const SUGGESTIONS_BY_OBJECTIVE: Record<string, string[]> = {
-  protect: [
-    "¿Cuáles son las inversiones más seguras para preservar capital?",
-    "¿Cómo protejo mis ahorros de la inflación?",
-    "Explícame qué son los bonos y cómo funcionan",
-    "¿Qué es un fondo indexado y por qué es bajo riesgo?",
-  ],
-  grow: [
-    "¿Cómo construyo un portafolio diversificado a largo plazo?",
-    "¿Qué diferencia hay entre acciones de crecimiento y valor?",
-    "¿Cada cuánto debería revisar mis inversiones?",
-    "¿Qué es el interés compuesto y por qué importa tanto?",
-  ],
-  maximize: [
-    "¿Cómo identifico acciones con alto potencial de retorno?",
-    "¿Qué sectores están creciendo más este año?",
-    "¿Cómo evalúo el riesgo antes de hacer una inversión agresiva?",
-    "Analiza NVDA — ¿sigue siendo buena oportunidad?",
-  ],
-};
+function getSuggestionsByObjective(t: TFunction): Record<string, string[]> {
+  return t("chat.suggestionsByObjective", { returnObjects: true }) as Record<string, string[]>;
+}
 
-const OBJECTIVE_GREETING: Record<string, string> = {
-  protect:  "Veo que priorizas proteger tu capital. Buena base para empezar. ¿Por dónde quieres comenzar?",
-  grow:     "Tu objetivo es hacer crecer tu dinero a largo plazo. Es el enfoque más sólido. ¿Qué tienes en mente?",
-  maximize: "Buscas maximizar retorno. El riesgo es parte del juego — te enseño a manejarlo bien. ¿Empezamos?",
-};
+function getObjectiveGreeting(t: TFunction): Record<string, string> {
+  return t("chat.objectiveGreeting", { returnObjects: true }) as Record<string, string>;
+}
 
 export default function ChatScreen() {
   const insets = useSafeAreaInsets();
@@ -140,6 +98,8 @@ export default function ChatScreen() {
   const { tour, ctx, msg: msgParam } = useLocalSearchParams<{ tour?: string; ctx?: string; msg?: string }>();
   const isTour = tour === "3"; // MobileHeader row (52) + MarketTicker (52)
   const { colors } = useTheme();
+  const { t } = useTranslation();
+  const { language } = useLanguage();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const markdownStyles = useMemo(() => makeMarkdownStyles(colors), [colors]);
   const markdownRules = useMemo(() => ({
@@ -380,7 +340,7 @@ Instrucciones críticas:
 1. Llama siempre a este usuario por su nombre (${profile.name.split(" ")[0]}).
 2. Adapta el nivel de explicación a su conocimiento.
 3. Si el usuario pregunta o actúa de forma que contradice su perfil declarado (ej: perfil agresivo entra en pánico, perfil conservador pide especular), DEBES nombrarlo directamente con empatía y recalibrar tu asesoría al perfil revelado por su comportamiento real.
-4. Responde siempre en español.`;
+4. ${language === "en" ? "Always respond in English." : "Responde siempre en español."}`;
   };
 
   const openPaywall = (reason: string) => {
@@ -472,7 +432,7 @@ Instrucciones críticas:
       recordingRef.current = null;
       const uri = recording.getURI();
       if (!uri) {
-        Alert.alert("Error", "No se pudo obtener el audio grabado");
+        Alert.alert(t("chat.errorTitle"), t("chat.audioNotObtained"));
         return;
       }
       const { data } = await chatApi.transcribe(uri);
@@ -480,12 +440,12 @@ Instrucciones críticas:
         voiceInputRef.current = true;
         sendMessage(data.text);
       } else {
-        Alert.alert("Sin resultado", "No se detectó voz en el audio");
+        Alert.alert(t("chat.noResultTitle"), t("chat.noVoiceDetected"));
       }
     } catch (e: unknown) {
       const err = e as { response?: { data?: { detail?: string } }; message?: string };
-      const msg = err?.response?.data?.detail || err?.message || "Error desconocido";
-      Alert.alert("Error al transcribir", msg);
+      const msg = err?.response?.data?.detail || err?.message || t("chat.unknownError");
+      Alert.alert(t("chat.transcribeErrorTitle"), msg);
     } finally {
       setIsTranscribing(false);
       setRecordingSecs(0);
@@ -549,7 +509,7 @@ Instrucciones críticas:
     if (!isPremiumAccess && remaining <= 0) {
       const mins = resetMinutes(subStore.msgWindowStart);
       posthog.capture("ai_chat_limit_reached", { free_limit: FREE_MSG_LIMIT, reset_minutes: mins });
-      openPaywall(`Alcanzaste el límite de ${FREE_MSG_LIMIT} mensajes. Vuelve en ${mins} min o activa Premium.`);
+      openPaywall(t("chat.limitReached", { limit: FREE_MSG_LIMIT, mins }));
       return;
     }
 
@@ -558,7 +518,7 @@ Instrucciones críticas:
     setPendingImages([]);
     cancelRef.current.cancelled = false;
 
-    const saveMsg = msg || (imagesToSend.length === 1 ? "📷 Captura enviada" : `📷 ${imagesToSend.length} capturas enviadas`);
+    const saveMsg = msg || (imagesToSend.length === 1 ? t("chat.imagesSentOne") : t("chat.imagesSentOther", { count: imagesToSend.length }));
     isAtBottom.current = true;
     const userMsg: Message = {
       role: "user",
@@ -637,14 +597,14 @@ Instrucciones críticas:
       // 429 = message limit hit server-side
       if (errObj?.response?.status === 429) {
         const detail = errObj.response.data?.detail;
-        const serverMsg = (typeof detail === "object" ? detail?.message : String(detail)) ?? "Límite alcanzado";
+        const serverMsg = (typeof detail === "object" ? detail?.message : String(detail)) ?? t("chat.limitReachedFallback");
         setMessages([...withAssistant.slice(0, -1)]);
         upsellTrigger("msg_limit_hit");
         openPaywall(serverMsg);
       } else {
         const errMsg = errObj?.message ?? String(err);
         if (__DEV__) console.error("[chat] sendMessage error:", errMsg, err);
-        setMessages([...withAssistant.slice(0, -1), { role: "assistant", content: "Ocurrió un error al procesar tu mensaje. Inténtalo de nuevo." }]);
+        setMessages([...withAssistant.slice(0, -1), { role: "assistant", content: t("chat.errorProcessing") }]);
       }
       setStreaming(false);
     }
@@ -688,7 +648,7 @@ Instrucciones críticas:
 
     return (
       <View style={styles.aiRow}>
-        <Text style={[styles.senderName, { color: mentor?.color ?? colors.accentLight }]}>{mentor?.name ?? "Nuvos AI"}</Text>
+        <Text style={[styles.senderName, { color: mentor?.color ?? colors.accentLight }]}>{mentor?.name ?? t("chat.nuvosAi")}</Text>
         <View style={[styles.aiBubble, {
           borderLeftWidth: 3,
           borderLeftColor: mentor ? mentor.color + "70" : "rgba(0,185,109,0.5)",
@@ -704,7 +664,7 @@ Instrucciones críticas:
         {item.content !== "" && !(streaming && isLastAssistant) && (
           <View style={styles.aiFooter}>
             <Text style={[styles.aiDisclaimer, { flex: 1 }]}>
-              Análisis educativo · No constituye asesoría financiera · Los datos pueden ser inexactos
+              {t("chat.disclaimer")}
             </Text>
             <TouchableOpacity
               onPress={() => playMessageAudio(item.content, index)}
@@ -813,7 +773,7 @@ Instrucciones críticas:
           <Text style={{ fontSize: 20, lineHeight: 24 }}>{mentor ? mentor.emoji : "🤖"}</Text>
           <View style={{ gap: 1, flexShrink: 1 }}>
             <Text numberOfLines={1} style={[styles.mentorPillName, { color: colors.text }]}>
-              {mentor ? mentor.name : profile?.name ? `Hola, ${profile.name.split(" ")[0]}` : "Mentor IA"}
+              {mentor ? mentor.name : profile?.name ? t("chat.helloName", { name: profile.name.split(" ")[0] }) : t("chat.mentorAiFallback")}
             </Text>
             {mentor && (
               <Text style={[styles.mentorPillBadge, { color: mentor.color }]}>{mentor.badge}</Text>
@@ -835,7 +795,7 @@ Instrucciones críticas:
             disabled={streaming}
           >
             <Ionicons name="add-outline" size={15} color={colors.textSub} />
-            <Text style={[styles.newChatBtnText, { color: colors.textSub }]}>Nuevo</Text>
+            <Text style={[styles.newChatBtnText, { color: colors.textSub }]}>{t("chat.newChat")}</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -874,10 +834,10 @@ Instrucciones críticas:
                   )}
 
                   <Text style={[styles.heroTitle, { color: colors.text }]}>
-                    {mentor ? mentor.name : profile?.name ? `Hola, ${profile.name.split(" ")[0]}` : "Nuvos AI"}
+                    {mentor ? mentor.name : profile?.name ? t("chat.helloName", { name: profile.name.split(" ")[0] }) : t("chat.nuvosAi")}
                   </Text>
                   <Text style={[styles.heroSub, { color: mentor ? mentor.color : colors.accentLight }]}>
-                    {mentor ? mentor.title : "Tu mentor de inversiones con IA"}
+                    {mentor ? mentor.title : t("chat.mentorSub")}
                   </Text>
 
                   {mentor && (
@@ -917,12 +877,12 @@ Instrucciones críticas:
                     })()}
                     {positions.length > 0 && (
                       <View style={[styles.contextChip, { borderColor: colors.border }]}>
-                        <Text style={[styles.contextChipText, { color: colors.textMuted }]}>💼 {positions.length} posiciones</Text>
+                        <Text style={[styles.contextChipText, { color: colors.textMuted }]}>{t("chat.positionsCount", { count: positions.length })}</Text>
                       </View>
                     )}
                     {!isPremiumAccess && (
                       <View style={[styles.contextChip, { borderColor: "rgba(239,68,68,0.25)", backgroundColor: "rgba(239,68,68,0.07)" }]}>
-                        <Text style={[styles.contextChipText, { color: "#ef4444" }]}>{remaining} msg restantes</Text>
+                        <Text style={[styles.contextChipText, { color: "#ef4444" }]}>{t("chat.msgRemaining", { count: remaining })}</Text>
                       </View>
                     )}
                   </View>
@@ -933,16 +893,20 @@ Instrucciones críticas:
               {(() => {
                 const obj = profile?.investment_goal as string | undefined;
                 const level = getUserLevel(profile);
-                const greeting = obj ? OBJECTIVE_GREETING[obj] : null;
-                const suggestions = obj && SUGGESTIONS_BY_OBJECTIVE[obj]
-                  ? SUGGESTIONS_BY_OBJECTIVE[obj]
-                  : (SUGGESTIONS_BY_LEVEL[level] ?? SUGGESTIONS_DEFAULT);
+                const objectiveGreeting = getObjectiveGreeting(t);
+                const suggestionsByObjective = getSuggestionsByObjective(t);
+                const suggestionsByLevel = getSuggestionsByLevel(t);
+                const suggestionsDefault = getSuggestionsDefault(t);
+                const greeting = obj ? objectiveGreeting[obj] : null;
+                const suggestions = obj && suggestionsByObjective[obj]
+                  ? suggestionsByObjective[obj]
+                  : (suggestionsByLevel[level] ?? suggestionsDefault);
                 return (
                   <>
                     {greeting && !mentor && (
                       <Text style={[styles.greetingText, { color: colors.textMuted }]}>{greeting}</Text>
                     )}
-                    <Text style={[styles.suggestLabel, { color: colors.textMuted }]}>Preguntas sugeridas</Text>
+                    <Text style={[styles.suggestLabel, { color: colors.textMuted }]}>{t("chat.suggestedQuestions")}</Text>
                     <View style={styles.suggestGrid}>
                       {suggestions.map((s, i) => (
                         <TouchableOpacity
@@ -1007,7 +971,7 @@ Instrucciones críticas:
                 styles.premiumBadge,
                 remaining <= 0 && { backgroundColor: "rgba(239,68,68,0.10)", borderColor: "rgba(239,68,68,0.30)" },
               ]}
-              onPress={() => openPaywall("Activa Premium para mensajes ilimitados")}
+              onPress={() => openPaywall(t("chat.unlimitedPremium"))}
             >
               {remaining <= 0 ? (
                 <>
@@ -1018,7 +982,7 @@ Instrucciones críticas:
                       const hrs = Math.floor(mins / 60);
                       const min = mins % 60;
                       const timeStr = hrs > 0 ? `${hrs}h ${min > 0 ? `${min}min` : ""}`.trim() : `${mins}min`;
-                      return `Activa Premium para chats ilimitados o espera ${timeStr}`;
+                      return t("chat.unlimitedOrWait", { time: timeStr });
                     })()}
                   </Text>
                 </>
@@ -1027,8 +991,8 @@ Instrucciones críticas:
                   <Ionicons name="star" size={11} color="#f59e0b" />
                   <Text style={styles.premiumBadgeText}>
                     {remaining <= 5
-                      ? `Te quedan ${remaining} mensaje${remaining === 1 ? "" : "s"} hoy · Activa Premium`
-                      : "Activa Premium para mensajes ilimitados"}
+                      ? t("chat.msgsLeftToday", { count: remaining, plural: remaining === 1 ? "" : "s" })
+                      : t("chat.unlimitedPremium")}
                   </Text>
                 </>
               )}
@@ -1066,7 +1030,7 @@ Instrucciones críticas:
                 style={[styles.input, { color: colors.text }]}
                 value={input}
                 onChangeText={setInput}
-                placeholder={pendingImages.length > 0 ? "Describe qué analizar (opcional)..." : "¿Cómo puedo ayudarte hoy?"}
+                placeholder={pendingImages.length > 0 ? t("chat.inputPlaceholderWithImages") : t("chat.inputPlaceholderDefault")}
                 placeholderTextColor={colors.placeholder}
                 multiline
                 editable={!streaming}
@@ -1090,7 +1054,7 @@ Instrucciones críticas:
                 style={[styles.toolbarBtn, { opacity: (streaming || pendingImages.length >= 8) ? 0.4 : 1 }]}
               >
                 <Ionicons name="image-outline" size={18} color={colors.textSub} />
-                <Text style={[styles.toolbarBtnText, { color: colors.textMuted }]}>Imagen</Text>
+                <Text style={[styles.toolbarBtnText, { color: colors.textMuted }]}>{t("chat.toolbarImage")}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 onPress={isRecording ? stopRecording : startRecording}
@@ -1107,13 +1071,13 @@ Instrucciones críticas:
                   />
                 )}
                 <Text style={[styles.toolbarBtnText, { color: isRecording ? "#ef4444" : colors.textMuted }]}>
-                  {isTranscribing ? "Procesando..." : isRecording ? "Detener" : "Voz"}
+                  {isTranscribing ? t("chat.toolbarProcessing") : isRecording ? t("chat.toolbarStop") : t("chat.toolbarVoice")}
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity
                 onPress={() => {
                   if (!isPremiumAccess) {
-                    openPaywall("La llamada de voz con el Mentor IA es exclusiva para Premium.");
+                    openPaywall(t("chat.voiceCallPremiumOnly"));
                     return;
                   }
                   setShowCallModal(true);
@@ -1122,10 +1086,10 @@ Instrucciones críticas:
                 style={[styles.toolbarBtn, { opacity: streaming ? 0.4 : 1 }]}
               >
                 <Ionicons name="call-outline" size={18} color={colors.textSub} />
-                <Text style={[styles.toolbarBtnText, { color: colors.textMuted }]}>Llamar</Text>
+                <Text style={[styles.toolbarBtnText, { color: colors.textMuted }]}>{t("chat.toolbarCall")}</Text>
               </TouchableOpacity>
               <View style={{ flex: 1 }} />
-              <Text style={[styles.toolbarBtnText, { color: colors.textDim }]}>↵ Enviar</Text>
+              <Text style={[styles.toolbarBtnText, { color: colors.textDim }]}>{t("chat.toolbarSend")}</Text>
             </View>
           </View>
         </View>
@@ -1155,8 +1119,8 @@ Instrucciones críticas:
     {isTour && (
       <MobileTourBanner
         step={3}
-        title="Habla con Nuvos"
-        description="Escribe cualquier pregunta sobre inversiones. Nuvos recuerda tu portafolio y perfil para darte respuestas personalizadas."
+        title={t("chat.tour.title")}
+        description={t("chat.tour.description")}
       />
     )}
 
@@ -1198,7 +1162,7 @@ Instrucciones críticas:
             {String(Math.floor(recordingSecs / 60)).padStart(2, "0")}:{String(recordingSecs % 60).padStart(2, "0")}
           </Text>
           <Text style={{ fontSize: 13, color: "rgba(255,255,255,0.35)", marginBottom: 48 }}>
-            Grabando audio...
+            {t("chat.recordingAudio")}
           </Text>
 
           {/* Stop button */}
@@ -1221,7 +1185,7 @@ Instrucciones críticas:
           {/* Cancel */}
           <TouchableOpacity onPress={cancelRecording} activeOpacity={0.6}>
             <Text style={{ fontSize: 14, fontWeight: "500", color: "rgba(255,255,255,0.38)" }}>
-              Cancelar
+              {t("chat.cancel")}
             </Text>
           </TouchableOpacity>
 
@@ -1249,11 +1213,11 @@ Instrucciones críticas:
             borderTopWidth: 1,
             borderColor: colors.border,
           }}>
-            <Text style={{ fontSize: 15, fontWeight: "700", color: colors.text }}>📝 Registrar decisión</Text>
+            <Text style={{ fontSize: 15, fontWeight: "700", color: colors.text }}>{t("chat.logDecisionTitle")}</Text>
             <Text style={{ fontSize: 12, color: colors.textSub }}>
-              Guarda esta decisión en tu diario para revisarla más adelante.
+              {t("chat.logDecisionDesc")}
             </Text>
-            <Text style={{ fontSize: 11, fontWeight: "600", color: colors.textMuted }}>Decisión</Text>
+            <Text style={{ fontSize: 11, fontWeight: "600", color: colors.textMuted }}>{t("chat.decisionLabel")}</Text>
             <TextInput
               style={{
                 backgroundColor: colors.bgRaised,
@@ -1267,10 +1231,10 @@ Instrucciones críticas:
               }}
               value={decisionModal.action}
               onChangeText={(v) => setDecisionModal({ ...decisionModal, action: v })}
-              placeholder="ej. Comprar, Vender, Mantener..."
+              placeholder={t("chat.decisionPlaceholder")}
               placeholderTextColor={colors.textMuted}
             />
-            <Text style={{ fontSize: 11, fontWeight: "600", color: colors.textMuted }}>Ticker</Text>
+            <Text style={{ fontSize: 11, fontWeight: "600", color: colors.textMuted }}>{t("chat.tickerLabel")}</Text>
             <TextInput
               style={{
                 backgroundColor: colors.bgRaised,
@@ -1284,11 +1248,11 @@ Instrucciones críticas:
               }}
               value={decisionModal.ticker}
               onChangeText={(v) => setDecisionModal({ ...decisionModal, ticker: v })}
-              placeholder="ej. AAPL"
+              placeholder={t("chat.tickerPlaceholder")}
               placeholderTextColor={colors.textMuted}
               autoCapitalize="characters"
             />
-            <Text style={{ fontSize: 11, fontWeight: "600", color: colors.textMuted }}>Notas (opcional)</Text>
+            <Text style={{ fontSize: 11, fontWeight: "600", color: colors.textMuted }}>{t("chat.notesLabel")}</Text>
             <TextInput
               style={{
                 backgroundColor: colors.bgRaised,
@@ -1304,7 +1268,7 @@ Instrucciones críticas:
               }}
               value={decisionModal.notes}
               onChangeText={(v) => setDecisionModal({ ...decisionModal, notes: v })}
-              placeholder="¿Por qué tomaste esta decisión?"
+              placeholder={t("chat.notesPlaceholder")}
               placeholderTextColor={colors.textMuted}
               multiline
             />
@@ -1317,7 +1281,7 @@ Instrucciones críticas:
                   borderWidth: 1, borderColor: colors.border,
                 }}
               >
-                <Text style={{ fontSize: 14, fontWeight: "600", color: colors.textSub }}>Cancelar</Text>
+                <Text style={{ fontSize: 14, fontWeight: "600", color: colors.textSub }}>{t("chat.cancel")}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 onPress={async () => {
@@ -1333,7 +1297,7 @@ Instrucciones críticas:
                 }}
               >
                 <Text style={{ fontSize: 14, fontWeight: "600", color: "#fff" }}>
-                  {decisionSaved ? "✓ Guardado" : "Guardar"}
+                  {decisionSaved ? t("chat.saved") : t("chat.save")}
                 </Text>
               </TouchableOpacity>
             </View>

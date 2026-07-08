@@ -9,7 +9,7 @@ import remarkGfm from "remark-gfm";
 import { chat as chatApi, notifications as notifApi, decisionsApi } from "@/lib/api";
 import {
   useAuthStore, useProfileStore, useChatStore, useNotificationStore,
-  useThemeStore, useSubscriptionStore, msgsRemaining, FREE_MSG_LIMIT,
+  useThemeStore, useLanguageStore, useSubscriptionStore, msgsRemaining, FREE_MSG_LIMIT,
 } from "@/lib/store";
 import { getMentorInfo } from "@/lib/mentorData";
 import { usePortfolioStore } from "@/lib/portfolioStore";
@@ -27,72 +27,49 @@ import {
   ChevronRight, Sun, Moon, Square, Pencil, ImagePlus, Plus, Mic, Play, Copy, Phone,
 } from "lucide-react";
 import { getUserLevel, LEVEL_LABEL, LEVEL_COLOR } from "@/lib/userLevel";
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 
-const SUGGESTIONS_DEFAULT = [
-  "¿Cómo analizo si una empresa es buena inversión?",
-  "Explícame qué es un ETF",
-  "¿Qué hace NVIDIA para ganar dinero?",
-  "¿Cómo construyo un portafolio diversificado?",
-];
+function getSuggestionsDefault(t: TFunction): string[] {
+  return t("chat.suggestionsDefault", { returnObjects: true }) as string[];
+}
 
-const SUGGESTIONS_BY_LEVEL: Record<string, string[]> = {
-  basico: [
-    "Tengo $500 y nunca he invertido, ¿por dónde empiezo?",
-    "Explícame qué es un ETF y por qué es popular",
-    "¿Puedo perder todo mi dinero si invierto en bolsa?",
-    "¿Cómo construyo un portafolio diversificado?",
-  ],
-  intermedio: [
-    "¿Cómo identifico acciones subvaloradas con P/E y PEG?",
-    "Analiza AAPL — ¿tiene buen precio hoy?",
-    "¿Qué sectores están liderando el mercado este año?",
-    "Explícame cómo leer un estado de resultados",
-  ],
-  avanzado: [
-    "Analiza el flujo de caja libre de MSFT vs GOOG",
-    "¿Cómo construyo una estrategia de cobertura con opciones?",
-    "¿Qué indicadores macro afectan más el mercado hoy?",
-    "Compara NVDA vs AMD en valoración fundamental y momentum",
-  ],
-};
+function getSuggestionsByLevel(t: TFunction): Record<string, string[]> {
+  return {
+    basico: t("chat.suggestionsByLevel.basico", { returnObjects: true }) as string[],
+    intermedio: t("chat.suggestionsByLevel.intermedio", { returnObjects: true }) as string[],
+    avanzado: t("chat.suggestionsByLevel.avanzado", { returnObjects: true }) as string[],
+  };
+}
 
-const SUGGESTIONS_BY_OBJECTIVE: Record<string, string[]> = {
-  protect: [
-    "¿Cuáles son las inversiones más seguras para preservar capital?",
-    "¿Cómo protejo mis ahorros de la inflación?",
-    "Explícame qué son los bonos y cómo funcionan",
-    "¿Qué es un fondo indexado y por qué es bajo riesgo?",
-  ],
-  grow: [
-    "¿Cómo construyo un portafolio diversificado a largo plazo?",
-    "¿Qué diferencia hay entre acciones de crecimiento y valor?",
-    "¿Cada cuánto debería revisar mis inversiones?",
-    "¿Qué es el interés compuesto y por qué importa tanto?",
-  ],
-  maximize: [
-    "¿Cómo identifico acciones con alto potencial de retorno?",
-    "¿Qué sectores están creciendo más este año?",
-    "¿Cómo evalúo el riesgo antes de hacer una inversión agresiva?",
-    "Analiza NVDA — ¿sigue siendo buena oportunidad?",
-  ],
-};
+function getSuggestionsByObjective(t: TFunction): Record<string, string[]> {
+  return {
+    protect: t("chat.suggestionsByObjective.protect", { returnObjects: true }) as string[],
+    grow: t("chat.suggestionsByObjective.grow", { returnObjects: true }) as string[],
+    maximize: t("chat.suggestionsByObjective.maximize", { returnObjects: true }) as string[],
+  };
+}
 
-const OBJECTIVE_GREETING: Record<string, string> = {
-  protect:  "Veo que priorizas proteger tu capital. Buena base para empezar. ¿Por dónde quieres comenzar?",
-  grow:     "Tu objetivo es hacer crecer tu dinero a largo plazo. Es el enfoque más sólido. ¿Qué tienes en mente?",
-  maximize: "Buscas maximizar retorno. El riesgo es parte del juego — te enseño a manejarlo bien. ¿Empezamos?",
-};
+function getObjectiveGreeting(t: TFunction): Record<string, string> {
+  return {
+    protect: t("chat.objectiveGreeting.protect"),
+    grow: t("chat.objectiveGreeting.grow"),
+    maximize: t("chat.objectiveGreeting.maximize"),
+  };
+}
 
-const RISK_LABEL: Record<string, string> = {
-  conservative:            "Conservador",
-  conservative_moderate:   "Conservador-Moderado",
-  moderate:                "Moderado",
-  moderate_growth:         "Moderado-Growth",
-  growth:                  "Growth",
-  aggressive:              "Agresivo",
-  aggressive_speculative:  "Agresivo-Especulativo",
-  speculative:             "Especulativo",
-};
+function getRiskLabel(t: TFunction): Record<string, string> {
+  return {
+    conservative:            t("chat.riskLabel.conservative"),
+    conservative_moderate:   t("chat.riskLabel.conservative_moderate"),
+    moderate:                t("chat.riskLabel.moderate"),
+    moderate_growth:         t("chat.riskLabel.moderate_growth"),
+    growth:                  t("chat.riskLabel.growth"),
+    aggressive:              t("chat.riskLabel.aggressive"),
+    aggressive_speculative:  t("chat.riskLabel.aggressive_speculative"),
+    speculative:             t("chat.riskLabel.speculative"),
+  };
+}
 
 const RISK_SEGMENTS = [
   { key: "conservative",           color: "#00d47e" },
@@ -108,13 +85,14 @@ const RISK_SEGMENTS = [
 type BScoreData = { s: number; p: string; sig: string[]; conf: string };
 
 function BScoreCard({ data }: { data: BScoreData }) {
+  const { t } = useTranslation();
   return (
     <div className="flex justify-start mt-1 ml-9">
       <div className="px-3 py-2 rounded-xl border max-w-xs"
            style={{ background: "var(--raised)", borderColor: "var(--border)" }}>
         <div className="text-[10px] mb-1.5 font-semibold uppercase tracking-wide"
              style={{ color: "var(--muted)" }}>
-          Evaluación de riesgo
+          {t("chat.riskAssessmentTitle")}
         </div>
         <RiskBar level={data.p} />
         {data.sig.length > 0 && (
@@ -133,6 +111,8 @@ function BScoreCard({ data }: { data: BScoreData }) {
 }
 
 function RiskBar({ level }: { level: string }) {
+  const { t } = useTranslation();
+  const RISK_LABEL = getRiskLabel(t);
   const idx = RISK_SEGMENTS.findIndex((s) => s.key === level);
   if (idx < 0) return null;
   return (
@@ -167,12 +147,19 @@ function TypingDots() {
 
 export default function ChatPage() {
   const router = useRouter();
+  const { t } = useTranslation();
+  const RISK_LABEL = getRiskLabel(t);
+  const SUGGESTIONS_DEFAULT = getSuggestionsDefault(t);
+  const SUGGESTIONS_BY_LEVEL = getSuggestionsByLevel(t);
+  const SUGGESTIONS_BY_OBJECTIVE = getSuggestionsByObjective(t);
+  const OBJECTIVE_GREETING = getObjectiveGreeting(t);
   const { hasSeenTutorial, openTutorial } = useTutorialStore();
   const { isAuthenticated, clearAuth } = useAuthStore();
   const { profile, updateMaturity, updateBehavioralRisk } = useProfileStore();
   const { messages, isStreaming, addMessage, appendToLastAssistant, setStreaming, startAssistantMessage, removeLastMessage, setMessages, sessions, currentId, createSession, clearMessages, syncSessionMessages, loadFromServer } = useChatStore();
   const { notifications, setNotifications, markRead } = useNotificationStore();
   const { theme, toggleTheme } = useThemeStore();
+  const { language } = useLanguageStore();
   const subStore = useSubscriptionStore();
   const { positions, loadFromServer: loadPortfolio } = usePortfolioStore();
   const upsellTrigger = useUpsellStore((s) => s.trigger);
@@ -193,10 +180,10 @@ export default function ChatPage() {
   const [dismissed1on1, setDismissed1on1] = useState(false);
 
   const GUIDED_STEPS = [
-    { emoji: "💬", label: "Responde a tu mentor",         action: null },
-    { emoji: "💼", label: "Agrega tu primera posición",   action: "/portfolio?tour=1" },
-    { emoji: "📚", label: "Completa una lección del día", action: "/academy" },
-    { emoji: "👀", label: "Agrega algo a tu watchlist",   action: "/watchlist" },
+    { emoji: "💬", label: t("chat.guidedStepRespond"),         action: null },
+    { emoji: "💼", label: t("chat.guidedStepAddPosition"),     action: "/portfolio?tour=1" },
+    { emoji: "📚", label: t("chat.guidedStepCompleteLesson"),  action: "/academy" },
+    { emoji: "👀", label: t("chat.guidedStepAddWatchlist"),    action: "/watchlist" },
   ];
 
   useEffect(() => {
@@ -314,7 +301,7 @@ export default function ChatPage() {
       setRecordingSecs(0);
       timerRef.current = setInterval(() => setRecordingSecs((s) => s + 1), 1000);
     } catch {
-      alert("No se pudo acceder al micrófono. Asegúrate de dar permiso en el navegador.");
+      alert(t("chat.micPermissionError"));
     }
   };
 
@@ -451,7 +438,7 @@ export default function ChatPage() {
         "\n(Retoma el hilo de forma natural si es relevante)"
       : "";
 
-    return `[PERFIL DEL USUARIO]\nNombre: ${profile.name}\nPerfil de riesgo: ${profile.risk_tolerance}${goalLine}${amountLine}${goalAmtLine}\n\nRespuestas del cuestionario:\n- Comportamiento ante caídas: ${q1Labels[a("q1")] ?? "no disponible"}\n- Horizonte: ${q2Labels[a("q2")] ?? "no disponible"}\n- Conocimiento: ${q3Labels[a("q3")] ?? "no disponible"}\n- Tolerancia al riesgo: ${q4Labels[a("q4")] ?? "no disponible"}\n- Estilo de gestión: ${q5Labels[a("q5")] ?? "no disponible"}${portfolioBlock}\n\nInstrucciones: Llama siempre a este usuario por su nombre (${profile.name.split(" ")[0]}). Adapta el nivel al conocimiento declarado. Si el usuario es principiante (conocimiento: A), usa lenguaje simple, evita términos técnicos sin explicarlos y enfócate en sus miedos y metas concretas. Responde en español.${memoryBlock}`;
+    return `[PERFIL DEL USUARIO]\nNombre: ${profile.name}\nPerfil de riesgo: ${profile.risk_tolerance}${goalLine}${amountLine}${goalAmtLine}\n\nRespuestas del cuestionario:\n- Comportamiento ante caídas: ${q1Labels[a("q1")] ?? "no disponible"}\n- Horizonte: ${q2Labels[a("q2")] ?? "no disponible"}\n- Conocimiento: ${q3Labels[a("q3")] ?? "no disponible"}\n- Tolerancia al riesgo: ${q4Labels[a("q4")] ?? "no disponible"}\n- Estilo de gestión: ${q5Labels[a("q5")] ?? "no disponible"}${portfolioBlock}\n\nInstrucciones: Llama siempre a este usuario por su nombre (${profile.name.split(" ")[0]}). Adapta el nivel al conocimiento declarado. Si el usuario es principiante (conocimiento: A), usa lenguaje simple, evita términos técnicos sin explicarlos y enfócate en sus miedos y metas concretas. ${language === "en" ? "Always respond in English." : "Responde en español."}${memoryBlock}`;
   };
 
   useEffect(() => {
@@ -587,7 +574,7 @@ export default function ChatPage() {
     isAtBottom.current = true;
     subStore.incrementMsgCount();
     const n = imagesToSend.length;
-    const saveMsg = msg || (n === 1 ? "📷 Imagen enviada" : `📷 ${n} imágenes enviadas`);
+    const saveMsg = msg || (n === 1 ? t("chat.imageSentOne") : t("chat.imageSentMany", { count: n }));
     addMessage({
       role: "user",
       content: msg,
@@ -662,7 +649,7 @@ export default function ChatPage() {
       removeLastMessage();
       const status = (err as { response?: { status?: number } })?.response?.status;
       if (status === 429) { await subStore.fetchStatus(); upsellTrigger("msg_limit_hit"); setPaywallReason(undefined); setPaywallOpen(true); }
-      else { setSendError("No se pudo conectar con el asistente. Verifica tu conexión e intenta de nuevo."); }
+      else { setSendError(t("chat.connectError")); }
     }
   };
 
@@ -704,7 +691,7 @@ export default function ChatPage() {
             <span className="text-lg leading-none">{mentor ? mentor.emoji : "🤖"}</span>
             <div className="hidden sm:block">
               <p className="text-xs font-black leading-none" style={{ color: "var(--text)" }}>
-                {mentor ? mentor.name : profile?.name ? `Hola, ${profile.name.split(" ")[0]}` : "Mentor IA"}
+                {mentor ? mentor.name : profile?.name ? t("chat.greeting", { name: profile.name.split(" ")[0] }) : t("chat.mentorFallbackName")}
               </p>
               {mentor && (
                 <p className="text-[10px] leading-none mt-0.5" style={{ color: mentor.color }}>
@@ -729,14 +716,14 @@ export default function ChatPage() {
           {!isPremium && remaining > 0 && (
             <span className="hidden md:block text-[10px] font-semibold px-2 py-1 rounded-full"
                   style={{ background: "var(--raised)", color: "var(--dim)", border: "1px solid var(--border)" }}>
-              {remaining} msg
+              {t("chat.msgCount", { count: remaining })}
             </span>
           )}
           <button onClick={() => { clearMessages(); router.push("/chat"); }}
                   className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-semibold hover:bg-white/5 transition-colors"
                   style={{ color: "var(--muted)", borderColor: "var(--border)" }}>
             <Plus className="w-3 h-3" />
-            Nuevo
+            {t("chat.newChat")}
           </button>
           <PremiumBadge />
           <button onClick={openTutorial}
@@ -775,14 +762,14 @@ export default function ChatPage() {
           <div className="absolute right-0 top-0 w-80 h-full border-l z-30 flex flex-col"
                style={{ background: "var(--card)", borderColor: "var(--border)" }}>
             <div className="flex items-center justify-between px-4 py-3 border-b" style={{ borderColor: "var(--border)" }}>
-              <span className="font-bold text-sm" style={{ color: "var(--text)" }}>Notificaciones</span>
+              <span className="font-bold text-sm" style={{ color: "var(--text)" }}>{t("chat.notifPanelTitle")}</span>
               <button onClick={() => setNotifOpen(false)} style={{ color: "var(--muted)" }}>
                 <X className="w-4 h-4" />
               </button>
             </div>
             <div className="flex-1 overflow-y-auto p-3 space-y-2" style={{ scrollbarWidth: "thin" }}>
               {notifications.length === 0 && (
-                <p className="text-center py-10 text-sm" style={{ color: "var(--dim)" }}>Sin notificaciones</p>
+                <p className="text-center py-10 text-sm" style={{ color: "var(--dim)" }}>{t("chat.notifPanelEmpty")}</p>
               )}
               {notifications.map((n) => (
                 <div key={n.id} onClick={() => markRead(n.id)}
@@ -796,7 +783,7 @@ export default function ChatPage() {
                   <button onClick={(e) => { e.stopPropagation(); sendMessage(n.message.slice(0, 200)); setNotifOpen(false); }}
                           className="text-xs mt-2 flex items-center gap-1 font-semibold hover:opacity-80"
                           style={{ color: "var(--accent-l)" }}>
-                    Preguntarle al Mentor <ChevronRight className="w-3 h-3" />
+                    {t("chat.askMentor")} <ChevronRight className="w-3 h-3" />
                   </button>
                 </div>
               ))}
@@ -837,11 +824,11 @@ export default function ChatPage() {
 
                     <h2 className="text-2xl font-black tracking-tight mb-1"
                         style={{ color: "var(--text)", fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
-                      {mentor ? mentor.name : profile?.name ? `Hola, ${profile.name.split(" ")[0]}` : "Nuvos AI"}
+                      {mentor ? mentor.name : profile?.name ? t("chat.greeting", { name: profile.name.split(" ")[0] }) : "Nuvos AI"}
                     </h2>
                     <p className="text-sm font-semibold mb-4"
                        style={{ color: mentor ? mentor.color : "var(--accent-l)" }}>
-                      {mentor ? mentor.title : "Tu mentor de inversiones con IA"}
+                      {mentor ? mentor.title : t("chat.defaultMentorTitle")}
                     </p>
 
                     {mentor && <span className="badge-green inline-block mb-4">{mentor.badge}</span>}
@@ -860,14 +847,14 @@ export default function ChatPage() {
                       const obj = profile?.quiz_answers?.objective as string | undefined;
                       if (obj) return (
                         <p className="text-sm leading-relaxed max-w-sm mx-auto" style={{ color: "var(--muted)" }}>
-                          {OBJECTIVE_GREETING[obj] ?? "¿En qué puedo ayudarte hoy?"}
+                          {OBJECTIVE_GREETING[obj] ?? t("chat.defaultGreetingQuestion")}
                         </p>
                       );
                       return (
                         <p className="text-sm leading-relaxed max-w-sm mx-auto" style={{ color: "var(--muted)" }}>
                           {!isAuthenticated || getUserLevel(profile) === "basico"
-                            ? "Cuéntame cuánto tienes para invertir y qué quieres lograr — te guío paso a paso, sin complicaciones."
-                            : "Pregúntame sobre empresas, ETFs, estrategias o conceptos"}
+                            ? t("chat.welcomeSubtitleBasic")
+                            : t("chat.welcomeSubtitleDefault")}
                         </p>
                       );
                     })()}
@@ -895,13 +882,13 @@ export default function ChatPage() {
                       {positions.length > 0 && (
                         <span className="text-[10px] font-semibold px-2.5 py-1 rounded-full border"
                               style={{ borderColor: "var(--border)", color: "var(--muted)", background: "var(--card)" }}>
-                          💼 {positions.length} posición{positions.length !== 1 ? "es" : ""}
+                          💼 {positions.length !== 1 ? t("chat.positionsCount", { count: positions.length }) : t("chat.positionsCountSingular", { count: positions.length })}
                         </span>
                       )}
                       {!isPremium && (
                         <span className="text-[10px] font-semibold px-2.5 py-1 rounded-full border ml-auto"
                               style={{ borderColor: "rgba(244,63,94,0.25)", color: "var(--down)", background: "rgba(244,63,94,0.05)" }}>
-                          {remaining} msg hoy
+                          {t("chat.msgToday", { count: remaining })}
                         </span>
                       )}
                     </div>
@@ -919,7 +906,7 @@ export default function ChatPage() {
                   return (
                     <div className="w-full">
                       <p className="text-xs font-bold uppercase tracking-widest mb-3" style={{ color: "var(--muted)" }}>
-                        Preguntas sugeridas
+                        {t("chat.suggestedQuestions")}
                       </p>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                         {suggestions.map((s, si) => (
@@ -966,7 +953,7 @@ export default function ChatPage() {
                         {/* Sender label */}
                         <span className="text-[10px] font-semibold tracking-wide mb-1.5 mr-0.5 select-none"
                               style={{ color: "var(--dim)" }}>
-                          Tú
+                          {t("chat.you")}
                         </span>
                         {/* Bubble */}
                         <div className="bubble-user">
@@ -988,14 +975,14 @@ export default function ChatPage() {
                                   className="flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-medium hover:bg-white/5 transition-colors"
                                   style={{ color: "var(--dim)" }}>
                             <Pencil className="w-2.5 h-2.5" />
-                            Editar
+                            {t("chat.edit")}
                           </button>
                           {msg.content && (
                             <button onClick={() => navigator.clipboard.writeText(msg.content)}
                                     className="flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-medium hover:bg-white/5 transition-colors"
                                     style={{ color: "var(--dim)" }}>
                               <Copy className="w-2.5 h-2.5" />
-                              Copiar
+                              {t("chat.copy")}
                             </button>
                           )}
                         </div>
@@ -1035,10 +1022,10 @@ export default function ChatPage() {
                             </div>
                             <div className="flex-1 min-w-0">
                               <p className="text-xs font-bold" style={{ color: "var(--text)" }}>
-                                {voiceAudio.loading ? "Generando audio..." : voiceAudio.playing ? "Reproduciendo..." : "Respuesta de voz"}
+                                {voiceAudio.loading ? t("chat.generatingAudio") : voiceAudio.playing ? t("chat.playingAudio") : t("chat.voiceResponseLabel")}
                               </p>
                               <p className="text-[10px]" style={{ color: "var(--muted)" }}>
-                                Análisis educativo · No asesoría financiera
+                                {t("chat.educationalDisclaimerShort")}
                               </p>
                             </div>
                             {voiceAudio.loading ? (
@@ -1064,7 +1051,7 @@ export default function ChatPage() {
                             {msg.content !== "" && !(isStreaming && i === messages.length - 1) && (
                               <p className="mt-3 pt-2.5 border-t text-[10px] leading-tight"
                                  style={{ color: "var(--dim)", borderColor: "var(--border)" }}>
-                                Análisis educativo · No constituye asesoría financiera · Los datos pueden ser inexactos
+                                {t("chat.educationalDisclaimerFull")}
                               </p>
                             )}
                           </>
@@ -1083,9 +1070,9 @@ export default function ChatPage() {
                 {msg.role === "assistant" && i === 0 && messages.length === 1 && guidedTour && !isStreaming && (
                   <div className="flex flex-wrap gap-2 mt-3 ml-11">
                     {[
-                      { label: "Ya tengo posiciones",          msg: "Ya tengo posiciones en el mercado que me gustaría analizar contigo." },
-                      { label: "Estoy comenzando desde cero",  msg: "Estoy comenzando desde cero. No tengo ninguna inversión todavía. ¿Por dónde empiezo?" },
-                      { label: "Quiero una sesión 1:1",        msg: "Me interesa tener una sesión 1:1 con mi mentor para definir mi estrategia desde el inicio." },
+                      { label: t("chat.quickReplyHasPositions"),         msg: t("chat.quickReplyHasPositionsMsg") },
+                      { label: t("chat.quickReplyStartingFresh"),        msg: t("chat.quickReplyStartingFreshMsg") },
+                      { label: t("chat.quickReplyWant1on1"),              msg: t("chat.quickReplyWant1on1Msg") },
                     ].map((chip, ci) => (
                       <button
                         key={ci}
@@ -1145,7 +1132,7 @@ export default function ChatPage() {
                                 setCommittedActions(prev => new Set([...prev, ai]));
                               } catch { /* silent */ }
                             }}
-                            title="Recordarme en 24 horas"
+                            title={t("chat.remindMeTooltip")}
                             className="flex items-center justify-center w-6 h-6 rounded-full border transition-all hover:opacity-80 active:scale-95 text-xs"
                             style={{
                               background: committedActions.has(ai) ? "rgba(0,185,109,0.12)" : "var(--raised)",
@@ -1189,11 +1176,11 @@ export default function ChatPage() {
                      style={{ borderColor: "rgba(0,168,94,0.15)" }}>
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-black" style={{ color: "var(--accent-l)" }}>
-                      🗺️ Guía de inicio rápido
+                      {t("chat.guidedTourTitle")}
                     </span>
                     <span className="text-[10px] font-bold px-2 py-0.5 rounded-full"
                           style={{ background: "rgba(0,168,94,0.15)", color: "var(--accent-l)" }}>
-                      {guidedStep - 1} / {GUIDED_STEPS.length} completados
+                      {t("chat.guidedStepsCompleted", { completed: guidedStep - 1, total: GUIDED_STEPS.length })}
                     </span>
                   </div>
                   <button
@@ -1205,7 +1192,7 @@ export default function ChatPage() {
                     className="text-xs transition-opacity hover:opacity-60"
                     style={{ color: "var(--dim)" }}
                   >
-                    ✕ Saltar tour
+                    {t("chat.skipTour")}
                   </button>
                 </div>
                 <div className="flex items-stretch">
@@ -1233,7 +1220,7 @@ export default function ChatPage() {
                             className="text-[10px] font-bold px-2 py-0.5 rounded-full mt-0.5"
                             style={{ background: "#00a85e", color: "#000" }}
                           >
-                            Ir →
+                            {t("chat.goTo")}
                           </button>
                         )}
                       </div>
@@ -1252,10 +1239,10 @@ export default function ChatPage() {
                 <div className="text-2xl shrink-0">🎯</div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-black mb-0.5" style={{ color: "var(--text)" }}>
-                    ¿Quieres ir más rápido con una sesión 1:1?
+                    {t("chat.oneOnOneTitle")}
                   </p>
                   <p className="text-xs leading-relaxed mb-3" style={{ color: "var(--muted)" }}>
-                    En 20 minutos tu mentor revisa tu situación, define tu estrategia y responde todas tus dudas en tiempo real — gratis para nuevos usuarios.
+                    {t("chat.oneOnOneDesc")}
                   </p>
                   <div className="flex gap-2 flex-wrap">
                     <button
@@ -1263,12 +1250,12 @@ export default function ChatPage() {
                         setShow1on1(false);
                         setDismissed1on1(false);
                         sessionStorage.removeItem("nuvos_1on1_dismissed");
-                        sendMessage("Quiero solicitar una sesión 1:1 con mi mentor para personalizar mi estrategia de inversión.");
+                        sendMessage(t("chat.oneOnOneRequestMsg"));
                       }}
                       className="text-xs font-bold px-3 py-1.5 rounded-full"
                       style={{ background: "rgba(99,102,241,0.8)", color: "white" }}
                     >
-                      Solicitar sesión gratuita →
+                      {t("chat.oneOnOneCta")}
                     </button>
                     <button
                       onClick={() => {
@@ -1279,7 +1266,7 @@ export default function ChatPage() {
                       className="text-xs px-3 py-1.5 rounded-full transition-opacity hover:opacity-70"
                       style={{ color: "var(--dim)" }}
                     >
-                      Ahora no
+                      {t("chat.oneOnOneDismiss")}
                     </button>
                   </div>
                 </div>
@@ -1296,11 +1283,11 @@ export default function ChatPage() {
               <div className="max-w-3xl mx-auto mb-3 px-4 py-2.5 rounded-xl flex items-center justify-between"
                    style={{ background: "rgba(244,63,94,0.06)", border: "1px solid rgba(244,63,94,0.2)" }}>
                 <span className="text-xs" style={{ color: "var(--down)" }}>
-                  Alcanzaste el límite de {FREE_MSG_LIMIT} mensajes diarios.
+                  {t("chat.limitReachedBanner", { limit: FREE_MSG_LIMIT })}
                 </span>
                 <button onClick={() => { setPaywallReason(undefined); setPaywallOpen(true); }}
                         className="text-xs font-bold ml-3 shrink-0" style={{ color: "var(--accent-l)" }}>
-                  Activar Premium →
+                  {t("chat.activatePremium")}
                 </button>
               </div>
             )}
@@ -1312,7 +1299,7 @@ export default function ChatPage() {
               {isDragging && (
                 <div className="absolute inset-0 z-10 flex items-center justify-center rounded-2xl border-2 border-dashed pointer-events-none"
                      style={{ borderColor: "var(--accent)", background: "rgba(0,212,126,0.06)" }}>
-                  <span className="text-sm font-bold" style={{ color: "var(--accent)" }}>Suelta las imágenes aquí</span>
+                  <span className="text-sm font-bold" style={{ color: "var(--accent)" }}>{t("chat.dropImagesHere")}</span>
                 </div>
               )}
 
@@ -1364,10 +1351,10 @@ export default function ChatPage() {
                     onKeyDown={handleKeyDown}
                     placeholder={
                       remaining === 0 && !isPremium
-                        ? "Límite alcanzado — activa Premium"
+                        ? t("chat.placeholderLimitReached")
                         : pendingImages.length > 0
-                        ? `Describe qué analizar en ${pendingImages.length === 1 ? "la imagen" : "las imágenes"} (opcional)...`
-                        : "Pregunta sobre empresas, ETFs, estrategias o conceptos..."
+                        ? t("chat.placeholderDescribeImage", { target: pendingImages.length === 1 ? t("chat.targetImageSingle") : t("chat.targetImagePlural") })
+                        : t("chat.placeholderDefault")
                     }
                     rows={1}
                     disabled={isStreaming || (remaining === 0 && !isPremium)}
@@ -1397,7 +1384,7 @@ export default function ChatPage() {
                           className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium hover:bg-white/5 disabled:opacity-30 transition-colors"
                           style={{ color: "var(--muted)" }}>
                     <ImagePlus className="w-3.5 h-3.5" />
-                    <span className="hidden sm:inline">Imagen</span>
+                    <span className="hidden sm:inline">{t("chat.toolbarImage")}</span>
                   </button>
 
                   <button onClick={startRecording} disabled={isStreaming || isTranscribing || showVoiceModal}
@@ -1406,13 +1393,13 @@ export default function ChatPage() {
                     {isTranscribing
                       ? <span className="w-3.5 h-3.5 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin" />
                       : <Mic className="w-3.5 h-3.5" />}
-                    <span className="hidden sm:inline">{isTranscribing ? "Transcribiendo..." : "Voz"}</span>
+                    <span className="hidden sm:inline">{isTranscribing ? t("chat.toolbarTranscribing") : t("chat.toolbarVoice")}</span>
                   </button>
 
                   <button
                     onClick={() => {
                       if (!isPremium) {
-                        setPaywallReason("La llamada de voz con el Mentor IA es exclusiva para Premium.");
+                        setPaywallReason(t("chat.callPremiumOnly"));
                         setPaywallOpen(true);
                         return;
                       }
@@ -1423,19 +1410,19 @@ export default function ChatPage() {
                     style={{ color: "var(--muted)" }}
                   >
                     <Phone className="w-3.5 h-3.5" />
-                    <span className="hidden sm:inline">Llamar</span>
+                    <span className="hidden sm:inline">{t("chat.toolbarCall")}</span>
                   </button>
 
                   <div className="flex-1" />
 
                   <span className="text-[9px] hidden md:block" style={{ color: "var(--dim)" }}>
-                    Enter para enviar · Shift+Enter nueva línea
+                    {t("chat.enterToSend")}
                   </span>
                 </div>
               </div>
 
               <p className="text-center text-[10px] mt-2" style={{ color: "var(--dim)" }}>
-                Solo educativo · No reemplaza asesoramiento financiero profesional
+                {t("chat.eduFooter")}
               </p>
             </div>
           </div>
@@ -1451,7 +1438,7 @@ export default function ChatPage() {
             <div className="text-5xl font-mono font-bold mb-1 tabular-nums" style={{ color: "#fff", letterSpacing: "0.04em" }}>
               {String(Math.floor(recordingSecs / 60)).padStart(2, "0")}:{String(recordingSecs % 60).padStart(2, "0")}
             </div>
-            <p className="text-sm mb-10" style={{ color: "rgba(255,255,255,0.35)" }}>Grabando audio...</p>
+            <p className="text-sm mb-10" style={{ color: "rgba(255,255,255,0.35)" }}>{t("chat.recordingAudio")}</p>
             <button onClick={stopRecording}
                     className="w-20 h-20 rounded-full flex items-center justify-center mb-8 transition-transform active:scale-95"
                     style={{ background: "#ef4444", boxShadow: "0 0 40px rgba(239,68,68,0.4)" }}>
@@ -1460,7 +1447,7 @@ export default function ChatPage() {
             <button onClick={cancelRecording}
                     className="text-sm font-medium hover:opacity-60 transition-opacity"
                     style={{ color: "rgba(255,255,255,0.4)" }}>
-              Cancelar
+              {t("chat.cancel")}
             </button>
           </div>
         </div>
@@ -1483,35 +1470,35 @@ export default function ChatPage() {
             style={{ background: "var(--card)", border: "1px solid var(--border)" }}
             onClick={(e) => e.stopPropagation()}
           >
-            <p className="font-bold text-sm" style={{ color: "var(--text)" }}>📝 Registrar decisión</p>
+            <p className="font-bold text-sm" style={{ color: "var(--text)" }}>{t("chat.decisionModalTitle")}</p>
             <p className="text-xs" style={{ color: "var(--sub)" }}>
-              Guarda esta decisión en tu diario para revisarla más adelante.
+              {t("chat.decisionModalDesc")}
             </p>
             <div className="flex flex-col gap-2">
-              <label className="text-xs font-semibold" style={{ color: "var(--sub)" }}>Decisión</label>
+              <label className="text-xs font-semibold" style={{ color: "var(--sub)" }}>{t("chat.decisionLabel")}</label>
               <input
                 className="rounded-lg px-3 py-2 text-sm outline-none border focus:border-[var(--accent)]"
                 style={{ background: "var(--raised)", border: "1px solid var(--border)", color: "var(--text)" }}
                 value={decisionModal.action}
                 onChange={(e) => setDecisionModal({ ...decisionModal, action: e.target.value })}
-                placeholder="ej. Comprar, Vender, Mantener..."
+                placeholder={t("chat.decisionPlaceholder")}
               />
-              <label className="text-xs font-semibold" style={{ color: "var(--sub)" }}>Ticker</label>
+              <label className="text-xs font-semibold" style={{ color: "var(--sub)" }}>{t("chat.tickerLabel")}</label>
               <input
                 className="rounded-lg px-3 py-2 text-sm outline-none border focus:border-[var(--accent)]"
                 style={{ background: "var(--raised)", border: "1px solid var(--border)", color: "var(--text)" }}
                 value={decisionModal.ticker}
                 onChange={(e) => setDecisionModal({ ...decisionModal, ticker: e.target.value })}
-                placeholder="ej. AAPL"
+                placeholder={t("chat.tickerPlaceholder")}
               />
-              <label className="text-xs font-semibold" style={{ color: "var(--sub)" }}>Notas (opcional)</label>
+              <label className="text-xs font-semibold" style={{ color: "var(--sub)" }}>{t("chat.notesLabel")}</label>
               <textarea
                 rows={3}
                 className="rounded-lg px-3 py-2 text-sm outline-none border focus:border-[var(--accent)] resize-none"
                 style={{ background: "var(--raised)", border: "1px solid var(--border)", color: "var(--text)" }}
                 value={decisionModal.notes}
                 onChange={(e) => setDecisionModal({ ...decisionModal, notes: e.target.value })}
-                placeholder="¿Por qué tomaste esta decisión?"
+                placeholder={t("chat.notesPlaceholder")}
               />
             </div>
             <div className="flex gap-2 mt-1">
@@ -1519,7 +1506,7 @@ export default function ChatPage() {
                 className="flex-1 py-2 rounded-xl text-sm font-semibold transition-colors"
                 style={{ background: "var(--raised)", color: "var(--sub)" }}
                 onClick={() => setDecisionModal(null)}
-              >Cancelar</button>
+              >{t("chat.cancel")}</button>
               <button
                 className="flex-1 py-2 rounded-xl text-sm font-semibold transition-colors"
                 style={{ background: "var(--accent)", color: "#fff" }}
@@ -1531,7 +1518,7 @@ export default function ChatPage() {
                   setTimeout(() => { setDecisionSaved(false); setDecisionModal(null); }, 1500);
                 }}
               >
-                {decisionSaved ? "✓ Guardado" : "Guardar"}
+                {decisionSaved ? t("chat.saved") : t("chat.save")}
               </button>
             </div>
           </div>
@@ -1542,9 +1529,9 @@ export default function ChatPage() {
         <TourSpotlight
           targetId="tour-chat-input"
           step={3}
-          title="Habla con Nuvos"
-          description="Escribe cualquier pregunta sobre inversiones. Nuvos recuerda tu portafolio y perfil para darte respuestas personalizadas."
-          ctaLabel="Entendido, volver al inicio ✓"
+          title={t("chat.tourTitle")}
+          description={t("chat.tourDesc")}
+          ctaLabel={t("chat.tourCta")}
         />
       )}
     </div>

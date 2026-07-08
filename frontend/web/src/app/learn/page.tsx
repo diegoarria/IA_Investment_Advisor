@@ -14,6 +14,7 @@ import { usePortfolioStore } from "@/lib/portfolioStore";
 import { getUserLevel, LEVEL_COLOR, LEVEL_LABEL, type UserLevel } from "@/lib/userLevel";
 import { QUIZ_DATA } from "@/lib/quizData";
 import QuizModal from "@/components/QuizModal";
+import { useTranslation } from "react-i18next";
 
 const CATEGORY_LEVEL: Record<string, UserLevel> = {
   basics:      "basico",
@@ -28,21 +29,24 @@ const CATEGORY_LEVEL: Record<string, UserLevel> = {
 };
 import { Search, Menu, X } from "lucide-react";
 import GuidedSteps from "@/components/GuidedSteps";
+import type { TFunction } from "i18next";
 
-const CATEGORIES = [
-  { id: "all",         emoji: "🗂️",  title: "Todo" },
-  { id: "basics",      emoji: "📚",  title: "Básicos" },
-  { id: "instruments", emoji: "🏦",  title: "Instrumentos" },
-  { id: "ratios",      emoji: "🧮",  title: "Ratios" },
-  { id: "analysis",    emoji: "📊",  title: "Análisis" },
-  { id: "strategies",  emoji: "🎯",  title: "Estrategias" },
-  { id: "trading",     emoji: "⚡",  title: "Trading" },
-  { id: "psychology",  emoji: "🧠",  title: "Psicología" },
-  { id: "macro",       emoji: "🌐",  title: "Macro" },
-  { id: "markets",     emoji: "🌍",  title: "Mercados" },
-  { id: "mexico",      emoji: "🇲🇽", title: "México" },
-  { id: "companies",   emoji: "🏢",  title: "Empresas" },
-];
+function getCategories(t: TFunction) {
+  return [
+    { id: "all",         emoji: "🗂️",  title: t("learn.categories.all") },
+    { id: "basics",      emoji: "📚",  title: t("learn.categories.basics") },
+    { id: "instruments", emoji: "🏦",  title: t("learn.categories.instruments") },
+    { id: "ratios",      emoji: "🧮",  title: t("learn.categories.ratios") },
+    { id: "analysis",    emoji: "📊",  title: t("learn.categories.analysis") },
+    { id: "strategies",  emoji: "🎯",  title: t("learn.categories.strategies") },
+    { id: "trading",     emoji: "⚡",  title: t("learn.categories.trading") },
+    { id: "psychology",  emoji: "🧠",  title: t("learn.categories.psychology") },
+    { id: "macro",       emoji: "🌐",  title: t("learn.categories.macro") },
+    { id: "markets",     emoji: "🌍",  title: t("learn.categories.markets") },
+    { id: "mexico",      emoji: "🇲🇽", title: t("learn.categories.mexico") },
+    { id: "companies",   emoji: "🏢",  title: t("learn.categories.companies") },
+  ];
+}
 
 interface Topic {
   id: string;
@@ -247,6 +251,8 @@ const COMPANY_LOGOS: Record<string, string> = {
 
 export default function LearnPage() {
   const router = useRouter();
+  const { t } = useTranslation();
+  const CATEGORIES = getCategories(t);
   const { isAuthenticated } = useAuthStore();
   const { streak, completedToday, markTopicCompleted, markTopicId, completedTopicIds, initStreak, claimedMilestones, markMilestoneClaimed } = useLearnStore();
   const { fetchStatus: fetchSubStatus, tier: subTier, isTrialPremium: subTrialPremium } = useSubscriptionStore();
@@ -315,10 +321,10 @@ export default function LearnPage() {
     setClaiming(false);
     if (success) {
       const msg = pendingMilestone.premiumBonus
-        ? `¡${pendingMilestone.premiumBonus} días Premium activados! 🎉`
+        ? t("learn.premiumDaysActivated", { days: pendingMilestone.premiumBonus })
         : pendingMilestone.msgReset
-        ? "¡Mensajes del día reiniciados! ⚡"
-        : "¡Recompensa canjeada! 🏆";
+        ? t("learn.messagesReset")
+        : t("learn.rewardRedeemed");
       setClaimSuccess(msg);
       const snap = pendingMilestone;
       setTimeout(() => {
@@ -415,9 +421,9 @@ export default function LearnPage() {
              style={{ background: "var(--bg)", borderColor: "var(--border)" }}>
           <div>
             <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--muted)" }}>
-              Nivel · <span style={{ color: LEVEL_COLOR[userLevel] }}>{LEVEL_LABEL[userLevel]}</span>
+              {t("learn.levelLabel")} · <span style={{ color: LEVEL_COLOR[userLevel] }}>{LEVEL_LABEL[userLevel]}</span>
             </p>
-            <h1 className="text-2xl font-black tracking-tight" style={{ color: "var(--text)" }}>Aprendizaje</h1>
+            <h1 className="text-2xl font-black tracking-tight" style={{ color: "var(--text)" }}>{t("learn.title")}</h1>
           </div>
           <div className="flex items-center gap-2">
             <PremiumBadge />
@@ -440,10 +446,10 @@ export default function LearnPage() {
                 <span className="text-xl">{completedToday ? "🔥" : "🌑"}</span>
                 <div className="text-left">
                   <span className="text-sm font-bold" style={{ color: completedToday ? "#f59e0b" : "var(--muted)" }}>
-                    {streak} {streak === 1 ? "día" : "días"} de racha
+                    {t("learn.streakDays", { count: streak })}
                   </span>
                   <p className="text-[10px]" style={{ color: "var(--dim)" }}>
-                    {completedToday ? "¡Racha activa hoy!" : "Lee un tema para mantener tu racha"}
+                    {completedToday ? t("learn.streakActiveToday") : t("learn.streakInactive")}
                   </p>
                 </div>
               </div>
@@ -479,9 +485,9 @@ export default function LearnPage() {
                 <div className="w-7 h-7 rounded-lg flex items-center justify-center text-sm"
                      style={{ background: "rgba(0,212,126,0.12)" }}>🎯</div>
                 <div className="text-left">
-                  <p className="text-xs font-bold" style={{ color: "var(--text)" }}>Mis Objetivos</p>
+                  <p className="text-xs font-bold" style={{ color: "var(--text)" }}>{t("learn.myGoals")}</p>
                   <p className="text-[10px]" style={{ color: "var(--muted)" }}>
-                    {totalDone} de {totalTopics} temas completados
+                    {t("learn.topicsCompleted", { done: totalDone, total: totalTopics })}
                   </p>
                 </div>
               </div>
@@ -542,13 +548,13 @@ export default function LearnPage() {
                 onKeyDown={(e) => e.key === "Enter" && handleSearch()}
                 className="flex-1 bg-transparent text-sm outline-none"
                 style={{ color: "var(--text)" }}
-                placeholder="Busca cualquier tema financiero..."
+                placeholder={t("learn.searchPlaceholder")}
               />
               {search.trim() && (
                 <button onClick={() => handleSearch()}
                         className="text-xs font-bold px-2.5 py-1 rounded-lg text-white"
                         style={{ background: "var(--accent)" }}>
-                  Preguntar
+                  {t("learn.ask")}
                 </button>
               )}
             </div>
@@ -560,7 +566,7 @@ export default function LearnPage() {
               <div className="rounded-2xl border overflow-hidden" style={{ borderColor: "rgba(0,212,126,0.25)", background: "rgba(0,212,126,0.04)" }}>
                 <div className="flex items-center gap-2 px-3 py-2 border-b" style={{ borderColor: "rgba(0,212,126,0.15)" }}>
                   <span className="text-sm">🎓</span>
-                  <span className="text-xs font-black" style={{ color: "var(--accent-l)" }}>Aprende antes de que reporten</span>
+                  <span className="text-xs font-black" style={{ color: "var(--accent-l)" }}>{t("learn.learnBeforeReport")}</span>
                 </div>
                 {portfolioLessons.map((s) => (
                   <button
@@ -582,11 +588,14 @@ export default function LearnPage() {
                       <div>
                         <p className="text-xs font-bold" style={{ color: "var(--text)" }}>{s.topicTitle}</p>
                         <p className="text-[10px]" style={{ color: "var(--muted)" }}>
-                          {s.ticker} reporta {s.daysUntil === 0 ? "hoy" : s.daysUntil === 1 ? "mañana" : `en ${s.daysUntil} días`}
+                          {t("learn.reportsOn", {
+                            ticker: s.ticker,
+                            when: s.daysUntil === 0 ? t("learn.reportsToday") : s.daysUntil === 1 ? t("learn.reportsTomorrow") : t("learn.reportsInDays", { count: s.daysUntil }),
+                          })}
                         </p>
                       </div>
                     </div>
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: "rgba(0,212,126,0.12)", color: "var(--accent-l)" }}>Ver lección →</span>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: "rgba(0,212,126,0.12)", color: "var(--accent-l)" }}>{t("learn.viewLesson")}</span>
                   </button>
                 ))}
               </div>
@@ -637,7 +646,7 @@ export default function LearnPage() {
                     {!completedTopicIds.includes(topic.id) && isMyLevel && (
                       <div className="absolute top-2 right-2 text-[9px] font-bold px-1.5 py-0.5 rounded-full"
                            style={{ background: `${tc}20`, color: tc }}>
-                        Para ti
+                        {t("learn.forYou")}
                       </div>
                     )}
                     {logoUrl ? (
@@ -681,7 +690,7 @@ export default function LearnPage() {
                     "{search.trim()}"
                   </p>
                   <span className="text-[9px] font-semibold" style={{ color: "var(--muted)" }}>
-                    Explicar con IA →
+                    {t("learn.explainWithAI")}
                   </span>
                 </button>
               )}
@@ -729,7 +738,7 @@ export default function LearnPage() {
                 <div className="flex flex-col items-center justify-center h-36 gap-3">
                   <div className="w-7 h-7 border-2 rounded-full animate-spin"
                        style={{ borderColor: "rgba(0,212,126,0.2)", borderTopColor: "#00d47e" }} />
-                  <p className="text-xs" style={{ color: "var(--muted)" }}>Preparando flashcard... ~2 seg</p>
+                  <p className="text-xs" style={{ color: "var(--muted)" }}>{t("learn.preparingFlashcard")}</p>
                 </div>
               ) : (
                 <div className="learn-markdown">
@@ -752,13 +761,13 @@ export default function LearnPage() {
                     className="w-full py-2.5 rounded-2xl text-sm font-bold text-white"
                     style={{ background: "var(--grad-green)" }}
                   >
-                    ¿Entendido? — Haz el quiz →
+                    {t("learn.understoodTakeQuiz")}
                   </button>
                 ) : (
                   <button onClick={() => setModal(null)}
                           className="w-full py-2.5 rounded-2xl text-sm font-bold text-white"
                           style={{ background: "var(--grad-green)" }}>
-                    Entendido ✓
+                    {t("learn.understood")}
                   </button>
                 )}
               </div>
@@ -845,7 +854,7 @@ export default function LearnPage() {
                   fontSize: 15, fontWeight: 900, cursor: claiming ? "not-allowed" : "pointer",
                 }}
               >
-                {claiming ? "Reclamando..." : "¡Reclamar recompensa!"}
+                {claiming ? t("learn.claimingReward") : t("learn.claimReward")}
               </button>
             )}
           </div>
@@ -869,9 +878,9 @@ export default function LearnPage() {
             {/* Header */}
             <div className="flex items-start justify-between px-5 pt-4 pb-3 shrink-0">
               <div>
-                <h2 className="text-lg font-black" style={{ color: "var(--text)" }}>Objetivos de Racha</h2>
+                <h2 className="text-lg font-black" style={{ color: "var(--text)" }}>{t("learn.streakGoalsTitle")}</h2>
                 <p className="text-xs mt-0.5" style={{ color: "var(--muted)" }}>
-                  {streak} {streak === 1 ? "día" : "días"} consecutivos · {claimedMilestones.length}/{STREAK_MILESTONES.length} reclamados
+                  {t("learn.consecutiveDaysClaimed", { count: streak, claimed: claimedMilestones.length, total: STREAK_MILESTONES.length })}
                 </p>
               </div>
               <button onClick={() => setStreakModalOpen(false)} className="text-xl leading-none p-1" style={{ color: "var(--muted)" }}>✕</button>
@@ -913,7 +922,7 @@ export default function LearnPage() {
                       <p className="text-[11px]" style={{ color: "var(--muted)" }}>🎁 {m.reward}</p>
                       {!reached && (
                         <p className="text-[10px] mt-0.5" style={{ color: "var(--dim)" }}>
-                          Faltan {m.days - streak} {m.days - streak === 1 ? "día" : "días"}
+                          {t("learn.daysRemaining", { count: m.days - streak })}
                         </p>
                       )}
                     </div>
@@ -928,7 +937,7 @@ export default function LearnPage() {
                         className="shrink-0 px-3 py-1.5 rounded-xl text-xs font-black"
                         style={{ background: "#f59e0b", color: "#000" }}
                       >
-                        Reclamar
+                        {t("learn.claim")}
                       </button>
                     )}
                     {!reached && <span className="text-sm shrink-0" style={{ color: "var(--dim)" }}>🔒</span>}
