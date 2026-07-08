@@ -4,6 +4,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { Audio } from "expo-av";
 import * as FileSystem from "expo-file-system/legacy";
 import * as SecureStore from "expo-secure-store";
+import { useTranslation } from "react-i18next";
 import { BASE_URL } from "../lib/api";
 
 interface Props {
@@ -30,6 +31,7 @@ function formatDuration(secs: number): string {
 }
 
 export default function VoiceCallModal({ visible, onClose }: Props) {
+  const { t } = useTranslation();
   const [status, setStatus] = useState<CallStatus>("connecting");
   const [errorMsg, setErrorMsg] = useState("");
   const [muted, setMuted] = useState(false);
@@ -87,7 +89,7 @@ export default function VoiceCallModal({ visible, onClose }: Props) {
       const { status: permStatus } = await Audio.requestPermissionsAsync();
       if (permStatus !== "granted") {
         setStatus("error");
-        setErrorMsg("Necesito permiso de micrófono para la llamada.");
+        setErrorMsg(t("voiceCallModal.errors.micPermission"));
         return;
       }
       await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
@@ -106,18 +108,18 @@ export default function VoiceCallModal({ visible, onClose }: Props) {
       ws.onerror = () => {
         if (!closedRef.current) {
           setStatus("error");
-          setErrorMsg("No se pudo conectar con el Mentor.");
+          setErrorMsg(t("voiceCallModal.errors.connectFailed"));
         }
       };
       ws.onclose = () => {
         if (!closedRef.current) {
           setStatus("error");
-          setErrorMsg("La llamada se cerró inesperadamente.");
+          setErrorMsg(t("voiceCallModal.errors.unexpectedClose"));
         }
       };
     } catch (e) {
       setStatus("error");
-      setErrorMsg("No se pudo iniciar la llamada.");
+      setErrorMsg(t("voiceCallModal.errors.startFailed"));
     }
   }
 
@@ -132,7 +134,7 @@ export default function VoiceCallModal({ visible, onClose }: Props) {
       silenceSinceRef.current = null;
       startMeteringLoop();
     } catch (e) {
-      setErrorMsg("No se pudo acceder al micrófono.");
+      setErrorMsg(t("voiceCallModal.errors.micAccessFailed"));
     }
   }
 
@@ -245,7 +247,7 @@ export default function VoiceCallModal({ visible, onClose }: Props) {
         stopAllPlayback();
         break;
       case "error":
-        setErrorMsg(msg.detail || "Ocurrió un error.");
+        setErrorMsg(msg.detail || t("voiceCallModal.errors.generic"));
         break;
     }
   }
@@ -333,7 +335,7 @@ export default function VoiceCallModal({ visible, onClose }: Props) {
   const ringColor = status === "assistant_speaking" ? "#00b96d" : status === "user_speaking" ? "#3b82f6" : "#3a3a3a";
   const subLabel =
     status === "error" ? errorMsg
-    : status === "connecting" ? "Llamando..."
+    : status === "connecting" ? t("voiceCallModal.connecting")
     : formatDuration(callSeconds);
 
   return (
@@ -345,7 +347,7 @@ export default function VoiceCallModal({ visible, onClose }: Props) {
           <Animated.View style={[styles.avatar, { borderColor: ringColor, transform: [{ scale: pulseAnim }] }]}>
             <Text style={{ fontSize: 56 }}>🤖</Text>
           </Animated.View>
-          <Text style={styles.name}>Mentor IA</Text>
+          <Text style={styles.name}>{t("voiceCallModal.mentorName")}</Text>
           <Text style={[styles.subLabel, { color: status === "error" ? "#f87171" : "rgba(255,255,255,0.5)" }]}>
             {subLabel}
           </Text>

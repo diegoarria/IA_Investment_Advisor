@@ -4,6 +4,8 @@ import { useState } from "react";
 import { X, Calendar, Users, Video, Star, ArrowRight, Check } from "lucide-react";
 import api from "@/lib/api";
 import { useSubscriptionStore } from "@/lib/store";
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 
 export type UpsellOffer = "annual_report" | "family_plan" | "session";
 
@@ -15,65 +17,52 @@ interface UpsellModalProps {
   onClose: () => void;
 }
 
-const OFFER_META = {
-  annual_report: {
-    icon: Calendar,
-    emoji: "📊",
-    title: "Reporte Anual de Madurez Inversora",
-    subtitle: "Tu evolución como inversor, documentada",
-    features: [
-      "Evolución mes a mes de tu Puntuación de Madurez (1-100)",
-      "Análisis de tu perfil de riesgo y comportamiento inversor",
-      "Perfil de riesgo real vs. declarado al registrarte",
-      "Recomendaciones de tu Mentor IA para el próximo año",
-      'Certificado digital compartible: "Inversor Informado - Nuvos AI"',
-    ],
-    color: "#8b5cf6",
-    badge: "Edición anual",
-  },
-  family_plan: {
-    icon: Users,
-    emoji: "👫",
-    title: "Plan Dúo",
-    subtitle: "Dos cuentas Premium, una sola factura",
-    features: [
-      "Todo lo de Premium para dos cuentas independientes",
-      "Una sola factura, perfiles separados",
-      "Portafolios independientes con análisis separado",
-      "Privacidad total — sin datos compartidos entre cuentas",
-    ],
-    color: "#3b82f6",
-    badge: "Disponible",
-  },
-  session: {
-    icon: Video,
-    emoji: "🎯",
-    title: "Sesión 1:1 con Diego",
-    subtitle: "45 minutos con el fundador de Nuvos AI",
-    features: [
-      "Videollamada de 45 min con Diego Arria, fundador de Nuvos AI",
-      "Revisión de tu puntuación de madurez inversora",
-      "Análisis de tu portafolio y estrategia de inversión",
-      "3 próximos pasos concretos para tu situación específica",
-      "Grabación de la sesión entregada después de la llamada",
-    ],
-    color: "#00d47e",
-    badge: "Agenda disponible",
-  },
-};
+function getOfferMeta(t: TFunction) {
+  return {
+    annual_report: {
+      icon: Calendar,
+      emoji: "📊",
+      title: t("upsellModal.annualReport.title"),
+      subtitle: t("upsellModal.annualReport.subtitle"),
+      features: t("upsellModal.annualReport.features", { returnObjects: true }) as string[],
+      color: "#8b5cf6",
+      badge: t("upsellModal.annualReport.badge"),
+    },
+    family_plan: {
+      icon: Users,
+      emoji: "👫",
+      title: t("upsellModal.familyPlan.title"),
+      subtitle: t("upsellModal.familyPlan.subtitle"),
+      features: t("upsellModal.familyPlan.features", { returnObjects: true }) as string[],
+      color: "#3b82f6",
+      badge: t("upsellModal.familyPlan.badge"),
+    },
+    session: {
+      icon: Video,
+      emoji: "🎯",
+      title: t("upsellModal.session.title"),
+      subtitle: t("upsellModal.session.subtitle"),
+      features: t("upsellModal.session.features", { returnObjects: true }) as string[],
+      color: "#00d47e",
+      badge: t("upsellModal.session.badge"),
+    },
+  };
+}
 
 export default function UpsellModal({ offer, prices, triggerSource, onClose }: UpsellModalProps) {
+  const { t } = useTranslation();
   const { tier } = useSubscriptionStore();
   const [loading, setLoading] = useState(false);
   const [variant, setVariant] = useState<"default" | "bundle">("default");
   const [duoVariant, setDuoVariant] = useState<"monthly" | "yearly">("monthly");
 
   if (!offer) return null;
+  const OFFER_META = getOfferMeta(t);
   const meta = OFFER_META[offer];
   const isPremium = tier === "premium";
 
   const displayPrice = offer === "family_plan"
-    ? duoVariant === "monthly" ? `$${prices.monthly ?? 19.99}/mes` : `$${prices.yearly ?? 199.99}/año`
+    ? duoVariant === "monthly" ? `$${prices.monthly ?? 19.99}${t("upsellModal.perMonth")}` : `$${prices.yearly ?? 199.99}${t("upsellModal.perYear")}`
     : isPremium
     ? `$${variant === "bundle" ? (prices.bundle ?? 247) : (prices.premium ?? 0)}`
     : `$${prices.free ?? 0}`;
@@ -171,14 +160,14 @@ export default function UpsellModal({ offer, prices, triggerSource, onClose }: U
                   }}
                 >
                   <p className="text-xs font-black" style={{ color: variant === v ? "#fff" : "var(--muted)" }}>
-                    {v === "default" ? "1 sesión" : "Pack 3 sesiones"}
+                    {v === "default" ? t("upsellModal.oneSession") : t("upsellModal.pack3Sessions")}
                   </p>
                   <p className="text-sm font-black mt-0.5" style={{ color: variant === v ? "#fff" : "var(--sub)" }}>
                     {v === "default" ? `$${prices.premium ?? 99}` : `$${prices.bundle ?? 247}`}
                   </p>
                   {v === "bundle" && (
                     <p className="text-[10px] mt-0.5" style={{ color: variant === v ? "rgba(255,255,255,0.75)" : "var(--dim)" }}>
-                      Ahorra ${Math.round(((prices.premium ?? 99) * 3) - (prices.bundle ?? 247))}
+                      {t("upsellModal.save", { amount: Math.round(((prices.premium ?? 99) * 3) - (prices.bundle ?? 247)) })}
                     </p>
                   )}
                 </button>
@@ -200,14 +189,14 @@ export default function UpsellModal({ offer, prices, triggerSource, onClose }: U
                   }}
                 >
                   <p className="text-xs font-black" style={{ color: duoVariant === v ? "#fff" : "var(--muted)" }}>
-                    {v === "monthly" ? "Mensual" : "Anual"}
+                    {v === "monthly" ? t("upsellModal.monthly") : t("upsellModal.annual")}
                   </p>
                   <p className="text-sm font-black mt-0.5" style={{ color: duoVariant === v ? "#fff" : "var(--sub)" }}>
                     {v === "monthly" ? `$${prices.monthly ?? 19.99}/mes` : `$${prices.yearly ?? 199.99}/año`}
                   </p>
                   {v === "yearly" && (
                     <p className="text-[10px] mt-0.5" style={{ color: duoVariant === v ? "rgba(255,255,255,0.75)" : "var(--dim)" }}>
-                      Ahorra ${Math.round(((prices.monthly ?? 19.99) * 12) - (prices.yearly ?? 199.99))}
+                      {t("upsellModal.save", { amount: Math.round(((prices.monthly ?? 19.99) * 12) - (prices.yearly ?? 199.99)) })}
                     </p>
                   )}
                 </button>
@@ -221,14 +210,14 @@ export default function UpsellModal({ offer, prices, triggerSource, onClose }: U
               <span className="text-2xl font-black" style={{ color: "var(--text)" }}>{displayPrice}</span>
               {offer !== "family_plan" && (
                 <span className="text-xs" style={{ color: "var(--muted)" }}>
-                  {isPremium ? "• Precio exclusivo Premium" : "pago único"}
+                  {isPremium ? `• ${t("upsellModal.exclusivePremiumPrice")}` : t("upsellModal.oneTimePayment")}
                 </span>
               )}
             </div>
             {isPremium && (
               <div className="flex items-center gap-1 mt-1">
                 <Star className="w-3 h-3 fill-current" style={{ color: meta.color }} />
-                <span className="text-xs font-semibold" style={{ color: meta.color }}>Precio exclusivo Premium</span>
+                <span className="text-xs font-semibold" style={{ color: meta.color }}>{t("upsellModal.exclusivePremiumPrice")}</span>
               </div>
             )}
           </div>
@@ -236,7 +225,7 @@ export default function UpsellModal({ offer, prices, triggerSource, onClose }: U
           {/* Premium conversion nudge for free users — no revealing premium price */}
           {!isPremium && (
             <p className="text-center text-xs" style={{ color: "var(--dim)" }}>
-              ¿Aún no eres Premium? Suscríbete y obtén precio especial.
+              {t("upsellModal.notPremiumYet")}
             </p>
           )}
         </div>
@@ -253,16 +242,16 @@ export default function UpsellModal({ offer, prices, triggerSource, onClose }: U
               boxShadow: `0 4px 20px ${meta.color}44`,
             }}
           >
-            {loading ? "Redirigiendo…" : (
+            {loading ? t("upsellModal.redirecting") : (
               <>
-                {offer === "session" ? "Reservar sesión" : offer === "family_plan" ? "Activar Plan Dúo" : "Obtener mi reporte"}
+                {offer === "session" ? t("upsellModal.bookSession") : offer === "family_plan" ? t("upsellModal.activateDuoPlan") : t("upsellModal.getMyReport")}
                 <ArrowRight className="w-4 h-4" />
               </>
             )}
           </button>
           <button onClick={handleDismiss} className="w-full py-2 text-xs text-center hover:opacity-70 transition-opacity"
                   style={{ color: "var(--dim)" }}>
-            Quizás más adelante
+            {t("upsellModal.maybeLater")}
           </button>
         </div>
       </div>

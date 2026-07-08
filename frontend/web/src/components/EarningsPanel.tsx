@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { TrendingUp, TrendingDown, Calendar, ChevronDown, ChevronUp, Zap, Loader2, Eye, Briefcase, BarChart2, DollarSign, HelpCircle } from "lucide-react";
 import { earningsApi } from "@/lib/api";
 import PremiumToolLocked from "@/components/PremiumToolLocked";
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 
 interface EarningsEntry {
   ticker: string;
@@ -33,13 +35,13 @@ interface EarningsPanelProps {
   onUpgrade: () => void;
 }
 
-function daysLabel(dateStr: string | null, status: string): string {
-  if (!dateStr) return "Fecha por confirmar";
+function daysLabel(t: TFunction, dateStr: string | null, status: string): string {
+  if (!dateStr) return t("earningsPanel.dateTbd");
   const diff = Math.ceil((new Date(dateStr).getTime() - Date.now()) / 86400000);
-  if (status === "today" || diff === 0) return "Hoy";
-  if (diff === 1) return "Mañana";
-  if (diff < 0) return `Hace ${Math.abs(diff)} días`;
-  return `En ${diff} días`;
+  if (status === "today" || diff === 0) return t("earningsPanel.today");
+  if (diff === 1) return t("earningsPanel.tomorrow");
+  if (diff < 0) return t("earningsPanel.daysAgo", { count: Math.abs(diff) });
+  return t("earningsPanel.inDays", { count: diff });
 }
 
 function formatDate(dateStr: string | null): string {
@@ -49,6 +51,7 @@ function formatDate(dateStr: string | null): string {
 }
 
 export default function EarningsPanel({ positions, watchlistTickers = [], isPremium, onUpgrade }: EarningsPanelProps) {
+  const { t } = useTranslation();
   const [calendar, setCalendar]   = useState<EarningsEntry[]>([]);
   const [loading, setLoading]     = useState(false);
   const [expanded, setExpanded]   = useState<string | null>(null);
@@ -94,7 +97,7 @@ export default function EarningsPanel({ positions, watchlistTickers = [], isPrem
       const res: any = await earningsApi.getAnalysis(ticker, p?.shares ?? 0, p?.avg_cost ?? 0);
       setAnalysis(prev => ({ ...prev, [ticker]: res.data.analysis }));
     } catch {
-      setAnalysis(prev => ({ ...prev, [ticker]: "No se pudo obtener el análisis." }));
+      setAnalysis(prev => ({ ...prev, [ticker]: t("earningsPanel.analysisError") }));
     } finally {
       setAnalyzing(prev => ({ ...prev, [ticker]: false }));
     }
@@ -109,16 +112,16 @@ export default function EarningsPanel({ positions, watchlistTickers = [], isPrem
   if (!isPremium) {
     return (
       <PremiumToolLocked
-        title="Calendario de Earnings"
-        tagline="Portfolio + Watchlist con análisis IA"
-        description="Earnings de todas tus posiciones y tu watchlist en un solo lugar. Cuando una empresa reporta, la IA lo analiza al instante: EPS vs estimado, revenue, guidance e impacto en tu inversión."
+        title={t("earningsPanel.title")}
+        tagline={t("earningsPanel.tagline")}
+        description={t("earningsPanel.description")}
         icon={Calendar}
         color="#22c55e"
         benefits={[
-          { icon: Calendar,   text: "Earnings de portafolio y watchlist combinados" },
-          { icon: BarChart2,  text: "EPS real vs estimado con contexto profundo" },
-          { icon: DollarSign, text: "Impacto calculado en tu inversión específica" },
-          { icon: Zap,        text: "Análisis automático sin buscar nada tú" },
+          { icon: Calendar,   text: t("earningsPanel.benefit1") },
+          { icon: BarChart2,  text: t("earningsPanel.benefit2") },
+          { icon: DollarSign, text: t("earningsPanel.benefit3") },
+          { icon: Zap,        text: t("earningsPanel.benefit4") },
         ]}
         onUnlock={onUpgrade}
       />
@@ -134,11 +137,11 @@ export default function EarningsPanel({ positions, watchlistTickers = [], isPrem
       {/* Header */}
       <div className="flex items-center gap-2 p-4 border-b" style={{ borderColor: "var(--border)" }}>
         <Calendar className="w-4 h-4" style={{ color: "var(--accent-l)" }} />
-        <span className="font-semibold text-sm" style={{ color: "var(--text)" }}>Calendario de Earnings</span>
+        <span className="font-semibold text-sm" style={{ color: "var(--text)" }}>{t("earningsPanel.title")}</span>
         {symbols.length > 0 && (
           <span className="text-[10px] px-1.5 py-0.5 rounded-full ml-1"
                 style={{ background: "var(--raised)", color: "var(--muted)" }}>
-            {symbols.length} activos
+            {t("earningsPanel.assetsCount", { count: symbols.length })}
           </span>
         )}
         {loading && <Loader2 className="w-3.5 h-3.5 ml-auto animate-spin" style={{ color: "var(--muted)" }} />}
@@ -147,7 +150,7 @@ export default function EarningsPanel({ positions, watchlistTickers = [], isPrem
       {!loading && calendar.length === 0 && (
         <div className="p-6 text-center">
           <Calendar className="w-8 h-8 mx-auto mb-2" style={{ color: "var(--dim)" }} />
-          <p className="text-xs" style={{ color: "var(--muted)" }}>Cargando fechas de earnings...</p>
+          <p className="text-xs" style={{ color: "var(--muted)" }}>{t("earningsPanel.loadingDates")}</p>
         </div>
       )}
 
@@ -159,7 +162,7 @@ export default function EarningsPanel({ positions, watchlistTickers = [], isPrem
         {/* ── Divider between upcoming and past ── */}
         {upcoming.length > 0 && past.length > 0 && (
           <div className="px-4 py-2" style={{ background: "var(--raised)" }}>
-            <p className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: "var(--dim)" }}>Reportes recientes</p>
+            <p className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: "var(--dim)" }}>{t("earningsPanel.recentReports")}</p>
           </div>
         )}
 
@@ -171,7 +174,7 @@ export default function EarningsPanel({ positions, watchlistTickers = [], isPrem
           <div>
             {(upcoming.length > 0 || past.length > 0) && (
               <div className="px-4 py-2" style={{ background: "var(--raised)" }}>
-                <p className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: "var(--dim)" }}>Fecha sin confirmar</p>
+                <p className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: "var(--dim)" }}>{t("earningsPanel.unconfirmedDate")}</p>
               </div>
             )}
             {unknown.map((entry) => (
@@ -184,11 +187,11 @@ export default function EarningsPanel({ positions, watchlistTickers = [], isPrem
                   <div className="flex items-center gap-1.5">
                     <p className="text-xs font-medium" style={{ color: "var(--text)" }}>{entry.ticker}</p>
                     {portfolioTickers.has(entry.ticker)
-                      ? <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold px-1.5 py-0.5 rounded-full" style={{ background: "rgba(0,168,94,0.12)", color: "var(--accent-l)" }}><Briefcase className="w-2 h-2" />Portafolio</span>
-                      : <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold px-1.5 py-0.5 rounded-full" style={{ background: "rgba(59,130,246,0.12)", color: "#60a5fa" }}><Eye className="w-2 h-2" />Watchlist</span>
+                      ? <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold px-1.5 py-0.5 rounded-full" style={{ background: "rgba(0,168,94,0.12)", color: "var(--accent-l)" }}><Briefcase className="w-2 h-2" />{t("earningsPanel.portfolio")}</span>
+                      : <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold px-1.5 py-0.5 rounded-full" style={{ background: "rgba(59,130,246,0.12)", color: "#60a5fa" }}><Eye className="w-2 h-2" />{t("earningsPanel.watchlist")}</span>
                     }
                   </div>
-                  <p className="text-[10px]" style={{ color: "var(--dim)" }}>Fecha por confirmar</p>
+                  <p className="text-[10px]" style={{ color: "var(--dim)" }}>{t("earningsPanel.dateTbd")}</p>
                 </div>
                 <HelpCircle className="w-3.5 h-3.5" style={{ color: "var(--dim)" }} />
               </div>
@@ -208,6 +211,7 @@ function EarningsRow({ entry, expanded, onExpand, inPortfolio, analysis, analyzi
   analysis?: string;
   analyzing: boolean;
 }) {
+  const { t } = useTranslation();
   const isExpanded = expanded === entry.ticker;
   const isUpcoming = entry.status === "upcoming" || entry.status === "today";
   const beat = entry.eps_actual != null && entry.eps_estimate != null && entry.eps_actual >= entry.eps_estimate;
@@ -228,15 +232,15 @@ function EarningsRow({ entry, expanded, onExpand, inPortfolio, analysis, analyzi
           <div className="flex items-center gap-1.5 flex-wrap">
             <p className="text-xs font-semibold" style={{ color: "var(--text)" }}>{entry.ticker}</p>
             {inPortfolio
-              ? <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold px-1.5 py-0.5 rounded-full" style={{ background: "rgba(0,168,94,0.12)", color: "var(--accent-l)" }}><Briefcase className="w-2 h-2" />Portafolio</span>
-              : <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold px-1.5 py-0.5 rounded-full" style={{ background: "rgba(59,130,246,0.12)", color: "#60a5fa" }}><Eye className="w-2 h-2" />Watchlist</span>
+              ? <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold px-1.5 py-0.5 rounded-full" style={{ background: "rgba(0,168,94,0.12)", color: "var(--accent-l)" }}><Briefcase className="w-2 h-2" />{t("earningsPanel.portfolio")}</span>
+              : <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold px-1.5 py-0.5 rounded-full" style={{ background: "rgba(59,130,246,0.12)", color: "#60a5fa" }}><Eye className="w-2 h-2" />{t("earningsPanel.watchlist")}</span>
             }
-            {beat && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full" style={{ background: "rgba(0,168,94,0.15)", color: "var(--accent-l)" }}>✓ Beat</span>}
-            {miss && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full" style={{ background: "rgba(239,68,68,0.12)", color: "#f87171" }}>✗ Miss</span>}
+            {beat && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full" style={{ background: "rgba(0,168,94,0.15)", color: "var(--accent-l)" }}>{t("earningsPanel.beat")}</span>}
+            {miss && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full" style={{ background: "rgba(239,68,68,0.12)", color: "#f87171" }}>{t("earningsPanel.miss")}</span>}
           </div>
           <div className="flex items-center gap-2 mt-0.5 flex-wrap">
             <p className="text-[10px] font-medium" style={{ color: isUpcoming ? "var(--accent-l)" : "var(--muted)" }}>
-              {daysLabel(entry.event_date, entry.status)}
+              {daysLabel(t, entry.event_date, entry.status)}
             </p>
             {entry.event_date && (
               <p className="text-[10px]" style={{ color: "var(--dim)" }}>{formatDate(entry.event_date)}</p>
@@ -246,9 +250,9 @@ function EarningsRow({ entry, expanded, onExpand, inPortfolio, analysis, analyzi
             )}
             {entry.eps_estimate != null && (
               <p className="text-[10px]" style={{ color: "var(--dim)" }}>
-                EPS est. <span style={{ color: "var(--muted)" }}>${entry.eps_estimate}</span>
+                {t("earningsPanel.epsEst")} <span style={{ color: "var(--muted)" }}>${entry.eps_estimate}</span>
                 {entry.eps_actual != null && (
-                  <span style={{ color: beat ? "var(--accent-l)" : "#f87171" }}> → real ${entry.eps_actual}</span>
+                  <span style={{ color: beat ? "var(--accent-l)" : "#f87171" }}> {t("earningsPanel.actualEps", { value: entry.eps_actual })}</span>
                 )}
               </p>
             )}
@@ -265,7 +269,7 @@ function EarningsRow({ entry, expanded, onExpand, inPortfolio, analysis, analyzi
           {analyzing ? (
             <div className="flex items-center gap-2 py-3">
               <Loader2 className="w-3.5 h-3.5 animate-spin" style={{ color: "var(--accent-l)" }} />
-              <span className="text-xs" style={{ color: "var(--muted)" }}>Analizando con IA...</span>
+              <span className="text-xs" style={{ color: "var(--muted)" }}>{t("earningsPanel.analyzingWithAi")}</span>
             </div>
           ) : analysis ? (
             <div className="text-xs leading-relaxed whitespace-pre-line p-3 rounded-lg"
@@ -275,7 +279,7 @@ function EarningsRow({ entry, expanded, onExpand, inPortfolio, analysis, analyzi
           ) : (
             <div className="flex items-center gap-2 py-2">
               <Loader2 className="w-3.5 h-3.5 animate-spin" style={{ color: "var(--accent-l)" }} />
-              <span className="text-xs" style={{ color: "var(--muted)" }}>Cargando análisis...</span>
+              <span className="text-xs" style={{ color: "var(--muted)" }}>{t("earningsPanel.loadingAnalysis")}</span>
             </div>
           )}
         </div>

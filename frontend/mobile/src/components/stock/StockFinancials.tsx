@@ -3,6 +3,8 @@ import {
   View, Text, TouchableOpacity, ScrollView, StyleSheet, Dimensions, ActivityIndicator,
 } from "react-native";
 import Svg, { Rect, G, Text as SvgText, Line } from "react-native-svg";
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import { marketApi } from "../../lib/api";
 import type { Financials, FinancialPeriod, RichFinancials } from "../../hooks/useStockDetail";
 
@@ -169,6 +171,7 @@ const mr = StyleSheet.create({
 // ─── AI Analysis ──────────────────────────────────────────────────────────────
 
 function AIAnalysis({ ticker }: { ticker: string }) {
+  const { t } = useTranslation();
   const [text, setText] = useState("");
   const [loading, setLoading] = useState(false);
   const loaded = useRef(false);
@@ -189,13 +192,13 @@ function AIAnalysis({ ticker }: { ticker: string }) {
         <View style={ai.iconBox}>
           <Text style={{ fontSize: 11 }}>✦</Text>
         </View>
-        <Text style={ai.title}>Análisis IA</Text>
+        <Text style={ai.title}>{t("stockFinancials.aiAnalysisTitle")}</Text>
       </View>
       {loading
         ? <ActivityIndicator size="small" color={D.purple} style={{ marginTop: 4 }} />
         : text
           ? <Text style={ai.body}>{text}</Text>
-          : <Text style={[ai.body, { opacity: 0.45 }]}>Sin análisis disponible</Text>
+          : <Text style={[ai.body, { opacity: 0.45 }]}>{t("stockFinancials.aiAnalysisLoading")}</Text>
       }
     </View>
   );
@@ -224,24 +227,25 @@ const sl = StyleSheet.create({
 // ─── Tab content ──────────────────────────────────────────────────────────────
 
 function IncomeTab({ periods, ticker }: { periods: FinancialPeriod[]; ticker?: string }) {
+  const { t } = useTranslation();
   return (
     <View>
-      <SectionLabel title="Ingresos Totales" />
+      <SectionLabel title={t("stockFinancials.income.totalRevenueSection")} />
       <View style={{ paddingHorizontal: PAD }}>
         <MiniBarChart periods={periods} field="Total Revenue" accent={D.green} />
       </View>
       <View style={{ paddingHorizontal: PAD, paddingTop: 6 }}>
-        <MetricRow label="Ingresos Totales"    periods={periods} field="Total Revenue" />
-        <MetricRow label="Costo de Ventas"     periods={periods} field="Cost Of Revenue" />
-        <MetricRow label="Utilidad Bruta"      periods={periods} field="Gross Profit" />
-        <MetricRow label="  Margen Bruto"      periods={periods} field="Gross Margin %" isMargin indent />
-        <MetricRow label="Gastos Operativos"   periods={periods} field="Operating Expenses" />
-        <MetricRow label="Utilidad Operativa"  periods={periods} field="Operating Income" />
-        <MetricRow label="  Margen Operativo"  periods={periods} field="Operating Margin %" isMargin indent />
-        <MetricRow label="EBITDA"              periods={periods} field="EBITDA" />
-        <MetricRow label="Utilidad Neta"       periods={periods} field="Net Income" />
-        <MetricRow label="  Margen Neto"       periods={periods} field="Net Margin %" isMargin indent />
-        <MetricRow label="EPS Diluido"         periods={periods} field="Diluted EPS" />
+        <MetricRow label={t("stockFinancials.income.totalRevenue")}    periods={periods} field="Total Revenue" />
+        <MetricRow label={t("stockFinancials.income.costOfRevenue")}   periods={periods} field="Cost Of Revenue" />
+        <MetricRow label={t("stockFinancials.income.grossProfit")}     periods={periods} field="Gross Profit" />
+        <MetricRow label={"  " + t("stockFinancials.income.grossMargin")}      periods={periods} field="Gross Margin %" isMargin indent />
+        <MetricRow label={t("stockFinancials.income.operatingExpenses")} periods={periods} field="Operating Expenses" />
+        <MetricRow label={t("stockFinancials.income.operatingIncome")}  periods={periods} field="Operating Income" />
+        <MetricRow label={"  " + t("stockFinancials.income.operatingMargin")}  periods={periods} field="Operating Margin %" isMargin indent />
+        <MetricRow label={t("stockFinancials.income.ebitda")}              periods={periods} field="EBITDA" />
+        <MetricRow label={t("stockFinancials.income.netIncome")}       periods={periods} field="Net Income" />
+        <MetricRow label={"  " + t("stockFinancials.income.netMargin")}       periods={periods} field="Net Margin %" isMargin indent />
+        <MetricRow label={t("stockFinancials.income.dilutedEps")}         periods={periods} field="Diluted EPS" />
       </View>
       {ticker && <AIAnalysis ticker={ticker} />}
       <View style={{ height: 16 }} />
@@ -250,18 +254,19 @@ function IncomeTab({ periods, ticker }: { periods: FinancialPeriod[]; ticker?: s
 }
 
 function BalanceTab({ periods }: { periods: FinancialPeriod[] }) {
+  const { t } = useTranslation();
   return (
     <View>
-      <SectionLabel title="Activos Totales" />
+      <SectionLabel title={t("stockFinancials.balance.totalAssetsSection")} />
       <View style={{ paddingHorizontal: PAD }}>
         <MiniBarChart periods={periods} field="Total Assets" accent="#3b82f6" />
       </View>
       <View style={{ paddingHorizontal: PAD, paddingTop: 6 }}>
-        <MetricRow label="Activos Totales"    periods={periods} field="Total Assets" />
-        <MetricRow label="Activos Corrientes" periods={periods} field="Current Assets" />
-        <MetricRow label="Pasivos Totales"    periods={periods} field="Total Liabilities Net Minority Interest" />
-        <MetricRow label="Patrimonio Neto"    periods={periods} field="Stockholders Equity" />
-        <MetricRow label="Deuda Total"        periods={periods} field="Total Debt" />
+        <MetricRow label={t("stockFinancials.balance.totalAssets")}    periods={periods} field="Total Assets" />
+        <MetricRow label={t("stockFinancials.balance.currentAssets")} periods={periods} field="Current Assets" />
+        <MetricRow label={t("stockFinancials.balance.totalLiabilities")}    periods={periods} field="Total Liabilities Net Minority Interest" />
+        <MetricRow label={t("stockFinancials.balance.stockholdersEquity")}    periods={periods} field="Stockholders Equity" />
+        <MetricRow label={t("stockFinancials.balance.totalDebt")}        periods={periods} field="Total Debt" />
       </View>
       <View style={{ height: 16 }} />
     </View>
@@ -269,16 +274,17 @@ function BalanceTab({ periods }: { periods: FinancialPeriod[] }) {
 }
 
 function CashFlowTab({ periods }: { periods: FinancialPeriod[] }) {
+  const { t } = useTranslation();
   return (
     <View>
-      <SectionLabel title="Flujo Operativo" />
+      <SectionLabel title={t("stockFinancials.cashflow.operatingSection")} />
       <View style={{ paddingHorizontal: PAD }}>
         <MiniBarChart periods={periods} field="Operating Cash Flow" accent={D.amber} />
       </View>
       <View style={{ paddingHorizontal: PAD, paddingTop: 6 }}>
-        <MetricRow label="Flujo Operativo"     periods={periods} field="Operating Cash Flow" />
-        <MetricRow label="Flujo de Caja Libre" periods={periods} field="Free Cash Flow" />
-        <MetricRow label="CapEx"               periods={periods} field="Capital Expenditure" />
+        <MetricRow label={t("stockFinancials.cashflow.operatingCashFlow")}     periods={periods} field="Operating Cash Flow" />
+        <MetricRow label={t("stockFinancials.cashflow.freeCashFlow")} periods={periods} field="Free Cash Flow" />
+        <MetricRow label={t("stockFinancials.cashflow.capex")}               periods={periods} field="Capital Expenditure" />
       </View>
       <View style={{ height: 16 }} />
     </View>
@@ -290,16 +296,18 @@ function CashFlowTab({ periods }: { periods: FinancialPeriod[] }) {
 type SubTab = "income" | "balance" | "cashflow";
 type Period = "annual" | "quarterly";
 
-const SUB_TABS: { key: SubTab; label: string }[] = [
-  { key: "income",   label: "Estado de Resultados" },
-  { key: "balance",  label: "Balance General" },
-  { key: "cashflow", label: "Flujo de Caja" },
-];
+function getSubTabs(t: TFunction): { key: SubTab; label: string }[] {
+  return [
+    { key: "income",   label: t("stockFinancials.tabs.income") },
+    { key: "balance",  label: t("stockFinancials.tabs.balance") },
+    { key: "cashflow", label: t("stockFinancials.tabs.cashflow") },
+  ];
+}
 
-function providerLabel(p?: string): string {
-  if (p === "fiscal_ai") return "Fiscal.ai";
-  if (p === "fmp")       return "Financial Modeling Prep";
-  return "Yahoo Finance";
+function providerLabel(p: string | undefined, t: TFunction): string {
+  if (p === "fiscal_ai") return t("stockFinancials.provider.fiscalAi");
+  if (p === "fmp")       return t("stockFinancials.provider.fmp");
+  return t("stockFinancials.provider.yahoo");
 }
 
 interface Props {
@@ -309,6 +317,8 @@ interface Props {
 }
 
 export default function StockFinancials({ financials, richFin, ticker }: Props) {
+  const { t } = useTranslation();
+  const SUB_TABS = getSubTabs(t);
   const [subTab, setSubTab] = useState<SubTab>("income");
   const [period, setPeriod] = useState<Period>("annual");
 
@@ -335,7 +345,7 @@ export default function StockFinancials({ financials, richFin, ticker }: Props) 
   if (!hasData) {
     return (
       <View style={{ alignItems: "center", paddingVertical: 56 }}>
-        <Text style={{ color: D.muted, fontSize: 13 }}>Sin estados financieros</Text>
+        <Text style={{ color: D.muted, fontSize: 13 }}>{t("stockFinancials.noStatements")}</Text>
       </View>
     );
   }
@@ -354,12 +364,12 @@ export default function StockFinancials({ financials, richFin, ticker }: Props) 
               activeOpacity={0.7}
             >
               <Text style={[s.periodText, { color: period === p ? D.green : D.muted }]}>
-                {p === "annual" ? "Anual" : "Trimestral"}
+                {p === "annual" ? t("stockFinancials.period.annual") : t("stockFinancials.period.quarterly")}
               </Text>
             </TouchableOpacity>
           ))}
         </View>
-        <Text style={s.source}>{providerLabel(richFin?.provider ?? financials.source)}</Text>
+        <Text style={s.source}>{providerLabel(richFin?.provider ?? financials.source, t)}</Text>
       </View>
 
       {/* ── Sub-tabs ── */}
@@ -368,17 +378,17 @@ export default function StockFinancials({ financials, richFin, ticker }: Props) 
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={{ paddingHorizontal: PAD, gap: 8, paddingBottom: 14 }}
       >
-        {SUB_TABS.map((t) => {
-          const active = t.key === subTab;
+        {SUB_TABS.map((tab) => {
+          const active = tab.key === subTab;
           return (
             <TouchableOpacity
-              key={t.key}
-              onPress={() => setSubTab(t.key)}
+              key={tab.key}
+              onPress={() => setSubTab(tab.key)}
               style={[s.pill, active && s.pillActive]}
               activeOpacity={0.7}
             >
               <Text style={[s.pillText, { color: active ? D.green : D.muted }]}>
-                {t.label}
+                {tab.label}
               </Text>
             </TouchableOpacity>
           );

@@ -2766,5 +2766,203 @@
     "mature": "Mature",
     "expert": "Expert",
     "expertBanner": "You're an Expert! 🏆"
+  },
+  "stockAnalysts": {
+    "consensus": {
+      "strongBuy": "Strong Buy",
+      "strongSell": "Strong Sell",
+      "buy": "Buy",
+      "sell": "Sell",
+      "neutral": "Neutral",
+      "noData": "No data"
+    },
+    "targetPriceLabel": "Average price target",
+    "potential": "potential",
+    "stats": {
+      "low": "Low",
+      "target": "Target",
+      "high": "High"
+    },
+    "legend": {
+      "current": "Current price",
+      "analystTarget": "Analyst target"
+    },
+    "cardTitle": "Analyst Consensus",
+    "noAnalystData": "No analyst data",
+    "analystCount": "{{count}} analysts",
+    "bullPct": "{{pct}}% bullish",
+    "bullLabel": "Buy {{count}}",
+    "bearLabel": "Sell {{count}}",
+    "priceTargetCardTitle": "Price Target · 12 months"
+  },
+  "mobileWhatIf": {
+    "scenarios": {
+      "swap": "Swap position",
+      "addMonthly": "Monthly contribution",
+      "macro": "Macro event",
+      "custom": "Free-form scenario"
+    },
+    "macroEvents": {
+      "fedHikes": "The Fed raises rates to 7%",
+      "usRecession": "US recession",
+      "techCrash": "Tech crash -40%",
+      "aiBoom": "AI boom +50%",
+      "inflation": "8% inflation"
+    },
+    "defaultErrorSummary": "Couldn't complete the simulation.",
+    "cardTitle": "What If? Simulator",
+    "cardTagline": "Test decisions before you make them",
+    "features": {
+      "swap": "What if I sell X and buy Y?",
+      "monthly": "Monthly contribution projection over N years",
+      "summary": "Your mentor's summary for every scenario"
+    },
+    "ctaSimulate": "Simulate Scenario",
+    "modalTitle": "⚡ What If?",
+    "sectionLabel": "SCENARIO TYPE",
+    "sellTicker": "Sell (current ticker)",
+    "sellPlaceholder": "E.g: TSLA",
+    "buyTicker": "Buy",
+    "buyPlaceholder": "E.g: VOO",
+    "monthlyAmount": "Monthly amount ($)",
+    "monthlyPlaceholder": "E.g: 300",
+    "duringYears": "For (years)",
+    "yearsPlaceholder": "E.g: 5",
+    "macroEventLabel": "Macroeconomic event",
+    "macroEventPlaceholder": "Or write your own event...",
+    "customDescLabel": "Describe the scenario",
+    "customDescPlaceholder": "E.g: What if I sell everything and buy SPY?",
+    "runBtn": "⚡ Simulate scenario",
+    "mentorSummary": "🧠 Mentor summary"
+  },
+  "upsellModal": {
+    "offers": {
+      "annualReport": {
+        "title": "Investor Maturity Annual Report",
+        "subtitle": "Your evolution as an investor, documented",
+        "badge": "Annual edition",
+        "features": [
+          "Month-by-month evolution of your Maturity Score (1-100)",
+          "Analysis of your risk profile and investor behavior",
+          "Real vs. self-reported risk profile at sign-up",
+          "Recommendations from your AI Mentor for next year",
+          "Digital certificate: \"Informed Investor — Nuvos AI\""
+        ],
+        "ctaLabel": "Get my report"
+      },
+      "familyPlan": {
+        "title": "Duo Plan",
+        "subtitle": "Two Premium accounts, one bill",
+        "badge": "Available",
+        "features": [
+          "Everything in Premium for two independent accounts",
+          "One single bill, separate profiles",
+          "Independent portfolios with separate analysis",
+          "Total privacy — no data shared between accounts"
+        ],
+        "ctaLabel": "Activate Duo Plan"
+      },
+      "session": {
+        "title": "1:1 Session with Diego",
+        "subtitle": "45 minutes with the founder of Nuvos AI",
+        "badge": "Booking available",
+        "features": [
+          "45-min video call with Diego Arria, founder of Nuvos AI",
+          "Review of your investor maturity score",
+          "Analysis of your portfolio and investment strategy",
+          "3 concrete next steps for your specific situation",
+          "Session recording delivered after the call"
+        ],
+        "ctaLabel": "Book session"
+      }
+    },
+    "sessionVariant": {
+      "single": "1 session",
+      "bundle": "3-session pack",
+      "save": "Save ${{amount}}"
+    },
+    "duoVariant": {
+      "monthly": "Monthly",
+      "yearly": "Yearly",
+      "save": "Save ${{amount}}"
+    },
+    "perMonth": "/mo",
+    "perYear": "/yr",
+    "oneTimePayment": "one-time payment",
+    "premiumExclusivePrice": "· Exclusive Premium price",
+    "premiumBadge": "Exclusive Premium price",
+    "freeNudge": "Not Premium yet? Subscribe and get a special price.",
+    "maybeLater": "Maybe later"
+  },
+  "stockChart": {
+    "periods": {
+      "1d": "1D",
+      "5d": "1W",
+      "1m": "1M",
+      "6m": "6M",
+      "1y": "1Y",
+      "5y": "5Y"
+    },
+    "loadError": "Couldn't load data",
+    "noData": "No data"
+  },
+  "voiceCallModal": {
+    "errors": {
+      "micPermission": "I need microphone permission for the call.",
+      "connectFailed": "Couldn't connect to the Mentor.",
+      "unexpectedClose": "The call closed unexpectedly.",
+      "micAccessFailed": "Couldn't access the microphone.",
+      "startFailed": "Couldn't start the call.",
+      "generic": "An error occurred."
+    },
+    "connecting": "Calling...",
+    "mentorName": "AI Mentor"
+  },
+  "stockFinancials": {
+    "noStatements": "No financial statements",
+    "period": {
+      "annual": "Annual",
+      "quarterly": "Quarterly"
+    },
+    "tabs": {
+      "income": "Income Statement",
+      "balance": "Balance Sheet",
+      "cashflow": "Cash Flow"
+    },
+    "income": {
+      "totalRevenueSection": "Total Revenue",
+      "totalRevenue": "Total Revenue",
+      "costOfRevenue": "Cost of Revenue",
+      "grossProfit": "Gross Profit",
+      "grossMargin": "Gross Margin",
+      "operatingExpenses": "Operating Expenses",
+      "operatingIncome": "Operating Income",
+      "operatingMargin": "Operating Margin",
+      "ebitda": "EBITDA",
+      "netIncome": "Net Income",
+      "netMargin": "Net Margin",
+      "dilutedEps": "Diluted EPS"
+    },
+    "balance": {
+      "totalAssetsSection": "Total Assets",
+      "totalAssets": "Total Assets",
+      "currentAssets": "Current Assets",
+      "totalLiabilities": "Total Liabilities",
+      "stockholdersEquity": "Stockholders Equity",
+      "totalDebt": "Total Debt"
+    },
+    "cashflow": {
+      "operatingSection": "Operating Cash Flow",
+      "operatingCashFlow": "Operating Cash Flow",
+      "freeCashFlow": "Free Cash Flow",
+      "capex": "CapEx"
+    },
+    "aiAnalysisTitle": "AI Analysis",
+    "aiAnalysisLoading": "No analysis available",
+    "provider": {
+      "fiscalAi": "Fiscal.ai",
+      "fmp": "Financial Modeling Prep",
+      "yahoo": "Yahoo Finance"
+    }
   }
 }

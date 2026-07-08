@@ -4,111 +4,116 @@ import { useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { X, ChevronRight, Lock } from "lucide-react";
 import { useSubscriptionStore, useProfileStore } from "@/lib/store";
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 
-const SECTIONS = [
-  {
-    emoji: "🤖",
-    title: "Mentor IA",
-    subtitle: "Tu mentor personal de inversiones",
-    description: "Hazle cualquier pregunta sobre acciones, mercados, estrategias o tu portafolio. Muestra fundamentos reales — P/E, márgenes, flujo de caja — y te enseña a pensar como inversor.",
-    cta: "Hablar con Nuvos",
-    href: "/chat",
-    tip: "15 mensajes gratis al día. Empieza: '¿Qué es un ETF y cómo funciona?'",
-    premium: false,
-  },
-  {
-    emoji: "💼",
-    title: "Tu Portafolio",
-    subtitle: "Rastrea tus inversiones en tiempo real",
-    description: "Agrega tus posiciones y ve tu rendimiento total, P&L por activo y valor actual. El análisis IA profundo (stress test, distribución por sector, comparativa vs S&P 500) es Premium.",
-    cta: "Ver mi portafolio",
-    href: "/portfolio",
-    tip: "Agrega aunque sea una posición para activar el seguimiento en tiempo real.",
-    premium: false,
-  },
-  {
-    emoji: "👀",
-    title: "Watchlist",
-    subtitle: "Sigue las acciones que te interesan",
-    description: "Monitorea hasta 25 empresas gratis con precios en tiempo real, variación del día y alertas de precio. Sin límite con Premium.",
-    cta: "Ir a Watchlist",
-    href: "/watchlist",
-    tip: "Agrega empresas que usas en tu día a día: Apple, Amazon, Google...",
-    premium: false,
-  },
-  {
-    emoji: "📚",
-    title: "Academy",
-    subtitle: "Aprende a invertir paso a paso",
-    description: "12 categorías completas: desde qué es una acción hasta análisis fundamental, psicología del inversor y estrategias avanzadas. Gratis sin límite.",
-    cta: "Empezar a aprender",
-    href: "/academy",
-    tip: "5 minutos al día es suficiente. El streak de fuego te mantiene motivado.",
-    premium: false,
-  },
-  {
-    emoji: "🎬",
-    title: "Videos educativos",
-    subtitle: "Lo que dicen los mejores inversores del mundo",
-    description: "Clips cortos de Warren Buffett, Ray Dalio, Peter Lynch y más. Filtra por tema (valor, macro, psicología) o por inversor. Gratis completo.",
-    cta: "Ver videos",
-    href: "/feed",
-    tip: "Busca 'pánico' o 'crisis' para ver cómo piensan los mejores en momentos difíciles.",
-    premium: false,
-  },
-  {
-    emoji: "🧮",
-    title: "Calculadora de riqueza",
-    subtitle: "Proyecta tu futuro financiero",
-    description: "Ingresa capital inicial, aporte mensual y rendimiento esperado. Ve tu proyección a 30 años: cuánto acumulas, cuánto es tuyo vs el mercado, y tu meta financiera.",
-    cta: "Calcular mi meta",
-    href: "/patrimonio",
-    tip: "Prueba con $200/mes al 8% anual durante 20 años. El resultado sorprende.",
-    premium: false,
-  },
-  {
-    emoji: "📊",
-    title: "Screener semanal",
-    subtitle: "5 oportunidades cada lunes basadas en tu perfil",
-    description: "Cada lunes la IA selecciona 5 activos con fundamentos reales: catalizador, score 0-100, análisis de riesgo y nota personalizada de tu mentor. Solo para Premium.",
-    cta: "⭐ Activar Premium →",
-    href: null,
-    tip: null,
-    premium: true,
-  },
-  {
-    emoji: "🔬",
-    title: "Análisis IA de portafolio",
-    subtitle: "Fortalezas, debilidades y stress test",
-    description: "Análisis profundo: distribución por sector, score de riesgo 0-100, stress test con 5 crisis históricas y comparativa vs S&P 500. Solo Premium.",
-    cta: "⭐ Activar Premium →",
-    href: null,
-    tip: null,
-    premium: true,
-  },
-  {
-    emoji: "📥",
-    title: "Importación inteligente",
-    subtitle: "Conecta tu broker o importa desde PDF",
-    description: "Sube tu estado de cuenta y la IA extrae todo automáticamente. O conecta Fidelity, Schwab, IOL u otros brokers para sincronización automática. Solo Premium.",
-    cta: "⭐ Activar Premium →",
-    href: null,
-    tip: null,
-    premium: true,
-  },
-  {
-    emoji: "📈",
-    title: "Reporte mensual",
-    subtitle: "Tu performance real cada mes",
-    description: "Al cierre de mes: retorno real, comparativa vs S&P 500, posiciones más rentables y nota personalizada de tu mentor. Solo Premium.",
-    cta: "⭐ Activar Premium →",
-    href: null,
-    tip: null,
-    premium: true,
-  },
-];
+function getSections(t: TFunction) {
+  return [
+    {
+      emoji: "🤖",
+      title: t("nuvosGuide.s1Title"),
+      subtitle: t("nuvosGuide.s1Subtitle"),
+      description: t("nuvosGuide.s1Description"),
+      cta: t("nuvosGuide.s1Cta"),
+      href: "/chat",
+      tip: t("nuvosGuide.s1Tip"),
+      premium: false,
+    },
+    {
+      emoji: "💼",
+      title: t("nuvosGuide.s2Title"),
+      subtitle: t("nuvosGuide.s2Subtitle"),
+      description: t("nuvosGuide.s2Description"),
+      cta: t("nuvosGuide.s2Cta"),
+      href: "/portfolio",
+      tip: t("nuvosGuide.s2Tip"),
+      premium: false,
+    },
+    {
+      emoji: "👀",
+      title: t("nuvosGuide.s3Title"),
+      subtitle: t("nuvosGuide.s3Subtitle"),
+      description: t("nuvosGuide.s3Description"),
+      cta: t("nuvosGuide.s3Cta"),
+      href: "/watchlist",
+      tip: t("nuvosGuide.s3Tip"),
+      premium: false,
+    },
+    {
+      emoji: "📚",
+      title: t("nuvosGuide.s4Title"),
+      subtitle: t("nuvosGuide.s4Subtitle"),
+      description: t("nuvosGuide.s4Description"),
+      cta: t("nuvosGuide.s4Cta"),
+      href: "/academy",
+      tip: t("nuvosGuide.s4Tip"),
+      premium: false,
+    },
+    {
+      emoji: "🎬",
+      title: t("nuvosGuide.s5Title"),
+      subtitle: t("nuvosGuide.s5Subtitle"),
+      description: t("nuvosGuide.s5Description"),
+      cta: t("nuvosGuide.s5Cta"),
+      href: "/feed",
+      tip: t("nuvosGuide.s5Tip"),
+      premium: false,
+    },
+    {
+      emoji: "🧮",
+      title: t("nuvosGuide.s6Title"),
+      subtitle: t("nuvosGuide.s6Subtitle"),
+      description: t("nuvosGuide.s6Description"),
+      cta: t("nuvosGuide.s6Cta"),
+      href: "/patrimonio",
+      tip: t("nuvosGuide.s6Tip"),
+      premium: false,
+    },
+    {
+      emoji: "📊",
+      title: t("nuvosGuide.s7Title"),
+      subtitle: t("nuvosGuide.s7Subtitle"),
+      description: t("nuvosGuide.s7Description"),
+      cta: t("nuvosGuide.s7Cta"),
+      href: null as string | null,
+      tip: null as string | null,
+      premium: true,
+    },
+    {
+      emoji: "🔬",
+      title: t("nuvosGuide.s8Title"),
+      subtitle: t("nuvosGuide.s8Subtitle"),
+      description: t("nuvosGuide.s8Description"),
+      cta: t("nuvosGuide.s8Cta"),
+      href: null as string | null,
+      tip: null as string | null,
+      premium: true,
+    },
+    {
+      emoji: "📥",
+      title: t("nuvosGuide.s9Title"),
+      subtitle: t("nuvosGuide.s9Subtitle"),
+      description: t("nuvosGuide.s9Description"),
+      cta: t("nuvosGuide.s9Cta"),
+      href: null as string | null,
+      tip: null as string | null,
+      premium: true,
+    },
+    {
+      emoji: "📈",
+      title: t("nuvosGuide.s10Title"),
+      subtitle: t("nuvosGuide.s10Subtitle"),
+      description: t("nuvosGuide.s10Description"),
+      cta: t("nuvosGuide.s10Cta"),
+      href: null as string | null,
+      tip: null as string | null,
+      premium: true,
+    },
+  ];
+}
 
 export default function NuvosGuide() {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState<number | null>(null);
   const router = useRouter();
@@ -120,6 +125,7 @@ export default function NuvosGuide() {
   if (isAuthPage) return null;
   if (tier === "premium") return null;
 
+  const SECTIONS = getSections(t);
   const freeSections    = SECTIONS.filter((s) => !s.premium);
   const premiumSections = SECTIONS.filter((s) => s.premium);
 
@@ -146,7 +152,7 @@ export default function NuvosGuide() {
         }}
       >
         <span className="text-base">🗺️</span>
-        <span>Guía Nuvos</span>
+        <span>{t("nuvosGuide.floatingButton")}</span>
       </button>
 
       {/* Overlay */}
@@ -164,8 +170,8 @@ export default function NuvosGuide() {
             {/* Header */}
             <div className="flex items-center justify-between px-5 py-4 border-b" style={{ borderColor: "var(--border)" }}>
               <div>
-                <p className="font-black text-base" style={{ color: "var(--text)" }}>🗺️ Guía Nuvos</p>
-                <p className="text-xs mt-0.5" style={{ color: "var(--muted)" }}>Todo lo que puedes hacer en la plataforma</p>
+                <p className="font-black text-base" style={{ color: "var(--text)" }}>{t("nuvosGuide.drawerTitle")}</p>
+                <p className="text-xs mt-0.5" style={{ color: "var(--muted)" }}>{t("nuvosGuide.drawerSubtitle")}</p>
               </div>
               <button onClick={() => { setOpen(false); setActive(null); }} className="p-1.5 rounded-xl hover:opacity-70">
                 <X className="w-5 h-5" style={{ color: "var(--muted)" }} />
@@ -177,7 +183,7 @@ export default function NuvosGuide() {
 
               {/* Free features */}
               <p className="text-[10px] font-bold uppercase tracking-widest px-1 mb-3" style={{ color: "var(--dim)" }}>
-                Disponible en tu plan gratuito
+                {t("nuvosGuide.freeTierAvailable")}
               </p>
 
               {freeSections.map((s, i) => (
@@ -229,7 +235,7 @@ export default function NuvosGuide() {
 
               {/* Premium teaser */}
               <p className="text-[10px] font-bold uppercase tracking-widest px-1 mt-5 mb-3" style={{ color: "var(--dim)" }}>
-                ⭐ Exclusivo Premium — desbloquea todo
+                {t("nuvosGuide.premiumTeaser")}
               </p>
 
               {premiumSections.map((s, i) => {
@@ -258,7 +264,7 @@ export default function NuvosGuide() {
                           <p className="font-bold text-sm" style={{ color: "var(--text)" }}>{s.title}</p>
                           <span className="text-[9px] font-black px-1.5 py-0.5 rounded-full"
                                 style={{ background: "rgba(245,158,11,0.15)", color: "#f59e0b" }}>
-                            PREMIUM
+                            {t("nuvosGuide.premiumBadge")}
                           </span>
                         </div>
                         <p className="text-xs truncate" style={{ color: "var(--muted)" }}>{s.subtitle}</p>
@@ -278,7 +284,7 @@ export default function NuvosGuide() {
                           className="w-full py-2.5 rounded-xl text-sm font-bold transition-all hover:opacity-90"
                           style={{ background: "linear-gradient(90deg,#f59e0b,#f97316)", color: "#000" }}
                         >
-                          ⭐ Activar Premium →
+                          {t("nuvosGuide.activatePremiumCta")}
                         </button>
                       </div>
                     )}
@@ -293,10 +299,10 @@ export default function NuvosGuide() {
                   className="w-full py-3.5 rounded-2xl text-sm font-black transition-all hover:opacity-90"
                   style={{ background: "linear-gradient(90deg,#f59e0b,#f97316)", color: "#000" }}
                 >
-                  ⭐ Activar Premium — $10.33/mes
+                  {t("nuvosGuide.bottomCta")}
                 </button>
                 <p className="text-center text-xs mt-2" style={{ color: "var(--dim)" }}>
-                  Cancela cuando quieras · Sin compromiso
+                  {t("nuvosGuide.bottomSubCta")}
                 </p>
               </div>
             </div>

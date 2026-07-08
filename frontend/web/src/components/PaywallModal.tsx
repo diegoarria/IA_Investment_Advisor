@@ -3,50 +3,58 @@
 import { useState } from "react";
 import { X, Star, Zap, TrendingUp, Shield, BarChart2, Brain, ChevronDown, ChevronUp, ArrowRight, Check } from "lucide-react";
 import { billing } from "@/lib/api";
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 
-const PLANS = [
-  {
-    id: "monthly" as const,
-    label: "Mensual",
-    price: "$12.99",
-    priceNum: 12.99,
-    period: "/mes",
-    badge: null,
-    sub: "Facturado mensualmente",
-  },
-  {
-    id: "yearly" as const,
-    label: "Anual",
-    price: "$125.99",
-    priceNum: 125.99,
-    period: "/año",
-    badge: "MÁS POPULAR",
-    sub: "$10.50/mes · Ahorra $29.89",
-  },
-];
+function getPlans(t: TFunction) {
+  return [
+    {
+      id: "monthly" as const,
+      label: t("paywallModal.planMonthlyLabel"),
+      price: "$12.99",
+      priceNum: 12.99,
+      period: t("paywallModal.periodMonthly"),
+      badge: null as string | null,
+      sub: t("paywallModal.planMonthlySub"),
+    },
+    {
+      id: "yearly" as const,
+      label: t("paywallModal.planYearlyLabel"),
+      price: "$125.99",
+      priceNum: 125.99,
+      period: t("paywallModal.periodYearly"),
+      badge: t("paywallModal.planYearlyBadge") as string | null,
+      sub: t("paywallModal.planYearlySub"),
+    },
+  ];
+}
 
-const HERO_FEATURES = [
-  { icon: Brain,      text: "Entiende qué hacer con tu dinero antes de que cierre el mercado" },
-  { icon: TrendingUp, text: "Sabe exactamente cuánto ganaste o perdiste, y por qué" },
-  { icon: Zap,        text: "Nunca te sorprende una noticia — te avisamos antes de que mueva tu dinero" },
-  { icon: Shield,     text: "Tu portafolio armado en 30 segundos, sin hojas de cálculo" },
-  { icon: BarChart2,  text: "5 oportunidades concretas cada semana, con la razón y el riesgo" },
-];
+function getHeroFeatures(t: TFunction) {
+  return [
+    { icon: Brain,      text: t("paywallModal.heroFeature1") },
+    { icon: TrendingUp, text: t("paywallModal.heroFeature2") },
+    { icon: Zap,        text: t("paywallModal.heroFeature3") },
+    { icon: Shield,     text: t("paywallModal.heroFeature4") },
+    { icon: BarChart2,  text: t("paywallModal.heroFeature5") },
+  ];
+}
 
-const ALL_FEATURES = [
-  { text: "Pregunta lo que quieras, cuando quieras — sin límite", detail: "Un mentor de IA disponible 24/7 que conoce tu portafolio real y te responde con contexto de lo que ya tienes, no en abstracto." },
-  { text: "Sé el primero en saber cuando una de tus empresas va a reportar", detail: "Antes de los resultados trimestrales, la IA te explica qué esperar y si hay algo que te debería importar. Sin sorpresas." },
-  { text: "Descubre si tu dinero aguantaría otra crisis como 2008 o el COVID", detail: "Simula tu portafolio actual en 30 crisis históricas reales. Ve cuánto hubieras perdido y si estarías cómodo con eso." },
-  { text: "La IA te dice honestamente qué está mal en tu portafolio", detail: "Concentración excesiva en un sector, falta de diversificación, posiciones inconsistentes con tu perfil. Concreto, no genérico." },
-  { text: "Sube tu estado de cuenta y la IA arma todo solo", detail: "Sube una foto o PDF de tu broker. La IA detecta automáticamente tus acciones, cantidades y precios de compra." },
-  { text: "Cada lunes, 5 ideas de inversión pensadas para tu situación", detail: "No ideas genéricas. La IA considera lo que ya tienes, tu perfil y lo que está pasando en el mercado esa semana." },
-  { text: "Entérate de lo que pasa con tus acciones antes de que afecte tu dinero", detail: "Notificaciones cuando algo importante mueve una de tus posiciones — con la explicación del por qué y si deberías hacer algo." },
-  { text: "Al cierre de cada mes, sabe si le ganaste al mercado", detail: "Tu retorno real vs el S&P 500. Una nota personalizada de lo que funcionó y lo que no. Sin excusas, sin lenguaje técnico." },
-  { text: "Aprende sobre las empresas que ya tienes en tu portafolio", detail: "Lecciones diseñadas para lo que tú tienes. Antes de que Apple reporte, entiende qué mirar. Relevante, no genérico." },
-  { text: "Ve cómo se compara tu portafolio con el mercado en tiempo real", detail: "Un panel simple: tu rendimiento hoy, esta semana, este año — frente al S&P 500. Sabes en todo momento si vas bien." },
-  { text: "Agrega todas las acciones que quieras, sin tope", detail: "El plan gratuito tiene límite de 10. Premium elimina ese límite para que tu portafolio sea tuyo, completo." },
-  { text: "Nuvos te conoce mejor con el tiempo — y recuerda todo", detail: "Con Premium construyes tu memoria financiera completa: patrones de comportamiento, timeline de decisiones y evolución de tu portafolio. El plan gratuito solo guarda 10 creencias básicas." },
-];
+function getAllFeatures(t: TFunction) {
+  return [
+    { text: t("paywallModal.feature1Text"), detail: t("paywallModal.feature1Detail") },
+    { text: t("paywallModal.feature2Text"), detail: t("paywallModal.feature2Detail") },
+    { text: t("paywallModal.feature3Text"), detail: t("paywallModal.feature3Detail") },
+    { text: t("paywallModal.feature4Text"), detail: t("paywallModal.feature4Detail") },
+    { text: t("paywallModal.feature5Text"), detail: t("paywallModal.feature5Detail") },
+    { text: t("paywallModal.feature6Text"), detail: t("paywallModal.feature6Detail") },
+    { text: t("paywallModal.feature7Text"), detail: t("paywallModal.feature7Detail") },
+    { text: t("paywallModal.feature8Text"), detail: t("paywallModal.feature8Detail") },
+    { text: t("paywallModal.feature9Text"), detail: t("paywallModal.feature9Detail") },
+    { text: t("paywallModal.feature10Text"), detail: t("paywallModal.feature10Detail") },
+    { text: t("paywallModal.feature11Text"), detail: t("paywallModal.feature11Detail") },
+    { text: t("paywallModal.feature12Text"), detail: t("paywallModal.feature12Detail") },
+  ];
+}
 
 interface PaywallModalProps {
   visible: boolean;
@@ -55,6 +63,7 @@ interface PaywallModalProps {
 }
 
 export default function PaywallModal({ visible, onClose, reason }: PaywallModalProps) {
+  const { t } = useTranslation();
   const [selectedPlan, setSelectedPlan] = useState<"monthly" | "yearly">("yearly");
   const [showAllFeatures, setShowAllFeatures] = useState(false);
   const [expandedFeature, setExpandedFeature] = useState<string | null>(null);
@@ -62,6 +71,9 @@ export default function PaywallModal({ visible, onClose, reason }: PaywallModalP
 
   if (!visible) return null;
 
+  const PLANS = getPlans(t);
+  const HERO_FEATURES = getHeroFeatures(t);
+  const ALL_FEATURES = getAllFeatures(t);
   const active = PLANS.find((p) => p.id === selectedPlan)!;
 
   const handleUpgrade = async () => {
@@ -118,7 +130,7 @@ export default function PaywallModal({ visible, onClose, reason }: PaywallModalP
                 }}
               >
                 <Star className="w-3 h-3 fill-current" />
-                Nuvos AI Premium
+                {t("paywallModal.premiumBadge")}
               </div>
             </div>
 
@@ -127,11 +139,11 @@ export default function PaywallModal({ visible, onClose, reason }: PaywallModalP
               className="text-center text-2xl font-black leading-tight mb-2"
               style={{ color: "var(--text)" }}
             >
-              Conviértete en<br />
-              <span style={{ color: "#00d47e" }}>inversionista de verdad</span>
+              {t("paywallModal.headlineLine1")}<br />
+              <span style={{ color: "#00d47e" }}>{t("paywallModal.headlineLine2")}</span>
             </h2>
             <p className="text-center text-sm mb-4" style={{ color: "var(--muted)" }}>
-              El acompañamiento que necesitas para que tu dinero trabaje para ti — todos los días.
+              {t("paywallModal.subheadline")}
             </p>
 
             {/* Social proof */}
@@ -148,7 +160,7 @@ export default function PaywallModal({ visible, onClose, reason }: PaywallModalP
                 ))}
               </div>
               <p className="text-xs" style={{ color: "var(--sub)" }}>
-                <span className="font-bold" style={{ color: "var(--text)" }}>+2,400 inversores</span> ya usan Premium
+                <span className="font-bold" style={{ color: "var(--text)" }}>{t("paywallModal.investorsCount")}</span> {t("paywallModal.alreadyUsePremium")}
               </p>
             </div>
 
@@ -224,7 +236,7 @@ export default function PaywallModal({ visible, onClose, reason }: PaywallModalP
               style={{ color: "var(--muted)", background: "var(--raised)" }}
             >
               {showAllFeatures ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-              {showAllFeatures ? "Ver menos" : `Ver los ${ALL_FEATURES.length} resultados incluidos`}
+              {showAllFeatures ? t("paywallModal.viewLess") : t("paywallModal.viewAllFeatures", { count: ALL_FEATURES.length })}
             </button>
 
             {showAllFeatures && (
@@ -272,19 +284,19 @@ export default function PaywallModal({ visible, onClose, reason }: PaywallModalP
             }}
           >
             {loading ? (
-              "Redirigiendo..."
+              t("paywallModal.redirecting")
             ) : (
               <>
-                Comenzar ahora · {active.price}{active.period}
+                {t("paywallModal.startNow")} · {active.price}{active.period}
                 <ArrowRight className="w-4 h-4" />
               </>
             )}
           </button>
           <div className="flex items-center justify-center gap-4 mt-2.5">
-            {["Cancela cuando quieras", "Pago seguro con Stripe", "7 días gratis"].map((t) => (
-              <span key={t} className="flex items-center gap-1 text-[10px]" style={{ color: "var(--dim)" }}>
+            {[t("paywallModal.cancelAnytime"), t("paywallModal.securePayment"), t("paywallModal.freeTrial")].map((item) => (
+              <span key={item} className="flex items-center gap-1 text-[10px]" style={{ color: "var(--dim)" }}>
                 <Check className="w-2.5 h-2.5" style={{ color: "#00d47e" }} />
-                {t}
+                {item}
               </span>
             ))}
           </div>
@@ -294,7 +306,7 @@ export default function PaywallModal({ visible, onClose, reason }: PaywallModalP
                style={{ background: "rgba(0,168,94,0.06)" }}>
               <span className="text-sm">📅</span>
               <span className="text-xs font-semibold" style={{ color: "var(--accent-l)" }}>
-                ¿Prefieres una guía 1:1 con Diego?
+                {t("paywallModal.oneOnOneCta")}
               </span>
               <ArrowRight className="w-3 h-3" style={{ color: "var(--accent-l)" }} />
             </a>

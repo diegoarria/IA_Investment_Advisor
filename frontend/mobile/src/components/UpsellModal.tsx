@@ -4,6 +4,8 @@ import {
   ActivityIndicator, Linking, StyleSheet, Pressable,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import { useTheme } from "../lib/ThemeContext";
 import api from "../lib/api";
 import type { UpsellOffer } from "../lib/upsellStore";
@@ -17,61 +19,48 @@ interface UpsellModalProps {
   onClose: () => void;
 }
 
-const OFFER_META = {
-  annual_report: {
-    emoji: "📊",
-    title: "Reporte Anual de Madurez Inversora",
-    subtitle: "Tu evolución como inversor, documentada",
-    color: "#8b5cf6",
-    badge: "Edición anual",
-    features: [
-      "Evolución mes a mes de tu Puntuación de Madurez (1-100)",
-      "Análisis de tu perfil de riesgo y comportamiento inversor",
-      "Perfil de riesgo real vs. declarado al registrarte",
-      "Recomendaciones de tu Mentor IA para el próximo año",
-      'Certificado digital: "Inversor Informado — Nuvos AI"',
-    ],
-    ctaLabel: "Obtener mi reporte",
-  },
-  family_plan: {
-    emoji: "👫",
-    title: "Plan Dúo",
-    subtitle: "Dos cuentas Premium, una sola factura",
-    color: "#3b82f6",
-    badge: "Disponible",
-    features: [
-      "Todo lo de Premium para dos cuentas independientes",
-      "Una sola factura, perfiles separados",
-      "Portafolios independientes con análisis separado",
-      "Privacidad total — sin datos compartidos entre cuentas",
-    ],
-    ctaLabel: "Activar Plan Dúo",
-  },
-  session: {
-    emoji: "🎯",
-    title: "Sesión 1:1 con Diego",
-    subtitle: "45 minutos con el fundador de Nuvos AI",
-    color: "#00d47e",
-    badge: "Agenda disponible",
-    features: [
-      "Videollamada de 45 min con Diego Arria, fundador de Nuvos AI",
-      "Revisión de tu puntuación de madurez inversora",
-      "Análisis de tu portafolio y estrategia de inversión",
-      "3 próximos pasos concretos para tu situación específica",
-      "Grabación de la sesión entregada después de la llamada",
-    ],
-    ctaLabel: "Reservar sesión",
-  },
-};
+function getOfferMeta(t: TFunction) {
+  return {
+    annual_report: {
+      emoji: "📊",
+      title: t("upsellModal.offers.annualReport.title"),
+      subtitle: t("upsellModal.offers.annualReport.subtitle"),
+      color: "#8b5cf6",
+      badge: t("upsellModal.offers.annualReport.badge"),
+      features: t("upsellModal.offers.annualReport.features", { returnObjects: true }) as string[],
+      ctaLabel: t("upsellModal.offers.annualReport.ctaLabel"),
+    },
+    family_plan: {
+      emoji: "👫",
+      title: t("upsellModal.offers.familyPlan.title"),
+      subtitle: t("upsellModal.offers.familyPlan.subtitle"),
+      color: "#3b82f6",
+      badge: t("upsellModal.offers.familyPlan.badge"),
+      features: t("upsellModal.offers.familyPlan.features", { returnObjects: true }) as string[],
+      ctaLabel: t("upsellModal.offers.familyPlan.ctaLabel"),
+    },
+    session: {
+      emoji: "🎯",
+      title: t("upsellModal.offers.session.title"),
+      subtitle: t("upsellModal.offers.session.subtitle"),
+      color: "#00d47e",
+      badge: t("upsellModal.offers.session.badge"),
+      features: t("upsellModal.offers.session.features", { returnObjects: true }) as string[],
+      ctaLabel: t("upsellModal.offers.session.ctaLabel"),
+    },
+  };
+}
 
 export default function UpsellModal({
   visible, offer, userTier, prices, triggerSource, onClose,
 }: UpsellModalProps) {
   const { colors } = useTheme();
+  const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
   const [variant, setVariant] = useState<"default" | "bundle">("default");
   const [duoVariant, setDuoVariant] = useState<"monthly" | "yearly">("monthly");
 
+  const OFFER_META = getOfferMeta(t);
   const meta = OFFER_META[offer];
   const isPremium = userTier === "premium";
   const c = meta.color;
@@ -79,8 +68,8 @@ export default function UpsellModal({
   const displayPrice =
     offer === "family_plan"
       ? duoVariant === "monthly"
-        ? `$${prices.monthly ?? 19.99}/mes`
-        : `$${prices.yearly ?? 199.99}/año`
+        ? `$${prices.monthly ?? 19.99}${t("upsellModal.perMonth")}`
+        : `$${prices.yearly ?? 199.99}${t("upsellModal.perYear")}`
       : isPremium
       ? `$${variant === "bundle" ? (prices.bundle ?? 247) : (prices.premium ?? 0)}`
       : `$${prices.free ?? 0}`;
@@ -170,14 +159,14 @@ export default function UpsellModal({
                     ]}
                   >
                     <Text style={[s.pickerLabel, { color: variant === v ? "#fff" : colors.textMuted }]}>
-                      {v === "default" ? "1 sesión" : "Pack 3 sesiones"}
+                      {v === "default" ? t("upsellModal.sessionVariant.single") : t("upsellModal.sessionVariant.bundle")}
                     </Text>
                     <Text style={[s.pickerPrice, { color: variant === v ? "#fff" : colors.textSub }]}>
                       {v === "default" ? `$${prices.premium ?? 99}` : `$${prices.bundle ?? 247}`}
                     </Text>
                     {v === "bundle" && (
                       <Text style={[s.pickerSave, { color: variant === v ? "rgba(255,255,255,0.75)" : colors.textDim }]}>
-                        Ahorra ${Math.round(((prices.premium ?? 99) * 3) - (prices.bundle ?? 247))}
+                        {t("upsellModal.sessionVariant.save", { amount: Math.round(((prices.premium ?? 99) * 3) - (prices.bundle ?? 247)) })}
                       </Text>
                     )}
                   </TouchableOpacity>
@@ -199,14 +188,14 @@ export default function UpsellModal({
                     ]}
                   >
                     <Text style={[s.pickerLabel, { color: duoVariant === v ? "#fff" : colors.textMuted }]}>
-                      {v === "monthly" ? "Mensual" : "Anual"}
+                      {v === "monthly" ? t("upsellModal.duoVariant.monthly") : t("upsellModal.duoVariant.yearly")}
                     </Text>
                     <Text style={[s.pickerPrice, { color: duoVariant === v ? "#fff" : colors.textSub }]}>
-                      {v === "monthly" ? `$${prices.monthly ?? 19.99}/mes` : `$${prices.yearly ?? 199.99}/año`}
+                      {v === "monthly" ? `$${prices.monthly ?? 19.99}${t("upsellModal.perMonth")}` : `$${prices.yearly ?? 199.99}${t("upsellModal.perYear")}`}
                     </Text>
                     {v === "yearly" && (
                       <Text style={[s.pickerSave, { color: duoVariant === v ? "rgba(255,255,255,0.75)" : colors.textDim }]}>
-                        Ahorra ${Math.round(((prices.monthly ?? 19.99) * 12) - (prices.yearly ?? 199.99))}
+                        {t("upsellModal.duoVariant.save", { amount: Math.round(((prices.monthly ?? 19.99) * 12) - (prices.yearly ?? 199.99)) })}
                       </Text>
                     )}
                   </TouchableOpacity>
@@ -220,14 +209,14 @@ export default function UpsellModal({
                 <Text style={[s.priceMain, { color: colors.text }]}>{displayPrice}</Text>
                 {offer !== "family_plan" && (
                   <Text style={[s.priceSub, { color: colors.textMuted }]}>
-                    {isPremium ? "· Precio exclusivo Premium" : "pago único"}
+                    {isPremium ? t("upsellModal.premiumExclusivePrice") : t("upsellModal.oneTimePayment")}
                   </Text>
                 )}
               </View>
               {isPremium && (
                 <View style={s.premiumBadgeRow}>
                   <Ionicons name="star" size={11} color={c} />
-                  <Text style={[s.premiumBadgeText, { color: c }]}>Precio exclusivo Premium</Text>
+                  <Text style={[s.premiumBadgeText, { color: c }]}>{t("upsellModal.premiumBadge")}</Text>
                 </View>
               )}
             </View>
@@ -235,7 +224,7 @@ export default function UpsellModal({
             {/* ── Free nudge ─────────────────────────────── */}
             {!isPremium && (
               <Text style={[s.nudge, { color: colors.textDim }]}>
-                ¿Aún no eres Premium? Suscríbete y obtén precio especial.
+                {t("upsellModal.freeNudge")}
               </Text>
             )}
           </ScrollView>
@@ -258,7 +247,7 @@ export default function UpsellModal({
               )}
             </TouchableOpacity>
             <TouchableOpacity onPress={handleDismiss} style={s.laterBtn}>
-              <Text style={[s.laterText, { color: colors.textDim }]}>Quizás más adelante</Text>
+              <Text style={[s.laterText, { color: colors.textDim }]}>{t("upsellModal.maybeLater")}</Text>
             </TouchableOpacity>
           </View>
 

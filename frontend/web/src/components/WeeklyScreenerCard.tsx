@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import PremiumToolLocked from "@/components/PremiumToolLocked";
 import { screenerApi } from "@/lib/api";
+import { useTranslation } from "react-i18next";
 
 interface Pick {
   ticker: string;
@@ -37,6 +38,7 @@ interface Props {
 const TOOL_COLOR = "#8b5cf6";
 
 export default function WeeklyScreenerCard({ isPremium, onUpgrade, tickers = [] }: Props) {
+  const { t } = useTranslation();
   const [open, setOpen]          = useState(false);
   const [data, setData]          = useState<WeeklyData | null>(null);
   const [loading, setLoading]    = useState(false);
@@ -62,16 +64,16 @@ export default function WeeklyScreenerCard({ isPremium, onUpgrade, tickers = [] 
   if (!isPremium) {
     return (
       <PremiumToolLocked
-        title="Screener Semanal"
-        tagline="5 sugerencias personalizadas según tu perfil"
-        description="La IA analiza el mercado y sugiere 5 ideas que encajan con el tipo de negocio que buscas, tu mentor y tu perfil de riesgo."
+        title={t("weeklyScreenerCard.title")}
+        tagline={t("weeklyScreenerCard.tagline")}
+        description={t("weeklyScreenerCard.description")}
         icon={Search}
         color={TOOL_COLOR}
         benefits={[
-          { icon: Target,   text: "Tipo de negocio adaptado a tu mentor y perfil" },
-          { icon: Zap,      text: "Catalizador concreto y riesgo por cada idea" },
-          { icon: Ban,      text: "Nunca sugiere lo que ya tienes" },
-          { icon: BookOpen, text: "Sugerencias educativas para investigar más" },
+          { icon: Target,   text: t("weeklyScreenerCard.benefit1") },
+          { icon: Zap,      text: t("weeklyScreenerCard.benefit2") },
+          { icon: Ban,      text: t("weeklyScreenerCard.benefit3") },
+          { icon: BookOpen, text: t("weeklyScreenerCard.benefit4") },
         ]}
         onUnlock={onUpgrade}
       />
@@ -106,17 +108,17 @@ export default function WeeklyScreenerCard({ isPremium, onUpgrade, tickers = [] 
         <div className="p-6 pt-5">
           <h3 className="text-[22px] font-black tracking-tight text-center mb-1"
               style={{ color: "var(--text)" }}>
-            Screener Semanal
+            {t("weeklyScreenerCard.title")}
           </h3>
           <p className="text-[13px] font-bold text-center mb-5 tracking-wide" style={{ color: TOOL_COLOR }}>
-            5 sugerencias personalizadas según tu perfil
+            {t("weeklyScreenerCard.tagline")}
           </p>
 
           <div className="rounded-2xl border overflow-hidden mb-5" style={{ borderColor: "var(--border)" }}>
             {[
-              { emoji: "🎯", text: "Adaptado a tu mentor y perfil de riesgo" },
-              { emoji: "⚡", text: "Catalizador concreto y riesgo por cada idea" },
-              { emoji: "📚", text: "Sugerencias educativas para investigar más" },
+              { emoji: "🎯", text: t("weeklyScreenerCard.featureAdapted") },
+              { emoji: "⚡", text: t("weeklyScreenerCard.featureCatalyst") },
+              { emoji: "📚", text: t("weeklyScreenerCard.featureEducational") },
             ].map((f, i, arr) => (
               <div key={f.text}
                    className="flex items-center gap-3 px-3.5 py-3"
@@ -140,7 +142,7 @@ export default function WeeklyScreenerCard({ isPremium, onUpgrade, tickers = [] 
             <div className="absolute inset-0 top-0 h-1/2 pointer-events-none"
                  style={{ background: "rgba(255,255,255,0.12)" }} />
             <Sparkles className="w-4 h-4" />
-            Ver Sugerencias
+            {t("weeklyScreenerCard.viewSuggestions")}
           </button>
         </div>
       </div>
@@ -160,7 +162,7 @@ export default function WeeklyScreenerCard({ isPremium, onUpgrade, tickers = [] 
               <div className="flex items-center gap-2 flex-1 min-w-0">
                 <Search className="w-4 h-4 shrink-0" style={{ color: TOOL_COLOR }} />
                 <span className="font-bold text-sm truncate" style={{ color: "var(--text)" }}>
-                  Screener Semanal
+                  {t("weeklyScreenerCard.title")}
                   {data?.week_theme && (
                     <span className="ml-2 text-[10px] px-2 py-0.5 rounded-full font-semibold"
                           style={{ background: TOOL_COLOR + "20", color: TOOL_COLOR }}>
@@ -184,7 +186,7 @@ export default function WeeklyScreenerCard({ isPremium, onUpgrade, tickers = [] 
               {loading && (
                 <div className="flex items-center gap-2 p-5">
                   <Loader2 className="w-4 h-4 animate-spin" style={{ color: TOOL_COLOR }} />
-                  <span className="text-xs" style={{ color: "var(--muted)" }}>Analizando el mercado según tu perfil...</span>
+                  <span className="text-xs" style={{ color: "var(--muted)" }}>{t("weeklyScreenerCard.analyzingMarket")}</span>
                 </div>
               )}
 
@@ -234,7 +236,7 @@ export default function WeeklyScreenerCard({ isPremium, onUpgrade, tickers = [] 
                               <div className="flex items-start gap-2 pt-2">
                                 <Zap className="w-3 h-3 mt-0.5 shrink-0" style={{ color: "#f59e0b" }} />
                                 <div>
-                                  <span className="text-[9px] font-bold uppercase tracking-wider" style={{ color: "#f59e0b" }}>Catalizador</span>
+                                  <span className="text-[9px] font-bold uppercase tracking-wider" style={{ color: "#f59e0b" }}>{t("weeklyScreenerCard.catalyst")}</span>
                                   <p className="text-[11px] leading-snug mt-0.5" style={{ color: "var(--sub)" }}>{pick.catalyst}</p>
                                 </div>
                               </div>
@@ -243,7 +245,7 @@ export default function WeeklyScreenerCard({ isPremium, onUpgrade, tickers = [] 
                               <div className="flex items-start gap-2">
                                 <AlertTriangle className="w-3 h-3 mt-0.5 shrink-0" style={{ color: "#ef4444" }} />
                                 <div>
-                                  <span className="text-[9px] font-bold uppercase tracking-wider" style={{ color: "#ef4444" }}>Riesgo principal</span>
+                                  <span className="text-[9px] font-bold uppercase tracking-wider" style={{ color: "#ef4444" }}>{t("weeklyScreenerCard.mainRisk")}</span>
                                   <p className="text-[11px] leading-snug mt-0.5" style={{ color: "var(--sub)" }}>{pick.risk}</p>
                                 </div>
                               </div>
@@ -268,14 +270,14 @@ export default function WeeklyScreenerCard({ isPremium, onUpgrade, tickers = [] 
                 <div className="flex items-start gap-2 px-5 py-3 border-t" style={{ borderColor: "var(--border)" }}>
                   <Info className="w-3 h-3 mt-0.5 shrink-0" style={{ color: "var(--dim)" }} />
                   <p className="text-[10px] leading-relaxed" style={{ color: "var(--dim)" }}>
-                    {data.disclaimer ?? "Estas son sugerencias educativas basadas en tu perfil. No son asesoramiento financiero ni recomendaciones de compra. Siempre investiga antes de invertir."}
+                    {data.disclaimer ?? t("weeklyScreenerCard.defaultDisclaimer")}
                   </p>
                 </div>
               )}
 
               {!loading && !data && (
                 <div className="p-5">
-                  <span className="text-xs" style={{ color: "var(--muted)" }}>No hay sugerencias disponibles aún.</span>
+                  <span className="text-xs" style={{ color: "var(--muted)" }}>{t("weeklyScreenerCard.noSuggestions")}</span>
                 </div>
               )}
             </div>

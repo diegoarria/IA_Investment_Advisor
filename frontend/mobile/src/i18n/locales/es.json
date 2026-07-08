@@ -2766,5 +2766,203 @@
     "mature": "Maduro",
     "expert": "Experto",
     "expertBanner": "¡Eres un Experto! 🏆"
+  },
+  "stockAnalysts": {
+    "consensus": {
+      "strongBuy": "Compra Fuerte",
+      "strongSell": "Venta Fuerte",
+      "buy": "Comprar",
+      "sell": "Vender",
+      "neutral": "Neutral",
+      "noData": "Sin datos"
+    },
+    "targetPriceLabel": "Precio objetivo medio",
+    "potential": "potencial",
+    "stats": {
+      "low": "Mínimo",
+      "target": "Objetivo",
+      "high": "Máximo"
+    },
+    "legend": {
+      "current": "Precio actual",
+      "analystTarget": "Objetivo analistas"
+    },
+    "cardTitle": "Consenso de Analistas",
+    "noAnalystData": "Sin datos de analistas",
+    "analystCount": "{{count}} analistas",
+    "bullPct": "{{pct}}% alcista",
+    "bullLabel": "Compra {{count}}",
+    "bearLabel": "Venta {{count}}",
+    "priceTargetCardTitle": "Precio Objetivo · 12 meses"
+  },
+  "mobileWhatIf": {
+    "scenarios": {
+      "swap": "Cambiar posición",
+      "addMonthly": "Aporte mensual",
+      "macro": "Evento macro",
+      "custom": "Escenario libre"
+    },
+    "macroEvents": {
+      "fedHikes": "La Fed sube tasas al 7%",
+      "usRecession": "Recesión en EE.UU.",
+      "techCrash": "Crash tech -40%",
+      "aiBoom": "Boom de IA +50%",
+      "inflation": "Inflación 8%"
+    },
+    "defaultErrorSummary": "No se pudo completar la simulación.",
+    "cardTitle": "Simulador ¿Qué pasa si?",
+    "cardTagline": "Prueba decisiones antes de tomarlas",
+    "features": {
+      "swap": "¿Qué pasa si vendo X y compro Y?",
+      "monthly": "Proyección de aportes mensuales a N años",
+      "summary": "Resumen de tu mentor en cada escenario"
+    },
+    "ctaSimulate": "Simular Escenario",
+    "modalTitle": "⚡ ¿Qué pasa si?",
+    "sectionLabel": "TIPO DE ESCENARIO",
+    "sellTicker": "Vender (ticker actual)",
+    "sellPlaceholder": "Ej: TSLA",
+    "buyTicker": "Comprar",
+    "buyPlaceholder": "Ej: VOO",
+    "monthlyAmount": "Monto mensual ($)",
+    "monthlyPlaceholder": "Ej: 300",
+    "duringYears": "Durante (años)",
+    "yearsPlaceholder": "Ej: 5",
+    "macroEventLabel": "Evento macroeconómico",
+    "macroEventPlaceholder": "O escribe tu propio evento...",
+    "customDescLabel": "Describe el escenario",
+    "customDescPlaceholder": "Ej: ¿Qué pasa si vendo todo y compro SPY?",
+    "runBtn": "⚡ Simular escenario",
+    "mentorSummary": "🧠 Resumen del mentor"
+  },
+  "upsellModal": {
+    "offers": {
+      "annualReport": {
+        "title": "Reporte Anual de Madurez Inversora",
+        "subtitle": "Tu evolución como inversor, documentada",
+        "badge": "Edición anual",
+        "features": [
+          "Evolución mes a mes de tu Puntuación de Madurez (1-100)",
+          "Análisis de tu perfil de riesgo y comportamiento inversor",
+          "Perfil de riesgo real vs. declarado al registrarte",
+          "Recomendaciones de tu Mentor IA para el próximo año",
+          "Certificado digital: \"Inversor Informado — Nuvos AI\""
+        ],
+        "ctaLabel": "Obtener mi reporte"
+      },
+      "familyPlan": {
+        "title": "Plan Dúo",
+        "subtitle": "Dos cuentas Premium, una sola factura",
+        "badge": "Disponible",
+        "features": [
+          "Todo lo de Premium para dos cuentas independientes",
+          "Una sola factura, perfiles separados",
+          "Portafolios independientes con análisis separado",
+          "Privacidad total — sin datos compartidos entre cuentas"
+        ],
+        "ctaLabel": "Activar Plan Dúo"
+      },
+      "session": {
+        "title": "Sesión 1:1 con Diego",
+        "subtitle": "45 minutos con el fundador de Nuvos AI",
+        "badge": "Agenda disponible",
+        "features": [
+          "Videollamada de 45 min con Diego Arria, fundador de Nuvos AI",
+          "Revisión de tu puntuación de madurez inversora",
+          "Análisis de tu portafolio y estrategia de inversión",
+          "3 próximos pasos concretos para tu situación específica",
+          "Grabación de la sesión entregada después de la llamada"
+        ],
+        "ctaLabel": "Reservar sesión"
+      }
+    },
+    "sessionVariant": {
+      "single": "1 sesión",
+      "bundle": "Pack 3 sesiones",
+      "save": "Ahorra ${{amount}}"
+    },
+    "duoVariant": {
+      "monthly": "Mensual",
+      "yearly": "Anual",
+      "save": "Ahorra ${{amount}}"
+    },
+    "perMonth": "/mes",
+    "perYear": "/año",
+    "oneTimePayment": "pago único",
+    "premiumExclusivePrice": "· Precio exclusivo Premium",
+    "premiumBadge": "Precio exclusivo Premium",
+    "freeNudge": "¿Aún no eres Premium? Suscríbete y obtén precio especial.",
+    "maybeLater": "Quizás más adelante"
+  },
+  "stockChart": {
+    "periods": {
+      "1d": "1D",
+      "5d": "1S",
+      "1m": "1M",
+      "6m": "6M",
+      "1y": "1A",
+      "5y": "5A"
+    },
+    "loadError": "No se pudieron cargar los datos",
+    "noData": "Sin datos"
+  },
+  "voiceCallModal": {
+    "errors": {
+      "micPermission": "Necesito permiso de micrófono para la llamada.",
+      "connectFailed": "No se pudo conectar con el Mentor.",
+      "unexpectedClose": "La llamada se cerró inesperadamente.",
+      "micAccessFailed": "No se pudo acceder al micrófono.",
+      "startFailed": "No se pudo iniciar la llamada.",
+      "generic": "Ocurrió un error."
+    },
+    "connecting": "Llamando...",
+    "mentorName": "Mentor IA"
+  },
+  "stockFinancials": {
+    "noStatements": "Sin estados financieros",
+    "period": {
+      "annual": "Anual",
+      "quarterly": "Trimestral"
+    },
+    "tabs": {
+      "income": "Estado de Resultados",
+      "balance": "Balance General",
+      "cashflow": "Flujo de Caja"
+    },
+    "income": {
+      "totalRevenueSection": "Ingresos Totales",
+      "totalRevenue": "Ingresos Totales",
+      "costOfRevenue": "Costo de Ventas",
+      "grossProfit": "Utilidad Bruta",
+      "grossMargin": "Margen Bruto",
+      "operatingExpenses": "Gastos Operativos",
+      "operatingIncome": "Utilidad Operativa",
+      "operatingMargin": "Margen Operativo",
+      "ebitda": "EBITDA",
+      "netIncome": "Utilidad Neta",
+      "netMargin": "Margen Neto",
+      "dilutedEps": "EPS Diluido"
+    },
+    "balance": {
+      "totalAssetsSection": "Activos Totales",
+      "totalAssets": "Activos Totales",
+      "currentAssets": "Activos Corrientes",
+      "totalLiabilities": "Pasivos Totales",
+      "stockholdersEquity": "Patrimonio Neto",
+      "totalDebt": "Deuda Total"
+    },
+    "cashflow": {
+      "operatingSection": "Flujo Operativo",
+      "operatingCashFlow": "Flujo Operativo",
+      "freeCashFlow": "Flujo de Caja Libre",
+      "capex": "CapEx"
+    },
+    "aiAnalysisTitle": "Análisis IA",
+    "aiAnalysisLoading": "Sin análisis disponible",
+    "provider": {
+      "fiscalAi": "Fiscal.ai",
+      "fmp": "Financial Modeling Prep",
+      "yahoo": "Yahoo Finance"
+    }
   }
 }

@@ -17,6 +17,8 @@ import Svg, {
   Circle,
   G,
 } from "react-native-svg";
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import { marketApi } from "../lib/api";
 import { useTheme } from "../lib/ThemeContext";
 
@@ -29,16 +31,18 @@ const PAD_T   = 10;
 const PAD_B   = 6;
 const DRAW_H  = CHART_H - PAD_T - PAD_B;
 
-const PERIODS = [
-  { key: "1d",  label: "1D" },
-  { key: "5d",  label: "1S" },
-  { key: "1m",  label: "1M" },
-  { key: "6m",  label: "6M" },
-  { key: "1y",  label: "1A" },
-  { key: "5y",  label: "5A" },
-] as const;
+function getPeriods(t: TFunction) {
+  return [
+    { key: "1d",  label: t("stockChart.periods.1d") },
+    { key: "5d",  label: t("stockChart.periods.5d") },
+    { key: "1m",  label: t("stockChart.periods.1m") },
+    { key: "6m",  label: t("stockChart.periods.6m") },
+    { key: "1y",  label: t("stockChart.periods.1y") },
+    { key: "5y",  label: t("stockChart.periods.5y") },
+  ] as const;
+}
 
-type PeriodKey = (typeof PERIODS)[number]["key"];
+type PeriodKey = "1d" | "5d" | "1m" | "6m" | "1y" | "5y";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -88,6 +92,8 @@ function fmtPrice(p: number): string {
 
 export default function StockChart({ ticker }: { ticker: string }) {
   const { colors } = useTheme();
+  const { t } = useTranslation();
+  const PERIODS = getPeriods(t);
 
   const [period, setPeriod]         = useState<PeriodKey>("1y");
   const [prices, setPrices]         = useState<number[]>([]);
@@ -243,7 +249,7 @@ export default function StockChart({ ticker }: { ticker: string }) {
               <ActivityIndicator color={lineColor} size="small" />
             ) : (
               <Text style={{ color: colors.textMuted, fontSize: 13 }}>
-                {error ? "No se pudieron cargar los datos" : "Sin datos"}
+                {error ? t("stockChart.loadError") : t("stockChart.noData")}
               </Text>
             )}
           </View>

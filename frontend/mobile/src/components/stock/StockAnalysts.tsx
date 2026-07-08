@@ -1,6 +1,7 @@
 import React from "react";
 import { View, Text, StyleSheet, Dimensions } from "react-native";
 import Svg, { Circle, Rect, Text as SvgText } from "react-native-svg";
+import { useTranslation } from "react-i18next";
 import type { Analyst } from "../../hooks/useStockDetail";
 
 const { width: SCREEN_W } = Dimensions.get("window");
@@ -22,21 +23,23 @@ const D = {
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-function consensusLabel(rec?: string | null): string {
-  if (!rec) return "Sin datos";
+type ConsensusKey = "strongBuy" | "strongSell" | "buy" | "sell" | "neutral" | "noData";
+
+function consensusKey(rec?: string | null): ConsensusKey {
+  if (!rec) return "noData";
   const r = rec.toLowerCase();
-  if (r.includes("strong_buy") || r.includes("strongbuy"))   return "Compra Fuerte";
-  if (r.includes("strong_sell") || r.includes("strongsell")) return "Venta Fuerte";
-  if (r.includes("buy"))  return "Comprar";
-  if (r.includes("sell")) return "Vender";
-  return "Neutral";
+  if (r.includes("strong_buy") || r.includes("strongbuy"))   return "strongBuy";
+  if (r.includes("strong_sell") || r.includes("strongsell")) return "strongSell";
+  if (r.includes("buy"))  return "buy";
+  if (r.includes("sell")) return "sell";
+  return "neutral";
 }
 
-function consensusColor(label: string): string {
-  if (label === "Compra Fuerte") return D.green;
-  if (label === "Comprar")       return "#22c55e";
-  if (label === "Venta Fuerte")  return D.red;
-  if (label === "Vender")        return "#f97316";
+function consensusColor(key: ConsensusKey): string {
+  if (key === "strongBuy")  return D.green;
+  if (key === "buy")        return "#22c55e";
+  if (key === "strongSell") return D.red;
+  if (key === "sell")       return "#f97316";
   return D.amber;
 }
 
@@ -90,6 +93,7 @@ function PriceTargetBar({
 }: {
   low: number; mean: number; high: number; current: number;
 }) {
+  const { t } = useTranslation();
   const range = high - low || 1;
   const toX = (p: number) => Math.max(0, Math.min(((p - low) / range) * RANGE_W, RANGE_W));
 
@@ -107,13 +111,13 @@ function PriceTargetBar({
       <View style={pt.headline}>
         <View>
           <Text style={pt.targetPrice}>{fmtPrice(mean)}</Text>
-          <Text style={pt.targetLabel}>Precio objetivo medio</Text>
+          <Text style={pt.targetLabel}>{t("stockAnalysts.targetPriceLabel")}</Text>
         </View>
         <View style={[pt.upsidePill, { backgroundColor: col + "18", borderColor: col + "30" }]}>
           <Text style={[pt.upsidePct, { color: col }]}>
             {isUp ? "+" : ""}{upside.toFixed(1)}%
           </Text>
-          <Text style={[pt.upsideLabel, { color: col, opacity: 0.7 }]}>potencial</Text>
+          <Text style={[pt.upsideLabel, { color: col, opacity: 0.7 }]}>{t("stockAnalysts.potential")}</Text>
         </View>
       </View>
 
@@ -144,19 +148,19 @@ function PriceTargetBar({
       <View style={pt.legend}>
         <View style={pt.legendItem}>
           <View style={[pt.dot, { backgroundColor: D.card, borderWidth: 2, borderColor: D.text }]} />
-          <Text style={pt.legendText}>Precio actual</Text>
+          <Text style={pt.legendText}>{t("stockAnalysts.legend.current")}</Text>
         </View>
         <View style={pt.legendItem}>
           <View style={[pt.dot, { backgroundColor: col }]} />
-          <Text style={pt.legendText}>Objetivo analistas</Text>
+          <Text style={pt.legendText}>{t("stockAnalysts.legend.analystTarget")}</Text>
         </View>
       </View>
 
       <View style={pt.statsRow}>
         {[
-          { label: "Mínimo",   value: fmtPrice(low),  color: D.sub },
-          { label: "Objetivo", value: fmtPrice(mean), color: col },
-          { label: "Máximo",   value: fmtPrice(high), color: D.sub },
+          { label: t("stockAnalysts.stats.low"),    value: fmtPrice(low),  color: D.sub },
+          { label: t("stockAnalysts.stats.target"), value: fmtPrice(mean), color: col },
+          { label: t("stockAnalysts.stats.high"),   value: fmtPrice(high), color: D.sub },
         ].map((item) => (
           <View key={item.label} style={pt.statCell}>
             <Text style={pt.statLabel}>{item.label}</Text>
@@ -210,6 +214,7 @@ export default function StockAnalysts({
   analyst: Analyst;
   currentPrice?: number;
 }) {
+  const { t } = useTranslation();
   const ratings = analyst.ratings ?? { strong_buy: 0, buy: 0, hold: 0, sell: 0, strong_sell: 0 };
   const total   = Object.values(ratings).reduce((s, v) => s + (v ?? 0), 0);
 
@@ -217,8 +222,9 @@ export default function StockAnalysts({
   const hasPriceTarget = priceTarget.low != null && priceTarget.mean != null && priceTarget.high != null;
   const curPrice = currentPrice ?? priceTarget.current ?? 0;
 
-  const label  = consensusLabel(analyst.recommendation);
-  const cColor = consensusColor(label);
+  const cKey   = consensusKey(analyst.recommendation);
+  const label  = t(`stockAnalysts.consensus.${cKey}`);
+  const cColor = consensusColor(cKey);
 
   const bullCount = (ratings.strong_buy ?? 0) + (ratings.buy ?? 0);
   const bearCount = (ratings.sell ?? 0) + (ratings.strong_sell ?? 0);
@@ -228,9 +234,9 @@ export default function StockAnalysts({
     <View style={{ paddingVertical: 16, gap: 0 }}>
 
       {/* ── Consenso ── */}
-      <Card title="Consenso de Analistas">
+      <Card title={t("stockAnalysts.cardTitle")}>
         {total === 0 ? (
-          <Text style={{ color: D.muted, fontSize: 13 }}>Sin datos de analistas</Text>
+          <Text style={{ color: D.muted, fontSize: 13 }}>{t("stockAnalysts.noAnalystData")}</Text>
         ) : (
           <>
             {/* Hero consensus row */}
@@ -241,9 +247,9 @@ export default function StockAnalysts({
               </View>
               <View style={{ alignItems: "flex-end" }}>
                 {analyst.n_analysts != null && (
-                  <Text style={s.analystCount}>{analyst.n_analysts} analistas</Text>
+                  <Text style={s.analystCount}>{t("stockAnalysts.analystCount", { count: analyst.n_analysts })}</Text>
                 )}
-                <Text style={[s.bullPct, { color: cColor }]}>{bullPct}% alcista</Text>
+                <Text style={[s.bullPct, { color: cColor }]}>{t("stockAnalysts.bullPct", { pct: bullPct })}</Text>
               </View>
             </View>
 
@@ -253,16 +259,16 @@ export default function StockAnalysts({
               <View style={[s.bbBear, { flex: 100 - bullPct }]} />
             </View>
             <View style={s.bbLabels}>
-              <Text style={{ fontSize: 10, color: D.green, fontFamily: "DMSans_600SemiBold" }}>Compra {bullCount}</Text>
-              <Text style={{ fontSize: 10, color: D.red, fontFamily: "DMSans_600SemiBold" }}>Venta {bearCount}</Text>
+              <Text style={{ fontSize: 10, color: D.green, fontFamily: "DMSans_600SemiBold" }}>{t("stockAnalysts.bullLabel", { count: bullCount })}</Text>
+              <Text style={{ fontSize: 10, color: D.red, fontFamily: "DMSans_600SemiBold" }}>{t("stockAnalysts.bearLabel", { count: bearCount })}</Text>
             </View>
 
             <View style={s.barsSection}>
-              <RatingRow label="Compra Fuerte" count={ratings.strong_buy}  total={total} color={D.green} />
-              <RatingRow label="Comprar"        count={ratings.buy}         total={total} color="#22c55e" />
-              <RatingRow label="Neutral"         count={ratings.hold}        total={total} color={D.amber} />
-              <RatingRow label="Vender"          count={ratings.sell}        total={total} color="#f97316" />
-              <RatingRow label="Venta Fuerte"    count={ratings.strong_sell} total={total} color={D.red} />
+              <RatingRow label={t("stockAnalysts.consensus.strongBuy")}  count={ratings.strong_buy}  total={total} color={D.green} />
+              <RatingRow label={t("stockAnalysts.consensus.buy")}        count={ratings.buy}         total={total} color="#22c55e" />
+              <RatingRow label={t("stockAnalysts.consensus.neutral")}    count={ratings.hold}        total={total} color={D.amber} />
+              <RatingRow label={t("stockAnalysts.consensus.sell")}       count={ratings.sell}        total={total} color="#f97316" />
+              <RatingRow label={t("stockAnalysts.consensus.strongSell")} count={ratings.strong_sell} total={total} color={D.red} />
             </View>
           </>
         )}
@@ -270,7 +276,7 @@ export default function StockAnalysts({
 
       {/* ── Precio Objetivo ── */}
       {hasPriceTarget && (
-        <Card title="Precio Objetivo · 12 meses">
+        <Card title={t("stockAnalysts.priceTargetCardTitle")}>
           <PriceTargetBar
             low={priceTarget.low!}
             mean={priceTarget.mean!}

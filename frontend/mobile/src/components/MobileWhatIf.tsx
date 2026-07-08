@@ -4,6 +4,8 @@ import {
   ActivityIndicator, StyleSheet,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import { useTheme } from "../lib/ThemeContext";
 import { simulateApi } from "../lib/api";
 
@@ -17,23 +19,30 @@ interface Props {
   onUpgrade: () => void;
 }
 
-const SCENARIOS = [
-  { id: "swap",        label: "Cambiar posición",     icon: "swap-horizontal-outline" },
-  { id: "add_monthly", label: "Aporte mensual",        icon: "trending-up-outline" },
-  { id: "macro",       label: "Evento macro",          icon: "globe-outline" },
-  { id: "custom",      label: "Escenario libre",       icon: "create-outline" },
-] as const;
+function getScenarios(t: TFunction) {
+  return [
+    { id: "swap",        label: t("mobileWhatIf.scenarios.swap"),       icon: "swap-horizontal-outline" },
+    { id: "add_monthly", label: t("mobileWhatIf.scenarios.addMonthly"), icon: "trending-up-outline" },
+    { id: "macro",       label: t("mobileWhatIf.scenarios.macro"),      icon: "globe-outline" },
+    { id: "custom",      label: t("mobileWhatIf.scenarios.custom"),     icon: "create-outline" },
+  ] as const;
+}
 
-const MACRO_EVENTS = [
-  "La Fed sube tasas al 7%",
-  "Recesión en EE.UU.",
-  "Crash tech -40%",
-  "Boom de IA +50%",
-  "Inflación 8%",
-];
+function getMacroEvents(t: TFunction) {
+  return [
+    t("mobileWhatIf.macroEvents.fedHikes"),
+    t("mobileWhatIf.macroEvents.usRecession"),
+    t("mobileWhatIf.macroEvents.techCrash"),
+    t("mobileWhatIf.macroEvents.aiBoom"),
+    t("mobileWhatIf.macroEvents.inflation"),
+  ];
+}
 
 export default function MobileWhatIf({ positions, isPremium, onUpgrade }: Props) {
   const { colors } = useTheme();
+  const { t } = useTranslation();
+  const SCENARIOS = getScenarios(t);
+  const MACRO_EVENTS = getMacroEvents(t);
   const [open, setOpen]               = useState(false);
   const [scenarioType, setScenarioType] = useState<string>("swap");
   const [params, setParams]           = useState<Record<string, unknown>>({});
@@ -58,10 +67,11 @@ export default function MobileWhatIf({ positions, isPremium, onUpgrade }: Props)
       const res: any = await simulateApi.whatIf(scenarioType, params, portfolio);
       setResult(res.data);
     } catch {
-      setResult({ summary: "No se pudo completar la simulación." });
+      setResult({ summary: t("mobileWhatIf.defaultErrorSummary") });
     } finally { setLoading(false); }
   };
 
+  // NOTE: "aumenta"/"disminuye" are literal values returned by the backend API, not UI copy — do not translate.
   const dirColor = (d: string) =>
     d === "aumenta" ? "#22c55e" : d === "disminuye" ? "#ef4444" : colors.textMuted;
   const dirIcon = (d: string) =>
@@ -87,14 +97,14 @@ export default function MobileWhatIf({ positions, isPremium, onUpgrade }: Props)
 
         {/* Content */}
         <View style={s.cardContent}>
-          <Text style={[s.cardTitle, { color: colors.text }]}>Simulador ¿Qué pasa si?</Text>
-          <Text style={[s.cardTagline, { color: TOOL_COLOR }]}>Prueba decisiones antes de tomarlas</Text>
+          <Text style={[s.cardTitle, { color: colors.text }]}>{t("mobileWhatIf.cardTitle")}</Text>
+          <Text style={[s.cardTagline, { color: TOOL_COLOR }]}>{t("mobileWhatIf.cardTagline")}</Text>
 
           <View style={[s.featureList, { borderColor: colors.border }]}>
             {[
-              { icon: "🔄", text: "¿Qué pasa si vendo X y compro Y?" },
-              { icon: "💰", text: "Proyección de aportes mensuales a N años" },
-              { icon: "💡", text: "Resumen de tu mentor en cada escenario" },
+              { icon: "🔄", text: t("mobileWhatIf.features.swap") },
+              { icon: "💰", text: t("mobileWhatIf.features.monthly") },
+              { icon: "💡", text: t("mobileWhatIf.features.summary") },
             ].map((f, i, arr) => (
               <View key={f.text} style={[s.featureRow,
                 i < arr.length - 1 && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border }]}>
@@ -110,7 +120,7 @@ export default function MobileWhatIf({ positions, isPremium, onUpgrade }: Props)
             style={[s.cta, { backgroundColor: TOOL_COLOR }]}>
             <View style={s.ctaGlow} />
             <Ionicons name="flash" size={16} color="white" />
-            <Text style={s.ctaText}>Simular Escenario</Text>
+            <Text style={s.ctaText}>{t("mobileWhatIf.ctaSimulate")}</Text>
           </TouchableOpacity>
         </View>
       </TouchableOpacity>
@@ -119,7 +129,7 @@ export default function MobileWhatIf({ positions, isPremium, onUpgrade }: Props)
         <View style={[s.modal, { backgroundColor: colors.bg }]}>
           {/* Header */}
           <View style={[s.modalHeader, { borderBottomColor: colors.border }]}>
-            <Text style={[s.modalTitle, { color: colors.text }]}>⚡ ¿Qué pasa si?</Text>
+            <Text style={[s.modalTitle, { color: colors.text }]}>{t("mobileWhatIf.modalTitle")}</Text>
             <TouchableOpacity onPress={() => setOpen(false)}>
               <Ionicons name="close" size={22} color={colors.textMuted} />
             </TouchableOpacity>
@@ -127,7 +137,7 @@ export default function MobileWhatIf({ positions, isPremium, onUpgrade }: Props)
 
           <ScrollView style={{ flex: 1 }} contentContainerStyle={s.modalContent}>
             {/* Scenario type */}
-            <Text style={[s.sectionLabel, { color: colors.textMuted }]}>TIPO DE ESCENARIO</Text>
+            <Text style={[s.sectionLabel, { color: colors.textMuted }]}>{t("mobileWhatIf.sectionLabel")}</Text>
             <View style={s.scenarioGrid}>
               {SCENARIOS.map((sc) => (
                 <TouchableOpacity
@@ -149,49 +159,49 @@ export default function MobileWhatIf({ positions, isPremium, onUpgrade }: Props)
             {/* Params */}
             {scenarioType === "swap" && (
               <View style={s.paramsSection}>
-                <Text style={[s.label, { color: colors.textMuted }]}>Vender (ticker actual)</Text>
+                <Text style={[s.label, { color: colors.textMuted }]}>{t("mobileWhatIf.sellTicker")}</Text>
                 <TextInput
                   style={[s.input, { borderColor: colors.border, backgroundColor: colors.bgRaised, color: colors.text }]}
-                  placeholder="Ej: TSLA" placeholderTextColor={colors.textMuted}
+                  placeholder={t("mobileWhatIf.sellPlaceholder")} placeholderTextColor={colors.textMuted}
                   autoCapitalize="characters"
                   value={(params.sell_ticker as string) || ""}
-                  onChangeText={(t) => setParams((p) => ({ ...p, sell_ticker: t.toUpperCase() }))}
+                  onChangeText={(txt) => setParams((p) => ({ ...p, sell_ticker: txt.toUpperCase() }))}
                 />
-                <Text style={[s.label, { color: colors.textMuted }]}>Comprar</Text>
+                <Text style={[s.label, { color: colors.textMuted }]}>{t("mobileWhatIf.buyTicker")}</Text>
                 <TextInput
                   style={[s.input, { borderColor: colors.border, backgroundColor: colors.bgRaised, color: colors.text }]}
-                  placeholder="Ej: VOO" placeholderTextColor={colors.textMuted}
+                  placeholder={t("mobileWhatIf.buyPlaceholder")} placeholderTextColor={colors.textMuted}
                   autoCapitalize="characters"
                   value={(params.buy_ticker as string) || ""}
-                  onChangeText={(t) => setParams((p) => ({ ...p, buy_ticker: t.toUpperCase() }))}
+                  onChangeText={(txt) => setParams((p) => ({ ...p, buy_ticker: txt.toUpperCase() }))}
                 />
               </View>
             )}
 
             {scenarioType === "add_monthly" && (
               <View style={s.paramsSection}>
-                <Text style={[s.label, { color: colors.textMuted }]}>Monto mensual ($)</Text>
+                <Text style={[s.label, { color: colors.textMuted }]}>{t("mobileWhatIf.monthlyAmount")}</Text>
                 <TextInput
                   style={[s.input, { borderColor: colors.border, backgroundColor: colors.bgRaised, color: colors.text }]}
-                  placeholder="Ej: 300" placeholderTextColor={colors.textMuted}
+                  placeholder={t("mobileWhatIf.monthlyPlaceholder")} placeholderTextColor={colors.textMuted}
                   keyboardType="numeric"
                   value={params.amount ? String(params.amount) : ""}
-                  onChangeText={(t) => setParams((p) => ({ ...p, amount: Number(t) }))}
+                  onChangeText={(txt) => setParams((p) => ({ ...p, amount: Number(txt) }))}
                 />
-                <Text style={[s.label, { color: colors.textMuted }]}>Durante (años)</Text>
+                <Text style={[s.label, { color: colors.textMuted }]}>{t("mobileWhatIf.duringYears")}</Text>
                 <TextInput
                   style={[s.input, { borderColor: colors.border, backgroundColor: colors.bgRaised, color: colors.text }]}
-                  placeholder="Ej: 5" placeholderTextColor={colors.textMuted}
+                  placeholder={t("mobileWhatIf.yearsPlaceholder")} placeholderTextColor={colors.textMuted}
                   keyboardType="numeric"
                   value={params.years ? String(params.years) : ""}
-                  onChangeText={(t) => setParams((p) => ({ ...p, years: Number(t) }))}
+                  onChangeText={(txt) => setParams((p) => ({ ...p, years: Number(txt) }))}
                 />
               </View>
             )}
 
             {scenarioType === "macro" && (
               <View style={s.paramsSection}>
-                <Text style={[s.label, { color: colors.textMuted }]}>Evento macroeconómico</Text>
+                <Text style={[s.label, { color: colors.textMuted }]}>{t("mobileWhatIf.macroEventLabel")}</Text>
                 <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 10 }}>
                   {MACRO_EVENTS.map((evt) => (
                     <TouchableOpacity
@@ -210,22 +220,22 @@ export default function MobileWhatIf({ positions, isPremium, onUpgrade }: Props)
                 </View>
                 <TextInput
                   style={[s.input, { borderColor: colors.border, backgroundColor: colors.bgRaised, color: colors.text }]}
-                  placeholder="O escribe tu propio evento..." placeholderTextColor={colors.textMuted}
+                  placeholder={t("mobileWhatIf.macroEventPlaceholder")} placeholderTextColor={colors.textMuted}
                   value={(params.event as string) || ""}
-                  onChangeText={(t) => setParams({ event: t })}
+                  onChangeText={(txt) => setParams({ event: txt })}
                 />
               </View>
             )}
 
             {scenarioType === "custom" && (
               <View style={s.paramsSection}>
-                <Text style={[s.label, { color: colors.textMuted }]}>Describe el escenario</Text>
+                <Text style={[s.label, { color: colors.textMuted }]}>{t("mobileWhatIf.customDescLabel")}</Text>
                 <TextInput
                   style={[s.textArea, { borderColor: colors.border, backgroundColor: colors.bgRaised, color: colors.text }]}
-                  placeholder="Ej: ¿Qué pasa si vendo todo y compro SPY?" placeholderTextColor={colors.textMuted}
+                  placeholder={t("mobileWhatIf.customDescPlaceholder")} placeholderTextColor={colors.textMuted}
                   multiline numberOfLines={3}
                   value={(params.description as string) || ""}
-                  onChangeText={(t) => setParams({ description: t })}
+                  onChangeText={(txt) => setParams({ description: txt })}
                 />
               </View>
             )}
@@ -237,7 +247,7 @@ export default function MobileWhatIf({ positions, isPremium, onUpgrade }: Props)
             >
               {loading
                 ? <ActivityIndicator color="white" />
-                : <Text style={s.runBtnText}>⚡ Simular escenario</Text>
+                : <Text style={s.runBtnText}>{t("mobileWhatIf.runBtn")}</Text>
               }
             </TouchableOpacity>
 
@@ -261,7 +271,7 @@ export default function MobileWhatIf({ positions, isPremium, onUpgrade }: Props)
                 ))}
                 {result.mentor_verdict && (
                   <View style={[s.verdictBox, { backgroundColor: colors.accent + "0D", borderColor: colors.accent + "40" }]}>
-                    <Text style={[s.verdictLabel, { color: colors.accent }]}>🧠 Resumen del mentor</Text>
+                    <Text style={[s.verdictLabel, { color: colors.accent }]}>{t("mobileWhatIf.mentorSummary")}</Text>
                     <Text style={[s.verdictText, { color: colors.textSub }]}>{result.mentor_verdict}</Text>
                   </View>
                 )}

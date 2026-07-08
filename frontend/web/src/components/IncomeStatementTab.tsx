@@ -1,6 +1,7 @@
 "use client";
 
 import { TrendingUp, TrendingDown } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 // ─── Formatters ───────────────────────────────────────────────────────────────
 
@@ -40,12 +41,13 @@ type Row = Record<string, unknown>;
 // ─── Sub-components ──────────────────────────────────────────────────────────
 
 function Header({ rows }: { rows: Row[] }) {
+  const { t } = useTranslation();
   return (
     <div className="flex items-center sticky top-0 z-10 border-b"
          style={{ background: "var(--card)", borderColor: "var(--border)" }}>
       <div className="shrink-0 px-4 py-3" style={{ width: 200, minWidth: 160 }}>
         <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: "var(--dim)" }}>
-          Métrica
+          {t("incomeStatementTab.metric")}
         </span>
       </div>
       {rows.map((r, i) => (
@@ -199,12 +201,13 @@ interface IncomeStatementTabProps {
 export default function IncomeStatementTab({
   income, grossMarginPct, operatingMarginPct, netMarginPct,
 }: IncomeStatementTabProps) {
+  const { t } = useTranslation();
   const rows = income.slice(-5);
 
   if (!rows.length) {
     return (
       <div className="flex flex-col items-center justify-center py-16 gap-3">
-        <p className="text-sm" style={{ color: "var(--muted)" }}>Sin datos disponibles para el Estado de Resultados</p>
+        <p className="text-sm" style={{ color: "var(--muted)" }}>{t("incomeStatementTab.noData")}</p>
       </div>
     );
   }
@@ -219,43 +222,43 @@ export default function IncomeStatementTab({
                style={{ background: "var(--raised)", borderColor: "var(--border)" }}>
             <span className="text-[10px] font-black uppercase tracking-widest"
                   style={{ color: "var(--accent-l)", opacity: 0.85 }}>
-              Estado de Resultados · Anual · USD
+              {t("incomeStatementTab.titleBar")}
             </span>
-            <span className="text-[9px]" style={{ color: "var(--dim)" }}>↑↓ = variación vs año anterior</span>
+            <span className="text-[9px]" style={{ color: "var(--dim)" }}>{t("incomeStatementTab.vsPriorYear")}</span>
           </div>
 
           <Header rows={rows} />
 
           {/* ── Ingresos ── */}
-          <Section label="Ingresos" />
-          <ValueRow rows={rows} field="Total Revenue"   label="Ingresos Totales"  isTotal showGrowth />
-          <ValueRow rows={rows} field="Cost Of Revenue" label="Costo de Ventas"   isNeg indent />
-          <ValueRow rows={rows} field="Gross Profit"    label="Utilidad Bruta"    isTotal showGrowth />
-          <MarginRow rows={rows} field="Gross Margin %" label="Margen Bruto"      numeratorField="Gross Profit" fallbackPct={grossMarginPct} />
+          <Section label={t("incomeStatementTab.revenue")} />
+          <ValueRow rows={rows} field="Total Revenue"   label={t("incomeStatementTab.totalRevenue")}  isTotal showGrowth />
+          <ValueRow rows={rows} field="Cost Of Revenue" label={t("incomeStatementTab.costOfRevenue")}   isNeg indent />
+          <ValueRow rows={rows} field="Gross Profit"    label={t("incomeStatementTab.grossProfit")}    isTotal showGrowth />
+          <MarginRow rows={rows} field="Gross Margin %" label={t("incomeStatementTab.grossMargin")}      numeratorField="Gross Profit" fallbackPct={grossMarginPct} />
 
           {/* ── Gastos Operativos ── */}
-          <Section label="Gastos Operativos" />
-          <ValueRow rows={rows} field="Research And Development"       label="Investigación y Desarrollo" isNeg indent zeroAsDash />
-          <ValueRow rows={rows} field="Selling General Administrative" label="Ventas, Gral y Admin."      isNeg indent zeroAsDash />
-          <ValueRow rows={rows} field="Operating Expenses"             label="Total Gastos Operativos"    isNeg zeroAsDash />
-          <ValueRow rows={rows} field="Operating Income"               label="Utilidad Operativa (EBIT)"  isTotal showGrowth />
-          <MarginRow rows={rows} field="Operating Margin %" label="Margen Operativo" numeratorField="Operating Income" fallbackPct={operatingMarginPct} />
+          <Section label={t("incomeStatementTab.operatingExpensesSection")} />
+          <ValueRow rows={rows} field="Research And Development"       label={t("incomeStatementTab.researchAndDevelopment")} isNeg indent zeroAsDash />
+          <ValueRow rows={rows} field="Selling General Administrative" label={t("incomeStatementTab.sellingGeneralAdmin")}      isNeg indent zeroAsDash />
+          <ValueRow rows={rows} field="Operating Expenses"             label={t("incomeStatementTab.totalOperatingExpenses")}    isNeg zeroAsDash />
+          <ValueRow rows={rows} field="Operating Income"               label={t("incomeStatementTab.operatingIncome")}  isTotal showGrowth />
+          <MarginRow rows={rows} field="Operating Margin %" label={t("incomeStatementTab.operatingMargin")} numeratorField="Operating Income" fallbackPct={operatingMarginPct} />
 
           {/* ── No Operativo ── */}
-          <Section label="No Operativo" />
-          <ValueRow rows={rows} field="Interest Income"  label="Ingresos Financieros"   indent zeroAsDash />
-          <ValueRow rows={rows} field="Interest Expense" label="Gastos Financieros"     isNeg indent zeroAsDash />
-          <ValueRow rows={rows} field="Pretax Income"    label="Utilidad Pre-Impuestos" isTotal zeroAsDash />
-          <ValueRow rows={rows} field="Tax Provision"    label="Impuestos"              isNeg indent zeroAsDash />
+          <Section label={t("incomeStatementTab.nonOperating")} />
+          <ValueRow rows={rows} field="Interest Income"  label={t("incomeStatementTab.interestIncome")}   indent zeroAsDash />
+          <ValueRow rows={rows} field="Interest Expense" label={t("incomeStatementTab.interestExpense")}     isNeg indent zeroAsDash />
+          <ValueRow rows={rows} field="Pretax Income"    label={t("incomeStatementTab.pretaxIncome")} isTotal zeroAsDash />
+          <ValueRow rows={rows} field="Tax Provision"    label={t("incomeStatementTab.taxes")}              isNeg indent zeroAsDash />
 
           {/* ── Resultado Final ── */}
-          <Section label="Resultado Final" />
-          <ValueRow rows={rows} field="Net Income"                    label="Utilidad Neta"  isTotal showGrowth />
-          <MarginRow rows={rows} field="Net Margin %" label="Margen Neto" numeratorField="Net Income" fallbackPct={netMarginPct} />
-          <ValueRow rows={rows} field="EBITDA"                        label="EBITDA"         showGrowth zeroAsDash />
-          <ValueRow rows={rows} field="Depreciation And Amortization" label="D&A"            indent zeroAsDash />
-          <ValueRow rows={rows} field="Diluted EPS"                   label="EPS Diluido"    isEPS indent zeroAsDash />
-          <ValueRow rows={rows} field="Basic EPS"                     label="EPS Básico"     isEPS indent zeroAsDash />
+          <Section label={t("incomeStatementTab.finalResult")} />
+          <ValueRow rows={rows} field="Net Income"                    label={t("incomeStatementTab.netIncome")}  isTotal showGrowth />
+          <MarginRow rows={rows} field="Net Margin %" label={t("incomeStatementTab.netMargin")} numeratorField="Net Income" fallbackPct={netMarginPct} />
+          <ValueRow rows={rows} field="EBITDA"                        label={t("incomeStatementTab.ebitda")}         showGrowth zeroAsDash />
+          <ValueRow rows={rows} field="Depreciation And Amortization" label={t("incomeStatementTab.depreciationAmortization")}            indent zeroAsDash />
+          <ValueRow rows={rows} field="Diluted EPS"                   label={t("incomeStatementTab.dilutedEps")}    isEPS indent zeroAsDash />
+          <ValueRow rows={rows} field="Basic EPS"                     label={t("incomeStatementTab.basicEps")}     isEPS indent zeroAsDash />
 
         </div>
       </div>
