@@ -1,6 +1,7 @@
 "use client";
 
 import { TrendingUp, TrendingDown } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -35,12 +36,13 @@ type Row = Record<string, unknown>;
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
 function Header({ rows }: { rows: Row[] }) {
+  const { t } = useTranslation();
   return (
     <div className="flex items-center sticky top-0 z-10 border-b"
          style={{ background: "var(--card)", borderColor: "var(--border)" }}>
       <div className="shrink-0 px-4 py-3" style={{ width: 200, minWidth: 160 }}>
         <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: "var(--dim)" }}>
-          Métrica
+          {t("balanceSheetTab.metric")}
         </span>
       </div>
       {rows.map((r, i) => (
@@ -129,10 +131,11 @@ function ValueRow({ rows, field, label, isTotal, isNeg, zeroAsDash, showGrowth, 
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export default function BalanceSheetTab({ balance }: { balance: Row[] }) {
+  const { t } = useTranslation();
   const rows = balance.slice(-5);
   if (!rows.length) return (
     <div className="flex items-center justify-center py-16">
-      <p className="text-sm" style={{ color: "var(--muted)" }}>Sin datos de Balance General</p>
+      <p className="text-sm" style={{ color: "var(--muted)" }}>{t("balanceSheetTab.noData")}</p>
     </div>
   );
 
@@ -144,48 +147,48 @@ export default function BalanceSheetTab({ balance }: { balance: Row[] }) {
              style={{ background: "var(--raised)", borderColor: "var(--border)" }}>
           <span className="text-[10px] font-black uppercase tracking-widest"
                 style={{ color: "var(--accent-l)", opacity: 0.85 }}>
-            Balance General · Anual · USD
+            {t("balanceSheetTab.titleBar")}
           </span>
         </div>
 
         <Header rows={rows} />
 
         {/* ── Activos ── */}
-        <Section label="Activos Corrientes" color="#3b82f6" />
-        <ValueRow rows={rows} field="Cash And Cash Equivalents"       label="Efectivo" indent />
-        <ValueRow rows={rows} field="Short Term Investments"          label="Inversiones C/P" indent zeroAsDash />
-        <ValueRow rows={rows} field="Cash And Short Term Investments" label="Efectivo + Inv. C/P" indent zeroAsDash />
-        <ValueRow rows={rows} field="Net Receivables"                 label="Cuentas por Cobrar" indent zeroAsDash />
-        <ValueRow rows={rows} field="Inventory"                       label="Inventario" indent zeroAsDash />
-        <ValueRow rows={rows} field="Current Assets"                  label="Total Activos Corrientes" isTotal showGrowth />
+        <Section label={t("balanceSheetTab.currentAssets")} color="#3b82f6" />
+        <ValueRow rows={rows} field="Cash And Cash Equivalents"       label={t("balanceSheetTab.cash")} indent />
+        <ValueRow rows={rows} field="Short Term Investments"          label={t("balanceSheetTab.shortTermInvestments")} indent zeroAsDash />
+        <ValueRow rows={rows} field="Cash And Short Term Investments" label={t("balanceSheetTab.cashAndShortTermInvestments")} indent zeroAsDash />
+        <ValueRow rows={rows} field="Net Receivables"                 label={t("balanceSheetTab.receivables")} indent zeroAsDash />
+        <ValueRow rows={rows} field="Inventory"                       label={t("balanceSheetTab.inventory")} indent zeroAsDash />
+        <ValueRow rows={rows} field="Current Assets"                  label={t("balanceSheetTab.totalCurrentAssets")} isTotal showGrowth />
 
-        <Section label="Activos No Corrientes" color="#3b82f6" />
-        <ValueRow rows={rows} field="Net PPE"               label="Propiedad, Planta y Equipo" indent />
-        <ValueRow rows={rows} field="Goodwill"              label="Goodwill" indent zeroAsDash />
-        <ValueRow rows={rows} field="Intangible Assets"     label="Intangibles" indent zeroAsDash />
-        <ValueRow rows={rows} field="Long Term Investments" label="Inversiones L/P" indent zeroAsDash />
-        <ValueRow rows={rows} field="Total Assets"          label="TOTAL ACTIVOS" isTotal showGrowth />
+        <Section label={t("balanceSheetTab.nonCurrentAssets")} color="#3b82f6" />
+        <ValueRow rows={rows} field="Net PPE"               label={t("balanceSheetTab.ppe")} indent />
+        <ValueRow rows={rows} field="Goodwill"              label={t("balanceSheetTab.goodwill")} indent zeroAsDash />
+        <ValueRow rows={rows} field="Intangible Assets"     label={t("balanceSheetTab.intangibles")} indent zeroAsDash />
+        <ValueRow rows={rows} field="Long Term Investments" label={t("balanceSheetTab.longTermInvestments")} indent zeroAsDash />
+        <ValueRow rows={rows} field="Total Assets"          label={t("balanceSheetTab.totalAssets")} isTotal showGrowth />
 
         {/* ── Pasivos ── */}
-        <Section label="Pasivos Corrientes" color="#f59e0b" />
-        <ValueRow rows={rows} field="Accounts Payable"    label="Cuentas por Pagar" isNeg indent />
-        <ValueRow rows={rows} field="Short Term Debt"     label="Deuda Corto Plazo" isNeg indent zeroAsDash />
-        <ValueRow rows={rows} field="Current Liabilities" label="Total Pasivos Corrientes" isTotal isNeg showGrowth />
+        <Section label={t("balanceSheetTab.currentLiabilities")} color="#f59e0b" />
+        <ValueRow rows={rows} field="Accounts Payable"    label={t("balanceSheetTab.accountsPayable")} isNeg indent />
+        <ValueRow rows={rows} field="Short Term Debt"     label={t("balanceSheetTab.shortTermDebt")} isNeg indent zeroAsDash />
+        <ValueRow rows={rows} field="Current Liabilities" label={t("balanceSheetTab.totalCurrentLiabilities")} isTotal isNeg showGrowth />
 
-        <Section label="Pasivos No Corrientes" color="#f59e0b" />
-        <ValueRow rows={rows} field="Long Term Debt"                          label="Deuda Largo Plazo" isNeg indent />
-        <ValueRow rows={rows} field="Total Liabilities Net Minority Interest" label="TOTAL PASIVOS" isTotal isNeg showGrowth />
+        <Section label={t("balanceSheetTab.nonCurrentLiabilities")} color="#f59e0b" />
+        <ValueRow rows={rows} field="Long Term Debt"                          label={t("balanceSheetTab.longTermDebt")} isNeg indent />
+        <ValueRow rows={rows} field="Total Liabilities Net Minority Interest" label={t("balanceSheetTab.totalLiabilities")} isTotal isNeg showGrowth />
 
         {/* ── Patrimonio ── */}
-        <Section label="Patrimonio" color="#22c55e" />
-        <ValueRow rows={rows} field="Retained Earnings"  label="Utilidades Retenidas" indent />
-        <ValueRow rows={rows} field="Stockholders Equity" label="PATRIMONIO NETO" isTotal showGrowth />
+        <Section label={t("balanceSheetTab.equity")} color="#22c55e" />
+        <ValueRow rows={rows} field="Retained Earnings"  label={t("balanceSheetTab.retainedEarnings")} indent />
+        <ValueRow rows={rows} field="Stockholders Equity" label={t("balanceSheetTab.totalEquity")} isTotal showGrowth />
 
         {/* ── Indicadores ── */}
-        <Section label="Indicadores Clave" color="var(--accent-l)" />
-        <ValueRow rows={rows} field="Total Debt"      label="Deuda Total" isNeg />
-        <ValueRow rows={rows} field="Net Debt"        label="Deuda Neta" isNeg />
-        <ValueRow rows={rows} field="Working Capital" label="Capital de Trabajo" showGrowth />
+        <Section label={t("balanceSheetTab.keyIndicators")} color="var(--accent-l)" />
+        <ValueRow rows={rows} field="Total Debt"      label={t("balanceSheetTab.totalDebt")} isNeg />
+        <ValueRow rows={rows} field="Net Debt"        label={t("balanceSheetTab.netDebt")} isNeg />
+        <ValueRow rows={rows} field="Working Capital" label={t("balanceSheetTab.workingCapital")} showGrowth />
       </div>
     </div>
   );

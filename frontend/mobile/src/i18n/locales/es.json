@@ -2566,5 +2566,205 @@
   "mobileOnboardingChecklist": {
     "title": "Configura tu Nuvos",
     "progress": "{{completed}} de {{total}} completados"
+  },
+  "mobileEarningsPanel": {
+    "heroTitle": "Calendario de Earnings",
+    "heroTagline": "Portafolio + Watchlist · Análisis IA",
+    "assetsMonitored": "{{count}} activos monitoreados",
+    "loadingCalendar": "Cargando calendario...",
+    "emptyState": "No hay earnings en los próximos 30 días para tu portafolio ni watchlist.",
+    "portfolio": "Portafolio",
+    "watchlist": "Watchlist",
+    "analyzingWithAI": "Analizando con IA...",
+    "tapToSeeAnalysis": "Toca para ver el análisis.",
+    "analysisError": "No se pudo obtener el análisis."
+  },
+  "pricingModal": {
+    "freeFeatures": [
+      "Hasta 20 mensajes/día con el mentor IA",
+      "Portafolio de hasta 10 acciones",
+      "Watchlist de hasta 25 acciones",
+      "Academia completa + quizzes",
+      "Gráfico básico (5D y 1M)",
+      "Noticias generales del mercado"
+    ],
+    "premiumFeatures": [
+      "Chatea sin límites con tu mentor de IA, a cualquier hora",
+      "Agrega todas las acciones que quieras, sin límite",
+      "Sube una foto o PDF de tu cuenta y la IA arma tu portafolio",
+      "Te avisamos antes de que tus empresas reporten ganancias",
+      "Mira cómo le hubiera ido a tu dinero en crisis pasadas (2008, COVID...)",
+      "La IA revisa tu portafolio y te dice qué mejorar",
+      "Cada lunes, 5 ideas de inversión seleccionadas para ti",
+      "Noticias de tus acciones, resumidas por IA en segundos",
+      "Cada mes te decimos si le ganaste al mercado o no",
+      "Lecciones pensadas para las acciones que ya tienes",
+      "Te avisamos cuando pasa algo importante con tu dinero",
+      "Descubre tu estilo como inversor y cómo mejorar"
+    ],
+    "duoFeatures": [
+      "Todo lo de Premium, para ambos",
+      "Perfil y portafolio independientes para cada persona",
+      "Comparte con un familiar o pareja",
+      "Ideal para aprender a invertir juntos"
+    ],
+    "title": "Prueba Premium gratis por 1 mes",
+    "subtitle": "Cancela cuando quieras antes de que termine y no pagas nada",
+    "monthly": "Mensual",
+    "yearlyDiscount": "Anual −17%",
+    "free": "Free",
+    "perMonth": "USD / mes",
+    "currentPlan": "Tu plan actual",
+    "premium": "Premium",
+    "limitedTime": "TIEMPO LIMITADO",
+    "firstMonth": "primer mes",
+    "thenPrice": "Luego {{price}}/mes{{suffix}}",
+    "billedAnnualSuffix": " · facturado anual",
+    "opening": "Abriendo...",
+    "claimFreeOffer": "Reclamar oferta gratis",
+    "duoPlan": "Duo Plan",
+    "new": "NUEVO",
+    "usdPeriod": "USD {{period}}",
+    "perMonthShort": "/mes",
+    "perYearShort": "/año",
+    "billedMonthly": "Facturado mensualmente",
+    "billedYearlyDuo": "$16.67/mes · Ahorra $40.87 vs mensual",
+    "hireDuoPlan": "Contratar Duo Plan",
+    "footerNote": "Prueba gratis 30 días. Cancela antes de que termine y no se te cobra nada."
+  },
+  "premiumToolCard": {
+    "badge": "PREMIUM",
+    "unlockWithPremium": "Desbloquear con Premium"
+  },
+  "mobileBrokerConnectModal": {
+    "brokers": {
+      "ibkr": "Acciones, opciones, futuros globales",
+      "schwab": "Broker líder en EE.UU.",
+      "robinhood": "Trading sin comisiones",
+      "iol": "Bolsa de Buenos Aires + NYSE",
+      "gbm": "Broker líder en México",
+      "actinver": "Casa de bolsa mexicana"
+    },
+    "disconnectBrokerTitle": "Desconectar broker",
+    "disconnectBrokerMsg": "¿Confirmas que quieres desconectar este broker?",
+    "cancel": "Cancelar",
+    "disconnect": "Desconectar",
+    "comingSoonTitle": "🚀 Próximamente",
+    "comingSoonMsg": "La conexión directa con {{brokerName}} estará disponible muy pronto.",
+    "understood": "Entendido",
+    "connectBroker": "Conectar Broker",
+    "connected": "CONECTADOS",
+    "lastSync": "Última sync: {{date}}",
+    "syncAll": "Sincronizar todo",
+    "addBroker": "AGREGAR BROKER",
+    "selectYourBroker": "SELECCIONA TU BROKER",
+    "comingSoon": "Próximamente",
+    "disclaimer": "Solo lectura — Nuvos AI nunca puede ejecutar operaciones en tu cuenta."
+  },
+  "tutorialModal": {
+    "steps": {
+      "welcome": {
+        "title": "Bienvenido a Nuvos AI",
+        "subtitle": "Tu mentor de inversiones con IA",
+        "desc": "Nuvos AI te enseña a pensar como un inversor profesional. No te decimos qué comprar — te enseñamos a analizar, entender y tomar decisiones por ti mismo. Todos tus datos se sincronizan en tiempo real entre la app y la web.",
+        "tip": "💡 Completa el perfil inicial para que la IA adapte sus respuestas a tu nivel: Básico, Intermedio o Avanzado."
+      },
+      "dashboard": {
+        "title": "Tu Dashboard",
+        "subtitle": "El pulso del mercado, de un vistazo",
+        "desc": "El Inicio muestra los índices S&P 500, Nasdaq y Dow Jones en tiempo real. Debajo verás el valor de tu portafolio con tres métricas clave: rendimiento de Hoy, YTD (lo que va del año) y Total acumulado.",
+        "tip": "💡 La sección «Subiendo hoy» muestra las 4 posiciones de tu portafolio con mayor ganancia del día."
+      },
+      "chat": {
+        "title": "Chat con tu Mentor IA",
+        "subtitle": "La herramienta principal de Nuvos",
+        "desc": "Pregunta sobre cualquier empresa, ETF, concepto o estrategia. La IA conoce tu perfil de riesgo, tu portafolio real y tu nivel inversor, y detecta cuando tus decisiones los contradicen. Cada conversación actualiza tu madurez conductual.",
+        "tip": "💡 Puedes editar cualquier mensaje tuyo tocando el ícono de lápiz que aparece al lado del texto."
+      },
+      "portfolio": {
+        "title": "Portafolio en Tiempo Real",
+        "subtitle": "Tus inversiones con datos vivos",
+        "desc": "Agrega posiciones manualmente o con una captura de tu broker — la IA extrae los datos automáticamente. Los precios se actualizan cada 30 segundos. Alterna entre vista Básica y Avanzada para ver Volumen, Market Cap, P/E y rango 52 semanas.",
+        "tip": "💡 El badge de moneda junto a «Mi Portafolio» indica la divisa de tu portafolio. Toca cualquier posición para ver su análisis completo."
+      },
+      "calendar": {
+        "title": "Calendario de Eventos",
+        "subtitle": "Earnings, dividendos y ex-dividendos",
+        "desc": "El calendario en Watchlist muestra automáticamente tres tipos de eventos para todas tus posiciones y watchlist: Earnings (resultados trimestrales), Ex-Dividendo (fecha límite para recibir el dividendo) y pago de Dividendo.",
+        "tip": "💡 Las posiciones de tu portafolio aparecen en verde intenso; las de watchlist en azul — así identificas de un vistazo cuáles te afectan directamente."
+      },
+      "watchlist": {
+        "title": "Watchlist",
+        "subtitle": "Sigue acciones sin comprarlas",
+        "desc": "Agrega cualquier acción para seguir su precio, noticias y eventos en tiempo real. En modo Avanzado obtienes una tabla completa con after-hours, market cap, P/E ratio, fecha de earnings y rango 52 semanas.",
+        "tip": "💡 Arrastra las tarjetas para reordenar tu watchlist. El orden se sincroniza automáticamente entre la app y la web."
+      },
+      "learning": {
+        "title": "Aprendizaje & Herramientas",
+        "subtitle": "Todo lo que necesitas para invertir mejor",
+        "desc": "Biblioteca de conceptos financieros con IA adaptada a tu nivel: ETFs, análisis fundamental, P/E ratio, DCA, Value Investing y psicología del inversor. El Screener semanal analiza el mercado y selecciona oportunidades personalizadas.",
+        "tip": "💡 La sección Inversores te muestra cómo invierten los grandes fondos — útil para identificar tendencias y validar tus ideas."
+      },
+      "profile": {
+        "title": "Tu Perfil & Madurez Inversora",
+        "subtitle": "La IA que te conoce como inversor",
+        "desc": "La IA analiza tu comportamiento real — si entras en pánico, si diversificas bien, si piensas a largo plazo — y te asigna una Madurez Inversora (0-100) que evoluciona. Tu nivel (Básico, Intermedio o Avanzado) adapta toda la experiencia.",
+        "tip": "💡 Tu barra de riesgo conductual en el perfil se actualiza automáticamente con cada conversación. Puedes cambiar tu nivel en Perfil en cualquier momento."
+      }
+    },
+    "back": "Atrás",
+    "skip": "Saltar",
+    "start": "¡Empezar!",
+    "next": "Siguiente"
+  },
+  "stockOverview": {
+    "about": "ACERCA DE",
+    "seeMore": "Ver más",
+    "seeLess": "Ver menos",
+    "market": "MERCADO",
+    "marketCap": "Capitalización",
+    "peRatio": "P/E Ratio",
+    "peFwd": "P/E Fwd",
+    "epsTtm": "EPS (TTM)",
+    "epsFwd": "EPS Fwd",
+    "beta": "Beta",
+    "divYield": "Div. Yield",
+    "priceBook": "Precio/Libro",
+    "profitability": "RENTABILIDAD",
+    "grossMargin": "Margen Bruto",
+    "netMargin": "Margen Neto",
+    "roe": "ROE",
+    "roa": "ROA",
+    "debtEquity": "Deuda/Equity",
+    "currentRatio": "Ratio Corriente",
+    "fcf": "FCF",
+    "company": "EMPRESA",
+    "employees": "Empleados",
+    "country": "País",
+    "city": "Ciudad",
+    "sector": "Sector",
+    "industry": "Industria"
+  },
+  "progressModal": {
+    "title": "Tu Progreso",
+    "start": "Inicio",
+    "investorMaturity": "MADUREZ INVERSORA",
+    "maturityEvolution": "EVOLUCIÓN DE MADUREZ",
+    "emptyGraph": "Usa el chat y el Play para ver tu evolución aquí",
+    "signalsRecorded": "{{count}} señales registradas · comportamiento en la app",
+    "statistics": "ESTADÍSTICAS",
+    "activeStreak": "Racha activa",
+    "daysUnit": "{{count}} días",
+    "topicsLearned": "Temas aprendidos",
+    "aiQueries": "Consultas al AI",
+    "positions": "Posiciones",
+    "latestSignalsDetected": "ÚLTIMAS SEÑALES DETECTADAS",
+    "nextLevel": "Próximo nivel",
+    "towards": "Hacia {{label}}",
+    "beginner": "Principiante",
+    "developing": "En Desarrollo",
+    "mature": "Maduro",
+    "expert": "Experto",
+    "expertBanner": "¡Eres un Experto! 🏆"
   }
 }

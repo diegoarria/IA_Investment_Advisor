@@ -1,6 +1,7 @@
 "use client";
 
 import { TrendingUp, TrendingDown } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -35,12 +36,13 @@ type Row = Record<string, unknown>;
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
 function Header({ rows }: { rows: Row[] }) {
+  const { t } = useTranslation();
   return (
     <div className="flex items-center sticky top-0 z-10 border-b"
          style={{ background: "var(--card)", borderColor: "var(--border)" }}>
       <div className="shrink-0 px-4 py-3" style={{ width: 200, minWidth: 160 }}>
         <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: "var(--dim)" }}>
-          Métrica
+          {t("cashFlowTab.metric")}
         </span>
       </div>
       {rows.map((r, i) => (
@@ -135,10 +137,11 @@ function ValueRow({ rows, field, label, isTotal, isNeg, zeroAsDash, showGrowth, 
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export default function CashFlowTab({ cashflow }: { cashflow: Row[] }) {
+  const { t } = useTranslation();
   const rows = cashflow.slice(-5);
   if (!rows.length) return (
     <div className="flex items-center justify-center py-16">
-      <p className="text-sm" style={{ color: "var(--muted)" }}>Sin datos de Flujo de Caja</p>
+      <p className="text-sm" style={{ color: "var(--muted)" }}>{t("cashFlowTab.noData")}</p>
     </div>
   );
 
@@ -150,44 +153,44 @@ export default function CashFlowTab({ cashflow }: { cashflow: Row[] }) {
              style={{ background: "var(--raised)", borderColor: "var(--border)" }}>
           <span className="text-[10px] font-black uppercase tracking-widest"
                 style={{ color: "var(--accent-l)", opacity: 0.85 }}>
-            Flujo de Caja · Anual · USD
+            {t("cashFlowTab.titleBar")}
           </span>
         </div>
 
         <Header rows={rows} />
 
         {/* ── FCF Hero — lo más importante arriba ── */}
-        <ValueRow rows={rows} field="Free Cash Flow"    label="Flujo Libre (FCF)" highlight showGrowth />
-        <ValueRow rows={rows} field="Operating Cash Flow" label="Flujo Operativo" isTotal showGrowth />
+        <ValueRow rows={rows} field="Free Cash Flow"    label={t("cashFlowTab.fcf")} highlight showGrowth />
+        <ValueRow rows={rows} field="Operating Cash Flow" label={t("cashFlowTab.operatingCashFlow")} isTotal showGrowth />
 
         {/* ── Operativo ── */}
-        <Section label="Desglose Operativo" color="#3b82f6" />
-        <ValueRow rows={rows} field="Net Income"                    label="Utilidad Neta" indent />
-        <ValueRow rows={rows} field="Depreciation And Amortization" label="Depreciación y Amortización" indent zeroAsDash />
-        <ValueRow rows={rows} field="Stock Based Compensation"      label="Compensación en Acciones" indent zeroAsDash />
-        <ValueRow rows={rows} field="Change In Working Capital"     label="Cambio Capital de Trabajo" indent zeroAsDash />
+        <Section label={t("cashFlowTab.operatingBreakdown")} color="#3b82f6" />
+        <ValueRow rows={rows} field="Net Income"                    label={t("cashFlowTab.netIncome")} indent />
+        <ValueRow rows={rows} field="Depreciation And Amortization" label={t("cashFlowTab.depreciation")} indent zeroAsDash />
+        <ValueRow rows={rows} field="Stock Based Compensation"      label={t("cashFlowTab.stockCompensation")} indent zeroAsDash />
+        <ValueRow rows={rows} field="Change In Working Capital"     label={t("cashFlowTab.workingCapitalChange")} indent zeroAsDash />
 
         {/* ── Inversión ── */}
-        <Section label="Actividades de Inversión" color="#f59e0b" />
-        <ValueRow rows={rows} field="Capital Expenditure"             label="CapEx" isNeg indent />
-        <ValueRow rows={rows} field="Acquisitions Net"                label="Adquisiciones" isNeg indent zeroAsDash />
-        <ValueRow rows={rows} field="Purchases Of Investments"        label="Compra Inversiones" isNeg indent zeroAsDash />
-        <ValueRow rows={rows} field="Sales Maturities Of Investments" label="Venta Inversiones" indent zeroAsDash />
-        <ValueRow rows={rows} field="Investing Cash Flow"             label="Total Flujo Inversión" isTotal isNeg />
+        <Section label={t("cashFlowTab.investingActivities")} color="#f59e0b" />
+        <ValueRow rows={rows} field="Capital Expenditure"             label={t("cashFlowTab.capex")} isNeg indent />
+        <ValueRow rows={rows} field="Acquisitions Net"                label={t("cashFlowTab.acquisitions")} isNeg indent zeroAsDash />
+        <ValueRow rows={rows} field="Purchases Of Investments"        label={t("cashFlowTab.purchasesOfInvestments")} isNeg indent zeroAsDash />
+        <ValueRow rows={rows} field="Sales Maturities Of Investments" label={t("cashFlowTab.salesOfInvestments")} indent zeroAsDash />
+        <ValueRow rows={rows} field="Investing Cash Flow"             label={t("cashFlowTab.totalInvestingCashFlow")} isTotal isNeg />
 
         {/* ── Financiamiento ── */}
-        <Section label="Actividades de Financiamiento" color="#8b5cf6" />
-        <ValueRow rows={rows} field="Repurchase Of Capital Stock" label="Recompra de Acciones" isNeg indent zeroAsDash />
-        <ValueRow rows={rows} field="Issuance Of Common Stock"    label="Emisión de Acciones" indent zeroAsDash />
-        <ValueRow rows={rows} field="Dividends Paid"              label="Dividendos Pagados" isNeg indent zeroAsDash />
-        <ValueRow rows={rows} field="Repayment Of Debt"           label="Pago de Deuda" isNeg indent zeroAsDash />
-        <ValueRow rows={rows} field="Financing Cash Flow"         label="Total Flujo Financiamiento" isTotal isNeg />
+        <Section label={t("cashFlowTab.financingActivities")} color="#8b5cf6" />
+        <ValueRow rows={rows} field="Repurchase Of Capital Stock" label={t("cashFlowTab.stockRepurchase")} isNeg indent zeroAsDash />
+        <ValueRow rows={rows} field="Issuance Of Common Stock"    label={t("cashFlowTab.stockIssuance")} indent zeroAsDash />
+        <ValueRow rows={rows} field="Dividends Paid"              label={t("cashFlowTab.dividendsPaid")} isNeg indent zeroAsDash />
+        <ValueRow rows={rows} field="Repayment Of Debt"           label={t("cashFlowTab.debtRepayment")} isNeg indent zeroAsDash />
+        <ValueRow rows={rows} field="Financing Cash Flow"         label={t("cashFlowTab.totalFinancingCashFlow")} isTotal isNeg />
 
         {/* ── Resumen ── */}
-        <Section label="Resumen de Caja" color="var(--accent-l)" />
-        <ValueRow rows={rows} field="Net Change In Cash"          label="Cambio Neto en Efectivo" showGrowth />
-        <ValueRow rows={rows} field="Cash At Beginning Of Period" label="Efectivo al Inicio" indent zeroAsDash />
-        <ValueRow rows={rows} field="Cash At End Of Period"       label="Efectivo al Final" indent zeroAsDash />
+        <Section label={t("cashFlowTab.cashSummary")} color="var(--accent-l)" />
+        <ValueRow rows={rows} field="Net Change In Cash"          label={t("cashFlowTab.netCashChange")} showGrowth />
+        <ValueRow rows={rows} field="Cash At Beginning Of Period" label={t("cashFlowTab.cashBeginning")} indent zeroAsDash />
+        <ValueRow rows={rows} field="Cash At End Of Period"       label={t("cashFlowTab.cashEnding")} indent zeroAsDash />
       </div>
     </div>
   );

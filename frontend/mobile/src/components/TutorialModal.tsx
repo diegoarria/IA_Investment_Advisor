@@ -3,74 +3,78 @@ import {
   View, Text, TouchableOpacity, Modal, StyleSheet, ScrollView,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import { useTheme } from "../lib/ThemeContext";
 
-const STEPS = [
-  {
-    emoji: "👋",
-    color: "#00b96d",
-    title: "Bienvenido a Nuvos AI",
-    subtitle: "Tu mentor de inversiones con IA",
-    desc: "Nuvos AI te enseña a pensar como un inversor profesional. No te decimos qué comprar — te enseñamos a analizar, entender y tomar decisiones por ti mismo. Todos tus datos se sincronizan en tiempo real entre la app y la web.",
-    tip: "💡 Completa el perfil inicial para que la IA adapte sus respuestas a tu nivel: Básico, Intermedio o Avanzado.",
-  },
-  {
-    emoji: "🏠",
-    color: "#00b96d",
-    title: "Tu Dashboard",
-    subtitle: "El pulso del mercado, de un vistazo",
-    desc: "El Inicio muestra los índices S&P 500, Nasdaq y Dow Jones en tiempo real. Debajo verás el valor de tu portafolio con tres métricas clave: rendimiento de Hoy, YTD (lo que va del año) y Total acumulado.",
-    tip: "💡 La sección «Subiendo hoy» muestra las 4 posiciones de tu portafolio con mayor ganancia del día.",
-  },
-  {
-    emoji: "💬",
-    color: "#10b981",
-    title: "Chat con tu Mentor IA",
-    subtitle: "La herramienta principal de Nuvos",
-    desc: "Pregunta sobre cualquier empresa, ETF, concepto o estrategia. La IA conoce tu perfil de riesgo, tu portafolio real y tu nivel inversor, y detecta cuando tus decisiones los contradicen. Cada conversación actualiza tu madurez conductual.",
-    tip: "💡 Puedes editar cualquier mensaje tuyo tocando el ícono de lápiz que aparece al lado del texto.",
-  },
-  {
-    emoji: "📊",
-    color: "#3b82f6",
-    title: "Portafolio en Tiempo Real",
-    subtitle: "Tus inversiones con datos vivos",
-    desc: "Agrega posiciones manualmente o con una captura de tu broker — la IA extrae los datos automáticamente. Los precios se actualizan cada 30 segundos. Alterna entre vista Básica y Avanzada para ver Volumen, Market Cap, P/E y rango 52 semanas.",
-    tip: "💡 El badge de moneda junto a «Mi Portafolio» indica la divisa de tu portafolio. Toca cualquier posición para ver su análisis completo.",
-  },
-  {
-    emoji: "📅",
-    color: "#f59e0b",
-    title: "Calendario de Eventos",
-    subtitle: "Earnings, dividendos y ex-dividendos",
-    desc: "El calendario en Watchlist muestra automáticamente tres tipos de eventos para todas tus posiciones y watchlist: Earnings (resultados trimestrales), Ex-Dividendo (fecha límite para recibir el dividendo) y pago de Dividendo.",
-    tip: "💡 Las posiciones de tu portafolio aparecen en verde intenso; las de watchlist en azul — así identificas de un vistazo cuáles te afectan directamente.",
-  },
-  {
-    emoji: "👁️",
-    color: "#0ea5e9",
-    title: "Watchlist",
-    subtitle: "Sigue acciones sin comprarlas",
-    desc: "Agrega cualquier acción para seguir su precio, noticias y eventos en tiempo real. En modo Avanzado obtienes una tabla completa con after-hours, market cap, P/E ratio, fecha de earnings y rango 52 semanas.",
-    tip: "💡 Arrastra las tarjetas para reordenar tu watchlist. El orden se sincroniza automáticamente entre la app y la web.",
-  },
-  {
-    emoji: "📚",
-    color: "#06b6d4",
-    title: "Aprendizaje & Herramientas",
-    subtitle: "Todo lo que necesitas para invertir mejor",
-    desc: "Biblioteca de conceptos financieros con IA adaptada a tu nivel: ETFs, análisis fundamental, P/E ratio, DCA, Value Investing y psicología del inversor. El Screener semanal analiza el mercado y selecciona oportunidades personalizadas.",
-    tip: "💡 La sección Inversores te muestra cómo invierten los grandes fondos — útil para identificar tendencias y validar tus ideas.",
-  },
-  {
-    emoji: "🧠",
-    color: "#a855f7",
-    title: "Tu Perfil & Madurez Inversora",
-    subtitle: "La IA que te conoce como inversor",
-    desc: "La IA analiza tu comportamiento real — si entras en pánico, si diversificas bien, si piensas a largo plazo — y te asigna una Madurez Inversora (0-100) que evoluciona. Tu nivel (Básico, Intermedio o Avanzado) adapta toda la experiencia.",
-    tip: "💡 Tu barra de riesgo conductual en el perfil se actualiza automáticamente con cada conversación. Puedes cambiar tu nivel en Perfil en cualquier momento.",
-  },
-];
+function getSteps(t: TFunction) {
+  return [
+    {
+      emoji: "👋",
+      color: "#00b96d",
+      title: t("tutorialModal.steps.welcome.title"),
+      subtitle: t("tutorialModal.steps.welcome.subtitle"),
+      desc: t("tutorialModal.steps.welcome.desc"),
+      tip: t("tutorialModal.steps.welcome.tip"),
+    },
+    {
+      emoji: "🏠",
+      color: "#00b96d",
+      title: t("tutorialModal.steps.dashboard.title"),
+      subtitle: t("tutorialModal.steps.dashboard.subtitle"),
+      desc: t("tutorialModal.steps.dashboard.desc"),
+      tip: t("tutorialModal.steps.dashboard.tip"),
+    },
+    {
+      emoji: "💬",
+      color: "#10b981",
+      title: t("tutorialModal.steps.chat.title"),
+      subtitle: t("tutorialModal.steps.chat.subtitle"),
+      desc: t("tutorialModal.steps.chat.desc"),
+      tip: t("tutorialModal.steps.chat.tip"),
+    },
+    {
+      emoji: "📊",
+      color: "#3b82f6",
+      title: t("tutorialModal.steps.portfolio.title"),
+      subtitle: t("tutorialModal.steps.portfolio.subtitle"),
+      desc: t("tutorialModal.steps.portfolio.desc"),
+      tip: t("tutorialModal.steps.portfolio.tip"),
+    },
+    {
+      emoji: "📅",
+      color: "#f59e0b",
+      title: t("tutorialModal.steps.calendar.title"),
+      subtitle: t("tutorialModal.steps.calendar.subtitle"),
+      desc: t("tutorialModal.steps.calendar.desc"),
+      tip: t("tutorialModal.steps.calendar.tip"),
+    },
+    {
+      emoji: "👁️",
+      color: "#0ea5e9",
+      title: t("tutorialModal.steps.watchlist.title"),
+      subtitle: t("tutorialModal.steps.watchlist.subtitle"),
+      desc: t("tutorialModal.steps.watchlist.desc"),
+      tip: t("tutorialModal.steps.watchlist.tip"),
+    },
+    {
+      emoji: "📚",
+      color: "#06b6d4",
+      title: t("tutorialModal.steps.learning.title"),
+      subtitle: t("tutorialModal.steps.learning.subtitle"),
+      desc: t("tutorialModal.steps.learning.desc"),
+      tip: t("tutorialModal.steps.learning.tip"),
+    },
+    {
+      emoji: "🧠",
+      color: "#a855f7",
+      title: t("tutorialModal.steps.profile.title"),
+      subtitle: t("tutorialModal.steps.profile.subtitle"),
+      desc: t("tutorialModal.steps.profile.desc"),
+      tip: t("tutorialModal.steps.profile.tip"),
+    },
+  ];
+}
 
 interface Props {
   visible: boolean;
@@ -79,8 +83,10 @@ interface Props {
 
 export default function TutorialModal({ visible, onClose }: Props) {
   const { colors } = useTheme();
+  const { t } = useTranslation();
   const [step, setStep] = useState(0);
 
+  const STEPS = getSteps(t);
   const current = STEPS[step];
   const isLast = step === STEPS.length - 1;
   const progress = ((step + 1) / STEPS.length) * 100;
@@ -138,14 +144,14 @@ export default function TutorialModal({ visible, onClose }: Props) {
                   onPress={() => setStep(step - 1)}
                 >
                   <Ionicons name="arrow-back" size={16} color={colors.textMuted} />
-                  <Text style={[styles.btnBackText, { color: colors.textMuted }]}>Atrás</Text>
+                  <Text style={[styles.btnBackText, { color: colors.textMuted }]}>{t("tutorialModal.back")}</Text>
                 </TouchableOpacity>
               ) : (
                 <TouchableOpacity
                   style={[styles.btnBack, { backgroundColor: colors.bg, borderColor: colors.border }]}
                   onPress={handleClose}
                 >
-                  <Text style={[styles.btnBackText, { color: colors.textMuted }]}>Saltar</Text>
+                  <Text style={[styles.btnBackText, { color: colors.textMuted }]}>{t("tutorialModal.skip")}</Text>
                 </TouchableOpacity>
               )}
 
@@ -153,7 +159,7 @@ export default function TutorialModal({ visible, onClose }: Props) {
                 style={[styles.btnNext, { backgroundColor: current.color, shadowColor: current.color }]}
                 onPress={handleNext}
               >
-                <Text style={styles.btnNextText}>{isLast ? "¡Empezar!" : "Siguiente"}</Text>
+                <Text style={styles.btnNextText}>{isLast ? t("tutorialModal.start") : t("tutorialModal.next")}</Text>
                 {!isLast && <Ionicons name="arrow-forward" size={16} color="white" />}
               </TouchableOpacity>
             </View>

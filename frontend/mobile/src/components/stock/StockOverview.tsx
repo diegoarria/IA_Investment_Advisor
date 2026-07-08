@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { View, Text, TouchableOpacity, StyleSheet, Linking } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useTranslation } from "react-i18next";
 import { useTheme } from "../../lib/ThemeContext";
 import type { StockProfile } from "../../hooks/useStockDetail";
 
@@ -106,6 +107,7 @@ function Divider({ color }: { color: string }) {
 
 export default function StockOverview({ profile }: Props) {
   const { colors } = useTheme();
+  const { t } = useTranslation();
   const [expanded, setExpanded] = useState(false);
 
   const desc = profile.description ?? "";
@@ -118,14 +120,14 @@ export default function StockOverview({ profile }: Props) {
       {/* ── Descripción ── */}
       {desc.length > 0 && (
         <View style={[sc.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <Text style={[sc.title, { color: colors.textMuted }]}>ACERCA DE</Text>
+          <Text style={[sc.title, { color: colors.textMuted }]}>{t("stockOverview.about")}</Text>
           <Text style={[s.desc, { color: colors.textSub }]}>
             {displayDesc}
           </Text>
           {desc.length > 200 && (
             <TouchableOpacity onPress={() => setExpanded(!expanded)} style={s.seeMore}>
               <Text style={[s.seeMoreText, { color: colors.accentLight }]}>
-                {expanded ? "Ver menos" : "Ver más"}
+                {expanded ? t("stockOverview.seeLess") : t("stockOverview.seeMore")}
               </Text>
               <Ionicons
                 name={expanded ? "chevron-up" : "chevron-down"}
@@ -149,74 +151,74 @@ export default function StockOverview({ profile }: Props) {
       )}
 
       {/* ── Métricas de mercado ── */}
-      <SectionCard title="MERCADO" colors={colors}>
-        <StatRow label="Capitalización" value={fmtBig(profile.market_cap)} colors={colors} />
+      <SectionCard title={t("stockOverview.market")} colors={colors}>
+        <StatRow label={t("stockOverview.marketCap")} value={fmtBig(profile.market_cap)} colors={colors} />
         <Divider color={colors.border} />
-        <StatRow label="P/E Ratio" value={fmtNum(profile.pe_ratio)} colors={colors} />
+        <StatRow label={t("stockOverview.peRatio")} value={fmtNum(profile.pe_ratio)} colors={colors} />
         <Divider color={colors.border} />
-        <StatRow label="P/E Fwd" value={fmtNum(profile.forward_pe)} colors={colors} />
+        <StatRow label={t("stockOverview.peFwd")} value={fmtNum(profile.forward_pe)} colors={colors} />
         <Divider color={colors.border} />
-        <StatRow label="EPS (TTM)" value={profile.eps != null ? `$${profile.eps.toFixed(2)}` : "—"} colors={colors} />
+        <StatRow label={t("stockOverview.epsTtm")} value={profile.eps != null ? `$${profile.eps.toFixed(2)}` : "—"} colors={colors} />
         <Divider color={colors.border} />
-        <StatRow label="EPS Fwd" value={profile.forward_eps != null ? `$${profile.forward_eps.toFixed(2)}` : "—"} colors={colors} />
+        <StatRow label={t("stockOverview.epsFwd")} value={profile.forward_eps != null ? `$${profile.forward_eps.toFixed(2)}` : "—"} colors={colors} />
         <Divider color={colors.border} />
-        <StatRow label="Beta" value={fmtNum(profile.beta)} colors={colors} />
+        <StatRow label={t("stockOverview.beta")} value={fmtNum(profile.beta)} colors={colors} />
         <Divider color={colors.border} />
         <StatRow
-          label="Div. Yield"
+          label={t("stockOverview.divYield")}
           value={profile.dividend_yield ? `${profile.dividend_yield.toFixed(2)}%` : "—"}
           colors={colors}
         />
         <Divider color={colors.border} />
-        <StatRow label="Precio/Libro" value={fmtNum(profile.pb_ratio)} colors={colors} />
+        <StatRow label={t("stockOverview.priceBook")} value={fmtNum(profile.pb_ratio)} colors={colors} />
       </SectionCard>
 
       {/* ── Rentabilidad y eficiencia ── */}
-      <SectionCard title="RENTABILIDAD" colors={colors}>
-        <StatRow label="Margen Bruto" value={fmtPct(profile.gross_margins)} colors={colors} />
+      <SectionCard title={t("stockOverview.profitability")} colors={colors}>
+        <StatRow label={t("stockOverview.grossMargin")} value={fmtPct(profile.gross_margins)} colors={colors} />
         <Divider color={colors.border} />
-        <StatRow label="Margen Neto" value={fmtPct(profile.profit_margins)} colors={colors} />
+        <StatRow label={t("stockOverview.netMargin")} value={fmtPct(profile.profit_margins)} colors={colors} />
         <Divider color={colors.border} />
-        <StatRow label="ROE" value={fmtPct(profile.return_on_equity)} colors={colors} />
+        <StatRow label={t("stockOverview.roe")} value={fmtPct(profile.return_on_equity)} colors={colors} />
         <Divider color={colors.border} />
-        <StatRow label="ROA" value={fmtPct(profile.return_on_assets)} colors={colors} />
+        <StatRow label={t("stockOverview.roa")} value={fmtPct(profile.return_on_assets)} colors={colors} />
         <Divider color={colors.border} />
-        <StatRow label="Deuda/Equity" value={fmtNum(profile.debt_to_equity)} colors={colors} />
+        <StatRow label={t("stockOverview.debtEquity")} value={fmtNum(profile.debt_to_equity)} colors={colors} />
         <Divider color={colors.border} />
-        <StatRow label="Ratio Corriente" value={fmtNum(profile.current_ratio)} colors={colors} />
+        <StatRow label={t("stockOverview.currentRatio")} value={fmtNum(profile.current_ratio)} colors={colors} />
         <Divider color={colors.border} />
-        <StatRow label="FCF" value={fmtBig(profile.free_cashflow)} colors={colors} />
+        <StatRow label={t("stockOverview.fcf")} value={fmtBig(profile.free_cashflow)} colors={colors} />
       </SectionCard>
 
       {/* ── Empresa ── */}
-      <SectionCard title="EMPRESA" colors={colors}>
+      <SectionCard title={t("stockOverview.company")} colors={colors}>
         <StatRow
-          label="Empleados"
+          label={t("stockOverview.employees")}
           value={profile.employees ? profile.employees.toLocaleString() : "—"}
           colors={colors}
         />
         {profile.country && (
           <>
             <Divider color={colors.border} />
-            <StatRow label="País" value={profile.country} colors={colors} />
+            <StatRow label={t("stockOverview.country")} value={profile.country} colors={colors} />
           </>
         )}
         {profile.city && (
           <>
             <Divider color={colors.border} />
-            <StatRow label="Ciudad" value={profile.city} colors={colors} />
+            <StatRow label={t("stockOverview.city")} value={profile.city} colors={colors} />
           </>
         )}
         {profile.sector && (
           <>
             <Divider color={colors.border} />
-            <StatRow label="Sector" value={profile.sector} colors={colors} />
+            <StatRow label={t("stockOverview.sector")} value={profile.sector} colors={colors} />
           </>
         )}
         {profile.industry && (
           <>
             <Divider color={colors.border} />
-            <StatRow label="Industria" value={profile.industry} colors={colors} />
+            <StatRow label={t("stockOverview.industry")} value={profile.industry} colors={colors} />
           </>
         )}
       </SectionCard>

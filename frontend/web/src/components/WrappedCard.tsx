@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import api from "@/lib/api";
 
 interface WrappedCardProps {
@@ -24,6 +25,7 @@ interface WrappedData {
 const fmtPct = (n: number) => `${n >= 0 ? "+" : ""}${n.toFixed(1)}%`;
 
 export default function WrappedCard({ onClose }: WrappedCardProps) {
+  const { t } = useTranslation();
   const [data, setData] = useState<WrappedData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -84,20 +86,20 @@ export default function WrappedCard({ onClose }: WrappedCardProps) {
           {loading ? (
             <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "40px 0", gap: 12 }}>
               <Loader2 className="w-6 h-6 animate-spin" style={{ color: "#00d47e" }} />
-              <span style={{ color: "#8fa3c0", fontSize: 13 }}>Preparando tu ScoreBoard…</span>
+              <span style={{ color: "#8fa3c0", fontSize: 13 }}>{t("wrappedCard.preparing")}</span>
             </div>
           ) : error || !data ? (
             <div style={{ textAlign: "center", padding: "40px 0" }}>
-              <span style={{ color: "#8fa3c0", fontSize: 13 }}>No se pudo cargar tu ScoreBoard.</span>
+              <span style={{ color: "#8fa3c0", fontSize: 13 }}>{t("wrappedCard.loadError")}</span>
             </div>
           ) : (
             <>
               <div>
                 <div style={{ fontSize: 11, color: "#00d47e", fontWeight: 900, letterSpacing: 0.8, textTransform: "uppercase", marginBottom: 8 }}>
-                  Tu año en
+                  {t("wrappedCard.yourYearIn")}
                 </div>
                 <div style={{ fontSize: 32, fontWeight: 900, color: "#fff", lineHeight: 1.1, letterSpacing: -1.5 }}>
-                  Annual<br />ScoreBoard
+                  {t("wrappedCard.title")}<br />{t("wrappedCard.titleLine2")}
                 </div>
                 <div style={{ fontSize: 14, color: "#00d47e", fontWeight: 700, marginTop: 8 }}>{data.user_name} · {data.year}</div>
               </div>
@@ -108,20 +110,20 @@ export default function WrappedCard({ onClose }: WrappedCardProps) {
                   {data.growth_pct !== undefined && (
                     <div>
                       <div style={{ fontSize: 34, fontWeight: 900, color: "#00d47e", lineHeight: 1.1 }}>{fmtPct(data.growth_pct)}</div>
-                      <div style={{ fontSize: 13, color: "#e5e7eb", fontWeight: 700 }}>creció tu patrimonio este año</div>
+                      <div style={{ fontSize: 13, color: "#e5e7eb", fontWeight: 700 }}>{t("wrappedCard.wealthGrew")}</div>
                     </div>
                   )}
                   <div style={{ display: "flex", gap: 10 }}>
                     {!!data.milestones_this_year?.length && (
                       <div style={{ flex: 1, background: "rgba(255,255,255,0.04)", borderRadius: 14, padding: 12 }}>
                         <div style={{ fontSize: 22, fontWeight: 900, color: "#fff" }}>{data.milestones_this_year.length}</div>
-                        <div style={{ fontSize: 11, color: "#9ca3af" }}>hitos alcanzados</div>
+                        <div style={{ fontSize: 11, color: "#9ca3af" }}>{t("wrappedCard.milestonesReached")}</div>
                       </div>
                     )}
                     {!!data.decisions_logged_this_year && (
                       <div style={{ flex: 1, background: "rgba(255,255,255,0.04)", borderRadius: 14, padding: 12 }}>
                         <div style={{ fontSize: 22, fontWeight: 900, color: "#fff" }}>{data.decisions_logged_this_year}</div>
-                        <div style={{ fontSize: 11, color: "#9ca3af" }}>decisiones registradas</div>
+                        <div style={{ fontSize: 11, color: "#9ca3af" }}>{t("wrappedCard.decisionsLogged")}</div>
                       </div>
                     )}
                   </div>
@@ -135,7 +137,7 @@ export default function WrappedCard({ onClose }: WrappedCardProps) {
               {data.top_stocks.length > 0 && (
                 <div>
                   <div style={{ fontSize: 11, color: "#6b7280", fontWeight: 900, letterSpacing: 0.6, textTransform: "uppercase", marginBottom: 10 }}>
-                    🚀 Tus mejores acciones
+                    {t("wrappedCard.topStocks")}
                   </div>
                   <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                     {data.top_stocks.map((st, i) => (
@@ -152,17 +154,17 @@ export default function WrappedCard({ onClose }: WrappedCardProps) {
               <div style={{ display: "flex", gap: 10 }}>
                 <div style={{ flex: 1, background: "rgba(139,92,246,0.08)", border: "1px solid rgba(139,92,246,0.2)", borderRadius: 14, padding: 12 }}>
                   <div style={{ fontSize: 22, fontWeight: 900, color: "#8b5cf6" }}>{data.lessons}</div>
-                  <div style={{ fontSize: 11, color: "#9ca3af" }}>lecciones</div>
+                  <div style={{ fontSize: 11, color: "#9ca3af" }}>{t("wrappedCard.lessons")}</div>
                 </div>
                 <div style={{ flex: 1, background: "rgba(255,255,255,0.04)", borderRadius: 14, padding: 12 }}>
                   <div style={{ fontSize: 22, fontWeight: 900, color: "#fff" }}>{data.days_active}</div>
-                  <div style={{ fontSize: 11, color: "#9ca3af" }}>días activo</div>
+                  <div style={{ fontSize: 11, color: "#9ca3af" }}>{t("wrappedCard.daysActive")}</div>
                 </div>
               </div>
               {data.top_sector && (
                 <div style={{ background: "rgba(59,130,246,0.08)", border: "1px solid rgba(59,130,246,0.2)", borderRadius: 14, padding: 12, textAlign: "center" }}>
                   <div style={{ fontSize: 16, fontWeight: 900, color: "#3b82f6" }}>{data.top_sector}</div>
-                  <div style={{ fontSize: 11, color: "#9ca3af" }}>sector con mayor exposición</div>
+                  <div style={{ fontSize: 11, color: "#9ca3af" }}>{t("wrappedCard.topSector")}</div>
                 </div>
               )}
             </>
@@ -178,7 +180,7 @@ export default function WrappedCard({ onClose }: WrappedCardProps) {
               boxShadow: "0 4px 20px rgba(0,212,126,0.35)",
             }}
           >
-            Cerrar
+            {t("wrappedCard.close")}
           </button>
         </div>
       </div>

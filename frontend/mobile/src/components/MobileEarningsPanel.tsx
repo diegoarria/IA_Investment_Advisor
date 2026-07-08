@@ -3,6 +3,7 @@ import {
   View, Text, TouchableOpacity, ActivityIndicator, StyleSheet,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useTranslation } from "react-i18next";
 import { useTheme } from "../lib/ThemeContext";
 import { earningsApi } from "../lib/api";
 
@@ -21,6 +22,7 @@ const WATCHLIST_CLR = "#60a5fa";
 
 export default function MobileEarningsPanel({ positions, watchlistTickers = [], isPremium }: Props) {
   const { colors } = useTheme();
+  const { t } = useTranslation();
   const [calendar, setCalendar]   = useState<EarningsEntry[]>([]);
   const [loading, setLoading]     = useState(false);
   const [expanded, setExpanded]   = useState<string | null>(null);
@@ -52,7 +54,7 @@ export default function MobileEarningsPanel({ positions, watchlistTickers = [], 
       const res: any = await earningsApi.getAnalysis(ticker, pos?.shares ?? 0, pos?.avg_cost ?? 0);
       setAnalysis((prev) => ({ ...prev, [ticker]: res.data.analysis }));
     } catch {
-      setAnalysis((prev) => ({ ...prev, [ticker]: "No se pudo obtener el análisis." }));
+      setAnalysis((prev) => ({ ...prev, [ticker]: t("mobileEarningsPanel.analysisError") }));
     } finally { setAnalyzing(null); }
   };
 
@@ -73,11 +75,11 @@ export default function MobileEarningsPanel({ positions, watchlistTickers = [], 
               : <Ionicons name="calendar" size={28} color="white" />}
           </View>
         </View>
-        <Text style={s.heroTitle}>Calendario de Earnings</Text>
-        <Text style={[s.heroTagline, { color: TOOL_COLOR }]}>Portafolio + Watchlist · Análisis IA</Text>
+        <Text style={s.heroTitle}>{t("mobileEarningsPanel.heroTitle")}</Text>
+        <Text style={[s.heroTagline, { color: TOOL_COLOR }]}>{t("mobileEarningsPanel.heroTagline")}</Text>
         {symbols.length > 0 && (
           <View style={s.countBadge}>
-            <Text style={s.countText}>{symbols.length} activos monitoreados</Text>
+            <Text style={s.countText}>{t("mobileEarningsPanel.assetsMonitored", { count: symbols.length })}</Text>
           </View>
         )}
       </View>
@@ -87,7 +89,7 @@ export default function MobileEarningsPanel({ positions, watchlistTickers = [], 
         {loading && (
           <View style={s.loadingRow}>
             <ActivityIndicator size="small" color={TOOL_COLOR} />
-            <Text style={[s.loadingText, { color: colors.textMuted }]}>Cargando calendario...</Text>
+            <Text style={[s.loadingText, { color: colors.textMuted }]}>{t("mobileEarningsPanel.loadingCalendar")}</Text>
           </View>
         )}
 
@@ -95,7 +97,7 @@ export default function MobileEarningsPanel({ positions, watchlistTickers = [], 
           <View style={s.emptyWrap}>
             <Text style={{ fontSize: 28 }}>📅</Text>
             <Text style={[s.emptyText, { color: colors.textMuted }]}>
-              No hay earnings en los próximos 30 días para tu portafolio ni watchlist.
+              {t("mobileEarningsPanel.emptyState")}
             </Text>
           </View>
         )}
@@ -129,7 +131,7 @@ export default function MobileEarningsPanel({ positions, watchlistTickers = [], 
                         size={9} color={badgeColor}
                       />
                       <Text style={[s.badgeText, { color: badgeColor }]}>
-                        {inPortfolio ? "Portafolio" : "Watchlist"}
+                        {inPortfolio ? t("mobileEarningsPanel.portfolio") : t("mobileEarningsPanel.watchlist")}
                       </Text>
                     </View>
                   </View>
@@ -148,11 +150,11 @@ export default function MobileEarningsPanel({ positions, watchlistTickers = [], 
                   {analyzing === entry.ticker ? (
                     <View style={s.analyzeRow}>
                       <ActivityIndicator size="small" color={TOOL_COLOR} />
-                      <Text style={[s.analyzeText, { color: colors.textMuted }]}>Analizando con IA...</Text>
+                      <Text style={[s.analyzeText, { color: colors.textMuted }]}>{t("mobileEarningsPanel.analyzingWithAI")}</Text>
                     </View>
                   ) : (
                     <Text style={[s.analysisText, { color: colors.textSub }]}>
-                      {analysis[entry.ticker] || "Toca para ver el análisis."}
+                      {analysis[entry.ticker] || t("mobileEarningsPanel.tapToSeeAnalysis")}
                     </Text>
                   )}
                 </View>

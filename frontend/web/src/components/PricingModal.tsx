@@ -2,38 +2,8 @@
 
 import { useState } from "react";
 import { X, Check, Lock } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { billing, upsells } from "@/lib/api";
-
-const FREE_FEATURES = [
-  "Hasta 15 mensajes/día con el mentor IA",
-  "Portafolio con hasta 10 acciones",
-  "Watchlist de hasta 25 acciones",
-  "Lecciones y quizzes de academia",
-  "Gráfico básico de portafolio (5D y 1M)",
-  "Notificaciones generales de tu portafolio y watchlist",
-];
-
-const PREMIUM_FEATURES = [
-  "Chatea sin límites con tu mentor de IA, a cualquier hora",
-  "Agrega todas las acciones que quieras, sin límite",
-  "Sube una foto o PDF de tu cuenta y la IA arma tu portafolio",
-  "Te avisamos antes de que tus empresas reporten ganancias",
-  "Mira cómo le hubiera ido a tu dinero en crisis pasadas (2008, COVID...)",
-  "La IA revisa tu portafolio y te dice qué mejorar",
-  "Cada lunes, 5 ideas de inversión seleccionadas para ti",
-  "Noticias de tus acciones, resumidas por IA en segundos",
-  "Cada mes te decimos si le ganaste al mercado o no",
-  "Lecciones pensadas para las acciones que ya tienes",
-  "Te avisamos cuando pasa algo importante con tu dinero",
-  "Descubre tu estilo como inversor y cómo mejorar",
-];
-
-const DUO_FEATURES = [
-  "Todo lo de Premium, para ambos",
-  "Perfil y portafolio independientes para cada persona",
-  "Comparte con un familiar o pareja",
-  "Ideal para aprender a invertir juntos",
-];
 
 interface Props {
   visible: boolean;
@@ -41,9 +11,14 @@ interface Props {
 }
 
 export default function PricingModal({ visible, onClose }: Props) {
+  const { t } = useTranslation();
   const [plan, setPlan] = useState<"monthly" | "yearly">("monthly");
   const [loading, setLoading] = useState(false);
   const [duoLoading, setDuoLoading] = useState(false);
+
+  const FREE_FEATURES = t("pricingModal.freeFeatures", { returnObjects: true }) as string[];
+  const PREMIUM_FEATURES = t("pricingModal.premiumFeatures", { returnObjects: true }) as string[];
+  const DUO_FEATURES = t("pricingModal.duoFeatures", { returnObjects: true }) as string[];
 
   if (!visible) return null;
 
@@ -68,9 +43,9 @@ export default function PricingModal({ visible, onClose }: Props) {
   }
 
   const monthlyPrice = plan === "monthly" ? "$12.99" : "$10.50";
-  const yearlyNote   = plan === "yearly" ? "· Ahorra $29.89 vs mensual" : null;
+  const yearlyNote   = plan === "yearly" ? t("pricingModal.savings") : null;
   const duoPrice     = plan === "monthly" ? "$19.99" : "$199.99";
-  const duoPeriod    = plan === "monthly" ? "/mes" : "/año";
+  const duoPeriod    = plan === "monthly" ? t("pricingModal.perMonthShort") : t("pricingModal.perYearShort");
 
   return (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.75)", backdropFilter: "blur(6px)" }}>
@@ -79,7 +54,7 @@ export default function PricingModal({ visible, onClose }: Props) {
         {/* Header — sticky, always visible */}
         <div className="relative flex items-center justify-center py-5 px-6 border-b shrink-0" style={{ borderColor: "var(--border)" }}>
           <h1 className="text-xl font-black" style={{ color: "var(--text)" }}>
-            Prueba Premium gratis por 1 mes
+            {t("pricingModal.title")}
           </h1>
           <button onClick={onClose} className="absolute right-5 top-1/2 -translate-y-1/2 p-2 rounded-xl hover:bg-white/5 transition-colors" style={{ color: "var(--muted)" }}>
             <X className="w-5 h-5" />
@@ -102,7 +77,7 @@ export default function PricingModal({ visible, onClose }: Props) {
                 color: plan === p ? "#000" : "var(--muted)",
               }}
             >
-              {p === "monthly" ? "Mensual" : "Anual"}
+              {p === "monthly" ? t("pricingModal.monthly") : t("pricingModal.yearly")}
               {p === "yearly" && <span className="ml-1.5 opacity-80">−17%</span>}
             </button>
           ))}
@@ -113,15 +88,15 @@ export default function PricingModal({ visible, onClose }: Props) {
 
           {/* Free card */}
           <div className="rounded-2xl border p-5 flex flex-col" style={{ background: "var(--card)", borderColor: "var(--border)" }}>
-            <p className="text-lg font-black mb-1" style={{ color: "var(--text)" }}>Free</p>
+            <p className="text-lg font-black mb-1" style={{ color: "var(--text)" }}>{t("pricingModal.free")}</p>
             <div className="flex items-baseline gap-1 mb-1">
               <span className="text-3xl font-black" style={{ color: "var(--text)" }}>$0</span>
-              <span className="text-sm" style={{ color: "var(--muted)" }}>USD / mes</span>
+              <span className="text-sm" style={{ color: "var(--muted)" }}>{t("pricingModal.perMonth")}</span>
             </div>
-            <p className="text-xs mb-4" style={{ color: "var(--muted)" }}>Para empezar a invertir con IA</p>
+            <p className="text-xs mb-4" style={{ color: "var(--muted)" }}>{t("pricingModal.freeTagline")}</p>
 
             <div className="rounded-xl py-2 px-4 text-center text-sm font-bold mb-5" style={{ background: "var(--bg)", border: "1px solid var(--border)", color: "var(--muted)" }}>
-              Tu plan actual
+              {t("pricingModal.currentPlan")}
             </div>
 
             <div className="space-y-2.5 flex-1">
@@ -140,19 +115,19 @@ export default function PricingModal({ visible, onClose }: Props) {
             <div className="absolute inset-0 pointer-events-none" style={{ background: "radial-gradient(ellipse at top right, rgba(0,212,126,0.08) 0%, transparent 60%)" }} />
 
             <div className="flex items-center justify-between mb-1 relative">
-              <p className="text-lg font-black" style={{ color: "#fff" }}>Premium</p>
+              <p className="text-lg font-black" style={{ color: "#fff" }}>{t("pricingModal.premium")}</p>
               <span className="text-[9px] font-black px-2 py-0.5 rounded-full" style={{ background: "rgba(0,212,126,0.15)", border: "1px solid rgba(0,212,126,0.3)", color: "#00d47e" }}>
-                TIEMPO LIMITADO
+                {t("pricingModal.limitedTime")}
               </span>
             </div>
 
             <div className="flex items-baseline gap-2 mb-1 relative">
               <span className="text-xl line-through" style={{ color: "rgba(255,255,255,0.3)" }}>{monthlyPrice}</span>
               <span className="text-3xl font-black text-white">$0</span>
-              <span className="text-sm" style={{ color: "rgba(255,255,255,0.5)" }}>primer mes</span>
+              <span className="text-sm" style={{ color: "rgba(255,255,255,0.5)" }}>{t("pricingModal.firstMonth")}</span>
             </div>
             <p className="text-[10px] mb-0.5 relative" style={{ color: "rgba(255,255,255,0.5)" }}>
-              Luego {monthlyPrice}/mes {plan === "yearly" ? "facturado anual" : ""}
+              {t("pricingModal.thenPrice", { price: monthlyPrice, billing: plan === "yearly" ? t("pricingModal.billedAnnually") : "" })}
             </p>
             {yearlyNote && (
               <p className="text-[10px] mb-3 relative" style={{ color: "#00d47e" }}>{yearlyNote}</p>
@@ -165,7 +140,7 @@ export default function PricingModal({ visible, onClose }: Props) {
               className="relative w-full py-2.5 rounded-xl text-sm font-black transition-all mb-5"
               style={{ background: loading ? "rgba(0,212,126,0.5)" : "#00d47e", color: "#000" }}
             >
-              {loading ? "Redirigiendo..." : "Reclamar oferta gratis"}
+              {loading ? t("pricingModal.redirecting") : t("pricingModal.claimFreeOffer")}
             </button>
 
             <div className="relative space-y-2.5 flex-1">
@@ -184,8 +159,8 @@ export default function PricingModal({ visible, onClose }: Props) {
 
             <div className="flex items-center gap-2 mb-1 relative">
               <span className="text-lg">👫</span>
-              <p className="text-lg font-black text-white">Duo Plan</p>
-              <span className="text-[9px] font-black px-2 py-0.5 rounded-full" style={{ background: "rgba(99,102,241,0.2)", color: "#818cf8" }}>NUEVO</span>
+              <p className="text-lg font-black text-white">{t("pricingModal.duoPlan")}</p>
+              <span className="text-[9px] font-black px-2 py-0.5 rounded-full" style={{ background: "rgba(99,102,241,0.2)", color: "#818cf8" }}>{t("pricingModal.new")}</span>
             </div>
 
             <div className="flex items-baseline gap-1 mb-1 relative">
@@ -193,7 +168,7 @@ export default function PricingModal({ visible, onClose }: Props) {
               <span className="text-sm" style={{ color: "rgba(255,255,255,0.5)" }}>USD {duoPeriod}</span>
             </div>
             <p className="text-[10px] mb-3 relative" style={{ color: "rgba(255,255,255,0.4)" }}>
-              {plan === "monthly" ? "Facturado mensualmente" : "$16.67/mes · Ahorra $40.87 vs mensual"}
+              {plan === "monthly" ? t("pricingModal.billedMonthly") : t("pricingModal.duoYearlyNote")}
             </p>
 
             <button
@@ -202,7 +177,7 @@ export default function PricingModal({ visible, onClose }: Props) {
               className="relative w-full py-2.5 rounded-xl text-sm font-black transition-all mb-5"
               style={{ background: duoLoading ? "rgba(99,102,241,0.4)" : "rgba(99,102,241,0.2)", border: "1px solid rgba(99,102,241,0.4)", color: "#818cf8" }}
             >
-              {duoLoading ? "Redirigiendo..." : "Contratar Duo Plan"}
+              {duoLoading ? t("pricingModal.redirecting") : t("pricingModal.hireDuoPlan")}
             </button>
 
             <div className="relative space-y-2.5 flex-1">
@@ -218,8 +193,7 @@ export default function PricingModal({ visible, onClose }: Props) {
 
         {/* Footer note */}
         <p className="text-center text-[10px] pb-5 px-8" style={{ color: "var(--dim)" }}>
-          Prueba gratis 30 días. Cancela cuando quieras antes de que termine y no se te cobra nada.
-          Después del primer mes: {monthlyPrice}/mes{plan === "yearly" ? " facturado anualmente" : ""}.
+          {t("pricingModal.footerNote", { price: monthlyPrice, billing: plan === "yearly" ? t("pricingModal.billedAnnuallySuffix") : "" })}
         </p>
 
         </div>{/* end scrollable body */}

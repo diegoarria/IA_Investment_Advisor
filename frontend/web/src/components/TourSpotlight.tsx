@@ -3,6 +3,7 @@ import { useEffect, useState, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { X } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 interface Props {
   targetId: string;
@@ -26,9 +27,11 @@ export default function TourSpotlight({
   totalSteps = 5,
   title,
   description,
-  ctaLabel = "Listo, volver al inicio ✓",
+  ctaLabel,
   onDismiss,
 }: Props) {
+  const { t: translate } = useTranslation();
+  const cta = ctaLabel ?? translate("tourSpotlight.defaultCta");
   const router = useRouter();
   const [mounted, setMounted] = useState(false);
   const [tooltipPos, setTooltipPos] = useState<TooltipPos | null>(null);
@@ -189,7 +192,7 @@ export default function TourSpotlight({
                 textTransform: "uppercase",
               }}
             >
-              Paso {step} de {totalSteps}
+              {translate("tourSpotlight.stepOf", { step, total: totalSteps })}
             </span>
             <button onClick={dismiss} style={{ color: "var(--dim)", lineHeight: 1, cursor: "pointer" }}>
               <X size={14} />
@@ -217,7 +220,7 @@ export default function TourSpotlight({
               border: "none",
             }}
           >
-            {ctaLabel}
+            {cta}
           </button>
         </div>
       )}

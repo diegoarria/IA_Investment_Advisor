@@ -3,39 +3,22 @@ import {
   View, Text, TouchableOpacity, Modal, ScrollView, Linking,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import { useTheme } from "../lib/ThemeContext";
 import { billingApi, upsellsApi } from "../lib/api";
 
-const FREE_FEATURES = [
-  "Hasta 20 mensajes/día con el mentor IA",
-  "Portafolio de hasta 10 acciones",
-  "Watchlist de hasta 25 acciones",
-  "Academia completa + quizzes",
-  "Gráfico básico (5D y 1M)",
-  "Noticias generales del mercado",
-];
+function getFreeFeatures(t: TFunction): string[] {
+  return t("pricingModal.freeFeatures", { returnObjects: true }) as string[];
+}
 
-const PREMIUM_FEATURES = [
-  "Chatea sin límites con tu mentor de IA, a cualquier hora",
-  "Agrega todas las acciones que quieras, sin límite",
-  "Sube una foto o PDF de tu cuenta y la IA arma tu portafolio",
-  "Te avisamos antes de que tus empresas reporten ganancias",
-  "Mira cómo le hubiera ido a tu dinero en crisis pasadas (2008, COVID...)",
-  "La IA revisa tu portafolio y te dice qué mejorar",
-  "Cada lunes, 5 ideas de inversión seleccionadas para ti",
-  "Noticias de tus acciones, resumidas por IA en segundos",
-  "Cada mes te decimos si le ganaste al mercado o no",
-  "Lecciones pensadas para las acciones que ya tienes",
-  "Te avisamos cuando pasa algo importante con tu dinero",
-  "Descubre tu estilo como inversor y cómo mejorar",
-];
+function getPremiumFeatures(t: TFunction): string[] {
+  return t("pricingModal.premiumFeatures", { returnObjects: true }) as string[];
+}
 
-const DUO_FEATURES = [
-  "Todo lo de Premium, para ambos",
-  "Perfil y portafolio independientes para cada persona",
-  "Comparte con un familiar o pareja",
-  "Ideal para aprender a invertir juntos",
-];
+function getDuoFeatures(t: TFunction): string[] {
+  return t("pricingModal.duoFeatures", { returnObjects: true }) as string[];
+}
 
 interface Props {
   visible: boolean;
@@ -44,9 +27,14 @@ interface Props {
 
 export default function PricingModal({ visible, onClose }: Props) {
   const { colors } = useTheme();
+  const { t } = useTranslation();
   const [plan, setPlan] = useState<"monthly" | "yearly">("monthly");
   const [loading, setLoading] = useState(false);
   const [duoLoading, setDuoLoading] = useState(false);
+
+  const FREE_FEATURES = getFreeFeatures(t);
+  const PREMIUM_FEATURES = getPremiumFeatures(t);
+  const DUO_FEATURES = getDuoFeatures(t);
 
   async function handleUpgrade() {
     setLoading(true);
@@ -70,7 +58,7 @@ export default function PricingModal({ visible, onClose }: Props) {
 
   const regularPrice = plan === "monthly" ? "$12.99" : "$10.50";
   const duoPrice  = plan === "monthly" ? "$19.99" : "$199.99";
-  const duoPeriod = plan === "monthly" ? "/mes" : "/año";
+  const duoPeriod = plan === "monthly" ? t("pricingModal.perMonthShort") : t("pricingModal.perYearShort");
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
@@ -88,10 +76,10 @@ export default function PricingModal({ visible, onClose }: Props) {
           <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
 
             <Text style={{ fontSize: 20, fontWeight: "900", textAlign: "center", marginBottom: 4, color: colors.text }}>
-              Prueba Premium gratis por 1 mes
+              {t("pricingModal.title")}
             </Text>
             <Text style={{ fontSize: 12, textAlign: "center", marginBottom: 20, color: colors.textMuted }}>
-              Cancela cuando quieras antes de que termine y no pagas nada
+              {t("pricingModal.subtitle")}
             </Text>
 
             {/* Plan toggle */}
@@ -109,7 +97,7 @@ export default function PricingModal({ visible, onClose }: Props) {
                   activeOpacity={0.8}
                 >
                   <Text style={{ fontSize: 11, fontWeight: "800", color: plan === p ? "#000" : colors.textMuted }}>
-                    {p === "monthly" ? "Mensual" : "Anual −17%"}
+                    {p === "monthly" ? t("pricingModal.monthly") : t("pricingModal.yearlyDiscount")}
                   </Text>
                 </TouchableOpacity>
               ))}
@@ -120,13 +108,13 @@ export default function PricingModal({ visible, onClose }: Props) {
 
               {/* Free card */}
               <View style={{ borderRadius: 20, borderWidth: 1, padding: 16, backgroundColor: colors.card, borderColor: colors.border }}>
-                <Text style={{ fontSize: 16, fontWeight: "900", marginBottom: 2, color: colors.text }}>Free</Text>
+                <Text style={{ fontSize: 16, fontWeight: "900", marginBottom: 2, color: colors.text }}>{t("pricingModal.free")}</Text>
                 <View style={{ flexDirection: "row", alignItems: "baseline", gap: 4, marginBottom: 4 }}>
                   <Text style={{ fontSize: 28, fontWeight: "900", color: colors.text }}>$0</Text>
-                  <Text style={{ fontSize: 12, color: colors.textMuted }}>USD / mes</Text>
+                  <Text style={{ fontSize: 12, color: colors.textMuted }}>{t("pricingModal.perMonth")}</Text>
                 </View>
                 <View style={{ borderRadius: 12, paddingVertical: 8, alignItems: "center", marginBottom: 14, backgroundColor: colors.bg, borderWidth: 1, borderColor: colors.border }}>
-                  <Text style={{ fontSize: 12, fontWeight: "700", color: colors.textMuted }}>Tu plan actual</Text>
+                  <Text style={{ fontSize: 12, fontWeight: "700", color: colors.textMuted }}>{t("pricingModal.currentPlan")}</Text>
                 </View>
                 {FREE_FEATURES.map((f, i) => (
                   <View key={i} style={{ flexDirection: "row", alignItems: "flex-start", gap: 8, marginBottom: 8 }}>
@@ -139,19 +127,22 @@ export default function PricingModal({ visible, onClose }: Props) {
               {/* Premium card */}
               <View style={{ borderRadius: 20, borderWidth: 1.5, padding: 16, borderColor: "rgba(0,212,126,0.4)", backgroundColor: "#0a1a10", overflow: "hidden" }}>
                 <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 2 }}>
-                  <Text style={{ fontSize: 16, fontWeight: "900", color: "#fff" }}>Premium</Text>
+                  <Text style={{ fontSize: 16, fontWeight: "900", color: "#fff" }}>{t("pricingModal.premium")}</Text>
                   <View style={{ backgroundColor: "rgba(0,212,126,0.15)", borderWidth: 1, borderColor: "rgba(0,212,126,0.3)", borderRadius: 8, paddingHorizontal: 8, paddingVertical: 2 }}>
-                    <Text style={{ fontSize: 9, fontWeight: "900", color: "#00d47e" }}>TIEMPO LIMITADO</Text>
+                    <Text style={{ fontSize: 9, fontWeight: "900", color: "#00d47e" }}>{t("pricingModal.limitedTime")}</Text>
                   </View>
                 </View>
 
                 <View style={{ flexDirection: "row", alignItems: "baseline", gap: 6, marginBottom: 2 }}>
                   <Text style={{ fontSize: 16, textDecorationLine: "line-through", color: "rgba(255,255,255,0.3)" }}>{regularPrice}</Text>
                   <Text style={{ fontSize: 28, fontWeight: "900", color: "#fff" }}>$0</Text>
-                  <Text style={{ fontSize: 12, color: "rgba(255,255,255,0.5)" }}>primer mes</Text>
+                  <Text style={{ fontSize: 12, color: "rgba(255,255,255,0.5)" }}>{t("pricingModal.firstMonth")}</Text>
                 </View>
                 <Text style={{ fontSize: 10, color: "rgba(255,255,255,0.4)", marginBottom: 14 }}>
-                  Luego {regularPrice}/mes{plan === "yearly" ? " · facturado anual" : ""}
+                  {t("pricingModal.thenPrice", {
+                    price: regularPrice,
+                    suffix: plan === "yearly" ? t("pricingModal.billedAnnualSuffix") : "",
+                  })}
                 </Text>
 
                 <TouchableOpacity
@@ -161,7 +152,7 @@ export default function PricingModal({ visible, onClose }: Props) {
                   activeOpacity={0.85}
                 >
                   <Text style={{ fontSize: 14, fontWeight: "900", color: "#000" }}>
-                    {loading ? "Abriendo..." : "Reclamar oferta gratis"}
+                    {loading ? t("pricingModal.opening") : t("pricingModal.claimFreeOffer")}
                   </Text>
                 </TouchableOpacity>
 
@@ -177,18 +168,18 @@ export default function PricingModal({ visible, onClose }: Props) {
               <View style={{ borderRadius: 20, borderWidth: 1.5, padding: 16, borderColor: "rgba(99,102,241,0.4)", backgroundColor: "#0d1020", overflow: "hidden" }}>
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 2 }}>
                   <Text style={{ fontSize: 18 }}>👫</Text>
-                  <Text style={{ fontSize: 16, fontWeight: "900", color: "#fff" }}>Duo Plan</Text>
+                  <Text style={{ fontSize: 16, fontWeight: "900", color: "#fff" }}>{t("pricingModal.duoPlan")}</Text>
                   <View style={{ backgroundColor: "rgba(99,102,241,0.2)", borderRadius: 8, paddingHorizontal: 8, paddingVertical: 2 }}>
-                    <Text style={{ fontSize: 9, fontWeight: "900", color: "#818cf8" }}>NUEVO</Text>
+                    <Text style={{ fontSize: 9, fontWeight: "900", color: "#818cf8" }}>{t("pricingModal.new")}</Text>
                   </View>
                 </View>
 
                 <View style={{ flexDirection: "row", alignItems: "baseline", gap: 4, marginBottom: 2 }}>
                   <Text style={{ fontSize: 28, fontWeight: "900", color: "#fff" }}>{duoPrice}</Text>
-                  <Text style={{ fontSize: 12, color: "rgba(255,255,255,0.5)" }}>USD {duoPeriod}</Text>
+                  <Text style={{ fontSize: 12, color: "rgba(255,255,255,0.5)" }}>{t("pricingModal.usdPeriod", { period: duoPeriod })}</Text>
                 </View>
                 <Text style={{ fontSize: 10, color: "rgba(255,255,255,0.4)", marginBottom: 14 }}>
-                  {plan === "monthly" ? "Facturado mensualmente" : "$16.67/mes · Ahorra $40.87 vs mensual"}
+                  {plan === "monthly" ? t("pricingModal.billedMonthly") : t("pricingModal.billedYearlyDuo")}
                 </Text>
 
                 <TouchableOpacity
@@ -198,7 +189,7 @@ export default function PricingModal({ visible, onClose }: Props) {
                   activeOpacity={0.85}
                 >
                   <Text style={{ fontSize: 14, fontWeight: "900", color: "#818cf8" }}>
-                    {duoLoading ? "Abriendo..." : "Contratar Duo Plan"}
+                    {duoLoading ? t("pricingModal.opening") : t("pricingModal.hireDuoPlan")}
                   </Text>
                 </TouchableOpacity>
 
@@ -212,7 +203,7 @@ export default function PricingModal({ visible, onClose }: Props) {
             </View>
 
             <Text style={{ fontSize: 10, textAlign: "center", marginTop: 16, color: colors.textDim, lineHeight: 16 }}>
-              Prueba gratis 30 días. Cancela antes de que termine y no se te cobra nada.
+              {t("pricingModal.footerNote")}
             </Text>
           </ScrollView>
         </View>

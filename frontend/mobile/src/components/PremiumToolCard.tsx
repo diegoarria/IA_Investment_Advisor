@@ -1,6 +1,7 @@
 import React from "react";
 import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useTranslation } from "react-i18next";
 import { useTheme } from "../lib/ThemeContext";
 
 interface Benefit {
@@ -20,6 +21,7 @@ interface Props {
 
 export default function PremiumToolCard({ title, tagline, description, icon, color, benefits, onUnlock }: Props) {
   const { colors } = useTheme();
+  const { t } = useTranslation();
 
   return (
     <TouchableOpacity onPress={onUnlock} activeOpacity={0.93} style={[s.card, { backgroundColor: colors.card }]}>
@@ -33,7 +35,7 @@ export default function PremiumToolCard({ title, tagline, description, icon, col
         {/* PREMIUM badge */}
         <View style={[s.badge, { backgroundColor: colors.card, borderColor: color + "50" }]}>
           <Ionicons name="lock-closed" size={9} color={color} />
-          <Text style={[s.badgeText, { color }]}>PREMIUM</Text>
+          <Text style={[s.badgeText, { color }]}>{t("premiumToolCard.badge")}</Text>
           <Ionicons name="sparkles" size={9} color={color} />
         </View>
 
@@ -70,7 +72,7 @@ export default function PremiumToolCard({ title, tagline, description, icon, col
         <TouchableOpacity onPress={onUnlock} activeOpacity={0.85} style={[s.btn, { backgroundColor: color }]}>
           <View style={[s.btnGlow, { backgroundColor: "rgba(255,255,255,0.12)" }]} />
           <Ionicons name="flash" size={17} color="white" />
-          <Text style={s.btnText}>Desbloquear con Premium</Text>
+          <Text style={s.btnText}>{t("premiumToolCard.unlockWithPremium")}</Text>
         </TouchableOpacity>
       </View>
     </TouchableOpacity>

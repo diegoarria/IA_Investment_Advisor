@@ -2566,5 +2566,205 @@
   "mobileOnboardingChecklist": {
     "title": "Set up your Nuvos",
     "progress": "{{completed}} of {{total}} completed"
+  },
+  "mobileEarningsPanel": {
+    "heroTitle": "Earnings Calendar",
+    "heroTagline": "Portfolio + Watchlist · AI Analysis",
+    "assetsMonitored": "{{count}} assets monitored",
+    "loadingCalendar": "Loading calendar...",
+    "emptyState": "No earnings in the next 30 days for your portfolio or watchlist.",
+    "portfolio": "Portfolio",
+    "watchlist": "Watchlist",
+    "analyzingWithAI": "Analyzing with AI...",
+    "tapToSeeAnalysis": "Tap to see the analysis.",
+    "analysisError": "Could not get the analysis."
+  },
+  "pricingModal": {
+    "freeFeatures": [
+      "Up to 20 messages/day with the AI mentor",
+      "Portfolio of up to 10 stocks",
+      "Watchlist of up to 25 stocks",
+      "Full academy + quizzes",
+      "Basic chart (5D and 1M)",
+      "General market news"
+    ],
+    "premiumFeatures": [
+      "Chat without limits with your AI mentor, any time",
+      "Add as many stocks as you want, no limit",
+      "Upload a photo or PDF of your account and the AI builds your portfolio",
+      "We notify you before your companies report earnings",
+      "See how your money would have done in past crises (2008, COVID...)",
+      "The AI reviews your portfolio and tells you what to improve",
+      "Every Monday, 5 investment ideas selected for you",
+      "News about your stocks, summarized by AI in seconds",
+      "Every month we tell you if you beat the market or not",
+      "Lessons tailored to the stocks you already own",
+      "We notify you when something important happens with your money",
+      "Discover your investor style and how to improve"
+    ],
+    "duoFeatures": [
+      "Everything in Premium, for both of you",
+      "Independent profile and portfolio for each person",
+      "Share with a family member or partner",
+      "Ideal for learning to invest together"
+    ],
+    "title": "Try Premium free for 1 month",
+    "subtitle": "Cancel anytime before it ends and you pay nothing",
+    "monthly": "Monthly",
+    "yearlyDiscount": "Yearly −17%",
+    "free": "Free",
+    "perMonth": "USD / month",
+    "currentPlan": "Your current plan",
+    "premium": "Premium",
+    "limitedTime": "LIMITED TIME",
+    "firstMonth": "first month",
+    "thenPrice": "Then {{price}}/month{{suffix}}",
+    "billedAnnualSuffix": " · billed annually",
+    "opening": "Opening...",
+    "claimFreeOffer": "Claim free offer",
+    "duoPlan": "Duo Plan",
+    "new": "NEW",
+    "usdPeriod": "USD {{period}}",
+    "perMonthShort": "/mo",
+    "perYearShort": "/yr",
+    "billedMonthly": "Billed monthly",
+    "billedYearlyDuo": "$16.67/mo · Save $40.87 vs monthly",
+    "hireDuoPlan": "Get Duo Plan",
+    "footerNote": "Free 30-day trial. Cancel before it ends and you won't be charged anything."
+  },
+  "premiumToolCard": {
+    "badge": "PREMIUM",
+    "unlockWithPremium": "Unlock with Premium"
+  },
+  "mobileBrokerConnectModal": {
+    "brokers": {
+      "ibkr": "Global stocks, options, futures",
+      "schwab": "Leading broker in the U.S.",
+      "robinhood": "Commission-free trading",
+      "iol": "Buenos Aires exchange + NYSE",
+      "gbm": "Leading broker in Mexico",
+      "actinver": "Mexican brokerage firm"
+    },
+    "disconnectBrokerTitle": "Disconnect broker",
+    "disconnectBrokerMsg": "Are you sure you want to disconnect this broker?",
+    "cancel": "Cancel",
+    "disconnect": "Disconnect",
+    "comingSoonTitle": "🚀 Coming soon",
+    "comingSoonMsg": "Direct connection with {{brokerName}} will be available very soon.",
+    "understood": "Got it",
+    "connectBroker": "Connect Broker",
+    "connected": "CONNECTED",
+    "lastSync": "Last sync: {{date}}",
+    "syncAll": "Sync all",
+    "addBroker": "ADD BROKER",
+    "selectYourBroker": "SELECT YOUR BROKER",
+    "comingSoon": "Coming soon",
+    "disclaimer": "Read-only — Nuvos AI can never execute trades in your account."
+  },
+  "tutorialModal": {
+    "steps": {
+      "welcome": {
+        "title": "Welcome to Nuvos AI",
+        "subtitle": "Your AI investment mentor",
+        "desc": "Nuvos AI teaches you to think like a professional investor. We don't tell you what to buy — we teach you to analyze, understand, and make decisions on your own. All your data syncs in real time between the app and the web.",
+        "tip": "💡 Complete your initial profile so the AI can tailor its answers to your level: Beginner, Intermediate, or Advanced."
+      },
+      "dashboard": {
+        "title": "Your Dashboard",
+        "subtitle": "The market's pulse, at a glance",
+        "desc": "Home shows the S&P 500, Nasdaq, and Dow Jones indices in real time. Below, you'll see your portfolio's value with three key metrics: Today's performance, YTD (year to date), and cumulative Total.",
+        "tip": "💡 The \"Rising today\" section shows the 4 positions in your portfolio with the biggest gain of the day."
+      },
+      "chat": {
+        "title": "Chat with your AI Mentor",
+        "subtitle": "Nuvos's main tool",
+        "desc": "Ask about any company, ETF, concept, or strategy. The AI knows your risk profile, your actual portfolio, and your investor level, and detects when your decisions contradict them. Every conversation updates your behavioral maturity.",
+        "tip": "💡 You can edit any of your messages by tapping the pencil icon that appears next to the text."
+      },
+      "portfolio": {
+        "title": "Real-Time Portfolio",
+        "subtitle": "Your investments with live data",
+        "desc": "Add positions manually or with a screenshot of your broker — the AI extracts the data automatically. Prices update every 30 seconds. Switch between Basic and Advanced view to see Volume, Market Cap, P/E, and 52-week range.",
+        "tip": "💡 The currency badge next to \"My Portfolio\" shows your portfolio's currency. Tap any position to see its full analysis."
+      },
+      "calendar": {
+        "title": "Events Calendar",
+        "subtitle": "Earnings, dividends, and ex-dividends",
+        "desc": "The calendar in Watchlist automatically shows three types of events for all your positions and watchlist: Earnings (quarterly results), Ex-Dividend (deadline to receive the dividend), and Dividend payment.",
+        "tip": "💡 Your portfolio positions appear in bold green; watchlist ones in blue — so you can spot which ones affect you directly at a glance."
+      },
+      "watchlist": {
+        "title": "Watchlist",
+        "subtitle": "Follow stocks without buying them",
+        "desc": "Add any stock to follow its price, news, and events in real time. In Advanced mode you get a full table with after-hours, market cap, P/E ratio, earnings date, and 52-week range.",
+        "tip": "💡 Drag the cards to reorder your watchlist. The order syncs automatically between the app and the web."
+      },
+      "learning": {
+        "title": "Learning & Tools",
+        "subtitle": "Everything you need to invest better",
+        "desc": "A library of financial concepts with AI tailored to your level: ETFs, fundamental analysis, P/E ratio, DCA, Value Investing, and investor psychology. The weekly Screener analyzes the market and selects personalized opportunities.",
+        "tip": "💡 The Investors section shows you how the big funds invest — useful for spotting trends and validating your ideas."
+      },
+      "profile": {
+        "title": "Your Profile & Investor Maturity",
+        "subtitle": "The AI that knows you as an investor",
+        "desc": "The AI analyzes your actual behavior — whether you panic, diversify well, or think long term — and assigns you an evolving Investor Maturity score (0-100). Your level (Beginner, Intermediate, or Advanced) tailors the whole experience.",
+        "tip": "💡 Your behavioral risk bar in your profile updates automatically with every conversation. You can change your level in Profile at any time."
+      }
+    },
+    "back": "Back",
+    "skip": "Skip",
+    "start": "Get started!",
+    "next": "Next"
+  },
+  "stockOverview": {
+    "about": "ABOUT",
+    "seeMore": "See more",
+    "seeLess": "See less",
+    "market": "MARKET",
+    "marketCap": "Market Cap",
+    "peRatio": "P/E Ratio",
+    "peFwd": "Fwd P/E",
+    "epsTtm": "EPS (TTM)",
+    "epsFwd": "Fwd EPS",
+    "beta": "Beta",
+    "divYield": "Div. Yield",
+    "priceBook": "Price/Book",
+    "profitability": "PROFITABILITY",
+    "grossMargin": "Gross Margin",
+    "netMargin": "Net Margin",
+    "roe": "ROE",
+    "roa": "ROA",
+    "debtEquity": "Debt/Equity",
+    "currentRatio": "Current Ratio",
+    "fcf": "FCF",
+    "company": "COMPANY",
+    "employees": "Employees",
+    "country": "Country",
+    "city": "City",
+    "sector": "Sector",
+    "industry": "Industry"
+  },
+  "progressModal": {
+    "title": "Your Progress",
+    "start": "Start",
+    "investorMaturity": "INVESTOR MATURITY",
+    "maturityEvolution": "MATURITY EVOLUTION",
+    "emptyGraph": "Use chat and Play to see your evolution here",
+    "signalsRecorded": "{{count}} signals recorded · behavior in the app",
+    "statistics": "STATISTICS",
+    "activeStreak": "Active streak",
+    "daysUnit": "{{count}} days",
+    "topicsLearned": "Topics learned",
+    "aiQueries": "AI queries",
+    "positions": "Positions",
+    "latestSignalsDetected": "LATEST SIGNALS DETECTED",
+    "nextLevel": "Next level",
+    "towards": "Toward {{label}}",
+    "beginner": "Beginner",
+    "developing": "Developing",
+    "mature": "Mature",
+    "expert": "Expert",
+    "expertBanner": "You're an Expert! 🏆"
   }
 }

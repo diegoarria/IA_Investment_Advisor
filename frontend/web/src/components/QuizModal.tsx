@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { QUIZ_DATA, type QuizQuestion } from "@/lib/quizData";
 
 interface Props {
@@ -11,6 +12,7 @@ interface Props {
 }
 
 export default function QuizModal({ topicId, topicTitle, topicEmoji, onPass, onClose }: Props) {
+  const { t } = useTranslation();
   const questions = QUIZ_DATA[topicId];
   const [idx, setIdx] = useState(0);
   const [selected, setSelected] = useState<number | null>(null);
@@ -55,17 +57,17 @@ export default function QuizModal({ topicId, topicTitle, topicEmoji, onPass, onC
         <div className="w-full max-w-md rounded-3xl border p-6 text-center" style={{ background: "var(--card)", borderColor: "var(--border)" }}>
           <div className="text-4xl mb-3">{passed ? "🎉" : "📚"}</div>
           <h2 className="text-xl font-black mb-1" style={{ color: "var(--text)" }}>
-            {passed ? "¡Quiz aprobado!" : "Casi lo logras"}
+            {passed ? t("quizModal.passed") : t("quizModal.almostThere")}
           </h2>
           <p className="text-sm mb-4" style={{ color: "var(--muted)" }}>
-            {score}/{total} correctas · necesitabas {passing}
+            {t("quizModal.scoreSummary", { score, total, passing })}
           </p>
 
           {passed ? (
             <>
               <div className="rounded-2xl p-4 mb-4" style={{ background: "rgba(0,212,126,0.08)", border: "1px solid rgba(0,212,126,0.25)" }}>
                 <p className="text-sm font-bold" style={{ color: "#00d47e" }}>
-                  {topicEmoji} {topicTitle} marcado como completado ✓
+                  {t("quizModal.markedComplete", { emoji: topicEmoji, title: topicTitle })}
                 </p>
               </div>
               <button
@@ -73,7 +75,7 @@ export default function QuizModal({ topicId, topicTitle, topicEmoji, onPass, onC
                 className="w-full py-3 rounded-2xl font-black text-sm"
                 style={{ background: "#00d47e", color: "#000" }}
               >
-                Continuar →
+                {t("quizModal.continue")}
               </button>
             </>
           ) : (
@@ -96,14 +98,14 @@ export default function QuizModal({ topicId, topicTitle, topicEmoji, onPass, onC
                   className="flex-1 py-3 rounded-2xl font-black text-sm"
                   style={{ background: "var(--bg)", border: "1px solid var(--border)", color: "var(--text)" }}
                 >
-                  Reintentar
+                  {t("quizModal.retry")}
                 </button>
                 <button
                   onClick={onClose}
                   className="flex-1 py-3 rounded-2xl font-black text-sm"
                   style={{ background: "var(--bg)", border: "1px solid var(--border)", color: "var(--muted)" }}
                 >
-                  Cerrar
+                  {t("quizModal.close")}
                 </button>
               </div>
             </>
@@ -121,7 +123,7 @@ export default function QuizModal({ topicId, topicTitle, topicEmoji, onPass, onC
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-2">
               <span className="text-lg">{topicEmoji}</span>
-              <span className="text-xs font-black" style={{ color: "var(--accent-l)" }}>Quiz · {topicTitle}</span>
+              <span className="text-xs font-black" style={{ color: "var(--accent-l)" }}>{t("quizModal.quizLabel", { title: topicTitle })}</span>
             </div>
             <button onClick={onClose} className="text-xs" style={{ color: "var(--muted)" }}>✕</button>
           </div>
@@ -181,7 +183,7 @@ export default function QuizModal({ topicId, topicTitle, topicEmoji, onPass, onC
               className="w-full py-3 rounded-2xl font-black text-sm"
               style={{ background: "#00d47e", color: "#000" }}
             >
-              {idx + 1 >= total ? "Ver resultado →" : "Siguiente →"}
+              {idx + 1 >= total ? t("quizModal.seeResult") : t("quizModal.next")}
             </button>
           </div>
         )}

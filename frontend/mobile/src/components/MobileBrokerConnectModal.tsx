@@ -4,6 +4,8 @@ import {
   StyleSheet, ActivityIndicator, Alert, Image,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import { useTheme } from "../lib/ThemeContext";
 import { brokerageApi } from "../lib/api";
 
@@ -31,14 +33,16 @@ interface Props {
   onPositionsImported: (positions: BrokerPosition[]) => void;
 }
 
-const BROKERS = [
-  { id: "ibkr",      name: "Interactive Brokers", domain: "interactivebrokers.com", color: "#e8000d", fallback: "IB",  desc: "Acciones, opciones, futuros globales" },
-  { id: "schwab",    name: "Charles Schwab",       domain: "schwab.com",             color: "#00a2e0", fallback: "CS",  desc: "Broker líder en EE.UU." },
-  { id: "robinhood", name: "Robinhood",            domain: "robinhood.com",          color: "#00c805", fallback: "RH",  desc: "Trading sin comisiones" },
-  { id: "iol",       name: "Invertir Online",      domain: "invertironline.com",     color: "#003087", fallback: "IOL", desc: "Bolsa de Buenos Aires + NYSE" },
-  { id: "gbm",       name: "GBM",                  domain: "gbm.com.mx",             color: "#0033a0", fallback: "GBM", desc: "Broker líder en México" },
-  { id: "actinver",  name: "Actinver",             domain: "actinver.com",           color: "#c8102e", fallback: "ACT", desc: "Casa de bolsa mexicana" },
-];
+function getBrokers(t: TFunction) {
+  return [
+    { id: "ibkr",      name: "Interactive Brokers", domain: "interactivebrokers.com", color: "#e8000d", fallback: "IB",  desc: t("mobileBrokerConnectModal.brokers.ibkr") },
+    { id: "schwab",    name: "Charles Schwab",       domain: "schwab.com",             color: "#00a2e0", fallback: "CS",  desc: t("mobileBrokerConnectModal.brokers.schwab") },
+    { id: "robinhood", name: "Robinhood",            domain: "robinhood.com",          color: "#00c805", fallback: "RH",  desc: t("mobileBrokerConnectModal.brokers.robinhood") },
+    { id: "iol",       name: "Invertir Online",      domain: "invertironline.com",     color: "#003087", fallback: "IOL", desc: t("mobileBrokerConnectModal.brokers.iol") },
+    { id: "gbm",       name: "GBM",                  domain: "gbm.com.mx",             color: "#0033a0", fallback: "GBM", desc: t("mobileBrokerConnectModal.brokers.gbm") },
+    { id: "actinver",  name: "Actinver",             domain: "actinver.com",           color: "#c8102e", fallback: "ACT", desc: t("mobileBrokerConnectModal.brokers.actinver") },
+  ];
+}
 
 function BrokerLogo({ domain, fallback, color }: { domain: string; fallback: string; color: string }) {
   const [error, setError] = useState(false);
@@ -60,6 +64,8 @@ function BrokerLogo({ domain, fallback, color }: { domain: string; fallback: str
 
 export default function MobileBrokerConnectModal({ visible, onClose, onPositionsImported: _ }: Props) {
   const { colors } = useTheme();
+  const { t } = useTranslation();
+  const BROKERS = getBrokers(t);
   const [connections, setConns] = useState<Connection[]>([]);
   const [syncing, setSyncing]   = useState(false);
 
@@ -76,12 +82,12 @@ export default function MobileBrokerConnectModal({ visible, onClose, onPositions
 
   const handleDisconnect = (id: string) => {
     Alert.alert(
-      "Desconectar broker",
-      "¿Confirmas que quieres desconectar este broker?",
+      t("mobileBrokerConnectModal.disconnectBrokerTitle"),
+      t("mobileBrokerConnectModal.disconnectBrokerMsg"),
       [
-        { text: "Cancelar", style: "cancel" },
+        { text: t("mobileBrokerConnectModal.cancel"), style: "cancel" },
         {
-          text: "Desconectar",
+          text: t("mobileBrokerConnectModal.disconnect"),
           style: "destructive",
           onPress: async () => {
             try {
@@ -105,9 +111,9 @@ export default function MobileBrokerConnectModal({ visible, onClose, onPositions
 
   const handleBrokerTap = (brokerName: string) => {
     Alert.alert(
-      "🚀 Próximamente",
-      `La conexión directa con ${brokerName} estará disponible muy pronto.`,
-      [{ text: "Entendido", style: "default" }]
+      t("mobileBrokerConnectModal.comingSoonTitle"),
+      t("mobileBrokerConnectModal.comingSoonMsg", { brokerName }),
+      [{ text: t("mobileBrokerConnectModal.understood"), style: "default" }]
     );
   };
 
@@ -123,7 +129,7 @@ export default function MobileBrokerConnectModal({ visible, onClose, onPositions
         <View style={[m.header, { borderBottomColor: colors.border }]}>
           <View style={m.headerLeft}>
             <Text style={m.headerEmoji}>🔗</Text>
-            <Text style={[m.headerTitle, { color: colors.text }]}>Conectar Broker</Text>
+            <Text style={[m.headerTitle, { color: colors.text }]}>{t("mobileBrokerConnectModal.connectBroker")}</Text>
           </View>
           <TouchableOpacity onPress={onClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
             <Ionicons name="close" size={22} color={colors.textMuted} />
@@ -135,7 +141,7 @@ export default function MobileBrokerConnectModal({ visible, onClose, onPositions
           {/* Connected brokers */}
           {connections.length > 0 && (
             <View style={m.section}>
-              <Text style={[m.sectionLabel, { color: colors.textMuted }]}>CONECTADOS</Text>
+              <Text style={[m.sectionLabel, { color: colors.textMuted }]}>{t("mobileBrokerConnectModal.connected")}</Text>
               {connections.map((c) => (
                 <View key={c.id} style={[m.connRow, { backgroundColor: colors.card, borderColor: colors.border }]}>
                   <Ionicons name="checkmark-circle" size={18} color="#22c55e" />
@@ -143,7 +149,7 @@ export default function MobileBrokerConnectModal({ visible, onClose, onPositions
                     <Text style={[m.connName, { color: colors.text }]}>{c.institution_name}</Text>
                     {c.last_sync_at && (
                       <Text style={[m.connDate, { color: colors.textDim }]}>
-                        Última sync: {new Date(c.last_sync_at).toLocaleDateString("es")}
+                        {t("mobileBrokerConnectModal.lastSync", { date: new Date(c.last_sync_at).toLocaleDateString("es") })}
                       </Text>
                     )}
                   </View>
@@ -161,14 +167,14 @@ export default function MobileBrokerConnectModal({ visible, onClose, onPositions
                   ? <ActivityIndicator size="small" color={colors.accentLight} />
                   : <Ionicons name="refresh-outline" size={15} color={colors.accentLight} />
                 }
-                <Text style={[m.syncAllText, { color: colors.accentLight }]}>Sincronizar todo</Text>
+                <Text style={[m.syncAllText, { color: colors.accentLight }]}>{t("mobileBrokerConnectModal.syncAll")}</Text>
               </TouchableOpacity>
             </View>
           )}
 
           {/* Broker list */}
           <Text style={[m.sectionLabel, { color: colors.textMuted }]}>
-            {connections.length > 0 ? "AGREGAR BROKER" : "SELECCIONA TU BROKER"}
+            {connections.length > 0 ? t("mobileBrokerConnectModal.addBroker") : t("mobileBrokerConnectModal.selectYourBroker")}
           </Text>
 
           {BROKERS.map((broker) => {
@@ -190,7 +196,7 @@ export default function MobileBrokerConnectModal({ visible, onClose, onPositions
                 {isConnected
                   ? <Ionicons name="checkmark-circle" size={18} color="#22c55e" />
                   : <View style={m.comingSoonBadge}>
-                      <Text style={[m.comingSoon, { color: colors.accentLight }]}>Próximamente</Text>
+                      <Text style={[m.comingSoon, { color: colors.accentLight }]}>{t("mobileBrokerConnectModal.comingSoon")}</Text>
                     </View>
                 }
               </TouchableOpacity>
@@ -198,7 +204,7 @@ export default function MobileBrokerConnectModal({ visible, onClose, onPositions
           })}
 
           <Text style={[m.disclaimer, { color: colors.textDim }]}>
-            Solo lectura — Nuvos AI nunca puede ejecutar operaciones en tu cuenta.
+            {t("mobileBrokerConnectModal.disclaimer")}
           </Text>
         </ScrollView>
       </View>

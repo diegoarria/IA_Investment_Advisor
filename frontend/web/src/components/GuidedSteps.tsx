@@ -2,12 +2,14 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { ChevronRight, X, BookOpen, MessageSquare, PieChart, Eye, Bell, User } from "lucide-react";
+import type { TFunction } from "i18next";
+import { useTranslation } from "react-i18next";
 import { getUserLevel } from "@/lib/userLevel";
 import { useProfileStore } from "@/lib/store";
 
 type PageKey = "chat" | "learn" | "portfolio" | "watchlist" | "notifications" | "profile";
 
-const GUIDE: Record<PageKey, {
+function getGuide(t: TFunction): Record<PageKey, {
   icon: React.ReactNode;
   title: string;
   what: string;
@@ -15,71 +17,75 @@ const GUIDE: Record<PageKey, {
   tip: string;
   nextPage: string | null;
   nextLabel: string | null;
-}> = {
-  chat: {
-    icon: <MessageSquare className="w-5 h-5" />,
-    title: "Tu mentor de inversiones",
-    what: "Este chat con IA te explica cualquier concepto financiero en español y a tu nivel. Puedes preguntarle sobre empresas, cómo empezar, o qué hacer con tu dinero.",
-    todo: "Escribe tu primera pregunta. Sugerencia: \"¿Por dónde empiezo a invertir con $500 dólares?\"",
-    tip: "No hay preguntas tontas aquí. Cuanto más le cuentes sobre tus metas, mejor te guiará.",
-    nextPage: "/learn",
-    nextLabel: "Siguiente: Aprendizaje →",
-  },
-  learn: {
-    icon: <BookOpen className="w-5 h-5" />,
-    title: "Tu biblioteca financiera",
-    what: "Aquí aprendes los conceptos clave de inversión en 30 segundos cada uno. La IA te los explica con ejemplos reales y sin tecnicismos.",
-    todo: "Toca cualquier tema con la etiqueta \"Para ti\". Recomendados: Capitalización de Mercado, CETES o Diversificación.",
-    tip: "No necesitas aprenderlo todo hoy. Con 2–3 temas por día, en un mes sabrás más que la mayoría.",
-    nextPage: "/portfolio",
-    nextLabel: "Siguiente: Portafolio →",
-  },
-  portfolio: {
-    icon: <PieChart className="w-5 h-5" />,
-    title: "El centro de mando de tus inversiones",
-    what: "Aquí registras tus acciones y la app calcula en tiempo real cuánto ganaste o perdiste, y cómo te va contra el mercado (S&P 500).",
-    todo: "Toca el botón \"+\" para agregar una posición, o importa una captura de pantalla de tu broker — la IA detecta todo automáticamente.",
-    tip: "Si no tienes acciones todavía, agrega Apple (AAPL) con precio de compra de $1 para ver cómo funciona la pantalla.",
-    nextPage: "/watchlist",
-    nextLabel: "Siguiente: Watchlist →",
-  },
-  watchlist: {
-    icon: <Eye className="w-5 h-5" />,
-    title: "Tu lista de seguimiento",
-    what: "Aquí guardas empresas que te interesan pero aún no compraste. La app te avisa si suben, bajan o tienen noticias importantes.",
-    todo: "Busca 2–3 empresas que conozcas (Apple, Tesla, FEMSA) y agrégalas con el botón \"+\". Luego observa cómo se mueven.",
-    tip: "Seguir empresas sin dinero real durante 3–6 meses es la mejor forma de desarrollar tu criterio de inversión.",
-    nextPage: "/notifications",
-    nextLabel: "Siguiente: Notificaciones →",
-  },
-  notifications: {
-    icon: <Bell className="w-5 h-5" />,
-    title: "Tus alertas personalizadas",
-    what: "La app te avisa cuando tus posiciones se mueven significativamente, hay noticias relevantes para tus acciones, o el mercado hace algo importante.",
-    todo: "Revisa las alertas que ya tienes. Si tienes posiciones en portafolio, deberías ver movimientos aquí. Activa las notificaciones push si no lo has hecho.",
-    tip: "No es ruido genérico — cada alerta está filtrada a lo que tienes tú en tu portafolio y watchlist.",
-    nextPage: "/profile",
-    nextLabel: "Último paso: Mi Perfil →",
-  },
-  profile: {
-    icon: <User className="w-5 h-5" />,
-    title: "Tu perfil de inversor",
-    what: "Aquí la app aprende sobre ti: cuánto riesgo toleras, tu horizonte de tiempo y qué tan activo quieres ser. Eso personaliza todo lo demás.",
-    todo: "Revisa tu nivel de conocimiento abajo y ajústalo. Conforme aprendas más, actualízalo para que la app se adapte contigo.",
-    tip: "Tu perfil no es permanente. Evoluciona a medida que tú evolucionas como inversor.",
-    nextPage: null,
-    nextLabel: null,
-  },
-};
+}> {
+  return {
+    chat: {
+      icon: <MessageSquare className="w-5 h-5" />,
+      title: t("guidedSteps.pages.chat.title"),
+      what: t("guidedSteps.pages.chat.what"),
+      todo: t("guidedSteps.pages.chat.todo"),
+      tip: t("guidedSteps.pages.chat.tip"),
+      nextPage: "/learn",
+      nextLabel: t("guidedSteps.pages.chat.nextLabel"),
+    },
+    learn: {
+      icon: <BookOpen className="w-5 h-5" />,
+      title: t("guidedSteps.pages.learn.title"),
+      what: t("guidedSteps.pages.learn.what"),
+      todo: t("guidedSteps.pages.learn.todo"),
+      tip: t("guidedSteps.pages.learn.tip"),
+      nextPage: "/portfolio",
+      nextLabel: t("guidedSteps.pages.learn.nextLabel"),
+    },
+    portfolio: {
+      icon: <PieChart className="w-5 h-5" />,
+      title: t("guidedSteps.pages.portfolio.title"),
+      what: t("guidedSteps.pages.portfolio.what"),
+      todo: t("guidedSteps.pages.portfolio.todo"),
+      tip: t("guidedSteps.pages.portfolio.tip"),
+      nextPage: "/watchlist",
+      nextLabel: t("guidedSteps.pages.portfolio.nextLabel"),
+    },
+    watchlist: {
+      icon: <Eye className="w-5 h-5" />,
+      title: t("guidedSteps.pages.watchlist.title"),
+      what: t("guidedSteps.pages.watchlist.what"),
+      todo: t("guidedSteps.pages.watchlist.todo"),
+      tip: t("guidedSteps.pages.watchlist.tip"),
+      nextPage: "/notifications",
+      nextLabel: t("guidedSteps.pages.watchlist.nextLabel"),
+    },
+    notifications: {
+      icon: <Bell className="w-5 h-5" />,
+      title: t("guidedSteps.pages.notifications.title"),
+      what: t("guidedSteps.pages.notifications.what"),
+      todo: t("guidedSteps.pages.notifications.todo"),
+      tip: t("guidedSteps.pages.notifications.tip"),
+      nextPage: "/profile",
+      nextLabel: t("guidedSteps.pages.notifications.nextLabel"),
+    },
+    profile: {
+      icon: <User className="w-5 h-5" />,
+      title: t("guidedSteps.pages.profile.title"),
+      what: t("guidedSteps.pages.profile.what"),
+      todo: t("guidedSteps.pages.profile.todo"),
+      tip: t("guidedSteps.pages.profile.tip"),
+      nextPage: null,
+      nextLabel: null,
+    },
+  };
+}
 
 const PAGE_ORDER: PageKey[] = ["chat", "learn", "portfolio", "watchlist", "notifications", "profile"];
 const VISITED_KEY = "nuvos_visited_pages";
 const DISMISSED_KEY = "nuvos_guide_dismissed";
 
 export default function GuidedSteps({ currentPage }: { currentPage: PageKey }) {
+  const { t } = useTranslation();
   const { profile } = useProfileStore();
   const router = useRouter();
   const level = getUserLevel(profile);
+  const GUIDE = getGuide(t);
   const [visited, setVisited] = useState<Set<PageKey>>(new Set());
   const [dismissed, setDismissed] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
@@ -125,10 +131,10 @@ export default function GuidedSteps({ currentPage }: { currentPage: PageKey }) {
           </div>
           <div>
             <p className="text-[11px] font-black leading-tight" style={{ color: "var(--accent-l)" }}>
-              Guía paso a paso
+              {t("guidedSteps.guideLabel")}
             </p>
             <p className="text-[10px] leading-tight" style={{ color: "var(--dim)" }}>
-              {doneCount}/{totalSteps} pantallas exploradas
+              {t("guidedSteps.screensExplored", { done: doneCount, total: totalSteps })}
             </p>
           </div>
         </div>
@@ -143,7 +149,7 @@ export default function GuidedSteps({ currentPage }: { currentPage: PageKey }) {
           <button onClick={() => setCollapsed(!collapsed)}
                   className="text-[10px] font-bold px-2 py-1 rounded-lg transition-colors hover:bg-white/5"
                   style={{ color: "var(--muted)" }}>
-            {collapsed ? "Ver" : "Minimizar"}
+            {collapsed ? t("guidedSteps.view") : t("guidedSteps.minimize")}
           </button>
           <button onClick={handleDismiss} style={{ color: "var(--dim)" }}>
             <X className="w-3.5 h-3.5" />
@@ -167,7 +173,7 @@ export default function GuidedSteps({ currentPage }: { currentPage: PageKey }) {
           {/* What to do now */}
           <div className="rounded-xl p-3" style={{ background: "rgba(0,168,94,0.07)", border: "1px solid rgba(0,168,94,0.2)" }}>
             <p className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: "var(--accent-l)" }}>
-              Haz esto ahora
+              {t("guidedSteps.doThisNow")}
             </p>
             <p className="text-xs leading-snug" style={{ color: "var(--sub)" }}>
               {guide.todo}
@@ -190,8 +196,8 @@ export default function GuidedSteps({ currentPage }: { currentPage: PageKey }) {
           {isLast && doneCount >= totalSteps - 1 && (
             <div className="rounded-xl p-3 text-center"
                  style={{ background: "rgba(0,168,94,0.08)", border: "1px solid rgba(0,168,94,0.25)" }}>
-              <p className="text-sm font-black mb-0.5" style={{ color: "var(--accent-l)" }}>🎉 ¡Ya conoces toda la app!</p>
-              <p className="text-xs" style={{ color: "var(--muted)" }}>Ya puedes explorar por tu cuenta. La guía seguirá aquí si la necesitas.</p>
+              <p className="text-sm font-black mb-0.5" style={{ color: "var(--accent-l)" }}>{t("guidedSteps.allDoneTitle")}</p>
+              <p className="text-xs" style={{ color: "var(--muted)" }}>{t("guidedSteps.allDoneBody")}</p>
             </div>
           )}
         </div>

@@ -2,6 +2,7 @@ import React, { useMemo } from "react";
 import { View, Text, ScrollView, TouchableOpacity, Modal, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useTranslation } from "react-i18next";
 import { useTheme } from "../lib/ThemeContext";
 import { useAppStore, maturityLabel } from "../lib/profileStore";
 import { useLearnStore } from "../lib/learnStore";
@@ -15,6 +16,7 @@ interface Props {
 
 export default function ProgressModal({ visible, onClose }: Props) {
   const { colors } = useTheme();
+  const { t } = useTranslation();
   const { maturityScore, maturityHistory, profile } = useAppStore();
   const { streak, totalCompleted } = useLearnStore();
   const sessions = useChatStore((s) => s.sessions);
@@ -24,13 +26,13 @@ export default function ProgressModal({ visible, onClose }: Props) {
 
   // Build maturity graph from history (last 10 data points)
   const graphPoints = useMemo(() => {
-    if (!maturityHistory.length) return [{ score: 0, label: "Inicio" }];
+    if (!maturityHistory.length) return [{ score: 0, label: t("progressModal.start") }];
     const pts = maturityHistory.slice(-10).map((e, i) => ({
       score: e.newScore,
-      label: i === 0 ? "Inicio" : `+${e.delta > 0 ? "+" : ""}${e.delta}`,
+      label: i === 0 ? t("progressModal.start") : `+${e.delta > 0 ? "+" : ""}${e.delta}`,
     }));
-    return [{ score: 0, label: "Inicio" }, ...pts];
-  }, [maturityHistory]);
+    return [{ score: 0, label: t("progressModal.start") }, ...pts];
+  }, [maturityHistory, t]);
 
   const maxScore = Math.max(...graphPoints.map((p) => p.score), 10);
 
@@ -41,10 +43,10 @@ export default function ProgressModal({ visible, onClose }: Props) {
   );
 
   const stats = [
-    { icon: "flame-outline",           color: "#f59e0b", label: "Racha activa",      value: `${streak} días` },
-    { icon: "book-outline",             color: "#22c55e", label: "Temas aprendidos", value: `${totalCompleted}` },
-    { icon: "chatbubble-ellipses-outline", color: "#0ea5e9", label: "Consultas al AI", value: `${totalMessages}` },
-    { icon: "bar-chart-outline",        color: "#8b5cf6", label: "Posiciones",       value: `${positions.length}` },
+    { icon: "flame-outline",           color: "#f59e0b", label: t("progressModal.activeStreak"),  value: t("progressModal.daysUnit", { count: streak }) },
+    { icon: "book-outline",             color: "#22c55e", label: t("progressModal.topicsLearned"), value: `${totalCompleted}` },
+    { icon: "chatbubble-ellipses-outline", color: "#0ea5e9", label: t("progressModal.aiQueries"), value: `${totalMessages}` },
+    { icon: "bar-chart-outline",        color: "#8b5cf6", label: t("progressModal.positions"),    value: `${positions.length}` },
   ];
 
   return (
@@ -55,7 +57,7 @@ export default function ProgressModal({ visible, onClose }: Props) {
           <TouchableOpacity onPress={onClose}>
             <Ionicons name="close" size={22} color={colors.textMuted} />
           </TouchableOpacity>
-          <Text style={[s.headerTitle, { color: colors.text }]}>Tu Progreso</Text>
+          <Text style={[s.headerTitle, { color: colors.text }]}>{t("progressModal.title")}</Text>
           <View style={{ width: 22 }} />
         </View>
 
@@ -64,7 +66,7 @@ export default function ProgressModal({ visible, onClose }: Props) {
           {/* Current maturity score hero */}
           <View style={[s.heroCard, { backgroundColor: ml.color + "12", borderColor: ml.color + "35" }]}>
             <View style={s.heroLeft}>
-              <Text style={[s.heroLabel, { color: ml.color + "99" }]}>MADUREZ INVERSORA</Text>
+              <Text style={[s.heroLabel, { color: ml.color + "99" }]}>{t("progressModal.investorMaturity")}</Text>
               <View style={s.heroNumRow}>
                 <Text style={[s.heroNum, { color: ml.color }]}>{maturityScore}</Text>
                 <Text style={[s.heroDenom, { color: ml.color + "60" }]}>/100</Text>
@@ -79,13 +81,13 @@ export default function ProgressModal({ visible, onClose }: Props) {
           </View>
 
           {/* Maturity graph */}
-          <Text style={[s.sectionTitle, { color: colors.textDim }]}>EVOLUCIÓN DE MADUREZ</Text>
+          <Text style={[s.sectionTitle, { color: colors.textDim }]}>{t("progressModal.maturityEvolution")}</Text>
           <View style={[s.graphCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
             {maturityHistory.length === 0 ? (
               <View style={s.emptyGraph}>
                 <Ionicons name="trending-up-outline" size={32} color={colors.textDim} />
                 <Text style={[s.emptyGraphText, { color: colors.textDim }]}>
-                  Usa el chat y el Play para ver tu evolución aquí
+                  {t("progressModal.emptyGraph")}
                 </Text>
               </View>
             ) : (
@@ -115,14 +117,14 @@ export default function ProgressModal({ visible, onClose }: Props) {
                 </View>
                 <View style={[s.graphBaseline, { backgroundColor: colors.border }]} />
                 <Text style={[s.graphCaption, { color: colors.textDim }]}>
-                  {maturityHistory.length} señales registradas · comportamiento en la app
+                  {t("progressModal.signalsRecorded", { count: maturityHistory.length })}
                 </Text>
               </>
             )}
           </View>
 
           {/* Stats grid */}
-          <Text style={[s.sectionTitle, { color: colors.textDim }]}>ESTADÍSTICAS</Text>
+          <Text style={[s.sectionTitle, { color: colors.textDim }]}>{t("progressModal.statistics")}</Text>
           <View style={s.statsGrid}>
             {stats.map((stat) => (
               <View key={stat.label} style={[s.statCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
@@ -138,7 +140,7 @@ export default function ProgressModal({ visible, onClose }: Props) {
           {/* Recent maturity signals */}
           {maturityHistory.length > 0 && (
             <>
-              <Text style={[s.sectionTitle, { color: colors.textDim }]}>ÚLTIMAS SEÑALES DETECTADAS</Text>
+              <Text style={[s.sectionTitle, { color: colors.textDim }]}>{t("progressModal.latestSignalsDetected")}</Text>
               <View style={[s.signalsCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
                 {maturityHistory.slice(-6).reverse().map((ev, i) => (
                   <View
@@ -161,22 +163,22 @@ export default function ProgressModal({ visible, onClose }: Props) {
 
           {/* Progress to next level */}
           <View style={[s.nextLevelCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <Text style={[s.nextLevelTitle, { color: colors.text }]}>Próximo nivel</Text>
+            <Text style={[s.nextLevelTitle, { color: colors.text }]}>{t("progressModal.nextLevel")}</Text>
             {maturityScore < 30 && (
-              <ProgressBar current={maturityScore} max={30} color="#f97316" label="Principiante" colors={colors} />
+              <ProgressBar current={maturityScore} max={30} color="#f97316" label={t("progressModal.beginner")} colors={colors} t={t} />
             )}
             {maturityScore >= 30 && maturityScore < 50 && (
-              <ProgressBar current={maturityScore - 30} max={20} color="#f59e0b" label="En Desarrollo" colors={colors} />
+              <ProgressBar current={maturityScore - 30} max={20} color="#f59e0b" label={t("progressModal.developing")} colors={colors} t={t} />
             )}
             {maturityScore >= 50 && maturityScore < 65 && (
-              <ProgressBar current={maturityScore - 50} max={15} color="#22c55e" label="Maduro" colors={colors} />
+              <ProgressBar current={maturityScore - 50} max={15} color="#22c55e" label={t("progressModal.mature")} colors={colors} t={t} />
             )}
             {maturityScore >= 65 && maturityScore < 80 && (
-              <ProgressBar current={maturityScore - 65} max={15} color="#16a34a" label="Experto" colors={colors} />
+              <ProgressBar current={maturityScore - 65} max={15} color="#16a34a" label={t("progressModal.expert")} colors={colors} t={t} />
             )}
             {maturityScore >= 80 && (
               <Text style={{ color: "#16a34a", fontWeight: "700", fontSize: 14, marginTop: 4 }}>
-                ¡Eres un Experto! 🏆
+                {t("progressModal.expertBanner")}
               </Text>
             )}
           </View>
@@ -189,13 +191,13 @@ export default function ProgressModal({ visible, onClose }: Props) {
 }
 
 function ProgressBar({
-  current, max, color, label, colors,
-}: { current: number; max: number; color: string; label: string; colors: any }) {
+  current, max, color, label, colors, t,
+}: { current: number; max: number; color: string; label: string; colors: any; t: (key: string, opts?: any) => string }) {
   const pct = Math.min(current / max, 1);
   return (
     <View style={{ marginTop: 8, gap: 6 }}>
       <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
-        <Text style={{ color: colors.textMuted, fontSize: 12 }}>Hacia {label}</Text>
+        <Text style={{ color: colors.textMuted, fontSize: 12 }}>{t("progressModal.towards", { label })}</Text>
         <Text style={{ color, fontSize: 12, fontWeight: "700" }}>{Math.round(pct * 100)}%</Text>
       </View>
       <View style={{ height: 6, backgroundColor: colors.border, borderRadius: 3, overflow: "hidden" }}>
