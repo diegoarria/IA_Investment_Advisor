@@ -2,6 +2,7 @@ import React, { useEffect, useRef } from "react";
 import {
   Modal, View, Text, TouchableOpacity, Animated, Easing, StyleSheet,
 } from "react-native";
+import { useTranslation } from "react-i18next";
 import { useTheme } from "../lib/ThemeContext";
 import type { StreakMilestone } from "../lib/learnStore";
 
@@ -14,6 +15,7 @@ interface Props {
 
 export default function StreakMilestoneModal({ milestone, onClaim, claiming, successMessage }: Props) {
   const { colors } = useTheme();
+  const { t } = useTranslation();
   const scale  = useRef(new Animated.Value(0.7)).current;
   const opacity = useRef(new Animated.Value(0)).current;
   const pulse  = useRef(new Animated.Value(1)).current;
@@ -54,7 +56,7 @@ export default function StreakMilestoneModal({ milestone, onClaim, claiming, suc
           <Text style={s.stars}>✨ ✨ ✨</Text>
 
           <Text style={[s.title, { color: colors.text }]}>{milestone.title}</Text>
-          <Text style={[s.days, { color: "#f59e0b" }]}>{milestone.days} días de racha</Text>
+          <Text style={[s.days, { color: "#f59e0b" }]}>{t("streakMilestoneModal.daysStreak", { days: milestone.days })}</Text>
 
           {/* Reward badge */}
           <View style={[s.rewardBadge, { borderColor: isBig ? "rgba(245,158,11,0.5)" : "rgba(0,212,126,0.4)", backgroundColor: isBig ? "rgba(245,158,11,0.08)" : "rgba(0,212,126,0.08)" }]}>
@@ -75,7 +77,7 @@ export default function StreakMilestoneModal({ milestone, onClaim, claiming, suc
               style={[s.btn, { backgroundColor: claiming ? "rgba(245,158,11,0.2)" : "#f59e0b" }]}
             >
               <Text style={[s.btnText, { color: claiming ? "rgba(255,255,255,0.4)" : "#000" }]}>
-                {claiming ? "Reclamando..." : "¡Reclamar recompensa!"}
+                {claiming ? t("streakMilestoneModal.claiming") : t("streakMilestoneModal.claimReward")}
               </Text>
             </TouchableOpacity>
           )}

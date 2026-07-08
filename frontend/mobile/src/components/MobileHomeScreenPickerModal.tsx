@@ -3,19 +3,21 @@ import {
   View, Text, TouchableOpacity, Modal, ScrollView, StyleSheet,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import { useTheme } from "../lib/ThemeContext";
 
 export const HOME_SCREEN_KEY = "nuvos_home_screen";
 
-const OPTIONS = [
-  { key: "home",          label: "Inicio",         sub: "Dashboard y resumen diario",        icon: "home-outline" as const,               color: "#00d47e", route: "/(tabs)/home" },
-  { key: "patrimonio",    label: "Patrimonio",      sub: "Tu patrimonio y portafolio",         icon: "wallet-outline" as const,             color: "#3b82f6", route: "/(tabs)/patrimonio" },
-  { key: "chat",          label: "Mentor IA",       sub: "Pregúntale lo que quieras",          icon: "chatbubble-ellipses-outline" as const, color: "#8b5cf6", route: "/(tabs)/chat" },
-  { key: "notifications", label: "Notificaciones",  sub: "Lo más importante de tus activos",   icon: "notifications-outline" as const,      color: "#ef4444", route: "/(tabs)/notifications" },
-  { key: "academy",       label: "Academy",         sub: "Aprende a invertir cada día",        icon: "school-outline" as const,             color: "#f59e0b", route: "/(tabs)/academy" },
+const getOptions = (t: TFunction) => [
+  { key: "home",          label: t("mobileHomeScreenPickerModal.options.home.label"),          sub: t("mobileHomeScreenPickerModal.options.home.sub"),          icon: "home-outline" as const,               color: "#00d47e", route: "/(tabs)/home" },
+  { key: "patrimonio",    label: t("mobileHomeScreenPickerModal.options.patrimonio.label"),    sub: t("mobileHomeScreenPickerModal.options.patrimonio.sub"),    icon: "wallet-outline" as const,             color: "#3b82f6", route: "/(tabs)/patrimonio" },
+  { key: "chat",          label: t("mobileHomeScreenPickerModal.options.chat.label"),          sub: t("mobileHomeScreenPickerModal.options.chat.sub"),          icon: "chatbubble-ellipses-outline" as const, color: "#8b5cf6", route: "/(tabs)/chat" },
+  { key: "notifications", label: t("mobileHomeScreenPickerModal.options.notifications.label"), sub: t("mobileHomeScreenPickerModal.options.notifications.sub"), icon: "notifications-outline" as const,      color: "#ef4444", route: "/(tabs)/notifications" },
+  { key: "academy",       label: t("mobileHomeScreenPickerModal.options.academy.label"),       sub: t("mobileHomeScreenPickerModal.options.academy.sub"),       icon: "school-outline" as const,             color: "#f59e0b", route: "/(tabs)/academy" },
 ];
 
-export type HomeScreenKey = (typeof OPTIONS)[number]["key"];
+export type HomeScreenKey = "home" | "patrimonio" | "chat" | "notifications" | "academy";
 
 interface Props {
   visible: boolean;
@@ -24,7 +26,9 @@ interface Props {
 
 export default function MobileHomeScreenPickerModal({ visible, onDone }: Props) {
   const { colors } = useTheme();
+  const { t } = useTranslation();
   const [selected, setSelected] = useState<HomeScreenKey | null>(null);
+  const OPTIONS = getOptions(t);
 
   const handleConfirm = () => {
     if (!selected) return;
@@ -38,9 +42,9 @@ export default function MobileHomeScreenPickerModal({ visible, onDone }: Props) 
         <View style={[s.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
           {/* Header */}
           <Text style={s.emoji}>🎉</Text>
-          <Text style={[s.title, { color: colors.text }]}>¡Configuración completa!</Text>
+          <Text style={[s.title, { color: colors.text }]}>{t("mobileHomeScreenPickerModal.title")}</Text>
           <Text style={[s.sub, { color: colors.textMuted }]}>
-            ¿Qué pantalla prefieres ver primero cada vez que entres?
+            {t("mobileHomeScreenPickerModal.subtitle")}
           </Text>
 
           {/* Options */}
@@ -89,12 +93,12 @@ export default function MobileHomeScreenPickerModal({ visible, onDone }: Props) 
             ]}
           >
             <Text style={[s.ctaText, { color: selected ? "#fff" : colors.textMuted }]}>
-              Empezar
+              {t("mobileHomeScreenPickerModal.start")}
             </Text>
             <Ionicons name="arrow-forward" size={16} color={selected ? "#fff" : colors.textMuted} />
           </TouchableOpacity>
           <Text style={[s.hint, { color: colors.textDim }]}>
-            Puedes cambiarlo desde tu perfil en cualquier momento
+            {t("mobileHomeScreenPickerModal.hint")}
           </Text>
         </View>
       </View>

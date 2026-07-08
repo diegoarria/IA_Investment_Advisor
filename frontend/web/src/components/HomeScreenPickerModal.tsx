@@ -2,24 +2,36 @@
 
 import { useState } from "react";
 import { Home, Wallet, Bot, Bell, BookOpen, ArrowRight } from "lucide-react";
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 
 export const HOME_SCREEN_KEY = "nuvos_home_screen";
 
-const OPTIONS = [
-  { key: "home",          label: "Inicio",         sub: "Dashboard y resumen diario",       icon: Home,     color: "#00d47e", href: "/home" },
-  { key: "patrimonio",    label: "Patrimonio",      sub: "Tu patrimonio y portafolio",       icon: Wallet,   color: "#3b82f6", href: "/patrimonio" },
-  { key: "chat",          label: "Mentor IA",       sub: "Pregúntale lo que quieras",        icon: Bot,      color: "#8b5cf6", href: "/chat" },
-  { key: "notifications", label: "Notificaciones",  sub: "Lo más importante de tus activos", icon: Bell,     color: "#ef4444", href: "/notifications" },
-  { key: "learn",         label: "Aprendizaje",     sub: "Lecciones y racha diaria",         icon: BookOpen, color: "#f59e0b", href: "/learn" },
+const OPTION_META = [
+  { key: "home",          icon: Home,     color: "#00d47e", href: "/home" },
+  { key: "patrimonio",    icon: Wallet,   color: "#3b82f6", href: "/patrimonio" },
+  { key: "chat",          icon: Bot,      color: "#8b5cf6", href: "/chat" },
+  { key: "notifications", icon: Bell,     color: "#ef4444", href: "/notifications" },
+  { key: "learn",         icon: BookOpen, color: "#f59e0b", href: "/learn" },
 ] as const;
 
-export type HomeScreenKey = (typeof OPTIONS)[number]["key"];
+function getOptions(t: TFunction) {
+  return OPTION_META.map((o) => ({
+    ...o,
+    label: t(`homeScreenPickerModal.options.${o.key}.label`),
+    sub: t(`homeScreenPickerModal.options.${o.key}.sub`),
+  }));
+}
+
+export type HomeScreenKey = (typeof OPTION_META)[number]["key"];
 
 interface Props {
   onDone: (href: string) => void;
 }
 
 export default function HomeScreenPickerModal({ onDone }: Props) {
+  const { t } = useTranslation();
+  const OPTIONS = getOptions(t);
   const [selected, setSelected] = useState<HomeScreenKey | null>(null);
 
   const handleConfirm = () => {
@@ -42,10 +54,10 @@ export default function HomeScreenPickerModal({ onDone }: Props) {
         <div className="px-6 pt-7 pb-4 text-center">
           <div className="text-4xl mb-3">🎉</div>
           <p className="text-lg font-black" style={{ color: "var(--text)" }}>
-            ¡Configuración completa!
+            {t("homeScreenPickerModal.setupComplete")}
           </p>
           <p className="text-sm mt-1.5" style={{ color: "var(--muted)" }}>
-            ¿Qué pantalla prefieres ver primero cada vez que entres?
+            {t("homeScreenPickerModal.question")}
           </p>
         </div>
 
@@ -100,11 +112,11 @@ export default function HomeScreenPickerModal({ onDone }: Props) {
               boxShadow: selected ? "0 4px 20px rgba(0,212,126,0.35)" : "none",
             }}
           >
-            Empezar
+            {t("homeScreenPickerModal.start")}
             <ArrowRight className="w-4 h-4" />
           </button>
           <p className="text-center text-xs mt-3" style={{ color: "var(--dim)" }}>
-            Puedes cambiarlo en cualquier momento desde tu perfil
+            {t("homeScreenPickerModal.changeHint")}
           </p>
         </div>
       </div>

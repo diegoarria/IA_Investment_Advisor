@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useTranslation } from "react-i18next";
 import { useTheme } from "../../lib/ThemeContext";
 import { marketApi } from "../../lib/api";
 
@@ -27,6 +28,7 @@ function timeAgo(ts: number): string {
 
 export default function StockNews({ ticker }: { ticker: string }) {
   const { colors } = useTheme();
+  const { t } = useTranslation();
   const [items, setItems]     = useState<NewsItem[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -49,7 +51,7 @@ export default function StockNews({ ticker }: { ticker: string }) {
   if (items.length === 0) {
     return (
       <View style={s.loader}>
-        <Text style={{ color: colors.textMuted, fontSize: 13 }}>Sin noticias recientes</Text>
+        <Text style={{ color: colors.textMuted, fontSize: 13 }}>{t("stockNews.noData")}</Text>
       </View>
     );
   }

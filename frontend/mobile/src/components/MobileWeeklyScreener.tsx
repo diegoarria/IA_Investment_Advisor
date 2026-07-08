@@ -3,6 +3,7 @@ import {
   View, Text, TouchableOpacity, ActivityIndicator, StyleSheet,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useTranslation } from "react-i18next";
 import { useTheme } from "../lib/ThemeContext";
 import { screenerWeeklyApi } from "../lib/api";
 
@@ -16,6 +17,7 @@ const TOOL_COLOR = "#8b5cf6";
 
 export default function MobileWeeklyScreener({ isPremium, onUpgrade, existingTickers = [] }: Props) {
   const { colors } = useTheme();
+  const { t } = useTranslation();
   const [data, setData]       = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const s = styles();
@@ -43,9 +45,9 @@ export default function MobileWeeklyScreener({ isPremium, onUpgrade, existingTic
               : <Ionicons name="search" size={26} color="white" />}
           </View>
         </View>
-        <Text style={[s.heroTitle, { color: colors.text }]}>Screener Semanal</Text>
+        <Text style={[s.heroTitle, { color: colors.text }]}>{t("mobileWeeklyScreener.title")}</Text>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 2 }}>
-          <Text style={[s.heroTagline, { color: TOOL_COLOR }]}>5 oportunidades personalizadas cada lunes</Text>
+          <Text style={[s.heroTagline, { color: TOOL_COLOR }]}>{t("mobileWeeklyScreener.tagline")}</Text>
         </View>
         {data?.week_theme && (
           <View style={[s.themeBadge, { backgroundColor: TOOL_COLOR + "20", borderColor: TOOL_COLOR + "40" }]}>
@@ -59,7 +61,7 @@ export default function MobileWeeklyScreener({ isPremium, onUpgrade, existingTic
         {loading && (
           <View style={s.loadingRow}>
             <ActivityIndicator size="small" color={TOOL_COLOR} />
-            <Text style={[s.loadingText, { color: colors.textMuted }]}>Buscando oportunidades...</Text>
+            <Text style={[s.loadingText, { color: colors.textMuted }]}>{t("mobileWeeklyScreener.searching")}</Text>
           </View>
         )}
 
@@ -91,7 +93,7 @@ export default function MobileWeeklyScreener({ isPremium, onUpgrade, existingTic
         {!loading && !data && (
           <View style={s.emptyWrap}>
             <Text style={{ fontSize: 28 }}>🔍</Text>
-            <Text style={[s.emptyText, { color: colors.textMuted }]}>No hay picks disponibles aún.</Text>
+            <Text style={[s.emptyText, { color: colors.textMuted }]}>{t("mobileWeeklyScreener.noPicks")}</Text>
           </View>
         )}
       </View>

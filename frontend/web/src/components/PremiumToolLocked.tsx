@@ -1,6 +1,7 @@
 "use client";
 
 import { LucideIcon, Lock, Sparkles } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 interface Benefit {
   icon: LucideIcon;
@@ -20,6 +21,7 @@ interface Props {
 export default function PremiumToolLocked({
   title, tagline, description, icon: Icon, color, benefits, onUnlock,
 }: Props) {
+  const { t } = useTranslation();
   return (
     <div
       onClick={onUnlock}
@@ -95,7 +97,7 @@ export default function PremiumToolLocked({
           <div className="absolute inset-0 top-0 h-1/2 pointer-events-none"
                style={{ background: "rgba(255,255,255,0.12)" }} />
           <Sparkles className="w-4 h-4" />
-          Desbloquear con Premium
+          {t("premiumToolLocked.unlockCta")}
         </button>
       </div>
     </div>

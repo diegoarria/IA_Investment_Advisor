@@ -2,35 +2,38 @@ import React from "react";
 import { View, Text, TouchableOpacity, Modal, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import { useTheme } from "../lib/ThemeContext";
 import { useAppStore } from "../lib/profileStore";
 
-const ACTIONS = [
+const getActions = (t: TFunction) => [
   {
     icon:  "bar-chart-outline" as const,
     color: "#22c55e",
-    title: "Importa tu portafolio",
-    desc:  "Sube una captura de pantalla y analiza tu cartera con IA",
+    title: t("firstActionModal.actions.portfolio.title"),
+    desc:  t("firstActionModal.actions.portfolio.desc"),
     route: "/(tabs)/portfolio" as const,
   },
   {
     icon:  "school-outline" as const,
     color: "#8b5cf6",
-    title: "Aprende invirtiendo",
-    desc:  "Explora temas financieros y construye tu criterio",
+    title: t("firstActionModal.actions.learn.title"),
+    desc:  t("firstActionModal.actions.learn.desc"),
     route: "/(tabs)/learn" as const,
   },
   {
     icon:  "chatbubble-ellipses-outline" as const,
     color: "#0ea5e9",
-    title: "Pregúntale a la IA",
-    desc:  "Tu mentor de inversiones está listo para ayudarte",
+    title: t("firstActionModal.actions.chat.title"),
+    desc:  t("firstActionModal.actions.chat.desc"),
     route: null,
   },
 ] as const;
 
 export default function FirstActionModal() {
   const { colors } = useTheme();
+  const { t } = useTranslation();
   const profile           = useAppStore((s) => s.profile);
   const hasSeenFirstAction = useAppStore((s) => s.hasSeenFirstAction);
   const markFirstActionSeen = useAppStore((s) => s.markFirstActionSeen);
@@ -39,6 +42,7 @@ export default function FirstActionModal() {
   if (!visible) return null;
 
   const firstName = profile.name.split(" ")[0];
+  const ACTIONS = getActions(t);
 
   return (
     <Modal visible transparent animationType="fade" onRequestClose={markFirstActionSeen}>
@@ -48,9 +52,9 @@ export default function FirstActionModal() {
           {/* Header */}
           <View style={s.header}>
             <Text style={s.emoji}>👋</Text>
-            <Text style={[s.title, { color: colors.text }]}>Hola, {firstName}</Text>
+            <Text style={[s.title, { color: colors.text }]}>{t("firstActionModal.greeting", { name: firstName })}</Text>
             <Text style={[s.subtitle, { color: colors.textMuted }]}>
-              ¿Por dónde quieres empezar?
+              {t("firstActionModal.subtitle")}
             </Text>
           </View>
 
@@ -79,7 +83,7 @@ export default function FirstActionModal() {
           </View>
 
           <TouchableOpacity onPress={markFirstActionSeen} style={s.skip}>
-            <Text style={[s.skipText, { color: colors.textDim }]}>Explorar por mi cuenta</Text>
+            <Text style={[s.skipText, { color: colors.textDim }]}>{t("firstActionModal.skip")}</Text>
           </TouchableOpacity>
 
         </View>

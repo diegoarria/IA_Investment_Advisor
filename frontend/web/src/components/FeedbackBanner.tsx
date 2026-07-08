@@ -1,12 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { getSupabaseClient } from "@/lib/supabase";
 import api from "@/lib/api";
 
 const STORAGE_KEY = "nuvos_feedback_checked_at";
 
 export default function FeedbackBanner() {
+  const { t } = useTranslation();
   const [visible, setVisible]     = useState(false);
   const [rating, setRating]       = useState(0);
   const [hovered, setHovered]     = useState(0);
@@ -82,16 +84,16 @@ export default function FeedbackBanner() {
       {done ? (
         <div style={{ textAlign: "center", padding: "8px 0" }}>
           <div style={{ fontSize: 32, marginBottom: 8 }}>🙌</div>
-          <p style={{ color: "#fff", fontWeight: 700, fontSize: 15, margin: 0 }}>¡Gracias por tu feedback!</p>
-          <p style={{ color: "#6b7280", fontSize: 13, margin: "4px 0 0" }}>Nos ayuda a mejorar Nuvos.</p>
+          <p style={{ color: "#fff", fontWeight: 700, fontSize: 15, margin: 0 }}>{t("feedbackBanner.thanks")}</p>
+          <p style={{ color: "#6b7280", fontSize: 13, margin: "4px 0 0" }}>{t("feedbackBanner.thanksSub")}</p>
         </div>
       ) : (
         <>
           {/* Header */}
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
             <div>
-              <p style={{ color: "#fff", fontWeight: 800, fontSize: 15, margin: 0 }}>¿Cómo va tu experiencia?</p>
-              <p style={{ color: "#6b7280", fontSize: 12, margin: "3px 0 0" }}>Solo toma 10 segundos</p>
+              <p style={{ color: "#fff", fontWeight: 800, fontSize: 15, margin: 0 }}>{t("feedbackBanner.howIsItGoing")}</p>
+              <p style={{ color: "#6b7280", fontSize: 12, margin: "3px 0 0" }}>{t("feedbackBanner.takesSeconds")}</p>
             </div>
             <button onClick={handleDismiss} style={{
               background: "none", border: "none", color: "#4b5563",
@@ -125,7 +127,7 @@ export default function FeedbackBanner() {
           {/* Text area — only show once a star is selected */}
           {rating > 0 && (
             <textarea
-              placeholder="¿Qué podríamos mejorar? (opcional)"
+              placeholder={t("feedbackBanner.placeholder")}
               value={message}
               onChange={(e) => setMessage(e.target.value)}
               rows={3}
@@ -158,7 +160,7 @@ export default function FeedbackBanner() {
               fontWeight: 600,
               cursor: "pointer",
             }}>
-              Ahora no
+              {t("feedbackBanner.notNow")}
             </button>
             <button
               onClick={handleSubmit}
@@ -176,7 +178,7 @@ export default function FeedbackBanner() {
                 transition: "all 0.2s",
               }}
             >
-              {submitting ? "Enviando..." : "Enviar feedback"}
+              {submitting ? t("feedbackBanner.sending") : t("feedbackBanner.sendFeedback")}
             </button>
           </div>
         </>

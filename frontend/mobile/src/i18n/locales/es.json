@@ -2494,5 +2494,77 @@
       "understandSuffix": "Soy responsable de mis propias decisiones de inversión."
     },
     "stepCounter": "Paso {{current}} de {{total}}"
+  },
+  "streakMilestoneModal": {
+    "daysStreak": "{{days}} días de racha",
+    "claiming": "Reclamando...",
+    "claimReward": "¡Reclamar recompensa!"
+  },
+  "stockCompetitors": {
+    "noData": "Sin datos de competidores"
+  },
+  "mobileHomeScreenPickerModal": {
+    "options": {
+      "home": {
+        "label": "Inicio",
+        "sub": "Dashboard y resumen diario"
+      },
+      "patrimonio": {
+        "label": "Patrimonio",
+        "sub": "Tu patrimonio y portafolio"
+      },
+      "chat": {
+        "label": "Mentor IA",
+        "sub": "Pregúntale lo que quieras"
+      },
+      "notifications": {
+        "label": "Notificaciones",
+        "sub": "Lo más importante de tus activos"
+      },
+      "academy": {
+        "label": "Academy",
+        "sub": "Aprende a invertir cada día"
+      }
+    },
+    "title": "¡Configuración completa!",
+    "subtitle": "¿Qué pantalla prefieres ver primero cada vez que entres?",
+    "start": "Empezar",
+    "hint": "Puedes cambiarlo desde tu perfil en cualquier momento"
+  },
+  "stockNews": {
+    "noData": "Sin noticias recientes"
+  },
+  "firstActionModal": {
+    "actions": {
+      "portfolio": {
+        "title": "Importa tu portafolio",
+        "desc": "Sube una captura de pantalla y analiza tu cartera con IA"
+      },
+      "learn": {
+        "title": "Aprende invirtiendo",
+        "desc": "Explora temas financieros y construye tu criterio"
+      },
+      "chat": {
+        "title": "Pregúntale a la IA",
+        "desc": "Tu mentor de inversiones está listo para ayudarte"
+      }
+    },
+    "greeting": "Hola, {{name}}",
+    "subtitle": "¿Por dónde quieres empezar?",
+    "skip": "Explorar por mi cuenta"
+  },
+  "mobileWeeklyScreener": {
+    "title": "Screener Semanal",
+    "tagline": "5 oportunidades personalizadas cada lunes",
+    "searching": "Buscando oportunidades...",
+    "noPicks": "No hay picks disponibles aún."
+  },
+  "mobileTourBanner": {
+    "step": "PASO {{step}}/{{total}}",
+    "defaultCta": "Entendido, ir al inicio ✓"
+  },
+  "mobileOnboardingChecklist": {
+    "title": "Configura tu Nuvos",
+    "progress": "{{completed}} de {{total}} completados"
   }
 }

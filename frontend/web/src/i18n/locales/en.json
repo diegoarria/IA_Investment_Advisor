@@ -1709,5 +1709,134 @@
       "saveError": "Couldn't save. Try again."
     },
     "backToProfile": "Back to my profile"
+  },
+  "premiumBadge": {
+    "login": "Log in",
+    "premiumFree": "Free Premium",
+    "activatePremium": "Activate Premium",
+    "activate": "✦ Activate"
+  },
+  "premiumToolLocked": {
+    "unlockCta": "Unlock with Premium"
+  },
+  "homeScreenPickerModal": {
+    "options": {
+      "home": {
+        "label": "Home",
+        "sub": "Dashboard and daily summary"
+      },
+      "patrimonio": {
+        "label": "Wealth",
+        "sub": "Your wealth and portfolio"
+      },
+      "chat": {
+        "label": "AI Mentor",
+        "sub": "Ask whatever you want"
+      },
+      "notifications": {
+        "label": "Notifications",
+        "sub": "The most important updates on your assets"
+      },
+      "learn": {
+        "label": "Learning",
+        "sub": "Lessons and daily streak"
+      }
+    },
+    "setupComplete": "Setup complete!",
+    "question": "Which screen would you like to see first every time you open the app?",
+    "start": "Start",
+    "changeHint": "You can change this anytime from your profile"
+  },
+  "onboardingChecklist": {
+    "title": "Set up your Nuvos",
+    "progress": "{{completed}} of {{total}} completed"
+  },
+  "firstStepsFlow": {
+    "steps": {
+      "1": {
+        "title": "Add your first position",
+        "desc": "Look up a company you know — Apple, Tesla, Amazon — and add it to your simulated portfolio. No real money involved.",
+        "cta": "Add position now"
+      },
+      "2": {
+        "title": "Here's what your portfolio looks like",
+        "desc": "When you add a position, the app tracks its price in real time and shows you what your investment would be worth today. All simulated, no risk.",
+        "cta": "Got it, next"
+      },
+      "3": {
+        "title": "Ask the mentor your first question",
+        "desc": "The AI mentor knows your profile. Ask something specific: Is now a good time to buy? How risky is this company?",
+        "cta": "Go to chat with the mentor"
+      }
+    },
+    "stepOf": "Step {{num}} of {{total}}",
+    "skipGuide": "Skip guide"
+  },
+  "tutorialModal": {
+    "steps": {
+      "1": {
+        "title": "Welcome to Nuvos AI",
+        "subtitle": "Your AI investing mentor",
+        "desc": "Nuvos AI teaches you to think like a professional investor. We don't tell you what to buy — we teach you to analyze, understand, and make decisions on your own. All data syncs in real time between the web and mobile app.",
+        "tip": "💡 Complete the initial profile so the AI adapts its answers to your level: Basic, Intermediate, or Advanced."
+      },
+      "2": {
+        "title": "Your Dashboard",
+        "subtitle": "The market's pulse, at a glance",
+        "desc": "Home shows the S&P 500, Nasdaq, and Dow Jones indexes in real time with continuous scroll while the market is open (LIVE). Below you'll see your portfolio value with three key metrics: Today's performance, YTD (year to date), and Total.",
+        "tip": "💡 The \"Trending up today\" section automatically shows the 4 positions in your portfolio with the biggest gain of the day."
+      },
+      "3": {
+        "title": "Chat with your AI Mentor",
+        "subtitle": "Nuvos's main tool",
+        "desc": "Ask about any company, ETF, concept, or strategy. The AI knows your risk profile, your real portfolio, and your investor level, and detects when your decisions contradict them. Every conversation updates your behavioral maturity bar.",
+        "tip": "💡 You can edit any message by clicking the pencil icon that appears next to the text."
+      },
+      "4": {
+        "title": "Real-Time Portfolio",
+        "subtitle": "Your investments with live data",
+        "desc": "Add positions manually or by pasting a screenshot of your broker (Ctrl+V / ⌘+V) — the AI extracts the data automatically. Prices update every 30 seconds. Toggle between Basic and Advanced view to see Volume, Market Cap, P/E, Ex-Dividend, and 52-week range.",
+        "tip": "💡 The badge next to \"My Portfolio\" (USD, MXN, EUR…) shows your portfolio's currency. Click any position to see its full analysis."
+      },
+      "5": {
+        "title": "Events Calendar",
+        "subtitle": "Earnings, dividends, and ex-dividends",
+        "desc": "The calendar in Watchlist automatically shows three types of events for all your positions and watchlist: Earnings (quarterly results), Ex-Dividend (deadline to receive the dividend), and Dividend payment. Tap any day to see the detail.",
+        "tip": "💡 Positions from your portfolio appear in bold green; watchlist ones in blue — so you can spot at a glance which ones affect you directly."
+      },
+      "6": {
+        "title": "Watchlist",
+        "subtitle": "Follow stocks without buying them",
+        "desc": "Add any stock to your Watchlist to follow its price, news, and events in real time. In Advanced mode you get a full table with an after-hours column, market cap, P/E ratio, earnings date, and 52-week range — sortable by any column.",
+        "tip": "💡 Drag cards to reorder your watchlist. The order syncs automatically between web and mobile."
+      },
+      "7": {
+        "title": "Learning & Tools",
+        "subtitle": "Everything you need to invest better",
+        "desc": "A library of financial concepts explained by AI, adapted to your level: ETFs, fundamental analysis, P/E ratio, DCA, Value Investing, and investor psychology. The weekly Screener (Intermediate+) analyzes the market and selects personalized opportunities every Monday.",
+        "tip": "💡 The Investors section shows you how the big funds invest — useful for spotting trends and validating your ideas."
+      },
+      "8": {
+        "title": "Your Profile & Investor Maturity",
+        "subtitle": "The AI that knows you as an investor",
+        "desc": "The AI analyzes your real behavior — whether you panic, whether you diversify well, whether you think long-term — and assigns you an Investor Maturity score (0-100) that evolves over time. Your level (Basic, Intermediate, or Advanced) adapts the whole experience: analysis, chat answers, and visible columns.",
+        "tip": "💡 The behavioral risk bar in the side menu updates automatically with every conversation. You can change your level in Profile anytime."
+      }
+    },
+    "stepCounter": "{{step}} / {{total}}",
+    "back": "Back",
+    "skip": "Skip",
+    "next": "Next",
+    "start": "Let's start!"
+  },
+  "feedbackBanner": {
+    "thanks": "Thanks for your feedback!",
+    "thanksSub": "It helps us improve Nuvos.",
+    "howIsItGoing": "How's your experience going?",
+    "takesSeconds": "Only takes 10 seconds",
+    "placeholder": "What could we improve? (optional)",
+    "notNow": "Not now",
+    "sending": "Sending...",
+    "sendFeedback": "Send feedback"
   }
 }

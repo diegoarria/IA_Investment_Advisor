@@ -1,6 +1,7 @@
 import React from "react";
 import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useTranslation } from "react-i18next";
 import { useTheme } from "../lib/ThemeContext";
 
 export interface OnboardingStep {
@@ -17,6 +18,7 @@ interface Props {
 
 export default function MobileOnboardingChecklist({ steps, onStepPress }: Props) {
   const { colors } = useTheme();
+  const { t } = useTranslation();
   const completedCount = steps.filter((s) => s.completed).length;
 
   if (completedCount === steps.length) return null;
@@ -28,9 +30,9 @@ export default function MobileOnboardingChecklist({ steps, onStepPress }: Props)
         <View style={s.headerLeft}>
           <Text style={s.rocketEmoji}>🚀</Text>
           <View>
-            <Text style={[s.headerTitle, { color: colors.text }]}>Configura tu Nuvos</Text>
+            <Text style={[s.headerTitle, { color: colors.text }]}>{t("mobileOnboardingChecklist.title")}</Text>
             <Text style={[s.headerSub, { color: colors.textMuted }]}>
-              {completedCount} de {steps.length} completados
+              {t("mobileOnboardingChecklist.progress", { completed: completedCount, total: steps.length })}
             </Text>
           </View>
         </View>

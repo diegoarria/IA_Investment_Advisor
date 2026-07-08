@@ -2,6 +2,7 @@ import React, { useEffect, useRef } from "react";
 import { View, Text, TouchableOpacity, StyleSheet, Animated } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
+import { useTranslation } from "react-i18next";
 import { useTheme } from "../lib/ThemeContext";
 
 interface Props {
@@ -18,11 +19,13 @@ export default function MobileTourBanner({
   totalSteps = 5,
   title,
   description,
-  ctaLabel = "Entendido, ir al inicio ✓",
+  ctaLabel,
   onDismiss,
 }: Props) {
   const { colors } = useTheme();
+  const { t } = useTranslation();
   const slideAnim = useRef(new Animated.Value(120)).current;
+  const resolvedCtaLabel = ctaLabel ?? t("mobileTourBanner.defaultCta");
 
   useEffect(() => {
     Animated.spring(slideAnim, {
@@ -50,7 +53,7 @@ export default function MobileTourBanner({
       <View style={s.row}>
         <View style={[s.badge, { backgroundColor: "rgba(0,212,126,0.12)" }]}>
           <Text style={s.badgeText}>
-            PASO {step}/{totalSteps}
+            {t("mobileTourBanner.step", { step, total: totalSteps })}
           </Text>
         </View>
         <TouchableOpacity onPress={dismiss} hitSlop={12}>
@@ -62,7 +65,7 @@ export default function MobileTourBanner({
       <Text style={[s.desc, { color: colors.textMuted }]}>{description}</Text>
 
       <TouchableOpacity style={s.cta} onPress={dismiss} activeOpacity={0.8}>
-        <Text style={s.ctaText}>{ctaLabel}</Text>
+        <Text style={s.ctaText}>{resolvedCtaLabel}</Text>
       </TouchableOpacity>
 
       {/* Green top accent line */}

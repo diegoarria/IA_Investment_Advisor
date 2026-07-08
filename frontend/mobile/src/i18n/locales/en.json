@@ -2494,5 +2494,77 @@
       "understandSuffix": "I'm responsible for my own investment decisions."
     },
     "stepCounter": "Step {{current}} of {{total}}"
+  },
+  "streakMilestoneModal": {
+    "daysStreak": "{{days}} day streak",
+    "claiming": "Claiming...",
+    "claimReward": "Claim reward!"
+  },
+  "stockCompetitors": {
+    "noData": "No competitor data"
+  },
+  "mobileHomeScreenPickerModal": {
+    "options": {
+      "home": {
+        "label": "Home",
+        "sub": "Dashboard and daily summary"
+      },
+      "patrimonio": {
+        "label": "Net Worth",
+        "sub": "Your net worth and portfolio"
+      },
+      "chat": {
+        "label": "AI Mentor",
+        "sub": "Ask whatever you want"
+      },
+      "notifications": {
+        "label": "Notifications",
+        "sub": "What matters most about your assets"
+      },
+      "academy": {
+        "label": "Academy",
+        "sub": "Learn to invest every day"
+      }
+    },
+    "title": "Setup complete!",
+    "subtitle": "Which screen would you like to see first every time you open the app?",
+    "start": "Start",
+    "hint": "You can change this anytime from your profile"
+  },
+  "stockNews": {
+    "noData": "No recent news"
+  },
+  "firstActionModal": {
+    "actions": {
+      "portfolio": {
+        "title": "Import your portfolio",
+        "desc": "Upload a screenshot and analyze your portfolio with AI"
+      },
+      "learn": {
+        "title": "Learn by investing",
+        "desc": "Explore financial topics and build your judgment"
+      },
+      "chat": {
+        "title": "Ask the AI",
+        "desc": "Your investment mentor is ready to help you"
+      }
+    },
+    "greeting": "Hi, {{name}}",
+    "subtitle": "Where would you like to start?",
+    "skip": "Explore on my own"
+  },
+  "mobileWeeklyScreener": {
+    "title": "Weekly Screener",
+    "tagline": "5 personalized opportunities every Monday",
+    "searching": "Searching for opportunities...",
+    "noPicks": "No picks available yet."
+  },
+  "mobileTourBanner": {
+    "step": "STEP {{step}}/{{total}}",
+    "defaultCta": "Got it, go to home ✓"
+  },
+  "mobileOnboardingChecklist": {
+    "title": "Set up your Nuvos",
+    "progress": "{{completed}} of {{total}} completed"
   }
 }

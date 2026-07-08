@@ -1709,5 +1709,134 @@
       "saveError": "Error al guardar. Intenta de nuevo."
     },
     "backToProfile": "Volver a mi perfil"
+  },
+  "premiumBadge": {
+    "login": "Iniciar sesión",
+    "premiumFree": "Premium Gratis",
+    "activatePremium": "Activar Premium",
+    "activate": "✦ Activar"
+  },
+  "premiumToolLocked": {
+    "unlockCta": "Desbloquear con Premium"
+  },
+  "homeScreenPickerModal": {
+    "options": {
+      "home": {
+        "label": "Inicio",
+        "sub": "Dashboard y resumen diario"
+      },
+      "patrimonio": {
+        "label": "Patrimonio",
+        "sub": "Tu patrimonio y portafolio"
+      },
+      "chat": {
+        "label": "Mentor IA",
+        "sub": "Pregúntale lo que quieras"
+      },
+      "notifications": {
+        "label": "Notificaciones",
+        "sub": "Lo más importante de tus activos"
+      },
+      "learn": {
+        "label": "Aprendizaje",
+        "sub": "Lecciones y racha diaria"
+      }
+    },
+    "setupComplete": "¡Configuración completa!",
+    "question": "¿Qué pantalla prefieres ver primero cada vez que entres?",
+    "start": "Empezar",
+    "changeHint": "Puedes cambiarlo en cualquier momento desde tu perfil"
+  },
+  "onboardingChecklist": {
+    "title": "Configura tu Nuvos",
+    "progress": "{{completed}} de {{total}} completados"
+  },
+  "firstStepsFlow": {
+    "steps": {
+      "1": {
+        "title": "Agrega tu primera posición",
+        "desc": "Busca una empresa que conozcas — Apple, Tesla, Amazon — y agrégala a tu portafolio simulado. No hay dinero real involucrado.",
+        "cta": "Agregar posición ahora"
+      },
+      "2": {
+        "title": "Así se ve tu portafolio",
+        "desc": "Cuando agregas una posición, la app rastrea su precio en tiempo real y te muestra cuánto valdría tu inversión hoy. Todo simulado, sin riesgo.",
+        "cta": "Entendido, siguiente"
+      },
+      "3": {
+        "title": "Hazle tu primera pregunta al mentor",
+        "desc": "El mentor de IA conoce tu perfil. Pregúntale algo concreto: ¿Es buen momento para comprar? ¿Qué riesgo tiene esta empresa?",
+        "cta": "Ir al chat con el mentor"
+      }
+    },
+    "stepOf": "Paso {{num}} de {{total}}",
+    "skipGuide": "Saltar guía"
+  },
+  "tutorialModal": {
+    "steps": {
+      "1": {
+        "title": "Bienvenido a Nuvos AI",
+        "subtitle": "Tu mentor de inversiones con IA",
+        "desc": "Nuvos AI te enseña a pensar como un inversor profesional. No te decimos qué comprar — te enseñamos a analizar, entender y tomar decisiones por ti mismo. Todos los datos se sincronizan en tiempo real entre la web y la app móvil.",
+        "tip": "💡 Completa el perfil inicial para que la IA adapte sus respuestas a tu nivel: Básico, Intermedio o Avanzado."
+      },
+      "2": {
+        "title": "Tu Dashboard",
+        "subtitle": "El pulso del mercado, de un vistazo",
+        "desc": "El Inicio muestra los índices S&P 500, Nasdaq y Dow Jones en tiempo real con scroll continuo cuando el mercado está abierto (LIVE). Debajo verás el valor de tu portafolio con tres métricas clave: rendimiento de Hoy, YTD (lo que va del año) y Total.",
+        "tip": "💡 La sección «Subiendo hoy» muestra automáticamente las 4 posiciones de tu portafolio con mayor ganancia del día."
+      },
+      "3": {
+        "title": "Chat con tu Mentor IA",
+        "subtitle": "La herramienta principal de Nuvos",
+        "desc": "Pregunta sobre cualquier empresa, ETF, concepto o estrategia. La IA conoce tu perfil de riesgo, tu portafolio real y tu nivel inversor, y detecta cuando tus decisiones los contradicen. Cada conversación actualiza tu barra de madurez conductual.",
+        "tip": "💡 Puedes editar cualquier mensaje haciendo clic en el ícono de lápiz que aparece al lado del texto."
+      },
+      "4": {
+        "title": "Portafolio en Tiempo Real",
+        "subtitle": "Tus inversiones con datos vivos",
+        "desc": "Agrega posiciones manualmente o pegando una captura de pantalla de tu broker (Ctrl+V / ⌘+V) — la IA extrae los datos automáticamente. Los precios se actualizan cada 30 segundos. Alterna entre vista Básica y Avanzada para ver Volumen, Market Cap, P/E, Ex-Dividendo y rango 52 semanas.",
+        "tip": "💡 El badge junto a «Mi Portafolio» (USD, MXN, EUR…) indica la moneda de tu portafolio. Haz clic en cualquier posición para ver su análisis completo."
+      },
+      "5": {
+        "title": "Calendario de Eventos",
+        "subtitle": "Earnings, dividendos y ex-dividendos",
+        "desc": "El calendario en Watchlist muestra automáticamente tres tipos de eventos para todas tus posiciones y watchlist: Earnings (resultados trimestrales), Ex-Dividendo (fecha límite para recibir el dividendo) y pago de Dividendo. Toca cualquier día para ver el detalle.",
+        "tip": "💡 Las posiciones de tu portafolio aparecen en verde intenso; las de watchlist en azul — así identificas de un vistazo cuáles te afectan directamente."
+      },
+      "6": {
+        "title": "Watchlist",
+        "subtitle": "Sigue acciones sin comprarlas",
+        "desc": "Agrega cualquier acción a tu Watchlist para seguir su precio, noticias y eventos en tiempo real. En modo Avanzado obtienes una tabla completa con columna de after-hours, market cap, P/E ratio, fecha de earnings y rango 52 semanas — ordenable por cualquier columna.",
+        "tip": "💡 Arrastra las tarjetas para reordenar tu watchlist. El orden se sincroniza automáticamente entre web y móvil."
+      },
+      "7": {
+        "title": "Aprendizaje & Herramientas",
+        "subtitle": "Todo lo que necesitas para invertir mejor",
+        "desc": "Biblioteca de conceptos financieros explicados con IA adaptada a tu nivel: ETFs, análisis fundamental, P/E ratio, DCA, Value Investing y psicología del inversor. El Screener semanal (Intermedio+) analiza el mercado y selecciona oportunidades personalizadas cada lunes.",
+        "tip": "💡 La sección Inversores te muestra cómo invierten los grandes fondos — útil para identificar tendencias y validar tus ideas."
+      },
+      "8": {
+        "title": "Tu Perfil & Madurez Inversora",
+        "subtitle": "La IA que te conoce como inversor",
+        "desc": "La IA analiza tu comportamiento real — si entras en pánico, si diversificas bien, si piensas a largo plazo — y te asigna una puntuación de Madurez Inversora (0-100) que evoluciona con el tiempo. Tu nivel (Básico, Intermedio o Avanzado) adapta toda la experiencia: análisis, respuestas del chat y columnas visibles.",
+        "tip": "💡 La barra de riesgo conductual en el menú lateral se actualiza automáticamente con cada conversación. Puedes cambiar tu nivel en Perfil en cualquier momento."
+      }
+    },
+    "stepCounter": "{{step}} / {{total}}",
+    "back": "Atrás",
+    "skip": "Saltar",
+    "next": "Siguiente",
+    "start": "¡Empezar!"
+  },
+  "feedbackBanner": {
+    "thanks": "¡Gracias por tu feedback!",
+    "thanksSub": "Nos ayuda a mejorar Nuvos.",
+    "howIsItGoing": "¿Cómo va tu experiencia?",
+    "takesSeconds": "Solo toma 10 segundos",
+    "placeholder": "¿Qué podríamos mejorar? (opcional)",
+    "notNow": "Ahora no",
+    "sending": "Enviando...",
+    "sendFeedback": "Enviar feedback"
   }
 }

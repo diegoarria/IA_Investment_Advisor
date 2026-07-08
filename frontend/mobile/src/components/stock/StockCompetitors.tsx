@@ -7,6 +7,7 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { useRouter } from "expo-router";
+import { useTranslation } from "react-i18next";
 import { useTheme } from "../../lib/ThemeContext";
 import { marketApi } from "../../lib/api";
 import StockAvatar from "../StockAvatar";
@@ -20,6 +21,7 @@ interface Peer {
 
 export default function StockCompetitors({ ticker }: { ticker: string }) {
   const { colors } = useTheme();
+  const { t } = useTranslation();
   const router = useRouter();
   const [peers, setPeers]     = useState<Peer[]>([]);
   const [loading, setLoading] = useState(true);
@@ -43,7 +45,7 @@ export default function StockCompetitors({ ticker }: { ticker: string }) {
   if (peers.length === 0) {
     return (
       <View style={s.loader}>
-        <Text style={{ color: colors.textMuted, fontSize: 13 }}>Sin datos de competidores</Text>
+        <Text style={{ color: colors.textMuted, fontSize: 13 }}>{t("stockCompetitors.noData")}</Text>
       </View>
     );
   }

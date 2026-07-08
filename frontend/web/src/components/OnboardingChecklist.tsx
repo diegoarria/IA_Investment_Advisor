@@ -1,5 +1,6 @@
 "use client";
 import { Check, ChevronRight } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 export interface OnboardingStep {
   emoji: string;
@@ -14,6 +15,7 @@ interface Props {
 }
 
 export default function OnboardingChecklist({ steps, onStepClick }: Props) {
+  const { t } = useTranslation();
   const completedCount = steps.filter((s) => s.completed).length;
   if (completedCount === steps.length) return null;
 
@@ -29,10 +31,10 @@ export default function OnboardingChecklist({ steps, onStepClick }: Props) {
             <span className="text-xl">🚀</span>
             <div>
               <p className="text-sm font-black" style={{ color: "var(--text)" }}>
-                Configura tu Nuvos
+                {t("onboardingChecklist.title")}
               </p>
               <p className="text-[11px]" style={{ color: "var(--muted)" }}>
-                {completedCount} de {steps.length} completados
+                {t("onboardingChecklist.progress", { completed: completedCount, total: steps.length })}
               </p>
             </div>
           </div>

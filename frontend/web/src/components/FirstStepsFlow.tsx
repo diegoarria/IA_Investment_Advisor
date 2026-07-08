@@ -3,44 +3,48 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Plus, TrendingUp, MessageSquare, X, ChevronRight } from "lucide-react";
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 
 const STORAGE_KEY = "nuvos_first_steps_active";
 
-const STEPS = [
+const STEP_META = [
   {
     num: 1,
     icon: Plus,
     color: "#00a85e",
-    title: "Agrega tu primera posición",
-    desc: "Busca una empresa que conozcas — Apple, Tesla, Amazon — y agrégala a tu portafolio simulado. No hay dinero real involucrado.",
-    cta: "Agregar posición ahora",
     ctaAction: "add",
   },
   {
     num: 2,
     icon: TrendingUp,
     color: "#3b82f6",
-    title: "Así se ve tu portafolio",
-    desc: "Cuando agregas una posición, la app rastrea su precio en tiempo real y te muestra cuánto valdría tu inversión hoy. Todo simulado, sin riesgo.",
-    cta: "Entendido, siguiente",
     ctaAction: "next",
   },
   {
     num: 3,
     icon: MessageSquare,
     color: "#8b5cf6",
-    title: "Hazle tu primera pregunta al mentor",
-    desc: "El mentor de IA conoce tu perfil. Pregúntale algo concreto: ¿Es buen momento para comprar? ¿Qué riesgo tiene esta empresa?",
-    cta: "Ir al chat con el mentor",
     ctaAction: "chat",
   },
 ] as const;
+
+function getSteps(t: TFunction) {
+  return STEP_META.map((s) => ({
+    ...s,
+    title: t(`firstStepsFlow.steps.${s.num}.title`),
+    desc: t(`firstStepsFlow.steps.${s.num}.desc`),
+    cta: t(`firstStepsFlow.steps.${s.num}.cta`),
+  }));
+}
 
 interface Props {
   onOpenAddPosition: () => void;
 }
 
 export default function FirstStepsFlow({ onOpenAddPosition }: Props) {
+  const { t } = useTranslation();
+  const STEPS = getSteps(t);
   const router = useRouter();
   const [active, setActive] = useState(false);
   const [step, setStep] = useState(0);
@@ -91,7 +95,7 @@ export default function FirstStepsFlow({ onOpenAddPosition }: Props) {
         <div className="flex items-center justify-between px-4 pt-3 pb-1">
           <span className="text-[10px] font-bold uppercase tracking-widest"
                 style={{ color: current.color }}>
-            Paso {current.num} de {STEPS.length}
+            {t("firstStepsFlow.stepOf", { num: current.num, total: STEPS.length })}
           </span>
           <button onClick={dismiss} className="p-1 rounded-lg hover:bg-white/5 transition-colors">
             <X className="w-4 h-4" style={{ color: "var(--dim)" }} />
@@ -122,7 +126,7 @@ export default function FirstStepsFlow({ onOpenAddPosition }: Props) {
           <button onClick={dismiss}
                   className="w-full text-center py-2 mt-2 text-xs"
                   style={{ color: "var(--dim)" }}>
-            Saltar guía
+            {t("firstStepsFlow.skipGuide")}
           </button>
         </div>
       </div>
