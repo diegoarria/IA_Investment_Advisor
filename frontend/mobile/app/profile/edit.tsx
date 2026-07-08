@@ -5,6 +5,8 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import { useTheme, Colors } from "../../src/lib/ThemeContext";
 import {
   useAppStore, RISK_CONFIG, calculateRisk,
@@ -13,91 +15,94 @@ import type { QuizAnswer, QuizAnswers } from "../../src/lib/profileStore";
 import { profileApi } from "../../src/lib/api";
 
 // ─── Static data ──────────────────────────────────────────────────────────────
-const GOALS = [
-  { value: "house",             label: "Comprar una casa",          emoji: "🏠" },
-  { value: "car",               label: "Comprar un carro",          emoji: "🚗" },
-  { value: "passive_income",    label: "Vivir de mis inversiones",  emoji: "💸" },
-  { value: "retirement",        label: "Retiro / pensión",          emoji: "👴" },
-  { value: "financial_freedom", label: "Libertad financiera",       emoji: "🦅" },
-  { value: "long_term_wealth",  label: "Patrimonio de largo plazo", emoji: "🏛️" },
-];
+function getGoals(t: TFunction) {
+  return [
+    { value: "house",             label: t("profileEdit.goals.house"),             emoji: "🏠" },
+    { value: "car",               label: t("profileEdit.goals.car"),               emoji: "🚗" },
+    { value: "passive_income",    label: t("profileEdit.goals.passive_income"),    emoji: "💸" },
+    { value: "retirement",        label: t("profileEdit.goals.retirement"),        emoji: "👴" },
+    { value: "financial_freedom", label: t("profileEdit.goals.financial_freedom"), emoji: "🦅" },
+    { value: "long_term_wealth",  label: t("profileEdit.goals.long_term_wealth"),  emoji: "🏛️" },
+  ];
+}
 
-const KNOWLEDGE_LEVELS = [
-  { value: "B" as QuizAnswer, label: "Básico",     emoji: "🌱", color: "#22c55e",
-    desc: "Sin experiencia o apenas inicio." },
-  { value: "C" as QuizAnswer, label: "Intermedio", emoji: "📈", color: "#3b82f6",
-    desc: "ETFs, acciones y diversificación." },
-  { value: "D" as QuizAnswer, label: "Avanzado",   emoji: "🎯", color: "#a855f7",
-    desc: "Análisis fundamental, derivados y estrategias complejas." },
-];
+function getKnowledgeLevels(t: TFunction) {
+  return [
+    { value: "B" as QuizAnswer, label: t("profileEdit.knowledgeLevels.basic.label"), emoji: "🌱", color: "#22c55e",
+      desc: t("profileEditMobile.basicDescShort") },
+    { value: "C" as QuizAnswer, label: t("profileEdit.knowledgeLevels.intermediate.label"), emoji: "📈", color: "#3b82f6",
+      desc: t("profileEditMobile.intermediateDescShort") },
+    { value: "D" as QuizAnswer, label: t("profileEdit.knowledgeLevels.advanced.label"), emoji: "🎯", color: "#a855f7",
+      desc: t("profileEdit.knowledgeLevels.advanced.desc") },
+  ];
+}
 
-const QUIZ: {
+function getQuiz(t: TFunction): {
   key: keyof QuizAnswers;
   num: string;
   category: string;
   question: string;
   options: Record<QuizAnswer, string>;
-}[] = [
-  {
-    key: "q1", num: "01", category: "MENTALIDAD",
-    question: "Tu portafolio cae 35% en 3 meses por una crisis del mercado. ¿Qué haces?",
-    options: {
-      A: "Vendo todo antes de perder más",
-      B: "Espero a que se recupere, pero no compro más",
-      C: "Reviso si los fundamentos siguen sólidos y mantengo",
-      D: "Aprovecho para comprar más a precios bajos",
+}[] {
+  return [
+    {
+      key: "q1", num: "01", category: t("profileEdit.quiz.q1.category"),
+      question: t("profileEdit.quiz.q1.question"),
+      options: {
+        A: t("profileEdit.quiz.q1.options.A"), B: t("profileEdit.quiz.q1.options.B"),
+        C: t("profileEdit.quiz.q1.options.C"), D: t("profileEdit.quiz.q1.options.D"),
+      },
     },
-  },
-  {
-    key: "q2", num: "02", category: "HORIZONTE",
-    question: "¿Para qué necesitas este dinero invertido y en cuánto tiempo?",
-    options: {
-      A: "Podría necesitarlo en menos de 2 años",
-      B: "En 3–5 años, para algo específico",
-      C: "En 10+ años, para independencia financiera o retiro",
-      D: "No tengo prisa — es para construir patrimonio a largo plazo",
+    {
+      key: "q2", num: "02", category: t("profileEdit.quiz.q2.category"),
+      question: t("profileEdit.quiz.q2.question"),
+      options: {
+        A: t("profileEdit.quiz.q2.options.A"), B: t("profileEdit.quiz.q2.options.B"),
+        C: t("profileEdit.quiz.q2.options.C"), D: t("profileEdit.quiz.q2.options.D"),
+      },
     },
-  },
-  {
-    key: "q3", num: "03", category: "CONOCIMIENTO",
-    question: "¿Cuál de estos conceptos entiendes y podrías explicar a alguien más?",
-    options: {
-      A: "Ninguno con confianza — apenas empiezo",
-      B: "Interés compuesto, CETES, fondos indexados",
-      C: "P/E ratio, diversificación, rendimiento ajustado al riesgo",
-      D: "Análisis fundamental, cobertura con derivados, ciclos de mercado",
+    {
+      key: "q3", num: "03", category: t("profileEdit.quiz.q3.category"),
+      question: t("profileEdit.quiz.q3.question"),
+      options: {
+        A: t("profileEdit.quiz.q3.options.A"), B: t("profileEdit.quiz.q3.options.B"),
+        C: t("profileEdit.quiz.q3.options.C"), D: t("profileEdit.quiz.q3.options.D"),
+      },
     },
-  },
-  {
-    key: "q4", num: "04", category: "RIESGO",
-    question: "Tienes $100,000 para invertir. ¿Qué escenario prefieres?",
-    options: {
-      A: "Ganar $5K seguro, sin posibilidad de perder nada",
-      B: "Ganar $15K probable, con riesgo de perder $5K",
-      C: "Ganar $40K posible, con riesgo de perder $20K",
-      D: "Ganar $120K posible, con riesgo de perder todo",
+    {
+      key: "q4", num: "04", category: t("profileEdit.quiz.q4.category"),
+      question: t("profileEdit.quiz.q4.question"),
+      options: {
+        A: t("profileEdit.quiz.q4.options.A"), B: t("profileEdit.quiz.q4.options.B"),
+        C: t("profileEdit.quiz.q4.options.C"), D: t("profileEdit.quiz.q4.options.D"),
+      },
     },
-  },
-  {
-    key: "q5", num: "05", category: "COMPORTAMIENTO",
-    question: "¿Cuánto tiempo dedicarías a monitorear y gestionar tus inversiones?",
-    options: {
-      A: "Prefiero algo automático que no requiera atención",
-      B: "Una revisión mensual o trimestral me parece suficiente",
-      C: "Me gusta revisar semanalmente y hacer ajustes cuando vale",
-      D: "Estoy dispuesto a dedicarle tiempo diario — es una actividad activa",
+    {
+      key: "q5", num: "05", category: t("profileEdit.quiz.q5.category"),
+      question: t("profileEdit.quiz.q5.question"),
+      options: {
+        A: t("profileEdit.quiz.q5.options.A"), B: t("profileEdit.quiz.q5.options.B"),
+        C: t("profileEdit.quiz.q5.options.C"), D: t("profileEdit.quiz.q5.options.D"),
+      },
     },
-  },
-];
+  ];
+}
 
-const RISK_DESC: Record<string, string> = {
-  conservative: "Priorizas la seguridad y la preservación de tu capital.",
-  moderate:     "Buscas equilibrio entre crecimiento y protección.",
-  aggressive:   "Tu objetivo es el máximo crecimiento a largo plazo.",
-};
+function getRiskDesc(t: TFunction): Record<string, string> {
+  return {
+    conservative: t("profileEditMobile.riskDesc.conservative"),
+    moderate:     t("profileEditMobile.riskDesc.moderate"),
+    aggressive:   t("profileEditMobile.riskDesc.aggressive"),
+  };
+}
 
 export default function EditProfileScreen() {
   const { colors } = useTheme();
+  const { t } = useTranslation();
+  const GOALS = getGoals(t);
+  const KNOWLEDGE_LEVELS = getKnowledgeLevels(t);
+  const QUIZ = getQuiz(t);
+  const RISK_DESC = getRiskDesc(t);
   const s = useMemo(() => makeStyles(colors), [colors]);
   const { profile, setProfile } = useAppStore();
   const [saving, setSaving] = useState(false);
@@ -145,11 +150,11 @@ export default function EditProfileScreen() {
         mentor:    profile?.mentor ?? null,
       } as any);
       await profileApi.update(updates as Record<string, unknown>);
-      Alert.alert("✅ Perfil actualizado", "Tus cambios se guardaron correctamente.", [
+      Alert.alert(t("profileEditMobile.updatedTitle"), t("profileEditMobile.updatedBody"), [
         { text: "OK", onPress: () => router.back() },
       ]);
     } catch {
-      Alert.alert("Error", "No se pudieron guardar los cambios. Intenta de nuevo.");
+      Alert.alert(t("profileEditMobile.error"), t("profileEdit.saveError"));
     } finally {
       setSaving(false);
     }
@@ -160,9 +165,9 @@ export default function EditProfileScreen() {
       <ScrollView contentContainerStyle={s.content} showsVerticalScrollIndicator={false}>
 
         {/* ── Situación financiera ── */}
-        <Text style={s.section}>Situación financiera</Text>
+        <Text style={s.section}>{t("profileEdit.financialSituation")}</Text>
 
-        <Text style={s.label}>Ingresos mensuales (USD)</Text>
+        <Text style={s.label}>{t("profileEdit.monthlyIncome")}</Text>
         <View style={s.prefixWrap}>
           <Text style={s.prefix}>$</Text>
           <TextInput
@@ -172,7 +177,7 @@ export default function EditProfileScreen() {
           />
         </View>
 
-        <Text style={[s.label, { marginTop: 16 }]}>Aportación mensual (USD)</Text>
+        <Text style={[s.label, { marginTop: 16 }]}>{t("profileEdit.monthlyContribution")}</Text>
         <View style={s.prefixWrap}>
           <Text style={s.prefix}>$</Text>
           <TextInput
@@ -180,13 +185,13 @@ export default function EditProfileScreen() {
             onChangeText={(v) => setForm((f) => ({ ...f, monthly_contribution: v }))}
             placeholder="500" placeholderTextColor={colors.placeholder} keyboardType="numeric"
           />
-          <Text style={s.suffix}>/mes</Text>
+          <Text style={s.suffix}>{t("profileEdit.perMonth")}</Text>
         </View>
 
         {/* ── Tu plan ── */}
-        <Text style={[s.section, { marginTop: 28 }]}>Tu plan de inversión</Text>
+        <Text style={[s.section, { marginTop: 28 }]}>{t("profileEdit.investmentPlan")}</Text>
 
-        <Text style={s.label}>Patrimonio objetivo (USD)</Text>
+        <Text style={s.label}>{t("profileEdit.targetWealth")}</Text>
         <View style={s.prefixWrap}>
           <Text style={s.prefix}>$</Text>
           <TextInput
@@ -196,17 +201,17 @@ export default function EditProfileScreen() {
           />
         </View>
 
-        <Text style={[s.label, { marginTop: 16 }]}>Horizonte de inversión</Text>
+        <Text style={[s.label, { marginTop: 16 }]}>{t("profileEdit.investmentHorizon")}</Text>
         <View style={s.prefixWrap}>
           <TextInput
             style={[s.prefixInput, { flex: 1 }]} value={form.investment_horizon}
             onChangeText={(v) => setForm((f) => ({ ...f, investment_horizon: v }))}
             placeholder="10" placeholderTextColor={colors.placeholder} keyboardType="numeric"
           />
-          <Text style={s.suffix}>años</Text>
+          <Text style={s.suffix}>{t("profileEdit.years")}</Text>
         </View>
 
-        <Text style={[s.label, { marginTop: 16 }]}>Meta al invertir</Text>
+        <Text style={[s.label, { marginTop: 16 }]}>{t("profileEdit.investingGoal")}</Text>
         <View style={s.goalGrid}>
           {GOALS.map((g) => {
             const active = form.investment_goal === g.value;
@@ -238,7 +243,7 @@ export default function EditProfileScreen() {
         </View>
 
         {/* ── Nivel de conocimiento ── */}
-        <Text style={[s.section, { marginTop: 28 }]}>Nivel de conocimiento</Text>
+        <Text style={[s.section, { marginTop: 28 }]}>{t("profileEdit.knowledgeLevel")}</Text>
         {KNOWLEDGE_LEVELS.map((lvl) => {
           const active = form.knowledge_level === lvl.value;
           return (
@@ -272,7 +277,7 @@ export default function EditProfileScreen() {
         })}
 
         {/* ── Quiz ── */}
-        <Text style={[s.section, { marginTop: 28 }]}>Diagnóstico de inversor</Text>
+        <Text style={[s.section, { marginTop: 28 }]}>{t("profileEdit.diagnostic")}</Text>
         {QUIZ.map((q) => (
           <View key={q.key} style={s.quizBlock}>
             <Text style={[s.quizNum, { color: colors.accentLight }]}>{q.num} · {q.category}</Text>
@@ -299,7 +304,7 @@ export default function EditProfileScreen() {
         ))}
 
         {/* ── Perfil resultante ── */}
-        <Text style={[s.section, { marginTop: 24 }]}>Tu perfil resultante</Text>
+        <Text style={[s.section, { marginTop: 24 }]}>{t("profileEdit.resultingProfile")}</Text>
         <View style={[s.profileCard, { backgroundColor: colors.card, borderColor: riskCfg.color + "55" }]}>
           <View style={s.profileRow}>
             <Ionicons name={riskCfg.icon} size={32} color={riskCfg.color} />
@@ -313,8 +318,8 @@ export default function EditProfileScreen() {
             {pct < 100 && <View style={{ flex: 100 - pct }} />}
           </View>
           <View style={s.barLabels}>
-            <Text style={[s.barLabel, { color: colors.textDim }]}>Bajo riesgo</Text>
-            <Text style={[s.barLabel, { color: colors.textDim }]}>Alto riesgo</Text>
+            <Text style={[s.barLabel, { color: colors.textDim }]}>{t("profileEdit.lowRisk")}</Text>
+            <Text style={[s.barLabel, { color: colors.textDim }]}>{t("profileEdit.highRisk")}</Text>
           </View>
         </View>
 
@@ -323,7 +328,7 @@ export default function EditProfileScreen() {
           onPress={handleSave}
           disabled={!canSave || saving}
         >
-          <Text style={s.saveBtnText}>{saving ? "Guardando..." : "Guardar cambios"}</Text>
+          <Text style={s.saveBtnText}>{saving ? t("profileEdit.saving") : t("profileEdit.saveChanges")}</Text>
         </TouchableOpacity>
 
         <View style={{ height: 32 }} />

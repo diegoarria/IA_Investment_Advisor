@@ -8,77 +8,79 @@ import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { profileApi } from "../../src/lib/api";
 import { posthog } from "../../src/config/posthog";
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import { useAppStore, RISK_CONFIG } from "../../src/lib/profileStore";
 import type { QuizAnswer } from "../../src/lib/profileStore";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type RiskTolerance = "conservative" | "moderate" | "aggressive";
 
-const MONTHS = ["Enero","Febrero","Marzo","Abril","Mayo","Junio",
-                "Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
+function getCountries(t: TFunction) {
+  return [
+    { value: "MX", label: t("onboarding.countries.MX"), emoji: "🇲🇽" },
+    { value: "US", label: t("onboarding.countries.US"), emoji: "🇺🇸" },
+    { value: "CO", label: t("onboarding.countries.CO"), emoji: "🇨🇴" },
+    { value: "AR", label: t("onboarding.countries.AR"), emoji: "🇦🇷" },
+    { value: "VE", label: t("onboarding.countries.VE"), emoji: "🇻🇪" },
+    { value: "PE", label: t("onboarding.countries.PE"), emoji: "🇵🇪" },
+    { value: "CL", label: t("onboarding.countries.CL"), emoji: "🇨🇱" },
+    { value: "ES", label: t("onboarding.countries.ES"), emoji: "🇪🇸" },
+    { value: "OTHER", label: t("onboarding.countries.OTHER"), emoji: "🌍" },
+  ];
+}
 
-const COUNTRIES = [
-  { value: "MX", label: "México",        emoji: "🇲🇽" },
-  { value: "US", label: "Estados Unidos", emoji: "🇺🇸" },
-  { value: "CO", label: "Colombia",       emoji: "🇨🇴" },
-  { value: "AR", label: "Argentina",      emoji: "🇦🇷" },
-  { value: "VE", label: "Venezuela",      emoji: "🇻🇪" },
-  { value: "PE", label: "Perú",           emoji: "🇵🇪" },
-  { value: "CL", label: "Chile",          emoji: "🇨🇱" },
-  { value: "ES", label: "España",         emoji: "🇪🇸" },
-  { value: "OTHER", label: "Otro país",   emoji: "🌍" },
-];
+function getGoals(t: TFunction) {
+  return [
+    { value: "house",             label: t("profileEdit.goals.house"),             emoji: "🏠" },
+    { value: "car",               label: t("profileEdit.goals.car"),               emoji: "🚗" },
+    { value: "passive_income",    label: t("profileEdit.goals.passive_income"),    emoji: "💸" },
+    { value: "retirement",        label: t("profileEdit.goals.retirement"),        emoji: "👴" },
+    { value: "financial_freedom", label: t("profileEdit.goals.financial_freedom"), emoji: "🦅" },
+    { value: "long_term_wealth",  label: t("profileEdit.goals.long_term_wealth"),  emoji: "🏛️" },
+  ];
+}
 
-const GOALS = [
-  { value: "house",             label: "Comprar una casa",          emoji: "🏠" },
-  { value: "car",               label: "Comprar un carro",          emoji: "🚗" },
-  { value: "passive_income",    label: "Vivir de mis inversiones",  emoji: "💸" },
-  { value: "retirement",        label: "Retiro / pensión",          emoji: "👴" },
-  { value: "financial_freedom", label: "Libertad financiera",       emoji: "🦅" },
-  { value: "long_term_wealth",  label: "Patrimonio a largo plazo",  emoji: "🏛️" },
-];
+function getKnowledgeLevels(t: TFunction) {
+  return [
+    { value: "B" as QuizAnswer, label: t("profileEdit.knowledgeLevels.basic.label"), emoji: "🌱", color: "#22c55e",
+      desc: t("profileEdit.knowledgeLevels.basic.desc") },
+    { value: "C" as QuizAnswer, label: t("profileEdit.knowledgeLevels.intermediate.label"), emoji: "📈", color: "#3b82f6",
+      desc: t("profileEdit.knowledgeLevels.intermediate.desc") },
+    { value: "D" as QuizAnswer, label: t("profileEdit.knowledgeLevels.advanced.label"), emoji: "🎯", color: "#a855f7",
+      desc: t("profileEdit.knowledgeLevels.advanced.desc") },
+  ];
+}
 
-const KNOWLEDGE_LEVELS = [
-  { value: "B" as QuizAnswer, label: "Básico",     emoji: "🌱", color: "#22c55e",
-    desc: "Sin experiencia o apenas inicio. Conozco ahorro, CETES o fondos básicos." },
-  { value: "C" as QuizAnswer, label: "Intermedio", emoji: "📈", color: "#3b82f6",
-    desc: "Tengo experiencia con ETFs y acciones. Entiendo diversificación y rendimiento." },
-  { value: "D" as QuizAnswer, label: "Avanzado",   emoji: "🎯", color: "#a855f7",
-    desc: "Manejo análisis fundamental, derivados, ciclos de mercado y estrategias complejas." },
-];
+function getRiskExtra(t: TFunction): Record<RiskTolerance, { emoji: string; desc: string }> {
+  return {
+    conservative: { emoji: "🛡️", desc: t("onboarding.riskExtra.conservative") },
+    moderate:     { emoji: "⚖️", desc: t("onboarding.riskExtra.moderate") },
+    aggressive:   { emoji: "🚀", desc: t("onboarding.riskExtra.aggressive") },
+  };
+}
 
-const RISK_EXTRA: Record<RiskTolerance, { emoji: string; desc: string }> = {
-  conservative: { emoji: "🛡️", desc: "Priorizas la preservación del capital. Prefieres rendimientos modestos con baja volatilidad." },
-  moderate:     { emoji: "⚖️", desc: "Equilibras crecimiento y seguridad. Aceptas oscilaciones moderadas por mejores retornos." },
-  aggressive:   { emoji: "🚀", desc: "Buscas máximo crecimiento. Toleras volatilidad alta a cambio de retornos superiores." },
-};
+function getQuizQ1(t: TFunction) {
+  return {
+    category: t("onboarding.quizQ1.category"),
+    question: t("onboarding.quizQ1.question"),
+    options: {
+      A: t("onboarding.quizQ1.options.A"), B: t("onboarding.quizQ1.options.B"),
+      C: t("onboarding.quizQ1.options.C"), D: t("onboarding.quizQ1.options.D"),
+    } as Record<QuizAnswer, string>,
+  };
+}
 
-const QUIZ_Q1 = {
-  category: "Mentalidad de inversor",
-  question: "Si inviertes $100,000 y el mercado se desploma 40%, ¿qué harías?",
-  options: {
-    A: "Vendo todo inmediatamente para evitar más pérdidas",
-    B: "Espero sin hacer nada hasta que el mercado se recupere",
-    C: "Mantengo mi posición — los fundamentos no cambiaron",
-    D: "Compro más — es la oportunidad que estaba esperando",
-  } as Record<QuizAnswer, string>,
-};
-
-const QUIZ_Q4 = {
-  category: "Perfil de riesgo",
-  question: "Tienes $100,000 para invertir. ¿Qué escenario prefieres?",
-  options: {
-    A: "Ganar $5K seguro, sin posibilidad de perder nada",
-    B: "Ganar $15K probable, con riesgo de perder $5K",
-    C: "Ganar $40K posible, con riesgo de perder $20K",
-    D: "Ganar $120K posible, con riesgo de perder todo",
-  } as Record<QuizAnswer, string>,
-};
-
-const QUIZ_LABELS = {
-  q1: { A: "Vende todo",  B: "Espera pasivo", C: "Mantiene posición", D: "Compra más" } as Record<QuizAnswer, string>,
-  q4: { A: "$5K seguro", B: "$15K/riesgo $5K", C: "$40K/riesgo $20K", D: "$120K/riesgo total" } as Record<QuizAnswer, string>,
-};
+function getQuizQ4(t: TFunction) {
+  return {
+    category: t("onboarding.quizQ4.category"),
+    question: t("onboarding.quizQ4.question"),
+    options: {
+      A: t("onboarding.quizQ4.options.A"), B: t("onboarding.quizQ4.options.B"),
+      C: t("onboarding.quizQ4.options.C"), D: t("onboarding.quizQ4.options.D"),
+    } as Record<QuizAnswer, string>,
+  };
+}
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function calculateRisk(q1: string, q4: string): RiskTolerance {
@@ -118,6 +120,13 @@ type FormState = {
 
 // ─── Component ────────────────────────────────────────────────────────────────
 export default function OnboardingScreen() {
+  const { t } = useTranslation();
+  const COUNTRIES = getCountries(t);
+  const GOALS = getGoals(t);
+  const KNOWLEDGE_LEVELS = getKnowledgeLevels(t);
+  const RISK_EXTRA = getRiskExtra(t);
+  const QUIZ_Q1 = getQuizQ1(t);
+  const QUIZ_Q4 = getQuizQ4(t);
   const setProfile    = useAppStore((state) => state.setProfile);
   const existingProfile = useAppStore((state) => state.profile);
 
@@ -180,10 +189,10 @@ export default function OnboardingScreen() {
   const maxFV      = Math.max(fvPlus10, goalAmt);
   const yrsNeeded  = yearsToGoal(pmt, goalAmt, annualRate);
   const goalStatusLine = fvHorizon >= goalAmt
-    ? `¡Alcanzas tu meta dentro de los ${horizonYrs} años!`
+    ? t("onboarding.goalStatus.reached", { years: horizonYrs })
     : yrsNeeded
-    ? `Necesitas ~${yrsNeeded} años para alcanzar ${fmtMoney(goalAmt)}`
-    : `En ${horizonYrs} años tendrías ${fmtMoney(fvHorizon)}`;
+    ? t("onboarding.goalStatus.needsYears", { years: yrsNeeded, amount: fmtMoney(goalAmt) })
+    : t("onboarding.goalStatus.wouldHave", { years: horizonYrs, amount: fmtMoney(fvHorizon) });
 
   // ── Quiz renderer ────────────────────────────────────────────────────────────
   const renderQuiz = (q: typeof QUIZ_Q1, field: "q1" | "q4") => (
@@ -214,24 +223,24 @@ export default function OnboardingScreen() {
     // 0 — Nombre + Fecha
     {
       emoji: "👋",
-      title: "¡Hola! Cuéntanos sobre ti",
-      sub: "Necesitamos tu nombre y edad para personalizar tu experiencia.",
+      title: t("onboarding.step0.title"),
+      sub: t("onboarding.step0.sub"),
       isValid: () => form.name.trim().length >= 2 && birthDateValid && !!form.country,
       content: (
         <View style={{ gap: 20 }}>
           <View>
-            <Text style={S.label}>Tu nombre completo</Text>
+            <Text style={S.label}>{t("onboarding.step0.fullName")}</Text>
             <TextInput
               style={S.input} value={form.name}
               onChangeText={(v) => setForm(f => ({ ...f, name: v }))}
-              placeholder="Ej. Diego Arria" placeholderTextColor="#374151"
+              placeholder={t("onboarding.step0.namePlaceholder")} placeholderTextColor="#374151"
               autoCapitalize="words" autoFocus
             />
-            <Text style={S.hint}>Así te llamaremos en la app.</Text>
+            <Text style={S.hint}>{t("onboarding.step0.nameHint")}</Text>
           </View>
 
           <View>
-            <Text style={S.label}>Fecha de nacimiento</Text>
+            <Text style={S.label}>{t("onboarding.step0.birthDate")}</Text>
             <View style={{ flexDirection: "row", gap: 10 }}>
               <TextInput
                 style={[S.input, { flex: 1, textAlign: "center" }]}
@@ -255,11 +264,11 @@ export default function OnboardingScreen() {
                 keyboardType="numeric" maxLength={4}
               />
             </View>
-            <Text style={S.hint}>Debes tener al menos 18 años para usar Nuvos AI.</Text>
+            <Text style={S.hint}>{t("onboarding.step0.ageHint")}</Text>
           </View>
 
           <View>
-            <Text style={S.label}>¿Desde dónde inviertes?</Text>
+            <Text style={S.label}>{t("onboarding.step0.whereInvestFrom")}</Text>
             <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
               {COUNTRIES.map((c) => {
                 const active = form.country === c.value;
@@ -289,8 +298,8 @@ export default function OnboardingScreen() {
     // 1 — Nivel de conocimiento
     {
       emoji: "📚",
-      title: `${firstName ? `${firstName}, ¿cuál` : "¿Cuál"} es tu nivel?`,
-      sub: "Esto nos ayuda a personalizar el lenguaje y los análisis del mentor IA.",
+      title: firstName ? t("onboarding.step1.titleWithName", { name: firstName }) : t("onboarding.step1.title"),
+      sub: t("onboarding.step1.sub"),
       isValid: () => !!form.knowledge_level,
       content: (
         <View style={{ gap: 12 }}>
@@ -327,13 +336,13 @@ export default function OnboardingScreen() {
     // 2 — Plan financiero
     {
       emoji: "💰",
-      title: "Tu plan financiero",
-      sub: "Calcularemos cuánto tiempo necesitas para alcanzar tus metas.",
+      title: t("onboarding.step2.title"),
+      sub: t("onboarding.step2.sub"),
       isValid: () => pmt > 0 && parseFloat(form.investment_goal_amount) > 0 && horizonYrs >= 1,
       content: (
         <View style={{ gap: 20 }}>
           <View>
-            <Text style={S.label}>¿Con cuánto capital cuentas hoy para invertir?</Text>
+            <Text style={S.label}>{t("onboarding.step2.currentCapital")}</Text>
             <View style={S.prefixWrap}>
               <Text style={S.prefix}>$</Text>
               <TextInput
@@ -344,10 +353,10 @@ export default function OnboardingScreen() {
                 keyboardType="numeric"
               />
             </View>
-            <Text style={S.hint}>Puedes poner 0 si aún no tienes capital inicial.</Text>
+            <Text style={S.hint}>{t("onboarding.step2.capitalHint")}</Text>
           </View>
           <View>
-            <Text style={S.label}>¿Cuánto quieres invertir mensualmente?</Text>
+            <Text style={S.label}>{t("onboarding.step2.monthlyAmount")}</Text>
             <View style={S.prefixWrap}>
               <Text style={S.prefix}>$</Text>
               <TextInput
@@ -357,12 +366,12 @@ export default function OnboardingScreen() {
                 placeholder="500" placeholderTextColor="#374151"
                 keyboardType="numeric"
               />
-              <Text style={[S.prefix, { paddingRight: 18, fontSize: 13 }]}>/mes</Text>
+              <Text style={[S.prefix, { paddingRight: 18, fontSize: 13 }]}>{t("profileEdit.perMonth")}</Text>
             </View>
           </View>
 
           <View>
-            <Text style={S.label}>¿Cuánto patrimonio quieres alcanzar?</Text>
+            <Text style={S.label}>{t("onboarding.step2.targetWealth")}</Text>
             <View style={S.prefixWrap}>
               <Text style={S.prefix}>$</Text>
               <TextInput
@@ -373,11 +382,11 @@ export default function OnboardingScreen() {
                 keyboardType="numeric"
               />
             </View>
-            <Text style={S.hint}>La app calculará cuándo llegarás a esta meta.</Text>
+            <Text style={S.hint}>{t("onboarding.step2.wealthHint")}</Text>
           </View>
 
           <View>
-            <Text style={S.label}>¿Por cuántos años quieres invertir?</Text>
+            <Text style={S.label}>{t("onboarding.step2.years")}</Text>
             <View style={S.prefixWrap}>
               <TextInput
                 style={[S.input, S.prefixInput, { flex: 1 }]}
@@ -386,7 +395,7 @@ export default function OnboardingScreen() {
                 placeholder="10" placeholderTextColor="#374151"
                 keyboardType="numeric"
               />
-              <Text style={[S.prefix, { paddingRight: 18, fontSize: 13 }]}>años</Text>
+              <Text style={[S.prefix, { paddingRight: 18, fontSize: 13 }]}>{t("profileEdit.years")}</Text>
             </View>
           </View>
         </View>
@@ -396,8 +405,8 @@ export default function OnboardingScreen() {
     // 3 — Meta al invertir
     {
       emoji: "🎯",
-      title: "¿Cuál es tu meta al invertir?",
-      sub: "Personaliza tu plan según lo que más te importa lograr.",
+      title: t("onboarding.step3.title"),
+      sub: t("onboarding.step3.sub"),
       isValid: () => !!form.investment_goal,
       content: (
         <View style={S.goalGrid}>
@@ -430,7 +439,7 @@ export default function OnboardingScreen() {
     {
       emoji: "🧠",
       title: QUIZ_Q1.category,
-      sub: "No hay respuestas correctas — sé honesto para obtener el mejor perfil.",
+      sub: t("onboarding.step4.sub"),
       isValid: () => !!form.q1,
       content: renderQuiz(QUIZ_Q1, "q1"),
     },
@@ -439,7 +448,7 @@ export default function OnboardingScreen() {
     {
       emoji: "📊",
       title: QUIZ_Q4.category,
-      sub: "Elige el escenario con el que te sentirías más cómodo.",
+      sub: t("onboarding.step5.sub"),
       isValid: () => !!form.q4,
       content: renderQuiz(QUIZ_Q4, "q4"),
     },
@@ -447,13 +456,13 @@ export default function OnboardingScreen() {
     // 6 — Experiencia en el mercado
     {
       emoji: "💼",
-      title: "¿Ya tienes experiencia en el mercado?",
-      sub: "Esto nos ayuda a saber cómo acompañarte mejor desde el primer día.",
+      title: t("onboarding.step6.title"),
+      sub: t("onboarding.step6.sub"),
       isValid: () => !!form.has_broker && !!form.has_investments,
       content: (
         <View style={{ gap: 24 }}>
           <View style={{ gap: 10 }}>
-            <Text style={S.label}>¿Tienes un broker o cuenta de inversión activa?</Text>
+            <Text style={S.label}>{t("onboarding.step6.hasBroker")}</Text>
             <View style={{ flexDirection: "row", gap: 10 }}>
               {(["yes", "no"] as const).map((v) => {
                 const active = form.has_broker === v;
@@ -467,7 +476,7 @@ export default function OnboardingScreen() {
                   >
                     <Text style={{ fontSize: 20, marginBottom: 4 }}>{v === "yes" ? "✅" : "❌"}</Text>
                     <Text style={{ fontSize: 14, fontWeight: "700", color: active ? "#00d47e" : "#9ca3af" }}>
-                      {v === "yes" ? "Sí tengo" : "No tengo"}
+                      {v === "yes" ? t("onboarding.step6.yesHave") : t("onboarding.step6.noHave")}
                     </Text>
                   </TouchableOpacity>
                 );
@@ -478,7 +487,7 @@ export default function OnboardingScreen() {
                 style={[S.input, { marginTop: 4 }]}
                 value={form.broker_name}
                 onChangeText={(v) => setForm(f => ({ ...f, broker_name: v }))}
-                placeholder="¿Cuál broker? (ej. GBM, Fidelity, Robinhood)"
+                placeholder={t("onboarding.step6.brokerPlaceholder")}
                 placeholderTextColor="#374151"
                 autoCapitalize="words"
               />
@@ -486,7 +495,7 @@ export default function OnboardingScreen() {
           </View>
 
           <View style={{ gap: 10 }}>
-            <Text style={S.label}>¿Ya tienes inversiones actualmente?</Text>
+            <Text style={S.label}>{t("onboarding.step6.hasInvestments")}</Text>
             <View style={{ flexDirection: "row", gap: 10 }}>
               {(["yes", "no"] as const).map((v) => {
                 const active = form.has_investments === v;
@@ -500,7 +509,7 @@ export default function OnboardingScreen() {
                   >
                     <Text style={{ fontSize: 20, marginBottom: 4 }}>{v === "yes" ? "📈" : "🌱"}</Text>
                     <Text style={{ fontSize: 14, fontWeight: "700", color: active ? "#00d47e" : "#9ca3af" }}>
-                      {v === "yes" ? "Sí tengo" : "Empezando"}
+                      {v === "yes" ? t("onboarding.step6.yesHave") : t("onboarding.step6.starting")}
                     </Text>
                   </TouchableOpacity>
                 );
@@ -510,10 +519,10 @@ export default function OnboardingScreen() {
               <View style={{ backgroundColor: "rgba(0,212,126,0.06)", borderRadius: 12, padding: 12,
                              borderWidth: 1, borderColor: "rgba(0,212,126,0.2)", marginTop: 4 }}>
                 <Text style={{ color: "#00d47e", fontSize: 12, fontWeight: "700", marginBottom: 4 }}>
-                  ✨ Sesión de Bienvenida incluida
+                  {t("onboarding.step6.welcomeSessionIncluded")}
                 </Text>
                 <Text style={{ color: "#6b7280", fontSize: 11, lineHeight: 16 }}>
-                  Como es tu primera inversión, al final del onboarding te agendaremos una sesión 1:1 con Diego para ayudarte a comenzar con el pie derecho.
+                  {t("onboarding.step6.welcomeSessionDesc")}
                 </Text>
               </View>
             )}
@@ -525,39 +534,39 @@ export default function OnboardingScreen() {
     // 7 — Perfil del inversor (reveal)
     {
       emoji: riskCfg?.color ? "" : "🎉",
-      title: `Tu perfil, ${firstName || "inversionista"}`,
-      sub: "Analizamos tus respuestas para determinar tu perfil real.",
+      title: t("onboarding.step7.title", { name: firstName || t("onboarding.step7.investorFallback") }),
+      sub: t("onboarding.step7.sub"),
       isValid: () => true,
       content: (
         <View style={{ gap: 16 }}>
           {/* Risk reveal card */}
           <View style={[S.revealCard, { borderColor: riskCfg.color + "44" }]}>
             <Text style={{ fontSize: 48, marginBottom: 10 }}>{RISK_EXTRA[calculated].emoji}</Text>
-            <Text style={[S.revealType, { color: riskCfg.color }]}>Inversionista {riskCfg.label}</Text>
+            <Text style={[S.revealType, { color: riskCfg.color }]}>{t("onboarding.step7.investorLabel", { label: riskCfg.label })}</Text>
             <Text style={S.revealDesc}>{RISK_EXTRA[calculated].desc}</Text>
             <View style={S.riskBar}>
               <View style={[S.riskBarFill, { flex: pct, backgroundColor: riskCfg.color }]} />
               {pct < 100 && <View style={{ flex: 100 - pct }} />}
             </View>
             <View style={{ flexDirection: "row", justifyContent: "space-between", width: "100%", marginTop: 4 }}>
-              <Text style={S.riskBarLabel}>Bajo riesgo</Text>
-              <Text style={S.riskBarLabel}>Alto riesgo</Text>
+              <Text style={S.riskBarLabel}>{t("profileEdit.lowRisk")}</Text>
+              <Text style={S.riskBarLabel}>{t("profileEdit.highRisk")}</Text>
             </View>
           </View>
 
           {/* Summary */}
           <View style={S.summaryCard}>
-            <Text style={S.summaryTitle}>Resumen de tu perfil</Text>
+            <Text style={S.summaryTitle}>{t("onboarding.step7.summaryTitle")}</Text>
             {[
-              { label: "Nombre",    value: form.name },
-              { label: "País",      value: COUNTRIES.find(c => c.value === form.country)?.label ?? "—" },
-              { label: "Edad",      value: userAge ? `${userAge} años` : "—" },
-              { label: "Nivel",     value: levelInfo ? `${levelInfo.emoji} ${levelInfo.label}` : "—" },
-              { label: "Meta",      value: goalInfo  ? `${goalInfo.emoji} ${goalInfo.label}` : "—" },
-              { label: "Capital",   value: form.initial_capital ? `$${Number(form.initial_capital).toLocaleString()}` : "$0" },
-              { label: "Mensual",   value: `$${Number(form.monthly_contribution).toLocaleString()}/mes` },
-              { label: "Broker",    value: form.has_broker === "yes" ? (form.broker_name || "Sí") : "Sin broker aún" },
-              { label: "Horizonte", value: `${form.investment_horizon} años` },
+              { label: t("onboarding.step7.summary.name"),    value: form.name },
+              { label: t("onboarding.step7.summary.country"), value: COUNTRIES.find(c => c.value === form.country)?.label ?? "—" },
+              { label: t("onboarding.step7.summary.age"),     value: userAge ? t("onboarding.step7.ageValue", { age: userAge }) : "—" },
+              { label: t("onboarding.step7.summary.level"),   value: levelInfo ? `${levelInfo.emoji} ${levelInfo.label}` : "—" },
+              { label: t("onboarding.step7.summary.goal"),    value: goalInfo  ? `${goalInfo.emoji} ${goalInfo.label}` : "—" },
+              { label: t("onboarding.step7.summary.capital"), value: form.initial_capital ? `$${Number(form.initial_capital).toLocaleString()}` : "$0" },
+              { label: t("onboarding.step7.summary.monthly"), value: t("onboarding.step7.monthlyValue", { amount: Number(form.monthly_contribution).toLocaleString() }) },
+              { label: t("onboarding.step7.summary.broker"),  value: form.has_broker === "yes" ? (form.broker_name || t("onboarding.step7.yes")) : t("onboarding.step7.noBrokerYet") },
+              { label: t("onboarding.step7.summary.horizon"), value: t("onboarding.step7.ageValue", { age: form.investment_horizon }) },
             ].map((row) => (
               <View key={row.label} style={S.summaryRow}>
                 <Text style={S.summaryLabel}>{row.label}</Text>
@@ -572,8 +581,8 @@ export default function OnboardingScreen() {
     // 7 — Proyección + features
     {
       emoji: "📈",
-      title: `Tu camino hacia ${fmtMoney(goalAmt)}`,
-      sub: `Con disciplina y el mercado de tu lado, esto es lo que puedes lograr.`,
+      title: t("onboarding.step8.title", { amount: fmtMoney(goalAmt) }),
+      sub: t("onboarding.step8.sub"),
       isValid: () => true,
       content: (() => {
         const goalLinePct = Math.min((goalAmt / maxFV) * 100, 100);
@@ -582,15 +591,15 @@ export default function OnboardingScreen() {
             {/* Projection bars */}
             <View style={S.projCard}>
               <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-                <Text style={S.projTitle}>Aportando ${pmt.toLocaleString()}/mes</Text>
+                <Text style={S.projTitle}>{t("onboarding.step8.contributing", { amount: pmt.toLocaleString() })}</Text>
                 <View style={{ backgroundColor: riskCfg.color + "20", borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4 }}>
-                  <Text style={{ color: riskCfg.color, fontSize: 11, fontWeight: "700" }}>~{rateLabel}/año</Text>
+                  <Text style={{ color: riskCfg.color, fontSize: 11, fontWeight: "700" }}>~{rateLabel}{t("onboarding.step8.perYear")}</Text>
                 </View>
               </View>
 
               {[
-                { years: horizonYrs,      fv: fvHorizon, label: `En ${horizonYrs} años` },
-                { years: horizonYrs + 10, fv: fvPlus10,  label: `En ${horizonYrs + 10} años` },
+                { years: horizonYrs,      fv: fvHorizon, label: t("onboarding.step8.inYears", { years: horizonYrs }) },
+                { years: horizonYrs + 10, fv: fvPlus10,  label: t("onboarding.step8.inYears", { years: horizonYrs + 10 }) },
               ].map(({ years, fv, label }) => {
                 const barPct = Math.min((fv / maxFV) * 100, 100);
                 return (
@@ -620,27 +629,27 @@ export default function OnboardingScreen() {
                 <Text style={{ fontSize: 16 }}>⏳</Text>
                 <View style={{ flex: 1 }}>
                   <Text style={{ color: "#818cf8", fontSize: 12, fontWeight: "700" }}>
-                    10 años más: +{fmtMoney(extraGain)} (+{extraPct}%)
+                    {t("onboarding.step8.tenMoreYears", { gain: fmtMoney(extraGain), pct: extraPct })}
                   </Text>
                   <Text style={{ color: "#4b5563", fontSize: 10, marginTop: 4, lineHeight: 15 }}>
-                    El interés compuesto se acelera — los últimos años generan más que los primeros.
+                    {t("onboarding.step8.compoundInterestNote")}
                   </Text>
                 </View>
               </View>
 
               <Text style={{ color: "#374151", fontSize: 10, fontStyle: "italic", marginTop: 8 }}>
-                * Ilustrativo. Basado en promedios históricos. No garantiza rendimientos futuros.
+                {t("onboarding.step8.illustrativeNote")}
               </Text>
             </View>
 
             {/* Features */}
             <View style={S.summaryCard}>
-              <Text style={[S.summaryTitle, { marginBottom: 12 }]}>Nuvos AI trabaja para ti</Text>
+              <Text style={[S.summaryTitle, { marginBottom: 12 }]}>{t("onboarding.step8.nuvosWorksForYou")}</Text>
               {[
-                { icon: "🤖", title: "IA que conoce tu perfil",   sub: "Análisis personalizado según tu nivel y tolerancia al riesgo" },
-                { icon: "📊", title: "Portafolio en tiempo real", sub: "Precios cada 30s con rendimientos Hoy / YTD / Total" },
-                { icon: "📅", title: "Calendario de eventos",     sub: "Earnings, dividendos y ex-dividendos de tus posiciones" },
-                { icon: "🎮", title: "Paper trading sin riesgo",  sub: "Practica con $10,000 virtuales a precios reales" },
+                { icon: "🤖", title: t("onboarding.step8.features.ai.title"),        sub: t("onboarding.step8.features.ai.sub") },
+                { icon: "📊", title: t("onboarding.step8.features.portfolio.title"), sub: t("onboarding.step8.features.portfolio.sub") },
+                { icon: "📅", title: t("onboarding.step8.features.calendar.title"),  sub: t("onboarding.step8.features.calendar.sub") },
+                { icon: "🎮", title: t("onboarding.step8.features.paper.title"),     sub: t("onboarding.step8.features.paper.sub") },
               ].map((f) => (
                 <View key={f.title} style={S.featureRow}>
                   <Text style={{ fontSize: 20, flexShrink: 0 }}>{f.icon}</Text>
@@ -659,23 +668,23 @@ export default function OnboardingScreen() {
     // 8 — Disclaimer legal
     {
       emoji: "📋",
-      title: "Antes de empezar",
-      sub: "Lee y acepta los siguientes puntos para continuar.",
+      title: t("onboarding.step9.title"),
+      sub: t("onboarding.step9.sub"),
       isValid: () => acceptedTerms && acceptedDisclaimer,
       content: (
         <View style={{ gap: 16 }}>
           <View style={S.legalBox}>
-            <Text style={S.legalBadge}>⚠️  HERRAMIENTA EDUCATIVA — NO ASESORÍA FINANCIERA</Text>
+            <Text style={S.legalBadge}>{t("onboarding.step9.legalBadge")}</Text>
             <Text style={S.legalBody}>
-              Nuvos AI es una plataforma de{" "}
-              <Text style={{ color: "#fff", fontWeight: "700" }}>educación e información financiera</Text>.
-              El análisis de la IA y los datos de mercado son{" "}
-              <Text style={{ color: "#fff", fontWeight: "700" }}>únicamente educativos</Text>{" "}
-              y no constituyen asesoramiento financiero, de inversión, legal ni fiscal regulado.
+              {t("onboarding.step9.legalBodyPart1")}{" "}
+              <Text style={{ color: "#fff", fontWeight: "700" }}>{t("onboarding.step9.legalBodyBold1")}</Text>.
+              {" "}{t("onboarding.step9.legalBodyPart2")}{" "}
+              <Text style={{ color: "#fff", fontWeight: "700" }}>{t("onboarding.step9.legalBodyBold2")}</Text>{" "}
+              {t("onboarding.step9.legalBodyPart3")}
             </Text>
             <Text style={[S.legalBody, { marginTop: 8 }]}>
-              Los datos pueden ser inexactos o retrasados. El rendimiento pasado no garantiza resultados futuros.{" "}
-              <Text style={{ color: "#fff", fontWeight: "700" }}>Nunca tomes decisiones de inversión basándote únicamente en esta app.</Text>
+              {t("onboarding.step9.legalBodyPart4")}{" "}
+              <Text style={{ color: "#fff", fontWeight: "700" }}>{t("onboarding.step9.legalBodyBold3")}</Text>
             </Text>
           </View>
 
@@ -684,10 +693,10 @@ export default function OnboardingScreen() {
               {acceptedTerms && <Ionicons name="checkmark" size={12} color="white" />}
             </View>
             <Text style={S.checkLabel}>
-              He leído y acepto los{" "}
-              <Text style={{ color: "#00d47e", textDecorationLine: "underline" }}>Términos de Uso</Text>
-              {" "}y la{" "}
-              <Text style={{ color: "#00d47e", textDecorationLine: "underline" }}>Política de Privacidad</Text>.
+              {t("onboarding.step9.termsPrefix")}{" "}
+              <Text style={{ color: "#00d47e", textDecorationLine: "underline" }}>{t("onboarding.step9.termsOfUse")}</Text>
+              {" "}{t("onboarding.step9.and")}{" "}
+              <Text style={{ color: "#00d47e", textDecorationLine: "underline" }}>{t("onboarding.step9.privacyPolicy")}</Text>.
             </Text>
           </TouchableOpacity>
 
@@ -696,9 +705,9 @@ export default function OnboardingScreen() {
               {acceptedDisclaimer && <Ionicons name="checkmark" size={12} color="white" />}
             </View>
             <Text style={S.checkLabel}>
-              Entiendo que Nuvos AI es educativa y{" "}
-              <Text style={{ color: "#fff", fontWeight: "700" }}>NO constituye asesoría financiera regulada</Text>.
-              Soy responsable de mis propias decisiones de inversión.
+              {t("onboarding.step9.understandPrefix")}{" "}
+              <Text style={{ color: "#fff", fontWeight: "700" }}>{t("onboarding.step9.understandBold")}</Text>.
+              {" "}{t("onboarding.step9.understandSuffix")}
             </Text>
           </TouchableOpacity>
         </View>
@@ -748,7 +757,7 @@ export default function OnboardingScreen() {
       });
       setShowSession(true);
     } catch {
-      setError("Error al guardar el perfil. Intenta de nuevo.");
+      setError(t("onboarding.saveProfileError"));
     } finally {
       setLoading(false);
     }
@@ -757,10 +766,10 @@ export default function OnboardingScreen() {
   // ─── Sesión de Bienvenida ────────────────────────────────────────────────────
   if (showSession) {
     const agendaItems = [
-      "Definir y clarificar tus metas financieras",
-      form.has_broker !== "yes" ? "Ayudarte a abrir tu primera cuenta de broker" : "Revisar tu estrategia de broker actual",
-      form.has_investments !== "yes" ? "Acompañarte en tu primera inversión real" : "Revisar tus inversiones actuales",
-      "Dejar Nuvos AI 100% configurado para ti",
+      t("onboarding.session.agenda.defineGoals"),
+      form.has_broker !== "yes" ? t("onboarding.session.agenda.openBroker") : t("onboarding.session.agenda.reviewBroker"),
+      form.has_investments !== "yes" ? t("onboarding.session.agenda.firstInvestment") : t("onboarding.session.agenda.reviewInvestments"),
+      t("onboarding.session.agenda.fullySetUp"),
     ];
     return (
       <View style={S.screen}>
@@ -773,19 +782,19 @@ export default function OnboardingScreen() {
                              borderWidth: 1, borderColor: "rgba(0,212,126,0.3)", flexDirection: "row", gap: 6, alignItems: "center" }}>
                 <Text style={{ fontSize: 14 }}>{RISK_EXTRA[calculated].emoji}</Text>
                 <Text style={{ color: "#00d47e", fontSize: 12, fontWeight: "800" }}>
-                  Perfil {riskCfg.label} · {riskCfg.pct * 100 | 0}% riesgo
+                  {t("onboarding.session.profileBadge", { label: riskCfg.label, pct: riskCfg.pct * 100 | 0 })}
                 </Text>
               </View>
             </View>
 
             {/* Headline */}
             <Text style={{ fontSize: 28, fontWeight: "900", color: "#fff", textAlign: "center", lineHeight: 34, marginBottom: 8 }}>
-              {isFirstTimer ? "Tu Sesión de\nBienvenida" : "¡Ya casi listo,\n" + firstName + "!"}
+              {isFirstTimer ? t("onboarding.session.welcomeHeadline") : t("onboarding.session.almostReadyHeadline", { name: firstName })}
             </Text>
             <Text style={{ fontSize: 14, color: "#6b7280", textAlign: "center", lineHeight: 21, marginBottom: 28 }}>
               {isFirstTimer
-                ? "Agendaremos una sesión 1:1 con Diego para ayudarte a empezar con el pie derecho."
-                : "Tu perfil está listo. Puedes explorar Nuvos AI directamente."}
+                ? t("onboarding.session.welcomeSub")
+                : t("onboarding.session.almostReadySub")}
             </Text>
 
             {/* Agenda */}
@@ -793,7 +802,7 @@ export default function OnboardingScreen() {
               <View style={{ backgroundColor: "#111318", borderRadius: 16, padding: 16, borderWidth: 1,
                              borderColor: "#1f2330", marginBottom: 20, gap: 12 }}>
                 <Text style={{ color: "#9ca3af", fontSize: 11, fontWeight: "700", letterSpacing: 1.2,
-                               textTransform: "uppercase", marginBottom: 4 }}>En tu sesión vamos a</Text>
+                               textTransform: "uppercase", marginBottom: 4 }}>{t("onboarding.session.inYourSession")}</Text>
                 {agendaItems.map((item, i) => (
                   <View key={i} style={{ flexDirection: "row", gap: 10, alignItems: "flex-start" }}>
                     <View style={{ width: 20, height: 20, borderRadius: 10, backgroundColor: "rgba(0,212,126,0.15)",
@@ -808,7 +817,7 @@ export default function OnboardingScreen() {
 
             {/* Outcomes */}
             <View style={{ gap: 8, marginBottom: 28 }}>
-              {["Objetivos financieros claros", "Broker configurado y listo", "Primera inversión planeada", "Nuvos AI 100% para ti"].map((o) => (
+              {[t("onboarding.session.outcomes.0"), t("onboarding.session.outcomes.1"), t("onboarding.session.outcomes.2"), t("onboarding.session.outcomes.3")].map((o) => (
                 <View key={o} style={{ flexDirection: "row", gap: 8, alignItems: "center" }}>
                   <Text style={{ color: "#00d47e", fontSize: 14 }}>✅</Text>
                   <Text style={{ color: "#9ca3af", fontSize: 13 }}>{o}</Text>
@@ -824,7 +833,7 @@ export default function OnboardingScreen() {
                          alignItems: "center", flexDirection: "row", justifyContent: "center", gap: 8, marginBottom: 12 }}
               >
                 <Text style={{ fontSize: 16 }}>📅</Text>
-                <Text style={{ color: "#000", fontSize: 16, fontWeight: "900" }}>Agendar mi Sesión de Bienvenida</Text>
+                <Text style={{ color: "#000", fontSize: 16, fontWeight: "900" }}>{t("onboarding.session.scheduleCta")}</Text>
               </TouchableOpacity>
             ) : null}
 
@@ -834,7 +843,7 @@ export default function OnboardingScreen() {
               style={{ paddingVertical: 14, alignItems: "center" }}
             >
               <Text style={{ color: "#6b7280", fontSize: 14, fontWeight: "600" }}>
-                {isFirstTimer ? "Explorar la app primero →" : "Ir a la app →"}
+                {isFirstTimer ? t("onboarding.session.exploreFirst") : t("onboarding.session.goToApp")}
               </Text>
             </TouchableOpacity>
           </ScrollView>
@@ -892,7 +901,7 @@ export default function OnboardingScreen() {
                 <Text style={{ fontSize: 28 }}>{current.emoji}</Text>
               </View>
             ) : null}
-            <Text style={S.stepCounter}>Paso {step + 1} de {totalSteps}</Text>
+            <Text style={S.stepCounter}>{t("onboarding.stepCounter", { current: step + 1, total: totalSteps })}</Text>
             <Text style={S.stepTitle}>{current.title}</Text>
             <Text style={S.stepSub}>{current.sub}</Text>
           </View>
@@ -910,7 +919,7 @@ export default function OnboardingScreen() {
         <View style={S.footer}>
           {step > 0 && (
             <TouchableOpacity style={S.footerBack} onPress={() => setStep(step - 1)}>
-              <Text style={S.footerBackText}>Atrás</Text>
+              <Text style={S.footerBackText}>{t("onboarding.back")}</Text>
             </TouchableOpacity>
           )}
           <TouchableOpacity
@@ -919,7 +928,7 @@ export default function OnboardingScreen() {
             disabled={!(current.isValid?.() ?? true) || loading}
           >
             <Text style={S.footerNextText}>
-              {loading ? "Guardando..." : isLastStep ? "¡Comenzar!" : "Siguiente"}
+              {loading ? t("onboarding.savingButton") : isLastStep ? t("onboarding.startButton") : t("onboarding.nextButton")}
             </Text>
             {!loading && !isLastStep && (
               <Ionicons name="arrow-forward" size={18} color="#000" style={{ marginLeft: 6 }} />

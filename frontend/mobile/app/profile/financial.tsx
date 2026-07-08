@@ -4,25 +4,31 @@ import {
   StyleSheet, SafeAreaView, ActivityIndicator, Alert,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import { useTheme } from "../../src/lib/ThemeContext";
 import { financialProfileApi } from "../../src/lib/api";
 
-const STYLES: { value: string; label: string; emoji: string }[] = [
-  { value: "value",    label: "Value",      emoji: "📖" },
-  { value: "growth",   label: "Growth",     emoji: "🚀" },
-  { value: "dividend", label: "Dividendos", emoji: "💰" },
-  { value: "index",    label: "Indexado",   emoji: "📊" },
-  { value: "momentum", label: "Momentum",   emoji: "⚡" },
-];
+function getStyles(t: TFunction): { value: string; label: string; emoji: string }[] {
+  return [
+    { value: "value",    label: "Value",      emoji: "📖" },
+    { value: "growth",   label: "Growth",     emoji: "🚀" },
+    { value: "dividend", label: t("profileFinancial.styles.dividend"), emoji: "💰" },
+    { value: "index",    label: t("profileFinancial.styles.index"),    emoji: "📊" },
+    { value: "momentum", label: "Momentum",   emoji: "⚡" },
+  ];
+}
 
-const GOAL_TYPES: { value: string; label: string }[] = [
-  { value: "retirement",     label: "Retiro" },
-  { value: "house",          label: "Casa" },
-  { value: "freedom_number", label: "Número de libertad" },
-  { value: "education",      label: "Educación" },
-  { value: "emergency_fund", label: "Fondo de emergencia" },
-  { value: "custom",         label: "Otra meta" },
-];
+function getGoalTypes(t: TFunction): { value: string; label: string }[] {
+  return [
+    { value: "retirement",     label: t("profileFinancial.goalTypes.retirement") },
+    { value: "house",          label: t("profileFinancial.goalTypes.house") },
+    { value: "freedom_number", label: t("profileFinancial.goalTypes.freedom_number") },
+    { value: "education",      label: t("profileFinancial.goalTypes.education") },
+    { value: "emergency_fund", label: t("profileFinancial.goalTypes.emergency_fund") },
+    { value: "custom",         label: t("profileFinancial.goalTypes.custom") },
+  ];
+}
 
 interface Goal {
   id: string;
@@ -34,6 +40,9 @@ interface Goal {
 
 export default function FinancialProfileScreen() {
   const { colors } = useTheme();
+  const { t } = useTranslation();
+  const STYLES = getStyles(t);
+  const GOAL_TYPES = getGoalTypes(t);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [netWorth, setNetWorth] = useState("");
@@ -79,9 +88,9 @@ export default function FinancialProfileScreen() {
       if (horizon) fields.time_horizon_years = parseInt(horizon, 10);
       if (freedomTarget) fields.financial_freedom_target_usd = parseFloat(freedomTarget);
       await financialProfileApi.update(fields);
-      Alert.alert("Guardado", "Tu perfil financiero se actualizó.");
+      Alert.alert(t("profileFinancial.saved"), t("profileFinancial.savedBody"));
     } catch (e: any) {
-      Alert.alert("Error", e?.response?.data?.detail || "No se pudo guardar.");
+      Alert.alert(t("profileFinancial.error"), e?.response?.data?.detail || t("profileFinancial.saveFailed"));
     } finally {
       setSaving(false);
     }
@@ -99,7 +108,7 @@ export default function FinancialProfileScreen() {
       setGoalAmount("");
       setAddingGoal(false);
     } catch (e: any) {
-      Alert.alert("Error", "No se pudo agregar la meta.");
+      Alert.alert(t("profileFinancial.error"), t("profileFinancial.addGoalFailed"));
     }
   };
 
@@ -121,30 +130,30 @@ export default function FinancialProfileScreen() {
   return (
     <SafeAreaView style={[st.container, { backgroundColor: colors.bg }]}>
       <ScrollView contentContainerStyle={st.content} showsVerticalScrollIndicator={false}>
-        <Text style={[st.section, { color: colors.textDim }]}>Tu situación financiera</Text>
+        <Text style={[st.section, { color: colors.textDim }]}>{t("profileFinancial.yourFinancialSituation")}</Text>
 
-        <Text style={[st.label, { color: colors.textMuted }]}>Patrimonio neto (USD)</Text>
+        <Text style={[st.label, { color: colors.textMuted }]}>{t("profileFinancial.netWorth")}</Text>
         <TextInput
           style={[st.input, { backgroundColor: colors.card, borderColor: colors.border, color: colors.text }]}
           value={netWorth} onChangeText={setNetWorth} keyboardType="numeric"
           placeholder="120000" placeholderTextColor={colors.placeholder}
         />
 
-        <Text style={[st.label, { color: colors.textMuted, marginTop: 16 }]}>Gastos mensuales (USD)</Text>
+        <Text style={[st.label, { color: colors.textMuted, marginTop: 16 }]}>{t("profileFinancial.monthlyExpenses")}</Text>
         <TextInput
           style={[st.input, { backgroundColor: colors.card, borderColor: colors.border, color: colors.text }]}
           value={expenses} onChangeText={setExpenses} keyboardType="numeric"
           placeholder="3000" placeholderTextColor={colors.placeholder}
         />
 
-        <Text style={[st.label, { color: colors.textMuted, marginTop: 16 }]}>Moneda</Text>
+        <Text style={[st.label, { color: colors.textMuted, marginTop: 16 }]}>{t("profileFinancial.currency")}</Text>
         <TextInput
           style={[st.input, { backgroundColor: colors.card, borderColor: colors.border, color: colors.text }]}
           value={currency} onChangeText={(v) => setCurrency(v.toUpperCase().slice(0, 3))}
           placeholder="USD" placeholderTextColor={colors.placeholder} autoCapitalize="characters"
         />
 
-        <Text style={[st.section, { color: colors.textDim, marginTop: 28 }]}>Estilo de inversión</Text>
+        <Text style={[st.section, { color: colors.textDim, marginTop: 28 }]}>{t("profileFinancial.investingStyle")}</Text>
         <View style={st.chipsRow}>
           {STYLES.map((opt) => (
             <TouchableOpacity
@@ -161,16 +170,16 @@ export default function FinancialProfileScreen() {
           ))}
         </View>
 
-        <Text style={[st.section, { color: colors.textDim, marginTop: 28 }]}>Horizonte y meta</Text>
+        <Text style={[st.section, { color: colors.textDim, marginTop: 28 }]}>{t("profileFinancial.horizonAndGoal")}</Text>
 
-        <Text style={[st.label, { color: colors.textMuted }]}>Horizonte de tiempo (años)</Text>
+        <Text style={[st.label, { color: colors.textMuted }]}>{t("profileFinancial.timeHorizon")}</Text>
         <TextInput
           style={[st.input, { backgroundColor: colors.card, borderColor: colors.border, color: colors.text }]}
           value={horizon} onChangeText={setHorizon} keyboardType="numeric"
           placeholder="15" placeholderTextColor={colors.placeholder}
         />
 
-        <Text style={[st.label, { color: colors.textMuted, marginTop: 16 }]}>Meta de libertad financiera (USD)</Text>
+        <Text style={[st.label, { color: colors.textMuted, marginTop: 16 }]}>{t("profileFinancial.freedomTarget")}</Text>
         <TextInput
           style={[st.input, { backgroundColor: colors.card, borderColor: colors.border, color: colors.text }]}
           value={freedomTarget} onChangeText={setFreedomTarget} keyboardType="numeric"
@@ -182,11 +191,11 @@ export default function FinancialProfileScreen() {
           onPress={handleSave}
           disabled={saving}
         >
-          <Text style={st.saveBtnText}>{saving ? "Guardando..." : "Guardar cambios"}</Text>
+          <Text style={st.saveBtnText}>{saving ? t("profileEdit.saving") : t("profileEdit.saveChanges")}</Text>
         </TouchableOpacity>
 
         <View style={st.sectionHeaderRow}>
-          <Text style={[st.section, { color: colors.textDim }]}>Tus metas</Text>
+          <Text style={[st.section, { color: colors.textDim }]}>{t("profileFinancial.yourGoals")}</Text>
           <TouchableOpacity onPress={() => setAddingGoal((v) => !v)}>
             <Ionicons name={addingGoal ? "close" : "add-circle-outline"} size={22} color={colors.accentLight} />
           </TouchableOpacity>
@@ -196,7 +205,7 @@ export default function FinancialProfileScreen() {
           <View key={g.id} style={[st.goalRow, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <View style={{ flex: 1 }}>
               <Text style={[st.goalType, { color: colors.text }]}>
-                {GOAL_TYPES.find((t) => t.value === g.goal_type)?.label || g.goal_type}
+                {GOAL_TYPES.find((gt) => gt.value === g.goal_type)?.label || g.goal_type}
               </Text>
               {g.target_usd != null && (
                 <Text style={[st.goalAmount, { color: colors.textMuted }]}>${g.target_usd.toLocaleString()}</Text>
@@ -211,26 +220,26 @@ export default function FinancialProfileScreen() {
         {addingGoal && (
           <View style={[st.addGoalCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <View style={st.chipsRow}>
-              {GOAL_TYPES.map((t) => (
+              {GOAL_TYPES.map((gt) => (
                 <TouchableOpacity
-                  key={t.value}
-                  onPress={() => setGoalType(t.value)}
+                  key={gt.value}
+                  onPress={() => setGoalType(gt.value)}
                   style={[
                     st.chip,
-                    { borderColor: goalType === t.value ? colors.accent : colors.border, backgroundColor: goalType === t.value ? colors.accent + "18" : "transparent" },
+                    { borderColor: goalType === gt.value ? colors.accent : colors.border, backgroundColor: goalType === gt.value ? colors.accent + "18" : "transparent" },
                   ]}
                 >
-                  <Text style={[st.chipText, { color: goalType === t.value ? colors.accentLight : colors.textMuted }]}>{t.label}</Text>
+                  <Text style={[st.chipText, { color: goalType === gt.value ? colors.accentLight : colors.textMuted }]}>{gt.label}</Text>
                 </TouchableOpacity>
               ))}
             </View>
             <TextInput
               style={[st.input, { backgroundColor: colors.bg, borderColor: colors.border, color: colors.text, marginTop: 10 }]}
               value={goalAmount} onChangeText={setGoalAmount} keyboardType="numeric"
-              placeholder="Monto objetivo (USD)" placeholderTextColor={colors.placeholder}
+              placeholder={t("profileFinancial.targetAmountPlaceholder")} placeholderTextColor={colors.placeholder}
             />
             <TouchableOpacity style={[st.saveBtn, { backgroundColor: colors.accent, marginTop: 10 }]} onPress={handleAddGoal}>
-              <Text style={st.saveBtnText}>Agregar meta</Text>
+              <Text style={st.saveBtnText}>{t("profileFinancial.addGoal")}</Text>
             </TouchableOpacity>
           </View>
         )}

@@ -2151,5 +2151,348 @@
     "useFaceId": "Use Face ID to log in to Nuvos AI",
     "useFingerprint": "Use your fingerprint to log in to Nuvos AI",
     "verify": "Verify"
+  },
+  "profileEdit": {
+    "header": "Edit profile",
+    "financialSituation": "Financial situation",
+    "monthlyIncome": "Monthly income (USD)",
+    "monthlyContribution": "Monthly contribution (USD)",
+    "perMonth": "/mo",
+    "investmentPlan": "Investment plan",
+    "targetWealth": "Target net worth (USD)",
+    "investmentHorizon": "Investment horizon",
+    "years": "years",
+    "investingGoal": "Investing goal",
+    "goals": {
+      "house": "Buy a house",
+      "car": "Buy a car",
+      "passive_income": "Live off my investments",
+      "retirement": "Retirement",
+      "financial_freedom": "Financial freedom",
+      "long_term_wealth": "Long-term wealth"
+    },
+    "knowledgeLevel": "Knowledge level",
+    "knowledgeLevels": {
+      "basic": {
+        "label": "Basic",
+        "desc": "No experience or just starting out. I know savings, CETES, or basic funds."
+      },
+      "intermediate": {
+        "label": "Intermediate",
+        "desc": "I have experience with ETFs and stocks. I understand diversification and returns."
+      },
+      "advanced": {
+        "label": "Advanced",
+        "desc": "I handle fundamental analysis, derivatives, market cycles, and complex strategies."
+      }
+    },
+    "diagnostic": "Investor diagnostic",
+    "quiz": {
+      "q1": {
+        "category": "MINDSET",
+        "question": "Your portfolio drops 35% in 3 months due to a market crisis. What do you do?",
+        "options": {
+          "A": "Sell everything before losing more",
+          "B": "Wait for it to recover, but don't buy more",
+          "C": "Check if the fundamentals still hold and stay put",
+          "D": "Take the chance to buy more at low prices"
+        }
+      },
+      "q2": {
+        "category": "HORIZON",
+        "question": "What do you need this invested money for, and in how long?",
+        "options": {
+          "A": "I might need it in less than 2 years",
+          "B": "In 3-5 years, for something specific",
+          "C": "In 10+ years, for financial independence or retirement",
+          "D": "No rush — it's to build long-term wealth"
+        }
+      },
+      "q3": {
+        "category": "KNOWLEDGE",
+        "question": "Which of these concepts do you understand well enough to explain to someone else?",
+        "options": {
+          "A": "None confidently — I'm just starting",
+          "B": "Compound interest, T-bills, index funds",
+          "C": "P/E ratio, diversification, risk-adjusted returns",
+          "D": "Fundamental analysis, derivatives hedging, market cycles"
+        }
+      },
+      "q4": {
+        "category": "RISK",
+        "question": "You have $100,000 to invest. Which scenario do you prefer?",
+        "options": {
+          "A": "A guaranteed $5K gain, no chance of losing anything",
+          "B": "A likely $15K gain, with risk of losing $5K",
+          "C": "A possible $40K gain, with risk of losing $20K",
+          "D": "A possible $120K gain, with risk of losing it all"
+        }
+      },
+      "q5": {
+        "category": "BEHAVIOR",
+        "question": "How much time would you dedicate to monitoring and managing your investments?",
+        "options": {
+          "A": "I prefer something automatic that needs no attention",
+          "B": "A monthly or quarterly review seems enough",
+          "C": "I like to check weekly and make adjustments when worth it",
+          "D": "I'm willing to spend time on it daily — it's an active hobby"
+        }
+      }
+    },
+    "resultingProfile": "Your resulting profile",
+    "investorLabel": "{{profile}} investor",
+    "riskConfig": {
+      "conservative": {
+        "label": "Conservative",
+        "desc": "You prioritize safety and preserving your capital."
+      },
+      "moderate": {
+        "label": "Moderate",
+        "desc": "You seek a balance between growth and protection."
+      },
+      "aggressive": {
+        "label": "Aggressive",
+        "desc": "You aim for maximum growth. You tolerate high volatility."
+      }
+    },
+    "lowRisk": "Low risk",
+    "highRisk": "High risk",
+    "saveError": "Couldn't save the changes. Try again.",
+    "saved": "✅ Saved",
+    "saving": "Saving...",
+    "saveChanges": "Save changes"
+  },
+  "profileEditMobile": {
+    "basicDescShort": "No experience or just starting out.",
+    "intermediateDescShort": "ETFs, stocks, and diversification.",
+    "riskDesc": {
+      "conservative": "You prioritize safety and preserving your capital.",
+      "moderate": "You seek a balance between growth and protection.",
+      "aggressive": "Your goal is maximum long-term growth."
+    },
+    "updatedTitle": "✅ Profile updated",
+    "updatedBody": "Your changes were saved successfully.",
+    "error": "Error"
+  },
+  "profileFinancial": {
+    "styles": {
+      "dividend": "Dividends",
+      "index": "Index"
+    },
+    "goalTypes": {
+      "retirement": "Retirement",
+      "house": "House",
+      "freedom_number": "Freedom number",
+      "education": "Education",
+      "emergency_fund": "Emergency fund",
+      "custom": "Other goal"
+    },
+    "saved": "Saved",
+    "savedBody": "Your financial profile was updated.",
+    "error": "Error",
+    "saveFailed": "Couldn't save.",
+    "addGoalFailed": "Couldn't add the goal.",
+    "yourFinancialSituation": "Your financial situation",
+    "netWorth": "Net worth (USD)",
+    "monthlyExpenses": "Monthly expenses (USD)",
+    "currency": "Currency",
+    "investingStyle": "Investing style",
+    "horizonAndGoal": "Horizon and goal",
+    "timeHorizon": "Time horizon (years)",
+    "freedomTarget": "Financial freedom target (USD)",
+    "yourGoals": "Your goals",
+    "targetAmountPlaceholder": "Target amount (USD)",
+    "addGoal": "Add goal"
+  },
+  "onboarding": {
+    "back": "Back",
+    "countries": {
+      "MX": "Mexico",
+      "US": "United States",
+      "CO": "Colombia",
+      "AR": "Argentina",
+      "VE": "Venezuela",
+      "PE": "Peru",
+      "CL": "Chile",
+      "ES": "Spain",
+      "OTHER": "Other country"
+    },
+    "goalStatus": {
+      "reached": "You'll reach your goal within {{years}} years!",
+      "needsYears": "You need ~{{years}} years to reach {{amount}}",
+      "wouldHave": "In {{years}} years you'd have {{amount}}"
+    },
+    "nextButton": "Next",
+    "quizQ1": {
+      "category": "Investor mindset",
+      "question": "If you invest $100,000 and the market crashes 40%, what would you do?",
+      "options": {
+        "A": "Sell everything immediately to avoid more losses",
+        "B": "Wait and do nothing until the market recovers",
+        "C": "Hold my position — the fundamentals didn't change",
+        "D": "Buy more — it's the opportunity I was waiting for"
+      }
+    },
+    "quizQ4": {
+      "category": "Risk profile",
+      "question": "You have $100,000 to invest. Which scenario do you prefer?",
+      "options": {
+        "A": "A guaranteed $5K gain, no chance of losing anything",
+        "B": "A likely $15K gain, with risk of losing $5K",
+        "C": "A possible $40K gain, with risk of losing $20K",
+        "D": "A possible $120K gain, with risk of losing it all"
+      }
+    },
+    "riskExtra": {
+      "conservative": "You prioritize capital preservation. You prefer modest returns with low volatility.",
+      "moderate": "You balance growth and safety. You accept moderate swings for better returns.",
+      "aggressive": "You seek maximum growth. You tolerate high volatility in exchange for higher returns."
+    },
+    "saveProfileError": "Error saving your profile. Try again.",
+    "savingButton": "Saving...",
+    "session": {
+      "agenda": {
+        "defineGoals": "Define and clarify your financial goals",
+        "openBroker": "Help you open your first broker account",
+        "reviewBroker": "Review your current broker strategy",
+        "firstInvestment": "Guide you through your first real investment",
+        "reviewInvestments": "Review your current investments",
+        "fullySetUp": "Get Nuvos AI 100% set up for you"
+      },
+      "almostReadyHeadline": "Almost ready,\n{{name}}!",
+      "almostReadySub": "Your profile is ready. You can explore Nuvos AI right away.",
+      "exploreFirst": "Explore the app first →",
+      "goToApp": "Go to the app →",
+      "inYourSession": "In your session we'll",
+      "outcomes": {
+        "0": "Clear financial goals",
+        "1": "Broker set up and ready",
+        "2": "First investment planned",
+        "3": "Nuvos AI 100% set up for you"
+      },
+      "profileBadge": "{{label}} profile · {{pct}}% risk",
+      "scheduleCta": "Schedule my Welcome Session",
+      "welcomeHeadline": "Your Welcome\nSession",
+      "welcomeSub": "We'll schedule a 1:1 session with Diego to help you start off on the right foot."
+    },
+    "startButton": "Let's start!",
+    "step0": {
+      "ageHint": "You must be at least 18 years old to use Nuvos AI.",
+      "birthDate": "Date of birth",
+      "fullName": "Your full name",
+      "nameHint": "This is how we'll address you in the app.",
+      "namePlaceholder": "e.g. Diego Arria",
+      "sub": "We need your name and age to personalize your experience.",
+      "title": "Hi! Tell us about yourself",
+      "whereInvestFrom": "Where do you invest from?"
+    },
+    "step1": {
+      "sub": "This helps us personalize the language and analysis from your AI mentor.",
+      "title": "What's your level?",
+      "titleWithName": "{{name}}, what's your level?"
+    },
+    "step2": {
+      "capitalHint": "You can put 0 if you don't have starting capital yet.",
+      "currentCapital": "How much capital do you currently have to invest?",
+      "monthlyAmount": "How much do you want to invest monthly?",
+      "sub": "We'll calculate how much time you need to reach your goals.",
+      "targetWealth": "How much net worth do you want to reach?",
+      "title": "Your financial plan",
+      "wealthHint": "The app will calculate when you'll reach this goal.",
+      "years": "For how many years do you want to invest?"
+    },
+    "step3": {
+      "sub": "Personalize your plan based on what matters most to you.",
+      "title": "What's your investing goal?"
+    },
+    "step4": {
+      "sub": "There are no right answers — be honest to get the best profile."
+    },
+    "step5": {
+      "sub": "Choose the scenario you'd feel most comfortable with."
+    },
+    "step6": {
+      "brokerPlaceholder": "Which broker? (e.g. GBM, Fidelity, Robinhood)",
+      "hasBroker": "Do you have a broker or active investment account?",
+      "hasInvestments": "Do you currently have investments?",
+      "noHave": "I don't",
+      "starting": "Just starting",
+      "sub": "This helps us know how to support you best from day one.",
+      "title": "Do you already have market experience?",
+      "welcomeSessionDesc": "Since this is your first investment, we'll schedule a 1:1 session with Diego at the end of onboarding to help you start off right.",
+      "welcomeSessionIncluded": "✨ Welcome Session included",
+      "yesHave": "I have one"
+    },
+    "step7": {
+      "ageValue": "{{age}} years",
+      "investorFallback": "investor",
+      "investorLabel": "{{label}} Investor",
+      "monthlyValue": "${{amount}}/mo",
+      "noBrokerYet": "No broker yet",
+      "sub": "We analyze your answers to determine your real profile.",
+      "summary": {
+        "age": "Age",
+        "broker": "Broker",
+        "capital": "Capital",
+        "country": "Country",
+        "goal": "Goal",
+        "horizon": "Horizon",
+        "level": "Level",
+        "monthly": "Monthly",
+        "name": "Name"
+      },
+      "summaryTitle": "Your profile summary",
+      "title": "Your profile, {{name}}",
+      "yes": "Yes"
+    },
+    "step8": {
+      "compoundInterestNote": "Compound interest accelerates — the later years generate more than the earlier ones.",
+      "contributing": "Contributing ${{amount}}/mo",
+      "features": {
+        "ai": {
+          "title": "AI that knows your profile",
+          "sub": "Personalized analysis based on your level and risk tolerance"
+        },
+        "calendar": {
+          "title": "Event calendar",
+          "sub": "Earnings, dividends, and ex-dividend dates for your positions"
+        },
+        "paper": {
+          "title": "Risk-free paper trading",
+          "sub": "Practice with $10,000 in virtual cash at real prices"
+        },
+        "portfolio": {
+          "title": "Real-time portfolio",
+          "sub": "Prices every 30s with Today / YTD / Total returns"
+        }
+      },
+      "illustrativeNote": "* Illustrative. Based on historical averages. Does not guarantee future returns.",
+      "inYears": "In {{years}} years",
+      "nuvosWorksForYou": "Nuvos AI works for you",
+      "perYear": "/yr",
+      "sub": "With discipline and the market on your side, here's what you can achieve.",
+      "tenMoreYears": "10 more years: +{{gain}} (+{{pct}}%)",
+      "title": "Your path to {{amount}}"
+    },
+    "step9": {
+      "and": "and",
+      "legalBadge": "⚠️  EDUCATIONAL TOOL — NOT FINANCIAL ADVICE",
+      "legalBodyBold1": "financial education and information",
+      "legalBodyBold2": "purely educational",
+      "legalBodyBold3": "Never make investment decisions based solely on this app.",
+      "legalBodyPart1": "Nuvos AI is a",
+      "legalBodyPart2": "The AI analysis and market data are",
+      "legalBodyPart3": "and do not constitute regulated financial, investment, legal, or tax advice.",
+      "legalBodyPart4": "Data may be inaccurate or delayed. Past performance does not guarantee future results.",
+      "privacyPolicy": "Privacy Policy",
+      "sub": "Read and accept the following points to continue.",
+      "termsOfUse": "Terms of Use",
+      "termsPrefix": "I have read and accept the",
+      "title": "Before you start",
+      "understandBold": "does NOT constitute regulated financial advice",
+      "understandPrefix": "I understand Nuvos AI is educational and",
+      "understandSuffix": "I'm responsible for my own investment decisions."
+    },
+    "stepCounter": "Step {{current}} of {{total}}"
   }
 }
