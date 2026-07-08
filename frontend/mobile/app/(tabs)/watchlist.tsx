@@ -4,6 +4,7 @@ import {
   StyleSheet, ActivityIndicator, ScrollView, Alert, Modal,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useTranslation } from "react-i18next";
 import { router, useLocalSearchParams } from "expo-router";
 import MobileTourBanner from "../../src/components/MobileTourBanner";
 import { useWatchlistStore } from "../../src/lib/watchlistStore";
@@ -50,32 +51,33 @@ function fmtPct(pct: number | null): string {
 }
 
 function MarketStateBadge({ state }: { state: string }) {
+  const { t } = useTranslation();
   const s = (state || "").toUpperCase();
   if (s === "REGULAR") {
     return (
       <View style={[badge.wrap, { backgroundColor: "rgba(34,197,94,0.12)" }]}>
         <View style={badge.dot} />
-        <Text style={[badge.text, { color: "#22c55e" }]}>En vivo</Text>
+        <Text style={[badge.text, { color: "#22c55e" }]}>{t("watchlist.marketState.live")}</Text>
       </View>
     );
   }
   if (s === "PRE" || s === "PREPRE") {
     return (
       <View style={[badge.wrap, { backgroundColor: "rgba(245,158,11,0.12)" }]}>
-        <Text style={[badge.text, { color: "#f59e0b" }]}>Pre-Mkt</Text>
+        <Text style={[badge.text, { color: "#f59e0b" }]}>{t("watchlist.marketState.preMkt")}</Text>
       </View>
     );
   }
   if (s === "POST" || s === "POSTPOST") {
     return (
       <View style={[badge.wrap, { backgroundColor: "rgba(99,102,241,0.12)" }]}>
-        <Text style={[badge.text, { color: "#818cf8" }]}>Post-Mkt</Text>
+        <Text style={[badge.text, { color: "#818cf8" }]}>{t("watchlist.marketState.postMkt")}</Text>
       </View>
     );
   }
   return (
     <View style={[badge.wrap, { backgroundColor: "rgba(148,163,184,0.08)" }]}>
-      <Text style={[badge.text, { color: "#64748b" }]}>Cerrado</Text>
+      <Text style={[badge.text, { color: "#64748b" }]}>{t("watchlist.marketState.closed")}</Text>
     </View>
   );
 }
@@ -103,6 +105,7 @@ interface RowProps {
 }
 
 function WatchlistRow({ item, index, itemCount, prices, editMode, advanced, onRemove, onMoveUp, onMoveDown, onAlert, hasAlert }: RowProps) {
+  const { t } = useTranslation();
   const p = prices[item.ticker] as ExtPrice | undefined;
   const dayUp  = (p?.change_pct ?? 0) >= 0;
   const dayCol = dayUp ? "#22c55e" : "#ef4444";
@@ -162,7 +165,7 @@ function WatchlistRow({ item, index, itemCount, prices, editMode, advanced, onRe
             <View style={rw.dayChangeRow}>
               <Ionicons name={dayUp ? "trending-up" : "trending-down"} size={10} color={dayCol} />
               <Text style={[rw.dayChangeText, { color: dayCol }]}>
-                {fmtPct(p.change_pct)} vs cierre anterior
+                {fmtPct(p.change_pct)} {t("watchlist.row.vsPrevClose")}
               </Text>
             </View>
           )}
@@ -186,17 +189,17 @@ function WatchlistRow({ item, index, itemCount, prices, editMode, advanced, onRe
           )}
           {(showPre || showPost) && p?.price != null && (
             <Text style={[rw.closeLabel, { color: "#6b7280" }]}>
-              {showPre ? "Reg." : "Cierre"} {fmtPrice(p.price, p.currency)}
+              {showPre ? t("watchlist.row.regShort") : t("watchlist.row.close")} {fmtPrice(p.price, p.currency)}
             </Text>
           )}
           {showPreAdv && p?.pre_market_price != null && (
             <Text style={[rw.closeLabel, { color: "#f59e0b" }]}>
-              Pre {fmtPrice(p.pre_market_price, p?.currency)}{p?.pre_market_change_pct != null ? ` (${fmtPct(p.pre_market_change_pct)})` : ""}
+              {t("watchlist.row.prePrefix")} {fmtPrice(p.pre_market_price, p?.currency)}{p?.pre_market_change_pct != null ? ` (${fmtPct(p.pre_market_change_pct)})` : ""}
             </Text>
           )}
           {showPostAdv && p?.post_market_price != null && (
             <Text style={[rw.closeLabel, { color: "#818cf8" }]}>
-              Post {fmtPrice(p.post_market_price, p?.currency)}{p?.post_market_change_pct != null ? ` (${fmtPct(p.post_market_change_pct)})` : ""}
+              {t("watchlist.row.postPrefix")} {fmtPrice(p.post_market_price, p?.currency)}{p?.post_market_change_pct != null ? ` (${fmtPct(p.post_market_change_pct)})` : ""}
             </Text>
           )}
         </View>
@@ -249,6 +252,7 @@ const rw = StyleSheet.create({
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 
 export default function WatchlistScreen() {
+  const { t } = useTranslation();
   const { tour } = useLocalSearchParams<{ tour?: string }>();
   const isTour = tour === "5";
   const { items, add, remove, has, reorder } = useWatchlistStore();
@@ -380,7 +384,7 @@ export default function WatchlistScreen() {
 
   const handleAdd = async (ticker: string, name: string) => {
     if (has(ticker)) {
-      Alert.alert("Ya está en tu Watchlist", `${ticker} ya está agregado.`);
+      Alert.alert(t("watchlist.alerts.alreadyAdded.title"), t("watchlist.alerts.alreadyAdded.message", { ticker }));
       setQuery(""); setSuggestions([]);
       return;
     }
@@ -420,7 +424,7 @@ export default function WatchlistScreen() {
               tab === "watchlist" ? "eye-outline" : "play-outline";
             const iconFilled: React.ComponentProps<typeof Ionicons>["name"] =
               tab === "watchlist" ? "eye" : "play";
-            const label = tab === "watchlist" ? "Watchlist" : "Videos";
+            const label = tab === "watchlist" ? t("watchlist.tabs.watchlist") : t("watchlist.tabs.videos");
             return (
               <TouchableOpacity
                 key={tab}
@@ -454,7 +458,7 @@ export default function WatchlistScreen() {
             <Ionicons name="search-outline" size={16} color="#6b7280" />
             <TextInput
               style={s.searchInput}
-              placeholder="Busca ticker: NVDA, AAPL, TSLA…"
+              placeholder={t("watchlist.search.placeholder")}
               placeholderTextColor="#374151"
               value={query}
               onChangeText={handleSearch}
@@ -500,10 +504,10 @@ export default function WatchlistScreen() {
           {!isPremium && (
             <View style={s.tierBar}>
               <View style={s.tierTop}>
-                <Text style={s.tierLabel}>{items.length}/{FREE_LIMIT} acciones</Text>
+                <Text style={s.tierLabel}>{t("watchlist.tier.label", { count: items.length, limit: FREE_LIMIT })}</Text>
                 {freeFull && (
                   <TouchableOpacity onPress={() => setPaywallOpen(true)}>
-                    <Text style={s.tierUpgrade}>Actualizar a Premium →</Text>
+                    <Text style={s.tierUpgrade}>{t("watchlist.tier.upgrade")}</Text>
                   </TouchableOpacity>
                 )}
               </View>
@@ -519,9 +523,9 @@ export default function WatchlistScreen() {
               <View style={s.emptyIcon}>
                 <Ionicons name="eye-outline" size={26} color="#00d47e" />
               </View>
-              <Text style={s.emptyTitle}>Tu Watchlist está vacía</Text>
+              <Text style={s.emptyTitle}>{t("watchlist.empty.title")}</Text>
               <Text style={s.emptySub}>
-                Busca un ticker arriba y agrégalo para seguirlo en tiempo real
+                {t("watchlist.empty.subtitle")}
               </Text>
             </View>
           )}
@@ -531,7 +535,7 @@ export default function WatchlistScreen() {
             <View style={s.listCard}>
               <View style={s.listHeader}>
                 <Ionicons name="eye-outline" size={14} color="#00d47e" />
-                <Text style={s.listHeaderText}>Watchlist</Text>
+                <Text style={s.listHeaderText}>{t("watchlist.tabs.watchlist")}</Text>
 
                 {items.length > 1 && !editMode && (
                   <View style={s.sortRow}>
@@ -541,7 +545,7 @@ export default function WatchlistScreen() {
                       hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
                     >
                       <Ionicons name="arrow-up" size={11} color={sortMode === "gainers" ? "#22c55e" : "#4b5563"} />
-                      <Text style={[s.sortBtnText, { color: sortMode === "gainers" ? "#22c55e" : "#4b5563" }]}>Suben</Text>
+                      <Text style={[s.sortBtnText, { color: sortMode === "gainers" ? "#22c55e" : "#4b5563" }]}>{t("watchlist.sort.gainers")}</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
                       onPress={() => setSortMode((v) => v === "losers" ? "default" : "losers")}
@@ -549,7 +553,7 @@ export default function WatchlistScreen() {
                       hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
                     >
                       <Ionicons name="arrow-down" size={11} color={sortMode === "losers" ? "#ef4444" : "#4b5563"} />
-                      <Text style={[s.sortBtnText, { color: sortMode === "losers" ? "#ef4444" : "#4b5563" }]}>Caen</Text>
+                      <Text style={[s.sortBtnText, { color: sortMode === "losers" ? "#ef4444" : "#4b5563" }]}>{t("watchlist.sort.losers")}</Text>
                     </TouchableOpacity>
                   </View>
                 )}
@@ -561,7 +565,7 @@ export default function WatchlistScreen() {
                   >
                     <Ionicons name={editMode ? "checkmark" : "reorder-three-outline"} size={13} color={editMode ? "#00d47e" : "#4b5563"} />
                     <Text style={[s.editBtnText, { color: editMode ? "#00d47e" : "#4b5563" }]}>
-                      {editMode ? "Listo" : "Ordenar"}
+                      {editMode ? t("watchlist.edit.done") : t("watchlist.edit.reorder")}
                     </Text>
                   </TouchableOpacity>
                 )}
@@ -574,7 +578,7 @@ export default function WatchlistScreen() {
                       hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
                     >
                       <Text style={[s.sortBtnText, { color: viewMode === "advanced" ? "#818cf8" : "#4b5563" }]}>
-                        {viewMode === "basic" ? "Básico" : "Avanzado"}
+                        {viewMode === "basic" ? t("watchlist.viewMode.basic") : t("watchlist.viewMode.advanced")}
                       </Text>
                     </TouchableOpacity>
                     {pricesLoading
@@ -626,9 +630,9 @@ export default function WatchlistScreen() {
       {subTab === "videos" && (
         <ScrollView contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
           <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
-            <Text style={{ fontSize: 16, fontWeight: "800", color: "#fff", letterSpacing: -0.3 }}>Videos recientes</Text>
+            <Text style={{ fontSize: 16, fontWeight: "800", color: "#fff", letterSpacing: -0.3 }}>{t("watchlist.videos.recentTitle")}</Text>
             <TouchableOpacity onPress={() => router.navigate("/(tabs)/videos")} activeOpacity={0.7}>
-              <Text style={{ fontSize: 13, fontWeight: "600", color: "#00d47e" }}>Ver todo →</Text>
+              <Text style={{ fontSize: 13, fontWeight: "600", color: "#00d47e" }}>{t("common.seeAll")}</Text>
             </TouchableOpacity>
           </View>
           {clipsLoading
@@ -638,7 +642,7 @@ export default function WatchlistScreen() {
               <View style={{ alignItems: "center", padding: 40, gap: 12 }}>
                 <Ionicons name="play-circle-outline" size={48} color="#4b5563" />
                 <Text style={{ color: "#6b7280", fontSize: 14, textAlign: "center" }}>
-                  No hay videos disponibles
+                  {t("watchlist.videos.empty")}
                 </Text>
               </View>
             )
@@ -688,7 +692,7 @@ export default function WatchlistScreen() {
             style={{ width: "100%", borderRadius: 22, padding: 20, gap: 16, backgroundColor: "#111318", borderWidth: 1, borderColor: "#1f2330" }}>
             <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
               <View>
-                <Text style={{ fontSize: 10, fontWeight: "700", color: "#6b7280", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 2 }}>Alerta de precio</Text>
+                <Text style={{ fontSize: 10, fontWeight: "700", color: "#6b7280", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 2 }}>{t("watchlist.alertModal.title")}</Text>
                 <Text style={{ fontSize: 18, fontWeight: "900", color: "#fff" }}>{alertModal?.ticker}</Text>
               </View>
               <TouchableOpacity onPress={() => setAlertModal(null)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
@@ -698,7 +702,7 @@ export default function WatchlistScreen() {
 
             {alertModal?.currentPrice != null && (
               <Text style={{ fontSize: 12, color: "#6b7280" }}>
-                Precio actual: <Text style={{ fontWeight: "700", color: "#fff" }}>${alertModal.currentPrice.toFixed(2)}</Text>
+                {t("watchlist.alertModal.currentPrice")} <Text style={{ fontWeight: "700", color: "#fff" }}>${alertModal.currentPrice.toFixed(2)}</Text>
               </Text>
             )}
 
@@ -707,14 +711,14 @@ export default function WatchlistScreen() {
                 <TouchableOpacity key={c} onPress={() => setAlertCondition(c)} activeOpacity={0.8}
                   style={{ flex: 1, paddingVertical: 10, alignItems: "center", backgroundColor: alertCondition === c ? "#00d47e" : "#1a1d27" }}>
                   <Text style={{ fontSize: 12, fontWeight: "700", color: alertCondition === c ? "#000" : "#6b7280" }}>
-                    {c === "below" ? "Por debajo" : "Por encima"}
+                    {c === "below" ? t("watchlist.alertModal.below") : t("watchlist.alertModal.above")}
                   </Text>
                 </TouchableOpacity>
               ))}
             </View>
 
             <TextInput
-              placeholder="Precio objetivo (ej. 180.00)"
+              placeholder={t("watchlist.alertModal.placeholder")}
               placeholderTextColor="#374151"
               keyboardType="numeric"
               value={alertPrice}
@@ -726,14 +730,14 @@ export default function WatchlistScreen() {
               {alertModal && alerts[alertModal.ticker] && (
                 <TouchableOpacity onPress={() => deleteAlert(alertModal.ticker)} activeOpacity={0.8}
                   style={{ flex: 1, paddingVertical: 14, borderRadius: 14, alignItems: "center", borderWidth: 1, borderColor: "#ef4444" }}>
-                  <Text style={{ fontSize: 14, fontWeight: "700", color: "#ef4444" }}>Eliminar</Text>
+                  <Text style={{ fontSize: 14, fontWeight: "700", color: "#ef4444" }}>{t("common.delete")}</Text>
                 </TouchableOpacity>
               )}
               <TouchableOpacity onPress={saveAlert} activeOpacity={0.8} disabled={savingAlert || !alertPrice}
                 style={{ flex: 1, paddingVertical: 14, borderRadius: 14, alignItems: "center", backgroundColor: "#00d47e", opacity: (!alertPrice || savingAlert) ? 0.5 : 1,
                   shadowColor: "#00d47e", shadowOpacity: 0.25, shadowRadius: 12, shadowOffset: { width: 0, height: 4 }, elevation: 6,
                 }}>
-                <Text style={{ fontSize: 14, fontWeight: "900", color: "#000" }}>{savingAlert ? "Guardando…" : "Guardar alerta"}</Text>
+                <Text style={{ fontSize: 14, fontWeight: "900", color: "#000" }}>{savingAlert ? t("common.saving2") : t("watchlist.alertModal.save")}</Text>
               </TouchableOpacity>
             </View>
           </TouchableOpacity>
@@ -743,8 +747,8 @@ export default function WatchlistScreen() {
       {isTour && (
         <MobileTourBanner
           step={5}
-          title="Busca una acción para seguir"
-          description="Escribe el ticker o nombre de la empresa — ej. AAPL o Tesla. Nuvos te avisará cuando haya movimientos importantes."
+          title={t("watchlist.tour.title")}
+          description={t("watchlist.tour.description")}
         />
       )}
     </View>

@@ -2,6 +2,8 @@
 
 import { Suspense, useState, useEffect } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import AppSidebar from "@/components/AppSidebar";
 import MarketTickerBar from "@/components/MarketTickerBar";
 import PremiumBadge from "@/components/PremiumBadge";
@@ -83,6 +85,7 @@ function SummaryCard({
 // ─── Portfolio Tab ───────────────────────────────────────────────────────────
 
 function PortfolioTab({ prices, loading }: { prices: PriceMap; loading: boolean }) {
+  const { t } = useTranslation();
   const router = useRouter();
   const { positions, portfolioCurrency } = usePortfolioStore();
   const fxRate = useFxRate(portfolioCurrency);
@@ -115,17 +118,17 @@ function PortfolioTab({ prices, loading }: { prices: PriceMap; loading: boolean 
       {/* Summary Cards */}
       <div className="grid grid-cols-3 gap-3">
         <SummaryCard
-          label={`Valor Total · ${portfolioCurrency}`}
+          label={t("patrimonio.portfolio.totalValueLabel", { currency: portfolioCurrency })}
           value={fmtMoney(totalValue, portfolioCurrency)}
         />
         <SummaryCard
-          label="Ganancia Día"
+          label={t("patrimonio.portfolio.dayGainLabel")}
           value={fmtMoney(dayGain, portfolioCurrency)}
           sub={fmtPct(dayGainPctFinal)}
           positive={dayGain >= 0}
         />
         <SummaryCard
-          label="Ganancia Total"
+          label={t("patrimonio.portfolio.totalGainLabel")}
           value={fmtMoney(totalGain, portfolioCurrency)}
           sub={fmtPct(totalGainPct)}
           positive={totalGain >= 0}
@@ -139,17 +142,17 @@ function PortfolioTab({ prices, loading }: { prices: PriceMap; loading: boolean 
       >
         <div className="px-4 py-3 border-b flex items-center justify-between" style={{ borderColor: "var(--border)" }}>
           <h3 className="font-bold text-sm" style={{ color: "var(--text)" }}>
-            Posiciones ({positions.length})
+            {t("patrimonio.portfolio.positionsCount", { count: positions.length })}
           </h3>
           {loading && (
-            <span className="text-xs" style={{ color: "var(--muted)" }}>Actualizando...</span>
+            <span className="text-xs" style={{ color: "var(--muted)" }}>{t("patrimonio.common.updating")}</span>
           )}
         </div>
 
         {positions.length === 0 ? (
           <div className="py-12 text-center">
             <BarChart2 size={32} className="mx-auto mb-2 opacity-30" style={{ color: "var(--muted)" }} />
-            <p className="text-sm" style={{ color: "var(--muted)" }}>No tienes posiciones aún</p>
+            <p className="text-sm" style={{ color: "var(--muted)" }}>{t("patrimonio.portfolio.empty")}</p>
           </div>
         ) : (
           <div className="divide-y" style={{ borderColor: "var(--border)" }}>
@@ -169,7 +172,7 @@ function PortfolioTab({ prices, loading }: { prices: PriceMap; loading: boolean 
                   <div className="flex-1 min-w-0">
                     <p className="font-bold text-sm" style={{ color: "var(--text)" }}>{pos.ticker}</p>
                     <p className="text-xs truncate" style={{ color: "var(--muted)" }}>
-                      {pos.shares} acciones · ${pos.avgPrice.toFixed(2)} promedio
+                      {t("patrimonio.portfolio.sharesAvg", { shares: pos.shares, avgPrice: pos.avgPrice.toFixed(2) })}
                     </p>
                   </div>
                   <div className="text-right">
@@ -190,7 +193,7 @@ function PortfolioTab({ prices, loading }: { prices: PriceMap; loading: boolean 
                         className="text-xs"
                         style={{ color: dayChangePct >= 0 ? "#10b981" : "#ef4444" }}
                       >
-                        {fmtPct(dayChangePct)} hoy
+                        {fmtPct(dayChangePct)} {t("patrimonio.common.today")}
                       </span>
                     </div>
                   </div>
@@ -206,7 +209,7 @@ function PortfolioTab({ prices, loading }: { prices: PriceMap; loading: boolean 
         className="w-full flex items-center justify-center gap-2 py-3 rounded-xl font-semibold text-sm transition-opacity hover:opacity-80"
         style={{ background: "var(--accent)", color: "#fff" }}
       >
-        Ver portafolio completo <ArrowRight size={16} />
+        {t("patrimonio.portfolio.viewFull")} <ArrowRight size={16} />
       </button>
     </div>
   );
@@ -215,6 +218,7 @@ function PortfolioTab({ prices, loading }: { prices: PriceMap; loading: boolean 
 // ─── Watchlist Tab ───────────────────────────────────────────────────────────
 
 function WatchlistTab({ prices, loading }: { prices: PriceMap; loading: boolean }) {
+  const { t } = useTranslation();
   const router = useRouter();
   const { items } = useWatchlistStore();
   const { portfolioCurrency } = usePortfolioStore();
@@ -228,17 +232,17 @@ function WatchlistTab({ prices, loading }: { prices: PriceMap; loading: boolean 
       >
         <div className="px-4 py-3 border-b flex items-center justify-between" style={{ borderColor: "var(--border)" }}>
           <h3 className="font-bold text-sm" style={{ color: "var(--text)" }}>
-            Watchlist ({items.length})
+            {t("patrimonio.watchlist.itemsCount", { count: items.length })}
           </h3>
           {loading && (
-            <span className="text-xs" style={{ color: "var(--muted)" }}>Actualizando...</span>
+            <span className="text-xs" style={{ color: "var(--muted)" }}>{t("patrimonio.common.updating")}</span>
           )}
         </div>
 
         {items.length === 0 ? (
           <div className="py-12 text-center">
             <Eye size={32} className="mx-auto mb-2 opacity-30" style={{ color: "var(--muted)" }} />
-            <p className="text-sm" style={{ color: "var(--muted)" }}>Tu watchlist está vacía</p>
+            <p className="text-sm" style={{ color: "var(--muted)" }}>{t("patrimonio.watchlist.empty")}</p>
           </div>
         ) : (
           <div className="divide-y" style={{ borderColor: "var(--border)" }}>
@@ -282,7 +286,7 @@ function WatchlistTab({ prices, loading }: { prices: PriceMap; loading: boolean 
         className="w-full flex items-center justify-center gap-2 py-3 rounded-xl font-semibold text-sm transition-opacity hover:opacity-80"
         style={{ background: "var(--accent)", color: "#fff" }}
       >
-        Ver watchlist completa <ArrowRight size={16} />
+        {t("patrimonio.watchlist.viewFull")} <ArrowRight size={16} />
       </button>
     </div>
   );
@@ -291,6 +295,7 @@ function WatchlistTab({ prices, loading }: { prices: PriceMap; loading: boolean 
 // ─── Simulador Tab ───────────────────────────────────────────────────────────
 
 function SimuladorTab({ prices, loading }: { prices: PriceMap; loading: boolean }) {
+  const { t } = useTranslation();
   const router = useRouter();
   const { cash, positions } = usePaperStore();
 
@@ -306,10 +311,10 @@ function SimuladorTab({ prices, loading }: { prices: PriceMap; loading: boolean 
     <div className="space-y-4">
       {/* Summary Cards */}
       <div className="grid grid-cols-3 gap-3">
-        <SummaryCard label="Valor Total" value={fmtMoney(totalValue)} />
-        <SummaryCard label="Efectivo" value={fmtMoney(cash)} />
+        <SummaryCard label={t("patrimonio.simulator.totalValueLabel")} value={fmtMoney(totalValue)} />
+        <SummaryCard label={t("patrimonio.simulator.cashLabel")} value={fmtMoney(cash)} />
         <SummaryCard
-          label="Ganancia"
+          label={t("patrimonio.simulator.gainLabel")}
           value={fmtMoney(gain)}
           sub={fmtPct((gain / PAPER_INITIAL_CASH) * 100)}
           positive={gain >= 0}
@@ -323,10 +328,10 @@ function SimuladorTab({ prices, loading }: { prices: PriceMap; loading: boolean 
       >
         <div className="px-4 py-3 border-b flex items-center justify-between" style={{ borderColor: "var(--border)" }}>
           <h3 className="font-bold text-sm" style={{ color: "var(--text)" }}>
-            Posiciones Paper ({positions.length})
+            {t("patrimonio.simulator.positionsCount", { count: positions.length })}
           </h3>
           {loading && (
-            <span className="text-xs" style={{ color: "var(--muted)" }}>Actualizando...</span>
+            <span className="text-xs" style={{ color: "var(--muted)" }}>{t("patrimonio.common.updating")}</span>
           )}
         </div>
 
@@ -334,7 +339,7 @@ function SimuladorTab({ prices, loading }: { prices: PriceMap; loading: boolean 
           <div className="py-12 text-center">
             <Wallet size={32} className="mx-auto mb-2 opacity-30" style={{ color: "var(--muted)" }} />
             <p className="text-sm" style={{ color: "var(--muted)" }}>
-              No tienes posiciones paper. ¡Empieza a practicar!
+              {t("patrimonio.simulator.empty")}
             </p>
           </div>
         ) : (
@@ -354,7 +359,7 @@ function SimuladorTab({ prices, loading }: { prices: PriceMap; loading: boolean 
                   <div className="flex-1 min-w-0">
                     <p className="font-bold text-sm" style={{ color: "var(--text)" }}>{pos.ticker}</p>
                     <p className="text-xs truncate" style={{ color: "var(--muted)" }}>
-                      {pos.shares} acciones · ${pos.avgPrice.toFixed(2)} promedio
+                      {t("patrimonio.portfolio.sharesAvg", { shares: pos.shares, avgPrice: pos.avgPrice.toFixed(2) })}
                     </p>
                   </div>
                   <div className="text-right">
@@ -377,7 +382,7 @@ function SimuladorTab({ prices, loading }: { prices: PriceMap; loading: boolean 
         className="w-full flex items-center justify-center gap-2 py-3 rounded-xl font-semibold text-sm transition-opacity hover:opacity-80"
         style={{ background: "var(--accent)", color: "#fff" }}
       >
-        Abrir simulador completo <ArrowRight size={16} />
+        {t("patrimonio.simulator.openFull")} <ArrowRight size={16} />
       </button>
     </div>
   );
@@ -385,23 +390,29 @@ function SimuladorTab({ prices, loading }: { prices: PriceMap; loading: boolean 
 
 // ─── Main Content ────────────────────────────────────────────────────────────
 
-const TABS = [
-  { id: "portfolio", label: "Portafolio" },
-  { id: "watchlist", label: "Watchlist" },
-  { id: "simulador", label: "Simulador" },
-] as const;
+const TAB_IDS = ["portfolio", "watchlist", "simulador"] as const;
 
-type TabId = (typeof TABS)[number]["id"];
+type TabId = (typeof TAB_IDS)[number];
+
+function getTabs(t: TFunction): { id: TabId; label: string }[] {
+  return [
+    { id: "portfolio", label: t("patrimonio.tabs.portfolio") },
+    { id: "watchlist", label: t("patrimonio.tabs.watchlist") },
+    { id: "simulador", label: t("patrimonio.tabs.simulator") },
+  ];
+}
 
 function PatrimonioContent() {
+  const { t } = useTranslation();
   const searchParams = useSearchParams();
   const router = useRouter();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [prices, setPrices] = useState<PriceMap>({});
   const [pricesLoading, setPricesLoading] = useState(false);
 
+  const TABS = getTabs(t);
   const rawTab = searchParams.get("tab") as TabId | null;
-  const activeTab: TabId = rawTab && TABS.some((t) => t.id === rawTab) ? rawTab : "portfolio";
+  const activeTab: TabId = rawTab && TABS.some((tab) => tab.id === rawTab) ? rawTab : "portfolio";
 
   const { positions: portfolioPositions } = usePortfolioStore();
   const { items: watchItems } = useWatchlistStore();
@@ -448,10 +459,10 @@ function PatrimonioContent() {
         >
           <div>
             <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--muted)" }}>
-              Mi dinero
+              {t("patrimonio.header.eyebrow")}
             </p>
             <h1 className="text-2xl font-black tracking-tight" style={{ color: "var(--text)" }}>
-              Patrimonio
+              {t("patrimonio.header.title")}
             </h1>
           </div>
           <div className="flex items-center gap-2">
@@ -472,8 +483,8 @@ function PatrimonioContent() {
               <TrendingUp className="w-4.5 h-4.5" style={{ color: "var(--accent-l)" }} />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-bold" style={{ color: "var(--text)" }}>Tu evolución como inversionista</p>
-              <p className="text-xs" style={{ color: "var(--muted)" }}>Hitos, patrimonio y decisiones que evitaron errores</p>
+              <p className="text-sm font-bold" style={{ color: "var(--text)" }}>{t("patrimonio.progress.title")}</p>
+              <p className="text-xs" style={{ color: "var(--muted)" }}>{t("patrimonio.progress.subtitle")}</p>
             </div>
             <ArrowRight className="w-4 h-4 shrink-0" style={{ color: "var(--accent-l)" }} />
           </button>

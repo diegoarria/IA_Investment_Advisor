@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
+import { useTranslation } from "react-i18next";
 import { useTheme } from "../../src/lib/ThemeContext";
 import { useSubscriptionStore, hasPremiumAccess } from "../../src/lib/subscriptionStore";
 import { progressApi, benchmarkApi } from "../../src/lib/api";
@@ -48,6 +49,7 @@ interface Benchmark {
 const fmtUSD = (n: number) => `$${n.toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
 
 export default function ProgressScreen() {
+  const { t } = useTranslation();
   const { colors } = useTheme();
   const subStore = useSubscriptionStore();
   const isPremium = hasPremiumAccess(subStore);
@@ -79,33 +81,33 @@ export default function ProgressScreen() {
 
   const metrics: { label: string; value: string }[] = [];
   if (summary.days_since_first_investment !== undefined) {
-    metrics.push({ label: "Desde tu primera inversión", value: `${summary.days_since_first_investment} días` });
+    metrics.push({ label: t("progress.metrics.sinceFirstInvestment"), value: `${summary.days_since_first_investment} ${t("common.daysShort")}` });
   }
   if (summary.days_using_nuvos !== undefined) {
-    metrics.push({ label: "Tiempo usando Nuvos", value: `${summary.days_using_nuvos} días` });
+    metrics.push({ label: t("progress.metrics.timeUsingNuvos"), value: `${summary.days_using_nuvos} ${t("common.daysShort")}` });
   }
   if (summary.total_operations !== undefined) {
-    metrics.push({ label: "Operaciones realizadas", value: `${summary.total_operations}` });
+    metrics.push({ label: t("progress.metrics.totalOperations"), value: `${summary.total_operations}` });
   }
   if (summary.capital_invested !== undefined) {
-    metrics.push({ label: "Capital invertido", value: fmtUSD(summary.capital_invested) });
+    metrics.push({ label: t("progress.metrics.capitalInvested"), value: fmtUSD(summary.capital_invested) });
   }
   if (summary.current_patrimonio !== undefined) {
-    metrics.push({ label: "Patrimonio actual", value: fmtUSD(summary.current_patrimonio) });
+    metrics.push({ label: t("progress.metrics.currentPatrimonio"), value: fmtUSD(summary.current_patrimonio) });
   }
   if (summary.cumulative_return_pct !== undefined) {
     const sign = summary.cumulative_return_pct >= 0 ? "+" : "";
-    metrics.push({ label: "Retorno acumulado", value: `${sign}${summary.cumulative_return_pct}%` });
+    metrics.push({ label: t("progress.metrics.cumulativeReturn"), value: `${sign}${summary.cumulative_return_pct}%` });
   }
   if (summary.best_year) {
-    metrics.push({ label: `Mejor año (${summary.best_year.year})`, value: `+${summary.best_year.pct}%` });
+    metrics.push({ label: t("progress.metrics.bestYear", { year: summary.best_year.year }), value: `+${summary.best_year.pct}%` });
   }
   if (summary.worst_year) {
     const sign = summary.worst_year.pct >= 0 ? "+" : "";
-    metrics.push({ label: `Año más difícil (${summary.worst_year.year})`, value: `${sign}${summary.worst_year.pct}%` });
+    metrics.push({ label: t("progress.metrics.worstYear", { year: summary.worst_year.year }), value: `${sign}${summary.worst_year.pct}%` });
   }
   if (summary.consecutive_months_contributing !== undefined) {
-    metrics.push({ label: "Meses seguidos aportando", value: `${summary.consecutive_months_contributing}` });
+    metrics.push({ label: t("progress.metrics.consecutiveMonths"), value: `${summary.consecutive_months_contributing}` });
   }
 
   const hasAnyData = metrics.length > 0 || milestones.length > 0 || decisions.length > 0;
@@ -124,17 +126,17 @@ export default function ProgressScreen() {
           <Ionicons name="lock-closed" size={28} color={colors.accentLight} />
         </View>
         <Text style={{ fontSize: 17, fontWeight: "900", color: colors.text, marginBottom: 8, textAlign: "center" }}>
-          Tu evolución como inversionista
+          {t("progress.paywall.title")}
         </Text>
         <Text style={{ fontSize: 13, color: colors.textMuted, textAlign: "center", marginBottom: 20, maxWidth: 280 }}>
-          Nuvos guarda tu historia completa como inversor — hitos, patrimonio, decisiones que evitaron errores. Entre más tiempo te quedes, más vale.
+          {t("progress.paywall.description")}
         </Text>
         <TouchableOpacity
           onPress={() => setShowPricing(true)}
           style={{ backgroundColor: "#00d47e", borderRadius: 14, paddingVertical: 12, paddingHorizontal: 28 }}
           activeOpacity={0.85}
         >
-          <Text style={{ fontSize: 14, fontWeight: "900", color: "#000" }}>Activar Premium</Text>
+          <Text style={{ fontSize: 14, fontWeight: "900", color: "#000" }}>{t("progress.paywall.cta")}</Text>
         </TouchableOpacity>
         <PricingModal visible={showPricing} onClose={() => setShowPricing(false)} />
       </View>
@@ -158,8 +160,8 @@ export default function ProgressScreen() {
         ) : !hasAnyData ? (
           <View style={{ alignItems: "center", paddingVertical: 60 }}>
             <Ionicons name="trending-up-outline" size={36} color={colors.textDim} style={{ marginBottom: 10 }} />
-            <Text style={{ fontSize: 13, color: colors.textMuted, textAlign: "center" }}>Aún estamos construyendo tu historial.</Text>
-            <Text style={{ fontSize: 11, color: colors.textDim, textAlign: "center", marginTop: 4 }}>Sigue invirtiendo y usando Nuvos — tu evolución aparecerá aquí.</Text>
+            <Text style={{ fontSize: 13, color: colors.textMuted, textAlign: "center" }}>{t("progress.empty.title")}</Text>
+            <Text style={{ fontSize: 11, color: colors.textDim, textAlign: "center", marginTop: 4 }}>{t("progress.empty.subtitle")}</Text>
           </View>
         ) : (
           <>
@@ -178,20 +180,20 @@ export default function ProgressScreen() {
               <View>
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 8 }}>
                   <Ionicons name="people" size={13} color="#3b82f6" />
-                  <Text style={{ fontSize: 11, fontWeight: "800", color: colors.textMuted }}>CÓMO TE COMPARAS</Text>
+                  <Text style={{ fontSize: 11, fontWeight: "800", color: colors.textMuted }}>{t("progress.benchmark.sectionTitle")}</Text>
                 </View>
                 <View style={{ gap: 8 }}>
                   {benchmark.results.map((r) => (
                     <View key={r.metric} style={{ padding: 12, borderRadius: 14, borderWidth: 1, backgroundColor: "rgba(59,130,246,0.06)", borderColor: "rgba(59,130,246,0.2)" }}>
                       <Text style={{ fontSize: 13, color: colors.text }}>
-                        <Text style={{ fontWeight: "900" }}>Superas al {r.percentile}%</Text>
-                        {" "}de inversionistas con perfil <Text style={{ fontWeight: "800" }}>{benchmark.cohort_label}</Text> en {r.label.toLowerCase()}.
+                        <Text style={{ fontWeight: "900" }}>{t("progress.benchmark.beats", { percentile: r.percentile })}</Text>
+                        {" "}{t("progress.benchmark.profileConnector")} <Text style={{ fontWeight: "800" }}>{benchmark.cohort_label}</Text> {t("progress.benchmark.inMetricSuffix", { metric: r.label.toLowerCase() })}
                       </Text>
                       <View style={{ height: 6, borderRadius: 3, marginTop: 10, backgroundColor: colors.border, overflow: "hidden" }}>
                         <View style={{ height: "100%", width: `${r.percentile}%`, borderRadius: 3, backgroundColor: "#3b82f6" }} />
                       </View>
                       <Text style={{ fontSize: 10, color: colors.textDim, marginTop: 6 }}>
-                        Comparado de forma anónima contra {r.cohort_size} inversionistas — nunca vemos ni compartimos datos individuales de nadie.
+                        {t("progress.benchmark.anonymousNote", { count: r.cohort_size })}
                       </Text>
                     </View>
                   ))}
@@ -203,7 +205,7 @@ export default function ProgressScreen() {
               <View>
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 8 }}>
                   <Ionicons name="trophy" size={13} color="#f59e0b" />
-                  <Text style={{ fontSize: 11, fontWeight: "800", color: colors.textMuted }}>HITOS</Text>
+                  <Text style={{ fontSize: 11, fontWeight: "800", color: colors.textMuted }}>{t("progress.milestones.sectionTitle")}</Text>
                 </View>
                 <View style={{ gap: 8 }}>
                   {milestones.map((ms) => (
@@ -228,7 +230,7 @@ export default function ProgressScreen() {
               <View>
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 8 }}>
                   <Ionicons name="shield-checkmark" size={13} color="#22c55e" />
-                  <Text style={{ fontSize: 11, fontWeight: "800", color: colors.textMuted }}>DECISIONES QUE EVITARON ERRORES COSTOSOS</Text>
+                  <Text style={{ fontSize: 11, fontWeight: "800", color: colors.textMuted }}>{t("progress.decisions.sectionTitle")}</Text>
                 </View>
                 <View style={{ gap: 8 }}>
                   {decisions.map((d) => (

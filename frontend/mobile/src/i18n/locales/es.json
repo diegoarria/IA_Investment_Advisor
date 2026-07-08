@@ -58,7 +58,9 @@
       "coachingTitle": "Sesión 1:1 con Diego",
       "coachingSub": "Guía personalizada · 45 min",
       "logout": "Cerrar sesión"
-    }
+    },
+    "year": "año",
+    "close": "Cerrar"
   },
   "home": {
     "greeting": {
@@ -75,7 +77,15 @@
       "hoursAgo": "Hace {{h}}h",
       "yesterday": "Ayer",
       "daysAgo": "Hace {{d}}d",
-      "periods": { "1d": "1D", "5d": "5D", "6m": "6M", "ytd": "YTD", "1y": "1A", "5y": "5A", "max": "MÁX" },
+      "periods": {
+        "1d": "1D",
+        "5d": "5D",
+        "6m": "6M",
+        "ytd": "YTD",
+        "1y": "1A",
+        "5y": "5A",
+        "max": "MÁX"
+      },
       "today": "Hoy:",
       "noData": "Sin datos",
       "news": "Noticias",
@@ -125,28 +135,121 @@
       "noUrl": "Sin URL: {{details}}",
       "checkoutError": "Error al procesar pago",
       "countryDefault": "Internacional",
-      "countries": { "MX": "México", "AR": "Argentina", "US": "Estados Unidos", "CO": "Colombia" },
+      "countries": {
+        "MX": "México",
+        "AR": "Argentina",
+        "US": "Estados Unidos",
+        "CO": "Colombia"
+      },
       "catalog": {
         "MX": [
-          { "tag": "Recomendado #1", "desc": "El broker más popular de México. App excelente, comisiones bajas.", "pros": ["App móvil de las mejores", "Sin comisión en acciones MX", "ETFs globales fáciles"] },
-          { "tag": "Para avanzados", "desc": "Acceso a 150+ mercados globales. Ideal si quieres diversificar.", "pros": ["150+ bolsas del mundo", "Tasas institucionales", "Opciones y futuros"] },
-          { "tag": "Institucional", "desc": "Respaldo bancario. Perfecto para fondos y perfiles conservadores.", "pros": ["Respaldo bancario sólido", "Asesoría personal disponible", "Fondos de inversión"] }
+          {
+            "tag": "Recomendado #1",
+            "desc": "El broker más popular de México. App excelente, comisiones bajas.",
+            "pros": [
+              "App móvil de las mejores",
+              "Sin comisión en acciones MX",
+              "ETFs globales fáciles"
+            ]
+          },
+          {
+            "tag": "Para avanzados",
+            "desc": "Acceso a 150+ mercados globales. Ideal si quieres diversificar.",
+            "pros": [
+              "150+ bolsas del mundo",
+              "Tasas institucionales",
+              "Opciones y futuros"
+            ]
+          },
+          {
+            "tag": "Institucional",
+            "desc": "Respaldo bancario. Perfecto para fondos y perfiles conservadores.",
+            "pros": [
+              "Respaldo bancario sólido",
+              "Asesoría personal disponible",
+              "Fondos de inversión"
+            ]
+          }
         ],
         "AR": [
-          { "tag": "Recomendado #1", "desc": "Líder en Argentina. Fácil de usar, con acceso a bonos y acciones locales.", "pros": ["Líder del mercado AR", "Acceso a CEDEARs (ADRs)", "Sin costo de mantenimiento"] },
-          { "tag": "Muy popular", "desc": "Plataforma moderna con acceso a fondos, bonos y acciones.", "pros": ["Fondos de money market", "Acciones locales e internac.", "App moderna e intuitiva"] }
+          {
+            "tag": "Recomendado #1",
+            "desc": "Líder en Argentina. Fácil de usar, con acceso a bonos y acciones locales.",
+            "pros": [
+              "Líder del mercado AR",
+              "Acceso a CEDEARs (ADRs)",
+              "Sin costo de mantenimiento"
+            ]
+          },
+          {
+            "tag": "Muy popular",
+            "desc": "Plataforma moderna con acceso a fondos, bonos y acciones.",
+            "pros": [
+              "Fondos de money market",
+              "Acciones locales e internac.",
+              "App moderna e intuitiva"
+            ]
+          }
         ],
         "US": [
-          { "tag": "Recomendado #1", "desc": "El broker más completo del mundo. 0 comisiones en acciones US.", "pros": ["0 comisiones en acciones", "Acceso a 150+ mercados", "Tasas de interés en efectivo"] },
-          { "tag": "Más fácil", "desc": "La app más simple para empezar. Perfecto para principiantes.", "pros": ["App más simple del mercado", "Acciones fraccionadas", "Sin mínimo de inversión"] },
-          { "tag": "Más confiable", "desc": "Uno de los más confiables de EE.UU. Ideal para largo plazo.", "pros": ["Sin comisiones", "Atención al cliente 24/7", "Amplia variedad de ETFs"] }
+          {
+            "tag": "Recomendado #1",
+            "desc": "El broker más completo del mundo. 0 comisiones en acciones US.",
+            "pros": [
+              "0 comisiones en acciones",
+              "Acceso a 150+ mercados",
+              "Tasas de interés en efectivo"
+            ]
+          },
+          {
+            "tag": "Más fácil",
+            "desc": "La app más simple para empezar. Perfecto para principiantes.",
+            "pros": [
+              "App más simple del mercado",
+              "Acciones fraccionadas",
+              "Sin mínimo de inversión"
+            ]
+          },
+          {
+            "tag": "Más confiable",
+            "desc": "Uno de los más confiables de EE.UU. Ideal para largo plazo.",
+            "pros": [
+              "Sin comisiones",
+              "Atención al cliente 24/7",
+              "Amplia variedad de ETFs"
+            ]
+          }
         ],
         "CO": [
-          { "tag": "Recomendado #1", "desc": "El broker referente en Colombia. Acceso a BVC y mercados internac.", "pros": ["Acceso a la BVC", "Acciones internacionales", "Asesoría local experta"] },
-          { "tag": "Para avanzados", "desc": "El mejor acceso global. Ideal si quieres invertir fuera de Colombia.", "pros": ["Mercados globales", "0 comisiones acciones US", "Muy bien regulado"] }
+          {
+            "tag": "Recomendado #1",
+            "desc": "El broker referente en Colombia. Acceso a BVC y mercados internac.",
+            "pros": [
+              "Acceso a la BVC",
+              "Acciones internacionales",
+              "Asesoría local experta"
+            ]
+          },
+          {
+            "tag": "Para avanzados",
+            "desc": "El mejor acceso global. Ideal si quieres invertir fuera de Colombia.",
+            "pros": [
+              "Mercados globales",
+              "0 comisiones acciones US",
+              "Muy bien regulado"
+            ]
+          }
         ],
         "DEFAULT": [
-          { "tag": "Mejor global", "desc": "El broker con mejor acceso global. Disponible en +200 países.", "pros": ["200+ países", "150+ bolsas del mundo", "Tasas institucionales"] }
+          {
+            "tag": "Mejor global",
+            "desc": "El broker con mejor acceso global. Disponible en +200 países.",
+            "pros": [
+              "200+ países",
+              "150+ bolsas del mundo",
+              "Tasas institucionales"
+            ]
+          }
         ]
       }
     },
@@ -167,20 +270,76 @@
       "addLater": "Agregar segundo email después"
     },
     "lessons": {
-      "diversif": { "title": "Diversificación", "body": "No pongas todos los huevos en una canasta. Si tienes 10 empresas de sectores distintos y una quiebra, pierdes el 10%. La diversificación distribuye el riesgo.", "tip": "¿Más del 30% de tu portafolio en un solo sector?" },
-      "dca": { "title": "Dollar Cost Averaging", "body": "Invertir la misma cantidad cada mes, sin importar si el mercado sube o baja. Cuando baja, compras más acciones por el mismo precio. La disciplina bate al timing.", "tip": "Define un monto fijo mensual y automatízalo." },
-      "dividendo": { "title": "Dividendos", "body": "Algunas empresas te pagan por tener sus acciones. Reinvertir dividendos automáticamente puede duplicar tu retorno a 20 años.", "tip": "Busca empresas con 10+ años aumentando dividendos consecutivamente." },
-      "pe_ratio": { "title": "P/E Ratio", "body": "El P/E compara el precio de la acción con lo que gana la empresa. No hay un número 'bueno' universal — compara contra el sector y el historial.", "tip": "Un P/E muy alto no significa cara si la empresa crece rápido. Contexto > número." },
-      "moat": { "title": "Ventaja Competitiva", "body": "El 'moat' es lo que hace que una empresa sea difícil de copiar: marca (Apple), red (Visa), costos bajos (Walmart). Protege sus márgenes en el tiempo.", "tip": "¿Qué le impediría a un competidor con $1B tomar este mercado?" },
-      "aversion": { "title": "Aversión a la Pérdida", "body": "El cerebro siente el dolor de perder $100 el doble que el placer de ganar $100. Por eso vendemos en pánico. Reconocer este sesgo es el primer paso.", "tip": "Antes de vender en caída: ¿cambiaron los fundamentos del negocio?" },
-      "rebalanceo": { "title": "Rebalanceo", "body": "Si tus acciones subieron mucho, ahora tienes más riesgo del que querías. Rebalancear es vender lo que creció y comprar lo que quedó atrás.", "tip": "Rebalancea 1-2 veces al año o cuando algo se aleje más del 5% de tu objetivo." },
-      "fund": { "title": "Flujo de Caja Libre", "body": "Las ganancias se pueden manipular contablemente. El Free Cash Flow no miente — es el dinero real que entra a la caja de la empresa.", "tip": "Busca empresas cuyo FCF crezca más rápido que sus ingresos." },
-      "horizonte": { "title": "Horizonte de Inversión", "body": "El mercado cae 10-20% una vez cada 1-2 años. Pero en 10+ años, el S&P 500 nunca ha perdido dinero. Tu horizonte determina cuánto riesgo puedes absorber.", "tip": "¿Necesitas el dinero en menos de 3 años? No debería estar en acciones." },
-      "fomo": { "title": "FOMO Financiero", "body": "El Fear Of Missing Out te hace comprar en máximos. El FOMO es la señal más confiable de que un activo está sobrevalorado. El mejor momento es cuando nadie habla de él.", "tip": "Si lo ves en noticias masivas y WhatsApp de familia — cuidado." },
-      "etf": { "title": "ETFs vs Acciones", "body": "Un ETF replica un índice completo. El 90% de los gestores activos NO superan al índice en 15 años. Los ETFs son el punto de partida inteligente.", "tip": "Empieza con ETFs amplios. Agrega acciones individuales solo cuando entiendas el negocio." },
-      "comprar_negocios": { "title": "Compra Negocios", "body": "Antes de comprar una acción: ¿entiendo cómo gana dinero esta empresa? ¿Seguiría comprando si el mercado cerrara 5 años?", "tip": "Warren Buffett solo invierte en lo que puede entender en 5 minutos." },
-      "bull_bear": { "title": "Las Caídas son Normales", "body": "Desde 1950, el S&P 500 ha caído más del 10% una vez al año en promedio. A pesar de eso, multiplicó por 200x. Las caídas son el precio de los rendimientos.", "tip": "Guarda una lista de empresas que quieras comprar cuando caigan." },
-      "concentracion": { "title": "Riesgo de Concentración", "body": "Más del 20% en una sola empresa o más del 40% en un sector es concentración alta. Si esa empresa colapsa, tu portafolio colapsa.", "tip": "Calcula tu posición más grande. ¿Es mayor al 20% de tu portafolio?" }
+      "diversif": {
+        "title": "Diversificación",
+        "body": "No pongas todos los huevos en una canasta. Si tienes 10 empresas de sectores distintos y una quiebra, pierdes el 10%. La diversificación distribuye el riesgo.",
+        "tip": "¿Más del 30% de tu portafolio en un solo sector?"
+      },
+      "dca": {
+        "title": "Dollar Cost Averaging",
+        "body": "Invertir la misma cantidad cada mes, sin importar si el mercado sube o baja. Cuando baja, compras más acciones por el mismo precio. La disciplina bate al timing.",
+        "tip": "Define un monto fijo mensual y automatízalo."
+      },
+      "dividendo": {
+        "title": "Dividendos",
+        "body": "Algunas empresas te pagan por tener sus acciones. Reinvertir dividendos automáticamente puede duplicar tu retorno a 20 años.",
+        "tip": "Busca empresas con 10+ años aumentando dividendos consecutivamente."
+      },
+      "pe_ratio": {
+        "title": "P/E Ratio",
+        "body": "El P/E compara el precio de la acción con lo que gana la empresa. No hay un número 'bueno' universal — compara contra el sector y el historial.",
+        "tip": "Un P/E muy alto no significa cara si la empresa crece rápido. Contexto > número."
+      },
+      "moat": {
+        "title": "Ventaja Competitiva",
+        "body": "El 'moat' es lo que hace que una empresa sea difícil de copiar: marca (Apple), red (Visa), costos bajos (Walmart). Protege sus márgenes en el tiempo.",
+        "tip": "¿Qué le impediría a un competidor con $1B tomar este mercado?"
+      },
+      "aversion": {
+        "title": "Aversión a la Pérdida",
+        "body": "El cerebro siente el dolor de perder $100 el doble que el placer de ganar $100. Por eso vendemos en pánico. Reconocer este sesgo es el primer paso.",
+        "tip": "Antes de vender en caída: ¿cambiaron los fundamentos del negocio?"
+      },
+      "rebalanceo": {
+        "title": "Rebalanceo",
+        "body": "Si tus acciones subieron mucho, ahora tienes más riesgo del que querías. Rebalancear es vender lo que creció y comprar lo que quedó atrás.",
+        "tip": "Rebalancea 1-2 veces al año o cuando algo se aleje más del 5% de tu objetivo."
+      },
+      "fund": {
+        "title": "Flujo de Caja Libre",
+        "body": "Las ganancias se pueden manipular contablemente. El Free Cash Flow no miente — es el dinero real que entra a la caja de la empresa.",
+        "tip": "Busca empresas cuyo FCF crezca más rápido que sus ingresos."
+      },
+      "horizonte": {
+        "title": "Horizonte de Inversión",
+        "body": "El mercado cae 10-20% una vez cada 1-2 años. Pero en 10+ años, el S&P 500 nunca ha perdido dinero. Tu horizonte determina cuánto riesgo puedes absorber.",
+        "tip": "¿Necesitas el dinero en menos de 3 años? No debería estar en acciones."
+      },
+      "fomo": {
+        "title": "FOMO Financiero",
+        "body": "El Fear Of Missing Out te hace comprar en máximos. El FOMO es la señal más confiable de que un activo está sobrevalorado. El mejor momento es cuando nadie habla de él.",
+        "tip": "Si lo ves en noticias masivas y WhatsApp de familia — cuidado."
+      },
+      "etf": {
+        "title": "ETFs vs Acciones",
+        "body": "Un ETF replica un índice completo. El 90% de los gestores activos NO superan al índice en 15 años. Los ETFs son el punto de partida inteligente.",
+        "tip": "Empieza con ETFs amplios. Agrega acciones individuales solo cuando entiendas el negocio."
+      },
+      "comprar_negocios": {
+        "title": "Compra Negocios",
+        "body": "Antes de comprar una acción: ¿entiendo cómo gana dinero esta empresa? ¿Seguiría comprando si el mercado cerrara 5 años?",
+        "tip": "Warren Buffett solo invierte en lo que puede entender en 5 minutos."
+      },
+      "bull_bear": {
+        "title": "Las Caídas son Normales",
+        "body": "Desde 1950, el S&P 500 ha caído más del 10% una vez al año en promedio. A pesar de eso, multiplicó por 200x. Las caídas son el precio de los rendimientos.",
+        "tip": "Guarda una lista de empresas que quieras comprar cuando caigan."
+      },
+      "concentracion": {
+        "title": "Riesgo de Concentración",
+        "body": "Más del 20% en una sola empresa o más del 40% en un sector es concentración alta. Si esa empresa colapsa, tu portafolio colapsa.",
+        "tip": "Calcula tu posición más grande. ¿Es mayor al 20% de tu portafolio?"
+      }
     },
     "onboarding": {
       "step1Title": "Agrega tu primera posición",
@@ -220,7 +379,12 @@
       "updatedAgo": "Hace {{time}}",
       "best": "★ MEJOR",
       "sentiment": "Sentimiento de mercado",
-      "sentimentLabels": { "calm": "Calma", "normal": "Normal", "cautious": "Cauteloso", "highVolatility": "Alta volatilidad" }
+      "sentimentLabels": {
+        "calm": "Calma",
+        "normal": "Normal",
+        "cautious": "Cauteloso",
+        "highVolatility": "Alta volatilidad"
+      }
     },
     "lessonCard": {
       "completedToday": "Completada hoy",
@@ -305,26 +469,60 @@
       },
       "allocations": {
         "conservative": [
-          { "label": "Renta fija / Bonos" },
-          { "label": "Acciones defensivas" },
-          { "label": "Liquidez / Oro" }
+          {
+            "label": "Renta fija / Bonos"
+          },
+          {
+            "label": "Acciones defensivas"
+          },
+          {
+            "label": "Liquidez / Oro"
+          }
         ],
         "moderate": [
-          { "label": "Acciones diversificadas" },
-          { "label": "Renta fija" },
-          { "label": "Alternativos / REITs" }
+          {
+            "label": "Acciones diversificadas"
+          },
+          {
+            "label": "Renta fija"
+          },
+          {
+            "label": "Alternativos / REITs"
+          }
         ],
         "aggressive": [
-          { "label": "Acciones de crecimiento" },
-          { "label": "Mercados emergentes" },
-          { "label": "Renta fija mínima" }
+          {
+            "label": "Acciones de crecimiento"
+          },
+          {
+            "label": "Mercados emergentes"
+          },
+          {
+            "label": "Renta fija mínima"
+          }
         ]
       },
-      "metricsLabels": { "volatility": "Volatilidad", "expectedReturn": "Retorno esperado", "idealHorizon": "Horizonte ideal" },
+      "metricsLabels": {
+        "volatility": "Volatilidad",
+        "expectedReturn": "Retorno esperado",
+        "idealHorizon": "Horizonte ideal"
+      },
       "metrics": {
-        "conservative": { "volatility": "Baja", "expectedReturn": "4–7% anual", "idealHorizon": "1–5 años" },
-        "moderate": { "volatility": "Media", "expectedReturn": "7–10% anual", "idealHorizon": "5–10 años" },
-        "aggressive": { "volatility": "Alta", "expectedReturn": "10–15%+ anual", "idealHorizon": "10+ años" }
+        "conservative": {
+          "volatility": "Baja",
+          "expectedReturn": "4–7% anual",
+          "idealHorizon": "1–5 años"
+        },
+        "moderate": {
+          "volatility": "Media",
+          "expectedReturn": "7–10% anual",
+          "idealHorizon": "5–10 años"
+        },
+        "aggressive": {
+          "volatility": "Alta",
+          "expectedReturn": "10–15%+ anual",
+          "idealHorizon": "10+ años"
+        }
       },
       "etfsLabel": "ETFs típicos: "
     },
@@ -359,21 +557,54 @@
         "q5": "¿Con qué frecuencia revisas el mercado?"
       },
       "riskOptions": {
-        "conservative": { "label": "Conservador", "desc": "Priorizo no perder dinero sobre ganar" },
-        "moderate": { "label": "Moderado", "desc": "Balance entre crecimiento y estabilidad" },
-        "aggressive": { "label": "Agresivo", "desc": "Acepto alta volatilidad buscando mayor retorno" }
+        "conservative": {
+          "label": "Conservador",
+          "desc": "Priorizo no perder dinero sobre ganar"
+        },
+        "moderate": {
+          "label": "Moderado",
+          "desc": "Balance entre crecimiento y estabilidad"
+        },
+        "aggressive": {
+          "label": "Agresivo",
+          "desc": "Acepto alta volatilidad buscando mayor retorno"
+        }
       },
       "quizLabels": {
-        "q1": { "A": "Vende ante caídas", "B": "Espera sin actuar", "C": "Analiza y mantiene", "D": "Compra las caídas" },
-        "q2": { "A": "Menos de 2 años", "B": "3–5 años", "C": "10+ años", "D": "Largo plazo, sin prisa" },
-        "q5": { "A": "Automático / pasivo", "B": "Revisión mensual", "C": "Revisión semanal", "D": "Gestión diaria" }
+        "q1": {
+          "A": "Vende ante caídas",
+          "B": "Espera sin actuar",
+          "C": "Analiza y mantiene",
+          "D": "Compra las caídas"
+        },
+        "q2": {
+          "A": "Menos de 2 años",
+          "B": "3–5 años",
+          "C": "10+ años",
+          "D": "Largo plazo, sin prisa"
+        },
+        "q5": {
+          "A": "Automático / pasivo",
+          "B": "Revisión mensual",
+          "C": "Revisión semanal",
+          "D": "Gestión diaria"
+        }
       }
     },
     "level": {
       "sectionTitle": "Nivel de conocimiento",
-      "basic": { "label": "Básico", "desc": "Conozco lo básico" },
-      "intermediate": { "label": "Intermedio", "desc": "Tengo experiencia" },
-      "advanced": { "label": "Avanzado", "desc": "Análisis profundo" }
+      "basic": {
+        "label": "Básico",
+        "desc": "Conozco lo básico"
+      },
+      "intermediate": {
+        "label": "Intermedio",
+        "desc": "Tengo experiencia"
+      },
+      "advanced": {
+        "label": "Avanzado",
+        "desc": "Análisis profundo"
+      }
     },
     "referral": {
       "sectionTitle": "Invita amigos",
@@ -393,7 +624,13 @@
       "sectionTitle": "Pantalla de inicio",
       "modalTitle": "¿Qué pantalla ver primero?",
       "modalSubtitle": "Cada vez que abras la app irás directo ahí.",
-      "options": { "home": "Inicio", "patrimonio": "Patrimonio", "chat": "Mentor IA", "notifications": "Notificaciones", "academy": "Academy" }
+      "options": {
+        "home": "Inicio",
+        "patrimonio": "Patrimonio",
+        "chat": "Mentor IA",
+        "notifications": "Notificaciones",
+        "academy": "Academy"
+      }
     },
     "products": {
       "sectionTitle": "Productos y Servicios",
@@ -449,6 +686,681 @@
       "viewTutorial": "Ver tutorial de la app",
       "logout": "Cerrar sesión",
       "deleteAccount": "Eliminar mi cuenta"
+    }
+  },
+  "watchlist": {
+    "tabs": {
+      "watchlist": "Watchlist",
+      "videos": "Videos"
+    },
+    "marketState": {
+      "live": "En vivo",
+      "preMkt": "Pre-Mkt",
+      "postMkt": "Post-Mkt",
+      "closed": "Cerrado"
+    },
+    "row": {
+      "vsPrevClose": "vs cierre anterior",
+      "regShort": "Reg.",
+      "close": "Cierre",
+      "prePrefix": "Pre",
+      "postPrefix": "Post"
+    },
+    "search": {
+      "placeholder": "Busca ticker: NVDA, AAPL, TSLA…"
+    },
+    "tier": {
+      "label": "{{count}}/{{limit}} acciones",
+      "upgrade": "Actualizar a Premium →"
+    },
+    "empty": {
+      "title": "Tu Watchlist está vacía",
+      "subtitle": "Busca un ticker arriba y agrégalo para seguirlo en tiempo real"
+    },
+    "sort": {
+      "gainers": "Suben",
+      "losers": "Caen"
+    },
+    "edit": {
+      "done": "Listo",
+      "reorder": "Ordenar"
+    },
+    "viewMode": {
+      "basic": "Básico",
+      "advanced": "Avanzado"
+    },
+    "videos": {
+      "recentTitle": "Videos recientes",
+      "empty": "No hay videos disponibles"
+    },
+    "alertModal": {
+      "title": "Alerta de precio",
+      "currentPrice": "Precio actual:",
+      "below": "Por debajo",
+      "above": "Por encima",
+      "placeholder": "Precio objetivo (ej. 180.00)",
+      "save": "Guardar alerta"
+    },
+    "alerts": {
+      "alreadyAdded": {
+        "title": "Ya está en tu Watchlist",
+        "message": "{{ticker}} ya está agregado."
+      }
+    },
+    "tour": {
+      "title": "Busca una acción para seguir",
+      "description": "Escribe el ticker o nombre de la empresa — ej. AAPL o Tesla. Nuvos te avisará cuando haya movimientos importantes."
+    }
+  },
+  "patrimonio": {
+    "common": {
+      "totalValue": "Valor Total"
+    },
+    "tabs": {
+      "portfolio": "Portafolio",
+      "watchlist": "Watchlist",
+      "simulator": "Simulador"
+    },
+    "header": {
+      "subtitle": "Mi dinero"
+    },
+    "progressCard": {
+      "title": "Tu evolución como inversionista",
+      "subtitle": "Hitos, patrimonio y decisiones que evitaron errores"
+    },
+    "portfolioTab": {
+      "dayGain": "Ganancia Día",
+      "totalGain": "Ganancia Total",
+      "positions": "Posiciones ({{count}})",
+      "empty": "No tienes posiciones aún",
+      "sharesAvgLabel": "{{shares}} acc · ${{avgPrice}} prom.",
+      "viewFull": "Ver portafolio completo →"
+    },
+    "watchlistTab": {
+      "title": "Watchlist ({{count}})",
+      "empty": "Tu watchlist está vacía",
+      "viewFull": "Ver watchlist completa →"
+    },
+    "simuladorTab": {
+      "cash": "Efectivo",
+      "gainVsInitial": "Ganancia vs capital inicial",
+      "positionsTitle": "Posiciones Paper ({{count}})",
+      "empty": "No tienes posiciones paper",
+      "open": "Abrir simulador →"
+    }
+  },
+  "progress": {
+    "metrics": {
+      "sinceFirstInvestment": "Desde tu primera inversión",
+      "timeUsingNuvos": "Tiempo usando Nuvos",
+      "totalOperations": "Operaciones realizadas",
+      "capitalInvested": "Capital invertido",
+      "currentPatrimonio": "Patrimonio actual",
+      "cumulativeReturn": "Retorno acumulado",
+      "bestYear": "Mejor año ({{year}})",
+      "worstYear": "Año más difícil ({{year}})",
+      "consecutiveMonths": "Meses seguidos aportando"
+    },
+    "paywall": {
+      "title": "Tu evolución como inversionista",
+      "description": "Nuvos guarda tu historia completa como inversor — hitos, patrimonio, decisiones que evitaron errores. Entre más tiempo te quedes, más vale.",
+      "cta": "Activar Premium"
+    },
+    "empty": {
+      "title": "Aún estamos construyendo tu historial.",
+      "subtitle": "Sigue invirtiendo y usando Nuvos — tu evolución aparecerá aquí."
+    },
+    "benchmark": {
+      "sectionTitle": "CÓMO TE COMPARAS",
+      "beats": "Superas al {{percentile}}%",
+      "profileConnector": "de inversionistas con perfil",
+      "inMetricSuffix": "en {{metric}}.",
+      "anonymousNote": "Comparado de forma anónima contra {{count}} inversionistas — nunca vemos ni compartimos datos individuales de nadie."
+    },
+    "milestones": {
+      "sectionTitle": "HITOS"
+    },
+    "decisions": {
+      "sectionTitle": "DECISIONES QUE EVITARON ERRORES COSTOSOS"
+    }
+  },
+  "explore": {
+    "weeklyPicks": {
+      "title": "Picks de la Semana",
+      "premiumBadge": "PREMIUM",
+      "catalyst": "⚡ CATALIZADOR",
+      "risk": "⚠️ RIESGO",
+      "mentorNote": "🎓 NOTA DE TU MENTOR"
+    },
+    "search": {
+      "placeholder": "ej. tech con P/E bajo y dividendo…",
+      "button": "Buscar"
+    },
+    "aiInsight": {
+      "title": "Análisis AI"
+    },
+    "loading": "Analizando mercado…",
+    "empty": {
+      "title": "Explora el mercado",
+      "subtitle": "Filtra por sector o escribe lo que buscas"
+    },
+    "noResults": "Sin resultados",
+    "paywallReason": "Activa Premium para ver los picks personalizados de la semana.",
+    "recom": {
+      "strongBuy": "Compra fuerte",
+      "buy": "Compra",
+      "hold": "Mantener",
+      "sell": "Vender",
+      "strongSell": "Venta fuerte"
+    },
+    "card": {
+      "marginLabel": "Mg"
+    },
+    "watchBtn": {
+      "inWatchlist": "En watchlist",
+      "add": "Agregar watchlist"
+    }
+  },
+  "portfolio": {
+    "sectors": {
+      "semiconductors": "Semiconductores",
+      "software": "Software",
+      "technology": "Tecnología",
+      "ai": "Inteligencia Artificial",
+      "fintech": "Fintech",
+      "ecommerce": "eCommerce",
+      "consumerDiscretionary": "Consumo Discrecional",
+      "consumerStaples": "Consumo Básico",
+      "health": "Salud",
+      "pharma": "Farmacéutica",
+      "biotech": "Biotecnología",
+      "financial": "Financiero",
+      "banking": "Bancario",
+      "insurance": "Seguros",
+      "energy": "Energía",
+      "renewableEnergy": "Energía Renovable",
+      "utilities": "Servicios Públicos",
+      "industrials": "Industriales",
+      "aerospace": "Aeroespacial",
+      "logistics": "Logística",
+      "materials": "Materiales",
+      "telecom": "Telecomunicaciones",
+      "media": "Medios",
+      "realEstate": "Real Estate",
+      "crypto": "Cripto",
+      "etf": "ETF",
+      "other": "Otro"
+    },
+    "riskLevels": {
+      "conservative": "Conservador",
+      "conservativeModerate": "Conservador-Moderado",
+      "moderate": "Moderado",
+      "moderateGrowth": "Moderado-Growth",
+      "growth": "Growth",
+      "aggressive": "Agresivo",
+      "aggressiveSpeculative": "Agresivo-Especulativo",
+      "speculative": "Especulativo"
+    },
+    "stressScenarios": {
+      "hypotheticalYear": "Hipotético",
+      "y1929": {
+        "name": "Gran Depresión",
+        "desc": "El mayor colapso bursátil de la historia, -89% en 3 años"
+      },
+      "ww2_1938": {
+        "name": "Pre-WWII",
+        "desc": "Tensión global previa a la Segunda Guerra Mundial"
+      },
+      "oil1973": {
+        "name": "Crisis del Petróleo",
+        "desc": "Embargo árabe dispara inflación, S&P cae -48%"
+      },
+      "stagflation1980": {
+        "name": "Estanflación '80",
+        "desc": "Fed sube tasas al 20%, recesión severa"
+      },
+      "black_monday": {
+        "name": "Lunes Negro",
+        "desc": "Mayor caída en un solo día: -22.6% en 24 horas"
+      },
+      "gulf1990": {
+        "name": "Guerra del Golfo",
+        "desc": "Invasión de Kuwait, recesión y petróleo dispara precios"
+      },
+      "asian1997": {
+        "name": "Crisis Asiática",
+        "desc": "Colapso monedas asiáticas, contagio global"
+      },
+      "ltcm1998": {
+        "name": "Crisis LTCM",
+        "desc": "Colapso de hedge fund sistémico, Fed interviene"
+      },
+      "dotcom": {
+        "name": "Burbuja .com",
+        "desc": "Colapso de valuaciones tech, Nasdaq -78%"
+      },
+      "sept11": {
+        "name": "9/11",
+        "desc": "Ataques terroristas cierran NYSE 4 días, caída abrupta"
+      },
+      "y2008": {
+        "name": "Crisis 2008",
+        "desc": "Colapso del sistema financiero global"
+      },
+      "euro_debt2011": {
+        "name": "Crisis Euro",
+        "desc": "Grecia, España e Italia al borde del colapso soberano"
+      },
+      "china2015": {
+        "name": "Crash China",
+        "desc": "Devaluación yuan y desplome mercado chino, contagio global"
+      },
+      "volmageddon2018": {
+        "name": "Volmageddon",
+        "desc": "Explosión de productos de volatilidad corta, caída de VIX"
+      },
+      "trade_war2018": {
+        "name": "Guerra Comercial",
+        "desc": "Aranceles EE.UU.–China sacuden mercados globales"
+      },
+      "covid": {
+        "name": "COVID-19",
+        "desc": "Crash de 33 días, caída brusca y rápida"
+      },
+      "tech2022": {
+        "name": "Tech Crash '22",
+        "desc": "Alza de tasas aplasta valuaciones tech"
+      },
+      "svb2023": {
+        "name": "Crisis SVB",
+        "desc": "Quiebra de Silicon Valley Bank, pánico bancario regional"
+      },
+      "ai_bubble2025": {
+        "name": "Corrección IA '25",
+        "desc": "Valuaciones de IA sobrecalentadas, corrección del Nasdaq"
+      },
+      "fed": {
+        "name": "Fed +1%",
+        "desc": "Subida sorpresiva de 100pb en tasas de la Fed"
+      },
+      "china_taiwan": {
+        "name": "Conflicto Taiwán",
+        "desc": "Tensión militar China-Taiwán interrumpe semiconductores"
+      },
+      "recession_mild": {
+        "name": "Recesión Leve",
+        "desc": "GDP cae 2 trimestres, desempleo sube moderadamente"
+      },
+      "bull": {
+        "name": "Bull Market",
+        "desc": "Año de recuperación y euforia inversora"
+      }
+    },
+    "eras": {
+      "all": "Todos",
+      "pre1950": "Hasta 1950",
+      "mid_century": "1950–1990",
+      "late_xx": "1990–2005",
+      "y2000s": "2005–2015",
+      "recent": "2015–Hoy",
+      "hypothetical": "Hipotéticos"
+    },
+    "goalLabels": {
+      "emergency_fund": "Fondo de emergencia",
+      "big_purchase": "Compra importante",
+      "retirement": "Retiro / pensión",
+      "independence": "Independencia financiera",
+      "default": "Mi meta"
+    },
+    "switcher": {
+      "newPortfolio": "+ Nuevo",
+      "lockedPortfolio": "🔒 + Portafolio",
+      "deleteTitle": "Eliminar \"{{name}}\"",
+      "deleteMessage": "¿Estás seguro?"
+    },
+    "sync": {
+      "title": "Portafolio en la nube",
+      "saving": "Guardando...",
+      "error": "⚠ Error al guardar",
+      "savedChecked": "✓ Guardado {{time}}",
+      "saved": "Guardado {{time}}",
+      "allDevices": "Sincronizado en todos tus dispositivos"
+    },
+    "clear": {
+      "button": "Vaciar",
+      "title": "Vaciar portafolio",
+      "message": "¿Eliminar las {{count}} posiciones? Esta acción no se puede deshacer.",
+      "confirm": "Vaciar todo"
+    },
+    "importSteps": {
+      "toggle": "¿Cómo importar tu portafolio por captura?",
+      "steps": [
+        "Ve a tu broker (Robinhood, IBKR, Schwab, etc.)",
+        "Ingresa a la sección de tu portafolio",
+        "Toma una captura de pantalla de todas tus posiciones",
+        "Toca \"Importar captura\" aquí en Nuvos AI y selecciona la imagen",
+        "¡Listo! Tu portafolio quedará sincronizado en todos tus dispositivos"
+      ]
+    },
+    "buttons": {
+      "addPosition": "Agregar posición",
+      "importScreenshot": "Importar captura",
+      "analyzing": "Analizando...",
+      "connectBroker": "Conectar broker",
+      "brokerBadgeConnected": "IBKR · IOL · Schwab",
+      "premium": "Premium"
+    },
+    "preview": {
+      "detected": "{{count}} posiciones detectadas",
+      "fromCaptures": "De {{count}} capturas · ",
+      "addPriceHint": "Agrega el precio de compra de cada posición",
+      "warning": "⚠ No usamos el precio de la foto — puede ser incorrecto en acciones fraccionadas. Búscalo en tu broker bajo \"precio promedio\" o \"average cost\".",
+      "avgPriceLabel": "Precio promedio ({{currency}})",
+      "avgPricePlaceholderUSD": "ej. 223.00",
+      "avgPricePlaceholder": "ej. {{value}}",
+      "purchaseDateLabel": "Fecha compra",
+      "optional": "(opcional)",
+      "datePlaceholder": "AAAA-MM-DD",
+      "confirmAdd": "✓ Agregar {{count}} posiciones",
+      "sharesAbbrev": "acc"
+    },
+    "form": {
+      "title": "Nueva posición manual",
+      "tickerPlaceholder": "Ticker (ej. AAPL)",
+      "sharesPlaceholder": "Acciones",
+      "priceUSDPlaceholder": "Precio (USD)",
+      "pricePlaceholder": "Precio ({{currency}})",
+      "add": "Agregar",
+      "incompleteFields": "Completa todos los campos"
+    },
+    "demo": {
+      "badge": "Así funciona Nuvos AI",
+      "notifPrefix": "Tu NVIDIA subió",
+      "notifSuffix": "esta semana",
+      "notifBody": "Jensen Huang anunció nuevos chips para centros de datos IA, impulsando la demanda institucional. Tu portafolio se beneficia directamente por tu posición en NVDA.",
+      "samplePortfolio": "Portafolio de ejemplo",
+      "sharesAbbrev": "acc",
+      "total": "Total",
+      "question": "¿Tienes acciones o fondos invertidos?",
+      "questionSub": "Así Nuvos AI sabe cómo ayudarte desde el primer momento.",
+      "options": {
+        "hasPortfolio": {
+          "title": "Sí, ya tengo portafolio",
+          "sub": "Agrego mis posiciones para que Nuvos AI las analice"
+        },
+        "hasCash": {
+          "title": "Tengo dinero para invertir",
+          "sub": "Aún no tengo cuenta en un broker"
+        },
+        "wantsToLearn": {
+          "title": "Solo quiero aprender",
+          "sub": "Explorar con el portafolio de ejemplo"
+        }
+      }
+    },
+    "empty": {
+      "title": "Sin posiciones todavía",
+      "desc": "Toma una captura de tu portafolio y la IA lo importa automáticamente"
+    },
+    "priceErrorBanner": "Sin conexión — precios desactualizados",
+    "totals": {
+      "label": "Valor actual del portafolio",
+      "shareMessage": "Mi portafolio en Nuvos AI: {{value}} ({{sign}}{{pct}}%) 📈\n\nAnalizo mis inversiones con IA. Pruébalo en nuvosai.com",
+      "invested": "Total Invertido",
+      "since": "desde {{date}}",
+      "vsSp": "vs S&P"
+    },
+    "chart": {
+      "historical": "Rendimiento histórico",
+      "onThisDate": "En esta fecha",
+      "since": "desde {{date}}",
+      "vsSp500": "vs S&P 500",
+      "better": "mejor",
+      "worse": "peor",
+      "loadingHistory": "Cargando datos históricos...",
+      "noHistory": "Sin datos históricos para este período",
+      "source": "Yahoo Finance · ajustado por splits y dividendos"
+    },
+    "periods": {
+      "purchase": "Compra",
+      "d1": "1D",
+      "d5": "5D",
+      "mo1": "1M",
+      "mo3": "3M",
+      "mo6": "6M",
+      "ytd": "YTD",
+      "y1": "1A",
+      "y3": "3A",
+      "y5": "5A",
+      "max": "MÁX"
+    },
+    "goal": {
+      "title": "META FINANCIERA",
+      "reachedBadge": "¡Alcanzada!",
+      "completed": "completado",
+      "accumulated": "acumulados",
+      "reachedFull": "Meta alcanzada 🎉",
+      "remaining": "Faltan",
+      "target": "Meta:",
+      "rateNote": "A tasa del {{rate}}/año (histórico), llegas en {{time}}",
+      "timeMonths": "{{count}} meses",
+      "timeYearHalf": "~1 año y medio",
+      "timeYears": "~{{count}} años"
+    },
+    "table": {
+      "position": "posición",
+      "positionsPlural": "posiciones",
+      "sortReturn": "Rentabilidad",
+      "sortInvested": "Invertido",
+      "sortPrice": "Precio",
+      "colStock": "Acción",
+      "colValue": "Valor",
+      "colGain": "Ganancia",
+      "investedShort": "inv."
+    },
+    "stressTest": {
+      "title": "Stress Test de Portafolio",
+      "subtitle": "¿Cuánto aguantaría tu portafolio en una crisis histórica?",
+      "impactTotal": "Impacto total estimado",
+      "disclaimer": "Estimación basada en datos históricos. No garantiza resultados futuros.",
+      "unlockTitle": "Desbloquea el Stress Test",
+      "unlockDesc": "Simula crisis históricas y ve el impacto real en tu portafolio",
+      "unlockBtn": "Ir a Premium",
+      "sampleTitle": "💥 Crisis 2008 — Caída hipotecaria",
+      "sampleSector": "Tecnología"
+    },
+    "analysis": {
+      "noResultTitle": "Sin resultado",
+      "noResultBody": "La IA no devolvió un análisis válido. Intenta de nuevo.",
+      "limitTitle": "Límite alcanzado",
+      "limitBody": "Demasiadas solicitudes. Espera un momento e intenta de nuevo.",
+      "errorTitle": "Error al analizar",
+      "errorBody": "No se pudo completar el análisis ({{status}}: {{detail}}). Intenta de nuevo.",
+      "unknownConn": "red",
+      "noDetail": "sin detalle"
+    },
+    "calculator": {
+      "title": "Calculadora de Inversión",
+      "subtitle": "¿Cuánto tendrás si inviertes X a Y% por Z años?",
+      "initialCapital": "Capital inicial (USD)",
+      "monthlyContribution": "Aportación mensual (USD)",
+      "monthlyPlaceholder": "500 (opcional)",
+      "annualReturn": "Rendimiento anual (%)",
+      "term": "Plazo (años)",
+      "calculate": "Calcular",
+      "finalValue": "Valor final en {{years}} {{unit}}",
+      "yearSingular": "año",
+      "yearPlural": "años",
+      "multiplierBadge": "×{{x}} tu dinero",
+      "returnBadge": "+{{pct}}% retorno",
+      "invested": "Invertido",
+      "gains": "Ganancias",
+      "realValue": "Valor real*",
+      "chartTitle": "Invertido vs Retorno por año",
+      "legendInvested": "Invertido",
+      "legendReturns": "Retorno",
+      "legendProjection": "Opaco = proyección",
+      "disclaimer": "Interés compuesto mensual. *Valor real descontando 3.5% inflación anual. Rendimientos pasados no garantizan futuros."
+    },
+    "riskDiagnosis": {
+      "positionsInSector": "Posiciones · {{sector}}",
+      "close": "✕ cerrar",
+      "conservativeLabel": "Conservador",
+      "speculativeLabel": "Especulativo"
+    },
+    "modals": {
+      "newPortfolio": {
+        "title": "Nuevo portafolio",
+        "namePlaceholder": "Nombre del portafolio…",
+        "creating": "Creando…",
+        "create": "Crear",
+        "errorTitle": "Error",
+        "errorMsg": "No se pudo crear el portafolio. Inténtalo de nuevo."
+      },
+      "renamePortfolio": {
+        "title": "Editar nombre",
+        "namePlaceholder": "Nombre del portafolio…"
+      },
+      "editPosition": {
+        "title": "Editar posición",
+        "sharesLabel": "Acciones / unidades",
+        "sharesPlaceholder": "Ej: 10",
+        "avgPriceLabel": "Precio promedio de compra ({{currency}})",
+        "avgPricePlaceholderUSD": "Ej: 150.00",
+        "avgPricePlaceholder": "Ej: {{value}}",
+        "approxUSD": "≈ ${{value}} USD",
+        "purchaseDateLabel": "Fecha de compra (YYYY-MM-DD)",
+        "salePriceLabel": "Precio de venta ({{currency}})",
+        "save": "Guardar cambios",
+        "sharesChangedTitle": "Bajaste de {{from}} a {{to}} acciones",
+        "sharesChangedMsg": "¿Vendiste esas acciones o es una corrección de captura?",
+        "isCorrection": "Es corrección",
+        "soldShares": "Vendí acciones",
+        "missingPriceTitle": "Falta el precio",
+        "missingPriceMsg": "Ingresa el precio al que vendiste las acciones.",
+        "confirmSaveTitle": "¿Guardar cambios?",
+        "confirmSaveDetail": "{{shares}} acciones · precio promedio {{price}}",
+        "confirmSaveSaleSuffix": " · vendiste {{shares}} a {{price}}"
+      },
+      "sellConfirm": {
+        "title": "Vender {{ticker}}",
+        "message": "Vas a eliminar tus {{shares}} acciones de {{ticker}}. ¿A qué precio las vendiste?",
+        "salePriceLabel": "Precio de venta ({{currency}})",
+        "useMarketPrice": "Usar precio actual de mercado",
+        "saving": "Guardando...",
+        "confirm": "Confirmar venta"
+      },
+      "currencyPicker": {
+        "title": "Moneda del portafolio",
+        "subtitle": "Los precios de mercado se convierten automáticamente en tiempo real.",
+        "close": "Cerrar"
+      },
+      "importCurrency": {
+        "title": "¿En qué moneda está tu portafolio?",
+        "subtitle": "Los precios se mostrarán en la moneda que elijas. Los precios de mercado en tiempo real se convierten automáticamente.",
+        "converting": "Convirtiendo...",
+        "importIn": "Importar en {{currency}}"
+      },
+      "screenshotPermissionTitle": "Permiso requerido",
+      "screenshotPermissionMsg": "Necesitamos acceso a tu galería para leer la captura de pantalla.",
+      "noPositionsDetectedTitle": "Sin posiciones detectadas",
+      "noPositionsDetectedMsg": "No se encontraron posiciones en las imágenes. Intenta con capturas más claras.",
+      "screenshotErrorTitle": "Error",
+      "screenshotErrorMsg": "No se pudieron analizar las imágenes. Verifica que el backend esté corriendo.",
+      "existingPositionsTitle": "Ya tienes posiciones guardadas",
+      "existingPositionsCount": "Tienes {{count}} posición{{suffix}} en tu portafolio.\n\n",
+      "existingPositionsNew": "Se agregarán {{count}} nueva{{suffix}} (las duplicadas se ignoran).",
+      "existingPositionsAllDupes": "Todas las posiciones de la foto ya están en tu portafolio.",
+      "replaceAll": "Eliminar y reemplazar",
+      "keepAndAdd": "Mantener y agregar",
+      "existingPositionsSuffix": "es",
+      "existingPositionsNewSuffix": "s"
+    },
+    "currencyNames": {
+      "usd": "Dólar",
+      "mxn": "Peso MX",
+      "eur": "Euro",
+      "gbp": "Libra",
+      "ars": "Peso AR",
+      "brl": "Real",
+      "cop": "Peso CO",
+      "clp": "Peso CL",
+      "pen": "Sol",
+      "jpy": "Yen"
+    },
+    "paywallReason": "Más de 10 posiciones requiere Premium",
+    "tour": {
+      "title": "Agrega tu primera posición",
+      "description": "Toca el botón verde para registrar las acciones que ya tienes. Nuvos calculará tu rendimiento en tiempo real."
+    },
+    "tabs": {
+      "myPortfolio": "Mi Portafolio",
+      "tools": "Herramientas"
+    },
+    "premiumTools": {
+      "title": "Herramientas Premium",
+      "subtitle": "Análisis avanzado de tu portafolio",
+      "monthlyReport": {
+        "title": "Reporte Mensual",
+        "tagline": "Tu portafolio analizado con IA cada mes",
+        "description": "Genera un reporte profesional con rendimiento vs S&P 500, Sharpe ratio, volatilidad, mejores y peores posiciones del mes y nota personal de tu mentor.",
+        "benefits": [
+          "Rendimiento real vs S&P 500 y benchmarks",
+          "Sharpe ratio, volatilidad y drawdown máximo",
+          "Nota personalizada de tu mentor cada mes",
+          "3 acciones concretas para el mes siguiente"
+        ]
+      },
+      "weeklyScreener": {
+        "title": "Screener Semanal",
+        "tagline": "5 oportunidades personalizadas cada lunes",
+        "description": "Cada lunes la IA escanea el mercado y selecciona 5 oportunidades que encajan con tu perfil de riesgo, filosofía de tu mentor y los huecos en tu portafolio.",
+        "benefits": [
+          "Filtradas por tu perfil de riesgo y mentor",
+          "Catalizador concreto y riesgo por cada pick",
+          "Nunca te sugiere lo que ya tienes",
+          "Se actualiza cada lunes automáticamente"
+        ]
+      }
+    },
+    "screenshot": {
+      "analyzingWithAI": "Analizando con IA...",
+      "analyzingProgress": "Analizando {{current}} de {{total}}..."
+    },
+    "editSave": {
+      "title": "¿Guardar cambios?",
+      "body": "{{shares}} acciones · precio promedio {{price}}{{saleSuffix}}",
+      "soldSuffix": "vendiste {{shares}} a {{price}}"
+    },
+    "paywall": {
+      "over10PositionsReason": "Más de 10 posiciones requiere Premium"
+    },
+    "editSale": {
+      "title": "Bajaste de {{from}} a {{to}} acciones",
+      "body": "¿Vendiste esas acciones o es una corrección de captura?",
+      "correction": "Es corrección",
+      "sold": "Vendí acciones",
+      "missingPriceTitle": "Falta el precio",
+      "missingPriceBody": "Ingresa el precio al que vendiste las acciones."
+    },
+    "currencyModal": {
+      "title": "Moneda del portafolio",
+      "subtitle": "Los precios de mercado se convierten automáticamente en tiempo real."
+    },
+    "importCurrencyModal": {
+      "title": "¿En qué moneda está tu portafolio?",
+      "subtitle": "Los precios se mostrarán en la moneda que elijas. Los precios de mercado en tiempo real se convierten automáticamente.",
+      "converting": "Convirtiendo...",
+      "importIn": "Importar en {{currency}}"
+    },
+    "eraFilters": {
+      "all": "Todos",
+      "pre1950": "Hasta 1950",
+      "recent": "2015–Hoy",
+      "hypothetical": "Hipotéticos"
+    },
+    "calc": {
+      "finalValueIn": "Valor final en {{years}} {{unit}}"
     }
   }
 }

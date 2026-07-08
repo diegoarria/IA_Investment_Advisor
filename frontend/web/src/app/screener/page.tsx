@@ -7,6 +7,8 @@ import PaywallModal from "@/components/PaywallModal";
 import { screenerApi } from "@/lib/api";
 import { useSubscriptionStore, useProfileStore } from "@/lib/store";
 import { getUserLevel, isAtLeast } from "@/lib/userLevel";
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 
 interface Pick {
   ticker: string;
@@ -27,25 +29,29 @@ interface WeeklyData {
   generated_at?: string;
 }
 
-const ETF_BY_RISK: Record<string, { ticker: string; name: string; desc: string; color: string }[]> = {
-  conservative: [
-    { ticker: "BND",  name: "Vanguard Total Bond Market", desc: "Bonos de EE.UU. de alta calidad. Muy estable, bajo riesgo.", color: "#3b82f6" },
-    { ticker: "VTI",  name: "Vanguard Total Stock Market", desc: "Todo el mercado estadounidense en un solo ETF. La base de cualquier portafolio.", color: "#00a85e" },
-    { ticker: "BNDX", name: "Vanguard Total Intl Bond",    desc: "Bonos internacionales para diversificar fuera de EE.UU.", color: "#6366f1" },
-  ],
-  moderate: [
-    { ticker: "VTI",  name: "Vanguard Total Stock Market", desc: "Todo el mercado estadounidense. El ETF más recomendado para principiantes.", color: "#00a85e" },
-    { ticker: "VXUS", name: "Vanguard Total Intl Stock",   desc: "Acciones internacionales para equilibrar tu exposición global.", color: "#f59e0b" },
-    { ticker: "BND",  name: "Vanguard Total Bond Market",  desc: "Componente de bonos para reducir la volatilidad del portafolio.", color: "#3b82f6" },
-  ],
-  aggressive: [
-    { ticker: "QQQ",  name: "Invesco Nasdaq-100",          desc: "Las 100 empresas más innovadoras del Nasdaq. Alto crecimiento, más volatilidad.", color: "#8b5cf6" },
-    { ticker: "VTI",  name: "Vanguard Total Stock Market", desc: "Base sólida del mercado completo americano.", color: "#00a85e" },
-    { ticker: "VWO",  name: "Vanguard Emerging Markets",   desc: "Mercados emergentes con alto potencial de crecimiento a largo plazo.", color: "#f59e0b" },
-  ],
-};
+function getEtfByRisk(t: TFunction): Record<string, { ticker: string; name: string; desc: string; color: string }[]> {
+  return {
+    conservative: [
+      { ticker: "BND",  name: "Vanguard Total Bond Market", desc: t("screener.etf.descriptions.conservative.bnd"), color: "#3b82f6" },
+      { ticker: "VTI",  name: "Vanguard Total Stock Market", desc: t("screener.etf.descriptions.conservative.vti"), color: "#00a85e" },
+      { ticker: "BNDX", name: "Vanguard Total Intl Bond",    desc: t("screener.etf.descriptions.conservative.bndx"), color: "#6366f1" },
+    ],
+    moderate: [
+      { ticker: "VTI",  name: "Vanguard Total Stock Market", desc: t("screener.etf.descriptions.moderate.vti"), color: "#00a85e" },
+      { ticker: "VXUS", name: "Vanguard Total Intl Stock",   desc: t("screener.etf.descriptions.moderate.vxus"), color: "#f59e0b" },
+      { ticker: "BND",  name: "Vanguard Total Bond Market",  desc: t("screener.etf.descriptions.moderate.bnd"), color: "#3b82f6" },
+    ],
+    aggressive: [
+      { ticker: "QQQ",  name: "Invesco Nasdaq-100",          desc: t("screener.etf.descriptions.aggressive.qqq"), color: "#8b5cf6" },
+      { ticker: "VTI",  name: "Vanguard Total Stock Market", desc: t("screener.etf.descriptions.aggressive.vti"), color: "#00a85e" },
+      { ticker: "VWO",  name: "Vanguard Emerging Markets",   desc: t("screener.etf.descriptions.aggressive.vwo"), color: "#f59e0b" },
+    ],
+  };
+}
 
 export default function ScreenerPage() {
+  const { t } = useTranslation();
+  const ETF_BY_RISK = getEtfByRisk(t);
   const sub          = useSubscriptionStore();
   const isPremium = sub.tier === "premium" || sub.isTrialPremium;
   const { profile }  = useProfileStore();
@@ -88,20 +94,20 @@ export default function ScreenerPage() {
             return (
               <div className="space-y-4">
                 <div>
-                  <h1 className="text-xl font-bold" style={{ color: "var(--text)" }}>ETFs para tu perfil</h1>
+                  <h1 className="text-xl font-bold" style={{ color: "var(--text)" }}>{t("screener.etf.title")}</h1>
                   <p className="text-xs mt-0.5" style={{ color: "var(--muted)" }}>
-                    Los ETFs son la forma más segura y diversificada de empezar a invertir — ideales para tu nivel actual.
+                    {t("screener.etf.subtitle")}
                   </p>
                 </div>
                 <div className="rounded-xl border px-4 py-3 flex items-start gap-3"
                      style={{ background: "rgba(0,168,94,0.06)", borderColor: "rgba(0,168,94,0.25)" }}>
                   <div className="w-1.5 h-1.5 rounded-full mt-1.5 shrink-0" style={{ background: "var(--accent-l)" }} />
                   <p className="text-xs leading-relaxed" style={{ color: "var(--sub)" }}>
-                    Un ETF te permite comprar una canasta de cientos de empresas con una sola operación — más diversificación, menos riesgo que elegir acciones individuales.
+                    {t("screener.etf.explainer")}
                   </p>
                 </div>
                 <div className="space-y-3">
-                  {etfs.map((etf) => (
+                  {etfs.map((etf: { ticker: string; name: string; desc: string; color: string }) => (
                     <div key={etf.ticker} className="rounded-xl border p-4"
                          style={{ background: "var(--card)", borderColor: "var(--border)" }}>
                       <div className="flex items-center gap-3 mb-2">
@@ -116,7 +122,7 @@ export default function ScreenerPage() {
                   ))}
                 </div>
                 <p className="text-[10px] text-center" style={{ color: "var(--dim)" }}>
-                  El Screener de acciones individuales se desbloquea al alcanzar nivel Intermedio.
+                  {t("screener.etf.lockedNotice")}
                 </p>
               </div>
             );
@@ -127,10 +133,10 @@ export default function ScreenerPage() {
             <div>
               <h1 className="text-xl font-bold flex items-center gap-2" style={{ color: "var(--text)" }}>
                 <Search className="w-5 h-5" style={{ color: "var(--accent-l)" }} />
-                Screener Semanal
+                {t("screener.header.title")}
               </h1>
               <p className="text-xs mt-0.5" style={{ color: "var(--muted)" }}>
-                5 oportunidades personalizadas para ti — actualizadas cada lunes
+                {t("screener.header.subtitle")}
               </p>
             </div>
             {isPremium && (
@@ -138,7 +144,7 @@ export default function ScreenerPage() {
                       className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium"
                       style={{ borderColor: "var(--border)", color: "var(--sub)" }}>
                 <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
-                Actualizar
+                {t("screener.header.refresh")}
               </button>
             )}
           </div>}
@@ -151,14 +157,14 @@ export default function ScreenerPage() {
                    style={{ background: "rgba(0,168,94,0.1)" }}>
                 <Lock className="w-7 h-7" style={{ color: "var(--accent-l)" }} />
               </div>
-              <h2 className="font-bold text-base mb-2" style={{ color: "var(--text)" }}>Screener Semanal Personalizado</h2>
+              <h2 className="font-bold text-base mb-2" style={{ color: "var(--text)" }}>{t("screener.paywall.title")}</h2>
               <p className="text-sm mb-5 max-w-sm mx-auto" style={{ color: "var(--muted)" }}>
-                Cada lunes la IA analiza el mercado y selecciona 5 oportunidades que encajan exactamente con tu perfil de riesgo y filosofía de inversión.
+                {t("screener.paywall.desc")}
               </p>
-              <button onClick={() => handleUpgrade("Activa Premium para recibir tu screener semanal personalizado.")}
+              <button onClick={() => handleUpgrade(t("screener.paywall.reason"))}
                       className="px-6 py-2.5 rounded-xl text-sm font-bold text-white"
                       style={{ background: "linear-gradient(90deg,#00a85e,#00d47e)" }}>
-                Activar Premium
+                {t("screener.paywall.cta")}
               </button>
             </div>
           )}
@@ -168,7 +174,7 @@ export default function ScreenerPage() {
           {isPremium && loading && (
             <div className="flex flex-col items-center justify-center py-16 gap-3">
               <Loader2 className="w-8 h-8 animate-spin" style={{ color: "var(--accent-l)" }} />
-              <p className="text-sm" style={{ color: "var(--muted)" }}>Analizando el mercado para ti...</p>
+              <p className="text-sm" style={{ color: "var(--muted)" }}>{t("screener.loading")}</p>
             </div>
           )}
 
@@ -179,11 +185,11 @@ export default function ScreenerPage() {
               {weekly.week_theme && (
                 <div className="p-4 rounded-xl border"
                      style={{ borderColor: "rgba(0,168,94,0.3)", background: "rgba(0,168,94,0.06)" }}>
-                  <p className="text-[10px] font-bold mb-1" style={{ color: "var(--accent-l)" }}>🗓 TEMA DE LA SEMANA</p>
+                  <p className="text-[10px] font-bold mb-1" style={{ color: "var(--accent-l)" }}>{t("screener.weekTheme.label")}</p>
                   <p className="text-sm font-semibold" style={{ color: "var(--text)" }}>{weekly.week_theme}</p>
                   {weekly.generated_at && (
                     <p className="text-[10px] mt-1" style={{ color: "var(--muted)" }}>
-                      Actualizado: {new Date(weekly.generated_at).toLocaleDateString("es-MX", { weekday: "long", day: "numeric", month: "long" })}
+                      {t("screener.weekTheme.updated", { date: new Date(weekly.generated_at).toLocaleDateString("es-MX", { weekday: "long", day: "numeric", month: "long" }) })}
                     </p>
                   )}
                 </div>
@@ -246,11 +252,11 @@ export default function ScreenerPage() {
                         {/* Catalyst + Risk */}
                         <div className="grid grid-cols-2 gap-2">
                           <div className="p-2 rounded-lg" style={{ background: "rgba(34,197,94,0.06)", border: "1px solid rgba(34,197,94,0.15)" }}>
-                            <p className="text-[10px] font-bold mb-0.5" style={{ color: "#22c55e" }}>Catalizador</p>
+                            <p className="text-[10px] font-bold mb-0.5" style={{ color: "#22c55e" }}>{t("screener.pick.catalyst")}</p>
                             <p className="text-[10px]" style={{ color: "var(--sub)" }}>{pick.catalyst}</p>
                           </div>
                           <div className="p-2 rounded-lg" style={{ background: "rgba(239,68,68,0.06)", border: "1px solid rgba(239,68,68,0.15)" }}>
-                            <p className="text-[10px] font-bold mb-0.5" style={{ color: "#ef4444" }}>⚠️ Riesgo</p>
+                            <p className="text-[10px] font-bold mb-0.5" style={{ color: "#ef4444" }}>{t("screener.pick.risk")}</p>
                             <p className="text-[10px]" style={{ color: "var(--sub)" }}>{pick.risk}</p>
                           </div>
                         </div>
@@ -264,7 +270,7 @@ export default function ScreenerPage() {
               {weekly.mentor_note && (
                 <div className="p-4 rounded-xl border"
                      style={{ borderColor: "rgba(0,168,94,0.3)", background: "rgba(0,168,94,0.06)" }}>
-                  <p className="text-[10px] font-bold mb-1.5" style={{ color: "var(--accent-l)" }}>NOTA DE TU MENTOR</p>
+                  <p className="text-[10px] font-bold mb-1.5" style={{ color: "var(--accent-l)" }}>{t("screener.mentorNote.label")}</p>
                   <p className="text-xs leading-relaxed" style={{ color: "var(--sub)" }}>{weekly.mentor_note}</p>
                 </div>
               )}

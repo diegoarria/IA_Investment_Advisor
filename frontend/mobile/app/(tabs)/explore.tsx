@@ -5,6 +5,7 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import Markdown from "react-native-markdown-display";
+import { useTranslation } from "react-i18next";
 import { marketApi, screenerWeeklyApi } from "../../src/lib/api";
 import { useTheme, Colors } from "../../src/lib/ThemeContext";
 import { useWatchlistStore } from "../../src/lib/watchlistStore";
@@ -40,12 +41,13 @@ function scoreColor(score: number): string {
 }
 
 function RecomBadge({ recom, colors }: { recom: string; colors: Colors }) {
+  const { t } = useTranslation();
   const map: Record<string, { label: string; color: string }> = {
-    strong_buy: { label: "Compra fuerte", color: "#16a34a" },
-    buy:        { label: "Compra",        color: "#22c55e" },
-    hold:       { label: "Mantener",      color: "#f59e0b" },
-    sell:       { label: "Vender",        color: "#ef4444" },
-    strong_sell:{ label: "Venta fuerte",  color: "#dc2626" },
+    strong_buy: { label: t("explore.recom.strongBuy"), color: "#16a34a" },
+    buy:        { label: t("explore.recom.buy"),        color: "#22c55e" },
+    hold:       { label: t("explore.recom.hold"),        color: "#f59e0b" },
+    sell:       { label: t("explore.recom.sell"),        color: "#ef4444" },
+    strong_sell:{ label: t("explore.recom.strongSell"),  color: "#dc2626" },
   };
   const cfg = map[recom];
   if (!cfg) return null;
@@ -57,6 +59,7 @@ function RecomBadge({ recom, colors }: { recom: string; colors: Colors }) {
 }
 
 function StockCard({ item, colors, styles }: { item: Stock; colors: Colors; styles: ReturnType<typeof makeStyles> }) {
+  const { t } = useTranslation();
   const { add, remove, has } = useWatchlistStore();
   const watching = has(item.ticker);
   const color = scoreColor(item.score);
@@ -97,7 +100,7 @@ function StockCard({ item, colors, styles }: { item: Stock; colors: Colors; styl
             Rev +{item.rev_growth}%
           </Text>
         )}
-        {item.margin && <Text style={[styles.metric, { color: colors.textMuted }]}>Mg {item.margin}%</Text>}
+        {item.margin && <Text style={[styles.metric, { color: colors.textMuted }]}>{t("explore.card.marginLabel")} {item.margin}%</Text>}
         {item.div_yield && <Text style={[styles.metric, { color: "#f59e0b" }]}>Div {item.div_yield}%</Text>}
         <RecomBadge recom={item.recom} colors={colors} />
       </View>
@@ -109,7 +112,7 @@ function StockCard({ item, colors, styles }: { item: Stock; colors: Colors; styl
       >
         <Ionicons name={watching ? "bookmark" : "bookmark-outline"} size={13} color={watching ? "#22c55e" : colors.textMuted} />
         <Text style={[styles.watchBtnText, { color: watching ? "#22c55e" : colors.textMuted }]}>
-          {watching ? "En watchlist" : "Agregar watchlist"}
+          {watching ? t("explore.watchBtn.inWatchlist") : t("explore.watchBtn.add")}
         </Text>
       </TouchableOpacity>
     </View>
@@ -117,6 +120,7 @@ function StockCard({ item, colors, styles }: { item: Stock; colors: Colors; styl
 }
 
 export default function ExploreScreen() {
+  const { t } = useTranslation();
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
 
@@ -190,14 +194,14 @@ export default function ExploreScreen() {
               >
                 <Ionicons name="star-outline" size={16} color={colors.accent} />
                 <View style={{ flex: 1 }}>
-                  <Text style={{ fontSize: 13, fontWeight: "700", color: colors.text }}>Picks de la Semana</Text>
+                  <Text style={{ fontSize: 13, fontWeight: "700", color: colors.text }}>{t("explore.weeklyPicks.title")}</Text>
                   {weekly?.week_theme && weeklyExpanded && (
                     <Text style={{ fontSize: 11, color: colors.textMuted, marginTop: 1 }}>{weekly.week_theme}</Text>
                   )}
                 </View>
                 {!isPremium && (
                   <View style={{ backgroundColor: colors.accent + "20", borderRadius: 20, paddingHorizontal: 7, paddingVertical: 2 }}>
-                    <Text style={{ color: colors.accent, fontSize: 9, fontWeight: "800" }}>PREMIUM</Text>
+                    <Text style={{ color: colors.accent, fontSize: 9, fontWeight: "800" }}>{t("explore.weeklyPicks.premiumBadge")}</Text>
                   </View>
                 )}
                 {weeklyLoading
@@ -223,11 +227,11 @@ export default function ExploreScreen() {
                           <Text style={{ fontSize: 12, color: colors.textSub, lineHeight: 17, marginBottom: 6 }}>{pick.why}</Text>
                           <View style={{ flexDirection: "row", gap: 8 }}>
                             <View style={{ flex: 1, borderRadius: 8, padding: 8, backgroundColor: "#22c55e0A", borderWidth: 1, borderColor: "#22c55e20" }}>
-                              <Text style={{ fontSize: 9, fontWeight: "800", color: "#22c55e", marginBottom: 2 }}>⚡ CATALIZADOR</Text>
+                              <Text style={{ fontSize: 9, fontWeight: "800", color: "#22c55e", marginBottom: 2 }}>{t("explore.weeklyPicks.catalyst")}</Text>
                               <Text style={{ fontSize: 10, color: colors.textSub }}>{pick.catalyst}</Text>
                             </View>
                             <View style={{ flex: 1, borderRadius: 8, padding: 8, backgroundColor: "#ef44440A", borderWidth: 1, borderColor: "#ef444420" }}>
-                              <Text style={{ fontSize: 9, fontWeight: "800", color: "#ef4444", marginBottom: 2 }}>⚠️ RIESGO</Text>
+                              <Text style={{ fontSize: 9, fontWeight: "800", color: "#ef4444", marginBottom: 2 }}>{t("explore.weeklyPicks.risk")}</Text>
                               <Text style={{ fontSize: 10, color: colors.textSub }}>{pick.risk}</Text>
                             </View>
                           </View>
@@ -237,7 +241,7 @@ export default function ExploreScreen() {
                   ))}
                   {weekly.mentor_note && (
                     <View style={{ borderRadius: 14, borderWidth: 1, borderColor: colors.accent + "40", backgroundColor: colors.accent + "0D", padding: 12 }}>
-                      <Text style={{ fontSize: 10, fontWeight: "800", color: colors.accent, marginBottom: 6 }}>🎓 NOTA DE TU MENTOR</Text>
+                      <Text style={{ fontSize: 10, fontWeight: "800", color: colors.accent, marginBottom: 6 }}>{t("explore.weeklyPicks.mentorNote")}</Text>
                       <Text style={{ fontSize: 12, color: colors.textSub, lineHeight: 18 }}>{weekly.mentor_note}</Text>
                     </View>
                   )}
@@ -250,7 +254,7 @@ export default function ExploreScreen() {
               <Ionicons name="search-outline" size={16} color={colors.textMuted} />
               <TextInput
                 style={[styles.searchInput, { color: colors.text }]}
-                placeholder="ej. tech con P/E bajo y dividendo…"
+                placeholder={t("explore.search.placeholder")}
                 placeholderTextColor={colors.placeholder}
                 value={query}
                 onChangeText={setQuery}
@@ -260,7 +264,7 @@ export default function ExploreScreen() {
               {query.length > 0 && (
                 <TouchableOpacity onPress={() => search()}>
                   <View style={[styles.searchBtn, { backgroundColor: colors.accent }]}>
-                    <Text style={{ color: "white", fontSize: 12, fontWeight: "700" }}>Buscar</Text>
+                    <Text style={{ color: "white", fontSize: 12, fontWeight: "700" }}>{t("explore.search.button")}</Text>
                   </View>
                 </TouchableOpacity>
               )}
@@ -287,7 +291,7 @@ export default function ExploreScreen() {
               <View style={[styles.insightCard, { backgroundColor: colors.card, borderColor: colors.accent + "40" }]}>
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 8 }}>
                   <Ionicons name="sparkles" size={14} color={colors.accentLight} />
-                  <Text style={[styles.insightTitle, { color: colors.accentLight }]}>Análisis AI</Text>
+                  <Text style={[styles.insightTitle, { color: colors.accentLight }]}>{t("explore.aiInsight.title")}</Text>
                 </View>
                 <Markdown style={markdownStyles}>{aiInsight}</Markdown>
               </View>
@@ -296,29 +300,29 @@ export default function ExploreScreen() {
             {loading && (
               <View style={{ alignItems: "center", padding: 32 }}>
                 <ActivityIndicator color={colors.accentLight} />
-                <Text style={[styles.loadingText, { color: colors.textMuted }]}>Analizando mercado…</Text>
+                <Text style={[styles.loadingText, { color: colors.textMuted }]}>{t("explore.loading")}</Text>
               </View>
             )}
 
             {!loading && !searched && (
               <View style={styles.emptyState}>
                 <Ionicons name="telescope-outline" size={44} color={colors.textMuted} />
-                <Text style={[styles.emptyTitle, { color: colors.textMuted }]}>Explora el mercado</Text>
-                <Text style={[styles.emptySub, { color: colors.textDim }]}>Filtra por sector o escribe lo que buscas</Text>
+                <Text style={[styles.emptyTitle, { color: colors.textMuted }]}>{t("explore.empty.title")}</Text>
+                <Text style={[styles.emptySub, { color: colors.textDim }]}>{t("explore.empty.subtitle")}</Text>
               </View>
             )}
           </View>
         }
         ListEmptyComponent={
           !loading && searched ? (
-            <Text style={[styles.emptyTitle, { color: colors.textMuted, textAlign: "center", marginTop: 32 }]}>Sin resultados</Text>
+            <Text style={[styles.emptyTitle, { color: colors.textMuted, textAlign: "center", marginTop: 32 }]}>{t("explore.noResults")}</Text>
           ) : null
         }
       />
       <PaywallModal
         visible={paywallOpen}
         onClose={() => setPaywallOpen(false)}
-        reason="Activa Premium para ver los picks personalizados de la semana."
+        reason={t("explore.paywallReason")}
       />
     </SafeAreaView>
   );

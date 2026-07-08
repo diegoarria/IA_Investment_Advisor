@@ -58,7 +58,9 @@
       "coachingTitle": "1:1 session with Diego",
       "coachingSub": "Personalized guidance · 45 min",
       "logout": "Log out"
-    }
+    },
+    "year": "year",
+    "close": "Close"
   },
   "home": {
     "greeting": {
@@ -75,7 +77,15 @@
       "hoursAgo": "{{h}}h ago",
       "yesterday": "Yesterday",
       "daysAgo": "{{d}}d ago",
-      "periods": { "1d": "1D", "5d": "5D", "6m": "6M", "ytd": "YTD", "1y": "1Y", "5y": "5Y", "max": "MAX" },
+      "periods": {
+        "1d": "1D",
+        "5d": "5D",
+        "6m": "6M",
+        "ytd": "YTD",
+        "1y": "1Y",
+        "5y": "5Y",
+        "max": "MAX"
+      },
       "today": "Today:",
       "noData": "No data",
       "news": "News",
@@ -125,28 +135,121 @@
       "noUrl": "No URL: {{details}}",
       "checkoutError": "Error processing payment",
       "countryDefault": "International",
-      "countries": { "MX": "Mexico", "AR": "Argentina", "US": "United States", "CO": "Colombia" },
+      "countries": {
+        "MX": "Mexico",
+        "AR": "Argentina",
+        "US": "United States",
+        "CO": "Colombia"
+      },
       "catalog": {
         "MX": [
-          { "tag": "#1 Recommended", "desc": "Mexico's most popular broker. Great app, low fees.", "pros": ["One of the best mobile apps", "No commission on MX stocks", "Easy access to global ETFs"] },
-          { "tag": "For advanced users", "desc": "Access to 150+ global markets. Ideal if you want to diversify.", "pros": ["150+ exchanges worldwide", "Institutional rates", "Options and futures"] },
-          { "tag": "Institutional", "desc": "Bank-backed. Perfect for funds and conservative profiles.", "pros": ["Solid bank backing", "Personal advisory available", "Investment funds"] }
+          {
+            "tag": "#1 Recommended",
+            "desc": "Mexico's most popular broker. Great app, low fees.",
+            "pros": [
+              "One of the best mobile apps",
+              "No commission on MX stocks",
+              "Easy access to global ETFs"
+            ]
+          },
+          {
+            "tag": "For advanced users",
+            "desc": "Access to 150+ global markets. Ideal if you want to diversify.",
+            "pros": [
+              "150+ exchanges worldwide",
+              "Institutional rates",
+              "Options and futures"
+            ]
+          },
+          {
+            "tag": "Institutional",
+            "desc": "Bank-backed. Perfect for funds and conservative profiles.",
+            "pros": [
+              "Solid bank backing",
+              "Personal advisory available",
+              "Investment funds"
+            ]
+          }
         ],
         "AR": [
-          { "tag": "#1 Recommended", "desc": "Leader in Argentina. Easy to use, with access to local bonds and stocks.", "pros": ["AR market leader", "Access to CEDEARs (ADRs)", "No maintenance fee"] },
-          { "tag": "Very popular", "desc": "Modern platform with access to funds, bonds and stocks.", "pros": ["Money market funds", "Local and international stocks", "Modern, intuitive app"] }
+          {
+            "tag": "#1 Recommended",
+            "desc": "Leader in Argentina. Easy to use, with access to local bonds and stocks.",
+            "pros": [
+              "AR market leader",
+              "Access to CEDEARs (ADRs)",
+              "No maintenance fee"
+            ]
+          },
+          {
+            "tag": "Very popular",
+            "desc": "Modern platform with access to funds, bonds and stocks.",
+            "pros": [
+              "Money market funds",
+              "Local and international stocks",
+              "Modern, intuitive app"
+            ]
+          }
         ],
         "US": [
-          { "tag": "#1 Recommended", "desc": "The most complete broker in the world. 0 commissions on US stocks.", "pros": ["0 commissions on stocks", "Access to 150+ markets", "Interest on cash balances"] },
-          { "tag": "Easiest", "desc": "The simplest app to get started. Perfect for beginners.", "pros": ["Simplest app on the market", "Fractional shares", "No minimum investment"] },
-          { "tag": "Most trusted", "desc": "One of the most trusted in the US. Ideal for the long term.", "pros": ["No commissions", "24/7 customer support", "Wide variety of ETFs"] }
+          {
+            "tag": "#1 Recommended",
+            "desc": "The most complete broker in the world. 0 commissions on US stocks.",
+            "pros": [
+              "0 commissions on stocks",
+              "Access to 150+ markets",
+              "Interest on cash balances"
+            ]
+          },
+          {
+            "tag": "Easiest",
+            "desc": "The simplest app to get started. Perfect for beginners.",
+            "pros": [
+              "Simplest app on the market",
+              "Fractional shares",
+              "No minimum investment"
+            ]
+          },
+          {
+            "tag": "Most trusted",
+            "desc": "One of the most trusted in the US. Ideal for the long term.",
+            "pros": [
+              "No commissions",
+              "24/7 customer support",
+              "Wide variety of ETFs"
+            ]
+          }
         ],
         "CO": [
-          { "tag": "#1 Recommended", "desc": "The leading broker in Colombia. Access to the BVC and international markets.", "pros": ["Access to the BVC", "International stocks", "Expert local advisory"] },
-          { "tag": "For advanced users", "desc": "The best global access. Ideal if you want to invest outside Colombia.", "pros": ["Global markets", "0 commissions on US stocks", "Well regulated"] }
+          {
+            "tag": "#1 Recommended",
+            "desc": "The leading broker in Colombia. Access to the BVC and international markets.",
+            "pros": [
+              "Access to the BVC",
+              "International stocks",
+              "Expert local advisory"
+            ]
+          },
+          {
+            "tag": "For advanced users",
+            "desc": "The best global access. Ideal if you want to invest outside Colombia.",
+            "pros": [
+              "Global markets",
+              "0 commissions on US stocks",
+              "Well regulated"
+            ]
+          }
         ],
         "DEFAULT": [
-          { "tag": "Best global", "desc": "The broker with the best global access. Available in 200+ countries.", "pros": ["200+ countries", "150+ exchanges worldwide", "Institutional rates"] }
+          {
+            "tag": "Best global",
+            "desc": "The broker with the best global access. Available in 200+ countries.",
+            "pros": [
+              "200+ countries",
+              "150+ exchanges worldwide",
+              "Institutional rates"
+            ]
+          }
         ]
       }
     },
@@ -167,20 +270,76 @@
       "addLater": "Add second email later"
     },
     "lessons": {
-      "diversif": { "title": "Diversification", "body": "Don't put all your eggs in one basket. If you have 10 companies across different sectors and one goes bankrupt, you lose 10%. Diversification spreads the risk.", "tip": "Do you have more than 30% of your portfolio in a single sector?" },
-      "dca": { "title": "Dollar Cost Averaging", "body": "Investing the same amount every month, regardless of whether the market goes up or down. When it drops, you buy more shares for the same price. Discipline beats timing.", "tip": "Set a fixed monthly amount and automate it." },
-      "dividendo": { "title": "Dividends", "body": "Some companies pay you just for holding their shares. Automatically reinvesting dividends can double your return over 20 years.", "tip": "Look for companies with 10+ years of consecutive dividend increases." },
-      "pe_ratio": { "title": "P/E Ratio", "body": "The P/E compares a stock's price to what the company earns. There's no universal 'good' number — compare it against the sector and its history.", "tip": "A very high P/E doesn't mean expensive if the company is growing fast. Context beats the number." },
-      "moat": { "title": "Competitive Advantage", "body": "The 'moat' is what makes a company hard to copy: brand (Apple), network (Visa), low costs (Walmart). It protects its margins over time.", "tip": "What would stop a competitor with $1B from taking this market?" },
-      "aversion": { "title": "Loss Aversion", "body": "The brain feels the pain of losing $100 twice as strongly as the pleasure of gaining $100. That's why we sell in a panic. Recognizing this bias is the first step.", "tip": "Before selling on a dip: did the business fundamentals actually change?" },
-      "rebalanceo": { "title": "Rebalancing", "body": "If your stocks went up a lot, you now have more risk than you wanted. Rebalancing means selling what grew and buying what fell behind.", "tip": "Rebalance 1-2 times a year, or whenever something drifts more than 5% from your target." },
-      "fund": { "title": "Free Cash Flow", "body": "Earnings can be manipulated through accounting. Free Cash Flow doesn't lie — it's the real cash coming into the company's coffers.", "tip": "Look for companies whose FCF grows faster than their revenue." },
-      "horizonte": { "title": "Investment Horizon", "body": "The market drops 10-20% about once every 1-2 years. But over 10+ years, the S&P 500 has never lost money. Your horizon determines how much risk you can absorb.", "tip": "Need the money in less than 3 years? It shouldn't be in stocks." },
-      "fomo": { "title": "Financial FOMO", "body": "Fear Of Missing Out makes you buy at the top. FOMO is the most reliable signal that an asset is overvalued. The best time to buy is when nobody's talking about it.", "tip": "If it's all over the news and your family's WhatsApp — be careful." },
-      "etf": { "title": "ETFs vs Stocks", "body": "An ETF replicates an entire index. 90% of active managers do NOT beat the index over 15 years. ETFs are the smart starting point.", "tip": "Start with broad ETFs. Add individual stocks only once you understand the business." },
-      "comprar_negocios": { "title": "Buy Businesses", "body": "Before buying a stock: do I understand how this company makes money? Would I still be buying if the market closed for 5 years?", "tip": "Warren Buffett only invests in what he can understand in 5 minutes." },
-      "bull_bear": { "title": "Drops Are Normal", "body": "Since 1950, the S&P 500 has fallen more than 10% about once a year on average. Despite that, it multiplied 200x. Drops are the price of returns.", "tip": "Keep a list of companies you'd want to buy when they fall." },
-      "concentracion": { "title": "Concentration Risk", "body": "More than 20% in a single company or more than 40% in one sector is high concentration. If that company collapses, so does your portfolio.", "tip": "Calculate your largest position. Is it more than 20% of your portfolio?" }
+      "diversif": {
+        "title": "Diversification",
+        "body": "Don't put all your eggs in one basket. If you have 10 companies across different sectors and one goes bankrupt, you lose 10%. Diversification spreads the risk.",
+        "tip": "Do you have more than 30% of your portfolio in a single sector?"
+      },
+      "dca": {
+        "title": "Dollar Cost Averaging",
+        "body": "Investing the same amount every month, regardless of whether the market goes up or down. When it drops, you buy more shares for the same price. Discipline beats timing.",
+        "tip": "Set a fixed monthly amount and automate it."
+      },
+      "dividendo": {
+        "title": "Dividends",
+        "body": "Some companies pay you just for holding their shares. Automatically reinvesting dividends can double your return over 20 years.",
+        "tip": "Look for companies with 10+ years of consecutive dividend increases."
+      },
+      "pe_ratio": {
+        "title": "P/E Ratio",
+        "body": "The P/E compares a stock's price to what the company earns. There's no universal 'good' number — compare it against the sector and its history.",
+        "tip": "A very high P/E doesn't mean expensive if the company is growing fast. Context beats the number."
+      },
+      "moat": {
+        "title": "Competitive Advantage",
+        "body": "The 'moat' is what makes a company hard to copy: brand (Apple), network (Visa), low costs (Walmart). It protects its margins over time.",
+        "tip": "What would stop a competitor with $1B from taking this market?"
+      },
+      "aversion": {
+        "title": "Loss Aversion",
+        "body": "The brain feels the pain of losing $100 twice as strongly as the pleasure of gaining $100. That's why we sell in a panic. Recognizing this bias is the first step.",
+        "tip": "Before selling on a dip: did the business fundamentals actually change?"
+      },
+      "rebalanceo": {
+        "title": "Rebalancing",
+        "body": "If your stocks went up a lot, you now have more risk than you wanted. Rebalancing means selling what grew and buying what fell behind.",
+        "tip": "Rebalance 1-2 times a year, or whenever something drifts more than 5% from your target."
+      },
+      "fund": {
+        "title": "Free Cash Flow",
+        "body": "Earnings can be manipulated through accounting. Free Cash Flow doesn't lie — it's the real cash coming into the company's coffers.",
+        "tip": "Look for companies whose FCF grows faster than their revenue."
+      },
+      "horizonte": {
+        "title": "Investment Horizon",
+        "body": "The market drops 10-20% about once every 1-2 years. But over 10+ years, the S&P 500 has never lost money. Your horizon determines how much risk you can absorb.",
+        "tip": "Need the money in less than 3 years? It shouldn't be in stocks."
+      },
+      "fomo": {
+        "title": "Financial FOMO",
+        "body": "Fear Of Missing Out makes you buy at the top. FOMO is the most reliable signal that an asset is overvalued. The best time to buy is when nobody's talking about it.",
+        "tip": "If it's all over the news and your family's WhatsApp — be careful."
+      },
+      "etf": {
+        "title": "ETFs vs Stocks",
+        "body": "An ETF replicates an entire index. 90% of active managers do NOT beat the index over 15 years. ETFs are the smart starting point.",
+        "tip": "Start with broad ETFs. Add individual stocks only once you understand the business."
+      },
+      "comprar_negocios": {
+        "title": "Buy Businesses",
+        "body": "Before buying a stock: do I understand how this company makes money? Would I still be buying if the market closed for 5 years?",
+        "tip": "Warren Buffett only invests in what he can understand in 5 minutes."
+      },
+      "bull_bear": {
+        "title": "Drops Are Normal",
+        "body": "Since 1950, the S&P 500 has fallen more than 10% about once a year on average. Despite that, it multiplied 200x. Drops are the price of returns.",
+        "tip": "Keep a list of companies you'd want to buy when they fall."
+      },
+      "concentracion": {
+        "title": "Concentration Risk",
+        "body": "More than 20% in a single company or more than 40% in one sector is high concentration. If that company collapses, so does your portfolio.",
+        "tip": "Calculate your largest position. Is it more than 20% of your portfolio?"
+      }
     },
     "onboarding": {
       "step1Title": "Add your first position",
@@ -220,7 +379,12 @@
       "updatedAgo": "{{time}} ago",
       "best": "★ BEST",
       "sentiment": "Market sentiment",
-      "sentimentLabels": { "calm": "Calm", "normal": "Normal", "cautious": "Cautious", "highVolatility": "High volatility" }
+      "sentimentLabels": {
+        "calm": "Calm",
+        "normal": "Normal",
+        "cautious": "Cautious",
+        "highVolatility": "High volatility"
+      }
     },
     "lessonCard": {
       "completedToday": "Completed today",
@@ -305,26 +469,60 @@
       },
       "allocations": {
         "conservative": [
-          { "label": "Fixed income / Bonds" },
-          { "label": "Defensive stocks" },
-          { "label": "Cash / Gold" }
+          {
+            "label": "Fixed income / Bonds"
+          },
+          {
+            "label": "Defensive stocks"
+          },
+          {
+            "label": "Cash / Gold"
+          }
         ],
         "moderate": [
-          { "label": "Diversified stocks" },
-          { "label": "Fixed income" },
-          { "label": "Alternatives / REITs" }
+          {
+            "label": "Diversified stocks"
+          },
+          {
+            "label": "Fixed income"
+          },
+          {
+            "label": "Alternatives / REITs"
+          }
         ],
         "aggressive": [
-          { "label": "Growth stocks" },
-          { "label": "Emerging markets" },
-          { "label": "Minimal fixed income" }
+          {
+            "label": "Growth stocks"
+          },
+          {
+            "label": "Emerging markets"
+          },
+          {
+            "label": "Minimal fixed income"
+          }
         ]
       },
-      "metricsLabels": { "volatility": "Volatility", "expectedReturn": "Expected return", "idealHorizon": "Ideal horizon" },
+      "metricsLabels": {
+        "volatility": "Volatility",
+        "expectedReturn": "Expected return",
+        "idealHorizon": "Ideal horizon"
+      },
       "metrics": {
-        "conservative": { "volatility": "Low", "expectedReturn": "4–7% yearly", "idealHorizon": "1–5 years" },
-        "moderate": { "volatility": "Medium", "expectedReturn": "7–10% yearly", "idealHorizon": "5–10 years" },
-        "aggressive": { "volatility": "High", "expectedReturn": "10–15%+ yearly", "idealHorizon": "10+ years" }
+        "conservative": {
+          "volatility": "Low",
+          "expectedReturn": "4–7% yearly",
+          "idealHorizon": "1–5 years"
+        },
+        "moderate": {
+          "volatility": "Medium",
+          "expectedReturn": "7–10% yearly",
+          "idealHorizon": "5–10 years"
+        },
+        "aggressive": {
+          "volatility": "High",
+          "expectedReturn": "10–15%+ yearly",
+          "idealHorizon": "10+ years"
+        }
       },
       "etfsLabel": "Typical ETFs: "
     },
@@ -359,21 +557,54 @@
         "q5": "How often do you check the market?"
       },
       "riskOptions": {
-        "conservative": { "label": "Conservative", "desc": "I prioritize not losing money over gaining" },
-        "moderate": { "label": "Moderate", "desc": "Balance between growth and stability" },
-        "aggressive": { "label": "Aggressive", "desc": "I accept high volatility seeking higher returns" }
+        "conservative": {
+          "label": "Conservative",
+          "desc": "I prioritize not losing money over gaining"
+        },
+        "moderate": {
+          "label": "Moderate",
+          "desc": "Balance between growth and stability"
+        },
+        "aggressive": {
+          "label": "Aggressive",
+          "desc": "I accept high volatility seeking higher returns"
+        }
       },
       "quizLabels": {
-        "q1": { "A": "Sell on drops", "B": "Wait without acting", "C": "Analyze and hold", "D": "Buy the dip" },
-        "q2": { "A": "Less than 2 years", "B": "3–5 years", "C": "10+ years", "D": "Long-term, no rush" },
-        "q5": { "A": "Automatic / passive", "B": "Monthly review", "C": "Weekly review", "D": "Daily management" }
+        "q1": {
+          "A": "Sell on drops",
+          "B": "Wait without acting",
+          "C": "Analyze and hold",
+          "D": "Buy the dip"
+        },
+        "q2": {
+          "A": "Less than 2 years",
+          "B": "3–5 years",
+          "C": "10+ years",
+          "D": "Long-term, no rush"
+        },
+        "q5": {
+          "A": "Automatic / passive",
+          "B": "Monthly review",
+          "C": "Weekly review",
+          "D": "Daily management"
+        }
       }
     },
     "level": {
       "sectionTitle": "Knowledge level",
-      "basic": { "label": "Basic", "desc": "I know the basics" },
-      "intermediate": { "label": "Intermediate", "desc": "I have experience" },
-      "advanced": { "label": "Advanced", "desc": "Deep analysis" }
+      "basic": {
+        "label": "Basic",
+        "desc": "I know the basics"
+      },
+      "intermediate": {
+        "label": "Intermediate",
+        "desc": "I have experience"
+      },
+      "advanced": {
+        "label": "Advanced",
+        "desc": "Deep analysis"
+      }
     },
     "referral": {
       "sectionTitle": "Invite friends",
@@ -393,7 +624,13 @@
       "sectionTitle": "Start screen",
       "modalTitle": "Which screen do you want to see first?",
       "modalSubtitle": "Every time you open the app you'll land there.",
-      "options": { "home": "Home", "patrimonio": "Net Worth", "chat": "AI Mentor", "notifications": "Notifications", "academy": "Academy" }
+      "options": {
+        "home": "Home",
+        "patrimonio": "Net Worth",
+        "chat": "AI Mentor",
+        "notifications": "Notifications",
+        "academy": "Academy"
+      }
     },
     "products": {
       "sectionTitle": "Products & Services",
@@ -449,6 +686,681 @@
       "viewTutorial": "View app tutorial",
       "logout": "Log out",
       "deleteAccount": "Delete my account"
+    }
+  },
+  "watchlist": {
+    "tabs": {
+      "watchlist": "Watchlist",
+      "videos": "Videos"
+    },
+    "marketState": {
+      "live": "Live",
+      "preMkt": "Pre-Mkt",
+      "postMkt": "Post-Mkt",
+      "closed": "Closed"
+    },
+    "row": {
+      "vsPrevClose": "vs previous close",
+      "regShort": "Reg.",
+      "close": "Close",
+      "prePrefix": "Pre",
+      "postPrefix": "Post"
+    },
+    "search": {
+      "placeholder": "Search ticker: NVDA, AAPL, TSLA…"
+    },
+    "tier": {
+      "label": "{{count}}/{{limit}} stocks",
+      "upgrade": "Upgrade to Premium →"
+    },
+    "empty": {
+      "title": "Your watchlist is empty",
+      "subtitle": "Search for a ticker above and add it to track it in real time"
+    },
+    "sort": {
+      "gainers": "Gainers",
+      "losers": "Losers"
+    },
+    "edit": {
+      "done": "Done",
+      "reorder": "Reorder"
+    },
+    "viewMode": {
+      "basic": "Basic",
+      "advanced": "Advanced"
+    },
+    "videos": {
+      "recentTitle": "Recent videos",
+      "empty": "No videos available"
+    },
+    "alertModal": {
+      "title": "Price alert",
+      "currentPrice": "Current price:",
+      "below": "Below",
+      "above": "Above",
+      "placeholder": "Target price (e.g. 180.00)",
+      "save": "Save alert"
+    },
+    "alerts": {
+      "alreadyAdded": {
+        "title": "Already in your watchlist",
+        "message": "{{ticker}} is already added."
+      }
+    },
+    "tour": {
+      "title": "Search for a stock to follow",
+      "description": "Type the ticker or company name — e.g. AAPL or Tesla. Nuvos will alert you when there are important moves."
+    }
+  },
+  "patrimonio": {
+    "common": {
+      "totalValue": "Total Value"
+    },
+    "tabs": {
+      "portfolio": "Portfolio",
+      "watchlist": "Watchlist",
+      "simulator": "Simulator"
+    },
+    "header": {
+      "subtitle": "My money"
+    },
+    "progressCard": {
+      "title": "Your evolution as an investor",
+      "subtitle": "Milestones, net worth, and decisions that avoided mistakes"
+    },
+    "portfolioTab": {
+      "dayGain": "Day Gain",
+      "totalGain": "Total Gain",
+      "positions": "Positions ({{count}})",
+      "empty": "You don't have any positions yet",
+      "sharesAvgLabel": "{{shares}} sh · ${{avgPrice}} avg.",
+      "viewFull": "View full portfolio →"
+    },
+    "watchlistTab": {
+      "title": "Watchlist ({{count}})",
+      "empty": "Your watchlist is empty",
+      "viewFull": "View full watchlist →"
+    },
+    "simuladorTab": {
+      "cash": "Cash",
+      "gainVsInitial": "Gain vs. starting capital",
+      "positionsTitle": "Paper Positions ({{count}})",
+      "empty": "You don't have any paper positions",
+      "open": "Open simulator →"
+    }
+  },
+  "progress": {
+    "metrics": {
+      "sinceFirstInvestment": "Since your first investment",
+      "timeUsingNuvos": "Time using Nuvos",
+      "totalOperations": "Operations made",
+      "capitalInvested": "Capital invested",
+      "currentPatrimonio": "Current net worth",
+      "cumulativeReturn": "Cumulative return",
+      "bestYear": "Best year ({{year}})",
+      "worstYear": "Toughest year ({{year}})",
+      "consecutiveMonths": "Consecutive months contributing"
+    },
+    "paywall": {
+      "title": "Your evolution as an investor",
+      "description": "Nuvos keeps your full history as an investor — milestones, net worth, decisions that avoided mistakes. The longer you stay, the more it's worth.",
+      "cta": "Activate Premium"
+    },
+    "empty": {
+      "title": "We're still building your history.",
+      "subtitle": "Keep investing and using Nuvos — your evolution will show up here."
+    },
+    "benchmark": {
+      "sectionTitle": "HOW YOU COMPARE",
+      "beats": "You beat {{percentile}}%",
+      "profileConnector": "of investors with a",
+      "inMetricSuffix": "profile on {{metric}}.",
+      "anonymousNote": "Compared anonymously against {{count}} investors — we never see or share anyone's individual data."
+    },
+    "milestones": {
+      "sectionTitle": "MILESTONES"
+    },
+    "decisions": {
+      "sectionTitle": "DECISIONS THAT AVOIDED COSTLY MISTAKES"
+    }
+  },
+  "explore": {
+    "weeklyPicks": {
+      "title": "This Week's Picks",
+      "premiumBadge": "PREMIUM",
+      "catalyst": "⚡ CATALYST",
+      "risk": "⚠️ RISK",
+      "mentorNote": "🎓 NOTE FROM YOUR MENTOR"
+    },
+    "search": {
+      "placeholder": "e.g. tech with low P/E and dividend…",
+      "button": "Search"
+    },
+    "aiInsight": {
+      "title": "AI Analysis"
+    },
+    "loading": "Analyzing the market…",
+    "empty": {
+      "title": "Explore the market",
+      "subtitle": "Filter by sector or type what you're looking for"
+    },
+    "noResults": "No results",
+    "paywallReason": "Activate Premium to see this week's personalized picks.",
+    "recom": {
+      "strongBuy": "Strong buy",
+      "buy": "Buy",
+      "hold": "Hold",
+      "sell": "Sell",
+      "strongSell": "Strong sell"
+    },
+    "card": {
+      "marginLabel": "Mgn"
+    },
+    "watchBtn": {
+      "inWatchlist": "In watchlist",
+      "add": "Add to watchlist"
+    }
+  },
+  "portfolio": {
+    "sectors": {
+      "semiconductors": "Semiconductors",
+      "software": "Software",
+      "technology": "Technology",
+      "ai": "Artificial Intelligence",
+      "fintech": "Fintech",
+      "ecommerce": "eCommerce",
+      "consumerDiscretionary": "Consumer Discretionary",
+      "consumerStaples": "Consumer Staples",
+      "health": "Healthcare",
+      "pharma": "Pharma",
+      "biotech": "Biotech",
+      "financial": "Financial",
+      "banking": "Banking",
+      "insurance": "Insurance",
+      "energy": "Energy",
+      "renewableEnergy": "Renewable Energy",
+      "utilities": "Utilities",
+      "industrials": "Industrials",
+      "aerospace": "Aerospace",
+      "logistics": "Logistics",
+      "materials": "Materials",
+      "telecom": "Telecom",
+      "media": "Media",
+      "realEstate": "Real Estate",
+      "crypto": "Crypto",
+      "etf": "ETF",
+      "other": "Other"
+    },
+    "riskLevels": {
+      "conservative": "Conservative",
+      "conservativeModerate": "Conservative-Moderate",
+      "moderate": "Moderate",
+      "moderateGrowth": "Moderate-Growth",
+      "growth": "Growth",
+      "aggressive": "Aggressive",
+      "aggressiveSpeculative": "Aggressive-Speculative",
+      "speculative": "Speculative"
+    },
+    "stressScenarios": {
+      "hypotheticalYear": "Hypothetical",
+      "y1929": {
+        "name": "Great Depression",
+        "desc": "The biggest stock market collapse in history, -89% over 3 years"
+      },
+      "ww2_1938": {
+        "name": "Pre-WWII",
+        "desc": "Global tension ahead of World War II"
+      },
+      "oil1973": {
+        "name": "Oil Crisis",
+        "desc": "Arab oil embargo triggers inflation, S&P falls -48%"
+      },
+      "stagflation1980": {
+        "name": "'80s Stagflation",
+        "desc": "The Fed raises rates to 20%, severe recession"
+      },
+      "black_monday": {
+        "name": "Black Monday",
+        "desc": "Biggest single-day drop in history: -22.6% in 24 hours"
+      },
+      "gulf1990": {
+        "name": "Gulf War",
+        "desc": "Invasion of Kuwait, recession, and oil prices spike"
+      },
+      "asian1997": {
+        "name": "Asian Crisis",
+        "desc": "Collapse of Asian currencies, global contagion"
+      },
+      "ltcm1998": {
+        "name": "LTCM Crisis",
+        "desc": "Systemic hedge fund collapse, the Fed steps in"
+      },
+      "dotcom": {
+        "name": "Dot-com Bubble",
+        "desc": "Tech valuations collapse, Nasdaq -78%"
+      },
+      "sept11": {
+        "name": "9/11",
+        "desc": "Terrorist attacks close the NYSE for 4 days, sharp drop"
+      },
+      "y2008": {
+        "name": "2008 Crisis",
+        "desc": "Collapse of the global financial system"
+      },
+      "euro_debt2011": {
+        "name": "Euro Crisis",
+        "desc": "Greece, Spain, and Italy on the edge of sovereign collapse"
+      },
+      "china2015": {
+        "name": "China Crash",
+        "desc": "Yuan devaluation and Chinese market crash, global contagion"
+      },
+      "volmageddon2018": {
+        "name": "Volmageddon",
+        "desc": "Short-volatility products blow up, VIX spikes"
+      },
+      "trade_war2018": {
+        "name": "Trade War",
+        "desc": "US-China tariffs shake global markets"
+      },
+      "covid": {
+        "name": "COVID-19",
+        "desc": "33-day crash, sharp and fast decline"
+      },
+      "tech2022": {
+        "name": "'22 Tech Crash",
+        "desc": "Rate hikes crush tech valuations"
+      },
+      "svb2023": {
+        "name": "SVB Crisis",
+        "desc": "Silicon Valley Bank collapse, regional banking panic"
+      },
+      "ai_bubble2025": {
+        "name": "'25 AI Correction",
+        "desc": "Overheated AI valuations, Nasdaq correction"
+      },
+      "fed": {
+        "name": "Fed +1%",
+        "desc": "Surprise 100bp hike in Fed interest rates"
+      },
+      "china_taiwan": {
+        "name": "Taiwan Conflict",
+        "desc": "China-Taiwan military tension disrupts semiconductors"
+      },
+      "recession_mild": {
+        "name": "Mild Recession",
+        "desc": "GDP falls for 2 quarters, unemployment rises moderately"
+      },
+      "bull": {
+        "name": "Bull Market",
+        "desc": "A year of recovery and investor euphoria"
+      }
+    },
+    "eras": {
+      "all": "All",
+      "pre1950": "Before 1950",
+      "mid_century": "1950–1990",
+      "late_xx": "1990–2005",
+      "y2000s": "2005–2015",
+      "recent": "2015–Now",
+      "hypothetical": "Hypothetical"
+    },
+    "goalLabels": {
+      "emergency_fund": "Emergency fund",
+      "big_purchase": "Major purchase",
+      "retirement": "Retirement",
+      "independence": "Financial independence",
+      "default": "My goal"
+    },
+    "switcher": {
+      "newPortfolio": "+ New",
+      "lockedPortfolio": "🔒 + Portfolio",
+      "deleteTitle": "Delete \"{{name}}\"",
+      "deleteMessage": "Are you sure?"
+    },
+    "sync": {
+      "title": "Portfolio in the cloud",
+      "saving": "Saving...",
+      "error": "⚠ Error saving",
+      "savedChecked": "✓ Saved {{time}}",
+      "saved": "Saved {{time}}",
+      "allDevices": "Synced across all your devices"
+    },
+    "clear": {
+      "button": "Clear",
+      "title": "Clear portfolio",
+      "message": "Delete all {{count}} positions? This action can't be undone.",
+      "confirm": "Clear all"
+    },
+    "importSteps": {
+      "toggle": "How do I import my portfolio via screenshot?",
+      "steps": [
+        "Go to your broker (Robinhood, IBKR, Schwab, etc.)",
+        "Go to your portfolio section",
+        "Take a screenshot of all your positions",
+        "Tap \"Import screenshot\" here in Nuvos AI and select the image",
+        "Done! Your portfolio will stay in sync across all your devices"
+      ]
+    },
+    "buttons": {
+      "addPosition": "Add position",
+      "importScreenshot": "Import screenshot",
+      "analyzing": "Analyzing...",
+      "connectBroker": "Connect broker",
+      "brokerBadgeConnected": "IBKR · IOL · Schwab",
+      "premium": "Premium"
+    },
+    "preview": {
+      "detected": "{{count}} positions detected",
+      "fromCaptures": "From {{count}} screenshots · ",
+      "addPriceHint": "Add the purchase price for each position",
+      "warning": "⚠ We don't use the price from the photo — it may be wrong for fractional shares. Look it up on your broker under \"average price\" or \"average cost.\"",
+      "avgPriceLabel": "Average price ({{currency}})",
+      "avgPricePlaceholderUSD": "e.g. 223.00",
+      "avgPricePlaceholder": "e.g. {{value}}",
+      "purchaseDateLabel": "Purchase date",
+      "optional": "(optional)",
+      "datePlaceholder": "YYYY-MM-DD",
+      "confirmAdd": "✓ Add {{count}} positions",
+      "sharesAbbrev": "sh"
+    },
+    "form": {
+      "title": "New manual position",
+      "tickerPlaceholder": "Ticker (e.g. AAPL)",
+      "sharesPlaceholder": "Shares",
+      "priceUSDPlaceholder": "Price (USD)",
+      "pricePlaceholder": "Price ({{currency}})",
+      "add": "Add",
+      "incompleteFields": "Fill in all fields"
+    },
+    "demo": {
+      "badge": "How Nuvos AI works",
+      "notifPrefix": "Your NVIDIA is up",
+      "notifSuffix": "this week",
+      "notifBody": "Jensen Huang announced new chips for AI data centers, driving institutional demand. Your portfolio benefits directly from your NVDA position.",
+      "samplePortfolio": "Sample portfolio",
+      "sharesAbbrev": "sh",
+      "total": "Total",
+      "question": "Do you have stocks or funds invested?",
+      "questionSub": "This helps Nuvos AI know how to help you from the very first moment.",
+      "options": {
+        "hasPortfolio": {
+          "title": "Yes, I already have a portfolio",
+          "sub": "I'll add my positions so Nuvos AI can analyze them"
+        },
+        "hasCash": {
+          "title": "I have money to invest",
+          "sub": "I don't have a broker account yet"
+        },
+        "wantsToLearn": {
+          "title": "I just want to learn",
+          "sub": "Explore with the sample portfolio"
+        }
+      }
+    },
+    "empty": {
+      "title": "No positions yet",
+      "desc": "Take a screenshot of your portfolio and the AI will import it automatically"
+    },
+    "priceErrorBanner": "No connection — prices may be outdated",
+    "totals": {
+      "label": "Current portfolio value",
+      "shareMessage": "My portfolio on Nuvos AI: {{value}} ({{sign}}{{pct}}%) 📈\n\nI track my investments with AI. Try it at nuvosai.com",
+      "invested": "Total Invested",
+      "since": "since {{date}}",
+      "vsSp": "vs S&P"
+    },
+    "chart": {
+      "historical": "Historical performance",
+      "onThisDate": "On this date",
+      "since": "since {{date}}",
+      "vsSp500": "vs S&P 500",
+      "better": "better",
+      "worse": "worse",
+      "loadingHistory": "Loading historical data...",
+      "noHistory": "No historical data for this period",
+      "source": "Yahoo Finance · adjusted for splits and dividends"
+    },
+    "periods": {
+      "purchase": "Purchase",
+      "d1": "1D",
+      "d5": "5D",
+      "mo1": "1M",
+      "mo3": "3M",
+      "mo6": "6M",
+      "ytd": "YTD",
+      "y1": "1Y",
+      "y3": "3Y",
+      "y5": "5Y",
+      "max": "MAX"
+    },
+    "goal": {
+      "title": "FINANCIAL GOAL",
+      "reachedBadge": "Reached!",
+      "completed": "completed",
+      "accumulated": "accumulated",
+      "reachedFull": "Goal reached 🎉",
+      "remaining": "Remaining",
+      "target": "Goal:",
+      "rateNote": "At a {{rate}}/year rate (historical), you'll get there in {{time}}",
+      "timeMonths": "{{count}} months",
+      "timeYearHalf": "~1.5 years",
+      "timeYears": "~{{count}} years"
+    },
+    "table": {
+      "position": "position",
+      "positionsPlural": "positions",
+      "sortReturn": "Return",
+      "sortInvested": "Invested",
+      "sortPrice": "Price",
+      "colStock": "Stock",
+      "colValue": "Value",
+      "colGain": "Gain",
+      "investedShort": "inv."
+    },
+    "stressTest": {
+      "title": "Portfolio Stress Test",
+      "subtitle": "How would your portfolio hold up in a historical crisis?",
+      "impactTotal": "Estimated total impact",
+      "disclaimer": "Estimate based on historical data. Doesn't guarantee future results.",
+      "unlockTitle": "Unlock the Stress Test",
+      "unlockDesc": "Simulate historical crises and see the real impact on your portfolio",
+      "unlockBtn": "Go Premium",
+      "sampleTitle": "💥 2008 Crisis — Mortgage collapse",
+      "sampleSector": "Technology"
+    },
+    "analysis": {
+      "noResultTitle": "No result",
+      "noResultBody": "The AI didn't return a valid analysis. Try again.",
+      "limitTitle": "Limit reached",
+      "limitBody": "Too many requests. Wait a moment and try again.",
+      "errorTitle": "Analysis error",
+      "errorBody": "Couldn't complete the analysis ({{status}}: {{detail}}). Try again.",
+      "unknownConn": "network",
+      "noDetail": "no details"
+    },
+    "calculator": {
+      "title": "Investment Calculator",
+      "subtitle": "How much will you have if you invest X at Y% for Z years?",
+      "initialCapital": "Initial capital (USD)",
+      "monthlyContribution": "Monthly contribution (USD)",
+      "monthlyPlaceholder": "500 (optional)",
+      "annualReturn": "Annual return (%)",
+      "term": "Term (years)",
+      "calculate": "Calculate",
+      "finalValue": "Final value in {{years}} {{unit}}",
+      "yearSingular": "year",
+      "yearPlural": "years",
+      "multiplierBadge": "×{{x}} your money",
+      "returnBadge": "+{{pct}}% return",
+      "invested": "Invested",
+      "gains": "Gains",
+      "realValue": "Real value*",
+      "chartTitle": "Invested vs Return by year",
+      "legendInvested": "Invested",
+      "legendReturns": "Return",
+      "legendProjection": "Faded = projection",
+      "disclaimer": "Monthly compound interest. *Real value discounting 3.5% annual inflation. Past performance doesn't guarantee future results."
+    },
+    "riskDiagnosis": {
+      "positionsInSector": "Positions · {{sector}}",
+      "close": "✕ close",
+      "conservativeLabel": "Conservative",
+      "speculativeLabel": "Speculative"
+    },
+    "modals": {
+      "newPortfolio": {
+        "title": "New portfolio",
+        "namePlaceholder": "Portfolio name…",
+        "creating": "Creating…",
+        "create": "Create",
+        "errorTitle": "Error",
+        "errorMsg": "Couldn't create the portfolio. Please try again."
+      },
+      "renamePortfolio": {
+        "title": "Edit name",
+        "namePlaceholder": "Portfolio name…"
+      },
+      "editPosition": {
+        "title": "Edit position",
+        "sharesLabel": "Shares / units",
+        "sharesPlaceholder": "E.g: 10",
+        "avgPriceLabel": "Average purchase price ({{currency}})",
+        "avgPricePlaceholderUSD": "E.g: 150.00",
+        "avgPricePlaceholder": "E.g: {{value}}",
+        "approxUSD": "≈ ${{value}} USD",
+        "purchaseDateLabel": "Purchase date (YYYY-MM-DD)",
+        "salePriceLabel": "Sale price ({{currency}})",
+        "save": "Save changes",
+        "sharesChangedTitle": "You went from {{from}} to {{to}} shares",
+        "sharesChangedMsg": "Did you sell those shares, or is this a screenshot correction?",
+        "isCorrection": "It's a correction",
+        "soldShares": "I sold shares",
+        "missingPriceTitle": "Missing price",
+        "missingPriceMsg": "Enter the price you sold the shares at.",
+        "confirmSaveTitle": "Save changes?",
+        "confirmSaveDetail": "{{shares}} shares · average price {{price}}",
+        "confirmSaveSaleSuffix": " · you sold {{shares}} at {{price}}"
+      },
+      "sellConfirm": {
+        "title": "Sell {{ticker}}",
+        "message": "You're about to remove your {{shares}} shares of {{ticker}}. What price did you sell them at?",
+        "salePriceLabel": "Sale price ({{currency}})",
+        "useMarketPrice": "Use current market price",
+        "saving": "Saving...",
+        "confirm": "Confirm sale"
+      },
+      "currencyPicker": {
+        "title": "Portfolio currency",
+        "subtitle": "Market prices are converted automatically in real time.",
+        "close": "Close"
+      },
+      "importCurrency": {
+        "title": "What currency is your portfolio in?",
+        "subtitle": "Prices will be shown in the currency you choose. Real-time market prices convert automatically.",
+        "converting": "Converting...",
+        "importIn": "Import in {{currency}}"
+      },
+      "screenshotPermissionTitle": "Permission required",
+      "screenshotPermissionMsg": "We need access to your gallery to read the screenshot.",
+      "noPositionsDetectedTitle": "No positions detected",
+      "noPositionsDetectedMsg": "No positions were found in the images. Try clearer screenshots.",
+      "screenshotErrorTitle": "Error",
+      "screenshotErrorMsg": "Couldn't analyze the images. Make sure the backend is running.",
+      "existingPositionsTitle": "You already have saved positions",
+      "existingPositionsCount": "You have {{count}} position{{suffix}} in your portfolio.\n\n",
+      "existingPositionsNew": "{{count}} new one{{suffix}} will be added (duplicates are ignored).",
+      "existingPositionsAllDupes": "All positions from the photo are already in your portfolio.",
+      "replaceAll": "Delete and replace",
+      "keepAndAdd": "Keep and add",
+      "existingPositionsSuffix": "s",
+      "existingPositionsNewSuffix": "s"
+    },
+    "currencyNames": {
+      "usd": "Dollar",
+      "mxn": "Mexican Peso",
+      "eur": "Euro",
+      "gbp": "Pound",
+      "ars": "Argentine Peso",
+      "brl": "Real",
+      "cop": "Colombian Peso",
+      "clp": "Chilean Peso",
+      "pen": "Sol",
+      "jpy": "Yen"
+    },
+    "paywallReason": "More than 10 positions requires Premium",
+    "tour": {
+      "title": "Add your first position",
+      "description": "Tap the green button to log the stocks you already own. Nuvos will calculate your real-time return."
+    },
+    "tabs": {
+      "myPortfolio": "My Portfolio",
+      "tools": "Tools"
+    },
+    "premiumTools": {
+      "title": "Premium Tools",
+      "subtitle": "Advanced analysis of your portfolio",
+      "monthlyReport": {
+        "title": "Monthly Report",
+        "tagline": "Your portfolio analyzed with AI every month",
+        "description": "Generate a professional report with performance vs the S&P 500, Sharpe ratio, volatility, best and worst positions of the month, and a personal note from your mentor.",
+        "benefits": [
+          "Real performance vs S&P 500 and benchmarks",
+          "Sharpe ratio, volatility, and maximum drawdown",
+          "Personalized note from your mentor every month",
+          "3 concrete actions for next month"
+        ]
+      },
+      "weeklyScreener": {
+        "title": "Weekly Screener",
+        "tagline": "5 personalized opportunities every Monday",
+        "description": "Every Monday the AI scans the market and selects 5 opportunities that match your risk profile, your mentor's philosophy, and the gaps in your portfolio.",
+        "benefits": [
+          "Filtered by your risk profile and mentor",
+          "Concrete catalyst and risk for every pick",
+          "Never suggests what you already own",
+          "Updates automatically every Monday"
+        ]
+      }
+    },
+    "screenshot": {
+      "analyzingWithAI": "Analyzing with AI...",
+      "analyzingProgress": "Analyzing {{current}} of {{total}}..."
+    },
+    "editSave": {
+      "title": "Save changes?",
+      "body": "{{shares}} shares · avg price {{price}}{{saleSuffix}}",
+      "soldSuffix": "you sold {{shares}} at {{price}}"
+    },
+    "paywall": {
+      "over10PositionsReason": "More than 10 positions requires Premium"
+    },
+    "editSale": {
+      "title": "You went from {{from}} to {{to}} shares",
+      "body": "Did you sell those shares, or was it a data-entry correction?",
+      "correction": "It's a correction",
+      "sold": "I sold shares",
+      "missingPriceTitle": "Price missing",
+      "missingPriceBody": "Enter the price you sold the shares at."
+    },
+    "currencyModal": {
+      "title": "Portfolio currency",
+      "subtitle": "Market prices are converted automatically in real time."
+    },
+    "importCurrencyModal": {
+      "title": "What currency is your portfolio in?",
+      "subtitle": "Prices will be shown in the currency you choose. Real-time market prices convert automatically.",
+      "converting": "Converting...",
+      "importIn": "Import in {{currency}}"
+    },
+    "eraFilters": {
+      "all": "All",
+      "pre1950": "Up to 1950",
+      "recent": "2015–Today",
+      "hypothetical": "Hypothetical"
+    },
+    "calc": {
+      "finalValueIn": "Final value in {{years}} {{unit}}"
     }
   }
 }

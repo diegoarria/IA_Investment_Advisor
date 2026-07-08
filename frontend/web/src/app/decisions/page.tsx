@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { BookOpen, Loader2, TrendingUp, TrendingDown, AlertTriangle, CheckCircle, Lock, RefreshCw, Plus, X } from "lucide-react";
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import AppSidebar from "@/components/AppSidebar";
 import PaywallModal from "@/components/PaywallModal";
 import { decisionsApi } from "@/lib/api";
@@ -55,21 +57,25 @@ interface BiasReport {
 
 const ACTION_OPTIONS = ["buy", "sell", "hold", "ignored_alert", "acted_on_alert"];
 const TRIGGER_OPTIONS = ["manual", "alert", "mentor", "fomo", "panic", "research"];
-const ACTION_LABELS: Record<string, string> = {
-  buy: "Compré",
-  sell: "Vendí",
-  hold: "Mantuve (decidí no actuar)",
-  ignored_alert: "Ignoré una alerta",
-  acted_on_alert: "Actué en una alerta",
-};
-const TRIGGER_LABELS: Record<string, string> = {
-  manual: "Decisión propia",
-  alert: "Alerta del sistema",
-  mentor: "Recomendación del mentor",
-  fomo: "FOMO (miedo a perderme algo)",
-  panic: "Pánico / estrés",
-  research: "Investigación propia",
-};
+function getActionLabels(t: TFunction): Record<string, string> {
+  return {
+    buy: t("decisions.actionLabels.buy"),
+    sell: t("decisions.actionLabels.sell"),
+    hold: t("decisions.actionLabels.hold"),
+    ignored_alert: t("decisions.actionLabels.ignoredAlert"),
+    acted_on_alert: t("decisions.actionLabels.actedOnAlert"),
+  };
+}
+function getTriggerLabels(t: TFunction): Record<string, string> {
+  return {
+    manual: t("decisions.triggerLabels.manual"),
+    alert: t("decisions.triggerLabels.alert"),
+    mentor: t("decisions.triggerLabels.mentor"),
+    fomo: t("decisions.triggerLabels.fomo"),
+    panic: t("decisions.triggerLabels.panic"),
+    research: t("decisions.triggerLabels.research"),
+  };
+}
 const SEVERITY_COLOR: Record<string, string> = {
   alto: "#ef4444",
   medio: "#f59e0b",
@@ -77,6 +83,9 @@ const SEVERITY_COLOR: Record<string, string> = {
 };
 
 export default function DecisionsPage() {
+  const { t } = useTranslation();
+  const ACTION_LABELS = getActionLabels(t);
+  const TRIGGER_LABELS = getTriggerLabels(t);
   const sub        = useSubscriptionStore();
   const isPremium = sub.tier === "premium" || sub.isTrialPremium;
   const { profile } = useProfileStore();
@@ -140,20 +149,20 @@ export default function DecisionsPage() {
                  style={{ background: "rgba(0,168,94,0.08)", border: "1px solid rgba(0,168,94,0.2)" }}>
               <BookOpen className="w-8 h-8" style={{ color: "var(--accent-l)" }} />
             </div>
-            <h2 className="font-bold text-lg mb-2" style={{ color: "var(--text)" }}>Diario de Decisiones</h2>
+            <h2 className="font-bold text-lg mb-2" style={{ color: "var(--text)" }}>{t("decisions.locked.title")}</h2>
             <p className="text-sm mb-4 leading-relaxed" style={{ color: "var(--muted)" }}>
-              Esta sección se desbloquea cuando alcances el nivel <strong style={{ color: "var(--text)" }}>Intermedio</strong>.
-              Registrar y analizar sesgos conductuales requiere haber tomado decisiones de inversión con contexto — sigue aprendiendo en el chat y el portafolio.
+              {t("decisions.locked.unlockPart1")} <strong style={{ color: "var(--text)" }}>{t("decisions.locked.levelName")}</strong>.
+              {" "}{t("decisions.locked.unlockPart2")}
             </p>
             <div className="rounded-xl border p-4 text-left space-y-2"
                  style={{ background: "var(--raised)", borderColor: "var(--border)" }}>
               <p className="text-xs font-bold uppercase tracking-wide mb-3" style={{ color: "var(--muted)" }}>
-                Mientras tanto, enfócate en:
+                {t("decisions.locked.meanwhile")}
               </p>
               {[
-                "Agrega tus primeras posiciones al portafolio",
-                "Explora el feed de noticias de tus acciones",
-                "Revisa el análisis de tus posiciones en Patrimonio",
+                t("decisions.locked.tips.addPositions"),
+                t("decisions.locked.tips.exploreNews"),
+                t("decisions.locked.tips.reviewAnalysis"),
               ].map((tip) => (
                 <div key={tip} className="flex items-start gap-2">
                   <div className="w-1.5 h-1.5 rounded-full mt-1.5 shrink-0" style={{ background: "var(--accent-l)" }} />
@@ -179,14 +188,14 @@ export default function DecisionsPage() {
                    style={{ background: "rgba(0,168,94,0.1)" }}>
                 <Lock className="w-8 h-8" style={{ color: "var(--accent-l)" }} />
               </div>
-              <h2 className="font-bold text-lg mb-2" style={{ color: "var(--text)" }}>Diario de Decisiones</h2>
+              <h2 className="font-bold text-lg mb-2" style={{ color: "var(--text)" }}>{t("decisions.paywall.title")}</h2>
               <p className="text-sm max-w-sm mx-auto mb-5" style={{ color: "var(--muted)" }}>
-                Registra cada decisión de inversión y la IA detecta tus sesgos conductuales con el tiempo — el único feature que te hace mejor inversor.
+                {t("decisions.paywall.description")}
               </p>
               <button onClick={() => setPaywall(true)}
                       className="px-6 py-2.5 rounded-xl text-sm font-bold text-white"
                       style={{ background: "linear-gradient(90deg,#00a85e,#00d47e)" }}>
-                Activar Premium
+                {t("decisions.paywall.activateButton")}
               </button>
             </div>
           </div>
@@ -206,29 +215,29 @@ export default function DecisionsPage() {
             <div>
               <h1 className="text-xl font-bold flex items-center gap-2" style={{ color: "var(--text)" }}>
                 <BookOpen className="w-5 h-5" style={{ color: "var(--accent-l)" }} />
-                Diario de Decisiones
+                {t("decisions.header.title")}
               </h1>
               <p className="text-xs mt-0.5" style={{ color: "var(--muted)" }}>
-                Registra tus movimientos y descubre tus sesgos como inversor
+                {t("decisions.header.subtitle")}
               </p>
             </div>
             <button onClick={() => setLogOpen(true)}
                     className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold text-white"
                     style={{ background: "linear-gradient(90deg,#00a85e,#00d47e)" }}>
-              <Plus className="w-3.5 h-3.5" /> Registrar decisión
+              <Plus className="w-3.5 h-3.5" /> {t("decisions.header.logButton")}
             </button>
           </div>
 
           {/* Tabs */}
           <div className="flex rounded-xl p-1" style={{ background: "var(--raised)" }}>
-            {(["diary", "biases"] as const).map((t) => (
-              <button key={t} onClick={() => setTab(t)}
+            {(["diary", "biases"] as const).map((tabKey) => (
+              <button key={tabKey} onClick={() => setTab(tabKey)}
                       className="flex-1 py-1.5 rounded-lg text-xs font-semibold transition-all"
                       style={{
-                        background: tab === t ? "var(--card)" : "transparent",
-                        color:      tab === t ? "var(--text)" : "var(--muted)",
+                        background: tab === tabKey ? "var(--card)" : "transparent",
+                        color:      tab === tabKey ? "var(--text)" : "var(--muted)",
                       }}>
-                {t === "diary" ? "Diario" : "Análisis de sesgos"}
+                {tabKey === "diary" ? t("decisions.tabs.diary") : t("decisions.tabs.biases")}
               </button>
             ))}
           </div>
@@ -243,8 +252,8 @@ export default function DecisionsPage() {
               ) : decisions.length === 0 ? (
                 <div className="text-center py-10">
                   <BookOpen className="w-10 h-10 mx-auto mb-3" style={{ color: "var(--muted)", opacity: 0.4 }} />
-                  <p className="text-sm" style={{ color: "var(--muted)" }}>Aún no hay decisiones registradas.</p>
-                  <p className="text-xs mt-1" style={{ color: "var(--dim)" }}>Empieza registrando tu primera decisión de inversión.</p>
+                  <p className="text-sm" style={{ color: "var(--muted)" }}>{t("decisions.diary.empty")}</p>
+                  <p className="text-xs mt-1" style={{ color: "var(--dim)" }}>{t("decisions.diary.emptyHint")}</p>
                 </div>
               ) : (
                 decisions.map((d, i) => (
@@ -261,7 +270,7 @@ export default function DecisionsPage() {
                       </div>
                       {d.trigger && (
                         <p className="text-[10px]" style={{ color: "var(--muted)" }}>
-                          Trigger: {TRIGGER_LABELS[d.trigger] ?? d.trigger}
+                          {t("decisions.diary.triggerLabel", { trigger: TRIGGER_LABELS[d.trigger] ?? d.trigger })}
                         </p>
                       )}
                       {d.notes && (
@@ -284,14 +293,14 @@ export default function DecisionsPage() {
                 <button onClick={fetchBiases} disabled={loadingB}
                         className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs"
                         style={{ borderColor: "var(--border)", color: "var(--sub)" }}>
-                  <RefreshCw className={`w-3 h-3 ${loadingB ? "animate-spin" : ""}`} /> Analizar
+                  <RefreshCw className={`w-3 h-3 ${loadingB ? "animate-spin" : ""}`} /> {t("decisions.biases.analyzeButton")}
                 </button>
               </div>
 
               {loadingB ? (
                 <div className="flex flex-col items-center py-10 gap-3">
                   <Loader2 className="w-7 h-7 animate-spin" style={{ color: "var(--accent-l)" }} />
-                  <p className="text-sm" style={{ color: "var(--muted)" }}>Analizando tus patrones con IA...</p>
+                  <p className="text-sm" style={{ color: "var(--muted)" }}>{t("decisions.biases.analyzing")}</p>
                 </div>
               ) : !biases ? null : biases.message ? (
                 <div className="text-center py-10">
@@ -303,20 +312,20 @@ export default function DecisionsPage() {
                   {/* Overall score */}
                   <div className="p-4 rounded-xl border text-center"
                        style={{ borderColor: "var(--border)", background: "var(--card)" }}>
-                    <p className="text-[10px] font-bold mb-1" style={{ color: "var(--muted)" }}>PERFIL REAL COMO INVERSOR</p>
+                    <p className="text-[10px] font-bold mb-1" style={{ color: "var(--muted)" }}>{t("decisions.biases.scoreLabel")}</p>
                     <div className="text-4xl font-black mb-1" style={{ color: "var(--accent-l)" }}>
                       {biases.overall_score ?? 0}<span className="text-lg">/100</span>
                     </div>
                     <p className="text-sm font-semibold" style={{ color: "var(--text)" }}>{biases.overall_label}</p>
                     <p className="text-[10px] mt-1" style={{ color: "var(--muted)" }}>
-                      Basado en {biases.total_decisions} decisiones · {biases.analysis_period}
+                      {t("decisions.biases.basedOn", { count: biases.total_decisions, period: biases.analysis_period })}
                     </p>
                   </div>
 
                   {/* Biases */}
                   {biases.biases_detected && biases.biases_detected.length > 0 && (
                     <div>
-                      <p className="text-xs font-bold mb-2" style={{ color: "var(--muted)" }}>SESGOS DETECTADOS</p>
+                      <p className="text-xs font-bold mb-2" style={{ color: "var(--muted)" }}>{t("decisions.biases.detectedTitle")}</p>
                       <div className="space-y-3">
                         {biases.biases_detected.map((bias) => (
                           <div key={bias.name} className="p-4 rounded-xl border"
@@ -333,20 +342,20 @@ export default function DecisionsPage() {
                             <p className="text-xs mb-2" style={{ color: "var(--sub)" }}>{bias.description}</p>
                             <div className="grid grid-cols-2 gap-2 mb-2">
                               <div className="p-2 rounded-lg" style={{ background: "var(--raised)" }}>
-                                <p className="text-[10px] font-bold mb-0.5" style={{ color: "var(--muted)" }}>Ocurrencias</p>
+                                <p className="text-[10px] font-bold mb-0.5" style={{ color: "var(--muted)" }}>{t("decisions.biases.occurrences")}</p>
                                 <p className="text-sm font-bold" style={{ color: "var(--text)" }}>{bias.occurrences}x</p>
                               </div>
                               <div className="p-2 rounded-lg" style={{ background: "var(--raised)" }}>
-                                <p className="text-[10px] font-bold mb-0.5" style={{ color: "var(--muted)" }}>Costo estimado</p>
+                                <p className="text-[10px] font-bold mb-0.5" style={{ color: "var(--muted)" }}>{t("decisions.biases.costEstimate")}</p>
                                 <p className="text-xs font-bold" style={{ color: "#ef4444" }}>{bias.cost_estimate}</p>
                               </div>
                             </div>
                             <div className="p-2 rounded-lg mb-2" style={{ background: "rgba(239,68,68,0.06)", border: "1px solid rgba(239,68,68,0.15)" }}>
-                              <p className="text-[10px] font-bold mb-0.5" style={{ color: "#ef4444" }}>Ejemplo real</p>
+                              <p className="text-[10px] font-bold mb-0.5" style={{ color: "#ef4444" }}>{t("decisions.biases.realExample")}</p>
                               <p className="text-[10px]" style={{ color: "var(--sub)" }}>{bias.example}</p>
                             </div>
                             <div className="p-2 rounded-lg" style={{ background: "rgba(34,197,94,0.06)", border: "1px solid rgba(34,197,94,0.15)" }}>
-                              <p className="text-[10px] font-bold mb-0.5" style={{ color: "#22c55e" }}>Cómo mejorar</p>
+                              <p className="text-[10px] font-bold mb-0.5" style={{ color: "#22c55e" }}>{t("decisions.biases.howToImprove")}</p>
                               <p className="text-[10px]" style={{ color: "var(--sub)" }}>{bias.fix}</p>
                             </div>
                           </div>
@@ -358,7 +367,7 @@ export default function DecisionsPage() {
                   {/* Strengths */}
                   {biases.strengths && biases.strengths.length > 0 && (
                     <div>
-                      <p className="text-xs font-bold mb-2" style={{ color: "var(--muted)" }}>TUS FORTALEZAS</p>
+                      <p className="text-xs font-bold mb-2" style={{ color: "var(--muted)" }}>{t("decisions.biases.strengthsTitle")}</p>
                       <div className="space-y-2">
                         {biases.strengths.map((s) => (
                           <div key={s.name} className="flex items-start gap-2 p-3 rounded-xl border"
@@ -378,7 +387,7 @@ export default function DecisionsPage() {
                   {biases.mentor_assessment && (
                     <div className="p-4 rounded-xl border"
                          style={{ borderColor: "rgba(0,168,94,0.3)", background: "rgba(0,168,94,0.06)" }}>
-                      <p className="text-[10px] font-bold mb-1.5" style={{ color: "var(--accent-l)" }}>EVALUACIÓN DE TU MENTOR</p>
+                      <p className="text-[10px] font-bold mb-1.5" style={{ color: "var(--accent-l)" }}>{t("decisions.biases.mentorAssessmentTitle")}</p>
                       <p className="text-xs leading-relaxed" style={{ color: "var(--sub)" }}>{biases.mentor_assessment}</p>
                     </div>
                   )}
@@ -387,7 +396,7 @@ export default function DecisionsPage() {
                   {biases.next_challenge && (
                     <div className="p-4 rounded-xl border"
                          style={{ borderColor: "rgba(139,92,246,0.3)", background: "rgba(139,92,246,0.06)" }}>
-                      <p className="text-[10px] font-bold mb-1.5" style={{ color: "#a78bfa" }}>RETO DE LA SEMANA</p>
+                      <p className="text-[10px] font-bold mb-1.5" style={{ color: "#a78bfa" }}>{t("decisions.biases.nextChallengeTitle")}</p>
                       <p className="text-xs leading-relaxed" style={{ color: "var(--sub)" }}>{biases.next_challenge}</p>
                     </div>
                   )}
@@ -407,7 +416,7 @@ export default function DecisionsPage() {
             <div className="h-1" style={{ background: "linear-gradient(90deg,#00a85e,#00d47e)" }} />
             <div className="p-5">
               <div className="flex items-center justify-between mb-4">
-                <p className="font-bold text-sm" style={{ color: "var(--text)" }}>Registrar decisión</p>
+                <p className="font-bold text-sm" style={{ color: "var(--text)" }}>{t("decisions.modal.title")}</p>
                 <button onClick={() => setLogOpen(false)} style={{ color: "var(--muted)" }}>
                   <X className="w-4 h-4" />
                 </button>
@@ -415,7 +424,7 @@ export default function DecisionsPage() {
 
               <div className="space-y-3">
                 <div>
-                  <label className="text-[10px] font-medium block mb-1" style={{ color: "var(--muted)" }}>Acción</label>
+                  <label className="text-[10px] font-medium block mb-1" style={{ color: "var(--muted)" }}>{t("decisions.modal.actionLabel")}</label>
                   <select className="w-full rounded-lg border px-2 py-1.5 text-xs"
                           style={{ background: "var(--raised)", borderColor: "var(--border)", color: "var(--text)" }}
                           value={form.action}
@@ -427,8 +436,8 @@ export default function DecisionsPage() {
                 </div>
 
                 <div>
-                  <label className="text-[10px] font-medium block mb-1" style={{ color: "var(--muted)" }}>Ticker</label>
-                  <input type="text" placeholder="Ej: AAPL"
+                  <label className="text-[10px] font-medium block mb-1" style={{ color: "var(--muted)" }}>{t("decisions.modal.tickerLabel")}</label>
+                  <input type="text" placeholder={t("decisions.modal.tickerPlaceholder")}
                          className="w-full rounded-lg border px-2 py-1.5 text-xs uppercase"
                          style={{ background: "var(--raised)", borderColor: "var(--border)", color: "var(--text)" }}
                          value={form.ticker}
@@ -436,20 +445,20 @@ export default function DecisionsPage() {
                 </div>
 
                 <div>
-                  <label className="text-[10px] font-medium block mb-1" style={{ color: "var(--muted)" }}>¿Por qué lo hice?</label>
+                  <label className="text-[10px] font-medium block mb-1" style={{ color: "var(--muted)" }}>{t("decisions.modal.triggerLabel")}</label>
                   <select className="w-full rounded-lg border px-2 py-1.5 text-xs"
                           style={{ background: "var(--raised)", borderColor: "var(--border)", color: "var(--text)" }}
                           value={form.trigger}
                           onChange={(e) => setForm((f) => ({ ...f, trigger: e.target.value }))}>
-                    {TRIGGER_OPTIONS.map((t) => (
-                      <option key={t} value={t}>{TRIGGER_LABELS[t] ?? t}</option>
+                    {TRIGGER_OPTIONS.map((trig) => (
+                      <option key={trig} value={trig}>{TRIGGER_LABELS[trig] ?? trig}</option>
                     ))}
                   </select>
                 </div>
 
                 <div>
-                  <label className="text-[10px] font-medium block mb-1" style={{ color: "var(--muted)" }}>Notas (opcional)</label>
-                  <textarea rows={2} placeholder="¿Qué pensabas en ese momento?"
+                  <label className="text-[10px] font-medium block mb-1" style={{ color: "var(--muted)" }}>{t("decisions.modal.notesLabel")}</label>
+                  <textarea rows={2} placeholder={t("decisions.modal.notesPlaceholder")}
                             className="w-full rounded-lg border px-2 py-1.5 text-xs resize-none"
                             style={{ background: "var(--raised)", borderColor: "var(--border)", color: "var(--text)" }}
                             value={form.notes}
@@ -459,7 +468,7 @@ export default function DecisionsPage() {
                 <button onClick={handleLog} disabled={saving || !form.ticker.trim()}
                         className="w-full py-2.5 rounded-xl text-sm font-bold text-white disabled:opacity-60"
                         style={{ background: "linear-gradient(90deg,#00a85e,#00d47e)" }}>
-                  {saving ? "Guardando..." : "Guardar decisión"}
+                  {saving ? t("decisions.modal.saving") : t("decisions.modal.saveButton")}
                 </button>
               </div>
             </div>

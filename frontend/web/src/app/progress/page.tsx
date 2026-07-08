@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useTranslation } from "react-i18next";
 import { TrendingUp, Lock, Loader2, Trophy, ShieldCheck, Calendar, X, Users } from "lucide-react";
 import AppSidebar from "@/components/AppSidebar";
 import PaywallModal from "@/components/PaywallModal";
@@ -52,6 +53,7 @@ interface Benchmark {
 const fmtUSD = (n: number) => `$${n.toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
 
 export default function ProgressPage() {
+  const { t } = useTranslation();
   const router = useRouter();
   const sub = useSubscriptionStore();
   const isPremium = sub.tier === "premium" || sub.isTrialPremium;
@@ -84,33 +86,33 @@ export default function ProgressPage() {
 
   const metrics: { label: string; value: string }[] = [];
   if (summary.days_since_first_investment !== undefined) {
-    metrics.push({ label: "Desde tu primera inversión", value: `${summary.days_since_first_investment} días` });
+    metrics.push({ label: t("progress.metrics.sinceFirstInvestment"), value: t("progress.metrics.daysUnit", { count: summary.days_since_first_investment }) });
   }
   if (summary.days_using_nuvos !== undefined) {
-    metrics.push({ label: "Tiempo usando Nuvos", value: `${summary.days_using_nuvos} días` });
+    metrics.push({ label: t("progress.metrics.timeUsingNuvos"), value: t("progress.metrics.daysUnit", { count: summary.days_using_nuvos }) });
   }
   if (summary.total_operations !== undefined) {
-    metrics.push({ label: "Operaciones realizadas", value: `${summary.total_operations}` });
+    metrics.push({ label: t("progress.metrics.operationsCompleted"), value: `${summary.total_operations}` });
   }
   if (summary.capital_invested !== undefined) {
-    metrics.push({ label: "Capital invertido", value: fmtUSD(summary.capital_invested) });
+    metrics.push({ label: t("progress.metrics.capitalInvested"), value: fmtUSD(summary.capital_invested) });
   }
   if (summary.current_patrimonio !== undefined) {
-    metrics.push({ label: "Patrimonio actual", value: fmtUSD(summary.current_patrimonio) });
+    metrics.push({ label: t("progress.metrics.currentWealth"), value: fmtUSD(summary.current_patrimonio) });
   }
   if (summary.cumulative_return_pct !== undefined) {
     const sign = summary.cumulative_return_pct >= 0 ? "+" : "";
-    metrics.push({ label: "Retorno acumulado", value: `${sign}${summary.cumulative_return_pct}%` });
+    metrics.push({ label: t("progress.metrics.cumulativeReturn"), value: `${sign}${summary.cumulative_return_pct}%` });
   }
   if (summary.best_year) {
-    metrics.push({ label: `Mejor año (${summary.best_year.year})`, value: `+${summary.best_year.pct}%` });
+    metrics.push({ label: t("progress.metrics.bestYear", { year: summary.best_year.year }), value: `+${summary.best_year.pct}%` });
   }
   if (summary.worst_year) {
     const sign = summary.worst_year.pct >= 0 ? "+" : "";
-    metrics.push({ label: `Año más difícil (${summary.worst_year.year})`, value: `${sign}${summary.worst_year.pct}%` });
+    metrics.push({ label: t("progress.metrics.hardestYear", { year: summary.worst_year.year }), value: `${sign}${summary.worst_year.pct}%` });
   }
   if (summary.consecutive_months_contributing !== undefined) {
-    metrics.push({ label: "Meses seguidos aportando", value: `${summary.consecutive_months_contributing}` });
+    metrics.push({ label: t("progress.metrics.consecutiveMonthsContributing"), value: `${summary.consecutive_months_contributing}` });
   }
 
   const hasAnyData = metrics.length > 0 || milestones.length > 0 || decisions.length > 0;
@@ -134,14 +136,14 @@ export default function ProgressPage() {
                    style={{ background: "rgba(0,168,94,0.1)" }}>
                 <Lock className="w-8 h-8" style={{ color: "var(--accent-l)" }} />
               </div>
-              <h2 className="font-bold text-lg mb-2" style={{ color: "var(--text)" }}>Tu evolución como inversionista</h2>
+              <h2 className="font-bold text-lg mb-2" style={{ color: "var(--text)" }}>{t("progress.paywall.title")}</h2>
               <p className="text-sm max-w-sm mx-auto mb-5" style={{ color: "var(--muted)" }}>
-                Nuvos guarda tu historia completa como inversor — hitos, patrimonio, decisiones que evitaron errores. Entre más tiempo te quedes, más vale.
+                {t("progress.paywall.description")}
               </p>
               <button onClick={() => setPaywall(true)}
                       className="px-6 py-2.5 rounded-xl text-sm font-bold text-white"
                       style={{ background: "linear-gradient(90deg,#00a85e,#00d47e)" }}>
-                Activar Premium
+                {t("progress.paywall.activatePremium")}
               </button>
             </div>
           </div>
@@ -161,10 +163,10 @@ export default function ProgressPage() {
             <div>
               <h1 className="text-xl font-bold flex items-center gap-2" style={{ color: "var(--text)" }}>
                 <TrendingUp className="w-5 h-5" style={{ color: "var(--accent-l)" }} />
-                Tu evolución como inversionista
+                {t("progress.header.title")}
               </h1>
               <p className="text-xs mt-0.5" style={{ color: "var(--muted)" }}>
-                Todo respaldado por tus datos reales — nunca inventamos progreso
+                {t("progress.header.subtitle")}
               </p>
             </div>
             <button onClick={() => router.back()}
@@ -181,8 +183,8 @@ export default function ProgressPage() {
           ) : !hasAnyData ? (
             <div className="text-center py-16">
               <TrendingUp className="w-10 h-10 mx-auto mb-3" style={{ color: "var(--muted)", opacity: 0.4 }} />
-              <p className="text-sm" style={{ color: "var(--muted)" }}>Aún estamos construyendo tu historial.</p>
-              <p className="text-xs mt-1" style={{ color: "var(--dim)" }}>Sigue invirtiendo y usando Nuvos — tu evolución aparecerá aquí.</p>
+              <p className="text-sm" style={{ color: "var(--muted)" }}>{t("progress.empty.title")}</p>
+              <p className="text-xs mt-1" style={{ color: "var(--dim)" }}>{t("progress.empty.subtitle")}</p>
             </div>
           ) : (
             <>
@@ -203,22 +205,22 @@ export default function ProgressPage() {
               {benchmark && benchmark.results.length > 0 && (
                 <div>
                   <p className="text-xs font-bold mb-2 flex items-center gap-1.5" style={{ color: "var(--muted)" }}>
-                    <Users className="w-3.5 h-3.5" style={{ color: "#3b82f6" }} /> CÓMO TE COMPARAS
+                    <Users className="w-3.5 h-3.5" style={{ color: "#3b82f6" }} /> {t("progress.benchmark.sectionTitle")}
                   </p>
                   <div className="space-y-2.5">
                     {benchmark.results.map((r) => (
                       <div key={r.metric} className="p-3.5 rounded-xl border"
                            style={{ borderColor: "rgba(59,130,246,0.2)", background: "rgba(59,130,246,0.05)" }}>
                         <p className="text-sm" style={{ color: "var(--text)" }}>
-                          <span className="font-black">Superas al {r.percentile}%</span>{" "}
-                          de inversionistas con perfil <span className="font-bold">{benchmark.cohort_label}</span> en{" "}
+                          <span className="font-black">{t("progress.benchmark.youBeat", { percentile: r.percentile })}</span>{" "}
+                          {t("progress.benchmark.ofInvestorsWithProfile")} <span className="font-bold">{benchmark.cohort_label}</span> {t("progress.benchmark.in")}{" "}
                           {r.label.toLowerCase()}.
                         </p>
                         <div className="h-1.5 rounded-full mt-2.5 overflow-hidden" style={{ background: "var(--border)" }}>
                           <div className="h-full rounded-full" style={{ width: `${r.percentile}%`, background: "#3b82f6" }} />
                         </div>
                         <p className="text-[10px] mt-1.5" style={{ color: "var(--dim)" }}>
-                          Comparado de forma anónima contra {r.cohort_size} inversionistas — nunca vemos ni compartimos datos individuales de nadie.
+                          {t("progress.benchmark.anonymousComparison", { count: r.cohort_size })}
                         </p>
                       </div>
                     ))}
@@ -230,7 +232,7 @@ export default function ProgressPage() {
               {milestones.length > 0 && (
                 <div>
                   <p className="text-xs font-bold mb-2 flex items-center gap-1.5" style={{ color: "var(--muted)" }}>
-                    <Trophy className="w-3.5 h-3.5" style={{ color: "#f59e0b" }} /> HITOS
+                    <Trophy className="w-3.5 h-3.5" style={{ color: "#f59e0b" }} /> {t("progress.milestones.sectionTitle")}
                   </p>
                   <div className="space-y-2">
                     {milestones.map((ms) => (
@@ -257,7 +259,7 @@ export default function ProgressPage() {
               {decisions.length > 0 && (
                 <div>
                   <p className="text-xs font-bold mb-2 flex items-center gap-1.5" style={{ color: "var(--muted)" }}>
-                    <ShieldCheck className="w-3.5 h-3.5" style={{ color: "#22c55e" }} /> DECISIONES QUE EVITARON ERRORES COSTOSOS
+                    <ShieldCheck className="w-3.5 h-3.5" style={{ color: "#22c55e" }} /> {t("progress.decisions.sectionTitle")}
                   </p>
                   <div className="space-y-2">
                     {decisions.map((d) => (

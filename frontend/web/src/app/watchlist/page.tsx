@@ -4,6 +4,8 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import TourSpotlight from "@/components/TourSpotlight";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import {
   Eye, X, RefreshCw, Search, Menu, LogOut,
   TrendingUp, TrendingDown, Lock, Plus, GripVertical, Bell, BellOff,
@@ -101,14 +103,14 @@ function fmtPct(pct: number | null): string {
   return `${sign}${pct.toFixed(2)}%`;
 }
 
-function MarketStateBadge({ state }: { state: string }) {
+function MarketStateBadge({ state, t }: { state: string; t: TFunction }) {
   const s = (state || "").toUpperCase();
   if (s === "REGULAR") {
     return (
       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold"
             style={{ background: "rgba(34,197,94,0.12)", color: "#22c55e" }}>
         <span className="w-1.5 h-1.5 rounded-full bg-current inline-block" />
-        En vivo
+        {t("watchlist.marketState.live")}
       </span>
     );
   }
@@ -116,7 +118,7 @@ function MarketStateBadge({ state }: { state: string }) {
     return (
       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold"
             style={{ background: "rgba(245,158,11,0.12)", color: "#f59e0b" }}>
-        Pre-Mkt
+        {t("watchlist.marketState.preMkt")}
       </span>
     );
   }
@@ -124,7 +126,7 @@ function MarketStateBadge({ state }: { state: string }) {
     return (
       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold"
             style={{ background: "rgba(99,102,241,0.12)", color: "#818cf8" }}>
-        Post-Mkt
+        {t("watchlist.marketState.postMkt")}
       </span>
     );
   }
@@ -132,7 +134,7 @@ function MarketStateBadge({ state }: { state: string }) {
   return (
     <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold"
           style={{ background: "rgba(148,163,184,0.12)", color: "var(--muted)" }}>
-      Cerrado
+      {t("watchlist.marketState.closed")}
     </span>
   );
 }
@@ -192,6 +194,7 @@ interface StockCardProps {
 }
 
 function StockCard({ item, fxRate, displayCurrency, onDelete, onSelect, onAlert, hasAlert, draggable: isDraggable, isDragging, isDragOver: _isDragOver, onDragStart, onDragOver, onDrop, onDragEnd }: StockCardProps) {
+  const { t } = useTranslation();
   const isUp = item.change_pct >= 0;
   const conv = (price: number | null) => price === null ? null : price * fxRate;
   const borderColor = isUp ? "rgba(34,197,94,0.5)" : "rgba(239,68,68,0.5)";
@@ -239,7 +242,7 @@ function StockCard({ item, fxRate, displayCurrency, onDelete, onSelect, onAlert,
               <span className="font-black text-[12px]" style={{ color: "var(--text)" }}>
                 {item.ticker}
               </span>
-              <MarketStateBadge state={item.market_state} />
+              <MarketStateBadge state={item.market_state} t={t} />
             </div>
             <p className="text-[10px] truncate mt-0.5" style={{ color: "var(--muted)" }}>
               {item.name}
@@ -257,7 +260,7 @@ function StockCard({ item, fxRate, displayCurrency, onDelete, onSelect, onAlert,
                   {fmtPct(item.pre_market_change_pct)}
                 </p>
                 <p className="text-[9px]" style={{ color: "var(--muted)" }}>
-                  Reg. {fmtPrice(conv(item.price), displayCurrency)}
+                  {t("watchlist.card.regPrice", { price: fmtPrice(conv(item.price), displayCurrency) })}
                 </p>
               </>
             ) : showPostMkt ? (
@@ -269,7 +272,7 @@ function StockCard({ item, fxRate, displayCurrency, onDelete, onSelect, onAlert,
                   {fmtPct(item.post_market_change_pct)}
                 </p>
                 <p className="text-[9px]" style={{ color: "var(--muted)" }}>
-                  Cierre {fmtPrice(conv(item.price), displayCurrency)}
+                  {t("watchlist.card.closePrice", { price: fmtPrice(conv(item.price), displayCurrency) })}
                 </p>
               </>
             ) : (
@@ -299,7 +302,7 @@ function StockCard({ item, fxRate, displayCurrency, onDelete, onSelect, onAlert,
               : <TrendingDown className="w-2.5 h-2.5" style={{ color: priceColor }} />
             }
             <span className="text-[9px] font-semibold" style={{ color: priceColor }}>
-              {fmtPct(item.change_pct)} vs cierre anterior
+              {t("watchlist.card.vsPreviousClose", { pct: fmtPct(item.change_pct) })}
             </span>
           </div>
         )}
@@ -311,7 +314,7 @@ function StockCard({ item, fxRate, displayCurrency, onDelete, onSelect, onAlert,
           onClick={() => onAlert(item.ticker, item.price)}
           className="w-6 h-6 rounded flex items-center justify-center transition-opacity"
           style={{ color: hasAlert ? "var(--accent-l)" : "var(--muted)", opacity: hasAlert ? 1 : 0.35 }}
-          title={hasAlert ? "Editar alerta de precio" : "Crear alerta de precio"}
+          title={hasAlert ? t("watchlist.card.editAlert") : t("watchlist.card.createAlert")}
         >
           {hasAlert ? <Bell className="w-3.5 h-3.5" /> : <BellOff className="w-3.5 h-3.5" />}
         </button>
@@ -349,6 +352,7 @@ function SkeletonCard() {
 // ─── Page ────────────────────────────────────────────────────────────────────
 
 export default function WatchlistPage() {
+  const { t } = useTranslation();
   const router = useRouter();
   const [isTour, setIsTour] = useState(false);
   useEffect(() => { setIsTour(new URLSearchParams(window.location.search).get("tour") === "5"); }, []);
@@ -410,16 +414,16 @@ export default function WatchlistPage() {
     try {
       const res = await priceAlertsApi.create(alertModal.ticker, Number(alertPrice), alertCondition);
       setAlerts((prev) => ({ ...prev, [alertModal.ticker]: res.data }));
-      showToast(`Alerta creada para ${alertModal.ticker}`);
+      showToast(t("watchlist.toast.alertCreated", { ticker: alertModal.ticker }));
       setAlertModal(null);
-    } catch { showToast("Error al guardar alerta"); }
+    } catch { showToast(t("watchlist.toast.alertSaveError")); }
     finally { setSavingAlert(false); }
   };
 
   const deleteAlert = async (ticker: string) => {
     await priceAlertsApi.remove(ticker).catch(() => {});
     setAlerts((prev) => { const n = { ...prev }; delete n[ticker]; return n; });
-    showToast(`Alerta eliminada`);
+    showToast(t("watchlist.toast.alertDeleted"));
     setAlertModal(null);
   };
 
@@ -565,11 +569,11 @@ export default function WatchlistPage() {
     } catch (err: unknown) {
       const status = (err as { response?: { status?: number } })?.response?.status;
       if (status === 409) {
-        showToast(`${ticker} ya está en tu watchlist`);
+        showToast(t("watchlist.toast.alreadyInWatchlist", { ticker }));
       } else if (status === 403 && !isPremium) {
         setPaywallOpen(true);
       } else {
-        showToast("Error al agregar el ticker");
+        showToast(t("watchlist.toast.addError"));
       }
     }
   };
@@ -584,7 +588,7 @@ export default function WatchlistPage() {
         return updated;
       });
     } catch {
-      showToast("Error al eliminar");
+      showToast(t("watchlist.toast.deleteError"));
     }
   };
 
@@ -625,8 +629,8 @@ export default function WatchlistPage() {
 
   const lastUpdatedText = lastRefreshed
     ? secondsSince < 5
-      ? "Actualizado ahora"
-      : `Actualizado hace ${secondsSince}s`
+      ? t("watchlist.header.updatedNow")
+      : t("watchlist.header.updatedAgo", { seconds: secondsSince })
     : "";
 
   return (
@@ -641,8 +645,8 @@ export default function WatchlistPage() {
           <div className="sticky top-0 z-10 px-6 py-4 flex items-center justify-between border-b shrink-0"
                style={{ background: "var(--bg)", borderColor: "var(--border)" }}>
             <div>
-              <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--muted)" }}>Mi lista</p>
-              <h1 className="text-2xl font-black tracking-tight" style={{ color: "var(--text)" }}>Watchlist</h1>
+              <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--muted)" }}>{t("watchlist.header.myList")}</p>
+              <h1 className="text-2xl font-black tracking-tight" style={{ color: "var(--text)" }}>{t("watchlist.header.title")}</h1>
             </div>
             <div className="flex items-center gap-2">
               {lastUpdatedText && (
@@ -661,7 +665,7 @@ export default function WatchlistPage() {
                     color: viewMode === "basic" ? "#fff" : "var(--muted)",
                   }}
                 >
-                  Básico
+                  {t("watchlist.header.basic")}
                 </button>
                 <button
                   onClick={() => { setViewMode("advanced"); localStorage.setItem("nuvos_watchlist_view", "advanced"); import("@/lib/api").then(({ sync }) => sync.pushWatchlistViewMode("advanced").catch(() => {})); }}
@@ -671,7 +675,7 @@ export default function WatchlistPage() {
                     color: viewMode === "advanced" ? "#fff" : "var(--muted)",
                   }}
                 >
-                  Avanzado
+                  {t("watchlist.header.advanced")}
                 </button>
               </div>
               <PremiumBadge />
@@ -679,7 +683,7 @@ export default function WatchlistPage() {
                 onClick={handleRefresh}
                 className="w-9 h-9 flex items-center justify-center rounded-xl border transition-colors hover:border-[var(--accent)]"
                 style={{ borderColor: "var(--border)", background: "var(--raised)", color: "var(--sub)" }}
-                title="Actualizar"
+                title={t("watchlist.header.refresh")}
               >
                 <RefreshCw className={`w-4 h-4 ${refreshing ? "animate-spin" : ""}`} />
               </button>
@@ -687,7 +691,7 @@ export default function WatchlistPage() {
                 onClick={() => { clearAuth(); router.push("/"); }}
                 className="w-9 h-9 flex items-center justify-center rounded-xl border transition-colors hover:border-[var(--accent)]"
                 style={{ borderColor: "var(--border)", background: "var(--raised)", color: "var(--sub)" }}
-                title="Cerrar sesión"
+                title={t("watchlist.header.logout")}
               >
                 <LogOut className="w-4 h-4" />
               </button>
@@ -711,7 +715,7 @@ export default function WatchlistPage() {
                   type="text"
                   value={searchQ}
                   onChange={(e) => setSearchQ(e.target.value)}
-                  placeholder="Buscar por ticker o empresa — ej. AAPL, Tesla..."
+                  placeholder={t("watchlist.search.placeholder")}
                   className="flex-1 bg-transparent outline-none text-sm"
                   style={{ color: "var(--text)" }}
                 />
@@ -758,7 +762,7 @@ export default function WatchlistPage() {
                       <Lock className="w-3.5 h-3.5" style={{ color: "#f59e0b" }} />
                     )}
                     <span className="text-xs font-semibold" style={{ color: "var(--sub)" }}>
-                      {items.length} / {FREE_LIMIT} acciones
+                      {t("watchlist.limit.stocksCount", { count: items.length, limit: FREE_LIMIT })}
                     </span>
                   </div>
                   {items.length >= FREE_LIMIT ? (
@@ -767,11 +771,11 @@ export default function WatchlistPage() {
                       className="text-[10px] font-bold px-2.5 py-1 rounded-full"
                       style={{ background: "rgba(245,158,11,0.12)", color: "#f59e0b" }}
                     >
-                      Activar Premium
+                      {t("watchlist.limit.activatePremium")}
                     </button>
                   ) : (
                     <span className="text-[10px]" style={{ color: "var(--dim)" }}>
-                      {FREE_LIMIT - items.length} restantes
+                      {t("watchlist.limit.remaining", { count: FREE_LIMIT - items.length })}
                     </span>
                   )}
                 </div>
@@ -813,7 +817,7 @@ export default function WatchlistPage() {
                   marketState: i.market_state,
                   extPrice: (i.pre_market_price ?? i.post_market_price) !== null ? (i.pre_market_price ?? i.post_market_price)! * fxRate : null,
                   extPct: i.pre_market_change_pct ?? i.post_market_change_pct,
-                  extLabel: i.pre_market_price ? "Pre" : i.post_market_price ? "Post" : null,
+                  extLabel: i.pre_market_price ? t("watchlist.extLabel.pre") : i.post_market_price ? t("watchlist.extLabel.post") : null,
                 }))}
                 onRemove={handleConfirmDelete}
                 onRowClick={setSelectedStock}
@@ -827,8 +831,8 @@ export default function WatchlistPage() {
                        style={{ background: "rgba(0,168,94,0.10)" }}>
                     <Eye className="w-7 h-7" style={{ color: "var(--accent-l)" }} />
                   </div>
-                  <p className="font-bold text-sm" style={{ color: "var(--text)" }}>Tu watchlist está vacía</p>
-                  <p className="text-xs text-center" style={{ color: "var(--muted)" }}>Busca acciones arriba para seguirlas</p>
+                  <p className="font-bold text-sm" style={{ color: "var(--text)" }}>{t("watchlist.empty.advancedTitle")}</p>
+                  <p className="text-xs text-center" style={{ color: "var(--muted)" }}>{t("watchlist.empty.advancedSubtitle")}</p>
                 </div>
               ) : (
                 <div className="rounded-2xl border overflow-hidden"
@@ -838,26 +842,26 @@ export default function WatchlistPage() {
                     <span className="text-3xl">👀</span>
                     <div>
                       <p className="font-black text-sm mb-1" style={{ color: "var(--text)" }}>
-                        Tu lista de empresas favoritas
+                        {t("watchlist.empty.title")}
                       </p>
                       <p className="text-xs leading-relaxed max-w-xs" style={{ color: "var(--muted)" }}>
-                        Una watchlist es como una lista de compras: agregas las empresas o ETFs que te interesan para seguir su precio antes de decidir si invertir.
+                        {t("watchlist.empty.description")}
                       </p>
                     </div>
                     <div className="w-full grid grid-cols-2 gap-2 mt-1">
                       <button onClick={() => router.push("/screener")}
                               className="py-2.5 rounded-xl text-xs font-black transition-all hover:opacity-90"
                               style={{ background: "var(--accent)", color: "#000" }}>
-                        Ver ETFs recomendados
+                        {t("watchlist.empty.viewEtfs")}
                       </button>
                       <button onClick={() => router.push("/chat")}
                               className="py-2.5 rounded-xl text-xs font-bold border transition-all hover:opacity-80"
                               style={{ borderColor: "rgba(0,212,126,0.35)", color: "var(--accent-l)", background: "rgba(0,212,126,0.06)" }}>
-                        Preguntarle al mentor IA
+                        {t("watchlist.empty.askMentor")}
                       </button>
                     </div>
                     <p className="text-[10px] mt-1" style={{ color: "var(--dim)" }}>
-                      O busca cualquier empresa arriba por nombre o símbolo (ej: "Apple" o "AAPL")
+                      {t("watchlist.empty.searchHint")}
                     </p>
                   </div>
                 </div>
@@ -927,7 +931,7 @@ export default function WatchlistPage() {
                onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-wide mb-0.5" style={{ color: "var(--muted)" }}>Alerta de precio</p>
+                <p className="text-xs font-semibold uppercase tracking-wide mb-0.5" style={{ color: "var(--muted)" }}>{t("watchlist.alertModal.title")}</p>
                 <p className="text-base font-black" style={{ color: "var(--text)" }}>{alertModal.ticker}</p>
               </div>
               <button onClick={() => setAlertModal(null)} className="p-1.5 rounded-lg" style={{ color: "var(--muted)" }}>
@@ -937,7 +941,7 @@ export default function WatchlistPage() {
 
             {alertModal.currentPrice != null && (
               <p className="text-xs" style={{ color: "var(--muted)" }}>
-                Precio actual: <span className="font-bold" style={{ color: "var(--text)" }}>${alertModal.currentPrice.toFixed(2)}</span>
+                {t("watchlist.alertModal.currentPrice")} <span className="font-bold" style={{ color: "var(--text)" }}>${alertModal.currentPrice.toFixed(2)}</span>
               </p>
             )}
 
@@ -946,14 +950,14 @@ export default function WatchlistPage() {
                 <button key={c} onClick={() => setAlertCondition(c)}
                         className="flex-1 py-2 text-sm font-bold transition-colors"
                         style={{ background: alertCondition === c ? "var(--accent)" : "var(--raised)", color: alertCondition === c ? "#fff" : "var(--muted)" }}>
-                  {c === "below" ? "Por debajo de" : "Por encima de"}
+                  {c === "below" ? t("watchlist.alertModal.below") : t("watchlist.alertModal.above")}
                 </button>
               ))}
             </div>
 
             <input
               type="number"
-              placeholder="Precio objetivo (ej. 180.00)"
+              placeholder={t("watchlist.alertModal.pricePlaceholder")}
               value={alertPrice}
               onChange={(e) => setAlertPrice(e.target.value)}
               className="w-full px-4 py-3 rounded-xl text-sm font-semibold outline-none"
@@ -966,13 +970,13 @@ export default function WatchlistPage() {
                 <button onClick={() => deleteAlert(alertModal.ticker)}
                         className="flex-1 py-2.5 rounded-xl text-sm font-bold border transition-colors"
                         style={{ borderColor: "#ef4444", color: "#ef4444", background: "transparent" }}>
-                  Eliminar alerta
+                  {t("watchlist.alertModal.deleteAlert")}
                 </button>
               )}
               <button onClick={saveAlert} disabled={savingAlert || !alertPrice}
                       className="flex-1 py-2.5 rounded-xl text-sm font-bold transition-colors"
                       style={{ background: "var(--accent)", color: "#fff", opacity: (!alertPrice || savingAlert) ? 0.5 : 1 }}>
-                {savingAlert ? "Guardando…" : "Guardar alerta"}
+                {savingAlert ? t("watchlist.alertModal.saving") : t("watchlist.alertModal.saveAlert")}
               </button>
             </div>
           </div>
@@ -993,9 +997,9 @@ export default function WatchlistPage() {
         <TourSpotlight
           targetId="tour-watchlist-search"
           step={5}
-          title="Busca una acción para seguir"
-          description="Escribe el ticker o nombre de la empresa — ej. AAPL o Tesla. Nuvos te avisará cuando haya movimientos importantes."
-          ctaLabel="Entendido, volver al inicio ✓"
+          title={t("watchlist.tour.title")}
+          description={t("watchlist.tour.description")}
+          ctaLabel={t("watchlist.tour.cta")}
         />
       )}
     </>

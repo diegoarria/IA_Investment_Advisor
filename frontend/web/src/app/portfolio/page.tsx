@@ -5,6 +5,8 @@ import TourSpotlight from "@/components/TourSpotlight";
 import StockAvatar from "@/components/StockAvatar";
 import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import Image from "next/image";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -314,160 +316,203 @@ const SECTOR_PARENT: Record<string, string> = {
   Cripto: "Tecnología",
 };
 
-const PORTFOLIO_LEVELS = [
-  { label:"Conservador",           min:0,  max:13,  color:"#3b82f6" },
-  { label:"Conservador-Moderado",  min:13, max:25,  color:"#60a5fa" },
-  { label:"Moderado",              min:25, max:38,  color:"#f59e0b" },
-  { label:"Moderado-Growth",       min:38, max:51,  color:"#f97316" },
-  { label:"Growth",                min:51, max:63,  color:"#fb923c" },
-  { label:"Agresivo",              min:63, max:75,  color:"#ef4444" },
-  { label:"Agresivo-Especulativo", min:75, max:88,  color:"#dc2626" },
-  { label:"Especulativo",          min:88, max:101, color:"#7f1d1d" },
-];
+function getSectorLabel(t: TFunction): Record<string, string> {
+  return {
+    "Semiconductores": t("portfolio.sectors.semiconductors"),
+    "Software": t("portfolio.sectors.software"),
+    "Tecnología": t("portfolio.sectors.technology"),
+    "Inteligencia Artificial": t("portfolio.sectors.ai"),
+    "Fintech": t("portfolio.sectors.fintech"),
+    "eCommerce": t("portfolio.sectors.ecommerce"),
+    "Consumo Discrecional": t("portfolio.sectors.consumerDiscretionary"),
+    "Consumo Básico": t("portfolio.sectors.consumerStaples"),
+    "Salud": t("portfolio.sectors.health"),
+    "Farmacéutica": t("portfolio.sectors.pharma"),
+    "Biotecnología": t("portfolio.sectors.biotech"),
+    "Financiero": t("portfolio.sectors.financial"),
+    "Bancario": t("portfolio.sectors.banking"),
+    "Seguros": t("portfolio.sectors.insurance"),
+    "Energía": t("portfolio.sectors.energy"),
+    "Energía Renovable": t("portfolio.sectors.renewableEnergy"),
+    "Servicios Públicos": t("portfolio.sectors.utilities"),
+    "Industriales": t("portfolio.sectors.industrials"),
+    "Aeroespacial": t("portfolio.sectors.aerospace"),
+    "Logística": t("portfolio.sectors.logistics"),
+    "Materiales": t("portfolio.sectors.materials"),
+    "Telecomunicaciones": t("portfolio.sectors.telecom"),
+    "Medios": t("portfolio.sectors.media"),
+    "Real Estate": t("portfolio.sectors.realEstate"),
+    "Cripto": t("portfolio.sectors.crypto"),
+    "ETF": t("portfolio.sectors.etf"),
+    "Otro": t("portfolio.sectors.other"),
+  };
+}
 
-const STRESS_SCENARIOS: Array<{
+function getPortfolioLevels(t: TFunction) {
+  return [
+    { label:t("portfolio.riskLevels.conservative"),           min:0,  max:13,  color:"#3b82f6" },
+    { label:t("portfolio.riskLevels.conservativeModerate"),   min:13, max:25,  color:"#60a5fa" },
+    { label:t("portfolio.riskLevels.moderate"),                min:25, max:38,  color:"#f59e0b" },
+    { label:t("portfolio.riskLevels.moderateGrowth"),          min:38, max:51,  color:"#f97316" },
+    { label:t("portfolio.riskLevels.growth"),                  min:51, max:63,  color:"#fb923c" },
+    { label:t("portfolio.riskLevels.aggressive"),               min:63, max:75,  color:"#ef4444" },
+    { label:t("portfolio.riskLevels.aggressiveSpeculative"),   min:75, max:88,  color:"#dc2626" },
+    { label:t("portfolio.riskLevels.speculative"),              min:88, max:101, color:"#7f1d1d" },
+  ];
+}
+
+function getStressScenarios(t: TFunction): Array<{
   id: string; name: string; icon: string; color: string; year: string; desc: string;
   drawdowns: Record<string, number>; default: number; era: string;
-}> = [
+}> {
+  return [
   // ── Siglo XX temprano ──────────────────────────────────────────────────────
-  { id:"1901", name:"Pánico 1901", icon:"🚂", color:"#78716c", year:"1901",
-    desc:"Lucha por el control del Northern Pacific Railroad — caída ≈-46%",
+  { id:"1901", name:t("portfolio.stressScenarios.y1901.name"), icon:"🚂", color:"#78716c", year:"1901",
+    desc:t("portfolio.stressScenarios.y1901.desc"),
     era:"pre1950", default:-46,
     drawdowns:{ Tecnología:-40, Comunicaciones:-38, "Consumo Discrecional":-45, "Consumo Básico":-25, Salud:-22, Financiero:-50, Energía:-35, Industriales:-48, Materiales:-45, "Bienes Raíces":-42, "Servicios Públicos":-35, ETF:-46 }},
-  { id:"1907", name:"Pánico 1907", icon:"🏛️", color:"#b45309", year:"1907",
-    desc:"Crisis bancaria sin banco central que la respaldara — caída ≈-37%",
+  { id:"1907", name:t("portfolio.stressScenarios.y1907.name"), icon:"🏛️", color:"#b45309", year:"1907",
+    desc:t("portfolio.stressScenarios.y1907.desc"),
     era:"pre1950", default:-37,
     drawdowns:{ Tecnología:-35, Comunicaciones:-32, "Consumo Discrecional":-38, "Consumo Básico":-20, Salud:-18, Financiero:-55, Energía:-35, Industriales:-42, Materiales:-40, "Bienes Raíces":-45, "Servicios Públicos":-30, ETF:-37 }},
-  { id:"ww1", name:"1ª Guerra Mundial", icon:"⚔️", color:"#991b1b", year:"1914",
-    desc:"Bolsa de NY cerró 4 meses ante el caos global — caída estimada ≈-40%",
+  { id:"ww1", name:t("portfolio.stressScenarios.ww1.name"), icon:"⚔️", color:"#991b1b", year:"1914",
+    desc:t("portfolio.stressScenarios.ww1.desc"),
     era:"pre1950", default:-40,
     drawdowns:{ Tecnología:-38, Comunicaciones:-35, "Consumo Discrecional":-42, "Consumo Básico":-18, Salud:-20, Financiero:-45, Energía:-22, Industriales:-30, Materiales:-35, "Bienes Raíces":-38, "Servicios Públicos":-28, ETF:-40 }},
-  { id:"1910", name:"Pánico de 1910", icon:"📊", color:"#6b7280", year:"1910–1911",
-    desc:"Corrección moderada a inicios del siglo XX — ≈-15%",
+  { id:"1910", name:t("portfolio.stressScenarios.y1910.name"), icon:"📊", color:"#6b7280", year:"1910–1911",
+    desc:t("portfolio.stressScenarios.y1910.desc"),
     era:"pre1950", default:-15,
     drawdowns:{ Tecnología:-14, Comunicaciones:-12, "Consumo Discrecional":-16, "Consumo Básico":-8, Salud:-8, Financiero:-18, Energía:-12, Industriales:-16, Materiales:-14, "Bienes Raíces":-15, "Servicios Públicos":-12, ETF:-15 }},
-  { id:"1921", name:"Recesión Post-WWI", icon:"🕊️", color:"#6b7280", year:"1920–1921",
-    desc:"Deflación y desmilitarización tras la Gran Guerra — caída ≈-30%",
+  { id:"1921", name:t("portfolio.stressScenarios.y1921.name"), icon:"🕊️", color:"#6b7280", year:"1920–1921",
+    desc:t("portfolio.stressScenarios.y1921.desc"),
     era:"pre1950", default:-30,
     drawdowns:{ Tecnología:-28, Comunicaciones:-25, "Consumo Discrecional":-35, "Consumo Básico":-15, Salud:-12, Financiero:-32, Energía:-25, Industriales:-35, Materiales:-30, "Bienes Raíces":-28, "Servicios Públicos":-22, ETF:-30 }},
-  { id:"1929", name:"Gran Depresión", icon:"💸", color:"#7f1d1d", year:"1929–1932",
-    desc:"La mayor crisis de la historia moderna — S&P -89% en 3 años",
+  { id:"1929", name:t("portfolio.stressScenarios.y1929.name"), icon:"💸", color:"#7f1d1d", year:"1929–1932",
+    desc:t("portfolio.stressScenarios.y1929.desc"),
     era:"pre1950", default:-89,
     drawdowns:{ Tecnología:-82, Comunicaciones:-75, "Consumo Discrecional":-88, "Consumo Básico":-62, Salud:-55, Financiero:-95, Energía:-80, Industriales:-88, Materiales:-85, "Bienes Raíces":-90, "Servicios Públicos":-65, ETF:-89 }},
-  { id:"1937", name:"Recesión 1937", icon:"📉", color:"#dc2626", year:"1937–1938",
-    desc:"Recaída dentro de la Gran Depresión — caída ≈-54%",
+  { id:"1937", name:t("portfolio.stressScenarios.y1937.name"), icon:"📉", color:"#dc2626", year:"1937–1938",
+    desc:t("portfolio.stressScenarios.y1937.desc"),
     era:"pre1950", default:-54,
     drawdowns:{ Tecnología:-50, Comunicaciones:-45, "Consumo Discrecional":-55, "Consumo Básico":-35, Salud:-30, Financiero:-62, Energía:-50, Industriales:-58, Materiales:-55, "Bienes Raíces":-58, "Servicios Públicos":-40, ETF:-54 }},
-  { id:"1946", name:"Post-WWII '46", icon:"🎖️", color:"#7c3aed", year:"1946",
-    desc:"Ajuste económico tras la Segunda Guerra Mundial — S&P ≈-28%",
+  { id:"1946", name:t("portfolio.stressScenarios.y1946.name"), icon:"🎖️", color:"#7c3aed", year:"1946",
+    desc:t("portfolio.stressScenarios.y1946.desc"),
     era:"pre1950", default:-28,
     drawdowns:{ Tecnología:-25, Comunicaciones:-22, "Consumo Discrecional":-30, "Consumo Básico":-15, Salud:-12, Financiero:-28, Energía:-20, Industriales:-32, Materiales:-28, "Bienes Raíces":-25, "Servicios Públicos":-20, ETF:-28 }},
 
   // ── 1950–1990 ──────────────────────────────────────────────────────────────
-  { id:"1962", name:"Kennedy Slide", icon:"🔽", color:"#0891b2", year:"1962",
-    desc:"Corrección aguda tras años de subida continua — S&P ≈-28%",
+  { id:"1962", name:t("portfolio.stressScenarios.y1962.name"), icon:"🔽", color:"#0891b2", year:"1962",
+    desc:t("portfolio.stressScenarios.y1962.desc"),
     era:"mid_century", default:-28,
     drawdowns:{ Tecnología:-28, Comunicaciones:-25, "Consumo Discrecional":-30, "Consumo Básico":-12, Salud:-15, Financiero:-28, Energía:-22, Industriales:-28, Materiales:-25, "Bienes Raíces":-22, "Servicios Públicos":-18, ETF:-28 }},
-  { id:"1966", name:"Bear Market '66", icon:"🐻", color:"#dc2626", year:"1966",
-    desc:"Inflación y Vietnam generaron incertidumbre — S&P ≈-22%",
+  { id:"1966", name:t("portfolio.stressScenarios.y1966.name"), icon:"🐻", color:"#dc2626", year:"1966",
+    desc:t("portfolio.stressScenarios.y1966.desc"),
     era:"mid_century", default:-22,
     drawdowns:{ Tecnología:-22, Comunicaciones:-20, "Consumo Discrecional":-25, "Consumo Básico":-10, Salud:-12, Financiero:-22, Energía:-15, Industriales:-22, Materiales:-20, "Bienes Raíces":-18, "Servicios Públicos":-15, ETF:-22 }},
-  { id:"1970", name:"Recesión '69-'70", icon:"🔻", color:"#dc2626", year:"1969–1970",
-    desc:"Inflación y política monetaria restrictiva — S&P ≈-36%",
+  { id:"1970", name:t("portfolio.stressScenarios.y1970.name"), icon:"🔻", color:"#dc2626", year:"1969–1970",
+    desc:t("portfolio.stressScenarios.y1970.desc"),
     era:"mid_century", default:-36,
     drawdowns:{ Tecnología:-38, Comunicaciones:-32, "Consumo Discrecional":-40, "Consumo Básico":-15, Salud:-18, Financiero:-38, Energía:-20, Industriales:-38, Materiales:-35, "Bienes Raíces":-32, "Servicios Públicos":-25, ETF:-36 }},
-  { id:"oil1973", name:"Crisis del Petróleo", icon:"🛢️", color:"#f97316", year:"1973–1974",
-    desc:"Embargo árabe de petróleo disparó la inflación — S&P -48%",
+  { id:"oil1973", name:t("portfolio.stressScenarios.oil1973.name"), icon:"🛢️", color:"#f97316", year:"1973–1974",
+    desc:t("portfolio.stressScenarios.oil1973.desc"),
     era:"mid_century", default:-48,
     drawdowns:{ Tecnología:-45, Comunicaciones:-35, "Consumo Discrecional":-52, "Consumo Básico":-18, Salud:-20, Financiero:-50, Energía:15, Industriales:-45, Materiales:-42, "Bienes Raíces":-38, "Servicios Públicos":-35, ETF:-48 }},
-  { id:"volcker", name:"Shock Volcker", icon:"📈", color:"#b45309", year:"1980–1982",
-    desc:"Tasas al 20% para frenar inflación — S&P ≈-27%",
+  { id:"volcker", name:t("portfolio.stressScenarios.volcker.name"), icon:"📈", color:"#b45309", year:"1980–1982",
+    desc:t("portfolio.stressScenarios.volcker.desc"),
     era:"mid_century", default:-27,
     drawdowns:{ Tecnología:-25, Comunicaciones:-22, "Consumo Discrecional":-30, "Consumo Básico":-10, Salud:-12, Financiero:-30, Energía:10, Industriales:-28, Materiales:-25, "Bienes Raíces":-45, "Servicios Públicos":-30, ETF:-27 }},
-  { id:"1987", name:"Black Monday", icon:"⚫", color:"#ef4444", year:"1987",
-    desc:"Caída de -22.6% en un solo día — S&P -33% en semanas",
+  { id:"1987", name:t("portfolio.stressScenarios.y1987.name"), icon:"⚫", color:"#ef4444", year:"1987",
+    desc:t("portfolio.stressScenarios.y1987.desc"),
     era:"mid_century", default:-33,
     drawdowns:{ Tecnología:-38, Comunicaciones:-30, "Consumo Discrecional":-35, "Consumo Básico":-20, Salud:-22, Financiero:-38, Energía:-32, Industriales:-35, Materiales:-35, "Bienes Raíces":-30, "Servicios Públicos":-20, ETF:-33 }},
 
   // ── 1990–2005 ──────────────────────────────────────────────────────────────
-  { id:"gulf1990", name:"Guerra del Golfo", icon:"🛢️", color:"#f97316", year:"1990",
-    desc:"Invasión de Kuwait disparó el petróleo — S&P ≈-20%",
+  { id:"gulf1990", name:t("portfolio.stressScenarios.gulf1990.name"), icon:"🛢️", color:"#f97316", year:"1990",
+    desc:t("portfolio.stressScenarios.gulf1990.desc"),
     era:"late_xx", default:-20,
     drawdowns:{ Tecnología:-22, Comunicaciones:-18, "Consumo Discrecional":-25, "Consumo Básico":-8, Salud:-10, Financiero:-22, Energía:25, Industriales:-20, Materiales:-18, "Bienes Raíces":-18, "Servicios Públicos":-12, ETF:-20 }},
-  { id:"sl1990", name:"Crisis S&L", icon:"🏠", color:"#b45309", year:"1989–1991",
-    desc:"Quiebra masiva de bancos de ahorro en EE.UU. — mercado ≈-20%",
+  { id:"sl1990", name:t("portfolio.stressScenarios.sl1990.name"), icon:"🏠", color:"#b45309", year:"1989–1991",
+    desc:t("portfolio.stressScenarios.sl1990.desc"),
     era:"late_xx", default:-20,
     drawdowns:{ Tecnología:-15, Comunicaciones:-12, "Consumo Discrecional":-18, "Consumo Básico":-8, Salud:-10, Financiero:-45, Energía:-12, Industriales:-18, Materiales:-15, "Bienes Raíces":-50, "Servicios Públicos":-12, ETF:-20 }},
-  { id:"tequila1994", name:"Efecto Tequila", icon:"🇲🇽", color:"#16a34a", year:"1994",
-    desc:"Devaluación del peso mexicano sacudió mercados emergentes — ≈-25%",
+  { id:"tequila1994", name:t("portfolio.stressScenarios.tequila1994.name"), icon:"🇲🇽", color:"#16a34a", year:"1994",
+    desc:t("portfolio.stressScenarios.tequila1994.desc"),
     era:"late_xx", default:-25,
     drawdowns:{ Tecnología:-15, Comunicaciones:-12, "Consumo Discrecional":-20, "Consumo Básico":-8, Salud:-5, Financiero:-28, Energía:-10, Industriales:-15, Materiales:-18, "Bienes Raíces":-35, "Servicios Públicos":-10, ETF:-25 }},
-  { id:"asia1997", name:"Crisis Asiática", icon:"🌏", color:"#0891b2", year:"1997",
-    desc:"Colapso de divisas asiáticas — mercados emergentes -30% a -60%",
+  { id:"asia1997", name:t("portfolio.stressScenarios.asia1997.name"), icon:"🌏", color:"#0891b2", year:"1997",
+    desc:t("portfolio.stressScenarios.asia1997.desc"),
     era:"late_xx", default:-35,
     drawdowns:{ Tecnología:-20, Comunicaciones:-25, "Consumo Discrecional":-35, "Consumo Básico":-10, Salud:-8, Financiero:-30, Energía:-15, Industriales:-22, Materiales:-28, "Bienes Raíces":-45, "Servicios Públicos":-15, ETF:-35 }},
-  { id:"russia1998", name:"Crisis Rusia", icon:"🇷🇺", color:"#dc2626", year:"1998",
-    desc:"Default ruso y colapso del hedge fund LTCM — S&P ≈-19%",
+  { id:"russia1998", name:t("portfolio.stressScenarios.russia1998.name"), icon:"🇷🇺", color:"#dc2626", year:"1998",
+    desc:t("portfolio.stressScenarios.russia1998.desc"),
     era:"late_xx", default:-19,
     drawdowns:{ Tecnología:-15, Comunicaciones:-18, "Consumo Discrecional":-20, "Consumo Básico":-5, Salud:-8, Financiero:-30, Energía:-25, Industriales:-18, Materiales:-22, "Bienes Raíces":-15, "Servicios Públicos":-10, ETF:-19 }},
-  { id:"dotcom", name:"Burbuja Punto Com", icon:"💻", color:"#9333ea", year:"2000–2002",
-    desc:"El colapso de las empresas de internet — NASDAQ -78%, S&P -49%",
+  { id:"dotcom", name:t("portfolio.stressScenarios.dotcom.name"), icon:"💻", color:"#9333ea", year:"2000–2002",
+    desc:t("portfolio.stressScenarios.dotcom.desc"),
     era:"late_xx", default:-49,
     drawdowns:{ Tecnología:-82, Comunicaciones:-76, "Consumo Discrecional":-45, "Consumo Básico":-10, Salud:-18, Financiero:-22, Energía:-5, Industriales:-25, Materiales:-20, "Bienes Raíces":-15, "Servicios Públicos":-22, ETF:-45 }},
-  { id:"sept11", name:"11-S", icon:"🗽", color:"#1d4ed8", year:"2001",
-    desc:"Atentados del 11 de septiembre — S&P ≈-12% en pocos días",
+  { id:"sept11", name:t("portfolio.stressScenarios.sept11.name"), icon:"🗽", color:"#1d4ed8", year:"2001",
+    desc:t("portfolio.stressScenarios.sept11.desc"),
     era:"late_xx", default:-12,
     drawdowns:{ Tecnología:-15, Comunicaciones:-18, "Consumo Discrecional":-18, "Consumo Básico":5, Salud:3, Financiero:-20, Energía:-8, Industriales:-10, Materiales:-12, "Bienes Raíces":-10, "Servicios Públicos":-5, ETF:-12 }},
 
   // ── 2005–2015 ──────────────────────────────────────────────────────────────
-  { id:"2008", name:"Crisis 2008", icon:"🏦", color:"#ef4444", year:"2007–2009",
-    desc:"Colapso hipotecario que paralizó el sistema financiero global — S&P -57%",
+  { id:"2008", name:t("portfolio.stressScenarios.y2008.name"), icon:"🏦", color:"#ef4444", year:"2007–2009",
+    desc:t("portfolio.stressScenarios.y2008.desc"),
     era:"2000s", default:-57,
     drawdowns:{ Tecnología:-55, Comunicaciones:-42, "Consumo Discrecional":-55, "Consumo Básico":-25, Salud:-28, Financiero:-80, Energía:-60, Industriales:-52, Materiales:-58, "Bienes Raíces":-75, "Servicios Públicos":-25, ETF:-55 }},
-  { id:"eu2012", name:"Crisis Europea", icon:"🇪🇺", color:"#6366f1", year:"2010–2012",
-    desc:"Deuda soberana griega amenazó la existencia del euro — S&P ≈-25%",
+  { id:"eu2012", name:t("portfolio.stressScenarios.eu2012.name"), icon:"🇪🇺", color:"#6366f1", year:"2010–2012",
+    desc:t("portfolio.stressScenarios.eu2012.desc"),
     era:"2000s", default:-25,
     drawdowns:{ Tecnología:-20, Comunicaciones:-22, "Consumo Discrecional":-25, "Consumo Básico":-8, Salud:-12, Financiero:-40, Energía:-18, Industriales:-20, Materiales:-22, "Bienes Raíces":-35, "Servicios Públicos":-28, ETF:-25 }},
-  { id:"usdowngrade", name:"Rebaja EE.UU. '11", icon:"📋", color:"#6366f1", year:"2011",
-    desc:"S&P quitó la calificación AAA a EE.UU. — S&P ≈-19%",
+  { id:"usdowngrade", name:t("portfolio.stressScenarios.usdowngrade.name"), icon:"📋", color:"#6366f1", year:"2011",
+    desc:t("portfolio.stressScenarios.usdowngrade.desc"),
     era:"2000s", default:-19,
     drawdowns:{ Tecnología:-18, Comunicaciones:-15, "Consumo Discrecional":-20, "Consumo Básico":-5, Salud:-8, Financiero:-25, Energía:-18, Industriales:-18, Materiales:-20, "Bienes Raíces":-22, "Servicios Públicos":-15, ETF:-19 }},
 
   // ── 2015–Hoy ──────────────────────────────────────────────────────────────
-  { id:"china2015", name:"Crisis China '15", icon:"🇨🇳", color:"#dc2626", year:"2015–2016",
-    desc:"Burbuja bursátil china y devaluación del yuan — S&P ≈-15%",
+  { id:"china2015", name:t("portfolio.stressScenarios.china2015.name"), icon:"🇨🇳", color:"#dc2626", year:"2015–2016",
+    desc:t("portfolio.stressScenarios.china2015.desc"),
     era:"recent", default:-15,
     drawdowns:{ Tecnología:-18, Comunicaciones:-15, "Consumo Discrecional":-16, "Consumo Básico":-5, Salud:-8, Financiero:-15, Energía:-30, Industriales:-18, Materiales:-25, "Bienes Raíces":-12, "Servicios Públicos":-10, ETF:-15 }},
-  { id:"tradewar2018", name:"Guerra Comercial", icon:"🌐", color:"#f59e0b", year:"2018",
-    desc:"Aranceles EE.UU.-China generaron volatilidad — S&P ≈-20%",
+  { id:"tradewar2018", name:t("portfolio.stressScenarios.tradewar2018.name"), icon:"🌐", color:"#f59e0b", year:"2018",
+    desc:t("portfolio.stressScenarios.tradewar2018.desc"),
     era:"recent", default:-20,
     drawdowns:{ Tecnología:-28, Comunicaciones:-20, "Consumo Discrecional":-22, "Consumo Básico":-5, Salud:-10, Financiero:-18, Energía:-25, Industriales:-22, Materiales:-22, "Bienes Raíces":-15, "Servicios Públicos":-12, ETF:-20 }},
-  { id:"covid", name:"COVID-19", icon:"🦠", color:"#f97316", year:"Feb–Mar 2020",
-    desc:"Crash de 33 días más rápido de la historia — S&P -34%",
+  { id:"covid", name:t("portfolio.stressScenarios.covid.name"), icon:"🦠", color:"#f97316", year:"Feb–Mar 2020",
+    desc:t("portfolio.stressScenarios.covid.desc"),
     era:"recent", default:-34,
     drawdowns:{ Tecnología:-30, Comunicaciones:-25, "Consumo Discrecional":-50, "Consumo Básico":-12, Salud:-5, Financiero:-42, Energía:-65, Industriales:-42, Materiales:-40, "Bienes Raíces":-40, "Servicios Públicos":-20, ETF:-34 }},
-  { id:"2022", name:"Crash de Tasas '22", icon:"📉", color:"#f59e0b", year:"2022",
-    desc:"La Fed subió tasas al 5.25% — S&P -25%, NASDAQ -33%",
+  { id:"2022", name:t("portfolio.stressScenarios.y2022.name"), icon:"📉", color:"#f59e0b", year:"2022",
+    desc:t("portfolio.stressScenarios.y2022.desc"),
     era:"recent", default:-25,
     drawdowns:{ Tecnología:-35, Comunicaciones:-40, "Consumo Discrecional":-38, "Consumo Básico":-5, Salud:-10, Financiero:-15, Energía:58, Industriales:-12, Materiales:-20, "Bienes Raíces":-28, "Servicios Públicos":-15, ETF:-22 }},
-  { id:"svb2023", name:"Crisis SVB '23", icon:"💳", color:"#6366f1", year:"2023",
-    desc:"Quiebra de Silicon Valley Bank y Signature Bank — S&P ≈-10%",
+  { id:"svb2023", name:t("portfolio.stressScenarios.svb2023.name"), icon:"💳", color:"#6366f1", year:"2023",
+    desc:t("portfolio.stressScenarios.svb2023.desc"),
     era:"recent", default:-10,
     drawdowns:{ Tecnología:-12, Comunicaciones:-10, "Consumo Discrecional":-10, "Consumo Básico":-3, Salud:-5, Financiero:-25, Energía:-8, Industriales:-8, Materiales:-8, "Bienes Raíces":-15, "Servicios Públicos":-8, ETF:-10 }},
-  { id:"2025", name:"Corrección '25", icon:"📊", color:"#f59e0b", year:"2025",
-    desc:"Incertidumbre por aranceles y política monetaria — S&P ≈-10%",
+  { id:"2025", name:t("portfolio.stressScenarios.y2025.name"), icon:"📊", color:"#f59e0b", year:"2025",
+    desc:t("portfolio.stressScenarios.y2025.desc"),
     era:"recent", default:-10,
     drawdowns:{ Tecnología:-15, Comunicaciones:-12, "Consumo Discrecional":-12, "Consumo Básico":-3, Salud:-5, Financiero:-10, Energía:-8, Industriales:-10, Materiales:-10, "Bienes Raíces":-8, "Servicios Públicos":-5, ETF:-10 }},
 
   // ── Escenarios hipotéticos ─────────────────────────────────────────────────
-  { id:"fed", name:"Susto Fed +1%", icon:"🏛️", color:"#6366f1", year:"Hipotético",
-    desc:"Subida sorpresiva de 100 puntos base en tasas de interés",
+  { id:"fed", name:t("portfolio.stressScenarios.fed.name"), icon:"🏛️", color:"#6366f1", year:t("portfolio.stressScenarios.hypotheticalYear"),
+    desc:t("portfolio.stressScenarios.fed.desc"),
     era:"hypothetical", default:-12,
     drawdowns:{ Tecnología:-22, Comunicaciones:-18, "Consumo Discrecional":-12, "Consumo Básico":-8, Salud:-8, Financiero:3, Energía:-8, Industriales:-10, Materiales:-12, "Bienes Raíces":-22, "Servicios Públicos":-18, ETF:-12 }},
-  { id:"bull", name:"Bull Market", icon:"🚀", color:"#22c55e", year:"Hipotético",
-    desc:"Año de recuperación y euforia inversora",
+  { id:"bull", name:t("portfolio.stressScenarios.bull.name"), icon:"🚀", color:"#22c55e", year:t("portfolio.stressScenarios.hypotheticalYear"),
+    desc:t("portfolio.stressScenarios.bull.desc"),
     era:"hypothetical", default:22,
     drawdowns:{ Tecnología:50, Comunicaciones:35, "Consumo Discrecional":28, "Consumo Básico":12, Salud:22, Financiero:30, Energía:22, Industriales:22, Materiales:25, "Bienes Raíces":25, "Servicios Públicos":15, ETF:25 }},
+  ];
+}
+
+// Score-boundary lookup only (no labels needed here — labels are rendered
+// separately via getPortfolioLevels(t) wherever the level name is displayed).
+const PORTFOLIO_LEVEL_BOUNDS = [
+  { min:0,  max:13 }, { min:13, max:25 }, { min:25, max:38 }, { min:38, max:51 },
+  { min:51, max:63 }, { min:63, max:75 }, { min:75, max:88 }, { min:88, max:101 },
 ];
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
@@ -508,7 +553,7 @@ function scorePortfolio(positions: Position[], pricesData: Record<string, PriceD
   if (topPct > 0.4) score = Math.min(100, score + (topPct-0.4)*20);
   if (positions.length >= 10) score = Math.max(0, score - 4);
   score = Math.round(Math.min(100, Math.max(0, score)));
-  const idx = PORTFOLIO_LEVELS.findIndex((l) => score >= l.min && score < l.max);
+  const idx = PORTFOLIO_LEVEL_BOUNDS.findIndex((l) => score >= l.min && score < l.max);
   const sectorPcts: Record<string,number> = {};
   for (const [s,v] of Object.entries(sectorVals)) sectorPcts[s] = Math.round((v/totalVal)*100);
   return { score, levelIdx: idx===-1?7:idx, sectorPcts };
@@ -516,11 +561,13 @@ function scorePortfolio(positions: Position[], pricesData: Record<string, PriceD
 
 
 type Scenario = "conservative"|"moderate"|"aggressive";
-const SCENARIOS: {value:Scenario; label:string; emoji:string}[] = [
-  { value:"conservative", label:"Conservador", emoji:"🛡️" },
-  { value:"moderate",     label:"Moderado",    emoji:"⚖️" },
-  { value:"aggressive",   label:"Agresivo",    emoji:"🚀" },
-];
+function getScenarios(t: TFunction): {value:Scenario; label:string; emoji:string}[] {
+  return [
+    { value:"conservative", label:t("portfolio.scenarios.conservative"), emoji:"🛡️" },
+    { value:"moderate",     label:t("portfolio.scenarios.moderate"),    emoji:"⚖️" },
+    { value:"aggressive",   label:t("portfolio.scenarios.aggressive"),   emoji:"🚀" },
+  ];
+}
 
 // ─── Portfolio historical chart ────────────────────────────────────────────
 
@@ -723,6 +770,11 @@ function PortfolioHistoryChart({
 // ─── Component ─────────────────────────────────────────────────────────────
 
 export default function PortfolioPage() {
+  const { t } = useTranslation();
+  const sectorLabels = getSectorLabel(t);
+  const PORTFOLIO_LEVELS = getPortfolioLevels(t);
+  const STRESS_SCENARIOS = getStressScenarios(t);
+  const SCENARIOS = getScenarios(t);
   const router = useRouter();
   const { isAuthenticated, userId } = useAuthStore();
   const [isTour, setIsTour] = useState(false);
@@ -2636,7 +2688,7 @@ export default function PortfolioPage() {
                               color: isSelected ? "#fff" : col,
                             }}
                           >
-                            {sector} {pct}%
+                            {sectorLabels[sector] ?? sector} {pct}%
                           </button>
                         );
                       })}
@@ -2655,7 +2707,7 @@ export default function PortfolioPage() {
                              style={{ background:`${col}0e`, borderColor:`${col}40` }}>
                           <div className="flex items-center justify-between mb-2.5">
                             <span className="text-xs font-extrabold" style={{ color: col }}>
-                              Posiciones · {selectedSector}
+                              {t("portfolio.riskDiagnosis.positionsInSector", { sector: sectorLabels[selectedSector] ?? selectedSector })}
                             </span>
                             <button
                               onClick={() => setSelectedSector(null)}
@@ -2790,7 +2842,7 @@ export default function PortfolioPage() {
                         <div key={t} className="flex items-center justify-between py-2.5 border-t" style={{ borderColor:"var(--border)" }}>
                           <div>
                             <p className="text-sm font-extrabold" style={{ color:"var(--text)" }}>{t}</p>
-                            <p className="text-xs" style={{ color:"var(--dim)" }}>Tecnología</p>
+                            <p className="text-xs" style={{ color:"var(--dim)" }}>{sectorLabels["Tecnología"]}</p>
                           </div>
                           <div className="text-right">
                             <p className="text-sm font-extrabold" style={{ color:"#ef4444" }}>-XX%</p>
@@ -2819,7 +2871,7 @@ export default function PortfolioPage() {
                                style={{ borderColor:"var(--border)" }}>
                             <div>
                               <p className="text-sm font-extrabold" style={{ color:"var(--text)" }}>{row.ticker}</p>
-                              <p className="text-xs" style={{ color:"var(--dim)" }}>{row.sector}</p>
+                              <p className="text-xs" style={{ color:"var(--dim)" }}>{sectorLabels[row.sector] ?? row.sector}</p>
                             </div>
                             <div className="text-right">
                               <p className="text-sm font-extrabold" style={{ color:row.pct>=0?"#22c55e":"#ef4444" }}>

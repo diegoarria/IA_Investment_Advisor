@@ -9,6 +9,8 @@ import {
   AppState, AppStateStatus, PanResponder,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import Svg, { Path, Defs, Stop, LinearGradient, Circle, Line as SvgLine } from "react-native-svg";
 import * as ImagePicker from "expo-image-picker";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -233,22 +235,60 @@ const SECTOR_RISK_BASE: Record<string, number> = {
 };
 
 
-const PORTFOLIO_LEVELS = [
-  { label: "Conservador",           min: 0,   max: 13,  color: "#3b82f6" },
-  { label: "Conservador-Moderado",  min: 13,  max: 25,  color: "#60a5fa" },
-  { label: "Moderado",              min: 25,  max: 38,  color: "#f59e0b" },
-  { label: "Moderado-Growth",       min: 38,  max: 51,  color: "#f97316" },
-  { label: "Growth",                min: 51,  max: 63,  color: "#fb923c" },
-  { label: "Agresivo",              min: 63,  max: 75,  color: "#ef4444" },
-  { label: "Agresivo-Especulativo", min: 75,  max: 88,  color: "#dc2626" },
-  { label: "Especulativo",          min: 88,  max: 101, color: "#7f1d1d" },
-] as const;
+function getPortfolioLevels(t: TFunction) {
+  return [
+    { label: t("portfolio.riskLevels.conservative"),           min: 0,   max: 13,  color: "#3b82f6" },
+    { label: t("portfolio.riskLevels.conservativeModerate"),  min: 13,  max: 25,  color: "#60a5fa" },
+    { label: t("portfolio.riskLevels.moderate"),              min: 25,  max: 38,  color: "#f59e0b" },
+    { label: t("portfolio.riskLevels.moderateGrowth"),       min: 38,  max: 51,  color: "#f97316" },
+    { label: t("portfolio.riskLevels.growth"),                min: 51,  max: 63,  color: "#fb923c" },
+    { label: t("portfolio.riskLevels.aggressive"),              min: 63,  max: 75,  color: "#ef4444" },
+    { label: t("portfolio.riskLevels.aggressiveSpeculative"), min: 75,  max: 88,  color: "#dc2626" },
+    { label: t("portfolio.riskLevels.speculative"),          min: 88,  max: 101, color: "#7f1d1d" },
+  ];
+}
+function getSectorLabels(t: TFunction): Record<string, string> {
+  return {
+    "Semiconductores": t("portfolio.sectors.semiconductors"),
+    "Software": t("portfolio.sectors.software"),
+    "Tecnología": t("portfolio.sectors.technology"),
+    "Inteligencia Artificial": t("portfolio.sectors.ai"),
+    "Fintech": t("portfolio.sectors.fintech"),
+    "eCommerce": t("portfolio.sectors.ecommerce"),
+    "Consumo Discrecional": t("portfolio.sectors.consumerDiscretionary"),
+    "Consumo Básico": t("portfolio.sectors.consumerStaples"),
+    "Salud": t("portfolio.sectors.health"),
+    "Farmacéutica": t("portfolio.sectors.pharma"),
+    "Biotecnología": t("portfolio.sectors.biotech"),
+    "Financiero": t("portfolio.sectors.financial"),
+    "Bancario": t("portfolio.sectors.banking"),
+    "Seguros": t("portfolio.sectors.insurance"),
+    "Energía": t("portfolio.sectors.energy"),
+    "Energía Renovable": t("portfolio.sectors.renewableEnergy"),
+    "Servicios Públicos": t("portfolio.sectors.utilities"),
+    "Industriales": t("portfolio.sectors.industrials"),
+    "Aeroespacial": t("portfolio.sectors.aerospace"),
+    "Logística": t("portfolio.sectors.logistics"),
+    "Materiales": t("portfolio.sectors.materials"),
+    "Telecomunicaciones": t("portfolio.sectors.telecom"),
+    "Medios": t("portfolio.sectors.media"),
+    "Real Estate": t("portfolio.sectors.realEstate"),
+    "Cripto": t("portfolio.sectors.crypto"),
+    "ETF": t("portfolio.sectors.etf"),
+    "Otro": t("portfolio.sectors.other"),
+  };
+}
 
 function getPositionRisk(ticker: string): number {
   if (TICKER_RISK_OVERRIDE[ticker] !== undefined) return TICKER_RISK_OVERRIDE[ticker];
   const sector = TICKER_SECTOR[ticker];
   return sector ? (SECTOR_RISK_BASE[sector] ?? 62) : 62;
 }
+
+const PORTFOLIO_LEVEL_THRESHOLDS = [
+  { min: 0,  max: 13 },  { min: 13, max: 25 },  { min: 25, max: 38 },  { min: 38, max: 51 },
+  { min: 51, max: 63 },  { min: 63, max: 75 },  { min: 75, max: 88 },  { min: 88, max: 101 },
+];
 
 function scorePortfolio(
   positions: Position[],
@@ -272,7 +312,7 @@ function scorePortfolio(
   if (topPct > 0.4) score = Math.min(100, score + (topPct - 0.4) * 20);
   if (positions.length >= 10) score = Math.max(0, score - 4);
   score = Math.round(Math.min(100, Math.max(0, score)));
-  const idx = PORTFOLIO_LEVELS.findIndex((l) => score >= l.min && score < l.max);
+  const idx = PORTFOLIO_LEVEL_THRESHOLDS.findIndex((l) => score >= l.min && score < l.max);
   const sectorPcts: Record<string, number> = {};
   for (const [s, v] of Object.entries(sectorVals)) sectorPcts[s] = Math.round((v / totalVal) * 100);
   return { score, levelIdx: idx === -1 ? 7 : idx, sectorPcts };
@@ -290,11 +330,12 @@ function buildFeedback(
   levelIdx: number,
   profile: UserProfile | null,
   age: number,
-  sectorPcts: Record<string, number>
+  sectorPcts: Record<string, number>,
+  levels: ReturnType<typeof getPortfolioLevels>
 ): string[] {
   if (!profile || age === 0) return [];
   const firstName = profile.name.split(" ")[0];
-  const levelLabel = PORTFOLIO_LEVELS[levelIdx].label.toLowerCase();
+  const levelLabel = levels[levelIdx].label.toLowerCase();
   const profileRange: Record<string, [number, number]> = {
     conservative: [0, 2], moderate: [1, 4], aggressive: [3, 7],
   };
@@ -312,7 +353,7 @@ function buildFeedback(
   } else {
     lines.push(`Está bien alineado con tu perfil de inversionista ${profileLabel}.`);
   }
-  const ageTargetLabel = PORTFOLIO_LEVELS[ageTargetIdx].label;
+  const ageTargetLabel = levels[ageTargetIdx].label;
   if (levelIdx > ageTargetIdx + 1) {
     lines.push(`Con ${age} años y este nivel de riesgo, asegúrate de tener un fondo de emergencia sólido antes de mantener esta exposición.`);
   } else if (levelIdx < ageTargetIdx - 1 && age < 45) {
@@ -330,11 +371,12 @@ interface StressScenario {
   default: number;
 }
 
-const STRESS_SCENARIOS: StressScenario[] = [
+function getStressScenarios(t: TFunction): StressScenario[] {
+  return [
   // ── Pre-1950 ──────────────────────────────────────────────────────────────
   {
-    id: "1929", name: "Gran Depresión", icon: "🏚️", color: "#b91c1c", year: "1929-32", era: "pre1950",
-    desc: "El mayor colapso bursátil de la historia, -89% en 3 años", default: -89,
+    id: "1929", name: t("portfolio.stressScenarios.y1929.name"), icon: "🏚️", color: "#b91c1c", year: "1929-32", era: "pre1950",
+    desc: t("portfolio.stressScenarios.y1929.desc"), default: -89,
     drawdowns: { Semiconductores:-89, Software:-89, Tecnología:-89, "Inteligencia Artificial":-89,
       Fintech:-89, eCommerce:-89, "Consumo Discrecional":-82, "Consumo Básico":-52,
       Salud:-60, "Farmacéutica":-65, Biotecnología:-70,
@@ -344,8 +386,8 @@ const STRESS_SCENARIOS: StressScenario[] = [
       Telecomunicaciones:-55, Medios:-65, "Real Estate":-85, Cripto:-89, ETF:-75 },
   },
   {
-    id: "ww2_1938", name: "Pre-WWII", icon: "⚔️", color: "#dc2626", year: "1938-42", era: "pre1950",
-    desc: "Tensión global previa a la Segunda Guerra Mundial", default: -41,
+    id: "ww2_1938", name: t("portfolio.stressScenarios.ww2_1938.name"), icon: "⚔️", color: "#dc2626", year: "1938-42", era: "pre1950",
+    desc: t("portfolio.stressScenarios.ww2_1938.desc"), default: -41,
     drawdowns: { Semiconductores:-41, Software:-41, Tecnología:-41, "Inteligencia Artificial":-41,
       Fintech:-41, eCommerce:-41, "Consumo Discrecional":-35, "Consumo Básico":-18,
       Salud:-22, "Farmacéutica":-25, Biotecnología:-30,
@@ -356,8 +398,8 @@ const STRESS_SCENARIOS: StressScenario[] = [
   },
   // ── Mid-Century (1950–1990) ───────────────────────────────────────────────
   {
-    id: "oil1973", name: "Crisis del Petróleo", icon: "⛽", color: "#d97706", year: "1973-74", era: "mid_century",
-    desc: "Embargo árabe dispara inflación, S&P cae -48%", default: -48,
+    id: "oil1973", name: t("portfolio.stressScenarios.oil1973.name"), icon: "⛽", color: "#d97706", year: "1973-74", era: "mid_century",
+    desc: t("portfolio.stressScenarios.oil1973.desc"), default: -48,
     drawdowns: { Semiconductores:-55, Software:-52, Tecnología:-55, "Inteligencia Artificial":-55,
       Fintech:-50, eCommerce:-50, "Consumo Discrecional":-45, "Consumo Básico":-28,
       Salud:-30, "Farmacéutica":-32, Biotecnología:-38,
@@ -367,8 +409,8 @@ const STRESS_SCENARIOS: StressScenario[] = [
       Telecomunicaciones:-35, Medios:-40, "Real Estate":-20, Cripto:-48, ETF:-42 },
   },
   {
-    id: "stagflation1980", name: "Estanflación '80", icon: "📈", color: "#b45309", year: "1980-82", era: "mid_century",
-    desc: "Fed sube tasas al 20%, recesión severa", default: -27,
+    id: "stagflation1980", name: t("portfolio.stressScenarios.stagflation1980.name"), icon: "📈", color: "#b45309", year: "1980-82", era: "mid_century",
+    desc: t("portfolio.stressScenarios.stagflation1980.desc"), default: -27,
     drawdowns: { Semiconductores:-38, Software:-35, Tecnología:-38, "Inteligencia Artificial":-38,
       Fintech:-35, eCommerce:-35, "Consumo Discrecional":-30, "Consumo Básico":-15,
       Salud:-18, "Farmacéutica":-20, Biotecnología:-25,
@@ -378,8 +420,8 @@ const STRESS_SCENARIOS: StressScenario[] = [
       Telecomunicaciones:-25, Medios:-28, "Real Estate":-18, Cripto:-27, ETF:-25 },
   },
   {
-    id: "black_monday", name: "Lunes Negro", icon: "⬛", color: "#1d4ed8", year: "Oct 1987", era: "mid_century",
-    desc: "Mayor caída en un solo día: -22.6% en 24 horas", default: -34,
+    id: "black_monday", name: t("portfolio.stressScenarios.black_monday.name"), icon: "⬛", color: "#1d4ed8", year: "Oct 1987", era: "mid_century",
+    desc: t("portfolio.stressScenarios.black_monday.desc"), default: -34,
     drawdowns: { Semiconductores:-42, Software:-40, Tecnología:-42, "Inteligencia Artificial":-42,
       Fintech:-42, eCommerce:-42, "Consumo Discrecional":-32, "Consumo Básico":-20,
       Salud:-22, "Farmacéutica":-25, Biotecnología:-32,
@@ -390,8 +432,8 @@ const STRESS_SCENARIOS: StressScenario[] = [
   },
   // ── Late XX Century (1990–2005) ──────────────────────────────────────────
   {
-    id: "gulf1990", name: "Guerra del Golfo", icon: "🛢️", color: "#78350f", year: "1990-91", era: "late_xx",
-    desc: "Invasión de Kuwait, recesión y petróleo dispara precios", default: -20,
+    id: "gulf1990", name: t("portfolio.stressScenarios.gulf1990.name"), icon: "🛢️", color: "#78350f", year: "1990-91", era: "late_xx",
+    desc: t("portfolio.stressScenarios.gulf1990.desc"), default: -20,
     drawdowns: { Semiconductores:-25, Software:-22, Tecnología:-25, "Inteligencia Artificial":-25,
       Fintech:-22, eCommerce:-22, "Consumo Discrecional":-18, "Consumo Básico":-8,
       Salud:-10, "Farmacéutica":-12, Biotecnología:-15,
@@ -401,8 +443,8 @@ const STRESS_SCENARIOS: StressScenario[] = [
       Telecomunicaciones:-15, Medios:-18, "Real Estate":-22, Cripto:-20, ETF:-18 },
   },
   {
-    id: "asian1997", name: "Crisis Asiática", icon: "🌏", color: "#0369a1", year: "1997-98", era: "late_xx",
-    desc: "Colapso monedas asiáticas, contagio global", default: -19,
+    id: "asian1997", name: t("portfolio.stressScenarios.asian1997.name"), icon: "🌏", color: "#0369a1", year: "1997-98", era: "late_xx",
+    desc: t("portfolio.stressScenarios.asian1997.desc"), default: -19,
     drawdowns: { Semiconductores:-35, Software:-28, Tecnología:-30, "Inteligencia Artificial":-30,
       Fintech:-35, eCommerce:-30, "Consumo Discrecional":-22, "Consumo Básico":-10,
       Salud:-12, "Farmacéutica":-14, Biotecnología:-18,
@@ -412,8 +454,8 @@ const STRESS_SCENARIOS: StressScenario[] = [
       Telecomunicaciones:-22, Medios:-20, "Real Estate":-15, Cripto:-19, ETF:-17 },
   },
   {
-    id: "ltcm1998", name: "Crisis LTCM", icon: "🎲", color: "#7c3aed", year: "1998", era: "late_xx",
-    desc: "Colapso de hedge fund sistémico, Fed interviene", default: -20,
+    id: "ltcm1998", name: t("portfolio.stressScenarios.ltcm1998.name"), icon: "🎲", color: "#7c3aed", year: "1998", era: "late_xx",
+    desc: t("portfolio.stressScenarios.ltcm1998.desc"), default: -20,
     drawdowns: { Semiconductores:-28, Software:-25, Tecnología:-28, "Inteligencia Artificial":-28,
       Fintech:-35, eCommerce:-25, "Consumo Discrecional":-18, "Consumo Básico":-8,
       Salud:-10, "Farmacéutica":-12, Biotecnología:-15,
@@ -423,8 +465,8 @@ const STRESS_SCENARIOS: StressScenario[] = [
       Telecomunicaciones:-18, Medios:-15, "Real Estate":-12, Cripto:-20, ETF:-18 },
   },
   {
-    id: "dotcom", name: "Burbuja .com", icon: "💻", color: "#0891b2", year: "2000-02", era: "late_xx",
-    desc: "Colapso de valuaciones tech, Nasdaq -78%", default: -49,
+    id: "dotcom", name: t("portfolio.stressScenarios.dotcom.name"), icon: "💻", color: "#0891b2", year: "2000-02", era: "late_xx",
+    desc: t("portfolio.stressScenarios.dotcom.desc"), default: -49,
     drawdowns: { Semiconductores:-82, Software:-80, Tecnología:-78, "Inteligencia Artificial":-80,
       Fintech:-75, eCommerce:-85, "Consumo Discrecional":-30, "Consumo Básico":-12,
       Salud:-15, "Farmacéutica":-18, Biotecnología:-55,
@@ -434,8 +476,8 @@ const STRESS_SCENARIOS: StressScenario[] = [
       Telecomunicaciones:-60, Medios:-50, "Real Estate":-5, Cripto:-49, ETF:-38 },
   },
   {
-    id: "9_11", name: "9/11", icon: "🇺🇸", color: "#1e40af", year: "Sep 2001", era: "late_xx",
-    desc: "Ataques terroristas cierran NYSE 4 días, caída abrupta", default: -12,
+    id: "9_11", name: t("portfolio.stressScenarios.sept11.name"), icon: "🇺🇸", color: "#1e40af", year: "Sep 2001", era: "late_xx",
+    desc: t("portfolio.stressScenarios.sept11.desc"), default: -12,
     drawdowns: { Semiconductores:-18, Software:-15, Tecnología:-18, "Inteligencia Artificial":-18,
       Fintech:-18, eCommerce:-15, "Consumo Discrecional":-15, "Consumo Básico":-5,
       Salud:-5, "Farmacéutica":-6, Biotecnología:-8,
@@ -446,8 +488,8 @@ const STRESS_SCENARIOS: StressScenario[] = [
   },
   // ── 2005–2015 ────────────────────────────────────────────────────────────
   {
-    id: "2008", name: "Crisis 2008", icon: "🏦", color: "#ef4444", year: "2008-09", era: "2000s",
-    desc: "Colapso del sistema financiero global", default: -55,
+    id: "2008", name: t("portfolio.stressScenarios.y2008.name"), icon: "🏦", color: "#ef4444", year: "2008-09", era: "2000s",
+    desc: t("portfolio.stressScenarios.y2008.desc"), default: -55,
     drawdowns: { Semiconductores:-55, Software:-48, Tecnología:-52, "Inteligencia Artificial":-52,
       Fintech:-55, eCommerce:-50, "Consumo Discrecional":-42, "Consumo Básico":-20,
       Salud:-18, "Farmacéutica":-22, Biotecnología:-30,
@@ -457,8 +499,8 @@ const STRESS_SCENARIOS: StressScenario[] = [
       Telecomunicaciones:-32, Medios:-42, "Real Estate":-65, Cripto:-55, ETF:-38 },
   },
   {
-    id: "euro_debt2011", name: "Crisis Euro", icon: "🇪🇺", color: "#1d4ed8", year: "2011-12", era: "2000s",
-    desc: "Grecia, España e Italia al borde del colapso soberano", default: -21,
+    id: "euro_debt2011", name: t("portfolio.stressScenarios.euro_debt2011.name"), icon: "🇪🇺", color: "#1d4ed8", year: "2011-12", era: "2000s",
+    desc: t("portfolio.stressScenarios.euro_debt2011.desc"), default: -21,
     drawdowns: { Semiconductores:-25, Software:-22, Tecnología:-25, "Inteligencia Artificial":-25,
       Fintech:-35, eCommerce:-20, "Consumo Discrecional":-20, "Consumo Básico":-10,
       Salud:-10, "Farmacéutica":-12, Biotecnología:-15,
@@ -468,8 +510,8 @@ const STRESS_SCENARIOS: StressScenario[] = [
       Telecomunicaciones:-18, Medios:-15, "Real Estate":-25, Cripto:-21, ETF:-18 },
   },
   {
-    id: "china2015", name: "Crash China", icon: "🐉", color: "#dc2626", year: "2015-16", era: "2000s",
-    desc: "Devaluación yuan y desplome mercado chino, contagio global", default: -14,
+    id: "china2015", name: t("portfolio.stressScenarios.china2015.name"), icon: "🐉", color: "#dc2626", year: "2015-16", era: "2000s",
+    desc: t("portfolio.stressScenarios.china2015.desc"), default: -14,
     drawdowns: { Semiconductores:-22, Software:-18, Tecnología:-22, "Inteligencia Artificial":-22,
       Fintech:-20, eCommerce:-18, "Consumo Discrecional":-15, "Consumo Básico":-8,
       Salud:-8, "Farmacéutica":-10, Biotecnología:-12,
@@ -480,8 +522,8 @@ const STRESS_SCENARIOS: StressScenario[] = [
   },
   // ── Reciente (2015–Hoy) ──────────────────────────────────────────────────
   {
-    id: "volmageddon2018", name: "Volmageddon", icon: "📊", color: "#7c3aed", year: "Feb 2018", era: "recent",
-    desc: "Explosión de productos de volatilidad corta, caída de VIX", default: -10,
+    id: "volmageddon2018", name: t("portfolio.stressScenarios.volmageddon2018.name"), icon: "📊", color: "#7c3aed", year: "Feb 2018", era: "recent",
+    desc: t("portfolio.stressScenarios.volmageddon2018.desc"), default: -10,
     drawdowns: { Semiconductores:-14, Software:-12, Tecnología:-14, "Inteligencia Artificial":-14,
       Fintech:-16, eCommerce:-12, "Consumo Discrecional":-10, "Consumo Básico":-6,
       Salud:-6, "Farmacéutica":-7, Biotecnología:-10,
@@ -491,8 +533,8 @@ const STRESS_SCENARIOS: StressScenario[] = [
       Telecomunicaciones:-8, Medios:-8, "Real Estate":-10, Cripto:-50, ETF:-9 },
   },
   {
-    id: "trade_war2018", name: "Guerra Comercial", icon: "🏭", color: "#f59e0b", year: "2018", era: "recent",
-    desc: "Aranceles EE.UU.–China sacuden mercados globales", default: -20,
+    id: "trade_war2018", name: t("portfolio.stressScenarios.trade_war2018.name"), icon: "🏭", color: "#f59e0b", year: "2018", era: "recent",
+    desc: t("portfolio.stressScenarios.trade_war2018.desc"), default: -20,
     drawdowns: { Semiconductores:-35, Software:-25, Tecnología:-30, "Inteligencia Artificial":-30,
       Fintech:-25, eCommerce:-28, "Consumo Discrecional":-18, "Consumo Básico":-8,
       Salud:-10, "Farmacéutica":-12, Biotecnología:-15,
@@ -502,8 +544,8 @@ const STRESS_SCENARIOS: StressScenario[] = [
       Telecomunicaciones:-15, Medios:-12, "Real Estate":-12, Cripto:-75, ETF:-18 },
   },
   {
-    id: "covid", name: "COVID-19", icon: "🦠", color: "#f97316", year: "Feb-Mar 2020", era: "recent",
-    desc: "Crash de 33 días, caída brusca y rápida", default: -34,
+    id: "covid", name: t("portfolio.stressScenarios.covid.name"), icon: "🦠", color: "#f97316", year: "Feb-Mar 2020", era: "recent",
+    desc: t("portfolio.stressScenarios.covid.desc"), default: -34,
     drawdowns: { Semiconductores:-35, Software:-28, Tecnología:-32, "Inteligencia Artificial":-30,
       Fintech:-38, eCommerce:18, "Consumo Discrecional":-50, "Consumo Básico":-12,
       Salud:-10, "Farmacéutica":-15, Biotecnología:15,
@@ -513,8 +555,8 @@ const STRESS_SCENARIOS: StressScenario[] = [
       Telecomunicaciones:-22, Medios:-45, "Real Estate":-40, Cripto:-50, ETF:-34 },
   },
   {
-    id: "tech2022", name: "Tech Crash '22", icon: "📉", color: "#f59e0b", year: "2022", era: "recent",
-    desc: "Alza de tasas aplasta valuaciones tech", default: -20,
+    id: "tech2022", name: t("portfolio.stressScenarios.tech2022.name"), icon: "📉", color: "#f59e0b", year: "2022", era: "recent",
+    desc: t("portfolio.stressScenarios.tech2022.desc"), default: -20,
     drawdowns: { Semiconductores:-62, Software:-58, Tecnología:-52, "Inteligencia Artificial":-60,
       Fintech:-70, eCommerce:-55, "Consumo Discrecional":-18, "Consumo Básico":-10,
       Salud:-8, "Farmacéutica":-10, Biotecnología:-32,
@@ -524,8 +566,8 @@ const STRESS_SCENARIOS: StressScenario[] = [
       Telecomunicaciones:-28, Medios:-40, "Real Estate":-25, Cripto:-75, ETF:-18 },
   },
   {
-    id: "svb2023", name: "Crisis SVB", icon: "🏛️", color: "#db2777", year: "Mar 2023", era: "recent",
-    desc: "Quiebra de Silicon Valley Bank, pánico bancario regional", default: -9,
+    id: "svb2023", name: t("portfolio.stressScenarios.svb2023.name"), icon: "🏛️", color: "#db2777", year: "Mar 2023", era: "recent",
+    desc: t("portfolio.stressScenarios.svb2023.desc"), default: -9,
     drawdowns: { Semiconductores:-15, Software:-12, Tecnología:-14, "Inteligencia Artificial":-14,
       Fintech:-25, eCommerce:-10, "Consumo Discrecional":-8, "Consumo Básico":-4,
       Salud:-5, "Farmacéutica":-6, Biotecnología:-8,
@@ -535,8 +577,8 @@ const STRESS_SCENARIOS: StressScenario[] = [
       Telecomunicaciones:-7, Medios:-7, "Real Estate":-10, Cripto:20, ETF:-8 },
   },
   {
-    id: "ai_bubble2025", name: "Corrección IA '25", icon: "🤖", color: "#8b5cf6", year: "2025", era: "recent",
-    desc: "Valuaciones de IA sobrecalentadas, corrección del Nasdaq", default: -18,
+    id: "ai_bubble2025", name: t("portfolio.stressScenarios.ai_bubble2025.name"), icon: "🤖", color: "#8b5cf6", year: "2025", era: "recent",
+    desc: t("portfolio.stressScenarios.ai_bubble2025.desc"), default: -18,
     drawdowns: { Semiconductores:-38, Software:-32, Tecnología:-30, "Inteligencia Artificial":-55,
       Fintech:-25, eCommerce:-20, "Consumo Discrecional":-12, "Consumo Básico":-5,
       Salud:-6, "Farmacéutica":-7, Biotecnología:-10,
@@ -547,8 +589,8 @@ const STRESS_SCENARIOS: StressScenario[] = [
   },
   // ── Hipotéticos ──────────────────────────────────────────────────────────
   {
-    id: "fed", name: "Fed +1%", icon: "📋", color: "#6366f1", year: "Hipotético", era: "hypothetical",
-    desc: "Subida sorpresiva de 100pb en tasas de la Fed", default: -12,
+    id: "fed", name: t("portfolio.stressScenarios.fed.name"), icon: "📋", color: "#6366f1", year: t("portfolio.stressScenarios.hypotheticalYear"), era: "hypothetical",
+    desc: t("portfolio.stressScenarios.fed.desc"), default: -12,
     drawdowns: { Semiconductores:-22, Software:-25, Tecnología:-20, "Inteligencia Artificial":-28,
       Fintech:-28, eCommerce:-22, "Consumo Discrecional":-12, "Consumo Básico":-8,
       Salud:-5, "Farmacéutica":-8, Biotecnología:-15,
@@ -558,8 +600,8 @@ const STRESS_SCENARIOS: StressScenario[] = [
       Telecomunicaciones:-15, Medios:-10, "Real Estate":-20, Cripto:-35, ETF:-12 },
   },
   {
-    id: "china_taiwan", name: "Conflicto Taiwán", icon: "⚠️", color: "#dc2626", year: "Hipotético", era: "hypothetical",
-    desc: "Tensión militar China-Taiwán interrumpe semiconductores", default: -28,
+    id: "china_taiwan", name: t("portfolio.stressScenarios.china_taiwan.name"), icon: "⚠️", color: "#dc2626", year: t("portfolio.stressScenarios.hypotheticalYear"), era: "hypothetical",
+    desc: t("portfolio.stressScenarios.china_taiwan.desc"), default: -28,
     drawdowns: { Semiconductores:-60, Software:-35, Tecnología:-45, "Inteligencia Artificial":-50,
       Fintech:-30, eCommerce:-25, "Consumo Discrecional":-20, "Consumo Básico":-10,
       Salud:-8, "Farmacéutica":-10, Biotecnología:-12,
@@ -569,8 +611,8 @@ const STRESS_SCENARIOS: StressScenario[] = [
       Telecomunicaciones:-25, Medios:-15, "Real Estate":-15, Cripto:-45, ETF:-25 },
   },
   {
-    id: "recession_mild", name: "Recesión Leve", icon: "📉", color: "#64748b", year: "Hipotético", era: "hypothetical",
-    desc: "GDP cae 2 trimestres, desempleo sube moderadamente", default: -18,
+    id: "recession_mild", name: t("portfolio.stressScenarios.recession_mild.name"), icon: "📉", color: "#64748b", year: t("portfolio.stressScenarios.hypotheticalYear"), era: "hypothetical",
+    desc: t("portfolio.stressScenarios.recession_mild.desc"), default: -18,
     drawdowns: { Semiconductores:-25, Software:-20, Tecnología:-22, "Inteligencia Artificial":-22,
       Fintech:-22, eCommerce:-18, "Consumo Discrecional":-25, "Consumo Básico":-5,
       Salud:-5, "Farmacéutica":-6, Biotecnología:-10,
@@ -580,8 +622,8 @@ const STRESS_SCENARIOS: StressScenario[] = [
       Telecomunicaciones:-15, Medios:-18, "Real Estate":-22, Cripto:-40, ETF:-16 },
   },
   {
-    id: "bull", name: "Bull Market", icon: "🚀", color: "#22c55e", year: "Hipotético", era: "hypothetical",
-    desc: "Año de recuperación y euforia inversora", default: 22,
+    id: "bull", name: t("portfolio.stressScenarios.bull.name"), icon: "🚀", color: "#22c55e", year: t("portfolio.stressScenarios.hypotheticalYear"), era: "hypothetical",
+    desc: t("portfolio.stressScenarios.bull.desc"), default: 22,
     drawdowns: { Semiconductores:55, Software:40, Tecnología:38, "Inteligencia Artificial":60,
       Fintech:42, eCommerce:38, "Consumo Discrecional":25, "Consumo Básico":12,
       Salud:18, "Farmacéutica":20, Biotecnología:32,
@@ -590,7 +632,8 @@ const STRESS_SCENARIOS: StressScenario[] = [
       Industriales:22, Aeroespacial:28, Logística:20, Materiales:25,
       Telecomunicaciones:15, Medios:20, "Real Estate":25, Cripto:80, ETF:25 },
   },
-];
+  ];
+}
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
 
@@ -823,10 +866,20 @@ function PortfolioHistoryChart({
 // ─── Component ─────────────────────────────────────────────────────────────
 
 export default function PortfolioScreen() {
+  const { t } = useTranslation();
   const { colors } = useTheme();
   const s = portfolioStyles;
   const { tour } = useLocalSearchParams<{ tour?: string }>();
   const isTour = tour === "1";
+  const PORTFOLIO_LEVELS = useMemo(() => getPortfolioLevels(t), [t]);
+  const STRESS_SCENARIOS = useMemo(() => getStressScenarios(t), [t]);
+  const SECTOR_LABELS = useMemo(() => getSectorLabels(t), [t]);
+  const GOAL_LABELS: Record<string, string> = {
+    emergency_fund: t("portfolio.goalLabels.emergency_fund"),
+    big_purchase:   t("portfolio.goalLabels.big_purchase"),
+    retirement:     t("portfolio.goalLabels.retirement"),
+    independence:   t("portfolio.goalLabels.independence"),
+  };
 
   const {
     positions, closedPositions, inceptionDate, addPosition, removePosition, updatePosition, setPositions,
@@ -955,17 +1008,17 @@ export default function PortfolioScreen() {
   // Period returns
   type PeriodReturn = { pct: number; avg_pct?: number; amount: number; date?: string; breakdown?: Record<string, number>; spy_pct?: number };
   const PERIODS = [
-    { key: "since_purchase", label: "Compra", premium: false },
-    { key: "1d",  label: "1D",   premium: false },
-    { key: "5d",  label: "5D",   premium: false },
-    { key: "1mo", label: "1M",   premium: false },
-    { key: "3mo", label: "3M",   premium: true  },
-    { key: "6mo", label: "6M",   premium: true  },
-    { key: "ytd", label: "YTD",  premium: true  },
-    { key: "1y",  label: "1A",   premium: true  },
-    { key: "3y",  label: "3A",   premium: true  },
-    { key: "5y",  label: "5A",   premium: true  },
-    { key: "max", label: "MÁX",  premium: true  },
+    { key: "since_purchase", label: t("portfolio.periods.purchase"), premium: false },
+    { key: "1d",  label: t("portfolio.periods.d1"),   premium: false },
+    { key: "5d",  label: t("portfolio.periods.d5"),   premium: false },
+    { key: "1mo", label: t("portfolio.periods.mo1"),  premium: false },
+    { key: "3mo", label: t("portfolio.periods.mo3"),  premium: true  },
+    { key: "6mo", label: t("portfolio.periods.mo6"),  premium: true  },
+    { key: "ytd", label: t("portfolio.periods.ytd"),  premium: true  },
+    { key: "1y",  label: t("portfolio.periods.y1"),   premium: true  },
+    { key: "3y",  label: t("portfolio.periods.y3"),   premium: true  },
+    { key: "5y",  label: t("portfolio.periods.y5"),   premium: true  },
+    { key: "max", label: t("portfolio.periods.max"),  premium: true  },
   ] as const;
   type PeriodKey = typeof PERIODS[number]["key"];
   const [selectedPeriod, setSelectedPeriod] = useState<PeriodKey>("1mo");
@@ -1132,7 +1185,7 @@ export default function PortfolioScreen() {
   const handleScreenshotImport = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== "granted") {
-      Alert.alert("Permiso requerido", "Necesitamos acceso a tu galería para leer la captura de pantalla.");
+      Alert.alert(t("portfolio.modals.screenshotPermissionTitle"), t("portfolio.modals.screenshotPermissionMsg"));
       return;
     }
 
@@ -1151,14 +1204,14 @@ export default function PortfolioScreen() {
     setScreenshotUris(assets.map((a) => a.uri));
     setScreenshotAnalyzing(true);
     setScreenshotPreview(null);
-    setScreenshotProgress(assets.length > 1 ? `Analizando 1 de ${assets.length}...` : "Analizando con IA...");
+    setScreenshotProgress(assets.length > 1 ? t("portfolio.screenshot.analyzingProgress", { current: 1, total: assets.length }) : t("portfolio.screenshot.analyzingWithAI"));
 
     try {
       const allExtracted: ExtractedPosition[] = [];
 
       for (let i = 0; i < assets.length; i++) {
         const asset = assets[i];
-        if (assets.length > 1) setScreenshotProgress(`Analizando ${i + 1} de ${assets.length}...`);
+        if (assets.length > 1) setScreenshotProgress(t("portfolio.screenshot.analyzingProgress", { current: i + 1, total: assets.length }));
         const mimeType = asset.mimeType || "image/jpeg";
         const res = await marketApi.analyzeScreenshot(asset.base64!, mimeType);
         const fromImage: ExtractedPosition[] = (res.data.positions || []).map(
@@ -1181,7 +1234,7 @@ export default function PortfolioScreen() {
       const final = Array.from(merged.values());
 
       if (!final.length) {
-        Alert.alert("Sin posiciones detectadas", "No se encontraron posiciones en las imágenes. Intenta con capturas más claras.");
+        Alert.alert(t("portfolio.modals.noPositionsDetectedTitle"), t("portfolio.modals.noPositionsDetectedMsg"));
         setScreenshotUris([]);
       } else {
         setScreenshotPreview(final);
@@ -1193,7 +1246,7 @@ export default function PortfolioScreen() {
         setScreenshotPriceInputs(inputs);
       }
     } catch {
-      Alert.alert("Error", "No se pudieron analizar las imágenes. Verifica que el backend esté corriendo.");
+      Alert.alert(t("portfolio.modals.screenshotErrorTitle"), t("portfolio.modals.screenshotErrorMsg"));
       setScreenshotUris([]);
     } finally {
       setScreenshotAnalyzing(false);
@@ -1247,16 +1300,16 @@ export default function PortfolioScreen() {
         (p) => !positions.some((e) => e.ticker.toUpperCase() === p.ticker.toUpperCase())
       ).length;
       Alert.alert(
-        "Ya tienes posiciones guardadas",
-        `Tienes ${positions.length} posición${positions.length !== 1 ? "es" : ""} en tu portafolio.\n\n` +
+        t("portfolio.modals.existingPositionsTitle"),
+        t("portfolio.modals.existingPositionsCount", { count: positions.length, suffix: positions.length !== 1 ? t("portfolio.modals.existingPositionsSuffix") : "" }) +
         (newTickers > 0
-          ? `Se agregarán ${newTickers} nueva${newTickers !== 1 ? "s" : ""} (las duplicadas se ignoran).`
-          : "Todas las posiciones de la foto ya están en tu portafolio."),
+          ? t("portfolio.modals.existingPositionsNew", { count: newTickers, suffix: newTickers !== 1 ? t("portfolio.modals.existingPositionsNewSuffix") : "" })
+          : t("portfolio.modals.existingPositionsAllDupes")),
         [
-          { text: "Cancelar", style: "cancel" },
-          { text: "Eliminar y reemplazar", style: "destructive", onPress: () => openCurrencyModal(incoming) },
+          { text: t("common.cancel"), style: "cancel" },
+          { text: t("portfolio.modals.replaceAll"), style: "destructive", onPress: () => openCurrencyModal(incoming) },
           {
-            text: "Mantener y agregar", onPress: () => {
+            text: t("portfolio.modals.keepAndAdd"), onPress: () => {
               // Pre-merge: deduplicate by ticker, keep existing entries for dupes
               const merged = [...positions.map((p) => ({ ticker: p.ticker, name: p.name ?? "", shares: p.shares, avgPrice: p.avgPrice }))];
               for (const inc of incoming) {
@@ -1286,14 +1339,14 @@ export default function PortfolioScreen() {
       : parseFloat((enteredPrice / fxRate).toFixed(6));
     const displayPrice = isNaN(enteredPrice) ? "0" : enteredPrice.toString();
     const soldShares = editingPos.originalShares - shares;
-    const saleSuffix = editSaleChoice === "sale" ? ` · vendiste ${soldShares.toLocaleString()} a ${currencySymbol}${editSalePrice}` : "";
+    const saleSuffix = editSaleChoice === "sale" ? ` · ${t("portfolio.editSave.soldSuffix", { shares: soldShares.toLocaleString(), price: `${currencySymbol}${editSalePrice}` })}` : "";
     Alert.alert(
-      "¿Guardar cambios?",
-      `${shares} acciones · precio promedio ${currencySymbol}${displayPrice}${saleSuffix}`,
+      t("portfolio.editSave.title"),
+      t("portfolio.editSave.body", { shares, price: `${currencySymbol}${displayPrice}`, saleSuffix }),
       [
-        { text: "Cancelar", style: "cancel" },
+        { text: t("common.cancel"), style: "cancel" },
         {
-          text: "Guardar", style: "default",
+          text: t("common.save"), style: "default",
           onPress: () => {
             let saleInfo: { soldShares: number; closePrice: number } | undefined;
             if (editSaleChoice === "sale") {
@@ -1316,7 +1369,7 @@ export default function PortfolioScreen() {
     const ticker = form.ticker.trim().toUpperCase();
     const shares = parseFloat(form.shares);
     const enteredPrice = parseFloat(form.avgPrice);
-    if (!ticker || !shares || !enteredPrice) { Alert.alert("Completa todos los campos"); return; }
+    if (!ticker || !shares || !enteredPrice) { Alert.alert(t("portfolio.form.incompleteFields")); return; }
     if (!isPremiumAccess && positions.length >= FREE_POSITION_LIMIT) { setPaywallOpen(true); return; }
     // avgPrice always stored in USD
     const avgPrice = portfolioCurrency === "USD" ? enteredPrice : parseFloat((enteredPrice / fxRate).toFixed(6));
@@ -1348,15 +1401,15 @@ export default function PortfolioScreen() {
       if (res.data?.score !== undefined) {
         setPortfolioAnalysis(res.data);
       } else {
-        Alert.alert("Sin resultado", "La IA no devolvió un análisis válido. Intenta de nuevo.");
+        Alert.alert(t("portfolio.analysis.noResultTitle"), t("portfolio.analysis.noResultBody"));
       }
     } catch (err: any) {
       const status = err?.response?.status;
       const detail = err?.response?.data?.detail ?? err?.response?.data?.error ?? err?.message ?? "";
       if (status === 429 || detail.includes("rate") || detail.includes("limit")) {
-        Alert.alert("Límite alcanzado", "Demasiadas solicitudes. Espera un momento e intenta de nuevo.");
+        Alert.alert(t("portfolio.analysis.limitTitle"), t("portfolio.analysis.limitBody"));
       } else {
-        Alert.alert("Error al analizar", `No se pudo completar el análisis (${status ?? err?.code ?? "red"}: ${detail || "sin detalle"}). Intenta de nuevo.`);
+        Alert.alert(t("portfolio.analysis.errorTitle"), t("portfolio.analysis.errorBody", { status: status ?? err?.code ?? t("portfolio.analysis.unknownConn"), detail: detail || t("portfolio.analysis.noDetail") }));
       }
     } finally {
       setAnalysisLoading(false);
@@ -1514,7 +1567,7 @@ export default function PortfolioScreen() {
                 </TouchableOpacity>
               )}
               {isPremiumAccess && p.id !== "default" && (
-                <TouchableOpacity onPress={() => Alert.alert(`Eliminar "${p.name}"`, "¿Estás seguro?", [{ text: "Cancelar", style: "cancel" }, { text: "Eliminar", style: "destructive", onPress: () => deletePortfolio(p.id) }])} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <TouchableOpacity onPress={() => Alert.alert(t("portfolio.switcher.deleteTitle", { name: p.name }), t("portfolio.switcher.deleteMessage"), [{ text: t("common.cancel"), style: "cancel" }, { text: t("common.delete"), style: "destructive", onPress: () => deletePortfolio(p.id) }])} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
                   <Text style={{ fontSize: 10, color: "#6b7280" }}>✕</Text>
                 </TouchableOpacity>
               )}
@@ -1525,12 +1578,12 @@ export default function PortfolioScreen() {
               onPress={() => setShowNewPortfolioModal(true)}
               style={{ paddingHorizontal: 12, paddingVertical: 5, borderRadius: 20, borderWidth: 1.5, borderColor: "#1f2330", borderStyle: "dashed" }}
             >
-              <Text style={{ fontSize: 12, fontWeight: "700", color: "#6b7280" }}>+ Nuevo</Text>
+              <Text style={{ fontSize: 12, fontWeight: "700", color: "#6b7280" }}>{t("portfolio.switcher.newPortfolio")}</Text>
             </TouchableOpacity>
           )}
           {!isPremiumAccess && (
             <TouchableOpacity onPress={() => setPaywallOpen(true)} style={{ paddingHorizontal: 12, paddingVertical: 5, borderRadius: 20, borderWidth: 1.5, borderColor: "#1f2330", borderStyle: "dashed", opacity: 0.6 }}>
-              <Text style={{ fontSize: 12, fontWeight: "700", color: "#6b7280" }}>🔒 + Portafolio</Text>
+              <Text style={{ fontSize: 12, fontWeight: "700", color: "#6b7280" }}>{t("portfolio.switcher.lockedPortfolio")}</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -1539,22 +1592,22 @@ export default function PortfolioScreen() {
         <Modal visible={showNewPortfolioModal} transparent animationType="fade" onRequestClose={() => setShowNewPortfolioModal(false)}>
           <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "center", alignItems: "center", padding: 24 }}>
             <View style={{ backgroundColor: "#111318", borderRadius: 20, padding: 24, width: "100%", gap: 16 }}>
-              <Text style={{ color: "#fff", fontSize: 17, fontWeight: "800" }}>Nuevo portafolio</Text>
+              <Text style={{ color: "#fff", fontSize: 17, fontWeight: "800" }}>{t("portfolio.modals.newPortfolio.title")}</Text>
               <TextInput
-                autoFocus placeholder="Nombre del portafolio…" placeholderTextColor={"#6b7280"}
+                autoFocus placeholder={t("portfolio.modals.newPortfolio.namePlaceholder")} placeholderTextColor={"#6b7280"}
                 value={newPortfolioName} onChangeText={setNewPortfolioName}
                 style={{ backgroundColor: "#1a1d27", color: "#fff", borderRadius: 12, padding: 12, fontSize: 15, borderWidth: 1, borderColor: "#1f2330" }}
               />
               <View style={{ flexDirection: "row", gap: 10 }}>
                 <TouchableOpacity onPress={() => setShowNewPortfolioModal(false)} style={{ flex: 1, padding: 14, borderRadius: 12, backgroundColor: "#1a1d27", alignItems: "center" }}>
-                  <Text style={{ color: "#6b7280", fontWeight: "700" }}>Cancelar</Text>
+                  <Text style={{ color: "#6b7280", fontWeight: "700" }}>{t("common.cancel")}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   disabled={portfolioCreating || !newPortfolioName.trim()}
-                  onPress={async () => { if (!newPortfolioName.trim()) return; setPortfolioCreating(true); try { await createPortfolio(newPortfolioName.trim()); setShowNewPortfolioModal(false); setNewPortfolioName(""); } catch { Alert.alert("Error", "No se pudo crear el portafolio. Inténtalo de nuevo."); } finally { setPortfolioCreating(false); } }}
+                  onPress={async () => { if (!newPortfolioName.trim()) return; setPortfolioCreating(true); try { await createPortfolio(newPortfolioName.trim()); setShowNewPortfolioModal(false); setNewPortfolioName(""); } catch { Alert.alert(t("portfolio.modals.newPortfolio.errorTitle"), t("portfolio.modals.newPortfolio.errorMsg")); } finally { setPortfolioCreating(false); } }}
                   style={{ flex: 1, padding: 14, borderRadius: 12, backgroundColor: "#00d47e", alignItems: "center", opacity: portfolioCreating || !newPortfolioName.trim() ? 0.5 : 1 }}
                 >
-                  <Text style={{ color: "#000", fontWeight: "800" }}>{portfolioCreating ? "Creando…" : "Crear"}</Text>
+                  <Text style={{ color: "#000", fontWeight: "800" }}>{portfolioCreating ? t("portfolio.modals.newPortfolio.creating") : t("portfolio.modals.newPortfolio.create")}</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -1565,22 +1618,22 @@ export default function PortfolioScreen() {
         <Modal visible={showRenameModal} transparent animationType="fade" onRequestClose={() => setShowRenameModal(false)}>
           <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "center", alignItems: "center", padding: 24 }}>
             <View style={{ backgroundColor: "#111318", borderRadius: 20, padding: 24, width: "100%", gap: 16 }}>
-              <Text style={{ color: "#fff", fontSize: 17, fontWeight: "800" }}>Editar nombre</Text>
+              <Text style={{ color: "#fff", fontSize: 17, fontWeight: "800" }}>{t("portfolio.modals.renamePortfolio.title")}</Text>
               <TextInput
-                autoFocus placeholder="Nombre del portafolio…" placeholderTextColor={"#6b7280"}
+                autoFocus placeholder={t("portfolio.modals.renamePortfolio.namePlaceholder")} placeholderTextColor={"#6b7280"}
                 value={renameValue} onChangeText={setRenameValue}
                 style={{ backgroundColor: "#1a1d27", color: "#fff", borderRadius: 12, padding: 12, fontSize: 15, borderWidth: 1, borderColor: "#1f2330" }}
               />
               <View style={{ flexDirection: "row", gap: 10 }}>
                 <TouchableOpacity onPress={() => setShowRenameModal(false)} style={{ flex: 1, padding: 14, borderRadius: 12, backgroundColor: "#1a1d27", alignItems: "center" }}>
-                  <Text style={{ color: "#6b7280", fontWeight: "700" }}>Cancelar</Text>
+                  <Text style={{ color: "#6b7280", fontWeight: "700" }}>{t("common.cancel")}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   disabled={!renameValue.trim()}
                   onPress={async () => { if (!renameValue.trim() || !renamingPortfolioId) return; await renamePortfolio(renamingPortfolioId, renameValue.trim()); setShowRenameModal(false); }}
                   style={{ flex: 1, padding: 14, borderRadius: 12, backgroundColor: "#00d47e", alignItems: "center", opacity: !renameValue.trim() ? 0.5 : 1 }}
                 >
-                  <Text style={{ color: "#000", fontWeight: "800" }}>Guardar</Text>
+                  <Text style={{ color: "#000", fontWeight: "800" }}>{t("common.save")}</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -1601,7 +1654,7 @@ export default function PortfolioScreen() {
                 color={activeSection === "portafolio" ? "#00d47e" : "#6b7280"}
               />
               <Text style={[s.subTabText, { color: activeSection === "portafolio" ? "#fff" : "#6b7280" }]}>
-                Mi Portafolio
+                {t("portfolio.tabs.myPortfolio")}
               </Text>
             </TouchableOpacity>
             <TouchableOpacity
@@ -1615,7 +1668,7 @@ export default function PortfolioScreen() {
                 color={activeSection === "herramientas" ? "#00d47e" : "#6b7280"}
               />
               <Text style={[s.subTabText, { color: activeSection === "herramientas" ? "#00d47e" : "#6b7280" }]}>
-                Herramientas
+                {t("portfolio.tabs.tools")}
               </Text>
             </TouchableOpacity>
           </View>
@@ -1630,8 +1683,8 @@ export default function PortfolioScreen() {
                   <Ionicons name="sparkles" size={18} color={"#00d47e"} />
                 </View>
                 <View>
-                  <Text style={{ fontSize: 18, fontWeight: "900", color: "#fff", letterSpacing: -0.4 }}>Herramientas Premium</Text>
-                  <Text style={{ fontSize: 11, color: "#6b7280", marginTop: 1 }}>Análisis avanzado de tu portafolio</Text>
+                  <Text style={{ fontSize: 18, fontWeight: "900", color: "#fff", letterSpacing: -0.4 }}>{t("portfolio.premiumTools.title")}</Text>
+                  <Text style={{ fontSize: 11, color: "#6b7280", marginTop: 1 }}>{t("portfolio.premiumTools.subtitle")}</Text>
                 </View>
               </View>
             </View>
@@ -1642,16 +1695,16 @@ export default function PortfolioScreen() {
                   positions={positions.map((p) => ({ ticker: p.ticker, name: p.name, shares: p.shares, avg_cost: p.avgPrice, current_price: prices[p.ticker]?.price ?? 0, value: (p.shares || 0) * (prices[p.ticker]?.price ?? p.avgPrice) }))}
                   isPremium={true} onUpgrade={() => setPaywallOpen(true)} />
               : <PremiumToolCard
-                  title="Reporte Mensual"
-                  tagline="Tu portafolio analizado con IA cada mes"
-                  description="Genera un reporte profesional con rendimiento vs S&P 500, Sharpe ratio, volatilidad, mejores y peores posiciones del mes y nota personal de tu mentor."
+                  title={t("portfolio.premiumTools.monthlyReport.title")}
+                  tagline={t("portfolio.premiumTools.monthlyReport.tagline")}
+                  description={t("portfolio.premiumTools.monthlyReport.description")}
                   icon="document-text-outline"
                   color="#3b82f6"
                   benefits={[
-                    { icon: "📊", text: "Rendimiento real vs S&P 500 y benchmarks" },
-                    { icon: "📉", text: "Sharpe ratio, volatilidad y drawdown máximo" },
-                    { icon: "🎓", text: "Nota personalizada de tu mentor cada mes" },
-                    { icon: "✅", text: "3 acciones concretas para el mes siguiente" },
+                    { icon: "📊", text: t("portfolio.premiumTools.monthlyReport.benefits.0") },
+                    { icon: "📉", text: t("portfolio.premiumTools.monthlyReport.benefits.1") },
+                    { icon: "🎓", text: t("portfolio.premiumTools.monthlyReport.benefits.2") },
+                    { icon: "✅", text: t("portfolio.premiumTools.monthlyReport.benefits.3") },
                   ]}
                   onUnlock={() => setPaywallOpen(true)}
                 />
@@ -1661,16 +1714,16 @@ export default function PortfolioScreen() {
             {isPremiumAccess
               ? <MobileWeeklyScreener isPremium={true} onUpgrade={() => setPaywallOpen(true)} existingTickers={positions.map(p => p.ticker)} />
               : <PremiumToolCard
-                  title="Screener Semanal"
-                  tagline="5 oportunidades personalizadas cada lunes"
-                  description="Cada lunes la IA escanea el mercado y selecciona 5 oportunidades que encajan con tu perfil de riesgo, filosofía de tu mentor y los huecos en tu portafolio."
+                  title={t("portfolio.premiumTools.weeklyScreener.title")}
+                  tagline={t("portfolio.premiumTools.weeklyScreener.tagline")}
+                  description={t("portfolio.premiumTools.weeklyScreener.description")}
                   icon="search-outline"
                   color="#8b5cf6"
                   benefits={[
-                    { icon: "🎯", text: "Filtradas por tu perfil de riesgo y mentor" },
-                    { icon: "⚡", text: "Catalizador concreto y riesgo por cada pick" },
-                    { icon: "🚫", text: "Nunca te sugiere lo que ya tienes" },
-                    { icon: "🔄", text: "Se actualiza cada lunes automáticamente" },
+                    { icon: "🎯", text: t("portfolio.premiumTools.weeklyScreener.benefits.0") },
+                    { icon: "⚡", text: t("portfolio.premiumTools.weeklyScreener.benefits.1") },
+                    { icon: "🚫", text: t("portfolio.premiumTools.weeklyScreener.benefits.2") },
+                    { icon: "🔄", text: t("portfolio.premiumTools.weeklyScreener.benefits.3") },
                   ]}
                   onUnlock={() => setPaywallOpen(true)}
                 />
@@ -1688,15 +1741,17 @@ export default function PortfolioScreen() {
               <Ionicons name="cloud-outline" size={16} color="#22c55e" />
             </View>
             <View>
-              <Text style={{ fontSize: 12, fontWeight: "700", color: "#fff" }}>Portafolio en la nube</Text>
+              <Text style={{ fontSize: 12, fontWeight: "700", color: "#fff" }}>{t("portfolio.sync.title")}</Text>
               <Text style={{ fontSize: 10, color: "#6b7280" }}>
                 {syncStatus === "syncing"
-                  ? "Guardando..."
+                  ? t("portfolio.sync.saving")
                   : syncStatus === "error"
-                  ? "⚠ Error al guardar"
+                  ? t("portfolio.sync.error")
                   : lastSaved
-                  ? `${syncStatus === "saved" ? "✓ Guardado" : "Guardado"} ${new Date(lastSaved).toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" })}`
-                  : "Sincronizado en todos tus dispositivos"}
+                  ? (syncStatus === "saved"
+                    ? t("portfolio.sync.savedChecked", { time: new Date(lastSaved).toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" }) })
+                    : t("portfolio.sync.saved", { time: new Date(lastSaved).toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" }) }))
+                  : t("portfolio.sync.allDevices")}
               </Text>
             </View>
           </View>
@@ -1710,11 +1765,11 @@ export default function PortfolioScreen() {
               <TouchableOpacity
                 style={{ paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, backgroundColor: "rgba(239,68,68,0.08)", borderWidth: 1, borderColor: "rgba(239,68,68,0.2)" }}
                 onPress={() => Alert.alert(
-                  "Vaciar portafolio",
-                  `¿Eliminar las ${positions.length} posiciones? Esta acción no se puede deshacer.`,
-                  [{ text: "Cancelar", style: "cancel" }, { text: "Vaciar todo", style: "destructive", onPress: () => clearPortfolio() }]
+                  t("portfolio.clear.title"),
+                  t("portfolio.clear.message", { count: positions.length }),
+                  [{ text: t("common.cancel"), style: "cancel" }, { text: t("portfolio.clear.confirm"), style: "destructive", onPress: () => clearPortfolio() }]
                 )}>
-                <Text style={{ fontSize: 11, fontWeight: "700", color: "#ef4444" }}>Vaciar</Text>
+                <Text style={{ fontSize: 11, fontWeight: "700", color: "#ef4444" }}>{t("portfolio.clear.button")}</Text>
               </TouchableOpacity>
             )}
           </View>
@@ -1726,18 +1781,12 @@ export default function PortfolioScreen() {
             onPress={() => setShowImportSteps(v => !v)}
             activeOpacity={0.7}
             style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 12, paddingVertical: 10 }}>
-            <Text style={{ fontSize: 11, fontWeight: "700", color: "#6b7280" }}>¿Cómo importar tu portafolio por captura?</Text>
+            <Text style={{ fontSize: 11, fontWeight: "700", color: "#6b7280" }}>{t("portfolio.importSteps.toggle")}</Text>
             <Ionicons name={showImportSteps ? "chevron-up" : "chevron-down"} size={14} color={"#6b7280"} />
           </TouchableOpacity>
           {showImportSteps && (
             <View style={{ paddingHorizontal: 12, paddingBottom: 12, borderTopWidth: 1, borderTopColor: "#1f2330" }}>
-              {[
-                "Ve a tu broker (Robinhood, IBKR, Schwab, etc.)",
-                "Ingresa a la sección de tu portafolio",
-                "Toma una captura de pantalla de todas tus posiciones",
-                'Toca "Importar captura" aquí en Nuvos AI y selecciona la imagen',
-                "¡Listo! Tu portafolio quedará sincronizado en todos tus dispositivos",
-              ].map((step, i) => (
+              {(t("portfolio.importSteps.steps", { returnObjects: true }) as string[]).map((step, i) => (
                 <View key={i} style={{ flexDirection: "row", alignItems: "flex-start", gap: 8, marginTop: 10 }}>
                   <View style={{ width: 20, height: 20, borderRadius: 10, backgroundColor: "rgba(0,212,126,0.15)", alignItems: "center", justifyContent: "center" }}>
                     <Text style={{ fontSize: 10, fontWeight: "900", color: "#00d47e" }}>{i + 1}</Text>
@@ -1757,7 +1806,7 @@ export default function PortfolioScreen() {
             onPress={() => { setShowForm(!showForm); setScreenshotPreview(null); }}
             activeOpacity={0.8}>
             <Ionicons name="add-circle-outline" size={18} color="white" />
-            <Text style={{ fontSize: 13, fontWeight: "800", color: "white" }}>Agregar posición</Text>
+            <Text style={{ fontSize: 13, fontWeight: "800", color: "white" }}>{t("portfolio.buttons.addPosition")}</Text>
           </TouchableOpacity>
 
           {/* Importar captura — acción secundaria */}
@@ -1767,8 +1816,8 @@ export default function PortfolioScreen() {
             disabled={screenshotAnalyzing}
             activeOpacity={0.8}>
             {screenshotAnalyzing
-              ? <><ActivityIndicator size="small" color={"#9ca3af"} /><Text style={{ fontSize: 13, fontWeight: "700", color: "#9ca3af" }}>{screenshotProgress || "Analizando..."}</Text></>
-              : <><Ionicons name="images-outline" size={18} color={"#9ca3af"} /><Text style={{ fontSize: 13, fontWeight: "700", color: "#9ca3af" }}>Importar captura</Text></>
+              ? <><ActivityIndicator size="small" color={"#9ca3af"} /><Text style={{ fontSize: 13, fontWeight: "700", color: "#9ca3af" }}>{screenshotProgress || t("portfolio.buttons.analyzing")}</Text></>
+              : <><Ionicons name="images-outline" size={18} color={"#9ca3af"} /><Text style={{ fontSize: 13, fontWeight: "700", color: "#9ca3af" }}>{t("portfolio.buttons.importScreenshot")}</Text></>
             }
           </TouchableOpacity>
         </View>
@@ -1780,14 +1829,14 @@ export default function PortfolioScreen() {
           activeOpacity={0.8}
         >
           <Text style={{ fontSize: 16 }}>🔗</Text>
-          <Text style={{ fontSize: 13, fontWeight: "700", color: "#9ca3af" }}>Conectar broker</Text>
+          <Text style={{ fontSize: 13, fontWeight: "700", color: "#9ca3af" }}>{t("portfolio.buttons.connectBroker")}</Text>
           {isPremiumAccess ? (
             <View style={{ backgroundColor: "rgba(0,168,94,0.12)", borderRadius: 20, paddingHorizontal: 8, paddingVertical: 2 }}>
-              <Text style={{ fontSize: 10, fontWeight: "700", color: "#00a85e" }}>IBKR · IOL · Schwab</Text>
+              <Text style={{ fontSize: 10, fontWeight: "700", color: "#00a85e" }}>{t("portfolio.buttons.brokerBadgeConnected")}</Text>
             </View>
           ) : (
             <View style={{ backgroundColor: "rgba(168,85,247,0.12)", borderRadius: 20, paddingHorizontal: 8, paddingVertical: 2 }}>
-              <Text style={{ fontSize: 10, fontWeight: "700", color: "#a855f7" }}>Premium</Text>
+              <Text style={{ fontSize: 10, fontWeight: "700", color: "#a855f7" }}>{t("portfolio.buttons.premium")}</Text>
             </View>
           )}
         </TouchableOpacity>
@@ -1798,10 +1847,10 @@ export default function PortfolioScreen() {
             <View style={s.previewHeader}>
               <View style={{ flex: 1 }}>
                 <Text style={[s.previewTitle, { color: "#fff" }]}>
-                  {screenshotPreview.length} posiciones detectadas
+                  {t("portfolio.preview.detected", { count: screenshotPreview.length })}
                 </Text>
                 <Text style={[s.previewSub, { color: "#6b7280" }]}>
-                  {screenshotUris.length > 1 ? `De ${screenshotUris.length} capturas · ` : ""}Agrega el precio de compra de cada posición
+                  {screenshotUris.length > 1 ? t("portfolio.preview.fromCaptures", { count: screenshotUris.length }) : ""}{t("portfolio.preview.addPriceHint")}
                 </Text>
               </View>
               {screenshotUris.length > 0 && (
@@ -1820,7 +1869,7 @@ export default function PortfolioScreen() {
 
             <View style={{ backgroundColor: "#f59e0b18", borderRadius: 8, padding: 10, marginBottom: 12 }}>
               <Text style={{ color: "#f59e0b", fontSize: 11, fontWeight: "600" }}>
-                ⚠ No usamos el precio de la foto — puede ser incorrecto en acciones fraccionadas. Búscalo en tu broker bajo "precio promedio" o "average cost".
+                {t("portfolio.preview.warning")}
               </Text>
             </View>
             {screenshotPreview.map((p) => (
@@ -1829,7 +1878,7 @@ export default function PortfolioScreen() {
                   <View>
                     <Text style={[s.previewTicker, { color: "#fff" }]}>{p.ticker}</Text>
                     {p.name !== p.ticker && (
-                      <Text style={[s.previewName, { color: "#6b7280" }]}>{p.name} · {p.shares.toLocaleString("en-US")} acc</Text>
+                      <Text style={[s.previewName, { color: "#6b7280" }]}>{p.name} · {p.shares.toLocaleString("en-US")} {t("portfolio.preview.sharesAbbrev")}</Text>
                     )}
                   </View>
                   <TouchableOpacity onPress={() => {
@@ -1842,12 +1891,12 @@ export default function PortfolioScreen() {
                 <View style={{ flexDirection: "row", gap: 8 }}>
                   <View style={{ flex: 1 }}>
                     <Text style={{ color: "#6b7280", fontSize: 10, fontWeight: "700", textTransform: "uppercase", marginBottom: 4 }}>
-                      Precio promedio ({portfolioCurrency})
+                      {t("portfolio.preview.avgPriceLabel", { currency: portfolioCurrency })}
                     </Text>
                     <TextInput
                       style={{ backgroundColor: "#0a0d12", borderWidth: 1, borderColor: "#1f2330", borderRadius: 8, paddingHorizontal: 10, paddingVertical: 7, color: "#fff", fontSize: 13 }}
                       keyboardType="decimal-pad"
-                      placeholder={portfolioCurrency === "USD" ? "ej. 223.00" : `ej. ${(223 * fxRate).toFixed(0)}`}
+                      placeholder={portfolioCurrency === "USD" ? t("portfolio.preview.avgPricePlaceholderUSD") : t("portfolio.preview.avgPricePlaceholder", { value: (223 * fxRate).toFixed(0) })}
                       placeholderTextColor="#374151"
                       value={screenshotPriceInputs[p.id]?.avgPrice ?? ""}
                       onChangeText={(v) => setScreenshotPriceInputs((prev) => ({ ...prev, [p.id]: { ...prev[p.id], avgPrice: v } }))}
@@ -1855,11 +1904,11 @@ export default function PortfolioScreen() {
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={{ color: "#6b7280", fontSize: 10, fontWeight: "700", textTransform: "uppercase", marginBottom: 4 }}>
-                      Fecha compra <Text style={{ fontWeight: "400" }}>(opcional)</Text>
+                      {t("portfolio.preview.purchaseDateLabel")} <Text style={{ fontWeight: "400" }}>{t("portfolio.preview.optional")}</Text>
                     </Text>
                     <TextInput
                       style={{ backgroundColor: "#0a0d12", borderWidth: 1, borderColor: "#1f2330", borderRadius: 8, paddingHorizontal: 10, paddingVertical: 7, color: "#fff", fontSize: 13 }}
-                      placeholder="AAAA-MM-DD"
+                      placeholder={t("portfolio.preview.datePlaceholder")}
                       placeholderTextColor="#374151"
                       value={screenshotPriceInputs[p.id]?.purchaseDate ?? ""}
                       onChangeText={(v) => setScreenshotPriceInputs((prev) => ({ ...prev, [p.id]: { ...prev[p.id], purchaseDate: v } }))}
@@ -1874,10 +1923,10 @@ export default function PortfolioScreen() {
                 style={[s.previewCancel, { borderColor: "#1f2330" }]}
                 onPress={() => { setScreenshotPreview(null); setScreenshotUris([]); setScreenshotPriceInputs({}); }}
               >
-                <Text style={[s.previewCancelText, { color: "#6b7280" }]}>Cancelar</Text>
+                <Text style={[s.previewCancelText, { color: "#6b7280" }]}>{t("common.cancel")}</Text>
               </TouchableOpacity>
               <TouchableOpacity style={s.previewConfirm} onPress={confirmScreenshotImport}>
-                <Text style={s.previewConfirmText}>✓ Agregar {screenshotPreview.length} posiciones</Text>
+                <Text style={s.previewConfirmText}>{t("portfolio.preview.confirmAdd", { count: screenshotPreview.length })}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -1886,12 +1935,12 @@ export default function PortfolioScreen() {
         {/* ── FORMULARIO MANUAL ── */}
         {showForm && (
           <View style={[s.formCard, { backgroundColor: "#111318", borderColor: "#1f2330" }]}>
-            <Text style={[s.formTitle, { color: "#fff" }]}>Nueva posición manual</Text>
+            <Text style={[s.formTitle, { color: "#fff" }]}>{t("portfolio.form.title")}</Text>
             <TextInput
               style={[s.formInput, { color: "#fff", backgroundColor: "#0a0d12", borderColor: "#1f2330" }]}
               value={form.ticker}
               onChangeText={(v) => setForm({ ...form, ticker: v.toUpperCase() })}
-              placeholder="Ticker (ej. AAPL)" placeholderTextColor={"#374151"}
+              placeholder={t("portfolio.form.tickerPlaceholder")} placeholderTextColor={"#374151"}
               autoCapitalize="characters"
             />
             <View style={s.formRow}>
@@ -1899,24 +1948,24 @@ export default function PortfolioScreen() {
                 style={[s.formInput, { color: "#fff", backgroundColor: "#0a0d12", borderColor: "#1f2330", flex: 1 }]}
                 value={form.shares}
                 onChangeText={(v) => setForm({ ...form, shares: v })}
-                placeholder="Acciones" placeholderTextColor={"#374151"}
+                placeholder={t("portfolio.form.sharesPlaceholder")} placeholderTextColor={"#374151"}
                 keyboardType="decimal-pad"
               />
               <TextInput
                 style={[s.formInput, { color: "#fff", backgroundColor: "#0a0d12", borderColor: "#1f2330", flex: 1, marginLeft: 8 }]}
                 value={form.avgPrice}
                 onChangeText={(v) => setForm({ ...form, avgPrice: v })}
-                placeholder={portfolioCurrency === "USD" ? "Precio (USD)" : `Precio (${portfolioCurrency})`}
+                placeholder={portfolioCurrency === "USD" ? t("portfolio.form.priceUSDPlaceholder") : t("portfolio.form.pricePlaceholder", { currency: portfolioCurrency })}
                 placeholderTextColor={"#374151"}
                 keyboardType="decimal-pad"
               />
             </View>
             <View style={s.formRow}>
               <TouchableOpacity style={[s.cancelBtn, { borderColor: "#1f2330" }]} onPress={() => setShowForm(false)}>
-                <Text style={[s.cancelBtnText, { color: "#6b7280" }]}>Cancelar</Text>
+                <Text style={[s.cancelBtnText, { color: "#6b7280" }]}>{t("common.cancel")}</Text>
               </TouchableOpacity>
               <TouchableOpacity style={s.addBtn} onPress={handleAdd} disabled={addingLoading}>
-                {addingLoading ? <ActivityIndicator color="white" size="small" /> : <Text style={s.addBtnText}>Agregar</Text>}
+                {addingLoading ? <ActivityIndicator color="white" size="small" /> : <Text style={s.addBtnText}>{t("portfolio.form.add")}</Text>}
               </TouchableOpacity>
             </View>
           </View>
@@ -1932,12 +1981,12 @@ export default function PortfolioScreen() {
                   <Text style={{ fontSize: 16 }}>📈</Text>
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={{ color: "#22c55e", fontSize: 10, fontWeight: "800", textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }}>Así funciona Nuvos AI</Text>
+                  <Text style={{ color: "#22c55e", fontSize: 10, fontWeight: "800", textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }}>{t("portfolio.demo.badge")}</Text>
                   <Text style={{ color: "#fff", fontSize: 14, fontWeight: "700", marginBottom: 4 }}>
-                    Tu NVIDIA subió{" "}<Text style={{ color: "#22c55e" }}>+$1,847</Text>{" "}esta semana
+                    {t("portfolio.demo.notifPrefix")}{" "}<Text style={{ color: "#22c55e" }}>+$1,847</Text>{" "}{t("portfolio.demo.notifSuffix")}
                   </Text>
                   <Text style={{ color: "#9ca3af", fontSize: 12, lineHeight: 17 }}>
-                    Jensen Huang anunció nuevos chips para centros de datos IA, impulsando la demanda institucional. Tu portafolio se beneficia directamente por tu posición en NVDA.
+                    {t("portfolio.demo.notifBody")}
                   </Text>
                 </View>
               </View>
@@ -1945,7 +1994,7 @@ export default function PortfolioScreen() {
 
             {/* Demo positions */}
             <View style={{ backgroundColor: "#111318", borderWidth: 1, borderColor: "#1f2330", borderRadius: 16, padding: 14 }}>
-              <Text style={{ color: "#6b7280", fontSize: 10, fontWeight: "800", textTransform: "uppercase", letterSpacing: 1, marginBottom: 12 }}>Portafolio de ejemplo</Text>
+              <Text style={{ color: "#6b7280", fontSize: 10, fontWeight: "800", textTransform: "uppercase", letterSpacing: 1, marginBottom: 12 }}>{t("portfolio.demo.samplePortfolio")}</Text>
               {[
                 { ticker: "NVDA", shares: 3.2, buy: 580, price: 538, gain: 31.2 },
                 { ticker: "AAPL", shares: 8, buy: 156, price: 198.45, gain: 27.2 },
@@ -1957,7 +2006,7 @@ export default function PortfolioScreen() {
                   <View key={p.ticker} style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: 10, borderBottomWidth: i < 2 ? 1 : 0, borderBottomColor: "#1f2330" }}>
                     <View>
                       <Text style={{ color: "#fff", fontWeight: "800", fontSize: 14 }}>{p.ticker}</Text>
-                      <Text style={{ color: "#6b7280", fontSize: 11 }}>{p.shares} acc</Text>
+                      <Text style={{ color: "#6b7280", fontSize: 11 }}>{p.shares} {t("portfolio.demo.sharesAbbrev")}</Text>
                     </View>
                     <View style={{ alignItems: "flex-end" }}>
                       <Text style={{ color: "#fff", fontWeight: "700", fontSize: 14 }}>${val.toLocaleString("en-US", { maximumFractionDigits: 0 })}</Text>
@@ -1967,19 +2016,19 @@ export default function PortfolioScreen() {
                 );
               })}
               <View style={{ flexDirection: "row", justifyContent: "space-between", marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: "#1f2330" }}>
-                <Text style={{ color: "#6b7280", fontSize: 12, fontWeight: "700" }}>Total</Text>
+                <Text style={{ color: "#6b7280", fontSize: 12, fontWeight: "700" }}>{t("portfolio.demo.total")}</Text>
                 <Text style={{ color: "#22c55e", fontSize: 14, fontWeight: "800" }}>+$2,451 · +28.6%</Text>
               </View>
             </View>
 
             {/* Magic question */}
             <View style={{ backgroundColor: "#111318", borderWidth: 1, borderColor: "#1f2330", borderRadius: 16, padding: 14 }}>
-              <Text style={{ color: "#fff", fontSize: 15, fontWeight: "700", marginBottom: 4 }}>¿Tienes acciones o fondos invertidos?</Text>
-              <Text style={{ color: "#6b7280", fontSize: 12, marginBottom: 14 }}>Así Nuvos AI sabe cómo ayudarte desde el primer momento.</Text>
+              <Text style={{ color: "#fff", fontSize: 15, fontWeight: "700", marginBottom: 4 }}>{t("portfolio.demo.question")}</Text>
+              <Text style={{ color: "#6b7280", fontSize: 12, marginBottom: 14 }}>{t("portfolio.demo.questionSub")}</Text>
               {[
-                { choice: "has_portfolio" as const, emoji: "📊", title: "Sí, ya tengo portafolio", sub: "Agrego mis posiciones para que Nuvos AI las analice", accent: true },
-                { choice: "has_cash" as const, emoji: "💵", title: "Tengo dinero para invertir", sub: "Aún no tengo cuenta en un broker", accent: false },
-                { choice: "wants_to_learn" as const, emoji: "📚", title: "Solo quiero aprender", sub: "Explorar con el portafolio de ejemplo", accent: false },
+                { choice: "has_portfolio" as const, emoji: "📊", title: t("portfolio.demo.options.hasPortfolio.title"), sub: t("portfolio.demo.options.hasPortfolio.sub"), accent: true },
+                { choice: "has_cash" as const, emoji: "💵", title: t("portfolio.demo.options.hasCash.title"), sub: t("portfolio.demo.options.hasCash.sub"), accent: false },
+                { choice: "wants_to_learn" as const, emoji: "📚", title: t("portfolio.demo.options.wantsToLearn.title"), sub: t("portfolio.demo.options.wantsToLearn.sub"), accent: false },
               ].map((opt) => (
                 <TouchableOpacity
                   key={opt.choice}
@@ -1998,9 +2047,9 @@ export default function PortfolioScreen() {
         ) : positions.length === 0 && !screenshotPreview ? (
           <View style={[s.emptyCard, { backgroundColor: "#111318", borderColor: "#1f2330" }]}>
             <Ionicons name="folder-open-outline" size={40} color={"#6b7280"} style={{ marginBottom: 10 }} />
-            <Text style={[s.emptyTitle, { color: "#fff" }]}>Sin posiciones todavía</Text>
+            <Text style={[s.emptyTitle, { color: "#fff" }]}>{t("portfolio.empty.title")}</Text>
             <Text style={[s.emptyDesc, { color: "#6b7280" }]}>
-              Toma una captura de tu portafolio y la IA lo importa automáticamente
+              {t("portfolio.empty.desc")}
             </Text>
           </View>
         ) : positions.length > 0 ? (
@@ -2008,7 +2057,7 @@ export default function PortfolioScreen() {
             {priceError && (
               <View style={{ backgroundColor: "#f5931510", borderColor: "#f5931530", borderWidth: 1, borderRadius: 10, padding: 10, marginBottom: 8, flexDirection: "row", alignItems: "center", gap: 8 }}>
                 <Ionicons name="cloud-offline-outline" size={15} color="#f59315" />
-                <Text style={{ color: "#f59315", fontSize: 12, fontWeight: "600" }}>Sin conexión — precios desactualizados</Text>
+                <Text style={{ color: "#f59315", fontSize: 12, fontWeight: "600" }}>{t("portfolio.priceErrorBanner")}</Text>
               </View>
             )}
             {/* Totals card — arriba del rendimiento histórico */}
@@ -2029,13 +2078,13 @@ export default function PortfolioScreen() {
                   ) : (
                     <>
                       <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-                        <Text style={[s.totalsLabel, { color: "#6b7280" }]}>Valor actual del portafolio</Text>
+                        <Text style={[s.totalsLabel, { color: "#6b7280" }]}>{t("portfolio.totals.label")}</Text>
                         <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
                           <TouchableOpacity
                             onPress={() => {
                               const sign = totals.pct >= 0 ? "+" : "";
                               Share.share({
-                                message: `Mi portafolio en Nuvos AI: ${currencySymbol}${totals.current.toLocaleString("en-US", { maximumFractionDigits: 0 })} (${sign}${totals.pct.toFixed(1)}%) 📈\n\nAnalizo mis inversiones con IA. Pruébalo en nuvosai.com`,
+                                message: t("portfolio.totals.shareMessage", { value: `${currencySymbol}${totals.current.toLocaleString("en-US", { maximumFractionDigits: 0 })}`, sign, pct: totals.pct.toFixed(1) }),
                               });
                             }}
                             activeOpacity={0.7}>
@@ -2078,16 +2127,16 @@ export default function PortfolioScreen() {
                       </View>
                       <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingTop: 10, borderTopWidth: 1, borderTopColor: "#1f2330" }}>
                         <Text style={{ fontSize: 11, color: "#6b7280" }}>
-                          Total Invertido{" "}
+                          {t("portfolio.totals.invested")}{" "}
                           <Text style={{ fontWeight: "700", color: "#9ca3af" }}>{currencySymbol}{totals.invested.toLocaleString("en-US", { minimumFractionDigits: 2 })}</Text>
-                          {histDate ? `  ·  desde ${histDate}` : ""}
+                          {histDate ? `  ·  ${t("portfolio.totals.since", { date: histDate })}` : ""}
                         </Text>
                         {spyPct !== undefined && histPct !== undefined && (() => {
                           const diff = histPct - spyPct;
                           const beats = diff >= 0;
                           return (
                             <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
-                              <Text style={{ fontSize: 10, color: "#6b7280" }}>vs S&P</Text>
+                              <Text style={{ fontSize: 10, color: "#6b7280" }}>{t("portfolio.totals.vsSp")}</Text>
                               <View style={{ backgroundColor: beats ? "rgba(34,197,94,0.12)" : "rgba(239,68,68,0.12)", borderRadius: 20, paddingHorizontal: 7, paddingVertical: 2 }}>
                                 <Text style={{ fontSize: 10, fontWeight: "800", color: beats ? "#22c55e" : "#ef4444" }}>
                                   {beats ? "▲" : "▼"} {Math.abs(diff).toFixed(2)}%
@@ -2120,12 +2169,12 @@ export default function PortfolioScreen() {
                     <View style={{ flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between" }}>
                       <View>
                         <Text style={{ fontSize: 9, fontWeight: "800", color: "#4b5563", letterSpacing: 1, textTransform: "uppercase", marginBottom: 4 }}>
-                          {hovData ? "En esta fecha" : "Rendimiento histórico"}
+                          {hovData ? t("portfolio.chart.onThisDate") : t("portfolio.chart.historical")}
                         </Text>
                         {hovData ? (
                           <Text style={{ fontSize: 9, color: "#4b5563" }}>{fmtChartDate(hovData.date, true)}</Text>
                         ) : r?.date ? (
-                          <Text style={{ fontSize: 9, color: "#4b5563" }}>desde {r.date}</Text>
+                          <Text style={{ fontSize: 9, color: "#4b5563" }}>{t("portfolio.chart.since", { date: r.date })}</Text>
                         ) : null}
                       </View>
                       <View style={{ alignItems: "flex-end" }}>
@@ -2158,7 +2207,7 @@ export default function PortfolioScreen() {
                     {/* vs S&P 500 */}
                     {r?.spy_pct !== undefined && displayPct !== undefined && (
                       <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginTop: 8 }}>
-                        <Text style={{ fontSize: 10, fontWeight: "600", color: "#6b7280" }}>vs S&P 500</Text>
+                        <Text style={{ fontSize: 10, fontWeight: "600", color: "#6b7280" }}>{t("portfolio.chart.vsSp500")}</Text>
                         <Text style={{ fontSize: 11, fontWeight: "800", color: r.spy_pct >= 0 ? "#22c55e" : "#ef4444" }}>
                           {r.spy_pct >= 0 ? "+" : ""}{r.spy_pct.toFixed(2)}%
                         </Text>
@@ -2168,7 +2217,7 @@ export default function PortfolioScreen() {
                           return (
                             <View style={{ backgroundColor: beats ? "rgba(34,197,94,0.12)" : "rgba(239,68,68,0.12)", borderRadius: 20, paddingHorizontal: 8, paddingVertical: 3 }}>
                               <Text style={{ fontSize: 10, fontWeight: "800", color: beats ? "#22c55e" : "#ef4444" }}>
-                                {beats ? "▲" : "▼"} {Math.abs(diff).toFixed(2)}% {beats ? "mejor" : "peor"}
+                                {beats ? "▲" : "▼"} {Math.abs(diff).toFixed(2)}% {beats ? t("portfolio.chart.better") : t("portfolio.chart.worse")}
                               </Text>
                             </View>
                           );
@@ -2182,7 +2231,7 @@ export default function PortfolioScreen() {
                     {chartLoading ? (
                       <View style={{ height: 230, alignItems: "center", justifyContent: "center", flexDirection: "row", gap: 8 }}>
                         <ActivityIndicator size="small" color={"#6b7280"} />
-                        <Text style={{ fontSize: 11, color: "#6b7280" }}>Cargando datos históricos...</Text>
+                        <Text style={{ fontSize: 11, color: "#6b7280" }}>{t("portfolio.chart.loadingHistory")}</Text>
                       </View>
                     ) : chartData && chartData.history.length >= 2 ? (
                       <PortfolioHistoryChart
@@ -2193,7 +2242,7 @@ export default function PortfolioScreen() {
                       />
                     ) : !chartLoading ? (
                       <View style={{ height: 230, alignItems: "center", justifyContent: "center" }}>
-                        <Text style={{ fontSize: 11, color: "#4b5563" }}>Sin datos históricos para este período</Text>
+                        <Text style={{ fontSize: 11, color: "#4b5563" }}>{t("portfolio.chart.noHistory")}</Text>
                       </View>
                     ) : null}
                   </View>
@@ -2243,7 +2292,7 @@ export default function PortfolioScreen() {
 
                   {/* Source */}
                   <Text style={{ fontSize: 9, color: "#4b5563", paddingHorizontal: 16, paddingBottom: 10, opacity: 0.7 }}>
-                    Yahoo Finance · ajustado por splits y dividendos
+                    {t("portfolio.chart.source")}
                   </Text>
                 </View>
               );
@@ -2256,13 +2305,7 @@ export default function PortfolioScreen() {
               const progressPct = Math.min((totals.current / goalAmt) * 100, 100);
               const remaining = Math.max(goalAmt - totals.current, 0);
               const reached = progressPct >= 100;
-              const GOAL_LABELS: Record<string, string> = {
-                emergency_fund: "Fondo de emergencia",
-                big_purchase:   "Compra importante",
-                retirement:     "Retiro / pensión",
-                independence:   "Independencia financiera",
-              };
-              const goalLabel = GOAL_LABELS[profile?.investment_goal ?? ""] ?? "Mi meta";
+              const goalLabel = GOAL_LABELS[profile?.investment_goal ?? ""] ?? t("portfolio.goalLabels.default");
               const annualRate = (profile?.risk_tolerance ?? "").startsWith("conservative") ? 0.07
                                : (profile?.risk_tolerance ?? "").startsWith("aggressive") ? 0.12 : 0.10;
               const rateLabel = (profile?.risk_tolerance ?? "").startsWith("conservative") ? "7%"
@@ -2272,10 +2315,10 @@ export default function PortfolioScreen() {
                 ? Math.log(goalAmt / totals.current) / Math.log(1 + r) : null;
               const timeLabel = monthsToGoal !== null
                 ? monthsToGoal / 12 < 1
-                  ? `${Math.ceil(monthsToGoal)} meses`
+                  ? t("portfolio.goal.timeMonths", { count: Math.ceil(monthsToGoal) })
                   : monthsToGoal / 12 < 1.83
-                    ? "~1 año y medio"
-                    : `~${Math.round(monthsToGoal / 12)} años`
+                    ? t("portfolio.goal.timeYearHalf")
+                    : t("portfolio.goal.timeYears", { count: Math.round(monthsToGoal / 12) })
                 : null;
 
               return (
@@ -2288,7 +2331,7 @@ export default function PortfolioScreen() {
                   <View style={{ flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 14 }}>
                     <View style={{ flex: 1 }}>
                       <Text style={{ fontSize: 10, fontWeight: "800", letterSpacing: 1.2, textTransform: "uppercase", color: "#00d47e", marginBottom: 3 }}>
-                        META FINANCIERA
+                        {t("portfolio.goal.title")}
                       </Text>
                       <Text style={{ fontSize: 15, fontFamily: "DMSans_800ExtraBold", color: "#fff" }}>
                         {goalLabel}
@@ -2299,7 +2342,7 @@ export default function PortfolioScreen() {
                         {progressPct.toFixed(1)}%
                       </Text>
                       <Text style={{ fontSize: 10, color: "#6b7280", marginTop: 2 }}>
-                        {reached ? "¡Alcanzada!" : "completado"}
+                        {reached ? t("portfolio.goal.reachedBadge") : t("portfolio.goal.completed")}
                       </Text>
                     </View>
                   </View>
@@ -2319,15 +2362,15 @@ export default function PortfolioScreen() {
                       <Text style={{ fontFamily: "DMSans_600SemiBold", color: "#9ca3af" }}>
                         {currencySymbol}{totals.current.toLocaleString("en-US", { maximumFractionDigits: 0 })}
                       </Text>
-                      {" "}acumulados
+                      {" "}{t("portfolio.goal.accumulated")}
                     </Text>
                     {reached ? (
                       <Text style={{ fontSize: 12, fontFamily: "DMSans_800ExtraBold", color: "#22c55e" }}>
-                        Meta alcanzada 🎉
+                        {t("portfolio.goal.reachedFull")}
                       </Text>
                     ) : (
                       <Text style={{ fontSize: 12, color: "#6b7280" }}>
-                        Faltan{" "}
+                        {t("portfolio.goal.remaining")}{" "}
                         <Text style={{ fontFamily: "DMSans_600SemiBold", color: "#9ca3af" }}>
                           {currencySymbol}{remaining.toLocaleString("en-US", { maximumFractionDigits: 0 })}
                         </Text>
@@ -2338,14 +2381,14 @@ export default function PortfolioScreen() {
                   {/* Footer */}
                   <View style={{ borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: "#1f2330", paddingTop: 10, gap: 3 }}>
                     <Text style={{ fontSize: 10, color: "#4b5563" }}>
-                      Meta:{" "}
+                      {t("portfolio.goal.target")}{" "}
                       <Text style={{ fontFamily: "DMSans_600SemiBold" }}>
                         {currencySymbol}{goalAmt.toLocaleString("en-US", { maximumFractionDigits: 0 })}
                       </Text>
                     </Text>
                     {timeLabel && !reached && (
                       <Text style={{ fontSize: 10, color: "#4b5563" }}>
-                        A tasa del {rateLabel}/año (histórico), llegas en {timeLabel}
+                        {t("portfolio.goal.rateNote", { rate: rateLabel, time: timeLabel })}
                       </Text>
                     )}
                   </View>
@@ -2359,15 +2402,15 @@ export default function PortfolioScreen() {
               {/* Table toolbar */}
               <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 14, paddingVertical: 10, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: "#1f2330", backgroundColor: "#1a1d27" }}>
                 <Text style={{ fontSize: 10, fontWeight: "800", color: "#4b5563", letterSpacing: 1, textTransform: "uppercase" }}>
-                  {sortedPositions.length} posicion{sortedPositions.length !== 1 ? "es" : ""}
+                  {sortedPositions.length} {sortedPositions.length !== 1 ? t("portfolio.table.positionsPlural") : t("portfolio.table.position")}
                 </Text>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                   <View style={{ flexDirection: "row", gap: 5 }}>
                     {([
-                      { field: "return"   as const, label: "Rentabilidad" },
-                      { field: "invested" as const, label: "Invertido" },
-                      { field: "price"    as const, label: "Precio" },
-                    ] as const).map(({ field, label }) => {
+                      { field: "return"   as const, label: t("portfolio.table.sortReturn") },
+                      { field: "invested" as const, label: t("portfolio.table.sortInvested") },
+                      { field: "price"    as const, label: t("portfolio.table.sortPrice") },
+                    ]).map(({ field, label }) => {
                       const active = sortField === field;
                       return (
                         <TouchableOpacity key={field} onPress={() => handleSort(field)}
@@ -2387,9 +2430,9 @@ export default function PortfolioScreen() {
 
               {/* Column headers */}
               <View style={{ flexDirection: "row", alignItems: "center", paddingHorizontal: 14, paddingVertical: 6, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: "#1f2330" }}>
-                <Text style={{ flex: 5, fontSize: 9, fontWeight: "700", color: "#4b5563", letterSpacing: 0.6, textTransform: "uppercase" }}>Acción</Text>
-                <Text style={{ flex: 3, fontSize: 9, fontWeight: "700", color: "#4b5563", letterSpacing: 0.6, textTransform: "uppercase", textAlign: "right" }}>Valor</Text>
-                <Text style={{ flex: 3, fontSize: 9, fontWeight: "700", color: "#4b5563", letterSpacing: 0.6, textTransform: "uppercase", textAlign: "right" }}>Ganancia</Text>
+                <Text style={{ flex: 5, fontSize: 9, fontWeight: "700", color: "#4b5563", letterSpacing: 0.6, textTransform: "uppercase" }}>{t("portfolio.table.colStock")}</Text>
+                <Text style={{ flex: 3, fontSize: 9, fontWeight: "700", color: "#4b5563", letterSpacing: 0.6, textTransform: "uppercase", textAlign: "right" }}>{t("portfolio.table.colValue")}</Text>
+                <Text style={{ flex: 3, fontSize: 9, fontWeight: "700", color: "#4b5563", letterSpacing: 0.6, textTransform: "uppercase", textAlign: "right" }}>{t("portfolio.table.colGain")}</Text>
                 <View style={{ width: 52 }} />
               </View>
 
@@ -2429,7 +2472,7 @@ export default function PortfolioScreen() {
                         <View style={{ flexShrink: 1 }}>
                           <Text style={{ fontSize: 13, fontWeight: "800", color: "#fff" }} numberOfLines={1}>{pos.ticker}</Text>
                           <Text style={{ fontSize: 10, color: "#6b7280", marginTop: 1 }} numberOfLines={1}>
-                            {pos.shares % 1 === 0 ? pos.shares : pos.shares.toFixed(3)} acc{hasCost ? ` · ${currencySymbol}${(pos.avgPrice * fxRate).toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}/acc` : ""}
+                            {pos.shares % 1 === 0 ? pos.shares : pos.shares.toFixed(3)} {t("portfolio.preview.sharesAbbrev")}{hasCost ? ` · ${currencySymbol}${(pos.avgPrice * fxRate).toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}/${t("portfolio.preview.sharesAbbrev")}` : ""}
                           </Text>
                         </View>
                       </View>
@@ -2441,7 +2484,7 @@ export default function PortfolioScreen() {
                         </Text>
                         {investedVal != null && (
                           <Text style={{ fontSize: 10, color: "#6b7280", marginTop: 1 }}>
-                            {fmtCompact(investedVal)} inv.
+                            {fmtCompact(investedVal)} {t("portfolio.table.investedShort")}
                           </Text>
                         )}
                       </View>
@@ -2535,13 +2578,13 @@ export default function PortfolioScreen() {
                 {/* Era filter chips */}
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 10 }} contentContainerStyle={{ gap: 6 }}>
                   {[
-                    { id: "all",         label: "Todos" },
-                    { id: "pre1950",     label: "Hasta 1950" },
+                    { id: "all",         label: t("portfolio.eraFilters.all") },
+                    { id: "pre1950",     label: t("portfolio.eraFilters.pre1950") },
                     { id: "mid_century", label: "1950–1990" },
                     { id: "late_xx",     label: "1990–2005" },
                     { id: "2000s",       label: "2005–2015" },
-                    { id: "recent",      label: "2015–Hoy" },
-                    { id: "hypothetical",label: "Hipotéticos" },
+                    { id: "recent",      label: t("portfolio.eraFilters.recent") },
+                    { id: "hypothetical",label: t("portfolio.eraFilters.hypothetical") },
                   ].map((era) => {
                     const active = stressEra === era.id;
                     return (
@@ -2582,17 +2625,17 @@ export default function PortfolioScreen() {
                 {/* Fake blurred result for free users */}
                 {!isPremiumAccess && (
                   <View style={[s.stressResultCard, { backgroundColor: "#111318", borderColor: "#ef444450" }]}>
-                    <Text style={[s.stressResultTitle, { color: "#fff" }]}>💥 Crisis 2008 — Caída hipotecaria</Text>
+                    <Text style={[s.stressResultTitle, { color: "#fff" }]}>{t("portfolio.stressTest.sampleTitle")}</Text>
                     <View style={[s.stressSummary, { backgroundColor: "#ef444414" }]}>
-                      <Text style={[s.stressSummaryLabel, { color: "#6b7280" }]}>Impacto total estimado</Text>
+                      <Text style={[s.stressSummaryLabel, { color: "#6b7280" }]}>{t("portfolio.stressTest.impactTotal")}</Text>
                       <Text style={[s.stressSummaryVal, { color: "#ef4444" }]}>-$XX,XXX (-XX.X%)</Text>
                       <Text style={{ color: "#4b5563", fontSize: 11, marginTop: 2 }}>$XX,XXX → $XX,XXX</Text>
                     </View>
-                    {["AAPL", "MSFT", "GOOGL"].map((t) => (
-                      <View key={t} style={[s.stressRow, { borderTopColor: "#1f2330" }]}>
+                    {["AAPL", "MSFT", "GOOGL"].map((sampleTicker) => (
+                      <View key={sampleTicker} style={[s.stressRow, { borderTopColor: "#1f2330" }]}>
                         <View style={{ flex: 1 }}>
-                          <Text style={[s.stressRowTicker, { color: "#fff" }]}>{t}</Text>
-                          <Text style={[s.stressRowSector, { color: "#4b5563" }]}>Tecnología</Text>
+                          <Text style={[s.stressRowTicker, { color: "#fff" }]}>{sampleTicker}</Text>
+                          <Text style={[s.stressRowSector, { color: "#4b5563" }]}>{t("portfolio.stressTest.sampleSector")}</Text>
                         </View>
                         <View style={{ alignItems: "flex-end" }}>
                           <Text style={[s.stressRowPct, { color: "#ef4444" }]}>-XX%</Text>
@@ -2609,7 +2652,7 @@ export default function PortfolioScreen() {
                     <View style={[s.stressResultCard, { backgroundColor: "#111318", borderColor: sc.color + "50" }]}>
                       <Text style={[s.stressResultTitle, { color: "#fff" }]}>{sc.icon} {sc.name} — {sc.desc}</Text>
                       <View style={[s.stressSummary, { backgroundColor: stressResult.diff >= 0 ? "#22c55e14" : "#ef444414" }]}>
-                        <Text style={[s.stressSummaryLabel, { color: "#6b7280" }]}>Impacto total estimado</Text>
+                        <Text style={[s.stressSummaryLabel, { color: "#6b7280" }]}>{t("portfolio.stressTest.impactTotal")}</Text>
                         <Text style={[s.stressSummaryVal, { color: stressResult.diff >= 0 ? "#22c55e" : "#ef4444" }]}>
                           {stressResult.diff >= 0 ? "+" : ""}{fmtMoney(Math.abs(stressResult.diff))} ({stressResult.pct >= 0 ? "+" : ""}{stressResult.pct.toFixed(1)}%)
                         </Text>
@@ -2621,7 +2664,7 @@ export default function PortfolioScreen() {
                         <View key={row.ticker} style={[s.stressRow, { borderTopColor: "#1f2330" }]}>
                           <View style={{ flex: 1 }}>
                             <Text style={[s.stressRowTicker, { color: "#fff" }]}>{row.ticker}</Text>
-                            <Text style={[s.stressRowSector, { color: "#4b5563" }]}>{row.sector}</Text>
+                            <Text style={[s.stressRowSector, { color: "#4b5563" }]}>{SECTOR_LABELS[row.sector] ?? row.sector}</Text>
                           </View>
                           <View style={{ alignItems: "flex-end" }}>
                             <Text style={[s.stressRowPct, { color: row.pct >= 0 ? "#22c55e" : "#ef4444" }]}>
@@ -2689,8 +2732,8 @@ export default function PortfolioScreen() {
                 ))}
               </View>
               <View style={s.diagBarLabels}>
-                <Text style={[s.diagBarLabel, { color: "#4b5563" }]}>Conservador</Text>
-                <Text style={[s.diagBarLabel, { color: "#4b5563" }]}>Especulativo</Text>
+                <Text style={[s.diagBarLabel, { color: "#4b5563" }]}>{t("portfolio.riskDiagnosis.conservativeLabel")}</Text>
+                <Text style={[s.diagBarLabel, { color: "#4b5563" }]}>{t("portfolio.riskDiagnosis.speculativeLabel")}</Text>
               </View>
               {Object.keys(diagnosis.sectorPcts).length > 0 && (
                 <>
@@ -2704,7 +2747,7 @@ export default function PortfolioScreen() {
                           onPress={() => setSelectedSector(active ? null : sector)}
                           style={[s.diagSectorChip, { backgroundColor: active ? col : col + "18", borderColor: active ? col : col + "40" }]}
                         >
-                          <Text style={[s.diagSectorText, { color: active ? "#fff" : col }]}>{sector} {pct}%</Text>
+                          <Text style={[s.diagSectorText, { color: active ? "#fff" : col }]}>{SECTOR_LABELS[sector] ?? sector} {pct}%</Text>
                         </TouchableOpacity>
                       );
                     })}
@@ -2715,9 +2758,9 @@ export default function PortfolioScreen() {
                     return (
                       <View style={[s.sectorDrillBox, { backgroundColor: col + "0e", borderColor: col + "40" }]}>
                         <View style={s.sectorDrillHeader}>
-                          <Text style={[s.sectorDrillTitle, { color: col }]}>Posiciones · {selectedSector}</Text>
+                          <Text style={[s.sectorDrillTitle, { color: col }]}>{t("portfolio.riskDiagnosis.positionsInSector", { sector: SECTOR_LABELS[selectedSector] ?? selectedSector })}</Text>
                           <TouchableOpacity onPress={() => setSelectedSector(null)}>
-                            <Text style={[s.sectorDrillClose, { color: "#6b7280" }]}>✕ cerrar</Text>
+                            <Text style={[s.sectorDrillClose, { color: "#6b7280" }]}>{t("portfolio.riskDiagnosis.close")}</Text>
                           </TouchableOpacity>
                         </View>
                         {sectorPos.map((p) => {
@@ -2979,7 +3022,7 @@ export default function PortfolioScreen() {
               {/* ── Hero: valor final ── */}
               <View style={[s.calcHero, { backgroundColor: "#6366f110" }]}>
                 <Text style={[s.calcHeroLabel, { color: "#6b7280" }]}>
-                  Valor final en {calcYears} {parseInt(calcYears) === 1 ? "año" : "años"}
+                  {t("portfolio.calc.finalValueIn", { years: calcYears, unit: parseInt(calcYears) === 1 ? t("common.year") : t("common.years") })}
                 </Text>
                 <Text style={[s.calcHeroValue, { color: "#6366f1" }]}>
                   ${fmtMoney(calcResult.final)}
@@ -3081,7 +3124,7 @@ export default function PortfolioScreen() {
       <PaywallModal
         visible={paywallOpen}
         onClose={() => setPaywallOpen(false)}
-        reason="Más de 10 posiciones requiere Premium"
+        reason={t("portfolio.paywall.over10PositionsReason")}
       />
 
       <MobileBrokerConnectModal
@@ -3169,12 +3212,12 @@ export default function PortfolioScreen() {
 
                   if (shares < editingPos.originalShares && editSaleChoice === null) {
                     Alert.alert(
-                      `Bajaste de ${editingPos.originalShares} a ${shares} acciones`,
-                      "¿Vendiste esas acciones o es una corrección de captura?",
+                      t("portfolio.editSale.title", { from: editingPos.originalShares, to: shares }),
+                      t("portfolio.editSale.body"),
                       [
-                        { text: "Es corrección", onPress: () => { setEditSaleChoice("correction"); confirmEditSave(shares); } },
+                        { text: t("portfolio.editSale.correction"), onPress: () => { setEditSaleChoice("correction"); confirmEditSave(shares); } },
                         {
-                          text: "Vendí acciones",
+                          text: t("portfolio.editSale.sold"),
                           onPress: () => {
                             const marketUSD = prices[editingPos.ticker]?.price;
                             const prefill = marketUSD ? (portfolioCurrency === "USD" ? marketUSD : marketUSD * fxRate) : 0;
@@ -3187,7 +3230,7 @@ export default function PortfolioScreen() {
                     return;
                   }
                   if (editSaleChoice === "sale" && (!editSalePrice || isNaN(parseFloat(editSalePrice)))) {
-                    Alert.alert("Falta el precio", "Ingresa el precio al que vendiste las acciones.");
+                    Alert.alert(t("portfolio.editSale.missingPriceTitle"), t("portfolio.editSale.missingPriceBody"));
                     return;
                   }
                   confirmEditSave(shares);
@@ -3270,23 +3313,23 @@ export default function PortfolioScreen() {
         <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "flex-end" }}>
           <View style={{ backgroundColor: "#111318", borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingBottom: 36 }}>
             <View style={{ width: 36, height: 4, borderRadius: 2, backgroundColor: "#1f2330", alignSelf: "center", marginBottom: 16 }} />
-            <Text style={{ color: "#fff", fontWeight: "800", fontSize: 16, marginBottom: 4 }}>Moneda del portafolio</Text>
+            <Text style={{ color: "#fff", fontWeight: "800", fontSize: 16, marginBottom: 4 }}>{t("portfolio.currencyModal.title")}</Text>
             <Text style={{ color: "#6b7280", fontSize: 12, marginBottom: 20 }}>
-              Los precios de mercado se convierten automáticamente en tiempo real.
+              {t("portfolio.currencyModal.subtitle")}
             </Text>
             <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 20 }}>
               {([
-                { code: "USD", flag: "🇺🇸", name: "Dólar" },
-                { code: "MXN", flag: "🇲🇽", name: "Peso MX" },
-                { code: "EUR", flag: "🇪🇺", name: "Euro" },
-                { code: "GBP", flag: "🇬🇧", name: "Libra" },
+                { code: "USD", flag: "🇺🇸", name: t("portfolio.currencyNames.usd") },
+                { code: "MXN", flag: "🇲🇽", name: t("portfolio.currencyNames.mxn") },
+                { code: "EUR", flag: "🇪🇺", name: t("portfolio.currencyNames.eur") },
+                { code: "GBP", flag: "🇬🇧", name: t("portfolio.currencyNames.gbp") },
                 { code: "CAD", flag: "🇨🇦", name: "CAD" },
-                { code: "ARS", flag: "🇦🇷", name: "Peso AR" },
-                { code: "BRL", flag: "🇧🇷", name: "Real" },
-                { code: "COP", flag: "🇨🇴", name: "Peso CO" },
-                { code: "CLP", flag: "🇨🇱", name: "Peso CL" },
-                { code: "PEN", flag: "🇵🇪", name: "Sol" },
-                { code: "JPY", flag: "🇯🇵", name: "Yen" },
+                { code: "ARS", flag: "🇦🇷", name: t("portfolio.currencyNames.ars") },
+                { code: "BRL", flag: "🇧🇷", name: t("portfolio.currencyNames.brl") },
+                { code: "COP", flag: "🇨🇴", name: t("portfolio.currencyNames.cop") },
+                { code: "CLP", flag: "🇨🇱", name: t("portfolio.currencyNames.clp") },
+                { code: "PEN", flag: "🇵🇪", name: t("portfolio.currencyNames.pen") },
+                { code: "JPY", flag: "🇯🇵", name: t("portfolio.currencyNames.jpy") },
                 { code: "AUD", flag: "🇦🇺", name: "AUD" },
               ] as { code: string; flag: string; name: string }[]).map(({ code, flag, name }) => {
                 const active = portfolioCurrency === code;
@@ -3312,7 +3355,7 @@ export default function PortfolioScreen() {
               onPress={() => setShowCurrencyPicker(false)}
               style={{ borderWidth: 1, borderColor: "#1f2330", borderRadius: 14, paddingVertical: 13, alignItems: "center" }}
               activeOpacity={0.7}>
-              <Text style={{ color: "#9ca3af", fontWeight: "700", fontSize: 14 }}>Cerrar</Text>
+              <Text style={{ color: "#9ca3af", fontWeight: "700", fontSize: 14 }}>{t("common.close")}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -3323,25 +3366,25 @@ export default function PortfolioScreen() {
         <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "center", alignItems: "center", padding: 20 }}>
           <View style={{ backgroundColor: "#111318", borderRadius: 24, padding: 20, width: "100%", maxWidth: 400 }}>
             <Text style={{ color: "#fff", fontWeight: "800", fontSize: 16, marginBottom: 4 }}>
-              ¿En qué moneda está tu portafolio?
+              {t("portfolio.importCurrencyModal.title")}
             </Text>
             <Text style={{ color: "#6b7280", fontSize: 12, marginBottom: 16 }}>
-              Los precios se mostrarán en la moneda que elijas. Los precios de mercado en tiempo real se convierten automáticamente.
+              {t("portfolio.importCurrencyModal.subtitle")}
             </Text>
 
             <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>
               {([
-                { code: "USD", flag: "🇺🇸", name: "Dólar" },
-                { code: "MXN", flag: "🇲🇽", name: "Peso MX" },
-                { code: "EUR", flag: "🇪🇺", name: "Euro" },
-                { code: "GBP", flag: "🇬🇧", name: "Libra" },
+                { code: "USD", flag: "🇺🇸", name: t("portfolio.currencyNames.usd") },
+                { code: "MXN", flag: "🇲🇽", name: t("portfolio.currencyNames.mxn") },
+                { code: "EUR", flag: "🇪🇺", name: t("portfolio.currencyNames.eur") },
+                { code: "GBP", flag: "🇬🇧", name: t("portfolio.currencyNames.gbp") },
                 { code: "CAD", flag: "🇨🇦", name: "CAD" },
-                { code: "ARS", flag: "🇦🇷", name: "Peso AR" },
-                { code: "BRL", flag: "🇧🇷", name: "Real" },
-                { code: "COP", flag: "🇨🇴", name: "Peso CO" },
-                { code: "CLP", flag: "🇨🇱", name: "Peso CL" },
-                { code: "PEN", flag: "🇵🇪", name: "Sol" },
-                { code: "JPY", flag: "🇯🇵", name: "Yen" },
+                { code: "ARS", flag: "🇦🇷", name: t("portfolio.currencyNames.ars") },
+                { code: "BRL", flag: "🇧🇷", name: t("portfolio.currencyNames.brl") },
+                { code: "COP", flag: "🇨🇴", name: t("portfolio.currencyNames.cop") },
+                { code: "CLP", flag: "🇨🇱", name: t("portfolio.currencyNames.clp") },
+                { code: "PEN", flag: "🇵🇪", name: t("portfolio.currencyNames.pen") },
+                { code: "JPY", flag: "🇯🇵", name: t("portfolio.currencyNames.jpy") },
                 { code: "AUD", flag: "🇦🇺", name: "AUD" },
               ] as const).map(({ code, flag, name: cname }) => {
                 const active = importCurrency === code;
@@ -3372,7 +3415,7 @@ export default function PortfolioScreen() {
                 onPress={() => setPendingImport(null)}
                 style={{ flex: 1, paddingVertical: 12, borderRadius: 14, borderWidth: 1, borderColor: "#1f2330", alignItems: "center" }}
               >
-                <Text style={{ color: "#6b7280", fontWeight: "600" }}>Cancelar</Text>
+                <Text style={{ color: "#6b7280", fontWeight: "600" }}>{t("common.cancel")}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 onPress={() => applyImport(importCurrency)}
@@ -3380,7 +3423,7 @@ export default function PortfolioScreen() {
                 style={{ flex: 2, paddingVertical: 12, borderRadius: 14, backgroundColor: "#00d47e", alignItems: "center", opacity: convertingCurrency ? 0.6 : 1 }}
               >
                 <Text style={{ color: "#fff", fontWeight: "700" }}>
-                  {convertingCurrency ? "Convirtiendo..." : `Importar en ${importCurrency}`}
+                  {convertingCurrency ? t("portfolio.importCurrencyModal.converting") : t("portfolio.importCurrencyModal.importIn", { currency: importCurrency })}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -3391,8 +3434,8 @@ export default function PortfolioScreen() {
       {isTour && (
         <MobileTourBanner
           step={1}
-          title="Agrega tu primera posición"
-          description="Toca el botón verde para registrar las acciones que ya tienes. Nuvos calculará tu rendimiento en tiempo real."
+          title={t("portfolio.tour.title")}
+          description={t("portfolio.tour.description")}
         />
       )}
     </SafeAreaView>

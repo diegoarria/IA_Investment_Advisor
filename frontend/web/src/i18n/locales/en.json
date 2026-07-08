@@ -558,5 +558,456 @@
       "horizon10plus": "10+ years"
     },
     "languageToggle": "Switch language"
+  },
+  "progress": {
+    "paywall": {
+      "title": "Your evolution as an investor",
+      "description": "Nuvos keeps your complete history as an investor — milestones, net worth, decisions that avoided mistakes. The longer you stay, the more valuable it gets.",
+      "activatePremium": "Activate Premium"
+    },
+    "header": {
+      "title": "Your evolution as an investor",
+      "subtitle": "Everything backed by your real data — we never make up progress"
+    },
+    "empty": {
+      "title": "We're still building your history.",
+      "subtitle": "Keep investing and using Nuvos — your evolution will show up here."
+    },
+    "metrics": {
+      "sinceFirstInvestment": "Since your first investment",
+      "timeUsingNuvos": "Time using Nuvos",
+      "daysUnit": "{{count}} days",
+      "operationsCompleted": "Operations completed",
+      "capitalInvested": "Capital invested",
+      "currentWealth": "Current net worth",
+      "cumulativeReturn": "Cumulative return",
+      "bestYear": "Best year ({{year}})",
+      "hardestYear": "Hardest year ({{year}})",
+      "consecutiveMonthsContributing": "Consecutive months contributing"
+    },
+    "benchmark": {
+      "sectionTitle": "HOW YOU COMPARE",
+      "youBeat": "You beat {{percentile}}%",
+      "ofInvestorsWithProfile": "of investors with a",
+      "in": "profile in",
+      "anonymousComparison": "Compared anonymously against {{count}} investors — we never see or share anyone's individual data."
+    },
+    "milestones": {
+      "sectionTitle": "MILESTONES"
+    },
+    "decisions": {
+      "sectionTitle": "DECISIONS THAT AVOIDED COSTLY MISTAKES"
+    }
+  },
+  "screener": {
+    "etf": {
+      "title": "ETFs for your profile",
+      "subtitle": "ETFs are the safest, most diversified way to start investing — ideal for your current level.",
+      "explainer": "An ETF lets you buy a basket of hundreds of companies in a single trade — more diversification, less risk than picking individual stocks.",
+      "lockedNotice": "The individual stock Screener unlocks once you reach Intermediate level.",
+      "descriptions": {
+        "conservative": {
+          "bnd": "High-quality U.S. bonds. Very stable, low risk.",
+          "vti": "The entire U.S. market in one ETF. The foundation of any portfolio.",
+          "bndx": "International bonds to diversify outside the U.S."
+        },
+        "moderate": {
+          "vti": "The entire U.S. market. The most recommended ETF for beginners.",
+          "vxus": "International stocks to balance your global exposure.",
+          "bnd": "A bond component to reduce portfolio volatility."
+        },
+        "aggressive": {
+          "qqq": "The 100 most innovative companies on the Nasdaq. High growth, more volatility.",
+          "vti": "A solid foundation from the full U.S. market.",
+          "vwo": "Emerging markets with high long-term growth potential."
+        }
+      }
+    },
+    "header": {
+      "title": "Weekly Screener",
+      "subtitle": "5 personalized opportunities for you — updated every Monday",
+      "refresh": "Refresh"
+    },
+    "paywall": {
+      "title": "Personalized Weekly Screener",
+      "desc": "Every Monday, our AI analyzes the market and picks 5 opportunities that fit your risk profile and investing philosophy exactly.",
+      "reason": "Upgrade to Premium to get your personalized weekly screener.",
+      "cta": "Upgrade to Premium"
+    },
+    "loading": "Analyzing the market for you...",
+    "weekTheme": {
+      "label": "🗓 THEME OF THE WEEK",
+      "updated": "Updated: {{date}}"
+    },
+    "pick": {
+      "catalyst": "Catalyst",
+      "risk": "⚠️ Risk"
+    },
+    "mentorNote": {
+      "label": "NOTE FROM YOUR MENTOR"
+    }
+  },
+  "patrimonio": {
+    "header": {
+      "eyebrow": "My money",
+      "title": "Wealth"
+    },
+    "progress": {
+      "title": "Your evolution as an investor",
+      "subtitle": "Milestones, wealth, and decisions that avoided mistakes"
+    },
+    "tabs": {
+      "portfolio": "Portfolio",
+      "watchlist": "Watchlist",
+      "simulator": "Simulator"
+    },
+    "common": {
+      "updating": "Updating...",
+      "today": "today"
+    },
+    "portfolio": {
+      "totalValueLabel": "Total Value · {{currency}}",
+      "dayGainLabel": "Day Gain",
+      "totalGainLabel": "Total Gain",
+      "positionsCount": "Positions ({{count}})",
+      "empty": "You don't have any positions yet",
+      "sharesAvg": "{{shares}} shares · ${{avgPrice}} avg",
+      "viewFull": "View full portfolio"
+    },
+    "watchlist": {
+      "itemsCount": "Watchlist ({{count}})",
+      "empty": "Your watchlist is empty",
+      "viewFull": "View full watchlist"
+    },
+    "simulator": {
+      "totalValueLabel": "Total Value",
+      "cashLabel": "Cash",
+      "gainLabel": "Gain",
+      "positionsCount": "Paper Positions ({{count}})",
+      "empty": "You don't have any paper positions. Start practicing!",
+      "openFull": "Open full simulator"
+    }
+  },
+  "decisions": {
+    "actionLabels": {
+      "buy": "Bought",
+      "sell": "Sold",
+      "hold": "Held (chose not to act)",
+      "ignoredAlert": "Ignored an alert",
+      "actedOnAlert": "Acted on an alert"
+    },
+    "triggerLabels": {
+      "manual": "My own decision",
+      "alert": "System alert",
+      "mentor": "Mentor's recommendation",
+      "fomo": "FOMO (fear of missing out)",
+      "panic": "Panic / stress",
+      "research": "My own research"
+    },
+    "locked": {
+      "title": "Decision Journal",
+      "unlockPart1": "This section unlocks once you reach",
+      "levelName": "Intermediate",
+      "unlockPart2": "level. Logging and analyzing behavioral biases requires having made investment decisions with context — keep learning in the chat and your portfolio.",
+      "meanwhile": "In the meantime, focus on:",
+      "tips": {
+        "addPositions": "Add your first positions to your portfolio",
+        "exploreNews": "Explore the news feed for your stocks",
+        "reviewAnalysis": "Review the analysis of your positions in Wealth"
+      }
+    },
+    "paywall": {
+      "title": "Decision Journal",
+      "description": "Log every investment decision and the AI spots your behavioral biases over time — the one feature that actually makes you a better investor.",
+      "activateButton": "Activate Premium"
+    },
+    "header": {
+      "title": "Decision Journal",
+      "subtitle": "Log your moves and discover your biases as an investor",
+      "logButton": "Log decision"
+    },
+    "tabs": {
+      "diary": "Journal",
+      "biases": "Bias analysis"
+    },
+    "diary": {
+      "empty": "No decisions logged yet.",
+      "emptyHint": "Start by logging your first investment decision.",
+      "triggerLabel": "Trigger: {{trigger}}"
+    },
+    "biases": {
+      "analyzeButton": "Analyze",
+      "analyzing": "Analyzing your patterns with AI...",
+      "scoreLabel": "YOUR REAL INVESTOR PROFILE",
+      "basedOn": "Based on {{count}} decisions · {{period}}",
+      "detectedTitle": "BIASES DETECTED",
+      "occurrences": "Occurrences",
+      "costEstimate": "Estimated cost",
+      "realExample": "Real example",
+      "howToImprove": "How to improve",
+      "strengthsTitle": "YOUR STRENGTHS",
+      "mentorAssessmentTitle": "YOUR MENTOR'S ASSESSMENT",
+      "nextChallengeTitle": "THIS WEEK'S CHALLENGE"
+    },
+    "modal": {
+      "title": "Log decision",
+      "actionLabel": "Action",
+      "tickerLabel": "Ticker",
+      "tickerPlaceholder": "e.g. AAPL",
+      "triggerLabel": "Why did I do it?",
+      "notesLabel": "Notes (optional)",
+      "notesPlaceholder": "What were you thinking at the time?",
+      "saving": "Saving...",
+      "saveButton": "Save decision"
+    }
+  },
+  "watchlist": {
+    "marketState": {
+      "live": "Live",
+      "preMkt": "Pre-Mkt",
+      "postMkt": "Post-Mkt",
+      "closed": "Closed"
+    },
+    "card": {
+      "regPrice": "Reg. {{price}}",
+      "closePrice": "Close {{price}}",
+      "vsPreviousClose": "{{pct}} vs previous close",
+      "editAlert": "Edit price alert",
+      "createAlert": "Create price alert"
+    },
+    "header": {
+      "myList": "My list",
+      "title": "Watchlist",
+      "updatedNow": "Updated just now",
+      "updatedAgo": "Updated {{seconds}}s ago",
+      "basic": "Basic",
+      "advanced": "Advanced",
+      "refresh": "Refresh",
+      "logout": "Log out"
+    },
+    "search": {
+      "placeholder": "Search by ticker or company — e.g. AAPL, Tesla..."
+    },
+    "limit": {
+      "stocksCount": "{{count}} / {{limit}} stocks",
+      "activatePremium": "Activate Premium",
+      "remaining": "{{count}} left"
+    },
+    "extLabel": {
+      "pre": "Pre",
+      "post": "Post"
+    },
+    "empty": {
+      "advancedTitle": "Your watchlist is empty",
+      "advancedSubtitle": "Search for stocks above to follow them",
+      "title": "Your list of favorite companies",
+      "description": "A watchlist is like a shopping list: add the companies or ETFs you're interested in to track their price before deciding whether to invest.",
+      "viewEtfs": "View recommended ETFs",
+      "askMentor": "Ask your AI mentor",
+      "searchHint": "Or search for any company above by name or ticker (e.g. \"Apple\" or \"AAPL\")"
+    },
+    "alertModal": {
+      "title": "Price alert",
+      "currentPrice": "Current price:",
+      "below": "Below",
+      "above": "Above",
+      "pricePlaceholder": "Target price (e.g. 180.00)",
+      "deleteAlert": "Delete alert",
+      "saving": "Saving…",
+      "saveAlert": "Save alert"
+    },
+    "toast": {
+      "alertCreated": "Alert created for {{ticker}}",
+      "alertSaveError": "Couldn't save the alert",
+      "alertDeleted": "Alert deleted",
+      "alreadyInWatchlist": "{{ticker}} is already in your watchlist",
+      "addError": "Couldn't add the ticker",
+      "deleteError": "Couldn't delete it"
+    },
+    "tour": {
+      "title": "Search for a stock to follow",
+      "description": "Type the ticker or company name — e.g. AAPL or Tesla. Nuvos will let you know about important moves.",
+      "cta": "Got it, back to home ✓"
+    }
+  },
+  "portfolio": {
+    "sectors": {
+      "semiconductors": "Semiconductors",
+      "software": "Software",
+      "technology": "Technology",
+      "ai": "Artificial Intelligence",
+      "fintech": "Fintech",
+      "ecommerce": "eCommerce",
+      "consumerDiscretionary": "Consumer Discretionary",
+      "consumerStaples": "Consumer Staples",
+      "health": "Healthcare",
+      "pharma": "Pharmaceuticals",
+      "biotech": "Biotech",
+      "financial": "Financial",
+      "banking": "Banking",
+      "insurance": "Insurance",
+      "energy": "Energy",
+      "renewableEnergy": "Renewable Energy",
+      "utilities": "Utilities",
+      "industrials": "Industrials",
+      "aerospace": "Aerospace",
+      "logistics": "Logistics",
+      "materials": "Materials",
+      "telecom": "Telecom",
+      "media": "Media",
+      "realEstate": "Real Estate",
+      "crypto": "Crypto",
+      "etf": "ETF",
+      "other": "Other"
+    },
+    "riskLevels": {
+      "conservative": "Conservative",
+      "conservativeModerate": "Conservative-Moderate",
+      "moderate": "Moderate",
+      "moderateGrowth": "Moderate-Growth",
+      "growth": "Growth",
+      "aggressive": "Aggressive",
+      "aggressiveSpeculative": "Aggressive-Speculative",
+      "speculative": "Speculative"
+    },
+    "scenarios": {
+      "conservative": "Conservative",
+      "moderate": "Moderate",
+      "aggressive": "Aggressive"
+    },
+    "riskDiagnosis": {
+      "positionsInSector": "Positions · {{sector}}"
+    },
+    "stressScenarios": {
+      "hypotheticalYear": "Hypothetical",
+      "y1901": {
+        "name": "Panic of 1901",
+        "desc": "Battle for control of the Northern Pacific Railroad — drop of ≈-46%"
+      },
+      "y1907": {
+        "name": "Panic of 1907",
+        "desc": "Banking crisis with no central bank to backstop it — drop of ≈-37%"
+      },
+      "ww1": {
+        "name": "World War I",
+        "desc": "NY Stock Exchange closed for 4 months amid global chaos — estimated drop ≈-40%"
+      },
+      "y1910": {
+        "name": "Panic of 1910",
+        "desc": "Moderate correction in the early 20th century — ≈-15%"
+      },
+      "y1921": {
+        "name": "Post-WWI Recession",
+        "desc": "Deflation and demobilization after the Great War — drop of ≈-30%"
+      },
+      "y1929": {
+        "name": "Great Depression",
+        "desc": "The biggest crash in modern history — S&P -89% over 3 years"
+      },
+      "y1937": {
+        "name": "Recession of 1937",
+        "desc": "A relapse within the Great Depression — drop of ≈-54%"
+      },
+      "y1946": {
+        "name": "Post-WWII '46",
+        "desc": "Economic adjustment after World War II — S&P ≈-28%"
+      },
+      "y1962": {
+        "name": "Kennedy Slide",
+        "desc": "Sharp correction after years of steady gains — S&P ≈-28%"
+      },
+      "y1966": {
+        "name": "Bear Market '66",
+        "desc": "Inflation and Vietnam fueled uncertainty — S&P ≈-22%"
+      },
+      "y1970": {
+        "name": "Recession of '69–'70",
+        "desc": "Inflation and tight monetary policy — S&P ≈-36%"
+      },
+      "oil1973": {
+        "name": "Oil Crisis",
+        "desc": "Arab oil embargo sent inflation soaring — S&P -48%"
+      },
+      "volcker": {
+        "name": "Volcker Shock",
+        "desc": "Rates hit 20% to tame inflation — S&P ≈-27%"
+      },
+      "y1987": {
+        "name": "Black Monday",
+        "desc": "A -22.6% drop in a single day — S&P -33% within weeks"
+      },
+      "gulf1990": {
+        "name": "Gulf War",
+        "desc": "Invasion of Kuwait sent oil prices soaring — S&P ≈-20%"
+      },
+      "sl1990": {
+        "name": "S&L Crisis",
+        "desc": "Mass failure of US savings & loan banks — market ≈-20%"
+      },
+      "tequila1994": {
+        "name": "Tequila Crisis",
+        "desc": "Mexican peso devaluation rattled emerging markets — ≈-25%"
+      },
+      "asia1997": {
+        "name": "Asian Financial Crisis",
+        "desc": "Asian currencies collapsed — emerging markets down -30% to -60%"
+      },
+      "russia1998": {
+        "name": "Russian Crisis",
+        "desc": "Russian default and the collapse of hedge fund LTCM — S&P ≈-19%"
+      },
+      "dotcom": {
+        "name": "Dot-Com Bubble",
+        "desc": "The internet company collapse — NASDAQ -78%, S&P -49%"
+      },
+      "sept11": {
+        "name": "9/11",
+        "desc": "The September 11 attacks — S&P ≈-12% within days"
+      },
+      "y2008": {
+        "name": "2008 Financial Crisis",
+        "desc": "Mortgage collapse that froze the global financial system — S&P -57%"
+      },
+      "eu2012": {
+        "name": "European Debt Crisis",
+        "desc": "Greek sovereign debt threatened the euro's existence — S&P ≈-25%"
+      },
+      "usdowngrade": {
+        "name": "US Downgrade '11",
+        "desc": "S&P stripped the US of its AAA rating — S&P ≈-19%"
+      },
+      "china2015": {
+        "name": "China Crisis '15",
+        "desc": "Chinese stock bubble and yuan devaluation — S&P ≈-15%"
+      },
+      "tradewar2018": {
+        "name": "Trade War",
+        "desc": "US-China tariffs fueled volatility — S&P ≈-20%"
+      },
+      "covid": {
+        "name": "COVID-19",
+        "desc": "The fastest crash in history, in just 33 days — S&P -34%"
+      },
+      "y2022": {
+        "name": "2022 Rate Crash",
+        "desc": "The Fed raised rates to 5.25% — S&P -25%, NASDAQ -33%"
+      },
+      "svb2023": {
+        "name": "SVB Crisis '23",
+        "desc": "Collapse of Silicon Valley Bank and Signature Bank — S&P ≈-10%"
+      },
+      "y2025": {
+        "name": "2025 Correction",
+        "desc": "Uncertainty over tariffs and monetary policy — S&P ≈-10%"
+      },
+      "fed": {
+        "name": "Fed Scare +1%",
+        "desc": "A surprise 100-basis-point rate hike"
+      },
+      "bull": {
+        "name": "Bull Market",
+        "desc": "A year of recovery and investor euphoria"
+      }
+    }
   }
 }
