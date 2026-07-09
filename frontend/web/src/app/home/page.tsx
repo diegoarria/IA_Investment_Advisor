@@ -256,8 +256,16 @@ export default function HomePage() {
     if (tok) registerWebPush(tok).catch(() => {});
   }, [isAuthenticated]);
 
-  // Redirect immediately to preferred start screen (before data loads)
+  // Redirect to the user's preferred start screen — but only once per
+  // session, right after landing here from login. Without the sessionStorage
+  // guard this fired on every single mount of /home, including a deliberate
+  // click on the Home nav item itself — making Home permanently unreachable
+  // for anyone who picked a different preferred screen (it would instantly
+  // bounce them right back out every time).
   useEffect(() => {
+    const REDIRECT_DONE_KEY = "nuvos_start_screen_redirected";
+    if (sessionStorage.getItem(REDIRECT_DONE_KEY)) return;
+    sessionStorage.setItem(REDIRECT_DONE_KEY, "1");
     const saved = localStorage.getItem(HOME_SCREEN_KEY);
     if (!saved || saved === "home") return;
     const routes: Record<string, string> = {

@@ -249,6 +249,9 @@ export const useAuthStore = create<AuthState>()(
         // un-namespaced "guest" bucket (see userStorage below) — clear the
         // flag so a real account logged into next doesn't inherit it.
         localStorage.removeItem("nuvos_guest");
+        // Let the next login (even in this same tab) re-apply the user's
+        // preferred start screen once — see home/page.tsx's one-shot guard.
+        try { sessionStorage.removeItem("nuvos_start_screen_redirected"); } catch {}
         set({ token: null, userId: null, isAuthenticated: false, authRestoring: false });
         // Supabase's own session (persisted under its own localStorage key,
         // separate from our access_token) must go too — otherwise logging
