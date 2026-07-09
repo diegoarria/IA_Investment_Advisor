@@ -97,6 +97,15 @@ function fmtMoney(n: number): string {
   return `$${Math.round(n).toLocaleString()}`;
 }
 
+// Adds thousand separators as the user types, while keeping the underlying
+// state a plain parseable numeric string (no commas).
+function formatWithCommas(raw: string): string {
+  if (!raw) return "";
+  const [intPart, decPart] = raw.split(".");
+  const withCommas = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  return decPart !== undefined ? `${withCommas}.${decPart}` : withCommas;
+}
+
 function yearsToGoal(pmt: number, goal: number, annualRate: number): number | null {
   if (pmt <= 0 || goal <= 0) return null;
   const r = annualRate / 12;
@@ -347,8 +356,8 @@ export default function OnboardingScreen() {
               <Text style={S.prefix}>$</Text>
               <TextInput
                 style={[S.input, S.prefixInput]}
-                value={form.initial_capital}
-                onChangeText={(v) => setForm(f => ({ ...f, initial_capital: v }))}
+                value={formatWithCommas(form.initial_capital)}
+                onChangeText={(v) => { const raw = v.replace(/,/g, ""); if (raw === "" || /^\d*\.?\d*$/.test(raw)) setForm(f => ({ ...f, initial_capital: raw })); }}
                 placeholder="0" placeholderTextColor="#374151"
                 keyboardType="numeric"
               />
@@ -361,8 +370,8 @@ export default function OnboardingScreen() {
               <Text style={S.prefix}>$</Text>
               <TextInput
                 style={[S.input, S.prefixInput]}
-                value={form.monthly_contribution}
-                onChangeText={(v) => setForm(f => ({ ...f, monthly_contribution: v }))}
+                value={formatWithCommas(form.monthly_contribution)}
+                onChangeText={(v) => { const raw = v.replace(/,/g, ""); if (raw === "" || /^\d*\.?\d*$/.test(raw)) setForm(f => ({ ...f, monthly_contribution: raw })); }}
                 placeholder="500" placeholderTextColor="#374151"
                 keyboardType="numeric"
               />
@@ -376,8 +385,8 @@ export default function OnboardingScreen() {
               <Text style={S.prefix}>$</Text>
               <TextInput
                 style={[S.input, S.prefixInput]}
-                value={form.investment_goal_amount}
-                onChangeText={(v) => setForm(f => ({ ...f, investment_goal_amount: v }))}
+                value={formatWithCommas(form.investment_goal_amount)}
+                onChangeText={(v) => { const raw = v.replace(/,/g, ""); if (raw === "" || /^\d*\.?\d*$/.test(raw)) setForm(f => ({ ...f, investment_goal_amount: raw })); }}
                 placeholder="1,000,000" placeholderTextColor="#374151"
                 keyboardType="numeric"
               />

@@ -96,6 +96,15 @@ function fmtMoney(n: number): string {
   return `$${Math.round(n).toLocaleString()}`;
 }
 
+// Adds thousand separators as the user types, while keeping the underlying
+// state a plain parseable numeric string (no commas).
+function formatWithCommas(raw: string): string {
+  if (!raw) return "";
+  const [intPart, decPart] = raw.split(".");
+  const withCommas = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  return decPart !== undefined ? `${withCommas}.${decPart}` : withCommas;
+}
+
 function yearsToGoal(pmt: number, goal: number, annualRate: number): number | null {
   if (pmt <= 0 || goal <= 0) return null;
   const r = annualRate / 12;
@@ -372,9 +381,9 @@ export default function OnboardingPage() {
             </label>
             <div className="relative">
               <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm font-bold" style={{ color: "var(--muted)" }}>$</span>
-              <input type="number" min={0}
-                     value={form.initial_capital}
-                     onChange={(e) => setForm(f => ({ ...f, initial_capital: e.target.value }))}
+              <input type="text" inputMode="decimal"
+                     value={formatWithCommas(form.initial_capital)}
+                     onChange={(e) => { const raw = e.target.value.replace(/,/g, ""); if (raw === "" || /^\d*\.?\d*$/.test(raw)) setForm(f => ({ ...f, initial_capital: raw })); }}
                      className="w-full rounded-xl border pl-8 pr-4 py-3 text-sm outline-none"
                      placeholder="0 si todavía no tienes"
                      style={{ background: "var(--raised)", borderColor: "var(--border)", color: "var(--text)" }}
@@ -391,9 +400,9 @@ export default function OnboardingPage() {
             </label>
             <div className="relative">
               <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm font-bold" style={{ color: "var(--muted)" }}>$</span>
-              <input type="number" min={0}
-                     value={form.monthly_contribution}
-                     onChange={(e) => setForm(f => ({ ...f, monthly_contribution: e.target.value }))}
+              <input type="text" inputMode="decimal"
+                     value={formatWithCommas(form.monthly_contribution)}
+                     onChange={(e) => { const raw = e.target.value.replace(/,/g, ""); if (raw === "" || /^\d*\.?\d*$/.test(raw)) setForm(f => ({ ...f, monthly_contribution: raw })); }}
                      className="w-full rounded-xl border pl-8 pr-16 py-3 text-sm outline-none"
                      placeholder="500"
                      style={{ background: "var(--raised)", borderColor: "var(--border)", color: "var(--text)" }}
@@ -408,9 +417,9 @@ export default function OnboardingPage() {
             </label>
             <div className="relative">
               <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm font-bold" style={{ color: "var(--muted)" }}>$</span>
-              <input type="number" min={0}
-                     value={form.investment_goal_amount}
-                     onChange={(e) => setForm(f => ({ ...f, investment_goal_amount: e.target.value }))}
+              <input type="text" inputMode="decimal"
+                     value={formatWithCommas(form.investment_goal_amount)}
+                     onChange={(e) => { const raw = e.target.value.replace(/,/g, ""); if (raw === "" || /^\d*\.?\d*$/.test(raw)) setForm(f => ({ ...f, investment_goal_amount: raw })); }}
                      className="w-full rounded-xl border pl-8 pr-4 py-3 text-sm outline-none"
                      placeholder="1,000,000"
                      style={{ background: "var(--raised)", borderColor: "var(--border)", color: "var(--text)" }}
