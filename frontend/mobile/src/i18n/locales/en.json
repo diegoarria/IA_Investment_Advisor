@@ -3263,5 +3263,35 @@
     "tomorrow": "Tomorrow",
     "upcomingCount_one": "{{count}} upcoming · {{total}} total",
     "upcomingCount_other": "{{count}} upcoming · {{total}} total"
+  },
+  "tabsLayout": {
+    "activatePremium": "Activate Premium",
+    "createAccountLogin": "Create account · Log in",
+    "daysLeft": "{{days}}d left",
+    "evolution": "Evolution",
+    "login": "Log in",
+    "myGoal": "My goal",
+    "myPortfolio": "My Portfolio",
+    "myProfile": "My Profile",
+    "premiumFree": "Premium Free",
+    "productsAndServices": "Products and Services",
+    "simulator": "Simulator",
+    "tabs": {
+      "academy": "Academy",
+      "chat": "AI Mentor",
+      "home": "Home",
+      "investors": "Investors",
+      "learn": "Learn",
+      "notifications": "Notifications",
+      "paper": "Paper",
+      "patrimonio": "Net Worth",
+      "portfolio": "Portfolio",
+      "products": "Products",
+      "profile": "Profile",
+      "support": "Support",
+      "videos": "Videos",
+      "watchlist": "Watchlist"
+    },
+    "yourEvolution": "Your evolution as an investor"
   }
 }

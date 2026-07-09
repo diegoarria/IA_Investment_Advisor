@@ -3,33 +3,39 @@ export const dynamic = "force-dynamic";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import { auth, profile as profileApi, referral as referralApi } from "@/lib/api";
 import { getSupabaseClient } from "@/lib/supabase";
 import { useAuthStore, useProfileStore } from "@/lib/store";
 import { Eye, EyeOff, ArrowRight, User } from "lucide-react";
 
-const PILLARS = [
-  {
-    emoji: "🧠",
-    accent: "#a78bfa",
-    title: "Mentor IA siempre disponible",
-    desc: "Pregunta cualquier cosa sobre tus inversiones. Respuestas claras, personalizadas, sin jerga.",
-  },
-  {
-    emoji: "🔔",
-    accent: "#f59e0b",
-    title: "Alertas que realmente importan",
-    desc: "Cuando algo en el mercado afecte lo que tienes invertido, te avisamos y te explicamos qué significa.",
-  },
-  {
-    emoji: "⚡",
-    accent: "#34d399",
-    title: "De la duda a la acción",
-    desc: "Registra cada decisión, detecta tus patrones de comportamiento y actúa con más confianza.",
-  },
-];
+function getPillars(t: TFunction) {
+  return [
+    {
+      emoji: "🧠",
+      accent: "#a78bfa",
+      title: t("landing.pillars.mentor.title"),
+      desc: t("landing.pillars.mentor.desc"),
+    },
+    {
+      emoji: "🔔",
+      accent: "#f59e0b",
+      title: t("landing.pillars.alerts.title"),
+      desc: t("landing.pillars.alerts.desc"),
+    },
+    {
+      emoji: "⚡",
+      accent: "#34d399",
+      title: t("landing.pillars.action.title"),
+      desc: t("landing.pillars.action.desc"),
+    },
+  ];
+}
 
 export default function Home() {
+  const { t } = useTranslation();
+  const PILLARS = getPillars(t);
   const [mode, setMode]             = useState<"login" | "register" | "forgot">("login");
   const [email, setEmail]           = useState("");
   const [password, setPassword]     = useState("");
@@ -95,7 +101,7 @@ export default function Home() {
         const storedToken = localStorage.getItem("access_token") ?? "";
         setAuth(storedToken, res.data.user_id);
         setProfile(res.data);
-        setExistingUserName(res.data.name || res.data.email || "tu cuenta");
+        setExistingUserName(res.data.name || res.data.email || t("landing.yourAccount"));
         setChecking(false);
       })
       .catch(() => {
@@ -135,7 +141,7 @@ export default function Home() {
         setForgotDone(true);
       }
     } catch (err: unknown) {
-      setError(extractErrorMsg(err) || "Ocurrió un error. Inténtalo de nuevo.");
+      setError(extractErrorMsg(err) || t("landing.genericError"));
     } finally { setLoading(false); }
   };
 
@@ -150,7 +156,7 @@ export default function Home() {
       }
       setResendCooldown(30);
     } catch (err: unknown) {
-      setError(extractErrorMsg(err) || "No se pudo reenviar. Inténtalo de nuevo.");
+      setError(extractErrorMsg(err) || t("landing.resendError"));
     } finally { setLoading(false); }
   };
 
@@ -163,7 +169,7 @@ export default function Home() {
       });
       if (error) setError(`Google error: ${error.message}`);
     } catch (e: unknown) {
-      setError(`Error: ${(e as { message?: string })?.message ?? "desconocido"}`);
+      setError(`Error: ${(e as { message?: string })?.message ?? t("landing.unknown")}`);
       setLoading(false);
     }
   };
@@ -192,7 +198,7 @@ export default function Home() {
         window.location.href = (!alreadyOnboarded && err?.response?.status === 404) ? "/onboarding" : "/home";
       }
     } catch (err: unknown) {
-      setError(extractErrorMsg(err) || "Verifica tus credenciales e inténtalo de nuevo.");
+      setError(extractErrorMsg(err) || t("landing.checkCredentials"));
     } finally { setLoading(false); }
   };
 
@@ -239,20 +245,20 @@ export default function Home() {
         <div className="mb-8 animate-fade-in-up">
           <h1 className="text-5xl xl:text-[3.6rem] font-black leading-[1.06] tracking-tight mb-3"
               style={{ color: "var(--text)", fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
-            Con Nuvos,<br />
-            <span className="gradient-text">construye tu futuro.</span>
+            {t("landing.heroLine1")}<br />
+            <span className="gradient-text">{t("landing.heroLine2")}</span>
           </h1>
           <p className="text-lg leading-relaxed max-w-[420px]" style={{ color: "var(--muted)" }}>
-            La plataforma que conoce tu portafolio y transforma la información financiera compleja en explicaciones claras y personalizadas para ayudarte a invertir con confianza.
+            {t("landing.heroSubtitle")}
           </p>
         </div>
 
         {/* Social proof bar */}
         <div className="flex items-center gap-0 mb-10 animate-fade-in-up stagger-1">
           {[
-            { value: "2,847", label: "inversores activos" },
-            { value: "4.9 ★", label: "calificación" },
-            { value: "< 2 min", label: "para empezar" },
+            { value: "2,847", label: t("landing.stats.activeInvestors") },
+            { value: "4.9 ★", label: t("landing.stats.rating") },
+            { value: "< 2 min", label: t("landing.stats.toStart") },
           ].map((stat, i) => (
             <div key={stat.label} className="flex items-center">
               <div className="text-center px-5 first:pl-0">
@@ -290,14 +296,13 @@ export default function Home() {
             ))}
           </div>
           <p className="text-sm italic leading-relaxed mb-3" style={{ color: "var(--muted)" }}>
-            &quot;Por primera vez entiendo qué está pasando con mis acciones. Nuvos me explica todo
-            sin hacerme sentir tonto.&quot;
+            &quot;{t("landing.testimonial")}&quot;
           </p>
           <div className="flex items-center gap-2.5">
             <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-black shrink-0"
                  style={{ background: "rgba(0,168,94,0.2)", color: "var(--accent-l)" }}>D</div>
             <span className="text-xs font-semibold" style={{ color: "rgba(255,255,255,0.35)" }}>
-              Diego R. · Ciudad de México
+              {t("landing.testimonialAuthor")}
             </span>
           </div>
         </div>
@@ -320,11 +325,11 @@ export default function Home() {
           <div className="lg:hidden mb-8 animate-fade-in-up">
             <h1 className="text-3xl font-black leading-tight tracking-tight mb-2"
                 style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
-              <span style={{ color: "var(--text)" }}>Con Nuvos,<br /></span>
-              <span className="gradient-text">construye tu futuro.</span>
+              <span style={{ color: "var(--text)" }}>{t("landing.heroLine1")}<br /></span>
+              <span className="gradient-text">{t("landing.heroLine2")}</span>
             </h1>
             <p className="text-sm leading-relaxed" style={{ color: "var(--muted)" }}>
-              La plataforma que conoce tu portafolio y transforma la información financiera compleja en explicaciones claras y personalizadas para ayudarte a invertir con confianza.
+              {t("landing.heroSubtitle")}
             </p>
           </div>
 
@@ -339,14 +344,14 @@ export default function Home() {
                 </div>
                 <div className="min-w-0">
                   <p className="text-[10px] font-semibold uppercase tracking-widest"
-                     style={{ color: "var(--accent-l)", opacity: 0.7 }}>Sesión activa</p>
+                     style={{ color: "var(--accent-l)", opacity: 0.7 }}>{t("landing.activeSession")}</p>
                   <p className="text-[13px] font-bold truncate" style={{ color: "var(--text)" }}>{existingUserName}</p>
                 </div>
               </div>
               <button onClick={() => router.push("/home")}
                       className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[12px] font-bold"
                       style={{ background: "rgba(0,168,94,0.15)", color: "var(--accent-l)" }}>
-                Continuar <ArrowRight className="w-3 h-3" />
+                {t("landing.continue")} <ArrowRight className="w-3 h-3" />
               </button>
             </div>
           )}
@@ -363,26 +368,26 @@ export default function Home() {
                        style={{ background: "rgba(34,197,94,0.12)" }}>
                     <span className="text-2xl">✓</span>
                   </div>
-                  <h2 className="text-xl font-black" style={{ color: "var(--text)" }}>¡Contraseña actualizada!</h2>
-                  <p className="text-sm" style={{ color: "var(--muted)" }}>Ya puedes iniciar sesión con tu nueva contraseña.</p>
+                  <h2 className="text-xl font-black" style={{ color: "var(--text)" }}>{t("landing.passwordUpdated")}</h2>
+                  <p className="text-sm" style={{ color: "var(--muted)" }}>{t("landing.passwordUpdatedBody")}</p>
                   <button onClick={() => { setMode("login"); setForgotStep("email"); setForgotDone(false); setError(""); }}
-                          className="btn-primary w-full mt-2">Iniciar sesión</button>
+                          className="btn-primary w-full mt-2">{t("landing.login")}</button>
                 </div>
               ) : (
                 <>
                   <button onClick={() => { setMode("login"); setForgotStep("email"); setError(""); }}
                           className="flex items-center gap-2 text-sm mb-6 transition-opacity hover:opacity-70"
-                          style={{ color: "var(--muted)" }}>← Volver</button>
+                          style={{ color: "var(--muted)" }}>{t("landing.back")}</button>
                   <h2 className="text-xl font-black tracking-tight mb-1"
                       style={{ color: "var(--text)", fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
-                    {forgotStep === "email" ? "¿Olvidaste tu contraseña?" : forgotStep === "code" ? `Verifica tu ${forgotMethod === "sms" ? "teléfono" : "email"}` : "Nueva contraseña"}
+                    {forgotStep === "email" ? t("landing.forgotPasswordTitle") : forgotStep === "code" ? t("landing.verifyYour", { channel: forgotMethod === "sms" ? t("landing.phone") : t("landing.email") }) : t("landing.newPassword")}
                   </h2>
                   <p className="text-sm mb-6" style={{ color: "var(--muted)" }}>
                     {forgotStep === "email"
-                      ? "Elige cómo recibir tu código de verificación."
+                      ? t("landing.chooseVerificationMethod")
                       : forgotStep === "code"
-                      ? `Ingresa el código de 6 dígitos que enviamos a ${forgotMethod === "sms" ? forgotPhone : forgotEmail}.`
-                      : "Elige una nueva contraseña segura."}
+                      ? t("landing.codeSentTo", { destination: forgotMethod === "sms" ? forgotPhone : forgotEmail })
+                      : t("landing.choosePassword")}
                   </p>
                   <form onSubmit={handleForgotSubmit} className="space-y-4">
                     {forgotStep === "email" && (
@@ -395,23 +400,23 @@ export default function Home() {
                                       background: forgotMethod === m ? "var(--card)" : "transparent",
                                       color: forgotMethod === m ? "var(--text)" : "var(--muted)",
                                     }}>
-                              {m === "email" ? "📧 Email" : "💬 SMS"}
+                              {m === "email" ? t("landing.emailOption") : t("landing.smsOption")}
                             </button>
                           ))}
                         </div>
                         <div>
                           <label className="block text-xs font-semibold mb-2 uppercase tracking-wider"
-                                 style={{ color: "var(--muted)" }}>Correo electrónico</label>
+                                 style={{ color: "var(--muted)" }}>{t("landing.emailLabel")}</label>
                           <input type="email" value={forgotEmail} onChange={(e) => setForgotEmail(e.target.value)}
                                  className="input-premium" placeholder="tu@email.com" required autoFocus />
                         </div>
                         {forgotMethod === "sms" && (
                           <div>
                             <label className="block text-xs font-semibold mb-2 uppercase tracking-wider"
-                                   style={{ color: "var(--muted)" }}>Número de teléfono</label>
+                                   style={{ color: "var(--muted)" }}>{t("landing.phoneLabel")}</label>
                             <input type="tel" value={forgotPhone} onChange={(e) => setForgotPhone(e.target.value)}
                                    className="input-premium" placeholder="+52 55 1234 5678" required />
-                            <p className="text-[11px] mt-1.5" style={{ color: "var(--dim)" }}>Incluye el código de país, ej: +52 para México</p>
+                            <p className="text-[11px] mt-1.5" style={{ color: "var(--dim)" }}>{t("landing.countryCodeHint")}</p>
                           </div>
                         )}
                       </>
@@ -419,7 +424,7 @@ export default function Home() {
                     {forgotStep === "code" && (
                       <div>
                         <label className="block text-xs font-semibold mb-2 uppercase tracking-wider"
-                               style={{ color: "var(--muted)" }}>Código de verificación</label>
+                               style={{ color: "var(--muted)" }}>{t("landing.verificationCode")}</label>
                         <input type="text"
                                value={forgotCode}
                                onChange={(e) => setForgotCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
@@ -428,13 +433,13 @@ export default function Home() {
                         <div className="flex items-center justify-center mt-3 gap-2">
                           {resendCooldown > 0 ? (
                             <span className="text-xs" style={{ color: "var(--muted)" }}>
-                              Reenviar en <span className="font-bold tabular-nums" style={{ color: "var(--accent-l)" }}>{resendCooldown}s</span>
+                              {t("landing.resendIn")} <span className="font-bold tabular-nums" style={{ color: "var(--accent-l)" }}>{resendCooldown}s</span>
                             </span>
                           ) : (
                             <button type="button" onClick={handleResend} disabled={loading}
                                     className="text-xs font-semibold transition-opacity hover:opacity-70 disabled:opacity-40"
                                     style={{ color: "var(--accent-l)" }}>
-                              Reenviar código →
+                              {t("landing.resendCode")}
                             </button>
                           )}
                         </div>
@@ -443,9 +448,9 @@ export default function Home() {
                     {forgotStep === "newpass" && (
                       <div>
                         <label className="block text-xs font-semibold mb-2 uppercase tracking-wider"
-                               style={{ color: "var(--muted)" }}>Nueva contraseña</label>
+                               style={{ color: "var(--muted)" }}>{t("landing.newPasswordLabel")}</label>
                         <input type="password" value={forgotNewPass} onChange={(e) => setForgotNewPass(e.target.value)}
-                               className="input-premium" placeholder="Mínimo 6 caracteres" required minLength={6} autoFocus />
+                               className="input-premium" placeholder={t("landing.min6Chars")} required minLength={6} autoFocus />
                       </div>
                     )}
                     {error && (
@@ -464,7 +469,7 @@ export default function Home() {
                         <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full"
                              style={{ animation: "spin 0.7s linear infinite" }} />
                       ) : (
-                        <>{forgotStep === "email" ? "Enviar código" : forgotStep === "code" ? "Verificar" : "Actualizar contraseña"} <ArrowRight className="w-4 h-4" /></>
+                        <>{forgotStep === "email" ? t("landing.sendCode") : forgotStep === "code" ? t("landing.verify") : t("landing.updatePassword")} <ArrowRight className="w-4 h-4" /></>
                       )}
                     </button>
                   </form>
@@ -477,10 +482,10 @@ export default function Home() {
                 <div className="mb-6">
                   <h2 className="text-xl font-black tracking-tight mb-1"
                       style={{ color: "var(--text)", fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
-                    {mode === "login" ? "Bienvenido de vuelta" : "Empieza hoy. Es gratis."}
+                    {mode === "login" ? t("landing.welcomeBack") : t("landing.startTodayFree")}
                   </h2>
                   <p className="text-sm" style={{ color: "var(--muted)" }}>
-                    {mode === "login" ? "Accede a tu mentor IA" : "Sin tarjeta de crédito requerida"}
+                    {mode === "login" ? t("landing.accessYourMentor") : t("landing.noCreditCard")}
                   </p>
                 </div>
 
@@ -498,13 +503,13 @@ export default function Home() {
                     <path d="M3.964 10.707A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.282-1.707V4.961H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.039l3.007-2.332z" fill="#FBBC05"/>
                     <path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.96L3.964 7.293C4.672 5.163 6.656 3.58 9 3.58z" fill="#EA4335"/>
                   </svg>
-                  {mode === "register" ? "Empezar gratis con Google" : "Continuar con Google"}
+                  {mode === "register" ? t("landing.startFreeWithGoogle") : t("landing.continueWithGoogle")}
                 </button>
 
                 {/* Divider */}
                 <div className="flex items-center gap-3 mb-4">
                   <div className="flex-1 h-px" style={{ background: "var(--border)" }} />
-                  <span className="text-xs" style={{ color: "var(--dim)" }}>o con email</span>
+                  <span className="text-xs" style={{ color: "var(--dim)" }}>{t("landing.orWithEmail")}</span>
                   <div className="flex-1 h-px" style={{ background: "var(--border)" }} />
                 </div>
 
@@ -517,7 +522,7 @@ export default function Home() {
                     <input type={showPass ? "text" : "password"}
                            value={password} onChange={(e) => setPassword(e.target.value)}
                            className="input-premium pr-11"
-                           placeholder={mode === "register" ? "Crea una contraseña (mín. 6)" : "Contraseña"}
+                           placeholder={mode === "register" ? t("landing.createPasswordPlaceholder") : t("landing.passwordLabel")}
                            required minLength={6} autoComplete={mode === "register" ? "new-password" : "current-password"} />
                     <button type="button" onClick={() => setShowPass(!showPass)}
                             className="absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded-lg transition-colors"
@@ -532,7 +537,7 @@ export default function Home() {
                               onClick={() => { setMode("forgot"); setForgotEmail(email); setForgotStep("email"); setError(""); }}
                               className="text-xs transition-opacity hover:opacity-70"
                               style={{ color: "var(--accent-l)" }}>
-                        ¿Olvidaste tu contraseña?
+                        {t("landing.forgotPassword")}
                       </button>
                     </div>
                   )}
@@ -550,7 +555,7 @@ export default function Home() {
                       <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full"
                            style={{ animation: "spin 0.7s linear infinite" }} />
                     ) : (
-                      <>{mode === "login" ? "Iniciar sesión" : "Crear mi cuenta"} <ArrowRight className="w-4 h-4" /></>
+                      <>{mode === "login" ? t("landing.login") : t("landing.createAccount")} <ArrowRight className="w-4 h-4" /></>
                     )}
                   </button>
                 </form>
@@ -558,19 +563,19 @@ export default function Home() {
                 {/* Switch mode */}
                 <p className="text-center text-sm mt-5" style={{ color: "var(--muted)" }}>
                   {mode === "login" ? (
-                    <>¿Eres nuevo?{" "}
+                    <>{t("landing.newHere")}{" "}
                       <button onClick={() => { setMode("register"); setError(""); }}
                               className="font-bold transition-opacity hover:opacity-80"
                               style={{ color: "var(--accent-l)" }}>
-                        Crea tu cuenta gratis →
+                        {t("landing.createFreeAccount")}
                       </button>
                     </>
                   ) : (
-                    <>¿Ya tienes cuenta?{" "}
+                    <>{t("landing.alreadyHaveAccount")}{" "}
                       <button onClick={() => { setMode("login"); setError(""); }}
                               className="font-bold transition-opacity hover:opacity-80"
                               style={{ color: "var(--accent-l)" }}>
-                        Inicia sesión →
+                        {t("landing.loginArrow")}
                       </button>
                     </>
                   )}
@@ -585,12 +590,12 @@ export default function Home() {
               <button onClick={() => { localStorage.setItem("nuvos_ob", "1"); setEmail("demo@nuvosai.app"); setPassword("demo1234"); setMode("login"); }}
                       className="text-xs py-2.5 rounded-xl text-center transition-all hover:opacity-80"
                       style={{ background: "rgba(255,255,255,0.03)", border: "1px solid var(--border)", color: "var(--muted)" }}>
-                Ver cuenta demo
+                {t("landing.viewDemoAccount")}
               </button>
               <button onClick={() => { localStorage.setItem("nuvos_ob", "1"); localStorage.setItem("nuvos_guest", "1"); router.push("/home"); }}
                       className="text-xs py-2.5 rounded-xl text-center transition-all hover:opacity-80"
                       style={{ background: "rgba(255,255,255,0.03)", border: "1px solid var(--border)", color: "var(--muted)" }}>
-                Explorar sin cuenta →
+                {t("landing.exploreWithoutAccount")}
               </button>
             </div>
           )}
@@ -598,10 +603,10 @@ export default function Home() {
           {/* Trust + Legal */}
           <p className="text-center text-[11px] mt-4 leading-relaxed animate-fade-in"
              style={{ color: "var(--dim)" }}>
-            🔐 Tus datos nunca se venden · Al continuar aceptas los{" "}
-            <a href="/terms" className="hover:opacity-80 transition-opacity underline" style={{ color: "var(--muted)" }}>Términos</a>
-            {" "}y la{" "}
-            <a href="/privacy" className="hover:opacity-80 transition-opacity underline" style={{ color: "var(--muted)" }}>Privacidad</a>
+            🔐 {t("landing.dataNeverSold")}{" "}
+            <a href="/terms" className="hover:opacity-80 transition-opacity underline" style={{ color: "var(--muted)" }}>{t("landing.terms")}</a>
+            {" "}{t("landing.and")}{" "}
+            <a href="/privacy" className="hover:opacity-80 transition-opacity underline" style={{ color: "var(--muted)" }}>{t("landing.privacy")}</a>
           </p>
 
         </div>

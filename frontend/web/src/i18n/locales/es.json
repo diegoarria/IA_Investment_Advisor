@@ -2556,13 +2556,29 @@
     "selectedPeriod": "período seleccionado",
     "totalAnalysts": "{{count}} analistas en total",
     "periods": {
-      "d1": "1D", "d5": "5D", "m1": "1M", "m3": "3M", "m6": "6M", "y1": "1A", "y5": "5A", "max": "Máx"
+      "d1": "1D",
+      "d5": "5D",
+      "m1": "1M",
+      "m3": "3M",
+      "m6": "6M",
+      "y1": "1A",
+      "y5": "5A",
+      "max": "Máx"
     },
     "tabs": {
-      "verdict": "Resumen", "chart": "Gráfica", "financials": "Financieros", "analyst": "Analistas", "company": "Empresa"
+      "verdict": "Resumen",
+      "chart": "Gráfica",
+      "financials": "Financieros",
+      "analyst": "Analistas",
+      "company": "Empresa"
     },
     "recommendation": {
-      "strongBuy": "Compra Fuerte", "buy": "Compra", "hold": "Mantener", "neutral": "Neutral", "sell": "Vender", "strongSell": "Venta Fuerte"
+      "strongBuy": "Compra Fuerte",
+      "buy": "Compra",
+      "hold": "Mantener",
+      "neutral": "Neutral",
+      "sell": "Vender",
+      "strongSell": "Venta Fuerte"
     },
     "couldNotLoadChart": "No se pudieron cargar los datos",
     "tryAnotherPeriod": "Intenta con otro período o vuelve a intentarlo más tarde",
@@ -2570,7 +2586,9 @@
     "annual": "Anual",
     "quarterly": "Trimestral",
     "finTabs": {
-      "income": "Est. Resultados", "balance": "Balance General", "cashflow": "Flujo de Caja"
+      "income": "Est. Resultados",
+      "balance": "Balance General",
+      "cashflow": "Flujo de Caja"
     },
     "analyzingBusiness": "Analizando el negocio…",
     "couldNotCalculateScore": "No se pudo calcular el score",
@@ -2587,7 +2605,12 @@
     "priceTargetLabel": "Precio Objetivo:",
     "loadingChart": "Cargando gráfica…",
     "priceTargetTable": {
-      "target": "Objetivo", "low": "Mínimo", "avg": "Promedio", "high": "Máximo", "price": "Precio", "potential": "Potencial"
+      "target": "Objetivo",
+      "low": "Mínimo",
+      "avg": "Promedio",
+      "high": "Máximo",
+      "price": "Precio",
+      "potential": "Potencial"
     },
     "recommendationDistribution": "Distribución de Recomendaciones",
     "analystsCount": "{{count}} analistas",
@@ -2633,13 +2656,36 @@
     "oneYearAgo": "hace 1 año",
     "plus12Months": "+12 meses",
     "metricLabels": {
-      "capMkt": "Cap. Mkt", "ev": "EV", "peTtm": "P/E (TTM)", "peFwd": "P/E Fwd", "peg": "PEG", "ps": "P/S", "pb": "P/B",
-      "evEbitda": "EV/EBITDA", "evRevenue": "EV/Revenue", "grossMargin": "Margen Bruto", "opMargin": "Margen Op.",
-      "netMargin": "Margen Neto", "ebitdaPct": "EBITDA %", "roe": "ROE", "roa": "ROA", "revGrowth": "Crec. Rev.",
-      "earningsGrowth": "Crec. Ganancias", "freeCashFlow": "Flujo Libre", "debtEquity": "Deuda/Capital",
-      "currentRatio": "Ratio Corriente", "quickRatio": "Ratio Rápido", "cash": "Efectivo", "totalDebt": "Deuda Total",
-      "bookValue": "Book Value", "sma50": "SMA 50", "sma200": "SMA 200", "beta": "Beta", "shortPct": "Short %",
-      "shortRatio": "Short Ratio", "shares": "Acciones"
+      "capMkt": "Cap. Mkt",
+      "ev": "EV",
+      "peTtm": "P/E (TTM)",
+      "peFwd": "P/E Fwd",
+      "peg": "PEG",
+      "ps": "P/S",
+      "pb": "P/B",
+      "evEbitda": "EV/EBITDA",
+      "evRevenue": "EV/Revenue",
+      "grossMargin": "Margen Bruto",
+      "opMargin": "Margen Op.",
+      "netMargin": "Margen Neto",
+      "ebitdaPct": "EBITDA %",
+      "roe": "ROE",
+      "roa": "ROA",
+      "revGrowth": "Crec. Rev.",
+      "earningsGrowth": "Crec. Ganancias",
+      "freeCashFlow": "Flujo Libre",
+      "debtEquity": "Deuda/Capital",
+      "currentRatio": "Ratio Corriente",
+      "quickRatio": "Ratio Rápido",
+      "cash": "Efectivo",
+      "totalDebt": "Deuda Total",
+      "bookValue": "Book Value",
+      "sma50": "SMA 50",
+      "sma200": "SMA 200",
+      "beta": "Beta",
+      "shortPct": "Short %",
+      "shortRatio": "Short Ratio",
+      "shares": "Acciones"
     },
     "metricHints": {
       "capMkt": "Valor total de todas las acciones en el mercado. Mide qué tan grande es la empresa.",
@@ -2672,6 +2718,142 @@
       "shortPct": "Porcentaje de acciones que traders apuestan a que bajan. Muy alto puede indicar riesgo o posible 'short squeeze'.",
       "shortRatio": "Días que tardarían los vendedores en corto en cubrir sus posiciones. Más días = más presión potencial al alza.",
       "shares": "Total de acciones en circulación en el mercado."
+    }
+  },
+  "landing": {
+    "accessYourMentor": "Accede a tu mentor IA",
+    "activeSession": "Sesión activa",
+    "alreadyHaveAccount": "¿Ya tienes cuenta?",
+    "and": "y la",
+    "back": "← Volver",
+    "checkCredentials": "Verifica tus credenciales e inténtalo de nuevo.",
+    "choosePassword": "Elige una nueva contraseña segura.",
+    "chooseVerificationMethod": "Elige cómo recibir tu código de verificación.",
+    "codeSentTo": "Ingresa el código de 6 dígitos que enviamos a {{destination}}.",
+    "continue": "Continuar",
+    "continueWithGoogle": "Continuar con Google",
+    "countryCodeHint": "Incluye el código de país, ej: +52 para México",
+    "createAccount": "Crear mi cuenta",
+    "createFreeAccount": "Crea tu cuenta gratis →",
+    "createPasswordPlaceholder": "Crea una contraseña (mín. 6)",
+    "dataNeverSold": "Tus datos nunca se venden · Al continuar aceptas los",
+    "email": "email",
+    "emailLabel": "Correo electrónico",
+    "emailOption": "📧 Email",
+    "exploreWithoutAccount": "Explorar sin cuenta →",
+    "forgotPassword": "¿Olvidaste tu contraseña?",
+    "forgotPasswordTitle": "¿Olvidaste tu contraseña?",
+    "genericError": "Ocurrió un error. Inténtalo de nuevo.",
+    "heroLine1": "Con Nuvos,",
+    "heroLine2": "construye tu futuro.",
+    "heroSubtitle": "La plataforma que conoce tu portafolio y transforma la información financiera compleja en explicaciones claras y personalizadas para ayudarte a invertir con confianza.",
+    "login": "Iniciar sesión",
+    "loginArrow": "Inicia sesión →",
+    "min6Chars": "Mínimo 6 caracteres",
+    "newHere": "¿Eres nuevo?",
+    "newPassword": "Nueva contraseña",
+    "newPasswordLabel": "Nueva contraseña",
+    "noCreditCard": "Sin tarjeta de crédito requerida",
+    "orWithEmail": "o con email",
+    "passwordLabel": "Contraseña",
+    "passwordUpdated": "¡Contraseña actualizada!",
+    "passwordUpdatedBody": "Ya puedes iniciar sesión con tu nueva contraseña.",
+    "phone": "teléfono",
+    "phoneLabel": "Número de teléfono",
+    "pillars": {
+      "action": {
+        "desc": "Registra cada decisión, detecta tus patrones de comportamiento y actúa con más confianza.",
+        "title": "De la duda a la acción"
+      },
+      "alerts": {
+        "desc": "Cuando algo en el mercado afecte lo que tienes invertido, te avisamos y te explicamos qué significa.",
+        "title": "Alertas que realmente importan"
+      },
+      "mentor": {
+        "desc": "Pregunta cualquier cosa sobre tus inversiones. Respuestas claras, personalizadas, sin jerga.",
+        "title": "Mentor IA siempre disponible"
+      }
+    },
+    "privacy": "Privacidad",
+    "resendCode": "Reenviar código →",
+    "resendError": "No se pudo reenviar. Inténtalo de nuevo.",
+    "resendIn": "Reenviar en",
+    "sendCode": "Enviar código",
+    "smsOption": "💬 SMS",
+    "startFreeWithGoogle": "Empezar gratis con Google",
+    "startTodayFree": "Empieza hoy. Es gratis.",
+    "stats": {
+      "activeInvestors": "inversores activos",
+      "rating": "calificación",
+      "toStart": "para empezar"
+    },
+    "terms": "Términos",
+    "testimonial": "Por primera vez entiendo qué está pasando con mis acciones. Nuvos me explica todo sin hacerme sentir tonto.",
+    "testimonialAuthor": "Diego R. · Ciudad de México",
+    "unknown": "desconocido",
+    "updatePassword": "Actualizar contraseña",
+    "verificationCode": "Código de verificación",
+    "verify": "Verificar",
+    "verifyYour": "Verifica tu {{channel}}",
+    "viewDemoAccount": "Ver cuenta demo",
+    "welcomeBack": "Bienvenido de vuelta",
+    "yourAccount": "tu cuenta"
+  },
+  "notificationSettings": {
+    "title": "Notificaciones",
+    "loadError": "Error al cargar preferencias",
+    "pushSection": "Push (Mobile)",
+    "emailSection": "Emails",
+    "limitsSection": "Límites",
+    "maxPerDay": "Máx. por día",
+    "quietHours": "Horas silenciosas (ET)",
+    "from": "Desde",
+    "to": "Hasta",
+    "saved": "Guardado ✓",
+    "saveChanges": "Guardar cambios",
+    "push": {
+      "marketOpen": {
+        "label": "Apertura del mercado",
+        "desc": "9:30 AM ET cada día hábil"
+      },
+      "marketClose": {
+        "label": "Cierre del mercado",
+        "desc": "4:00 PM ET cada día hábil"
+      },
+      "portfolioAlerts": {
+        "label": "Alertas de portafolio",
+        "desc": "Movimientos ±4%, earnings y dividendos de tus posiciones"
+      },
+      "watchlistAlerts": {
+        "label": "Alertas de watchlist",
+        "desc": "Movimientos ±4%, earnings y dividendos de tu lista de seguimiento"
+      },
+      "news": {
+        "label": "Noticias importantes",
+        "desc": "Fed, CPI, resultados trimestrales"
+      },
+      "aiRecommendations": {
+        "label": "Recomendaciones IA",
+        "desc": "Insights personalizados según tu perfil"
+      },
+      "milestones": {
+        "label": "Hitos y logros",
+        "desc": "Rachas, metas y aniversarios"
+      },
+      "volatility": {
+        "label": "Alertas de volatilidad",
+        "desc": "Eventos de alta volatilidad"
+      }
+    },
+    "email": {
+      "daily": {
+        "label": "Resumen diario",
+        "desc": "Lun–Vie a las 6:00 PM ET"
+      },
+      "weekly": {
+        "label": "Resumen semanal",
+        "desc": "Sábados con análisis premium"
+      }
     }
   }
 }

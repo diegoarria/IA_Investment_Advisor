@@ -7,6 +7,8 @@ import type { BottomTabBarProps } from "@react-navigation/bottom-tabs";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { router } from "expo-router";
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import { useTheme } from "../../src/lib/ThemeContext";
 import { useAppStore } from "../../src/lib/profileStore";
 import { useNavOrderStore } from "../../src/lib/navOrderStore";
@@ -16,40 +18,46 @@ import MarketTicker from "../../src/components/MarketTicker";
 
 type IoniconName = React.ComponentProps<typeof Ionicons>["name"];
 
-const TAB_CONFIG: Record<string, { icon: IoniconName; iconFilled: IoniconName; label: string }> = {
-  // ── 4 main tabs ──
-  home:          { icon: "home-outline",            iconFilled: "home",            label: "Inicio" },
-  chat:          { icon: "sparkles-outline",        iconFilled: "sparkles",        label: "Mentor IA" },
-  patrimonio:    { icon: "wallet-outline",          iconFilled: "wallet",          label: "Patrimonio" },
-  academy:       { icon: "school-outline",          iconFilled: "school",          label: "Academy" },
-  // ── Secondary screens (accessible from hub screens) ──
-  portfolio:     { icon: "pie-chart-outline",       iconFilled: "pie-chart",       label: "Portafolio" },
-  watchlist:     { icon: "pulse-outline",           iconFilled: "pulse",           label: "Watchlist" },
-  paper:         { icon: "bar-chart-outline",       iconFilled: "bar-chart",       label: "Paper" },
-  learn:         { icon: "book-outline",            iconFilled: "book",            label: "Aprendizaje" },
-  videos:        { icon: "play-outline",            iconFilled: "play",            label: "Videos" },
-  investors:     { icon: "people-outline",          iconFilled: "people",          label: "Inversores" },
-  notifications: { icon: "notifications-outline",   iconFilled: "notifications",   label: "Notificaciones" },
-  support:       { icon: "headset-outline",         iconFilled: "headset",         label: "Soporte" },
-  profile:       { icon: "person-outline",          iconFilled: "person",          label: "Perfil" },
-  products:      { icon: "bag-outline",             iconFilled: "bag",             label: "Productos" },
-};
+function getTabConfig(t: TFunction): Record<string, { icon: IoniconName; iconFilled: IoniconName; label: string }> {
+  return {
+    // ── 4 main tabs ──
+    home:          { icon: "home-outline",            iconFilled: "home",            label: t("tabsLayout.tabs.home") },
+    chat:          { icon: "sparkles-outline",        iconFilled: "sparkles",        label: t("tabsLayout.tabs.chat") },
+    patrimonio:    { icon: "wallet-outline",          iconFilled: "wallet",          label: t("tabsLayout.tabs.patrimonio") },
+    academy:       { icon: "school-outline",          iconFilled: "school",          label: t("tabsLayout.tabs.academy") },
+    // ── Secondary screens (accessible from hub screens) ──
+    portfolio:     { icon: "pie-chart-outline",       iconFilled: "pie-chart",       label: t("tabsLayout.tabs.portfolio") },
+    watchlist:     { icon: "pulse-outline",           iconFilled: "pulse",           label: t("tabsLayout.tabs.watchlist") },
+    paper:         { icon: "bar-chart-outline",       iconFilled: "bar-chart",       label: t("tabsLayout.tabs.paper") },
+    learn:         { icon: "book-outline",            iconFilled: "book",            label: t("tabsLayout.tabs.learn") },
+    videos:        { icon: "play-outline",            iconFilled: "play",            label: t("tabsLayout.tabs.videos") },
+    investors:     { icon: "people-outline",          iconFilled: "people",          label: t("tabsLayout.tabs.investors") },
+    notifications: { icon: "notifications-outline",   iconFilled: "notifications",   label: t("tabsLayout.tabs.notifications") },
+    support:       { icon: "headset-outline",         iconFilled: "headset",         label: t("tabsLayout.tabs.support") },
+    profile:       { icon: "person-outline",          iconFilled: "person",          label: t("tabsLayout.tabs.profile") },
+    products:      { icon: "bag-outline",             iconFilled: "bag",             label: t("tabsLayout.tabs.products") },
+  };
+}
 
 const FIXED_TABS = ["home", "chat", "patrimonio", "academy"] as const;
 
-const GOAL_MAP: Record<string, { label: string; emoji: string }> = {
-  house:             { label: "Comprar una casa",         emoji: "🏠" },
-  car:               { label: "Comprar un carro",         emoji: "🚗" },
-  passive_income:    { label: "Vivir de mis inversiones", emoji: "💸" },
-  retirement:        { label: "Retiro / pensión",         emoji: "👴" },
-  financial_freedom: { label: "Libertad financiera",      emoji: "🦅" },
-  long_term_wealth:  { label: "Patrimonio a largo plazo", emoji: "🏛️" },
-};
+function getGoalMap(t: TFunction): Record<string, { label: string; emoji: string }> {
+  return {
+    house:             { label: t("profileEdit.goals.house"),             emoji: "🏠" },
+    car:               { label: t("profileEdit.goals.car"),               emoji: "🚗" },
+    passive_income:    { label: t("profileEdit.goals.passive_income"),    emoji: "💸" },
+    retirement:        { label: t("profileEdit.goals.retirement"),        emoji: "👴" },
+    financial_freedom: { label: t("profileEdit.goals.financial_freedom"), emoji: "🦅" },
+    long_term_wealth:  { label: t("profileEdit.goals.long_term_wealth"),  emoji: "🏛️" },
+  };
+}
 
 // ─── Custom Tab Bar ───────────────────────────────────────────────────────────
 
 function CustomTabBar({ state, navigation }: BottomTabBarProps) {
   const { colors } = useTheme();
+  const { t } = useTranslation();
+  const TAB_CONFIG = getTabConfig(t);
   const insets = useSafeAreaInsets();
 
   const visibleRoutes = FIXED_TABS
@@ -148,6 +156,8 @@ const tabStyles = StyleSheet.create({
 
 function MobileHeader({ title }: { title: string }) {
   const { colors, isDark, toggle } = useTheme();
+  const { t } = useTranslation();
+  const GOAL_MAP = getGoalMap(t);
   const openSidebar = useAppStore((s) => s.openSidebar);
   const profile = useAppStore((s) => s.profile);
   const subStore = useSubscriptionStore();
@@ -170,18 +180,18 @@ function MobileHeader({ title }: { title: string }) {
       {!profile ? (
         <TouchableOpacity onPress={() => router.navigate("/")} activeOpacity={0.7}
           style={{ height: 24, backgroundColor: "rgba(99,102,241,0.06)", borderBottomWidth: 0.5, borderBottomColor: "rgba(99,102,241,0.2)", flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4 }}>
-          <Text style={{ color: "#818cf8", fontSize: 10, fontWeight: "700" }}>Crear cuenta · Iniciar sesión</Text>
+          <Text style={{ color: "#818cf8", fontSize: 10, fontWeight: "700" }}>{t("tabsLayout.createAccountLogin")}</Text>
           <Text style={{ color: "#818cf8", fontSize: 10 }}>→</Text>
         </TouchableOpacity>
       ) : isPremium && isTrialPremium ? (
         <View style={{ height: 24, backgroundColor: "rgba(0,212,126,0.08)", borderBottomWidth: 0.5, borderBottomColor: "rgba(0,212,126,0.25)", flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6 }}>
-          <Text style={{ color: "#00d47e", fontSize: 10, fontWeight: "700" }}>✦ Premium Gratis</Text>
+          <Text style={{ color: "#00d47e", fontSize: 10, fontWeight: "700" }}>✦ {t("tabsLayout.premiumFree")}</Text>
           <Text style={{ color: "#00d47e", fontSize: 10 }}>·</Text>
-          <Text style={{ color: "#00d47e", fontSize: 10, fontWeight: "600" }}>{trialDaysLeft}d restantes</Text>
+          <Text style={{ color: "#00d47e", fontSize: 10, fontWeight: "600" }}>{t("tabsLayout.daysLeft", { days: trialDaysLeft })}</Text>
         </View>
       ) : !isPremium ? (
         <View style={{ height: 24, backgroundColor: "rgba(245,158,11,0.06)", borderBottomWidth: 0.5, borderBottomColor: "rgba(245,158,11,0.2)", flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4 }}>
-          <Text style={{ color: "#f59e0b", fontSize: 10, fontWeight: "700" }}>Activar Premium</Text>
+          <Text style={{ color: "#f59e0b", fontSize: 10, fontWeight: "700" }}>{t("tabsLayout.activatePremium")}</Text>
           <Text style={{ color: "#f59e0b", fontSize: 10 }}>→</Text>
         </View>
       ) : profile.investment_goal ? (
@@ -189,7 +199,7 @@ function MobileHeader({ title }: { title: string }) {
         <View style={{ height: 26, backgroundColor: "rgba(0,212,126,0.06)", borderBottomWidth: 0.5, borderBottomColor: "rgba(0,212,126,0.18)", flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5 }}>
           <Text style={{ fontSize: 12 }}>{GOAL_MAP[profile.investment_goal]?.emoji ?? "🎯"}</Text>
           <Text style={{ color: "#00d47e", fontSize: 10, fontWeight: "700" }}>
-            {GOAL_MAP[profile.investment_goal]?.label ?? "Mi meta"}
+            {GOAL_MAP[profile.investment_goal]?.label ?? t("tabsLayout.myGoal")}
           </Text>
           {!!profile.investment_goal_amount && (
             <Text style={{ color: "#00d47e", fontSize: 10, fontWeight: "600" }}>
@@ -252,7 +262,7 @@ function MobileHeader({ title }: { title: string }) {
             style={{ paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, borderWidth: 1, borderColor: "rgba(99,102,241,0.3)", backgroundColor: "rgba(99,102,241,0.08)" }}
             activeOpacity={0.7}
           >
-            <Text style={{ fontSize: 11, fontWeight: "700", color: "#818cf8" }}>Entrar</Text>
+            <Text style={{ fontSize: 11, fontWeight: "700", color: "#818cf8" }}>{t("tabsLayout.login")}</Text>
           </TouchableOpacity>
         )}
       </View>
@@ -300,6 +310,7 @@ const headerStyles = StyleSheet.create({
 // ─── Root Tab Layout ──────────────────────────────────────────────────────────
 
 export default function TabsLayout() {
+  const { t } = useTranslation();
   const isWeb = Platform.OS === "web";
   const loadOrder = useNavOrderStore((s) => s.loadOrder);
   const loadWatchlist = useWatchlistStore((s) => s.loadFromServer);
@@ -374,21 +385,21 @@ export default function TabsLayout() {
     >
       {/* ── 4 primary hub tabs ────────────────────────────────────────── */}
       <Tabs.Screen name="home"       options={{ headerShown: false }} />
-      <Tabs.Screen name="chat"       options={{ title: "Mentor IA",      header: () => <MobileHeader title="Mentor IA" /> }} />
+      <Tabs.Screen name="chat"       options={{ title: t("tabsLayout.tabs.chat"),      header: () => <MobileHeader title={t("tabsLayout.tabs.chat")} /> }} />
       <Tabs.Screen name="patrimonio" options={{ headerShown: false }} />
       <Tabs.Screen name="academy"    options={{ headerShown: false }} />
       {/* ── Secondary screens (accessible from hub pages) ─────────────── */}
-      <Tabs.Screen name="portfolio"     options={{ title: "Portafolio",    header: () => <MobileHeader title="Mi Portafolio" /> }} />
-      <Tabs.Screen name="watchlist"     options={{ title: "Watchlist",     header: () => <MobileHeader title="Watchlist" /> }} />
-      <Tabs.Screen name="paper"         options={{ href: null, title: "Simulador", header: () => <MobileHeader title="Simulador" /> }} />
-      <Tabs.Screen name="learn"         options={{ title: "Aprendizaje",   header: () => <MobileHeader title="Aprendizaje" /> }} />
-      <Tabs.Screen name="videos"        options={{ title: "Videos",        header: () => <MobileHeader title="Videos" /> }} />
-      <Tabs.Screen name="investors"     options={{ title: "Inversores",    header: () => <MobileHeader title="Inversores" /> }} />
-      <Tabs.Screen name="notifications" options={{ title: "Notificaciones", header: () => <MobileHeader title="Notificaciones" /> }} />
-      <Tabs.Screen name="profile"       options={{ title: "Perfil",        header: () => <MobileHeader title="Mi Perfil" /> }} />
-      <Tabs.Screen name="products"      options={{ title: "Productos",     header: () => <MobileHeader title="Productos y Servicios" /> }} />
-      <Tabs.Screen name="progress"      options={{ title: "Evolución",     header: () => <MobileHeader title="Tu evolución como inversionista" /> }} />
-      <Tabs.Screen name="support"       options={{ title: "Soporte",       header: () => <MobileHeader title="Soporte" /> }} />
+      <Tabs.Screen name="portfolio"     options={{ title: t("tabsLayout.tabs.portfolio"),    header: () => <MobileHeader title={t("tabsLayout.myPortfolio")} /> }} />
+      <Tabs.Screen name="watchlist"     options={{ title: t("tabsLayout.tabs.watchlist"),     header: () => <MobileHeader title={t("tabsLayout.tabs.watchlist")} /> }} />
+      <Tabs.Screen name="paper"         options={{ href: null, title: t("tabsLayout.simulator"), header: () => <MobileHeader title={t("tabsLayout.simulator")} /> }} />
+      <Tabs.Screen name="learn"         options={{ title: t("tabsLayout.tabs.learn"),   header: () => <MobileHeader title={t("tabsLayout.tabs.learn")} /> }} />
+      <Tabs.Screen name="videos"        options={{ title: t("tabsLayout.tabs.videos"),        header: () => <MobileHeader title={t("tabsLayout.tabs.videos")} /> }} />
+      <Tabs.Screen name="investors"     options={{ title: t("tabsLayout.tabs.investors"),    header: () => <MobileHeader title={t("tabsLayout.tabs.investors")} /> }} />
+      <Tabs.Screen name="notifications" options={{ title: t("tabsLayout.tabs.notifications"), header: () => <MobileHeader title={t("tabsLayout.tabs.notifications")} /> }} />
+      <Tabs.Screen name="profile"       options={{ title: t("tabsLayout.tabs.profile"),        header: () => <MobileHeader title={t("tabsLayout.myProfile")} /> }} />
+      <Tabs.Screen name="products"      options={{ title: t("tabsLayout.tabs.products"),     header: () => <MobileHeader title={t("tabsLayout.productsAndServices")} /> }} />
+      <Tabs.Screen name="progress"      options={{ title: t("tabsLayout.evolution"),     header: () => <MobileHeader title={t("tabsLayout.yourEvolution")} /> }} />
+      <Tabs.Screen name="support"       options={{ title: t("tabsLayout.tabs.support"),       header: () => <MobileHeader title={t("tabsLayout.tabs.support")} /> }} />
       <Tabs.Screen name="explore"       options={{ href: null }} />
     </Tabs>
   );

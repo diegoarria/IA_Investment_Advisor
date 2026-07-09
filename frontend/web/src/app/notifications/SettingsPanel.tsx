@@ -2,24 +2,30 @@
 
 import { useEffect, useState } from "react";
 import { X, Loader2 } from "lucide-react";
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import { useAuthStore } from "@/lib/store";
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? "";
 
-const PUSH_TOGGLES = [
-  { key: "push_market_open",        label: "Apertura del mercado",    desc: "9:30 AM ET cada día hábil" },
-  { key: "push_market_close",       label: "Cierre del mercado",      desc: "4:00 PM ET cada día hábil" },
-  { key: "push_portfolio_alerts",   label: "Alertas de portafolio",   desc: "Movimientos ±4%, earnings y dividendos de tus posiciones" },
-  { key: "push_watchlist_alerts",   label: "Alertas de watchlist",    desc: "Movimientos ±4%, earnings y dividendos de tu lista de seguimiento" },
-  { key: "push_news_general",       label: "Noticias importantes",    desc: "Fed, CPI, resultados trimestrales" },
-  { key: "push_ai_recommendations", label: "Recomendaciones IA",      desc: "Insights personalizados según tu perfil" },
-  { key: "push_milestones",         label: "Hitos y logros",          desc: "Rachas, metas y aniversarios" },
-  { key: "push_volatility",         label: "Alertas de volatilidad",  desc: "Eventos de alta volatilidad" },
-];
-const EMAIL_TOGGLES = [
-  { key: "email_daily_summary",  label: "Resumen diario",  desc: "Lun–Vie a las 6:00 PM ET" },
-  { key: "email_weekly_summary", label: "Resumen semanal", desc: "Sábados con análisis premium" },
-];
+function getPushToggles(t: TFunction) {
+  return [
+    { key: "push_market_open",        label: t("notificationSettings.push.marketOpen.label"),        desc: t("notificationSettings.push.marketOpen.desc") },
+    { key: "push_market_close",       label: t("notificationSettings.push.marketClose.label"),       desc: t("notificationSettings.push.marketClose.desc") },
+    { key: "push_portfolio_alerts",   label: t("notificationSettings.push.portfolioAlerts.label"),   desc: t("notificationSettings.push.portfolioAlerts.desc") },
+    { key: "push_watchlist_alerts",   label: t("notificationSettings.push.watchlistAlerts.label"),   desc: t("notificationSettings.push.watchlistAlerts.desc") },
+    { key: "push_news_general",       label: t("notificationSettings.push.news.label"),              desc: t("notificationSettings.push.news.desc") },
+    { key: "push_ai_recommendations", label: t("notificationSettings.push.aiRecommendations.label"), desc: t("notificationSettings.push.aiRecommendations.desc") },
+    { key: "push_milestones",         label: t("notificationSettings.push.milestones.label"),        desc: t("notificationSettings.push.milestones.desc") },
+    { key: "push_volatility",         label: t("notificationSettings.push.volatility.label"),        desc: t("notificationSettings.push.volatility.desc") },
+  ];
+}
+function getEmailToggles(t: TFunction) {
+  return [
+    { key: "email_daily_summary",  label: t("notificationSettings.email.daily.label"),  desc: t("notificationSettings.email.daily.desc") },
+    { key: "email_weekly_summary", label: t("notificationSettings.email.weekly.label"), desc: t("notificationSettings.email.weekly.desc") },
+  ];
+}
 
 interface Props { onClose: () => void }
 
@@ -39,6 +45,9 @@ function Toggle({ on, onClick }: { on: boolean; onClick: () => void }) {
 }
 
 export default function NotificationSettingsPanel({ onClose }: Props) {
+  const { t } = useTranslation();
+  const PUSH_TOGGLES = getPushToggles(t);
+  const EMAIL_TOGGLES = getEmailToggles(t);
   const { token } = useAuthStore();
   const [prefs, setPrefs] = useState<Record<string, any> | null>(null);
   const [loading, setLoading] = useState(true);
@@ -90,7 +99,7 @@ export default function NotificationSettingsPanel({ onClose }: Props) {
         <div className="flex items-center justify-between px-5 py-4 shrink-0"
              style={{ borderBottom: "1px solid var(--border)" }}>
           <span className="font-bold text-base" style={{ color: "var(--text)" }}>
-            Notificaciones
+            {t("notificationSettings.title")}
           </span>
           <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-white/5"
                   style={{ color: "var(--muted)" }}>
@@ -106,7 +115,7 @@ export default function NotificationSettingsPanel({ onClose }: Props) {
             </div>
           ) : !prefs ? (
             <p className="text-sm text-center py-10" style={{ color: "var(--muted)" }}>
-              Error al cargar preferencias
+              {t("notificationSettings.loadError")}
             </p>
           ) : (
             <>
@@ -114,7 +123,7 @@ export default function NotificationSettingsPanel({ onClose }: Props) {
               <section>
                 <p className="text-xs font-black uppercase tracking-widest mb-3"
                    style={{ color: "var(--accent-l)", letterSpacing: "0.12em" }}>
-                  Push (Mobile)
+                  {t("notificationSettings.pushSection")}
                 </p>
                 <div className="space-y-1">
                   {PUSH_TOGGLES.map(({ key, label, desc }) => (
@@ -135,7 +144,7 @@ export default function NotificationSettingsPanel({ onClose }: Props) {
               <section>
                 <p className="text-xs font-black uppercase tracking-widest mb-3"
                    style={{ color: "var(--accent-l)", letterSpacing: "0.12em" }}>
-                  Emails
+                  {t("notificationSettings.emailSection")}
                 </p>
                 <div className="space-y-1">
                   {EMAIL_TOGGLES.map(({ key, label, desc }) => (
@@ -156,13 +165,13 @@ export default function NotificationSettingsPanel({ onClose }: Props) {
               <section>
                 <p className="text-xs font-black uppercase tracking-widest mb-3"
                    style={{ color: "var(--accent-l)", letterSpacing: "0.12em" }}>
-                  Límites
+                  {t("notificationSettings.limitsSection")}
                 </p>
                 <div className="p-4 rounded-xl space-y-5" style={{ background: "var(--raised)" }}>
                   <div>
                     <div className="flex justify-between mb-2">
                       <p className="text-sm font-semibold" style={{ color: "var(--text)" }}>
-                        Máx. por día
+                        {t("notificationSettings.maxPerDay")}
                       </p>
                       <span className="text-sm font-bold" style={{ color: "var(--accent-l)" }}>
                         {prefs.max_push_per_day}
@@ -176,13 +185,13 @@ export default function NotificationSettingsPanel({ onClose }: Props) {
 
                   <div>
                     <p className="text-sm font-semibold mb-2" style={{ color: "var(--text)" }}>
-                      Horas silenciosas (ET)
+                      {t("notificationSettings.quietHours")}
                     </p>
                     <div className="flex gap-3">
                       {(["quiet_hours_start", "quiet_hours_end"] as const).map((field, i) => (
                         <div key={field} className="flex-1">
                           <p className="text-xs mb-1" style={{ color: "var(--dim, #6b7280)" }}>
-                            {i === 0 ? "Desde" : "Hasta"}
+                            {i === 0 ? t("notificationSettings.from") : t("notificationSettings.to")}
                           </p>
                           <select
                             value={prefs[field] ?? (i === 0 ? 22 : 8)}
@@ -223,7 +232,7 @@ export default function NotificationSettingsPanel({ onClose }: Props) {
               opacity:    !prefs ? 0.5 : 1,
             }}
           >
-            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : saved ? "Guardado ✓" : "Guardar cambios"}
+            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : saved ? t("notificationSettings.saved") : t("notificationSettings.saveChanges")}
           </button>
         </div>
       </div>
