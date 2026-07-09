@@ -941,7 +941,7 @@ export default function WatchlistPage() {
 
             {alertModal.currentPrice != null && (
               <p className="text-xs" style={{ color: "var(--muted)" }}>
-                {t("watchlist.alertModal.currentPrice")} <span className="font-bold" style={{ color: "var(--text)" }}>${alertModal.currentPrice.toFixed(2)}</span>
+                {t("watchlist.alertModal.currentPrice")} <span className="font-bold" style={{ color: "var(--text)" }}>${alertModal.currentPrice.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
               </p>
             )}
 

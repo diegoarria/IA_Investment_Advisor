@@ -526,6 +526,15 @@ function fmtMoney(n: number): string {
   return `${neg}$${abs.toLocaleString("en-US",{maximumFractionDigits:0})}`;
 }
 
+// Adds thousand separators as the user types, while keeping the underlying
+// state a plain parseable numeric string (no commas).
+function formatWithCommas(raw: string): string {
+  if (!raw) return "";
+  const [intPart, decPart] = raw.split(".");
+  const withCommas = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  return decPart !== undefined ? `${withCommas}.${decPart}` : withCommas;
+}
+
 function getPositionRisk(ticker: string): number {
   if (TICKER_RISK_OVERRIDE[ticker] !== undefined) return TICKER_RISK_OVERRIDE[ticker];
   const sector = TICKER_SECTOR[ticker];
@@ -3211,7 +3220,9 @@ export default function PortfolioPage() {
                   <div className="flex items-center rounded-xl border overflow-hidden"
                        style={{ background:"var(--bg)", borderColor:"var(--border)" }}>
                     <span className="px-2 text-sm font-bold" style={{ color:"var(--muted)" }}>$</span>
-                    <input value={calcCapital} onChange={(e) => setCalcCapital(e.target.value)} type="number" min="0"
+                    <input value={formatWithCommas(calcCapital)}
+                           onChange={(e) => { const raw = e.target.value.replace(/,/g, ""); if (raw === "" || /^\d*\.?\d*$/.test(raw)) setCalcCapital(raw); }}
+                           type="text" inputMode="decimal"
                            className="flex-1 bg-transparent py-2.5 text-sm outline-none pr-2"
                            style={{ color:"var(--text)" }} placeholder="10,000" />
                   </div>
@@ -3221,7 +3232,9 @@ export default function PortfolioPage() {
                   <div className="flex items-center rounded-xl border overflow-hidden"
                        style={{ background:"var(--bg)", borderColor:"var(--border)" }}>
                     <span className="px-2 text-sm font-bold" style={{ color:"var(--muted)" }}>$</span>
-                    <input value={calcMonthly} onChange={(e) => setCalcMonthly(e.target.value)} type="number" min="0"
+                    <input value={formatWithCommas(calcMonthly)}
+                           onChange={(e) => { const raw = e.target.value.replace(/,/g, ""); if (raw === "" || /^\d*\.?\d*$/.test(raw)) setCalcMonthly(raw); }}
+                           type="text" inputMode="decimal"
                            className="flex-1 bg-transparent py-2.5 text-sm outline-none pr-2"
                            style={{ color:"var(--text)" }} placeholder="500" />
                   </div>
@@ -3565,7 +3578,7 @@ export default function PortfolioPage() {
                   />
                   {portfolioCurrency !== "USD" && editingPos.avgPrice && !isNaN(parseFloat(editingPos.avgPrice)) && (
                     <p className="text-[10px] mt-1" style={{ color:"var(--dim)" }}>
-                      ≈ ${(parseFloat(editingPos.avgPrice) / fxRate).toFixed(2)} USD
+                      ≈ ${(parseFloat(editingPos.avgPrice) / fxRate).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD
                     </p>
                   )}
                 </div>
@@ -3746,7 +3759,7 @@ export default function PortfolioPage() {
                     <button
                       onClick={() => setSellPrice(((portfolioCurrency === "USD" ? marketUSD : marketUSD * fxRate)).toFixed(2))}
                       className="text-[10px] mt-1 underline" style={{ color: "var(--accent-l)" }}>
-                      Usar precio actual de mercado ({currencySymbol}{(portfolioCurrency === "USD" ? marketUSD : marketUSD * fxRate).toFixed(2)})
+                      Usar precio actual de mercado ({currencySymbol}{(portfolioCurrency === "USD" ? marketUSD : marketUSD * fxRate).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })})
                     </button>
                   )}
                 </div>

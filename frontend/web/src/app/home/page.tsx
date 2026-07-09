@@ -1297,7 +1297,7 @@ export default function HomePage() {
                             <p className="text-xs truncate" style={{ color: "var(--muted)" }}>{(m as any).name ?? m.ticker}</p>
                           </div>
                           <div className="text-right">
-                            <p className="text-sm font-bold" style={{ color: "var(--text)" }}>{sym}{m.curr.toFixed(2)}</p>
+                            <p className="text-sm font-bold" style={{ color: "var(--text)" }}>{sym}{m.curr.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
                             <span className="text-xs font-bold px-2 py-0.5 rounded-full"
                                   style={{ background: "rgba(34,197,94,0.12)", color: "#22c55e" }}>
                               +{m.chg.toFixed(2)}%
@@ -1332,7 +1332,7 @@ export default function HomePage() {
                         <p className="text-xs truncate" style={{ color: "var(--muted)" }}>{(m as any).name ?? m.ticker}</p>
                       </div>
                       <div className="text-right">
-                        <p className="text-sm font-bold" style={{ color: "var(--text)" }}>{sym}{m.curr.toFixed(2)}</p>
+                        <p className="text-sm font-bold" style={{ color: "var(--text)" }}>{sym}{m.curr.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
                         <span className="text-xs font-bold px-2 py-0.5 rounded-full"
                               style={{ background: "rgba(239,68,68,0.12)", color: "#ef4444" }}>
                           {m.chg.toFixed(2)}%
